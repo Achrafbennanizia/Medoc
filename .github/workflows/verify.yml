@@ -1,0 +1,194 @@
+name: verify
+
+on:
+  push:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+      MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: System deps for Tauri-linked crates
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+      - run: cargo install cargo-audit --locked || true
+      - run: cargo audit
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - id: pm
+        name: Detect package manager
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "install=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "install=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "install=npm ci" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+      - run: corepack enable
+      - run: ${{ steps.pm.outputs.install }}
+      - name: Lint, typecheck, test, build
+        run: |
+          set -euo pipefail
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm)
+              pnpm --filter medoc run lint
+              pnpm --filter medoc run typecheck
+              pnpm --filter medoc-lan-web-client run typecheck
+              pnpm --filter medoc run test
+              pnpm --filter medoc run build
+              pnpm --filter medoc-lan-web-client run build
+              ;;
+            yarn)
+              yarn workspace medoc lint
+              yarn workspace medoc typecheck
+              yarn workspace medoc-lan-web-client typecheck
+              yarn workspace medoc test
+              yarn workspace medoc build
+              yarn workspace medoc-lan-web-client build
+              ;;
+            npm)
+              npm run lint -w medoc
+              npm run typecheck -w medoc
+              npm run typecheck -w medoc-lan-web-client
+              npm run test -w medoc
+              npm run build -w medoc
+              npm run build -w medoc-lan-web-client
+              ;;
+            *)
+              echo "Unsupported package manager: ${{ steps.pm.outputs.pm }}" >&2
+              exit 1
+              ;;
+          esac
+
+  a11y:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - id: pm
+        name: Detect package manager
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "install=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "install=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "install=npm ci" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+      - run: corepack enable
+      - run: ${{ steps.pm.outputs.install }}
+      - name: Build web UI
+        run: |
+          set -euo pipefail
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm --filter medoc run build ;;
+            yarn) yarn workspace medoc build ;;
+            npm) npm run build -w medoc ;;
+            *)
+              echo "Unsupported package manager: ${{ steps.pm.outputs.pm }}" >&2
+              exit 1
+              ;;
+          esac
+      - name: Run axe-core and fail on critical WCAG 2.1 A/AA violations
+        run: |
+          set -euo pipefail
+
+          DRIVER_OUTPUT="$(npx --yes browser-driver-manager install chrome)"
+          echo "$DRIVER_OUTPUT"
+          CHROME_PATH="$(printf '%s\n' "$DRIVER_OUTPUT" | awk -F'"' '/^CHROME_TEST_PATH=/{print $2}')"
+          CHROMEDRIVER_PATH="$(printf '%s\n' "$DRIVER_OUTPUT" | awk -F'"' '/^CHROMEDRIVER_TEST_PATH=/{print $2}')"
+          if [ -z "$CHROME_PATH" ] || [ -z "$CHROMEDRIVER_PATH" ]; then
+            echo "Failed to resolve Chrome / ChromeDriver paths." >&2
+            exit 1
+          fi
+
+          pushd apps/practice-host-ui/dist >/dev/null
+          python3 -m http.server 4173 >/tmp/medoc-a11y-server.log 2>&1 &
+          SERVER_PID=$!
+          popd >/dev/null
+          trap 'kill "$SERVER_PID"' EXIT
+          sleep 3
+
+          npx --yes @axe-core/cli "http://127.0.0.1:4173" \
+            --stdout \
+            --tags wcag2a,wcag2aa \
+            --chrome-path "$CHROME_PATH" \
+            --chromedriver-path "$CHROMEDRIVER_PATH" \
+            > axe-results.json
+
+          node <<'NODE'
+          const fs = require("node:fs");
+          const report = JSON.parse(fs.readFileSync("axe-results.json", "utf8"));
+          const critical = [];
+
+          for (const run of report) {
+            for (const violation of run.violations ?? []) {
+              if (violation.impact === "critical") {
+                critical.push({
+                  id: violation.id,
+                  help: violation.help,
+                  nodes: (violation.nodes ?? []).length,
+                });
+              }
+            }
+          }
+
+          if (critical.length > 0) {
+            console.error(`Critical WCAG 2.1 A/AA violations: ${critical.length}`);
+            for (const issue of critical) {
+              console.error(`- ${issue.id}: ${issue.help} (nodes: ${issue.nodes})`);
+            }
+            process.exit(1);
+          }
+
+          console.log("No critical WCAG 2.1 A/AA violations detected.");
+          NODE

@@ -1,0 +1,307 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: fix-proposal-${{ github.event_name }}-${{ github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  propose-fix:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'failure' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+      MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+    steps:
+      - id: source
+        name: Select source SHA
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_run" ]; then
+            echo "sha=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "sha=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.source.outputs.sha }}
+          fetch-depth: 0
+      - id: branch
+        name: Create proposal branch
+        run: |
+          BRANCH="ci/fix-proposal-${GITHUB_RUN_ID}"
+          git switch -c "$BRANCH"
+          echo "name=$BRANCH" >> "$GITHUB_OUTPUT"
+      - id: pm
+        name: Detect package manager
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "install=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "install=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "install=npm ci" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+      - run: corepack enable
+      - run: ${{ steps.pm.outputs.install }}
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked || true
+      - name: Capture failing-before evidence
+        run: |
+          set -euo pipefail
+          mkdir -p .ci/fix-proposal/logs
+          : > .ci/fix-proposal/status-before.env
+
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm)
+              WEB_LINT='pnpm --filter medoc run lint'
+              WEB_TYPECHECK='pnpm --filter medoc run typecheck && pnpm --filter medoc-lan-web-client run typecheck'
+              WEB_TEST='pnpm --filter medoc run test'
+              WEB_BUILD='pnpm --filter medoc run build && pnpm --filter medoc-lan-web-client run build'
+              ;;
+            yarn)
+              WEB_LINT='yarn workspace medoc lint'
+              WEB_TYPECHECK='yarn workspace medoc typecheck && yarn workspace medoc-lan-web-client typecheck'
+              WEB_TEST='yarn workspace medoc test'
+              WEB_BUILD='yarn workspace medoc build && yarn workspace medoc-lan-web-client build'
+              ;;
+            npm)
+              WEB_LINT='npm run lint -w medoc'
+              WEB_TYPECHECK='npm run typecheck -w medoc && npm run typecheck -w medoc-lan-web-client'
+              WEB_TEST='npm run test -w medoc'
+              WEB_BUILD='npm run build -w medoc && npm run build -w medoc-lan-web-client'
+              ;;
+            *)
+              echo "Unsupported package manager: ${{ steps.pm.outputs.pm }}" >&2
+              exit 1
+              ;;
+          esac
+
+          run_check() {
+            local name="$1"
+            local command="$2"
+            local logfile=".ci/fix-proposal/logs/before-${name}.log"
+            set +e
+            bash -lc "$command" >"$logfile" 2>&1
+            local status=$?
+            set -e
+            echo "before_${name}=${status}" >> .ci/fix-proposal/status-before.env
+          }
+
+          run_check rust_fmt_check "cargo fmt --all -- --check"
+          run_check rust_clippy "cargo clippy --workspace --all-targets -- -D warnings"
+          run_check rust_test "cargo test --workspace"
+          run_check rust_audit "cargo audit"
+          run_check web_lint "$WEB_LINT"
+          run_check web_typecheck "$WEB_TYPECHECK"
+          run_check web_test "$WEB_TEST"
+          run_check web_build "$WEB_BUILD"
+      - name: Attempt deterministic base fixes
+        run: |
+          set -euo pipefail
+          cargo fmt --all
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm)
+              pnpm --filter medoc run lint:fix || true
+              pnpm --filter medoc run format || true
+              ;;
+            yarn)
+              yarn workspace medoc lint:fix || true
+              yarn workspace medoc format || true
+              ;;
+            npm)
+              npm run lint:fix -w medoc || true
+              npm run format -w medoc || true
+              ;;
+            *)
+              echo "Unsupported package manager: ${{ steps.pm.outputs.pm }}" >&2
+              exit 1
+              ;;
+          esac
+      - name: Capture passing-after evidence
+        run: |
+          set -euo pipefail
+          : > .ci/fix-proposal/status-after.env
+
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm)
+              WEB_LINT='pnpm --filter medoc run lint'
+              WEB_TYPECHECK='pnpm --filter medoc run typecheck && pnpm --filter medoc-lan-web-client run typecheck'
+              WEB_TEST='pnpm --filter medoc run test'
+              WEB_BUILD='pnpm --filter medoc run build && pnpm --filter medoc-lan-web-client run build'
+              ;;
+            yarn)
+              WEB_LINT='yarn workspace medoc lint'
+              WEB_TYPECHECK='yarn workspace medoc typecheck && yarn workspace medoc-lan-web-client typecheck'
+              WEB_TEST='yarn workspace medoc test'
+              WEB_BUILD='yarn workspace medoc build && yarn workspace medoc-lan-web-client build'
+              ;;
+            npm)
+              WEB_LINT='npm run lint -w medoc'
+              WEB_TYPECHECK='npm run typecheck -w medoc && npm run typecheck -w medoc-lan-web-client'
+              WEB_TEST='npm run test -w medoc'
+              WEB_BUILD='npm run build -w medoc && npm run build -w medoc-lan-web-client'
+              ;;
+            *)
+              echo "Unsupported package manager: ${{ steps.pm.outputs.pm }}" >&2
+              exit 1
+              ;;
+          esac
+
+          run_check() {
+            local name="$1"
+            local command="$2"
+            local logfile=".ci/fix-proposal/logs/after-${name}.log"
+            set +e
+            bash -lc "$command" >"$logfile" 2>&1
+            local status=$?
+            set -e
+            echo "after_${name}=${status}" >> .ci/fix-proposal/status-after.env
+          }
+
+          run_check rust_fmt_check "cargo fmt --all -- --check"
+          run_check rust_clippy "cargo clippy --workspace --all-targets -- -D warnings"
+          run_check rust_test "cargo test --workspace"
+          run_check rust_audit "cargo audit"
+          run_check web_lint "$WEB_LINT"
+          run_check web_typecheck "$WEB_TYPECHECK"
+          run_check web_test "$WEB_TEST"
+          run_check web_build "$WEB_BUILD"
+      - id: report
+        name: Build proposal report and classify risk
+        run: |
+          set -euo pipefail
+          source .ci/fix-proposal/status-before.env
+          source .ci/fix-proposal/status-after.env
+
+          status_text() {
+            local code="$1"
+            if [ "$code" -eq 0 ]; then
+              echo "PASS"
+            else
+              echo "FAIL ($code)"
+            fi
+          }
+
+          mkdir -p .ci/fix-proposal
+          git diff --name-only > .ci/fix-proposal/changed-files.txt
+
+          NEEDS_HUMAN_REVIEW=false
+          while IFS= read -r file; do
+            case "$file" in
+              *security*|*audit*|*crypto*|*rbac*|config/rbac.yaml)
+                NEEDS_HUMAN_REVIEW=true
+                ;;
+            esac
+          done < .ci/fix-proposal/changed-files.txt
+
+          cat > .ci/fix-proposal/proposal.md <<EOF
+          ## Tier 3 CI fix proposal
+
+          - Source SHA: \`${{ steps.source.outputs.sha }}\`
+          - Trigger: \`${GITHUB_EVENT_NAME}\`
+          - Proposal branch: \`${{ steps.branch.outputs.name }}\`
+
+          ### Failing-before vs passing-after
+
+          | Check | Before | After |
+          | ----- | ------ | ----- |
+          | cargo fmt --check | $(status_text "$before_rust_fmt_check") | $(status_text "$after_rust_fmt_check") |
+          | cargo clippy -D warnings | $(status_text "$before_rust_clippy") | $(status_text "$after_rust_clippy") |
+          | cargo test --workspace | $(status_text "$before_rust_test") | $(status_text "$after_rust_test") |
+          | cargo audit | $(status_text "$before_rust_audit") | $(status_text "$after_rust_audit") |
+          | JS lint | $(status_text "$before_web_lint") | $(status_text "$after_web_lint") |
+          | JS typecheck | $(status_text "$before_web_typecheck") | $(status_text "$after_web_typecheck") |
+          | JS test | $(status_text "$before_web_test") | $(status_text "$after_web_test") |
+          | JS build | $(status_text "$before_web_build") | $(status_text "$after_web_build") |
+
+          ### Deterministic fix pass applied
+
+          - \`cargo fmt --all\`
+          - JS \`lint:fix\` / \`format\` on workspace \`medoc\`
+
+          ### Changed files
+
+          \`\`\`
+          $(cat .ci/fix-proposal/changed-files.txt)
+          \`\`\`
+
+          ### Evidence logs
+
+          - Before logs: \`.ci/fix-proposal/logs/before-*.log\`
+          - After logs: \`.ci/fix-proposal/logs/after-*.log\`
+          EOF
+
+          echo "needs_human_review=${NEEDS_HUMAN_REVIEW}" >> "$GITHUB_OUTPUT"
+      - id: commit
+        name: Commit and push proposal branch
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .ci/fix-proposal/proposal.md
+          while IFS= read -r file; do
+            if [ -n "$file" ]; then
+              git add "$file"
+            fi
+          done < .ci/fix-proposal/changed-files.txt
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No proposal changes created; exiting without PR."
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git commit -m "ci: draft fix proposal for failed verify"
+          git push --set-upstream origin "${{ steps.branch.outputs.name }}"
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
+      - id: pr
+        name: Open draft pull request
+        if: steps.commit.outputs.pushed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          PR_URL="$(gh pr create \
+            --draft \
+            --base main \
+            --head "${{ steps.branch.outputs.name }}" \
+            --title "ci: fix proposal for ${{ steps.source.outputs.sha }}" \
+            --body-file .ci/fix-proposal/proposal.md)"
+          echo "url=${PR_URL}" >> "$GITHUB_OUTPUT"
+      - name: Label sensitive changes and stop
+        if: steps.commit.outputs.pushed == 'true' && steps.report.outputs.needs_human_review == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh pr edit "${{ steps.pr.outputs.url }}" --add-label "needs-human-review"
+          echo "Sensitive files were touched. Labeled PR and stopped for human review."
+          exit 1
