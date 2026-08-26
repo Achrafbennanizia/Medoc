@@ -1,6 +1,23 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-08-26 (CI/CD tier migration)
+
+## CI/CD tier migration — verified (2026-08-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML parse | `python3 -c 'import yaml,glob; ...'` over `.github/workflows/*.yml` | **PASS** |
+| a11y runner syntax | `node --check apps/practice-host-ui/scripts/run-a11y-critical.mjs` | **PASS** |
+| Frontend lint baseline | `npm run lint -w medoc` | **FAIL** — pre-existing lint baseline is red (58 problems, 20 errors) |
+| Frontend typecheck baseline | `npm run typecheck -w medoc` | **FAIL** — pre-existing TS errors (`document-print-html`, missing `i18next` types, unused symbol errors) |
+| Frontend build baseline | `npm run build -w medoc` | **FAIL** — blocked by same pre-existing TypeScript errors |
+| a11y command smoke | `npm run test:a11y -w medoc` | **FAIL (expected)** — build artifact missing because baseline build is red |
+
+**Delivered in this phase:** tiered workflows (`verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml`), CI legacy wrapper migration, `docs/coordination/ci-cd-plan.md`, and `test:a11y` tooling (`axe-core` + Playwright-based critical WCAG check script).
+
+**NOT RUN in this phase:** live GitHub Actions execution on a PR/tag, because this session only changed workflow/config files.
+
+---
 
 ## Sell-ready MVP program — verified (2026-07-05)
 

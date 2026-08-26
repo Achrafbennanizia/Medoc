@@ -1,7 +1,39 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
-**Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
+**Last phase label:** CI/CD tier migration (2026-08-26)
+**Last closed:** verify/autofix/fix-proposal/release workflow split + legacy CI wrapper migration + a11y gate tooling.
+
+### Verified (2026-08-26 — CI/CD tier migration)
+
+- **Tier 1 gate:** `.github/workflows/verify.yml` added (push/PR/workflow_call, non-mutating Rust + JS + a11y checks, lockfile-based package manager detection, concurrency cancel, per-job timeouts).
+- **Tier 2 gate:** `.github/workflows/autofix.yml` added (`pull_request` only, deterministic fixes, loop guard, compliance path block for security/audit/crypto/RBAC).
+- **Tier 3 proposals:** `.github/workflows/fix-proposal.yml` added (manual or failed verify on `main`, new branch + draft PR + before/after evidence; `needs-human-review` label if sensitive paths touched).
+- **Tier 4 release:** `.github/workflows/release.yml` migrated to verify-gated, protected `release` environment, signed cross-platform bundles, provenance attestation.
+- **CI path migration:** `.github/workflows/ci.yml` replaced with a thin legacy wrapper that delegates to `verify.yml`.
+- **A11y check tooling:** `medoc` scripts expanded (`typecheck`, `lint:fix`, `format`, `test:a11y`), `axe-core` added, and `apps/practice-host-ui/scripts/run-a11y-critical.mjs` added for critical WCAG 2.1 A/AA checks.
+- **Coordination docs:** `docs/coordination/ci-cd-plan.md` added; `validation.md` records command outputs for this phase.
+
+### Remains unverified
+
+- End-to-end GitHub Actions runtime behavior of all new workflows on PRs/tags (**NOT OBSERVED** in this local session).
+- New verify gate green status against current codebase baseline (local lint/typecheck/build are currently red from pre-existing issues).
+
+### Understanding delta
+
+- The repository now has explicit **verify vs mutate** separation at workflow level.
+- Release is now structurally gated via reusable verify + protected environment instead of monolithic custom release logic.
+- Current baseline quality debt (frontend lint/typecheck/build) is now surfaced as a direct blocker for tier-1 adoption.
+
+### Next
+
+1. Fix pre-existing frontend lint/typecheck/build failures so `verify.yml` can pass.
+2. Run at least one PR-cycle test to validate tier interaction (`autofix` push → `verify` rerun; loop guard).
+3. Trigger `release.yml` on a test tag in a controlled environment and verify artifact signing + provenance outputs.
+
+---
+
+**Previous phase label:** Sell-ready MVP + sync C8 (2026-07-05)
+**Previous closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 
 ### Verified (2026-07-05 — Sell-ready MVP)
 
