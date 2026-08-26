@@ -1,6 +1,13 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-08-26 (CI/CD tiered pipeline migration)
+
+## Done (2026-08-26 — CI/CD tiered pipeline migration)
+
+- Added tiered workflows under `.github/workflows/`: `verify.yml`, `autofix.yml`, `fix-proposal.yml`, and updated `release.yml`.
+- Removed legacy monolithic `.github/workflows/ci.yml` to avoid duplicate/stale CI execution.
+- Added coordination plan doc: `docs/coordination/ci-cd-plan.md`.
+- Appended verification evidence in `docs/coordination/validation.md` and phase summary in `docs/coordination/phase-handoff.md`.
 
 ## Now
 
