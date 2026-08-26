@@ -1,5 +1,30 @@
 # Phase handoff
 
+**Last phase label:** CI/CD pipeline tiers wiring (2026-08-26)  
+**Last closed:** Added verify/autofix/fix-proposal/release workflows for live `apps/` + `crates/` + `packages/` workspace; recorded static validation evidence.
+
+### Verified (2026-08-26 — CI/CD pipeline tiers)
+
+- **Tier 1:** `.github/workflows/verify.yml` created with non-mutating Rust + JS + a11y gates, lockfile-based package-manager detection, per-job timeouts, and `concurrency.cancel-in-progress`.
+- **Tier 2:** `.github/workflows/autofix.yml` created for PR branches only (`pull_request`), with bot loop guard and compliance-sensitive path block (`security|audit|crypto|rbac`).
+- **Tier 3:** `.github/workflows/fix-proposal.yml` created for manual dispatch or failed `verify` on `main`, opening draft PRs with evidence and applying `needs-human-review` when sensitive domains are touched.
+- **Tier 4:** `.github/workflows/release.yml` rewritten to call tier-1 verify as gate, then build signed cross-platform artifacts under protected `release` environment with provenance attestation.
+- **Coordination docs:** `docs/coordination/ci-cd-plan.md` added; `docs/coordination/validation.md` updated with command evidence (`yaml.safe_load`, `git diff --check`, stale path scan).
+
+### Remains unverified
+
+- First live GitHub Actions execution of `verify.yml`, `autofix.yml`, `fix-proposal.yml`, and the rewritten `release.yml` on runners.
+- Repository variable `CI_FIX_PROPOSAL_AGENT_CMD` behavior in tier-3 (required for automated substantive fix attempts).
+- Protected `release` environment approval path and secret availability in a real tag/dispatch run.
+
+### Next
+
+1. Run one PR through tier-1 + tier-2 to validate loop guard and deterministic-fix boundaries.
+2. Trigger tier-3 manually with `CI_FIX_PROPOSAL_AGENT_CMD` configured and verify draft PR evidence quality.
+3. Execute a tag/dispatch dry run for tier-4 to validate protected environment approvals and signed artifact outputs.
+
+---
+
 **Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
 **Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 

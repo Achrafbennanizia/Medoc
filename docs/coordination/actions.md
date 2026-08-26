@@ -24,6 +24,14 @@ Active cost-priority delivery plan and test allow-list:
 | [`mvp-cost-priority-plan.md`](mvp-cost-priority-plan.md) | Workflows W1–W12, MS/UX/T items, phases, MVP checklist |
 | [`mvp-test-scope.md`](mvp-test-scope.md) | T-U1/T-U2 100% module allow-list |
 
+## Done (2026-08-26 — CI/CD pipeline tiers)
+
+- Added `.github/workflows/verify.yml` (tier-1 non-mutating verify with Rust/JS/a11y gates, lockfile-based PM detection, timeouts, and concurrency cancellation).
+- Added `.github/workflows/autofix.yml` (tier-2 PR-only deterministic fixes with bot loop guard and sensitive-path block for `security|audit|crypto|rbac`).
+- Added `.github/workflows/fix-proposal.yml` (tier-3 manual/failed-main trigger that creates draft PR proposals with evidence and `needs-human-review` label path).
+- Replaced `.github/workflows/release.yml` with tier-4 gated release flow (reuses verify, protected `release` environment, signed cross-platform build, provenance).
+- Added coordination doc `docs/coordination/ci-cd-plan.md` and recorded command evidence in `docs/coordination/validation.md`.
+
 ## Done (2026-07-10 — Patient Akte MVC / domain split)
 
 - `akte-anlagen` pure domain → `packages/shared/src/lib/akte-anlagen.ts`; Tauri `convertFileSrc` stays in `apps/practice-host-ui/src/platform/akte-anlagen.ts`.
