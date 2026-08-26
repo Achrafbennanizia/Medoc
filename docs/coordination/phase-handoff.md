@@ -1,7 +1,41 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
-**Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
+**Last phase label:** CI/CD pipeline migration (2026-08-26)  
+**Last closed:** tiered workflow split (`verify`/`autofix`/`fix-proposal`/`release`) plus alignment pass (verify on all pushes, Tier-3 full-diff draft PRs, PM-aware a11y runner), lockfile-based PM detection, release gate wiring, validation ledger refresh.
+
+### Verified (2026-08-26 — CI/CD pipeline migration)
+
+- Added `.github/workflows/verify.yml` (push+PR+workflow_call) with Rust/Web/a11y jobs, timeout + concurrency controls, and zero-mutation verify behavior.
+- Added `.github/workflows/autofix.yml` (PR-only) with deterministic fixes (`cargo fmt`, `lint:fix`, `format`) and loop guard (`github.actor != github-actions[bot]`).
+- Added `.github/workflows/fix-proposal.yml` (manual + failed-main verify trigger) that branches, captures failing-before/passing-after evidence, attempts dependency remediations (plus optional project fix command), and opens a **draft** PR with the full attempted diff.
+- Replaced legacy `.github/workflows/release.yml` with tag/dispatch release gate that reuses `verify.yml`, builds signed bundles under protected `release` environment, and never mutates source.
+- Removed legacy `.github/workflows/ci.yml` to avoid stale/duplicated CI paths.
+- Added `docs/coordination/ci-cd-plan.md` as the canonical CI/CD tier and guardrail document.
+- Added workspace scripts (`typecheck`, `lint:fix`, `format`, `test:a11y`) and `apps/practice-host-ui/scripts/run-a11y-audit.mjs` (Playwright + axe-core critical WCAG gate, PM-aware preview launcher).
+
+### Remains unverified
+
+- End-to-end GitHub Actions run for the new workflow graph on this branch.
+- Runtime `test:a11y` execution in CI after a green web build.
+- Existing repository lint/typecheck/rustfmt debt (currently red) under the stricter Tier-1 gate.
+
+### Understanding delta
+
+- The pipeline now treats release as a strict verify-and-sign path and moves all mutation into explicitly scoped PR tiers.
+- PM detection is lockfile-driven and no longer hardcodes npm in verify/autofix/release install paths.
+- Tier 3 now emits machine-readable evidence for before/after command exit codes in draft fix proposals.
+
+### Required next steps (ordered)
+
+1. Run the new `verify.yml` on GitHub and capture first-pass failures (expected: existing TypeScript issues).
+2. Triage/fix existing lint + TypeScript + rustfmt failures so Tier 1 can turn green.
+3. Run a manual dispatch of `fix-proposal.yml` to validate draft PR creation and `needs-human-review` label path.
+4. Execute a tag or dry-run release to validate protected `release` environment approval and signed bundle artifact upload.
+
+---
+
+**Previous phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
+**Previous closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 
 ### Verified (2026-07-05 — Sell-ready MVP)
 

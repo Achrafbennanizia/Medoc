@@ -1,0 +1,230 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref (branch or SHA) to branch from"
+        required: false
+        default: main
+      reason:
+        description: "Why this fix proposal is being generated"
+        required: false
+        default: manual dispatch
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: fix-proposal-${{ github.run_id }}
+  cancel-in-progress: true
+
+env:
+  MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+  MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+
+jobs:
+  propose:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Resolve target ref and reason
+        id: target
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            echo "ref=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+            echo "reason=verify failed on main" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=${{ inputs.ref }}" >> "$GITHUB_OUTPUT"
+            echo "reason=${{ inputs.reason }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.target.outputs.ref }}
+          fetch-depth: 0
+
+      - name: Create proposal branch
+        id: branch
+        run: |
+          BRANCH="ci/fix-proposal-${{ github.run_id }}"
+          git checkout -b "$BRANCH"
+          echo "name=$BRANCH" >> "$GITHUB_OUTPUT"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Install Linux deps for Tauri-linked crates
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked || true
+
+      - id: pm
+        name: Detect package manager from lockfile
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "install=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "install=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "install=npm ci" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            yarn.lock
+            package-lock.json
+      - run: corepack enable
+      - run: ${{ steps.pm.outputs.install }}
+
+      - name: Capture failing-before evidence
+        id: before
+        run: |
+          mkdir -p .ci/fix-proposal
+          set +e
+          cargo test --workspace > .ci/fix-proposal/before-cargo-test.log 2>&1
+          echo "cargo_test=$?" >> "$GITHUB_OUTPUT"
+          cargo audit > .ci/fix-proposal/before-cargo-audit.log 2>&1
+          echo "cargo_audit=$?" >> "$GITHUB_OUTPUT"
+          ${{ steps.pm.outputs.pm }} run typecheck > .ci/fix-proposal/before-typecheck.log 2>&1
+          echo "typecheck=$?" >> "$GITHUB_OUTPUT"
+          set -e
+
+      - name: Attempt non-deterministic dependency remediations
+        run: |
+          mkdir -p .ci/fix-proposal
+          set +e
+          cargo audit --json > .ci/fix-proposal/cargo-audit.json
+          if command -v jq >/dev/null 2>&1; then
+            mapfile -t vulnerable_crates < <(jq -r '.vulnerabilities.list[].package.name' .ci/fix-proposal/cargo-audit.json | sort -u)
+            for crate in "${vulnerable_crates[@]}"; do
+              if [ -n "$crate" ] && [ "$crate" != "null" ]; then
+                cargo update -p "$crate" --workspace || true
+              fi
+            done
+          fi
+          if [ -f package-lock.json ]; then
+            npm audit fix --package-lock-only --omit=dev || true
+          fi
+          set -e
+
+      - name: Attempt project-specific fix command (optional)
+        env:
+          MEDOC_FIX_PROPOSAL_COMMAND: ${{ secrets.MEDOC_FIX_PROPOSAL_COMMAND }}
+        run: |
+          if [ -n "${MEDOC_FIX_PROPOSAL_COMMAND:-}" ]; then
+            bash -lc "${MEDOC_FIX_PROPOSAL_COMMAND}"
+          else
+            echo "No MEDOC_FIX_PROPOSAL_COMMAND configured; skipping project-specific fix attempt."
+          fi
+
+      - name: Capture passing-after evidence
+        id: after
+        run: |
+          set +e
+          cargo test --workspace > .ci/fix-proposal/after-cargo-test.log 2>&1
+          echo "cargo_test=$?" >> "$GITHUB_OUTPUT"
+          cargo audit > .ci/fix-proposal/after-cargo-audit.log 2>&1
+          echo "cargo_audit=$?" >> "$GITHUB_OUTPUT"
+          ${{ steps.pm.outputs.pm }} run typecheck > .ci/fix-proposal/after-typecheck.log 2>&1
+          echo "typecheck=$?" >> "$GITHUB_OUTPUT"
+          set -e
+
+      - name: Write fix rationale report
+        run: |
+          mkdir -p docs/coordination/ci-fix-proposals
+          REPORT_PATH="docs/coordination/ci-fix-proposals/${{ github.run_id }}.md"
+          {
+            echo "# CI fix proposal"
+            echo
+            echo "- Trigger reason: ${{ steps.target.outputs.reason }}"
+            echo "- Source ref: ${{ steps.target.outputs.ref }}"
+            echo "- Proposal branch: ${{ steps.branch.outputs.name }}"
+            echo
+            echo "## Failing-before vs passing-after"
+            echo
+            echo "| Check | Before exit code | After exit code |"
+            echo "| --- | ---: | ---: |"
+            echo "| cargo test --workspace | ${{ steps.before.outputs.cargo_test }} | ${{ steps.after.outputs.cargo_test }} |"
+            echo "| cargo audit | ${{ steps.before.outputs.cargo_audit }} | ${{ steps.after.outputs.cargo_audit }} |"
+            echo "| JS typecheck | ${{ steps.before.outputs.typecheck }} | ${{ steps.after.outputs.typecheck }} |"
+            echo
+            echo "Detailed command logs are attached in the workflow run under .ci/fix-proposal/*."
+          } > "$REPORT_PATH"
+
+      - name: Detect sensitive-path changes
+        id: sensitive
+        run: |
+          git diff --name-only > .ci/fix-proposal/changed-files.txt
+          if rg -n "(^|/)(security|audit|crypto|rbac)(/|\\.|_)" .ci/fix-proposal/changed-files.txt >/dev/null; then
+            echo "needs_label=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "needs_label=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open draft pull request with evidence (sensitive)
+        if: steps.sensitive.outputs.needs_label == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: ${{ steps.branch.outputs.name }}
+          base: main
+          commit-message: "ci: automated fix proposal for verify failure"
+          title: "ci: fix proposal for verify failure (${{ github.run_id }})"
+          body: |
+            This is an automated **draft** fix proposal generated by the Tier 3 CI workflow.
+
+            - Trigger reason: `${{ steps.target.outputs.reason }}`
+            - Source ref: `${{ steps.target.outputs.ref }}`
+            - Evidence report: `docs/coordination/ci-fix-proposals/${{ github.run_id }}.md`
+
+            ### Exit-code evidence
+            - `cargo test --workspace`: before `${{ steps.before.outputs.cargo_test }}`, after `${{ steps.after.outputs.cargo_test }}`
+            - `cargo audit`: before `${{ steps.before.outputs.cargo_audit }}`, after `${{ steps.after.outputs.cargo_audit }}`
+            - `typecheck`: before `${{ steps.before.outputs.typecheck }}`, after `${{ steps.after.outputs.typecheck }}`
+
+            This PR is intentionally **draft** and is never auto-merged.
+          draft: true
+          labels: needs-human-review
+
+      - name: Open draft pull request with evidence
+        if: steps.sensitive.outputs.needs_label != 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: ${{ steps.branch.outputs.name }}
+          base: main
+          commit-message: "ci: automated fix proposal for verify failure"
+          title: "ci: fix proposal for verify failure (${{ github.run_id }})"
+          body: |
+            This is an automated **draft** fix proposal generated by the Tier 3 CI workflow.
+
+            - Trigger reason: `${{ steps.target.outputs.reason }}`
+            - Source ref: `${{ steps.target.outputs.ref }}`
+            - Evidence report: `docs/coordination/ci-fix-proposals/${{ github.run_id }}.md`
+
+            ### Exit-code evidence
+            - `cargo test --workspace`: before `${{ steps.before.outputs.cargo_test }}`, after `${{ steps.after.outputs.cargo_test }}`
+            - `cargo audit`: before `${{ steps.before.outputs.cargo_audit }}`, after `${{ steps.after.outputs.cargo_audit }}`
+            - `typecheck`: before `${{ steps.before.outputs.typecheck }}`, after `${{ steps.after.outputs.typecheck }}`
+
+            This PR is intentionally **draft** and is never auto-merged.
+          draft: true
+
+      - name: Stop when sensitive areas changed
+        if: steps.sensitive.outputs.needs_label == 'true'
+        run: |
+          echo "Sensitive paths changed (security/audit/crypto/rbac). Labeled needs-human-review and stopping."
+          exit 1

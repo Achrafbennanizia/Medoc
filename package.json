@@ -29,6 +29,10 @@
         "i18n:extract": "node scripts/extract-i18n-catalog.mjs",
         "tauri": "npm run tauri -w medoc",
         "dev:lan-web": "npm run dev -w medoc-lan-web-client",
-        "build:lan-web": "npm run build -w medoc-lan-web-client"
+        "build:lan-web": "npm run build -w medoc-lan-web-client",
+        "typecheck": "npm run typecheck -w medoc",
+        "lint:fix": "npm run lint:fix -w medoc",
+        "format": "npm run format -w medoc",
+        "test:a11y": "npm run test:a11y -w medoc"
     }
 }
