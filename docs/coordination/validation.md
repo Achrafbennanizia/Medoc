@@ -1,6 +1,21 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-08-26 (CI/CD tiered pipeline wiring refresh)
+
+## CI/CD tiered pipeline wiring refresh — verified (2026-08-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML parse | `python3 -c "import yaml,glob; [yaml.safe_load(open(f)) for f in sorted(glob.glob('/workspace/.github/workflows/*.yml'))]; print('yaml-parse-ok')"` | **PASS** (`yaml-parse-ok`) |
+| Workspace dependency materialization | `npm ci --workspaces --include-workspace-root` then `ls /workspace/node_modules/i18next >/dev/null && echo "workspace-deps-ok"` | **PASS** (`workspace-deps-ok`) |
+| A11y script syntax | `node --check apps/practice-host-ui/scripts/test-a11y.mjs` | **PASS** (script now runs axe tags `wcag2a` + `wcag2aa` and fails only on `critical`) |
+| Frontend lint | `npm run lint` | **FAIL** — pre-existing lint debt (58 findings, 20 errors) in app files unrelated to this CI wiring |
+| Frontend build | `npm run build` | **FAIL** — pre-existing TypeScript errors (`document-print-html.ts`, unused locals in availability/calendar files) |
+| A11y execution | `npm run test:a11y` | **FAIL** — build artifact `apps/practice-host-ui/dist/index.html` missing because frontend build is currently red |
+
+**Operational findings:**
+- npm workspace installs must include workspace flags for this repo (`npm ci --workspaces --include-workspace-root`), otherwise shared workspace dependencies (for example `i18next`) are not fully materialized for checks.
+- Tier 1 `verify.yml` now triggers on every branch push + PR, Tier 4 `release.yml` uses concurrency cancellation, and release build enforces non-mutation with `git diff --exit-code`.
 
 ## Sell-ready MVP program — verified (2026-07-05)
 

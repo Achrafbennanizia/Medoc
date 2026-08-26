@@ -1,7 +1,33 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
-**Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
+**Last phase label:** CI/CD tiered pipeline wiring refresh (2026-08-26)  
+**Last closed:** Tiered workflows (`verify`, `autofix`, `fix-proposal`, `release`) rechecked; Tier 1 trigger scope + release non-mutation guard refined; coordination ledgers refreshed with this run's command evidence.
+
+### Verified (2026-08-26 — CI/CD tiered pipeline wiring)
+
+- Added **Tier 1** `.github/workflows/verify.yml` (every branch push + PR + reusable `workflow_call`) with Rust/Web/A11y checks, concurrency cancellation, and timeouts.
+- Added **Tier 2** `.github/workflows/autofix.yml` (PR-only deterministic fixes) with bot loop guard and same-repo PR restriction.
+- Added **Tier 3** `.github/workflows/fix-proposal.yml` (manual + red-main trigger), draft PR flow, before/after evidence, and sensitive-path (`security|audit|crypto|rbac`) escalation to `needs-human-review`.
+- Rewrote **Tier 4** `.github/workflows/release.yml` to re-run verify as a gate, then build signed artifacts under protected `release` environment with zero source mutation (`git diff --exit-code` guard).
+- Removed retired `.github/workflows/ci.yml` and documented the tiered model in `docs/coordination/ci-cd-plan.md`.
+- Captured refreshed validation evidence and current blockers in `docs/coordination/validation.md`.
+- Verified npm installer behavior for this repo: use `npm ci --workspaces --include-workspace-root` so shared workspace dependencies are available in CI.
+
+### Remains unverified
+
+- Real GitHub Actions execution of the new workflows on runners (**NOT OBSERVED** in this session).
+- `fix-proposal.yml` automatic remediation quality when `CI_FIX_PROPOSAL_COMMAND` is unset (workflow intentionally stops when no diff is produced).
+- End-to-end release approval flow through protected `release` environment (manual approver gate not exercised).
+
+### Next
+
+1. Resolve existing frontend lint/type/build debt so Tier 1 can go green (`npm run lint`, `npm run build` currently fail).
+2. Configure repository variable `CI_FIX_PROPOSAL_COMMAND` (or dispatch input `fix_command`) for substantive Tier 3 fix attempts.
+3. Run a dry-run tag/dispatch in GitHub Actions to validate Tier 4 runner behavior and artifact paths.
+
+---
+
+**Previous phase label:** Sell-ready MVP + sync C8 (2026-07-05)
 
 ### Verified (2026-07-05 — Sell-ready MVP)
 
