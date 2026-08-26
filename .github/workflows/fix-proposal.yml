@@ -1,0 +1,273 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: "Base ref to branch from"
+        required: false
+        default: "main"
+      failing_command:
+        description: "Failing command to record before/after evidence"
+        required: false
+        default: "cargo test --workspace --tests"
+      fix_command:
+        description: "Fix command to run on the proposal branch"
+        required: false
+        default: ""
+      rationale:
+        description: "Why this fix proposal is being created"
+        required: false
+        default: "Manual CI fix proposal dispatch."
+  workflow_run:
+    workflows:
+      - verify
+    types:
+      - completed
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: fix-proposal-${{ github.event_name }}-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  propose:
+    name: Propose substantive fix as draft PR
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ github.token }}
+      DEFAULT_FAILING_COMMAND: cargo test --workspace --tests
+      DEFAULT_FIX_COMMAND: ${{ vars.CI_FIX_PROPOSAL_COMMAND }}
+      EVENT_NAME: ${{ github.event_name }}
+      INPUT_BASE_REF: ${{ inputs.base_ref }}
+      INPUT_FAILING_COMMAND: ${{ inputs.failing_command }}
+      INPUT_FIX_COMMAND: ${{ inputs.fix_command }}
+      INPUT_RATIONALE: ${{ inputs.rationale }}
+      VERIFY_RUN_URL: ${{ github.event.workflow_run.html_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.base_ref || github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+      - name: configure proposal metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            BASE_REF="${INPUT_BASE_REF:-main}"
+            FAILING_COMMAND="${INPUT_FAILING_COMMAND:-$DEFAULT_FAILING_COMMAND}"
+            FIX_COMMAND="${INPUT_FIX_COMMAND:-}"
+            RATIONALE="${INPUT_RATIONALE:-Manual CI fix proposal dispatch.}"
+            TRIGGER_NOTE="manual-dispatch"
+          else
+            BASE_REF="main"
+            FAILING_COMMAND="$DEFAULT_FAILING_COMMAND"
+            FIX_COMMAND="${DEFAULT_FIX_COMMAND:-}"
+            RATIONALE="Automated follow-up after failed verify run on main: ${VERIFY_RUN_URL}"
+            TRIGGER_NOTE="verify-failure-main"
+          fi
+
+          if [ -z "${FIX_COMMAND}" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "skip_reason=No fix command configured. Set workflow_dispatch input 'fix_command' or repository variable CI_FIX_PROPOSAL_COMMAND." >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "base_ref=$BASE_REF" >> "$GITHUB_OUTPUT"
+          echo "failing_command=$FAILING_COMMAND" >> "$GITHUB_OUTPUT"
+          echo "fix_command=$FIX_COMMAND" >> "$GITHUB_OUTPUT"
+          {
+            echo "rationale<<EOF"
+            echo "$RATIONALE"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+          echo "trigger_note=$TRIGGER_NOTE" >> "$GITHUB_OUTPUT"
+      - name: stop when no fix command is configured
+        if: steps.meta.outputs.configured != 'true'
+        run: |
+          echo "${{ steps.meta.outputs.skip_reason }}"
+          exit 0
+      - name: create proposal branch
+        id: branch
+        shell: bash
+        run: |
+          BRANCH="ci/fix-proposal/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git switch -c "$BRANCH"
+          echo "name=$BRANCH" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: detect package manager
+        id: pm
+        shell: bash
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+          elif [ -f package-lock.json ]; then
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=none" >> "$GITHUB_OUTPUT"
+            echo "lockfile=" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        if: steps.pm.outputs.pm != 'none'
+        with:
+          node-version: 20
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+      - name: install JS dependencies
+        if: steps.pm.outputs.pm != 'none'
+        shell: bash
+        run: |
+          corepack enable
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+            *) echo "Unsupported package manager: ${{ steps.pm.outputs.pm }}" >&2; exit 1 ;;
+          esac
+      - name: run failing-before command
+        id: before
+        shell: bash
+        run: |
+          set +e
+          bash -lc "${{ steps.meta.outputs.failing_command }}" > ci-failing-before.log 2>&1
+          EXIT_CODE=$?
+          set -e
+          echo "exit_code=$EXIT_CODE" >> "$GITHUB_OUTPUT"
+      - name: run fix command
+        id: fix
+        shell: bash
+        run: |
+          set +e
+          bash -lc "${{ steps.meta.outputs.fix_command }}" > ci-fix-command.log 2>&1
+          EXIT_CODE=$?
+          set -e
+          echo "exit_code=$EXIT_CODE" >> "$GITHUB_OUTPUT"
+      - name: run failing-after command
+        id: after
+        shell: bash
+        run: |
+          set +e
+          bash -lc "${{ steps.meta.outputs.failing_command }}" > ci-failing-after.log 2>&1
+          EXIT_CODE=$?
+          set -e
+          echo "exit_code=$EXIT_CODE" >> "$GITHUB_OUTPUT"
+      - name: detect proposed changes
+        id: changes
+        shell: bash
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            git diff --name-only > ci-changed-files.txt
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: stop when no changes are produced
+        if: steps.changes.outputs.has_changes != 'true'
+        run: |
+          echo "Fix command produced no changes; no draft PR opened."
+          exit 0
+      - name: classify sensitive-path changes
+        id: sensitivity
+        shell: bash
+        run: |
+          if rg -n '(^|/)(security|audit|crypto|rbac)(/|$)|rbac\.ya?ml' ci-changed-files.txt >/dev/null; then
+            echo "needs_human_review=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "needs_human_review=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: commit and push proposal branch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "ci: draft fix proposal for failing verify gate"
+          git push origin "${{ steps.branch.outputs.name }}"
+      - name: write draft PR body
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def clip(path: str, max_chars: int = 12000) -> str:
+            text = Path(path).read_text(encoding="utf-8", errors="replace")
+            if len(text) <= max_chars:
+              return text
+            return text[:max_chars] + "\n... [truncated]"
+
+          lines = [
+            "## CI fix proposal (draft)",
+            "",
+            f"**Trigger:** ${{ steps.meta.outputs.trigger_note }}  ",
+            f"**Rationale:** ${{ steps.meta.outputs.rationale }}",
+            "",
+            "### Commands",
+            "",
+            f"- Failing command: `${{ steps.meta.outputs.failing_command }}`",
+            f"- Fix command: `${{ steps.meta.outputs.fix_command }}`",
+            "",
+            "### Exit codes",
+            "",
+            f"- Before: `${{ steps.before.outputs.exit_code }}`",
+            f"- Fix command: `${{ steps.fix.outputs.exit_code }}`",
+            f"- After: `${{ steps.after.outputs.exit_code }}`",
+            "",
+            "### Changed files",
+            "",
+            "```text",
+            Path("ci-changed-files.txt").read_text(encoding="utf-8", errors="replace"),
+            "```",
+            "",
+            "### Failing-before evidence",
+            "",
+            "```text",
+            clip("ci-failing-before.log"),
+            "```",
+            "",
+            "### Fix-command output",
+            "",
+            "```text",
+            clip("ci-fix-command.log"),
+            "```",
+            "",
+            "### Passing-after / failing-after evidence",
+            "",
+            "```text",
+            clip("ci-failing-after.log"),
+            "```",
+            "",
+          ]
+          body = "\n".join(lines)
+          Path("ci-fix-proposal-body.md").write_text(body, encoding="utf-8")
+          PY
+      - name: open draft PR
+        id: pr
+        shell: bash
+        run: |
+          TITLE="ci: draft fix proposal for failing verify gate"
+          PR_URL=$(gh pr create \
+            --draft \
+            --base "${{ steps.meta.outputs.base_ref }}" \
+            --head "${{ steps.branch.outputs.name }}" \
+            --title "$TITLE" \
+            --body-file ci-fix-proposal-body.md)
+          echo "url=$PR_URL" >> "$GITHUB_OUTPUT"
+      - name: label sensitive changes for human review
+        if: steps.sensitivity.outputs.needs_human_review == 'true'
+        shell: bash
+        run: |
+          gh pr edit "${{ steps.pr.outputs.url }}" --add-label needs-human-review
+          echo "Sensitive path touched; labeled needs-human-review and stopping at draft PR."

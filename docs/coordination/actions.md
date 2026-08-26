@@ -1,9 +1,23 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-08-26 (CI/CD pipeline tiers migration)
+
+## Done (2026-08-26 — CI/CD pipeline tiers)
+
+- Added `docs/coordination/ci-cd-plan.md` as the authoritative CI/CD tier plan.
+- Added `.github/workflows/verify.yml` (Tier 1 verify gates; non-mutating).
+- Added `.github/workflows/autofix.yml` (Tier 2 deterministic PR-only fixes).
+- Added `.github/workflows/fix-proposal.yml` (Tier 3 draft PR proposer for substantive fixes).
+- Replaced `.github/workflows/release.yml` with gated Tier 4 release pipeline.
+- Retired `.github/workflows/ci.yml` monolith.
+- Logged evidence in `docs/coordination/validation.md` and updated `phase-handoff.md`.
 
 ## Now
 
+- Validate first live runs of `verify.yml` and `autofix.yml` on the PR branch.
+- Confirm branch protection references `verify` checks.
+- Dry-run `release.yml` through protected `release` environment approval path.
+- Set repository variable `CI_FIX_PROPOSAL_COMMAND` (optional) for automatic Tier-3 red-main attempts.
 - **Manual QA:** examinations billing release, attachments/scanner import, focus-mode nav — **NOT RUN**
 - **Page migration:** `apps/practice-host-ui/src/views/pages` → `packages/app/practice-host/src/pages` — incremental, not started
 - **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.

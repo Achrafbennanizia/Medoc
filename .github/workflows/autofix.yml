@@ -1,0 +1,115 @@
+name: autofix
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: autofix-${{ github.event.pull_request.head.ref }}
+  cancel-in-progress: true
+
+jobs:
+  autofix:
+    name: PR deterministic autofix
+    if: github.actor != 'github-actions[bot]' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+      MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: detect package manager
+        id: pm
+        shell: bash
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+          elif [ -f package-lock.json ]; then
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+          else
+            echo "No lockfile found in repository root." >&2
+            exit 1
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+      - run: corepack enable
+      - name: install dependencies
+        shell: bash
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+            *) echo "Unsupported package manager: ${{ steps.pm.outputs.pm }}" >&2; exit 1 ;;
+          esac
+      - name: deterministic fixes only
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          run_workspace_script() {
+            local script_name="$1"
+            case "${{ steps.pm.outputs.pm }}" in
+              pnpm) pnpm --filter medoc run "$script_name" ;;
+              yarn) yarn workspace medoc run "$script_name" ;;
+              npm) npm run "$script_name" -w medoc ;;
+              *) echo "Unsupported package manager: ${{ steps.pm.outputs.pm }}" >&2; exit 1 ;;
+            esac
+          }
+
+          run_workspace_exec() {
+            case "${{ steps.pm.outputs.pm }}" in
+              pnpm) pnpm --filter medoc exec "$@" ;;
+              yarn) yarn workspace medoc run "$@" ;;
+              npm) npm exec --workspace medoc -- "$@" ;;
+              *) echo "Unsupported package manager: ${{ steps.pm.outputs.pm }}" >&2; exit 1 ;;
+            esac
+          }
+
+          has_workspace_script() {
+            local script_name="$1"
+            node -e "const p=require('./apps/practice-host-ui/package.json'); process.exit(p.scripts && p.scripts['${script_name}'] ? 0 : 1);"
+          }
+
+          cargo fmt --all
+
+          if has_workspace_script "lint:fix"; then
+            run_workspace_script "lint:fix"
+          else
+            run_workspace_exec eslint src --fix
+          fi
+
+          if has_workspace_script "format"; then
+            run_workspace_script "format"
+          else
+            echo "No workspace format script found; skipping format step."
+          fi
+      - name: commit and push fixes
+        shell: bash
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "ci: apply automated formatting and lint fixes [skip autofix]"
+            git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
+          else
+            echo "No deterministic autofixes required."
+          fi

@@ -1,6 +1,25 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-08-26 (CI/CD pipeline migration)
+
+## CI/CD pipeline migration — verified (2026-08-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow path drift scan | `rg -n "app/src-tauri|app/" .github/workflows` | **PASS** — no retired path references in active workflows |
+| Workflow YAML parse | `python3` + `yaml.safe_load` over `.github/workflows/*.yml` | **PASS** — `autofix.yml`, `fix-proposal.yml`, `release.yml`, `verify.yml` parsed successfully |
+| GitHub Actions semantic lint | `actionlint` | **NOT RUN** — command unavailable (`actionlint: command not found`) |
+
+**Delivered:**
+
+- New Tier 1 `verify.yml` (push + PR + workflow_call) with Rust/web/a11y zero-mutation checks, package-manager lockfile detection, concurrency cancellation, and timeouts.
+- New Tier 2 `autofix.yml` (PR-only) with deterministic `cargo fmt` + JS lint/format fixes, bot loop guard, and commit-back only when diff exists.
+- New Tier 3 `fix-proposal.yml` (manual dispatch or failed `verify` on `main`) that opens draft PRs on a new branch with before/after evidence and `needs-human-review` labeling for security/audit/crypto/RBAC touches.
+- Rebuilt Tier 4 `release.yml` with verify gate reuse and protected `release` environment for signed cross-platform bundles.
+- Added coordination spec: `docs/coordination/ci-cd-plan.md`.
+- Retired monolithic `.github/workflows/ci.yml` in favor of tiered workflows.
+
+---
 
 ## Sell-ready MVP program — verified (2026-07-05)
 

@@ -1,6 +1,40 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
+**Last phase label:** CI/CD pipeline tiers migration (2026-08-26)  
+**Last closed:** verify/autofix/fix-proposal/release workflow split + lockfile-aware JS gates on active workspaces.
+
+### Verified (2026-08-26 — CI/CD pipeline tiers migration)
+
+- Added Tier 1 `.github/workflows/verify.yml` (push + PR + `workflow_call`) with non-mutating Rust/web/a11y checks, concurrency cancellation, and per-job timeouts.
+- Added Tier 2 `.github/workflows/autofix.yml` (`pull_request` only) with deterministic `cargo fmt` and JS lint/format fixes plus bot loop guard.
+- Added Tier 3 `.github/workflows/fix-proposal.yml` (`workflow_dispatch` or failed verify on `main`) that creates a new branch, captures failing-before/passing-after evidence, opens a **draft** PR, and applies `needs-human-review` for security/audit/crypto/RBAC touches.
+- Replaced `.github/workflows/release.yml` with Tier 4 gated flow: reusable verify gate + protected `release` environment + signed cross-platform bundle artifacts.
+- Added coordination spec file: `docs/coordination/ci-cd-plan.md`.
+- Retired monolithic `.github/workflows/ci.yml`.
+- Validation evidence appended in `docs/coordination/validation.md` (YAML parse pass for all four tier workflows; retired path scan pass; `actionlint` unavailable).
+
+### Remains unverified
+
+- First live GitHub Actions execution of `verify.yml` on PR/push.
+- First live `autofix.yml` commit-back cycle and loop-guard behavior on bot-authored follow-up commit.
+- First `fix-proposal.yml` run with real `fix_command` and draft PR artifact.
+- First tag or dispatch execution of new `release.yml` (manual approval + signing secrets path).
+
+### Understanding delta
+
+- CI responsibilities are now explicitly separated by mutation boundary: verify (read-only), autofix (deterministic PR-only), fix proposal (draft PR only), and release (gated/signing only).
+- Package-manager selection is now lockfile-driven at runtime (pnpm/yarn/npm) instead of hard-coded npm assumptions.
+
+### Next
+
+1. Open PR and run the new `verify` workflow on that branch.
+2. Add/confirm branch protection to require `verify` checks.
+3. Validate `release` protected-environment approval flow with a dry-run tag/dispatch.
+4. Configure `CI_FIX_PROPOSAL_COMMAND` repo variable if automated Tier-3 red-main attempts are desired.
+
+---
+
+**Previous phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
 **Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 
 ### Verified (2026-07-05 — Sell-ready MVP)
