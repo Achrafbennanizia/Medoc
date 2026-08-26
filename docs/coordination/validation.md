@@ -1,6 +1,24 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-07-26 (CI/CD tier migration)
+
+## CI/CD tier migration — verification snapshot (2026-07-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| JS dependencies | `npm ci` | **PASS** — 448 packages installed, 0 vulnerabilities |
+| Frontend lint baseline | `npm run lint -w medoc` | **FAIL** — 58 findings (20 errors, 38 warnings), including `react-hooks/rules-of-hooks`, `react-hooks/preserve-manual-memoization`, and `react-hooks/refs` |
+| Practice UI typecheck | `npm run typecheck -w medoc` | **FAIL** — TS6133 unused symbol errors in `termin-availability.ts`, `termin-calendar-layout.ts`, `termin-week-day-grid.tsx` |
+| LAN web typecheck | `npm run typecheck -w medoc-lan-web-client` | **FAIL** — module resolution errors for `#shared-locales/{de,en,fr,ar}.json` in `packages/shared/src/lib/i18n.ts` |
+| A11y parser script syntax | `node --check scripts/assert-axe-critical.mjs` | **PASS** |
+| Rust format baseline | `cargo fmt --all --check` | **FAIL** — existing formatting drift in multiple `crates/shared/medoc-sync/tests/*` files |
+| Workflow lint tooling | `actionlint` | **NOT RUN** — tool not installed on this runner (`actionlint_not_installed`) |
+
+**Context:** this session introduced tiered workflows (`verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml`) plus the a11y critical-violation parser script. Validation above reflects current repository baseline rather than workflow syntax failures.
+
+---
+
+**Prior last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
 
 ## Sell-ready MVP program — verified (2026-07-05)
 
