@@ -1,6 +1,20 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-08-26 (CI/CD tiered pipeline migration)
+
+## CI/CD tiered pipeline migration — verified (2026-08-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML syntax | `python3 - <<'PY' ... yaml.safe_load(...)` on `verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml` | **PASS** |
+| Legacy path guard | `rg 'app/src-tauri|\bapp/' .github/workflows` | **PASS** (0 matches) |
+| Rust fmt baseline | `cargo fmt --all -- --check` | **FAIL (pre-existing)** — large existing formatting drift in Rust files unrelated to this CI/CD workflow/doc change |
+| Change-set scope | `git status --short` | **PASS** — expected workflow migration + coordination docs only |
+| Diff hygiene | `git diff --check` | **PASS** |
+
+**Delivered:** Added tiered CI/CD workflows (`verify`, `autofix`, `fix-proposal`, `release`), removed legacy `.github/workflows/ci.yml`, added `docs/coordination/ci-cd-plan.md` guardrail plan.
+
+---
 
 ## Sell-ready MVP program — verified (2026-07-05)
 

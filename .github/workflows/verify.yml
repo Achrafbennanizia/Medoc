@@ -1,0 +1,181 @@
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Rust format check
+        run: cargo fmt --all -- --check
+      - name: Rust lint (warnings are errors)
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Rust tests
+        run: cargo test --workspace
+      - name: Install cargo-audit
+        run: |
+          if ! command -v cargo-audit >/dev/null 2>&1; then
+            cargo install cargo-audit --locked
+          fi
+      - name: Cargo audit
+        run: cargo audit
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect package manager from lockfile
+        id: pm
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "name=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "name=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=npm" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: ${{ steps.pm.outputs.name }}
+      - name: Enable corepack for pnpm/yarn
+        run: corepack enable
+      - name: Install dependencies
+        run: |
+          case "${{ steps.pm.outputs.name }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+          esac
+      - name: Lint (no autofix in verify)
+        run: |
+          case "${{ steps.pm.outputs.name }}" in
+            pnpm) pnpm run lint ;;
+            yarn) yarn lint ;;
+            npm) npm run lint ;;
+          esac
+      - name: Typecheck workspaces
+        run: |
+          (cd apps/practice-host-ui && npx tsc --noEmit)
+          (cd apps/lan-web-client && npx tsc --noEmit)
+      - name: Test suite
+        run: |
+          case "${{ steps.pm.outputs.name }}" in
+            pnpm) pnpm run test ;;
+            yarn) yarn test ;;
+            npm) npm run test ;;
+          esac
+      - name: Build web workspace
+        run: |
+          case "${{ steps.pm.outputs.name }}" in
+            pnpm) pnpm run build ;;
+            yarn) yarn build ;;
+            npm) npm run build ;;
+          esac
+      - name: Build LAN web client
+        run: |
+          case "${{ steps.pm.outputs.name }}" in
+            pnpm) pnpm run build:lan-web ;;
+            yarn) yarn build:lan-web ;;
+            npm) npm run build:lan-web ;;
+          esac
+
+  a11y:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect package manager from lockfile
+        id: pm
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "name=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "name=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=npm" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: ${{ steps.pm.outputs.name }}
+      - name: Enable corepack for pnpm/yarn
+        run: corepack enable
+      - name: Install dependencies
+        run: |
+          case "${{ steps.pm.outputs.name }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+          esac
+      - name: Build web UI
+        run: |
+          case "${{ steps.pm.outputs.name }}" in
+            pnpm) pnpm run build ;;
+            yarn) yarn build ;;
+            npm) npm run build ;;
+          esac
+      - name: Run axe-core critical WCAG 2.1 AA checks
+        run: |
+          python3 -m http.server 4173 --directory apps/practice-host-ui/dist >/tmp/verify-a11y-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+
+          for _ in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173 >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+
+          npx --yes @axe-core/cli http://127.0.0.1:4173 --tags wcag2aa --save axe-results.json
+
+          node <<'NODE'
+          const fs = require("node:fs");
+
+          const raw = JSON.parse(fs.readFileSync("axe-results.json", "utf8"));
+          const reports = Array.isArray(raw) ? raw : [raw];
+          const critical = [];
+
+          for (const report of reports) {
+            const pageUrl = report.url ?? "unknown-url";
+            for (const violation of report.violations ?? []) {
+              if (violation.impact === "critical") {
+                critical.push({
+                  url: pageUrl,
+                  id: violation.id,
+                  description: violation.description,
+                  help: violation.help,
+                });
+              }
+            }
+          }
+
+          if (critical.length > 0) {
+            console.error("Critical WCAG 2.1 AA violations detected:");
+            for (const v of critical) {
+              console.error(`- [${v.url}] ${v.id}: ${v.help} (${v.description})`);
+            }
+            process.exit(1);
+          }
+
+          console.log("No critical WCAG 2.1 AA violations detected.");
+          NODE
