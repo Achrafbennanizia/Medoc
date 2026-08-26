@@ -67,6 +67,7 @@ impl LoggingConfig {
             || t.starts_with("medoc::device")
             || t.starts_with("medoc::migration")
             || t.starts_with("medoc::perf")
+            || t.starts_with("medoc::workflow")
         {
             return false;
         }

@@ -1,6 +1,7 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { useT } from "@/lib/i18n";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { logWorkflowRouteEnter } from "@/services/tauri.service";
 import { useAuthStore } from "./models/store/auth-store";
 import { RoleRoute } from "./views/components/role-route";
 import { DbSetupGate } from "./views/components/db-setup-gate";
@@ -133,12 +134,21 @@ function RouteFallback() {
     );
 }
 
+function WorkflowRouteObserver() {
+    const location = useLocation();
+    useEffect(() => {
+        logWorkflowRouteEnter(location.pathname);
+    }, [location.pathname]);
+    return null;
+}
+
 export default function App() {
     return (
         <DbSetupGate>
         <SessionGate>
         <DesktopWindowFrame>
         <BrowserRouter>
+        <WorkflowRouteObserver />
         <ClusterResetListener />
         <VerbundOnboardingGate>
             <Routes>
