@@ -1,6 +1,19 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-08-26 (CI/CD tier migration)
+
+## CI/CD tier migration — verified (2026-08-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow set | `ls .github/workflows` | **PASS** — `autofix.yml`, `fix-proposal.yml`, `release.yml`, `verify.yml` |
+| YAML syntax (all workflows) | `python3 -c "import glob; import yaml; files=sorted(glob.glob('.github/workflows/*.yml')); [yaml.safe_load(open(f, 'r', encoding='utf-8').read()) for f in files]; print('\n'.join(f'YAML OK: {f}' for f in files))"` | **PASS** — all four workflow files parsed |
+| Retired path scan | `rg "app/src-tauri|cd app|/work/app|src-tauri" .github/workflows \|\| true` | **PASS** — no matches |
+| Migration diff scope | `git status -sb` | **PASS** — removed `ci.yml`; added `verify.yml`, `autofix.yml`, `fix-proposal.yml`; updated `release.yml`; added `docs/coordination/ci-cd-plan.md` |
+
+**Delivered:** tiered CI/CD pipeline with verify-only gate (`verify.yml`), PR-only deterministic auto-fix (`autofix.yml`), draft-PR fix proposal workflow with sensitive-path guard (`fix-proposal.yml`), and gated signed release flow (`release.yml`) that reuses tier-1 verification on the tagged commit.
+
+---
 
 ## Sell-ready MVP program — verified (2026-07-05)
 
