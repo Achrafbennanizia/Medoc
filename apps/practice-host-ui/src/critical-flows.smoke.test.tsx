@@ -20,6 +20,7 @@ import { VERBUND_STATUS_READY } from "@/models/store/verbund-store";
 
 vi.mock("@/services/tauri.service", () => ({
     tauriInvoke: vi.fn(),
+    logWorkflowUiStep: vi.fn(),
 }));
 
 const ARZT_SESSION: Session = {

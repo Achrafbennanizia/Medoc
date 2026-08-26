@@ -5,6 +5,7 @@ import { tauriInvoke } from "@/services/tauri.service";
 
 vi.mock("@/services/tauri.service", () => ({
     tauriInvoke: vi.fn(),
+    logWorkflowUiStep: vi.fn(),
 }));
 
 describe("N3 FA-LEIST-05 release → Zahlung (IPC contract)", () => {

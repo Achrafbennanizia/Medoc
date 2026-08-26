@@ -14,4 +14,10 @@ export default defineConfig({
     },
     projects: [{ name: "chromium", use: { browserName: "chromium" } }],
     metadata: { medocLanUrl: lanServer },
+    webServer: {
+        command: "npm run dev -- --host 127.0.0.1 --port 5173",
+        url: baseURL,
+        reuseExistingServer: true,
+        timeout: 120_000,
+    },
 });
