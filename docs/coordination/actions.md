@@ -2,6 +2,22 @@
 
 **Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
 
+## Done (2026-08-26 — bounded application-quality run)
+
+- Step 1 logging instrumentation: dedicated workflow log channel + sanitized UI→backend workflow event bridge + domain transition workflow events.
+- Step 3/4/5 test surfaces added or hardened: tauri workflow event tests, UI event smoke tests, toast duration tests, Playwright geometry harness/spec + snapshots, Tailwind arbitrary-token lint script.
+- Step 6 fixes applied:
+  - toast stack anchored bottom-right (`src/index.css`) and Playwright assertions aligned to viewport-gap checks,
+  - Rust test contracts updated for `ValidationCode` + MVP role-cap constraints,
+  - frontend test runner stabilized (split Vitest pipeline to avoid OOM),
+  - clippy `useless_format` in `pdf_export.rs` resolved.
+- Validation appended in `docs/coordination/validation.md` with command outputs and failing-before/passing-after evidence.
+
+## Open blockers from this run
+
+1. `cargo clippy --workspace --all-targets -- -D warnings` still fails on `clippy::result_large_err` in `crates/shared/medoc-core/src/infrastructure/cors_policy.rs` (**security-surface file; no autonomous edit applied**).
+2. `cargo fmt --all -- --check` still reports broad pre-existing formatting drift across unrelated files (repo-wide formatting sweep required).
+
 ## Now
 
 - **Manual QA:** examinations billing release, attachments/scanner import, focus-mode nav — **NOT RUN**

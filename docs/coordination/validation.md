@@ -2,6 +2,28 @@
 
 **Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
 
+## Application quality run — logger/tests/fixes (2026-08-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Rust tests (workspace) | `cargo test --workspace --tests` | **PASS** after test-contract updates (see below); final full run log: `4fa21a6b-b0e7-406b-b2fe-db51d0325b1a.txt` |
+| Rust clippy gate | `cargo clippy --workspace --all-targets -- -D warnings` | **FAIL** — single blocker remains: `clippy::result_large_err` in `crates/shared/medoc-core/src/infrastructure/cors_policy.rs:111` |
+| Rust fmt gate | `cargo fmt --all -- --check` | **FAIL** — large pre-existing formatting drift across unrelated files (over 2000 diff lines) |
+| Frontend tests | `npm test` | **PASS** (split into `test:node` + explicit-file `test:smoke` + `test:mvp-unit` to avoid OOM) |
+| Frontend build | `npm run build` | **PASS** |
+| Playwright geometry audit | `npx playwright test e2e-playwright/ui-geometry.spec.ts` | **PASS** (after toast placement fix + snapshot refresh) |
+| Frontend aggregate check | `npm run check -w medoc` | **FAIL** — pre-existing ESLint errors/warnings outside this scoped run |
+
+### Failing-before → passing-after proofs in this run
+
+| Area | Failing evidence | Fix | Passing evidence |
+|------|------------------|-----|------------------|
+| Rust auth session test | `cargo test --workspace --tests` failed `auth_session_audit_tests` with `Maximal 1 Arzt-Konto erlaubt` | `apps/practice-host/tests/auth_session_audit_tests.rs` now uses seeded ARZT credentials | `cargo test -p medoc --test auth_session_audit_tests` **PASS** |
+| Rust error-contract assertions | Multiple workspace failures in `domain_services_tests`, `praxis_aufgabe_tests`, `license_v2_tests`, `medoc-sync` pairing/engine HTTP tests | Updated tests to accept `ValidationCode` / current messages | Targeted reruns all **PASS** (`cargo test -p medoc --test domain_services_tests`, `...praxis_aufgabe_tests`, `cargo test -p medoc-core --test license_v2_tests`, `cargo test -p medoc-sync --lib`, `cargo test -p medoc-sync --test engine_http_tests`) |
+| Outbox hook tests under role cap | `sync_outbox_hooks_tests` failed with FK violations from extra ARZT inserts | Reused seeded IDs (`seed-arzt-001`, `seed-rez-001`) in `sync_outbox_hooks_tests.rs` | `cargo test -p medoc-core --test sync_outbox_hooks_tests` **PASS** |
+| UI rules: toast anchoring | Playwright geometry audit failed (`toast-stack` effectively top-right; off-scale `top/bottom` metrics) | `.toast-stack` moved to bottom-safe-area anchoring; geometry assertions updated to viewport-gap checks | `npx playwright test e2e-playwright/ui-geometry.spec.ts` **PASS** |
+| Frontend suite stability | `npm test` OOM (`Allocation failed - JavaScript heap out of memory`) | `apps/practice-host-ui/package.json` test pipeline split into isolated commands; smoke files explicit | `npm test` **PASS** |
+
 ## Sell-ready MVP program — verified (2026-07-05)
 
 | Check | Command | Result |

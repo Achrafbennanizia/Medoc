@@ -141,5 +141,5 @@ fn v1_expired_is_rejected() {
     let signed = sign_inner(&body);
     let status = license::verify_v1(&signed);
     assert!(!status.valid);
-    assert!(status.reason.as_deref().unwrap().contains("abgelaufen"));
+    assert!(status.reason.as_deref().unwrap().contains("expired"));
 }

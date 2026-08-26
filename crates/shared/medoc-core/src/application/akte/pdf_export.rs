@@ -613,8 +613,8 @@ pub async fn export_akte_pdf(
                         vec![
                             z.created_at.format("%Y-%m-%d %H:%M").to_string(),
                             format!("{:.2}", z.betrag),
-                            format!("{}", z.zahlungsart),
-                            format!("{}", z.status),
+                            z.zahlungsart.to_string(),
+                            z.status.to_string(),
                             z.beschreibung.as_deref().unwrap_or("-").to_string(),
                         ]
                     })

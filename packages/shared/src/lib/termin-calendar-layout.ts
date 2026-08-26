@@ -121,7 +121,7 @@ export type TerminClosedSpan = {
 
 function boundsFromSegments(
     segments: Array<{ from: string; to: string }>,
-    fallback: TerminTimelineBounds,
+    _fallback: TerminTimelineBounds,
 ): TerminTimelineBounds | null {
     let minStart = Number.POSITIVE_INFINITY;
     let maxEnd = 0;
