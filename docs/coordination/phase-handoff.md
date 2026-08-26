@@ -1,6 +1,36 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
+**Last phase label:** CI/CD tier migration (2026-08-26)  
+**Last closed:** Tiered verify/autofix/fix-proposal/release workflows and coordination docs update.
+
+### Verified (2026-08-26 — CI/CD tier migration)
+
+- Added `.github/workflows/verify.yml` (Tier 1): push + PR + workflow_call; rust/web/a11y verify, no mutation.
+- Added `.github/workflows/autofix.yml` (Tier 2): PR-only deterministic `cargo fmt`, `lint:fix`, `format`; loop guard for `github-actions[bot]`.
+- Added `.github/workflows/fix-proposal.yml` (Tier 3): manual dispatch or failed `verify` on `main`; attempts fix on new branch; opens draft proposal PR; labels/stops on security/audit/crypto/RBAC path touches.
+- Replaced `.github/workflows/release.yml` (Tier 4): reusable `verify` gate + protected `release` environment + signed matrix build + provenance attestation.
+- Added `docs/coordination/ci-cd-plan.md` and updated `README.md`, `docs/process/freigabeprozess.md`, `docs/operations/vendor-key-rotation.md`, and coordination ledgers.
+- Workflow YAML parse via `python3` + `yaml.safe_load` **PASS** for all 4 workflows; `node --check scripts/test-a11y-critical.mjs` **PASS**.
+
+### Remains unverified
+
+- `npm run test:a11y` execution in this branch (**NOT RUN**) because current codebase `npm run typecheck` / `npm run build` are red.
+- End-to-end GitHub Actions runtime behavior for new workflows (**NOT OBSERVED**) until first CI runs.
+
+### Understanding delta
+
+- The repo now has explicit separation between verify, deterministic autofix, substantive fix proposal, and release gating (instead of a single `ci.yml` + legacy release flow).
+- Current UI code quality baseline is red on typecheck/lint/build, so Tier 1 will intentionally fail until those pre-existing issues are remediated.
+
+### Next
+
+1. Fix current TypeScript and ESLint blockers in `apps/practice-host-ui/src` and `packages/shared/src/lib` so Tier 1 can pass.
+2. Run first CI cycle to validate `verify` + `autofix` behavior on a PR.
+3. Execute a release dry run (`workflow_dispatch`) to validate protected-environment approval and artifact signing.
+
+---
+
+**Previous phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
 **Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 
 ### Verified (2026-07-05 — Sell-ready MVP)

@@ -1,6 +1,19 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-08-26 (CI/CD tier migration)
+
+## CI/CD tier migration — verified (2026-08-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML parse | `python3` + `yaml.safe_load` on `.github/workflows/*.yml` | **PASS** (`verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml`) |
+| A11y runner syntax | `node --check scripts/test-a11y-critical.mjs` | **PASS** |
+| Web typecheck | `npm run typecheck` | **FAIL** — existing TS errors in `document-print-html.ts` (nullable render values), missing module types (`i18next`, `react-i18next`), and unused symbols (`termin-availability.ts`, `termin-calendar-layout.ts`, `termin-week-day-grid.tsx`) |
+| Web build | `npm run build` | **FAIL** — same TypeScript blockers as `npm run typecheck` |
+| Web lint | `npm run lint` | **FAIL** — existing ESLint violations in `apps/practice-host-ui/src` (not introduced by workflow migration), including `react-hooks/rules-of-hooks`, `react-hooks/preserve-manual-memoization`, `react-hooks/refs`, and `@typescript-eslint/no-unused-vars` |
+| A11y execution | `npm run test:a11y` | **NOT RUN** — blocked by failing TypeScript build in current tree |
+
+**Notes:** CI/CD workflow migration was completed (`verify/autofix/fix-proposal/release` tiers + `docs/coordination/ci-cd-plan.md`). Current app code state remains red on lint/typecheck/build and must be remediated separately for Tier 1 green.
 
 ## Sell-ready MVP program — verified (2026-07-05)
 
