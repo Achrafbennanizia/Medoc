@@ -1,7 +1,33 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
-**Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
+**Last phase label:** CI/CD tier migration (2026-08-26)  
+**Last closed:** Tiered workflows wired (`verify` / `autofix` / `fix-proposal` / `release`), built-UI axe gate script added, `ci.yml` retired.
+
+### Verified (2026-08-26 — CI/CD tiers)
+
+- Added `.github/workflows/verify.yml` with push/PR/workflow-call verify gates for Rust, JS, and accessibility, including package-manager lockfile detection and per-job timeouts.
+- Added `.github/workflows/autofix.yml` (`pull_request` only) with loop guard, deterministic-only fixes, and compliance path stop for security/audit/crypto/RBAC edits.
+- Added `.github/workflows/fix-proposal.yml` (manual dispatch + failed `verify` on `main`) to open draft fix-proposal PRs with before/after evidence and optional `MEDOC_FIX_PROPOSAL_COMMAND`.
+- Rewrote `.github/workflows/release.yml` to re-run full verify first, then build signed artifacts under protected `release` environment with no source mutation.
+- Added `docs/coordination/ci-cd-plan.md` as the canonical CI/CD tier plan.
+- Added `apps/practice-host-ui/scripts/test-a11y-critical.mjs` + `test:a11y`/`typecheck`/`lint:fix`/`format` scripts and `axe-core` dev dependency.
+
+### Remains unverified
+
+- End-to-end green status of new `verify.yml` in GitHub Actions (**NOT OBSERVED** in this local session).
+- Green baseline for `cargo fmt --all -- --check`, `npm run typecheck -w medoc`, `npm run typecheck -w medoc-lan-web-client`, and `npm run build -w medoc` (all currently failing from pre-existing codebase issues).
+- A11y runtime scan against a successfully built `dist` bundle (build currently blocked by existing type errors).
+
+### Next
+
+1. Resolve existing Rust formatting and TypeScript baseline failures so Tier-1 can pass.
+2. Run the new workflows on a PR branch to validate CI behavior (loop guard, concurrency cancellation, fix-proposal trigger semantics).
+3. Execute a tag or manual dispatch dry-run for `release.yml` in protected `release` environment.
+
+---
+
+**Previous phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
+**Previous closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 
 ### Verified (2026-07-05 — Sell-ready MVP)
 

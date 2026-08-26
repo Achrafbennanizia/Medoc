@@ -1,6 +1,23 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-08-26 (CI/CD tier migration)
+
+## CI/CD tier migration — verified (2026-08-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML syntax | `python3 -c "import yaml, pathlib; ..."` on `verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml` | **PASS** (`yaml-parse-ok`) |
+| Rust fmt gate baseline | `cargo fmt --all -- --check` | **FAIL** — repo currently has widespread pre-existing formatting drift; command exits before later chained checks |
+| Workspace dependency install | `npm ci` | **PASS** |
+| medoc typecheck baseline | `npm run typecheck -w medoc` | **FAIL** — pre-existing TS errors in `document-print-html.ts` nullability + unused symbol warnings in termin modules |
+| lan-web-client typecheck baseline | `npm run typecheck -w medoc-lan-web-client` | **FAIL** — unresolved `#shared-locales/*.json` aliases in `packages/shared/src/lib/i18n.ts` |
+| medoc build baseline | `npm run build -w medoc` | **FAIL** — same pre-existing TypeScript errors as typecheck |
+| New a11y script syntax | `node --check apps/practice-host-ui/scripts/test-a11y-critical.mjs` | **PASS** |
+| New a11y gate runtime (without build) | `npm run test:a11y -w medoc` | **FAIL (expected)** — script correctly aborts when `dist/index.html` is missing |
+
+**Delivered in this validation slice:** retired `.github/workflows/ci.yml` removed; new tiered workflows added (`verify.yml`, `autofix.yml`, `fix-proposal.yml`, rewritten `release.yml`); CI/CD plan documented at `docs/coordination/ci-cd-plan.md`; medoc scripts `lint:fix`, `format`, `typecheck`, `test:a11y` added; axe-core dependency + built-UI a11y runner added.
+
+---
 
 ## Sell-ready MVP program — verified (2026-07-05)
 

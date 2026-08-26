@@ -1,0 +1,224 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      failure_summary:
+        description: "Optional summary of the failing check to target."
+        required: false
+        type: string
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: fix-proposal-${{ github.event.workflow_run.head_branch || github.ref_name || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+  MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+
+jobs:
+  propose:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - id: pm
+        name: Detect package manager from lockfile
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Enable corepack
+        run: corepack enable
+      - name: Install dependencies
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+            *) echo "Unsupported package manager: ${{ steps.pm.outputs.pm }}" && exit 1 ;;
+          esac
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked || true
+
+      - id: before
+        name: Capture failing-before evidence
+        run: |
+          set +e
+          cargo test --workspace --tests > /tmp/fix-proposal-before-rust.log 2>&1
+          BEFORE_RUST=$?
+
+          cargo audit > /tmp/fix-proposal-before-audit.log 2>&1
+          BEFORE_AUDIT=$?
+
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm)
+              pnpm --filter medoc run typecheck > /tmp/fix-proposal-before-web.log 2>&1
+              BEFORE_WEB=$?
+              ;;
+            yarn)
+              yarn workspace medoc typecheck > /tmp/fix-proposal-before-web.log 2>&1
+              BEFORE_WEB=$?
+              ;;
+            npm)
+              npm run typecheck -w medoc > /tmp/fix-proposal-before-web.log 2>&1
+              BEFORE_WEB=$?
+              ;;
+          esac
+          set -e
+
+          echo "rust_status=$BEFORE_RUST" >> "$GITHUB_OUTPUT"
+          echo "audit_status=$BEFORE_AUDIT" >> "$GITHUB_OUTPUT"
+          echo "web_status=$BEFORE_WEB" >> "$GITHUB_OUTPUT"
+
+      - name: Attempt non-deterministic fix
+        env:
+          MEDOC_FIX_PROPOSAL_COMMAND: ${{ vars.MEDOC_FIX_PROPOSAL_COMMAND }}
+        run: |
+          if [ -z "${MEDOC_FIX_PROPOSAL_COMMAND}" ]; then
+            echo "No MEDOC_FIX_PROPOSAL_COMMAND configured; generating evidence-only fix proposal."
+            exit 0
+          fi
+
+          echo "Running configured fix command..."
+          bash -lc "${MEDOC_FIX_PROPOSAL_COMMAND}"
+
+      - id: sensitivity
+        name: Compliance path guard (security/audit/crypto/RBAC)
+        run: |
+          CHANGED_FILES="$(git diff --name-only)"
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "sensitive=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if printf '%s\n' "$CHANGED_FILES" | grep -Ei '(^|/)(security|crypto|audit|rbac)(/|\.|$)|^config/rbac\.yaml$'; then
+            echo "sensitive=true" >> "$GITHUB_OUTPUT"
+            echo "Automation touched protected compliance paths; stopping after PR creation."
+            exit 0
+          fi
+
+          echo "sensitive=false" >> "$GITHUB_OUTPUT"
+
+      - id: after
+        if: steps.sensitivity.outputs.sensitive != 'true'
+        name: Capture passing-after evidence
+        run: |
+          set +e
+          cargo test --workspace --tests > /tmp/fix-proposal-after-rust.log 2>&1
+          AFTER_RUST=$?
+
+          cargo audit > /tmp/fix-proposal-after-audit.log 2>&1
+          AFTER_AUDIT=$?
+
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm)
+              pnpm --filter medoc run typecheck > /tmp/fix-proposal-after-web.log 2>&1
+              AFTER_WEB=$?
+              ;;
+            yarn)
+              yarn workspace medoc typecheck > /tmp/fix-proposal-after-web.log 2>&1
+              AFTER_WEB=$?
+              ;;
+            npm)
+              npm run typecheck -w medoc > /tmp/fix-proposal-after-web.log 2>&1
+              AFTER_WEB=$?
+              ;;
+          esac
+          set -e
+
+          echo "rust_status=$AFTER_RUST" >> "$GITHUB_OUTPUT"
+          echo "audit_status=$AFTER_AUDIT" >> "$GITHUB_OUTPUT"
+          echo "web_status=$AFTER_WEB" >> "$GITHUB_OUTPUT"
+
+      - name: Write fix-proposal evidence note
+        run: |
+          mkdir -p docs/coordination/fix-proposals
+          {
+            echo "# CI fix proposal (run ${{ github.run_id }})"
+            echo
+            echo "## Trigger"
+            echo "- Event: ${{ github.event_name }}"
+            echo "- Source branch/commit: ${{ github.event.workflow_run.head_branch || github.ref_name }} / ${{ github.event.workflow_run.head_sha || github.sha }}"
+            echo "- Optional failure summary: ${{ inputs.failure_summary || 'n/a' }}"
+            echo
+            echo "## Guardrails"
+            echo "- Tier 3 creates a draft PR only; no auto-merge."
+            echo "- Compliance-sensitive paths (security/audit/crypto/RBAC) trigger \`needs-human-review\` and stop further automation."
+            echo
+            echo "## Evidence (before fix attempt)"
+            echo "- \`cargo test --workspace --tests\` exit code: **${{ steps.before.outputs.rust_status }}**"
+            echo "- \`cargo audit\` exit code: **${{ steps.before.outputs.audit_status }}**"
+            echo "- JS typecheck exit code: **${{ steps.before.outputs.web_status }}**"
+            echo
+            echo "## Evidence (after fix attempt)"
+            echo "- Stopped due compliance path guard: **${{ steps.sensitivity.outputs.sensitive }}**"
+            echo "- \`cargo test --workspace --tests\` exit code: **${{ steps.after.outputs.rust_status || 'NOT RUN' }}**"
+            echo "- \`cargo audit\` exit code: **${{ steps.after.outputs.audit_status || 'NOT RUN' }}**"
+            echo "- JS typecheck exit code: **${{ steps.after.outputs.web_status || 'NOT RUN' }}**"
+            echo
+            echo "## Logs"
+            echo "- Before: \`/tmp/fix-proposal-before-{rust,audit,web}.log\`"
+            echo "- After: \`/tmp/fix-proposal-after-{rust,audit,web}.log\`"
+          } > docs/coordination/fix-proposals/fix-proposal-${{ github.run_id }}.md
+
+      - id: cpr
+        name: Open draft fix proposal PR
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: ci/fix-proposal-${{ github.run_id }}-${{ github.run_attempt }}
+          base: main
+          draft: true
+          title: "ci: fix proposal for failing verify gate"
+          commit-message: "ci: add fix proposal evidence (run ${{ github.run_id }})"
+          body: |
+            ## Why
+            A verify gate failed (or this workflow was manually dispatched), so this workflow generated a Tier-3 draft fix proposal branch.
+
+            ## Included
+            - Suggested diff from an optional configured fix command (`MEDOC_FIX_PROPOSAL_COMMAND`).
+            - Failing-before and passing-after command exit codes in:
+              - `docs/coordination/fix-proposals/fix-proposal-${{ github.run_id }}.md`
+
+            ## Safety guardrails
+            - No auto-merge.
+            - Compliance-sensitive path detection for security/audit/crypto/RBAC changes.
+
+      - name: Label sensitive proposals as needs-human-review
+        if: steps.sensitivity.outputs.sensitive == 'true' && steps.cpr.outputs.pull-request-number != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number("${{ steps.cpr.outputs.pull-request-number }}"),
+              labels: ["needs-human-review"],
+            });
