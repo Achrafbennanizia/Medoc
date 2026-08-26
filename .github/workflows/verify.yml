@@ -1,0 +1,128 @@
+name: verify
+
+on:
+  push:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    name: Rust verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+      MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: System deps for Tauri-linked crates
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo fmt (check only)
+        run: cargo fmt --all -- --check
+      - name: cargo clippy (deny warnings)
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: cargo test
+        run: cargo test --workspace
+      - uses: taiki-e/install-action@cargo-audit
+      - name: cargo audit
+        run: cargo audit
+
+  web:
+    name: JS verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NODE_OPTIONS: --max-old-space-size=6144
+    steps:
+      - uses: actions/checkout@v4
+      - id: pm
+        name: Detect package manager
+        shell: bash
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "run_cmd=pnpm run" >> "$GITHUB_OUTPUT"
+            echo "cache_dependency=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "run_cmd=yarn run" >> "$GITHUB_OUTPUT"
+            echo "cache_dependency=yarn.lock" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=npm ci" >> "$GITHUB_OUTPUT"
+            echo "run_cmd=npm run" >> "$GITHUB_OUTPUT"
+            echo "cache_dependency=package-lock.json" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.cache_dependency }}
+      - run: corepack enable
+      - run: ${{ steps.pm.outputs.install_cmd }}
+      - name: lint (no fix)
+        run: ${{ steps.pm.outputs.run_cmd }} lint
+      - name: typecheck
+        run: ${{ steps.pm.outputs.run_cmd }} typecheck
+      - name: test
+        run: ${{ steps.pm.outputs.run_cmd }} test
+      - name: build
+        run: ${{ steps.pm.outputs.run_cmd }} build
+
+  a11y:
+    name: Accessibility verify (axe-core)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NODE_OPTIONS: --max-old-space-size=6144
+    steps:
+      - uses: actions/checkout@v4
+      - id: pm
+        name: Detect package manager
+        shell: bash
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "run_cmd=pnpm run" >> "$GITHUB_OUTPUT"
+            echo "cache_dependency=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "run_cmd=yarn run" >> "$GITHUB_OUTPUT"
+            echo "cache_dependency=yarn.lock" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=npm ci" >> "$GITHUB_OUTPUT"
+            echo "run_cmd=npm run" >> "$GITHUB_OUTPUT"
+            echo "cache_dependency=package-lock.json" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.cache_dependency }}
+      - run: corepack enable
+      - run: ${{ steps.pm.outputs.install_cmd }}
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Build web UI
+        run: ${{ steps.pm.outputs.run_cmd }} build
+      - name: Run axe-core checks
+        run: ${{ steps.pm.outputs.run_cmd }} test:a11y
