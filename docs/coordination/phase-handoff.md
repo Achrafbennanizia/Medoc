@@ -1,7 +1,33 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
-**Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
+**Last phase label:** CI/CD pipeline migration (2026-08-26)
+**Last closed:** Tiered verify/autofix/fix-proposal/release workflows, stale CI workflow removal, CI/CD coordination plan doc.
+
+### Verified (2026-08-26 — CI/CD pipeline migration)
+
+- **Tiered workflows added:** `.github/workflows/verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml`.
+- **Stale workflow removed:** `.github/workflows/ci.yml` (retired path assumptions no longer used).
+- **Guardrails implemented:** verify no mutation, autofix PR-only with bot loop guard, fix-proposal draft-PR flow with sensitive-path label stop, release protected `release` environment gate.
+- **Workspace alignment:** JS/Rust checks now target repo-root `apps/*`, `packages/*`, `crates/*` model.
+- **Accessibility gate:** axe-core scan added with critical WCAG 2.1 A/AA failure threshold.
+- **Validation ledger updated:** `docs/coordination/validation.md` now records CI/CD migration checks and current pre-existing lint/typecheck failures.
+
+### Remains unverified
+
+- First end-to-end GitHub Actions run of new workflows on a real PR.
+- First red-main trigger for `fix-proposal.yml` (draft PR behavior not observed yet).
+- First tag/dispatch run of new `release.yml` with protected-environment approval.
+
+### Next
+
+1. Open PR and observe `verify.yml` + `autofix.yml` behavior on CI.
+2. Trigger `fix-proposal.yml` manually to verify draft PR and labeling path.
+3. Run a release dry-run (`workflow_dispatch`) to validate protected release gate + signed artifact upload.
+
+---
+
+**Previous phase label:** Sell-ready MVP + sync C8 (2026-07-05)
+**Previous closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 
 ### Verified (2026-07-05 — Sell-ready MVP)
 

@@ -1,6 +1,25 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-08-26 (CI/CD pipeline migration)
+
+## CI/CD pipeline migration — verified (2026-08-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML syntax | `python3 -c "yaml.safe_load(...)"` over `verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml` | **PASS** |
+| Workspace dependency install | `npm ci` | **PASS** |
+| Practice UI typecheck script | `npm run typecheck -w medoc` | **FAIL** — pre-existing TS errors (`document-print-html.ts`, unused vars in termin modules) |
+| LAN web typecheck | `npm run typecheck -w medoc-lan-web-client` | **FAIL** — pre-existing `#shared-locales/*.json` module-resolution errors |
+| Practice UI lint | `npm run lint -w medoc` | **FAIL** — pre-existing hook-order and memoization lint violations across multiple files |
+
+**Delivered in this migration:**
+
+- Added tiered workflows: `.github/workflows/{verify.yml,autofix.yml,fix-proposal.yml,release.yml}`.
+- Removed stale `.github/workflows/ci.yml`.
+- Added deterministic scripts in `apps/practice-host-ui/package.json`: `typecheck`, `lint:fix`, `format`.
+- Added coordination source of truth: `docs/coordination/ci-cd-plan.md`.
+
+---
 
 ## Sell-ready MVP program — verified (2026-07-05)
 
