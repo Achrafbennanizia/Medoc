@@ -13,11 +13,32 @@ fn allowed_transition(current: &str, next: &str, allowed: &[&str]) -> Result<(),
     let cur = current.trim().to_uppercase();
     let nxt = next.trim().to_uppercase();
     if cur == nxt {
+        tracing::info!(
+            target: "medoc::workflow",
+            event = "DOMAIN_STATE_TRANSITION",
+            current = %cur,
+            next = %nxt,
+            outcome = "noop",
+        );
         return Ok(());
     }
     if allowed.iter().any(|s| s.eq_ignore_ascii_case(&nxt)) {
+        tracing::info!(
+            target: "medoc::workflow",
+            event = "DOMAIN_STATE_TRANSITION",
+            current = %cur,
+            next = %nxt,
+            outcome = "allowed",
+        );
         Ok(())
     } else {
+        tracing::warn!(
+            target: "medoc::workflow",
+            event = "DOMAIN_STATE_TRANSITION",
+            current = %cur,
+            next = %nxt,
+            outcome = "denied",
+        );
         Err(status_transition_denied(&cur, &nxt))
     }
 }
