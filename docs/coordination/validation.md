@@ -1,6 +1,24 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-08-26 (CI/CD tier migration)
+
+## CI/CD tier migration — verified (2026-08-26)
+
+| Check | Command | Result | Notes |
+|-------|---------|--------|-------|
+| Workflow YAML parse | `python3` + `yaml.safe_load` over `.github/workflows/*.yml` | **PASS** | New workflow files parse as valid YAML |
+| Fix-proposal helper syntax | `bash -n scripts/ci/fix-proposal-attempt.sh` | **PASS** | Shell helper is syntactically valid |
+| Playwright browser install | `npx playwright install --with-deps chromium` | **PASS** | Required for axe-core a11y runner in CI |
+| A11y runner smoke | `node apps/practice-host-ui/scripts/axe-critical-check.mjs https://example.com` | **PASS** | Script executes end-to-end after `browser.newContext()` fix |
+| JS dependency install | `npm ci` | **PASS** | Workspace dependencies resolved from lockfile |
+| JS typecheck gate | `npm run typecheck -w medoc` | **FAIL** | Pre-existing TS errors (e.g. `document-print-html.ts` nullability + unused symbols) |
+| JS lint gate | `npm run lint -w medoc` | **FAIL** | Pre-existing lint errors in app code (`react-hooks/rules-of-hooks`, `react-hooks/preserve-manual-memoization`, etc.) |
+| Rust fmt gate | `cargo fmt --all --check` | **FAIL** | Pre-existing rustfmt diffs across multiple Rust files |
+
+**NOT OBSERVED (this local session):**
+
+- Live GitHub Actions execution of `verify.yml`, `autofix.yml`, `fix-proposal.yml`, and `release.yml`.
+- Protected `release` environment approval flow on GitHub.
 
 ## Sell-ready MVP program — verified (2026-07-05)
 

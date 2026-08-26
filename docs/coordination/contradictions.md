@@ -1,6 +1,6 @@
 # Contradiction ledger
 
-**Last updated:** 2026-06-16
+**Last updated:** 2026-08-26
 
 ## Open contradictions
 
@@ -15,6 +15,7 @@
 
 | ID | Resolution | Evidence | Date closed |
 | -- | ---------- | -------- | ----------- |
+| C9 | Legacy single CI workflow did not enforce tiered verify/autofix/release separation; migrated to `verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml` with explicit mutation guardrails | `.github/workflows/*.yml`, `docs/coordination/ci-cd-plan.md` | 2026-08-26 |
 | C1a | VVT technical measures: first line states DB file **ohne SQLCipher**; second line **Geplant: SQLCipher** (no longer reads as if encryption were already in place) | `app/src-tauri/src/infrastructure/vvt.rs` `common_tech` | 2026-04-19 |
 | C2 | Architecture markdown aligned with repo: `app/src/`, `app/src-tauri/src/`, stack table | `docs/architecture/architecture-design.md` §1–2; `app/package.json` | 2026-04-19 |
 | C3 | CI includes Next.js app under `src/` | `.github/workflows/ci.yml` job `next-web` | **Resolved 2026-05-19** — job removed; no `src/package.json` in tree |

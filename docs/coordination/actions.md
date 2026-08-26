@@ -1,6 +1,6 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-08-26 (CI/CD tier migration)
 
 ## Now
 
@@ -32,6 +32,16 @@ Active cost-priority delivery plan and test allow-list:
 - `audit`, `compliance`, `ops` pages → `packages/app/practice-host/src/pages/` (+ `ops.smoke.test.tsx`; G21 script path updated).
 - Pre-existing build errors fixed: duplicate `className`, login CapsLock handler, `WorkTimeReconcileReport` type.
 - `npm run build` **PASS** (2026-07-10).
+
+## Done (2026-08-26 — CI/CD tier migration)
+
+- Replaced legacy single `ci.yml` with four-tier pipeline:
+  - `verify.yml` (blocking, non-mutating)
+  - `autofix.yml` (PR-only deterministic fixes + loop/compliance guards)
+  - `fix-proposal.yml` (draft remediation PRs, no auto-merge)
+  - `release.yml` (verify gate reuse + protected signed builds + provenance)
+- Added `docs/coordination/ci-cd-plan.md` as canonical CI/CD guardrail document.
+- Added workspace-level `typecheck`, `lint:fix`, `format`, `test:a11y` scripts and axe-core a11y runner for critical WCAG 2.1 AA gating.
 
 ## Done (2026-06-18 — Work-Time & Team Overview)
 
