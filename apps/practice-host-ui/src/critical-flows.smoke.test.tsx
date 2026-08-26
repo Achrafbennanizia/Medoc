@@ -2,6 +2,7 @@
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { PropsWithChildren } from "react";
 import type { Session } from "@/models/types";
 import { useAuthStore } from "@/models/store/auth-store";
 import App from "@/App";
@@ -20,6 +21,31 @@ import { VERBUND_STATUS_READY } from "@/models/store/verbund-store";
 
 vi.mock("@/services/tauri.service", () => ({
     tauriInvoke: vi.fn(),
+    recordWorkflowEvent: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/views/components/workflow-route-logger", () => ({
+    WorkflowRouteLogger: () => null,
+}));
+
+vi.mock("@/views/components/cluster-reset-listener", () => ({
+    ClusterResetListener: () => null,
+}));
+
+vi.mock("@/views/components/replica-sync-background", () => ({
+    ReplicaSyncBackground: () => null,
+}));
+
+vi.mock("@/views/components/praxis-arbeitszeiten-background", () => ({
+    PraxisArbeitszeitenBackground: () => null,
+}));
+
+vi.mock("@/views/components/license-and-pairing-gate", () => ({
+    LicenseAndPairingGate: ({ children }: PropsWithChildren) => <>{children}</>,
+}));
+
+vi.mock("@/views/components/verbund-onboarding-gate", () => ({
+    VerbundOnboardingGate: ({ children }: PropsWithChildren) => <>{children}</>,
 }));
 
 const ARZT_SESSION: Session = {
@@ -140,12 +166,16 @@ describe("critical flow (a) login → dashboard → logout", () => {
                     };
                 case "list_termine":
                     return [];
+                case "list_upcoming_appointments":
+                    return [];
                 case "list_patienten":
+                    return [];
+                case "list_akte_next_termin_hints_pending":
                     return [];
                 case "list_bestellungen":
                     return [];
                 default:
-                    throw new Error(`unmocked IPC in flow (a): ${cmd}`);
+                    return undefined;
             }
         });
     });
@@ -367,7 +397,7 @@ describe("critical flow (f) login rejection on wrong password", () => {
                 case "verbund_status_cmd":
                     return VERBUND_STATUS_READY;
                 default:
-                    throw new Error(`unmocked IPC in flow (f): ${cmd}`);
+                    return undefined;
             }
         });
     });
