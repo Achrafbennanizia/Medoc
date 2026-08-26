@@ -1,0 +1,202 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      failure_context:
+        description: Short description of the failing test/audit/typecheck signal.
+        required: true
+        type: string
+      failure_run_url:
+        description: Optional URL to the failing verify run.
+        required: false
+        type: string
+      agent_command:
+        description: Optional command that runs your coding agent and edits this checkout.
+        required: false
+        type: string
+      validate_command:
+        description: Optional post-fix validation command (defaults to cargo test + npm typecheck).
+        required: false
+        type: string
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: fix-proposal-${{ github.event_name }}-${{ github.run_id }}
+  cancel-in-progress: true
+
+env:
+  MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+  MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+
+jobs:
+  propose:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout manual-dispatch ref
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Checkout failing main commit
+        if: github.event_name == 'workflow_run'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt,clippy
+      - name: Detect package manager from lockfile
+        id: pm
+        run: |
+          set -euo pipefail
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+            echo "install_command=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+            echo "install_command=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          elif [ -f package-lock.json ]; then
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+            echo "install_command=npm ci" >> "$GITHUB_OUTPUT"
+          else
+            echo "No supported lockfile found (pnpm-lock.yaml, yarn.lock, package-lock.json)." >&2
+            exit 1
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+      - name: Enable corepack
+        run: corepack enable
+      - name: Install dependencies
+        run: ${{ steps.pm.outputs.install_command }}
+      - name: Create proposal branch
+        id: branch
+        run: |
+          set -euo pipefail
+          BRANCH="ci/fix-proposal-${{ github.run_id }}"
+          git switch -c "$BRANCH"
+          echo "name=$BRANCH" >> "$GITHUB_OUTPUT"
+      - name: Run configured fix agent command
+        id: agent
+        env:
+          AGENT_COMMAND: ${{ github.event_name == 'workflow_dispatch' && inputs.agent_command || vars.CI_FIX_PROPOSAL_AGENT_COMMAND }}
+        run: |
+          set -euo pipefail
+          if [ -z "${AGENT_COMMAND}" ]; then
+            echo "No agent command configured. Set workflow input agent_command or repository variable CI_FIX_PROPOSAL_AGENT_COMMAND."
+            echo "ran=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          bash -lc "${AGENT_COMMAND}"
+          echo "ran=true" >> "$GITHUB_OUTPUT"
+      - name: Detect whether agent produced code changes
+        id: diff
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Run post-fix validation command
+        id: validate
+        if: steps.diff.outputs.has_changes == 'true'
+        env:
+          VALIDATE_COMMAND_INPUT: ${{ github.event_name == 'workflow_dispatch' && inputs.validate_command || vars.CI_FIX_PROPOSAL_VALIDATE_COMMAND }}
+        run: |
+          set -euo pipefail
+          VALIDATE_COMMAND="${VALIDATE_COMMAND_INPUT}"
+          if [ -z "${VALIDATE_COMMAND}" ]; then
+            VALIDATE_COMMAND="cargo test --workspace && npm run typecheck"
+          fi
+          set +e
+          bash -lc "${VALIDATE_COMMAND}" > fix-proposal-validate.log 2>&1
+          STATUS=$?
+          set -e
+          echo "command=${VALIDATE_COMMAND}" >> "$GITHUB_OUTPUT"
+          echo "status=${STATUS}" >> "$GITHUB_OUTPUT"
+          if [ "${STATUS}" -ne 0 ]; then
+            echo "Post-fix validation failed; evidence will still be attached to draft PR."
+          fi
+      - name: Build proposal evidence markdown
+        if: steps.diff.outputs.has_changes == 'true'
+        env:
+          FAILURE_CONTEXT: ${{ github.event_name == 'workflow_dispatch' && inputs.failure_context || 'verify workflow failed on main' }}
+          FAILURE_RUN_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.failure_run_url || github.event.workflow_run.html_url }}
+        run: |
+          set -euo pipefail
+          {
+            echo "# CI fix proposal"
+            echo
+            echo "## Failure context (before)"
+            echo "- Context: ${FAILURE_CONTEXT}"
+            if [ -n "${FAILURE_RUN_URL}" ]; then
+              echo "- Failing run: ${FAILURE_RUN_URL}"
+            fi
+            echo
+            echo "## Validation after proposed fix"
+            echo "- Command: \`${{ steps.validate.outputs.command }}\`"
+            echo "- Exit code: \`${{ steps.validate.outputs.status }}\`"
+            echo
+            echo "```text"
+            cat fix-proposal-validate.log
+            echo "```"
+          } > .github/fix-proposal-evidence.md
+      - name: Detect sensitive code touches
+        id: sensitive
+        if: steps.diff.outputs.has_changes == 'true'
+        run: |
+          set -euo pipefail
+          if git diff --name-only | rg -q '(^|/)(security|audit|crypto|rbac)(/|\.|_)'; then
+            echo "needs_human_review=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "needs_human_review=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Open draft PR
+        id: cpr
+        if: steps.diff.outputs.has_changes == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: ${{ steps.branch.outputs.name }}
+          base: main
+          commit-message: "ci: propose fix for failing verification"
+          title: "ci: fix proposal for failing verify run"
+          body-path: .github/fix-proposal-evidence.md
+          draft: true
+          labels: ci-fix-proposal
+          delete-branch: false
+      - name: Add needs-human-review label
+        if: steps.diff.outputs.has_changes == 'true' && steps.sensitive.outputs.needs_human_review == 'true' && steps.cpr.outputs.pull-request-number != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number("${{ steps.cpr.outputs.pull-request-number }}"),
+              labels: ["needs-human-review"],
+            });
+      - name: Stop automation for sensitive files
+        if: steps.diff.outputs.has_changes == 'true' && steps.sensitive.outputs.needs_human_review == 'true'
+        run: |
+          echo "Sensitive files were touched (security/audit/crypto/RBAC). Labeled needs-human-review; manual merge only."
+          exit 1
+      - name: No-op summary
+        if: steps.diff.outputs.has_changes == 'false'
+        run: echo "No code changes were produced by the configured agent command; no PR opened."

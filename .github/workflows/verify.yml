@@ -1,0 +1,135 @@
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+  MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt,clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: rustfmt (check only)
+        run: cargo fmt --all -- --check
+      - name: clippy (deny warnings)
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: cargo test
+        run: cargo test --workspace
+      - name: cargo audit
+        run: |
+          cargo install cargo-audit --locked || true
+          cargo audit
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect package manager from lockfile
+        id: pm
+        run: |
+          set -euo pipefail
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+            echo "install_command=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+            echo "install_command=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          elif [ -f package-lock.json ]; then
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+            echo "install_command=npm ci" >> "$GITHUB_OUTPUT"
+          else
+            echo "No supported lockfile found (pnpm-lock.yaml, yarn.lock, package-lock.json)." >&2
+            exit 1
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+      - name: Enable corepack
+        run: corepack enable
+      - name: Install dependencies
+        run: ${{ steps.pm.outputs.install_command }}
+      - name: Lint (no --fix)
+        run: ${{ steps.pm.outputs.pm }} run lint
+      - name: Type-check
+        run: ${{ steps.pm.outputs.pm }} run typecheck
+      - name: Test
+        run: ${{ steps.pm.outputs.pm }} run test
+      - name: Build
+        run: ${{ steps.pm.outputs.pm }} run build
+
+  a11y:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect package manager from lockfile
+        id: pm
+        run: |
+          set -euo pipefail
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+            echo "install_command=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+            echo "install_command=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          elif [ -f package-lock.json ]; then
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+            echo "install_command=npm ci" >> "$GITHUB_OUTPUT"
+          else
+            echo "No supported lockfile found (pnpm-lock.yaml, yarn.lock, package-lock.json)." >&2
+            exit 1
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+      - name: Enable corepack
+        run: corepack enable
+      - name: Install dependencies
+        run: ${{ steps.pm.outputs.install_command }}
+      - name: Build UI for accessibility checks
+        run: ${{ steps.pm.outputs.pm }} run build
+      - name: Install Playwright Chromium
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm)
+              pnpm exec playwright install --with-deps chromium
+              ;;
+            yarn)
+              yarn playwright install --with-deps chromium
+              ;;
+            npm)
+              npx playwright install --with-deps chromium
+              ;;
+          esac
+      - name: Run axe-core check (critical WCAG 2.1 AA fails)
+        run: ${{ steps.pm.outputs.pm }} run test:a11y
