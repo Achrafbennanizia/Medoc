@@ -1,6 +1,21 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-08-26 (CI/CD pipeline tier migration)
+
+## CI/CD pipeline tier migration — verified (2026-08-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML syntax | `npx --yes yaml-lint .github/workflows/{verify,autofix,fix-proposal,release}.yml` | **PASS** |
+| Stale retired-path scan in workflows | `rg "app/src-tauri|\\bapp/" .github/workflows` | **PASS** — no matches |
+| Rust formatting baseline | `cargo fmt --all -- --check` | **FAIL** — widespread pre-existing formatting drift across many Rust files (not introduced by this workflow/doc change) |
+| JS dependency install | `npm ci` | **PASS** — install completed; npm audit reports 11 vulnerabilities (1 low, 8 high, 2 critical) |
+| Frontend typecheck baseline | `npm run typecheck -w medoc` | **FAIL** — pre-existing TS errors in `document-print-html.ts`, `termin-availability.ts`, `termin-calendar-layout.ts`, `termin-week-day-grid.tsx` (including mirrored `packages/shared` paths) |
+| Frontend lint baseline | `npm run lint -w medoc` | **FAIL** — pre-existing lint errors (e.g. hooks rule violations in `break-glass-banner.tsx`, `termine.tsx`, and memoization rule errors in praxis-aufgaben/finanzen pages) |
+
+**Delivered:** tiered workflows (`verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml` update), legacy `ci.yml` retirement, workspace package-manager detection in workflow execution, release gate reuse of verify, and documentation of guardrails in [`ci-cd-plan.md`](ci-cd-plan.md).
+
+---
 
 ## Sell-ready MVP program — verified (2026-07-05)
 

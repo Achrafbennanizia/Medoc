@@ -1,0 +1,243 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      failure_kind:
+        description: "Failure category"
+        required: true
+        type: choice
+        options:
+          - failing-test
+          - advisory
+          - type-error
+      verify_command:
+        description: "Command that demonstrates the failure before fixing"
+        required: true
+        default: "cargo test --workspace --tests"
+        type: string
+      fix_command:
+        description: "Command(s) that attempt a fix on a new branch"
+        required: true
+        default: "cargo fmt --all && npm run lint -w medoc -- --fix"
+        type: string
+      rationale:
+        description: "Why this fix attempt is being proposed"
+        required: true
+        type: string
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: fix-proposal-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  propose-fix:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+      MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+      - id: params
+        name: Resolve commands and rationale
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            FAILURE_KIND="${{ inputs.failure_kind }}"
+            VERIFY_COMMAND="${{ inputs.verify_command }}"
+            FIX_COMMAND="${{ inputs.fix_command }}"
+            RATIONALE="${{ inputs.rationale }}"
+          else
+            FAILURE_KIND="red-main-verify"
+            VERIFY_COMMAND="cargo test --workspace --tests && npm run test -w medoc && cargo audit"
+            FIX_COMMAND="cargo fmt --all || true; npm run lint -w medoc -- --fix || true"
+            RATIONALE="Automated proposal from failed verify run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}"
+          fi
+
+          {
+            echo "failure_kind=${FAILURE_KIND}"
+            echo "verify_command<<EOF"
+            echo "${VERIFY_COMMAND}"
+            echo "EOF"
+            echo "fix_command<<EOF"
+            echo "${FIX_COMMAND}"
+            echo "EOF"
+            echo "rationale<<EOF"
+            echo "${RATIONALE}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - id: pm
+        name: Detect package manager from lockfile
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+
+      - name: Enable corepack (pnpm/yarn)
+        if: steps.pm.outputs.pm != 'npm'
+        run: corepack enable
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+            *) echo "Unsupported package manager: ${{ steps.pm.outputs.pm }}" >&2; exit 1 ;;
+          esac
+
+      - id: before
+        name: Capture failing-before evidence
+        run: |
+          set +e
+          bash -lc "${{ steps.params.outputs.verify_command }}" > before.log 2>&1
+          STATUS=$?
+          set -e
+          echo "status=${STATUS}" >> "$GITHUB_OUTPUT"
+
+      - id: fix
+        name: Attempt fix on proposal branch
+        run: |
+          set +e
+          bash -lc "${{ steps.params.outputs.fix_command }}" > fix.log 2>&1
+          STATUS=$?
+          set -e
+          echo "status=${STATUS}" >> "$GITHUB_OUTPUT"
+
+      - id: after
+        name: Capture passing-after evidence
+        run: |
+          set +e
+          bash -lc "${{ steps.params.outputs.verify_command }}" > after.log 2>&1
+          STATUS=$?
+          set -e
+          echo "status=${STATUS}" >> "$GITHUB_OUTPUT"
+
+      - id: diff
+        name: Inspect changed files and sensitivity
+        run: |
+          set -euo pipefail
+          git diff --name-only > changed-files.txt
+          if [ -s changed-files.txt ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if grep -Eiq '(^|/)(security|audit|crypto|rbac)(/|[-_.]|$)' changed-files.txt; then
+            echo "sensitive=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "sensitive=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Fail when no proposal diff was produced
+        if: steps.diff.outputs.has_changes != 'true'
+        run: |
+          echo "No code changes were produced by the fix attempt; no proposal PR will be opened."
+          exit 1
+
+      - name: Build draft PR body
+        if: steps.diff.outputs.has_changes == 'true'
+        run: |
+          set -euo pipefail
+          {
+            echo "## CI fix proposal (draft)"
+            echo
+            echo "- **Failure kind:** \`${{ steps.params.outputs.failure_kind }}\`"
+            echo "- **Trigger:** \`${{ github.event_name }}\`"
+            echo "- **Rationale:** ${{ steps.params.outputs.rationale }}"
+            echo
+            echo "### Evidence"
+            echo
+            echo "- **Before command:** \`${{ steps.params.outputs.verify_command }}\`"
+            echo "- **Before exit code:** \`${{ steps.before.outputs.status }}\`"
+            echo "- **Fix command:** \`${{ steps.params.outputs.fix_command }}\`"
+            echo "- **Fix exit code:** \`${{ steps.fix.outputs.status }}\`"
+            echo "- **After command:** \`${{ steps.params.outputs.verify_command }}\`"
+            echo "- **After exit code:** \`${{ steps.after.outputs.status }}\`"
+            echo
+            echo "<details><summary>Before log excerpt</summary>"
+            echo
+            echo '```text'
+            sed -n '1,120p' before.log
+            echo '```'
+            echo
+            echo "</details>"
+            echo
+            echo "<details><summary>Fix log excerpt</summary>"
+            echo
+            echo '```text'
+            sed -n '1,120p' fix.log
+            echo '```'
+            echo
+            echo "</details>"
+            echo
+            echo "<details><summary>After log excerpt</summary>"
+            echo
+            echo '```text'
+            sed -n '1,120p' after.log
+            echo '```'
+            echo
+            echo "</details>"
+          } > pr-body.md
+
+      - id: cpr
+        if: steps.diff.outputs.has_changes == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "ci: propose fix for ${{ steps.params.outputs.failure_kind }}"
+          branch: "ci/fix-proposal-${{ github.run_id }}-${{ github.run_attempt }}"
+          base: main
+          title: "ci: draft fix proposal (${{ steps.params.outputs.failure_kind }})"
+          body-path: pr-body.md
+          draft: true
+          labels: ci-fix-proposal
+
+      - name: Label sensitive proposals for manual review
+        if: steps.diff.outputs.sensitive == 'true' && steps.cpr.outputs.pull-request-number != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number("${{ steps.cpr.outputs.pull-request-number }}"),
+              labels: ["needs-human-review"],
+            });
+
+      - name: Stop when proposal touches security/audit/crypto/RBAC
+        if: steps.diff.outputs.sensitive == 'true'
+        run: |
+          echo "Proposal touches security/audit/crypto/RBAC paths. Added needs-human-review label and stopped."
+          exit 1
