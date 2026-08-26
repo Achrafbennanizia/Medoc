@@ -1,6 +1,6 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-08-26 (CI/CD tier migration)
 
 ## Now
 
@@ -11,6 +11,14 @@
 - **Deferred roles (MVP):** `STEUERBERATER` / `PHARMABERATER` — [`todos-deferred-roles.md`](todos-deferred-roles.md).
 - **Deferred Datenschutz (DSGVO) UI:** [`todos-deferred-features.md`](todos-deferred-features.md).
 - **Deferred security (MVP):** Break-Glass off, 2FA off, 5-user cap — [`todos-deferred-security-features.md`](todos-deferred-security-features.md).
+
+## Done (2026-08-26 — CI/CD tier migration)
+
+- Added tiered workflows: `.github/workflows/verify.yml`, `autofix.yml`, `fix-proposal.yml`; rewrote `release.yml`; removed legacy `.github/workflows/ci.yml`.
+- Added built-UI accessibility gate script `apps/practice-host-ui/scripts/test-a11y-critical.mjs` (axe-core + Playwright Chromium).
+- Added medoc scripts `lint:fix`, `format`, `typecheck`, `test:a11y` and `axe-core` dependency.
+- Added coordination plan: `docs/coordination/ci-cd-plan.md`.
+- Logged command outcomes and baseline failures in `docs/coordination/validation.md` (Rust fmt + TS/type/build currently red pre-existing).
 
 **Last updated (prior):** 2026-06-07 (MVP plan execution — pending todos closed)
 
