@@ -16,6 +16,7 @@
         "dev": "npm run dev -w medoc",
         "build": "npm run build -w medoc",
         "lint": "npm run lint -w medoc",
+        "lint:tailwind-spacing": "npm run lint:tailwind-spacing -w medoc",
         "test": "npm run test -w medoc",
         "test:mvp-coverage": "npm run test:mvp-coverage -w medoc",
         "check": "npm run check -w medoc",

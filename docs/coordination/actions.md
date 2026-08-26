@@ -1,9 +1,10 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-08-26 (logger-first workflow instrumentation pass)
 
 ## Now
 
+- **Quality blockers from WF register (2026-08-26):** fix Vite `/login` browser-mode transport bootstrap for Playwright geometry runs; stabilize `i18n-locales.test.ts` timeout budget; clear pre-existing frontend TS build errors and Rust clippy/test red gates.
 - **Manual QA:** examinations billing release, attachments/scanner import, focus-mode nav — **NOT RUN**
 - **Page migration:** `apps/practice-host-ui/src/views/pages` → `packages/app/practice-host/src/pages` — incremental, not started
 - **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.
@@ -11,6 +12,14 @@
 - **Deferred roles (MVP):** `STEUERBERATER` / `PHARMABERATER` — [`todos-deferred-roles.md`](todos-deferred-roles.md).
 - **Deferred Datenschutz (DSGVO) UI:** [`todos-deferred-features.md`](todos-deferred-features.md).
 - **Deferred security (MVP):** Break-Glass off, 2FA off, 5-user cap — [`todos-deferred-security-features.md`](todos-deferred-security-features.md).
+
+## Done (2026-08-26 — logger-first workflow instrumentation)
+
+- Added sanitized tracing workflow channel `workflow.log` and sanitizer-at-write wrappers for all file sinks.
+- Added backend command `log_workflow_event` + invoke registration update (303 handlers).
+- Added frontend workflow bridge (`route_enter` + IPC lifecycle events) and guard against recursive logging.
+- Added starter quality tests/tools: workflow service tests, static Tailwind arbitrary spacing lint, Playwright spacing audit scaffold at 375/768/1259.
+- Captured run findings register and validation evidence in `contradictions.md` / `validation.md`.
 
 **Last updated (prior):** 2026-06-07 (MVP plan execution — pending todos closed)
 

@@ -1,6 +1,33 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-08-26 (logger-first workflow instrumentation pass)
+
+## Logger-first workflow instrumentation pass — verified (2026-08-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Rust formatting gate (workspace) | `cargo fmt --all -- --check` | **FAIL (pre-existing baseline drift)** — large multi-file format deltas outside this patch scope |
+| Rust clippy gate (default toolchain) | `cargo clippy --workspace --all-targets -- -D warnings` | **FAIL** — Cargo 1.83 cannot parse `edition2024` dependency (`toml 1.1.2+spec-1.1.0`) |
+| Rust clippy gate (stable toolchain) | `cargo +stable clippy --workspace --all-targets -- -D warnings` | **FAIL (pre-existing)** — `medoc-core` clippy errors in `application/akte/pdf_export.rs` and `infrastructure/cors_policy.rs` |
+| Rust full tests (workspace) | `cargo +stable test --workspace --tests` | **FAIL (pre-existing)** — `auth_session_audit_tests` failed (`Maximal 1 Arzt-Konto erlaubt`) |
+| Targeted logger/regression Rust checks | `cargo +stable test -p medoc-core sanitizing_writer_masks_secret_tokens` + `cargo +stable test -p medoc-practice --test invoke_command_registry_tests` + `cargo +stable test -p medoc --test invoke_registration_tests` | **PASS** |
+| Frontend full tests | `timeout 240s npm run test` | **FAIL/PARTIAL** — timed out; also one default-timeout failure in `i18n-locales.test.ts` |
+| i18n timeout probe | `npm run test -w medoc -- ../../packages/shared/src/lib/i18n-locales.test.ts --testTimeout=15000` | **PASS** (6/6) |
+| New workflow logging unit tests | `npm run test -w medoc -- src/services/workflow-logging.service.test.ts src/services/tauri.service.test.ts` | **PASS** (6/6) |
+| Frontend build gate | `npm run build` | **FAIL (pre-existing)** — TS2322/TS6133 errors in `document-print-html.ts`, `termin-availability.ts`, `termin-calendar-layout.ts`, `termin-week-day-grid.tsx` |
+| Tailwind spacing lint gate | `npm run lint:tailwind-spacing` | **PASS** |
+| Playwright spacing audit setup | `npx playwright install chromium` | **PASS** |
+| Playwright spacing audit (real browser) | `MEDOC_UI_E2E=1 npm run test:playwright -w medoc -- e2e-playwright/spacing-audit.spec.ts` | **FAIL** — login selectors not found across 375/768/1259; flow blocked by browser-mode onboarding transport error |
+
+**Delivered in code (this pass):**
+
+- New sanitized `workflow.log` channel added to tracing file sinks (`crates/shared/medoc-core/src/infrastructure/logging/mod.rs`, `config.rs`) with sanitizer-at-write wrapper (`SanitizingMakeWriter`).
+- Domain workflow transition instrumentation emits structured allow/deny events through `log_workflow!` (`crates/shared/medoc-core/src/domain/services/workflow_transitions.rs`).
+- New Tauri command `log_workflow_event` added and registered, with strict step allow-list + payload sanitation (`crates/app/medoc-practice/src/commands/system/logging.rs`, `commands/register.rs`, invoke count 303).
+- Frontend route/action lifecycle bridge implemented (`apps/practice-host-ui/src/services/workflow-logging.service.ts`, `src/services/tauri.service.ts`, `src/App.tsx`).
+- Test-only additions: workflow service/unit tests, static Tailwind arbitrary spacing lint, Playwright spacing-audit starter.
+
+---
 
 ## Sell-ready MVP program — verified (2026-07-05)
 
