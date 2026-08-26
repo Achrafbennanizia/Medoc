@@ -1,9 +1,14 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-08-26 (CI/CD pipeline migration)
 
 ## Now
 
+- **CI follow-up:** run first GitHub pass of `verify.yml` and capture baseline failures on branch protection checks.
+- **Web gate debt:** fix existing lint + TS errors surfaced by `npm run lint`/`npm run typecheck`.
+- **Rust gate debt:** fix existing formatting drift surfaced by `cargo fmt --all --check`.
+- **Tier-3 smoke:** manually dispatch `fix-proposal.yml` once to verify draft PR + sensitive-label path.
+- **Release gate smoke:** run a dry tag/dispatch path to validate protected `release` environment approvals and signed artifact upload.
 - **Manual QA:** examinations billing release, attachments/scanner import, focus-mode nav — **NOT RUN**
 - **Page migration:** `apps/practice-host-ui/src/views/pages` → `packages/app/practice-host/src/pages` — incremental, not started
 - **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.
@@ -11,6 +16,18 @@
 - **Deferred roles (MVP):** `STEUERBERATER` / `PHARMABERATER` — [`todos-deferred-roles.md`](todos-deferred-roles.md).
 - **Deferred Datenschutz (DSGVO) UI:** [`todos-deferred-features.md`](todos-deferred-features.md).
 - **Deferred security (MVP):** Break-Glass off, 2FA off, 5-user cap — [`todos-deferred-security-features.md`](todos-deferred-security-features.md).
+
+## Done (2026-08-26 — CI/CD pipeline tiers and gating)
+
+- Added tiered workflows: `.github/workflows/verify.yml`, `.github/workflows/autofix.yml`, `.github/workflows/fix-proposal.yml`.
+- Replaced `.github/workflows/release.yml` with verify-reuse + protected release environment + signed bundle path.
+- Removed legacy `.github/workflows/ci.yml` to prevent stale/duplicate CI behavior.
+- Added CI plan doc: `docs/coordination/ci-cd-plan.md`.
+- Added scripts and runner for CI checks:
+  - root `package.json`: `typecheck`, `lint:fix`, `format`, `test:a11y`
+  - `apps/practice-host-ui/package.json`: `typecheck`, `lint:fix`, `format`, `test:a11y`
+  - `apps/practice-host-ui/scripts/run-a11y-audit.mjs` (Playwright + axe-core critical WCAG gate)
+- Validation captured in `docs/coordination/validation.md` (YAML parse PASS, `npm ci` PASS, `npm run typecheck` FAIL on existing TS debt, a11y runner syntax PASS).
 
 **Last updated (prior):** 2026-06-07 (MVP plan execution — pending todos closed)
 
