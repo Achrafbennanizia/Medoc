@@ -1,0 +1,233 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_ref:
+        description: "Branch, tag, or commit SHA to propose fixes from"
+        required: false
+        default: "main"
+      failing_run_id:
+        description: "Optional failed verify run ID for before-evidence"
+        required: false
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+concurrency:
+  group: fix-proposal-${{ github.event_name }}-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  propose-fix:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+      MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+      MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+    steps:
+      - name: Resolve proposal context
+        id: context
+        run: |
+          TARGET_REF="${{ github.event.inputs.target_ref }}"
+          FAILING_RUN_ID="${{ github.event.inputs.failing_run_id }}"
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            TARGET_REF="${{ github.event.workflow_run.head_sha }}"
+            FAILING_RUN_ID="${{ github.event.workflow_run.id }}"
+          fi
+          if [ -z "$TARGET_REF" ]; then
+            TARGET_REF="${DEFAULT_BRANCH:-main}"
+          fi
+          echo "target_ref=$TARGET_REF" >> "$GITHUB_OUTPUT"
+          echo "failing_run_id=$FAILING_RUN_ID" >> "$GITHUB_OUTPUT"
+          echo "proposal_branch=ci/fix-proposal-${GITHUB_RUN_ID}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.context.outputs.target_ref }}
+          fetch-depth: 0
+
+      - name: Create proposal branch
+        run: |
+          git checkout -b "${{ steps.context.outputs.proposal_branch }}"
+          mkdir -p .github/fix-proposals
+
+      - name: Capture failing-before evidence
+        run: |
+          run_id="${{ steps.context.outputs.failing_run_id }}"
+          if [ -n "$run_id" ]; then
+            gh run view "$run_id" --log-failed > .github/fix-proposals/failing-before.log || {
+              echo "Unable to download logs for run $run_id." > .github/fix-proposals/failing-before.log
+            }
+          else
+            echo "No failing run id was provided." > .github/fix-proposals/failing-before.log
+          fi
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - id: pm
+        name: Detect package manager from lockfile
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install JavaScript dependencies
+        run: |
+          PM="${{ steps.pm.outputs.pm }}"
+          case "$PM" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+            *) echo "Unsupported package manager: $PM" && exit 1 ;;
+          esac
+
+      - name: Attempt non-deterministic fix
+        env:
+          FIX_PROPOSAL_COMMAND: ${{ vars.FIX_PROPOSAL_COMMAND }}
+        run: |
+          if [ -n "${FIX_PROPOSAL_COMMAND:-}" ]; then
+            echo "Using FIX_PROPOSAL_COMMAND from repository variables." > .github/fix-proposals/fix-attempt.log
+            bash -lc "$FIX_PROPOSAL_COMMAND" >> .github/fix-proposals/fix-attempt.log 2>&1 || true
+          elif [ -x "./scripts/ci/attempt-fix-proposal.sh" ]; then
+            ./scripts/ci/attempt-fix-proposal.sh > .github/fix-proposals/fix-attempt.log 2>&1 || true
+          else
+            printf '%s\n' \
+              "No FIX_PROPOSAL_COMMAND variable or scripts/ci/attempt-fix-proposal.sh script was configured." \
+              "No substantive automated fix attempt could be executed in this run." \
+              > .github/fix-proposals/fix-attempt.log
+          fi
+
+      - name: Capture passing-after evidence
+        run: |
+          PM="${{ steps.pm.outputs.pm }}"
+          SUMMARY_FILE=".github/fix-proposals/passing-after-summary.md"
+          LOG_FILE=".github/fix-proposals/passing-after.log"
+          : > "$SUMMARY_FILE"
+          : > "$LOG_FILE"
+
+          overall=0
+          run_step() {
+            label="$1"
+            command="$2"
+            echo "## $label" >> "$LOG_FILE"
+            bash -lc "$command" >> "$LOG_FILE" 2>&1
+            code=$?
+            echo "- \`$command\`: $code" >> "$SUMMARY_FILE"
+            if [ $code -ne 0 ]; then
+              overall=1
+            fi
+          }
+
+          run_step "Rust format check" "cargo fmt --all --check"
+          run_step "Rust lint check" "cargo clippy --workspace --all-targets -- -D warnings"
+          run_step "Rust tests" "cargo test --workspace"
+          run_step "Cargo audit install" "cargo install cargo-audit --locked"
+          run_step "Rust dependency audit" "cargo audit"
+          run_step "Web lint check" "$PM run lint"
+          run_step "Web typecheck" "$PM run typecheck"
+          run_step "Web tests" "$PM run test"
+          run_step "Web build" "$PM run build"
+          echo "$overall" > .github/fix-proposals/passing-after.exitcode
+
+      - name: Summarize proposal
+        id: proposal
+        run: |
+          CHANGED_FILES_FILE=".github/fix-proposals/changed-files.txt"
+          git status --porcelain | awk '{print $2}' > "$CHANGED_FILES_FILE"
+          if [ ! -s "$CHANGED_FILES_FILE" ]; then
+            echo ".github/fix-proposals/no-changes.txt" > "$CHANGED_FILES_FILE"
+            echo "No changes were detected by this run." > .github/fix-proposals/no-changes.txt
+          fi
+
+          NEEDS_HUMAN_REVIEW="false"
+          if rg -i '(^|/)(security|audit|crypto|rbac)(/|_|\.|$)' "$CHANGED_FILES_FILE" > /dev/null; then
+            NEEDS_HUMAN_REVIEW="true"
+          fi
+          echo "needs_human_review=$NEEDS_HUMAN_REVIEW" >> "$GITHUB_OUTPUT"
+
+          AFTER_STATUS="$(cat .github/fix-proposals/passing-after.exitcode)"
+          {
+            echo "# Tier 3 Fix Proposal"
+            echo
+            echo "- Trigger: \`${{ github.event_name }}\`"
+            echo "- Source ref: \`${{ steps.context.outputs.target_ref }}\`"
+            echo "- Failing-before run id: \`${{ steps.context.outputs.failing_run_id }}\`"
+            echo "- Passing-after verify status: \`$AFTER_STATUS\` (0 means green)"
+            echo "- Restricted surface touched (security/audit/crypto/RBAC): \`$NEEDS_HUMAN_REVIEW\`"
+            echo
+            echo "## Rationale"
+            echo
+            echo "See \`.github/fix-proposals/fix-attempt.log\` for the fix attempt rationale and execution details."
+            echo
+            echo "## Failing-before evidence"
+            echo
+            echo "See \`.github/fix-proposals/failing-before.log\`."
+            echo
+            echo "## Passing-after evidence"
+            echo
+            echo "See \`.github/fix-proposals/passing-after-summary.md\` and \`.github/fix-proposals/passing-after.log\`."
+            echo
+            echo "## Changed files"
+            echo
+            sed 's/^/- `/; s/$/`/' "$CHANGED_FILES_FILE"
+          } > .github/fix-proposals/proposal-summary.md
+
+      - name: Commit proposal branch
+        run: |
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No staged changes; nothing to propose."
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "ci: draft fix proposal for failed verify gate"
+          git push --set-upstream origin "${{ steps.context.outputs.proposal_branch }}"
+
+      - name: Open or update draft proposal PR
+        id: pr
+        run: |
+          BRANCH="${{ steps.context.outputs.proposal_branch }}"
+          EXISTING_PR="$(gh pr list --head "$BRANCH" --json url --jq '.[0].url')"
+          if [ -n "$EXISTING_PR" ]; then
+            echo "pr_url=$EXISTING_PR" >> "$GITHUB_OUTPUT"
+            gh pr edit "$EXISTING_PR" --title "ci: draft fix proposal for verify gate failure" --body-file .github/fix-proposals/proposal-summary.md
+          else
+            NEW_PR="$(gh pr create \
+              --draft \
+              --base "${DEFAULT_BRANCH:-main}" \
+              --head "$BRANCH" \
+              --title "ci: draft fix proposal for verify gate failure" \
+              --body-file .github/fix-proposals/proposal-summary.md)"
+            echo "pr_url=$NEW_PR" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Apply protected-surface label
+        if: steps.proposal.outputs.needs_human_review == 'true'
+        run: |
+          gh pr edit "${{ steps.pr.outputs.pr_url }}" --add-label needs-human-review
+          echo "Applied needs-human-review because restricted code surfaces were touched."
