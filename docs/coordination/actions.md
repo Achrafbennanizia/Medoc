@@ -1,6 +1,19 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-08-26 (CI/CD pipeline migration)
+
+## Done (2026-08-26 — CI/CD pipeline migration)
+
+- Replaced monolithic CI with tiered workflows:
+  - `.github/workflows/verify.yml`
+  - `.github/workflows/autofix.yml`
+  - `.github/workflows/fix-proposal.yml`
+  - `.github/workflows/release.yml`
+- Retired stale `.github/workflows/ci.yml`.
+- Added CI/CD implementation doc: `docs/coordination/ci-cd-plan.md`.
+- Added accessibility runner for Tier 1: `scripts/test-a11y.mjs` + `@axe-core/playwright`.
+- Updated workspace scripts for CI orchestration (`typecheck`, `lint:fix`, `format`, `test:a11y`, `tauri:build`).
+- Updated ledgers (`validation.md`, `phase-handoff.md`, `project-truth.md`) with current state and gaps.
 
 ## Now
 

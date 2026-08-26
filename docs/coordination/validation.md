@@ -1,6 +1,26 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-08-26 (CI/CD pipeline migration: verify/autofix/fix-proposal/release)
+
+## CI/CD pipeline migration — verified (2026-08-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML parse | `python3` + `yaml.safe_load` for `.github/workflows/*.yml` | **PASS** (`verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml`) |
+| JS dependency for axe runner | `npm install -w medoc --save-dev @axe-core/playwright` | **PASS** |
+| Workspace install parity | `npm ci` | **PASS** |
+| JS typecheck gate | `npm run typecheck` | **PASS** (after local type fixes in shared/practice files) |
+| JS build gate | `npm run build` | **PASS** (`tsc && vite build`) |
+| Accessibility gate | `npx playwright install --with-deps chromium` + `npm run test:a11y` | **PASS** — no critical WCAG 2.1 A/AA violations |
+| JS lint gate | `npm run lint` | **FAIL** — pre-existing lint rule violations (react hooks/compiler memoization + exhaustive deps); not introduced by CI migration |
+| JS test gate | `npm run test` | **FAIL/HANG** — vitest run repeatedly hangs after suites complete; one run also hit Node OOM without heap tuning |
+
+**Notes:**
+
+- `scripts/test-a11y.mjs` was moved outside `apps/practice-host-ui/src/` so it does not add lint-scope noise to the existing `eslint src` gate.
+- `verify.yml`, `release.yml`, and `fix-proposal.yml` now set `NODE_OPTIONS=--max-old-space-size=6144` for JS-heavy runs to reduce OOM risk, but the local vitest hang still needs separate investigation.
+
+---
 
 ## Sell-ready MVP program — verified (2026-07-05)
 
