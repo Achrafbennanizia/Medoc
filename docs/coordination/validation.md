@@ -1,6 +1,19 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-08-26 (CI/CD pipeline tiers: verify/autofix/fix-proposal/release)
+
+## CI/CD pipeline tier migration — verified (2026-08-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Environment setup marker | `if [ -f /tmp/cursor/async-install/install-user.status ]; then ...` | **PASS** — `status_file=absent` |
+| Workflow YAML syntax | `python3 - <<'PY' ... yaml.safe_load(...)` for `.github/workflows/{verify,autofix,fix-proposal,release}.yml` | **PASS** |
+| Package manifest syntax | `python3 -m json.tool apps/practice-host-ui/package.json` | **PASS** |
+| Typecheck script smoke | `npm --prefix apps/practice-host-ui run typecheck -- --version` | **FAIL** — `tsc: not found` in this runner session (dependencies were not installed locally before this smoke check) |
+
+**Delivered:** tiered CI/CD workflows (`verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml`), retirement of legacy `ci.yml`, and coordination plan `docs/coordination/ci-cd-plan.md`.
+
+**NOT RUN:** live GitHub Actions execution of all four workflows after merge (pending repository-side run).
 
 ## Sell-ready MVP program — verified (2026-07-05)
 
