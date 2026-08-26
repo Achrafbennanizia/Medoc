@@ -13,7 +13,7 @@ Set before every `cargo build` / CI run:
 export MEDOC_VENDOR_PUBKEY="<64 hex chars = 32 raw bytes>"
 ```
 
-The build script (`app/src-tauri/build.rs`) writes `OUT_DIR/pubkey.rs`:
+The build script (`apps/practice-host/build.rs`) writes `OUT_DIR/pubkey.rs`:
 
 ```rust
 pub const VENDOR_PUBKEY: [u8; 32] = […];
@@ -42,4 +42,4 @@ Store the **private** key only in your secrets manager (never in git). Use it to
 
 ## CI
 
-`.github/workflows/ci.yml` sets `MEDOC_VENDOR_PUBKEY` for the Rust job. Local developers must export the same variable (or your org’s production pubkey for release builds).
+`.github/workflows/verify.yml` and `.github/workflows/release.yml` set `MEDOC_VENDOR_PUBKEY` for Rust jobs. Local developers must export the same variable (or your org’s production pubkey for release builds).

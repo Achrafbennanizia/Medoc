@@ -6,11 +6,22 @@
 
 - **Manual QA:** examinations billing release, attachments/scanner import, focus-mode nav — **NOT RUN**
 - **Page migration:** `apps/practice-host-ui/src/views/pages` → `packages/app/practice-host/src/pages` — incremental, not started
+- **CI/CD follow-up:** resolve current web `typecheck` / `lint` failures blocking `verify.yml` green gate (`document-print-html.ts`, hooks/memoization lint findings in `apps/practice-host-ui/src`)
 - **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.
 - **Geplant / future development:** single status register — [`geplant.md`](geplant.md) (not in-app UI).
 - **Deferred roles (MVP):** `STEUERBERATER` / `PHARMABERATER` — [`todos-deferred-roles.md`](todos-deferred-roles.md).
 - **Deferred Datenschutz (DSGVO) UI:** [`todos-deferred-features.md`](todos-deferred-features.md).
 - **Deferred security (MVP):** Break-Glass off, 2FA off, 5-user cap — [`todos-deferred-security-features.md`](todos-deferred-security-features.md).
+
+## Done (2026-08-26 — CI/CD verify/autofix/release gating)
+
+- Added tiered workflows:
+  - `.github/workflows/verify.yml` (push + PR + workflow_call; zero mutation)
+  - `.github/workflows/autofix.yml` (PR-only deterministic fixes + loop guard)
+  - `.github/workflows/fix-proposal.yml` (manual or failed-main trigger; draft proposal PRs)
+  - `.github/workflows/release.yml` (verify gate + signed matrix build in protected `release` environment)
+- Added plan document: `docs/coordination/ci-cd-plan.md`.
+- Added a11y runner: `scripts/test-a11y-critical.mjs` (`@axe-core/playwright`) and scripts `typecheck`, `lint:fix`, `format`, `test:a11y`.
 
 **Last updated (prior):** 2026-06-07 (MVP plan execution — pending todos closed)
 

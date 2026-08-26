@@ -62,7 +62,7 @@ bash scripts/validate-docker.sh
 
 Details: [`docs/coordination/validation.md`](docs/coordination/validation.md).
 
-CI: `.github/workflows/ci.yml` (repo root).
+CI/CD workflows: `.github/workflows/verify.yml`, `.github/workflows/autofix.yml`, `.github/workflows/fix-proposal.yml`, `.github/workflows/release.yml`.
 
 Legacy `app/` directory — see [`app/README.md`](app/README.md).
 
