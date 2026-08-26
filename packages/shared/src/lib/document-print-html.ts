@@ -345,16 +345,19 @@ function rezeptPdfLinesCombo(items: Rezept[], patient: Patient | null): string[]
     ];
     for (let i = 0; i < items.length; i++) {
         const r = items[i]!;
+        const wirkstoff = r.wirkstoff?.trim();
+        const pzn = r.pzn?.trim();
+        const hinweise = r.hinweise?.trim();
         lines.push(
             docTp("document.print.position", { n: i + 1, name: r.medikament }),
             docTp("document.print.dosage_duration", { dosage: r.dosierung, duration: r.dauer }),
         );
-        if ((r.wirkstoff ?? "").trim()) {
-            lines.push(docTp("document.print.ingredient_line", { value: r.wirkstoff }));
+        if (wirkstoff) {
+            lines.push(docTp("document.print.ingredient_line", { value: wirkstoff }));
         }
-        if ((r.pzn ?? "").trim()) lines.push(docTp("document.print.pzn", { pzn: r.pzn }));
-        if ((r.hinweise ?? "").trim()) {
-            lines.push(docTp("document.print.notes_line", { value: r.hinweise }));
+        if (pzn) lines.push(docTp("document.print.pzn", { pzn }));
+        if (hinweise) {
+            lines.push(docTp("document.print.notes_line", { value: hinweise }));
         }
         lines.push("");
     }

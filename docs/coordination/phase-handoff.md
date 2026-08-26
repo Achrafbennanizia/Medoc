@@ -1,7 +1,36 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
-**Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
+**Last phase label:** CI/CD pipeline migration (verify, safe autofix, gated release) (2026-08-26)  
+**Last closed:** Tiered workflow split + stale CI retirement + a11y axe runner + coordination records.
+
+### Verified (2026-08-26 — CI/CD migration)
+
+- **Tier 1 verify:** new `.github/workflows/verify.yml` with Rust (`fmt --check`, clippy `-D warnings`, tests, audit), JS (`lint`, `typecheck`, `test`, `build`), and axe-core a11y job; package-manager lockfile detection included.
+- **Tier 2 autofix:** new `.github/workflows/autofix.yml` (`pull_request` only, bot loop guard, deterministic fixes, PR-branch commit-back).
+- **Tier 3 fix proposal:** new `.github/workflows/fix-proposal.yml` (`workflow_dispatch` + failed `verify` on main), draft PR evidence, protected-path `needs-human-review` labeling.
+- **Tier 4 release:** new `.github/workflows/release.yml` calls `verify.yml` as gate on tag/dispatch, then builds signed bundles under protected `release` environment.
+- **Stale workflow migration:** retired `.github/workflows/ci.yml`; pipeline now split by tier.
+- **CI/CD documentation:** added `docs/coordination/ci-cd-plan.md`.
+- **Script support:** added root/type scripts (`typecheck`, `lint:fix`, `format`, `test:a11y`, `tauri:build`), medoc scripts (`typecheck`, `lint:fix`, `format`, `test:a11y`), and `scripts/test-a11y.mjs`.
+- **Validation highlights:** workflow YAML parse **PASS**; `npm run typecheck` **PASS**; `npm run build` **PASS**; `npm run test:a11y` **PASS**.
+
+### Remains unverified
+
+- GitHub-hosted execution of all four workflows (this session validated syntax + local commands only).
+- `npm run lint` remains red on pre-existing workspace lint issues.
+- `npm run test` remains unstable locally (hang/OOM behavior still observed).
+- Protected `release` environment approval flow is **NOT OBSERVED** in a live tag run.
+
+### Next
+
+1. Run the new workflows on GitHub (`verify`, `autofix`, `fix-proposal`, `release`) to confirm runtime behavior and permissions.
+2. Triage and resolve existing lint/test instability so Tier 1 can become fully green.
+3. Configure `CI_FIX_PROPOSAL_COMMAND` (and optional `CI_FIX_PROPOSAL_VERIFY_COMMAND`) for automated Tier 3 runs.
+4. Configure/confirm protected `release` environment approvers and signing secrets.
+
+---
+
+**Previous phase label:** Sell-ready MVP + sync C8 (2026-07-05)
 
 ### Verified (2026-07-05 — Sell-ready MVP)
 
