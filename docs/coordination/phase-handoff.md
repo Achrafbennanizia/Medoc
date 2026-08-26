@@ -1,7 +1,37 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
-**Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
+**Last phase label:** Logger-first workflow instrumentation + spacing audit bootstrap (2026-08-26)  
+**Last closed:** Sanitized workflow logging channel, frontend workflow bridge, targeted logger tests, spacing lint/playwright starter.
+
+### Verified (2026-08-26 — logger-first pass)
+
+- **Tracing extension:** `workflow.log` channel added with daily rotation; all file outputs now pass through sanitizer-at-write (`SanitizingMakeWriter`) in `crates/shared/medoc-core/src/infrastructure/logging/mod.rs`.
+- **Domain workflow observability:** transition attempts/results for Termin/Patientenakte/Praxis-Ticket/Praxis-Aufgabe/Bestellung now emit structured `medoc::workflow` events (`workflow_transitions.rs`).
+- **Frontend→backend workflow bridge:** route-entry + IPC lifecycle events (`route_enter`, `primary_action`, `success`, `cancel`, `error`) emit through `log_workflow_event` command with allow-listed step validation and payload sanitation.
+- **Invoke registry:** `EXPECTED_INVOKE_COMMAND_COUNT` bumped to **303**, and both registry tests pass.
+- **Test additions:** workflow logging unit tests (Vitest) + Tailwind arbitrary spacing lint script + Playwright spacing-audit scaffold.
+- **Commits:** `483a10d` (instrumentation) and `7e7ff83` (tests/audits).
+
+### Remains unverified
+
+- Full workspace green gates remain blocked by pre-existing failures:
+  - `cargo fmt --all -- --check` baseline drift across many files.
+  - `cargo +stable clippy --workspace --all-targets -- -D warnings` pre-existing errors (`pdf_export.rs`, `cors_policy.rs`).
+  - `cargo +stable test --workspace --tests` failure in `auth_session_audit_tests`.
+  - `npm run build` TypeScript failures in shared/frontend files.
+- Full `npm run test` stability: default-timeout failure observed in `i18n-locales.test.ts` and command required timeout guard.
+- Playwright spacing audit against Vite `/login`: selectors missing because browser-mode onboarding transport path errors (`Cannot read properties of undefined (reading 'invoke')`), so geometry assertions are currently blocked.
+
+### Next
+
+1. Fix browser-mode bootstrap/stubbing so Playwright can reach deterministic `/login` UI state, then rerun spacing + snapshot audit at 375/768/1259.
+2. Stabilize `i18n-locales.test.ts` runtime budget or optimize its slow assertion path.
+3. Quarantine/fix pre-existing Rust and TypeScript gate failures in dedicated PRs, then rerun full validation matrix.
+
+---
+
+**Previous phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
+**Previous closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 
 ### Verified (2026-07-05 — Sell-ready MVP)
 
@@ -12,17 +42,6 @@
 - **RTL/CSS:** sidebar logical properties, termin context menu RTL anchor, settings shell @900px, viewport min 1024px, fixed broken `@media 720px` brace.
 - **Sync C8:** e2e test `touch_replica_seen_updates_last_seen_on_sync_pull` added; push+pull `last_seen_at` assertions extended on existing push test.
 - **Tests:** `npm test` **PASS** (247); `npm run build` **PASS**; `npm run i18n:verify` **PASS**; `g21-verify-automated.sh` **PASS**.
-
-### Remains unverified
-
-- G21b live Tauri manual checklist rows 1–9.
-- `cargo test` for new e2e (needs `MEDOC_VENDOR_PUBKEY` in env).
-- Tag-driven `release.yml` / clippy / cargo audit for release gate.
-
-### Next
-
-1. Run G21b manual smoke + HTTP two-device pairing sign-off.
-2. Wave 5 calendar/PDF export (separate track).
 
 ---
 
