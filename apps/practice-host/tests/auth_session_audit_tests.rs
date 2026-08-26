@@ -20,6 +20,13 @@ async fn authenticate_succeeds_for_arzt_without_totp_when_2fa_disabled() {
     let pool = test_memory_pool().await.expect("pool");
     run_migrations(&pool).await.expect("migrations");
 
+    // Migrations seed one ARZT account; clear it so this test can insert a
+    // deterministic fixture without tripping the MVP seat-cap trigger.
+    sqlx::query("DELETE FROM personal WHERE rolle = 'ARZT'")
+        .execute(&pool)
+        .await
+        .unwrap();
+
     let hash = medoc_lib::infrastructure::crypto::hash_password("SecurePass42").unwrap();
     sqlx::query(
         "INSERT INTO personal (id, name, email, passwort_hash, rolle)

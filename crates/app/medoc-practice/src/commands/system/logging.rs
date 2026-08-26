@@ -1,5 +1,6 @@
 // Logging-related Tauri commands (NFA-LOG-09, NFA-LOG-10)
 
+use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use tauri::State;
 
@@ -56,6 +57,43 @@ pub fn log_dir(session_state: State<'_, SessionState>) -> Result<String, AppErro
     Ok(logging::log_dir()?.display().to_string())
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkflowLogEventInput {
+    pub workflow: String,
+    pub step: String,
+    pub stage: String,
+    #[serde(default)]
+    pub route: Option<String>,
+    #[serde(default)]
+    pub action: Option<String>,
+    #[serde(default)]
+    pub status: Option<String>,
+    #[serde(default)]
+    pub details: Option<String>,
+    #[serde(default)]
+    pub duration_ms: Option<u64>,
+    #[serde(default)]
+    pub ts_ms: Option<i64>,
+}
+
+#[tauri::command]
+#[tracing::instrument(level = "debug", skip(event))]
+pub fn log_workflow_event(event: WorkflowLogEventInput) -> Result<(), AppError> {
+    logging::workflow::emit(logging::workflow::WorkflowEvent {
+        workflow: event.workflow,
+        step: event.step,
+        stage: event.stage,
+        route: event.route,
+        action: event.action,
+        status: event.status,
+        details: event.details,
+        duration_ms: event.duration_ms,
+        ts_ms: event.ts_ms,
+    });
+    Ok(())
+}
+
 /// IPC commands for [`crate::commands::register`].
 #[macro_export]
 macro_rules! register_logging_commands {
@@ -65,5 +103,6 @@ macro_rules! register_logging_commands {
         $crate::commands::logging_commands::export_logs,
         $crate::commands::logging_commands::verify_audit_chain,
         $crate::commands::logging_commands::log_dir,
+        $crate::commands::logging_commands::log_workflow_event,
     };
 }

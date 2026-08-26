@@ -1,6 +1,6 @@
 # Project truth ledger
 
-**Last updated:** 2026-06-06  
+**Last updated:** 2026-08-26  
 **Scope:** Canonical statements supported by repository evidence.
 
 ## Pro→main merge (2026-05-31 — 2026-06-01) — stable truth
@@ -15,6 +15,11 @@
 - **Dev launch:** `bash tools/dev-tauri.sh` or `bash tools/g21-dev-smoke.sh` (prints credentials + optional `MEDOC_PRINT_LICENSE=1`).
 
 ## Stable truth (high confidence)
+
+- **Workflow telemetry channel:** dedicated `workflow.log` target exists and is routed through tracing with daily rotation (`medoc::workflow` filter, non-blocking appender) in `crates/shared/medoc-core/src/infrastructure/logging/mod.rs`.
+- **Workflow event sanitization:** `WorkflowEvent::sanitized` redacts secret-like values and normalizes empty required fields before write (`crates/shared/medoc-core/src/infrastructure/logging/workflow.rs`); unit test `sanitizes_secret_like_fields` passes.
+- **Frontend→backend workflow bridge:** `apps/practice-host-ui/src/services/tauri.service.ts` emits `route_enter` / `primary_action` / `success` / `error`; dialog cancel emits `medoc:workflow-step` from `packages/ui/src/dialog.tsx`.
+- **Geometry + a11y automation:** Playwright audit exists at `apps/practice-host-ui/e2e-playwright/ui-geometry-a11y.spec.ts`, with Linux baselines under `ui-geometry-a11y.spec.ts-snapshots/` for 375/768/1259 breakpoints and critical WCAG checks via `@axe-core/playwright`.
 
 - **Desktop product identity:** Tauri app **MeDoc**, identifier `de.medoc.app`, version `0.1.0` (`apps/practice-host/tauri.conf.json`).
 - **Desktop stack:** React 19 + Vite 6 + TypeScript in `apps/practice-host-ui/`; Rust **edition 2021** Tauri binary `medoc` in `apps/practice-host/` with `sqlx` + SQLite via `crates/shared/medoc-core/` (`package.json`, `apps/practice-host/Cargo.toml`).

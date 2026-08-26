@@ -1,6 +1,18 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-08-26 (workflow telemetry + UI quality sweep)
+
+## Done (2026-08-26 — workflow telemetry + UI quality sweep)
+
+- Repaired Playwright environment and browser tooling for this workspace:
+  - lockfile-driven reinstall (`npm ci --workspaces --include-workspace-root --install-links`)
+  - Chromium download (`npx playwright install chromium`)
+- Completed geometry + WCAG critical audit suite with baselines:
+  - `apps/practice-host-ui/e2e-playwright/ui-geometry-a11y.spec.ts`
+  - snapshot baselines at 375 / 768 / 1259 in `ui-geometry-a11y.spec.ts-snapshots/`
+- Added test-only Tauri invoke stub in Playwright to make onboarding/login workflows executable in browser preview mode.
+- Recorded workflow findings register entries **WF-001** and **WF-002** in `contradictions.md`.
+- Re-ran validation matrix and appended outcomes to `validation.md`.
 
 ## Now
 

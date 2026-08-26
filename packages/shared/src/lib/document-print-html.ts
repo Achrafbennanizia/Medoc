@@ -350,11 +350,11 @@ function rezeptPdfLinesCombo(items: Rezept[], patient: Patient | null): string[]
             docTp("document.print.dosage_duration", { dosage: r.dosierung, duration: r.dauer }),
         );
         if ((r.wirkstoff ?? "").trim()) {
-            lines.push(docTp("document.print.ingredient_line", { value: r.wirkstoff }));
+            lines.push(docTp("document.print.ingredient_line", { value: r.wirkstoff ?? "" }));
         }
-        if ((r.pzn ?? "").trim()) lines.push(docTp("document.print.pzn", { pzn: r.pzn }));
+        if ((r.pzn ?? "").trim()) lines.push(docTp("document.print.pzn", { pzn: r.pzn ?? "" }));
         if ((r.hinweise ?? "").trim()) {
-            lines.push(docTp("document.print.notes_line", { value: r.hinweise }));
+            lines.push(docTp("document.print.notes_line", { value: r.hinweise ?? "" }));
         }
         lines.push("");
     }
