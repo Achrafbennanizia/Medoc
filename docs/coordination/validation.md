@@ -1,6 +1,21 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-08-26 (CI/CD pipeline migration)
+
+## CI/CD pipeline migration — verified (2026-08-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML parse | `python3 -c "import pathlib, yaml; [yaml.safe_load(pathlib.Path(p).read_text()) for p in pathlib.Path('.github/workflows').glob('*.yml')]; print('ok')"` | **PASS** (`ok`) |
+| Workspace install | `npm ci` | **PASS** |
+| Lint gate behavior | `npm run lint` | **FAIL** — existing ESLint errors/warnings in `apps/practice-host-ui/src/views/*` (hook ordering, manual memoization, ref-in-render, unused symbol) |
+| New typecheck gate behavior | `npm run typecheck` | **FAIL** — existing repository TypeScript errors surfaced (`document-print-html.ts` nullability + unused locals in `termin-*` modules) |
+| Rust fmt gate behavior | `cargo fmt --all --check` | **FAIL** — existing rustfmt drift in multiple files under `apps/practice-host/tests` and `crates/app/medoc-practice/src/**` |
+| a11y runner syntax | `node --check apps/practice-host-ui/scripts/run-a11y-audit.mjs` | **PASS** |
+
+**Delivered:** migrated CI from legacy `ci.yml` to tiered workflows (`verify.yml`, `autofix.yml`, `fix-proposal.yml`, rewritten `release.yml`), added package-manager lockfile detection, reusable verify gate (`workflow_call`) for release, deterministic PR-only autofix with loop guard, draft PR fix-proposal flow with evidence report + sensitive-path label guard, and accessibility gate wiring via Playwright + axe-core script.
+
+**NOT RUN in this session:** full `cargo` verify matrix beyond fmt check, full `npm test`, and runtime `npm run test:a11y` browser audit (depends on a green web build; current lint/typecheck gates are red).
 
 ## Sell-ready MVP program — verified (2026-07-05)
 
