@@ -1,6 +1,20 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-08-26 (CI/CD tier migration)
+
+## CI/CD tier migration — verified (2026-08-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow lint | `$HOME/go/bin/actionlint` | **PASS** (after fixing untrusted-expression push ref usage in `autofix.yml`) |
+| Medoc typecheck | `npm run typecheck -w medoc` | **FAIL** — pre-existing TS errors in `document-print-html.ts`, `termin-availability.ts`, `termin-calendar-layout.ts`, `termin-week-day-grid.tsx` |
+| Lan-web typecheck | `npm run typecheck -w medoc-lan-web-client` | **NOT RUN** — blocked by prior `medoc` typecheck failure in chained command |
+| Medoc build (for a11y gate) | `npm run build -w medoc` | **FAIL** — same pre-existing TypeScript errors as typecheck |
+| A11y runner syntax | `node --check apps/practice-host-ui/scripts/run-a11y.mjs` | **PASS** |
+| Playwright browser install | `npx playwright install chromium` | **PASS** |
+| Rust fmt check | `cargo fmt --all --check` | **FAIL** — pre-existing formatting drift across repository (command produced multi-file diffs) |
+
+**Delivered pipeline artifacts:** `.github/workflows/{verify,autofix,fix-proposal,release}.yml`, removal of legacy `.github/workflows/ci.yml`, and `docs/coordination/ci-cd-plan.md`.
 
 ## Sell-ready MVP program — verified (2026-07-05)
 
