@@ -1,0 +1,250 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Why this fix proposal run was requested"
+        required: false
+        default: "manual"
+      base_branch:
+        description: "Target branch to base the proposal on"
+        required: false
+        default: "main"
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  propose:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'failure' &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+      MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+    steps:
+      - id: context
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            base_branch="${{ github.event.inputs.base_branch }}"
+            reason="${{ github.event.inputs.reason }}"
+            source_run_url=""
+          else
+            base_branch="${{ github.event.workflow_run.head_branch }}"
+            reason="verify workflow failure on ${base_branch}"
+            source_run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}"
+          fi
+
+          branch_name="ci/fix-proposal-${{ github.run_id }}"
+          echo "base_branch=${base_branch}" >> "$GITHUB_OUTPUT"
+          echo "branch_name=${branch_name}" >> "$GITHUB_OUTPUT"
+          echo "reason=${reason}" >> "$GITHUB_OUTPUT"
+          echo "source_run_url=${source_run_url}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.context.outputs.base_branch }}
+
+      - run: git checkout -b "${{ steps.context.outputs.branch_name }}"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+
+      - id: pm
+        shell: bash
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "typecheck_cmd=pnpm --filter medoc run typecheck" >> "$GITHUB_OUTPUT"
+            echo "test_cmd=pnpm --filter medoc run test" >> "$GITHUB_OUTPUT"
+            echo "audit_fix_cmd=pnpm audit --fix || true" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "typecheck_cmd=yarn workspace medoc run typecheck" >> "$GITHUB_OUTPUT"
+            echo "test_cmd=yarn workspace medoc run test" >> "$GITHUB_OUTPUT"
+            echo "audit_fix_cmd=yarn npm audit --all || true" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=npm ci" >> "$GITHUB_OUTPUT"
+            echo "typecheck_cmd=npm run typecheck -w medoc" >> "$GITHUB_OUTPUT"
+            echo "test_cmd=npm run test -w medoc" >> "$GITHUB_OUTPUT"
+            echo "audit_fix_cmd=npm audit fix --omit=dev || true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            yarn.lock
+            package-lock.json
+      - run: corepack enable
+      - run: ${{ steps.pm.outputs.install_cmd }}
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@cargo-audit
+
+      - id: before
+        shell: bash
+        run: |
+          set +e
+          mkdir -p .artifacts/fix-proposal
+
+          cargo test --workspace --tests > .artifacts/fix-proposal/before-rust-tests.log 2>&1
+          echo "rust_tests=$?" >> "$GITHUB_OUTPUT"
+
+          cargo audit > .artifacts/fix-proposal/before-rust-audit.log 2>&1
+          echo "rust_audit=$?" >> "$GITHUB_OUTPUT"
+
+          ${{ steps.pm.outputs.typecheck_cmd }} > .artifacts/fix-proposal/before-web-typecheck.log 2>&1
+          echo "web_typecheck=$?" >> "$GITHUB_OUTPUT"
+
+          ${{ steps.pm.outputs.test_cmd }} > .artifacts/fix-proposal/before-web-tests.log 2>&1
+          echo "web_tests=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Attempt non-deterministic remediation
+        shell: bash
+        run: |
+          set +e
+          cargo update --workspace || true
+          bash -lc '${{ steps.pm.outputs.audit_fix_cmd }}'
+
+      - id: after
+        shell: bash
+        run: |
+          set +e
+          cargo test --workspace --tests > .artifacts/fix-proposal/after-rust-tests.log 2>&1
+          echo "rust_tests=$?" >> "$GITHUB_OUTPUT"
+
+          cargo audit > .artifacts/fix-proposal/after-rust-audit.log 2>&1
+          echo "rust_audit=$?" >> "$GITHUB_OUTPUT"
+
+          ${{ steps.pm.outputs.typecheck_cmd }} > .artifacts/fix-proposal/after-web-typecheck.log 2>&1
+          echo "web_typecheck=$?" >> "$GITHUB_OUTPUT"
+
+          ${{ steps.pm.outputs.test_cmd }} > .artifacts/fix-proposal/after-web-tests.log 2>&1
+          echo "web_tests=$?" >> "$GITHUB_OUTPUT"
+
+      - id: report
+        shell: bash
+        run: |
+          mkdir -p docs/coordination/fix-proposals
+          safe_branch="$(echo "${{ steps.context.outputs.branch_name }}" | tr '/' '-')"
+          report_path="docs/coordination/fix-proposals/${safe_branch}.md"
+          {
+            echo "# CI fix proposal"
+            echo
+            echo "- Trigger: \`${{ github.event_name }}\`"
+            echo "- Reason: ${{ steps.context.outputs.reason }}"
+            echo "- Base branch: \`${{ steps.context.outputs.base_branch }}\`"
+            if [ -n "${{ steps.context.outputs.source_run_url }}" ]; then
+              echo "- Source verify run: ${{ steps.context.outputs.source_run_url }}"
+            fi
+            echo
+            echo "## Attempted remediation"
+            echo
+            echo "1. \`cargo update --workspace\`"
+            echo "2. JS audit fix command: \`${{ steps.pm.outputs.audit_fix_cmd }}\`"
+            echo
+            echo "## Failing-before / passing-after evidence"
+            echo
+            echo "| Check | Before exit code | After exit code |"
+            echo "| --- | ---: | ---: |"
+            echo "| cargo test --workspace --tests | ${{ steps.before.outputs.rust_tests }} | ${{ steps.after.outputs.rust_tests }} |"
+            echo "| cargo audit | ${{ steps.before.outputs.rust_audit }} | ${{ steps.after.outputs.rust_audit }} |"
+            echo "| web typecheck | ${{ steps.before.outputs.web_typecheck }} | ${{ steps.after.outputs.web_typecheck }} |"
+            echo "| web test | ${{ steps.before.outputs.web_tests }} | ${{ steps.after.outputs.web_tests }} |"
+            echo
+            echo "Raw logs are attached in the workflow artifacts under \`.artifacts/fix-proposal/\`."
+          } > "$report_path"
+
+          echo "report_path=${report_path}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fix-proposal-logs-${{ github.run_id }}
+          path: .artifacts/fix-proposal/
+
+      - id: compliance_guard
+        shell: bash
+        run: |
+          changed_files="$(git diff --name-only)"
+          if [ -z "$changed_files" ]; then
+            echo "blocked=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          protected_regex='(^|/)(security|audit|crypto)(/|_|-)|(^|/)rbac(\.|/|_|-)'
+          blocked_files="$(printf '%s\n' "$changed_files" | rg -i "$protected_regex|^config/rbac\\.yaml$" || true)"
+          if [ -n "$blocked_files" ]; then
+            echo "blocked=true" >> "$GITHUB_OUTPUT"
+            {
+              echo "blocked_files<<EOF"
+              echo "$blocked_files"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          else
+            echo "blocked=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - id: create_pr
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: ${{ steps.context.outputs.branch_name }}
+          base: ${{ steps.context.outputs.base_branch }}
+          commit-message: "ci: create fix proposal with before/after evidence"
+          title: "ci: fix proposal for failing verify gate"
+          body: |
+            This draft PR was generated by the **fix-proposal** workflow.
+
+            - Base: `${{ steps.context.outputs.base_branch }}`
+            - Trigger: `${{ github.event_name }}`
+            - Reason: ${{ steps.context.outputs.reason }}
+            - Source run: ${{ steps.context.outputs.source_run_url }}
+
+            Evidence and rationale are tracked in:
+            - `${{ steps.report.outputs.report_path }}`
+
+            Guardrails:
+            - No auto-merge
+            - Draft PR only
+            - If security/audit/crypto/RBAC paths are touched, the workflow labels this PR `needs-human-review` and stops.
+          draft: true
+          labels: |
+            ci-fix-proposal
+          delete-branch: false
+
+      - name: Label sensitive proposals
+        if: steps.compliance_guard.outputs.blocked == 'true' && steps.create_pr.outputs.pull-request-number != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number("${{ steps.create_pr.outputs.pull-request-number }}"),
+              labels: ["needs-human-review"],
+            });
+
+      - name: Stop on protected compliance paths
+        if: steps.compliance_guard.outputs.blocked == 'true'
+        run: |
+          echo "fix proposal touched protected compliance paths:"
+          echo "${{ steps.compliance_guard.outputs.blocked_files }}"
+          exit 1

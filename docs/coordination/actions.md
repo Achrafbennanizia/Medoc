@@ -1,9 +1,22 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-08-26 (CI/CD tier migration)
+
+## Done (2026-08-26 — CI/CD tier migration)
+
+- Added tiered pipeline workflows:
+  - `verify.yml` (blocking, non-mutating; Rust + JS + a11y)
+  - `autofix.yml` (PR-only deterministic fixes with loop guard)
+  - `fix-proposal.yml` (manual/red-main draft PR proposals with before/after evidence)
+  - `release.yml` (tag/dispatch, verify gate reuse, protected release env, signed bundles + provenance)
+- Migrated `.github/workflows/ci.yml` to a legacy wrapper delegating to `verify.yml`.
+- Added `docs/coordination/ci-cd-plan.md`.
+- Added `medoc` scripts `typecheck`, `lint:fix`, `format`, `test:a11y`; added `axe-core`; added `apps/practice-host-ui/scripts/run-a11y-critical.mjs`.
+- Logged baseline validation failures (pre-existing lint/typecheck/build red state) in `validation.md`.
 
 ## Now
 
+- **Green the verify baseline:** fix existing frontend lint/typecheck/build failures so the new verify gate can pass on PR/main.
 - **Manual QA:** examinations billing release, attachments/scanner import, focus-mode nav — **NOT RUN**
 - **Page migration:** `apps/practice-host-ui/src/views/pages` → `packages/app/practice-host/src/pages` — incremental, not started
 - **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.
