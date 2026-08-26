@@ -1,28 +1,28 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
-**Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
+**Last phase label:** CI/CD tiered pipeline wiring (2026-08-26)  
+**Last closed:** Verify/autofix/fix-proposal/release workflow split with release gating + CI compatibility wrapper.
 
-### Verified (2026-07-05 — Sell-ready MVP)
+### Verified (2026-08-26 — CI/CD pipeline)
 
-- **Workflow blinds:** `ONBOARDING_COACHMARK_ENABLED`, `WORKFLOW_ONBOARDING_PREFS_UI_ENABLED`, `WORKFLOW_AKTE_CONFIRMATION_PREFS_UI_ENABLED` remain **false**; documented in [`geplant.md`](geplant.md).
-- **UI honesty:** License section shows portal-not-connected (no demo billing); E-Rezept button hidden when TI stub; KARTE labeled as booking; replica sync errors in Deployment settings via `useReplicaSyncStatusStore`.
-- **i18n/locale:** `bcp47ForLocale`, locale-aware `formatDate`/`formatCurrency`, 12+ `localeCompare` sites, statistik `Intl` tags, export section/report keys (4264 × 4 locales).
-- **Print/export:** `document-print-html` / `clinical-pdf-layout` use active locale; export preview `lang`/`dir`; akte export section labels via `akteExportSectionLabel`.
-- **RTL/CSS:** sidebar logical properties, termin context menu RTL anchor, settings shell @900px, viewport min 1024px, fixed broken `@media 720px` brace.
-- **Sync C8:** e2e test `touch_replica_seen_updates_last_seen_on_sync_pull` added; push+pull `last_seen_at` assertions extended on existing push test.
-- **Tests:** `npm test` **PASS** (247); `npm run build` **PASS**; `npm run i18n:verify` **PASS**; `g21-verify-automated.sh` **PASS**.
+- **Tier 1 verify:** New `.github/workflows/verify.yml` with Rust fmt/clippy/test/audit + package-manager-detected web lint/typecheck/test/build + axe-core a11y job; concurrency cancel + per-job timeouts.
+- **Tier 2 autofix:** New `.github/workflows/autofix.yml` on `pull_request` only, deterministic `cargo fmt` + JS `lint:fix`/`format`, bot loop guard, commit-back only when tree changed.
+- **Tier 3 fix proposal:** New `.github/workflows/fix-proposal.yml` (`workflow_dispatch` + failed-main `workflow_run`) creates draft PRs with before/after probe evidence; sensitive-path guard adds `needs-human-review` and stops.
+- **Tier 4 release:** Reworked `.github/workflows/release.yml` with verify gate (`uses: verify.yml`), protected `release` environment, signed cross-platform Tauri bundles, checksums, provenance attestation, and no formatter/autofix steps.
+- **Workspace migration docs:** Added `docs/coordination/ci-cd-plan.md`; converted `.github/workflows/ci.yml` to compatibility wrapper; added scripts in `apps/practice-host-ui/package.json` + `scripts/test-a11y.mjs`.
+- **Local validation evidence:** Workflow YAML parse **PASS**; a11y script syntax **PASS**; `npm ci` **PASS**; baseline `typecheck`/`build` **FAIL** (pre-existing TS errors); `cargo fmt --check` **FAIL** (pre-existing formatting drift).
 
 ### Remains unverified
 
-- G21b live Tauri manual checklist rows 1–9.
-- `cargo test` for new e2e (needs `MEDOC_VENDOR_PUBKEY` in env).
-- Tag-driven `release.yml` / clippy / cargo audit for release gate.
+- First GitHub-runner execution of `verify.yml`, `autofix.yml`, `fix-proposal.yml`, and `release.yml` in repository CI.
+- Release environment protection policy (`environment: release`) approval path in live repository settings.
+- A11y runtime result (`npm run test:a11y`) against built UI on GitHub runners.
 
 ### Next
 
-1. Run G21b manual smoke + HTTP two-device pairing sign-off.
-2. Wave 5 calendar/PDF export (separate track).
+1. Resolve or consciously scope current baseline failures (TS typecheck/build and Rust fmt drift) so tier-1 verify can be green by policy.
+2. Run one PR through `autofix.yml` to confirm loop guard + single-pass behavior.
+3. Trigger a release dry run (`workflow_dispatch`) to validate gate→approval→signed artifact→attestation flow.
 
 ---
 

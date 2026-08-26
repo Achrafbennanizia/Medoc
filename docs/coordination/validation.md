@@ -1,6 +1,24 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-08-26 (CI/CD tiered pipeline wiring)
+
+## CI/CD tiered pipeline wiring — verified (2026-08-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML syntax | `python3 -c "import glob, yaml; [yaml.safe_load(open(p,'r',encoding='utf-8').read()) for p in glob.glob('.github/workflows/*.yml')]"` | **PASS** |
+| A11y script syntax | `node --check apps/practice-host-ui/scripts/test-a11y.mjs` | **PASS** |
+| Node workspace install | `npm ci` | **PASS** |
+| A11y runtime probe | `npm run --prefix apps/practice-host-ui test:a11y` | **FAIL** — `page.goto` returned `ERR_HTTP_RESPONSE_CODE_FAILURE` because previewed build artifact is not healthy in current red baseline |
+| Frontend typecheck baseline | `npm run --prefix apps/practice-host-ui typecheck` | **FAIL** — pre-existing TS errors in `document-print-html.ts`, `termin-availability.ts`, `termin-calendar-layout.ts`, `termin-week-day-grid.tsx` |
+| Frontend build baseline | `npm run --prefix apps/practice-host-ui build` | **FAIL** — same pre-existing TS errors as typecheck |
+| Rust fmt baseline | `cargo fmt --all -- --check` | **FAIL** — pre-existing formatting drift across many Rust files (no auto-fix applied in verify tier) |
+
+**Delivered in this phase:** Added tiered workflows (`verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml`), CI compatibility wrapper (`ci.yml`), CI/CD plan (`docs/coordination/ci-cd-plan.md`), and package scripts needed for typecheck/lint-fix/format/a11y (`apps/practice-host-ui/package.json`, `apps/practice-host-ui/scripts/test-a11y.mjs`, `package-lock.json` with `axe-core`).
+
+**Unverified in this phase:** GitHub-hosted workflow execution outcomes (workflows authored and syntax-validated locally, but not run on GitHub runners in this session).
+
+---
 
 ## Sell-ready MVP program — verified (2026-07-05)
 

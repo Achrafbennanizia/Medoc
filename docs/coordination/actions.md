@@ -1,9 +1,11 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-08-26 (CI/CD tiered pipeline wiring)
 
 ## Now
 
+- **CI baseline remediation:** fix or scope current TS typecheck/build failures and repo-wide Rust fmt drift before enforcing green tier-1 gate.
+- **CI dry runs:** execute `verify.yml` / `autofix.yml` / `fix-proposal.yml` / `release.yml` once on GitHub runners; capture results in `validation.md`.
 - **Manual QA:** examinations billing release, attachments/scanner import, focus-mode nav — **NOT RUN**
 - **Page migration:** `apps/practice-host-ui/src/views/pages` → `packages/app/practice-host/src/pages` — incremental, not started
 - **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.
@@ -11,6 +13,15 @@
 - **Deferred roles (MVP):** `STEUERBERATER` / `PHARMABERATER` — [`todos-deferred-roles.md`](todos-deferred-roles.md).
 - **Deferred Datenschutz (DSGVO) UI:** [`todos-deferred-features.md`](todos-deferred-features.md).
 - **Deferred security (MVP):** Break-Glass off, 2FA off, 5-user cap — [`todos-deferred-security-features.md`](todos-deferred-security-features.md).
+
+## Done (2026-08-26 — CI/CD tiered pipeline)
+
+- Added `.github/workflows/verify.yml` (Rust/web/a11y verify, no mutation, timeout + concurrency guardrails).
+- Added `.github/workflows/autofix.yml` (PR-only deterministic auto-fix with bot loop guard and commit-back).
+- Added `.github/workflows/fix-proposal.yml` (manual/failed-main draft PR proposal flow with sensitive-path `needs-human-review` stop).
+- Reworked `.github/workflows/release.yml` (verify gate, protected `release` environment, signed cross-platform bundles, checksums, provenance).
+- Converted `.github/workflows/ci.yml` to compatibility wrapper.
+- Added `docs/coordination/ci-cd-plan.md` and package-level CI helper scripts (`typecheck`, `lint:fix`, `format`, `test:a11y`, `scripts/test-a11y.mjs`).
 
 **Last updated (prior):** 2026-06-07 (MVP plan execution — pending todos closed)
 
