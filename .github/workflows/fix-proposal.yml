@@ -1,0 +1,177 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: Why to run a fix proposal now
+        required: false
+        type: string
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: fix-proposal-${{ github.event_name }}-${{ github.event.workflow_run.id || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+  MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+  TARGET_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+  TARGET_BRANCH: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref_name }}
+  FAILING_VERIFY_RUN_URL: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.html_url || '' }}
+
+jobs:
+  propose:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_SHA }}
+          fetch-depth: 0
+      - id: prep
+        name: Create proposal branch
+        run: |
+          set -euo pipefail
+          BRANCH="ci/fix-proposal-${{ github.run_id }}"
+          git checkout -b "$BRANCH"
+          echo "proposal_branch=$BRANCH" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@stable
+      - id: pm
+        name: Detect package manager from lockfile
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Install dependencies
+        run: |
+          PM="${{ steps.pm.outputs.pm }}"
+          case "$PM" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --immutable || yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+            *) echo "Unsupported package manager: $PM" ; exit 1 ;;
+          esac
+      - name: Attempt fix with configured agent command
+        env:
+          CI_FIX_AGENT_COMMAND_VAR: ${{ vars.CI_FIX_AGENT_COMMAND }}
+          CI_FIX_AGENT_COMMAND_SECRET: ${{ secrets.CI_FIX_AGENT_COMMAND }}
+        run: |
+          set -euo pipefail
+          FIX_COMMAND="${CI_FIX_AGENT_COMMAND_SECRET:-${CI_FIX_AGENT_COMMAND_VAR:-}}"
+          if [ -z "$FIX_COMMAND" ]; then
+            echo "CI_FIX_AGENT_COMMAND is not configured (repo secret or variable)."
+            echo "Configure it with the command that applies a substantive fix and records evidence."
+            exit 1
+          fi
+          bash -lc "$FIX_COMMAND"
+      - id: changes
+        name: Detect fix diff
+        run: |
+          set -euo pipefail
+          mkdir -p .ci
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git diff --name-only > .ci/fix-proposal-files.txt
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+      - id: guard
+        if: steps.changes.outputs.has_changes == 'true'
+        name: Enforce compliance path guard
+        run: |
+          set -euo pipefail
+          if rg -n '(^|/)(security|audit|crypto|rbac)(/|\.|_)|^config/rbac\.ya?ml$' .ci/fix-proposal-files.txt; then
+            echo "restricted=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "restricted=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build draft PR body
+        if: steps.changes.outputs.has_changes == 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p .ci
+          {
+            echo "## Why this PR exists"
+            echo ""
+            echo "- Trigger: ${GITHUB_EVENT_NAME}"
+            if [ -n "${FAILING_VERIFY_RUN_URL}" ]; then
+              echo "- Failing verify run: ${FAILING_VERIFY_RUN_URL}"
+            else
+              echo "- Failing verify run: manual dispatch"
+            fi
+            echo "- Proposal branch: ${{ steps.prep.outputs.proposal_branch }}"
+            echo ""
+            echo "## Rationale"
+            echo ""
+            echo "- This draft PR contains an automated fix proposal for a non-deterministic CI failure."
+            echo "- Human review is mandatory before merge."
+            echo ""
+            echo "## Evidence"
+            echo ""
+            if [ -f ".ci/fix-proposal-evidence.md" ]; then
+              cat .ci/fix-proposal-evidence.md
+              echo ""
+            else
+              echo "- Failing-before evidence: ${FAILING_VERIFY_RUN_URL:-manual dispatch}"
+              echo "- Passing-after evidence: provided by this workflow run after reviewer validation"
+              echo ""
+            fi
+            echo "## Changed files"
+            echo ""
+            echo '```'
+            cat .ci/fix-proposal-files.txt
+            echo '```'
+          } > .ci/fix-proposal-pr-body.md
+      - id: cpr
+        if: steps.changes.outputs.has_changes == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: ${{ steps.prep.outputs.proposal_branch }}
+          base: ${{ env.TARGET_BRANCH }}
+          title: "ci: fix proposal for failing verify gate"
+          commit-message: "ci: propose fix for failing verify gate"
+          body-path: .ci/fix-proposal-pr-body.md
+          draft: true
+          delete-branch: false
+      - name: Add needs-human-review label for restricted paths
+        if: steps.changes.outputs.has_changes == 'true' && steps.guard.outputs.restricted == 'true' && steps.cpr.outputs.pull-request-number != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number("${{ steps.cpr.outputs.pull-request-number }}"),
+              labels: ["needs-human-review"]
+            });
+      - name: Stop on restricted paths
+        if: steps.changes.outputs.has_changes == 'true' && steps.guard.outputs.restricted == 'true'
+        run: |
+          echo "Restricted path touched (security/audit/crypto/RBAC). Labeled needs-human-review."
+          exit 1
+      - name: No-op summary when no diff
+        if: steps.changes.outputs.has_changes != 'true'
+        run: echo "Fix-proposal agent produced no file changes; no PR opened."

@@ -1,9 +1,11 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-08-26 (CI/CD tier pipeline migration + release gate hardening)
 
 ## Now
 
+- **CI/CD rollout:** enforce branch protection on `verify` and confirm protected `release` environment approvers.
+- **Tier 3 wiring:** set `CI_FIX_AGENT_COMMAND` (repo secret/variable) and run a controlled `fix-proposal.yml` dry run.
 - **Manual QA:** examinations billing release, attachments/scanner import, focus-mode nav — **NOT RUN**
 - **Page migration:** `apps/practice-host-ui/src/views/pages` → `packages/app/practice-host/src/pages` — incremental, not started
 - **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.
@@ -23,6 +25,13 @@ Active cost-priority delivery plan and test allow-list:
 | [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) | Incremental refactor, quality pass, workflow audit (Phases A–F) |
 | [`mvp-cost-priority-plan.md`](mvp-cost-priority-plan.md) | Workflows W1–W12, MS/UX/T items, phases, MVP checklist |
 | [`mvp-test-scope.md`](mvp-test-scope.md) | T-U1/T-U2 100% module allow-list |
+
+## Done (2026-08-26 — CI/CD tier pipeline)
+
+- Added tiered workflows: `.github/workflows/{verify,autofix,fix-proposal,release}.yml`.
+- Retired legacy `.github/workflows/ci.yml` to remove stale/duplicate gate behavior.
+- Added `docs/coordination/ci-cd-plan.md` with guardrails, tier responsibilities, and Tier-3 agent prompt.
+- Updated `validation.md` + `phase-handoff.md` with evidence and remaining unknowns.
 
 ## Done (2026-07-10 — Patient Akte MVC / domain split)
 

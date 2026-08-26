@@ -1,7 +1,41 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
-**Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
+**Last phase label:** CI/CD pipeline tiers + release gate hardening (2026-08-26)  
+**Last closed:** tiered workflows (`verify`, `autofix`, `fix-proposal`, `release`), retired legacy `ci.yml`, coordination plan + validation ledger update.
+
+### Verified (2026-08-26 — CI/CD tiers)
+
+- **Tier 1 gate:** `.github/workflows/verify.yml` added with non-mutating Rust/web/a11y jobs, lockfile-based PM detection, concurrency cancellation, and job timeouts.
+- **Tier 2 auto-fix:** `.github/workflows/autofix.yml` added for PR-only deterministic fixes (`cargo fmt`, lint/format), bot loop guard, and commit-back to PR head.
+- **Tier 3 proposal flow:** `.github/workflows/fix-proposal.yml` added for manual or red-`main` triggers, new branch draft-PR flow, and compliance path guard (`needs-human-review` on security/audit/crypto/RBAC touches).
+- **Tier 4 release gate:** `.github/workflows/release.yml` replaced to call `verify.yml`, require protected `release` environment, build signed cross-platform bundles, and publish checksums + provenance.
+- **Legacy cleanup:** `.github/workflows/ci.yml` removed to avoid stale/duplicate gate paths.
+- **Coordination docs:** `docs/coordination/ci-cd-plan.md` added; `docs/coordination/validation.md` updated with command evidence.
+
+### Remains unverified
+
+- Live GitHub Actions execution of all four new workflows on repository runners.
+- Repository settings alignment (branch protection requiring `verify`, protected `release` environment approvers).
+- Tier-3 agent command wiring (`CI_FIX_AGENT_COMMAND`) with real failing-before/passing-after evidence generation.
+- Runtime availability of transient accessibility tooling used by `npx` (`serve`, `wait-on`, `@axe-core/cli`) on GitHub runners.
+
+### Understanding delta
+
+- CI/CD is now explicitly separated into **verify vs mutate vs propose vs release** responsibilities, with mutate-only behavior confined to PR branches.
+- Release flow is now modeled as a reusable verify gate plus protected-environment approval before signed artifacts are built.
+- Compliance-sensitive code paths are treated as escalation-only in automated proposal mode.
+
+### Next
+
+1. Configure branch protection to require successful `verify` checks before merge.
+2. Configure/confirm protected `release` environment approvers per `docs/process/freigabeprozess.md`.
+3. Set `CI_FIX_AGENT_COMMAND` (secret or variable) and run a controlled Tier-3 dry run.
+4. Trigger manual dry runs for `verify.yml`, `autofix.yml`, and `release.yml` to capture first-run evidence in `validation.md`.
+
+---
+
+**Previous phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
+**Previous closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 
 ### Verified (2026-07-05 — Sell-ready MVP)
 

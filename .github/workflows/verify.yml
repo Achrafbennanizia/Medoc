@@ -1,0 +1,237 @@
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+  MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+
+jobs:
+  rust:
+    name: Rust verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Install Linux system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+      - name: cargo fmt (check only)
+        run: cargo fmt --all -- --check
+      - name: cargo clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: cargo test
+        run: cargo test --workspace
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+      - name: cargo audit
+        run: cargo audit
+
+  web:
+    name: Web verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - id: pm
+        name: Detect package manager from lockfile
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Install JavaScript dependencies
+        run: |
+          PM="${{ steps.pm.outputs.pm }}"
+          case "$PM" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --immutable || yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+            *) echo "Unsupported package manager: $PM" ; exit 1 ;;
+          esac
+      - name: Lint (no auto-fix)
+        run: |
+          PM="${{ steps.pm.outputs.pm }}"
+          run_in_dir() {
+            local dir="$1"
+            shift
+            case "$PM" in
+              pnpm) pnpm --dir "$dir" "$@" ;;
+              yarn) yarn --cwd "$dir" "$@" ;;
+              npm) npm --prefix "$dir" "$@" ;;
+              *) echo "Unsupported package manager: $PM" ; exit 1 ;;
+            esac
+          }
+          run_in_dir "apps/practice-host-ui" run lint
+      - name: Typecheck
+        run: |
+          PM="${{ steps.pm.outputs.pm }}"
+          run_in_dir() {
+            local dir="$1"
+            shift
+            case "$PM" in
+              pnpm) pnpm --dir "$dir" "$@" ;;
+              yarn) yarn --cwd "$dir" "$@" ;;
+              npm) npm --prefix "$dir" "$@" ;;
+              *) echo "Unsupported package manager: $PM" ; exit 1 ;;
+            esac
+          }
+          run_in_dir "apps/practice-host-ui" run typecheck
+          run_in_dir "apps/lan-web-client" run typecheck
+      - name: Test
+        run: |
+          PM="${{ steps.pm.outputs.pm }}"
+          run_in_dir() {
+            local dir="$1"
+            shift
+            case "$PM" in
+              pnpm) pnpm --dir "$dir" "$@" ;;
+              yarn) yarn --cwd "$dir" "$@" ;;
+              npm) npm --prefix "$dir" "$@" ;;
+              *) echo "Unsupported package manager: $PM" ; exit 1 ;;
+            esac
+          }
+          run_in_dir "apps/practice-host-ui" run test
+      - name: Build
+        run: |
+          PM="${{ steps.pm.outputs.pm }}"
+          run_in_dir() {
+            local dir="$1"
+            shift
+            case "$PM" in
+              pnpm) pnpm --dir "$dir" "$@" ;;
+              yarn) yarn --cwd "$dir" "$@" ;;
+              npm) npm --prefix "$dir" "$@" ;;
+              *) echo "Unsupported package manager: $PM" ; exit 1 ;;
+            esac
+          }
+          run_in_dir "apps/practice-host-ui" run build
+          run_in_dir "apps/lan-web-client" run build
+
+  a11y:
+    name: Accessibility verify (axe-core)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [web]
+    steps:
+      - uses: actions/checkout@v4
+      - id: pm
+        name: Detect package manager from lockfile
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Install JavaScript dependencies
+        run: |
+          PM="${{ steps.pm.outputs.pm }}"
+          case "$PM" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --immutable || yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+            *) echo "Unsupported package manager: $PM" ; exit 1 ;;
+          esac
+      - name: Build web UI
+        run: |
+          PM="${{ steps.pm.outputs.pm }}"
+          case "$PM" in
+            pnpm) pnpm --dir apps/practice-host-ui run build ;;
+            yarn) yarn --cwd apps/practice-host-ui run build ;;
+            npm) npm --prefix apps/practice-host-ui run build ;;
+            *) echo "Unsupported package manager: $PM" ; exit 1 ;;
+          esac
+      - name: Run axe-core against built UI (critical WCAG 2.1 A/AA only)
+        run: |
+          set -euo pipefail
+          npx --yes serve@14.2.4 -s apps/practice-host-ui/dist -l 4173 > /tmp/medoc-a11y-serve.log 2>&1 &
+          SERVER_PID=$!
+          cleanup() {
+            if kill -0 "$SERVER_PID" >/dev/null 2>&1; then
+              kill "$SERVER_PID" >/dev/null 2>&1 || true
+            fi
+          }
+          trap cleanup EXIT
+          npx --yes wait-on@8.0.1 http://127.0.0.1:4173
+          npx --yes @axe-core/cli@4.10.2 http://127.0.0.1:4173 --tags wcag21a,wcag21aa --save axe-results.json || true
+          node <<'NODE'
+          const fs = require("node:fs");
+          const resultsPath = "axe-results.json";
+          if (!fs.existsSync(resultsPath)) {
+            console.error("axe-core did not produce axe-results.json");
+            process.exit(1);
+          }
+          const raw = JSON.parse(fs.readFileSync(resultsPath, "utf8"));
+          const pages = Array.isArray(raw)
+            ? raw
+            : Array.isArray(raw.results)
+              ? raw.results
+              : [raw];
+          const critical = [];
+          for (const page of pages) {
+            const violations = Array.isArray(page.violations) ? page.violations : [];
+            for (const violation of violations) {
+              const tags = Array.isArray(violation.tags) ? violation.tags : [];
+              const isWcag21 = tags.includes("wcag21a") || tags.includes("wcag21aa");
+              if (isWcag21 && violation.impact === "critical") {
+                critical.push({
+                  id: violation.id,
+                  impact: violation.impact,
+                  help: violation.help,
+                });
+              }
+            }
+          }
+          if (critical.length > 0) {
+            console.error(`Found ${critical.length} critical WCAG 2.1 A/AA violations.`);
+            for (const entry of critical) {
+              console.error(`- ${entry.id}: ${entry.help} (${entry.impact})`);
+            }
+            process.exit(1);
+          }
+          console.log("No critical WCAG 2.1 A/AA violations found.");
+          NODE
