@@ -6,6 +6,10 @@ on:
       - "v*"
   workflow_dispatch:
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -72,8 +76,6 @@ jobs:
       - run: ${{ steps.pm.outputs.run }} run typecheck
       - run: cargo test --workspace
       - run: ${{ steps.pm.outputs.run }} run build
-      - name: Configure updater endpoint
-        run: node scripts/configure-tauri-updater.mjs
       - name: Build signed bundle from tagged commit
         run: ${{ steps.pm.outputs.run }} run tauri -- build
       - name: Ensure source tree remained unchanged

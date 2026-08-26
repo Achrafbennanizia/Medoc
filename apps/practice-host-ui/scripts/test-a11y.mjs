@@ -19,7 +19,7 @@ const dom = new JSDOM(html, { runScripts: "outside-only", url: "http://localhost
 dom.window.eval(axe.source);
 
 const results = await dom.window.axe.run(dom.window.document, {
-    runOnly: { type: "tag", values: ["wcag2aa"] },
+    runOnly: { type: "tag", values: ["wcag2a", "wcag2aa"] },
 });
 const criticalViolations = results.violations.filter((violation) => violation.impact === "critical");
 

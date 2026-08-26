@@ -77,7 +77,7 @@
 | Tauri + versions | `package.json`, `apps/practice-host/Cargo.toml`, `apps/practice-host/tauri.conf.json` | 2026-06-06 |
 | SQLite SQLCipher connector | `crates/shared/medoc-core/src/infrastructure/database/connection.rs` | 2026-06-06 |
 | Frontend routes | `apps/practice-host-ui/src/App.tsx` | 2026-06-06 |
-| CI commands | `.github/workflows/ci.yml` | 2026-06-06 |
+| CI commands | `.github/workflows/verify.yml`, `.github/workflows/autofix.yml`, `.github/workflows/fix-proposal.yml`, `.github/workflows/release.yml` | 2026-08-26 |
 | Build + tests pass | Terminal: `npm run build`, `cargo test --workspace --tests` | 2026-06-06 |
 | Vendor pubkey build | `apps/practice-host/build.rs`, `docs/operations/vendor-key-rotation.md` | 2026-06-06 |
 | Update signature tests | `apps/practice-host/tests/update_signature_tests.rs` | 2026-06-06 |

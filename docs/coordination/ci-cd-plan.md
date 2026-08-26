@@ -14,7 +14,7 @@
 
 | Tier | Workflow | Trigger | Repo mutation | Purpose |
 | --- | --- | --- | --- | --- |
-| 1 | `.github/workflows/verify.yml` | `push` to `main`, `pull_request`, `workflow_call` | **No** | Blocking quality/security/accessibility verification |
+| 1 | `.github/workflows/verify.yml` | every branch `push`, `pull_request`, `workflow_call` | **No** | Blocking quality/security/accessibility verification |
 | 2 | `.github/workflows/autofix.yml` | `pull_request` | **Yes (PR head branch only)** | Deterministic autofix (`cargo fmt`, lint/format scripts) |
 | 3 | `.github/workflows/fix-proposal.yml` | `workflow_dispatch`, red `main` via `workflow_run` from `verify` | **Yes (new proposal branch only)** | Draft PR proposal flow for substantive fixes with before/after evidence |
 | 4 | `.github/workflows/release.yml` | Tag `v*`, `workflow_dispatch` | **No source mutation** | Re-verify, then signed cross-platform artifacts behind protected `release` environment |

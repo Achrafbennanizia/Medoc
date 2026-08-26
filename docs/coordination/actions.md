@@ -1,6 +1,6 @@
 # Action ledger
 
-**Last updated:** 2026-08-26 (CI/CD tiered pipeline wiring)
+**Last updated:** 2026-08-26 (CI/CD tiered pipeline wiring refresh)
 
 ## Done (2026-08-26 — CI/CD tiered pipeline wiring)
 
@@ -10,6 +10,13 @@
 - Reworked `.github/workflows/release.yml` to gate on verify and build signed artifacts in protected `release` environment.
 - Retired `.github/workflows/ci.yml`; documented the pipeline in `docs/coordination/ci-cd-plan.md`.
 - Added root/app scripts for `typecheck`, `lint:fix`, `format`, `test:a11y` and created `apps/practice-host-ui/scripts/test-a11y.mjs`.
+
+## Done (2026-08-26 — CI/CD tiered pipeline wiring refresh)
+
+- Expanded Tier 1 trigger scope to every branch push + PR (still zero-mutation verification only).
+- Hardened release workflow for reproducibility (`concurrency` cancellation + non-mutation guard after signed build).
+- Updated a11y check to evaluate WCAG 2.1 A + AA tags and fail only on critical violations.
+- Re-ran local CI-facing validation commands and recorded outcomes in `docs/coordination/validation.md`.
 
 ## Now
 
