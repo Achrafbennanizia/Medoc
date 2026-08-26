@@ -1,6 +1,21 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-08-26 (CI/CD tier migration)
+
+## CI/CD tier migration — verified (2026-08-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML parse | `python3 -c "import yaml,glob; [yaml.safe_load(open(f)) for f in glob.glob('.github/workflows/*.yml')]"` | **PASS** |
+| A11y runner syntax | `node --check apps/practice-host-ui/scripts/test-a11y.mjs` | **PASS** |
+| Workspace typecheck | `npm run typecheck` | **FAIL** — pre-existing TS errors (`TS2322`, `TS2307` for `i18next`/`react-i18next`, `TS6133`) |
+| Medoc build | `npm run build -w medoc` | **FAIL** — same pre-existing TypeScript errors as typecheck |
+| Medoc lint | `npm run lint -w medoc` | **FAIL** — pre-existing lint debt (20 errors, 38 warnings) |
+| Rust formatting gate | `cargo fmt --all -- --check` | **FAIL** — large pre-existing formatting drift across Rust workspace |
+
+**Workflow migration result:** tiered workflows added (`verify.yml`, `autofix.yml`, `fix-proposal.yml`), `release.yml` rewritten as verify-gated protected release build, legacy monolithic `.github/workflows/ci.yml` removed, and workspace scripts added for `typecheck`, `lint:fix`, `format`, and `test:a11y`.
+
+**NOT OBSERVED:** live GitHub Actions execution of the new workflows (no run triggered in this session).
 
 ## Sell-ready MVP program — verified (2026-07-05)
 

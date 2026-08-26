@@ -1,28 +1,30 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
-**Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
+**Last phase label:** CI/CD pipeline tier migration (2026-08-26)  
+**Last closed:** verify/autofix/fix-proposal/release workflows wired to live workspace + coordination docs refreshed.
 
-### Verified (2026-07-05 — Sell-ready MVP)
+### Verified (2026-08-26 — CI/CD tiers)
 
-- **Workflow blinds:** `ONBOARDING_COACHMARK_ENABLED`, `WORKFLOW_ONBOARDING_PREFS_UI_ENABLED`, `WORKFLOW_AKTE_CONFIRMATION_PREFS_UI_ENABLED` remain **false**; documented in [`geplant.md`](geplant.md).
-- **UI honesty:** License section shows portal-not-connected (no demo billing); E-Rezept button hidden when TI stub; KARTE labeled as booking; replica sync errors in Deployment settings via `useReplicaSyncStatusStore`.
-- **i18n/locale:** `bcp47ForLocale`, locale-aware `formatDate`/`formatCurrency`, 12+ `localeCompare` sites, statistik `Intl` tags, export section/report keys (4264 × 4 locales).
-- **Print/export:** `document-print-html` / `clinical-pdf-layout` use active locale; export preview `lang`/`dir`; akte export section labels via `akteExportSectionLabel`.
-- **RTL/CSS:** sidebar logical properties, termin context menu RTL anchor, settings shell @900px, viewport min 1024px, fixed broken `@media 720px` brace.
-- **Sync C8:** e2e test `touch_replica_seen_updates_last_seen_on_sync_pull` added; push+pull `last_seen_at` assertions extended on existing push test.
-- **Tests:** `npm test` **PASS** (247); `npm run build` **PASS**; `npm run i18n:verify` **PASS**; `g21-verify-automated.sh` **PASS**.
+- **Tiered workflow split:** Added `.github/workflows/{verify,autofix,fix-proposal}.yml`; removed legacy monolithic `.github/workflows/ci.yml`.
+- **Release gate rewrite:** `.github/workflows/release.yml` now reuses `verify.yml` as a gate, then builds signed artifacts in protected `release` environment.
+- **Workspace-aware package-manager detection:** lockfile-based PM selection (`pnpm`/`yarn`/`npm`) implemented in verify/autofix/fix-proposal/release jobs.
+- **A11y guard:** Added `apps/practice-host-ui/scripts/test-a11y.mjs` and `test:a11y` scripts; tier-1 a11y job runs axe and fails on critical WCAG 2.1 AA violations.
+- **Deterministic autofix only:** PR-only `autofix.yml` runs `cargo fmt`, `lint:fix`, `format` with bot-loop guard and branch-only pushback.
+- **Substantive fix proposal flow:** `fix-proposal.yml` opens draft PRs from new branches and labels sensitive (`security`/`audit`/`crypto`/`rbac`) touches with `needs-human-review`.
 
 ### Remains unverified
 
-- G21b live Tauri manual checklist rows 1–9.
-- `cargo test` for new e2e (needs `MEDOC_VENDOR_PUBKEY` in env).
-- Tag-driven `release.yml` / clippy / cargo audit for release gate.
+- **Live GitHub execution:** New workflows were not executed in GitHub Actions during this session (**NOT OBSERVED**).
+- **Repository baseline health:** Local `npm run typecheck`, `npm run build -w medoc`, `npm run lint -w medoc`, and `cargo fmt --all -- --check` are currently failing due pre-existing codebase issues.
+- **Tier-3 agent command wiring:** `CI_FIX_PROPOSAL_AGENT_COMMAND` / `CI_FIX_PROPOSAL_VALIDATE_COMMAND` repository variables are not verified in this session.
+- **Release environment policy:** Manual approval gate behavior in GitHub protected `release` environment was not exercised.
 
 ### Next
 
-1. Run G21b manual smoke + HTTP two-device pairing sign-off.
-2. Wave 5 calendar/PDF export (separate track).
+1. Trigger `verify.yml` on a PR to validate end-to-end workflow wiring on GitHub runners.
+2. Configure release secrets + protected `release` environment approvals; run a dry tag build.
+3. Configure tier-3 repo variables for agent command + validation command.
+4. Triage and fix pre-existing lint/typecheck/rustfmt debt so verify can be green.
 
 ---
 

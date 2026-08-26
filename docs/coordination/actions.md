@@ -24,6 +24,22 @@ Active cost-priority delivery plan and test allow-list:
 | [`mvp-cost-priority-plan.md`](mvp-cost-priority-plan.md) | Workflows W1–W12, MS/UX/T items, phases, MVP checklist |
 | [`mvp-test-scope.md`](mvp-test-scope.md) | T-U1/T-U2 100% module allow-list |
 
+## Done (2026-08-26 — CI/CD tier migration)
+
+- Added tiered workflows under `.github/workflows/`: `verify.yml`, `autofix.yml`, `fix-proposal.yml`.
+- Replaced legacy monolithic `.github/workflows/ci.yml` with tiered gating structure.
+- Rewrote `release.yml` to run verify as a gate and build signed bundles in protected `release` environment.
+- Added workspace/app scripts for `typecheck`, `lint:fix`, `format`, and `test:a11y`.
+- Added `apps/practice-host-ui/scripts/test-a11y.mjs` (axe-core + Playwright critical WCAG 2.1 AA check).
+- Added coordination spec: `docs/coordination/ci-cd-plan.md`.
+
+## Now (CI/CD follow-up)
+
+1. Trigger `verify.yml` on PR in GitHub to confirm live runner behavior.
+2. Configure `release` protected environment approvals + signing secrets.
+3. Configure tier-3 variables: `CI_FIX_PROPOSAL_AGENT_COMMAND` and `CI_FIX_PROPOSAL_VALIDATE_COMMAND`.
+4. Triage and resolve pre-existing lint/typecheck/rustfmt debt currently blocking green verify runs.
+
 ## Done (2026-07-10 — Patient Akte MVC / domain split)
 
 - `akte-anlagen` pure domain → `packages/shared/src/lib/akte-anlagen.ts`; Tauri `convertFileSrc` stays in `apps/practice-host-ui/src/platform/akte-anlagen.ts`.
