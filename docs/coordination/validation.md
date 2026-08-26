@@ -1,6 +1,18 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-08-26 (CI/CD tiered pipeline wiring)
+
+## CI/CD tiered pipeline wiring — verified (2026-08-26)
+
+| Check | Command | Result | Notes |
+|-------|---------|--------|-------|
+| Workflow YAML parse | `python3` + `yaml.safe_load` on `.github/workflows/{verify,autofix,fix-proposal,release}.yml` | **PASS** | All four workflow files parse successfully. |
+| Fix-proposal script syntax | `bash -n scripts/ci/fix-proposal-attempt.sh` | **PASS** | Shell syntax clean. |
+| Accessibility runner syntax | `node --check apps/practice-host-ui/scripts/test-a11y.mjs` | **PASS** | Node syntax clean. |
+| Retired CI path scan | `rg -n "app/src-tauri|\bapp/" .github/workflows` | **PASS** | No matches in active workflows. |
+| Workspace build baseline | `npm run build -w medoc` | **FAIL** | Pre-existing TypeScript errors in `document-print-html.ts`, `i18n.ts` missing module typings, and unused symbol checks. |
+| Workspace typecheck baseline | `npm exec --workspace medoc -- tsc --noEmit` | **FAIL** | Same pre-existing TypeScript failures as build baseline. |
+| GitHub Actions runtime execution | New workflow runs on GitHub runners | **NOT RUN** | Local automation session validates structure only; no live Actions execution observed. |
 
 ## Sell-ready MVP program — verified (2026-07-05)
 
