@@ -1,9 +1,19 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-08-26 (workflow logger smoke stabilization)
+
+## Done (2026-08-26 — quality run slice)
+
+- Stabilized `critical-flows.smoke` and `g21-routing.smoke` after workflow logger integration by adding explicit tauri-service mock shape (`recordWorkflowEvent`) and test-only isolation mocks for heavy app background gates.
+- Added missing dashboard IPC mock returns (`list_upcoming_appointments`, `list_akte_next_termin_hints_pending`) so flow (a) no longer crashes during dashboard boot.
+- Confirmed frontend regression status: `npm test` is green (303 pass, 3 skip).
+- Recorded blockers with command evidence in `validation.md` + findings register entries `QR-001..QR-005` in `contradictions.md`.
 
 ## Now
 
+- **Build unblock (QR-002/QR-003):** fix TS2322 in `document-print-html` and TS6133 unused symbols so `npm run build` becomes green again.
+- **Rust environment unblock (QR-004):** provide OpenSSL headers for SQLCipher (`openssl/crypto.h`) in cloud image to restore `cargo clippy` + `cargo test`.
+- **Geometry/a11y execution unblock (QR-005):** rerun Playwright spacing + visual snapshots immediately after build is green.
 - **Manual QA:** examinations billing release, attachments/scanner import, focus-mode nav — **NOT RUN**
 - **Page migration:** `apps/practice-host-ui/src/views/pages` → `packages/app/practice-host/src/pages` — incremental, not started
 - **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.

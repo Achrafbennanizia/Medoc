@@ -1,6 +1,20 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-08-26 (workflow logger smoke stabilization)
+
+## Workflow logger quality run — incremental (2026-08-26)
+
+| Check | Command | Result | Notes |
+|-------|---------|--------|-------|
+| Smoke regressions (workflow logger side effects) | `npx vitest run src/critical-flows.smoke.test.tsx src/g21-routing.smoke.test.tsx --project smoke` | **PASS** | 7 passed / 1 skipped in critical flows; 1 passed in G21 routing. Added targeted test-only mocks for workflow logger and heavy background gates. |
+| Targeted compatibility test | `npx vitest run ../../packages/shared/src/lib/billing-release-flow.test.ts --project node` | **PASS** | `recordWorkflowEvent` mock added so tauri-service module shape stays compatible. |
+| Frontend test suite | `npm test` | **PASS** | 303 passed, 3 skipped, 0 failed. |
+| Frontend build | `npm run build` | **FAIL** | Pre-existing TypeScript blockers (`document-print-html.ts` nullability, unused symbols in `termin-availability.ts`, `termin-calendar-layout.ts`, `termin-week-day-grid.tsx`). |
+| Frontend lint | `npm run lint` | **FAIL** | Pre-existing hook-order and React Compiler memoization errors (for example `break-glass-banner.tsx`, `praxis-aufgabe-*`, `finanzen.tsx`, `leistungen.tsx`). |
+| Playwright spacing audit | `MEDOC_UI_E2E=1 npx playwright test e2e-playwright/ui-spacing.spec.ts` | **FAIL** | Blocked by `webServer` build failure (`tsc && vite build` exits 2). |
+| Rust fmt gate | `cargo fmt --all -- --check` (with `MEDOC_VENDOR_PUBKEY`, `MEDOC_DB_KEY`, `MEDOC_AUDIT_KEY`) | **FAIL** | Repo-wide formatting drift across many files (not limited to this change set). |
+| Rust clippy gate | `cargo clippy --workspace --all-targets -- -D warnings` (same env) | **FAIL** | Environment blocker: `libsqlite3-sys` cannot find `openssl/crypto.h`. |
+| Rust test gate | `cargo test --workspace --tests` (same env) | **FAIL** | Same SQLCipher/OpenSSL header blocker as clippy. |
 
 ## Sell-ready MVP program — verified (2026-07-05)
 
