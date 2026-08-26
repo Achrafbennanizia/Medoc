@@ -1,5 +1,34 @@
 # Phase handoff
 
+**Last phase label:** Application quality run (logger/tests/fixes) — 2026-08-26  
+**Last closed:** Step 1 instrumentation complete; workflow/test/geometry coverage expanded; P1 toast placement + test-gate blockers fixed.
+
+### Verified (2026-08-26)
+
+- **Workflow logging instrumentation:** dedicated `medoc::workflow` channel, frontend bridge (`log_workflow_event`), route-enter bridge component, and domain transition logging are wired in code.
+- **Frontend validation gates:** `npm test` **PASS** (with split Vitest pipeline), `npm run build` **PASS**, Playwright geometry audit `npx playwright test e2e-playwright/ui-geometry.spec.ts` **PASS** (updated snapshots).
+- **Rust tests:** `cargo test --workspace --tests` **PASS** after updating stale test assumptions (`ValidationCode` contract, MVP role caps, seeded IDs).
+- **Findings register:** Added to `docs/coordination/contradictions.md` under “Findings register (2026-08-26)”.
+
+### Remains unverified / blocked
+
+- `cargo clippy --workspace --all-targets -- -D warnings` still fails on one blocker in `crates/shared/medoc-core/src/infrastructure/cors_policy.rs` (`clippy::result_large_err`).
+- `cargo fmt --all -- --check` still fails with broad pre-existing formatting drift outside scoped files.
+- G21b manual Tauri checklist remains **NOT RUN**.
+
+### Understanding delta
+
+- A meaningful part of “test failures” in this tree were stale test contracts, not runtime regressions: the code migrated toward `ValidationCode` and tighter quota guards while older tests still asserted legacy variants/messages.
+- The geometry audit now catches toast placement regressions in a way that is robust to browser computed-style quirks (`top`/`bottom` derived values).
+
+### Must happen next
+
+1. Human-reviewed decision for the clippy CORS blocker (`result_large_err`) in security-surface code.
+2. Dedicated repo-wide formatting sweep if `cargo fmt --check` is required as a hard gate.
+3. Commit and push this bounded run’s instrumentation/tests/fixes/docs with separated commits, then open/update PR.
+
+---
+
 **Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
 **Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 
