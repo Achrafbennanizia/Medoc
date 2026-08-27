@@ -1,7 +1,15 @@
 # Project truth ledger
 
-**Last updated:** 2026-06-06  
+**Last updated:** 2026-08-27  
 **Scope:** Canonical statements supported by repository evidence.
+
+## CI/CD pipeline rewire (2026-08-27) — stable truth
+
+- **Tiered workflows live:** `.github/workflows/verify.yml`, `autofix.yml`, `fix-proposal.yml`, and `release.yml` now define verify, deterministic PR autofix, draft fix proposal, and gated release tiers.
+- **Legacy CI removed:** `.github/workflows/ci.yml` was deleted to avoid duplicate/stale checks.
+- **Workspace detection in workflows:** package-manager lockfile detection (`pnpm-lock.yaml` → `yarn.lock` → npm fallback) is now encoded in verify/autofix/release/fix-proposal workflows.
+- **Release gate shape:** `release.yml` calls `verify.yml` via `workflow_call`, then builds signed cross-platform bundles under protected `environment: release` with provenance attestation.
+- **Recorded design doc:** `docs/coordination/ci-cd-plan.md`.
 
 ## Pro→main merge (2026-05-31 — 2026-06-01) — stable truth
 
@@ -19,7 +27,7 @@
 - **Desktop product identity:** Tauri app **MeDoc**, identifier `de.medoc.app`, version `0.1.0` (`apps/practice-host/tauri.conf.json`).
 - **Desktop stack:** React 19 + Vite 6 + TypeScript in `apps/practice-host-ui/`; Rust **edition 2021** Tauri binary `medoc` in `apps/practice-host/` with `sqlx` + SQLite via `crates/shared/medoc-core/` (`package.json`, `apps/practice-host/Cargo.toml`).
 - **Database (runtime):** SQLite file `medoc.db` via SQLCipher (`libsqlite3-sys` `bundled-sqlcipher`); `PRAGMA key` from keychain / `MEDOC_DB_KEY` / `db-key.wrap`; legacy plaintext DB migrated on first open (`crates/shared/medoc-core/src/infrastructure/database/connection.rs`, `sqlcipher.rs`, `db_key.rs`).
-- **CI scope:** `.github/workflows/ci.yml` — Rust workspace (repo root): fmt, check, test, clippy, cargo-audit (requires `MEDOC_VENDOR_PUBKEY`); frontend: npm audit, lint, vitest, build from root `package.json`. **No** root-level `src/` Next.js tree in repo (2026-05-19).
+- **CI scope (current):** `.github/workflows/verify.yml` performs Rust (`cargo fmt --check`, `clippy -D warnings`, `cargo test --workspace`, `cargo audit`), JS lint/typecheck/test/build, and axe-core critical a11y checks; `.github/workflows/autofix.yml` is PR-only deterministic formatter/linter automation with a bot loop guard; `.github/workflows/fix-proposal.yml` opens draft PR proposals on a dedicated branch; `.github/workflows/release.yml` reruns verify then builds signed artifacts in protected `release` environment.
 - **Vendor Ed25519 pubkey:** Compile-time via `apps/practice-host/build.rs` → `OUT_DIR/pubkey.rs`; used by `license.rs` and `update.rs` (`apps/practice-host/src/infrastructure/crypto/sig.rs`).
 - **Update signatures:** `update::evaluate` rejects unsigned/tampered manifests with `UpdateStatus::Error { message: "Signatur ungültig" }`.
 - **Company server demo:** Stub routes in `company_host/http.rs` return `"_demo": true`; UI banner in `einstellungen-company-portal-section.tsx`.
@@ -77,11 +85,11 @@
 | Tauri + versions | `package.json`, `apps/practice-host/Cargo.toml`, `apps/practice-host/tauri.conf.json` | 2026-06-06 |
 | SQLite SQLCipher connector | `crates/shared/medoc-core/src/infrastructure/database/connection.rs` | 2026-06-06 |
 | Frontend routes | `apps/practice-host-ui/src/App.tsx` | 2026-06-06 |
-| CI commands | `.github/workflows/ci.yml` | 2026-06-06 |
+| CI commands (current) | `.github/workflows/verify.yml`, `.github/workflows/autofix.yml`, `.github/workflows/fix-proposal.yml` | 2026-08-27 |
 | Build + tests pass | Terminal: `npm run build`, `cargo test --workspace --tests` | 2026-06-06 |
 | Vendor pubkey build | `apps/practice-host/build.rs`, `docs/operations/vendor-key-rotation.md` | 2026-06-06 |
 | Update signature tests | `apps/practice-host/tests/update_signature_tests.rs` | 2026-06-06 |
 | LAN web client | `apps/lan-web-client/`, `./scripts/validate-lan-web-client.sh` | 2026-06-06 |
-| CI without next-web | `.github/workflows/ci.yml` | 2026-05-19 |
+| Release gate wiring | `.github/workflows/release.yml` (`gate` uses `verify.yml`, `environment: release`) | 2026-08-27 |
 | WAAD intake | `docs/requirements-engineering/01a-waad-anforderungen.md`, `01b-traceability-waad.md`, `source/anforderungen-ableitung-waad.pdf` | 2026-04-25 |
 | WAAD-Pflichtenheft delta | `docs/v-model/01-anforderungen/pflichtenheft.md` (FA-AKTE-14..16, FA-DOK-08, FA-LEIST-05, FA-PERS-07/08, NFA-USE-09/10) | 2026-04-25 |

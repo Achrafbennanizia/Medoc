@@ -1,7 +1,33 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
-**Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
+**Last phase label:** CI/CD tier rewire (2026-08-27)  
+**Last closed:** verify/autofix/fix-proposal/release workflow migration + stale CI removal.
+
+### Verified (2026-08-27 — CI/CD tier rewire)
+
+- **Tier 1 gate:** `.github/workflows/verify.yml` added with Rust fmt/clippy/test/audit, JS lint/typecheck/test/build, and axe-core critical a11y gate; concurrency cancel + per-job timeouts set.
+- **Tier 2 guardrails:** `.github/workflows/autofix.yml` added for `pull_request` only, deterministic fix commands only (`cargo fmt`, lint/format scripts, ESLint `--fix` fallback), and loop guard `github.actor != 'github-actions[bot]'`.
+- **Tier 3 proposal path:** `.github/workflows/fix-proposal.yml` added (`workflow_dispatch` + failed `verify` on `main`) to create draft PRs on proposal branches with before/after evidence logs and report markdown.
+- **Sensitive-code stop:** tier3 detects `security|audit|crypto|rbac|auth` path touches, applies `needs-human-review`, and fails the run for human triage.
+- **Tier 4 release gate:** `.github/workflows/release.yml` rewritten to call `verify.yml` first, then build signed cross-platform bundles only under protected `environment: release`, plus provenance attestation.
+- **Legacy workflow cleanup:** `.github/workflows/ci.yml` deleted to remove stale/duplicate pipeline entrypoint.
+- **Coordination artifact:** `docs/coordination/ci-cd-plan.md` added.
+- **Syntax validation:** `npx --yes yaml-lint` on all new workflow files **PASS**.
+
+### Remains unverified
+
+- First live GitHub Actions run of `verify.yml` on a PR branch.
+- Bot commit/push behavior of `autofix.yml` against an in-repo PR branch.
+- Tier3 operational command provisioning (`CI_FIX_PROPOSAL_COMMAND`) in repository settings.
+- Tag-triggered `release.yml` execution with protected `release` approval and signing secrets.
+
+### Next
+
+1. Open a PR and confirm check suite names/required checks map to `verify` jobs.
+2. Configure `CI_FIX_PROPOSAL_COMMAND` (or manual dispatch inputs) and run one dry-run proposal.
+3. Run a signed tag dry-run (`v*`) and verify release environment approval + artifact outputs.
+
+---
 
 ### Verified (2026-07-05 — Sell-ready MVP)
 
