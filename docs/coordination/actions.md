@@ -4,6 +4,8 @@
 
 ## Now
 
+- **CI/CD rollout (2026-08-27):** New tiered workflows are in tree (`verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml`); run first PR + tag smoke on GitHub runners.
+- **Tier 3 operationalization:** set repository variable `CI_FIX_PROPOSAL_COMMAND` (or use manual `workflow_dispatch` inputs) so fix-proposal can run a real non-deterministic fix command.
 - **Manual QA:** examinations billing release, attachments/scanner import, focus-mode nav — **NOT RUN**
 - **Page migration:** `apps/practice-host-ui/src/views/pages` → `packages/app/practice-host/src/pages` — incremental, not started
 - **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.

@@ -1,6 +1,17 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-08-27 (CI/CD pipeline tier rewire)
+
+## CI/CD tier rewire — verified (2026-08-27)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML syntax | `npx --yes yaml-lint .github/workflows/verify.yml .github/workflows/autofix.yml .github/workflows/fix-proposal.yml .github/workflows/release.yml` | **PASS** — `✔ YAML Lint successful.` |
+| Retired path audit in workflows | `rg "app/src-tauri|\bapp/" .github/workflows` | **PASS** — no matches |
+| Tier files present | `git status --short` | **PASS** — `verify.yml`, `autofix.yml`, `fix-proposal.yml` added; `release.yml` updated; legacy `ci.yml` deleted |
+| GitHub runner execution of new workflows | trigger on PR/tag | **NOT RUN** (pending first CI execution in GitHub Actions) |
+
+**Delivered in this phase:** 4-tier pipeline in `.github/workflows/` with zero-mutation verify gate, PR-only deterministic autofix, draft-only fix-proposal branch flow with sensitive-path stop/label, and protected-environment release gate that reuses verify and builds signed bundles.
 
 ## Sell-ready MVP program — verified (2026-07-05)
 
