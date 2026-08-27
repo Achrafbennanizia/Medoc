@@ -9,7 +9,10 @@ Do **not** bulk-update these files during refactor passes (see [`refactor-and-ha
 
 No stale paths in:
 
-- `.github/workflows/ci.yml`
+- `.github/workflows/verify.yml`
+- `.github/workflows/autofix.yml`
+- `.github/workflows/fix-proposal.yml`
+- `.github/workflows/release.yml`
 - Root `Cargo.toml`, `package.json`
 - `scripts/`, `docker/`, `tools/`
 

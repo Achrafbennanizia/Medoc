@@ -1,0 +1,95 @@
+name: autofix
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: autofix-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  autofix:
+    # Loop guard: never act on the bot's own commit.
+    if: github.actor != 'github-actions[bot]' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - id: pm
+        name: Detect package manager
+        shell: bash
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            yarn.lock
+            package-lock.json
+      - name: Install dependencies
+        shell: bash
+        run: |
+          PM="${{ steps.pm.outputs.pm }}"
+          corepack enable
+          case "$PM" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+            *) echo "Unsupported package manager: $PM" && exit 1 ;;
+          esac
+      - name: Apply deterministic Rust/JS autofixes
+        shell: bash
+        run: |
+          PM="${{ steps.pm.outputs.pm }}"
+          cargo fmt --all
+          case "$PM" in
+            pnpm)
+              pnpm run lint:fix
+              pnpm run format
+              ;;
+            yarn)
+              yarn lint:fix
+              yarn format
+              ;;
+            npm)
+              npm run lint:fix
+              npm run format
+              ;;
+          esac
+      - name: Block restricted-code autofix changes
+        shell: bash
+        run: |
+          if git diff --name-only | rg -i "(security|audit|crypto|rbac)"; then
+            echo "::error::Autofix touched restricted security/audit/crypto/RBAC paths."
+            echo "::error::Revert and ask for manual review via tier-3 fix proposal."
+            git reset --hard HEAD
+            exit 1
+          fi
+      - name: Commit fixes if anything changed
+        shell: bash
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "ci: apply automated formatting and lint fixes"
+            git push origin "HEAD:${{ github.head_ref }}"
+          else
+            echo "No deterministic autofixes were needed."
+          fi

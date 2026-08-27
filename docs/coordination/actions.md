@@ -1,6 +1,6 @@
 # Action ledger
 
-**Last updated:** 2026-07-10 (patient Akte architecture audit — continued)
+**Last updated:** 2026-08-27 (CI/CD tier migration)
 
 ## Now
 
@@ -23,6 +23,17 @@ Active cost-priority delivery plan and test allow-list:
 | [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) | Incremental refactor, quality pass, workflow audit (Phases A–F) |
 | [`mvp-cost-priority-plan.md`](mvp-cost-priority-plan.md) | Workflows W1–W12, MS/UX/T items, phases, MVP checklist |
 | [`mvp-test-scope.md`](mvp-test-scope.md) | T-U1/T-U2 100% module allow-list |
+
+## Done (2026-08-27 — CI/CD tier migration)
+
+- Replaced monolithic CI workflow with four tiers:
+  - `verify.yml` (blocking, no mutation)
+  - `autofix.yml` (PR-only deterministic fixes)
+  - `fix-proposal.yml` (draft PR proposals on new branch)
+  - `release.yml` (verify gate + protected signed build)
+- Added `docs/coordination/ci-cd-plan.md` as the coordination source for CI/CD guardrails.
+- Added workspace scripts for `typecheck`, `lint:fix`, `format`, `test:a11y`; added `apps/practice-host-ui/scripts/test-a11y.mjs`.
+- Logged command outcomes in `validation.md` and phase continuity updates in `phase-handoff.md`.
 
 ## Done (2026-07-10 — Patient Akte MVC / domain split)
 
