@@ -1,7 +1,34 @@
 # Phase handoff
 
-**Last phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
-**Last closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
+**Last phase label:** CI/CD tier migration (2026-08-27)  
+**Last closed:** tiered workflows (verify/autofix/fix-proposal/release), JS gate script wiring, coordination docs update.
+
+### Verified (2026-08-27 — CI/CD tier migration)
+
+- **Tier 1:** Added `.github/workflows/verify.yml` (push + PR + workflow_call) with Rust/web/a11y jobs, timeout guards, and concurrency cancellation.
+- **Tier 2:** Added `.github/workflows/autofix.yml` (`pull_request` only) with deterministic-only fixes (`cargo fmt`, `lint:fix`, `format`), loop guard, and restricted-path blocker (`security|audit|crypto|rbac`).
+- **Tier 3:** Added `.github/workflows/fix-proposal.yml` (manual + failed-verify-on-main) opening **draft** PR proposals from a new branch with before/after evidence capture and `needs-human-review` labeling on restricted path touches.
+- **Tier 4:** Replaced `.github/workflows/release.yml` to gate on reusable `verify.yml`, then build signed cross-platform artifacts under protected `release` environment (no source mutation path).
+- **Workspace script wiring:** Added root + app scripts for `typecheck`, `lint:fix`, `format`, `test:a11y`; added `apps/practice-host-ui/scripts/test-a11y.mjs` (axe-core WCAG 2.1 AA critical gate).
+- **Plan doc:** Added [`ci-cd-plan.md`](ci-cd-plan.md).
+
+### Remains unverified
+
+- End-to-end green verify on this branch: **NOT VERIFIED** (current repo baseline is red on `npm run typecheck`, `npm run lint`, `cargo fmt --check`).
+- Tier-3 automatic fix command on red `main`: **NOT CONFIGURED** until repository variable `CI_FIX_PROPOSAL_COMMAND` is set.
+- Release environment manual approval behavior: **NOT OBSERVED** in GitHub UI this session.
+
+### Next
+
+1. Resolve existing workspace lint/typecheck/fmt debt so Tier-1 can pass consistently.
+2. Configure `CI_FIX_PROPOSAL_COMMAND` for Tier-3 automatic red-main fix attempts.
+3. Confirm `release` environment protection requires manual approval.
+4. Run a tag-based release dry run and validate signed bundle artifacts.
+
+---
+
+**Previous phase label:** Sell-ready MVP + sync C8 (2026-07-05)  
+**Previous closed:** UI honesty, Arabic/RTL runtime fixes, CSS responsive, sync pull `last_seen_at` e2e test.
 
 ### Verified (2026-07-05 — Sell-ready MVP)
 

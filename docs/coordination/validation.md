@@ -1,6 +1,20 @@
 # Validation ledger
 
-**Last updated:** 2026-07-05 (Sell-ready MVP + sync C8)
+**Last updated:** 2026-08-27 (CI/CD tier migration)
+
+## CI/CD tier migration — verified (2026-08-27)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| npm workspace install | `npm ci` | **PASS** |
+| JS typecheck gate | `npm run typecheck` | **FAIL** — existing TS errors in `document-print-html.ts`, `termin-availability.ts`, `termin-calendar-layout.ts`, `termin-week-day-grid.tsx` |
+| JS lint gate | `npm run lint` | **FAIL** — existing React hooks / compiler / lint violations (20 errors, 38 warnings) in `apps/practice-host-ui/src/**` |
+| A11y gate script wiring | `npm run test:a11y` | **FAIL** — expected precondition failure (`dist/index.html` missing) because build/typecheck is currently red |
+| Rust fmt gate | `cargo fmt --all -- --check` | **FAIL** — existing formatting drift across multiple Rust files |
+
+**Pipeline artefacts added:** `.github/workflows/{verify,autofix,fix-proposal,release}.yml`, `docs/coordination/ci-cd-plan.md`, and JS script wiring for `typecheck` / `lint:fix` / `format` / `test:a11y`.
+
+---
 
 ## Sell-ready MVP program — verified (2026-07-05)
 
