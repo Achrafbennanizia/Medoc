@@ -15,12 +15,16 @@ cargo build -p medoc-lan-server --release
 
 OS="$(uname -s)"
 ARCH="$(uname -m)"
-SETUP_BIN="installer/target/release/medoc-usb-setup"
+TARGET_DIR="${CARGO_TARGET_DIR:-$ROOT/target}"
+SETUP_BIN="$TARGET_DIR/release/medoc-usb-setup"
 if [[ ! -f "$SETUP_BIN" ]]; then
-  SETUP_BIN="target/release/medoc-usb-setup"
+  SETUP_BIN="installer/target/release/medoc-usb-setup"
 fi
-SERVER_BIN="target/release/medoc-server"
-MEDOC_BIN="apps/practice-host-ui/src-tauri/target/release/medoc"
+SERVER_BIN="$TARGET_DIR/release/medoc-server"
+MEDOC_BIN="$TARGET_DIR/release/medoc"
+if [[ ! -f "$MEDOC_BIN" ]]; then
+  MEDOC_BIN="apps/practice-host-ui/src-tauri/target/release/medoc"
+fi
 if [[ ! -f "$MEDOC_BIN" ]]; then
   MEDOC_BIN="apps/practice-host/target/release/medoc"
 fi
@@ -31,6 +35,11 @@ if [[ -f "$MEDOC_BIN" ]]; then
   cp "$MEDOC_BIN" "$OUT/medoc-usb/payloads/medoc"
 fi
 
+if [[ -d "$TARGET_DIR/release/bundle" ]]; then
+  find "$TARGET_DIR/release/bundle" -name '*.exe' -o -name '*.msi' -o -name '*.AppImage' -o -name '*.app' -type d 2>/dev/null | while read -r f; do
+    cp -R "$f" "$OUT/medoc-usb/payloads/"
+  done
+fi
 if [[ -d "apps/practice-host/target/release/bundle" ]]; then
   find apps/practice-host/target/release/bundle -name '*.exe' -o -name '*.msi' -o -name '*.AppImage' -o -name '*.app' -type d 2>/dev/null | while read -r f; do
     cp -R "$f" "$OUT/medoc-usb/payloads/"
