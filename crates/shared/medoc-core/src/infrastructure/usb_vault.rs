@@ -264,7 +264,8 @@ pub fn append_audit_entry(
 ) -> Result<(), AppError> {
     let path = audit_path(root);
     let mut audit_plain = if path.exists() {
-        let raw = fs::read_to_string(&path)?;
+        let raw = fs::read_to_string(&path)
+            .map_err(|e| AppError::Internal(format!("read audit: {e}")))?;
         let blob: SealedBlob = serde_json::from_str(&raw)
             .map_err(|e| AppError::Validation(format!("audit json: {e}")))?;
         open_json::<AuditPlain>(passphrase, &blob)?

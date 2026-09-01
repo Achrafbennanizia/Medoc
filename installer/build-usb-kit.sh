@@ -25,8 +25,13 @@ cp "$SETUP_BIN" "$OUT/MedocUsbSetup"
 cp "$SERVER_BIN" "$OUT/medoc-usb/payloads/medoc-server"
 
 if [[ -d "apps/practice-host/target/release/bundle" ]]; then
-  find apps/practice-host/target/release/bundle -name '*.exe' -o -name '*.msi' -o -name '*.AppImage' 2>/dev/null | while read -r f; do
-    cp "$f" "$OUT/medoc-usb/payloads/"
+  find apps/practice-host/target/release/bundle -name '*.exe' -o -name '*.msi' -o -name '*.AppImage' -o -name '*.app' -type d 2>/dev/null | while read -r f; do
+    cp -R "$f" "$OUT/medoc-usb/payloads/"
+  done
+fi
+if [[ -d "apps/practice-host-ui/src-tauri/target/release/bundle" ]]; then
+  find apps/practice-host-ui/src-tauri/target/release/bundle -name '*.exe' -o -name '*.msi' -o -name '*.AppImage' -o -name '*.app' -type d 2>/dev/null | while read -r f; do
+    cp -R "$f" "$OUT/medoc-usb/payloads/"
   done
 fi
 

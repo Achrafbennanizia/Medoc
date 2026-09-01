@@ -12,9 +12,10 @@ use medoc_core::infrastructure::install_plan::{
     PlanActivationMode, UsbInstallMode, FLAG_AUTO_ACTIVATE, FLAG_CHAIN_MEMBER,
     FLAG_INSTALL_SERVER, FLAG_LAN_CLIENT_ONLY, FLAG_OPEN_PORTS_WINDOW, FLAG_SCAN_LAN,
 };
+use medoc_core::infrastructure::install_plan::UsbInstallAuditEntry;
 use medoc_core::infrastructure::usb_vault::{
     self, append_audit_entry, init_campaign_vault, kit_root_from_exe, mark_slot_done,
-    next_pending_slot, read_audit_entries, unlock_campaign, UsbInstallAuditEntry,
+    next_pending_slot, read_audit_entries, unlock_campaign,
 };
 use uuid::Uuid;
 
@@ -38,6 +39,16 @@ enum Commands {
         mode: String,
         #[arg(long, default_value_t = 1)]
         devices: u32,
+        #[arg(long, default_value = "en")]
+        locale: String,
+        #[arg(long, default_value_t = 30)]
+        window_minutes: u32,
+        #[arg(long, default_value = "")]
+        pairing_code: String,
+        #[arg(long, default_value = "")]
+        master_address: String,
+        #[arg(long, help = "Skip interactive prompts")]
+        non_interactive: bool,
     },
     /// Show campaign progress and audit summary.
     Status {
@@ -133,41 +144,73 @@ fn build_slot_plan(
     }
 }
 
-fn cmd_init_campaign(cli: &Cli, password: Option<String>, mode: String, devices: u32) -> Result<(), medoc_core::error::AppError> {
+fn cmd_init_campaign(
+    cli: &Cli,
+    password: Option<String>,
+    mode: String,
+    devices: u32,
+    locale: String,
+    window_minutes: u32,
+    pairing_code: String,
+    master_address: String,
+    non_interactive: bool,
+) -> Result<(), medoc_core::error::AppError> {
     let root = kit_root(cli);
     let pw = read_password(password, "USB kit password")?;
-    let pw_confirm = read_password(None, "Confirm password")?;
-    if pw != pw_confirm {
-        return Err(medoc_core::error::AppError::Validation(
-            "passwords do not match".into(),
-        ));
+    if !non_interactive {
+        let pw_confirm = read_password(None, "Confirm password")?;
+        if pw != pw_confirm {
+            return Err(medoc_core::error::AppError::Validation(
+                "passwords do not match".into(),
+            ));
+        }
     }
     let install_mode = parse_mode(&mode);
-    let locale: String = Input::new()
-        .with_prompt("Locale (en/de/fr)")
-        .default("en".into())
-        .interact_text()
-        .map_err(|e| medoc_core::error::AppError::Internal(e.to_string()))?;
-    let window: u32 = Input::new()
-        .with_prompt("Pairing/discover window (minutes)")
-        .default(30)
-        .interact_text()
-        .map_err(|e| medoc_core::error::AppError::Internal(e.to_string()))?;
-    let pairing_code: String = Input::new()
-        .with_prompt("Pairing code (optional)")
-        .allow_empty(true)
-        .interact_text()
-        .map_err(|e| medoc_core::error::AppError::Internal(e.to_string()))?;
-    let pairing = if pairing_code.trim().is_empty() {
-        None
+    let locale = if non_interactive {
+        locale
     } else {
-        Some(pairing_code.trim().to_string())
+        Input::new()
+            .with_prompt("Locale (en/de/fr)")
+            .default("en".into())
+            .interact_text()
+            .map_err(|e| medoc_core::error::AppError::Internal(e.to_string()))?
     };
-    let master_addr: String = Input::new()
-        .with_prompt("Master address (optional, for fixed discover)")
-        .allow_empty(true)
-        .interact_text()
-        .map_err(|e| medoc_core::error::AppError::Internal(e.to_string()))?;
+    let window: u32 = if non_interactive {
+        window_minutes
+    } else {
+        Input::new()
+            .with_prompt("Pairing/discover window (minutes)")
+            .default(30)
+            .interact_text()
+            .map_err(|e| medoc_core::error::AppError::Internal(e.to_string()))?
+    };
+    let pairing = if non_interactive {
+        if pairing_code.trim().is_empty() {
+            None
+        } else {
+            Some(pairing_code.trim().to_string())
+        }
+    } else {
+        let pairing_code: String = Input::new()
+            .with_prompt("Pairing code (optional)")
+            .allow_empty(true)
+            .interact_text()
+            .map_err(|e| medoc_core::error::AppError::Internal(e.to_string()))?;
+        if pairing_code.trim().is_empty() {
+            None
+        } else {
+            Some(pairing_code.trim().to_string())
+        }
+    };
+    let master_addr = if non_interactive {
+        master_address
+    } else {
+        Input::new()
+            .with_prompt("Master address (optional, for fixed discover)")
+            .allow_empty(true)
+            .interact_text()
+            .map_err(|e| medoc_core::error::AppError::Internal(e.to_string()))?
+    };
     let discover = if master_addr.trim().is_empty() {
         DiscoverConfig {
             mode: DiscoverMode::Scan,
@@ -335,7 +378,17 @@ fn cmd_wizard(cli: &Cli) -> Result<(), medoc_core::error::AppError> {
                 .interact()
                 .map_err(|e| medoc_core::error::AppError::Internal(e.to_string()))?;
             let mode = if mode_idx == 1 { "chain" } else { "default" };
-            cmd_init_campaign(cli, None, mode.into(), devices)?;
+            cmd_init_campaign(
+                cli,
+                None,
+                mode.into(),
+                devices,
+                "en".into(),
+                30,
+                String::new(),
+                String::new(),
+                false,
+            )?;
         } else {
             return Err(medoc_core::error::AppError::Validation(
                 "campaign required".into(),
@@ -374,15 +427,30 @@ fn cmd_wizard(cli: &Cli) -> Result<(), medoc_core::error::AppError> {
 
 fn main() {
     let cli = Cli::parse();
-    let result = match cli.command {
+    let result = match &cli.command {
         Commands::InitCampaign {
             password,
             mode,
             devices,
-        } => cmd_init_campaign(&cli, password, mode, devices),
-        Commands::Status { password } => cmd_status(&cli, password),
-        Commands::Install { password, silent } => cmd_install(&cli, password, silent),
-        Commands::Audit { password } => cmd_audit(&cli, password),
+            locale,
+            window_minutes,
+            pairing_code,
+            master_address,
+            non_interactive,
+        } => cmd_init_campaign(
+            &cli,
+            password.clone(),
+            mode.clone(),
+            *devices,
+            locale.clone(),
+            *window_minutes,
+            pairing_code.clone(),
+            master_address.clone(),
+            *non_interactive,
+        ),
+        Commands::Status { password } => cmd_status(&cli, password.clone()),
+        Commands::Install { password, silent } => cmd_install(&cli, password.clone(), *silent),
+        Commands::Audit { password } => cmd_audit(&cli, password.clone()),
         Commands::Wizard => cmd_wizard(&cli),
     };
     if let Err(e) = result {

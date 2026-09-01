@@ -44,6 +44,9 @@ app/test-results/
 # Rust workspace target (repo root)
 target/
 
+# Local dev toolchain/cache (never commit — exceeds GitHub size limits)
+.dev-home/
+
 # Build outputs (legacy paths — kept for symlink compatibility)
 apps/practice-host-ui/src-tauri/target/
 apps/practice-host/target/

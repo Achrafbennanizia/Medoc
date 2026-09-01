@@ -31,6 +31,8 @@ pub fn run_practice_installer(root: &Path, silent: bool) -> Result<(), AppError>
             "medoc-practice.nsis",
             "MeDoc_0.1.0_x64-setup.exe",
             "medoc-practice-setup.exe",
+            "MeDoc.app",
+            "medoc-practice.app",
         ],
     )
     .ok_or_else(|| {
@@ -44,7 +46,9 @@ pub fn run_practice_installer(root: &Path, silent: bool) -> Result<(), AppError>
 pub fn run_lan_server_install(root: &Path) -> Result<(), AppError> {
     let payload = find_payload(root, &["medoc-server.exe", "medoc-server"])
         .ok_or_else(|| AppError::Validation("medoc-server payload missing".into()))?;
-    let dest = PathBuf::from(r"C:\Program Files\MeDoc\medoc-server.exe");
+    let dest = dirs::home_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("Applications/MeDoc/medoc-server");
     if let Some(parent) = dest.parent() {
         fs::create_dir_all(parent).map_err(|e| AppError::Internal(format!("mkdir server: {e}")))?;
     }
@@ -54,6 +58,23 @@ pub fn run_lan_server_install(root: &Path) -> Result<(), AppError> {
 }
 
 fn run_installer(path: &Path, silent: bool) -> Result<(), AppError> {
+    if path.extension().and_then(|e| e.to_str()) == Some("app") {
+        let dest = dirs::home_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join("Applications")
+            .join(path.file_name().unwrap_or_default());
+        if let Some(parent) = dest.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|e| AppError::Internal(format!("mkdir Applications: {e}")))?;
+        }
+        if dest.exists() {
+            fs::remove_dir_all(&dest)
+                .map_err(|e| AppError::Internal(format!("remove old app: {e}")))?;
+        }
+        copy_dir_all(path, &dest)?;
+        return Ok(());
+    }
+
     let ext = path
         .extension()
         .and_then(|e| e.to_str())
@@ -96,6 +117,24 @@ pub fn install_components(
                 run_practice_installer(root, silent)?;
             }
             InstallComponent::LanServer => run_lan_server_install(root)?,
+        }
+    }
+    Ok(())
+}
+
+fn copy_dir_all(src: &Path, dst: &Path) -> Result<(), AppError> {
+    fs::create_dir_all(dst).map_err(|e| AppError::Internal(format!("mkdir: {e}")))?;
+    for entry in fs::read_dir(src).map_err(|e| AppError::Internal(format!("read_dir: {e}")))? {
+        let entry = entry.map_err(|e| AppError::Internal(format!("dir entry: {e}")))?;
+        let ty = entry
+            .file_type()
+            .map_err(|e| AppError::Internal(format!("file_type: {e}")))?;
+        let from = entry.path();
+        let to = dst.join(entry.file_name());
+        if ty.is_dir() {
+            copy_dir_all(&from, &to)?;
+        } else {
+            fs::copy(&from, &to).map_err(|e| AppError::Internal(format!("copy: {e}")))?;
         }
     }
     Ok(())
