@@ -20,9 +20,16 @@ if [[ ! -f "$SETUP_BIN" ]]; then
   SETUP_BIN="target/release/medoc-usb-setup"
 fi
 SERVER_BIN="target/release/medoc-server"
+MEDOC_BIN="apps/practice-host-ui/src-tauri/target/release/medoc"
+if [[ ! -f "$MEDOC_BIN" ]]; then
+  MEDOC_BIN="apps/practice-host/target/release/medoc"
+fi
 
 cp "$SETUP_BIN" "$OUT/MedocUsbSetup"
 cp "$SERVER_BIN" "$OUT/medoc-usb/payloads/medoc-server"
+if [[ -f "$MEDOC_BIN" ]]; then
+  cp "$MEDOC_BIN" "$OUT/medoc-usb/payloads/medoc"
+fi
 
 if [[ -d "apps/practice-host/target/release/bundle" ]]; then
   find apps/practice-host/target/release/bundle -name '*.exe' -o -name '*.msi' -o -name '*.AppImage' -o -name '*.app' -type d 2>/dev/null | while read -r f; do

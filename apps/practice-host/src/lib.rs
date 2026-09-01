@@ -91,7 +91,7 @@ pub fn run() {
                     tracing::info!(target: "medoc::system", event = "DB_READY");
 
                     match tauri::async_runtime::block_on(
-                        medoc_sync::cluster::services::consume_default_sidecar_and_apply(&pool),
+                        crate::systems::usb_install_startup::apply_usb_install_plan_on_startup(&pool),
                     ) {
                         Ok(Some(applied)) => {
                             tracing::info!(
@@ -101,7 +101,7 @@ pub fn run() {
                                 locale = ?applied.locale,
                             );
                             if let Ok(Some(msg)) = tauri::async_runtime::block_on(
-                                medoc_sync::cluster::services::run_provisioning_tasks(&pool),
+                                crate::systems::usb_install_startup::run_usb_provisioning_on_startup(&pool),
                             ) {
                                 tracing::info!(
                                     target: "medoc::system",

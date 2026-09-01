@@ -33,6 +33,7 @@ pub fn run_practice_installer(root: &Path, silent: bool) -> Result<(), AppError>
             "medoc-practice-setup.exe",
             "MeDoc.app",
             "medoc-practice.app",
+            "medoc",
         ],
     )
     .ok_or_else(|| {
@@ -80,6 +81,27 @@ fn run_installer(path: &Path, silent: bool) -> Result<(), AppError> {
         .and_then(|e| e.to_str())
         .unwrap_or("")
         .to_lowercase();
+    if ext.is_empty() || ext == "medoc" || path.file_name().and_then(|n| n.to_str()) == Some("medoc") {
+        let dest = dirs::home_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join("Applications/MeDoc/medoc");
+        if let Some(parent) = dest.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|e| AppError::Internal(format!("mkdir MeDoc: {e}")))?;
+        }
+        fs::copy(path, &dest).map_err(|e| AppError::Internal(format!("copy medoc: {e}")))?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = fs::metadata(&dest)
+                .map_err(|e| AppError::Internal(format!("metadata: {e}")))?
+                .permissions();
+            perms.set_mode(0o755);
+            fs::set_permissions(&dest, perms)
+                .map_err(|e| AppError::Internal(format!("chmod: {e}")))?;
+        }
+        return Ok(());
+    }
     let status = if ext == "exe" {
         let mut cmd = Command::new(path);
         if silent {
