@@ -178,6 +178,7 @@ pub fn init_campaign_vault(
         chain_next_index: 0,
         slots: device_slots,
         created_at: Utc::now().to_rfc3339(),
+        bound_volume_id: current_volume_id(),
     };
     let plain = VaultPlain {
         schema_version: VAULT_SCHEMA,
@@ -200,6 +201,32 @@ pub fn init_campaign_vault(
     Ok(campaign)
 }
 
+pub fn current_volume_id() -> Option<String> {
+    #[cfg(windows)]
+    {
+        std::env::var("MEDOC_USB_VOLUME_SERIAL").ok().or_else(|| {
+            // Best-effort: use current exe drive root (ops can set env on bind).
+            std::env::current_exe()
+                .ok()
+                .and_then(|p| p.components().next().map(|c| c.as_os_str().to_string_lossy().into_owned()))
+        })
+    }
+    #[cfg(not(windows))]
+    {
+        std::env::var("MEDOC_USB_VOLUME_SERIAL").ok()
+    }
+}
+
+pub fn assert_volume_binding(campaign: &UsbCampaignVault) -> Result<(), AppError> {
+    if let Some(expected) = &campaign.bound_volume_id {
+        let current = current_volume_id().unwrap_or_default();
+        if current != *expected {
+            return Err(AppError::Forbidden);
+        }
+    }
+    Ok(())
+}
+
 pub fn unlock_campaign(root: &Path, passphrase: &str) -> Result<UsbCampaignVault, AppError> {
     let raw = fs::read_to_string(vault_path(root))
         .map_err(|e| AppError::Validation(format!("vault missing: {e}")))?;
@@ -207,6 +234,7 @@ pub fn unlock_campaign(root: &Path, passphrase: &str) -> Result<UsbCampaignVault
         serde_json::from_str(&raw).map_err(|e| AppError::Validation(format!("vault json: {e}")))?;
     let plain: VaultPlain = open_json(passphrase, &blob)?;
     verify_password(passphrase, &plain.password_verifier)?;
+    assert_volume_binding(&plain.campaign)?;
     Ok(plain.campaign)
 }
 

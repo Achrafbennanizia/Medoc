@@ -52,6 +52,7 @@ fn build_tokens(device_id: &str) -> (String, String) {
         max_users: 99,
         modules: vec!["dicom".into()],
         edition_features: vec!["statistics.advanced".into()],
+        install_plan: None,
     };
     let v2_body = serde_json::to_string(&lic).unwrap();
     let v2_signed = sign_json(&v2_body);

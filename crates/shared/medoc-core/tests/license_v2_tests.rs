@@ -44,6 +44,7 @@ fn build_v2_body(device_id: &str) -> String {
         max_users: 5,
         modules: vec!["dicom".into()],
         edition_features: vec!["statistics.advanced".into()],
+        install_plan: None,
     };
     serde_json::to_string(&lic).unwrap()
 }
@@ -101,6 +102,26 @@ fn v2_rejects_when_inner_device_mismatch() {
     let status = verify_v2_envelope(envelope.trim_start_matches("v2."), "device-y");
     assert!(!status.valid);
     assert!(status.reason.unwrap().contains("another device"));
+}
+
+#[test]
+fn v2_carries_install_plan_when_present() {
+    use medoc_core::infrastructure::install_plan::InstallPlan;
+
+    let device_id = "plan-device";
+    let mut lic: LicenseV2 = serde_json::from_str(&build_v2_body(device_id)).unwrap();
+    lic.install_plan = Some(InstallPlan::new_master("USB Master"));
+    let body = serde_json::to_string(&lic).unwrap();
+    let signed = sign_inner(&body);
+    let envelope = encrypt_v2_for_device(&signed, device_id).expect("encrypt ok");
+    let status = verify(&envelope, device_id);
+    assert!(status.valid);
+    let plan = status
+        .license_v2
+        .unwrap()
+        .install_plan
+        .expect("install_plan present");
+    assert_eq!(plan.device_label, "USB Master");
 }
 
 #[test]

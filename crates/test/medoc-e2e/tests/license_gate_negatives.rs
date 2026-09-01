@@ -53,6 +53,7 @@ fn valid_envelope_for(device_id: &str) -> String {
         max_users: 5,
         modules: vec![],
         edition_features: vec![],
+        install_plan: None,
     };
     let body = serde_json::to_string(&lic).unwrap();
     let sig = vendor_signing_key().sign(body.as_bytes());

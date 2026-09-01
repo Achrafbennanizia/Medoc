@@ -93,12 +93,23 @@ pub fn run() {
                     match tauri::async_runtime::block_on(
                         medoc_sync::cluster::services::consume_default_sidecar_and_apply(&pool),
                     ) {
-                        Ok(Some(applied)) => tracing::info!(
-                            target: "medoc::system",
-                            event = "INSTALL_PLAN_APPLIED",
-                            applied = applied.applied,
-                            locale = ?applied.locale,
-                        ),
+                        Ok(Some(applied)) => {
+                            tracing::info!(
+                                target: "medoc::system",
+                                event = "INSTALL_PLAN_APPLIED",
+                                applied = applied.applied,
+                                locale = ?applied.locale,
+                            );
+                            if let Ok(Some(msg)) = tauri::async_runtime::block_on(
+                                medoc_sync::cluster::services::run_provisioning_tasks(&pool),
+                            ) {
+                                tracing::info!(
+                                    target: "medoc::system",
+                                    event = "INSTALL_PLAN_PROVISIONING",
+                                    message = %msg,
+                                );
+                            }
+                        }
                         Ok(None) => {}
                         Err(e) => tracing::warn!(
                             target: "medoc::system",

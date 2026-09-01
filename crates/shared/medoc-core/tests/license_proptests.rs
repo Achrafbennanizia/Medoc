@@ -98,6 +98,7 @@ fn build_license(device_id: &str, parts: &LicenseBodyParts) -> LicenseV2 {
         max_users: parts.max_users,
         modules: parts.modules.clone(),
         edition_features: parts.edition_features.clone(),
+        install_plan: None,
     }
 }
 

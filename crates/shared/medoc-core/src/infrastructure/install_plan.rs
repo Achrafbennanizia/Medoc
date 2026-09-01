@@ -223,6 +223,9 @@ pub struct UsbCampaignVault {
     pub chain_next_index: u32,
     pub slots: Vec<DeviceSlot>,
     pub created_at: String,
+    /// Optional USB volume serial binding (phase 5 hardening).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bound_volume_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

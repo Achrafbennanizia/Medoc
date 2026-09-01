@@ -166,6 +166,7 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::network::cluster::install_plan_consume_sidecar,
             $crate::commands::network::cluster::install_plan_apply,
             $crate::commands::network::cluster::install_plan_provisioning_status,
+            $crate::commands::network::cluster::install_plan_run_provisioning,
             $crate::commands::network::cluster::cluster_discover_admins,
             $crate::commands::network::cluster::cluster_send_join_request,
             $crate::commands::network::cluster::cluster_submit_sas,

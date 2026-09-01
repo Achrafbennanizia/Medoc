@@ -16,7 +16,7 @@ use medoc_sync::cluster::services::{
     cluster_status, DeviceView, ImportActivationResult, JoinRequestResult, PairingHandle,
     PendingRequest, ProvisionResult, SasCode, ClusterStatus,
     apply_install_plan, consume_default_sidecar_and_apply, get_provisioning_window,
-    ApplyInstallPlanResult,
+    ApplyInstallPlanResult, run_provisioning_tasks,
 };
 use medoc_core::infrastructure::install_plan::{InstallPlan, ProvisioningWindowState};
 use medoc_sync::cluster::SeatRole;
@@ -150,6 +150,14 @@ pub async fn install_plan_provisioning_status(
     pool: State<'_, SqlitePool>,
 ) -> Result<Option<ProvisioningWindowState>, AppError> {
     get_provisioning_window(&pool).await
+}
+
+/// Run discover/scan tasks while provisioning window is active (chain install helper).
+#[tauri::command]
+pub async fn install_plan_run_provisioning(
+    pool: State<'_, SqlitePool>,
+) -> Result<Option<String>, AppError> {
+    run_provisioning_tasks(&pool).await
 }
 
 #[tauri::command]

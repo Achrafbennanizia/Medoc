@@ -311,6 +311,7 @@ pub fn mint_dev_v2_license_envelope(
         } else {
             vec!["statistics.advanced".into()]
         },
+        install_plan: None,
     };
     let body = serde_json::to_string(&lic).map_err(|e| AppError::Internal(e.to_string()))?;
     let sig = dev_signing_key()?.sign(body.as_bytes());

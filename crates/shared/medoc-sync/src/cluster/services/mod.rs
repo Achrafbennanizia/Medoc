@@ -10,8 +10,8 @@ pub mod cluster_service;
 
 pub use install_plan_service::{
     apply_install_plan, apply_install_plan_from_license_v2, consume_default_sidecar_and_apply,
-    consume_pending_sidecar_and_apply, get_provisioning_window, plan_includes_server,
-    read_deployment_mode, ApplyInstallPlanResult,
+    consume_pending_sidecar_and_apply,     get_provisioning_window, plan_includes_server, read_deployment_mode,
+    run_provisioning_tasks, ApplyInstallPlanResult,
 };
 pub use cluster_reset_service::{
     cluster_reset_preview, execute_member_cluster_reset, execute_owner_cluster_reset,

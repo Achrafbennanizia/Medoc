@@ -3,6 +3,19 @@
 Admin (cluster owner) devices are provisioned with the **medoc-keygen** tool, distributed
 separately from the desktop app installers. Member devices use in-app pairing only.
 
+## USB multi-installer kit
+
+Portable field installer with encrypted campaign vault, audit log, and `install_plan` sidecar:
+
+```bash
+cargo build -p medoc-usb-setup --release
+bash installer/build-usb-kit.sh   # or build-usb-kit.ps1 on Windows
+```
+
+Operator flow: copy `installer/dist/usb-kit/` to USB → run `MedocUsbSetup wizard`.
+
+See [docs/architecture/usb-multi-installer.md](../docs/architecture/usb-multi-installer.md).
+
 ## medoc-keygen (C++)
 
 ```bash

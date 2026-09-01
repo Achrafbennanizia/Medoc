@@ -61,6 +61,7 @@ pub async fn seed_master_license(pool: &SqlitePool) {
         max_users: 5,
         modules: vec![],
         edition_features: vec![],
+        install_plan: None,
     };
     let body = serde_json::to_string(&lic).unwrap();
     let sig = sk.sign(body.as_bytes());

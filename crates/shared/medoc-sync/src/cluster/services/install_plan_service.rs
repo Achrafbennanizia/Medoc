@@ -219,6 +219,46 @@ pub fn plan_includes_server(plan: &InstallPlan) -> bool {
         .any(|c| matches!(c, InstallComponent::LanServer))
 }
 
+pub async fn run_provisioning_tasks(pool: &SqlitePool) -> Result<Option<String>, AppError> {
+    let Some(window) = get_provisioning_window(pool).await? else {
+        return Ok(None);
+    };
+    let dep_raw = app_kv_repo::get(pool, APP_KV_DEPLOYMENT_KEY).await?;
+    let Some(dep_raw) = dep_raw else {
+        return Ok(Some("provisioning window active — deployment not set".into()));
+    };
+    let cfg: SyncDeploymentConfig = serde_json::from_str(&dep_raw)
+        .map_err(|e| AppError::Validation(format!("deployment json: {e}")))?;
+
+    if cfg.role == DeviceRole::Master && window.open_ports {
+        return Ok(Some(
+            "master provisioning window active — accept pairing on this device".into(),
+        ));
+    }
+
+    if cfg.role == DeviceRole::Replica && window.scan_lan {
+        let admins = crate::net::scan_admins(std::time::Duration::from_secs(
+            window.discover.window_minutes.min(10) as u64,
+        ))?;
+        if let Some(admin) = admins.first() {
+            return Ok(Some(format!(
+                "discovered master at {}:{} — use pairing code {:?}",
+                admin.host, admin.port, window.pairing_code
+            )));
+        }
+        return Ok(Some("scanning — no master found yet".into()));
+    }
+
+    if !cfg.master_base_url.is_empty() {
+        return Ok(Some(format!(
+            "replica configured for {} — pairing code {:?}",
+            cfg.master_base_url, window.pairing_code
+        )));
+    }
+
+    Ok(Some("provisioning window active".into()))
+}
+
 pub async fn read_deployment_mode(pool: &SqlitePool) -> Result<Option<String>, AppError> {
     let Some(raw) = app_kv_repo::get(pool, APP_KV_DEPLOYMENT_KEY).await? else {
         return Ok(None);

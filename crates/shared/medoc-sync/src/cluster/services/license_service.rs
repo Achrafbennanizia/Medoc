@@ -301,6 +301,7 @@ mod tests {
             max_users: 2,
             modules: vec![],
             edition_features: vec![],
+            install_plan: None,
         };
         let body = serde_json::to_string(&lic).unwrap();
         let mut sk_bytes = [0u8; 32];

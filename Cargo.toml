@@ -15,6 +15,7 @@ members = [
     "crates/shared/medoc-sync",
     "crates/shared/medoc-codegen",
     "crates/test/medoc-e2e",
+    "installer/medoc-usb-setup",
 ]
 
 [workspace.metadata.medoc.systems]
