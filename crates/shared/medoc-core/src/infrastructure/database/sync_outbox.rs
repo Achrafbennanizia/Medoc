@@ -130,7 +130,7 @@ async fn ensure_local_device_id(pool: &SqlitePool, label: &str) -> Result<String
     .await
     .map_err(AppError::Database)?;
     let display = if label.is_empty() {
-        "Dieses Gerät"
+        "This device"
     } else {
         label
     };

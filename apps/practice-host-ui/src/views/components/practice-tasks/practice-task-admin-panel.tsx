@@ -228,7 +228,7 @@ export function PracticeTaskAdminPanel({ embedded = false, backHref = "/administ
                     canAdmin
                     compact={embedded}
                     onOpen={(row) => setSelectedId(row.id)}
-                    onEdit={(row) => navigate(`/tickets/${row.id}/bearbeiten`)}
+                    onEdit={(row) => navigate(`/tickets/${row.id}/edit`)}
                 />
             )}
             {selected ? (
@@ -245,7 +245,7 @@ export function PracticeTaskAdminPanel({ embedded = false, backHref = "/administ
                     canFulfillStatus={canFulfillStatus}
                     onClose={() => setSelectedId(null)}
                     onUpdated={handleUpdated}
-                    onEdit={() => navigate(`/tickets/${selected.id}/bearbeiten`)}
+                    onEdit={() => navigate(`/tickets/${selected.id}/edit`)}
                 />
             ) : null}
         </div>

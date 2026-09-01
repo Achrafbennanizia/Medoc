@@ -234,17 +234,17 @@ export function AdministrationFinanceToolsPage() {
             invoiceNr.trim()
             || (await allocateInvoiceNumber(invoiceDate, { reserved: reservedNums }));
         const bankLines: string[] = [];
-        const iban = (practice.bankverbindung_iban ?? "").trim();
+        const iban = (practice.bank_iban ?? "").trim();
         if (iban) {
-            const bic = (practice.bankverbindung_bic ?? "").trim();
-            const bankName = (practice.bankverbindung_bank ?? "").trim();
+            const bic = (practice.bank_bic ?? "").trim();
+            const bankName = (practice.bank_name ?? "").trim();
             bankLines.push(
                 `Bank details: IBAN ${iban}${bic ? ` BIC ${bic}` : ""}${bankName ? ` (${bankName})` : ""}`,
             );
-            const inh = (practice.bankverbindung_inhaber ?? "").trim() || (practice.clinician_name ?? "").trim();
+            const inh = (practice.account_holder ?? "").trim() || (practice.clinician_name ?? "").trim();
             if (inh) bankLines.push(`Account holder: ${inh}`);
         }
-        const zt = practice.payment_terms_tage ?? 14;
+        const zt = practice.payment_terms_days ?? 14;
         const payload: InvoiceInput = {
             number: num,
             date: invoiceDate,
@@ -261,7 +261,7 @@ export function AdministrationFinanceToolsPage() {
             practice_bsnr: practice.bsnr?.trim() || null,
             bank_details: bankLines.length > 0 ? bankLines : null,
             payment_terms_text: `Payable within ${zt} days.`,
-            vat_notice: practice.ust_befreiung_hinweis?.trim() || null,
+            vat_notice: practice.vat_exemption_notice?.trim() || null,
         };
         setInvBusy(true);
         try {

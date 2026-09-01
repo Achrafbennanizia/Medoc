@@ -19,15 +19,15 @@ const FIELD_LABEL_KEYS: Partial<Record<keyof InvoicePractice | "addr", string>> 
     clinician_name: "practice.setup.clinician",
     zanr: "practice.setup.zanr",
     bsnr: "practice.setup.bsnr",
-    bankverbindung_iban: "practice.setup.iban",
-    bankverbindung_bic: "practice.setup.bic",
-    bankverbindung_bank: "practice.setup.bank",
+    bank_iban: "practice.setup.iban",
+    bank_bic: "practice.setup.bic",
+    bank_name: "practice.setup.bank",
     phone: "practice.setup.phone",
     email: "practice.setup.email",
     professional_title: "practice.setup.professional_title",
     tax_number: "practice.setup.tax_number",
-    ust_id: "practice.setup.tax_id",
-    ust_befreiung_hinweis: "practice.setup.tax_exempt",
+    vat_id: "practice.setup.tax_id",
+    vat_exemption_notice: "practice.setup.tax_exempt",
 };
 
 const RULES: Record<DocumentKind, { field: keyof InvoicePractice | "addr" }[]> = {
@@ -37,7 +37,7 @@ const RULES: Record<DocumentKind, { field: keyof InvoicePractice | "addr" }[]> =
         { field: "clinician_name" },
         { field: "zanr" },
         { field: "bsnr" },
-        { field: "bankverbindung_iban" },
+        { field: "bank_iban" },
     ],
     prescription: [
         { field: "name" },
@@ -98,7 +98,8 @@ export function shouldShowPracticeSetupWizard(): boolean {
     if (typeof globalThis.localStorage === "undefined") return false;
     if (globalThis.localStorage.getItem(PRACTICE_SETUP_DISMISS_KEY) === "1") return false;
     const p = getInvoicePracticeFromStorage();
-    if ((p.name ?? "").trim() === "Zahnarztpraxis") return true;
+    const name = (p.name ?? "").trim();
+    if (name === "Dental practice") return true;
     return !checkPracticeDocumentReadiness(p, "invoice").ready;
 }
 

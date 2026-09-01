@@ -15,6 +15,7 @@ use crate::cluster::ports::{mark_provisioned, DeviceRepo, LicenseRepo, SqliteClu
 use crate::cluster::seat_budget::seat_budget_from_edition;
 
 use super::audit;
+use super::install_plan_service::apply_install_plan_from_license_v2;
 
 fn edition_from_status(status: &LicenseStatus) -> String {
     if let Some(v2) = &status.license_v2 {
@@ -142,6 +143,9 @@ pub async fn activate_cluster_license(
             Some("vendor license applied to imported cluster"),
         )
         .await?;
+        if let Some(v2) = &status.license_v2 {
+            apply_install_plan_from_license_v2(pool, v2).await?;
+        }
         return cluster_status(pool).await;
     }
 
@@ -188,12 +192,16 @@ pub async fn activate_cluster_license(
     )
     .await?;
 
+    if let Some(v2) = &status.license_v2 {
+        apply_install_plan_from_license_v2(pool, v2).await?;
+    }
+
     cluster_status(pool).await
 }
 
 pub async fn cluster_status(pool: &SqlitePool) -> Result<ClusterStatus, AppError> {
-    let license = license_repo::current_status(pool).await.ok();
-    let licensed = license.as_ref().map(|s| s.valid).unwrap_or(false);
+    let vendor = license_repo::current_status(pool).await.ok();
+    let licensed = vendor.as_ref().map(|s| s.valid).unwrap_or(false);
 
     let repos = SqliteClusterRepos { pool };
     let license = repos.load().await?;
@@ -255,8 +263,8 @@ pub async fn cluster_status(pool: &SqlitePool) -> Result<ClusterStatus, AppError
         cluster_id,
         seat_usage,
         local_fingerprint: fp,
-        license_valid: license.as_ref().map(|s| s.valid).unwrap_or(false),
-        license_format: license.and_then(|s| s.format),
+        license_valid: vendor.as_ref().map(|s| s.valid).unwrap_or(false),
+        license_format: vendor.and_then(|s| s.format),
         needs_reprovision,
     })
 }

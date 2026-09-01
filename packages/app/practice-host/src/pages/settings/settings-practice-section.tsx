@@ -5,7 +5,7 @@ import {
     hydrateInvoicePracticeFromAppKv,
     isValidPracticeDigitId,
     isValidPracticeIban,
-    practiceInvoicePflichtMissing,
+    practiceInvoiceRequiredMissing,
     saveInvoicePracticeToStorage,
     syncInvoicePracticeToAppKv,
     type InvoicePractice,
@@ -67,7 +67,7 @@ export function SettingsPracticeSection({
                 const j = JSON.parse(raw) as { mime?: string; data?: string };
                 if (j.mime && j.data) setLogoPreviewUrl(`data:${j.mime};base64,${j.data}`);
             } catch {
-                /* Web / fehlend */
+                /* Web / missing */
             }
         })();
         return () => {
@@ -91,7 +91,7 @@ export function SettingsPracticeSection({
             setDraftPracticeName(fromKv.name);
             setDraftPracticeAddr(fromKv.addr);
             setDraftPracticeOpeningHours(fromKv.opening_hours ?? "");
-            setDraftPracticeKv(fromKv.kv_nummer ?? "");
+            setDraftPracticeKv(fromKv.kv_number ?? "");
         });
         return () => {
             cancelled = true;
@@ -151,7 +151,7 @@ export function SettingsPracticeSection({
             toast(t("settings.practice.toast.kv_required"), "error");
             return;
         }
-        applyPracticePatch({ kv_nummer: kv });
+        applyPracticePatch({ kv_number: kv });
         toast(t("settings.practice.toast.kv_saved"), "success");
         setEditPracticeKv(false);
     }
@@ -177,7 +177,7 @@ export function SettingsPracticeSection({
         setPracticeExtraSnapshot(null);
     }
 
-    const practiceBillingIncomplete = useMemo(() => practiceInvoicePflichtMissing(practice), [practice]);
+    const practiceBillingIncomplete = useMemo(() => practiceInvoiceRequiredMissing(practice), [practice]);
 
     function startEditPracticeBilling() {
         setPracticeBillingSnapshot({ ...practice });
@@ -193,7 +193,7 @@ export function SettingsPracticeSection({
     function savePracticeBilling() {
         const zanr = (practice.zanr ?? "").trim();
         const bsnr = (practice.bsnr ?? "").trim();
-        const iban = (practice.bankverbindung_iban ?? "").trim();
+        const iban = (practice.bank_iban ?? "").trim();
         if (zanr && !isValidPracticeDigitId(zanr)) {
             toast(t("settings.practice.toast.zanr_invalid"), "error");
             return;
@@ -206,12 +206,12 @@ export function SettingsPracticeSection({
             toast(t("settings.practice.toast.iban_invalid"), "error");
             return;
         }
-        const zt = practice.payment_terms_tage ?? 14;
+        const zt = practice.payment_terms_days ?? 14;
         const next: InvoicePractice = {
             ...practice,
-            payment_terms_tage: Number.isFinite(zt) && zt > 0 ? Math.round(zt) : 14,
-            ust_befreiung_hinweis:
-                (practice.ust_befreiung_hinweis ?? "").trim() || "Umsatzsteuerbefreit gem. § 4 Nr. 14 UStG",
+            payment_terms_days: Number.isFinite(zt) && zt > 0 ? Math.round(zt) : 14,
+            vat_exemption_notice:
+                (practice.vat_exemption_notice ?? "").trim() || "VAT-exempt under § 4 No. 14 UStG",
         };
         setPractice(next);
         saveInvoicePracticeToStorage(next);
@@ -415,7 +415,7 @@ export function SettingsPracticeSection({
                         *
                     </span>
                 </span>
-                <div className="settings-row-muted">{(practice.kv_nummer ?? "").trim() || "—"}</div>
+                <div className="settings-row-muted">{(practice.kv_number ?? "").trim() || "—"}</div>
             </div>
             <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end", flex: "0 1 auto" }}>
                 {editPracticeKv ? (
@@ -431,7 +431,7 @@ export function SettingsPracticeSection({
                             type="button"
                             variant="secondary"
                             onClick={() => {
-                                setDraftPracticeKv(practice.kv_nummer ?? "");
+                                setDraftPracticeKv(practice.kv_number ?? "");
                                 setEditPracticeKv(false);
                             }}
                         >
@@ -443,7 +443,7 @@ export function SettingsPracticeSection({
                         type="button"
                         variant="secondary"
                         onClick={() => {
-                            setDraftPracticeKv(practice.kv_nummer ?? "");
+                            setDraftPracticeKv(practice.kv_number ?? "");
                             setEditPracticeKv(true);
                         }}
                     >
@@ -514,7 +514,7 @@ export function SettingsPracticeSection({
                         onChange={(e) => setPractice((p) => ({ ...p, email: e.target.value }))}
                     />
                     <Input id="px-web" label={t("settings.practice.website")} type="url" value={practice.web ?? ""} onChange={(e) => setPractice((p) => ({ ...p, web: e.target.value }))} />
-                    <Input id="px-ust" label={t("settings.practice.vat_id")} value={practice.ust_id ?? ""} onChange={(e) => setPractice((p) => ({ ...p, ust_id: e.target.value }))} />
+                    <Input id="px-vat-id" label={t("settings.practice.vat_id")} value={practice.vat_id ?? ""} onChange={(e) => setPractice((p) => ({ ...p, vat_id: e.target.value }))} />
                     <Input id="px-st" label={t("settings.practice.tax_number")} value={practice.tax_number ?? ""} onChange={(e) => setPractice((p) => ({ ...p, tax_number: e.target.value }))} />
                 </div>
             </div>

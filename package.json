@@ -5,6 +5,7 @@
     "type": "module",
     "workspaces": [
         "apps/practice-host-ui",
+        "apps/practice-host",
         "apps/lan-web-client",
         "packages/shared",
         "packages/ui",

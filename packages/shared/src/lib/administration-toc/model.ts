@@ -27,8 +27,8 @@ const TEAM_HUB: AdministrationTocHubDef = {
     ],
 };
 
-const FINANCE_BERICHTE_HUB: AdministrationTocHubDef = {
-    id: "finance-berichte",
+const FINANCE_REPORTS_HUB: AdministrationTocHubDef = {
+    id: "finance-reports",
     titleKey: "page.administration_finance.title",
     subtitleKey: "administration.finance.subtitle",
     items: [
@@ -45,8 +45,8 @@ const FINANCE_BERICHTE_HUB: AdministrationTocHubDef = {
             requires: "administration/finance-reports/invoice",
         },
         {
-            titleKey: "page.administration_finance.link_bilanzen_title",
-            descKey: "page.administration_finance.link_bilanzen_desc",
+            titleKey: "page.administration_finance.link_balance_sheets_title",
+            descKey: "page.administration_finance.link_balance_sheets_desc",
             href: "/balance-sheet",
             requires: "balance-sheet",
         },
@@ -187,10 +187,10 @@ const ROOT_HUB: AdministrationTocHubDef = {
 export const ADMINISTRATION_TOC_HUBS: Record<AdministrationTocHubId, AdministrationTocHubDef> = {
     root: ROOT_HUB,
     team: TEAM_HUB,
-    "finance-berichte": FINANCE_BERICHTE_HUB,
+    "finance-reports": FINANCE_REPORTS_HUB,
     inventory: INVENTORY_HUB,
     services: SERVICES_HUB,
-    practice_planning: PRACTICE_PLANNING_HUB,
+    practicePlanning: PRACTICE_PLANNING_HUB,
 };
 
 export function getAdministrationTocHubDef(hubId: AdministrationTocHubId): AdministrationTocHubDef {

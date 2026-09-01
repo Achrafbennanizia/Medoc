@@ -1,6 +1,6 @@
 /**
  * Structured PDF layout payloads for the Rust renderer (`clinical_pdf_layout.rs`).
- * Matches German reference layouts (Certificate, Prescription, Patientenquittung).
+ * Matches German reference layouts (Certificate, Prescription, Patient receipt).
  */
 
 import type { Certificate } from "@/systems/practice-host/controllers/certificate.controller";
@@ -58,7 +58,7 @@ export type ClinicalPdfLayout = {
     totals: { label: string; value: string }[];
     closingParagraphs: string[];
     signatureLines: string[];
-    /** Meta unten rechts (Certificate: Ausstellungsdatum, Nummer). */
+    /** Meta bottom-right (Certificate: issue date, number). */
     footerMetaLines?: { label: string; value: string }[];
 };
 
@@ -92,12 +92,12 @@ function formatPrescriptionDate(iso: string): string {
 function signatureLines(): string[] {
     const p = getInvoicePracticeFromStorage();
     const bh = (p.clinician_name ?? "").trim();
-    const beruf = (p.professional_title ?? "").trim();
+    const professionalTitle = (p.professional_title ?? "").trim();
     const zanr = (p.zanr ?? "").trim();
     const bsnr = (p.bsnr ?? "").trim();
     if (!bh) return [];
     const out = [bh];
-    if (beruf) out.push(beruf);
+    if (professionalTitle) out.push(professionalTitle);
     if (zanr || bsnr) out.push(`ZANR: ${zanr || "-"} / BSNR: ${bsnr || "-"}`);
     out.push("(Stamp / signature)");
     return out;
@@ -110,18 +110,18 @@ export function buildCertificatePdfLayout(a: Certificate, patient: Patient | nul
     const t0 = new Date(`${a.valid_from.slice(0, 10)}T12:00:00`);
     const t1 = new Date(`${a.valid_until.slice(0, 10)}T12:00:00`);
     const days = Math.max(1, Math.round((t1.getTime() - t0.getTime()) / 86_400_000) + 1);
-    const erstFolge =
+    const firstOrFollowUp =
         (a.first_or_follow_up ?? "FIRST") === "FOLLOW_UP" ? "Follow-up certificate" : "Initial certificate";
     const pname = patient?.name ?? a.patient_id;
-    const geb = patient ? formatDate(patient.date_of_birth) : "—";
+    const dob = patient ? formatDate(patient.date_of_birth) : "—";
     const icd = (a.icd10_code ?? "").trim() || "—";
 
     const intro = [
-        `This certifies that ${pname}${patient ? `, born on ${geb},` : ""} is under medical treatment.`,
+        `This certifies that ${pname}${patient ? `, born on ${dob},` : ""} is under medical treatment.`,
     ];
 
     const labelValueRows: { label: string; value: string }[] = [
-        { label: "Type of certificate", value: `${a.kind} (${erstFolge})` },
+        { label: "Type of certificate", value: `${a.kind} (${firstOrFollowUp})` },
         {
             label: "Validity period",
             value: `${from} until ${until} (${days} calendar day${days === 1 ? "" : "s"})`,
@@ -279,12 +279,13 @@ export function buildReceiptPdfLayout(
     examinations: Examination[],
     receiptNumber: string,
 ): ClinicalPdfLayout {
-    const reference = formatPaymentReferenceLine(z, treatments, examinations, docT, docTp);
+    const reference = receiptServiceDescription(z, treatments, examinations);
     const practice = getInvoicePracticeFromStorage();
     const ust =
-        (practice.ust_befreiung_hinweis ?? "").trim() || "Umsatzsteuerbefreit gem. § 4 Nr. 14 UStG";
+        (practice.vat_exemption_notice ?? "").trim() || "VAT-exempt under § 4 No. 14 UStG";
 
-    const payDate = formatDate(z.created_at);
+    const payDate = formatClinicalDate(z.created_at);
+    const amount = formatCurrency(z.amount);
 
     return {
         kind: "receipt",
@@ -293,13 +294,22 @@ export function buildReceiptPdfLayout(
             { label: "Receipt-Nr.", value: receiptNumber },
             { label: "Payment date", value: payDate },
         ],
-        addressLines: [patient.name, ...(patient.address?.trim() ? [patient.address.trim()] : [])],
+        addressLines: [
+            patient.name,
+            ...(patient.address?.trim()
+                ? patient.address
+                      .trim()
+                      .split(/\n+/)
+                      .map((l) => l.trim())
+                      .filter(Boolean)
+                : []),
+        ],
         documentTitle: "PATIENT RECEIPT",
         documentSubtitle: `for ${patient.name}`,
         introParagraphs: [`Billed service items for ${payDate}`],
         labelValueRows: [
             { label: "Patient", value: patient.name },
-            { label: "Date of birth", value: formatDate(patient.date_of_birth) },
+            { label: "Date of birth", value: formatClinicalDate(patient.date_of_birth) },
             ...(patient.insurance_number
                 ? [{ label: "Insurance number", value: patient.insurance_number }]
                 : []),
@@ -315,16 +325,42 @@ export function buildReceiptPdfLayout(
         ],
         detailRecords: [],
         totals: [
-            { label: "Material costs", value: "0,00 €" },
-            { label: "Fee", value: formatCurrency(z.amount) },
-            { label: "Total", value: formatCurrency(z.amount) },
+            { label: "Material costs", value: formatCurrency(0) },
+            { label: "Fee", value: amount },
+            { label: "Total", value: amount },
         ],
         closingParagraphs: [
             `Payment method: ${paymentMethodLabel(z.payment_method, docT)} · Status: ${paymentStatusDisplay(z.status, docT).label}`,
             ust,
             ...(z.payment_method === "CASH" || z.payment_method === "CARD" ? ["Amount received with thanks."] : []),
-            ...((z.description ?? "").trim() ? [(z.description ?? "").trim()] : []),
+            // Description already used as table row when no B/U link — avoid duplicating.
+            ...((z.description ?? "").trim() && (z.treatment_id || z.examination_id)
+                ? [(z.description ?? "").trim()]
+                : []),
         ],
         signatureLines: signatureLines(),
     };
+}
+
+/** DD.MM.YYYY for clinical printouts (independent of UI locale). */
+function formatClinicalDate(iso: string): string {
+    const d = iso.trim().slice(0, 10);
+    if (d.length >= 10 && d[4] === "-" && d[7] === "-") {
+        return `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}`;
+    }
+    return formatDate(iso);
+}
+
+/** Patient-facing service line — never show internal “No B/U line” jargon. */
+function receiptServiceDescription(
+    z: Payment,
+    treatments: Treatment[],
+    examinations: Examination[],
+): string {
+    if (z.treatment_id || z.examination_id) {
+        return formatPaymentReferenceLine(z, treatments, examinations, docT, docTp);
+    }
+    const desc = (z.description ?? "").trim();
+    if (desc) return desc;
+    return docT("enum.reference.direct_payment");
 }

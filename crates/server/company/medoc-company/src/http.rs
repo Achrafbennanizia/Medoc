@@ -283,12 +283,12 @@ async fn summary(
 async fn integrations_status() -> Json<serde_json::Value> {
     Json(json!({
         "_demo": true,
-        "eprescription": { "status": "disconnected", "detail": "Gematik-Anbindung — Konfiguration outstanding" },
-        "datev": { "status": "beta", "detail": "DATEV-Export vorbereitet" },
-        "doccheck_sso": { "status": "disconnected", "detail": "Nicht verbunden" },
-        "kim_tk": { "status": "disconnected", "detail": "KIM — nicht angebunden" },
+        "eprescription": { "status": "disconnected", "detail": "Gematik connection — configuration outstanding" },
+        "datev": { "status": "beta", "detail": "DATEV export prepared" },
+        "doccheck_sso": { "status": "disconnected", "detail": "Not connected" },
+        "kim_tk": { "status": "disconnected", "detail": "KIM — not connected" },
         "lab_dental_union": { "status": "beta", "detail": "Beta" },
-        "card_reader": { "status": "disconnected", "detail": "Kein Kartenleser erkannt" },
+        "card_reader": { "status": "disconnected", "detail": "No card reader detected" },
     }))
 }
 

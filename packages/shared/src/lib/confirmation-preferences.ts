@@ -54,10 +54,6 @@ export type PracticePreferencesV1 = {
     appointmentPlanning?: {
         bufferMin?: string;
         emergencyBuffer?: string;
-        /** @deprecated leftover German wire; still read on migrate */
-        pufferMin?: string;
-        /** @deprecated leftover German wire; still read on migrate */
-        notfallPuffer?: string;
         reminder?: string;
         noShow?: string;
     };

@@ -1,0 +1,37 @@
+0 verbose cli /opt/homebrew/Cellar/node/26.7.0/bin/node /opt/homebrew/bin/npm
+1 info using npm@11.19.0
+2 info using node@v26.7.0
+3 silly config load:file:/opt/homebrew/lib/node_modules/npm/npmrc
+4 silly config load:file:/Users/achraf/pro/Medoc/.npmrc
+5 silly config load:file:/Users/achraf/.npmrc
+6 silly config load:file:/opt/homebrew/etc/npmrc
+7 verbose title npm run tauri dev
+8 verbose argv "run" "tauri" "--workspace" "medoc-tauri-host" "--" "dev"
+9 verbose logfile logs-max:10 dir:/Users/achraf/pro/Medoc/.npm-cache/_logs/2026-08-20T15_35_59_090Z-
+10 verbose logfile /Users/achraf/pro/Medoc/.npm-cache/_logs/2026-08-20T15_35_59_090Z-debug-0.log
+11 warn Unknown env config "devdir". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+12 silly logfile done cleaning log files
+13 verbose stack Error: command failed
+13 verbose stack     at promiseSpawn (/opt/homebrew/lib/node_modules/npm/node_modules/@npmcli/promise-spawn/lib/index.js:22:22)
+13 verbose stack     at spawnWithShell (/opt/homebrew/lib/node_modules/npm/node_modules/@npmcli/promise-spawn/lib/index.js:124:10)
+13 verbose stack     at promiseSpawn (/opt/homebrew/lib/node_modules/npm/node_modules/@npmcli/promise-spawn/lib/index.js:12:12)
+13 verbose stack     at runScriptPkg (/opt/homebrew/lib/node_modules/npm/node_modules/@npmcli/run-script/lib/run-script-pkg.js:79:13)
+13 verbose stack     at runScript (/opt/homebrew/lib/node_modules/npm/node_modules/@npmcli/run-script/lib/run-script.js:9:12)
+13 verbose stack     at #run (/opt/homebrew/lib/node_modules/npm/lib/commands/run.js:136:13)
+13 verbose stack     at RunScript.execWorkspaces (/opt/homebrew/lib/node_modules/npm/lib/commands/run.js:67:24)
+13 verbose stack     at async Npm.exec (/opt/homebrew/lib/node_modules/npm/lib/npm.js:193:9)
+13 verbose stack     at async module.exports (/opt/homebrew/lib/node_modules/npm/lib/cli/entry.js:67:5)
+14 verbose pkgid medoc-tauri-host@0.1.0
+15 error Lifecycle script `tauri` failed with error:
+16 error code 101
+17 error path /Users/achraf/pro/Medoc/apps/practice-host
+18 error workspace medoc-tauri-host@0.1.0
+19 error location /Users/achraf/pro/Medoc/apps/practice-host
+20 error command failed
+21 error command sh -c tauri dev
+22 verbose cwd /Users/achraf/pro/Medoc
+23 verbose os Darwin 25.4.0
+24 verbose node v26.7.0
+25 verbose npm  v11.19.0
+26 verbose exit 101
+27 verbose code 101

@@ -335,7 +335,7 @@ impl SyncEngine {
             pool,
             &local_id,
             if cfg.device_label.is_empty() {
-                "Dieses Gerät"
+                "This device"
             } else {
                 &cfg.device_label
             },

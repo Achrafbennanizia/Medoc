@@ -12,7 +12,7 @@ pub fn permission_for_app_kv_key(key: &str) -> Option<&'static str> {
     }
     match key {
         "practice.work_hours.v1" | "practice.blockedTimes.v1" => Some("ops.system"),
-        "practice.preferences.v1" | "practice.preferences.v1" | "practice.preferences-appointment.v1" => {
+        "practice.preferences.v1" | "practice.preferences-appointment.v1" => {
             Some("dashboard.read")
         }
         "export.path.v1" | "export.formats.v1" | "practice.logo.v1" | "invoice.practice.v1" => {

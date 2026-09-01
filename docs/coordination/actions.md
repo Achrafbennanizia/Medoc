@@ -1,28 +1,132 @@
 # Action ledger
 
-**Last updated:** 2026-08-20 (English leftover identifiers — helpers / i18n / PDF / template kind)
+**Last updated:** 2026-08-20 (Swing overview dashboard cosmetic parity)
 
 ## Now
 
-- **Rust compile:** `cargo test` of PDF helpers + `document_template.kind` upgrade — **NOT RUN** (`cargo` not on PATH).
-- **Existing DBs:** `REZEPT`/`ATTEST` → `PRESCRIPTION`/`CERTIFICATE` via `ENUM_UPDATES` after German CHECK rebuild. Live `medoc.db` — **NOT OBSERVED**.
-- **Optional later:** invoice.practice.v1 German KV (needs Swing together); certificate payload `krankheiten` / `tage_anzahl` / `einschraenkung`.
-- **Swing prescriptions / invoice lines / day close:** patient prescriptions; billing line items; cash reconciliation. LAN prescription/line/day-close paths stay **null**. GUI walk after `./run` restart — **NOT OBSERVED**.
-- **Swing onboarding / month / invoice status / templates:** wizard in `practice.preferences.v1`; month list from day queries; demo Issue/Paid; template body editor. LAN `update_invoice` / `update_catalog` paths stay **null**. GUI walk after `./run` restart — **NOT OBSERVED**.
-- **Rust compile:** `cargo test` of invoice PDF + `pdf_document_tests` — **NOT RUN** (`cargo` not on PATH).
-- **Existing DBs:** upgrade is in `run_english_schema_upgrade` and runs on every open. Live `medoc.db` — **NOT OBSERVED**.
-- **Stored templates / prefs / invoice history:** dual-read leftover German keys; live reprint of old invoice JSON — **NOT OBSERVED**.
-- **Swing LAN:** `LanDialect` outgoing English (`/patients`, `/appointments`, `password`, `PHYSICIAN`). Live HTTPS **NOT OBSERVED**.
-- **`de` language option** currently duplicates English catalog values.
-- **Optional later:** invoice.practice.v1 German wire keys (needs Swing together); certificate template payload `krankheiten` / `tage_anzahl` / `einschraenkung`.
-- **Swing client (sibling `/Users/achraf/pro/Medoc-swing`):** sidebar + admin TOC + catalogs + privacy + cash + onboarding + month list + invoice status/lines + templates + patient prescriptions + day close. Catalog/GDPR/invoice/prescription/day-close writes are demo-mock only. Drag calendar / GOZ factor / e-prescription submit remain not started. Progress map: [`swing-conversion-checklist.md`](swing-conversion-checklist.md) and `Medoc-swing/CONVERSION.md`.
-- **Manual QA:** examinations billing release, attachments/scanner import, focus-mode nav — **NOT RUN**
-- **Page migration:** `apps/practice-host-ui/src/views/pages` → `packages/app/practice-host/src/pages` — incremental, not started
-- **Refactor & harden pass:** [`refactor-and-harden-plan.md`](refactor-and-harden-plan.md) — register at [`refactor-register.md`](refactor-register.md); Phases A–F incremental.
-- **Geplant / future development:** single status register — [`geplant.md`](geplant.md) (not in-app UI).
-- **Deferred roles (MVP):** `TAX_ADVISOR` / `PHARMA_CONSULTANT` — [`todos-deferred-roles.md`](todos-deferred-roles.md).
-- **Deferred Datenschutz (DSGVO) UI:** [`todos-deferred-features.md`](todos-deferred-features.md).
-- **Deferred security (MVP):** Break-Glass off, 2FA off, 5-user cap — [`todos-deferred-security-features.md`](todos-deferred-security-features.md).
+- **GUI smoke** — `./run` and compare Overview to React screenshot — **NOT OBSERVED**.
+- **Live LAN smoke** — license / e-Rx / pairing — **NOT RUN**.
+
+## Done (2026-08-20 — Swing overview dashboard cosmetic parity)
+
+- React-parity Overview UI + shell chrome; dashboard controller KPIs/approvals/orders/upcoming; demo seed tweaks; i18n keys.
+- `./gradlew test --rerun-tasks` **PASS** — **104** tests.
+
+## Done (2026-08-20 — LAN API depth — e-Rx + license)
+
+- LAN REST: e-Rx validate/submit + license status/activate/clear; catalog updated.
+- Swing dialect + HTTP adapter + controllers (`eRxSupported` vs create writes); dialect test.
+- `./gradlew test --rerun-tasks` **PASS** — **103** tests; `cargo check -p medoc-lan` **PASS**.
+
+## Done (2026-08-20 — Swing full demo seed)
+
+- Expanded `MockPracticeAdapter` seed so dashboard, calendar, patients, charts, billing, cash, orders, work time, Rx, certificates, staff, catalogs, events, migration scanner, settings, statistics patterns all have demo rows.
+- `./gradlew test --rerun-tasks` **PASS** — **102** tests.
+
+## Done (2026-08-20 — Swing feature pack)
+
+- Drag calendar (week DnD), full common GOZ seed (~145), e-Rx validate/submit stub, license/pairing activate, staff password/quota/RBAC, GDT/DICOM/scanner adapters, rich chart composers + disease-pattern stats.
+- Controllers: `LicensePairingController`, `StaffSecurityController`, `MigrationDeviceController`; libs: `OfficialGozCatalog`, `EPrescriptionRules`, `GdtParser`, `DicomInspector`, `DiseasePatternStats`.
+- `./gradlew clean test --rerun-tasks` **PASS** — **101** tests.
+
+## Done (2026-08-20 — Swing UI coverage batch)
+
+
+
+- All catalog admin screens: search + create/edit/delete (`CatalogListPage`).
+- Dedicated `StaffPage` (role/email); `PracticeEventsPage` for audit/logs/ops/compliance/feedback; `MigrationWizardPage` (6-step checklist).
+- Statistics: week work-hours KPI + staff hours table; Settings desktop-only section (honest copy).
+- `./gradlew clean test --rerun-tasks` **PASS**.
+
+## Done (2026-08-20 — DB English upgrade — stored JSON + appointment text)
+
+- `run_english_schema_upgrade` now remaps leftover German JSON in `app_kv` / template payloads / next-appointment hints and Englishifies appointment note markers.
+- App KV key rename for leftover `praxis.preferences*`.
+- Tests added (unit + `db_migrations_tests`); **cargo NOT RUN**.
+
+## Done (2026-08-20 — Remove dual-read leftovers — English-only wires)
+
+- Dropped German dual-read across practice, certificates, privacy, prefs, templates, invoices, day-close, discharge, CSV import, Swing settings.
+- Tests updated to assert English-only / ignore leftover German.
+- Vitest **20 PASS** / 6 files. i18n parity **PASS**.
+
+## Done (2026-08-20 — Swing balance sheet + ticket filter/edit)
+
+- Balance sheet: paid/outstanding/draft/net KPIs from invoices; invoice table; save/delete snapshots (seed `bs-1`). Demo mock; no CANCELLED; no PDF export.
+- Tickets: status filter (All/Open/Done); edit title/body via `update_practice_ticket`.
+- Seeded paid invoice `inv-2` so income KPI is non-zero.
+- `./gradlew clean test --rerun-tasks` **PASS** — 92 tests / 26 classes.
+
+## Done (2026-08-20 — English leftover identifiers — balance sheet / privacy.vat / PDF footer)
+
+- Balance sheet: `balancePeriod`, `expenseRows`/`selExpense`. Admin back target `ADMINISTRATION`.
+- Privacy consumers use `vat` (was broken `ust` field access). Clinical PDF confidentiality line English.
+- Vitest **30 PASS** / 7 files. i18n parity **PASS**.
+
+## Done (2026-08-20 — English leftover identifiers — PDF / discharge / VAT defaults)
+
+- PDF page footer `Page X of Y`; report section `Summary`; discharge args `additional_notes` / `referral_notes` with leftover aliases (fixes frontend `additionalNotes`/`referralNotes` wire).
+- Default VAT notice English; `audit.chain.acknowledge_incident`; English PDF/test fixtures.
+- Keepers unchanged: dual-read schema aliases, migration maps, `de.json` values, KV health-insurance semantics.
+
+## Done (2026-08-20 — Swing cash receipt print + statistics cash KPI)
+
+- Cash desk: HTML receipt print preview per row (patient, amount, method, note). Not a PDF.
+- Statistics: cash today total KPI from demo cash queue.
+- `./gradlew test --rerun-tasks` **PASS** — 90 tests / 25 classes.
+
+## Done (2026-08-20 — Swing chart validation + dashboard KPI + prescription templates)
+
+- Charts to validate: Validate button (NEW → VALIDATED), refresh, updated column, open chart. Demo proxy, not desktop chart IPC.
+- Dashboard: charts-pending KPI card opens `/charts/to-validate`.
+- Prescriptions: PRESCRIPTION template picker fills medication/dosage/instructions with `{{patientName}}` expand.
+- `./gradlew test --rerun-tasks` **PASS** — 88 tests / 24 classes.
+
+## Done (2026-08-20 — Swing patient certificates + GOZ factors + template placeholders)
+
+- Certificates: patient page (create/delete/HTML print). Apply CERTIFICATE template placeholders. Seed `cert-1` for Anna Brooks. LAN `list_certificates` path **null**.
+- Billing: seeded GOZ 1000/2080/2197/2410 with recommended factor 2.3 (`extra` = `unitPrice|factor`). Not a full official catalog.
+- Templates: insert `{{patientName}}` / date placeholders. Not a rich composer.
+- `./gradlew test --rerun-tasks` **PASS** — 84 tests / 23 classes.
+
+## Done (2026-08-20 — English leftover identifiers — KV health-insurance labels / chamber / privacy keys)
+
+- KV letterhead copy is health insurance (`Health insurance no.`), not site number. Privacy `kv` / stored `kv_number` unchanged.
+- Practice `chamber` + template field `chamber` with leftover `kammer` dual-read. Privacy LS `tax`/`hours` with leftover `steuer`/`oz`.
+- Vitest subset **19 PASS** / 6 files. `i18n-verify-parity.mjs` **PASS**. `cargo` **NOT RUN**. Swing gradle **NOT RUN**.
+
+## Done (2026-08-20 — English leftover identifiers — i18n copy / CSV / kv_number)
+
+- Leftover German `en.json` copy English (demo emails/`password123`, CSV headers, LAN routes, `finance.read`, `Day close`). `i18n-verify-parity.mjs` **PASS**.
+- `kv_number` with leftover dual-read (Swing SettingsController together). CSV leftover German headers dual-read. Work-time `WeeklyWorkRule` / `targetMinutes`.
+- Vitest subset **51 PASS** / 5 files. `cargo` **NOT RUN**. Swing gradle **NOT RUN**.
+
+## Done (2026-08-20 — Swing appointment move + work-time team + dashboard open-orders)
+
+- Appointments: Move uses a date spinner + time field (`update_appointment` demo mock). Not drag.
+- Work-time team: week hours by staff catalog (`staffId` on work-time rows). Not a live clock-in board. LAN catalog/work-time paths stay **null**.
+- Dashboard: OPEN purchase-order list under today’s appointments; double-click jumps to Orders.
+- `./gradlew test --rerun-tasks` **PASS** — 73 tests / 19 classes.
+
+## Done (2026-08-20 — English leftover identifiers — certificate payload / practice KV / routes)
+
+- Certificate payload English with leftover dual-read. Practice KV English with leftover dual-read (Swing SettingsController together). Ticket `/edit` + template `?edit=`. Chart PDF leftover German labels English.
+- Vitest subset **51 PASS** / 6 files; i18n-locales **14 PASS** / 3 files. `cargo` **NOT RUN**. Swing gradle **NOT RUN**.
+
+## Done (2026-08-20 — Swing GOZ picker + order lines + day-close HTML + dashboard KPIs)
+
+- Billing: pick seeded SERVICE code/unit price when adding a line. Not a GOZ factor table.
+- Orders: product lines (qty × unit price) plus existing header details.
+- Day close: HTML print preview (`JEditorPane.print()`), not a PDF.
+- Dashboard: demo invoice + open-order KPIs and jumps.
+- `./gradlew test --rerun-tasks` **PASS** — 70 tests / 18 classes.
+
+## Done (2026-08-20 — Swing week grid + invoice qty/factor + order detail)
+
+- Appointments WEEK view: 7 weekday columns, no drag. Double-click cell opens patient or that day.
+- Invoice lines: quantity × factor × unit price; amount is still the line sum. Not a GOZ catalog.
+- Orders: Details dialog + extra fields (quantity, unit, expected on, remark).
+- `./gradlew test --rerun-tasks` **PASS** — 66 tests / 17 classes.
 
 ## Done (2026-08-20 — English leftover identifiers — helpers / i18n / PDF / template kind)
 

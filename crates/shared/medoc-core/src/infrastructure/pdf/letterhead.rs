@@ -63,6 +63,9 @@ pub struct Letterhead<'a> {
     /// When `true`: return-address mini-line above the address window
     /// ("Practice · Street · ZIP City").
     pub show_sender_hint: bool,
+    /// When `true`, place the address block directly under the practice
+    /// header (no DIN window-envelope gap). Used for receipts / screen PDFs.
+    pub compact_address: bool,
 }
 
 /// Render the full letterhead on the current PageBuilder page
@@ -107,30 +110,54 @@ pub fn emit_letterhead(pb: &mut PageBuilder, lh: &Letterhead) -> i32 {
     let header_bottom = left_y.min(right_y);
 
     // --- 3. Address window (window envelope) ------------------------------
+    let mut address_bottom = header_bottom;
     if !lh.address_lines.is_empty() {
-        if lh.show_sender_hint {
-            let sender = sender_hint_line(lh.practice_lines);
-            if !sender.trim().is_empty() {
-                pb.y = SENDER_HINT_Y;
-                pb.text(M_LEFT + 6, 7, false, &sender);
+        if lh.compact_address {
+            let mut addr_y = header_bottom - 16;
+            if lh.show_sender_hint {
+                let sender = sender_hint_line(lh.practice_lines);
+                if !sender.trim().is_empty() {
+                    pb.y = addr_y;
+                    pb.text(M_LEFT + 6, 7, false, &sender);
+                    addr_y -= 12;
+                }
             }
-        }
-        let mut addr_y = ADDRESS_WINDOW_Y;
-        for (i, line) in lh.address_lines.iter().enumerate() {
-            let size = if i == 0 { 11 } else { 10 };
-            for chunk in wrap_soft(line, 42) {
-                pb.y = addr_y;
-                pb.text(M_LEFT + 10, size, i == 0, &chunk);
-                addr_y -= if size == 11 { 13 } else { 12 };
+            for (i, line) in lh.address_lines.iter().enumerate() {
+                let size = if i == 0 { 11 } else { 10 };
+                for chunk in wrap_soft(line, 42) {
+                    pb.y = addr_y;
+                    pb.text(M_LEFT + 10, size, i == 0, &chunk);
+                    addr_y -= if size == 11 { 13 } else { 12 };
+                }
             }
+            address_bottom = addr_y;
+        } else {
+            if lh.show_sender_hint {
+                let sender = sender_hint_line(lh.practice_lines);
+                if !sender.trim().is_empty() {
+                    pb.y = SENDER_HINT_Y;
+                    pb.text(M_LEFT + 6, 7, false, &sender);
+                }
+            }
+            let mut addr_y = ADDRESS_WINDOW_Y;
+            for (i, line) in lh.address_lines.iter().enumerate() {
+                let size = if i == 0 { 11 } else { 10 };
+                for chunk in wrap_soft(line, 42) {
+                    pb.y = addr_y;
+                    pb.text(M_LEFT + 10, size, i == 0, &chunk);
+                    addr_y -= if size == 11 { 13 } else { 12 };
+                }
+            }
+            // DIN 5008 window bottom
+            address_bottom = 560;
         }
     }
 
     // --- 4. Divider below letterhead --------------------------------------
-    // If an address field is present: just below it; otherwise directly
-    // below the practice/meta block.
     let rule_y = if lh.address_lines.is_empty() {
         header_bottom - 8
+    } else if lh.compact_address {
+        address_bottom - 8
     } else {
         // Below the address window (DIN 5008: ~Y 560)
         560
@@ -155,15 +182,14 @@ pub fn emit_continuation_header(pb: &mut PageBuilder, practice_name: &str, doc_t
 /// Right meta block: two lines per entry — small label, larger value.
 /// Returns the `y` position of the lowest written line.
 fn emit_meta_block(pb: &mut PageBuilder, rows: &[MetaRow], start_y: i32) -> i32 {
-    let label_x = 320;
     let mut y = start_y;
     for row in rows {
         pb.y = y;
-        pb.text(label_x, 8, false, &row.label);
+        pb.text_right(M_RIGHT, 8, false, &row.label);
         y -= 11;
         for chunk in wrap_soft(&row.value, 34) {
             pb.y = y;
-            pb.text_right(M_RIGHT, 9, false, &chunk);
+            pb.text_right(M_RIGHT, 9, true, &chunk);
             y -= 11;
         }
         y -= 4;
@@ -259,7 +285,7 @@ mod tests {
 
     fn dummy_practice() -> Vec<String> {
         vec![
-            "Zahnarztpraxis Dr. Mustermann".into(),
+            "Dental practice Dr. Sample".into(),
             "Hauptstraße 1".into(),
             "10115 Berlin".into(),
             "Tel: 030/123456".into(),
@@ -268,8 +294,8 @@ mod tests {
 
     fn dummy_address() -> Vec<String> {
         vec![
-            "Max Mustermann".into(),
-            "Musterstr. 2".into(),
+            "Max Sample".into(),
+            "Sample Street 2".into(),
             "10117 Berlin".into(),
         ]
     }
@@ -289,6 +315,7 @@ mod tests {
             address_lines: &addr,
             header_right_lines: &[],
             show_sender_hint: true,
+            compact_address: false,
         };
         let y_after = emit_letterhead(&mut pb, &lh);
         assert!(y_after < M_TOP);
@@ -306,6 +333,7 @@ mod tests {
             address_lines: &[],
             header_right_lines: &[],
             show_sender_hint: false,
+            compact_address: false,
         };
         let y_after = emit_letterhead(&mut pb, &lh);
         // Without an address field the divider must be earlier than DIN-5008 Y560.

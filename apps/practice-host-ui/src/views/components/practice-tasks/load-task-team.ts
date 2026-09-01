@@ -20,7 +20,7 @@ function teamMemberToStaff(member: { id: string; name: string; role: string }): 
     };
 }
 
-/** HR list when allowed; otherwise minimal Physician/Reception directory for Aufgaben UI. */
+/** HR list when allowed; otherwise minimal Physician/Reception directory for practice tasks UI. */
 export async function loadTaskTeamDirectory(
     role: Role | null,
     overrides?: readonly PermissionOverride[] | null,

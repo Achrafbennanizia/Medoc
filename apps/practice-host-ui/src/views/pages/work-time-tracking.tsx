@@ -178,8 +178,8 @@ export function WorkTimeTrackingPage() {
                 />
                 <div className="card-pad work-time-week-grid">
                     {weekBars.map((day) => {
-                        const max = Math.max(day.sollMinutes, day.workedMinutes + day.openMinutes, 1);
-                        const sollPct = (day.sollMinutes / max) * 100;
+                        const max = Math.max(day.targetMinutes, day.workedMinutes + day.openMinutes, 1);
+                        const targetPct = (day.targetMinutes / max) * 100;
                         const workedPct = (day.workedMinutes / max) * 100;
                         const openPct = (day.openMinutes / max) * 100;
                         const pausePct = (day.pauseMinutes / max) * 100;
@@ -194,11 +194,11 @@ export function WorkTimeTrackingPage() {
                                     })}
                                 >
                                     <div className="work-time-week-bar__track">
-                                        {day.sollMinutes > 0 ? (
-                                            <div className="work-time-week-bar__soll" style={{ width: `${sollPct}%` }} />
+                                        {day.targetMinutes > 0 ? (
+                                            <div className="work-time-week-bar__target" style={{ width: `${targetPct}%` }} />
                                         ) : null}
                                         {day.workedMinutes > 0 ? (
-                                            <div className="work-time-week-bar__ist" style={{ width: `${workedPct}%` }} />
+                                            <div className="work-time-week-bar__actual" style={{ width: `${workedPct}%` }} />
                                         ) : null}
                                         {day.openMinutes > 0 ? (
                                             <div className="work-time-week-bar__open" style={{ width: `${openPct}%` }} />
@@ -210,7 +210,7 @@ export function WorkTimeTrackingPage() {
                                 </div>
                                 <div className="work-time-week-meta">
                                     {formatWorkMinutes(day.workedMinutes + day.openMinutes)}
-                                    {day.sollMinutes > 0 ? ` / ${formatWorkMinutes(day.sollMinutes)}` : ""}
+                                    {day.targetMinutes > 0 ? ` / ${formatWorkMinutes(day.targetMinutes)}` : ""}
                                 </div>
                             </div>
                         );

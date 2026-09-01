@@ -81,8 +81,8 @@ pub fn is_valid_practice_digit_id(value: &str) -> bool {
     value.chars().filter(|c| c.is_ascii_digit()).count() == 9
 }
 
-/// Matches FE `practiceInvoicePflichtMissing`.
-pub fn practice_invoice_pflicht_missing(
+/// Matches FE `practiceInvoiceRequiredMissing`.
+pub fn practice_invoice_required_missing(
     clinician_name: Option<&str>,
     zanr: Option<&str>,
     bsnr: Option<&str>,

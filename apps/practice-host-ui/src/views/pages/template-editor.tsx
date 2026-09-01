@@ -14,7 +14,7 @@ import { Input, Select, Textarea } from "../components/ui/input";
 import { ConfirmDialog } from "../components/ui/dialog";
 import { useToastStore } from "../components/ui/toast-store";
 import { MEDICATION_SUGGESTIONS } from "@/lib/medications";
-import { ILLNESS_SUGGESTION_KEYS } from "@/lib/certificate-composer";
+import { ILLNESS_SUGGESTION_KEYS, parseCertificateTemplatePayload, buildCertificateTemplatePayload } from "@/lib/certificate-composer";
 import type { DocumentTemplate } from "../../models/types";
 import { normalizeDocumentTemplateKind } from "../../models/types";
 
@@ -69,9 +69,9 @@ export function TemplateEditorPanel(props: TemplateEditorPanelProps) {
     const [medPick, setMedPick] = useState(defaultMedPick);
     const [dosage, setDosage] = useState("");
     const [description, setDescription] = useState("");
-    const [krankheiten, setKrankheiten] = useState(defaultIllness);
-    const [tageAnzahl, setTageAnzahl] = useState("");
-    const [einschraenkung, setEinschraenkung] = useState("");
+    const [illnesses, setIllnesses] = useState(defaultIllness);
+    const [dayCount, setDayCount] = useState("");
+    const [activityRestriction, setActivityRestriction] = useState("");
     const [deleteOpen, setDeleteOpen] = useState(false);
     const [resetOpen, setResetOpen] = useState(false);
     const [lineRemoveIdx, setLineRemoveIdx] = useState<number | null>(null);
@@ -87,23 +87,21 @@ export function TemplateEditorPanel(props: TemplateEditorPanelProps) {
             if (kind === "PRESCRIPTION") {
                 const items = p.items as PrescriptionItem[] | undefined;
                 setPrescriptionItems(Array.isArray(items) ? items : []);
-                setKrankheiten(defaultIllness);
-                setTageAnzahl("");
-                setEinschraenkung("");
+                setIllnesses(defaultIllness);
+                setDayCount("");
+                setActivityRestriction("");
             } else {
+                const parsed = parseCertificateTemplatePayload(row.payload);
                 setPrescriptionItems([]);
-                setKrankheiten(String(p.krankheiten || defaultIllness));
-                const rawTage = p.tage_anzahl;
-                setTageAnzahl(
-                    rawTage === undefined || rawTage === null ? "" : String(rawTage),
-                );
-                setEinschraenkung(String(p.einschraenkung ?? ""));
+                setIllnesses(parsed.illnesses || defaultIllness);
+                setDayCount(parsed.dayCount);
+                setActivityRestriction(parsed.activityRestriction);
             }
         } catch {
             setPrescriptionItems([]);
-            setKrankheiten(defaultIllness);
-            setTageAnzahl("");
-            setEinschraenkung("");
+            setIllnesses(defaultIllness);
+            setDayCount("");
+            setActivityRestriction("");
         }
         setMedPick(defaultMedPick);
         setDosage("");
@@ -119,9 +117,9 @@ export function TemplateEditorPanel(props: TemplateEditorPanelProps) {
                 setPrescriptionItems([]);
                 setDosage("");
                 setDescription("");
-                setTageAnzahl("");
-                setEinschraenkung("");
-                setKrankheiten(defaultIllness);
+                setDayCount("");
+                setActivityRestriction("");
+                setIllnesses(defaultIllness);
                 setMedPick(defaultMedPick);
                 return;
             }
@@ -154,11 +152,11 @@ export function TemplateEditorPanel(props: TemplateEditorPanelProps) {
                 kind,
                 title,
                 prescriptionItems,
-                krankheiten,
-                tageAnzahl,
-                einschraenkung,
+                illnesses,
+                dayCount,
+                activityRestriction,
             }),
-        [kind, title, prescriptionItems, krankheiten, tageAnzahl, einschraenkung],
+        [kind, title, prescriptionItems, illnesses, dayCount, activityRestriction],
     );
 
     useLayoutEffect(() => {
@@ -211,12 +209,7 @@ export function TemplateEditorPanel(props: TemplateEditorPanelProps) {
 
     const buildPayload = (): Record<string, unknown> => {
         if (kind === "PRESCRIPTION") return { items: prescriptionItems };
-        const n = Number.parseInt(tageAnzahl.trim(), 10);
-        return {
-            krankheiten,
-            tage_anzahl: Number.isFinite(n) ? n : tageAnzahl.trim(),
-            einschraenkung: einschraenkung.trim(),
-        };
+        return buildCertificateTemplatePayload({ illnesses, dayCount, activityRestriction });
     };
 
     const save = async () => {
@@ -230,7 +223,7 @@ export function TemplateEditorPanel(props: TemplateEditorPanelProps) {
             return;
         }
         if (kind === "CERTIFICATE") {
-            const raw = tageAnzahl.trim();
+            const raw = dayCount.trim();
             const n = Number.parseInt(raw, 10);
             if (!raw || !Number.isFinite(n) || n < 1 || n > 366) {
                 toast(t("template.editor.days_validation"), "error");
@@ -355,16 +348,16 @@ export function TemplateEditorPanel(props: TemplateEditorPanelProps) {
                 </>
             ) : (
                 <>
-                    <datalist id="ve-krankheiten-suggestions-embedded">
+                    <datalist id="ve-illness-suggestions-embedded">
                         {illnessSuggestions.map((label) => (
                             <option key={label} value={label} />
                         ))}
                     </datalist>
                     <Input
                         label={t("template.editor.diseases")}
-                        list="ve-krankheiten-suggestions-embedded"
-                        value={krankheiten}
-                        onChange={(e) => setKrankheiten(e.target.value)}
+                        list="ve-illness-suggestions-embedded"
+                        value={illnesses}
+                        onChange={(e) => setIllnesses(e.target.value)}
                         disabled={!canWrite}
                         placeholder={t("template.editor.diseases_ph")}
                     />
@@ -374,11 +367,11 @@ export function TemplateEditorPanel(props: TemplateEditorPanelProps) {
                         min={1}
                         max={366}
                         inputMode="numeric"
-                        value={tageAnzahl}
-                        onChange={(e) => setTageAnzahl(e.target.value)}
+                        value={dayCount}
+                        onChange={(e) => setDayCount(e.target.value)}
                         disabled={!canWrite}
                     />
-                    <Textarea label={t("template.editor.activity_limit")} value={einschraenkung} onChange={(e) => setEinschraenkung(e.target.value)} rows={4} disabled={!canWrite} />
+                    <Textarea label={t("template.editor.activity_limit")} value={activityRestriction} onChange={(e) => setActivityRestriction(e.target.value)} rows={4} disabled={!canWrite} />
                 </>
             )}
 
@@ -419,7 +412,7 @@ export function TemplateEditorPage() {
     const [sp] = useSearchParams();
     const kind = sp.get("kind");
     if (id) {
-        return <Navigate to={`/administration/templates?bearbeiten=${encodeURIComponent(id)}`} replace />;
+        return <Navigate to={`/administration/templates?edit=${encodeURIComponent(id)}`} replace />;
     }
     if (kind?.toLowerCase() === "certificate") {
         return <Navigate to="/administration/templates?new=certificate" replace />;

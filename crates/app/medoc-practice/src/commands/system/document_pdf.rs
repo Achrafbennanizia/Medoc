@@ -35,9 +35,8 @@ pub fn preview_document_pdf(
         .and_then(|x| x.as_u64())
         .map(|n| n.clamp(8, 18) as i32)
         .unwrap_or(11);
-    let fuss = version
+    let footer = version
         .get("footer")
-        .or_else(|| version.get("fusszeile"))
         .and_then(|x| x.as_str())
         .unwrap_or("")
         .chars()
@@ -46,7 +45,7 @@ pub fn preview_document_pdf(
     let bytes = render_template_preview_pdf(
         &args.kind,
         &args.template_name,
-        &fuss,
+        &footer,
         body_pt,
         &args.body_lines,
         args.layout_json.as_deref(),

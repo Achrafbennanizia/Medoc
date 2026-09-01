@@ -350,17 +350,12 @@ export function AppointmentCreatePage() {
                 if (Array.isArray(d.chiefComplaintTags)) setChiefComplaintTags(d.chiefComplaintTags);
                 if (Array.isArray(d.toothacheTeeth)) {
                     setToothacheTeeth(sortFdiTeeth(d.toothacheTeeth.filter((x) => typeof x === "string")));
-                } else if (Array.isArray(d.zahnschmerzenTeeth)) {
-                    setToothacheTeeth(sortFdiTeeth(d.zahnschmerzenTeeth.filter((x) => typeof x === "string")));
                 } else if (typeof d.toothacheTooth === "string" && d.toothacheTooth.trim()) {
                     setToothacheTeeth(sortFdiTeeth([d.toothacheTooth.trim()]));
-                } else if (typeof d.zahnschmerzenTooth === "string" && d.zahnschmerzenTooth.trim()) {
-                    setToothacheTeeth(sortFdiTeeth([d.zahnschmerzenTooth.trim()]));
                 }
                 if (d.notes) setNotes(d.notes);
                 if (d.durationMin) setDurationMin(d.durationMin);
                 if (d.statusPreference) setStatusPreference(d.statusPreference);
-                else if (d.statusWunsch) setStatusPreference(d.statusWunsch);
             } catch {
                 /* ignore */
             } finally {

@@ -21,12 +21,12 @@ Or directly: `bash tools/dev-tauri.sh`
 
 This sets `MEDOC_DEV_SEED=1`, stable SQLCipher keys, and demo data. On first run, complete DB unlock/setup if prompted.
 
-**Demo logins** (seed password for all: `passwort123`):
+**Demo logins** (seed password for all: `password123`):
 
 | Role | E-Mail | Name |
 | ---- | ------ | ---- |
-| RECEPTION | `aya@praxis.de` | Aya M. |
-| PHYSICIAN | `ahmed@praxis.de` | Dr. Ahmed R. |
+| RECEPTION | `aya@practice.de` | Aya M. |
+| PHYSICIAN | `ahmed@practice.de` | Dr. Ahmed R. |
 
 **License:** If activation gate appears, generate a dev token:
 

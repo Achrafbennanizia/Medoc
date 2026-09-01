@@ -57,7 +57,7 @@ const CLINICAL_HEADER_FIELDS: PracticeFieldKey[] = [
     "zanr",
     "bsnr",
     "bank",
-    "kammer",
+    "chamber",
     "kzv",
     "vat_notice",
     "emergency_phone",
@@ -78,15 +78,15 @@ function formatPrescriptionDate(iso: string): string {
     return formatDate(iso);
 }
 
-function clinicianSignaturBlock(): string[] {
+function clinicianSignatureBlock(): string[] {
     const p = getInvoicePracticeFromStorage();
     const bh = (p.clinician_name ?? "").trim();
-    const beruf = (p.professional_title ?? "").trim();
+    const professionalTitle = (p.professional_title ?? "").trim();
     const zanr = (p.zanr ?? "").trim();
     const bsnr = (p.bsnr ?? "").trim();
     if (!bh) return [];
     const lines = ["", "____________________________", bh];
-    if (beruf) lines.push(beruf);
+    if (professionalTitle) lines.push(professionalTitle);
     if (zanr || bsnr) lines.push(`ZANR: ${zanr || "—"} · BSNR: ${bsnr || "—"}`);
     lines.push(docT("document.print.stamp"));
     return lines;
@@ -105,7 +105,7 @@ export type ClinicalDocumentExportBundle = {
 
 export function suggestCertificateExportBasename(a: Certificate): string {
     const day = a.issued_at.slice(0, 10);
-    return `Attest_${day}_${a.id.slice(0, 8)}`;
+    return `Certificate_${day}_${a.id.slice(0, 8)}`;
 }
 
 export function suggestPrescriptionExportBasename(r: Prescription): string {
@@ -154,20 +154,20 @@ function certificatePdfLines(a: Certificate, patient: Patient | null): string[] 
     const t0 = new Date(`${a.valid_from.slice(0, 10)}T12:00:00`);
     const t1 = new Date(`${a.valid_until.slice(0, 10)}T12:00:00`);
     const days = Math.max(1, Math.round((t1.getTime() - t0.getTime()) / 86_400_000) + 1);
-    const erstFolge =
+    const firstOrFollowUp =
         (a.first_or_follow_up ?? "FIRST") === "FOLLOW_UP"
             ? docT("document.print.certificate_followup")
             : docT("document.print.certificate_first");
     const pname = patient?.name ?? a.patient_id;
-    const geb = patient ? formatDate(patient.date_of_birth) : "—";
+    const dob = patient ? formatDate(patient.date_of_birth) : "—";
     const icd = (a.icd10_code ?? "").trim() || "—";
-    const dobPart = patient ? docTp("document.print.certificate_dob_part", { dob: geb }) : "";
+    const dobPart = patient ? docTp("document.print.certificate_dob_part", { dob }) : "";
     const plural = days === 1 ? "" : "s";
     const lines: string[] = [
         ...practiceHeaderLinesForExport(),
         "",
         docT("document.print.medical_certificate"),
-        docTp("document.print.certificate_type", { kind: a.kind, issue: erstFolge }),
+        docTp("document.print.certificate_type", { kind: a.kind, issue: firstOrFollowUp }),
         "",
         docTp("document.print.certificate_body", { name: pname, dobPart }),
         "",
@@ -184,7 +184,7 @@ function certificatePdfLines(a: Certificate, patient: Patient | null): string[] 
         ...a.body_text.split(/\r?\n/).map((s) => s.trimEnd()),
         "",
         docT("document.print.place_date"),
-        ...clinicianSignaturBlock(),
+        ...clinicianSignatureBlock(),
     );
     return lines.map((s) => s.trimEnd());
 }
@@ -192,14 +192,14 @@ function certificatePdfLines(a: Certificate, patient: Patient | null): string[] 
 export function bundleCertificateExport(a: Certificate, patient: Patient | null): ClinicalDocumentExportBundle {
     const pdfLayout = buildCertificatePdfLayout(a, patient);
     const pdfBodyLines = certificatePdfLines(a, patient);
-    const geb = patient ? formatDate(patient.date_of_birth) : "";
+    const dob = patient ? formatDate(patient.date_of_birth) : "";
     const csvText =
         `${csvRow(["Type", "PatientId", "PatientName", "DateOfBirth", "ValidFrom", "ValidTo", "Issued", "ICD10", "FirstOrFollowUp", "Employer", "Content"])}\n`
         + `${csvRow([
             a.kind,
             a.patient_id,
             patient?.name ?? "",
-            geb,
+            dob,
             formatDate(a.valid_from),
             formatDate(a.valid_until),
             formatDate(a.issued_at),
@@ -227,7 +227,7 @@ export function bundleCertificateExport(a: Certificate, patient: Patient | null)
             : null,
     };
     const jsonText = `${JSON.stringify(jsonObj, null, 2)}\n`;
-    const px = patient ? `<patient id="${escapeHtml(patient.id)}" name="${escapeHtml(patient.name)}" geb="${escapeHtml(patient.date_of_birth)}"/>` : "";
+    const px = patient ? `<patient id="${escapeHtml(patient.id)}" name="${escapeHtml(patient.name)}" dob="${escapeHtml(patient.date_of_birth)}"/>` : "";
     const xmlText =
         `<?xml version="1.0" encoding="UTF-8"?>\n<certificateExport xmlns="urn:medoc:export:clinical-doc:1">\n`
         + `  ${px}\n`
@@ -273,7 +273,7 @@ function prescriptionPdfLinesSingle(r: Prescription, patient: Patient | null): s
         "",
         docTp("document.print.usage_notes", { notes: (r.instructions ?? "").trim() || "—" }),
         "",
-        ...clinicianSignaturBlock(),
+        ...clinicianSignatureBlock(),
     ].filter((line) => line !== "");
 }
 
@@ -358,7 +358,7 @@ function prescriptionPdfLinesCombo(items: Prescription[], patient: Patient | nul
         }
         lines.push("");
     }
-    lines.push(...clinicianSignaturBlock());
+    lines.push(...clinicianSignatureBlock());
     return lines;
 }
 
@@ -418,12 +418,12 @@ function receiptPdfLines(
     const referenceLine = formatPaymentReferenceLine(z, treatments, examinations, docT, docTp);
     const practice = getInvoicePracticeFromStorage();
     const ust =
-        (practice.ust_befreiung_hinweis ?? "").trim() || docT("document.print.vat_exempt_default");
+        (practice.vat_exemption_notice ?? "").trim() || docT("document.print.vat_exempt_default");
     const bankLines: string[] = [];
-    const iban = (practice.bankverbindung_iban ?? "").trim();
+    const iban = (practice.bank_iban ?? "").trim();
     if (iban) {
-        const bic = (practice.bankverbindung_bic ?? "").trim();
-        const bank = (practice.bankverbindung_bank ?? "").trim();
+        const bic = (practice.bank_bic ?? "").trim();
+        const bank = (practice.bank_name ?? "").trim();
         bankLines.push(
             docTp("document.print.bank_details", {
                 iban,
@@ -431,7 +431,7 @@ function receiptPdfLines(
                 bankPart: bank ? ` · ${bank}` : "",
             }),
         );
-        const inh = (practice.bankverbindung_inhaber ?? "").trim();
+        const inh = (practice.account_holder ?? "").trim();
         if (inh) bankLines.push(docTp("document.print.account_holder", { name: inh }));
     }
     const received =
@@ -464,7 +464,7 @@ function receiptPdfLines(
         received,
         ...bankLines,
         "",
-        ...clinicianSignaturBlock(),
+        ...clinicianSignatureBlock(),
     ].filter((line) => line !== "");
 }
 
@@ -500,14 +500,14 @@ export function bundleReceiptExport(
             status: z.status,
             description: z.description,
             created_at: z.created_at,
-            zuordnungText: referenceLine,
+            assignmentText: referenceLine,
         },
     };
     const jsonText = `${JSON.stringify(jsonObj, null, 2)}\n`;
     const xmlText =
         `<?xml version="1.0" encoding="UTF-8"?>\n<receiptExport xmlns="urn:medoc:export:clinical-doc:1">\n`
         + `  <amount>${escapeHtml(z.amount.toFixed(2))}</amount>\n`
-        + `  <zuordnung>${escapeHtml(referenceLine)}</zuordnung>\n`
+        + `  <assignment>${escapeHtml(referenceLine)}</assignment>\n`
         + `</receiptExport>\n`;
     return { pdfBodyLines, pdfLayout, csvText, jsonText, xmlText };
 }
@@ -516,9 +516,9 @@ export function buildCertificatePrintHtml(a: Certificate, patient: Patient | nul
     const title = escapeHtml(`Certificate ${a.id}`);
     const kind = escapeHtml(a.kind);
     const patientLine = escapeHtml(patient?.name ?? a.patient_id);
-    const geb = patient ? escapeHtml(formatDate(patient.date_of_birth)) : "";
+    const dob = patient ? escapeHtml(formatDate(patient.date_of_birth)) : "";
     const span = `${escapeHtml(formatDate(a.valid_from))} – ${escapeHtml(formatDate(a.valid_until))}`;
-    const aus = escapeHtml(formatDate(a.issued_at));
+    const issuedOn = escapeHtml(formatDate(a.issued_at));
     const bodyHtml = escapeHtml(a.body_text);
     return `<!doctype html><html lang="${htmlLangDir().lang}" dir="${htmlLangDir().dir}"><head><meta charset="utf-8"/><title>${title}</title>
             <style>body{font-family:Helvetica,Arial,sans-serif;padding:2cm;color:#000}
@@ -526,9 +526,9 @@ export function buildCertificatePrintHtml(a: Certificate, patient: Patient | nul
             .body{margin:1cm 0;white-space:pre-wrap}</style></head><body>
             <h1>${kind}</h1>
             <div class="row"><span class="label">${escapeHtml(docT("document.print.patient"))}:</span>${patientLine}</div>
-            <div class="row"><span class="label">${escapeHtml(docT("document.print.date_of_birth"))}:</span>${geb}</div>
+            <div class="row"><span class="label">${escapeHtml(docT("document.print.date_of_birth"))}:</span>${dob}</div>
             <div class="row"><span class="label">${escapeHtml(docT("document.print.valid"))}</span>${span}</div>
-            <div class="row"><span class="label">${escapeHtml(docT("document.print.issued"))}</span>${aus}</div>
+            <div class="row"><span class="label">${escapeHtml(docT("document.print.issued"))}</span>${issuedOn}</div>
             <hr/>
             <div class="body">${bodyHtml}</div>
             <p style="margin-top:3cm">______________________<br/>${docT("document.print.signature")}</p>
@@ -553,8 +553,8 @@ export function buildPrescriptionPrintHtml(r: Prescription, patient: Patient | n
     const duration = escapeHtml(r.duration);
     const hin = escapeHtml((r.instructions ?? "").trim() || "—");
     const patientLine = escapeHtml(patient?.name ?? "");
-    const geb = patient ? escapeHtml(formatDate(patient.date_of_birth)) : "";
-    const aus = escapeHtml(formatDate(r.issued_at));
+    const dob = patient ? escapeHtml(formatDate(patient.date_of_birth)) : "";
+    const issuedOn = escapeHtml(formatDate(r.issued_at));
     const statusLabel = escapeHtml(prescriptionStatusLabel(r.status));
     const rxTitle = escapeHtml(docT("document.print.prescription_title"));
     return `<!doctype html><html lang="${htmlLangDir().lang}" dir="${htmlLangDir().dir}"><head><meta charset="utf-8"/><title>${rxTitle}</title>
@@ -570,8 +570,8 @@ export function buildPrescriptionPrintHtml(r: Prescription, patient: Patient | n
             <table aria-label="${escapeHtml(docT("document.print.prescription_master_aria"))}">
               <tbody>
                 <tr><th scope="row">${escapeHtml(docT("document.print.patient"))}</th><td>${patientLine}</td></tr>
-                <tr><th scope="row">${escapeHtml(docT("document.print.date_of_birth"))}</th><td>${geb}</td></tr>
-                <tr><th scope="row">${escapeHtml(docT("document.print.issued_on"))}</th><td>${aus}</td></tr>
+                <tr><th scope="row">${escapeHtml(docT("document.print.date_of_birth"))}</th><td>${dob}</td></tr>
+                <tr><th scope="row">${escapeHtml(docT("document.print.issued_on"))}</th><td>${issuedOn}</td></tr>
                 <tr><th scope="row">${escapeHtml(docT("common.status"))}</th><td>${statusLabel}</td></tr>
                 <tr><th scope="row">${escapeHtml(docT("document.print.medication"))}</th><td>${med}</td></tr>
                 <tr><th scope="row">${escapeHtml(docT("document.print.active_ingredient"))}</th><td>${wirk}</td></tr>
@@ -597,7 +597,7 @@ export function buildPrescriptionsComboPrintHtml(items: Prescription[], patient:
             : docTp("document.print.prescription_combo_title", { count: items.length });
     const date = formatDate(first.issued_at);
     const patientLine = escapeHtml(patient?.name ?? "");
-    const geb = patient ? escapeHtml(formatDate(patient.date_of_birth)) : "";
+    const dob = patient ? escapeHtml(formatDate(patient.date_of_birth)) : "";
     const body = items.map(prescriptionSectionBlock).join("");
     return `<!doctype html><html lang="${htmlLangDir().lang}" dir="${htmlLangDir().dir}"><head><meta charset="utf-8"/><title>${escapeHtml(title)}</title>
             <style>body{font-family:Helvetica,Arial,sans-serif;padding:2cm;color:#000}
@@ -608,7 +608,7 @@ export function buildPrescriptionsComboPrintHtml(items: Prescription[], patient:
             </head><body>
             <h1>${escapeHtml(title)}</h1>
             <div class="row"><span class="label">${escapeHtml(docT("document.print.patient"))}:</span>${patientLine}</div>
-            <div class="row"><span class="label">${escapeHtml(docT("document.print.date_of_birth"))}:</span>${geb}</div>
+            <div class="row"><span class="label">${escapeHtml(docT("document.print.date_of_birth"))}:</span>${dob}</div>
             <div class="row"><span class="label">${escapeHtml(docT("document.print.date"))}:</span>${escapeHtml(date)}</div>
             <hr/>
             ${body}
@@ -629,7 +629,7 @@ export function buildReceiptPrintHtml(
     const quando = escapeHtml(formatDate(z.created_at));
     const beschr = escapeHtml((z.description ?? "").trim() || "—");
     const pname = escapeHtml(patient.name);
-    const geb = escapeHtml(formatDate(patient.date_of_birth));
+    const dob = escapeHtml(formatDate(patient.date_of_birth));
     const receiptTitle = escapeHtml(docT("document.print.receipt_title"));
     return `<!doctype html><html lang="${htmlLangDir().lang}" dir="${htmlLangDir().dir}"><head><meta charset="utf-8"/><title>${receiptTitle}</title>
             <style>
@@ -644,7 +644,7 @@ export function buildReceiptPrintHtml(
             <table>
               <tbody>
                 <tr><th scope="row">${escapeHtml(docT("document.print.patient"))}</th><td>${pname}</td></tr>
-                <tr><th scope="row">${escapeHtml(docT("document.print.date_of_birth"))}</th><td>${geb}</td></tr>
+                <tr><th scope="row">${escapeHtml(docT("document.print.date_of_birth"))}</th><td>${dob}</td></tr>
                 <tr><th scope="row">${escapeHtml(docT("document.print.payment_date"))}</th><td>${quando}</td></tr>
                 <tr><th scope="row">${escapeHtml(docT("document.print.amount"))}</th><td><strong>${bet}</strong></td></tr>
                 <tr><th scope="row">${escapeHtml(docT("document.print.payment_method"))}</th><td>${kind}</td></tr>

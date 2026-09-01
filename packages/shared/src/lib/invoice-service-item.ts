@@ -22,8 +22,8 @@ const INVOICE_PRACTICE_KV_KEY = "invoice.practice.v1" as const;
 export type InvoicePractice = {
     name: string;
     addr: string;
-    /** KV / practice number — for labels & master data */
-    kv_nummer?: string;
+    /** Statutory health insurance (KV) number — for labels & master data */
+    kv_number?: string;
     /** Free-text opening hours */
     opening_hours?: string;
     phone?: string;
@@ -32,93 +32,98 @@ export type InvoicePractice = {
     /** Practice website (shown in PDF without https:// if desired) */
     web?: string;
     tax_number?: string;
-    ust_id?: string;
-    /** "Dr. Max Mustermann" */
+    vat_id?: string;
+    /** e.g. "Dr. Jane Smith" */
     clinician_name?: string;
-    /** Dentist title label (male/female German UI strings) */
+    /** Dentist title label */
     professional_title?: string;
-    /** Zahnarztnummer (9 Ziffern) */
+    /** Dentist number (9 digits) */
     zanr?: string;
     /** Practice site number (9 digits) */
     bsnr?: string;
-    /** LANR (falls abweichend) */
+    /** LANR when it differs from ZANR */
     lanr?: string;
-    bankverbindung_iban?: string;
-    bankverbindung_bic?: string;
-    bankverbindung_bank?: string;
-    bankverbindung_inhaber?: string;
-    /** Regional dental chamber label (German UI string) */
-    kammer?: string;
+    bank_iban?: string;
+    bank_bic?: string;
+    bank_name?: string;
+    account_holder?: string;
+    /** Regional dental chamber label */
+    chamber?: string;
     /** "KZV …" */
     kzv?: string;
-    /** Standard 14 Tage */
-    payment_terms_tage?: number;
+    /** Standard 14 days */
+    payment_terms_days?: number;
     /** e.g. VAT-exempt under § 4 No. 14 UStG (DE legal text may stay in value) */
-    ust_befreiung_hinweis?: string;
-    notfall_phone?: string;
+    vat_exemption_notice?: string;
+    emergency_phone?: string;
 };
 
-const DEFAULT_UST_HINWEIS = "Umsatzsteuerbefreit gem. § 4 Nr. 14 UStG";
+const DEFAULT_VAT_NOTICE = "VAT-exempt under § 4 No. 14 UStG";
 
 const DEFAULTS: InvoicePractice = {
-    name: "Zahnarztpraxis",
+    name: "Dental practice",
     addr: "Sample Street 1\n12345 City",
-    payment_terms_tage: 14,
-    ust_befreiung_hinweis: DEFAULT_UST_HINWEIS,
+    payment_terms_days: 14,
+    vat_exemption_notice: DEFAULT_VAT_NOTICE,
 };
 
 const INVOICE_PRACTICE_OPTIONAL_STRING_KEYS = [
-    "kv_nummer",
+    "kv_number",
     "opening_hours",
     "phone",
     "fax",
     "email",
     "web",
     "tax_number",
-    "ust_id",
+    "vat_id",
     "clinician_name",
     "professional_title",
     "zanr",
     "bsnr",
     "lanr",
-    "bankverbindung_iban",
-    "bankverbindung_bic",
-    "bankverbindung_bank",
-    "bankverbindung_inhaber",
-    "kammer",
+    "bank_iban",
+    "bank_bic",
+    "bank_name",
+    "account_holder",
+    "chamber",
     "kzv",
-    "ust_befreiung_hinweis",
-    "notfall_phone",
+    "vat_exemption_notice",
+    "emergency_phone",
 ] as const;
 
-type InvoicePracticeJson = {
-    name?: string;
-    addr?: string;
-} & Partial<Record<(typeof INVOICE_PRACTICE_OPTIONAL_STRING_KEYS)[number], string>> & {
-    payment_terms_tage?: number;
-};
+type InvoicePracticeJson = Record<string, unknown>;
 
 function optStr(s: string | undefined): string | undefined {
     const t = (s ?? "").trim();
     return t || undefined;
 }
 
-function parseInvoicePracticeJson(j: InvoicePracticeJson): InvoicePractice {
-    const name = (j.name ?? "").trim() || DEFAULTS.name;
-    const addr = (j.addr ?? "").trim() || DEFAULTS.addr;
+function jsonStr(j: InvoicePracticeJson, key: string): string | undefined {
+    const v = j[key];
+    return typeof v === "string" ? optStr(v) : undefined;
+}
+
+function jsonNum(j: InvoicePracticeJson, key: string): number | undefined {
+    const v = j[key];
+    return typeof v === "number" && Number.isFinite(v) ? v : undefined;
+}
+
+export function parseInvoicePracticeJson(j: InvoicePracticeJson): InvoicePractice {
+    const name = jsonStr(j, "name") || DEFAULTS.name;
+    const addr = jsonStr(j, "addr") || DEFAULTS.addr;
     const out: InvoicePractice = { name, addr };
     for (const key of INVOICE_PRACTICE_OPTIONAL_STRING_KEYS) {
-        const version = optStr(j[key]);
+        const version = jsonStr(j, key);
         if (version) (out as Record<string, string | number | undefined>)[key] = version;
     }
-    const zt = j.payment_terms_tage;
-    if (typeof zt === "number" && Number.isFinite(zt) && zt > 0) {
-        out.payment_terms_tage = Math.round(zt);
-    } else if (out.payment_terms_tage == null) {
-        out.payment_terms_tage = DEFAULTS.payment_terms_tage;
+    const zt = jsonNum(j, "payment_terms_days");
+    if (zt != null && zt > 0) {
+        out.payment_terms_days = Math.round(zt);
+    } else if (out.payment_terms_days == null) {
+        out.payment_terms_days = DEFAULTS.payment_terms_days;
     }
-    if (!out.ust_befreiung_hinweis?.trim()) {
-        out.ust_befreiung_hinweis = DEFAULT_UST_HINWEIS;
+    if (!out.vat_exemption_notice?.trim()) {
+        out.vat_exemption_notice = DEFAULT_VAT_NOTICE;
     }
     return out;
 }
@@ -132,8 +137,8 @@ function invoicePracticeToBlob(p: InvoicePractice): Record<string, string | numb
         const t = optStr(p[key]);
         if (t) blob[key] = t;
     }
-    const zt = p.payment_terms_tage ?? DEFAULTS.payment_terms_tage;
-    if (zt != null && Number.isFinite(zt) && zt > 0) blob.payment_terms_tage = Math.round(zt);
+    const zt = p.payment_terms_days ?? DEFAULTS.payment_terms_days;
+    if (zt != null && Number.isFinite(zt) && zt > 0) blob.payment_terms_days = Math.round(zt);
     return blob;
 }
 
@@ -154,20 +159,20 @@ export function buildInvoiceHeaderAddressLines(p: InvoicePractice, show: Practic
     const fax = (p.fax ?? "").trim();
     if (fax) lines.push(`Fax ${show.fax ? fax : maskPracticeExportToken(fax)}`);
     const em = (p.email ?? "").trim();
-    if (em) lines.push(`E-Mail ${show.email ? em : maskPracticeExportToken(em)}`);
+    if (em) lines.push(`Email ${show.email ? em : maskPracticeExportToken(em)}`);
     const web = (p.web ?? "").trim();
     if (web) {
         const w = web.replace(/^https?:\/\//i, "");
         lines.push(show.web ? w : maskPracticeExportToken(w));
     }
-    const kv = (p.kv_nummer ?? "").trim();
-    if (kv) lines.push(`KV- / Betriebsnr. ${show.kv ? kv : maskPracticeExportToken(kv)}`);
-    const ust = (p.ust_id ?? "").trim();
-    if (ust) lines.push(`USt-IdNr. ${show.ust ? ust : maskPracticeExportToken(ust)}`);
+    const kv = (p.kv_number ?? "").trim();
+    if (kv) lines.push(`Health insurance no. ${show.kv ? kv : maskPracticeExportToken(kv)}`);
+    const ust = (p.vat_id ?? "").trim();
+    if (ust) lines.push(`VAT ID ${show.vat ? ust : maskPracticeExportToken(ust)}`);
     const st = (p.tax_number ?? "").trim();
-    if (st) lines.push(`St.-Nr. ${show.steuer ? st : maskPracticeExportToken(st)}`);
-    const oz = (p.opening_hours ?? "").trim();
-    if (oz) lines.push(`Hrs: ${show.oz ? oz : maskPracticeExportToken(oz)}`);
+    if (st) lines.push(`Tax no. ${show.tax ? st : maskPracticeExportToken(st)}`);
+    const hours = (p.opening_hours ?? "").trim();
+    if (hours) lines.push(`Hrs: ${show.hours ? hours : maskPracticeExportToken(hours)}`);
     return lines;
 }
 
@@ -185,14 +190,17 @@ export function isValidPracticeIban(value: string): boolean {
 }
 
 /** Required fields for invoices/prescriptions per practice master data. */
-export function practiceInvoicePflichtMissing(p: InvoicePractice): boolean {
+export function practiceInvoiceRequiredMissing(p: InvoicePractice): boolean {
     return (
         !(p.clinician_name ?? "").trim() ||
         !(p.zanr ?? "").trim() ||
         !(p.bsnr ?? "").trim() ||
-        !(p.bankverbindung_iban ?? "").trim()
+        !(p.bank_iban ?? "").trim()
     );
 }
+
+/** @deprecated Use practiceInvoiceRequiredMissing */
+export const practiceInvoicePflichtMissing = practiceInvoiceRequiredMissing;
 
 /** Invoice PDF and save: current privacy setting from device. */
 export function buildInvoiceHeaderAddressLinesForExport(p: InvoicePractice): string[] {
@@ -244,9 +252,13 @@ export function nextInvoiceNumber(ymd: string, opts?: InvoiceNumberOpts): string
     return `RE-${prefix}-${Date.now().toString(36).toUpperCase()}-${randomUint32().toString(36).toUpperCase()}`;
 }
 
+function readInvoicePracticeLocalStorage(): string | null {
+    return localStorage.getItem(LS_INVOICE_PRACTICE);
+}
+
 export function getInvoicePracticeFromStorage(): InvoicePractice {
     try {
-        const raw = localStorage.getItem(LS_INVOICE_PRACTICE);
+        const raw = readInvoicePracticeLocalStorage();
         if (!raw) return { ...DEFAULTS };
         const j = JSON.parse(raw) as InvoicePracticeJson;
         return parseInvoicePracticeJson(j);
@@ -267,14 +279,14 @@ export async function syncInvoicePracticeToAppKv(p: InvoicePractice): Promise<vo
 
 /**
  * One-shot: when `app_kv` empty, migrate practice master data from legacy `localStorage` to SQLite.
- * `localStorage` bleibt als synchroner Cache (wie Arbeitszeiten).
+ * `localStorage` stays as a synchronous cache (same pattern as work hours).
  */
 export async function migrateInvoicePracticeLocalStorageToAppKv(): Promise<boolean> {
     if (typeof window === "undefined" || globalThis.localStorage == null) return false;
     try {
         const existing = await getAppKv(INVOICE_PRACTICE_KV_KEY);
         if (existing?.trim()) return false;
-        const raw = localStorage.getItem(LS_INVOICE_PRACTICE);
+        const raw = readInvoicePracticeLocalStorage();
         if (!raw?.trim()) return false;
         await setAppKv(INVOICE_PRACTICE_KV_KEY, raw);
         return true;

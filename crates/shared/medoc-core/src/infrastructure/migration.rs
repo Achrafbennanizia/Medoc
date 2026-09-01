@@ -1,12 +1,12 @@
 // CSV-based patient import (FA-MIG-01).
 //
-// Format expected (header row mandatory, semicolon delimiter — matches the
-// german convention used by most legacy PVS exports):
+// Format expected (header row mandatory, semicolon delimiter).
+// English headers only:
 //
 //   name;date_of_birth;sex;insurance_number;phone;email;address
 //
 // `date_of_birth` is parsed as `YYYY-MM-DD` or `DD.MM.YYYY`.
-// `sex` accepts M/W/D (case-insensitive) and is normalised to MALE/FEMALE/DIVERSE.
+// `sex` accepts M/F/W/D (case-insensitive) and is normalised to MALE/FEMALE/DIVERSE.
 
 use chrono::NaiveDate;
 use serde::Serialize;
@@ -44,12 +44,12 @@ pub async fn import_patients(
     let mut lines = content.lines();
     let header = lines.next().unwrap_or("");
     let cols: Vec<&str> = header.split(';').map(|s| s.trim()).collect();
-    if !cols.contains(&"name") || !cols.contains(&"date_of_birth") {
+    let col = |english: &str| cols.iter().position(|c| *c == english);
+    if col("name").is_none() || col("date_of_birth").is_none() {
         return Err(AppError::Validation(
             "CSV header must contain at least 'name' and 'date_of_birth'".into(),
         ));
     }
-    let idx = |key: &str| cols.iter().position(|c| *c == key);
 
     for (lineno, raw) in lines.enumerate() {
         let lineno = lineno + 2; // +1 for header, +1 for 1-based
@@ -58,8 +58,8 @@ pub async fn import_patients(
         }
         report.total_rows += 1;
         let fields: Vec<&str> = raw.split(';').collect();
-        let get = |key: &str| -> Option<String> {
-            idx(key)
+        let get = |english: &str| -> Option<String> {
+            col(english)
                 .and_then(|i| fields.get(i))
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty())
@@ -73,7 +73,7 @@ pub async fn import_patients(
                 continue;
             }
         };
-        let gebstr = match get("date_of_birth") {
+        let dob_raw = match get("date_of_birth") {
             Some(g) => g,
             None => {
                 report.failed += 1;
@@ -83,19 +83,19 @@ pub async fn import_patients(
                 continue;
             }
         };
-        let geb = parse_date(&gebstr);
-        let geb = match geb {
+        let dob = parse_date(&dob_raw);
+        let dob = match dob {
             Some(d) => d,
             None => {
                 report.failed += 1;
                 report
                     .errors
-                    .push(format!("Row {lineno}: invalid date '{gebstr}'"));
+                    .push(format!("Row {lineno}: invalid date '{dob_raw}'"));
                 continue;
             }
         };
         let sex = normalise_sex(get("sex").as_deref().unwrap_or("D"));
-        let vnr = get("insurance_number").unwrap_or_else(|| format!("UNBEKANNT-{lineno}"));
+        let vnr = get("insurance_number").unwrap_or_else(|| format!("UNKNOWN-{lineno}"));
         let phone = get("phone");
         let email = get("email");
         let address = get("address");
@@ -113,7 +113,7 @@ pub async fn import_patients(
         )
         .bind(&id)
         .bind(&name)
-        .bind(geb)
+        .bind(dob)
         .bind(sex)
         .bind(&vnr)
         .bind(&phone)
@@ -156,7 +156,7 @@ fn parse_date(s: &str) -> Option<NaiveDate> {
 
 fn normalise_sex(s: &str) -> &'static str {
     match s.trim().to_uppercase().as_str() {
-        "M" | "MALE" | "MÄNNLICH" => "MALE",
+        "M" | "MALE" => "MALE",
         "W" | "F" | "FEMALE" => "FEMALE",
         _ => "DIVERSE",
     }

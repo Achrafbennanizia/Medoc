@@ -250,7 +250,7 @@ export function PurchaseOrderCreatePage() {
         }
     }
 
-    if (loading) return <PageLoading label={t("page.purchase-orders.loading")} />;
+    if (loading) return <PageLoading label={t("page.purchase_orders.loading")} />;
     if (loadError) return <PageLoadError message={loadError} onRetry={() => void load()} />;
 
     const validationError = validateForm(form, products.length, t);
@@ -261,7 +261,7 @@ export function PurchaseOrderCreatePage() {
         <div className="purchase-order-create-page practice-workspace-page practice-workspace-page--form animate-fade-in--sticky-safe">
             <WorkspacePageHeader
                 title={t("page.purchase_order.create.title")}
-                back={{ onClick: goBack, label: t("page.purchase-orders.title") }}
+                back={{ onClick: goBack, label: t("page.purchase_orders.title") }}
             />
 
             <Card className="purchase-order-create-page__card card-elevated card--overflow-visible">

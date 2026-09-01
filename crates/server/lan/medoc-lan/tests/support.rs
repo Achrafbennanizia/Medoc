@@ -31,6 +31,7 @@ const VENDOR_SIGNING_KEY_HEX: &str =
 pub fn ensure_test_env() {
     TEST_ENV.get_or_init(|| {
         std::env::set_var("MEDOC_DEV_SEED", "1");
+        std::env::set_var("MEDOC_AUDIT_KEY", "k9-medoc-test-audit-key-32bytes!");
         std::env::set_var(
             "MEDOC_PAIRING_MASTER_SECRET",
             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
@@ -43,6 +44,10 @@ pub fn ensure_test_env() {
             "MEDOC_VENDOR_PUBKEY",
             "79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32",
         );
+        let audit_dir = std::env::temp_dir().join("medoc-lan-test-audit");
+        let _ = std::fs::create_dir_all(&audit_dir);
+        medoc_core::infrastructure::database::audit_repo::init_audit_hmac_key(&audit_dir)
+            .expect("init audit hmac key for LAN tests");
     });
 }
 

@@ -18,9 +18,9 @@ const PAYMENT_STATUS_KEYS: Record<string, { variant: "success" | "warning" | "de
 
 const ORDER_STATUS_KEYS: Record<OrderStatus, { variant: "success" | "warning" | "default"; key: string }> = {
     OPEN: { variant: "warning", key: "page.purchase_orders.status.open" },
-    IN_TRANSIT: { variant: "warning", key: "page.purchase-orders.status.inTransit" },
-    DELIVERED: { variant: "success", key: "page.purchase-orders.status.delivered" },
-    CANCELLED: { variant: "default", key: "page.purchase-orders.status.cancelled" },
+    IN_TRANSIT: { variant: "warning", key: "page.purchase_orders.status.inTransit" },
+    DELIVERED: { variant: "success", key: "page.purchase_orders.status.delivered" },
+    CANCELLED: { variant: "default", key: "page.purchase_orders.status.cancelled" },
 };
 
 export function paymentMethodLabel(kind: string, t: TFn): string {

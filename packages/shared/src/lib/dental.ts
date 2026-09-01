@@ -139,12 +139,12 @@ export function sortFdiTeeth(teeth: string[]): string[] {
 
 /**
  * Parses one stored chief-complaint fragment for toothache + teeth.
- * Writes English `Toothache (tooth|teeth …)`; dual-reads leftover `Zahnschmerzen (Zahn|Zähne …)`.
+ * Format: `Toothache (tooth|teeth …)`.
  */
 export function parseToothacheTeethFromChiefComplaintPart(part: string): string[] | null {
     const p = part.trim();
     const m =
-        /^(?:Toothache|Zahnschmerzen)\s*\(\s*(?:teeth|tooth|Zähne|Zahn)\s+([\d\s,]+)\s*\)\s*$/i.exec(p);
+        /^(?:Toothache)\s*\(\s*(?:teeth|tooth)\s+([\d\s,]+)\s*\)\s*$/i.exec(p);
     if (!m?.[1]) return null;
     const tokens = m[1]
         .split(/[\s,]+/)

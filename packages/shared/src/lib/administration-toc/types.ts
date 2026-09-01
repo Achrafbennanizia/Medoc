@@ -22,7 +22,7 @@ export type AdministrationTocItemDef = {
 export type AdministrationTocHubId =
     | "root"
     | "team"
-    | "finance-berichte"
+    | "finance-reports"
     | "inventory"
     | "services"
     | "practicePlanning";

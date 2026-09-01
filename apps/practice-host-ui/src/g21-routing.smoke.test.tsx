@@ -128,7 +128,7 @@ describe("G21 routing smoke (row 1 proxy)", () => {
         mockAuthedReceptionIpc(sessionHold);
     });
 
-    it("RECEPTION can open Practice-Tickets (Aufgaben integriert) without access denied", async () => {
+    it("RECEPTION can open Practice-Tickets (integrated practice tasks) without access denied", async () => {
         const user = userEvent.setup();
         render(<App />);
 

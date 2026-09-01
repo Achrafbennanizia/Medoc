@@ -88,7 +88,7 @@ pub async fn dev_seed_demo(pool: &SqlitePool) -> Result<(), AppError> {
         ContractRow {
             id: "seed-version-1".into(),
             designation: "Miete Praxisräume".into(),
-            partner: "Hausverwaltung Nord".into(),
+            partner: "North Property Management".into(),
             amount: 3200.0,
             interval: "MONTH".into(),
             unlimited: 1,

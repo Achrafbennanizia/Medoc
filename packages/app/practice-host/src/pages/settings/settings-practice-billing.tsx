@@ -73,13 +73,13 @@ export const SettingsPracticeBillingSection: FC<SettingsPracticeBillingProps> = 
                             placeholder={t("settings.practice.billing_clinician_placeholder")}
                         />
                         <Input
-                            id="px-beruf"
-                            label={t("settings.practice.billing_beruf")}
-                            list="px-beruf-suggestions"
+                            id="px-profession"
+                            label={t("settings.practice.billing_professional_title")}
+                            list="px-profession-suggestions"
                             value={practice.professional_title ?? ""}
                             onChange={(e) => set({ professional_title: e.target.value })}
                         />
-                        <datalist id="px-beruf-suggestions">
+                        <datalist id="px-profession-suggestions">
                             {BERUF_SUGGESTIONS.map((key) => (
                                 <option key={key} value={t(key)} />
                             ))}
@@ -120,40 +120,40 @@ export const SettingsPracticeBillingSection: FC<SettingsPracticeBillingProps> = 
                         <Input
                             id="px-iban"
                             label={t("settings.practice.billing_iban")}
-                            value={practice.bankverbindung_iban ?? ""}
-                            onChange={(e) => set({ bankverbindung_iban: e.target.value })}
+                            value={practice.bank_iban ?? ""}
+                            onChange={(e) => set({ bank_iban: e.target.value })}
                             error={
-                                (practice.bankverbindung_iban ?? "").trim() && !isValidPracticeIban(practice.bankverbindung_iban ?? "")
+                                (practice.bank_iban ?? "").trim() && !isValidPracticeIban(practice.bank_iban ?? "")
                                     ? t("settings.practice.billing_iban_error")
                                     : undefined
                             }
                         />
-                        <Input id="px-bic" label={t("settings.practice.billing_bic")} value={practice.bankverbindung_bic ?? ""} onChange={(e) => set({ bankverbindung_bic: e.target.value })} />
+                        <Input id="px-bic" label={t("settings.practice.billing_bic")} value={practice.bank_bic ?? ""} onChange={(e) => set({ bank_bic: e.target.value })} />
                         <Input
                             id="px-bank"
                             label={t("settings.practice.billing_bank_name")}
-                            value={practice.bankverbindung_bank ?? ""}
-                            onChange={(e) => set({ bankverbindung_bank: e.target.value })}
+                            value={practice.bank_name ?? ""}
+                            onChange={(e) => set({ bank_name: e.target.value })}
                         />
                         <Input
-                            id="px-kontoinhaber"
+                            id="px-account-holder"
                             label={t("settings.practice.billing_account_holder")}
-                            value={practice.bankverbindung_inhaber ?? ""}
-                            onChange={(e) => set({ bankverbindung_inhaber: e.target.value })}
+                            value={practice.account_holder ?? ""}
+                            onChange={(e) => set({ account_holder: e.target.value })}
                         />
                     </div>
                     <p className="card-sub" style={{ margin: "16px 0 12px", fontWeight: 600 }}>
                         {t("settings.practice.billing_chamber_section")}
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <Input id="px-kammer" label={t("settings.practice.billing_chamber")} value={practice.kammer ?? ""} onChange={(e) => set({ kammer: e.target.value })} />
+                        <Input id="px-chamber" label={t("settings.practice.billing_chamber")} value={practice.chamber ?? ""} onChange={(e) => set({ chamber: e.target.value })} />
                         <Input id="px-kzv" label={t("settings.practice.billing_kzv")} value={practice.kzv ?? ""} onChange={(e) => set({ kzv: e.target.value })} />
                         <Input
-                            id="px-ust-hinweis"
+                            id="px-vat-notice"
                             label={t("settings.practice.billing_vat_exempt")}
-                            value={practice.ust_befreiung_hinweis ?? t("settings.practice.billing_vat_exempt_default")}
+                            value={practice.vat_exemption_notice ?? t("settings.practice.billing_vat_exempt_default")}
                             onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                                set({ ust_befreiung_hinweis: e.target.value })
+                                set({ vat_exemption_notice: e.target.value })
                             }
                         />
                     </div>
@@ -167,10 +167,10 @@ export const SettingsPracticeBillingSection: FC<SettingsPracticeBillingProps> = 
                             type="number"
                             min={1}
                             max={90}
-                            value={String(practice.payment_terms_tage ?? 14)}
+                            value={String(practice.payment_terms_days ?? 14)}
                             onChange={(e: ChangeEvent<HTMLInputElement>) => {
                                 const n = Number.parseInt(e.target.value, 10);
-                                set({ payment_terms_tage: Number.isFinite(n) && n > 0 ? n : 14 });
+                                set({ payment_terms_days: Number.isFinite(n) && n > 0 ? n : 14 });
                             }}
                         />
                     </div>
@@ -182,9 +182,9 @@ export const SettingsPracticeBillingSection: FC<SettingsPracticeBillingProps> = 
                             id="px-emergency"
                             label={t("settings.practice.billing_emergency_phone")}
                             type="tel"
-                            value={practice.notfall_phone ?? ""}
+                            value={practice.emergency_phone ?? ""}
                             onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                                set({ notfall_phone: e.target.value })
+                                set({ emergency_phone: e.target.value })
                             }
                         />
                     </div>

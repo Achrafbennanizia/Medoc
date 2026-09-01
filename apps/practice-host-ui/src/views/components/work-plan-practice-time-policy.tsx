@@ -21,7 +21,7 @@ export function WorkPlanPracticeTimePolicy({
     const t = useT();
 
     return (
-        <section className="card work_plan-time-policy-card">
+        <section className="card workPlan-time-policy-card">
             <div className="card-head">
                 <div>
                     <div className="card-title">{t("page.work_plan.time_tracking")}</div>
@@ -54,11 +54,11 @@ export function WorkPlanPracticeTimePolicy({
                     />
                 </div>
             </div>
-            <p className="work_plan-time-policy-links">
+            <p className="workPlan-time-policy-links">
                 <Link to="/administration/team/work-time" className="nav-link-forward">
                     {t("page.work_plan.link.team_work_time")}
                 </Link>
-                <span className="work_plan-time-policy-links__sep" aria-hidden>
+                <span className="workPlan-time-policy-links__sep" aria-hidden>
                     ·
                 </span>
                 <Link to="/staff/work-time" className="nav-link-forward">

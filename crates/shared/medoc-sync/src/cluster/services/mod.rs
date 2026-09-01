@@ -1,5 +1,6 @@
 //! Device-cluster application services.
 
+pub mod install_plan_service;
 pub mod cluster_reset_service;
 pub mod audit;
 pub mod license_service;
@@ -7,6 +8,11 @@ pub mod provisioning_service;
 pub mod staff_directory;
 pub mod cluster_service;
 
+pub use install_plan_service::{
+    apply_install_plan, apply_install_plan_from_license_v2, consume_default_sidecar_and_apply,
+    consume_pending_sidecar_and_apply, get_provisioning_window, plan_includes_server,
+    read_deployment_mode, ApplyInstallPlanResult,
+};
 pub use cluster_reset_service::{
     cluster_reset_preview, execute_member_cluster_reset, execute_owner_cluster_reset,
     persist_cluster_ca_pubkey, queue_verified_remote_reset, apply_queued_remote_reset_if_any,

@@ -12,7 +12,7 @@ pub struct LanServerConfigV1 {
     pub bind_addr: String,
     pub http_port: u16,
     pub udp_discovery_port: u16,
-    /// Shown to clients during discovery (e.g. „Practice Dr. Muster“).
+    /// Shown to clients during discovery (e.g. "Practice Dr. Sample").
     pub instance_label: String,
     /// Start the LAN listener automatically when the desktop app launches (after DB init).
     pub auto_start_with_app: bool,

@@ -1,5 +1,5 @@
 import { getISODay, parseISO } from "date-fns";
-import type { WochenarbeitsRegel } from "./staff-work-plan";
+import type { WeeklyWorkRule } from "./staff-work-plan";
 
 export type WorkTimeDaySummaryLite = {
     date: string;
@@ -31,12 +31,12 @@ export function formatStaffShortName(name: string): string {
     return `${parts[0]} ${initial}`;
 }
 
-export function sollMinutesForDay(
+export function targetMinutesForDay(
     staffId: string,
     dateYmd: string,
-    weeklyRules: readonly WochenarbeitsRegel[],
+    weeklyRules: readonly WeeklyWorkRule[],
 ): number {
-    const weekday = getISODay(parseISO(dateYmd)) as WochenarbeitsRegel["weekday"];
+    const weekday = getISODay(parseISO(dateYmd)) as WeeklyWorkRule["weekday"];
     return weeklyRules
         .filter((r) => r.staffId === staffId && r.weekday === weekday)
         .reduce((sum, r) => sum + Math.max(0, r.endMin - r.startMin), 0);
@@ -64,7 +64,7 @@ export function liveElapsedMinutes(
 export type WeekBarDay = {
     date: string;
     label: string;
-    sollMinutes: number;
+    targetMinutes: number;
     workedMinutes: number;
     pauseMinutes: number;
     openMinutes: number;
@@ -74,7 +74,7 @@ export function buildWeekBarDays(
     weekDays: string[],
     dayLabels: string[],
     staffId: string,
-    weeklyRules: readonly WochenarbeitsRegel[],
+    weeklyRules: readonly WeeklyWorkRule[],
     overviewDays: WorkTimeDaySummaryLite[],
     activeSession: WorkTimeSessionLite | null,
     openPauseMinutes: number,
@@ -93,7 +93,7 @@ export function buildWeekBarDays(
         return {
             date,
             label: dayLabels[i] ?? date,
-            sollMinutes: sollMinutesForDay(staffId, date, weeklyRules),
+            targetMinutes: targetMinutesForDay(staffId, date, weeklyRules),
             workedMinutes: endedWorked,
             pauseMinutes: summary?.pauseMinutes ?? 0,
             openMinutes: isActiveDay ? openMinutes : 0,

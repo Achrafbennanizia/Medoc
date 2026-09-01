@@ -28,7 +28,7 @@ function isOverdue(b: PurchaseOrder): boolean {
 }
 
 function statusBadgeReadonly(status: OrderStatus, overdue: boolean, t: (key: string) => string) {
-    if (overdue) return <Badge variant="error">{t("page.purchase-orders.status.overdue")}</Badge>;
+    if (overdue) return <Badge variant="error">{t("page.purchase_orders.status.overdue")}</Badge>;
     const st = orderStatusDisplay(status, t);
     if (status === "IN_TRANSIT") return <span className="pill blue">{st.label}</span>;
     if (status === "DELIVERED") return <Badge variant="success">{st.label}</Badge>;
@@ -124,26 +124,26 @@ export function PurchaseOrdersPage() {
 
     const statusOptions = useMemo(
         () => [
-            { value: "ALL" as const, label: tp("page.purchase-orders.status.all", { count: rows.length }) },
+            { value: "ALL" as const, label: tp("page.purchase_orders.status.all", { count: rows.length }) },
             { value: "OPEN" as const, label: t("page.purchase_orders.status.open") },
-            { value: "IN_TRANSIT" as const, label: t("page.purchase-orders.status.inTransit") },
-            { value: "DELIVERED" as const, label: t("page.purchase-orders.status.delivered") },
-            { value: "CANCELLED" as const, label: t("page.purchase-orders.status.cancelled") },
+            { value: "IN_TRANSIT" as const, label: t("page.purchase_orders.status.inTransit") },
+            { value: "DELIVERED" as const, label: t("page.purchase_orders.status.delivered") },
+            { value: "CANCELLED" as const, label: t("page.purchase_orders.status.cancelled") },
         ],
         [rows.length, t, tp],
     );
 
-    if (loading) return <PageLoading label={t("page.purchase-orders.loading")} />;
+    if (loading) return <PageLoading label={t("page.purchase_orders.loading")} />;
     if (loadError) return <PageLoadError message={loadError} onRetry={() => void load({ initial: true })} />;
 
     return (
         <div className="purchase-orders-page practice-workspace-page animate-fade-in--sticky-safe">
             <WorkspacePageHeader
-                title={t("page.purchase-orders.title")}
-                subtitle={t("page.purchase-orders.subtitle_v2")}
+                title={t("page.purchase_orders.title")}
+                subtitle={t("page.purchase_orders.subtitle_v2")}
                 actions={
                     canWrite ? (
-                        <Button onClick={() => navigate("/purchase-orders/new")}>{t("page.purchase-orders.cta_new")}</Button>
+                        <Button onClick={() => navigate("/purchase-orders/new")}>{t("page.purchase_orders.cta_new")}</Button>
                     ) : null
                 }
             />
@@ -154,7 +154,7 @@ export function PurchaseOrdersPage() {
                         id="best-search"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        placeholder={t("page.purchase-orders.search_ph")}
+                        placeholder={t("page.purchase_orders.search_ph")}
                         disabled={rows.length === 0}
                     />
                 </div>
@@ -177,21 +177,21 @@ export function PurchaseOrdersPage() {
             {rows.length === 0 ? (
                 <EmptyState
                     icon="📦"
-                    title={t("page.purchase-orders.empty_title")}
+                    title={t("page.purchase_orders.empty_title")}
                     description={
-                        canWrite ? t("page.purchase-orders.empty_write_desc") : t("page.purchase-orders.empty_desc")
+                        canWrite ? t("page.purchase_orders.empty_write_desc") : t("page.purchase_orders.empty_desc")
                     }
                     action={
                         canWrite
-                            ? { label: t("page.purchase-orders.cta_new"), onClick: () => navigate("/purchase-orders/new") }
+                            ? { label: t("page.purchase_orders.cta_new"), onClick: () => navigate("/purchase-orders/new") }
                             : undefined
                     }
                 />
             ) : filtered.length === 0 ? (
                 <EmptyState
                     icon="🔎"
-                    title={t("page.purchase-orders.empty_filtered_title")}
-                    description={t("page.purchase-orders.empty_filtered_desc")}
+                    title={t("page.purchase_orders.empty_filtered_title")}
+                    description={t("page.purchase_orders.empty_filtered_desc")}
                     action={{
                         label: t("common.reset_filters"),
                         onClick: () => { setSearch(""); setStatusFilter("ALL"); },
@@ -212,20 +212,20 @@ export function PurchaseOrdersPage() {
                         </colgroup>
                         <thead>
                             <tr>
-                                <th scope="col">{t("page.purchase-orders.col_order_number")}</th>
-                                <th scope="col">{t("page.purchase-orders.col.supplier")}</th>
-                                <th scope="col">{t("page.purchase-orders.col_item")}</th>
-                                <th scope="col">{t("page.purchase-orders.col_quantity")}</th>
-                                <th scope="col">{t("page.purchase-orders.col.eta")}</th>
-                                <th scope="col">{t("page.purchase-orders.col_price")}</th>
-                                <th scope="col">{t("page.purchase-orders.col.status")}</th>
+                                <th scope="col">{t("page.purchase_orders.col_order_number")}</th>
+                                <th scope="col">{t("page.purchase_orders.col.supplier")}</th>
+                                <th scope="col">{t("page.purchase_orders.col_item")}</th>
+                                <th scope="col">{t("page.purchase_orders.col_quantity")}</th>
+                                <th scope="col">{t("page.purchase_orders.col.eta")}</th>
+                                <th scope="col">{t("page.purchase_orders.col_price")}</th>
+                                <th scope="col">{t("page.purchase_orders.col.status")}</th>
                             </tr>
                         </thead>
                         <tbody>
                             {filtered.map((r) => {
                                 const overdue = isOverdue(r);
                                 const isSelected = selectedId === r.id;
-                                const rowLabel = tp("page.purchase-orders.open_row", {
+                                const rowLabel = tp("page.purchase_orders.open_row", {
                                     label: r.order_number ?? r.id,
                                 });
                                 const onRowKeyDown = (e: KeyboardEvent<HTMLTableRowElement>) => {
@@ -248,7 +248,7 @@ export function PurchaseOrdersPage() {
                                         role="button"
                                         aria-label={rowLabel}
                                         aria-pressed={isSelected}
-                                        title={t("page.purchase-orders.open_details")}
+                                        title={t("page.purchase_orders.open_details")}
                                         onClick={() => openDrawer(r.id)}
                                         onKeyDown={onRowKeyDown}
                                     >

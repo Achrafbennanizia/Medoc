@@ -52,14 +52,11 @@ export function defaultIllnessLabel(t: TFn): string {
     return illnessSuggestionLabels(t)[0] ?? "";
 }
 
-/** @deprecated Use illnessSuggestionLabels(t) */
-export const KRANKHEITEN_SUGGESTIONS: string[] = [...ILLNESS_SUGGESTION_KEYS];
-
 export type CertificateComposerFormFields = {
     kind: string;
-    krankheiten: string;
-    tageAnzahl: string;
-    einschraenkung: string;
+    illnesses: string;
+    dayCount: string;
+    activityRestriction: string;
     valid_from: string;
     valid_until: string;
     icd10_code: string;
@@ -70,9 +67,9 @@ export type CertificateComposerFormFields = {
 export function emptyCertificateComposerForm(today: string, t: TFn): CertificateComposerFormFields {
     return {
         kind: CERTIFICATE_KIND_VALUES[0],
-        krankheiten: defaultIllnessLabel(t),
-        tageAnzahl: "1",
-        einschraenkung: "",
+        illnesses: defaultIllnessLabel(t),
+        dayCount: "1",
+        activityRestriction: "",
         valid_from: today,
         valid_until: today,
         icd10_code: "",
@@ -81,38 +78,56 @@ export function emptyCertificateComposerForm(today: string, t: TFn): Certificate
     };
 }
 
+function parsePayloadString(p: Record<string, unknown>, key: string): string {
+    const v = p[key];
+    return v == null ? "" : String(v);
+}
+
 export function parseCertificateTemplatePayload(payloadJson: string): {
-    krankheiten: string;
-    tageAnzahl: string;
-    einschraenkung: string;
+    illnesses: string;
+    dayCount: string;
+    activityRestriction: string;
 } {
     try {
         const p = JSON.parse(payloadJson) as Record<string, unknown>;
-        const rawTage = p.tage_anzahl;
+        const rawDays = p.day_count;
         return {
-            krankheiten: String(p.krankheiten ?? ""),
-            tageAnzahl: rawTage === undefined || rawTage === null ? "" : String(rawTage),
-            einschraenkung: String(p.einschraenkung ?? ""),
+            illnesses: parsePayloadString(p, "illnesses"),
+            dayCount: rawDays === undefined || rawDays === null ? "" : String(rawDays),
+            activityRestriction: parsePayloadString(p, "activity_restriction"),
         };
     } catch {
-        return { krankheiten: "", tageAnzahl: "", einschraenkung: "" };
+        return { illnesses: "", dayCount: "", activityRestriction: "" };
     }
 }
 
 /** Inclusive calendar days: when n=1, end equals start. */
-export function certificateGueltigUntilFromFromAndTage(gueltigFromIso: string, tageAnzahl: string): string {
-    const from = gueltigFromIso.slice(0, 10);
-    const n = Number.parseInt(tageAnzahl.trim(), 10);
+export function certificateValidUntilFromStartAndDays(validFromIso: string, dayCount: string): string {
+    const from = validFromIso.slice(0, 10);
+    const n = Number.parseInt(dayCount.trim(), 10);
     if (!Number.isFinite(n) || n < 1) return from;
     const d = new Date(`${from}T12:00:00`);
     d.setDate(d.getDate() + (n - 1));
     return d.toISOString().slice(0, 10);
 }
 
+export function buildCertificateTemplatePayload(fields: {
+    illnesses: string;
+    dayCount: string;
+    activityRestriction: string;
+}): Record<string, unknown> {
+    const n = Number.parseInt(fields.dayCount.trim(), 10);
+    return {
+        illnesses: fields.illnesses.trim(),
+        day_count: Number.isFinite(n) ? n : fields.dayCount.trim(),
+        activity_restriction: fields.activityRestriction.trim(),
+    };
+}
+
 export function buildCertificateBodyText(fields: CertificateComposerFormFields): string {
-    const k = fields.krankheiten.trim();
-    const e = fields.einschraenkung.trim();
-    const n = Number.parseInt(fields.tageAnzahl.trim(), 10);
+    const k = fields.illnesses.trim();
+    const e = fields.activityRestriction.trim();
+    const n = Number.parseInt(fields.dayCount.trim(), 10);
     const from = fields.valid_from.slice(0, 10);
     const until = fields.valid_until.slice(0, 10);
     const parts: string[] = [];
@@ -128,11 +143,11 @@ export function buildCertificateBodyText(fields: CertificateComposerFormFields):
 
 export function validateCertificateComposer(fields: CertificateComposerFormFields, t: TFn): string | null {
     if (!fields.kind.trim()) return t("page.patient_detail.certificate.validation.kind_required");
-    const n = Number.parseInt(fields.tageAnzahl.trim(), 10);
-    if (!fields.tageAnzahl.trim() || !Number.isFinite(n) || n < 1 || n > 366) {
+    const n = Number.parseInt(fields.dayCount.trim(), 10);
+    if (!fields.dayCount.trim() || !Number.isFinite(n) || n < 1 || n > 366) {
         return t("page.patient_detail.certificate.validation.days_range");
     }
-    if (!fields.krankheiten.trim()) return t("page.patient_detail.certificate.validation.diagnosis_required");
+    if (!fields.illnesses.trim()) return t("page.patient_detail.certificate.validation.diagnosis_required");
     if (!fields.valid_from.trim() || !fields.valid_until.trim()) {
         return t("page.patient_detail.certificate.validation.validity_required");
     }

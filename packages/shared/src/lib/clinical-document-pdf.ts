@@ -29,7 +29,7 @@ const HEADER_ORDER: PracticeFieldKey[] = [
     "zanr",
     "bsnr",
     "bank",
-    "kammer",
+    "chamber",
     "kzv",
     "payment_terms",
     "vat_notice",
@@ -85,33 +85,33 @@ export function buildClinicalTemplateHeaderLines(
             case "email": {
                 const t = (practice.email ?? "").trim();
                 if (!t) break;
-                lines.push(`E-Mail ${privacy.email ? t : maskPracticeExportToken(t)}`);
+                lines.push(`Email ${privacy.email ? t : maskPracticeExportToken(t)}`);
                 break;
             }
             case "kv": {
-                const t = (practice.kv_nummer ?? "").trim();
+                const t = (practice.kv_number ?? "").trim();
                 if (!t) break;
-                lines.push(`KV- / Betriebsnr. ${privacy.kv ? t : maskPracticeExportToken(t)}`);
+                lines.push(`Health insurance no. ${privacy.kv ? t : maskPracticeExportToken(t)}`);
                 break;
             }
             case "tax": {
-                const ust = (practice.ust_id ?? "").trim();
-                if (ust) lines.push(`USt-IdNr. ${privacy.ust ? ust : maskPracticeExportToken(ust)}`);
+                const ust = (practice.vat_id ?? "").trim();
+                if (ust) lines.push(`VAT ID ${privacy.vat ? ust : maskPracticeExportToken(ust)}`);
                 const st = (practice.tax_number ?? "").trim();
-                if (st) lines.push(`St.-Nr. ${privacy.steuer ? st : maskPracticeExportToken(st)}`);
+                if (st) lines.push(`Tax no. ${privacy.tax ? st : maskPracticeExportToken(st)}`);
                 break;
             }
             case "hours": {
                 const t = (practice.opening_hours ?? "").trim();
                 if (!t) break;
-                lines.push(`Hrs: ${privacy.oz ? t : maskPracticeExportToken(t)}`);
+                lines.push(`Hrs: ${privacy.hours ? t : maskPracticeExportToken(t)}`);
                 break;
             }
             case "clinician": {
                 const n = (practice.clinician_name ?? "").trim();
                 if (!n) break;
-                const beruf = (practice.professional_title ?? "").trim();
-                const label = beruf ? `${n}, ${beruf}` : n;
+                const title = (practice.professional_title ?? "").trim();
+                const label = title ? `${n}, ${title}` : n;
                 lines.push(`Clinician: ${privacy.clinician ? label : maskPracticeExportToken(label)}`);
                 break;
             }
@@ -128,19 +128,19 @@ export function buildClinicalTemplateHeaderLines(
                 break;
             }
             case "bank": {
-                const iban = (practice.bankverbindung_iban ?? "").trim();
-                const bic = (practice.bankverbindung_bic ?? "").trim();
-                const bank = (practice.bankverbindung_bank ?? "").trim();
+                const iban = (practice.bank_iban ?? "").trim();
+                const bic = (practice.bank_bic ?? "").trim();
+                const bank = (practice.bank_name ?? "").trim();
                 if (!iban && !bic && !bank) break;
                 if (iban) lines.push(`IBAN: ${privacy.bank ? iban : maskPracticeExportToken(iban)}`);
                 if (bic) lines.push(`BIC: ${privacy.bank ? bic : maskPracticeExportToken(bic)}`);
                 if (bank) lines.push(`Bank: ${privacy.bank ? bank : maskPracticeExportToken(bank)}`);
                 break;
             }
-            case "kammer": {
-                const t = (practice.kammer ?? "").trim();
+            case "chamber": {
+                const t = (practice.chamber ?? "").trim();
                 if (!t) break;
-                lines.push(`Kammer: ${t}`);
+                lines.push(`Chamber: ${t}`);
                 break;
             }
             case "kzv": {
@@ -150,17 +150,17 @@ export function buildClinicalTemplateHeaderLines(
                 break;
             }
             case "payment_terms": {
-                const days = practice.payment_terms_tage ?? 14;
+                const days = practice.payment_terms_days ?? 14;
                 if (days > 0) lines.push(`Payment terms: ${days} days`);
                 break;
             }
             case "vat_notice": {
-                const t = (practice.ust_befreiung_hinweis ?? "").trim();
+                const t = (practice.vat_exemption_notice ?? "").trim();
                 if (t) lines.push(t);
                 break;
             }
             case "emergency_phone": {
-                const t = (practice.notfall_phone ?? "").trim();
+                const t = (practice.emergency_phone ?? "").trim();
                 if (!t) break;
                 lines.push(`Emergency: ${t}`);
                 break;

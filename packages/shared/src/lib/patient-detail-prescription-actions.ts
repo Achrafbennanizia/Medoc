@@ -5,6 +5,7 @@ import type { DocumentTemplate, DocumentTemplateKind } from "@/models/types";
 import { normalizeDocumentTemplateKind } from "@/models/types";
 import {
     buildCertificateBodyText,
+    buildCertificateTemplatePayload,
     validateCertificateComposer,
     type CertificateComposerFormFields,
 } from "@/lib/certificate-composer";
@@ -178,15 +179,10 @@ export async function flushCertificateFinalizeTemplate(
 ): Promise<void> {
     hooks.setComposerBusy(true);
     try {
-        const n = Number.parseInt(p.fields.tageAnzahl.trim(), 10);
         await createDocumentTemplate({
             kind: "CERTIFICATE",
             title: p.title,
-            payload: {
-                krankheiten: p.fields.krankheiten.trim(),
-                tage_anzahl: Number.isFinite(n) ? n : p.fields.tageAnzahl.trim(),
-                einschraenkung: p.fields.einschraenkung.trim(),
-            },
+            payload: buildCertificateTemplatePayload(p.fields),
         });
         await hooks.refreshCertificateTemplates();
         hooks.clearPending();

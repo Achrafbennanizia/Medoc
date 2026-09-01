@@ -150,6 +150,7 @@ export const ROUTE_VISIBILITY: Record<string, NavVisibility> = {
     "inbox": { kind: "roles", roles: ["PHYSICIAN", "RECEPTION"] },
     tickets: { kind: "roles", roles: ["PHYSICIAN", "RECEPTION"] },
     "tickets/new": { kind: "action", action: "administration.read" },
+    "tickets/:id/edit": { kind: "action", action: "administration.read" },
     "tickets/:id/bearbeiten": { kind: "action", action: "administration.read" },
     "finance": { kind: "action", action: "finance.read" },
     "finance/cash": { kind: "action", action: "finance.reception.view" },

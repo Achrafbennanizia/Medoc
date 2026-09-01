@@ -65,8 +65,8 @@ const AdministrationPage = lazy(async () => ({ default: (await import("./views/p
 const AdministrationFinanceToolsPage = lazy(async () => ({
     default: (await import("./views/pages/administration-finance-tools")).AdministrationFinanceToolsPage,
 }));
-const AdministrationFinanceBerichtePage = lazy(async () => ({
-    default: (await import("./views/pages/administration-finance-reports")).AdministrationFinanceBerichtePage,
+const AdministrationFinanceReportsPage = lazy(async () => ({
+    default: (await import("./views/pages/administration-finance-reports")).AdministrationFinanceReportsPage,
 }));
 const AdministrationTeamPage = lazy(async () => ({
     default: (await import("./views/pages/administration-team")).AdministrationTeamPage,
@@ -219,6 +219,7 @@ export default function App() {
                         )}
                     />
                     <Route path="tickets/new" element={<RoleRoute routePath="tickets/new"><PracticeTaskCreatePage /></RoleRoute>} />
+                    <Route path="tickets/:id/edit" element={<RoleRoute routePath="tickets/:id/edit"><PracticeTaskEditPage /></RoleRoute>} />
                     <Route path="tickets/:id/bearbeiten" element={<RoleRoute routePath="tickets/:id/bearbeiten"><PracticeTaskEditPage /></RoleRoute>} />
                     <Route path="tickets" element={<RoleRoute routePath="tickets"><PracticeTicketsPage /></RoleRoute>} />
                     <Route path="inbox" element={<Navigate to="/tickets" replace />} />
@@ -266,7 +267,7 @@ export default function App() {
                         path="administration/finance-reports"
                         element={(
                             <RoleRoute routePath="administration/finance-reports">
-                                <AdministrationFinanceBerichtePage />
+                                <AdministrationFinanceReportsPage />
                             </RoleRoute>
                         )}
                     />

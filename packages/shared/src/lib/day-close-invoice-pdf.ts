@@ -79,10 +79,10 @@ export async function downloadDayCloseReportPdf(
     }
     const num = await allocateReportNumber(as_of_date);
     const bankLines: string[] = [];
-    const iban = (practice.bankverbindung_iban ?? "").trim();
+    const iban = (practice.bank_iban ?? "").trim();
     if (iban) {
-        const bic = (practice.bankverbindung_bic ?? "").trim();
-        const bankName = (practice.bankverbindung_bank ?? "").trim();
+        const bic = (practice.bank_bic ?? "").trim();
+        const bankName = (practice.bank_name ?? "").trim();
         bankLines.push(
             `Bank details: IBAN ${iban}${bic ? ` BIC ${bic}` : ""}${bankName ? ` (${bankName})` : ""}`,
         );
@@ -110,7 +110,7 @@ export async function downloadDayCloseReportPdf(
         practice_bsnr: practice.bsnr?.trim() || null,
         bank_details: bankLines.length > 0 ? bankLines : null,
         payment_terms_text: null,
-        vat_notice: practice.ust_befreiung_hinweis?.trim() || null,
+        vat_notice: practice.vat_exemption_notice?.trim() || null,
     });
     openExportPreview({
         format: "pdf",

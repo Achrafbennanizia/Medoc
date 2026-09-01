@@ -1,10 +1,10 @@
-//! Device-cluster (Geräteverbund) DDL — cluster license, device registry extensions, blocklist, provisioning.
+//! Device-cluster DDL — cluster license, device registry extensions, blocklist, provisioning.
 
 use sqlx::sqlite::SqlitePool;
 
 use crate::error::AppError;
 
-/// Idempotent schema for the device cluster / Geräteverbund (evolution of sync/pairing tables).
+/// Idempotent schema for the device cluster (evolution of sync/pairing tables).
 pub async fn ensure_cluster_tables(pool: &SqlitePool) -> Result<(), AppError> {
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS license (
@@ -172,7 +172,7 @@ pub async fn ensure_cluster_tables(pool: &SqlitePool) -> Result<(), AppError> {
     .await
     .map_err(AppError::Database)?;
 
-    // Legacy rows without Geräteverbund identity must re-provision (forced re-pair).
+    // Legacy rows without cluster identity must re-provision (forced re-pair).
     sqlx::query(
         "UPDATE sync_device SET device_status = 'PENDING'
          WHERE device_status IN ('ACTIVE', 'PENDING')

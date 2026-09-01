@@ -102,19 +102,19 @@ export const PracticeSetupWizard: FC<Props> = ({ open, onClose }) => {
             ) : null}
             {step === 2 ? (
                 <div className="grid gap-3">
-                    <Input label={t("practice.setup.iban")} value={draft.bankverbindung_iban ?? ""} onChange={(e) => setDraft({ ...draft, bankverbindung_iban: e.target.value })} />
-                    <Input label={t("practice.setup.bic")} value={draft.bankverbindung_bic ?? ""} onChange={(e) => setDraft({ ...draft, bankverbindung_bic: e.target.value })} />
-                    <Input label={t("practice.setup.bank")} value={draft.bankverbindung_bank ?? ""} onChange={(e) => setDraft({ ...draft, bankverbindung_bank: e.target.value })} />
+                    <Input label={t("practice.setup.iban")} value={draft.bank_iban ?? ""} onChange={(e) => setDraft({ ...draft, bank_iban: e.target.value })} />
+                    <Input label={t("practice.setup.bic")} value={draft.bank_bic ?? ""} onChange={(e) => setDraft({ ...draft, bank_bic: e.target.value })} />
+                    <Input label={t("practice.setup.bank")} value={draft.bank_name ?? ""} onChange={(e) => setDraft({ ...draft, bank_name: e.target.value })} />
                 </div>
             ) : null}
             {step === 3 ? (
                 <div className="grid gap-3">
-                    <Input label={t("practice.setup.tax_id")} value={draft.ust_id ?? ""} onChange={(e) => setDraft({ ...draft, ust_id: e.target.value })} />
+                    <Input label={t("practice.setup.tax_id")} value={draft.vat_id ?? ""} onChange={(e) => setDraft({ ...draft, vat_id: e.target.value })} />
                     <Input label={t("practice.setup.tax_number")} value={draft.tax_number ?? ""} onChange={(e) => setDraft({ ...draft, tax_number: e.target.value })} />
                     <Input
                         label={t("practice.setup.tax_exempt")}
-                        value={draft.ust_befreiung_hinweis ?? ""}
-                        onChange={(e) => setDraft({ ...draft, ust_befreiung_hinweis: e.target.value })}
+                        value={draft.vat_exemption_notice ?? ""}
+                        onChange={(e) => setDraft({ ...draft, vat_exemption_notice: e.target.value })}
                     />
                 </div>
             ) : null}
@@ -135,7 +135,7 @@ export const PracticeSetupWizard: FC<Props> = ({ open, onClose }) => {
                             bsnr: draft.bsnr ?? t("common.dash"),
                         })}
                     </div>
-                    <div>{tp("practice.setup.summary_iban", { iban: draft.bankverbindung_iban ?? t("common.dash") })}</div>
+                    <div>{tp("practice.setup.summary_iban", { iban: draft.bank_iban ?? t("common.dash") })}</div>
                 </div>
             ) : null}
         </Dialog>

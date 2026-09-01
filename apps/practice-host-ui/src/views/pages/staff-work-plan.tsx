@@ -418,7 +418,7 @@ function WorkPlanComposeCard(props: {
     };
 
     return (
-        <div className="card work_plan-pref-card">
+        <div className="card workPlan-pref-card">
             <CardHeader
                 title={t("page.work_plan.compose.title")}
                 subtitle={t("page.work_plan.compose.subtitle")}
@@ -428,14 +428,14 @@ function WorkPlanComposeCard(props: {
                     <p style={{ margin: 0, fontSize: 13, color: "var(--fg-3)" }}>{t("page.work_plan.compose.no_staff")}</p>
                 ) : (
                     <>
-                        <div className="work_plan-settings-row" style={{ flexWrap: "wrap" }}>
+                        <div className="workPlan-settings-row" style={{ flexWrap: "wrap" }}>
                             <Select
                                 label={t("page.work_plan.compose.preview_for")}
                                 value={focusId}
                                 onChange={(e) => onFocusId(e.target.value)}
                                 options={people.map((p) => ({ value: p.id, label: p.name }))}
                             />
-                            <label className="work_plan-compose-cb" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
+                            <label className="workPlan-compose-cb" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
                                 <input
                                     type="checkbox"
                                     checked={useInCalendar}
@@ -471,19 +471,19 @@ function WorkPlanComposeCard(props: {
                                 {addOpen ? (
                                     <div style={{ marginTop: 12, padding: 12, border: "1px solid var(--line)", borderRadius: 8, display: "flex", flexDirection: "column", gap: 10 }}>
                                         <p style={{ margin: 0, fontSize: 12, color: "var(--fg-3)" }}>{t("page.work_plan.compose.add_hint")}</p>
-                                        <div className="work_plan-time-pair" style={{ gap: 8, flexWrap: "wrap" }}>
+                                        <div className="workPlan-time-pair" style={{ gap: 8, flexWrap: "wrap" }}>
                                             <div>
-                                                <span className="work_plan-settings-group__l" style={{ display: "block" }}>{t("page.work_plan.label.from")}</span>
+                                                <span className="workPlan-settings-group__l" style={{ display: "block" }}>{t("page.work_plan.label.from")}</span>
                                                 <input type="date" className="input-edit" value={df} onChange={(e) => setDf(e.target.value)} />
                                             </div>
                                             <div>
-                                                <span className="work_plan-settings-group__l" style={{ display: "block" }}>{t("page.work_plan.label.to")}</span>
+                                                <span className="workPlan-settings-group__l" style={{ display: "block" }}>{t("page.work_plan.label.to")}</span>
                                                 <input type="date" className="input-edit" value={dt} onChange={(e) => setDt(e.target.value)} />
                                             </div>
                                         </div>
                                         <div>
-                                            <span className="work_plan-settings-group__l" style={{ display: "block", marginBottom: 4 }}>{t("page.work_plan.compose.weekdays_label")}</span>
-                                            <div className="work_plan-chips" style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                                            <span className="workPlan-settings-group__l" style={{ display: "block", marginBottom: 4 }}>{t("page.work_plan.compose.weekdays_label")}</span>
+                                            <div className="workPlan-chips" style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                                                 {ALL_DAYS.map((d) => {
                                                     const on = wds.has(d);
                                                     return (
@@ -502,12 +502,12 @@ function WorkPlanComposeCard(props: {
                                                 })}
                                             </div>
                                         </div>
-                                        <div className="workDays-range-grid work_plan-time-grid" style={{ maxWidth: 360 }}>
+                                        <div className="workDays-range-grid workPlan-time-grid" style={{ maxWidth: 360 }}>
                                             <div className="workDays-range-grid__field">
                                                 <span className="workDays-range-grid__l">{t("page.work_plan.label.from")}</span>
                                                 <input type="time" step={300} className="workDays-range-grid__in" value={tStart} onChange={(e) => setTStart(e.target.value)} />
                                             </div>
-                                            <div className="workDays-range-grid__field work_plan-time-grid_until">
+                                            <div className="workDays-range-grid__field workPlan-time-grid_until">
                                                 <span className="workDays-range-grid__l">{t("page.work_plan.label.to")}</span>
                                                 <input type="time" step={300} className="workDays-range-grid__in" value={tEnd} onChange={(e) => setTEnd(e.target.value)} />
                                             </div>
@@ -517,7 +517,7 @@ function WorkPlanComposeCard(props: {
                                             <Button type="button" variant="secondary" onClick={pushCutRange}>{t("page.work_plan.compose.cut_range_btn")}</Button>
                                         </div>
                                         <div style={{ borderTop: "1px dashed var(--line)", paddingTop: 10, marginTop: 4 }}>
-                                            <span className="work_plan-settings-group__l" style={{ display: "block" }}>{t("page.work_plan.compose.single_day")}</span>
+                                            <span className="workPlan-settings-group__l" style={{ display: "block" }}>{t("page.work_plan.compose.single_day")}</span>
                                             <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "end" }}>
                                                 <input type="date" className="input-edit" value={dDay} onChange={(e) => setDDay(e.target.value)} />
                                                 <Button type="button" onClick={pushAddDay}>{t("page.work_plan.add_day_btn")}</Button>
@@ -827,7 +827,7 @@ export function StaffWorkPlanPage() {
     if (loadError) return <PageLoadError message={loadError} onRetry={() => void load()} />;
 
     return (
-        <div className="staff-work_plan-page practice-workspace-page animate-fade-in">
+        <div className="staff-workPlan-page practice-workspace-page animate-fade-in">
             <AdministrationPageHeader
                 titleLevel="h1"
                 title={t("page.work_plan.title")}
@@ -863,20 +863,20 @@ export function StaffWorkPlanPage() {
                     }}
                 />
                 </div>
-                <div className="card card-pad work_plan-cal-card" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div className="card card-pad workPlan-cal-card" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                     <h2 className="form-section-title" style={{ marginTop: 0, fontSize: 15 }}>{t("page.work_plan.calendar.all_filtered")}</h2>
-                    <p className="work_plan-cal-preface" style={{ fontSize: 12, color: "var(--fg-3)", margin: 0, lineHeight: 1.35 }}>
+                    <p className="workPlan-cal-preface" style={{ fontSize: 12, color: "var(--fg-3)", margin: 0, lineHeight: 1.35 }}>
                         {t("page.work_plan.calendar.preface")}
                     </p>
-                    <div className="work_plan-cal-panel">
-                    <div className="work_plan-filter-bar work_plan-filter-bar--compact" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                        <div className="work_plan-filter-btns" style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
+                    <div className="workPlan-cal-panel">
+                    <div className="workPlan-filter-bar workPlan-filter-bar--compact" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        <div className="workPlan-filter-btns" style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
                             <span style={{ fontSize: 11, color: "var(--fg-3)", fontWeight: 600, marginInlineEnd: 2 }}>{t("page.work_plan.display")}</span>
                             {(["work", "break", "both", "net"] as const).map((k) => (
                                 <button
                                     key={k}
                                     type="button"
-                                    className={filterLayer === k ? "btn btn-accent work_plan-view-filter" : "btn btn-ghost work_plan-view-filter"}
+                                    className={filterLayer === k ? "btn btn-accent workPlan-view-filter" : "btn btn-ghost workPlan-view-filter"}
                                     onClick={() => setFilterLayer(k)}
                                 >
                                     {k === "work" ? t("page.work_plan.filter.work") : k === "break" ? t("page.work_plan.filter.break") : k === "both" ? t("page.work_plan.filter.both") : t("page.work_plan.filter.net")}
@@ -887,7 +887,7 @@ export function StaffWorkPlanPage() {
                             <span className="kpi-label-mini kpi-label-mini--strong kpi-label-mini--block">
                                 {t("page.work_plan.people")}
                             </span>
-                            <div className="work_plan-chips work_plan-chips--compact">
+                            <div className="workPlan-chips workPlan-chips--compact">
                                 <button type="button" className={filterPersonSet == null ? "is-active" : undefined} onClick={() => setFilterPersonSet(null)}>{t("page.work_plan.all")}</button>
                                 {sortedP.map((p) => {
                                     const on = filterPersonSet == null || filterPersonSet.has(p.id);
@@ -901,8 +901,8 @@ export function StaffWorkPlanPage() {
                             </div>
                         </div>
                     </div>
-                    <div className="work_plan-toolbar work_plan-toolbar--slim" style={{ marginTop: 0 }}>
-                        <div className="work_plan-seg" role="tablist" aria-label={t("page.work_plan.view.aria")}>
+                    <div className="workPlan-toolbar workPlan-toolbar--slim" style={{ marginTop: 0 }}>
+                        <div className="workPlan-seg" role="tablist" aria-label={t("page.work_plan.view.aria")}>
                             {(["day", "week", "month"] as const).map((k) => (
                                 <button
                                     key={k}
@@ -916,13 +916,13 @@ export function StaffWorkPlanPage() {
                                 </button>
                             ))}
                         </div>
-                        <div className="work_plan-nav appointment-nav-controls" dir="ltr">
+                        <div className="workPlan-nav appointment-nav-controls" dir="ltr">
                             <button type="button" className="btn btn-ghost" onClick={() => {
                                 if (view === "day") setAnchor((a) => addDays(a, -1));
                                 else if (view === "week") setAnchor((a) => addWeeks(a, -1));
                                 else setAnchor((a) => addMonths(a, -1));
                             }}>‹</button>
-                            <span className="work_plan-nav__label" style={{ maxWidth: "min(100%, 12rem)", fontSize: 12.5 }}>{periodLabel}</span>
+                            <span className="workPlan-nav__label" style={{ maxWidth: "min(100%, 12rem)", fontSize: 12.5 }}>{periodLabel}</span>
                             <button type="button" className="btn btn-ghost" onClick={() => {
                                 if (view === "day") setAnchor((a) => addDays(a, 1));
                                 else if (view === "week") setAnchor((a) => addWeeks(a, 1));
@@ -949,14 +949,14 @@ export function StaffWorkPlanPage() {
                         />
                     ) : null}
                     {view === "day" && activePeople.length > 0 ? (
-                        <div className="work_plan-cal-embed" key={`d-${dayYmd}-${dragKey}`}>
+                        <div className="workPlan-cal-embed" key={`d-${dayYmd}-${dragKey}`}>
                             <div
-                                className="work_plan-grid work_plan-grid--day"
+                                className="workPlan-grid workPlan-grid--day"
                                 style={{ gridTemplateColumns: `40px repeat(${activePeople.length}, minmax(0, 1fr))` }}
                             >
-                                <div className="work_plan-grid__corner" />
+                                <div className="workPlan-grid__corner" />
                                 {activePeople.map((p) => (
-                                    <div key={p.id} className="work_plan-day-head">{p.name}</div>
+                                    <div key={p.id} className="workPlan-day-head">{p.name}</div>
                                 ))}
                                 <Ruler minD={minD} daySpan={daySpan} timeColH={timeColH} />
                                 {activePeople.map((p) => (
@@ -981,24 +981,24 @@ export function StaffWorkPlanPage() {
                         </div>
                     ) : null}
                     {view === "week" && activePeople.length > 0 ? (
-                        <div className="work_plan-cal-embed" key={`w-${getISOWeek(weekStart)}-${dragKey}`}>
-                            <div className="work_plan-week-matrix-wrap">
-                            <div className="work_plan-week-matrix" role="grid" aria-label={t("page.work_plan.week.aria")}>
-                                <div className="work_plan-week-matrix__corner" aria-hidden>{t("page.work_plan.week.corner")}</div>
+                        <div className="workPlan-cal-embed" key={`w-${getISOWeek(weekStart)}-${dragKey}`}>
+                            <div className="workPlan-week-matrix-wrap">
+                            <div className="workPlan-week-matrix" role="grid" aria-label={t("page.work_plan.week.aria")}>
+                                <div className="workPlan-week-matrix__corner" aria-hidden>{t("page.work_plan.week.corner")}</div>
                                 {weekDays.map((d) => {
                                     const y = ymd(d);
                                     return (
-                                        <div key={y} className="work_plan-week-matrix__dhead">
-                                            <span className="work_plan-week-matrix__dow">{format(d, "EEE", { locale: dateFnsLocale })}</span>
-                                            <span className="work_plan-week-matrix__dnum">{format(d, "d. MMM", { locale: dateFnsLocale })}</span>
+                                        <div key={y} className="workPlan-week-matrix__dhead">
+                                            <span className="workPlan-week-matrix__dow">{format(d, "EEE", { locale: dateFnsLocale })}</span>
+                                            <span className="workPlan-week-matrix__dnum">{format(d, "d. MMM", { locale: dateFnsLocale })}</span>
                                         </div>
                                     );
                                 })}
                                 {activePeople.map((p) => (
                                     <Fragment key={p.id}>
-                                        <div className="work_plan-week-matrix__rhead" title={p.name}>
-                                            <span className="work_plan-week-matrix__rinit">{personInitials(p.name)}</span>
-                                            <span className="work_plan-week-matrix__rname">{p.name}</span>
+                                        <div className="workPlan-week-matrix__rhead" title={p.name}>
+                                            <span className="workPlan-week-matrix__rinit">{personInitials(p.name)}</span>
+                                            <span className="workPlan-week-matrix__rname">{p.name}</span>
                                         </div>
                                         {weekDays.map((d) => {
                                             const y = ymd(d);
@@ -1028,7 +1028,7 @@ export function StaffWorkPlanPage() {
                                 ))}
                             </div>
                             </div>
-                            <p className="work_plan-week-hint" style={{ fontSize: 10.5, color: "var(--fg-3)", margin: "6px 0 0", lineHeight: 1.3 }}>
+                            <p className="workPlan-week-hint" style={{ fontSize: 10.5, color: "var(--fg-3)", margin: "6px 0 0", lineHeight: 1.3 }}>
                                 {tp("page.work_plan.week.hint", { start: minToLabel(minD), end: minToLabel(maxD) })}
                             </p>
                         </div>
@@ -1042,11 +1042,11 @@ export function StaffWorkPlanPage() {
                 <p className="card-sub" style={{ margin: "4px 0 12px" }}>
                     {tp("page.work_plan.soll_table.period_hint", { period: periodLabel })}
                 </p>
-                <div className="work_plan-table-wrap">
+                <div className="workPlan-table-wrap">
                     {sortedP.length === 0 ? (
                         <p style={{ margin: 0, color: "var(--fg-3)", fontSize: 13 }}>{t("page.work_plan.empty.no_staff")}</p>
                     ) : (
-                        <table className="tbl work_plan-tbl" style={{ width: "100%", fontSize: 12 }}>
+                        <table className="tbl workPlan-tbl" style={{ width: "100%", fontSize: 12 }}>
                             <thead>
                                 <tr>
                                     <th>{t("page.work_plan.soll_table.col.staff")}</th>
@@ -1057,7 +1057,7 @@ export function StaffWorkPlanPage() {
                             </thead>
                             <tbody>
                                 {employeeSollRows.map((row) => (
-                                    <tr key={row.staff.id} className="work_plan-employee-soll__row">
+                                    <tr key={row.staff.id} className="workPlan-employee-soll__row">
                                         <td>
                                             <span style={{ fontWeight: 600, color: "var(--fg-2)" }}>{row.staff.name}</span>
                                         </td>
@@ -1129,23 +1129,23 @@ function WeekPersonDayHBar({
 
     return (
         <div
-            className="work_plan-week-hbar"
+            className="workPlan-week-hbar"
             role="gridcell"
             onDragOver={canWrite ? (e) => e.preventDefault() : undefined}
             onDrop={canWrite ? (e) => { e.preventDefault(); onDropCell(e, e.currentTarget as HTMLDivElement); } : undefined}
             onDoubleClick={canWrite ? (e) => onDblClickCell(e, e.currentTarget as HTMLDivElement) : undefined}
         >
-            <div className="work_plan-week-hbar__track">
-                <div className="work_plan-week-hbar__prefs">
+            <div className="workPlan-week-hbar__track">
+                <div className="workPlan-week-hbar__prefs">
                     {segs.map((s) => (
                         <div
                             key={s.key}
-                            className="work_plan-hor-seg"
+                            className="workPlan-hor-seg"
                             style={{ left: `${s.left}%`, width: `${Math.max(0.35, s.w)}%`, background: s.bg }}
                         />
                     ))}
                 </div>
-                <div className="work_plan-week-hbar__eins">
+                <div className="workPlan-week-hbar__eins">
                     {myBlocks.map((b) => {
                         const L = lo.get(b.id);
                         const lanes = Math.max(1, L?.lanes ?? 1);
@@ -1159,7 +1159,7 @@ function WeekPersonDayHBar({
                                 onDoubleClick={(e) => e.stopPropagation()}
                                 onDragStart={(e) => onDragStartBlock(e, b.id)}
                                 onDragEnd={() => setDndActiveId(null)}
-                                className="work_plan-block-h"
+                                className="workPlan-block-h"
                                 style={{
                                     left: `${((b.startMin - minD) / daySpan) * 100}%`,
                                     width: `${Math.max(1, ((b.endMin - b.startMin) / daySpan) * 100)}%`,
@@ -1171,10 +1171,10 @@ function WeekPersonDayHBar({
                                 }}
                                 title={`${b.title} · ${minToLabel(b.startMin)}–${minToLabel(b.endMin)}`}
                             >
-                                <span className="work_plan-block-h__lbl">{b.title}</span>
+                                <span className="workPlan-block-h__lbl">{b.title}</span>
                                 {canWrite ? (
                                     <span
-                                        className="work_plan-block-h__x"
+                                        className="workPlan-block-h__x"
                                         onClick={(ev) => { ev.stopPropagation(); onBlockDel(b.id); }}
                                         onKeyDown={(ev) => ev.stopPropagation()}
                                     >×</span>
@@ -1194,9 +1194,9 @@ function Ruler({ minD, daySpan, timeColH }: { minD: number; daySpan: number; tim
         ticks.push(m);
     }
     return (
-        <div className="work_plan-ruler" style={{ minHeight: timeColH, gridRow: 2, gridColumn: 1 }}>
+        <div className="workPlan-ruler" style={{ minHeight: timeColH, gridRow: 2, gridColumn: 1 }}>
             {ticks.map((m) => (
-                <div key={m} className="work_plan-ruler__tick" style={{ top: ((m - minD) / daySpan) * 100 + "%" }}>
+                <div key={m} className="workPlan-ruler__tick" style={{ top: ((m - minD) / daySpan) * 100 + "%" }}>
                     {Math.floor(m / 60)}:00
                 </div>
             ))}
@@ -1248,7 +1248,7 @@ function WeekAggregateSegments({ ymdStr, people, prefs, kind, minD, daySpan, com
             {segs.map((s, i) => (
                 <div
                     key={i}
-                    className="work_plan-agg"
+                    className="workPlan-agg"
                     style={{
                         top: s.top + "%",
                         height: s.h + "%",
@@ -1296,7 +1296,7 @@ function WorkPlanMonth({ monthDays, monthStart, planPreferences, people, filterL
     const personById = useMemo(() => new Map(people.map((p) => [p.id, p])), [people]);
 
     return (
-        <div className="cal work_plan-month-cal animate-fade-in" style={{ animationDuration: "240ms" }}>
+        <div className="cal workPlan-month-cal animate-fade-in" style={{ animationDuration: "240ms" }}>
             {dayShort.map((d) => (
                 <div key={d} className="cal-head">
                     {d}
@@ -1408,15 +1408,15 @@ function DayColumn({ staff, ymdStr, planPreferences, blocks, filterLayer, minD, 
     const lo = layoutOverlapBlock(blocks.filter((b) => b.date === ymdStr && b.staffId === staff.id));
     return (
         <div
-            className="work_plan-col" onDragOver={canWrite ? (e) => e.preventDefault() : undefined} onDrop={canWrite ? (e) => onDrop(e, e.currentTarget as HTMLDivElement) : undefined}
+            className="workPlan-col" onDragOver={canWrite ? (e) => e.preventDefault() : undefined} onDrop={canWrite ? (e) => onDrop(e, e.currentTarget as HTMLDivElement) : undefined}
         >
-            <div className="work_plan-col__inner" style={{ minHeight: timeColH, position: "relative" }}>
+            <div className="workPlan-col__inner" style={{ minHeight: timeColH, position: "relative" }}>
                 {filterLayer === "net" || filterLayer === "both" || filterLayer === "work" || filterLayer === "break" ? (
                     <div style={{ position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none" }}>
                         <WeekAggregateSegments ymdStr={ymdStr} people={[staff]} prefs={planPreferences} kind={filterLayer} minD={minD} daySpan={daySpan} composeCal={composeCal} />
                     </div>
                 ) : null}
-                <div className="work_plan-col__grid" style={{ minHeight: timeColH }} onDoubleClick={onDoubleClickEinsatz} />
+                <div className="workPlan-col__grid" style={{ minHeight: timeColH }} onDoubleClick={onDoubleClickEinsatz} />
                 {blocks.filter((b) => b.date === ymdStr && b.staffId === staff.id).map((b) => (
                     <Block
                         key={b.id} b={b} minD={minD} daySpan={daySpan} lo={lo.get(b.id)} dnd={dndActiveId} canWrite={canWrite} hue={hue(b.staffId)}
@@ -1446,10 +1446,10 @@ function Block({ b, minD, daySpan, lo, dnd, canWrite, onDel, onDragStart, onDrag
     return (
         <button
             type="button" draggable={canWrite} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragOver={canWrite ? (e) => e.preventDefault() : undefined}
-            className="work_plan-block" style={st}
+            className="workPlan-block" style={st}
         >
             {minToLabel(b.startMin)} – {minToLabel(b.endMin)} · {b.title}
-            {canWrite ? <span className="work_plan-block__del" onClick={(e) => { e.stopPropagation(); onDel(); }}>×</span> : null}
+            {canWrite ? <span className="workPlan-block__del" onClick={(e) => { e.stopPropagation(); onDel(); }}>×</span> : null}
         </button>
     );
 }

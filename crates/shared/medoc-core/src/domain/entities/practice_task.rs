@@ -71,7 +71,7 @@ pub struct CreatePracticeTask {
 pub struct TransitionPracticeTaskArgs {
     pub id: String,
     pub status: String,
-    #[serde(default, alias = "doneNotiz", alias = "done_notiz")]
+    #[serde(default)]
     pub done_note: Option<String>,
     #[serde(default)]
     pub payment_id: Option<String>,

@@ -1,7 +1,7 @@
 import { Fragment } from "react";
 import type { usePatientDetailPrescriptionTab } from "./use-patient-detail-prescription-tab";
 import {
-    certificateGueltigUntilFromFromAndTage,
+    certificateValidUntilFromStartAndDays,
     certificateKindSelectOptions,
     illnessSuggestionLabels,
 } from "@/lib/certificate-composer";
@@ -799,7 +799,7 @@ export function PatientDetailPrescriptionTabPanel(props: PatientDetailPrescripti
                                     ))}
                                 </datalist>
                                 <Input
-                                    id="ak-att-pick-q"
+                                    id="ak-cert-pick-q"
                                     label={t("common.template_search")}
                                     list="ak-certificate-templates-dl"
                                     value={certificatePickQuery}
@@ -866,7 +866,7 @@ export function PatientDetailPrescriptionTabPanel(props: PatientDetailPrescripti
                                     <p style={{ color: "var(--red)", fontSize: 12, margin: "0 0 12px" }}>{certificateDraftErr}</p>
                                 ) : null}
                                 <Select
-                                    id="ak-att-kind"
+                                    id="ak-cert-kind"
                                     label={t("page.patient_detail.certificate.field.type")}
                                     value={certificateForm.kind}
                                     onChange={(e) => setCertificateForm({ ...certificateForm, kind: e.target.value })}
@@ -877,7 +877,7 @@ export function PatientDetailPrescriptionTabPanel(props: PatientDetailPrescripti
                                     <label className="row" style={{ gap: 6, fontSize: 13 }}>
                                         <input
                                             type="radio"
-                                            name="ak-att-erstfolge"
+                                            name="ak-cert-first-follow"
                                             checked={certificateForm.first_or_follow_up === "FIRST"}
                                             onChange={() => setCertificateForm({ ...certificateForm, first_or_follow_up: "FIRST" })}
                                         />
@@ -886,7 +886,7 @@ export function PatientDetailPrescriptionTabPanel(props: PatientDetailPrescripti
                                     <label className="row" style={{ gap: 6, fontSize: 13 }}>
                                         <input
                                             type="radio"
-                                            name="ak-att-erstfolge"
+                                            name="ak-cert-first-follow"
                                             checked={certificateForm.first_or_follow_up === "FOLLOW_UP"}
                                             onChange={() => setCertificateForm({ ...certificateForm, first_or_follow_up: "FOLLOW_UP" })}
                                         />
@@ -894,7 +894,7 @@ export function PatientDetailPrescriptionTabPanel(props: PatientDetailPrescripti
                                     </label>
                                 </div>
                                 <Input
-                                    id="ak-att-icd"
+                                    id="ak-cert-icd"
                                     label={t("page.patient_detail.certificate.field.icd")}
                                     value={certificateForm.icd10_code}
                                     onChange={(e) => setCertificateForm({ ...certificateForm, icd10_code: e.target.value })}
@@ -902,45 +902,45 @@ export function PatientDetailPrescriptionTabPanel(props: PatientDetailPrescripti
                                 />
                                 {certificateForm.kind.includes("SICK_LEAVE") ? (
                                     <Input
-                                        id="ak-att-ag"
+                                        id="ak-cert-employer"
                                         label={t("page.patient_detail.certificate.employer")}
                                         value={certificateForm.employer}
                                         onChange={(e) => setCertificateForm({ ...certificateForm, employer: e.target.value })}
                                     />
                                 ) : null}
-                                <datalist id="ak-certificate-krank-dl">
+                                <datalist id="ak-certificate-illness-dl">
                                     {illnessSuggestionLabels(t).map((label) => (
                                         <option key={label} value={label} />
                                     ))}
                                 </datalist>
                                 <Input
-                                    id="ak-att-krank"
+                                    id="ak-cert-illness"
                                     label={t("page.patient_detail.certificate.diagnosis")}
-                                    list="ak-certificate-krank-dl"
-                                    value={certificateForm.krankheiten}
-                                    onChange={(e) => setCertificateForm({ ...certificateForm, krankheiten: e.target.value })}
+                                    list="ak-certificate-illness-dl"
+                                    value={certificateForm.illnesses}
+                                    onChange={(e) => setCertificateForm({ ...certificateForm, illnesses: e.target.value })}
                                     placeholder={t("page.patient_detail.certificate.diagnosis_ph")}
                                 />
                                 <Input
-                                    id="ak-att-tage"
+                                    id="ak-cert-days"
                                     label={t("page.patient_detail.certificate.field.days")}
                                     type="number"
                                     min={1}
                                     max={366}
                                     inputMode="numeric"
-                                    value={certificateForm.tageAnzahl}
+                                    value={certificateForm.dayCount}
                                     onChange={(e) => {
-                                        const tage = e.target.value;
+                                        const days = e.target.value;
                                         setCertificateForm((p) => ({
                                             ...p,
-                                            tageAnzahl: tage,
-                                            valid_until: certificateGueltigUntilFromFromAndTage(p.valid_from, tage),
+                                            dayCount: days,
+                                            valid_until: certificateValidUntilFromStartAndDays(p.valid_from, days),
                                         }));
                                     }}
                                 />
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <Input
-                                        id="ak-att-from"
+                                        id="ak-cert-from"
                                         type="date"
                                         label={`${t("common.valid_from")} *`}
                                         value={certificateForm.valid_from}
@@ -949,12 +949,12 @@ export function PatientDetailPrescriptionTabPanel(props: PatientDetailPrescripti
                                             setCertificateForm((p) => ({
                                                 ...p,
                                                 valid_from: from,
-                                                valid_until: certificateGueltigUntilFromFromAndTage(from, p.tageAnzahl),
+                                                valid_until: certificateValidUntilFromStartAndDays(from, p.dayCount),
                                             }));
                                         }}
                                     />
                                     <Input
-                                        id="ak-att-until"
+                                        id="ak-cert-until"
                                         type="date"
                                         label={`${t("common.valid_until")} *`}
                                         value={certificateForm.valid_until}
@@ -962,11 +962,11 @@ export function PatientDetailPrescriptionTabPanel(props: PatientDetailPrescripti
                                     />
                                 </div>
                                 <Textarea
-                                    id="ak-att-ein"
+                                    id="ak-cert-restriction"
                                     label={t("page.patient_detail.certificate.field.restriction")}
                                     rows={4}
-                                    value={certificateForm.einschraenkung}
-                                    onChange={(e) => setCertificateForm({ ...certificateForm, einschraenkung: e.target.value })}
+                                    value={certificateForm.activityRestriction}
+                                    onChange={(e) => setCertificateForm({ ...certificateForm, activityRestriction: e.target.value })}
                                 />
                             </>
                         ) : null}
@@ -981,7 +981,7 @@ export function PatientDetailPrescriptionTabPanel(props: PatientDetailPrescripti
 
                         {certificateWizardStep === "name_template" ? (
                             <Input
-                                id="ak-att-template-name"
+                                id="ak-cert-template-name"
                                 label={t("common.template_label")}
                                 value={certificateNewTemplateTitle}
                                 onChange={(e) => setCertificateNewTemplateTitle(e.target.value)}

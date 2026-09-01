@@ -53,7 +53,7 @@ describe("NAV_SECTIONS (G17 sidebar regression)", () => {
         }
     });
 
-    it("Practice sidebar omits day_close (reachable via Administration → Finance & Berichte)", () => {
+    it("Practice sidebar omits day_close (reachable via Administration → Finance & reports)", () => {
         const practice = NAV_SECTIONS.find((s) => s.labelKey === "nav.section.practice");
         expect(practice).toBeDefined();
         expect(practice!.items).not.toContain("/administration/finance-reports/day-close");

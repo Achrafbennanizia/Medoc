@@ -36,6 +36,12 @@ describe("administration-toc controller", () => {
         expect(vm.links).toHaveLength(3);
     });
 
+    it("practicePlanning hub is registered under AdministrationTocHubId", () => {
+        const hub = getAdministrationTocHubDef("practicePlanning");
+        expect(hub.titleKey).toBe("page.practicePlanning.title");
+        expect(buildAdministrationTocHubViewModel("practicePlanning", t).links.length).toBeGreaterThan(0);
+    });
+
     it("filterAdministrationTocLinksByRbac hides gated rows without role", () => {
         const links = resolveAdministrationTocItems(getAdministrationTocHubDef("team").items, t);
         const visible = filterAdministrationTocLinksByRbac(links, undefined, undefined);

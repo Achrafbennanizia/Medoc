@@ -13,7 +13,7 @@ pub async fn find_physician_summaries(pool: &SqlitePool) -> Result<Vec<Physician
     Ok(rows)
 }
 
-/// Physician + Reception names for Practice-Aufgaben UI (no `staff.read` required).
+/// Physician + Reception names for practice tasks UI (no `staff.read` required).
 pub async fn find_user_ids_by_role(pool: &SqlitePool, role: &str) -> Result<Vec<String>, AppError> {
     let rows: Vec<(String,)> =
         sqlx::query_as("SELECT id FROM staff WHERE UPPER(role) = UPPER(?1) ORDER BY name")

@@ -33,7 +33,7 @@ async fn migrate_practice_ticket_to_task() {
     let patient_id = seed_patient(&pool).await;
     sqlx::query(
         "INSERT INTO practice_ticket (id, patient_id, from_user_id, to_physician_id, body, status)
-         VALUES ('t-mig-ticket', ?1, 'seed-rez-001', 'seed-physician-001', 'Bitte Röntgen prüfen', 'OPEN')",
+         VALUES ('t-mig-ticket', ?1, 'seed-rez-001', 'seed-physician-001', 'Please review X-ray', 'OPEN')",
     )
     .bind(&patient_id)
     .execute(&pool)
@@ -161,8 +161,8 @@ async fn done_reception_notifies_creating_physician_fa_aufg_04() {
         &CreatePracticeTask {
             patient_id: Some(patient_id.clone()),
             kind: "OTHER".into(),
-            title: "Röntgenbild drucken".into(),
-            body: Some("Bitte ausdrucken".into()),
+            title: "Print X-ray".into(),
+            body: Some("Please print".into()),
             assignee_role: Some("RECEPTION".into()),
             assignee_user_id: None,
             treatment_id: None,
@@ -183,7 +183,7 @@ async fn done_reception_notifies_creating_physician_fa_aufg_04() {
         &pool,
         &a.id,
         "DONE_RECEPTION",
-        Some("Ausdruck liegt bereit"),
+        Some("Printout is ready"),
         None,
         None,
     )
@@ -196,7 +196,7 @@ async fn done_reception_notifies_creating_physician_fa_aufg_04() {
         &done,
         "DONE_RECEPTION",
         "seed-rez-001",
-        Some("Ausdruck liegt bereit"),
+        Some("Printout is ready"),
     )
     .await
     .expect("notify");
@@ -212,7 +212,7 @@ async fn done_reception_notifies_creating_physician_fa_aufg_04() {
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].kind, "PRACTICE_TASK_DONE");
     assert!(rows[0].title.contains("Task Pat"));
-    assert_eq!(rows[0].body, "Ausdruck liegt bereit");
+    assert_eq!(rows[0].body, "Printout is ready");
 }
 
 #[tokio::test]
@@ -379,8 +379,8 @@ async fn physician_back_notifies_reception_and_stays_visible_until_validated() {
         &CreatePracticeTask {
             patient_id: Some(patient_id.clone()),
             kind: "OTHER".into(),
-            title: "Zurück-Test".into(),
-            body: Some("Bitte prüfen".into()),
+            title: "Return test".into(),
+            body: Some("Please review".into()),
             assignee_role: Some("RECEPTION".into()),
             assignee_user_id: None,
             treatment_id: None,
@@ -422,7 +422,7 @@ async fn physician_back_notifies_reception_and_stays_visible_until_validated() {
         "BACK",
         None,
         None,
-        Some("Bitte korrigieren"),
+        Some("Please correct"),
     )
     .await
     .expect("back");
@@ -433,7 +433,7 @@ async fn physician_back_notifies_reception_and_stays_visible_until_validated() {
         &back,
         "BACK",
         "seed-physician-001",
-        Some("Bitte korrigieren"),
+        Some("Please correct"),
     )
     .await
     .expect("notify rez");

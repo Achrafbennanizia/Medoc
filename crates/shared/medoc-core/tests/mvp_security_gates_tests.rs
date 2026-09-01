@@ -57,7 +57,7 @@ fn quota_error_messages_match_limits() {
         max_total: 10,
     };
     let msgs = mvp_security::quota_error_messages(limits);
-    assert_eq!(msgs.max_total, "Maximal 10 Benutzer erlaubt");
+    assert_eq!(msgs.max_total, "Maximum 10 users allowed");
     assert!(msgs.max_physician.contains('2'));
     assert!(msgs.max_reception.contains('8'));
 }
@@ -66,8 +66,8 @@ fn quota_error_messages_match_limits() {
 fn sql_raise_message_literal_always_escapes_apostrophes() {
     assert_eq!(mvp_security::sql_raise_message_literal("plain"), "'plain'");
     assert_eq!(
-        mvp_security::sql_raise_message_literal("Physician's Konto"),
-        "'Physician''s Konto'"
+        mvp_security::sql_raise_message_literal("Physician's account"),
+        "'Physician''s account'"
     );
 }
 
@@ -79,12 +79,12 @@ fn staff_quota_trigger_ddl_apostrophe_in_raise_message() {
         max_total: 5,
     };
     let msgs = QuotaErrorMessages {
-        max_total: "Maximal 5 Benutzer erlaubt".into(),
-        max_physician: "Physician's Konto ist belegt".into(),
-        max_reception: "Maximal 4 Rezeptions-Konten erlaubt".into(),
+        max_total: "Maximum 5 users allowed".into(),
+        max_physician: "Physician's account is taken".into(),
+        max_reception: "Maximum 4 reception accounts allowed".into(),
     };
     let (insert, update) = mvp_security::staff_quota_trigger_ddl_with_messages(limits, msgs);
-    let escaped = "RAISE(ABORT, 'Physician''s Konto ist belegt')";
+    let escaped = "RAISE(ABORT, 'Physician''s account is taken')";
     assert!(
         insert.contains(escaped),
         "insert DDL must contain escaped apostrophe: {insert}"
@@ -94,7 +94,7 @@ fn staff_quota_trigger_ddl_apostrophe_in_raise_message() {
         "update DDL must contain escaped apostrophe: {update}"
     );
     assert!(
-        !insert.contains("RAISE(ABORT, 'Physician's Konto"),
+        !insert.contains("RAISE(ABORT, 'Physician's account"),
         "unescaped apostrophe would break SQL: {insert}"
     );
 }
@@ -125,14 +125,14 @@ fn app_layer_and_trigger_ddl_quota_messages_match() {
 fn require_break_glass_enabled_rejects_when_off() {
     assert!(!mvp_security::BREAK_GLASS_ENABLED);
     let err = mvp_security::require_break_glass_enabled().expect_err("break-glass off");
-    assert!(matches!(err, AppError::Validation(msg) if msg.contains("Notfallzugriff")));
+    assert!(matches!(err, AppError::Validation(msg) if msg.contains("Break-glass")));
 }
 
 #[test]
 fn require_totp_enabled_rejects_when_off() {
     assert!(!mvp_security::TOTP_2FA_ENABLED);
     let err = mvp_security::require_totp_enabled().expect_err("totp off");
-    assert!(matches!(err, AppError::Validation(msg) if msg.contains("Zwei-Faktor")));
+    assert!(matches!(err, AppError::Validation(msg) if msg.contains("Two-factor")));
 }
 
 #[tokio::test]

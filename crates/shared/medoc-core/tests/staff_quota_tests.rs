@@ -182,7 +182,7 @@ async fn update_with_quota_rejects_physician_to_reception_when_reception_full() 
     let err = staff_repo::update_with_quota(&pool, "a1", &data, "RECEPTION")
         .await
         .expect_err("reception full");
-    assert!(matches!(err, AppError::Validation(msg) if msg.contains("Rezeptions")));
+    assert!(matches!(err, AppError::Validation(msg) if msg.contains("reception")));
 }
 
 #[tokio::test]
@@ -322,7 +322,7 @@ async fn db_trigger_blocks_direct_insert_past_cap() {
     .await
     .expect_err("sixth insert must be blocked by trigger");
     assert!(
-        err.to_string().contains("Maximal 5"),
+        err.to_string().contains("Maximum 5"),
         "trigger message: {}",
         err
     );

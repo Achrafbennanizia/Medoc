@@ -9,9 +9,9 @@ export type PracticeHeaderPrivacyKey =
     | "email"
     | "web"
     | "kv"
-    | "ust"
-    | "steuer"
-    | "oz"
+    | "vat"
+    | "tax"
+    | "hours"
     | "clinician"
     | "zanr"
     | "bsnr"
@@ -25,9 +25,9 @@ export const DEFAULT_PRACTICE_HEADER_PRIVACY: PracticeHeaderPrivacyV1 = {
     email: true,
     web: true,
     kv: true,
-    ust: true,
-    steuer: true,
-    oz: true,
+    vat: true,
+    tax: true,
+    hours: true,
     clinician: true,
     zanr: true,
     bsnr: true,
@@ -42,6 +42,15 @@ export function maskPracticeExportToken(raw: string): string {
     return "·".repeat(n);
 }
 
+export function parsePracticeHeaderPrivacyJson(j: Record<string, unknown>): PracticeHeaderPrivacyV1 {
+    const out: PracticeHeaderPrivacyV1 = { ...DEFAULT_PRACTICE_HEADER_PRIVACY };
+    (Object.keys(DEFAULT_PRACTICE_HEADER_PRIVACY) as PracticeHeaderPrivacyKey[]).forEach((key) => {
+        const english = j[key];
+        if (typeof english === "boolean") out[key] = english;
+    });
+    return out;
+}
+
 export function loadPracticeHeaderPrivacy(): PracticeHeaderPrivacyV1 {
     if (typeof globalThis.window === "undefined" || globalThis.localStorage == null) {
         return { ...DEFAULT_PRACTICE_HEADER_PRIVACY };
@@ -49,8 +58,7 @@ export function loadPracticeHeaderPrivacy(): PracticeHeaderPrivacyV1 {
     try {
         const raw = globalThis.localStorage.getItem(LS_KEY);
         if (!raw?.trim()) return { ...DEFAULT_PRACTICE_HEADER_PRIVACY };
-        const j = JSON.parse(raw) as Partial<PracticeHeaderPrivacyV1>;
-        return { ...DEFAULT_PRACTICE_HEADER_PRIVACY, ...j };
+        return parsePracticeHeaderPrivacyJson(JSON.parse(raw) as Record<string, unknown>);
     } catch {
         return { ...DEFAULT_PRACTICE_HEADER_PRIVACY };
     }

@@ -364,3 +364,129 @@ async fn english_upgrade_renames_legacy_german_and_camelcase_tables() {
 
     run_migrations(&pool).await.expect("upgrade is idempotent");
 }
+
+#[tokio::test]
+async fn english_upgrade_remaps_app_kv_and_template_json() {
+    let pool = test_memory_pool().await.expect("encrypted memory pool");
+    run_migrations(&pool).await.expect("baseline schema");
+
+    sqlx::query(
+        "INSERT INTO app_kv (key, value) VALUES
+         ('praxis.preferences.v1', '{\"pufferMin\":\"7\",\"notfallPuffer\":\"9\"}'),
+         ('invoice.practice.v1', '{\"name\":\"Clinic\",\"kv_nummer\":\"KV-9\",\"kammer\":\"Berlin\",\"ust_id\":\"DE99\"}')",
+    )
+    .execute(&pool)
+    .await
+    .expect("insert leftover app_kv");
+
+    sqlx::query(
+        "INSERT INTO document_template (id, kind, title, payload)
+         VALUES (
+           'tpl-legacy-1',
+           'CERTIFICATE',
+           'Legacy certificate',
+           '{\"version\":1,\"krankheiten\":\"Cold\",\"tage_anzahl\":2,\"einschraenkung\":\"Rest\"}'
+         )",
+    )
+    .execute(&pool)
+    .await
+    .expect("insert leftover builtin template");
+
+    sqlx::query(
+        "INSERT INTO document_template_user (id, kind, name, payload, is_default, created_at, updated_at)
+         VALUES (
+           'tpl-user-legacy-1',
+           'invoice',
+           'Legacy invoice',
+           '{\"version\":1,\"kopf\":{\"showLogo\":false,\"fieldsToShow\":[\"ust_hinweis\",\"kammer\"],\"alignment\":\"left\"},\"empfaenger\":{\"visible\":true,\"alignment\":\"left\"},\"dichte\":\"kompakt\",\"fusszeile\":\"x\"}',
+           0,
+           datetime('now'),
+           datetime('now')
+         )",
+    )
+    .execute(&pool)
+    .await
+    .expect("insert leftover user template");
+
+    sqlx::query(
+        "INSERT INTO appointment (id, date, time, kind, status, notes, chief_complaint, patient_id, physician_id)
+         VALUES ('appt-legacy-1', '2026-08-20', '10:00', 'CHECKUP', 'PLANNED',
+                 'Dauer: 30 min', 'Zahnschmerzen (Zahn 16)', 'seed-pat-001', 'seed-physician-001')",
+    )
+    .execute(&pool)
+    .await
+    .expect("insert leftover appointment text");
+
+    run_migrations(&pool).await.expect("json english upgrade");
+
+    let pref_key: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM app_kv WHERE key = 'practice.preferences.v1'",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("pref key renamed");
+    assert_eq!(pref_key, 1);
+
+    let legacy_pref: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM app_kv WHERE key = 'praxis.preferences.v1'")
+            .fetch_one(&pool)
+            .await
+            .expect("legacy pref gone");
+    assert_eq!(legacy_pref, 0);
+
+    let prefs: String =
+        sqlx::query_scalar("SELECT value FROM app_kv WHERE key = 'practice.preferences.v1'")
+            .fetch_one(&pool)
+            .await
+            .expect("prefs value");
+    assert!(prefs.contains("\"bufferMin\":\"7\""));
+    assert!(prefs.contains("\"emergencyBuffer\":\"9\""));
+    assert!(!prefs.contains("pufferMin"));
+
+    let practice: String =
+        sqlx::query_scalar("SELECT value FROM app_kv WHERE key = 'invoice.practice.v1'")
+            .fetch_one(&pool)
+            .await
+            .expect("invoice practice");
+    assert!(practice.contains("\"kv_number\":\"KV-9\""));
+    assert!(practice.contains("\"chamber\":\"Berlin\""));
+    assert!(practice.contains("\"vat_id\":\"DE99\""));
+    assert!(!practice.contains("kv_nummer"));
+
+    let cert_payload: String =
+        sqlx::query_scalar("SELECT payload FROM document_template WHERE id = 'tpl-legacy-1'")
+            .fetch_one(&pool)
+            .await
+            .expect("certificate payload");
+    assert!(cert_payload.contains("\"illnesses\":\"Cold\""));
+    assert!(cert_payload.contains("\"day_count\":2"));
+    assert!(cert_payload.contains("\"activity_restriction\":\"Rest\""));
+    assert!(!cert_payload.contains("krankheiten"));
+
+    let user_payload: String = sqlx::query_scalar(
+        "SELECT payload FROM document_template_user WHERE id = 'tpl-user-legacy-1'",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("user template payload");
+    assert!(user_payload.contains("\"header\""));
+    assert!(user_payload.contains("\"vat_notice\""));
+    assert!(user_payload.contains("\"compact\""));
+    assert!(!user_payload.contains("\"kopf\""));
+
+    let notes: String =
+        sqlx::query_scalar("SELECT notes FROM appointment WHERE id = 'appt-legacy-1'")
+            .fetch_one(&pool)
+            .await
+            .expect("notes");
+    assert_eq!(notes, "Duration: 30 min");
+
+    let complaint: String =
+        sqlx::query_scalar("SELECT chief_complaint FROM appointment WHERE id = 'appt-legacy-1'")
+            .fetch_one(&pool)
+            .await
+            .expect("chief_complaint");
+    assert_eq!(complaint, "Toothache (tooth 16)");
+
+    run_migrations(&pool).await.expect("json upgrade idempotent");
+}

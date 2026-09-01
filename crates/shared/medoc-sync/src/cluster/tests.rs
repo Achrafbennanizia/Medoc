@@ -1,4 +1,4 @@
-//! Practice network (Geräteverbund) domain + seat invariant tests.
+//! Practice network (device cluster) domain + seat invariant tests.
 
 use chrono::Utc;
 use medoc_core::infrastructure::database::connection::{run_migrations, test_memory_pool};

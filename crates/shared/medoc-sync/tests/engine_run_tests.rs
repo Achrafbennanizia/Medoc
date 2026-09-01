@@ -127,7 +127,7 @@ async fn set_deployment_empty_label_uses_default_display_name() {
     .await
     .expect("set");
     let snap = SyncEngine::status(&pool).await.expect("status");
-    assert!(snap.peers.iter().any(|p| p.display_name == "Dieses Gerät"));
+    assert!(snap.peers.iter().any(|p| p.display_name == "This device"));
 }
 
 #[tokio::test]

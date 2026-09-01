@@ -6,7 +6,9 @@ import {
     onboardingUseExistingAccount,
     registerOnboardingMemberAccount,
 } from "@/systems/practice-host/controllers/cluster.controller";
+import { passwordPolicyError } from "@/lib/password-policy";
 import { OnboardingShell } from "@/views/components/onboarding-shell";
+import { PasswordPolicyHints } from "@/views/components/password-policy-hints";
 import { Button } from "@/views/components/ui/button";
 import { errorMessage } from "@/lib/utils";
 import { useToastStore } from "@/views/components/ui/toast-store";
@@ -40,8 +42,9 @@ export function AccountSetupOnboardingPage() {
     };
 
     const createAccount = async () => {
-        if (password.length < 8) {
-            toast(t("onboarding.account.password_required"), "error");
+        const policyErr = passwordPolicyError(t, password);
+        if (policyErr) {
+            toast(policyErr, "error");
             return;
         }
         if (password !== passwordConfirm) {
@@ -151,6 +154,7 @@ export function AccountSetupOnboardingPage() {
                             required
                         />
                     </label>
+                    <PasswordPolicyHints password={password} idPrefix="onb-acct-pw" />
                     <label className="onboarding-field">
                         {t("onboarding.account.role_label")}
                         <select

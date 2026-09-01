@@ -710,7 +710,7 @@ export function StatisticsPage() {
         if (!stats) return null;
         const income = trim(stats.income_per_month, period);
         const income6 = income.slice(-6);
-        const new = trim(stats.new_patients_per_month, period);
+        const newPatients = trim(stats.new_patients_per_month, period);
         const appts = trim(stats.appointments_per_month, period);
         const st = appointmentStatusMap(stats.appointment_status);
         const cancelled = st["Cancelled"] ?? 0;
@@ -722,9 +722,9 @@ export function StatisticsPage() {
         const eCur = nIncome > 0 ? income6[nIncome - 1]!.value : 0;
         const ePrev = nIncome > 1 ? income6[nIncome - 2]!.value : 0;
         const incomeMom = momPercent(eCur, ePrev);
-        const nNew = new.length;
-        const newCur = nNew > 0 ? new[nNew - 1]!.value : 0;
-        const newPrev = nNew > 1 ? new[nNew - 2]!.value : 0;
+        const nNew = newPatients.length;
+        const newCur = nNew > 0 ? newPatients[nNew - 1]!.value : 0;
+        const newPrev = nNew > 1 ? newPatients[nNew - 2]!.value : 0;
         const newDelta = newCur - newPrev;
         const kum = trim(stats.patients_cumulative_per_month, period);
         const nk = kum.length;

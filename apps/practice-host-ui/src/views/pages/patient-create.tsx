@@ -31,12 +31,12 @@ type FormState = {
     mental: string;
     medications: string;
     dosing: string;
-    selbstmedikation: string;
-    vergessen: string;
+    selfMedication: string;
+    missedDoses: string;
     sideEffects: string;
     allergiesMed: string;
     allergiesFoods: string;
-    allergiesSonst: string;
+    allergiesOther: string;
     material: string;
     vaccineReactions: string;
 };
@@ -59,12 +59,12 @@ const initialForm: FormState = {
     mental: "",
     medications: "",
     dosing: "",
-    selbstmedikation: "",
-    vergessen: "",
+    selfMedication: "",
+    missedDoses: "",
     sideEffects: "",
     allergiesMed: "",
     allergiesFoods: "",
-    allergiesSonst: "",
+    allergiesOther: "",
     material: "",
     vaccineReactions: "",
 };
@@ -172,14 +172,14 @@ export function PatientCreatePage() {
                     medication: {
                         regular: form.medications.trim(),
                         dosing: form.dosing.trim(),
-                        selbst: form.selbstmedikation.trim(),
-                        vergessen: form.vergessen.trim(),
+                        self: form.selfMedication.trim(),
+                        missed: form.missedDoses.trim(),
                         sideEffects: form.sideEffects.trim(),
                     },
                     allergies: {
                         medications: form.allergiesMed.trim(),
                         foods: form.allergiesFoods.trim(),
-                        other: form.allergiesSonst.trim(),
+                        other: form.allergiesOther.trim(),
                         material: form.material.trim(),
                         vaccineReactions: form.vaccineReactions.trim(),
                     },
@@ -347,7 +347,7 @@ export function PatientCreatePage() {
                         <Textarea id="diag" label={t("page.patient_create.field.prior_diagnoses")} value={form.previousDiagnoses} onChange={(e) => set("previousDiagnoses", e.target.value)} rows={2} />
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <Textarea id="op" label={t("page.patient_create.field.operations")} value={form.surgeries} onChange={(e) => set("surgeries", e.target.value)} rows={2} />
-                            <Textarea id="kh" label={t("page.patient_create.field.hospital")} value={form.hospital} onChange={(e) => set("hospital", e.target.value)} rows={2} />
+                            <Textarea id="hospital" label={t("page.patient_create.field.hospital")} value={form.hospital} onChange={(e) => set("hospital", e.target.value)} rows={2} />
                         </div>
                         <Textarea id="psy" label={t("page.patient_create.field.psychiatric")} value={form.mental} onChange={(e) => set("mental", e.target.value)} rows={2} />
                     </FormSection>
@@ -359,12 +359,12 @@ export function PatientCreatePage() {
                         <div style={{ marginTop: 12 }}>
                             <FormSection title={t("page.patient_create.section.medication")}>
                                 <Textarea id="med" label={t("page.patient_create.field.regular_meds")} value={form.medications} onChange={(e) => set("medications", e.target.value)} rows={2} />
-                                <Textarea id="ein" label={t("page.patient_create.field.intake_notes")} value={form.dosing} onChange={(e) => set("dosing", e.target.value)} rows={2} />
+                                <Textarea id="intake-notes" label={t("page.patient_create.field.intake_notes")} value={form.dosing} onChange={(e) => set("dosing", e.target.value)} rows={2} />
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <Textarea id="selbst" label={t("page.patient_create.field.self_medication")} value={form.selbstmedikation} onChange={(e) => set("selbstmedikation", e.target.value)} rows={2} />
-                                    <Textarea id="verg" label={t("page.patient_create.field.forgotten_meds")} value={form.vergessen} onChange={(e) => set("vergessen", e.target.value)} rows={2} />
+                                    <Textarea id="self-medication" label={t("page.patient_create.field.self_medication")} value={form.selfMedication} onChange={(e) => set("selfMedication", e.target.value)} rows={2} />
+                                    <Textarea id="missed-doses" label={t("page.patient_create.field.forgotten_meds")} value={form.missedDoses} onChange={(e) => set("missedDoses", e.target.value)} rows={2} />
                                 </div>
-                                <Textarea id="neb" label={t("page.patient_create.field.side_effects")} value={form.sideEffects} onChange={(e) => set("sideEffects", e.target.value)} rows={2} />
+                                <Textarea id="side-effects" label={t("page.patient_create.field.side_effects")} value={form.sideEffects} onChange={(e) => set("sideEffects", e.target.value)} rows={2} />
                             </FormSection>
 
                             <FormSection title={t("page.patient_create.allergies_section")}>
@@ -372,10 +372,10 @@ export function PatientCreatePage() {
                                     <Textarea id="allm" label={t("page.patient_create.field.drug_allergies")} value={form.allergiesMed} onChange={(e) => set("allergiesMed", e.target.value)} rows={2} />
                                     <Textarea id="alll" label={t("page.patient_create.field.food_intolerances")} value={form.allergiesFoods} onChange={(e) => set("allergiesFoods", e.target.value)} rows={2} />
                                 </div>
-                                <Textarea id="alls" label={t("page.patient_create.field.other_reactions")} value={form.allergiesSonst} onChange={(e) => set("allergiesSonst", e.target.value)} rows={2} />
+                                <Textarea id="other-reactions" label={t("page.patient_create.field.other_reactions")} value={form.allergiesOther} onChange={(e) => set("allergiesOther", e.target.value)} rows={2} />
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <Textarea id="mat" label={t("page.patient_create.field.material_intolerance")} value={form.material} onChange={(e) => set("material", e.target.value)} rows={2} />
-                                    <Textarea id="impf" label={t("page.patient_create.field.vaccine_reactions")} value={form.vaccineReactions} onChange={(e) => set("vaccineReactions", e.target.value)} rows={2} />
+                                    <Textarea id="vaccine-reactions" label={t("page.patient_create.field.vaccine_reactions")} value={form.vaccineReactions} onChange={(e) => set("vaccineReactions", e.target.value)} rows={2} />
                                 </div>
                             </FormSection>
                         </div>

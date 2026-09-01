@@ -347,11 +347,11 @@ export interface Absence {
 /** Admin template for prescriptions or certificates (`document_template`). */
 export type DocumentTemplateKind = "PRESCRIPTION" | "CERTIFICATE";
 
-/** Dual-read leftover German wires `REZEPT` / `ATTEST`. */
+/** Normalize document template kind (English only). */
 export function normalizeDocumentTemplateKind(raw: string | null | undefined): DocumentTemplateKind | null {
     const k = (raw ?? "").trim().toUpperCase();
-    if (k === "PRESCRIPTION" || k === "REZEPT") return "PRESCRIPTION";
-    if (k === "CERTIFICATE" || k === "ATTEST") return "CERTIFICATE";
+    if (k === "PRESCRIPTION") return "PRESCRIPTION";
+    if (k === "CERTIFICATE") return "CERTIFICATE";
     return null;
 }
 

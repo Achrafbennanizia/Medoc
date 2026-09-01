@@ -37,7 +37,7 @@ const REZ_SESSION: Session = {
 };
 
 describe("PracticeTickets smoke (G21)", () => {
-    it("shows unified Aufgaben inbox (single list)", async () => {
+    it("shows unified practice tasks inbox (single list)", async () => {
         useAuthStore.setState({ session: REZ_SESSION, sessionChecked: true });
         vi.mocked(listPracticeTasksForMe).mockResolvedValue([
             {
@@ -45,7 +45,7 @@ describe("PracticeTickets smoke (G21)", () => {
                 patient_id: "p1",
                 kind: "OTHER",
                 title: "Test Task",
-                body: "Bitte erledigen",
+                body: "Please complete",
                 assignee_role: "RECEPTION",
                 assignee_user_id: null,
                 created_by: "u-physician",
@@ -64,7 +64,7 @@ describe("PracticeTickets smoke (G21)", () => {
         ]);
         vi.mocked(countOpenPracticeTasksForMe).mockResolvedValue(1);
         vi.mocked(listPatients).mockResolvedValue([
-            { id: "p1", name: "Max Mustermann", date_of_birth: "1990-01-01", sex: "MALE" },
+            { id: "p1", name: "Max Sample", date_of_birth: "1990-01-01", sex: "MALE" },
         ] as never);
         vi.mocked(listTaskTeamDirectory).mockResolvedValue([
             { id: "u-physician", name: "Dr. Test", role: "PHYSICIAN" },

@@ -135,7 +135,7 @@ export function templateItemsToLines(items: TemplatePrescriptionItem[]): Prescri
 }
 
 /**
- * Safely extract `payload.items` from a `DocumentTemplate` of kind REZEPT.
+ * Safely extract `payload.items` from a `DocumentTemplate` of kind PRESCRIPTION.
  * The payload is stored as JSON string in the backend.
  */
 export function parsePrescriptionTemplatePayload(payload: string): TemplatePrescriptionItem[] {

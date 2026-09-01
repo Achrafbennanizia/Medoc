@@ -105,12 +105,8 @@ export const DEFAULT_PRACTICE_PREFERENCES: PracticePreferences = {
     calendarDragDropEnabled: true,
 };
 
-/** Stored JSON may still use leftover German field names. */
-type PracticePreferencesWire = Partial<PracticePreferences> & {
-    pufferMin?: string;
-    notfallPuffer?: string;
-    kalenderDragDropEnabled?: boolean;
-};
+/** Stored appointment preference JSON (English keys only). */
+type PracticePreferencesWire = Partial<PracticePreferences>;
 
 function asWire(p: unknown): PracticePreferencesWire {
     return p != null && typeof p === "object" ? (p as PracticePreferencesWire) : {};
@@ -123,21 +119,15 @@ function clampNonNegativeIntString(raw: string | undefined, fallback: string): s
     return String(n);
 }
 
-function firstDefined(...vals: unknown[]): unknown {
-    return vals.find((v) => v != null);
-}
-
 function normalizePartial(p: unknown): PracticePreferences {
     const w = asWire(p);
     return {
         bufferMin: clampNonNegativeIntString(
-            firstDefined(w.bufferMin, w.pufferMin) != null ? String(firstDefined(w.bufferMin, w.pufferMin)) : undefined,
+            w.bufferMin != null ? String(w.bufferMin) : undefined,
             DEFAULT_PRACTICE_PREFERENCES.bufferMin,
         ),
         emergencyBuffer: clampNonNegativeIntString(
-            firstDefined(w.emergencyBuffer, w.notfallPuffer) != null
-                ? String(firstDefined(w.emergencyBuffer, w.notfallPuffer))
-                : undefined,
+            w.emergencyBuffer != null ? String(w.emergencyBuffer) : undefined,
             DEFAULT_PRACTICE_PREFERENCES.emergencyBuffer,
         ),
         reminder: w.reminder != null && String(w.reminder).trim() !== ""
@@ -147,7 +137,7 @@ function normalizePartial(p: unknown): PracticePreferences {
             ? String(w.noShow)
             : DEFAULT_PRACTICE_PREFERENCES.noShow,
         monthCalendarPatientLoad: normalizeMonthCalendarPatientLoad(w.monthCalendarPatientLoad),
-        calendarDragDropEnabled: firstDefined(w.calendarDragDropEnabled, w.kalenderDragDropEnabled) !== false,
+        calendarDragDropEnabled: w.calendarDragDropEnabled !== false,
     };
 }
 
@@ -178,9 +168,7 @@ export async function loadPracticePreferencesFromKv(): Promise<PracticePreferenc
         if (
             tp &&
             (tp.bufferMin != null ||
-                tp.pufferMin != null ||
                 tp.emergencyBuffer != null ||
-                tp.notfallPuffer != null ||
                 tp.reminder != null ||
                 tp.noShow != null)
         ) {

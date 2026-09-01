@@ -220,8 +220,8 @@ pub async fn list_document_templates(pool: &SqlitePool) -> Result<Vec<DocumentTe
 
 fn normalize_document_template_kind(kind: &str) -> Option<&'static str> {
     match kind.trim().to_ascii_uppercase().as_str() {
-        "PRESCRIPTION" | "REZEPT" => Some("PRESCRIPTION"),
-        "CERTIFICATE" | "ATTEST" => Some("CERTIFICATE"),
+        "PRESCRIPTION" => Some("PRESCRIPTION"),
+        "CERTIFICATE" => Some("CERTIFICATE"),
         _ => None,
     }
 }

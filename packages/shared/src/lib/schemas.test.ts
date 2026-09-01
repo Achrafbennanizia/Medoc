@@ -10,12 +10,12 @@ import {
 describe("CreatePatientSchema", () => {
     it("accepts a minimal valid payload", () => {
         const out = CreatePatientSchema.parse({
-            name: "Max Mustermann",
+            name: "Max Sample",
             date_of_birth: "1970-01-01",
             sex: "MALE",
             insurance_number: "A123456789",
         });
-        expect(out.name).toBe("Max Mustermann");
+        expect(out.name).toBe("Max Sample");
         expect(out.email).toBeNull();
     });
 

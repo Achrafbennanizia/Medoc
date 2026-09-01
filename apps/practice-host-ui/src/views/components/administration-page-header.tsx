@@ -14,7 +14,7 @@ type WorkspacePageHeaderProps = {
     /** Small label above the title (e.g. patient name on form pages). */
     eyebrow?: ReactNode;
     actions?: ReactNode;
-    /** Some legacy pages use h1; default matches Personalverwaltung (h2). */
+    /** Some legacy pages use h1; default matches staff administration (h2). */
     titleLevel?: "h1" | "h2";
     back?: WorkspacePageBack;
     className?: string;

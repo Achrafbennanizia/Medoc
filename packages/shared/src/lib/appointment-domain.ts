@@ -10,9 +10,9 @@ export function appointmentIsEmergencyMarked(t: AppointmentKindNotes): boolean {
     return t.kind === "TREATMENT" && Boolean(t.notes?.includes(APPOINTMENT_EMERGENCY_NOTE_MARKER));
 }
 
-const APPOINTMENT_DURATION_RE = /(?:Duration|Dauer):\s*(\d+)\s*min/i;
+const APPOINTMENT_DURATION_RE = /Duration:\s*(\d+)\s*min/i;
 
-/** Reads duration from `appointment.notes` (`Duration: N min`; leftover `Dauer:`). */
+/** Reads duration from `appointment.notes` (`Duration: N min`). */
 export function parseAppointmentDurationMin(notes: string | null | undefined, fallback = 30): number {
     const m = APPOINTMENT_DURATION_RE.exec(notes ?? "");
     const n = m ? Number(m[1]) : Number.NaN;

@@ -33,7 +33,7 @@ pub fn issue_token(
         exp,
     };
     let mut header = Header::new(Algorithm::HS256);
-    header.kind = Some("JWT".into());
+    header.typ = Some("JWT".into());
     encode(&header, &claims, &EncodingKey::from_secret(secret))
         .map_err(|e| AppError::Internal(format!("JWT encode: {e}")))
 }

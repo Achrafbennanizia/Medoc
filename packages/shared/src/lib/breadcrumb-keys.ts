@@ -14,7 +14,7 @@ export function breadcrumbKeysForPath(pathname: string): string[] {
     if (pathname === "/inbox") return [APP, "nav.inbox"];
     if (pathname === "/tickets") return [APP, "nav.practice_tickets"];
     if (pathname === "/tickets/new") return [APP, "nav.practice_tickets", "breadcrumb.new_task"];
-    if (/^\/tickets\/[^/]+\/bearbeiten$/.test(pathname)) return [APP, "nav.practice_tickets", "breadcrumb.edit"];
+    if (/^\/tickets\/[^/]+\/(edit|bearbeiten)$/.test(pathname)) return [APP, "nav.practice_tickets", "breadcrumb.edit"];
     if (pathname === "/administration") return [APP, "nav.administration"];
     if (pathname === "/administration/work-days") return [APP, "nav.administration", "breadcrumb.work_days"];
     if (pathname === "/administration/practice-planning") return [APP, "nav.administration", "palette.cmd.administration-practicePlanning"];

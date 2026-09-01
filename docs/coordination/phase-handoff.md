@@ -1,5 +1,179 @@
 # Phase handoff
 
+**Last phase label:** Swing CSS simulation from Tauri index.css (2026-08-20)
+
+### Verified (2026-08-20 — Tauri CSS → Swing)
+
+- Ported `:root` tokens (`--bg #F3F4F6`, `--accent #0EA07E`, `--fg*`, pill/status colors, radii 16/10/8/pill).
+- Motion: `fadeUp` 6px + `--ease-out` approx, `--motion-ui` 200ms / `--motion-page` 400ms / wire 280ms.
+- Shell: `.sb-item` / `.sb-group-label` / `.app-sidebar-user-card` radius 14; frosted topbar; `.app` radial washes via `AppCanvas`.
+- Dashboard: `.kpi` layout, `.pill.*` colors, insights gradient `#0e455c→#0d7d66`, wire-approve buttons, Inter/SF font prefer.
+- `./gradlew test --rerun-tasks` **PASS** — **104** tests.
+
+### Remains unverified
+
+- Live `./run` visual parity vs Tauri — **NOT OBSERVED**
+
+### Required next
+
+1. `./run` side-by-side with Tauri Overview.
+2. Optional: SVG/nav icons instead of emoji glyphs.
+
+---
+
+### Verified (2026-08-20 — Overview CSS + motion)
+
+- Tokens aligned to React light theme (`--accent #0EA07E`, radius 16/10/pill, soft/md shadows).
+- Primitives: `RoundedPanel`, `SoftButton`, `UiMotion` (fade+slide enter, online pulse, stagger rows).
+- Shell + dashboard use elevated cards, pill nav/active states, timeline severity bars, hover lift on KPIs.
+- `./gradlew test --rerun-tasks` **PASS** — **104** tests.
+
+### Remains unverified
+
+- GUI pixel/motion feel vs React screenshot — **NOT OBSERVED** (run `./run`)
+
+### Required next
+
+1. `./run` and judge motion/spacing against the React Overview screenshot.
+2. Optional: replace emoji glyphs with vector icons; wire ⌘K search.
+
+---
+
+### Verified (2026-08-20 — Overview dashboard UI)
+
+- Swing shell: `TopBar` (crumbs / search / Online / actions) + restyled `Sidebar` (brand, practice name, active nav, user card).
+- `DashboardPage` rebuilt to React overview layout: greeting, 4 KPI cards, pending approvals, review orders, next-24h, today timeline, MEDOC Insights.
+- `DashboardController` loads revenue (PAID MTD), stock alerts (`stock=`/`min=` on PRODUCT extra), approvals, upcoming, overdue-first orders; approve master + confirm order wired.
+- Demo seed: `Dental practice North`, overdue Henry Schein order, low-stock products.
+- `./gradlew test --rerun-tasks` **PASS** — **104** tests.
+
+### Remains unverified
+
+- GUI walk after `./run` — **NOT OBSERVED** (pixel match vs screenshot)
+
+### Required next
+
+1. `./run` and visually compare Overview to the React screenshot.
+2. Optional: wire TopBar search to patient/appointment jump; plan-next approval rows if product wants full Tauri parity.
+
+---
+
+### Verified (2026-08-20 — LAN e-Rx + license)
+
+- **Rust LAN:** `POST /api/v1/eprescriptions/validate|submit`, `GET|DELETE /api/v1/license`, `POST /api/v1/license/activate` in `medoc-lan` (`eprescription.rs`, `license.rs`); router wired in `http/mod.rs`.
+- **Swing:** `LanDialect` paths + request/response helpers; `HttpPracticeAdapter` POST/DELETE; Settings license/pairing + Prescriptions validate/submit enabled on LAN (`eRxSupported`); Rx create/list still demo-only.
+- **Java:** `./gradlew test --rerun-tasks` **PASS** — **103** tests (new `eRxLicenseAndPairingHaveLanPaths`).
+- **Rust:** `MEDOC_VENDOR_PUBKEY=… cargo check -p medoc-lan` **PASS**.
+
+### Remains unverified
+
+- Live HTTPS smoke against running `medoc-lan-server` — **NOT RUN**
+- e-Rx **submit** still TI stub (same as Tauri) — expect error until connector exists
+- Prescription CRUD on LAN — still unavailable
+
+### Understanding delta
+
+- True multi-host depth for license status/activate/clear and e-Rx validate now goes through LAN REST (parity with Tauri core), not Mock-only.
+- Pairing list/decide was already on LAN; Swing now maps it.
+
+### Required next
+
+1. Live smoke: LAN login → Settings license GET; Prescriptions validate; submit expect TI stub failure; pairing list/decide with ops JWT.
+2. Optional: Rx list/create LAN REST if product needs multi-host prescription rows.
+3. GUI walk after `./run` — **NOT OBSERVED**
+
+---
+
+**Prior phase label:** Swing full demo seed dataset (2026-08-20)
+
+### Verified (2026-08-20 — Swing full demo seed)
+
+- `MockPracticeAdapter.seedFullDemo()` fills patients (12), week appointments, charts (all kinds), tickets, invoices, cash, orders, work time, Rx, certificates, day closes, balance snapshots, catalogs, events, pairing, scanner, settings KV letterhead/prefs, staff overrides.
+- Tests updated for richer counts. `./gradlew test --rerun-tasks` **PASS** — **102** tests.
+
+### Remains unverified
+
+- GUI walk after `./run` — **NOT OBSERVED**
+
+### Required next
+
+1. Restart `./run` and walk every sidebar page; confirm tables look full.
+
+---
+
+**Last phase label:** Swing feature pack — drag / GOZ / e-Rx / license / staff / devices / composers (2026-08-20)
+
+### Verified (2026-08-20 — Swing feature pack)
+
+- **Drag calendar:** week-view DnD reschedule (`AppointmentsPage` + `TransferHandler`).
+- **GOZ:** `OfficialGozCatalog` ~145 common positions; SERVICE catalog reseeded; billing hint updated (illustrative — not licensed dump).
+- **E-prescription:** validate/submit UI + `PrescriptionController` + mock TI stub (PZN/KVNR/LANR rules).
+- **License / pairing:** Settings activate/clear + pairing accept/reject (`LicensePairingController`).
+- **Staff security:** password reset, quotas, RBAC overrides (`StaffSecurityController`).
+- **Migration devices:** GDT parse, DICOM sniff, scanner list/attach (`MigrationDeviceController`).
+- **Chart composers + disease patterns:** structured fields on chart tabs; statistics pattern table via `DiseasePatternStats`.
+- `cd /Users/achraf/pro/Medoc-swing && ./gradlew clean test --rerun-tasks` → **PASS** — **101** tests.
+
+### Remains unverified
+
+- GUI walk after `./run` — **NOT OBSERVED**
+- Live LAN HTTPS / real TI / OS scanner / cloud license — **NOT RUN** / out of scope for Swing demo
+
+### Understanding delta
+
+- These seven items are **demo-complete Subset** in Swing Mock + UI, not Tauri IPC clones.
+- Password change / 2FA remain desktop-only (honest Settings copy).
+
+### Required next
+
+1. Restart `./run` and smoke the seven UIs.
+2. Keep Subset honesty unless product adds LAN REST for multi-host writes.
+
+---
+
+**Prior phase label:** Leftover attribute sweep (2026-08-20)
+
+### Verified (2026-08-20 — Leftover attribute sweep)
+
+- Policy: German **values/names** in DB OK; German **attributes** not OK.
+- Removed prod dual-reads: `fusszeile` (`document_pdf.rs`); draft `zahnschmerzenTeeth` / `statusWunsch` (`appointment-create.tsx`).
+- Englishified default UI hints: `font-stack-preset.ts`, `accent-preset.ts`.
+- Prod scan for known leftover attribute tokens (excl. upgrade maps / tests / `de.json` / LanDialect): **0 hits**.
+
+### Intentionally kept
+
+- Upgrade *from* maps; ignore/reject test fixtures; `selbst`/`vergessen` PDF label aliases until migrate.
+- German **values**/messages: `TOOTHACHE_TAG_LEGACY`, conflict `terminkonflikt`.
+- `de.json`; LanDialect inbound fallbacks.
+
+### Remains unverified
+
+- `cargo` / vitest for this sweep — **NOT RUN**.
+
+---
+
+**Prior phase label:** Swing UI coverage — catalog CRUD / staff / events / migration / stats (2026-08-20)
+
+### Verified (2026-08-20 — Swing UI coverage batch)
+
+- Catalog list screens: search + create/edit/delete (covers products, work plan, treatment, contracts, order master, planning, etc.).
+- Staff dedicated page (PHYSICIAN/RECEPTION + email). Migration 6-step checklist (device adapters added in feature pack phase).
+- Audit/logs/ops/compliance/feedback via seeded `list_practice_events`.
+- Statistics week hours + staff table (disease patterns added in feature pack phase).
+- `./gradlew clean test --rerun-tasks` **PASS**.
+
+### Remains unverified
+
+- GUI walk after `./run` — **NOT OBSERVED**
+- Live LAN HTTPS — **NOT RUN**
+
+### Required next
+
+1. Restart `./run` and walk admin/staff/migration/events/stats UI.
+2. Keep honest Subset for non-LAN desktop IPC.
+
+---
+
 **Last phase label:** English leftover identifiers (helpers / i18n / PDF / template kind) (2026-08-20)
 
 ### Verified (2026-08-20 — leftover helpers / i18n / PDF / template kind)

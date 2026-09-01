@@ -227,7 +227,7 @@ async fn seed_demo_data(pool: &SqlitePool) -> Result<(), AppError> {
     if treatment_count.0 == 0 {
         sqlx::query(
             "INSERT INTO treatment (id, chart_id, kind, description, teeth, material, notes) VALUES
-            ('seed-bh-001','seed-chart-001','BEMA 13a','Composite filling placed','16','Komposit A2','Polishing completed'),
+            ('seed-bh-001','seed-chart-001','BEMA 13a','Composite filling placed','16','Composite A2','Polishing completed'),
             ('seed-bh-002','seed-chart-002','PZR','Professional cleaning','11,12,13,21,22,23','Airflow + Fluorid','Recall set to 6 months'),
             ('seed-bh-003','seed-chart-003','Checkup','Postoperative visual check','36','-', 'Healing as expected')",
         )
@@ -452,7 +452,7 @@ async fn seed_demo_data(pool: &SqlitePool) -> Result<(), AppError> {
     .execute(pool)
     .await?;
 
-    let anam_demo = r#"{"version":1,"insuranceStatus":"GKV","health_insurance":"AOK Bremen / Plus","preExisting":{"chronic":"Mild asthma","previousDiagnoses":"Caries in adolescence","surgeries":"","hospital":"","mental":""},"medication":{"regular":"Vitamin D 1000 IE","dosing":"täglich morgens","selbst":"","vergessen":"","sideEffects":""},"allergies":{"medications":"Penicillin","foods":"Nuts","other":"","material":"","vaccineReactions":""}}"#;
+    let anam_demo = r#"{"version":1,"insuranceStatus":"GKV","health_insurance":"AOK Bremen / Plus","preExisting":{"chronic":"Mild asthma","previousDiagnoses":"Caries in adolescence","surgeries":"","hospital":"","mental":""},"medication":{"regular":"Vitamin D 1000 IE","dosing":"täglich morgens","self":"","missed":"","sideEffects":""},"allergies":{"medications":"Penicillin","foods":"Nuts","other":"","material":"","vaccineReactions":""}}"#;
     let _ =
         sqlx::query("UPDATE anamnesis_form SET answers = ?1 WHERE patient_id = 'seed-pat-001'")
             .bind(anam_demo)
@@ -595,7 +595,7 @@ async fn seed_demo_data(pool: &SqlitePool) -> Result<(), AppError> {
     sqlx::query(
         "INSERT OR IGNORE INTO appointment (id, date, time, kind, status, notes, chief_complaint, patient_id, physician_id, created_at) VALUES
         ('seed-ter-h01', date('now','localtime','-40 day'),  '09:00','EXAMINATION','COMPLETED','Routine','—','seed-pat-001','seed-physician-001', datetime('now','localtime','-40 day')),
-        ('seed-ter-h02', date('now','localtime','-70 day'),  '11:00','TREATMENT','COMPLETED','Komposit',NULL,'seed-pat-002','seed-physician-001', datetime('now','localtime','-70 day')),
+        ('seed-ter-h02', date('now','localtime','-70 day'),  '11:00','TREATMENT','COMPLETED','Composite',NULL,'seed-pat-002','seed-physician-001', datetime('now','localtime','-70 day')),
         ('seed-ter-h03', date('now','localtime','-100 day'), '14:00','CHECKUP','COMPLETED','Recall',NULL,'seed-pat-003','seed-physician-001', datetime('now','localtime','-100 day')),
         ('seed-ter-h04', date('now','localtime','-130 day'), '08:30','CONSULTATION','COMPLETED','Schiene',NULL,'seed-pat-004','seed-physician-001', datetime('now','localtime','-130 day')),
         ('seed-ter-h05', date('now','localtime','-160 day'), '15:30','EXAMINATION','COMPLETED','PA-Status',NULL,'seed-pat-005','seed-physician-001', datetime('now','localtime','-160 day')),

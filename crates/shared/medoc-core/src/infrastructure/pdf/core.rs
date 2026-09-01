@@ -364,9 +364,35 @@ impl PageBuilder {
     }
 
     /// Table header band: light background behind the table header row.
+    /// `y_text_baseline` is the header text baseline; the band covers ascenders.
     pub fn table_header_band(&mut self, x: i32, y_text_baseline: i32, w: i32) {
-        // Start ~2 pt above baseline, 14 pt tall — fits fs=8..10.
-        self.fill_rect(x, y_text_baseline - 4, w, 16, 0.92);
+        let font_size = 9;
+        let ascent = table_font_ascent(font_size);
+        let descent = table_font_descent(font_size);
+        let h = ascent + descent + 4;
+        let y_bottom = y_text_baseline + ascent - h;
+        self.fill_rect(x, y_bottom, w, h, 0.92);
+    }
+
+    /// Zebra stripe behind a table data row.
+    ///
+    /// PDF text sits on a **baseline** with glyphs extending above it. Filling
+    /// `[baseline − h, baseline]` leaves the ink in white and the gray below
+    /// the letters. This band is anchored so its **top** is at
+    /// `first_baseline + ascent`, matching the vertical span consumed by
+    /// `advance(row_height)` after drawing at `first_baseline`.
+    pub fn fill_table_row_band(
+        &mut self,
+        x: i32,
+        w: i32,
+        first_baseline: i32,
+        row_height: i32,
+        font_size: i32,
+        gray: f64,
+    ) {
+        let ascent = table_font_ascent(font_size);
+        let y_bottom = first_baseline + ascent - row_height;
+        self.fill_rect(x, y_bottom, w, row_height, gray);
     }
 
     /// Finish the current stream and return all pages.
@@ -383,12 +409,31 @@ impl PageBuilder {
     }
 }
 
+/// Helvetica-ish ascent above the baseline (points) for `font_size`.
+pub fn table_font_ascent(font_size: i32) -> i32 {
+    (font_size * 4 / 5).max(6)
+}
+
+/// Helvetica-ish descent below the baseline (points) for `font_size`.
+pub fn table_font_descent(font_size: i32) -> i32 {
+    (font_size / 4).max(2)
+}
+
+/// Total row advance for wrapped table cells: ascent + lines + descent + padding.
+pub fn table_row_height(line_count: usize, line_step: i32, font_size: i32) -> i32 {
+    let lines = line_count.max(1) as i32;
+    let ascent = table_font_ascent(font_size);
+    let descent = table_font_descent(font_size);
+    let vpad = 4;
+    ascent + vpad + (lines - 1) * line_step + descent + vpad
+}
+
 // ---------------------------------------------------------------------------
 // PDF-Datei zusammenbauen
 // ---------------------------------------------------------------------------
 
 /// Write n pages as a PDF-1.4 file with embedded Helvetica + Helvetica-Bold
-/// and an automatic "Seite X from Y" footer.
+/// and an automatic "Page X of Y" footer.
 ///
 /// Typically called after `let pages = page_builder.finish();`.
 pub fn emit_multipage_pdf(page_streams: &[String], pdf_title: &str) -> Result<Vec<u8>, AppError> {
@@ -512,7 +557,7 @@ pub fn emit_multipage_pdf(page_streams: &[String], pdf_title: &str) -> Result<Ve
 }
 
 fn append_page_number_footer(stream: &mut String, page_index: usize, page_total: usize) {
-    let label = format!("Seite {} from {}", page_index + 1, page_total);
+    let label = format!("Page {} of {}", page_index + 1, page_total);
     let op = text_operand(&label);
     // Centered in the footer.
     let x = (PAGE_WIDTH - approx_text_width(&label, 9)) / 2;
@@ -526,7 +571,7 @@ fn append_page_number_footer(stream: &mut String, page_index: usize, page_total:
 }
 
 // ---------------------------------------------------------------------------
-// Text-Helfer: Umbruch und Hyphenation
+// Text helpers: wrap and hyphenation
 // ---------------------------------------------------------------------------
 
 fn char_len(s: &str) -> usize {
@@ -774,7 +819,7 @@ pub fn format_date_dmy(iso: &str) -> String {
     d.to_string()
 }
 
-/// Cent value → "1.234,56 €" (DIN 5008 / German number format).
+/// Cent value → "1.234,56 EUR" (DIN-style, ASCII — Helvetica has no reliable € glyph).
 pub fn format_eur(cents: i64) -> String {
     let neg = cents < 0;
     let version = cents.abs();
@@ -789,7 +834,40 @@ pub fn format_eur(cents: i64) -> String {
         grouped.push(ch);
     }
     let euros_de: String = grouped.chars().rev().collect();
-    format!("{}{},{:02} €", if neg { "-" } else { "" }, euros_de, frac)
+    format!("{}{},{:02} EUR", if neg { "-" } else { "" }, euros_de, frac)
+}
+
+/// Make money / label text safe for Helvetica WinAnsi (no zero-width €, no NBSP).
+pub fn sanitize_pdf_money(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 4);
+    let chars: Vec<char> = s.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        match c {
+            '€' => {
+                // Prefer "12.34 EUR" / "EUR 12.34" over a broken € glyph.
+                let prev = out.chars().last();
+                if prev.map(|p| p.is_ascii_digit()).unwrap_or(false) {
+                    if prev != Some(' ') {
+                        out.push(' ');
+                    }
+                    out.push_str("EUR");
+                } else {
+                    out.push_str("EUR");
+                    let next = chars.get(i + 1).copied();
+                    if next.map(|n| n.is_ascii_digit()).unwrap_or(false) {
+                        out.push(' ');
+                    }
+                }
+            }
+            '\u{00A0}' | '\u{202F}' | '\u{2007}' | '\u{2009}' => out.push(' '),
+            '\u{2212}' => out.push('-'),
+            other => out.push(other),
+        }
+        i += 1;
+    }
+    out.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 /// Truncate a cell so it fits a table field (with `...` ellipsis).
@@ -855,10 +933,30 @@ mod tests {
 
     #[test]
     fn format_eur_groups_thousands() {
-        assert_eq!(format_eur(0), "0,00 €");
-        assert_eq!(format_eur(1250), "12,50 €");
-        assert_eq!(format_eur(1234567), "12.345,67 €");
-        assert_eq!(format_eur(-100), "-1,00 €");
+        assert_eq!(format_eur(0), "0,00 EUR");
+        assert_eq!(format_eur(1250), "12,50 EUR");
+        assert_eq!(format_eur(1234567), "12.345,67 EUR");
+        assert_eq!(format_eur(-100), "-1,00 EUR");
+    }
+
+    #[test]
+    fn sanitize_pdf_money_replaces_euro_glyph() {
+        assert_eq!(sanitize_pdf_money("€99.00"), "EUR 99.00");
+        assert_eq!(sanitize_pdf_money("0,00 €"), "0,00 EUR");
+        assert_eq!(sanitize_pdf_money("79,00\u{00A0}€"), "79,00 EUR");
+    }
+
+    #[test]
+    fn table_row_band_covers_ascent_above_baseline() {
+        let baseline = 500;
+        let font = 9;
+        let h = table_row_height(1, 12, font);
+        let ascent = table_font_ascent(font);
+        let y_bottom = baseline + ascent - h;
+        let y_top = y_bottom + h;
+        assert!(y_top > baseline, "band top {y_top} must be above baseline {baseline}");
+        assert!(y_bottom < baseline, "band bottom {y_bottom} must be below baseline");
+        assert_eq!(y_top - baseline, ascent);
     }
 
     #[test]
@@ -869,7 +967,7 @@ mod tests {
 
     #[test]
     fn wrap_text_hyphenates_long_compounds() {
-        let lines = wrap_text("Versicherungsnummer Patientenkarte", 14);
+        let lines = wrap_text("Insurance number patient card", 14);
         assert!(lines.len() >= 2);
     }
 
@@ -896,6 +994,6 @@ mod tests {
         assert!(bytes.starts_with(b"%PDF-1.4"));
         assert!(bytes.ends_with(b"%%EOF\n"));
         let s = String::from_utf8_lossy(&bytes);
-        assert!(s.contains("Seite 1 from 1") || s.contains("(Seite"));
+        assert!(s.contains("Page 1 of 1") || s.contains("(Page"));
     }
 }

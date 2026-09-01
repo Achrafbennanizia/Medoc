@@ -55,11 +55,14 @@ flowchart LR
 | POST | `/api/v1/auth/login` | `{ email, password, totp_code }` | `{ access_token }` | `port_master_jwt_login_and_me` |
 | GET | `/api/v1/me` | `Authorization: Bearer <jwt>` | `{ email, role }` | same |
 | GET | `/api/v1/patients` | JWT | `[{ id, name, … }]` | `port_two_replicas_…` (after sync push) |
+| GET | `/api/v1/license` | JWT | license status (Tauri `current_license_status`) | LAN license module |
+| POST | `/api/v1/license/activate` | `{ token }` + JWT | license status after store | same |
+| DELETE | `/api/v1/license` | JWT | 204 | same |
+| POST | `/api/v1/eprescriptions/validate` | e-Rx body + JWT | `{ status: VALIDATED, … }` | telematik validate |
+| POST | `/api/v1/eprescriptions/submit` | e-Rx body + JWT | TI stub (501/500 until connector) | telematik submit_via_ti |
 | POST | `/api/v1/pairing/decide/{id}` | `{ accept: true }` + JWT | `{ status: "ACCEPTED", activationToken }` | pairing tests |
 | POST | `/api/v1/pairing/revoke/{device}` | JWT | 204 | `port_revoked_replica_push_forbidden` |
-| GET | `/api/v1/company/summary` | JWT (`ops.system`) | subscription summary JSON | `port_practice_proxy_company_summary_via_lan` |
-
-### Activation token auth (replica / serverless peer)
+| GET | `/api/v1/company/summary` | JWT (`ops.system`) | subscription summary JSON | `port_practice_proxy_company_summary_via_lan` |### Activation token auth (replica / serverless peer)
 
 | Method | Path | Request | Response | Test |
 | ------ | ---- | ------- | -------- | ---- |

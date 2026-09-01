@@ -31,7 +31,7 @@ function isOverdue(b: PurchaseOrder): boolean {
 }
 
 function statusPill(status: OrderStatus, overdue: boolean, t: (key: string) => string): { className: string; label: string } {
-    if (overdue) return { className: "pill orange", label: t("page.purchase-orders.status.overdue") };
+    if (overdue) return { className: "pill orange", label: t("page.purchase_orders.status.overdue") };
     const st = orderStatusDisplay(status, t);
     switch (status) {
         case "OPEN":

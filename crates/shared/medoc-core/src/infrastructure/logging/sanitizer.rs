@@ -99,7 +99,7 @@ pub fn redact_patient_id_in_logs(patient_id: &str) -> Result<LogRedactionReport,
             let Ok(content) = std::fs::read_to_string(&path) else {
                 report
                     .errors
-                    .push(format!("Lesen fehlgeschlagen: {}", path.display()));
+                    .push(format!("Read failed: {}", path.display()));
                 continue;
             };
             if !content.contains(patient_id) {

@@ -14,8 +14,8 @@ vi.mock("@/systems/practice-host/controllers/invoice.controller", () => ({
 }));
 vi.mock("@/lib/invoice-service-item", () => ({
     getInvoicePracticeFromStorage: vi.fn(() => ({
-        name: "Testpraxis",
-        addr: "Musterstr. 1",
+        name: "Test practice",
+        addr: "Sample Street 1",
         clinician_name: "Dr. Test",
     })),
 }));

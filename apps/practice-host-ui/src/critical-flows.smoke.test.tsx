@@ -357,7 +357,7 @@ describe("critical flow (f) login rejection on wrong password", () => {
                 case "get_session":
                     return null;
                 case "login":
-                    throw new Error("Falsche E-Mail oder Passwort");
+                    throw new Error("error.app.unauthorized");
                 case "check_for_updates":
                     return { current_version: "0.1.0", latest_version: "0.1.0", update_available: false, channel: "stable" };
                 case "sync_native_menu":
@@ -385,7 +385,7 @@ describe("critical flow (f) login rejection on wrong password", () => {
         await user.click(screen.getByRole("button", { name: /Sign in$/ }));
 
         const alert = await screen.findByRole("alert");
-        expect(alert.textContent ?? "").toMatch(/Falsche E-Mail oder Passwort/);
+        expect(alert.textContent ?? "").toMatch(/error\.app\.unauthorized|Not authorized/i);
 
         expect(screen.getByRole("heading", { name: "Sign in" })).toBeInTheDocument();
         const ipcCommands = vi.mocked(tauriInvoke).mock.calls.map((c) => c[0]);

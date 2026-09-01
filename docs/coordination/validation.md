@@ -1,6 +1,250 @@
 # Validation ledger
 
-**Last updated:** 2026-08-20 (English leftover identifiers — helpers / i18n / PDF / template kind)
+**Last updated:** 2026-08-20 (Swing overview dashboard cosmetic parity)
+
+## Swing overview dashboard cosmetic parity
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Unit tests | `cd /Users/achraf/pro/Medoc-swing && ./gradlew test --rerun-tasks` | **PASS** — **104** tests |
+| GUI vs screenshot | `./run` | **NOT OBSERVED** |
+
+---
+
+## LAN API depth — e-Rx + license
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Swing unit tests | `cd /Users/achraf/pro/Medoc-swing && ./gradlew test --rerun-tasks` | **PASS** — **103** tests |
+| Rust LAN compile | `MEDOC_VENDOR_PUBKEY=… cargo check -p medoc-lan` | **PASS** |
+| Live LAN HTTPS smoke | against running server | **NOT RUN** |
+| GUI walk | Swing `./run` | **NOT OBSERVED** |
+
+---
+
+**Last updated:** 2026-08-20 (Swing full demo seed)
+
+## Swing full demo seed
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Unit tests | `cd /Users/achraf/pro/Medoc-swing && ./gradlew test --rerun-tasks` | **PASS** — **102** tests |
+| GUI walk of filled pages | `./run` | **NOT OBSERVED** |
+
+---
+
+**Last updated:** 2026-08-20 (Swing feature pack)
+
+## Swing feature pack (drag / GOZ / e-Rx / license / staff / devices / composers)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Unit tests | `cd /Users/achraf/pro/Medoc-swing && ./gradlew clean test --rerun-tasks` | **PASS** — **101** tests |
+| Live LAN | HTTPS to `medoc-lan-server` | **NOT RUN** |
+| GUI walk of feature-pack UIs | `./run` | **NOT OBSERVED** |
+
+---
+
+**Last updated:** 2026-08-20 (Swing UI coverage — catalog CRUD / staff / events / migration / stats)
+
+## Swing UI coverage batch
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Unit tests | `cd /Users/achraf/pro/Medoc-swing && ./gradlew clean test --rerun-tasks` | **PASS** — 92 tests / 26 classes |
+| Live LAN | HTTPS to `medoc-lan-server` | **NOT RUN** |
+| GUI walk of new staff/migration/events/catalog CRUD | `./run` | **NOT OBSERVED** |
+
+---
+ 2026-08-20 (DB English upgrade — stored JSON + appointment text)
+
+## DB English upgrade — stored JSON + appointment text
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Unit (`json_upgrade_tests`) | `cargo test -p medoc-core json_upgrade_tests` | **NOT RUN** (`cargo` not installed) |
+| Integration (`english_upgrade_remaps_app_kv_and_template_json`) | `cargo test -p medoc english_upgrade_remaps` | **NOT RUN** (`cargo` not installed) |
+| Code paths | Read `english_schema_upgrade.rs` + `db_migrations_tests.rs` | Present: JSON remap + appointment text + tests wired into `run_english_schema_upgrade` |
+
+---
+
+**Last updated (prior):** 2026-08-20 (Remove dual-read leftovers — English-only wires)
+
+## Remove dual-read leftovers — English-only wires
+
+| Check | Command | Result |
+|-------|---------|--------|
+| i18n parity | `node scripts/i18n-verify-parity.mjs` | **PASS** — 4538 keys × 4 locales |
+| Vitest dual-read removal | invoice / certificate / privacy / template / appointment / completeness | **PASS** — 20 tests / 6 files |
+| Rust migration / GDT | `cargo test` | **NOT RUN** (`cargo` not on PATH) |
+| Swing SettingsControllerTest | `./gradlew test` | **NOT RUN** (no JRE this pass) |
+
+---
+
+**Last updated (prior):** 2026-08-20 (Swing balance sheet + ticket filter/edit)
+
+## Swing balance sheet + ticket filter/edit
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Unit tests | `cd /Users/achraf/pro/Medoc-swing && ./gradlew clean test --rerun-tasks` | **PASS** — 92 tests / 26 classes |
+| Live LAN | HTTPS to `medoc-lan-server` | **NOT RUN** (`cargo` not on PATH) |
+| GUI walk of balance sheet / ticket filter-edit | `./run` after this change | **NOT OBSERVED** (restart required) |
+
+---
+
+**Last updated (prior):** 2026-08-20 (English leftover identifiers — balance sheet / privacy.vat / PDF footer)
+
+## English leftover identifiers — balance sheet / privacy.vat / PDF footer
+
+| Check | Command | Result |
+|-------|---------|--------|
+| i18n parity | `node scripts/i18n-verify-parity.mjs` | **PASS** — 4538 keys × 4 locales |
+| Vitest subset | invoice-service-item, practice-header-privacy, administration-hierarchy, receipt-export-flow, schemas, notifications-popover smoke | **PASS** — 30 tests / 7 files |
+| Rust PDF tests | `cargo test` | **NOT RUN** (`cargo` not on PATH) |
+
+---
+
+**Last updated (prior):** 2026-08-20 (English leftover identifiers — PDF / discharge / VAT)
+
+## English leftover identifiers — PDF / discharge / VAT
+
+| Check | Command | Result |
+|-------|---------|--------|
+| i18n parity | `node scripts/i18n-verify-parity.mjs` | **PASS** — 4538 keys × 4 locales |
+| Invoice / completeness / clinical PDF | `npx vitest run` invoice-service-item, practice-completeness, clinical-document-pdf | **PASS** — 9 tests |
+| Rust PDF tests | `cargo test` | **NOT RUN** (`cargo` not on PATH) |
+| Swing SettingsControllerTest | `./gradlew test` | **NOT RUN** (no JRE) |
+
+---
+
+**Last updated (prior):** 2026-08-20 (English leftover identifiers — final pass)
+
+## English leftover identifiers — final pass
+
+| Check | Command | Result |
+|-------|---------|--------|
+| i18n parity | `node scripts/i18n-verify-parity.mjs` | **PASS** — 4538 keys × 4 locales |
+| Certificate basename | `npx vitest run src/lib/document-print-html.test.ts` (practice-host-ui) | **PASS** — 1 test |
+| Admin hierarchy / nav | `npx vitest run src/lib/administration-hierarchy.test.ts src/lib/nav-sections.test.ts` (packages/shared) | **PASS** — 10 tests |
+| Smoke subset | notifications-popover, settings.rbac, practice-tickets smoke tests | **PASS** — 4 tests |
+| Critical flows login | `npx vitest run src/critical-flows.smoke.test.tsx -t "login rejection"` | **NOT RUN** (hung >90s) |
+| Rust tests | `cargo test` | **NOT RUN** (`cargo` not on PATH) |
+
+---
+
+**Last updated (prior):** 2026-08-20 (Swing cash receipt print + statistics cash KPI)
+
+## Swing cash receipt print + statistics cash KPI
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Unit tests | `cd /Users/achraf/pro/Medoc-swing && ./gradlew test --rerun-tasks` | **PASS** — 90 tests / 25 classes |
+| Live LAN | HTTPS to `medoc-lan-server` | **NOT RUN** (`cargo` not on PATH) |
+| GUI walk of cash receipt print / statistics cash KPI | `./run` after this change | **NOT OBSERVED** (restart required) |
+
+---
+
+**Last updated (prior):** 2026-08-20 (Swing chart validation + dashboard KPI + prescription templates)
+
+## Swing chart validation + dashboard KPI + prescription templates
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Unit tests | `cd /Users/achraf/pro/Medoc-swing && ./gradlew test --rerun-tasks` | **PASS** — 88 tests / 24 classes |
+| Live LAN | HTTPS to `medoc-lan-server` | **NOT RUN** (`cargo` not on PATH) |
+| GUI walk of validate / dashboard KPI / prescription template | `./run` after this change | **NOT OBSERVED** (restart required) |
+
+---
+
+**Last updated (prior):** 2026-08-20 (Swing patient certificates + GOZ factors + template placeholders)
+
+## Swing patient certificates + GOZ factors + template placeholders
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Unit tests | `cd /Users/achraf/pro/Medoc-swing && ./gradlew test --rerun-tasks` | **PASS** — 84 tests / 23 classes |
+
+---
+
+**Last updated (prior):** 2026-08-20 (English leftover identifiers — KV health-insurance labels / chamber / privacy keys)
+
+## English leftover identifiers (KV health-insurance labels / chamber / privacy keys)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Locale parity script | `node scripts/i18n-verify-parity.mjs` | **PASS** — 4538 keys × 4 locales |
+| Invoice header + clinical PDF + privacy parse + practice completeness + document-template + locales | `npm test -w medoc -- packages/shared/src/lib/invoice-service-item.test.ts packages/shared/src/lib/clinical-document-pdf.test.ts packages/shared/src/lib/practice-header-privacy.test.ts packages/shared/src/lib/practice-completeness.test.ts packages/shared/src/lib/document-template-schema.test.ts packages/shared/src/lib/i18n-locales.test.ts` | **PASS** — 19 tests / 6 files |
+| `rg` KV site-number copy | `KV / site`, `KV- / Betriebs`, `KV / practice` | **PASS** — no matches in packages/apps (BSNR `Practice site no.` remains, correctly) |
+| `cargo test` | — | **NOT RUN** (`cargo` not on PATH) |
+| Swing SettingsControllerTest | `./gradlew :packages:app:practice-host:test --tests SettingsControllerTest` | **NOT RUN** (no JRE; `/usr/bin/java` is a macOS stub) |
+
+---
+
+**Last updated (prior):** 2026-08-20 (English leftover identifiers — i18n copy / CSV / kv_number)
+
+## English leftover identifiers (i18n copy / CSV / kv_number)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Locale parity script | `node scripts/i18n-verify-parity.mjs` | **PASS** — 4538 keys × 4 locales |
+| Locales + practice completeness + certificate + document-template + rbac | `npm test -w medoc -- packages/shared/src/lib/i18n-locales.test.ts packages/shared/src/lib/practice-completeness.test.ts packages/shared/src/lib/certificate-composer.test.ts packages/shared/src/lib/document-template-schema.test.ts packages/shared/src/lib/rbac.test.ts` | **PASS** — 51 tests / 5 files |
+| `cargo test` (CSV leftover headers / sanitizer) | — | **NOT RUN** (`cargo` not on PATH) |
+| Swing SettingsControllerTest | `./gradlew :packages:app:practice-host:test --tests SettingsControllerTest` | **NOT RUN** (no JRE; `/usr/bin/java` is a macOS stub) |
+
+---
+
+**Last updated (prior):** 2026-08-20 (Swing appointment move + work-time team + dashboard open-orders)
+
+## Swing appointment move + work-time team + dashboard open-orders
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Unit tests | `cd /Users/achraf/pro/Medoc-swing && ./gradlew test --rerun-tasks` | **PASS** — 73 tests / 19 classes |
+| Live LAN | HTTPS to `medoc-lan-server` | **NOT RUN** (`cargo` not on PATH) |
+| GUI walk of appointment Move / team hours / dashboard open-order list | `./run` after this change | **NOT OBSERVED** (restart required) |
+
+---
+
+**Last updated (prior):** 2026-08-20 (English leftover identifiers — certificate payload / practice KV / routes)
+
+## English leftover identifiers (certificate payload / practice KV / routes)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Certificate + practice completeness + document-template + rbac + receipt | `npm test -w medoc -- packages/shared/src/lib/certificate-composer.test.ts packages/shared/src/lib/practice-completeness.test.ts packages/shared/src/lib/document-template-schema.test.ts packages/shared/src/lib/rbac.test.ts packages/shared/src/lib/receipt-export-flow.test.ts` | **PASS** — 51 tests / 6 files |
+| Locale catalogs | `npm test -w medoc -- packages/shared/src/lib/i18n-locales.test.ts` (plus leftover tests in the same run) | **PASS** — 14 tests / 3 files |
+| `scripts/i18n-verify-parity.mjs` | `node scripts/i18n-verify-parity.mjs` | **FAIL** — pre-existing en identical-to-de leftovers (`login.dev_db_hint`, `page.charts_to_validate.subtitle`, …) |
+| Swing SettingsControllerTest | `./gradlew :packages:app:practice-host:test --tests SettingsControllerTest` | **NOT RUN** (no Java runtime) |
+| `cargo test` (PDF labels / emergency_phone) | — | **NOT RUN** (`cargo` not on PATH) |
+
+---
+
+**Last updated (prior):** 2026-08-20 (Swing GOZ picker + order lines + day-close HTML + dashboard KPIs)
+
+## Swing GOZ picker + order lines + day-close HTML + dashboard KPIs
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Unit tests | `cd /Users/achraf/pro/Medoc-swing && ./gradlew test --rerun-tasks` | **PASS** — 70 tests / 18 classes |
+| Live LAN | HTTPS to `medoc-lan-server` | **NOT RUN** (`cargo` not on PATH) |
+| GUI walk of dashboard KPIs / service picker / order lines / day-close print | `./run` after this change | **NOT OBSERVED** (restart required) |
+
+---
+
+**Last updated (prior):** 2026-08-20 (Swing week grid + invoice qty/factor + order detail)
+
+## Swing week grid + invoice qty/factor + order detail
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Unit tests | `cd /Users/achraf/pro/Medoc-swing && ./gradlew test --rerun-tasks` | **PASS** — 66 tests / 17 classes |
+| Live LAN | HTTPS to `medoc-lan-server` | **NOT RUN** (`cargo` not on PATH) |
+| GUI walk of week grid / billing qty-factor / order detail | `./run` after this change | **NOT OBSERVED** (restart required) |
+
+---
+
+**Last updated (prior):** 2026-08-20 (English leftover identifiers — helpers / i18n / PDF / template kind)
 
 ## English leftover identifiers (helpers / i18n / PDF / template kind)
 

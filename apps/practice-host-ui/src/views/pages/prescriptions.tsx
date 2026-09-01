@@ -41,7 +41,7 @@ import {
 } from "@/lib/medications";
 
 /**
- * Rezeptverwaltung (FA-REZ-01..05).
+ * Prescription management (FA-REZ-01..05).
  * Export via structured template (format, path from export settings).
  */
 export function PrescriptionsPage() {

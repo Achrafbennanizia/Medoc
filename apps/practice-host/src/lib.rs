@@ -90,6 +90,23 @@ pub fn run() {
                     app_handle.manage(pool.clone());
                     tracing::info!(target: "medoc::system", event = "DB_READY");
 
+                    match tauri::async_runtime::block_on(
+                        medoc_sync::cluster::services::consume_default_sidecar_and_apply(&pool),
+                    ) {
+                        Ok(Some(applied)) => tracing::info!(
+                            target: "medoc::system",
+                            event = "INSTALL_PLAN_APPLIED",
+                            applied = applied.applied,
+                            locale = ?applied.locale,
+                        ),
+                        Ok(None) => {}
+                        Err(e) => tracing::warn!(
+                            target: "medoc::system",
+                            event = "INSTALL_PLAN_SIDECAR_SKIP",
+                            error = %e
+                        ),
+                    }
+
                     if let Some(brute) = app.try_state::<BruteForceState>() {
                         if let Err(e) =
                             tauri::async_runtime::block_on(brute.0.hydrate_from_db(&pool))
@@ -241,7 +258,7 @@ pub fn run() {
 
             #[cfg(target_os = "macos")]
             {
-                use tauri::TitleCashStyle;
+                use tauri::TitleBarStyle;
                 if let Some(w) = app_handle.get_webview_window("main") {
                     if let Err(e) = w.set_decorations(true) {
                         tracing::warn!(
@@ -250,10 +267,10 @@ pub fn run() {
                             error = %e
                         );
                     }
-                    if let Err(e) = w.set_title_cash_style(TitleCashStyle::Overlay) {
+                    if let Err(e) = w.set_title_bar_style(TitleBarStyle::Overlay) {
                         tracing::warn!(
                             target: "medoc::system",
-                            event = "MAC_WINDOW_TITLE_CASH_OVERLAY",
+                            event = "MAC_WINDOW_TITLE_BAR_OVERLAY",
                             error = %e
                         );
                     }

@@ -59,7 +59,7 @@ describe("SettingsPage RBAC nav", () => {
         expect(screen.queryByRole("button", { name: /Practice/i })).not.toBeInTheDocument();
         expect(screen.queryByRole("button", { name: /Security/i })).not.toBeInTheDocument();
         expect(screen.queryByRole("button", { name: /License/i })).not.toBeInTheDocument();
-        expect(screen.queryByRole("button", { name: /Integrationen/i })).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: /Integrations/i })).not.toBeInTheDocument();
         expect(screen.queryByRole("button", { name: /Migration/i })).not.toBeInTheDocument();
         expect(screen.queryByRole("button", { name: /^System$/i })).not.toBeInTheDocument();
     });

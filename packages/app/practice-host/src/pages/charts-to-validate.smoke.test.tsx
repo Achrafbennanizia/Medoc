@@ -17,7 +17,7 @@ vi.mock("@/systems/practice-host/controllers/chart-workflow.controller", () => (
 
 const SAMPLE_ROW: ChartToValidateRow = {
     patient_id: "pat-queue-1",
-    patient_name: "Max Mustermann",
+    patient_name: "Max Sample",
     chart_id: "chart-queue-1",
     chart_status: "IN_PROGRESS",
     updated_at: "2026-06-10 14:30:00",
@@ -40,7 +40,7 @@ describe("ChartsToValidatePage", () => {
             </MemoryRouter>,
         );
 
-        expect(await screen.findByText("Max Mustermann")).toBeTruthy();
+        expect(await screen.findByText("Max Sample")).toBeTruthy();
         expect(screen.getByText("In progress")).toBeTruthy();
 
         await act(async () => {

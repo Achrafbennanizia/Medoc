@@ -14,7 +14,7 @@ import { Button } from "@/views/components/ui/button";
 import { ConfirmDialog, Dialog } from "@/views/components/ui/dialog";
 import { useToastStore } from "@/views/components/ui/toast-store";
 
-/** Own device sessions — Settings → Sicherheit. */
+/** Own device sessions — Settings → Security. */
 export function SettingsDeviceSessionsSection() {
     const t = useT();
     const tp = useTParams();

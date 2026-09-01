@@ -485,7 +485,7 @@ export function SettingsDeploymentSection({
                     label={t("settings.deployment.device_label")}
                     value={cfg.deviceLabel}
                     onChange={(e) => setCfg((c) => ({ ...c, deviceLabel: e.target.value }))}
-                    placeholder={isMaster ? "z. B. Empfang MacBook (Master)" : "z. B. Behandlungszimmer iPad"}
+                    placeholder={isMaster ? "e.g. Reception MacBook (Master)" : "e.g. Treatment-room iPad"}
                 />
             </div>
 

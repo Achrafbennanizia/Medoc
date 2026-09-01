@@ -8,9 +8,9 @@ cat <<'EOF'
 
 === G21 Live Tauri Smoke ===
 
-Demo logins (password for all: passwort123)
-  REZEPTION  aya@praxis.de
-  ARZT       ahmed@praxis.de
+Demo logins (password for all: password123)
+  REZEPTION  aya@practice.de
+  ARZT       ahmed@practice.de
 
 Rows to verify (mark in checklist):
   0    Run: bash tools/g21-verify-automated.sh  (must PASS)

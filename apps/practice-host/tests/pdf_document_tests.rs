@@ -41,7 +41,7 @@ fn test_invoice_goz_has_required_fields() {
         practice_bsnr: Some("987654321".into()),
         bank_details: Some(vec!["IBAN DE00".into()]),
         payment_terms_text: Some("Payable within 14 days.".into()),
-        vat_notice: Some("Umsatzsteuerbefreit".into()),
+        vat_notice: Some("VAT-exempt".into()),
     };
     let pdf = render(&inv).expect("render");
     let s = String::from_utf8_lossy(&pdf);
@@ -49,7 +49,7 @@ fn test_invoice_goz_has_required_fields() {
         "GOZ",
         "Fak",
         "IBAN",
-        "Umsatzsteuerbefreit",
+        "VAT-exempt",
         "Payable within",
     ] {
         assert!(s.contains(needle), "missing {needle}");
@@ -84,7 +84,7 @@ fn test_chart_pdf_has_practice_header() {
         title: "Practice".into(),
         body_lines: vec![],
         kv_pairs: vec![
-            ("Practice".into(), "Testpraxis".into()),
+            ("Practice".into(), "Test practice".into()),
             ("BSNR".into(), "123456789".into()),
         ],
         table: None,
@@ -94,20 +94,20 @@ fn test_chart_pdf_has_practice_header() {
     let s = String::from_utf8_lossy(&pdf);
     assert!(s.contains("Practice"));
     assert!(s.contains("BSNR"));
-    assert!(s.contains("Seite"));
+    assert!(s.contains("Page"));
 }
 
 #[test]
 fn test_clinical_certificate_layout_markers() {
     let doc = ClinicalPdfLayout {
         kind: "certificate".into(),
-        practice_lines: vec!["Zahnarztpraxis Nord".into()],
+        practice_lines: vec!["Dental practice North".into()],
         header_right_lines: vec!["Tel: 030 123456".into()],
         meta_lines: vec![],
         address_lines: vec![],
         document_title: "MEDICAL CERTIFICATE".into(),
         document_subtitle: None,
-        intro_paragraphs: vec!["Hiermit wird bescheinigt, dass …".into()],
+        intro_paragraphs: vec!["It is hereby certified that …".into()],
         label_value_rows: vec![LabelValue {
             label: "Validity period".into(),
             value: "01.01.2026 until 07.01.2026".into(),
@@ -117,9 +117,9 @@ fn test_clinical_certificate_layout_markers() {
         detail_records: vec![],
         totals: vec![],
         closing_paragraphs: vec![],
-        signature_lines: vec!["Dr. Muster".into()],
+        signature_lines: vec!["Dr. Sample".into()],
         footer_meta_lines: vec![LabelValue {
-            label: "Ausstellungsdatum".into(),
+            label: "Issue date".into(),
             value: "19.05.2026".into(),
         }],
         clinician_professional_title: None,
@@ -129,7 +129,7 @@ fn test_clinical_certificate_layout_markers() {
     let pdf = render_clinical_layout(&doc).expect("certificate pdf");
     let s = String::from_utf8_lossy(&pdf);
     assert!(pdf.starts_with(b"%PDF"));
-    for needle in ["Zahnarztpraxis Nord", "Ausstellungsdatum"] {
+    for needle in ["Dental practice North", "Issue date"] {
         assert!(s.contains(needle), "missing {needle}");
     }
     assert!(
@@ -180,35 +180,35 @@ fn test_chart_examination_table_renders_full_psi() {
 fn test_clinical_receipt_table_layout() {
     let doc = ClinicalPdfLayout {
         kind: "receipt".into(),
-        practice_lines: vec!["Practice Süd".into()],
+        practice_lines: vec!["Practice South".into()],
         header_right_lines: vec![],
         meta_lines: vec![LabelValue {
             label: "Receipt-Nr.".into(),
             value: "Q-001".into(),
         }],
-        address_lines: vec!["Max Mustermann".into()],
-        document_title: "PATIENTENQUITTUNG".into(),
-        document_subtitle: Some("für Max Mustermann".into()),
+        address_lines: vec!["Max Sample".into()],
+        document_title: "PATIENT RECEIPT".into(),
+        document_subtitle: Some("for Max Sample".into()),
         intro_paragraphs: vec!["Billed service items for 19.05.2026".into()],
         label_value_rows: vec![LabelValue {
-            label: "Patient/in".into(),
-            value: "Max Mustermann".into(),
+            label: "Patient".into(),
+            value: "Max Sample".into(),
         }],
         two_column: None,
         tables: vec![PdfTableSpec {
             title: None,
-            headers: vec!["Tag".into(), "Position".into(), "Kurzbeschreibung".into()],
+            headers: vec!["Date".into(), "Item".into(), "Short description".into()],
             rows: vec![vec![
                 "19.05.2026".into(),
                 "Q-001".into(),
-                "Kontrolle".into(),
+                "Checkup".into(),
             ]],
             column_layout: TableColumnLayout::Receipt,
         }],
         detail_records: vec![],
         totals: vec![
             LabelValue {
-                label: "Honorar".into(),
+                label: "Fee".into(),
                 value: "50,00 €".into(),
             },
             LabelValue {
@@ -226,10 +226,10 @@ fn test_clinical_receipt_table_layout() {
     let pdf = render_clinical_layout(&doc).expect("receipt pdf");
     let s = String::from_utf8_lossy(&pdf);
     for needle in [
-        "PATIENTENQUITTUNG",
-        "Tag",
-        "Kurzbeschreibung",
-        "Honorar",
+        "PATIENT RECEIPT",
+        "Date",
+        "Short description",
+        "Fee",
         "Total",
     ] {
         assert!(s.contains(needle), "missing {needle}");
@@ -241,22 +241,22 @@ fn test_discharge_leaflet_pdf_markers() {
     let blocks = vec![ChartPdfBlock::body(
         "Note",
         vec![
-            "Dieses Leaflet fasst Daten aus der Praxissoftware zusammen und ersetzt keine ärztliche Beratung."
+            "This leaflet summarizes data from the practice software and does not replace medical advice."
                 .into(),
-            "Bitte bringen Sie dieses Blatt to Folgeterminen mit.".into(),
+            "Please bring this sheet to follow-up appointments.".into(),
         ],
     )];
     let pdf = render_chart_blocks(
-        "Entlassungs-Leaflet / Nachsorge",
+        "Discharge leaflet / aftercare",
         "2026-05-21",
-        "Entlassungs-Leaflet — Testpatient",
+        "Discharge leaflet — test patient",
         &blocks,
         None,
     )
     .expect("discharge leaflet pdf");
     let s = String::from_utf8_lossy(&pdf);
     assert!(pdf.starts_with(b"%PDF"));
-    for needle in ["Entlassungs-Leaflet", "Praxissoftware", "Folgeterminen"] {
+    for needle in ["Discharge leaflet", "practice software", "follow-up"] {
         assert!(s.contains(needle), "missing {needle}");
     }
 }
@@ -264,9 +264,9 @@ fn test_discharge_leaflet_pdf_markers() {
 #[test]
 fn test_financial_report_pdf_markers() {
     let input = ReportPdfInput {
-        doc_title: "Bilanzbericht".into(),
+        doc_title: "Balance report".into(),
         generated_at: "26.05.2026".into(),
-        practice_name: "Practice Süd".into(),
+        practice_name: "Practice South".into(),
         practice_address: vec!["Str. 2".into()],
         summary: vec![
             ReportPdfSummaryRow {
@@ -279,8 +279,8 @@ fn test_financial_report_pdf_markers() {
             },
         ],
         sections: vec![ReportPdfSection {
-            title: "Monatlicher Verlauf".into(),
-            headers: vec!["Monat".into(), "Income".into()],
+            title: "Monthly trend".into(),
+            headers: vec!["Month".into(), "Income".into()],
             rows: vec![vec!["2026-05".into(), "8.500,00".into()]],
         }],
     };
@@ -288,10 +288,10 @@ fn test_financial_report_pdf_markers() {
     let s = String::from_utf8_lossy(&pdf);
     assert!(pdf.starts_with(b"%PDF"));
     for needle in [
-        "Bilanzbericht",
-        "Zusammenfassung",
-        "Monatlicher Verlauf",
-        "Seite",
+        "Balance report",
+        "Summary",
+        "Monthly trend",
+        "Page",
     ] {
         assert!(s.contains(needle), "missing {needle}");
     }

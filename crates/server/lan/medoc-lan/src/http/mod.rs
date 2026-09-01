@@ -37,6 +37,8 @@ use medoc_sync::pairing::ActivationTokenPayload;
 use crate::discovery::LanBeaconPayload;
 use crate::jwt;
 
+pub mod eprescription;
+pub mod license;
 pub mod pairing;
 pub mod sync;
 
@@ -50,7 +52,7 @@ pub struct LanHttpState {
     pub discovery_peers: Arc<Vec<(SocketAddr, LanBeaconPayload)>>,
 }
 
-struct ApiError(AppError);
+pub struct ApiError(AppError);
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
@@ -214,6 +216,13 @@ pub fn build_router(state: LanHttpState) -> Router {
         .route("/pairing/all", get(self::pairing::list_all))
         .route("/pairing/decide/{id}", post(self::pairing::decide))
         .route("/pairing/revoke/{device_id}", post(self::pairing::revoke))
+        .route(
+            "/eprescriptions/validate",
+            post(self::eprescription::validate),
+        )
+        .route("/eprescriptions/submit", post(self::eprescription::submit))
+        .route("/license", get(self::license::status).delete(self::license::clear))
+        .route("/license/activate", post(self::license::activate))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             jwt_auth_middleware,

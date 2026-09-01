@@ -2,6 +2,11 @@
 //! identifier conversion (German table/column/enum wires, or camelCase
 //! `serviceItem` / `purchaseOrder`).
 //!
+//! Also remaps leftover German keys inside stored JSON (`app_kv`,
+//! `document_template.payload`) and Englishifies appointment note markers
+//! (`Dauer:` → `Duration:`, toothache fragments) so English-only readers
+//! load existing installs after dual-read removal.
+//!
 //! Fresh databases created from `0001_initial_schema.sql` already use English
 //! snake_case names; this step is a no-op for them.
 
@@ -364,6 +369,8 @@ pub async fn run_english_schema_upgrade(pool: &SqlitePool) -> Result<(), AppErro
     apply_enum_updates(pool).await?;
     apply_category_and_copy_updates(pool).await?;
     apply_outbox_table_renames(pool).await?;
+    apply_stored_json_english_upgrade(pool).await?;
+    apply_appointment_text_english_upgrade(pool).await?;
 
     if table_exists(pool, "day_close_protocol").await? {
         sqlx::query("DROP INDEX IF EXISTS idx_day_close_protocol_tag")
@@ -720,4 +727,430 @@ async fn apply_outbox_table_renames(pool: &SqlitePool) -> Result<(), AppError> {
             .map_err(AppError::Database)?;
     }
     Ok(())
+}
+
+/// Leftover German / mixed JSON object keys → English (practice KV, templates, drafts).
+const JSON_OBJECT_KEY_RENAMES: &[(&str, &str)] = &[
+    // invoice.practice.v1
+    ("kv_nummer", "kv_number"),
+    ("ust_id", "vat_id"),
+    ("kammer", "chamber"),
+    ("bankverbindung_iban", "bank_iban"),
+    ("bankverbindung_bic", "bank_bic"),
+    ("bankverbindung_bank", "bank_name"),
+    ("bankverbindung_inhaber", "account_holder"),
+    ("ust_befreiung_hinweis", "vat_exemption_notice"),
+    ("notfall_phone", "emergency_phone"),
+    ("payment_terms_tage", "payment_terms_days"),
+    // practice preferences
+    ("pufferMin", "bufferMin"),
+    ("notfallPuffer", "emergencyBuffer"),
+    ("kalenderDragDropEnabled", "calendarDragDropEnabled"),
+    // privacy (if ever stored in KV)
+    ("steuer", "tax"),
+    ("oz", "hours"),
+    ("ust", "vat"),
+    // document template payload
+    ("kopf", "header"),
+    ("empfaenger", "recipient"),
+    ("fusszeile", "footer"),
+    ("signatur", "signature"),
+    ("schriftart", "font"),
+    ("dichte", "density"),
+    ("datumsformat", "dateFormat"),
+    // certificate template payload
+    ("krankheiten", "illnesses"),
+    ("tage_anzahl", "day_count"),
+    ("einschraenkung", "activity_restriction"),
+    // anamnesis medication nested keys
+    ("selbst", "self"),
+    ("vergessen", "missed"),
+    // appointment draft leftover camelCase
+    ("zahnschmerzenTeeth", "toothacheTeeth"),
+    ("zahnschmerzenTooth", "toothacheTooth"),
+    ("statusWunsch", "statusPreference"),
+    // discharge / misc leftover keys
+    ("zusatz_hinweise", "additionalNotes"),
+    ("zusatzHinweise", "additionalNotes"),
+    ("ueberweisung_hinweise", "referralNotes"),
+    ("ueberweisungHinweise", "referralNotes"),
+];
+
+/// Exact string values (template field/column ids, density, signature kinds).
+const JSON_STRING_VALUE_RENAMES: &[(&str, &str)] = &[
+    ("stempel", "stamp"),
+    ("kompakt", "compact"),
+    ("weit", "spacious"),
+    ("ust_hinweis", "vat_notice"),
+    ("notfall_tel", "emergency_phone"),
+    ("einzelpreis", "unit_price"),
+    ("gesamt", "total"),
+    ("steuer", "tax"),
+    ("oz", "hours"),
+    ("kammer", "chamber"),
+    ("leistung", "service_item"),
+    ("anzahl", "quantity"),
+    ("mwst", "vat"),
+];
+
+const APP_KV_KEY_RENAMES: &[(&str, &str)] = &[
+    ("praxis.preferences.v1", "practice.preferences.v1"),
+    ("praxis.preferences-appointment.v1", "practice.preferences-appointment.v1"),
+];
+
+fn rename_json_keys_prefer_english(value: &mut serde_json::Value, renames: &[(&str, &str)]) {
+    match value {
+        serde_json::Value::Object(map) => {
+            let keys: Vec<String> = map.keys().cloned().collect();
+            for key in keys {
+                if let Some((_, english)) = renames.iter().find(|(old, _)| *old == key) {
+                    if let Some(v) = map.remove(&key) {
+                        if !map.contains_key(*english) {
+                            map.insert((*english).to_string(), v);
+                        }
+                        // else drop leftover when English already present
+                    }
+                }
+            }
+            for child in map.values_mut() {
+                rename_json_keys_prefer_english(child, renames);
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for child in items {
+                rename_json_keys_prefer_english(child, renames);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn rename_json_string_values(value: &mut serde_json::Value, renames: &[(&str, &str)]) {
+    match value {
+        serde_json::Value::Object(map) => {
+            for child in map.values_mut() {
+                rename_json_string_values(child, renames);
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for child in items {
+                rename_json_string_values(child, renames);
+            }
+        }
+        serde_json::Value::String(s) => {
+            for (from, to) in renames {
+                if s == from {
+                    *s = (*to).to_string();
+                    break;
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+fn upgrade_stored_json_blob(raw: &str) -> Option<String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let mut value: serde_json::Value = serde_json::from_str(trimmed).ok()?;
+    let before = value.clone();
+    rename_json_keys_prefer_english(&mut value, JSON_OBJECT_KEY_RENAMES);
+    rename_json_string_values(&mut value, JSON_STRING_VALUE_RENAMES);
+    if value == before {
+        return None;
+    }
+    Some(value.to_string())
+}
+
+fn upgrade_appointment_text(raw: &str) -> Option<String> {
+    let mut out = raw.to_string();
+    let mut changed = false;
+    let replacements = [
+        ("Dauer:", "Duration:"),
+        ("Zahnschmerzen", "Toothache"),
+        ("Zähne ", "teeth "),
+        ("Zahn ", "tooth "),
+    ];
+    for (from, to) in replacements {
+        if out.contains(from) {
+            out = out.replace(from, to);
+            changed = true;
+        }
+    }
+    changed.then_some(out)
+}
+
+async fn apply_stored_json_english_upgrade(pool: &SqlitePool) -> Result<(), AppError> {
+    if table_exists(pool, "app_kv").await? {
+        for (old_key, new_key) in APP_KV_KEY_RENAMES {
+            // Prefer existing English key; otherwise rename leftover key.
+            let english_exists: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM app_kv WHERE key = ?1",
+            )
+            .bind(new_key)
+            .fetch_one(pool)
+            .await
+            .map_err(AppError::Database)?;
+            if english_exists == 0 {
+                sqlx::query("UPDATE app_kv SET key = ?1 WHERE key = ?2")
+                    .bind(new_key)
+                    .bind(old_key)
+                    .execute(pool)
+                    .await
+                    .map_err(AppError::Database)?;
+            } else {
+                sqlx::query("DELETE FROM app_kv WHERE key = ?1")
+                    .bind(old_key)
+                    .execute(pool)
+                    .await
+                    .map_err(AppError::Database)?;
+            }
+        }
+
+        let rows: Vec<(String, String)> =
+            sqlx::query_as("SELECT key, value FROM app_kv WHERE value IS NOT NULL AND value != ''")
+                .fetch_all(pool)
+                .await
+                .map_err(AppError::Database)?;
+        for (key, value) in rows {
+            if let Some(next) = upgrade_stored_json_blob(&value) {
+                sqlx::query("UPDATE app_kv SET value = ?1 WHERE key = ?2")
+                    .bind(&next)
+                    .bind(&key)
+                    .execute(pool)
+                    .await
+                    .map_err(AppError::Database)?;
+                tracing::info!(
+                    target: "medoc::system",
+                    event = "SCHEMA_APP_KV_JSON_ENGLISHIFIED",
+                    key = %key
+                );
+            }
+        }
+    }
+
+    if table_exists(pool, "document_template").await?
+        && column_exists(pool, "document_template", "payload").await?
+    {
+        let rows: Vec<(String, String)> =
+            sqlx::query_as("SELECT id, payload FROM document_template WHERE payload IS NOT NULL AND payload != ''")
+                .fetch_all(pool)
+                .await
+                .map_err(AppError::Database)?;
+        for (id, payload) in rows {
+            if let Some(next) = upgrade_stored_json_blob(&payload) {
+                sqlx::query("UPDATE document_template SET payload = ?1 WHERE id = ?2")
+                    .bind(&next)
+                    .bind(&id)
+                    .execute(pool)
+                    .await
+                    .map_err(AppError::Database)?;
+                tracing::info!(
+                    target: "medoc::system",
+                    event = "SCHEMA_DOCUMENT_TEMPLATE_PAYLOAD_ENGLISHIFIED",
+                    id = %id
+                );
+            }
+        }
+    }
+
+    if table_exists(pool, "document_template_user").await?
+        && column_exists(pool, "document_template_user", "payload").await?
+    {
+        let rows: Vec<(String, String)> = sqlx::query_as(
+            "SELECT id, payload FROM document_template_user WHERE payload IS NOT NULL AND payload != ''",
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(AppError::Database)?;
+        for (id, payload) in rows {
+            if let Some(next) = upgrade_stored_json_blob(&payload) {
+                sqlx::query("UPDATE document_template_user SET payload = ?1 WHERE id = ?2")
+                    .bind(&next)
+                    .bind(&id)
+                    .execute(pool)
+                    .await
+                    .map_err(AppError::Database)?;
+                tracing::info!(
+                    target: "medoc::system",
+                    event = "SCHEMA_DOCUMENT_TEMPLATE_USER_PAYLOAD_ENGLISHIFIED",
+                    id = %id
+                );
+            }
+        }
+    }
+
+    if table_exists(pool, "chart_next_appointment_hint").await?
+        && column_exists(pool, "chart_next_appointment_hint", "hint_json").await?
+    {
+        let rows: Vec<(String, String)> = sqlx::query_as(
+            "SELECT patient_id, hint_json FROM chart_next_appointment_hint WHERE hint_json IS NOT NULL AND hint_json != ''",
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(AppError::Database)?;
+        for (patient_id, hint_json) in rows {
+            if let Some(next) = upgrade_stored_json_blob(&hint_json) {
+                sqlx::query(
+                    "UPDATE chart_next_appointment_hint SET hint_json = ?1 WHERE patient_id = ?2",
+                )
+                .bind(&next)
+                .bind(&patient_id)
+                .execute(pool)
+                .await
+                .map_err(AppError::Database)?;
+            }
+        }
+    }
+
+    if table_exists(pool, "anamnesis_form").await?
+        && column_exists(pool, "anamnesis_form", "answers").await?
+    {
+        let rows: Vec<(String, String)> = sqlx::query_as(
+            "SELECT id, answers FROM anamnesis_form WHERE answers IS NOT NULL AND answers != ''",
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(AppError::Database)?;
+        for (id, answers) in rows {
+            if let Some(next) = upgrade_stored_json_blob(&answers) {
+                sqlx::query("UPDATE anamnesis_form SET answers = ?1 WHERE id = ?2")
+                    .bind(&next)
+                    .bind(&id)
+                    .execute(pool)
+                    .await
+                    .map_err(AppError::Database)?;
+                tracing::info!(
+                    target: "medoc::system",
+                    event = "SCHEMA_ANAMNESIS_ANSWERS_ENGLISHIFIED",
+                    id = %id
+                );
+            }
+        }
+    }
+
+    Ok(())
+}
+
+async fn apply_appointment_text_english_upgrade(pool: &SqlitePool) -> Result<(), AppError> {
+    if !table_exists(pool, "appointment").await? {
+        return Ok(());
+    }
+    if column_exists(pool, "appointment", "notes").await? {
+        let rows: Vec<(String, Option<String>)> =
+            sqlx::query_as("SELECT id, notes FROM appointment WHERE notes IS NOT NULL AND notes != ''")
+                .fetch_all(pool)
+                .await
+                .map_err(AppError::Database)?;
+        for (id, notes) in rows {
+            if let Some(raw) = notes {
+                if let Some(next) = upgrade_appointment_text(&raw) {
+                    sqlx::query("UPDATE appointment SET notes = ?1 WHERE id = ?2")
+                        .bind(&next)
+                        .bind(&id)
+                        .execute(pool)
+                        .await
+                        .map_err(AppError::Database)?;
+                }
+            }
+        }
+    }
+    if column_exists(pool, "appointment", "chief_complaint").await? {
+        let rows: Vec<(String, Option<String>)> = sqlx::query_as(
+            "SELECT id, chief_complaint FROM appointment WHERE chief_complaint IS NOT NULL AND chief_complaint != ''",
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(AppError::Database)?;
+        for (id, complaint) in rows {
+            if let Some(raw) = complaint {
+                if let Some(next) = upgrade_appointment_text(&raw) {
+                    sqlx::query("UPDATE appointment SET chief_complaint = ?1 WHERE id = ?2")
+                        .bind(&next)
+                        .bind(&id)
+                        .execute(pool)
+                        .await
+                        .map_err(AppError::Database)?;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod json_upgrade_tests {
+    use super::{
+        rename_json_keys_prefer_english, upgrade_appointment_text, upgrade_stored_json_blob,
+        JSON_OBJECT_KEY_RENAMES,
+    };
+    use serde_json::json;
+
+    #[test]
+    fn remaps_invoice_practice_leftover_keys() {
+        let upgraded = upgrade_stored_json_blob(
+            r#"{"name":"Clinic","kv_nummer":"KV-1","kammer":"Berlin","ust_id":"DE1","bankverbindung_iban":"DE00"}"#,
+        )
+        .expect("changed");
+        let v: serde_json::Value = serde_json::from_str(&upgraded).unwrap();
+        assert_eq!(v["kv_number"], "KV-1");
+        assert_eq!(v["chamber"], "Berlin");
+        assert_eq!(v["vat_id"], "DE1");
+        assert_eq!(v["bank_iban"], "DE00");
+        assert!(v.get("kv_nummer").is_none());
+        assert!(v.get("kammer").is_none());
+    }
+
+    #[test]
+    fn prefers_existing_english_over_leftover() {
+        let mut v = json!({"chamber":"Berlin","kammer":"Hamburg"});
+        rename_json_keys_prefer_english(&mut v, JSON_OBJECT_KEY_RENAMES);
+        assert_eq!(v["chamber"], "Berlin");
+        assert!(v.get("kammer").is_none());
+    }
+
+    #[test]
+    fn remaps_template_and_certificate_payload() {
+        let upgraded = upgrade_stored_json_blob(
+            r#"{"version":1,"kopf":{"fieldsToShow":["ust_hinweis","kammer"],"showLogo":false},"empfaenger":{"visible":true},"dichte":"kompakt","signatur":{"show":true,"labelKind":"stempel"},"krankheiten":"Cold","tage_anzahl":2}"#,
+        )
+        .expect("changed");
+        let v: serde_json::Value = serde_json::from_str(&upgraded).unwrap();
+        assert!(v.get("header").is_some());
+        assert!(v.get("recipient").is_some());
+        assert_eq!(v["density"], "compact");
+        assert_eq!(v["header"]["fieldsToShow"][0], "vat_notice");
+        assert_eq!(v["header"]["fieldsToShow"][1], "chamber");
+        assert_eq!(v["signature"]["labelKind"], "stamp");
+        assert_eq!(v["illnesses"], "Cold");
+        assert_eq!(v["day_count"], 2);
+        assert!(v.get("kopf").is_none());
+    }
+
+    #[test]
+    fn remaps_appointment_text_markers() {
+        let next = upgrade_appointment_text("Dauer: 30 min · Zahnschmerzen (Zahn 16)").unwrap();
+        assert_eq!(next, "Duration: 30 min · Toothache (tooth 16)");
+    }
+
+    #[test]
+    fn remaps_anamnesis_medication_attribute_keys() {
+        let upgraded = upgrade_stored_json_blob(
+            r#"{"version":1,"medication":{"dosing":"täglich morgens","selbst":"Vit D","vergessen":"rarely"}}"#,
+        )
+        .expect("changed");
+        let v: serde_json::Value = serde_json::from_str(&upgraded).unwrap();
+        assert_eq!(v["medication"]["self"], "Vit D");
+        assert_eq!(v["medication"]["missed"], "rarely");
+        assert_eq!(v["medication"]["dosing"], "täglich morgens");
+        assert!(v["medication"].get("selbst").is_none());
+        assert!(v["medication"].get("vergessen").is_none());
+    }
+
+    #[test]
+    fn unchanged_english_blob_returns_none() {
+        assert!(upgrade_stored_json_blob(r#"{"name":"Clinic","kv_number":"KV-1"}"#).is_none());
+    }
 }

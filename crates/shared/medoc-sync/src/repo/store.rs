@@ -15,7 +15,7 @@ use super::types::{OutboxEntry, SyncPeer, SyncStatusSnapshot, SYNCED_TABLES};
 pub async fn ensure_local_device(pool: &SqlitePool, label: &str) -> Result<String, AppError> {
     ensure_sync_tables(pool).await?;
     let display_name = if label.is_empty() {
-        "Dieses Gerät"
+        "This device"
     } else {
         label
     };

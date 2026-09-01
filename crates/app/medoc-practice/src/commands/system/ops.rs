@@ -9,7 +9,7 @@ use tauri::{AppHandle, Manager, State};
 use crate::application::rbac;
 use crate::commands::auth_commands::SessionState;
 use crate::error::AppError;
-use crate::infrastructure::{backup, dsgvo, migration, retention};
+use crate::infrastructure::{backup, gdpr, migration, retention};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -98,7 +98,7 @@ pub async fn dsgvo_export_patient(
     patient_id: String,
 ) -> Result<Value, AppError> {
     rbac::require(&session_state, "ops.dsgvo")?;
-    dsgvo::export_patient(&pool, &patient_id).await
+    gdpr::export_patient(&pool, &patient_id).await
 }
 
 #[tauri::command]
@@ -108,13 +108,13 @@ pub async fn dsgvo_erase_patient(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
     patient_id: String,
-) -> Result<dsgvo::ErasureReport, AppError> {
+) -> Result<gdpr::ErasureReport, AppError> {
     rbac::require(&session_state, "ops.dsgvo")?;
     let app_dir = app
         .path()
         .app_data_dir()
         .map_err(|e| AppError::Internal(format!("App data directory: {e}")))?;
-    dsgvo::erase_patient(&pool, &patient_id, &app_dir).await
+    gdpr::erase_patient(&pool, &patient_id, &app_dir).await
 }
 
 #[tauri::command]

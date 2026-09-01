@@ -14,16 +14,11 @@ pub struct InvoiceLineDto {
     pub description: String,
     pub amount_cents: i64,
     pub goz_nr: Option<String>,
-    #[serde(alias = "faktor")]
     pub factor: Option<f64>,
-    #[serde(alias = "einzelpreis_cents")]
     pub unit_price_cents: Option<i64>,
     pub quantity: Option<i32>,
-    #[serde(alias = "zahn_nr")]
     pub tooth_nr: Option<String>,
-    #[serde(alias = "behandlungsdatum")]
     pub treatment_date: Option<String>,
-    #[serde(alias = "ust_prozent")]
     pub vat_percent: Option<f64>,
     pub material: Option<String>,
     pub diagnosis_reason: Option<String>,
@@ -42,10 +37,8 @@ pub struct InvoiceDto {
     pub clinician_name: Option<String>,
     pub clinician_zanr: Option<String>,
     pub practice_bsnr: Option<String>,
-    #[serde(alias = "bankverbindung")]
     pub bank_details: Option<Vec<String>>,
     pub payment_terms_text: Option<String>,
-    #[serde(alias = "ust_hinweis")]
     pub vat_notice: Option<String>,
 }
 

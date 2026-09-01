@@ -6,7 +6,7 @@ import type { Prescription } from "@/systems/practice-host/controllers/prescript
 import { listDocumentTemplates } from "@/systems/practice-host/controllers/practice.controller";
 import {
     CERTIFICATE_KIND_VALUES,
-    certificateGueltigUntilFromFromAndTage,
+    certificateValidUntilFromStartAndDays,
     defaultIllnessLabel,
     emptyCertificateComposerForm,
     parseCertificateTemplatePayload,
@@ -451,21 +451,21 @@ export function usePatientDetailPrescriptionTab({
             return;
         }
         const parsed = parseCertificateTemplatePayload(version.payload);
-        const rawTage = parsed.tageAnzahl.trim() || "1";
+        const rawTage = parsed.dayCount.trim() || "1";
         const n = Number.parseInt(rawTage, 10);
         if (!Number.isFinite(n) || n < 1 || n > 366) {
             toast(t("patient.detail.toast.template_invalid_days"), "error");
             return;
         }
         const today = new Date().toISOString().slice(0, 10);
-        const krank = parsed.krankheiten.trim() || defaultIllnessLabel(t);
+        const illness = parsed.illnesses.trim() || defaultIllnessLabel(t);
         const nextForm: CertificateComposerFormFields = {
             kind: CERTIFICATE_KIND_VALUES[0],
-            krankheiten: krank,
-            tageAnzahl: String(n),
-            einschraenkung: parsed.einschraenkung.trim(),
+            illnesses: illness,
+            dayCount: String(n),
+            activityRestriction: parsed.activityRestriction.trim(),
             valid_from: today,
-            valid_until: certificateGueltigUntilFromFromAndTage(today, String(n)),
+            valid_until: certificateValidUntilFromStartAndDays(today, String(n)),
             icd10_code: "",
             first_or_follow_up: "FIRST",
             employer: "",

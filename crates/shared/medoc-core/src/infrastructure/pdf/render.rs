@@ -13,8 +13,9 @@
 use crate::error::AppError;
 
 use super::core::{
-    emit_multipage_pdf, format_date_dmy, format_eur, truncate_cell, wrap_text, wrap_soft,
-    PageBuilder, CONTENT_WIDTH, M_BOTTOM, M_LEFT, M_RIGHT,
+    approx_text_width, emit_multipage_pdf, format_date_dmy, format_eur, sanitize_pdf_money,
+    table_row_height, truncate_cell, wrap_soft, wrap_text, PageBuilder, CONTENT_WIDTH, M_BOTTOM,
+    M_LEFT, M_RIGHT,
 };
 use super::letterhead::{
     emit_bank_details, emit_continuation_header, emit_letterhead, emit_signature_block,
@@ -28,7 +29,7 @@ use super::letterhead::{
 /// One line in the invoice table (GOZ / GOÄ).
 #[derive(Debug, Clone)]
 pub struct InvoiceLine {
-    /// Free-text service description (e.g. "Komposit dreiflächig").
+    /// Free-text service description (e.g. "Composite, three-surface").
     pub description: String,
     /// Line total in cents (quantity × unit price × factor).
     pub amount_cents: i64,
@@ -86,7 +87,7 @@ pub struct Invoice {
     pub clinician_zanr: Option<String>,
     pub practice_bsnr: Option<String>,
     /// Full bank lines (e.g. ["IBAN: DE12…", "BIC: COBADEFFXXX",
-    /// "Bank: Commerzbank", "Account holder: Dr. M. Mustermann"]).
+    /// "Bank: Commerzbank", "Account holder: Dr. M. Sample"]).
     pub bank_details: Option<Vec<String>>,
     /// E.g. "Payable within 14 days with no deduction."
     pub payment_terms_text: Option<String>,
@@ -161,6 +162,7 @@ pub fn render(invoice: &Invoice) -> Result<Vec<u8>, AppError> {
         address_lines: &recipient,
         header_right_lines: &[],
         show_sender_hint: true,
+        compact_address: false,
     };
     emit_letterhead(&mut pb, &lh);
 
@@ -479,6 +481,7 @@ pub fn render_chart_blocks(
             address_lines: &[],
             header_right_lines: &[],
             show_sender_hint: false,
+            compact_address: false,
         };
         emit_letterhead(&mut pb, &lh);
     } else {
@@ -601,20 +604,28 @@ fn emit_chart_kv_pair(
     practice_name: &str,
     doc_title: &str,
 ) {
-    let display = crate::infrastructure::clinical_text_format::plain_text_for_pdf(value);
-    let compact = !display.contains('\n') && display.chars().count() <= 70;
+    let display = sanitize_pdf_money(
+        &crate::infrastructure::clinical_text_format::plain_text_for_pdf(value),
+    );
+    let label = format!("{key}:");
+    let label_w = approx_text_width(&label, 9);
+    // Long labels (e.g. "Income (current calendar month)") must not collide with values.
+    let value_x = M_LEFT + label_w + 14;
+    let fits_one_line = !display.contains('\n')
+        && value_x + approx_text_width(&display, 10) <= M_RIGHT
+        && label_w <= 240;
 
     if pb.y < M_BOTTOM + 30 {
         pb.break_page();
         emit_continuation_header(pb, practice_name, doc_title);
     }
 
-    if compact {
-        pb.text(M_LEFT, 9, true, &format!("{key}:"));
-        pb.text(M_LEFT + 130, 10, false, &display);
+    if fits_one_line {
+        pb.text(M_LEFT, 9, true, &label);
+        pb.text(value_x, 10, false, &display);
         pb.advance(14);
     } else {
-        pb.text(M_LEFT, 9, true, &format!("{key}:"));
+        pb.text(M_LEFT, 9, true, &label);
         pb.advance(12);
         for chunk in wrap_text(&display, 90) {
             if pb.y < M_BOTTOM + 24 {
@@ -655,6 +666,13 @@ fn chart_table_column_char_widths(col_xs: &[i32]) -> Vec<usize> {
     w
 }
 
+fn is_amount_header(h: &str) -> bool {
+    let l = h.to_ascii_lowercase();
+    l.contains("amount") || l.contains("betrag") || l.contains("total") || l.contains("eur")
+}
+
+const CHART_CELL_PAD: i32 = 6;
+
 fn emit_chart_table_header_row(
     pb: &mut PageBuilder,
     tbl: &ChartPdfTable,
@@ -666,9 +684,15 @@ fn emit_chart_table_header_row(
         let h = tbl.headers.get(ci).map(|s| s.as_str()).unwrap_or("");
         let max_chars = col_chars.get(ci).copied().unwrap_or(20);
         let x = col_xs.get(ci).copied().unwrap_or(M_LEFT);
-        pb.text(x + 2, 9, true, &truncate_cell(h, max_chars));
+        let next = col_xs.get(ci + 1).copied().unwrap_or(M_RIGHT);
+        let text = truncate_cell(h, max_chars);
+        if is_amount_header(h) {
+            pb.text_right(next - CHART_CELL_PAD, 9, true, &text);
+        } else {
+            pb.text(x + CHART_CELL_PAD, 9, true, &text);
+        }
     }
-    pb.advance(13);
+    pb.advance(14);
     pb.hline(M_LEFT, M_RIGHT);
     pb.advance(10);
 }
@@ -690,7 +714,7 @@ fn emit_chart_table(pb: &mut PageBuilder, tbl: &ChartPdfTable, practice_name: &s
     emit_chart_table_header_row(pb, tbl, &col_xs, &col_chars);
 
     if tbl.rows.is_empty() {
-        pb.text(M_LEFT + 4, 9, false, "(keine Tabellenzeilen)");
+        pb.text(M_LEFT + CHART_CELL_PAD, 9, false, "(no table rows)");
         pb.advance(12);
         return;
     }
@@ -700,38 +724,55 @@ fn emit_chart_table(pb: &mut PageBuilder, tbl: &ChartPdfTable, practice_name: &s
         let mut row_lines = 1usize;
         for ci in 0..ncol {
             let cell = row.get(ci).map(|s| s.as_str()).unwrap_or("");
+            let safe = sanitize_pdf_money(cell);
             let max_chars = col_chars.get(ci).copied().unwrap_or(20);
-            let w = wrap_soft(cell, max_chars);
+            let w = wrap_soft(&safe, max_chars);
             row_lines = row_lines.max(w.len().max(1));
             wrapped.push(w);
         }
 
-        let row_height = row_lines as i32 * 12 + 6;
+        let font_size = 9;
+        let line_step = 12;
+        let row_height = table_row_height(row_lines, line_step, font_size);
         if pb.y < M_BOTTOM + row_height + 20 {
             pb.break_page();
             emit_continuation_header(pb, practice_name, doc_title);
             emit_chart_table_header_row(pb, tbl, &col_xs, &col_chars);
         }
 
+        let first_baseline = pb.y;
         if ri % 2 == 1 {
-            pb.fill_rect(M_LEFT, pb.y - row_height, CONTENT_WIDTH, row_height, 0.97);
+            pb.fill_table_row_band(
+                M_LEFT,
+                CONTENT_WIDTH,
+                first_baseline,
+                row_height,
+                font_size,
+                0.97,
+            );
         }
 
-        let base_y = pb.y;
         for li in 0..row_lines {
             for ci in 0..ncol {
                 let x = col_xs.get(ci).copied().unwrap_or(M_LEFT);
+                let next = col_xs.get(ci + 1).copied().unwrap_or(M_RIGHT);
                 let chunk = wrapped
                     .get(ci)
                     .and_then(|w| w.get(li))
                     .map(|s| s.as_str())
                     .unwrap_or("");
-                if !chunk.is_empty() {
-                    let prev = pb.y;
-                    pb.y = base_y - li as i32 * 12;
-                    pb.text(x + 2, 9, false, chunk);
-                    pb.y = prev;
+                if chunk.is_empty() {
+                    continue;
                 }
+                let prev = pb.y;
+                pb.y = first_baseline - li as i32 * line_step;
+                let header = tbl.headers.get(ci).map(|s| s.as_str()).unwrap_or("");
+                if is_amount_header(header) {
+                    pb.text_right(next - CHART_CELL_PAD, font_size, false, chunk);
+                } else {
+                    pb.text(x + CHART_CELL_PAD, font_size, false, chunk);
+                }
+                pb.y = prev;
             }
         }
         pb.advance(row_height);
@@ -844,7 +885,7 @@ pub fn render_report_pdf(input: &ReportPdfInput) -> Result<Vec<u8>, AppError> {
     let mut blocks: Vec<ChartPdfBlock> = Vec::new();
     if !input.summary.is_empty() {
         blocks.push(ChartPdfBlock::kv(
-            "Zusammenfassung",
+            "Summary",
             input
                 .summary
                 .iter()
@@ -856,10 +897,12 @@ pub fn render_report_pdf(input: &ReportPdfInput) -> Result<Vec<u8>, AppError> {
         if sec.headers.is_empty() && sec.rows.is_empty() {
             continue;
         }
-        blocks.push(ChartPdfBlock::table(
-            &sec.title,
-            ChartPdfTable::new(sec.headers.clone(), sec.rows.clone()),
-        ));
+        let mut table = ChartPdfTable::new(sec.headers.clone(), sec.rows.clone());
+        // Two-column metric/amount tables: give the value column room + right align.
+        if sec.headers.len() == 2 {
+            table = table.with_column_weights(vec![3, 2]);
+        }
+        blocks.push(ChartPdfBlock::table(&sec.title, table));
     }
 
     render_chart_blocks(
@@ -913,17 +956,17 @@ mod tests {
         Invoice {
             number: "RE-2026-04-0001".into(),
             date: "2026-04-19".into(),
-            recipient_name: "Max Mustermann".into(),
-            recipient_address: vec!["Musterstr. 1".into(), "10115 Berlin".into()],
-            practice_name: "Zahnarztpraxis Dr. Beispiel".into(),
+            recipient_name: "Max Sample".into(),
+            recipient_address: vec!["Sample Street 1".into(), "10115 Berlin".into()],
+            practice_name: "Dental practice Dr. Example".into(),
             practice_address: vec![
-                "Hauptstr. 2".into(),
+                "Main Street 2".into(),
                 "10115 Berlin".into(),
                 "Tel. 030 12345".into(),
             ],
             lines: vec![
                 InvoiceLine {
-                    description: "Komposit, dreiflächig".into(),
+                    description: "Composite, three-surface".into(),
                     amount_cents: 5670,
                     goz_nr: Some("2197".into()),
                     factor: Some(2.3),
@@ -938,7 +981,7 @@ mod tests {
                 InvoiceLine::simple("Checkup", 4500),
             ],
             note: None,
-            clinician_name: Some("Dr. Maria Beispiel".into()),
+            clinician_name: Some("Dr. Maria Example".into()),
             clinician_zanr: Some("987654321".into()),
             practice_bsnr: Some("123456789".into()),
             bank_details: Some(vec![
@@ -947,7 +990,7 @@ mod tests {
                 "Bank: Commerzbank Berlin".into(),
             ]),
             payment_terms_text: Some("Payable within 14 days with no deduction.".into()),
-            vat_notice: Some("Umsatzsteuerbefreit gem. § 4 Nr. 14 UStG".into()),
+            vat_notice: Some("VAT-exempt under § 4 No. 14 UStG".into()),
         }
     }
 
@@ -1009,7 +1052,7 @@ mod tests {
             ChartPdfBlock::kv(
                 "MasterData",
                 vec![
-                    ("Name".into(), "Max Mustermann".into()),
+                    ("Name".into(), "Max Sample".into()),
                     ("Geb.-Dat.".into(), "01.01.1980".into()),
                 ],
             ),
@@ -1028,7 +1071,7 @@ mod tests {
         let pdf = render_chart_blocks(
             "PatientChart",
             "19.04.2026 14:30",
-            "Chart Max Mustermann",
+            "Chart Max Sample",
             &blocks,
             Some(&header),
         )
@@ -1056,14 +1099,14 @@ mod tests {
             ChartPdfTable {
                 headers: vec!["Date".into(), "ServiceItem".into(), "EUR".into()],
                 rows: vec![
-                    vec!["01.04.".into(), "Komposit".into(), "56,70 €".into()],
+                    vec!["01.04.".into(), "Composite".into(), "56,70 €".into()],
                     vec!["08.04.".into(), "Recall".into(), "45,00 €".into()],
                     vec!["15.04.".into(), "PZR".into(), "85,00 €".into()],
                 ],
                 ..Default::default()
             },
         )];
-        let pdf = render_chart_blocks("Chart", "date", "Titel", &blocks, None).unwrap();
+        let pdf = render_chart_blocks("Chart", "date", "Title", &blocks, None).unwrap();
         assert!(pdf.starts_with(b"%PDF-1.4"));
     }
 
@@ -1071,10 +1114,10 @@ mod tests {
     fn template_preview_fallback_works() {
         let pdf = render_template_preview_pdf(
             "receipt",
-            "Standardvorlage",
-            "Mit freundlichen Grüßen",
+            "Standard template",
+            "Kind regards",
             11,
-            &["Zeile 1".into(), "Zeile 2".into()],
+            &["Line 1".into(), "Line 2".into()],
             None,
         )
         .unwrap();
@@ -1084,17 +1127,17 @@ mod tests {
     #[test]
     fn renders_financial_report_with_summary_and_table() {
         let input = ReportPdfInput {
-            doc_title: "Einnahmenbericht".into(),
+            doc_title: "Income report".into(),
             generated_at: "26.05.2026".into(),
-            practice_name: "Zahnarztpraxis Nord".into(),
-            practice_address: vec!["Hauptstr. 1".into(), "10115 Berlin".into()],
+            practice_name: "Dental practice North".into(),
+            practice_address: vec!["Main Street 1".into(), "10115 Berlin".into()],
             summary: vec![ReportPdfSummaryRow {
                 label: "Income (current month)".into(),
                 value: "12.450,00 €".into(),
             }],
             sections: vec![ReportPdfSection {
-                title: "Income pro Monat".into(),
-                headers: vec!["Monat".into(), "Betrag".into()],
+                title: "Income by month".into(),
+                headers: vec!["Month".into(), "Amount".into()],
                 rows: vec![
                     vec!["2026-04".into(), "10.200,00".into()],
                     vec!["2026-05".into(), "12.450,00".into()],
@@ -1105,10 +1148,10 @@ mod tests {
         let text = String::from_utf8_lossy(&pdf);
         assert!(pdf.starts_with(b"%PDF-1.4"));
         for needle in [
-            "Einnahmenbericht",
-            "Zusammenfassung",
-            "Income pro Monat",
-            "Seite",
+            "Income report",
+            "Summary",
+            "Income by month",
+            "Page",
         ] {
             assert!(text.contains(needle), "missing {needle}");
         }

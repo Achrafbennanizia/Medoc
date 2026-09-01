@@ -15,6 +15,8 @@ pub mod devices;
 pub mod dpia;
 pub mod gdpr;
 pub mod license;
+pub mod install_plan;
+pub mod usb_vault;
 pub mod logging;
 pub mod migration;
 pub mod notifications;

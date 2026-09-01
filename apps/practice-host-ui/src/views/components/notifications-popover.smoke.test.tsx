@@ -17,8 +17,8 @@ const TASK_DONE: InAppNotification = {
     id: "notif-aufg-1",
     user_id: "seed-physician-001",
     kind: "PRACTICE_TASK_DONE",
-    title: "Task done: Max Mustermann",
-    body: "Ausdruck liegt bereit",
+    title: "Task done: Max Sample",
+    body: "Printout is ready",
     payload_json: JSON.stringify({
         taskId: "aufg-1",
         patientId: "pat-1",
@@ -32,8 +32,8 @@ const TASK_BACK: InAppNotification = {
     id: "notif-aufg-2",
     user_id: "seed-rez-001",
     kind: "PRACTICE_TASK_BACK",
-    title: "Task zurück: Max Mustermann",
-    body: "Bitte korrigieren",
+    title: "Task returned: Max Sample",
+    body: "Please correct",
     payload_json: JSON.stringify({
         taskId: "aufg-2",
         patientId: "pat-1",
@@ -54,8 +54,8 @@ describe("NotificationsPopover smoke (G21 row 4 proxy)", () => {
             </MemoryRouter>,
         );
 
-        expect(await screen.findByText("Task zurück: Max Mustermann")).toBeInTheDocument();
-        expect(screen.getByText("Bitte korrigieren")).toBeInTheDocument();
+        expect(await screen.findByText("Task returned: Max Sample")).toBeInTheDocument();
+        expect(screen.getByText("Please correct")).toBeInTheDocument();
     });
 
     it("shows PRACTICE_TASK_DONE notification for Physician", async () => {
@@ -67,7 +67,7 @@ describe("NotificationsPopover smoke (G21 row 4 proxy)", () => {
             </MemoryRouter>,
         );
 
-        expect(await screen.findByText("Task done: Max Mustermann")).toBeInTheDocument();
-        expect(screen.getByText("Ausdruck liegt bereit")).toBeInTheDocument();
+        expect(await screen.findByText("Task done: Max Sample")).toBeInTheDocument();
+        expect(screen.getByText("Printout is ready")).toBeInTheDocument();
     });
 });

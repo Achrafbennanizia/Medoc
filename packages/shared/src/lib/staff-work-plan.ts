@@ -20,20 +20,20 @@ export type StaffWorkBlock = {
     staffId: string;
     /** YYYY-MM-DD */
     date: string;
-    /** Minuten ab Mitternacht */
+    /** Minutes from midnight */
     startMin: number;
     endMin: number;
     title: string;
 };
 
-/** Sichtbares Tagesraster, Rasterweite, Zoom */
+/** Visible day grid, snap width, zoom */
 export type WorkPlanSettings = {
-    /** Sichtbarer Beginn (Minuten ab Mitternacht) */
+    /** Visible start (minutes from midnight) */
     dayStartMin: number;
     /** Visible end (exclusive upper bound for blocks: max = dayEndMin) */
     dayEndMin: number;
     snapMin: 5 | 10 | 15 | 30 | 60;
-    /** Pixel pro Minute (Zoom) */
+    /** Pixels per minute (zoom) */
     pxPerMin: number;
 };
 
@@ -44,8 +44,8 @@ export type WorkTimePreset = {
     endMin: number;
 };
 
-/** Soll: Mo–So (weekday 1=Mo … 7=So, ISO) */
-export type WochenarbeitsRegel = {
+/** Target hours: Mon–Sun (weekday 1=Mon … 7=Sun, ISO) */
+export type WeeklyWorkRule = {
     id: string;
     staffId: string;
     weekday: 1 | 2 | 3 | 4 | 5 | 6 | 7;
@@ -57,7 +57,7 @@ export type WorkPlanStore = {
     blocks: StaffWorkBlock[];
     settings: WorkPlanSettings;
     presets: WorkTimePreset[];
-    weeklyRules: WochenarbeitsRegel[];
+    weeklyRules: WeeklyWorkRule[];
     /** Named plans (work/break, validity, cascade) — see `work_plan-preferences.ts` */
     planPreferences: PlanPreference[];
     /** Additive draft entries (add / time off) — see `work_plan-compose.ts` */
@@ -128,7 +128,7 @@ function migrateWeeklyToPlan(s: WorkPlanStore): WorkPlanStore {
     }
     const planPreferences: PlanPreference[] = s.weeklyRules.map((r) => ({
         id: r.id,
-        name: "Soll (importiert aus Wochen-Regeln)",
+        name: "Target (imported from week rules)",
         staffIds: [r.staffId],
         kind: "work" as const,
         layer: defaultLayerForScope("general"),
@@ -147,7 +147,7 @@ function parseStoreV2(raw: string): WorkPlanStore | null {
             blocks?: unknown;
             settings?: WorkPlanSettings;
             presets?: WorkTimePreset[];
-            weeklyRules?: WochenarbeitsRegel[];
+            weeklyRules?: WeeklyWorkRule[];
             planPreferences?: unknown;
         };
         const blocks = Array.isArray(j.blocks) ? j.blocks.filter(isBlock) : [];
@@ -178,16 +178,16 @@ function parseStoreV2(raw: string): WorkPlanStore | null {
             : defaultPresets();
         const weeklyRules = Array.isArray(j.weeklyRules)
             ? j.weeklyRules.filter(
-                (r): r is WochenarbeitsRegel =>
+                (r): r is WeeklyWorkRule =>
                     r != null
-                    && typeof (r as WochenarbeitsRegel).id === "string"
-                    && typeof (r as WochenarbeitsRegel).staffId === "string"
-                    && typeof (r as WochenarbeitsRegel).weekday === "number"
-                    && (r as WochenarbeitsRegel).weekday >= 1
-                    && (r as WochenarbeitsRegel).weekday <= 7
-                    && typeof (r as WochenarbeitsRegel).startMin === "number"
-                    && typeof (r as WochenarbeitsRegel).endMin === "number"
-                    && (r as WochenarbeitsRegel).endMin > (r as WochenarbeitsRegel).startMin,
+                    && typeof (r as WeeklyWorkRule).id === "string"
+                    && typeof (r as WeeklyWorkRule).staffId === "string"
+                    && typeof (r as WeeklyWorkRule).weekday === "number"
+                    && (r as WeeklyWorkRule).weekday >= 1
+                    && (r as WeeklyWorkRule).weekday <= 7
+                    && typeof (r as WeeklyWorkRule).startMin === "number"
+                    && typeof (r as WeeklyWorkRule).endMin === "number"
+                    && (r as WeeklyWorkRule).endMin > (r as WeeklyWorkRule).startMin,
             )
             : [];
         const planPreferences = Array.isArray(j.planPreferences)
@@ -334,8 +334,8 @@ export function isoWeekdayFromYmd(dateStr: string): 1 | 2 | 3 | 4 | 5 | 6 | 7 {
 export function rulesForDay(
     staffId: string,
     ymdStr: string,
-    rules: WochenarbeitsRegel[],
-): WochenarbeitsRegel[] {
+    rules: WeeklyWorkRule[],
+): WeeklyWorkRule[] {
     const wd = isoWeekdayFromYmd(ymdStr);
     return rules.filter((r) => r.staffId === staffId && r.weekday === wd);
 }

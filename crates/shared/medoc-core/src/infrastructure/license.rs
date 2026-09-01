@@ -97,6 +97,9 @@ pub struct LicenseV2 {
     pub modules: Vec<String>,
     #[serde(default, alias = "edition_features")]
     pub edition_features: Vec<String>,
+    /// Optional USB multi-installer blueprint (schema in `install_plan.rs`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub install_plan: Option<crate::infrastructure::install_plan::InstallPlan>,
 }
 
 #[derive(Debug, Serialize)]

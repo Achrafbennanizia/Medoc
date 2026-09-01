@@ -14,16 +14,10 @@ export type AppointmentDraft = {
     kind: string;
     chiefComplaintTags: string[];
     toothacheTeeth?: string[];
-    /** leftover draft key */
-    zahnschmerzenTeeth?: string[];
     toothacheTooth?: string | null;
-    /** leftover draft key */
-    zahnschmerzenTooth?: string | null;
     notes: string;
     durationMin: string;
     statusPreference: string;
-    /** leftover draft key */
-    statusWunsch?: string;
 };
 
 export function appointmentDraftKvKey(draftId: string): string {
@@ -51,21 +45,15 @@ function parseDraft(raw: string | null): AppointmentDraft | null {
                 : [],
             toothacheTeeth: Array.isArray(d.toothacheTeeth)
                 ? d.toothacheTeeth.filter((x): x is string => typeof x === "string")
-                : Array.isArray(d.zahnschmerzenTeeth)
-                  ? d.zahnschmerzenTeeth.filter((x): x is string => typeof x === "string")
-                  : undefined,
+                : undefined,
             toothacheTooth: typeof d.toothacheTooth === "string"
                 ? d.toothacheTooth
-                : typeof d.zahnschmerzenTooth === "string"
-                  ? d.zahnschmerzenTooth
-                  : undefined,
+                : undefined,
             notes: typeof d.notes === "string" ? d.notes : "",
             durationMin: typeof d.durationMin === "string" ? d.durationMin : "",
             statusPreference: typeof d.statusPreference === "string"
                 ? d.statusPreference
-                : typeof d.statusWunsch === "string"
-                  ? d.statusWunsch
-                  : "",
+                : "",
         };
     } catch {
         return null;

@@ -15,7 +15,10 @@ use medoc_sync::cluster::services::{
     submit_sas, sync_staff_from_stored_admin_endpoint, unblock_device, cluster_network_ready,
     cluster_status, DeviceView, ImportActivationResult, JoinRequestResult, PairingHandle,
     PendingRequest, ProvisionResult, SasCode, ClusterStatus,
+    apply_install_plan, consume_default_sidecar_and_apply, get_provisioning_window,
+    ApplyInstallPlanResult,
 };
+use medoc_core::infrastructure::install_plan::{InstallPlan, ProvisioningWindowState};
 use medoc_sync::cluster::SeatRole;
 use serde::Deserialize;
 use sqlx::SqlitePool;
@@ -122,6 +125,31 @@ pub async fn pick_activation_manifest_file() -> Result<Option<String>, AppError>
         .set_file_name("activation.json")
         .pick_file();
     Ok(path.map(|p| p.to_string_lossy().into_owned()))
+}
+
+/// Apply pending USB sidecar install plan (first boot after USB setup).
+#[tauri::command]
+pub async fn install_plan_consume_sidecar(
+    pool: State<'_, SqlitePool>,
+) -> Result<Option<ApplyInstallPlanResult>, AppError> {
+    consume_default_sidecar_and_apply(&pool).await
+}
+
+/// Apply an explicit install plan (e.g. from onboarding UI).
+#[tauri::command]
+pub async fn install_plan_apply(
+    pool: State<'_, SqlitePool>,
+    plan: InstallPlan,
+) -> Result<ApplyInstallPlanResult, AppError> {
+    apply_install_plan(&pool, &plan).await
+}
+
+/// Active provisioning window from USB install_plan (pairing / scan / open ports).
+#[tauri::command]
+pub async fn install_plan_provisioning_status(
+    pool: State<'_, SqlitePool>,
+) -> Result<Option<ProvisioningWindowState>, AppError> {
+    get_provisioning_window(&pool).await
 }
 
 #[tauri::command]

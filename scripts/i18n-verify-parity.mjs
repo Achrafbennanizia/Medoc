@@ -48,7 +48,7 @@ for (const loc of LOCALES) {
 
 const AR_CRITICAL = [
     "nav.settings",
-    "nav.patienten",
+    "nav.patients",
     "auth.login",
     "auth.logout",
     "common.save",
@@ -70,13 +70,11 @@ const DE_SPECIFIC =
 const OK_IDENTICAL =
     /^(MeDoc|Online|Offline|Status|Break-Glass|DATEV|DocCheck|TK-Direktabrechnung|BIC|HTML|PDF|CSV|JSON|OK|Routine|Kontrolle|Beratung|Bar|Karte|Avatar|Audit|Export|Import|Ticket|Team|Compliance|Migration|Scanner|Details|Version|Support|Desktop|Total|Email|E-Mail|Telefon|Name|Patient|Datum|Zeit|Typ|Note|Contact|Price|Amount|Quantity|Unit|Reference|Metadata|Filter|Search|Dashboard|Schedule|Overview|Cancel|Save|Edit|Delete|Close|Confirm|Add|Remove|Yes|No|All|Error|Warning|Success|Info|Loading|Active|Paused|Dringend|Bald|—|·|Termin|FA-[A-Z0-9-]+)$/i;
 
-/** API docs keep German route segments by design. */
-const API_ROUTE_KEYS = new Set(["page.lan.host.api_routes"]);
+/** LAN host help documents live English routes (`/patients`, `/appointments?date=`). */
 
 for (const loc of ["en", "fr", "ar"]) {
     let germanHits = 0;
     for (const k of deKeys) {
-        if (API_ROUTE_KEYS.has(k)) continue;
         const v = String(catalogs[loc][k] ?? "");
         const dv = String(catalogs.de[k] ?? "");
         if (OK_IDENTICAL.test(v.trim())) continue;

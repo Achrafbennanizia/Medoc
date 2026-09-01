@@ -24,7 +24,7 @@ export const ANAMNESIS_SECTION_LABELS: Record<string, string> = {
     mental: "Mental health history",
     regular: "Regular medication",
     dosing: "Dosing schedule",
-    selbst: "Self-medication / supplements",
+    self: "Self-medication / supplements",
     missed: "Missed doses",
     sideEffects: "Side effects",
     medications: "Drug allergies",

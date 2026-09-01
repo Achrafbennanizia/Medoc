@@ -38,37 +38,6 @@ export interface InvoiceInput {
 
 export type InvoiceDocKind = "RE" | "BR" | "QU";
 
-/** Leftover German IPC keys from stored invoice history (dual-read). */
-type LeftoverInvoiceLine = InvoiceLineInput & {
-    faktor?: number | null;
-    einzelpreis_cents?: number | null;
-    zahn_nr?: string | null;
-    behandlungsdatum?: string | null;
-    ust_prozent?: number | null;
-};
-
-type LeftoverInvoice = InvoiceInput & {
-    bankverbindung?: string[] | null;
-    ust_hinweis?: string | null;
-    lines: LeftoverInvoiceLine[];
-};
-
-function normalizeInvoiceInput(invoice: LeftoverInvoice): InvoiceInput {
-    return {
-        ...invoice,
-        bank_details: invoice.bank_details ?? invoice.bankverbindung ?? null,
-        vat_notice: invoice.vat_notice ?? invoice.ust_hinweis ?? null,
-        lines: invoice.lines.map((l) => ({
-            ...l,
-            factor: l.factor ?? l.faktor ?? null,
-            unit_price_cents: l.unit_price_cents ?? l.einzelpreis_cents ?? null,
-            tooth_nr: l.tooth_nr ?? l.zahn_nr ?? null,
-            treatment_date: l.treatment_date ?? l.behandlungsdatum ?? null,
-            vat_percent: l.vat_percent ?? l.ust_prozent ?? null,
-        })),
-    };
-}
-
 export async function allocateReceiptNumber(ymd: string): Promise<string> {
     return allocateInvoiceDocumentNumber("QU", ymd);
 }
@@ -103,7 +72,7 @@ export async function allocateReportNumber(
 /** FA-FIN-INVOICE: PDF bytes from the Rust print engine. */
 export async function renderInvoicePdf(invoice: InvoiceInput): Promise<Uint8Array> {
     const raw = await practiceSystem.invoke<number[]>("render_invoice_pdf", {
-        invoice: normalizeInvoiceInput(invoice),
+        invoice,
     });
     return new Uint8Array(raw);
 }

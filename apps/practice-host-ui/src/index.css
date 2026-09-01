@@ -12580,8 +12580,8 @@ html[data-theme="dark"] .finance-amt--warn {
   box-sizing: border-box;
 }
 
-.work-time-week-bar__soll,
-.work-time-week-bar__ist,
+.work-time-week-bar__target,
+.work-time-week-bar__actual,
 .work-time-week-bar__open,
 .work-time-week-bar__pause {
   height: 100%;
@@ -12590,12 +12590,12 @@ html[data-theme="dark"] .finance-amt--warn {
   transition: width 300ms ease;
 }
 
-.work-time-week-bar__soll {
+.work-time-week-bar__target {
   background: color-mix(in oklab, var(--fg-3) 35%, transparent);
   opacity: 0.45;
 }
 
-.work-time-week-bar__ist {
+.work-time-week-bar__actual {
   background: var(--accent);
 }
 

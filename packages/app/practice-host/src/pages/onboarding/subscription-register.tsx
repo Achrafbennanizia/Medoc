@@ -9,7 +9,9 @@ import {
     type OnboardingSubscriptionRequest,
     type OnboardingSubscriptionResult,
 } from "@/systems/practice-host/controllers/cluster.controller";
+import { passwordPolicyError } from "@/lib/password-policy";
 import { OnboardingShell } from "@/views/components/onboarding-shell";
+import { PasswordPolicyHints } from "@/views/components/password-policy-hints";
 import { Button } from "@/views/components/ui/button";
 import { errorMessage } from "@/lib/utils";
 import { useToastStore } from "@/views/components/ui/toast-store";
@@ -70,8 +72,9 @@ export function SubscriptionRegisterOnboardingPage() {
             return;
         }
         if (needsAdminAccount) {
-            if (adminPassword.length < 8) {
-                toast(t("onboarding.subscription.password_required"), "error");
+            const policyErr = passwordPolicyError(t, adminPassword);
+            if (policyErr) {
+                toast(policyErr, "error");
                 return;
             }
             if (adminPassword !== adminPasswordConfirm) {
@@ -216,6 +219,7 @@ export function SubscriptionRegisterOnboardingPage() {
                                     required
                                 />
                             </label>
+                            <PasswordPolicyHints password={adminPassword} idPrefix="onb-sub-pw" />
                         </>
                     ) : (
                         <>

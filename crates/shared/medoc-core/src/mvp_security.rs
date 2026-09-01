@@ -60,7 +60,7 @@ pub fn require_break_glass_enabled() -> Result<(), AppError> {
         Ok(())
     } else {
         Err(AppError::Validation(
-            "Notfallzugriff ist derzeit deaktiviert".into(),
+            "Break-glass access is currently disabled".into(),
         ))
     }
 }
@@ -70,7 +70,7 @@ pub fn require_totp_enabled() -> Result<(), AppError> {
         Ok(())
     } else {
         Err(AppError::Validation(
-            "Zwei-Faktor-Authentifizierung ist derzeit deaktiviert".into(),
+            "Two-factor authentication is currently disabled".into(),
         ))
     }
 }
@@ -141,16 +141,16 @@ pub struct QuotaErrorMessages {
     pub max_reception: String,
 }
 
-/// German validation messages shared by app-layer checks and DB trigger RAISE text.
+/// English validation messages shared by app-layer checks and DB trigger RAISE text.
 pub fn quota_error_messages(limits: StaffQuotaLimits) -> QuotaErrorMessages {
     QuotaErrorMessages {
-        max_total: format!("Maximal {} Benutzer erlaubt", limits.max_total),
+        max_total: format!("Maximum {} users allowed", limits.max_total),
         max_physician: format!(
-            "Maximal {} Physician-Konto erlaubt (Admin-Platz belegt)",
+            "Maximum {} physician account allowed (admin slot taken)",
             limits.max_physician
         ),
         max_reception: format!(
-            "Maximal {} Rezeptions-Konten erlaubt",
+            "Maximum {} reception accounts allowed",
             limits.max_reception
         ),
     }

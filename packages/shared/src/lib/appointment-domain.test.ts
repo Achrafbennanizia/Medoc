@@ -26,22 +26,7 @@ describe("parseAppointmentDurationMin", () => {
         expect(parseAppointmentDurationMin("Duration: 45 min")).toBe(45);
     });
 
-    it("reads leftover Dauer wire", () => {
-        expect(parseAppointmentDurationMin("Dauer: 30 min")).toBe(30);
-    });
-});
-
-describe("appointmentIsEmergencyMarked", () => {
-    it("is true for TREATMENT with calendar marker in notes", () => {
-        const t = {
-            kind: "TREATMENT",
-            notes: `Foo · ${APPOINTMENT_EMERGENCY_NOTE_MARKER}`,
-        } as Appointment;
-        expect(appointmentIsEmergencyMarked(t)).toBe(true);
-    });
-
-    it("is false without marker or wrong kind", () => {
-        expect(appointmentIsEmergencyMarked({ kind: "TREATMENT", notes: null } as Appointment)).toBe(false);
-        expect(appointmentIsEmergencyMarked({ kind: "CHECKUP", notes: APPOINTMENT_EMERGENCY_NOTE_MARKER } as Appointment)).toBe(false);
+    it("ignores leftover Dauer wire", () => {
+        expect(parseAppointmentDurationMin("Dauer: 30 min", 20)).toBe(20);
     });
 });

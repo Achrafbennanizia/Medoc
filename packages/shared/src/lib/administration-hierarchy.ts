@@ -2,11 +2,11 @@
 
 export type AdministrationBackTarget = { path: string; labelKey: string };
 
-const VERWALTUNG: AdministrationBackTarget = { path: "/administration", labelKey: "nav.administration" };
+const ADMINISTRATION: AdministrationBackTarget = { path: "/administration", labelKey: "nav.administration" };
 
-const FINANCE_BERICHTE: AdministrationBackTarget = {
+const FINANCE_REPORTS: AdministrationBackTarget = {
     path: "/administration/finance-reports",
-    labelKey: "administration.back.finance_berichte",
+    labelKey: "administration.back.finance_reports",
 };
 
 const INVENTORY_HUB: AdministrationBackTarget = {
@@ -46,16 +46,16 @@ export function getAdministrationBackTarget(pathnameWithOptionalQuery: string): 
     }
 
     if (raw.startsWith("/administration/finance-reports/") && raw !== "/administration/finance-reports") {
-        return FINANCE_BERICHTE;
+        return FINANCE_REPORTS;
     }
 
     const exact: Record<string, AdministrationBackTarget> = {
-        "/administration/finance-tools": FINANCE_BERICHTE,
-        "/administration/day-close": FINANCE_BERICHTE,
-        "/administration/finance-reports": VERWALTUNG,
-        "/administration/inventory-and-ordering": VERWALTUNG,
-        "/administration/services-catalogs-templates": VERWALTUNG,
-        "/administration/practice-planning": VERWALTUNG,
+        "/administration/finance-tools": FINANCE_REPORTS,
+        "/administration/day-close": FINANCE_REPORTS,
+        "/administration/finance-reports": ADMINISTRATION,
+        "/administration/inventory-and-ordering": ADMINISTRATION,
+        "/administration/services-catalogs-templates": ADMINISTRATION,
+        "/administration/practice-planning": ADMINISTRATION,
         "/administration/contracts": INVENTORY_HUB,
         "/administration/order-master": INVENTORY_HUB,
         "/administration/treatment-catalog": SERVICES_HUB,
@@ -68,8 +68,8 @@ export function getAdministrationBackTarget(pathnameWithOptionalQuery: string): 
         "/products": INVENTORY_HUB,
         "/staff": TEAM_HUB,
         "/administration/team/work-time": TEAM_HUB,
-        "/balance-sheet": FINANCE_BERICHTE,
-        "/balance-sheet/new": FINANCE_BERICHTE,
+        "/balance-sheet": FINANCE_REPORTS,
+        "/balance-sheet/new": FINANCE_REPORTS,
     };
 
     if (exact[raw]) {
@@ -84,5 +84,5 @@ export function getAdministrationBackTarget(pathnameWithOptionalQuery: string): 
         return SERVICES_HUB;
     }
 
-    return VERWALTUNG;
+    return ADMINISTRATION;
 }

@@ -19,11 +19,11 @@ const ACCENT_ID_SET = new Set<string>(ACCENT_ORDER as readonly string[]);
 
 /** Short description under name — UI only. */
 export const ACCENT_HINTS: Record<AccentId, string> = {
-    mint: "Ruhig, medizinisch",
-    ocean: "Klassisches Blau",
-    plum: "Kontrastreich",
-    amber: "Warm, aufmerksam",
-    rose: "Freundlich, klar",
+    mint: "Calm, clinical",
+    ocean: "Classic blue",
+    plum: "High contrast",
+    amber: "Warm, attention",
+    rose: "Friendly, clear",
 };
 
 /** Legacy keys — migration in {@link loadClientSettings}. */

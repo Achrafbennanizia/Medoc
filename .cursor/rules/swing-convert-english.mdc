@@ -1,0 +1,47 @@
+---
+description: Swing conversion is English-only (identifiers, keys, default UI). German stays only in LAN dialect + de locale values.
+alwaysApply: true
+---
+
+# Swing conversion — English only
+
+When converting MeDoc UI to the sibling **`/Users/achraf/pro/Medoc-swing`** client (or any new Swing code):
+
+- **Identifiers** (types, methods, fields, locals, commands, JSON keys in app models, i18n **keys**, routes, RBAC actions): English. Example: `dateOfBirth`, `list_appointments`, `Role.DOCTOR` — not `geburtsdatum`, `list_termine`, `ARZT`.
+- **User-visible default copy**: English (`messages.properties` / `messages_en.properties`). Do not hardcode German strings in Java.
+- **Do not** copy German React identifiers, IPC command names, or `de.json` values into Java types.
+
+## The only allowed German
+
+| Place | Why |
+| --- | --- |
+| `LanDialect.java` inbound **fallbacks** (+ `LanDialectTest`) | Older LAN bodies: `passwort`, `rolle`, `ARZT`, `/patienten`, `geburtsdatum`, `/termine?datum=` |
+| `messages_de.properties` **values** | Optional German locale pack (`--de`). Keys stay English. |
+
+**Outgoing** LAN (`path`, login JSON, test HTTP fixtures) matches the live English server: `/api/v1/patients`, `/api/v1/appointments?date=`, `password`, `role`=`PHYSICIAN`. App role remains `Role.DOCTOR`.
+
+App adapters, controllers, pages, and mock data speak **English only** and call `LanDialect` for HTTP.
+
+```java
+// ❌ BAD — German in app code
+port.invoke("list_termine", Map.of("datum", day));
+n.put("geburtsdatum", dob);
+
+// ✅ GOOD
+port.invoke(LanDialect.CMD_LIST_APPOINTMENTS, Map.of("date", day));
+n.put("dateOfBirth", dob);
+```
+
+Default locale is **English**. German UI is opt-in (`--de` or the DE button).
+
+```java
+// ❌ BAD — German in app code
+port.invoke("list_termine", Map.of("datum", day));
+n.put("geburtsdatum", dob);
+
+// ✅ GOOD
+port.invoke(LanDialect.CMD_LIST_APPOINTMENTS, Map.of("date", day));
+n.put("dateOfBirth", dob);
+```
+
+Default locale is **English**. German UI is opt-in (`--de` or the DE button).

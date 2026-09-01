@@ -2,7 +2,7 @@
 
 Canonical full list: sibling repo [`/Users/achraf/pro/Medoc-swing/CONVERSION.md`](../../../Medoc-swing/CONVERSION.md) (outside this git tree).
 
-**Last updated:** 2026-08-20 (Swing prescriptions + invoice lines + day close)
+**Last updated:** 2026-08-20 (Swing feature pack — drag / GOZ / e-Rx / license / staff / devices / composers)
 
 Swing is a LAN HTTPS client (like `apps/lan-web-client`), not a Tauri replacement. English identifiers; German only as `LanDialect` inbound fallbacks and `messages_de.properties` values.
 
@@ -10,15 +10,16 @@ Swing is a LAN HTTPS client (like `apps/lan-web-client`), not a Tauri replacemen
 
 | Area | Status |
 | --- | --- |
-| Sidebar, admin TOC, catalogs, privacy, cash, onboarding, month list, invoice status/lines, templates, patient prescriptions, day close | **Done** / **Subset** (demo mock writes; LAN HTTPS still list/KV/`/me`) |
-| Drag calendar, GOZ factor engine, rich template composer, e-prescription submit, license/pairing activate | **Not started** / stay thinner **Subset** |
-| `./gradlew test` | **PASS** — 66 tests / 17 classes |
+| Core practice UI (patients, appointments, billing, cash, orders, prescriptions, certificates, tickets, dashboard, privacy, onboarding, day close, balance, templates) | **Done** / **Subset** |
+| Admin catalogs | **Subset** — full search/create/edit/delete on demo |
+| Staff / migration / audit / logs / ops / compliance / feedback | **Subset** — staff security + migration device adapters demo-complete |
+| Statistics | **Subset** — KPIs + week staff hours + disease-pattern table |
+| Drag calendar, GOZ seed, e-prescription, license/pairing, GDT/scanner, staff passwords/RBAC, chart composers | **Subset** — demo Mock + UI (not TI / licensed GOZ / OS IPC) |
+| `./gradlew test` | **PASS** — **101** tests |
 | Live LAN HTTPS | **NOT RUN** (`cargo` not on PATH) |
 
-## Next
+## Honest limit
 
-1. Restart `./run` and walk Billing lines, Prescriptions, Administration → Finance → Day close.
-2. Live login + list + settings when `medoc-lan-server` can run.
-3. Remaining nested richness if the Swing client should match desktop composers.
+Swing cannot become a 1:1 Tauri clone without new LAN REST or embedding desktop IPC. Remaining gaps stay honest **Subset** (no real TI, no licensed GOZ dump, no OS scanner, no password/2FA host APIs).
 
-See the sibling `CONVERSION.md` for the file-by-file React → Swing table.
+See sibling `CONVERSION.md` for the file-by-file table.

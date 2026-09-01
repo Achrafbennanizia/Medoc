@@ -56,7 +56,7 @@ async fn practice_kv_pairs_from_app_kv(pool: &SqlitePool) -> Vec<(String, String
     if let Some(version) = get("zanr") {
         kv.push(("ZANR".into(), version));
     }
-    if let Some(version) = get("notfall_phone") {
+    if let Some(version) = get("emergency_phone").or_else(|| get("notfall_phone")) {
         kv.push(("Emergency".into(), version));
     }
     kv
@@ -162,16 +162,18 @@ pub struct ExportChartPdfArgs {
     pub sections: ChartExportSections,
 }
 
-/// FA-DOK-08: Entlassungs-Leaflet / Nachsorge als PDF (kompakte Zusammenfassung).
+/// FA-DOK-08: Discharge leaflet / aftercare as PDF (compact summary).
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExportDischargeLeafletPdfArgs {
     #[serde(alias = "patient_id")]
     pub patient_id: String,
-    #[serde(default)]
-    pub zusatz_instructions: Option<String>,
-    #[serde(default)]
-    pub bank_transfer_instructions: Option<String>,
+    /// Additional notes / aftercare.
+    #[serde(default, alias = "additionalNotes")]
+    pub additional_notes: Option<String>,
+    /// Referral / onward care.
+    #[serde(default, alias = "referralNotes")]
+    pub referral_notes: Option<String>,
 }
 
 /// FA-AKTE-04: PatientChart als PDF (Abschnitte wählbar). Base64-encoded PDF bytes.
@@ -345,21 +347,21 @@ pub async fn export_chart_pdf(
 
     if sec.anamnesis && medical {
         if let Some(am) = chart_repo::find_anamnesis_form(pool, &patient_id).await? {
-            let signed = if am.signed { "Ja" } else { "Nein" };
+            let signed = if am.signed { "Yes" } else { "No" };
             let mut lines = crate::infrastructure::clinical_text_format::format_anamnesis_answers(
                 &am.answers,
             );
-            lines.insert(0, format!("Unterschrieben: {signed}"));
+            lines.insert(0, format!("Signed: {signed}"));
             blocks.push(ChartPdfBlock {
-                title: "Anamnesis / Fragebogen".into(),
+                title: "Anamnesis / questionnaire".into(),
                 body_lines: lines,
                 kv_pairs: vec![],
                 table: None,
             });
         } else {
             blocks.push(ChartPdfBlock::body(
-                "Anamnesis / Fragebogen",
-                vec!["(kein AnamnesisForm erfasst)".into()],
+                "Anamnesis / questionnaire",
+                vec!["(no anamnesis form recorded)".into()],
             ));
         }
     }
@@ -552,14 +554,14 @@ pub async fn export_chart_pdf(
                 })
                 .collect();
             blocks.push(ChartPdfBlock {
-                title: "Certificates (Uebersicht)".into(),
+                title: "Certificates (overview)".into(),
                 body_lines: vec![],
                 kv_pairs: vec![],
                 table: Some(ChartPdfTable {
                     headers: vec![
-                        "Typ".into(),
-                        "Gueltig from".into(),
-                        "Gueltig until".into(),
+                        "Type".into(),
+                        "Valid from".into(),
+                        "Valid until".into(),
                         "Issued".into(),
                     ],
                     rows: certificate_rows,
@@ -569,7 +571,7 @@ pub async fn export_chart_pdf(
             for a in rows_db {
                 let mut lines: Vec<String> = Vec::new();
                 if a.body_text.trim().is_empty() {
-                    lines.push("(kein Freitext)".into());
+                    lines.push("(no free text)".into());
                 } else {
                     for ln in a.body_text.lines() {
                         lines.push(if ln.is_empty() {
@@ -754,7 +756,7 @@ pub async fn export_chart_pdf(
     Ok(base64::engine::general_purpose::STANDARD.encode(&bytes))
 }
 
-/// FA-DOK-08: Entlassungs-Leaflet / Nachsorge als PDF.
+/// FA-DOK-08: Discharge leaflet / aftercare as PDF.
 pub async fn export_discharge_leaflet_pdf(
     pool: &SqlitePool,
     session: &Session,
@@ -919,7 +921,7 @@ pub async fn export_discharge_leaflet_pdf(
     }
 
     if let Some(txt) = args
-        .bank_transfer_instructions
+        .referral_notes
         .as_ref()
         .map(|s| s.trim())
         .filter(|s| !s.is_empty())
@@ -939,7 +941,7 @@ pub async fn export_discharge_leaflet_pdf(
     }
 
     if let Some(txt) = args
-        .zusatz_instructions
+        .additional_notes
         .as_ref()
         .map(|s| s.trim())
         .filter(|s| !s.is_empty())
@@ -965,7 +967,7 @@ pub async fn export_discharge_leaflet_pdf(
                 .and_then(|version| version.as_str())
                 .unwrap_or("")
                 .trim();
-            let beruf = j
+            let professional_title = j
                 .get("professional_title")
                 .and_then(|version| version.as_str())
                 .unwrap_or("")
@@ -976,8 +978,8 @@ pub async fn export_discharge_leaflet_pdf(
                     "____________________________".into(),
                     bh.to_string(),
                 ];
-                if !beruf.is_empty() {
-                    sig.push(beruf.to_string());
+                if !professional_title.is_empty() {
+                    sig.push(professional_title.to_string());
                 }
                 let zanr = j.get("zanr").and_then(|version| version.as_str()).unwrap_or("").trim();
                 let bsnr = j.get("bsnr").and_then(|version| version.as_str()).unwrap_or("").trim();
@@ -1016,7 +1018,7 @@ pub async fn export_discharge_leaflet_pdf(
         pool,
         &session.user_id,
         "EXPORT_PDF",
-        "EntlassungsLeaflet",
+        "DischargeLeaflet",
         Some(&patient_id),
         None,
     )
@@ -1060,12 +1062,12 @@ mod export_chart_pdf_args_tests {
     fn discharge_args_deserializes_camel_case() {
         let j = serde_json::json!({
             "patientId": "p1",
-            "additionalNotes": "Nachsorge",
-            "referralNotes": "KHK"
+            "additionalNotes": "Aftercare",
+            "referralNotes": "CAD"
         });
         let a: ExportDischargeLeafletPdfArgs = serde_json::from_value(j).unwrap();
         assert_eq!(a.patient_id, "p1");
-        assert_eq!(a.zusatz_instructions.as_deref(), Some("Nachsorge"));
-        assert_eq!(a.bank_transfer_instructions.as_deref(), Some("KHK"));
+        assert_eq!(a.additional_notes.as_deref(), Some("Aftercare"));
+        assert_eq!(a.referral_notes.as_deref(), Some("CAD"));
     }
 }

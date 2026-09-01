@@ -31,7 +31,7 @@ const SAMPLE_TASK: PracticeTask = {
     patient_id: "pat-1",
     kind: "OTHER",
     title: "Test Task",
-    body: "Bitte erledigen",
+    body: "Please complete",
     assignee_role: "RECEPTION",
     assignee_user_id: null,
     created_by: "seed-physician-001",

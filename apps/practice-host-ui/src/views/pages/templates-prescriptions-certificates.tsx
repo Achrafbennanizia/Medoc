@@ -14,6 +14,7 @@ import { useToastStore } from "../components/ui/toast-store";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { AdministrationPageHeader } from "../components/administration-page-header";
 import { AdministrationReadField } from "../components/administration-read-field";
+import { parseCertificateTemplatePayload } from "@/lib/certificate-composer";
 import { TemplateEditorPanel } from "./template-editor";
 import { EditIcon, TrashIcon } from "@/lib/icons";
 
@@ -26,8 +27,9 @@ function previewPayload(version: DocumentTemplate): string {
             if (first) return first;
             return (p.title as string) || "—";
         }
-        const k = (p.krankheiten as string) || "";
-        const e = (p.einschraenkung as string) || "";
+        const parsed = parseCertificateTemplatePayload(version.payload);
+        const k = parsed.illnesses;
+        const e = parsed.activityRestriction;
         return k || (e ? `${e.slice(0, 48)}…` : "—");
     } catch {
         return "—";
@@ -51,15 +53,15 @@ export function TemplatesPrescriptionsCertificatesPage() {
     const [deleteId, setDeleteId] = useState<string | null>(null);
     const [selected, setSelected] = useState<DocumentTemplate | null>(null);
 
-    const new = searchParams.get("new");
-    const bearbeiten = searchParams.get("bearbeiten");
+    const newKind = searchParams.get("new");
+    const editId = searchParams.get("edit") ?? searchParams.get("bearbeiten");
 
     const editorSpec = useMemo(() => {
-        if (bearbeiten) return { type: "edit" as const, id: bearbeiten };
-        if (new === "prescription") return { type: "new" as const, kind: "PRESCRIPTION" as const };
-        if (new === "certificate") return { type: "new" as const, kind: "CERTIFICATE" as const };
+        if (editId) return { type: "edit" as const, id: editId };
+        if (newKind === "prescription") return { type: "new" as const, kind: "PRESCRIPTION" as const };
+        if (newKind === "certificate") return { type: "new" as const, kind: "CERTIFICATE" as const };
         return null;
-    }, [new, bearbeiten]);
+    }, [newKind, editId]);
 
     const closeEditor = useCallback(() => {
         setSearchParams({}, { replace: true });
@@ -84,10 +86,10 @@ export function TemplatesPrescriptionsCertificatesPage() {
     }, [reload]);
 
     useEffect(() => {
-        if (!bearbeiten || rows.length === 0) return;
-        const r = rows.find((x) => x.id === bearbeiten);
+        if (!editId || rows.length === 0) return;
+        const r = rows.find((x) => x.id === editId);
         if (r) setSelected(r);
-    }, [bearbeiten, rows]);
+    }, [editId, rows]);
 
     const onEditorSaved = useCallback(async () => {
         await reload();
@@ -149,7 +151,7 @@ export function TemplatesPrescriptionsCertificatesPage() {
     const openEdit = (r: DocumentTemplate) => {
         if (!canWrite) return;
         setSelected(r);
-        setSearchParams({ bearbeiten: r.id }, { replace: false });
+        setSearchParams({ edit: r.id }, { replace: false });
     };
 
     const sidePanel = (() => {

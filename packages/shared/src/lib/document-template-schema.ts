@@ -15,7 +15,7 @@ export type PracticeFieldKey =
     | "zanr"
     | "bsnr"
     | "bank"
-    | "kammer"
+    | "chamber"
     | "kzv"
     | "payment_terms"
     | "vat_notice"
@@ -84,14 +84,14 @@ export const PRACTICE_FIELD_OPTIONS: { id: PracticeFieldKey; label: string }[] =
     { id: "fax", label: "Fax" },
     { id: "web", label: "Web" },
     { id: "email", label: "Email" },
-    { id: "kv", label: "Health insurer no." },
+    { id: "kv", label: "Health insurance no." },
     { id: "tax", label: "Tax no." },
     { id: "hours", label: "Opening hours" },
     { id: "clinician", label: "Treating clinician" },
     { id: "zanr", label: "Dental license no." },
     { id: "bsnr", label: "Practice site no." },
     { id: "bank", label: "Bank details" },
-    { id: "kammer", label: "Chamber" },
+    { id: "chamber", label: "Chamber" },
     { id: "kzv", label: "Regional dental association" },
     { id: "payment_terms", label: "Payment terms" },
     { id: "vat_notice", label: "VAT notice" },
@@ -205,22 +205,6 @@ export function templatePayloadToJson(p: DocumentTemplatePayloadV1): string {
     return `${JSON.stringify(p)}\n`;
 }
 
-const FIELD_ID_LEGACY: Record<string, PracticeFieldKey> = {
-    ust_hinweis: "vat_notice",
-    notfall_tel: "emergency_phone",
-};
-
-const COLUMN_ID_LEGACY: Record<string, ExportTableColumnId> = {
-    einzelpreis: "unit_price",
-    gesamt: "total",
-    ust: "vat",
-};
-
-const BUILTIN_ID_LEGACY: Record<string, BuiltinTemplateId> = {
-    sachlich: "plain",
-    behoerdlich: "official",
-};
-
 function asRecord(v: unknown): Record<string, unknown> | null {
     return v != null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
 }
@@ -228,23 +212,23 @@ function asRecord(v: unknown): Record<string, unknown> | null {
 function migrateFieldId(id: unknown): PracticeFieldKey | null {
     if (typeof id !== "string") return null;
     if (PRACTICE_FIELD_OPTIONS.some((o) => o.id === id)) return id as PracticeFieldKey;
-    return FIELD_ID_LEGACY[id] ?? null;
+    return null;
 }
 
 function migrateColumnId(id: unknown): ExportTableColumnId | null {
     if (typeof id !== "string") return null;
     if (EXPORT_TABLE_COLUMN_OPTIONS.some((o) => o.id === id)) return id as ExportTableColumnId;
-    return COLUMN_ID_LEGACY[id] ?? null;
+    return null;
 }
 
 function migrateDensity(raw: unknown): TemplateDensityId {
-    if (raw === "compact" || raw === "kompakt") return "compact";
-    if (raw === "spacious" || raw === "weit") return "spacious";
+    if (raw === "compact") return "compact";
+    if (raw === "spacious") return "spacious";
     return "normal";
 }
 
 function migrateSignatureKind(raw: unknown): SignatureKind {
-    if (raw === "stamp" || raw === "stempel") return "stamp";
+    if (raw === "stamp") return "stamp";
     if (raw === "both") return "both";
     return "physician";
 }
@@ -254,21 +238,20 @@ function migrateFont(raw: unknown): TemplateFontId {
     return "Helvetica";
 }
 
-/** Map persisted builtin ids from older German wires. */
+/** Normalize persisted builtin template ids (English only). */
 export function migrateBuiltinTemplateId(id: string): BuiltinTemplateId | string {
-    return BUILTIN_ID_LEGACY[id] ?? id;
+    return id;
 }
 
 /**
- * Parse stored template JSON. Accepts current English keys and leftover German wires
- * (`kopf`, `fusszeile`, `einzelpreis`, …) so existing rows keep working.
+ * Parse stored template JSON (English keys only).
  */
 export function parseTemplatePayloadJson(raw: string): DocumentTemplatePayloadV1 | null {
     try {
         const j = asRecord(JSON.parse(raw));
         if (!j || j.version !== 1) return null;
-        const header = asRecord(j.header) ?? asRecord(j.kopf);
-        const recipient = asRecord(j.recipient) ?? asRecord(j.empfaenger);
+        const header = asRecord(j.header);
+        const recipient = asRecord(j.recipient);
         if (!header || !recipient) return null;
         const empty = emptyDocumentTemplatePayloadV1();
         const fieldsRaw = header.fieldsToShow;
@@ -286,7 +269,7 @@ export function parseTemplatePayloadJson(raw: string): DocumentTemplatePayloadV1
                   })
                   .filter((x): x is { id: ExportTableColumnId; enabled: boolean } => x != null)
             : empty.tableColumns;
-        const signature = asRecord(j.signature) ?? asRecord(j.signatur);
+        const signature = asRecord(j.signature);
         const align = (v: unknown, fallback: TextAlignment): TextAlignment =>
             v === "left" || v === "center" || v === "right" ? v : fallback;
         return {
@@ -305,11 +288,11 @@ export function parseTemplatePayloadJson(raw: string): DocumentTemplatePayloadV1
                 show: signature?.show !== false,
                 labelKind: migrateSignatureKind(signature?.labelKind),
             },
-            footer: String(j.footer ?? j.fusszeile ?? "").slice(0, 240),
-            font: migrateFont(j.font ?? j.schriftart),
+            footer: String(j.footer ?? "").slice(0, 240),
+            font: migrateFont(j.font),
             bodyPt: typeof j.bodyPt === "number" && Number.isFinite(j.bodyPt) ? Math.min(18, Math.max(8, j.bodyPt)) : 11,
-            density: migrateDensity(j.density ?? j.dichte),
-            dateFormat: j.dateFormat === "iso" || j.datumsformat === "iso" ? "iso" : "de",
+            density: migrateDensity(j.density),
+            dateFormat: j.dateFormat === "iso" ? "iso" : "de",
         };
     } catch {
         return null;

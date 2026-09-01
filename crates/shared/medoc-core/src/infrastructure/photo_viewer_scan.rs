@@ -415,7 +415,7 @@ fn scan_windows() -> Vec<DetectedPhotoViewerApp> {
         p.push("ONPhotoRAW.exe");
         p
     });
-    add("SumatraPDF (Bilder eingeschränkt)", {
+    add("SumatraPDF (images limited)", {
         let mut p = PathBuf::from(&pf);
         p.push("SumatraPDF");
         p.push("SumatraPDF.exe");

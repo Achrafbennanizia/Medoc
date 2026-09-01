@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "identifier": "de.medoc.app",
   "build": {
-    "beforeDevCommand": "npm run dev",
+    "beforeDevCommand": "npm run dev -w medoc --prefix ../..",
     "devUrl": "http://localhost:1420",
-    "frontendDist": "../dist"
+    "frontendDist": "../practice-host-ui/dist"
   },
   "app": {
     "windows": [

@@ -18,7 +18,7 @@ type Props = {
     userId: string;
     isReception: boolean;
     canAdmin?: boolean;
-    /** Fewer columns for the embedded Practice-Aufgaben tab (fits workspace width). */
+    /** Fewer columns for the embedded practice tasks tab (fits workspace width). */
     compact?: boolean;
     onOpen: (row: PracticeTask) => void;
     onEdit: (row: PracticeTask) => void;

@@ -79,12 +79,29 @@ async fn imports_semicolon_csv_iso_and_de_dates() {
             .unwrap();
     assert_eq!(n1.0, "Iso Pat");
 
-    let geb: (String,) =
+    let dob: (String,) =
         sqlx::query_as("SELECT date_of_birth FROM patient WHERE insurance_number = 'V-DE-1'")
             .fetch_one(&pool)
             .await
             .unwrap();
-    assert_eq!(geb.0, "1985-06-15");
+    assert_eq!(dob.0, "1985-06-15");
+}
+
+#[tokio::test]
+async fn leftover_german_headers_are_rejected() {
+    let pool = migrated_pool().await;
+    let path = temp_csv(
+        "name;geburtsdatum;geschlecht;versicherungsnummer;telefon;email;adresse\n\
+         Legacy Pat;20.03.1990;W;V-LEGACY-1;+49 1;a@b.c;Street 1\n",
+    );
+    let err = import_patients(&pool, &path, false)
+        .await
+        .expect_err("German headers must be rejected");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("date_of_birth") || msg.contains("name"),
+        "unexpected error: {msg}"
+    );
 }
 
 #[tokio::test]

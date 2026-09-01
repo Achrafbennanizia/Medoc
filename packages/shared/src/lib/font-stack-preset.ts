@@ -15,9 +15,9 @@ export const FONT_STACK_LABELS: Record<FontStackId, string> = {
 
 /** Short description under the setting. */
 export const FONT_STACK_HINTS: Record<FontStackId, string> = {
-    inter: "Modern & kompakt — Standard in MeDoc",
-    system: "Native Schrift des Betriebssystems",
-    "source-sans": "Ruhig & gut lesbar — etwas weiterer Zeilenabstand",
+    inter: "Modern & compact — MeDoc default",
+    system: "Native system UI font",
+    "source-sans": "Calm & readable — slightly more line spacing",
 };
 
 /** For preview in segment buttons (not for global `body`). */

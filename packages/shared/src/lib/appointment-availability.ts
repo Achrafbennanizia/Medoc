@@ -156,7 +156,7 @@ export function isAppointmentConflictErrorMessage(msg: string): boolean {
 }
 
 /**
- * WAAD 1.2.4 — alternative Uhrzeiten am selben Tag (UI; authoritative check remains backend).
+ * WAAD 1.2.4 — suggest alternative times on the same day (UI; authoritative check remains backend).
  */
 export function suggestAlternativeAppointmentSlots(opts: {
     date: string;

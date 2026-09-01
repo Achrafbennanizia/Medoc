@@ -13,7 +13,7 @@ function sexToImportLetter(g: Sex): string {
         case "MALE":
             return "M";
         case "FEMALE":
-            return "W";
+            return "F";
         default:
             return "D";
     }

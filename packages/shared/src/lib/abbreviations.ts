@@ -10,18 +10,18 @@ export const LABELS = {
     order_number: { full: "Order number", short: "Ord. no.", aria: "Order number" },
     treatment_number: { full: "Treatment number", short: "T-no.", aria: "Treatment number" },
     examination_number: { full: "Examination number", short: "E-no.", aria: "Examination number" },
-    sitzungsnummer: { full: "Session number", short: "Sess.", aria: "Session number" },
+    session_number: { full: "Session number", short: "Sess.", aria: "Session number" },
     payment_method_bank_transfer: { full: "Bank transfer", short: "Xfer", aria: "Bank transfer" },
     payment_method_invoice: { full: "Invoice", short: "Inv.", aria: "Invoice" },
-    payment_method_bar: { full: "Cash", short: "Cash", aria: "Cash payment" },
+    payment_method_cash: { full: "Cash", short: "Cash", aria: "Cash payment" },
     payment_method_card: { full: "Card", short: "Card", aria: "Card payment" },
     service_item: { full: "Service", short: "Svc.", aria: "Service" },
     patient_chart: { full: "Patient record", short: "Record", aria: "Patient record" },
     date_of_birth: { full: "Date of birth", short: "DOB", aria: "Date of birth" },
     contact: { full: "Contact", short: "Cont.", aria: "Contact" },
-    verfuegbarkeit: { full: "Availability", short: "Avail.", aria: "Availability" },
+    availability: { full: "Availability", short: "Avail.", aria: "Availability" },
     tax_number: { full: "Tax number", short: "Tax no.", aria: "Tax number" },
-    kv_nummer: { full: "KV number", short: "KV no.", aria: "Statutory health insurance connection number" },
+    kv_number: { full: "Health insurance number", short: "KV no.", aria: "Statutory health insurance number" },
 } as const satisfies Record<string, LabelPair>;
 
 export type LabelKey = keyof typeof LABELS;

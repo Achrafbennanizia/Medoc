@@ -102,7 +102,7 @@ export const BoltIcon: FC<{ size?: number }> = ({ size = 16 }) => (
         <path d="M13 2L3 14h7l-1 8 11-12h-7l3-8z" />
     </IconBase>
 );
-/** Sonne — Darstellung / Theme. */
+/** Sun — appearance / theme. */
 export const SunIcon: FC<{ size?: number }> = ({ size = 18 }) => (
     <IconBase size={size}>
         <circle cx="12" cy="12" r="4" />
@@ -183,7 +183,7 @@ export const ToothIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase siz
 export const ClipboardIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase size={size}><rect x="6" y="4" width="12" height="17" rx="2" /><path d="M9 4.5h6" /></IconBase>;
 const ScrollIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase size={size}><path d="M6 4h12v14a3 3 0 01-3 3H8a3 3 0 01-3-3V7a3 3 0 013-3z" /><path d="M9 9h6M9 13h6" /></IconBase>;
 export const SettingsIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase size={size}><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1" /></IconBase>;
-/** Schild — Settings › Sicherheit (Outline). */
+/** Shield — Settings › Security (outline). */
 export const ShieldIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase size={size}><path d="M12 3l7 3v6c0 4.5-3.2 7.8-7 9-3.8-1.2-7-4.5-7-9V6l7-3z" /></IconBase>;
 const LockIcon: FC<{ size?: number }> = ({ size = 17 }) => <IconBase size={size}><rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V7a4 4 0 118 0v3" /></IconBase>;
 const TruckIcon: FC<{ size?: number }> = ({ size = 17 }) => (

@@ -131,13 +131,7 @@ export function SettingsPage() {
             setSearchParams({ tab: TAB_QUERY.system }, { replace: true });
             return;
         }
-        const legacy: Record<string, SettingsSection> = {
-            konto: "account",
-            sicherheit: "security",
-            darstellung: "appearance",
-            arbeitsablaeufe: "workflows",
-        };
-        const mapped = legacy[t] ?? (Object.keys(TAB_QUERY) as SettingsSection[]).find((k) => TAB_QUERY[k] === t);
+        const mapped = (Object.keys(TAB_QUERY) as SettingsSection[]).find((k) => TAB_QUERY[k] === t);
         if (mapped) setActiveSection(mapped);
     }, [searchParams, setSearchParams]);
 

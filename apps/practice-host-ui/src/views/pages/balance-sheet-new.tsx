@@ -79,7 +79,7 @@ export function BalanceSheetNewPage() {
     const [saving, setSaving] = useState(false);
 
     const [balanceSheetKind, setBalanceSheetKind] = useState("QUARTAL");
-    const [bilanzzeitraum, setBilanzzeitraum] = useState("");
+    const [balancePeriod, setBalancePeriod] = useState("");
     const [org, setOrg] = useState(() => t("page.balance_sheet_new.default_org"));
     const [first_name, setFirstName] = useState("");
     const [last_name, setLastName] = useState("");
@@ -101,7 +101,7 @@ export function BalanceSheetNewPage() {
 
     const [selPayment, setSelPayment] = useState<Set<string>>(new Set());
     const [selContract, setSelContract] = useState<Set<string>>(new Set());
-    const [selAusgabe, setSelAusgabe] = useState<Set<string>>(new Set());
+    const [selExpense, setSelExpense] = useState<Set<string>>(new Set());
 
     const demoContracts = useMemo(() => demoContracts(t), [t]);
     const demoProducts = useMemo(() => fallbackProducts(t), [t]);
@@ -112,7 +112,7 @@ export function BalanceSheetNewPage() {
         return (id: string) => m.get(id) ?? tp("break_glass.banner.patient_fallback", { id: id.slice(0, 8) });
     }, [patients, tp]);
 
-    const ausgabeRows = useMemo(() => (products.length > 0 ? products : demoProducts), [products, demoProducts]);
+    const expenseRows = useMemo(() => (products.length > 0 ? products : demoProducts), [products, demoProducts]);
 
     const reloadBase = useCallback(async () => {
         setDataError(null);
@@ -162,7 +162,7 @@ export function BalanceSheetNewPage() {
         });
     }, [payments, filterStatus, filterMin, filterMax, filterSearch, patientName]);
 
-    const step0Valid = bilanzzeitraum.trim().length > 0 && iban.trim().length > 0;
+    const step0Valid = balancePeriod.trim().length > 0 && iban.trim().length > 0;
 
     const goNext = () => {
         if (step === 0 && !step0Valid) {
@@ -183,7 +183,7 @@ export function BalanceSheetNewPage() {
 
     const selectedPaymentRows = payments.filter((z) => selPayment.has(z.id));
     const selectedContractRows = demoContracts.filter((version) => selContract.has(version.id));
-    const selectedAusgabeRows = ausgabeRows.filter((p) => selAusgabe.has(p.id));
+    const selectedExpenseRows = expenseRows.filter((p) => selExpense.has(p.id));
 
     const balanceSheetKindLabel = balanceSheetKind === "YEAR" ? t("common.year") : t("common.quarter");
 
@@ -221,7 +221,7 @@ export function BalanceSheetNewPage() {
                             <>
                                 <FormSection title={t("page.balance_sheet_new.section.general")}>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <Input label={t("page.balance_sheet_new.field.period")} placeholder={t("page.balance_sheet_new.field.period_ph")} value={bilanzzeitraum} onChange={(e) => setBilanzzeitraum(e.target.value)} />
+                                        <Input label={t("page.balance_sheet_new.field.period")} placeholder={t("page.balance_sheet_new.field.period_ph")} value={balancePeriod} onChange={(e) => setBalancePeriod(e.target.value)} />
                                         <Input label={t("common.organisation_unit")} value={org} onChange={(e) => setOrg(e.target.value)} />
                                         <Select label={t("common.type")} value={balanceSheetKind} onChange={(e) => setBalanceSheetKind(e.target.value)} options={[{ value: "QUARTAL", label: t("common.quarter") }, { value: "YEAR", label: t("common.year") }]} />
                                     </div>
@@ -355,8 +355,8 @@ export function BalanceSheetNewPage() {
                             <FormSection title={t("page.balance_sheet_new.expenses.title")}>
                                 <p style={{ color: "var(--fg-3)", fontSize: 13 }}>{t("page.balance_sheet_new.expenses.hint")}</p>
                                 <div className="row" style={{ gap: 8, marginBottom: 10 }}>
-                                    <Button type="button" variant="secondary" size="sm" onClick={() => setSelAusgabe(new Set(ausgabeRows.map((p) => p.id)))}>{t("common.select_all")}</Button>
-                                    <Button type="button" variant="ghost" size="sm" onClick={() => setSelAusgabe(new Set())}>{t("common.deselect_all")}</Button>
+                                    <Button type="button" variant="secondary" size="sm" onClick={() => setSelExpense(new Set(expenseRows.map((p) => p.id)))}>{t("common.select_all")}</Button>
+                                    <Button type="button" variant="ghost" size="sm" onClick={() => setSelExpense(new Set())}>{t("common.deselect_all")}</Button>
                                 </div>
                                 <div style={{ overflowX: "auto", border: "1px solid var(--line)", borderRadius: 8 }}>
                                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -369,13 +369,13 @@ export function BalanceSheetNewPage() {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {ausgabeRows.map((p) => (
+                                            {expenseRows.map((p) => (
                                                 <tr key={p.id} style={{ borderBottom: "1px solid var(--line)" }}>
                                                     <td style={{ padding: 8 }}>
                                                         <input
                                                             type="checkbox"
-                                                            checked={selAusgabe.has(p.id)}
-                                                            onChange={() => setSelAusgabe((s) => toggleSet(s, p.id))}
+                                                            checked={selExpense.has(p.id)}
+                                                            onChange={() => setSelExpense((s) => toggleSet(s, p.id))}
                                                         />
                                                     </td>
                                                     <td style={{ padding: 8 }}>{p.name}</td>
@@ -396,7 +396,7 @@ export function BalanceSheetNewPage() {
                                 </p>
                                 <FormSection title={t("page.balance_sheet_new.section.master_data")}>
                                     <ul style={{ margin: 0, paddingInlineStart: 18, fontSize: 14, color: "var(--fg-2)" }}>
-                                        <li>{tp("page.balance_sheet_new.summary.period", { period: bilanzzeitraum || "—" })}</li>
+                                        <li>{tp("page.balance_sheet_new.summary.period", { period: balancePeriod || "—" })}</li>
                                         <li>{tp("page.balance_sheet_new.summary.org", { org })}</li>
                                         <li>{tp("page.balance_sheet_new.summary.type", { type: balanceSheetKindLabel })}</li>
                                         <li>{tp("page.balance_sheet_new.summary.name", { first: first_name, last: last_name })}</li>
@@ -408,7 +408,7 @@ export function BalanceSheetNewPage() {
                                     <ul style={{ margin: 0, paddingInlineStart: 18, fontSize: 14, color: "var(--fg-2)" }}>
                                         <li>{tp("page.balance_sheet_new.summary.income_count", { count: selectedPaymentRows.length })}</li>
                                         <li>{tp("page.balance_sheet_new.summary.contracts_count", { count: selectedContractRows.length })}</li>
-                                        <li>{tp("page.balance_sheet_new.summary.expenses_count", { count: selectedAusgabeRows.length })}</li>
+                                        <li>{tp("page.balance_sheet_new.summary.expenses_count", { count: selectedExpenseRows.length })}</li>
                                     </ul>
                                 </FormSection>
                                 {selectedPaymentRows.length > 0 ? (
@@ -449,12 +449,12 @@ export function BalanceSheetNewPage() {
                                             selectedPaymentRows.reduce((s, z) => s + z.amount, 0) * 100,
                                         );
                                         const expensesCents = Math.round(
-                                            (selectedAusgabeRows.reduce((s, p) => s + p.price, 0)
+                                            (selectedExpenseRows.reduce((s, p) => s + p.price, 0)
                                                 + selectedContractRows.reduce((s, version) => s + version.cost, 0)) * 100,
                                         );
-                                        const label = `${balanceSheetKind} ${bilanzzeitraum}`.trim();
+                                        const label = `${balanceSheetKind} ${balancePeriod}`.trim();
                                         await createBalanceSheetSnapshot({
-                                            period: bilanzzeitraum,
+                                            period: balancePeriod,
                                             kind: balanceSheetKind,
                                             label: label || tp("page.balance_sheet_new.label_fallback", { date: new Date().toISOString().slice(0, 10) }),
                                             income_cents: incomeCents,
@@ -466,7 +466,7 @@ export function BalanceSheetNewPage() {
                                                     patient_id: z.patient_id, description: z.description,
                                                 })),
                                                 contracts: selectedContractRows,
-                                                expenses: selectedAusgabeRows.map((p) => ({
+                                                expenses: selectedExpenseRows.map((p) => ({
                                                     id: p.id, name: p.name, category: p.category, price: p.price,
                                                 })),
                                             },
