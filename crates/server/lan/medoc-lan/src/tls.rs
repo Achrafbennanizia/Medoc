@@ -12,14 +12,36 @@ use medoc_core::error::AppError;
 const CERT_FILE: &str = "lan-tls.crt";
 const KEY_FILE: &str = "lan-tls.key";
 
-fn install_rustls_provider() {
-    use std::sync::Once;
-    static ONCE: Once = Once::new();
-    ONCE.call_once(|| {
-        rustls::crypto::aws_lc_rs::default_provider()
+fn install_rustls_provider() -> Result<(), AppError> {
+    use std::sync::{Once, Mutex};
+    static INIT: Once = Once::new();
+    static RESULT: Mutex<Option<Result<(), String>>> = Mutex::new(None);
+    
+    // Check if already initialized
+    if let Ok(guard) = RESULT.lock() {
+        if let Some(result) = guard.as_ref() {
+            return result.clone().map_err(|e| AppError::Internal(format!("TLS crypto provider: {e}")));
+        }
+    }
+    
+    // Initialize on first call
+    INIT.call_once(|| {
+        let init_result = rustls::crypto::aws_lc_rs::default_provider()
             .install_default()
-            .expect("rustls aws-lc crypto provider");
+            .map_err(|e| format!("failed to install: {e:?}"));
+        if let Ok(mut guard) = RESULT.lock() {
+            *guard = Some(init_result);
+        }
     });
+    
+    // Retrieve the result
+    if let Ok(guard) = RESULT.lock() {
+        if let Some(result) = guard.as_ref() {
+            return result.clone().map_err(|e| AppError::Internal(e.clone()));
+        }
+    }
+    
+    Ok(())
 }
 
 #[derive(Debug, Clone)]
@@ -118,7 +140,8 @@ pub async fn serve_tls_router(
     router: axum::Router,
     shutdown: std::sync::Arc<std::sync::atomic::AtomicBool>,
 ) -> Result<(), std::io::Error> {
-    install_rustls_provider();
+    install_rustls_provider()
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
     let config = RustlsConfig::from_pem_file(&identity.cert_path, &identity.key_path).await?;
     let handle = axum_server::Handle::new();
     let graceful = handle.clone();

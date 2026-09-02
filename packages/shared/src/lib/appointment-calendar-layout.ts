@@ -121,7 +121,7 @@ export type AppointmentClosedSpan = {
 
 function boundsFromSegments(
     segments: Array<{ from: string; to: string }>,
-    fallback: AppointmentTimelineBounds,
+    _fallback: AppointmentTimelineBounds,
 ): AppointmentTimelineBounds | null {
     let minStart = Number.POSITIVE_INFINITY;
     let maxEnd = 0;

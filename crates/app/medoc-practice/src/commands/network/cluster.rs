@@ -288,6 +288,18 @@ async fn start_cluster_listener_task(
     listener.stop().await;
     let addr = pick_private_bind_addr()?;
     let host = addr.to_string();
+    let bound = match bind_cluster_listener(addr, DEFAULT_CLUSTER_PORT).await {
+        Ok(l) => l,
+        Err(e) if matches!(e, AppError::Conflict(_)) => {
+            tracing::info!(
+                target: "medoc::cluster",
+                event = "CLUSTER_LISTENER_ALREADY_BOUND",
+                error = %e
+            );
+            return Ok(());
+        }
+        Err(e) => return Err(e),
+    };
     let cluster_id = cluster_status(&pool)
         .await?
         .cluster_id
@@ -304,31 +316,29 @@ async fn start_cluster_listener_task(
                 None
             }
         };
-        if let Ok(l) = bind_cluster_listener(addr, DEFAULT_CLUSTER_PORT).await {
-            tracing::info!(
-                target: "medoc::cluster",
-                event = "CLUSTER_LISTENER_START",
-                port = DEFAULT_CLUSTER_PORT
-            );
-            loop {
-                match l.accept().await {
-                    Ok((stream, peer)) => {
-                        tracing::debug!(
-                            target: "medoc::cluster",
-                            event = "CLUSTER_INBOUND",
-                            peer = %peer
-                        );
-                        let pool = pool.clone();
-                        spawn_cluster_connection_handler(stream, pool);
-                    }
-                    Err(e) => {
-                        tracing::warn!(
-                            target: "medoc::cluster",
-                            event = "CLUSTER_ACCEPT_ERR",
-                            error = %e
-                        );
-                        break;
-                    }
+        tracing::info!(
+            target: "medoc::cluster",
+            event = "CLUSTER_LISTENER_START",
+            port = DEFAULT_CLUSTER_PORT
+        );
+        loop {
+            match bound.accept().await {
+                Ok((stream, peer)) => {
+                    tracing::debug!(
+                        target: "medoc::cluster",
+                        event = "CLUSTER_INBOUND",
+                        peer = %peer
+                    );
+                    let pool = pool.clone();
+                    spawn_cluster_connection_handler(stream, pool);
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        target: "medoc::cluster",
+                        event = "CLUSTER_ACCEPT_ERR",
+                        error = %e
+                    );
+                    break;
                 }
             }
         }

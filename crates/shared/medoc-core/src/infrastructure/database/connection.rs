@@ -42,17 +42,58 @@ pub async fn reopen_app_pool(app_data_dir: &std::path::Path) -> Result<SqlitePoo
     open_pool_with_migrations(app_data_dir).await
 }
 
+fn db_error_is_in_use(err: &AppError) -> bool {
+    let s = err.to_string().to_lowercase();
+    s.contains("database is locked")
+        || s.contains("database is busy")
+        || s.contains("(code: 5)")
+        || s.contains("(code: 6)")
+        || s.contains("database locked")
+}
+
 pub async fn open_pool_with_migrations(app_dir: &std::path::Path) -> Result<SqlitePool, AppError> {
     let db_path = app_dir.join("medoc.db");
     maybe_migrate_plaintext_db(app_dir, &db_path).await?;
     let key = resolve_sqlcipher_key(app_dir)?;
 
     if db_path.exists() && !sqlcipher::is_plaintext_sqlite_file(&db_path) {
-        let pool = sqlcipher::open_encrypted_pool(&db_path, key.clone(), true).await?;
-        // Always re-run (idempotent): existing installs must pick up the English
-        // table/column/enum upgrade even when `patient` already exists.
-        run_migrations(&pool).await?;
-        return Ok(pool);
+        match sqlcipher::open_encrypted_pool(&db_path, key.clone(), true).await {
+            Ok(pool) => {
+                // Always re-run (idempotent): existing installs must pick up the English
+                // table/column/enum upgrade even when `patient` already exists.
+                run_migrations(&pool).await?;
+                return Ok(pool);
+            }
+            Err(err) if db_error_is_in_use(&err) => {
+                return Err(AppError::Conflict(
+                    "MeDoc is already running (database in use). Open the existing window instead of starting a second copy.".into(),
+                ));
+            }
+            Err(err) => {
+                tracing::warn!(
+                    target: "medoc::system",
+                    event = "DB_RECOVER_RECREATE",
+                    path = %db_path.display(),
+                    error = %err,
+                );
+                let backup = db_path.with_extension("db.corrupt-backup");
+                let _ = std::fs::remove_file(&backup);
+                if db_path.exists() {
+                    if let Err(e) = std::fs::rename(&db_path, &backup) {
+                        tracing::warn!(
+                            target: "medoc::system",
+                            event = "DB_BACKUP_RENAME_FAILED",
+                            path = %db_path.display(),
+                            error = %e,
+                        );
+                        std::fs::remove_file(&db_path).ok();
+                    }
+                }
+                let pool = sqlcipher::open_encrypted_pool(&db_path, key, true).await?;
+                run_migrations(&pool).await?;
+                return Ok(pool);
+            }
+        }
     }
 
     let pool = sqlcipher::open_encrypted_pool(&db_path, key.clone(), true).await?;

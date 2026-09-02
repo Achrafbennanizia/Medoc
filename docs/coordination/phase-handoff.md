@@ -1,5 +1,52 @@
 # Phase handoff
 
+**Last phase label:** USB installer GUI + single-instance (2026-09-02)
+
+### Verified (2026-09-02 — installer UI + double-open)
+
+- `cargo build -p medoc-usb-setup --release` **PASS**; kit binary `installer/dist/usb-kit/MedocUsbSetup` (7.1M).
+- `./MedocUsbSetup --help` shows optional subcommand; no args / `gui` open native window.
+- `cargo check -p medoc` **PASS** after Info.plist path fix (`macos/Info.plist`).
+- `cargo test -p medoc-sync --test install_plan_apply_tests` **PASS**.
+- Double-open: OS mutex `de.medoc.app.practice-host`; DB busy → Conflict (no recreate); LAN/cluster AddrInUse → Conflict.
+
+### Remains unverified
+
+- Live GUI click-through (Unlock / Install) — **NOT OBSERVED**
+- Second live MeDoc launch while first is open — **NOT OBSERVED**
+- Encrypted USB payloads, Authenticode/notarization, WebView2
+
+### Required next
+
+1. Double-click `installer/dist/usb-kit/MedocUsbSetup` (or run with no args).
+2. Unlock with the campaign password, pick role, Install.
+3. Confirm a second MeDoc open exits instead of crashing.
+
+---
+
+### Verified (2026-09-02 — USB kit)
+
+- Password vault: wrong password → `wrong USB kit password`.
+- Campaign init / status / install / audit on an isolated kit.
+- Sidecar written to `Library/Application Support/de.medoc.app/install_plan.pending.json` with `MASTER` / `auto` / `en`.
+- Practice app installed as `/Applications/MeDoc.app` (bundle `Contents` present).
+- `cargo test` for vault + `install_plan_apply_tests` **PASS**.
+
+### Remains unverified
+
+- Live first launch of this `MeDoc.app` consuming the sidecar — **NOT OBSERVED**
+- Encrypted payloads, Authenticode/notarization, WebView2 pack, egui GUI — **not implemented**
+- Device-bound vendor license cannot be auto-applied from USB without `device_id`
+
+### Required next
+
+1. Open `/Applications/MeDoc.app` (sidecar applies role/locale on `DB_READY`).
+2. For USB unlock: use the password you passed to `init-campaign`, e.g. if you ran `--password YOUR_PASSWORD`, type **YOUR_PASSWORD** (not `demo123`).
+
+---
+
+# Phase handoff
+
 **Last phase label:** Swing CSS simulation from Tauri index.css (2026-08-20)
 
 ### Verified (2026-08-20 — Tauri CSS → Swing)

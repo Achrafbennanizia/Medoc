@@ -21,6 +21,21 @@ use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let instance = match single_instance::SingleInstance::new("de.medoc.app.practice-host") {
+        Ok(i) => i,
+        Err(e) => {
+            eprintln!("medoc instance lock: {e}");
+            return;
+        }
+    };
+    if !instance.is_single() {
+        tracing::info!(target: "medoc::system", event = "APP_ALREADY_RUNNING");
+        eprintln!("MeDoc is already running — use the existing window.");
+        return;
+    }
+    // Keep the OS mutex until process exit so a second launch cannot start LAN/DB again.
+    std::mem::forget(instance);
+
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -263,6 +278,11 @@ pub fn run() {
                 }
                 Err(e) => {
                     tracing::error!(target: "medoc::system", event = "DB_INIT_FAILED", error = %e);
+                    let msg = e.to_string();
+                    if msg.contains("already running") || msg.contains("in use") {
+                        eprintln!("{msg}");
+                        std::process::exit(0);
+                    }
                     return Err(format!("Database initialisation failed: {e}").into());
                 }
             }

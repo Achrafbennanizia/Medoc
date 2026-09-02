@@ -65,3 +65,29 @@ async fn apply_install_plan_replica_fixed_url() {
     assert!(dep_raw.contains("https://10.0.0.5:8787"));
     assert!(dep_raw.contains("REPLICA"));
 }
+
+#[tokio::test]
+async fn consume_sidecar_then_gone() {
+    let pool = fresh_pool().await;
+    let dir = std::env::temp_dir().join(format!("medoc-sidecar-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("install_plan.pending.json");
+
+    let plan = InstallPlan::new_master("Sidecar Master");
+    medoc_core::infrastructure::usb_vault::write_sidecar_plan(&plan, &path).unwrap();
+    assert!(path.exists());
+
+    let result = medoc_sync::cluster::services::consume_pending_sidecar_and_apply(&pool, &path)
+        .await
+        .unwrap()
+        .expect("applied");
+    assert!(result.applied);
+    assert!(!path.exists());
+
+    let dep_raw = app_kv_repo::get(&pool, APP_KV_DEPLOYMENT_KEY)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(dep_raw.contains("MASTER"));
+    let _ = std::fs::remove_dir_all(dir);
+}

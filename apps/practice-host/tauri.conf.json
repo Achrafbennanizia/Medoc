@@ -34,7 +34,7 @@
   },
   "bundle": {
     "active": true,
-    "createUpdaterArtifacts": true,
+    "createUpdaterArtifacts": false,
     "targets": [
       "nsis",
       "msi",
@@ -59,7 +59,8 @@
       }
     },
     "macOS": {
-      "minimumSystemVersion": "11.0"
+      "minimumSystemVersion": "11.0",
+      "infoPlist": "macos/Info.plist"
     },
     "linux": {
       "deb": {

@@ -16,7 +16,13 @@ pub const DEFAULT_CLUSTER_PORT: u16 = 49300;
 pub async fn bind_cluster_listener(addr: IpAddr, port: u16) -> Result<TcpListener, AppError> {
     assert_private_bind(addr)?;
     let sock = SocketAddr::new(addr, port);
-    TcpListener::bind(sock)
-        .await
-        .map_err(|e| AppError::Internal(format!("cluster bind {sock}: {e}")))
+    TcpListener::bind(sock).await.map_err(|e| {
+        if e.kind() == std::io::ErrorKind::AddrInUse {
+            AppError::Conflict(format!(
+                "cluster port {sock} already in use (another MeDoc instance)"
+            ))
+        } else {
+            AppError::Internal(format!("cluster bind {sock}: {e}"))
+        }
+    })
 }

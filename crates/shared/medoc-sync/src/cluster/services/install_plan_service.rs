@@ -190,8 +190,15 @@ pub async fn consume_pending_sidecar_and_apply(
 pub async fn consume_default_sidecar_and_apply(
     pool: &SqlitePool,
 ) -> Result<Option<ApplyInstallPlanResult>, AppError> {
-    let path = usb_vault::default_sidecar_path();
-    consume_pending_sidecar_and_apply(pool, &path).await
+    let primary = usb_vault::default_sidecar_path();
+    if primary.exists() {
+        return consume_pending_sidecar_and_apply(pool, &primary).await;
+    }
+    let legacy = usb_vault::legacy_sidecar_path();
+    if legacy.exists() {
+        return consume_pending_sidecar_and_apply(pool, &legacy).await;
+    }
+    Ok(None)
 }
 
 pub async fn get_provisioning_window(

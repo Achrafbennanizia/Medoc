@@ -1,8 +1,31 @@
 # Action ledger
 
-**Last updated:** 2026-08-20 (Swing overview dashboard cosmetic parity)
+**Last updated:** 2026-09-02 (installer GUI + single-instance)
 
 ## Now
+
+- Smoke the USB setup window: Unlock → role → Install.
+- Open MeDoc twice and confirm the second copy exits instead of crashing.
+
+## Done (2026-09-02 — installer GUI + double-open)
+
+- Native egui window when `MedocUsbSetup` is run with no subcommand.
+- Single-instance mutex for MeDoc and USB Setup; DB/LAN/cluster no longer recreate services on second open.
+- Overlay copy of `.app` (no wipe of running bundle); Windows launch no longer waits on MeDoc exit.
+- Tauri `infoPlist` is a file path (`macos/Info.plist`) so `cargo check -p medoc` succeeds.
+
+## Now (USB kit leftover)
+
+- **Open `/Applications/MeDoc.app` once** so the sidecar is consumed (**NOT OBSERVED**).
+- Unlock USB kit with the **same password** used in `init-campaign`.
+
+## Done (2026-09-02 — USB multi-installer validation)
+
+- Wrong-password errors; wizard `--password`; `--no-launch`; sidecar under `de.medoc.app`; `/Applications/MeDoc.app` install when writable.
+- Tests: vault roundtrip, wrong password, apply plan, sidecar consume.
+- Isolated e2e: init → reject `demo123` → install Master → audit success.
+
+## Now (prior)
 
 - **GUI smoke** — `./run` and compare Overview to React screenshot — **NOT OBSERVED**.
 - **Live LAN smoke** — license / e-Rx / pairing — **NOT RUN**.

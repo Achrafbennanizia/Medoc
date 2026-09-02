@@ -192,6 +192,18 @@ pub async fn start_lan_embedded(
         .parse()
         .map_err(|_| AppError::Validation("Invalid bind_addr/http_port combination.".into()))?;
 
+    match tokio::net::TcpListener::bind(addr).await {
+        Ok(probe) => drop(probe),
+        Err(e) if e.kind() == std::io::ErrorKind::AddrInUse => {
+            return Err(AppError::Conflict(format!(
+                "LAN port {addr} already in use (another MeDoc instance). Not starting a second LAN service."
+            )));
+        }
+        Err(e) => {
+            return Err(AppError::Internal(format!("LAN bind {addr}: {e}")));
+        }
+    }
+
     let advertised_host = medoc_core::discovery::primary_local_ipv4().unwrap_or_default();
 
     let beacon_payload = LanBeaconPayload {
@@ -281,6 +293,9 @@ pub async fn auto_start_if_enabled(app: AppHandle, pool: SqlitePool) {
     };
     match start_lan_embedded(&app, pool, &ctrl).await {
         Ok(_) => tracing::info!(target: "medoc::lan", event = "LAN_AUTO_STARTED"),
+        Err(e) if matches!(e, AppError::Conflict(_)) => {
+            tracing::info!(target: "medoc::lan", event = "LAN_AUTO_START_ALREADY", error = %e);
+        }
         Err(e) => tracing::warn!(target: "medoc::lan", event = "LAN_AUTO_START_FAIL", error = %e),
     }
 }
@@ -326,10 +341,12 @@ pub async fn auto_start_replica_sync_lan(
         );
     }
     let _ = cfg;
-    if let Err(e) = start_lan_embedded(app, pool, control).await {
-        tracing::warn!(target: "medoc::lan", event = "REPLICA_LAN_START_FAIL", error = %e);
-    } else {
-        tracing::info!(target: "medoc::lan", event = "REPLICA_LAN_STARTED");
+    match start_lan_embedded(app, pool, control).await {
+        Ok(_) => tracing::info!(target: "medoc::lan", event = "REPLICA_LAN_STARTED"),
+        Err(e) if matches!(e, AppError::Conflict(_)) => {
+            tracing::info!(target: "medoc::lan", event = "REPLICA_LAN_ALREADY", error = %e);
+        }
+        Err(e) => tracing::warn!(target: "medoc::lan", event = "REPLICA_LAN_START_FAIL", error = %e),
     }
 }
 

@@ -1,5 +1,35 @@
 # Validation ledger
 
+**Last updated:** 2026-09-02 (installer GUI + single-instance)
+
+## Installer GUI + double-open (2026-09-02)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| USB setup release | `cargo build -p medoc-usb-setup --release` | **PASS** |
+| CLI help / default GUI | `./target/release/medoc-usb-setup --help` | **PASS** — optional COMMAND, `gui` listed |
+| Practice host check | `cargo check -p medoc` | **PASS** (Info.plist path) |
+| Apply plan tests | `cargo test -p medoc-sync --test install_plan_apply_tests` | **PASS** |
+| GUI window / second MeDoc launch | — | **NOT OBSERVED** |
+
+---
+
+## USB multi-installer (2026-09-02)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Vault roundtrip | `cargo test -p medoc-core --lib vault_roundtrip` | **PASS** |
+| Wrong password | `cargo test -p medoc-core --lib wrong_password` | **PASS** |
+| Apply plan + sidecar consume | `cargo test -p medoc-sync --test install_plan_apply_tests` | **PASS** 3 tests |
+| Isolated kit e2e | `init-campaign` / wrong pw / `install --no-launch` / status / audit | **PASS** — slot 0 Done Master; sidecar `role=MASTER activationMode=auto` |
+| Full app on disk | `/Applications/MeDoc.app/Contents` | **PASS** |
+| First MeDoc launch after this kit | open `/Applications/MeDoc.app` | **NOT OBSERVED** |
+| Device-bound vendor license from USB | — | **Not applicable** (needs `device_id`; keygen on first boot) |
+
+---
+
+# Validation ledger
+
 **Last updated:** 2026-08-20 (Swing overview dashboard cosmetic parity)
 
 ## Swing overview dashboard cosmetic parity

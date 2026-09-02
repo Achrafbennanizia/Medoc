@@ -32,7 +32,12 @@ if (pubkey && !pubkey.includes("REPLACE_WITH")) {
 }
 
 const signingKey = process.env.TAURI_SIGNING_PRIVATE_KEY || "";
-conf.plugins.updater.active = Boolean(signingKey && pubkey && !pubkey.includes("REPLACE_WITH"));
+const signed =
+    Boolean(signingKey && pubkey && !pubkey.includes("REPLACE_WITH"));
+conf.plugins.updater.active = signed;
+if (conf.bundle) {
+    conf.bundle.createUpdaterArtifacts = signed;
+}
 
 writeFileSync(confPath, `${JSON.stringify(conf, null, 2)}\n`);
 console.log(

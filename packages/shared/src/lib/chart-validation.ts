@@ -9,7 +9,7 @@ export type ValidationSection = (typeof VALIDATION_SECTIONS)[number];
 
 export const SECTION_LABEL: Record<ValidationSection, string> = {
     master: "Master data",
-    anam: "Medical history",
+    anamnesis: "Medical history",
     attachment: "Attachments",
     payment: "Customer services & billing",
 };
@@ -27,7 +27,8 @@ export type ItemValidationKey =
     | `bh:${string}`
     | `payment:${string}`
     | `anl:${string}`
-    | `rx:${string}`;
+    | `rx:${string}`
+    | `examination:${string}`;
 
 /** Badge: master/anam sections + aggregated lists (attachment/payment) over missing item validations. */
 export function pendingSections(

@@ -31,7 +31,7 @@ type ContractDemo = {
 
 type TFn = (key: string) => string;
 
-function demoContracts(t: TFn): ContractDemo[] {
+function buildDemoContracts(t: TFn): ContractDemo[] {
     return [
         { id: "demo-v1", name: t("page.balance_sheet_new.demo.contract_v1_name"), kind: t("page.balance_sheet_new.demo.contract_v1_type"), cost: 2400, billing: "Monatlich", duration_from: "2024-01-01", duration_until: "2026-12-31", status: "ACTIVE" },
         { id: "demo-v2", name: t("page.balance_sheet_new.demo.contract_v2_name"), kind: t("page.balance_sheet_new.demo.contract_v2_type"), cost: 890, billing: "Jährlich", duration_from: "2025-01-01", duration_until: "2025-12-31", status: "TERMINATED" },
@@ -103,7 +103,7 @@ export function BalanceSheetNewPage() {
     const [selContract, setSelContract] = useState<Set<string>>(new Set());
     const [selExpense, setSelExpense] = useState<Set<string>>(new Set());
 
-    const demoContracts = useMemo(() => demoContracts(t), [t]);
+    const demoContracts = useMemo(() => buildDemoContracts(t), [t]);
     const demoProducts = useMemo(() => fallbackProducts(t), [t]);
 
     const patientName = useMemo(() => {

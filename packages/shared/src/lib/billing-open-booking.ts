@@ -20,11 +20,9 @@ export const examinationHasBillableServiceItem = treatmentHasBillableServiceItem
 export function isReleasedForBilling(entry: {
     released_by_physician_id?: string | null;
     released_at?: string | null;
-    released_by_physician_id?: string | null;
-    released_at?: string | null;
 }): boolean {
-    const by = entry.released_by_physician_id ?? entry.released_by_physician_id;
-    const at = entry.released_at ?? entry.released_at;
+    const by = entry.released_by_physician_id;
+    const at = entry.released_at;
     return Boolean(by) && (at ?? "").trim() !== "";
 }
 

@@ -65,6 +65,27 @@ Structured fields (`discover.address`, `pairingCode`, etc.) remain authoritative
 
 See also [`deployment-topologies.md`](./deployment-topologies.md).
 
+## Fulfillment (validated 2026-09-02)
+
+| Requirement | Status |
+|-------------|--------|
+| Password-gated campaign vault (Argon2id + XChaCha20) | **Verified** — wrong password returns `wrong USB kit password` |
+| Audit log on USB | **Verified** — `audit.sealed` |
+| Role selection (Master / Replica / Server host / LAN client) | **Verified** — wizard rebuilds the slot plan |
+| Chain slots | **Verified** in code — `UsbInstallMode::Chain` + slot index |
+| `install_plan` sidecar on first app boot | **Verified** — `~/Library/Application Support/de.medoc.app/` (legacy `MeDoc/` still read) |
+| Auto-apply role, locale, topology, pairing window | **Verified** — `apply_install_plan` + startup hook |
+| Full `MeDoc.app` payload (UI + backend) | **Verified** when kit is built after `tauri build --bundles app` |
+| Auto-launch after install | **Verified** — skip with `--no-launch` |
+| Vendor Ed25519 **private** key never on USB | **Verified** by design |
+| Device-bound vendor license auto-activate from USB | **Not possible** without knowing `device_id` first — first-boot license screen remains (keygen) |
+| Encrypted installer blobs on USB | **Not implemented** — payloads are plaintext binaries |
+| Authenticode / notarized setup | **Not implemented** (local unsigned builds) |
+| Windows WebView2 prereq pack | **Not implemented** |
+| GUI (egui) | **Not implemented** — CLI `wizard` only |
+
+Field-standard flow this kit matches: password-protect the stick, copy a prebuilt app, write machine-local config, log the install, then let the app apply topology. Vendor licenses stay device-bound and off the stick.
+
 ## Security
 
 - Vendor Ed25519 **private** key never on USB.

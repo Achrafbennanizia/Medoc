@@ -1,6 +1,7 @@
 //! USB multi-installer CLI / wizard for MeDoc field deployment.
 
 mod install;
+mod ui;
 
 use std::path::PathBuf;
 
@@ -9,7 +10,7 @@ use clap::{Parser, Subcommand};
 use dialoguer::{Confirm, Input, Password, Select};
 use medoc_core::infrastructure::install_plan::{
     DiscoverConfig, DiscoverMode, InstallComponent, InstallPlan, InstallRole, InstallTopology,
-    PlanActivationMode, UsbInstallMode, FLAG_AUTO_ACTIVATE, FLAG_CHAIN_MEMBER,
+    PlanActivationMode, SlotStatus, UsbInstallMode, FLAG_AUTO_ACTIVATE, FLAG_CHAIN_MEMBER,
     FLAG_INSTALL_SERVER, FLAG_LAN_CLIENT_ONLY, FLAG_OPEN_PORTS_WINDOW, FLAG_SCAN_LAN,
 };
 use medoc_core::infrastructure::install_plan::UsbInstallAuditEntry;
@@ -19,18 +20,22 @@ use medoc_core::infrastructure::usb_vault::{
 };
 use uuid::Uuid;
 
-#[derive(Parser)]
-#[command(name = "medoc-usb-setup", about = "MeDoc USB multi-installer")]
-struct Cli {
+#[derive(Parser, Clone)]
+#[command(
+    name = "medoc-usb-setup",
+    about = "MeDoc USB multi-installer",
+    after_help = "With no subcommand, opens a small install window. Scripted use: init-campaign, install, wizard, status, audit."
+)]
+pub(crate) struct Cli {
     #[arg(long, global = true, help = "USB kit root (default: directory of this exe)")]
-    root: Option<PathBuf>,
+    pub(crate) root: Option<PathBuf>,
 
     #[command(subcommand)]
-    command: Commands,
+    pub(crate) command: Option<Commands>,
 }
 
-#[derive(Subcommand)]
-enum Commands {
+#[derive(Subcommand, Clone)]
+pub(crate) enum Commands {
     /// Create encrypted campaign vault on the USB stick.
     InitCampaign {
         #[arg(long)]
@@ -61,6 +66,8 @@ enum Commands {
         password: Option<String>,
         #[arg(long, default_value_t = true)]
         silent: bool,
+        #[arg(long, help = "Do not launch MeDoc after install (CI / scripting)")]
+        no_launch: bool,
     },
     /// List all audit entries.
     Audit {
@@ -68,10 +75,15 @@ enum Commands {
         password: Option<String>,
     },
     /// Interactive wizard (unlock → options → install).
-    Wizard,
+    Wizard {
+        #[arg(long)]
+        password: Option<String>,
+    },
+    /// Same as running with no subcommand (native install window).
+    Gui,
 }
 
-fn kit_root(cli: &Cli) -> PathBuf {
+pub(crate) fn kit_root(cli: &Cli) -> PathBuf {
     cli.root.clone().unwrap_or_else(kit_root_from_exe)
 }
 
@@ -144,7 +156,7 @@ fn build_slot_plan(
     }
 }
 
-fn cmd_init_campaign(
+pub(crate) fn cmd_init_campaign(
     cli: &Cli,
     password: Option<String>,
     mode: String,
@@ -250,6 +262,7 @@ fn cmd_init_campaign(
         "Campaign {} created — {} slot(s), mode {:?}",
         campaign.campaign_id, campaign.chain_total, campaign.install_mode
     );
+    println!("Unlock with the same password you just set (there is no default like demo123).");
     Ok(())
 }
 
@@ -280,16 +293,54 @@ fn cmd_status(cli: &Cli, password: Option<String>) -> Result<(), medoc_core::err
     Ok(())
 }
 
-fn cmd_install(cli: &Cli, password: Option<String>, silent: bool) -> Result<(), medoc_core::error::AppError> {
+fn wizard_role_override(role_idx: usize) -> Option<InstallRole> {
+    match role_idx {
+        1 => Some(InstallRole::Master),
+        2 => Some(InstallRole::Replica),
+        3 => Some(InstallRole::ServerHost),
+        4 => Some(InstallRole::LanClient),
+        _ => None,
+    }
+}
+
+pub(crate) fn cmd_install(
+    cli: &Cli,
+    password: Option<String>,
+    silent: bool,
+    role_override: Option<InstallRole>,
+    no_launch: bool,
+) -> Result<(), medoc_core::error::AppError> {
     let root = kit_root(cli);
     let pw = read_password(password, "USB kit password")?;
     let campaign = unlock_campaign(&root, &pw)?;
     let slot = next_pending_slot(&campaign).ok_or_else(|| {
-        medoc_core::error::AppError::Validation("no pending install slot".into())
+        let done = campaign
+            .slots
+            .iter()
+            .filter(|s| matches!(s.status, SlotStatus::Done))
+            .count();
+        medoc_core::error::AppError::Validation(format!(
+            "no pending install slot (campaign {}/{} complete). Run init-campaign to start a new campaign, or ./MedocUsbSetup status to inspect progress.",
+            done,
+            campaign.chain_total
+        ))
     })?;
-    let plan = slot.plan.clone();
+    let chain_total = campaign.chain_total;
+    let mut plan = slot.plan.clone();
+    if let Some(role) = role_override {
+        plan = build_slot_plan(
+            role,
+            &plan.device_label,
+            &plan.locale,
+            slot.slot_index,
+            chain_total,
+            plan.discover.clone(),
+            plan.pairing_code.clone(),
+        );
+    }
     let slot_index = slot.slot_index;
     let install_mode = campaign.install_mode;
+    let auto_launch = plan.activation_mode == PlanActivationMode::Auto && !no_launch;
 
     let _temp = install::TempGuard::new();
     let hostname = std::env::var("COMPUTERNAME")
@@ -297,9 +348,10 @@ fn cmd_install(cli: &Cli, password: Option<String>, silent: bool) -> Result<(), 
         .unwrap_or_else(|_| "unknown".into());
     let fp = usb_vault::host_fingerprint();
     let plan_hash = plan.plan_hash();
+    let mut practice_target = None;
 
     let result = (|| {
-        install::install_components(&root, &plan.components, silent)?;
+        practice_target = install::install_components(&root, &plan.components, silent)?;
         install::write_plan_sidecar(&plan)?;
         Ok::<(), medoc_core::error::AppError>(())
     })();
@@ -330,9 +382,29 @@ fn cmd_install(cli: &Cli, password: Option<String>, silent: bool) -> Result<(), 
     if success {
         mark_slot_done(&root, &pw, slot_index)?;
         println!(
-            "Install complete for slot {} ({:?}). Sidecar written; launch MeDoc to apply plan.",
-            slot_index, plan.role
+            "Install complete for slot {} ({:?}). Sidecar written to {}.",
+            slot_index,
+            plan.role,
+            medoc_core::infrastructure::usb_vault::default_sidecar_path().display()
         );
+        if auto_launch {
+            if let Some(target) = practice_target.as_ref() {
+                match install::launch_practice_app(target) {
+                    Ok(()) => println!(
+                        "MeDoc launched — deployment and locale apply automatically on first start."
+                    ),
+                    Err(e) => println!(
+                        "Install OK but auto-launch failed: {e}. Open MeDoc manually once."
+                    ),
+                }
+            } else {
+                println!("Launch MeDoc manually to apply the install plan.");
+            }
+        } else if plan.activation_mode == PlanActivationMode::Manual {
+            println!("Manual activation mode — complete license setup in MeDoc when ready.");
+        } else {
+            println!("Open MeDoc once to apply the install plan (role, locale, pairing window).");
+        }
         Ok(())
     } else {
         Err(result.unwrap_err())
@@ -356,7 +428,7 @@ fn cmd_audit(cli: &Cli, password: Option<String>) -> Result<(), medoc_core::erro
     Ok(())
 }
 
-fn cmd_wizard(cli: &Cli) -> Result<(), medoc_core::error::AppError> {
+fn cmd_wizard(cli: &Cli, password: Option<String>) -> Result<(), medoc_core::error::AppError> {
     let root = kit_root(cli);
     let has_vault = root.join("medoc-usb/vault.sealed").exists();
     if !has_vault {
@@ -396,11 +468,56 @@ fn cmd_wizard(cli: &Cli) -> Result<(), medoc_core::error::AppError> {
         }
     }
 
-    let pw = read_password(None, "USB kit password")?;
-    let _ = unlock_campaign(&root, &pw)?;
+    let pw = read_password(password, "USB kit password")?;
+    let campaign = unlock_campaign(&root, &pw)?;
+    if next_pending_slot(&campaign).is_none() {
+        let done = campaign
+            .slots
+            .iter()
+            .filter(|s| matches!(s.status, SlotStatus::Done))
+            .count();
+        println!(
+            "Campaign {} is complete ({}/{} slots used).",
+            campaign.campaign_id, done, campaign.chain_total
+        );
+        let reset = Confirm::new()
+            .with_prompt("Create a new campaign (replaces vault and audit on this kit)?")
+            .default(false)
+            .interact()
+            .map_err(|e| medoc_core::error::AppError::Internal(e.to_string()))?;
+        if reset {
+            let devices: u32 = Input::new()
+                .with_prompt("Number of devices")
+                .default(1)
+                .interact_text()
+                .map_err(|e| medoc_core::error::AppError::Internal(e.to_string()))?;
+            let mode_idx = Select::new()
+                .with_prompt("Install mode")
+                .items(&["Default (single)", "Chain (multi-PC)"])
+                .default(0)
+                .interact()
+                .map_err(|e| medoc_core::error::AppError::Internal(e.to_string()))?;
+            let mode = if mode_idx == 1 { "chain" } else { "default" };
+            cmd_init_campaign(
+                cli,
+                Some(pw.clone()),
+                mode.into(),
+                devices,
+                "en".into(),
+                30,
+                String::new(),
+                String::new(),
+                false,
+            )?;
+        } else {
+            return Err(medoc_core::error::AppError::Validation(
+                "no pending install slot — create a new campaign or copy a fresh USB kit".into(),
+            ));
+        }
+    }
 
     let role_idx = Select::new()
-        .with_prompt("Role for this PC (overrides next chain slot if confirmed)")
+        .with_prompt("Role for this PC")
         .items(&[
             "Use next chain slot",
             "Master",
@@ -412,23 +529,20 @@ fn cmd_wizard(cli: &Cli) -> Result<(), medoc_core::error::AppError> {
         .interact()
         .map_err(|e| medoc_core::error::AppError::Internal(e.to_string()))?;
 
-    if role_idx > 0 {
-        println!("Note: chain slot plan is used; customize campaign via init-campaign for full control.");
-    }
-
     let silent = Confirm::new()
         .with_prompt("Silent installer (/S)?")
         .default(true)
         .interact()
         .map_err(|e| medoc_core::error::AppError::Internal(e.to_string()))?;
 
-    cmd_install(cli, Some(pw), silent)
+    cmd_install(cli, Some(pw), silent, wizard_role_override(role_idx), false)
 }
 
 fn main() {
     let cli = Cli::parse();
     let result = match &cli.command {
-        Commands::InitCampaign {
+        None | Some(Commands::Gui) => ui::run(cli.root.clone()),
+        Some(Commands::InitCampaign {
             password,
             mode,
             devices,
@@ -437,7 +551,7 @@ fn main() {
             pairing_code,
             master_address,
             non_interactive,
-        } => cmd_init_campaign(
+        }) => cmd_init_campaign(
             &cli,
             password.clone(),
             mode.clone(),
@@ -448,10 +562,14 @@ fn main() {
             master_address.clone(),
             *non_interactive,
         ),
-        Commands::Status { password } => cmd_status(&cli, password.clone()),
-        Commands::Install { password, silent } => cmd_install(&cli, password.clone(), *silent),
-        Commands::Audit { password } => cmd_audit(&cli, password.clone()),
-        Commands::Wizard => cmd_wizard(&cli),
+        Some(Commands::Status { password }) => cmd_status(&cli, password.clone()),
+        Some(Commands::Install {
+            password,
+            silent,
+            no_launch,
+        }) => cmd_install(&cli, password.clone(), *silent, None, *no_launch),
+        Some(Commands::Audit { password }) => cmd_audit(&cli, password.clone()),
+        Some(Commands::Wizard { password }) => cmd_wizard(&cli, password.clone()),
     };
     if let Err(e) = result {
         eprintln!("Error: {e}");

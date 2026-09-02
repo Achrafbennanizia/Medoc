@@ -22,7 +22,6 @@ import {
     calendarMonthOffsetFromToday,
     deriveDayClosedSpans,
     deriveDayTimelineBounds,
-    deriveAppointmentTimelineBounds,
     deriveWeekTimelineBounds,
     doctorStripeVar,
     isAppointmentCalendarWorkingDay,

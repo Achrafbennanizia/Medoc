@@ -85,7 +85,7 @@ export const CHART_EXPORT_SECTION_META: {
     { key: "anamnesis", label: "Medical history", needsMedical: true },
     { key: "treatments", label: "Treatments", needsMedical: true },
     { key: "examinations", label: "Examinations", needsMedical: true },
-    { key: "dentalFindings", label: "Dental findings", needsMedical: true },
+    { key: "dental_findings", label: "Dental findings", needsMedical: true },
     { key: "prescriptions", label: "Prescriptions", needsMedical: false, needsDocuments: true },
     { key: "certificate", label: "Certificates", needsMedical: false, needsDocuments: true },
     { key: "attachments", label: "Attachments", needsMedical: false },
@@ -98,7 +98,8 @@ export function chartExportSectionLabel(
     key: keyof ChartExportSectionsState,
     t: (translationKey: string) => string,
 ): string {
-    return t(`export.section.${key}`);
+    const i18nKey = key === "dental_findings" ? "dentalFindings" : key;
+    return t(`export.section.${i18nKey}`);
 }
 
 export function defaultChartExportSections(): ChartExportSectionsState {

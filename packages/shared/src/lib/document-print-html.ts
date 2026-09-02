@@ -350,11 +350,11 @@ function prescriptionPdfLinesCombo(items: Prescription[], patient: Patient | nul
             docTp("document.print.dosage_duration", { dosage: r.dosage, duration: r.duration }),
         );
         if ((r.active_ingredient ?? "").trim()) {
-            lines.push(docTp("document.print.ingredient_line", { value: r.active_ingredient }));
+            lines.push(docTp("document.print.ingredient_line", { value: r.active_ingredient ?? "" }));
         }
-        if ((r.pzn ?? "").trim()) lines.push(docTp("document.print.pzn", { pzn: r.pzn }));
+        if ((r.pzn ?? "").trim()) lines.push(docTp("document.print.pzn", { pzn: r.pzn ?? "" }));
         if ((r.instructions ?? "").trim()) {
-            lines.push(docTp("document.print.notes_line", { value: r.instructions }));
+            lines.push(docTp("document.print.notes_line", { value: r.instructions ?? "" }));
         }
         lines.push("");
     }

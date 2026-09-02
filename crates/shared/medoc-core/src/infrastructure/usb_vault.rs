@@ -85,7 +85,7 @@ fn verify_password(passphrase: &str, verifier: &str) -> Result<(), AppError> {
         .map_err(|e| AppError::Validation(format!("verifier key: {e}")))?;
     let actual = derive_key(passphrase, &salt)?;
     if actual.as_slice() != expected.as_slice() {
-        return Err(AppError::Forbidden);
+        return Err(AppError::Validation("wrong USB kit password".into()));
     }
     Ok(())
 }
@@ -130,7 +130,7 @@ fn open_json<T: for<'de> Deserialize<'de>>(
         .map_err(|e| AppError::Internal(format!("cipher: {e}")))?;
     let plain = cipher
         .decrypt(XNonce::from_slice(&nonce_bytes), ct.as_ref())
-        .map_err(|_| AppError::Forbidden)?;
+        .map_err(|_| AppError::Validation("wrong USB kit password".into()))?;
     serde_json::from_slice(&plain).map_err(|e| AppError::Validation(format!("json: {e}")))
 }
 
@@ -362,11 +362,33 @@ pub fn write_sidecar_plan(plan: &InstallPlan, dest: &Path) -> Result<(), AppErro
     Ok(())
 }
 
-pub fn default_sidecar_path() -> PathBuf {
+/// Matches Tauri `identifier` in `apps/practice-host/tauri.conf.json`.
+pub const PRACTICE_APP_IDENTIFIER: &str = "de.medoc.app";
+
+/// Desktop app data directory (same layout as Tauri `app_data_dir`).
+pub fn practice_app_data_dir() -> PathBuf {
+    let base = if cfg!(windows) {
+        dirs::data_dir()
+    } else {
+        dirs::data_local_dir()
+    }
+    .unwrap_or_else(|| PathBuf::from("."));
+    base.join(PRACTICE_APP_IDENTIFIER)
+}
+
+/// Older USB kits wrote the sidecar here — kept for one release of compatibility.
+pub fn legacy_sidecar_dir() -> PathBuf {
     dirs::data_local_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join("MeDoc")
-        .join(crate::infrastructure::install_plan::PENDING_PLAN_SIDEcar_FILE)
+}
+
+pub fn default_sidecar_path() -> PathBuf {
+    practice_app_data_dir().join(crate::infrastructure::install_plan::PENDING_PLAN_SIDEcar_FILE)
+}
+
+pub fn legacy_sidecar_path() -> PathBuf {
+    legacy_sidecar_dir().join(crate::infrastructure::install_plan::PENDING_PLAN_SIDEcar_FILE)
 }
 
 #[cfg(test)]
@@ -403,6 +425,21 @@ mod tests {
         .unwrap();
         let entries = read_audit_entries(&dir, pw).unwrap();
         assert_eq!(entries.len(), 1);
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn wrong_password_is_rejected() {
+        let dir = std::env::temp_dir().join(format!("medoc-usb-badpw-{}", Uuid::new_v4()));
+        fs::create_dir_all(&dir).unwrap();
+        let plan = InstallPlan::new_master("Test");
+        init_campaign_vault(&dir, "correct-kit-password", UsbInstallMode::Default, vec![plan])
+            .unwrap();
+        let err = unlock_campaign(&dir, "demo123").unwrap_err();
+        assert!(
+            err.to_string().contains("wrong USB kit password"),
+            "unexpected error: {err}"
+        );
         let _ = fs::remove_dir_all(dir);
     }
 }
