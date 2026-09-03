@@ -20,7 +20,7 @@ pub use cluster_reset_service::{
 };
 pub use crate::cluster::activation::{import_owner_activation, ActivationSummary};
 pub use license_service::{
-    activate_cluster_license, needs_cluster_onboarding, require_owner_activation_device,
+    activate_cluster_license, enable_lan_auto_start, mint_and_activate_usb_owner_license, needs_cluster_onboarding, require_owner_activation_device,
     require_owner_admin,
     require_owner_vendor_license, cluster_network_ready, cluster_status, ImportActivationResult,
     ClusterStatus,

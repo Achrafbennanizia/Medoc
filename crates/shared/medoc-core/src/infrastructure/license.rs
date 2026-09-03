@@ -127,11 +127,11 @@ impl LicenseStatus {
 /// - `v2.<nonce>.<ct>` → AES-GCM envelope → `<json>.<sig>` v2 body
 /// - `<json>.<sig>` → v1 legacy
 pub fn verify(token: &str, local_device_id: &str) -> LicenseStatus {
-    let token = token.trim();
+    let token: String = token.chars().filter(|c| !c.is_whitespace()).collect();
     if let Some(stripped) = token.strip_prefix("v2.") {
         verify_v2_envelope(stripped, local_device_id)
     } else {
-        verify_v1(token)
+        verify_v1(&token)
     }
 }
 

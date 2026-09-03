@@ -59,6 +59,13 @@ fn v2_full_roundtrip_matches_device() {
 
     let status = verify(&envelope, device_id);
     assert!(status.valid, "expected valid, got: {:?}", status.reason);
+    let wrapped = format!("  {}\n", envelope.replace('.', ".\n"));
+    let status_ws = verify(&wrapped, device_id);
+    assert!(
+        status_ws.valid,
+        "whitespace in pasted key must be ignored, got: {:?}",
+        status_ws.reason
+    );
     let v2 = status.license_v2.expect("v2 payload present");
     assert_eq!(v2.device_id, device_id);
     assert_eq!(v2.customer_id, "practice-test-001");

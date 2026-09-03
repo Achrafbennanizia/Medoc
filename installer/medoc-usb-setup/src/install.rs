@@ -227,10 +227,14 @@ fn install_macos_app_bundle(src: &Path) -> Result<PathBuf, AppError> {
     })?;
     let user_dest = macos_user_app_dest(name);
     ditto_copy(src, &user_dest)?;
+    #[cfg(target_os = "macos")]
+    write_finder_open_command(user_dest.parent().unwrap_or(user_dest.as_path()), &user_dest);
 
     let system = PathBuf::from("/Applications").join(name);
     if system_applications_writable() {
         let _ = ditto_copy(src, &system);
+        #[cfg(target_os = "macos")]
+        write_finder_open_command(Path::new("/Applications"), &system);
     }
     Ok(user_dest)
 }
@@ -243,6 +247,42 @@ pub fn installed_medoc_app_path() -> PathBuf {
         return user;
     }
     PathBuf::from("/Applications/MeDoc.app")
+}
+
+/// Finder cannot `open` an unsigned USB `.app` (no process). This helper
+/// starts the Mach-O in a new session so closing Terminal cannot kill MeDoc.
+#[cfg(target_os = "macos")]
+fn write_finder_open_command(dir: &Path, app: &Path) {
+    let path = dir.join("Open MeDoc.command");
+    let exe = app.join("Contents/MacOS/medoc");
+    let body = format!(
+        r#"#!/bin/bash
+EXE="{exe}"
+if /usr/bin/pgrep -f "MeDoc.app/Contents/MacOS/medoc" >/dev/null 2>&1; then
+  /usr/bin/osascript -e 'tell application "System Events" to set frontmost of (first process whose name is "medoc") to true' >/dev/null 2>&1
+  exit 0
+fi
+LOG="$HOME/Library/Application Support/de.medoc.app/last-launch.log"
+mkdir -p "$(dirname "$LOG")"
+# Ignore hangup from Terminal when this .command exits.
+trap "" HUP
+/usr/bin/nohup "$EXE" >>"$LOG" 2>&1 </dev/null &
+disown
+exit 0
+"#,
+        exe = exe.display()
+    );
+    if fs::write(&path, body).is_ok() {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if let Ok(meta) = fs::metadata(&path) {
+                let mut p = meta.permissions();
+                p.set_mode(0o755);
+                let _ = fs::set_permissions(&path, p);
+            }
+        }
+    }
 }
 
 fn system_applications_writable() -> bool {
@@ -320,6 +360,10 @@ fn wipe_target_paths() -> Vec<PathBuf> {
     paths
 }
 
+pub(crate) fn stop_running_medoc_apps() {
+    stop_running_medoc();
+}
+
 fn stop_running_medoc() {
     #[cfg(target_os = "macos")]
     {
@@ -373,6 +417,12 @@ pub fn launch_practice_app(installed: &Path) -> Result<(), AppError> {
             return Ok(());
         }
         macos_spawn_medoc(&app)?;
+        #[cfg(target_os = "macos")]
+        {
+            if let Some(parent) = app.parent() {
+                write_finder_open_command(parent, &app);
+            }
+        }
         std::thread::sleep(std::time::Duration::from_millis(800));
         if !macos_medoc_running() {
             return Err(AppError::Internal(

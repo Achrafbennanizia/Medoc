@@ -114,14 +114,19 @@ pub async fn activate_cluster_license(
     license_key: &str,
 ) -> Result<ClusterStatus, AppError> {
     require_owner_activation_device(pool).await?;
+    let license_key: String = license_key.chars().filter(|c| !c.is_whitespace()).collect();
     let device_id = license_repo::ensure_device_id(pool).await?;
-    let status = license::verify(license_key, &device_id);
+    let status = license::verify(&license_key, &device_id);
     if !status.valid {
-        return cluster_status(pool).await;
+        return Err(AppError::Validation(
+            status
+                .reason
+                .unwrap_or_else(|| "License key is not valid for this PC.".into()),
+        ));
     }
     match status.format.as_deref() {
-        Some("v2") => license_repo::store_v2(pool, license_key.trim()).await?,
-        Some("v1") => license_repo::store_v1(pool, license_key.trim()).await?,
+        Some("v2") => license_repo::store_v2(pool, &license_key).await?,
+        Some("v1") => license_repo::store_v1(pool, &license_key).await?,
         _ => {}
     }
 
@@ -129,7 +134,7 @@ pub async fn activate_cluster_license(
     let budget = seat_budget_from_edition(&edition_from_status(&status));
 
     if let Some(mut existing) = repos.load().await? {
-        existing.license_ref = license_key.trim().to_string();
+        existing.license_ref = license_key.clone();
         existing.max_total = budget.max_total;
         existing.max_admin = budget.max_admin;
         existing.max_member = budget.max_member;
@@ -156,7 +161,7 @@ pub async fn activate_cluster_license(
 
     let license = License {
         cluster_id: cluster_id.clone(),
-        license_ref: license_key.trim().to_string(),
+        license_ref: license_key.clone(),
         signing_key_enc,
         max_total: budget.max_total,
         max_admin: budget.max_admin,
@@ -197,6 +202,79 @@ pub async fn activate_cluster_license(
     }
 
     cluster_status(pool).await
+}
+
+/// USB installer: mint a device-bound v2 key, activate the cluster owner seat, and
+/// turn on LAN auto-start so the next app launch brings services up.
+pub fn mint_and_activate_usb_owner_license(
+    app_data_dir: &std::path::Path,
+    customer_id: &str,
+    edition: &str,
+) -> Result<String, AppError> {
+    let app_data_dir = app_data_dir.to_path_buf();
+    let customer_id = customer_id.to_string();
+    let edition = edition.to_string();
+    let join = std::thread::Builder::new()
+        .name("medoc-usb-license-activate".into())
+        .spawn(move || {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .map_err(|e| AppError::Internal(format!("tokio: {e}")))?;
+            rt.block_on(async move {
+                let pool =
+                    medoc_core::infrastructure::database::connection::init_db_headless(&app_data_dir)
+                        .await?;
+                let device_id = license_repo::ensure_device_id(&pool).await?;
+                medoc_core::infrastructure::database::app_kv_repo::set(
+                    &pool,
+                    "sync.device_id.v1",
+                    &device_id,
+                )
+                .await?;
+                let envelope = license::mint_dev_v2_license_envelope(
+                    &device_id,
+                    &customer_id,
+                    &edition,
+                )?;
+                activate_cluster_license(&pool, "usb-setup", &envelope).await?;
+                enable_lan_auto_start(&pool).await?;
+                pool.close().await;
+                Ok(envelope)
+            })
+        })
+        .map_err(|e| AppError::Internal(format!("license thread: {e}")))?;
+    join.join()
+        .map_err(|_| AppError::Internal("license thread panicked".into()))?
+}
+
+pub async fn enable_lan_auto_start(pool: &SqlitePool) -> Result<(), AppError> {
+    const KEY: &str = "lan.server.config.v1";
+    let mut cfg = if let Some(raw) =
+        medoc_core::infrastructure::database::app_kv_repo::get(pool, KEY).await?
+    {
+        serde_json::from_str(&raw).unwrap_or_else(|_| serde_json::json!({}))
+    } else {
+        serde_json::json!({})
+    };
+    if !cfg.is_object() {
+        cfg = serde_json::json!({});
+    }
+    let obj = cfg.as_object_mut().expect("object");
+    obj.entry("schemaVersion")
+        .or_insert_with(|| serde_json::json!(1));
+    obj.entry("bindAddr")
+        .or_insert_with(|| serde_json::json!("0.0.0.0"));
+    obj.entry("httpPort")
+        .or_insert_with(|| serde_json::json!(8787));
+    obj.entry("udpDiscoveryPort")
+        .or_insert_with(|| serde_json::json!(47_830));
+    obj.entry("instanceLabel")
+        .or_insert_with(|| serde_json::json!("MeDoc Practice"));
+    obj.insert("autoStartWithApp".into(), serde_json::json!(true));
+    obj.entry("extraCorsOrigins")
+        .or_insert_with(|| serde_json::json!([]));
+    medoc_core::infrastructure::database::app_kv_repo::set(pool, KEY, &cfg.to_string()).await
 }
 
 pub async fn cluster_status(pool: &SqlitePool) -> Result<ClusterStatus, AppError> {

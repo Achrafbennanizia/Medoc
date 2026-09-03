@@ -272,7 +272,7 @@ pub async fn lan_server_start(
     start_lan_embedded(&app, (*pool).clone(), &control).await
 }
 
-/// Called once after DB init when `auto_start_with_app` is enabled.
+/// Called once after DB init: LAN starts when configured, or when this device is a licensed cluster node.
 pub async fn auto_start_if_enabled(app: AppHandle, pool: SqlitePool) {
     let cfg = match load_or_default_config(&pool).await {
         Ok(c) => c,
@@ -281,7 +281,12 @@ pub async fn auto_start_if_enabled(app: AppHandle, pool: SqlitePool) {
             return;
         }
     };
-    if !cfg.auto_start_with_app {
+    let cluster_ready = medoc_sync::cluster::services::cluster_status(&pool)
+        .await
+        .ok()
+        .map(|s| medoc_sync::cluster::services::cluster_network_ready(&s))
+        .unwrap_or(false);
+    if !cfg.auto_start_with_app && !cluster_ready {
         return;
     }
     let ctrl = match app.try_state::<LanServerControl>() {

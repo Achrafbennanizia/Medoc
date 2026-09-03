@@ -4236,6 +4236,7 @@ dependencies = [
  "dirs 5.0.1",
  "eframe",
  "medoc-core",
+ "medoc-sync",
  "rpassword",
  "serde",
  "serde_json",

@@ -19,7 +19,7 @@ export function LicenseActivateOnboardingPage() {
     const [busy, setBusy] = useState(false);
 
     const activate = async () => {
-        const trimmed = code.trim();
+        const trimmed = code.replace(/\s+/g, "").trim();
         if (!trimmed) {
             toast(t("onboarding.license.paste_key"), "error");
             return;
@@ -59,8 +59,7 @@ export function LicenseActivateOnboardingPage() {
             <form onSubmit={onSubmit}>
                 <label className="onboarding-field">
                     {t("onboarding.license.key_label")}
-                    <input
-                        type="text"
+                    <textarea
                         value={code}
                         onChange={(e) => setCode(e.target.value)}
                         placeholder={t("onboarding.license.key_ph_simple")}
@@ -68,6 +67,8 @@ export function LicenseActivateOnboardingPage() {
                         autoFocus
                         spellCheck={false}
                         disabled={busy}
+                        rows={4}
+                        style={{ width: "100%", fontFamily: "ui-monospace, monospace", fontSize: 13 }}
                     />
                 </label>
                 {import.meta.env.DEV ? (

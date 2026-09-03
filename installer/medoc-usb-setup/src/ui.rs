@@ -8,12 +8,22 @@ use crate::{cmd_init_campaign, cmd_install, kit_root, Cli};
 use medoc_core::infrastructure::database::license_repo;
 use medoc_core::infrastructure::install_plan::{InstallRole, PlanActivationMode, SlotStatus};
 use medoc_core::infrastructure::usb_vault::{next_pending_slot, unlock_campaign, practice_app_data_dir};
+use medoc_sync::cluster::services::mint_and_activate_usb_owner_license;
 
 pub fn run(root: Option<PathBuf>) -> Result<(), medoc_core::error::AppError> {
     let instance = single_instance::SingleInstance::new("de.medoc.usb-setup")
         .map_err(|e| medoc_core::error::AppError::Internal(e.to_string()))?;
     if !instance.is_single() {
-        eprintln!("MeDoc USB Setup is already open.");
+        #[cfg(target_os = "macos")]
+        {
+            let _ = std::process::Command::new("osascript")
+                .args([
+                    "-e",
+                    r#"tell application "System Events" to set frontmost of (first process whose name contains "MedocUsbSetup") to true"#,
+                ])
+                .status();
+        }
+        eprintln!("MeDoc USB Setup is already open — brought that window forward.");
         return Ok(());
     }
     std::mem::forget(instance);
@@ -21,7 +31,7 @@ pub fn run(root: Option<PathBuf>) -> Result<(), medoc_core::error::AppError> {
     let native = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size(Vec2::new(520.0, 700.0))
-            .with_min_inner_size(Vec2::new(460.0, 560.0))
+            .with_min_inner_size(Vec2::new(420.0, 360.0))
             .with_title("MeDoc USB Setup"),
         ..Default::default()
     };
@@ -185,21 +195,34 @@ impl InstallerApp {
         }
         self.busy = true;
         self.copy_flash.clear();
+        crate::install::stop_running_medoc_apps();
         let customer = hostname_slug();
-        match license_repo::mint_copyable_v2_license_for_app_dir(
-            &practice_app_data_dir(),
-            &customer,
-            "PRO",
-        ) {
+        match mint_and_activate_usb_owner_license(&practice_app_data_dir(), &customer, "PRO") {
             Ok(key) => {
                 self.license_key = key;
                 self.status_text =
-                    "License key created for this PC. Copy it, then paste it in MeDoc → license.".into();
-                self.push_log("License key created (not auto-applied).");
+                    "License is active on this PC. Open MeDoc — onboarding should skip the license step. The key is here if you need to copy it.".into();
+                self.push_log("License minted and activated on this PC.");
             }
             Err(e) => {
-                self.status_text = e.to_string();
-                self.push_log(&e.to_string());
+                // Fallback: mint without cluster activate (e.g. DB busy) so the operator still has a key.
+                match license_repo::mint_copyable_v2_license_for_app_dir(
+                    &practice_app_data_dir(),
+                    &customer,
+                    "PRO",
+                ) {
+                    Ok(key) => {
+                        self.license_key = key;
+                        self.status_text = format!(
+                            "Could not auto-activate ({e}). Copy the key into MeDoc onboarding."
+                        );
+                        self.push_log(&self.status_text.clone());
+                    }
+                    Err(e2) => {
+                        self.status_text = format!("{e}; {e2}");
+                        self.push_log(&self.status_text.clone());
+                    }
+                }
             }
         }
         self.busy = false;
@@ -275,6 +298,10 @@ impl InstallerApp {
 impl eframe::App for InstallerApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
+            egui::ScrollArea::vertical()
+                .id_salt("installer_main_scroll")
+                .auto_shrink([false, false])
+                .show(ui, |ui| {
             ui.add_space(8.0);
             ui.label(RichText::new("MeDoc USB Setup").size(22.0).strong());
             ui.label(RichText::new("Install the practice app, then Open MeDoc from this window.").size(13.0).color(Color32::GRAY));
@@ -346,7 +373,7 @@ impl eframe::App for InstallerApp {
                 }
             });
             ui.label(
-                RichText::new("Do not double-click MeDoc.app in Finder until the app is signed with Apple Developer ID — macOS closes it immediately.")
+                RichText::new("Use Open MeDoc here, or double-click Open MeDoc.command in Applications. Double-clicking MeDoc.app is blocked by macOS.")
                     .size(12.0)
                     .color(Color32::GRAY),
             );
@@ -379,7 +406,7 @@ impl eframe::App for InstallerApp {
             ui.add_space(8.0);
             ui.label(RichText::new("License key").strong());
             ui.label(
-                RichText::new("Creates a key bound to this PC. Copy it into MeDoc onboarding. Close MeDoc if it is already running.")
+                RichText::new("Activates MeDoc on this Mac (cluster + LAN). Close MeDoc first if it is open.")
                     .size(12.0)
                     .color(Color32::GRAY),
             );
@@ -389,7 +416,7 @@ impl eframe::App for InstallerApp {
                 if ui
                     .add_sized(
                         Vec2::new(ui.available_width(), 32.0),
-                        egui::Button::new("Create license key"),
+                        egui::Button::new("Activate license on this Mac"),
                     )
                     .clicked()
                 {
@@ -407,7 +434,7 @@ impl eframe::App for InstallerApp {
                 let can_copy = !self.license_key.is_empty();
                 ui.add_enabled_ui(can_copy, |ui| {
                     if ui.button("Copy license key").clicked() {
-                        ui.ctx().copy_text(self.license_key.clone());
+                        ui.ctx().copy_text(self.license_key.chars().filter(|c| !c.is_whitespace()).collect::<String>());
                         self.copy_flash = "Copied to clipboard.".into();
                     }
                 });
@@ -419,9 +446,13 @@ impl eframe::App for InstallerApp {
             ui.add_space(12.0);
             ui.label(RichText::new(&self.status_text).color(Color32::from_rgb(30, 90, 70)));
             ui.add_space(6.0);
-            egui::ScrollArea::vertical().max_height(140.0).show(ui, |ui| {
-                ui.label(RichText::new(&self.log).small().color(Color32::DARK_GRAY));
-            });
+            egui::ScrollArea::vertical()
+                .id_salt("installer_log_scroll")
+                .max_height(140.0)
+                .show(ui, |ui| {
+                    ui.label(RichText::new(&self.log).small().color(Color32::DARK_GRAY));
+                });
+                });
         });
     }
 }

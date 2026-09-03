@@ -11,6 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 medoc-core = { path = "../../crates/shared/medoc-core" }
+medoc-sync = { path = "../../crates/shared/medoc-sync" }
 clap = { version = "4", features = ["derive"] }
 chrono = { version = "0.4", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
