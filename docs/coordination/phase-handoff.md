@@ -1,6 +1,66 @@
 # Phase handoff
 
-**Last phase label:** USB installer GUI + single-instance (2026-09-02)
+**Last phase label:** USB installer license key + no auto-activate (2026-09-02)
+
+### Verified (2026-09-02 — installer license UI)
+
+- GUI install uses `PlanActivationMode::Manual` and `no_launch`.
+- Window: **Create license key** + multiline field + **Copy license key**.
+- `cargo build -p medoc-usb-setup --release` **PASS**; kit `MedocUsbSetup` replaced.
+
+### Remains unverified
+
+- Click-through Create/Copy in the live egui window — **NOT OBSERVED** (user may have old `./MedocUsbSetup` still open).
+
+### Required next
+
+1. Quit the running USB Setup window, then run `installer/dist/usb-kit/./MedocUsbSetup` again.
+2. Install → Create license key → Copy → paste in MeDoc license screen. Close MeDoc first if key creation says the DB is in use.
+
+---
+
+
+
+### Verified (2026-09-02 — “app won’t open”)
+
+- Direct exec of `~/Applications/MeDoc.app/Contents/MacOS/medoc` **starts** (`DB_READY`, pid 15217).
+- Finder/`open` of the `.app` **does not start a process**: `spctl` → “code has no resources but signature indicates they must be present” / adhoc rejected. **NOT** a crash of the new UI binary.
+- USB installer “exited immediately” on slot 2+ was **single-instance** while the first copy was already running.
+- Installer now treats already-running as success; writes `~/Applications/Open MeDoc.command`. Host `show`/`set_focus` after overlay.
+
+### Remains unverified
+
+- User-visible window from this agent spawn — **NOT OBSERVED** (no screenshot).
+
+### Required next
+
+1. If MeDoc.app icon does nothing: double-click **Open MeDoc.command** in `~/Applications`.
+2. Do not rely on Finder `open` of the unsigned `.app` until notarized.
+
+---
+
+**Last phase label:** White window — custom-protocol (2026-09-02)
+
+### Verified (2026-09-02 — blank MeDoc window)
+
+- Cause: USB `medoc` was `cargo build --release` **without** `--features custom-protocol`. Tauri kept `cfg(dev)` and loaded `http://localhost:1420` (no Vite) → empty white webview. Evidence: prior `target/release/build/medoc-*/output` had `cargo:rustc-cfg=dev` and no `tauri-codegen-assets`.
+- Fix: `[features] custom-protocol = ["tauri/custom-protocol"]` on `apps/practice-host`; Vite `base: "./"`. Rebuild: `npm run build -w medoc` then `cargo build -p medoc --release --features custom-protocol`.
+- New OUT_DIR has **124** `tauri-codegen-assets`; binary contains `index-f4ONlojG.js`; **no** `rustc-cfg=dev`.
+- Process after replace: pid **4167**, logs `DB_READY` + `MAC_WINDOW_TRAFFIC_OVERLAY_OK`; **no** TCP to `:1420`.
+- Kit payload `installer/dist/usb-kit/medoc-usb/payloads/{medoc,MeDoc.app}` updated to the same binary.
+
+### Remains unverified
+
+- Login / onboarding paint end-to-end — **NOT OBSERVED** (no visual screenshot this session)
+- Finder `open` of adhoc `.app` (Gatekeeper) — still expected to fail; spawn exe.
+
+### Required next
+
+1. Look at the relaunched MeDoc window (should show UI, not white).
+2. Future kits: `tauri build --bundles app` **or** `cargo build -p medoc --release --features custom-protocol` after `npm run build -w medoc`.
+
+---
+
 
 ### Verified (2026-09-02 — installer UI + double-open)
 

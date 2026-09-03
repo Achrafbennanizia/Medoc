@@ -16,6 +16,8 @@ const SERVICE: &str = "de.medoc.app";
 const KEYRING_ACCOUNT: &str = "sqlcipher-key";
 const SALT_FILE: &str = "db-key.salt";
 const WRAP_FILE: &str = "db-key.wrap";
+/// Fallback when the OS keychain is unavailable (adhoc USB builds, CI).
+const LOCAL_KEY_FILE: &str = "sqlcipher.key";
 
 #[cfg(test)]
 const TEST_SQLCIPHER_KEY: [u8; 32] = [
@@ -163,6 +165,11 @@ pub fn ensure_sqlcipher_key(
         return Ok(Zeroizing::new(normalize_32(k)));
     }
     if let Ok(k) = keyring_load() {
+        let _ = write_local_key_file(app_dir, &k);
+        return Ok(Zeroizing::new(k));
+    }
+    if let Ok(k) = read_local_key_file(app_dir) {
+        let _ = keyring_store(&k);
         return Ok(Zeroizing::new(k));
     }
     if wrap_path(app_dir).exists() {
@@ -177,8 +184,42 @@ pub fn ensure_sqlcipher_key(
     }
     let mut key = vec![0u8; 32];
     rand::thread_rng().fill_bytes(&mut key);
-    keyring_store(&key)?;
+    let _ = keyring_store(&key);
+    write_local_key_file(app_dir, &key)?;
     Ok(Zeroizing::new(key))
+}
+
+fn local_key_path(app_dir: &Path) -> PathBuf {
+    app_dir.join(LOCAL_KEY_FILE)
+}
+
+fn read_local_key_file(app_dir: &Path) -> Result<Vec<u8>, AppError> {
+    let raw = std::fs::read_to_string(local_key_path(app_dir))
+        .map_err(|e| AppError::Internal(format!("sqlcipher.key read: {e}")))?;
+    STANDARD
+        .decode(raw.trim())
+        .map_err(|e| AppError::Internal(format!("sqlcipher.key decode: {e}")))
+        .map(normalize_32)
+}
+
+fn write_local_key_file(app_dir: &Path, key: &[u8]) -> Result<(), AppError> {
+    std::fs::create_dir_all(app_dir).map_err(|e| {
+        AppError::Internal(format!("Could not create app data directory: {e}"))
+    })?;
+    let path = local_key_path(app_dir);
+    std::fs::write(&path, STANDARD.encode(key))
+        .map_err(|e| AppError::Internal(format!("sqlcipher.key write: {e}")))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&path)
+            .map_err(|e| AppError::Internal(format!("sqlcipher.key meta: {e}")))?
+            .permissions();
+        perms.set_mode(0o600);
+        std::fs::set_permissions(&path, perms)
+            .map_err(|e| AppError::Internal(format!("sqlcipher.key chmod: {e}")))?;
+    }
+    Ok(())
 }
 
 /// User-chosen passphrase: derive SQLCipher key, store in keychain + wrapped file.

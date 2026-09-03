@@ -24,7 +24,7 @@ use uuid::Uuid;
 #[command(
     name = "medoc-usb-setup",
     about = "MeDoc USB multi-installer",
-    after_help = "With no subcommand, opens a small install window. Scripted use: init-campaign, install, wizard, status, audit."
+    after_help = "With no subcommand, opens a small install window. Scripted use: init-campaign, install, wizard, status, audit, wipe-pc."
 )]
 pub(crate) struct Cli {
     #[arg(long, global = true, help = "USB kit root (default: directory of this exe)")]
@@ -79,6 +79,11 @@ pub(crate) enum Commands {
         #[arg(long)]
         password: Option<String>,
     },
+    /// Remove MeDoc from this computer (app, database, caches, keychain). Does not touch the USB kit.
+    WipePc {
+        #[arg(long, help = "Skip the confirmation prompt")]
+        yes: bool,
+    },
     /// Same as running with no subcommand (native install window).
     Gui,
 }
@@ -112,8 +117,12 @@ fn build_slot_plan(
     chain_total: u32,
     discover: DiscoverConfig,
     pairing_code: Option<String>,
+    activation_mode: PlanActivationMode,
 ) -> InstallPlan {
-    let mut flags = FLAG_AUTO_ACTIVATE;
+    let mut flags = 0u32;
+    if activation_mode == PlanActivationMode::Auto {
+        flags |= FLAG_AUTO_ACTIVATE;
+    }
     if chain_total > 1 {
         flags |= FLAG_CHAIN_MEMBER;
     }
@@ -147,7 +156,7 @@ fn build_slot_plan(
         discover,
         pairing_code,
         master_activation_ref: None,
-        activation_mode: PlanActivationMode::Auto,
+        activation_mode,
         device_label: label.into(),
         preset_features: vec![],
         license_envelope: None,
@@ -255,6 +264,7 @@ pub(crate) fn cmd_init_campaign(
             devices.max(1),
             discover.clone(),
             pairing.clone(),
+            PlanActivationMode::Auto,
         ));
     }
     let campaign = init_campaign_vault(&root, &pw, install_mode, slots)?;
@@ -309,6 +319,7 @@ pub(crate) fn cmd_install(
     silent: bool,
     role_override: Option<InstallRole>,
     no_launch: bool,
+    activation_mode: Option<PlanActivationMode>,
 ) -> Result<(), medoc_core::error::AppError> {
     let root = kit_root(cli);
     let pw = read_password(password, "USB kit password")?;
@@ -336,7 +347,14 @@ pub(crate) fn cmd_install(
             chain_total,
             plan.discover.clone(),
             plan.pairing_code.clone(),
+            activation_mode.unwrap_or(plan.activation_mode),
         );
+    }
+    if let Some(mode) = activation_mode {
+        plan.activation_mode = mode;
+        if mode == PlanActivationMode::Manual {
+            plan.flags &= !FLAG_AUTO_ACTIVATE;
+        }
     }
     let slot_index = slot.slot_index;
     let install_mode = campaign.install_mode;
@@ -353,6 +371,9 @@ pub(crate) fn cmd_install(
     let result = (|| {
         practice_target = install::install_components(&root, &plan.components, silent)?;
         install::write_plan_sidecar(&plan)?;
+        medoc_core::infrastructure::database::connection::prepare_practice_db_before_launch(
+            &usb_vault::practice_app_data_dir(),
+        )?;
         Ok::<(), medoc_core::error::AppError>(())
     })();
 
@@ -382,19 +403,25 @@ pub(crate) fn cmd_install(
     if success {
         mark_slot_done(&root, &pw, slot_index)?;
         println!(
-            "Install complete for slot {} ({:?}). Sidecar written to {}.",
+            "Install complete for slot {} ({:?}).\nApp location: {}\nSidecar: {}",
             slot_index,
             plan.role,
+            practice_target
+                .as_ref()
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|| "(none)".into()),
             medoc_core::infrastructure::usb_vault::default_sidecar_path().display()
         );
         if auto_launch {
             if let Some(target) = practice_target.as_ref() {
                 match install::launch_practice_app(target) {
                     Ok(()) => println!(
-                        "MeDoc launched — deployment and locale apply automatically on first start."
+                        "MeDoc is installed at {} and opening now (role/locale apply on first start).\nIf the window does not appear, double-click “Open MeDoc.command” next to MeDoc.app (Finder cannot open the unsigned .app).",
+                        target.display()
                     ),
                     Err(e) => println!(
-                        "Install OK but auto-launch failed: {e}. Open MeDoc manually once."
+                        "Install OK at {}. Auto-launch: {e}. Double-click MeDoc in that folder.",
+                        target.display()
                     ),
                 }
             } else {
@@ -535,7 +562,31 @@ fn cmd_wizard(cli: &Cli, password: Option<String>) -> Result<(), medoc_core::err
         .interact()
         .map_err(|e| medoc_core::error::AppError::Internal(e.to_string()))?;
 
-    cmd_install(cli, Some(pw), silent, wizard_role_override(role_idx), false)
+    cmd_install(cli, Some(pw), silent, wizard_role_override(role_idx), false, None)
+}
+
+fn cmd_wipe_pc(yes: bool) -> Result<(), medoc_core::error::AppError> {
+    if !yes {
+        let ok = Confirm::new()
+            .with_prompt("Delete MeDoc app, database, caches, and keychain items on this computer? (USB kit is kept)")
+            .default(false)
+            .interact()
+            .map_err(|e| medoc_core::error::AppError::Internal(e.to_string()))?;
+        if !ok {
+            println!("Cancelled.");
+            return Ok(());
+        }
+    }
+    let removed = install::wipe_this_computer()?;
+    if removed.is_empty() {
+        println!("Nothing left to delete on this computer.");
+    } else {
+        for line in &removed {
+            println!("removed {line}");
+        }
+        println!("Deleted {} item(s).", removed.len());
+    }
+    Ok(())
 }
 
 fn main() {
@@ -567,9 +618,10 @@ fn main() {
             password,
             silent,
             no_launch,
-        }) => cmd_install(&cli, password.clone(), *silent, None, *no_launch),
+        }) => cmd_install(&cli, password.clone(), *silent, None, *no_launch, None),
         Some(Commands::Audit { password }) => cmd_audit(&cli, password.clone()),
         Some(Commands::Wizard { password }) => cmd_wizard(&cli, password.clone()),
+        Some(Commands::WipePc { yes }) => cmd_wipe_pc(*yes),
     };
     if let Err(e) = result {
         eprintln!("Error: {e}");

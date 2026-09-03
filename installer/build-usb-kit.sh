@@ -47,7 +47,8 @@ if [[ -d "$MEDOC_APP" ]]; then
   cp -R "$MEDOC_APP" "$OUT/medoc-usb/payloads/"
 elif [[ -f "$MEDOC_BIN" ]]; then
   echo "warning: MeDoc.app not found — kit will ship raw medoc binary (no UI bundle)."
-  echo "         Run: source scripts/rust-env.sh && npm run build -w medoc && npm run tauri build -w medoc -- --bundles app"
+  echo "         Prefer: source scripts/rust-env.sh && npm run build -w medoc && npm run tauri build -w medoc -- --bundles app"
+  echo "         A cargo-built binary MUST use --features custom-protocol or the window stays blank."
   cp "$MEDOC_BIN" "$OUT/medoc-usb/payloads/medoc"
 fi
 

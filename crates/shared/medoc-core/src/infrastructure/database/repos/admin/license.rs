@@ -91,6 +91,43 @@ pub async fn current_status(pool: &SqlitePool) -> Result<LicenseStatus, AppError
     })
 }
 
+/// Mint a device-bound v2 license for this PC’s practice DB (USB installer copy-paste).
+/// Does **not** store `license.v2` — the operator pastes the key in MeDoc onboarding.
+pub fn mint_copyable_v2_license_for_app_dir(
+    app_data_dir: &std::path::Path,
+    customer_id: &str,
+    edition: &str,
+) -> Result<String, AppError> {
+    let app_data_dir = app_data_dir.to_path_buf();
+    let customer_id = customer_id.to_string();
+    let edition = edition.to_string();
+    let join = std::thread::Builder::new()
+        .name("medoc-usb-license".into())
+        .spawn(move || {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .map_err(|e| AppError::Internal(format!("tokio: {e}")))?;
+            rt.block_on(async move {
+                let pool =
+                    crate::infrastructure::database::connection::init_db_headless(&app_data_dir)
+                        .await?;
+                let device_id = ensure_device_id(&pool).await?;
+                app_kv_repo::set(&pool, "sync.device_id.v1", &device_id).await?;
+                let envelope = crate::infrastructure::license::mint_dev_v2_license_envelope(
+                    &device_id,
+                    &customer_id,
+                    &edition,
+                )?;
+                pool.close().await;
+                Ok(envelope)
+            })
+        })
+        .map_err(|e| AppError::Internal(format!("license thread: {e}")))?;
+    join.join()
+        .map_err(|_| AppError::Internal("license thread panicked".into()))?
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

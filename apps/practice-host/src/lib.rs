@@ -78,9 +78,28 @@ pub fn run() {
             application::audit_chain_guard::register(Arc::clone(&audit_chain_guard));
             app.manage(AuditChainGuardExt(audit_chain_guard.clone()));
 
-            match tauri::async_runtime::block_on(
+            if let Ok(app_dir) = app_handle.path().app_data_dir() {
+                let _ = database::connection::prepare_practice_db_before_launch(&app_dir);
+            }
+
+            let mut db_result = tauri::async_runtime::block_on(
                 crate::commands::db_setup_commands::init_db_from_app(&app_handle),
-            ) {
+            );
+            if let Err(ref e) = db_result {
+                let msg = e.to_string();
+                if msg.contains("already running") || msg.contains("in use") {
+                    eprintln!("{msg}");
+                    std::process::exit(0);
+                }
+                if let Ok(app_dir) = app_handle.path().app_data_dir() {
+                    let _ = database::connection::prepare_practice_db_before_launch(&app_dir);
+                    db_result = tauri::async_runtime::block_on(
+                        crate::commands::db_setup_commands::init_db_from_app(&app_handle),
+                    );
+                }
+            }
+
+            match db_result {
                 Ok(pool) => {
                     #[cfg(debug_assertions)]
                     {
@@ -309,6 +328,15 @@ pub fn run() {
                         tracing::warn!(target: "medoc::system", event = "MAC_WINDOW_TITLE_CLEAR", error = %e);
                     } else {
                         tracing::info!(target: "medoc::system", event = "MAC_WINDOW_TRAFFIC_OVERLAY_OK");
+                    }
+                    let _ = w.show();
+                    let _ = w.unminimize();
+                    if let Err(e) = w.set_focus() {
+                        tracing::warn!(
+                            target: "medoc::system",
+                            event = "MAC_WINDOW_FOCUS",
+                            error = %e
+                        );
                     }
                 } else {
                     tracing::warn!(target: "medoc::system", event = "MAC_WINDOW_MAIN_NOT_FOUND");

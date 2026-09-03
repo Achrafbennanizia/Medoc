@@ -13,6 +13,7 @@ use crate::infrastructure::database::audit_repo;
 use crate::infrastructure::database::db_key;
 use crate::infrastructure::database::migrations;
 use crate::infrastructure::database::sqlcipher;
+use std::path::Path;
 
 /// Initialise the on-disk SQLCipher store at `app_data_dir/medoc.db`,
 /// running schema + Rust-only migrations and seeding the audit-HMAC key.
@@ -40,6 +41,81 @@ pub async fn init_db_headless(app_data_dir: &std::path::Path) -> Result<SqlitePo
 /// Re-open `medoc.db` after SQLCipher rekey (caller must have closed the prior pool).
 pub async fn reopen_app_pool(app_data_dir: &std::path::Path) -> Result<SqlitePool, AppError> {
     open_pool_with_migrations(app_data_dir).await
+}
+
+fn db_error_is_unreadable(err: &AppError) -> bool {
+    let s = err.to_string().to_lowercase();
+    s.contains("(code: 26)")
+        || s.contains("file is not a database")
+        || s.contains("not a database")
+}
+
+fn remove_sqlite_sidecars(db_path: &Path) {
+    let _ = std::fs::remove_file(Path::new(&format!("{}-wal", db_path.display())));
+    let _ = std::fs::remove_file(Path::new(&format!("{}-shm", db_path.display())));
+}
+
+fn quarantine_db_file(db_path: &Path) {
+    remove_sqlite_sidecars(db_path);
+    if !db_path.exists() {
+        return;
+    }
+    let stamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
+    let backup = db_path.with_extension(format!("db.unreadable-{stamp}"));
+    let _ = std::fs::remove_file(&backup);
+    if std::fs::rename(db_path, &backup).is_err() {
+        let _ = std::fs::remove_file(db_path);
+    }
+}
+
+/// USB installer and app startup: if `medoc.db` cannot be opened with the
+/// current SQLCipher key, move it aside so MeDoc can create a fresh store
+/// instead of panicking in Tauri setup.
+pub fn prepare_practice_db_before_launch(app_dir: &std::path::Path) -> Result<(), AppError> {
+    std::fs::create_dir_all(app_dir).map_err(|e| {
+        AppError::Internal(format!("Could not create app data directory: {e}"))
+    })?;
+    let db_path = app_dir.join("medoc.db");
+    if !db_path.exists() {
+        return Ok(());
+    }
+    if sqlcipher::is_plaintext_sqlite_file(&db_path) {
+        return Ok(());
+    }
+
+    let app_dir = app_dir.to_path_buf();
+    let db_path_probe = app_dir.join("medoc.db");
+    let join = std::thread::Builder::new()
+        .name("medoc-db-prepare".into())
+        .spawn(move || {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .map_err(|e| AppError::Internal(format!("tokio: {e}")))?;
+            rt.block_on(async move {
+                let key = db_key::ensure_sqlcipher_key(&app_dir, true)?;
+                match sqlcipher::open_encrypted_pool(&db_path_probe, key, false).await {
+                    Ok(pool) => {
+                        pool.close().await;
+                        Ok(())
+                    }
+                    Err(err) if db_error_is_in_use(&err) => Ok(()),
+                    Err(err) => {
+                        tracing::warn!(
+                            target: "medoc::system",
+                            event = "DB_UNREADABLE_QUARANTINE",
+                            path = %db_path_probe.display(),
+                            error = %err,
+                        );
+                        quarantine_db_file(&db_path_probe);
+                        Ok(())
+                    }
+                }
+            })
+        })
+        .map_err(|e| AppError::Internal(format!("db prepare spawn: {e}")))?;
+    join.join()
+        .map_err(|_| AppError::Internal("db prepare thread panicked".into()))?
 }
 
 fn db_error_is_in_use(err: &AppError) -> bool {
@@ -75,20 +151,9 @@ pub async fn open_pool_with_migrations(app_dir: &std::path::Path) -> Result<Sqli
                     event = "DB_RECOVER_RECREATE",
                     path = %db_path.display(),
                     error = %err,
+                    unreadable = db_error_is_unreadable(&err),
                 );
-                let backup = db_path.with_extension("db.corrupt-backup");
-                let _ = std::fs::remove_file(&backup);
-                if db_path.exists() {
-                    if let Err(e) = std::fs::rename(&db_path, &backup) {
-                        tracing::warn!(
-                            target: "medoc::system",
-                            event = "DB_BACKUP_RENAME_FAILED",
-                            path = %db_path.display(),
-                            error = %e,
-                        );
-                        std::fs::remove_file(&db_path).ok();
-                    }
-                }
+                quarantine_db_file(&db_path);
                 let pool = sqlcipher::open_encrypted_pool(&db_path, key, true).await?;
                 run_migrations(&pool).await?;
                 return Ok(pool);

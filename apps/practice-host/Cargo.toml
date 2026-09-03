@@ -64,6 +64,11 @@ rustls = { version = "0.23", features = ["aws_lc_rs"] }
 axum = "0.8"
 tower = "0.5"
 
+# Production webview (custom protocol + embedded dist). `tauri build` enables this;
+# plain `cargo build -p medoc --release` without it loads http://localhost:1420 (blank window).
+[features]
+custom-protocol = ["tauri/custom-protocol"]
+
 # Standalone server binaries (no Tauri):
 #   cargo run -p medoc-lan-server
 #   cargo run -p medoc-company-server

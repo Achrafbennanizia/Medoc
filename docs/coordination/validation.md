@@ -1,5 +1,18 @@
 # Validation ledger
 
+**Last updated:** 2026-09-02 (white window / custom-protocol)
+
+## White MeDoc window (2026-09-02)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Vite relative assets | `npm run build -w medoc` | **PASS** — `./assets/index-f4ONlojG.js` in `dist/index.html` |
+| Production Tauri | `cargo build -p medoc --release --features custom-protocol` | **PASS** — 124 codegen assets; no `rustc-cfg=dev` |
+| Launch | spawn `~/Applications/MeDoc.app/Contents/MacOS/medoc` | **PASS** — pid 4167, `DB_READY`, no `:1420` |
+| UI pixels | — | **NOT OBSERVED** |
+
+---
+
 **Last updated:** 2026-09-02 (installer GUI + single-instance)
 
 ## Installer GUI + double-open (2026-09-02)

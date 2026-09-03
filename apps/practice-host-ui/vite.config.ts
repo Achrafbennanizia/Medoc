@@ -40,6 +40,8 @@ const medocAliases = [
 
 export default defineConfig(async () => ({
     plugins: [react()],
+    // Relative URLs so the Tauri webview can load JS/CSS from the embedded dist.
+    base: "./",
     define: {
         "import.meta.env.VITE_APP_VERSION": JSON.stringify(pkg.version),
     },

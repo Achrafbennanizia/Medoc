@@ -6,6 +6,7 @@ use std::process::Command;
 
 use medoc_core::error::AppError;
 use medoc_core::infrastructure::install_plan::InstallComponent;
+use medoc_core::infrastructure::secret_store;
 use medoc_core::infrastructure::usb_vault::{self, PAYLOADS_DIR, USB_KIT_DIR};
 
 pub fn payloads_dir(root: &Path) -> PathBuf {
@@ -41,8 +42,8 @@ pub fn run_practice_installer(root: &Path, silent: bool) -> Result<PathBuf, AppE
             "practice installer payload missing in medoc-usb/payloads/ (build MeDoc.app first)".into(),
         )
     })?;
-    run_installer(&payload, silent)?;
-    Ok(installed_practice_target(&payload))
+    let installed = run_installer(&payload, silent)?;
+    Ok(installed.unwrap_or_else(|| installed_practice_target(&payload)))
 }
 
 pub fn run_lan_server_install(root: &Path) -> Result<(), AppError> {
@@ -59,31 +60,10 @@ pub fn run_lan_server_install(root: &Path) -> Result<(), AppError> {
     Ok(())
 }
 
-fn run_installer(path: &Path, silent: bool) -> Result<(), AppError> {
+fn run_installer(path: &Path, silent: bool) -> Result<Option<PathBuf>, AppError> {
     if path.extension().and_then(|e| e.to_str()) == Some("app") {
-        let name = path.file_name().unwrap_or_default();
-        let dest = macos_app_install_dest(name);
-        if let Some(parent) = dest.parent() {
-            fs::create_dir_all(parent)
-                .map_err(|e| AppError::Internal(format!("mkdir Applications: {e}")))?;
-        }
-        // Overlay copy — do not delete a running MeDoc.app (second install / open).
-        if let Err(e) = copy_dir_all(path, &dest) {
-            if dest.starts_with("/Applications") {
-                let fallback = dirs::home_dir()
-                    .unwrap_or_else(|| PathBuf::from("."))
-                    .join("Applications")
-                    .join(name);
-                if let Some(parent) = fallback.parent() {
-                    fs::create_dir_all(parent)
-                        .map_err(|err| AppError::Internal(format!("mkdir user Applications: {err}")))?;
-                }
-                copy_dir_all(path, &fallback)?;
-                return Ok(());
-            }
-            return Err(e);
-        }
-        return Ok(());
+        let dest = install_macos_app_bundle(path)?;
+        return Ok(Some(dest));
     }
 
     let ext = path
@@ -110,7 +90,7 @@ fn run_installer(path: &Path, silent: bool) -> Result<(), AppError> {
             fs::set_permissions(&dest, perms)
                 .map_err(|e| AppError::Internal(format!("chmod: {e}")))?;
         }
-        return Ok(());
+        return Ok(Some(dest));
     }
     let status = if ext == "exe" {
         let mut cmd = Command::new(path);
@@ -135,7 +115,7 @@ fn run_installer(path: &Path, silent: bool) -> Result<(), AppError> {
             status.code()
         )));
     }
-    Ok(())
+    Ok(None)
 }
 
 pub fn install_components(
@@ -155,50 +135,211 @@ pub fn install_components(
     Ok(practice_target)
 }
 
-fn copy_dir_all(src: &Path, dst: &Path) -> Result<(), AppError> {
-    fs::create_dir_all(dst).map_err(|e| AppError::Internal(format!("mkdir: {e}")))?;
-    for entry in fs::read_dir(src).map_err(|e| AppError::Internal(format!("read_dir: {e}")))? {
-        let entry = entry.map_err(|e| AppError::Internal(format!("dir entry: {e}")))?;
-        let ty = entry
-            .file_type()
-            .map_err(|e| AppError::Internal(format!("file_type: {e}")))?;
-        let from = entry.path();
-        let to = dst.join(entry.file_name());
-        if ty.is_dir() {
-            copy_dir_all(&from, &to)?;
-        } else {
-            fs::copy(&from, &to).map_err(|e| AppError::Internal(format!("copy: {e}")))?;
-        }
-    }
-    Ok(())
-}
-
 pub fn write_plan_sidecar(plan: &medoc_core::infrastructure::install_plan::InstallPlan) -> Result<(), AppError> {
     let dest = usb_vault::default_sidecar_path();
     usb_vault::write_sidecar_plan(plan, &dest)
 }
 
-fn macos_app_install_dest(name: &std::ffi::OsStr) -> PathBuf {
-    let system = PathBuf::from("/Applications").join(name);
-    if system_applications_writable() {
-        return system;
-    }
+fn macos_user_app_dest(name: &std::ffi::OsStr) -> PathBuf {
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join("Applications")
         .join(name)
 }
 
+fn ditto_copy(src: &Path, dst: &Path) -> Result<(), AppError> {
+    if let Some(parent) = dst.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| AppError::Internal(format!("mkdir Applications: {e}")))?;
+    }
+    let status = Command::new("ditto")
+        .arg(src)
+        .arg(dst)
+        .status()
+        .map_err(|e| AppError::Internal(format!("ditto: {e}")))?;
+    if !status.success() {
+        return Err(AppError::Internal(format!(
+            "ditto exited with {:?}",
+            status.code()
+        )));
+    }
+    #[cfg(target_os = "macos")]
+    {
+        sanitize_macos_app_bundle(dst);
+        let _ = Command::new("xattr").args(["-cr"]).arg(dst).status();
+        // Do not adhoc-sign: Gatekeeper rejects `open` of adhoc USB builds (spctl: rejected).
+        // The Mach-O linker signature from cargo is enough for a direct exec launch.
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn sanitize_macos_app_bundle(app: &Path) {
+    let plist = app.join("Contents/Info.plist");
+    if !plist.exists() {
+        return;
+    }
+    let _ = Command::new("/usr/libexec/PlistBuddy")
+        .args(["-c", "Delete :LSRequiresCarbon", &plist.to_string_lossy()])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status();
+    let _ = Command::new("/usr/libexec/PlistBuddy")
+        .args([
+            "-c",
+            "Add :LSMultipleInstancesProhibited bool true",
+            &plist.to_string_lossy(),
+        ])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status();
+    let _ = Command::new("/usr/libexec/PlistBuddy")
+        .args([
+            "-c",
+            "Set :LSMultipleInstancesProhibited true",
+            &plist.to_string_lossy(),
+        ])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status();
+}
+
+/// Copy the .app into the user Applications folder (always visible in Finder).
+/// Also try /Applications when writable so Spotlight/Launchpad pick it up.
+fn install_macos_app_bundle(src: &Path) -> Result<PathBuf, AppError> {
+    let name = src.file_name().ok_or_else(|| {
+        AppError::Validation("practice .app payload has no name".into())
+    })?;
+    let user_dest = macos_user_app_dest(name);
+    ditto_copy(src, &user_dest)?;
+
+    let system = PathBuf::from("/Applications").join(name);
+    if system_applications_writable() {
+        let _ = ditto_copy(src, &system);
+    }
+    // Always open the user copy — Finder and Spotlight see ~/Applications/MeDoc.app.
+    write_open_medoc_command(&user_dest);
+    Ok(user_dest)
+}
+
+/// Finder/`open` rejects this unsigned USB .app (Gatekeeper). A `.command` file
+/// runs the binary through Terminal, which is allowed.
+fn write_open_medoc_command(app: &Path) {
+    let Some(dir) = app.parent() else {
+        return;
+    };
+    let exe = app.join("Contents/MacOS/medoc");
+    let cmd_path = dir.join("Open MeDoc.command");
+    let body = format!("#!/bin/bash\nexec \"{}\"\n", exe.display());
+    if fs::write(&cmd_path, body).is_ok() {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if let Ok(meta) = fs::metadata(&cmd_path) {
+                let mut p = meta.permissions();
+                p.set_mode(0o755);
+                let _ = fs::set_permissions(&cmd_path, p);
+            }
+        }
+    }
+}
+
 fn system_applications_writable() -> bool {
     PathBuf::from("/Applications").is_dir()
-        && std::fs::metadata("/Applications")
-            .map(|m| !m.permissions().readonly())
+        && std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open("/Applications/.medoc-write-probe")
+            .map(|f| {
+                drop(f);
+                let _ = fs::remove_file("/Applications/.medoc-write-probe");
+                true
+            })
             .unwrap_or(false)
+}
+
+/// Remove MeDoc from this computer (apps, data, caches, keychain). Does not touch the USB kit.
+pub fn wipe_this_computer() -> Result<Vec<String>, AppError> {
+    stop_running_medoc();
+    let mut removed = Vec::new();
+    for path in wipe_target_paths() {
+        if !path.exists() {
+            continue;
+        }
+        let label = path.display().to_string();
+        let result = if path.is_dir() {
+            fs::remove_dir_all(&path)
+        } else {
+            fs::remove_file(&path)
+        };
+        match result {
+            Ok(()) => removed.push(label),
+            Err(e) => removed.push(format!("FAILED {label}: {e}")),
+        }
+    }
+    for account in [
+        "sqlcipher-key",
+        "audit-hmac-key",
+        "lan-jwt-secret",
+        "cluster-device-signing-key",
+        "pairing-master-signing-key",
+    ] {
+        secret_store::delete_account(account)?;
+        removed.push(format!("keychain:{account}"));
+    }
+    Ok(removed)
+}
+
+fn wipe_target_paths() -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    if let Some(home) = dirs::home_dir() {
+        paths.push(home.join("Applications/MeDoc.app"));
+        paths.push(home.join("Applications/Open MeDoc.command"));
+        paths.push(home.join("Applications/MeDoc"));
+        #[cfg(target_os = "macos")]
+        {
+            let lib = home.join("Library");
+            paths.push(lib.join("Caches/de.medoc.app"));
+            paths.push(lib.join("Logs/de.medoc.app"));
+            paths.push(lib.join("WebKit/de.medoc.app"));
+            paths.push(lib.join("HTTPStorages/de.medoc.app"));
+            paths.push(lib.join("Saved Application State/de.medoc.app.savedState"));
+            paths.push(lib.join("Preferences/de.medoc.app.plist"));
+        }
+        #[cfg(target_os = "windows")]
+        {
+            paths.push(home.join("AppData/Local/de.medoc.app"));
+            paths.push(home.join("AppData/Roaming/de.medoc.app"));
+        }
+    }
+    paths.push(PathBuf::from("/Applications/MeDoc.app"));
+    paths.push(usb_vault::practice_app_data_dir());
+    paths.push(usb_vault::legacy_sidecar_dir());
+    paths
+}
+
+fn stop_running_medoc() {
+    #[cfg(target_os = "macos")]
+    {
+        let _ = Command::new("killall").arg("medoc").status();
+        let _ = Command::new("killall").arg("medoc-server").status();
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let _ = Command::new("taskkill")
+            .args(["/F", "/IM", "medoc.exe"])
+            .status();
+        let _ = Command::new("taskkill")
+            .args(["/F", "/IM", "medoc-server.exe"])
+            .status();
+    }
+    std::thread::sleep(std::time::Duration::from_millis(400));
 }
 
 fn installed_practice_target(payload: &Path) -> PathBuf {
     if payload.extension().and_then(|e| e.to_str()) == Some("app") {
-        return macos_app_install_dest(payload.file_name().unwrap_or_default());
+        return macos_user_app_dest(payload.file_name().unwrap_or_default());
     }
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
@@ -214,17 +355,70 @@ pub fn launch_practice_app(installed: &Path) -> Result<(), AppError> {
     }
     #[cfg(target_os = "macos")]
     {
-        let status = Command::new("open")
-            .arg(installed)
-            .status()
-            .map_err(|e| AppError::Internal(format!("launch MeDoc: {e}")))?;
-        if !status.success() {
-            return Err(AppError::Internal(format!(
-                "open exited with {:?}",
-                status.code()
-            )));
+        // `open` / Finder double-click is rejected by Gatekeeper for USB builds.
+        // Spawn the Mach-O. A second install while MeDoc is already up used to
+        // look like "exited immediately" (single-instance). That is success.
+        if macos_medoc_running() {
+            macos_activate_medoc();
+            return Ok(());
         }
-        return Ok(());
+        let exe = if installed.join("Contents/MacOS/medoc").is_file() {
+            installed.join("Contents/MacOS/medoc")
+        } else {
+            installed.to_path_buf()
+        };
+        write_open_medoc_command(installed);
+        let log_path = usb_vault::practice_app_data_dir().join("last-launch.log");
+        if let Some(parent) = log_path.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        let log = fs::File::create(&log_path).ok();
+        let err = log.as_ref().and_then(|f| f.try_clone().ok());
+        let mut cmd = Command::new(&exe);
+        cmd.stdin(std::process::Stdio::null());
+        if let Some(out) = log {
+            cmd.stdout(out);
+        } else {
+            cmd.stdout(std::process::Stdio::null());
+        }
+        if let Some(e) = err {
+            cmd.stderr(e);
+        } else {
+            cmd.stderr(std::process::Stdio::null());
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            cmd.process_group(0);
+        }
+        let mut child = cmd
+            .spawn()
+            .map_err(|e| AppError::Internal(format!("launch MeDoc: {e}")))?;
+        std::thread::sleep(std::time::Duration::from_millis(2500));
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                let log_txt = fs::read_to_string(&log_path).unwrap_or_default();
+                if macos_medoc_running()
+                    || log_txt.contains("already running")
+                    || log_txt.contains("APP_ALREADY_RUNNING")
+                {
+                    macos_activate_medoc();
+                    return Ok(());
+                }
+                return Err(AppError::Internal(format!(
+                    "MeDoc exited immediately ({status}). See {}",
+                    log_path.display()
+                )));
+            }
+            Ok(None) => {
+                std::mem::forget(child);
+                macos_activate_medoc();
+                return Ok(());
+            }
+            Err(e) => {
+                return Err(AppError::Internal(format!("wait MeDoc: {e}")));
+            }
+        }
     }
     #[cfg(target_os = "windows")]
     {
@@ -240,6 +434,29 @@ pub fn launch_practice_app(installed: &Path) -> Result<(), AppError> {
             .map_err(|e| AppError::Internal(format!("launch MeDoc: {e}")))?;
         Ok(())
     }
+}
+
+#[cfg(target_os = "macos")]
+fn macos_medoc_running() -> bool {
+    Command::new("pgrep")
+        .args(["-f", "MeDoc.app/Contents/MacOS/medoc"])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+#[cfg(target_os = "macos")]
+fn macos_activate_medoc() {
+    let _ = Command::new("osascript")
+        .args([
+            "-e",
+            r#"tell application "System Events" to set frontmost of (first process whose name is "medoc") to true"#,
+        ])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status();
 }
 
 pub struct TempGuard {

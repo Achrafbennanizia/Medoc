@@ -5,8 +5,9 @@ use std::path::PathBuf;
 use eframe::egui::{self, Color32, RichText, Vec2};
 
 use crate::{cmd_init_campaign, cmd_install, kit_root, Cli};
-use medoc_core::infrastructure::install_plan::{InstallRole, SlotStatus};
-use medoc_core::infrastructure::usb_vault::{next_pending_slot, unlock_campaign};
+use medoc_core::infrastructure::database::license_repo;
+use medoc_core::infrastructure::install_plan::{InstallRole, PlanActivationMode, SlotStatus};
+use medoc_core::infrastructure::usb_vault::{next_pending_slot, unlock_campaign, practice_app_data_dir};
 
 pub fn run(root: Option<PathBuf>) -> Result<(), medoc_core::error::AppError> {
     let instance = single_instance::SingleInstance::new("de.medoc.usb-setup")
@@ -19,8 +20,8 @@ pub fn run(root: Option<PathBuf>) -> Result<(), medoc_core::error::AppError> {
 
     let native = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size(Vec2::new(460.0, 520.0))
-            .with_min_inner_size(Vec2::new(400.0, 420.0))
+            .with_inner_size(Vec2::new(520.0, 700.0))
+            .with_min_inner_size(Vec2::new(460.0, 560.0))
             .with_title("MeDoc USB Setup"),
         ..Default::default()
     };
@@ -31,12 +32,16 @@ pub fn run(root: Option<PathBuf>) -> Result<(), medoc_core::error::AppError> {
         },
         password: String::new(),
         unlocked: false,
-        status_text: "Enter the USB kit password, choose a role, then Install.".into(),
+        status_text: "Enter the USB kit password, choose a role, then Install. MeDoc will not open by itself — create a license key here and paste it in the app.".into(),
         log: String::new(),
         role_idx: 1,
         busy: false,
         devices: 1,
         create_mode: false,
+        installed: false,
+        license_key: String::new(),
+        copy_flash: String::new(),
+        confirm_wipe: false,
     };
     eframe::run_native(
         "MeDoc USB Setup",
@@ -56,6 +61,10 @@ struct InstallerApp {
     busy: bool,
     devices: u32,
     create_mode: bool,
+    installed: bool,
+    license_key: String,
+    copy_flash: String,
+    confirm_wipe: bool,
 }
 
 impl InstallerApp {
@@ -147,17 +156,90 @@ impl InstallerApp {
         let cli = self.root_cli();
         let pw = self.password.clone();
         self.push_log("Installing…");
-        let result = cmd_install(&cli, Some(pw), true, role, false);
+        let result = cmd_install(
+            &cli,
+            Some(pw),
+            true,
+            role,
+            true,
+            Some(PlanActivationMode::Manual),
+        );
         match result {
             Ok(()) => {
+                self.installed = true;
                 self.status_text =
-                    "Install finished. MeDoc should open and apply this PC’s role automatically."
-                        .into();
+                    "Installed. MeDoc was not opened. Create a license key below, copy it, then open MeDoc and paste it on the license screen.".into();
                 self.push_log(&self.status_text.clone());
             }
             Err(e) => {
                 self.status_text = e.to_string();
                 self.push_log(&e.to_string());
+            }
+        }
+        self.busy = false;
+    }
+
+    fn create_license_key(&mut self) {
+        if self.busy {
+            return;
+        }
+        self.busy = true;
+        self.copy_flash.clear();
+        let customer = hostname_slug();
+        match license_repo::mint_copyable_v2_license_for_app_dir(
+            &practice_app_data_dir(),
+            &customer,
+            "PRO",
+        ) {
+            Ok(key) => {
+                self.license_key = key;
+                self.status_text =
+                    "License key created for this PC. Copy it, then paste it in MeDoc → license.".into();
+                self.push_log("License key created (not auto-applied).");
+            }
+            Err(e) => {
+                self.status_text = e.to_string();
+                self.push_log(&e.to_string());
+            }
+        }
+        self.busy = false;
+    }
+
+    fn wipe_this_mac(&mut self) {
+        if self.busy {
+            return;
+        }
+        if !self.confirm_wipe {
+            self.confirm_wipe = true;
+            self.status_text =
+                "This removes MeDoc.app, the database, caches, and keychain items on this computer. The USB kit is kept. Click Confirm delete to proceed.".into();
+            return;
+        }
+        self.busy = true;
+        self.push_log("Deleting MeDoc from this computer…");
+        match crate::install::wipe_this_computer() {
+            Ok(removed) => {
+                self.installed = false;
+                self.license_key.clear();
+                self.copy_flash.clear();
+                self.confirm_wipe = false;
+                if removed.is_empty() {
+                    self.status_text = "Nothing left to delete on this computer.".into();
+                } else {
+                    self.status_text = format!(
+                        "Deleted {} item(s) on this computer. You can Install again.",
+                        removed.len()
+                    );
+                }
+                for line in &removed {
+                    self.push_log(line);
+                }
+                self.push_log(&self.status_text.clone());
+            }
+            Err(e) => {
+                self.status_text = e.to_string();
+                self.push_log(&e.to_string());
+                self.confirm_wipe = false;
             }
         }
         self.busy = false;
@@ -176,7 +258,7 @@ impl eframe::App for InstallerApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.add_space(8.0);
             ui.label(RichText::new("MeDoc USB Setup").size(22.0).strong());
-            ui.label(RichText::new("Install the practice app and choose this PC’s role.").size(13.0).color(Color32::GRAY));
+            ui.label(RichText::new("Install the practice app. Create a license key here and paste it in MeDoc — nothing is auto-activated.").size(13.0).color(Color32::GRAY));
             ui.add_space(12.0);
 
             ui.label("USB kit password");
@@ -232,6 +314,71 @@ impl eframe::App for InstallerApp {
                 }
             });
 
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                let wipe_label = if self.confirm_wipe {
+                    "Confirm delete"
+                } else {
+                    "Delete everything on this Mac"
+                };
+                ui.add_enabled_ui(!self.busy, |ui| {
+                    if ui
+                        .add(
+                            egui::Button::new(RichText::new(wipe_label).color(Color32::from_rgb(160, 40, 40))),
+                        )
+                        .clicked()
+                    {
+                        self.wipe_this_mac();
+                    }
+                });
+                if self.confirm_wipe && ui.button("Cancel").clicked() {
+                    self.confirm_wipe = false;
+                    self.status_text = "Delete cancelled.".into();
+                }
+            });
+
+            ui.add_space(12.0);
+            ui.separator();
+            ui.add_space(8.0);
+            ui.label(RichText::new("License key").strong());
+            ui.label(
+                RichText::new("Creates a key bound to this PC. Copy it into MeDoc onboarding. Close MeDoc if it is already running.")
+                    .size(12.0)
+                    .color(Color32::GRAY),
+            );
+            ui.add_space(6.0);
+            let license_ok = !self.busy && (!self.password.is_empty() || self.installed);
+            ui.add_enabled_ui(license_ok, |ui| {
+                if ui
+                    .add_sized(
+                        Vec2::new(ui.available_width(), 32.0),
+                        egui::Button::new("Create license key"),
+                    )
+                    .clicked()
+                {
+                    self.create_license_key();
+                }
+            });
+            ui.add_space(6.0);
+            ui.add(
+                egui::TextEdit::multiline(&mut self.license_key)
+                    .desired_width(f32::INFINITY)
+                    .desired_rows(5)
+                    .hint_text("License key appears here"),
+            );
+            ui.horizontal(|ui| {
+                let can_copy = !self.license_key.is_empty();
+                ui.add_enabled_ui(can_copy, |ui| {
+                    if ui.button("Copy license key").clicked() {
+                        ui.ctx().copy_text(self.license_key.clone());
+                        self.copy_flash = "Copied to clipboard.".into();
+                    }
+                });
+                if !self.copy_flash.is_empty() {
+                    ui.label(RichText::new(&self.copy_flash).color(Color32::from_rgb(30, 90, 70)));
+                }
+            });
+
             ui.add_space(12.0);
             ui.label(RichText::new(&self.status_text).color(Color32::from_rgb(30, 90, 70)));
             ui.add_space(6.0);
@@ -250,5 +397,27 @@ fn role_label(idx: usize) -> &'static str {
         3 => "Server host",
         4 => "LAN client",
         _ => "Master",
+    }
+}
+
+fn hostname_slug() -> String {
+    let raw = std::env::var("COMPUTERNAME")
+        .or_else(|_| std::env::var("HOSTNAME"))
+        .unwrap_or_else(|_| "medoc-usb".into());
+    let slug: String = raw
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() {
+                c.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
+        .collect();
+    let slug = slug.trim_matches('-');
+    if slug.is_empty() {
+        "medoc-usb".into()
+    } else {
+        slug.to_string()
     }
 }

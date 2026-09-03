@@ -17,7 +17,9 @@
         "minWidth": 1250,
         "minHeight": 800,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "visible": true,
+        "focus": true
       }
     ],
     "security": {

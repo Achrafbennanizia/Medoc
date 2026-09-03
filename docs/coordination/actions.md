@@ -1,11 +1,16 @@
 # Action ledger
 
-**Last updated:** 2026-09-02 (installer GUI + single-instance)
+**Last updated:** 2026-09-02 (white window / custom-protocol)
 
 ## Now
 
-- Smoke the USB setup window: Unlock → role → Install.
-- Open MeDoc twice and confirm the second copy exits instead of crashing.
+- Confirm the relaunched MeDoc window shows login/onboarding (not white).
+- Future USB kits: production feature `custom-protocol` (or `tauri build --bundles app`).
+
+## Done (2026-09-02 — white window)
+
+- Root cause: release binary without `tauri/custom-protocol` used Vite `devUrl`.
+- Vite `base: "./"`; `custom-protocol` feature; kit + `~/Applications` binary replaced.
 
 ## Done (2026-09-02 — installer GUI + double-open)
 
