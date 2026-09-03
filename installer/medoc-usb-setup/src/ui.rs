@@ -32,7 +32,7 @@ pub fn run(root: Option<PathBuf>) -> Result<(), medoc_core::error::AppError> {
         },
         password: String::new(),
         unlocked: false,
-        status_text: "Enter the USB kit password, choose a role, then Install. MeDoc will not open by itself — create a license key here and paste it in the app.".into(),
+        status_text: "Enter the USB kit password, choose a role, then Install. Use Open MeDoc to start the app (Finder double-click is blocked by macOS on unsigned USB copies).".into(),
         log: String::new(),
         role_idx: 1,
         busy: false,
@@ -168,7 +168,7 @@ impl InstallerApp {
             Ok(()) => {
                 self.installed = true;
                 self.status_text =
-                    "Installed. MeDoc was not opened. Create a license key below, copy it, then open MeDoc and paste it on the license screen.".into();
+                    "Installed. Click Open MeDoc (do not double-click the app in Finder).".into();
                 self.push_log(&self.status_text.clone());
             }
             Err(e) => {
@@ -196,6 +196,25 @@ impl InstallerApp {
                 self.status_text =
                     "License key created for this PC. Copy it, then paste it in MeDoc → license.".into();
                 self.push_log("License key created (not auto-applied).");
+            }
+            Err(e) => {
+                self.status_text = e.to_string();
+                self.push_log(&e.to_string());
+            }
+        }
+        self.busy = false;
+    }
+
+    fn open_medoc(&mut self) {
+        if self.busy {
+            return;
+        }
+        self.busy = true;
+        let target = crate::install::installed_medoc_app_path();
+        match crate::install::launch_practice_app(&target) {
+            Ok(()) => {
+                self.status_text = "MeDoc is running.".into();
+                self.push_log("Started MeDoc.");
             }
             Err(e) => {
                 self.status_text = e.to_string();
@@ -258,7 +277,7 @@ impl eframe::App for InstallerApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.add_space(8.0);
             ui.label(RichText::new("MeDoc USB Setup").size(22.0).strong());
-            ui.label(RichText::new("Install the practice app. Create a license key here and paste it in MeDoc — nothing is auto-activated.").size(13.0).color(Color32::GRAY));
+            ui.label(RichText::new("Install the practice app, then Open MeDoc from this window.").size(13.0).color(Color32::GRAY));
             ui.add_space(12.0);
 
             ui.label("USB kit password");
@@ -313,6 +332,24 @@ impl eframe::App for InstallerApp {
                     }
                 }
             });
+
+            ui.add_space(8.0);
+            ui.add_enabled_ui(!self.busy, |ui| {
+                if ui
+                    .add_sized(
+                        Vec2::new(ui.available_width(), 36.0),
+                        egui::Button::new("Open MeDoc"),
+                    )
+                    .clicked()
+                {
+                    self.open_medoc();
+                }
+            });
+            ui.label(
+                RichText::new("Do not double-click MeDoc.app in Finder until the app is signed with Apple Developer ID — macOS closes it immediately.")
+                    .size(12.0)
+                    .color(Color32::GRAY),
+            );
 
             ui.add_space(8.0);
             ui.horizontal(|ui| {

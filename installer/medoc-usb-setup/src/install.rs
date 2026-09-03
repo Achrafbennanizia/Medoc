@@ -2,7 +2,7 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use medoc_core::error::AppError;
 use medoc_core::infrastructure::install_plan::InstallComponent;
@@ -166,10 +166,32 @@ fn ditto_copy(src: &Path, dst: &Path) -> Result<(), AppError> {
     #[cfg(target_os = "macos")]
     {
         sanitize_macos_app_bundle(dst);
-        let _ = Command::new("xattr").args(["-cr"]).arg(dst).status();
-        // Do not adhoc-sign: Gatekeeper rejects `open` of adhoc USB builds (spctl: rejected).
-        // The Mach-O linker signature from cargo is enough for a direct exec launch.
+        let _ = fs::remove_dir_all(dst.join("Contents/_CodeSignature"));
+        prepare_macos_app_signature(dst)?;
     }
+    Ok(())
+}
+
+/// Adhoc-sign the copied bundle. Do not attach `com.apple.quarantine`:
+/// Launch Services still refuses `open` on unsigned USB apps, and quarantine
+/// only adds the malware sheet that looks like MeDoc “opened then closed”.
+#[cfg(target_os = "macos")]
+fn prepare_macos_app_signature(app: &Path) -> Result<(), AppError> {
+    let sign = Command::new("codesign")
+        .args(["--force", "--deep", "--sign", "-"])
+        .arg(app)
+        .status()
+        .map_err(|e| AppError::Internal(format!("codesign: {e}")))?;
+    if !sign.success() {
+        return Err(AppError::Internal(format!(
+            "codesign failed for {}",
+            app.display()
+        )));
+    }
+    let _ = Command::new("xattr")
+        .args(["-dr", "com.apple.quarantine"])
+        .arg(app)
+        .status();
     Ok(())
 }
 
@@ -184,19 +206,12 @@ fn sanitize_macos_app_bundle(app: &Path) {
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .status();
+    // Do not prohibit multiple instances: Finder `open` then kills a spawned
+    // medoc process and starts nothing (Gatekeeper), which looks like auto-close.
     let _ = Command::new("/usr/libexec/PlistBuddy")
         .args([
             "-c",
-            "Add :LSMultipleInstancesProhibited bool true",
-            &plist.to_string_lossy(),
-        ])
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status();
-    let _ = Command::new("/usr/libexec/PlistBuddy")
-        .args([
-            "-c",
-            "Set :LSMultipleInstancesProhibited true",
+            "Delete :LSMultipleInstancesProhibited",
             &plist.to_string_lossy(),
         ])
         .stdout(std::process::Stdio::null())
@@ -217,31 +232,17 @@ fn install_macos_app_bundle(src: &Path) -> Result<PathBuf, AppError> {
     if system_applications_writable() {
         let _ = ditto_copy(src, &system);
     }
-    // Always open the user copy — Finder and Spotlight see ~/Applications/MeDoc.app.
-    write_open_medoc_command(&user_dest);
     Ok(user_dest)
 }
 
-/// Finder/`open` rejects this unsigned USB .app (Gatekeeper). A `.command` file
-/// runs the binary through Terminal, which is allowed.
-fn write_open_medoc_command(app: &Path) {
-    let Some(dir) = app.parent() else {
-        return;
-    };
-    let exe = app.join("Contents/MacOS/medoc");
-    let cmd_path = dir.join("Open MeDoc.command");
-    let body = format!("#!/bin/bash\nexec \"{}\"\n", exe.display());
-    if fs::write(&cmd_path, body).is_ok() {
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            if let Ok(meta) = fs::metadata(&cmd_path) {
-                let mut p = meta.permissions();
-                p.set_mode(0o755);
-                let _ = fs::set_permissions(&cmd_path, p);
-            }
-        }
+pub fn installed_medoc_app_path() -> PathBuf {
+    let user = dirs::home_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("Applications/MeDoc.app");
+    if user.join("Contents/MacOS/medoc").is_file() {
+        return user;
     }
+    PathBuf::from("/Applications/MeDoc.app")
 }
 
 fn system_applications_writable() -> bool {
@@ -355,70 +356,32 @@ pub fn launch_practice_app(installed: &Path) -> Result<(), AppError> {
     }
     #[cfg(target_os = "macos")]
     {
-        // `open` / Finder double-click is rejected by Gatekeeper for USB builds.
-        // Spawn the Mach-O. A second install while MeDoc is already up used to
-        // look like "exited immediately" (single-instance). That is success.
+        let app = if installed.extension().and_then(|e| e.to_str()) == Some("app") {
+            installed.to_path_buf()
+        } else if installed.join("Contents/MacOS/medoc").is_file() {
+            installed.to_path_buf()
+        } else {
+            installed
+                .parent()
+                .and_then(|p| p.parent())
+                .and_then(|p| p.parent())
+                .map(|p| p.to_path_buf())
+                .unwrap_or_else(|| installed.to_path_buf())
+        };
         if macos_medoc_running() {
             macos_activate_medoc();
             return Ok(());
         }
-        let exe = if installed.join("Contents/MacOS/medoc").is_file() {
-            installed.join("Contents/MacOS/medoc")
-        } else {
-            installed.to_path_buf()
-        };
-        write_open_medoc_command(installed);
-        let log_path = usb_vault::practice_app_data_dir().join("last-launch.log");
-        if let Some(parent) = log_path.parent() {
-            let _ = fs::create_dir_all(parent);
+        macos_spawn_medoc(&app)?;
+        std::thread::sleep(std::time::Duration::from_millis(800));
+        if !macos_medoc_running() {
+            return Err(AppError::Internal(
+                "MeDoc started then exited. Check last-launch.log in Application Support/de.medoc.app."
+                    .into(),
+            ));
         }
-        let log = fs::File::create(&log_path).ok();
-        let err = log.as_ref().and_then(|f| f.try_clone().ok());
-        let mut cmd = Command::new(&exe);
-        cmd.stdin(std::process::Stdio::null());
-        if let Some(out) = log {
-            cmd.stdout(out);
-        } else {
-            cmd.stdout(std::process::Stdio::null());
-        }
-        if let Some(e) = err {
-            cmd.stderr(e);
-        } else {
-            cmd.stderr(std::process::Stdio::null());
-        }
-        #[cfg(unix)]
-        {
-            use std::os::unix::process::CommandExt;
-            cmd.process_group(0);
-        }
-        let mut child = cmd
-            .spawn()
-            .map_err(|e| AppError::Internal(format!("launch MeDoc: {e}")))?;
-        std::thread::sleep(std::time::Duration::from_millis(2500));
-        match child.try_wait() {
-            Ok(Some(status)) => {
-                let log_txt = fs::read_to_string(&log_path).unwrap_or_default();
-                if macos_medoc_running()
-                    || log_txt.contains("already running")
-                    || log_txt.contains("APP_ALREADY_RUNNING")
-                {
-                    macos_activate_medoc();
-                    return Ok(());
-                }
-                return Err(AppError::Internal(format!(
-                    "MeDoc exited immediately ({status}). See {}",
-                    log_path.display()
-                )));
-            }
-            Ok(None) => {
-                std::mem::forget(child);
-                macos_activate_medoc();
-                return Ok(());
-            }
-            Err(e) => {
-                return Err(AppError::Internal(format!("wait MeDoc: {e}")));
-            }
-        }
+        macos_activate_medoc();
+        return Ok(());
     }
     #[cfg(target_os = "windows")]
     {
@@ -434,6 +397,40 @@ pub fn launch_practice_app(installed: &Path) -> Result<(), AppError> {
             .map_err(|e| AppError::Internal(format!("launch MeDoc: {e}")))?;
         Ok(())
     }
+}
+
+/// Launch Services `open MeDoc.app` exits 0 with no process on unsigned USB
+/// copies. Start the Mach-O directly so the window can stay open.
+#[cfg(target_os = "macos")]
+fn macos_spawn_medoc(app: &Path) -> Result<(), AppError> {
+    let exe = app.join("Contents/MacOS/medoc");
+    if !exe.is_file() {
+        return Err(AppError::Validation(format!(
+            "MeDoc binary missing at {}",
+            exe.display()
+        )));
+    }
+    let log_path = usb_vault::practice_app_data_dir().join("last-launch.log");
+    if let Some(parent) = log_path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    let log = fs::File::create(&log_path)
+        .map_err(|e| AppError::Internal(format!("create last-launch.log: {e}")))?;
+    let err = log
+        .try_clone()
+        .map_err(|e| AppError::Internal(format!("clone last-launch.log: {e}")))?;
+    let mut cmd = Command::new(&exe);
+    cmd.stdin(Stdio::null())
+        .stdout(Stdio::from(log))
+        .stderr(Stdio::from(err));
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0);
+    }
+    cmd.spawn()
+        .map_err(|e| AppError::Internal(format!("start MeDoc: {e}")))?;
+    Ok(())
 }
 
 #[cfg(target_os = "macos")]

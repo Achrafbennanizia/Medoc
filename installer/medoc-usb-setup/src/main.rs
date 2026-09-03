@@ -416,7 +416,7 @@ pub(crate) fn cmd_install(
             if let Some(target) = practice_target.as_ref() {
                 match install::launch_practice_app(target) {
                     Ok(()) => println!(
-                        "MeDoc is installed at {} and opening now (role/locale apply on first start).\nIf the window does not appear, double-click “Open MeDoc.command” next to MeDoc.app (Finder cannot open the unsigned .app).",
+                        "MeDoc is installed at {} and is running.",
                         target.display()
                     ),
                     Err(e) => println!(
