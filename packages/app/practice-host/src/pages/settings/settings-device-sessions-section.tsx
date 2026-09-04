@@ -178,6 +178,9 @@ export function SettingsDeviceSessionsSection() {
                                 </div>
                                 <div className="settings-device-session-meta">
                                     {tp("settings.device_sessions.last_active", { time: row.last_seen_at })}
+                                    {row.peer_ip
+                                        ? ` · ${t("settings.device_sessions.dialog.ip")}: ${row.peer_ip}`
+                                        : ""}
                                     {row.trusted_at ? tp("settings.device_sessions.trusted_since", { time: row.trusted_at }) : ""}
                                 </div>
                                 {row.is_suspected && row.suspected_reasons.length > 0 ? (
@@ -310,6 +313,10 @@ export function SettingsDeviceSessionsSection() {
                             <div>
                                 <dt>{t("settings.device_sessions.dialog.last_active")}</dt>
                                 <dd>{investigation.session.last_seen_at}</dd>
+                            </div>
+                            <div>
+                                <dt>{t("settings.device_sessions.dialog.ip")}</dt>
+                                <dd>{investigation.session.peer_ip || "—"}</dd>
                             </div>
                             <div>
                                 <dt>{t("settings.device_sessions.dialog.total_sessions")}</dt>

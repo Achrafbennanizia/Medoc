@@ -8,6 +8,7 @@ export type DeviceSessionRow = {
     user_id: string;
     device_label: string;
     user_agent: string | null;
+    peer_ip: string | null;
     created_at: string;
     last_seen_at: string;
     is_current: boolean;

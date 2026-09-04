@@ -62,6 +62,7 @@ pub async fn login(
     totp_code: Option<String>,
     device_label: Option<String>,
     user_agent: Option<String>,
+    client_ip: Option<String>,
 ) -> Result<Session, AppError> {
     let brute_key = BruteKey::from_subject(&email, DESKTOP_PEER_IP)?;
     let pool_ref: &SqlitePool = &pool;
@@ -141,19 +142,50 @@ pub async fn login(
     .await
     .ok();
 
-    let ds_id = uuid::Uuid::new_v4().to_string();
-    let label = device_label
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| "MeDoc-Desktop".into());
-    device_session_repo::insert(
-        &pool,
-        &ds_id,
-        &session.user_id,
-        &label,
-        user_agent.as_deref(),
-    )
-    .await?;
+    let ds_id = {
+        let label = device_label
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "MeDoc-Desktop".into());
+        let peer = client_ip
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .unwrap_or(DESKTOP_PEER_IP);
+        let opened = device_session_service::open_or_reuse(
+            &pool,
+            &session.user_id,
+            &label,
+            user_agent.as_deref(),
+            peer,
+        )
+        .await?;
+        if opened.reused {
+            log_security!(info,
+                event = "DEVICE_SESSION_RECONNECT",
+                user_id = %session.user_id,
+                session_id = %opened.id,
+                peer_ip = %peer,
+            );
+            let _ = audit_repo::create(
+                &pool,
+                &session.user_id,
+                "DEVICE_SESSION_RECONNECT",
+                "DeviceSession",
+                Some(&opened.id),
+                Some(&format!("peer_ip={peer}; label={label}")),
+            )
+            .await;
+        } else {
+            log_security!(info,
+                event = "DEVICE_SESSION_NEW",
+                user_id = %session.user_id,
+                session_id = %opened.id,
+                peer_ip = %peer,
+            );
+        }
+        opened.id
+    };
 
     let result = Session {
         user_id: session.user_id.clone(),
