@@ -1,0 +1,6 @@
+2026-09-02T08:12:05.648256Z  INFO medoc::system: event="APP_START" version="0.1.0" os="macos"
+2026-09-02T08:12:05.654154Z  INFO medoc::system: event="RETENTION_ENFORCED" scanned=26 deleted=0 kept=26
+2026-09-02T08:12:06.034049Z  INFO medoc::system: event="DB_READY"
+2026-09-02T08:12:06.041702Z  INFO medoc::system: event="INSTALL_PLAN_APPLIED" applied=true locale=Some("en")
+2026-09-02T08:12:06.041843Z  INFO medoc::system: event="INSTALL_PLAN_PROVISIONING" master provisioning window active — accept pairing on this device
+2026-09-02T08:12:06.049195Z  INFO medoc::system: event="MAC_WINDOW_TRAFFIC_OVERLAY_OK"
