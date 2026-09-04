@@ -4031,6 +4031,7 @@
   "settings.device_sessions.default_device": "جهاز",
   "settings.device_sessions.dialog.created": "أُنشئ",
   "settings.device_sessions.dialog.device": "الجهاز",
+  "settings.device_sessions.dialog.ip": "عنوان IP",
   "settings.device_sessions.dialog.last_active": "آخر نشاط",
   "settings.device_sessions.dialog.recent_logins": "أحدث أحداث تسجيل الدخول",
   "settings.device_sessions.dialog.risk_indicators": "مؤشرات المخاطر",

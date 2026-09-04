@@ -4031,6 +4031,7 @@
   "settings.device_sessions.default_device": "Device",
   "settings.device_sessions.dialog.created": "Created",
   "settings.device_sessions.dialog.device": "Device",
+  "settings.device_sessions.dialog.ip": "IP address",
   "settings.device_sessions.dialog.last_active": "Last active",
   "settings.device_sessions.dialog.recent_logins": "Recent sign-in events",
   "settings.device_sessions.dialog.risk_indicators": "Risk indicators",
