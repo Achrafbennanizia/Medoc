@@ -11,7 +11,7 @@ use crate::error::AppError;
 pub async fn apply_usb_install_plan_on_startup(
     pool: &SqlitePool,
 ) -> Result<Option<ApplyInstallPlanResult>, AppError> {
-    let applied = consume_default_sidecar_and_apply(pool).await.map_err(Into::into)?;
+    let applied = consume_default_sidecar_and_apply(pool).await?;
     if applied.as_ref().is_some_and(|a| a.applied) {
         let _ = enable_lan_auto_start(pool).await;
     }
@@ -21,5 +21,5 @@ pub async fn apply_usb_install_plan_on_startup(
 pub async fn run_usb_provisioning_on_startup(
     pool: &SqlitePool,
 ) -> Result<Option<String>, AppError> {
-    run_provisioning_tasks(pool).await.map_err(Into::into)
+    Ok(run_provisioning_tasks(pool).await?)
 }

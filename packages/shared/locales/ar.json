@@ -2302,6 +2302,7 @@
   "page.patient_create.section.person": "البيانات الشخصية",
   "page.patient_create.section.prior_conditions": "الحالات السابقة ذات الصلة",
   "page.patient_create.step.anam": "التاريخ المرضي",
+  "page.patient_create.step.anamnesis": "التاريخ المرضي",
   "page.patient_create.step.master": "البيانات الأساسية",
   "page.patient_create.step.save": "حفظ",
   "page.patient_create.subtitle.medical": "البيانات الأساسية والتأمين والتاريخ المرضي",

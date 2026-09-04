@@ -71,6 +71,12 @@ const initialForm: FormState = {
 
 type CreateStepKey = "master" | "anamnesis" | "save";
 
+const CREATE_STEP_LABEL: Record<CreateStepKey, string> = {
+    master: "page.patient_create.step.master",
+    anamnesis: "page.patient_create.step.anamnesis",
+    save: "page.patient_create.step.save",
+};
+
 export function PatientCreatePage() {
     const t = useT();
     const tp = useTParams();
@@ -288,7 +294,7 @@ export function PatientCreatePage() {
                             else scrollToSection("pc-actions");
                         }}
                     >
-                        {i + 1}. {t(`page.patient_create.step.${stepKey}`)}
+                        {i + 1}. {t(CREATE_STEP_LABEL[stepKey])}
                     </button>
                 ))}
             </div>

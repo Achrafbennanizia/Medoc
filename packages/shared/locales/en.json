@@ -2302,6 +2302,7 @@
   "page.patient_create.section.person": "Personal data",
   "page.patient_create.section.prior_conditions": "Relevant prior conditions",
   "page.patient_create.step.anam": "Anamnesis",
+  "page.patient_create.step.anamnesis": "Anamnesis",
   "page.patient_create.step.master": "Master data",
   "page.patient_create.step.save": "Save",
   "page.patient_create.subtitle.medical": "Master data, insurance and anamnesis",

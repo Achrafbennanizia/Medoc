@@ -228,6 +228,27 @@ impl InstallerApp {
         self.busy = false;
     }
 
+    fn update_from_latest_build(&mut self) {
+        if self.busy {
+            return;
+        }
+        self.busy = true;
+        self.push_log("Updating MeDoc from the latest compilation…");
+        let root = kit_root(&self.root_cli());
+        match crate::install::update_from_latest_build(&root) {
+            Ok(msg) => {
+                self.installed = true;
+                self.status_text = msg.clone();
+                self.push_log(&msg);
+            }
+            Err(e) => {
+                self.status_text = e.to_string();
+                self.push_log(&e.to_string());
+            }
+        }
+        self.busy = false;
+    }
+
     fn open_medoc(&mut self) {
         if self.busy {
             return;
@@ -365,6 +386,24 @@ impl eframe::App for InstallerApp {
                 if ui
                     .add_sized(
                         Vec2::new(ui.available_width(), 36.0),
+                        egui::Button::new("Update MeDoc from latest build"),
+                    )
+                    .clicked()
+                {
+                    self.update_from_latest_build();
+                }
+            });
+            ui.label(
+                RichText::new("Copies the newest compiled medoc on this Mac into the USB kit and Applications. Compile first (npm + cargo). Does not wipe data.")
+                    .size(12.0)
+                    .color(Color32::GRAY),
+            );
+
+            ui.add_space(8.0);
+            ui.add_enabled_ui(!self.busy, |ui| {
+                if ui
+                    .add_sized(
+                        Vec2::new(ui.available_width(), 36.0),
                         egui::Button::new("Open MeDoc"),
                     )
                     .clicked()
@@ -373,7 +412,7 @@ impl eframe::App for InstallerApp {
                 }
             });
             ui.label(
-                RichText::new("Use Open MeDoc here, or double-click Open MeDoc.command in Applications. Double-clicking MeDoc.app is blocked by macOS.")
+                RichText::new("Use Open MeDoc in this window — that starts MeDoc with nohup and no Terminal. Finder cannot do that for an unsigned USB app.")
                     .size(12.0)
                     .color(Color32::GRAY),
             );

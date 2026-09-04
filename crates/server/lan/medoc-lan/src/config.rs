@@ -29,7 +29,7 @@ impl Default for LanServerConfigV1 {
             http_port: 8787,
             udp_discovery_port: 47_830,
             instance_label: "MeDoc Practice".into(),
-            auto_start_with_app: false,
+            auto_start_with_app: true,
             extra_cors_origins: vec![],
         }
     }

@@ -238,10 +238,16 @@ pub async fn run_rust_only_migrations(pool: &SqlitePool) -> Result<(), AppError>
         .map_err(AppError::Database)?;
     }
 
-    for (sql, col) in [(
-        "ALTER TABLE device_session ADD COLUMN trusted_at TEXT",
-        "trusted_at",
-    )] {
+    for (sql, col) in [
+        (
+            "ALTER TABLE device_session ADD COLUMN trusted_at TEXT",
+            "trusted_at",
+        ),
+        (
+            "ALTER TABLE device_session ADD COLUMN peer_ip TEXT",
+            "peer_ip",
+        ),
+    ] {
         match sqlx::query(sql).execute(pool).await {
             Ok(_) => {}
             Err(e) => {

@@ -84,6 +84,8 @@ pub(crate) enum Commands {
         #[arg(long, help = "Skip the confirmation prompt")]
         yes: bool,
     },
+    /// Copy the newest compiled medoc into the kit payloads and Applications (no rebuild).
+    UpdateFromBuild,
     /// Same as running with no subcommand (native install window).
     Gui,
 }
@@ -622,6 +624,15 @@ fn main() {
         Some(Commands::Audit { password }) => cmd_audit(&cli, password.clone()),
         Some(Commands::Wizard { password }) => cmd_wizard(&cli, password.clone()),
         Some(Commands::WipePc { yes }) => cmd_wipe_pc(*yes),
+        Some(Commands::UpdateFromBuild) => {
+            match install::update_from_latest_build(&kit_root(&cli)) {
+                Ok(msg) => {
+                    println!("{msg}");
+                    Ok(())
+                }
+                Err(e) => Err(e),
+            }
+        }
     };
     if let Err(e) = result {
         eprintln!("Error: {e}");

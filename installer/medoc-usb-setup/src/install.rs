@@ -3,6 +3,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::time::SystemTime;
 
 use medoc_core::error::AppError;
 use medoc_core::infrastructure::install_plan::InstallComponent;
@@ -249,40 +250,262 @@ pub fn installed_medoc_app_path() -> PathBuf {
     PathBuf::from("/Applications/MeDoc.app")
 }
 
-/// Finder cannot `open` an unsigned USB `.app` (no process). This helper
-/// starts the Mach-O in a new session so closing Terminal cannot kill MeDoc.
-#[cfg(target_os = "macos")]
-fn write_finder_open_command(dir: &Path, app: &Path) {
-    let path = dir.join("Open MeDoc.command");
-    let exe = app.join("Contents/MacOS/medoc");
-    let body = format!(
-        r#"#!/bin/bash
-EXE="{exe}"
-if /usr/bin/pgrep -f "MeDoc.app/Contents/MacOS/medoc" >/dev/null 2>&1; then
-  /usr/bin/osascript -e 'tell application "System Events" to set frontmost of (first process whose name is "medoc") to true' >/dev/null 2>&1
-  exit 0
-fi
-LOG="$HOME/Library/Application Support/de.medoc.app/last-launch.log"
-mkdir -p "$(dirname "$LOG")"
-# Ignore hangup from Terminal when this .command exits.
-trap "" HUP
-/usr/bin/nohup "$EXE" >>"$LOG" 2>&1 </dev/null &
-disown
-exit 0
-"#,
-        exe = exe.display()
-    );
-    if fs::write(&path, body).is_ok() {
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            if let Ok(meta) = fs::metadata(&path) {
-                let mut p = meta.permissions();
-                p.set_mode(0o755);
-                let _ = fs::set_permissions(&path, p);
+fn file_mtime(path: &Path) -> Option<SystemTime> {
+    fs::metadata(path).ok()?.modified().ok()
+}
+
+fn find_repo_root(start: &Path) -> Option<PathBuf> {
+    let mut p = start.to_path_buf();
+    if p.is_file() {
+        p.pop();
+    }
+    for _ in 0..10 {
+        if p.join("Cargo.toml").is_file() && p.join("apps/practice-host/Cargo.toml").is_file() {
+            return Some(p);
+        }
+        if !p.pop() {
+            break;
+        }
+    }
+    None
+}
+
+fn cargo_target_dirs(repo: &Path) -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    if let Ok(d) = std::env::var("CARGO_TARGET_DIR") {
+        let p = PathBuf::from(d);
+        if p.is_dir() {
+            dirs.push(p);
+        }
+    }
+    for rel in ["target", "apps/practice-host/target", "apps/practice-host-ui/src-tauri/target"] {
+        let p = repo.join(rel);
+        if p.is_dir() {
+            dirs.push(p);
+        }
+    }
+    if let Ok(entries) = fs::read_dir(std::env::temp_dir().join("cursor-sandbox-cache")) {
+        for e in entries.flatten() {
+            let td = e.path().join("cargo-target");
+            if td.is_dir() {
+                dirs.push(td);
             }
         }
     }
+    dirs
+}
+
+fn newest_file(candidates: &[PathBuf]) -> Option<PathBuf> {
+    let mut best: Option<(SystemTime, PathBuf)> = None;
+    for p in candidates {
+        if !p.is_file() {
+            continue;
+        }
+        let Some(mt) = file_mtime(p) else {
+            continue;
+        };
+        if best.as_ref().map(|(t, _)| mt > *t).unwrap_or(true) {
+            best = Some((mt, p.clone()));
+        }
+    }
+    best.map(|(_, p)| p)
+}
+
+fn collect_medoc_binaries(repo: &Path) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    for td in cargo_target_dirs(repo) {
+        out.push(td.join("release/medoc"));
+        out.push(td.join("debug/medoc"));
+        out.push(td.join("release/medoc.exe"));
+        out.push(td.join("debug/medoc.exe"));
+        out.push(td.join("release/bundle/macos/MeDoc.app/Contents/MacOS/medoc"));
+        out.push(td.join("debug/bundle/macos/MeDoc.app/Contents/MacOS/medoc"));
+    }
+    out
+}
+
+fn collect_medoc_apps(repo: &Path) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    for td in cargo_target_dirs(repo) {
+        out.push(td.join("release/bundle/macos/MeDoc.app"));
+        out.push(td.join("debug/bundle/macos/MeDoc.app"));
+    }
+    out
+}
+
+fn newest_medoc_app(repo: &Path) -> Option<PathBuf> {
+    let mut best: Option<(SystemTime, PathBuf)> = None;
+    for app in collect_medoc_apps(repo) {
+        let exe = app.join("Contents/MacOS/medoc");
+        let Some(mt) = file_mtime(&exe) else {
+            continue;
+        };
+        if best.as_ref().map(|(t, _)| mt > *t).unwrap_or(true) {
+            best = Some((mt, app));
+        }
+    }
+    best.map(|(_, p)| p)
+}
+
+fn copy_unix_executable(src: &Path, dst: &Path) -> Result<(), AppError> {
+    if let Some(parent) = dst.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| AppError::Internal(format!("mkdir {}: {e}", parent.display())))?;
+    }
+    fs::copy(src, dst).map_err(|e| {
+        AppError::Internal(format!("copy {} → {}: {e}", src.display(), dst.display()))
+    })?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut p = fs::metadata(dst)
+            .map_err(|e| AppError::Internal(format!("metadata {}: {e}", dst.display())))?
+            .permissions();
+        p.set_mode(0o755);
+        fs::set_permissions(dst, p)
+            .map_err(|e| AppError::Internal(format!("chmod {}: {e}", dst.display())))?;
+    }
+    Ok(())
+}
+
+/// Replace kit + installed MeDoc with the newest local cargo/tauri compilation.
+/// Does not rebuild — uses whatever `medoc` binary was compiled last on this machine.
+pub fn update_from_latest_build(kit_root: &Path) -> Result<String, AppError> {
+    let repo = find_repo_root(kit_root)
+        .or_else(|| find_repo_root(&std::env::current_dir().unwrap_or_else(|_| kit_root.to_path_buf())))
+        .ok_or_else(|| {
+            AppError::Validation(
+                "Could not find the MeDoc repo (Cargo.toml + apps/practice-host). Run USB Setup from the kit next to the source tree, or set --root."
+                    .into(),
+            )
+        })?;
+
+    let bin = newest_file(&collect_medoc_binaries(&repo)).ok_or_else(|| {
+        AppError::Validation(format!(
+            "No compiled medoc binary under {}. Build first: npm run build -w medoc && cargo build -p medoc --release --features custom-protocol",
+            repo.display()
+        ))
+    })?;
+    let bundle = newest_medoc_app(&repo);
+    let kit_app = payloads_dir(kit_root).join("MeDoc.app");
+
+    stop_running_medoc_apps();
+
+    let mut updated = Vec::new();
+
+    if let Some(src_app) = bundle.as_ref() {
+        if src_app != &kit_app {
+            ditto_copy(src_app, &kit_app)?;
+            updated.push(format!("kit bundle {}", kit_app.display()));
+        }
+    }
+
+    let user_app = macos_user_app_dest(std::ffi::OsStr::new("MeDoc.app"));
+    let system_app = PathBuf::from("/Applications/MeDoc.app");
+    let mut dest_apps: Vec<PathBuf> = Vec::new();
+    if kit_app.join("Contents/MacOS").is_dir() || kit_app.join("Contents/MacOS/medoc").is_file() {
+        dest_apps.push(kit_app.clone());
+    }
+    dest_apps.push(user_app);
+    if system_app.exists() || system_applications_writable() {
+        dest_apps.push(system_app);
+    }
+
+    let seed_app = if kit_app.join("Contents/MacOS/medoc").is_file() {
+        Some(kit_app.clone())
+    } else {
+        bundle.clone()
+    };
+
+    for dest in dest_apps {
+        if dest.join("Contents/MacOS/medoc").is_file() {
+            copy_unix_executable(&bin, &dest.join("Contents/MacOS/medoc"))?;
+            #[cfg(target_os = "macos")]
+            prepare_macos_app_signature(&dest)?;
+            updated.push(format!("{}", dest.display()));
+            continue;
+        }
+        if let Some(src) = seed_app.as_ref() {
+            if src.exists() && src != &dest {
+                ditto_copy(src, &dest)?;
+                copy_unix_executable(&bin, &dest.join("Contents/MacOS/medoc"))?;
+                #[cfg(target_os = "macos")]
+                prepare_macos_app_signature(&dest)?;
+                updated.push(format!("{}", dest.display()));
+            }
+        }
+    }
+
+    if updated.is_empty() {
+        return Err(AppError::Validation(
+            "No MeDoc.app to update. Install MeDoc first, or run: npm run tauri build -w medoc -- --bundles app"
+                .into(),
+        ));
+    }
+
+    let raw_payload = payloads_dir(kit_root).join("medoc");
+    let _ = copy_unix_executable(&bin, &raw_payload);
+
+    let mut server_candidates = Vec::new();
+    for td in cargo_target_dirs(&repo) {
+        server_candidates.push(td.join("release/medoc-server"));
+        server_candidates.push(td.join("debug/medoc-server"));
+    }
+    if let Some(server) = newest_file(&server_candidates) {
+        let dest = payloads_dir(kit_root).join("medoc-server");
+        copy_unix_executable(&server, &dest)?;
+        updated.push(format!("server {}", dest.display()));
+    }
+
+    let kind = if bin.components().any(|c| c.as_os_str() == "debug") {
+        "debug"
+    } else {
+        "release"
+    };
+    Ok(format!(
+        "Updated from {kind} binary {} → {}",
+        bin.display(),
+        updated.join("; ")
+    ))
+}
+
+/// Copy the nohup helper next to MeDoc.app. Finder double-click of a Unix file
+/// still uses Terminal on macOS; the installer Open MeDoc button does not.
+#[cfg(target_os = "macos")]
+fn write_finder_open_command(dir: &Path, app: &Path) {
+    let _ = fs::remove_file(dir.join("Open MeDoc.command"));
+    let _ = fs::remove_dir_all(dir.join("Open MeDoc.app"));
+    let dest = dir.join("Open MeDoc");
+    let Some(src) = finder_open_helper_src() else {
+        return;
+    };
+    let _ = fs::copy(&src, &dest);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Ok(meta) = fs::metadata(&dest) {
+            let mut p = meta.permissions();
+            p.set_mode(0o755);
+            let _ = fs::set_permissions(&dest, p);
+        }
+    }
+    let _ = Command::new("xattr")
+        .args(["-dr", "com.apple.quarantine"])
+        .arg(&dest)
+        .status();
+    let _ = Command::new("chflags").args(["hidden"]).arg(app).status();
+}
+
+#[cfg(target_os = "macos")]
+fn finder_open_helper_src() -> Option<PathBuf> {
+    let here = std::env::current_exe().ok()?.parent()?.to_path_buf();
+    for name in ["OpenMeDoc", "medoc-finder-open"] {
+        let p = here.join(name);
+        if p.is_file() {
+            return Some(p);
+        }
+    }
+    None
 }
 
 fn system_applications_writable() -> bool {
@@ -304,6 +527,7 @@ fn system_applications_writable() -> bool {
 pub fn wipe_this_computer() -> Result<Vec<String>, AppError> {
     stop_running_medoc();
     let mut removed = Vec::new();
+    removed.push("stopped MeDoc, medoc-server, and LAN/cluster ports 8787/47830/49300".into());
     for path in wipe_target_paths() {
         if !path.exists() {
             continue;
@@ -336,7 +560,9 @@ fn wipe_target_paths() -> Vec<PathBuf> {
     let mut paths = Vec::new();
     if let Some(home) = dirs::home_dir() {
         paths.push(home.join("Applications/MeDoc.app"));
+        paths.push(home.join("Applications/Open MeDoc"));
         paths.push(home.join("Applications/Open MeDoc.command"));
+        paths.push(home.join("Applications/Open MeDoc.app"));
         paths.push(home.join("Applications/MeDoc"));
         #[cfg(target_os = "macos")]
         {
@@ -355,6 +581,9 @@ fn wipe_target_paths() -> Vec<PathBuf> {
         }
     }
     paths.push(PathBuf::from("/Applications/MeDoc.app"));
+    paths.push(PathBuf::from("/Applications/Open MeDoc"));
+    paths.push(PathBuf::from("/Applications/Open MeDoc.command"));
+    paths.push(PathBuf::from("/Applications/Open MeDoc.app"));
     paths.push(usb_vault::practice_app_data_dir());
     paths.push(usb_vault::legacy_sidecar_dir());
     paths
@@ -367,19 +596,51 @@ pub(crate) fn stop_running_medoc_apps() {
 fn stop_running_medoc() {
     #[cfg(target_os = "macos")]
     {
-        let _ = Command::new("killall").arg("medoc").status();
-        let _ = Command::new("killall").arg("medoc-server").status();
+        for name in ["medoc", "medoc-server", "medoc-lan-server"] {
+            let _ = Command::new("killall").args(["-9", name]).status();
+        }
+        for pat in [
+            "MeDoc.app/Contents/MacOS/medoc",
+            "Applications/MeDoc/medoc-server",
+            "Applications/MeDoc/medoc",
+            "payloads/medoc-server",
+        ] {
+            let _ = Command::new("pkill").args(["-9", "-f", pat]).status();
+        }
+        for port in [8787_u16, 47_830, 49_300] {
+            kill_listeners_on_port(port);
+        }
     }
     #[cfg(target_os = "windows")]
     {
-        let _ = Command::new("taskkill")
-            .args(["/F", "/IM", "medoc.exe"])
-            .status();
-        let _ = Command::new("taskkill")
-            .args(["/F", "/IM", "medoc-server.exe"])
-            .status();
+        for image in ["medoc.exe", "medoc-server.exe", "medoc-lan-server.exe"] {
+            let _ = Command::new("taskkill")
+                .args(["/F", "/IM", image])
+                .status();
+        }
     }
-    std::thread::sleep(std::time::Duration::from_millis(400));
+    std::thread::sleep(std::time::Duration::from_millis(500));
+    #[cfg(target_os = "macos")]
+    {
+        let _ = Command::new("killall").args(["-9", "medoc"]).status();
+        let _ = Command::new("killall").args(["-9", "medoc-server"]).status();
+        for port in [8787_u16, 47_830, 49_300] {
+            kill_listeners_on_port(port);
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn kill_listeners_on_port(port: u16) {
+    let Ok(out) = Command::new("lsof")
+        .args(["-ti", &format!("tcp:{port}")])
+        .output()
+    else {
+        return;
+    };
+    for pid in String::from_utf8_lossy(&out.stdout).split_whitespace() {
+        let _ = Command::new("kill").args(["-9", pid]).status();
+    }
 }
 
 fn installed_practice_target(payload: &Path) -> PathBuf {
@@ -469,7 +730,8 @@ fn macos_spawn_medoc(app: &Path) -> Result<(), AppError> {
     let err = log
         .try_clone()
         .map_err(|e| AppError::Internal(format!("clone last-launch.log: {e}")))?;
-    let mut cmd = Command::new(&exe);
+    let mut cmd = Command::new("/usr/bin/nohup");
+    cmd.arg(&exe);
     cmd.stdin(Stdio::null())
         .stdout(Stdio::from(log))
         .stderr(Stdio::from(err));

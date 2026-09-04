@@ -109,7 +109,7 @@ export function ClusterOnboardingGate({ children }: { children: ReactNode }) {
         return <Navigate to="/onboarding/license" replace />;
     }
 
-    if (needsPracticeSetup && !onSubscription) {
+    if (needsPracticeSetup && !onSubscription && !onLogin) {
         return <Navigate to="/onboarding/subscription" replace />;
     }
 

@@ -2302,6 +2302,7 @@
   "page.patient_create.section.person": "Personendaten",
   "page.patient_create.section.prior_conditions": "Relevante Vorerkrankungen",
   "page.patient_create.step.anam": "Anamnese",
+  "page.patient_create.step.anamnesis": "Anamnese",
   "page.patient_create.step.master": "Stammdaten",
   "page.patient_create.step.save": "Speichern",
   "page.patient_create.subtitle.medical": "Stammdaten, Versicherung und Anamnese",

@@ -285,6 +285,7 @@ pub async fn run_legacy_embedded_migrations(pool: &SqlitePool) -> Result<(), App
             user_id TEXT NOT NULL,
             device_label TEXT NOT NULL,
             user_agent TEXT,
+            peer_ip TEXT,
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             last_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
             ended_at TEXT,

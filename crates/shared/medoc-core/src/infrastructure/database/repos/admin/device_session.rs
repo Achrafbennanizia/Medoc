@@ -9,6 +9,8 @@ pub struct DeviceSessionRow {
     pub user_id: String,
     pub device_label: String,
     pub user_agent: Option<String>,
+    #[serde(default)]
+    pub peer_ip: Option<String>,
     pub created_at: String,
     pub last_seen_at: String,
     pub is_current: bool,
@@ -56,6 +58,7 @@ fn row_from_sql(
     let uid: String = r.try_get("user_id").map_err(AppError::Database)?;
     let device_label: String = r.try_get("device_label").map_err(AppError::Database)?;
     let user_agent: Option<String> = r.try_get("user_agent").ok();
+    let peer_ip: Option<String> = r.try_get("peer_ip").ok();
     let created_at: String = r.try_get("created_at").map_err(AppError::Database)?;
     let last_seen_at: String = r.try_get("last_seen_at").map_err(AppError::Database)?;
     let trusted_at: Option<String> = r.try_get("trusted_at").ok();
@@ -66,6 +69,7 @@ fn row_from_sql(
         user_id: uid,
         device_label,
         user_agent,
+        peer_ip,
         created_at,
         last_seen_at,
         is_trusted,
@@ -97,19 +101,107 @@ pub async fn insert(
     user_id: &str,
     device_label: &str,
     user_agent: Option<&str>,
+    peer_ip: Option<&str>,
 ) -> Result<(), AppError> {
     sqlx::query(
-        "INSERT INTO device_session (id, user_id, device_label, user_agent, created_at, last_seen_at, ended_at)
-         VALUES (?1, ?2, ?3, ?4, datetime('now'), datetime('now'), NULL)",
+        "INSERT INTO device_session (id, user_id, device_label, user_agent, peer_ip, created_at, last_seen_at, ended_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, datetime('now'), datetime('now'), NULL)",
     )
     .bind(id)
     .bind(user_id)
     .bind(device_label)
     .bind(user_agent)
+    .bind(peer_ip)
     .execute(pool)
     .await
     .map_err(AppError::Database)?;
     Ok(())
+}
+
+/// Active session for this user from the same normalized peer (reconnect).
+pub async fn find_active_by_peer(
+    pool: &SqlitePool,
+    user_id: &str,
+    peer_ip: &str,
+) -> Result<Option<String>, AppError> {
+    let rows = sqlx::query(
+        "SELECT id, peer_ip FROM device_session
+         WHERE user_id = ?1 AND ended_at IS NULL
+         ORDER BY last_seen_at DESC",
+    )
+    .bind(user_id)
+    .fetch_all(pool)
+    .await
+    .map_err(AppError::Database)?;
+    let want = crate::domain::services::device_session_peer::normalize_peer_ip(peer_ip);
+    for r in rows {
+        let id: String = r.try_get("id").map_err(AppError::Database)?;
+        let stored: Option<String> = r.try_get("peer_ip").ok();
+        let key = crate::domain::services::device_session_peer::normalize_peer_ip(
+            stored.as_deref().unwrap_or(""),
+        );
+        if key == want {
+            return Ok(Some(id));
+        }
+    }
+    Ok(None)
+}
+
+pub async fn touch_reconnect(
+    pool: &SqlitePool,
+    id: &str,
+    device_label: &str,
+    user_agent: Option<&str>,
+    peer_ip: Option<&str>,
+) -> Result<(), AppError> {
+    sqlx::query(
+        "UPDATE device_session
+         SET last_seen_at = datetime('now'),
+             device_label = ?2,
+             user_agent = ?3,
+             peer_ip = ?4
+         WHERE id = ?1 AND ended_at IS NULL",
+    )
+    .bind(id)
+    .bind(device_label)
+    .bind(user_agent)
+    .bind(peer_ip)
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?;
+    Ok(())
+}
+
+/// End extra active rows for the same peer so the list stays one device.
+pub async fn end_other_same_peer(
+    pool: &SqlitePool,
+    user_id: &str,
+    keep_id: &str,
+    peer_ip: &str,
+) -> Result<u64, AppError> {
+    let rows = sqlx::query(
+        "SELECT id, peer_ip FROM device_session
+         WHERE user_id = ?1 AND ended_at IS NULL AND id != ?2",
+    )
+    .bind(user_id)
+    .bind(keep_id)
+    .fetch_all(pool)
+    .await
+    .map_err(AppError::Database)?;
+    let want = crate::domain::services::device_session_peer::normalize_peer_ip(peer_ip);
+    let mut n = 0u64;
+    for r in rows {
+        let id: String = r.try_get("id").map_err(AppError::Database)?;
+        let stored: Option<String> = r.try_get("peer_ip").ok();
+        let key = crate::domain::services::device_session_peer::normalize_peer_ip(
+            stored.as_deref().unwrap_or(""),
+        );
+        if key == want {
+            end(pool, &id).await?;
+            n += 1;
+        }
+    }
+    Ok(n)
 }
 
 pub async fn touch(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
@@ -141,7 +233,7 @@ pub async fn list_active_for_user(
     current_id: Option<&str>,
 ) -> Result<Vec<DeviceSessionRow>, AppError> {
     let rows = sqlx::query(
-        "SELECT id, user_id, device_label, user_agent, created_at, last_seen_at, trusted_at
+        "SELECT id, user_id, device_label, user_agent, peer_ip, created_at, last_seen_at, trusted_at
          FROM device_session
          WHERE user_id = ?1 AND ended_at IS NULL
          ORDER BY last_seen_at DESC",
@@ -154,6 +246,15 @@ pub async fn list_active_for_user(
     for r in rows {
         out.push(row_from_sql(&r, current_id)?);
     }
+    out = crate::domain::services::device_session_peer::collapse_by_peer_ip(
+        out,
+        |s| {
+            crate::domain::services::device_session_peer::normalize_peer_ip(
+                s.peer_ip.as_deref().unwrap_or(""),
+            )
+        },
+        |s| s.is_current,
+    );
     crate::domain::services::device_session_risk::enrich_sessions(&mut out, |r| r.as_risk_input());
     Ok(out)
 }
@@ -166,7 +267,7 @@ pub async fn find_active_for_user_by_id(
     current_id: Option<&str>,
 ) -> Result<Option<DeviceSessionRow>, AppError> {
     let row = sqlx::query(
-        "SELECT id, user_id, device_label, user_agent, created_at, last_seen_at, trusted_at
+        "SELECT id, user_id, device_label, user_agent, peer_ip, created_at, last_seen_at, trusted_at
          FROM device_session
          WHERE id = ?1 AND user_id = ?2 AND ended_at IS NULL",
     )

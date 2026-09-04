@@ -9,6 +9,10 @@ publish = false
 name = "medoc-usb-setup"
 path = "src/main.rs"
 
+[[bin]]
+name = "medoc-finder-open"
+path = "src/finder_open.rs"
+
 [dependencies]
 medoc-core = { path = "../../crates/shared/medoc-core" }
 medoc-sync = { path = "../../crates/shared/medoc-sync" }

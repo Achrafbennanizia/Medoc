@@ -268,15 +268,7 @@ async fn ensure_portal_config_for_onboarding_skip(pool: &SqlitePool) -> Result<(
     if is_portal_configured(&cfg) {
         return Ok(());
     }
-    let dev_seed = std::env::var("MEDOC_DEV_SEED").ok().as_deref() == Some("1");
-    if dev_seed {
-        let base = default_onboarding_base_url();
-        let api_key = format!("dev-local-{}", uuid::Uuid::new_v4());
-        return persist_portal_config(pool, base, "dev-practice".into(), api_key).await;
-    }
-    Err(AppError::Validation(
-        "Please complete practice details or link an existing subscription.".into(),
-    ))
+    persist_local_onboarding_portal_stub(pool, "practice").await
 }
 
 #[derive(Debug, Deserialize)]
@@ -405,6 +397,19 @@ async fn persist_portal_config(
     app_kv_repo::set(pool, COMPANY_PORTAL_KV_KEY, &raw).await
 }
 
+/// Licensed USB / offline practice: no vendor portal on this Mac.
+async fn persist_local_onboarding_portal_stub(
+    pool: &SqlitePool,
+    practice_slug: &str,
+) -> Result<(), AppError> {
+    let mut slug = normalize_slug(practice_slug);
+    if slug.len() < 3 {
+        slug = "practice".into();
+    }
+    let api_key = format!("local-{}", uuid::Uuid::new_v4());
+    persist_portal_config(pool, default_onboarding_base_url(), slug, api_key).await
+}
+
 async fn register_portal_subscription(
     pool: &SqlitePool,
     display_name: &str,
@@ -426,7 +431,6 @@ async fn register_portal_subscription(
         "admin_email": admin_email,
         "plan": plan,
     });
-    let dev_seed = std::env::var("MEDOC_DEV_SEED").ok().as_deref() == Some("1");
     match register_practice_onboarding(&base, body).await {
         Ok(resp) => {
             let practice_slug = resp
@@ -441,16 +445,14 @@ async fn register_portal_subscription(
                 .to_string();
             persist_portal_config(pool, base, practice_slug, api_key).await
         }
-        Err(e) if dev_seed => {
+        Err(e) => {
             tracing::warn!(
                 target: "medoc::onboarding",
-                event = "PORTAL_REGISTER_DEV_FALLBACK",
+                event = "PORTAL_REGISTER_LOCAL_FALLBACK",
                 error = %e
             );
-            let api_key = format!("dev-local-{}", uuid::Uuid::new_v4());
-            persist_portal_config(pool, base, slug.to_string(), api_key).await
+            persist_local_onboarding_portal_stub(pool, slug).await
         }
-        Err(e) => Err(e),
     }
 }
 

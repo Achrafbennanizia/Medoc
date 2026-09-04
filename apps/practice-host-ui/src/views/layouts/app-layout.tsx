@@ -20,7 +20,6 @@ import { PracticeSetupWizard } from "../components/practice-setup-wizard";
 import { useDesktopChromeMode } from "../components/desktop-chrome";
 import { errorMessage } from "@/lib/utils";
 import { useToastStore } from "../components/ui/toast-store";
-import { ToastContainer } from "../components/ui/toast";
 import { ConfirmDialog, Dialog } from "../components/ui/dialog";
 import { Button } from "../components/ui/button";
 import { Select, Textarea } from "../components/ui/input";
@@ -1128,7 +1127,6 @@ export function AppLayout() {
             </div>
 
             {ONBOARDING_COACHMARK_ENABLED ? <OnboardingCoachmark role={session?.role} /> : null}
-            <ToastContainer />
             <ExportPreviewHost />
             <PracticeSetupWizard open={practiceSetupOpen} onClose={() => setPracticeSetupOpen(false)} />
 

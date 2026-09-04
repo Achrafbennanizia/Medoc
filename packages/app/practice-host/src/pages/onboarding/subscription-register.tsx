@@ -38,6 +38,7 @@ export function SubscriptionRegisterOnboardingPage() {
     const [adminPassword, setAdminPassword] = useState("");
     const [adminPasswordConfirm, setAdminPasswordConfirm] = useState("");
     const [acceptTerms, setAcceptTerms] = useState(false);
+    const [formError, setFormError] = useState<string | null>(null);
 
     useEffect(() => {
         void onboardingSubscriptionStatus()
@@ -56,11 +57,14 @@ export function SubscriptionRegisterOnboardingPage() {
 
     const skipToLogin = async () => {
         setSkipBusy(true);
+        setFormError(null);
         try {
             await onboardingSkipPracticeSetup();
             navigate("/login", { replace: true });
         } catch (e) {
-            toast(errorMessage(e), "error");
+            const msg = errorMessage(e);
+            setFormError(msg);
+            toast(msg, "error");
         } finally {
             setSkipBusy(false);
         }
@@ -91,12 +95,15 @@ export function SubscriptionRegisterOnboardingPage() {
             plan: DEFAULT_SUBSCRIPTION_PLAN,
         };
         setBusy(true);
+        setFormError(null);
         try {
             const result = await registerOnboardingSubscription(payload);
             setDoneResult(result);
             toast(t("onboarding.subscription.success"), "success");
         } catch (e) {
-            toast(tp("onboarding.subscription.error", { message: errorMessage(e) }), "error");
+            const msg = tp("onboarding.subscription.error", { message: errorMessage(e) });
+            setFormError(msg);
+            toast(msg, "error");
         } finally {
             setBusy(false);
         }
@@ -243,6 +250,11 @@ export function SubscriptionRegisterOnboardingPage() {
                     <input type="checkbox" checked={acceptTerms} onChange={(e) => setAcceptTerms(e.target.checked)} />
                     <span>{t("onboarding.subscription.accept_terms")}</span>
                 </label>
+                {formError ? (
+                    <p className="card-sub" role="alert" style={{ color: "var(--red)", marginTop: 8 }}>
+                        {formError}
+                    </p>
+                ) : null}
             </div>
 
             <div className="onboarding-card__footer">

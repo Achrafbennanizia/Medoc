@@ -4904,6 +4904,16 @@ html[data-theme="dark"] {
     padding: 12px 28px 24px;
     border-top: 1px solid var(--line);
     background: var(--bg-elev);
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+  }
+  .onboarding-card button,
+  .onboarding-card a,
+  .onboarding-card input,
+  .onboarding-card textarea,
+  .onboarding-card label {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
   }
   .onboarding-card__footer .onboarding-actions {
     margin-top: 0;

@@ -261,14 +261,8 @@ pub async fn cluster_sync_staff_directory(
     sync_staff_from_stored_admin_endpoint(&pool).await
 }
 
-/// Spawn TCP+mDNS receive port when licensed (owners) or licensed/provisioned (members).
+/// Spawn TCP+mDNS receive port with the desktop app (pairing / mesh).
 pub async fn auto_start_cluster_if_ready(pool: &SqlitePool, listener: &ClusterListenerControl) {
-    let Ok(status) = cluster_status(pool).await else {
-        return;
-    };
-    if !cluster_network_ready(&status) {
-        return;
-    }
     if let Err(e) = start_cluster_listener_task(pool.clone(), listener).await {
         tracing::warn!(
             target: "medoc::cluster",

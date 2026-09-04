@@ -143,7 +143,11 @@ pub async fn register_practice_onboarding(base: &str, body: Value) -> Result<Val
         ));
     }
     let url = format!("{base}/v1/register");
-    let c = client()?;
+    let c = reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(2))
+        .timeout(std::time::Duration::from_secs(8))
+        .build()
+        .map_err(|e| AppError::Internal(format!("HTTP-Client: {e}")))?;
     let res = c
         .post(&url)
         .json(&body)

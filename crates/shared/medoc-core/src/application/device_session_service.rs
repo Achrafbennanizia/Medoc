@@ -1,5 +1,6 @@
 //! Application orchestration for device sessions (list, investigate, revoke).
 use crate::domain::entities::AuditLog;
+use crate::domain::services::device_session_peer;
 use crate::error::AppError;
 use crate::infrastructure::database::repos::admin::audit as audit_repo;
 use crate::infrastructure::database::repos::admin::device_session::{
@@ -8,6 +9,48 @@ use crate::infrastructure::database::repos::admin::device_session::{
 use sqlx::SqlitePool;
 
 const INVESTIGATION_LOGIN_LIMIT: i64 = 12;
+
+pub struct OpenDeviceSession {
+    pub id: String,
+    pub reused: bool,
+}
+
+/// Reuse an active session from the same IP (reconnect). Otherwise create a new row.
+pub async fn open_or_reuse(
+    pool: &SqlitePool,
+    user_id: &str,
+    device_label: &str,
+    user_agent: Option<&str>,
+    peer_ip: &str,
+) -> Result<OpenDeviceSession, AppError> {
+    let peer = device_session_peer::normalize_peer_ip(peer_ip);
+    if let Some(existing) = device_session::find_active_by_peer(pool, user_id, &peer).await? {
+        device_session::touch_reconnect(
+            pool,
+            &existing,
+            device_label,
+            user_agent,
+            Some(peer.as_str()),
+        )
+        .await?;
+        let _ = device_session::end_other_same_peer(pool, user_id, &existing, &peer).await?;
+        return Ok(OpenDeviceSession {
+            id: existing,
+            reused: true,
+        });
+    }
+    let id = uuid::Uuid::new_v4().to_string();
+    device_session::insert(
+        pool,
+        &id,
+        user_id,
+        device_label,
+        user_agent,
+        Some(peer.as_str()),
+    )
+    .await?;
+    Ok(OpenDeviceSession { id, reused: false })
+}
 
 pub async fn list_enriched_for_user(
     pool: &SqlitePool,
@@ -43,6 +86,8 @@ pub async fn investigate_session(
         &[
             "LOGIN",
             "LOGOUT",
+            "DEVICE_SESSION_RECONNECT",
+            "DEVICE_SESSION_NEW",
             "DEVICE_SESSION_REVOKE",
             "DEVICE_SESSION_INVESTIGATE",
             "DEVICE_SESSION_TRUST",

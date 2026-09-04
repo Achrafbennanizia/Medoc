@@ -10,6 +10,7 @@ import {
 } from "@/lib/desktop-window-controls";
 import { DesktopChromeProvider } from "./desktop-chrome";
 import { resolveDesktopChromeMode } from "./resolve-desktop-chrome-mode";
+import { ToastContainer } from "./ui/toast";
 
 const WINDOW_TITLE_KEY = "app.window_title";
 
@@ -58,7 +59,12 @@ export function DesktopWindowFrame({ children }: { children: ReactNode }) {
     };
 
     if (mode === "browser") {
-        return <DesktopChromeProvider mode={mode}>{children}</DesktopChromeProvider>;
+        return (
+            <DesktopChromeProvider mode={mode}>
+                {children}
+                <ToastContainer />
+            </DesktopChromeProvider>
+        );
     }
 
     if (mode === "mac-overlay") {
@@ -74,6 +80,7 @@ export function DesktopWindowFrame({ children }: { children: ReactNode }) {
                         <div className="desktop-app-frame__fill">{children}</div>
                     </div>
                 </div>
+                <ToastContainer />
             </DesktopChromeProvider>
         );
     }
@@ -106,6 +113,7 @@ export function DesktopWindowFrame({ children }: { children: ReactNode }) {
                     <div className="desktop-app-frame__fill">{children}</div>
                 </div>
             </div>
+            <ToastContainer />
         </DesktopChromeProvider>
     );
 }

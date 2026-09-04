@@ -2302,6 +2302,7 @@
   "page.patient_create.section.person": "Données personnelles",
   "page.patient_create.section.prior_conditions": "Antécédents pertinents",
   "page.patient_create.step.anam": "Anamnèse",
+  "page.patient_create.step.anamnesis": "Anamnèse",
   "page.patient_create.step.master": "Données de base",
   "page.patient_create.step.save": "Enregistrer",
   "page.patient_create.subtitle.medical": "Données de base, assurance et anamnèse",
