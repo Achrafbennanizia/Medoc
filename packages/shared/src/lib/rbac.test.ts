@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
     allowed,
+    canViewFullChartReadonly,
+    isFullChartReadonlyOverrideActive,
     navItemVisible,
     NAV_ITEM_DEFINITIONS,
     parseRole,
@@ -238,6 +240,18 @@ describe("routeChildPathAllowed", () => {
     it("GAP-01: RECEPTION cannot read medical records action", () => {
         expect(allowed("patient.read_medical", "RECEPTION")).toBe(false);
         expect(allowed("patient.treatments_list_for_payment", "RECEPTION")).toBe(true);
+    });
+
+    it("full chart read-only override grants medical view without write", () => {
+        const overrides = [
+            { action: "patient.read_medical", effect: "ALLOW" as const },
+            { action: "patient.write_medical", effect: "DENY" as const },
+        ];
+        expect(allowed("patient.read_medical", "RECEPTION", overrides)).toBe(true);
+        expect(allowed("patient.write_medical", "RECEPTION", overrides)).toBe(false);
+        expect(canViewFullChartReadonly("RECEPTION", overrides)).toBe(true);
+        expect(isFullChartReadonlyOverrideActive(overrides)).toBe(true);
+        expect(isFullChartReadonlyOverrideActive([])).toBe(false);
     });
 });
 

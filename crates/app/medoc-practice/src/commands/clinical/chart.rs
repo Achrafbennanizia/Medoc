@@ -24,8 +24,9 @@ pub async fn get_chart(
         .await?
         .ok_or(AppError::NotFound("PatientChart".into()))?;
     let role = Role::parse(&session.role).ok_or(AppError::Unauthorized)?;
-    if !rbac::allowed("patient.read_medical", role) {
-        // Reception sees administrative shell only — no diagnoses / clinical text.
+    // FA-PERS-07: honor per-user ALLOW/DENY (e.g. full chart read-only for reception).
+    if !rbac::effective_allowed("patient.read_medical", role, &session.permission_overrides) {
+        // Without medical read: administrative shell only — no diagnoses / clinical text.
         a.diagnosis = None;
         a.findings = None;
     }

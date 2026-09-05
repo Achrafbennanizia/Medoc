@@ -11,13 +11,14 @@ import {
     listStaff,
     listStaffPermissionOverrides,
     resetStaffPermissionOverrides,
+    setStaffFullChartReadonly,
     setStaffPasswordByAdmin,
     setStaffPermissionOverride,
     updateStaff,
     type StaffQuota,
 } from "@/systems/practice-host/controllers/staff.controller";
 import { MAX_TOTAL_STAFF } from "@/lib/mvp-security-config";
-import { allowed, parseRole, RBAC_ALL_ACTIONS } from "@/lib/rbac";
+import { allowed, isFullChartReadonlyOverrideActive, parseRole, RBAC_ALL_ACTIONS } from "@/lib/rbac";
 import { useAuthStore } from "@/models/store/auth-store";
 import { errorMessage, formatDate } from "@/lib/utils";
 import type { Staff } from "../../models/types";
@@ -558,6 +559,70 @@ export function StaffPage() {
                             <p className="page-sub" style={{ margin: 0, fontSize: 12, lineHeight: 1.45 }}>
                                 {t("page.staff.perm_section_desc")}
                             </p>
+                            <label
+                                className="row"
+                                style={{
+                                    gap: 10,
+                                    alignItems: "flex-start",
+                                    padding: "10px 12px",
+                                    border: "1px solid var(--line)",
+                                    borderRadius: 10,
+                                    background: "var(--bg-elev)",
+                                    cursor: selected && !permBusy ? "pointer" : "default",
+                                    opacity: permBusy ? 0.7 : 1,
+                                }}
+                            >
+                                <input
+                                    type="checkbox"
+                                    style={{ marginTop: 3 }}
+                                    checked={isFullChartReadonlyOverrideActive(permOverrides)}
+                                    disabled={!selected || permBusy}
+                                    onChange={(e) => {
+                                        if (!selected) return;
+                                        const enabled = e.target.checked;
+                                        void (async () => {
+                                            try {
+                                                setPermBusy(true);
+                                                await setStaffFullChartReadonly(selected.id, enabled);
+                                                setPermOverrides((prev) => {
+                                                    const rest = prev.filter(
+                                                        (x) =>
+                                                            x.action !== "patient.read_medical"
+                                                            && x.action !== "patient.write_medical",
+                                                    );
+                                                    if (!enabled) return rest;
+                                                    return [
+                                                        ...rest,
+                                                        { action: "patient.read_medical", effect: "ALLOW" as const },
+                                                        { action: "patient.write_medical", effect: "DENY" as const },
+                                                    ].sort((a, b) => a.action.localeCompare(b.action));
+                                                });
+                                                if (useAuthStore.getState().session?.user_id === selected.id) {
+                                                    await checkSession();
+                                                }
+                                                toast(
+                                                    enabled
+                                                        ? t("page.staff.toast_chart_readonly_on")
+                                                        : t("page.staff.toast_chart_readonly_off"),
+                                                    "success",
+                                                );
+                                            } catch (err) {
+                                                toast(errorMessage(err), "error");
+                                            } finally {
+                                                setPermBusy(false);
+                                            }
+                                        })();
+                                    }}
+                                />
+                                <span>
+                                    <span style={{ display: "block", fontSize: 13, fontWeight: 600 }}>
+                                        {t("page.staff.chart_readonly_title")}
+                                    </span>
+                                    <span style={{ display: "block", fontSize: 12, color: "var(--fg-3)", lineHeight: 1.45, marginTop: 2 }}>
+                                        {t("page.staff.chart_readonly_desc")}
+                                    </span>
+                                </span>
+                            </label>
                             <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
                                 <Button
                                     type="button"

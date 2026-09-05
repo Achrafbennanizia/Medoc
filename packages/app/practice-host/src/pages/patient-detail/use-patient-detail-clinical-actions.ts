@@ -39,14 +39,6 @@ import type {
     DentalFinding,
 } from "@/models/types";
 import type { TreatmentChartComposerPanelProps } from "@/views/components/treatment-chart-composer-panel";
-import {
-    treatmentHasBillableServiceItem,
-    openPaymentTabAfterBillableTreatment,
-    openPaymentTabAfterBillableExamination,
-    examinationHasBillableServiceItem,
-    type PaymentNewFormState,
-} from "@/lib/billing-open-booking";
-import type { PatientDetailChartTab } from "@/lib/patient-detail-utils";
 import { useT, useTParams , useCollatorLocale} from "@/lib/i18n";
 import { useToastStore } from "@/views/components/ui/toast-store";
 
@@ -127,10 +119,6 @@ export type UsePatientDetailClinicalActionsArgs = {
     setPatientDeleteOpen: (version: boolean) => void;
     setPatientDeleteBusy: (version: boolean) => void;
     load: () => Promise<void>;
-    sessionRole: string | undefined;
-    goTab: (tab: PatientDetailChartTab) => void;
-    setShowPaymentComposer: (version: boolean) => void;
-    setPaymentNewForm: (form: PaymentNewFormState) => void;
 };
 
 export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalActionsArgs) {
@@ -183,10 +171,6 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
         setPatientDeleteOpen,
         setPatientDeleteBusy,
         load,
-        sessionRole,
-        goTab,
-        setShowPaymentComposer,
-        setPaymentNewForm,
     } = args;
 
     const runSavePatient = async () => {
@@ -257,11 +241,6 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
             treatment_date: treatmentForm.date.trim() || null,
         };
         const prevBh = treatmentEditId ? treatments.find((b) => b.id === treatmentEditId) ?? null : null;
-        const billable = treatmentHasBillableServiceItem(
-            payload.service_name,
-            Number.isFinite(g) ? g : null,
-        );
-        let savedTreatmentId = treatmentEditId ?? "";
         try {
             if (treatmentEditId) {
                 await updateTreatment({ id: treatmentEditId, ...payload });
@@ -280,7 +259,6 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
                 setTreatmentEditId(null);
             } else {
                 const created = await createTreatment({ chart_id: chart.id, ...payload });
-                savedTreatmentId = created.id;
                 toast(t("patient.detail.toast.treatment_documented"), "success", {
                     durationMs: PATIENT_DETAIL_TOAST_UNDO_MS,
                     onUndo: async () => {
@@ -323,16 +301,6 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
         setContinueFromTreatmentId("");
         setTreatmentFormUnlocked(true);
         await load();
-        if (sessionRole === "PHYSICIAN" && billable && savedTreatmentId) {
-            openPaymentTabAfterBillableTreatment({
-                treatmentId: savedTreatmentId,
-                total_cost: Number.isFinite(g) ? g : null,
-                goTab,
-                setShowPaymentComposer,
-                setPaymentNewForm,
-            });
-            toast(t("patient.detail.toast.billing_area_opened"), "info");
-        }
     };
 
     const runSaveTreatment = () => {
@@ -365,7 +333,6 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
         totalCost?: number | null;
     }) => {
         if (!chart) return;
-        const billable = examinationHasBillableServiceItem(data.serviceName, data.totalCost ?? null);
         try {
             const created = await createExamination({
                 chart_id: chart.id,
@@ -398,16 +365,6 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
             setShowUnterComposer(false);
             setExaminationForm({ chief_complaint: "", results: "", diagnosis: "" });
             await load();
-            if (sessionRole === "PHYSICIAN" && billable) {
-                openPaymentTabAfterBillableExamination({
-                    examinationId: created.id,
-                    total_cost: data.totalCost ?? null,
-                    goTab,
-                    setShowPaymentComposer,
-                    setPaymentNewForm,
-                });
-                toast(t("patient.detail.toast.billing_area_opened"), "info");
-            }
         } catch (e) {
             toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
         }

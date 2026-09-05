@@ -223,6 +223,7 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::staff_commands::set_staff_permission_override,
             $crate::commands::staff_commands::delete_staff_permission_override,
             $crate::commands::staff_commands::reset_staff_permission_overrides,
+            $crate::commands::staff_commands::set_staff_full_chart_readonly,
             $crate::commands::staff_commands::grant_staff_all_permissions,
             $crate::commands::staff_commands::admin_unlock_brute_force,
             $crate::commands::staff_commands::evaluate_password_policy,

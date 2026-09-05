@@ -21,8 +21,10 @@ pub async fn get_dashboard_stats(
 ) -> Result<DashboardStats, AppError> {
     let session = rbac::require(&session_state, "dashboard.read")?;
     let role = Role::parse(&session.role).ok_or(AppError::Forbidden)?;
+    let ov = &session.permission_overrides;
+    let allowed = |action: &str| rbac::effective_allowed(action, role, ov);
 
-    let patients_total = if rbac::allowed("patient.read", role) {
+    let patients_total = if allowed("patient.read") {
         let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM patient")
             .fetch_one(pool.inner())
             .await?;
@@ -31,7 +33,7 @@ pub async fn get_dashboard_stats(
         None
     };
 
-    let appointments_today = if rbac::allowed("appointment.read", role) {
+    let appointments_today = if allowed("appointment.read") {
         let today = chrono::Local::now().format("%Y-%m-%d").to_string();
         let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM appointment WHERE date = ?1")
             .bind(&today)
@@ -42,7 +44,7 @@ pub async fn get_dashboard_stats(
         None
     };
 
-    let revenue_month = if rbac::allowed("finance.read", role) {
+    let revenue_month = if allowed("finance.read") {
         let month_start = chrono::Local::now().format("%Y-%m-01").to_string();
         let row: (f64,) = sqlx::query_as(
             "SELECT COALESCE(SUM(amount), 0.0) FROM payment WHERE status = 'PAID' AND created_at >= ?1",
@@ -55,7 +57,7 @@ pub async fn get_dashboard_stats(
         None
     };
 
-    let products_low = if rbac::allowed("product.read", role) {
+    let products_low = if allowed("product.read") {
         let row: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM product WHERE active = 1 AND stock <= min_stock",
         )
@@ -103,9 +105,9 @@ pub struct StatisticsOverview {
     // Treatments
     pub treatments_by_category: Vec<LabelValue>,
     pub treatments_per_month: Vec<MonthBucket>,
-    /// WAAD 9.5 / G8 — top categories as disease-proxy (treatment category/type).
+    /// WAAD 9.5 / G8 — top clinical diagnoses (examination + dental finding).
     pub disease_patterns_top: Vec<LabelValue>,
-    /// WAAD 9.5 / G8 — treatment-case trend per month.
+    /// WAAD 9.5 / G8 — diagnosed clinical cases per month.
     pub disease_patterns_monthly: Vec<MonthBucket>,
     pub medications_top: Vec<LabelValue>,
     // Appointments & organisation
@@ -190,6 +192,8 @@ pub async fn get_statistics_overview(
 ) -> Result<StatisticsOverview, AppError> {
     let session = rbac::require(&session_state, "dashboard.read")?;
     let role = Role::parse(&session.role).ok_or(AppError::Forbidden)?;
+    let ov = &session.permission_overrides;
+    let allowed = |action: &str| rbac::effective_allowed(action, role, ov);
 
     let months_12 = last_n_months(12);
     let earliest = months_12.first().cloned().unwrap_or_default();
@@ -197,7 +201,7 @@ pub async fn get_statistics_overview(
     let mut out = StatisticsOverview::default();
 
     // -------- Patients --------
-    if rbac::allowed("patient.read", role) {
+    if allowed("patient.read") {
         let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM patient")
             .fetch_one(pool.inner())
             .await?;
@@ -284,7 +288,7 @@ pub async fn get_statistics_overview(
     }
 
     // -------- Treatments --------
-    if rbac::allowed("patient.read_medical", role) {
+    if allowed("patient.read_medical") {
         // by category (fallback type when category missing)
         let beh_kat: Vec<(String, i64)> = sqlx::query_as(
             "SELECT COALESCE(NULLIF(category,''), kind) AS k, COUNT(*) AS c
@@ -313,8 +317,59 @@ pub async fn get_statistics_overview(
             .map(|(m, c)| (m.clone(), *c as f64))
             .collect();
         out.treatments_per_month = align_months(beh_mon_f, &months_12);
-        out.disease_patterns_top = out.treatments_by_category.clone();
-        out.disease_patterns_monthly = out.treatments_per_month.clone();
+
+        // Disease patterns — real diagnoses from examinations + dental findings (not treatment proxy).
+        let disease_top: Vec<(String, i64)> = sqlx::query_as(
+            "SELECT d AS label, COUNT(*) AS c FROM (
+                 SELECT TRIM(COALESCE(
+                     CASE WHEN json_valid(results)
+                          THEN NULLIF(TRIM(json_extract(results, '$.diagnosis')), '')
+                          ELSE NULL END,
+                     NULLIF(TRIM(diagnosis), '')
+                 )) AS d
+                 FROM examination
+                 UNION ALL
+                 SELECT TRIM(diagnosis) AS d
+                 FROM dental_finding
+                 WHERE diagnosis IS NOT NULL AND TRIM(diagnosis) != ''
+             )
+             WHERE d IS NOT NULL AND TRIM(d) != ''
+             GROUP BY d
+             ORDER BY c DESC
+             LIMIT 12",
+        )
+        .fetch_all(pool.inner())
+        .await?;
+        out.disease_patterns_top = group_label_value(disease_top);
+
+        let disease_mon: Vec<(String, i64)> = sqlx::query_as(
+            "SELECT m, COUNT(*) AS c FROM (
+                 SELECT strftime('%Y-%m', created_at) AS m
+                 FROM examination
+                 WHERE created_at >= ?1
+                   AND TRIM(COALESCE(
+                       CASE WHEN json_valid(results)
+                            THEN NULLIF(TRIM(json_extract(results, '$.diagnosis')), '')
+                            ELSE NULL END,
+                       NULLIF(TRIM(diagnosis), '')
+                   )) != ''
+                 UNION ALL
+                 SELECT strftime('%Y-%m', created_at) AS m
+                 FROM dental_finding
+                 WHERE created_at >= ?1
+                   AND diagnosis IS NOT NULL AND TRIM(diagnosis) != ''
+             )
+             GROUP BY m
+             ORDER BY m",
+        )
+        .bind(&earliest_start)
+        .fetch_all(pool.inner())
+        .await?;
+        let disease_mon_f: Vec<(String, f64)> = disease_mon
+            .iter()
+            .map(|(m, c)| (m.clone(), *c as f64))
+            .collect();
+        out.disease_patterns_monthly = align_months(disease_mon_f, &months_12);
 
         // top medications by active ingredient
         let med: Vec<(String, i64)> = sqlx::query_as(
@@ -330,7 +385,7 @@ pub async fn get_statistics_overview(
     }
 
     // -------- Appointments & organisation --------
-    if rbac::allowed("appointment.read", role) {
+    if allowed("appointment.read") {
         let appt_mon: Vec<(String, i64)> = sqlx::query_as(
             "SELECT strftime('%Y-%m', date) AS m, COUNT(*) AS c
              FROM appointment
@@ -387,7 +442,7 @@ pub async fn get_statistics_overview(
     }
 
     // -------- Finance --------
-    if rbac::allowed("finance.read", role) {
+    if allowed("finance.read") {
         let income_mon: Vec<(String, f64)> = sqlx::query_as(
             "SELECT strftime('%Y-%m', created_at) AS m, COALESCE(SUM(amount),0.0) AS s
              FROM payment
@@ -434,7 +489,7 @@ pub async fn get_statistics_overview(
     }
 
     // -------- Orders --------
-    if rbac::allowed("purchase_order.read", role) {
+    if allowed("purchase_order.read") {
         let order_st: Vec<(String, i64)> = sqlx::query_as(
             "SELECT status, COUNT(*) FROM purchase_order GROUP BY status ORDER BY status",
         )
@@ -471,7 +526,7 @@ pub async fn get_statistics_overview(
         out.orders_per_month = align_months(order_mon_f, &months_12);
     }
 
-    if rbac::allowed("product.read", role) {
+    if allowed("product.read") {
         let row: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM product WHERE active=1 AND stock <= min_stock",
         )

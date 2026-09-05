@@ -343,6 +343,58 @@ pub async fn reset_staff_permission_overrides(
     Ok(n)
 }
 
+/// FA-PERS-07 preset: full patient chart in read-only mode (ALLOW read_medical, DENY write_medical).
+/// When `enabled` is false, removes only those two overrides so the role matrix applies again.
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
+pub async fn set_staff_full_chart_readonly(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    staff_id: String,
+    enabled: bool,
+) -> Result<(), AppError> {
+    let session = rbac::require(&session_state, "staff.write")?;
+    staff_repo::find_by_id(&pool, &staff_id)
+        .await?
+        .ok_or(AppError::NotFound("error.entity.staff".into()))?;
+    if enabled {
+        staff_permission_repo::upsert(
+            &pool,
+            &staff_id,
+            rbac::PATIENT_READ_MEDICAL,
+            "ALLOW",
+        )
+        .await?;
+        staff_permission_repo::upsert(
+            &pool,
+            &staff_id,
+            rbac::PATIENT_WRITE_MEDICAL,
+            "DENY",
+        )
+        .await?;
+    } else {
+        staff_permission_repo::delete_override(&pool, &staff_id, rbac::PATIENT_READ_MEDICAL)
+            .await?;
+        staff_permission_repo::delete_override(&pool, &staff_id, rbac::PATIENT_WRITE_MEDICAL)
+            .await?;
+    }
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        if enabled {
+            "PERMISSION_FULL_CHART_READONLY_ON"
+        } else {
+            "PERMISSION_FULL_CHART_READONLY_OFF"
+        },
+        "Staff",
+        Some(&staff_id),
+        Some(if enabled { "enabled=1" } else { "enabled=0" }),
+    )
+    .await
+    .ok();
+    Ok(())
+}
+
 /// Set ALLOW for every action declared in `config/rbac.yaml` (full access via overrides).
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state))]
@@ -454,6 +506,7 @@ macro_rules! register_staff_commands {
         $crate::commands::staff_commands::set_staff_permission_override,
         $crate::commands::staff_commands::delete_staff_permission_override,
         $crate::commands::staff_commands::reset_staff_permission_overrides,
+        $crate::commands::staff_commands::set_staff_full_chart_readonly,
         $crate::commands::staff_commands::grant_staff_all_permissions,
         $crate::commands::staff_commands::admin_unlock_brute_force,
         $crate::commands::staff_commands::evaluate_password_policy,

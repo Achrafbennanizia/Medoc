@@ -4,6 +4,8 @@ mod english_schema_upgrade;
 mod legacy_embedded;
 mod rust_only;
 mod seed;
+mod seed_year;
+mod seed_practice;
 mod sync_tables;
 mod cluster_tables;
 

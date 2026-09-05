@@ -30,11 +30,36 @@ export { RBAC_ALL_ACTIONS };
 /** Finance read access: full overview or cash area (Reception). */
 export const FINANCE_READ_OR_RECEPTION = ["finance.read", "finance.reception.view"] as const;
 
+/** Clinical chart capabilities (staff “full chart read-only” preset). */
+export const PATIENT_READ_MEDICAL = "patient.read_medical";
+export const PATIENT_WRITE_MEDICAL = "patient.write_medical";
+
 export function canReadFinance(
     role: Role,
     overrides?: readonly PermissionOverride[] | null,
 ): boolean {
     return FINANCE_READ_OR_RECEPTION.some((action) => allowed(action, role, overrides));
+}
+
+/** True when medical chart may be viewed but not mutated (role + overrides). */
+export function canViewFullChartReadonly(
+    role: Role,
+    overrides?: readonly PermissionOverride[] | null,
+): boolean {
+    return (
+        allowed(PATIENT_READ_MEDICAL, role, overrides)
+        && !allowed(PATIENT_WRITE_MEDICAL, role, overrides)
+    );
+}
+
+/** Whether the staff FA-PERS-07 preset rows are active (ALLOW read + DENY write). */
+export function isFullChartReadonlyOverrideActive(
+    overrides?: readonly PermissionOverride[] | null,
+): boolean {
+    if (overrides == null || overrides.length === 0) return false;
+    const read = overrides.find((o) => o.action === PATIENT_READ_MEDICAL);
+    const write = overrides.find((o) => o.action === PATIENT_WRITE_MEDICAL);
+    return read?.effect === "ALLOW" && write?.effect === "DENY";
 }
 
 /** MVP active login roles. TODO(deferred-roles): restore TAX_ADVISOR | PHARMA_CONSULTANT. */

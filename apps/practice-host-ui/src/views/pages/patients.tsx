@@ -76,9 +76,9 @@ export function PatientsPage() {
     const tp = useTParams();
     const session = useAuthStore((s) => s.session);
     const role = parseRole(session?.role);
-    const canDeletePatient = role != null && allowed("patient.write_medical", role);
-    const canViewMedical = role != null && allowed("patient.read_medical", role);
-    const canCreatePatient = role != null && allowed("patient.write", role);
+    const canDeletePatient = role != null && allowed("patient.write_medical", role, session?.permission_overrides);
+    const canViewMedical = role != null && allowed("patient.read_medical", role, session?.permission_overrides);
+    const canCreatePatient = role != null && allowed("patient.write", role, session?.permission_overrides);
     const [patients, setPatients] = useState<Patient[]>([]);
     const [nameDirectory, setNameDirectory] = useState<string[]>([]);
     /** Full directory from last unfiltered list — keeps spellcheck suggestions while searching. */

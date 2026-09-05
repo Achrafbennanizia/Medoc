@@ -185,8 +185,9 @@ pub async fn export_chart_pdf(
     use base64::Engine;
 
     let role = Role::parse(&session.role).ok_or(AppError::Unauthorized)?;
-    let medical = rbac::allowed("patient.read_medical", role);
-    let finance = rbac::allowed("finance.read", role);
+    let ov = &session.permission_overrides;
+    let medical = rbac::effective_allowed("patient.read_medical", role, ov);
+    let finance = rbac::effective_allowed("finance.read", role, ov);
 
     let patient_id = args.patient_id.clone();
     let mut sec = args.sections;
@@ -202,7 +203,7 @@ pub async fn export_chart_pdf(
         sec.payments = false;
     }
 
-    let audit_ok = rbac::allowed("audit.read", role);
+    let audit_ok = rbac::effective_allowed("audit.read", role, ov);
     if !audit_ok {
         sec.audit = false;
     }

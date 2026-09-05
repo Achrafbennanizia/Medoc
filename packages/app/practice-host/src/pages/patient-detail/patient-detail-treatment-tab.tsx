@@ -22,6 +22,7 @@ export type PatientDetailTreatmentTabProps = {
     treatmentEditId: string | null;
     treatmentDeleteId: string | null;
     canViewClinical: boolean;
+    canWriteMedical: boolean;
     showClinicalPrices: boolean;
     onToggleClinicalPrices: () => void;
     onStartNewTreatment: () => void;
@@ -41,6 +42,7 @@ export function PatientDetailTreatmentTab({
     treatmentEditId,
     treatmentDeleteId,
     canViewClinical,
+    canWriteMedical,
     showClinicalPrices,
     onToggleClinicalPrices,
     onStartNewTreatment,
@@ -78,7 +80,7 @@ export function PatientDetailTreatmentTab({
                                         ? t("patient.detail.tab.common.hide_prices")
                                         : t("patient.detail.tab.common.show_prices")}
                                 </Button>
-                                {!showTreatmentComposer ? (
+                                {!showTreatmentComposer && canWriteMedical ? (
                                     <>
                                         <Button type="button" variant="primary" onClick={onStartNewTreatment}>
                                             {t("patient.detail.tab.treatment.new")}
@@ -96,7 +98,7 @@ export function PatientDetailTreatmentTab({
                             </>
                         )}
                     />
-                    {showTreatmentComposer && !treatmentEditId ? (
+                    {canWriteMedical && showTreatmentComposer && !treatmentEditId ? (
                         <TreatmentChartComposerPanel {...treatmentComposerCommon} />
                     ) : null}
                     {treatments.length === 0 ? (
@@ -121,7 +123,7 @@ export function PatientDetailTreatmentTab({
                                     <tbody key={grp[0]?.id ?? grp.map((x) => x.id).join()} className="treatment-grp">
                                         {grp.map((b) => (
                                             <Fragment key={b.id}>
-                                                {showTreatmentComposer && treatmentEditId === b.id ? (
+                                                {canWriteMedical && showTreatmentComposer && treatmentEditId === b.id ? (
                                                     <tr>
                                                         <td
                                                             colSpan={showClinicalPrices ? 9 : 8}
@@ -172,31 +174,35 @@ export function PatientDetailTreatmentTab({
                                                         {(() => {
                                                             const released = isReleasedForBilling(b);
                                                             const actions: PaymentRowAction[] = [];
-                                                            if (canViewClinical && !released) {
+                                                            if (canWriteMedical && canViewClinical && !released) {
                                                                 actions.push({
                                                                     id: "release",
                                                                     label: t("patient.detail.tab.common.release_short"),
                                                                     onClick: () => void onReleaseForBilling(b.id),
                                                                 });
                                                             }
-                                                            actions.push(
-                                                                {
-                                                                    id: "edit",
-                                                                    label: t("common.edit"),
-                                                                    onClick: () => onOpenEditTreatment(b),
-                                                                },
-                                                                {
-                                                                    id: "delete",
-                                                                    label: t("common.delete"),
-                                                                    onClick: () => onRequestDeleteTreatment(b.id),
-                                                                    danger: true,
-                                                                },
-                                                            );
-                                                            return (
+                                                            if (canWriteMedical) {
+                                                                actions.push(
+                                                                    {
+                                                                        id: "edit",
+                                                                        label: t("common.edit"),
+                                                                        onClick: () => onOpenEditTreatment(b),
+                                                                    },
+                                                                    {
+                                                                        id: "delete",
+                                                                        label: t("common.delete"),
+                                                                        onClick: () => onRequestDeleteTreatment(b.id),
+                                                                        danger: true,
+                                                                    },
+                                                                );
+                                                            }
+                                                            return actions.length > 0 ? (
                                                                 <PaymentRowActionsMenu
                                                                     ariaLabel={t("common.actions")}
                                                                     actions={actions}
                                                                 />
+                                                            ) : (
+                                                                <span style={{ color: "var(--fg-3)" }}>{emDash}</span>
                                                             );
                                                         })()}
                                                     </td>
@@ -210,7 +216,7 @@ export function PatientDetailTreatmentTab({
                     )}
                 </Card>
 
-                {treatmentDeleteId ? (
+                {canWriteMedical && treatmentDeleteId ? (
                     <ConfirmOrInline
                         area="patient_chart_treatment_delete"
                         open={!!treatmentDeleteId}

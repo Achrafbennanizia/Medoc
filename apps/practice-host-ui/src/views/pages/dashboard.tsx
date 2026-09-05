@@ -198,7 +198,7 @@ export function DashboardPage() {
     useEffect(() => {
         let cancelled = false;
         const role = parseRole(session?.role ?? undefined);
-        if (!role || !allowed("patient.read", role) || !allowed("patient.read_medical", role)) {
+        if (!role || !allowed("patient.read", role, session?.permission_overrides) || !allowed("patient.read_medical", role, session?.permission_overrides)) {
             setPruefMasterPendingIds([]);
             setPruefScanLoading(false);
             return;
@@ -232,7 +232,7 @@ export function DashboardPage() {
         return () => {
             cancelled = true;
         };
-    }, [patients, session?.role, reloadToken]);
+    }, [patients, session?.role, session?.permission_overrides, reloadToken]);
 
     /** DayClose-Erinnerung (lokal, client-settings): ein Toast pro Tag zur konfigurierten Minute. */
     useEffect(() => {
@@ -322,13 +322,13 @@ export function DashboardPage() {
     const freigabenItemCount = filteredMasterRows.length + (showPlannedRow ? 1 : 0) + filteredPlanNextRows.length;
     const freigabenLeer = !pruefScanLoading && freigabenItemCount === 0 && !listsError;
 
-    const canPatientWrite = role != null && allowed("patient.write", role);
-    const canViewClinical = role != null && allowed("patient.read_medical", role);
-    const canReadPatients = role != null && allowed("patient.read", role);
-    const canReadAppointments = role != null && allowed("appointment.read", role);
-    const canReadFinance = role != null && allowed("finance.read", role);
-    const canPurchaseOrderWrite = role != null && allowed("purchase_order.write", role);
-    const showStatistics = role != null && routeChildPathAllowed("statistics", role);
+    const canPatientWrite = role != null && allowed("patient.write", role, session?.permission_overrides);
+    const canViewClinical = role != null && allowed("patient.read_medical", role, session?.permission_overrides);
+    const canReadPatients = role != null && allowed("patient.read", role, session?.permission_overrides);
+    const canReadAppointments = role != null && allowed("appointment.read", role, session?.permission_overrides);
+    const canReadFinance = role != null && allowed("finance.read", role, session?.permission_overrides);
+    const canPurchaseOrderWrite = role != null && allowed("purchase_order.write", role, session?.permission_overrides);
+    const showStatistics = role != null && routeChildPathAllowed("statistics", role, session?.permission_overrides);
 
     const heuteAppointments = useMemo(() => {
         return appointments

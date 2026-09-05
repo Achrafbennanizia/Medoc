@@ -94,3 +94,38 @@ fn effective_deny_blocks_action_allowed_by_role() {
     assert!(allowed("dashboard.read", Role::Reception));
     assert!(!effective_allowed("dashboard.read", Role::Reception, &o));
 }
+
+#[test]
+fn full_chart_readonly_preset_for_reception() {
+    let o = vec![
+        PermissionOverride {
+            action: "patient.read_medical".into(),
+            effect: "ALLOW".into(),
+        },
+        PermissionOverride {
+            action: "patient.write_medical".into(),
+            effect: "DENY".into(),
+        },
+    ];
+    assert!(!allowed("patient.read_medical", Role::Reception));
+    assert!(!allowed("patient.write_medical", Role::Reception));
+    assert!(effective_allowed("patient.read_medical", Role::Reception, &o));
+    assert!(!effective_allowed("patient.write_medical", Role::Reception, &o));
+}
+
+#[test]
+fn full_chart_readonly_preset_blocks_physician_write() {
+    let o = vec![
+        PermissionOverride {
+            action: "patient.read_medical".into(),
+            effect: "ALLOW".into(),
+        },
+        PermissionOverride {
+            action: "patient.write_medical".into(),
+            effect: "DENY".into(),
+        },
+    ];
+    assert!(allowed("patient.write_medical", Role::Physician));
+    assert!(effective_allowed("patient.read_medical", Role::Physician, &o));
+    assert!(!effective_allowed("patient.write_medical", Role::Physician, &o));
+}

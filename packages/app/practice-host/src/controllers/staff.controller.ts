@@ -104,6 +104,14 @@ export async function resetStaffPermissionOverrides(staffId: string): Promise<nu
     return practiceSystem.invoke<number>("reset_staff_permission_overrides", { staff_id: staffId });
 }
 
+/** Full patient chart visible, clinical edits denied (FA-PERS-07 preset). */
+export async function setStaffFullChartReadonly(staffId: string, enabled: boolean): Promise<void> {
+    return practiceSystem.invoke("set_staff_full_chart_readonly", {
+        staff_id: staffId,
+        enabled,
+    });
+}
+
 /** ALLOW for each RBAC action from `config/rbac.yaml`. */
 export async function grantStaffAllPermissions(staffId: string): Promise<number> {
     return practiceSystem.invoke<number>("grant_staff_all_permissions", { staff_id: staffId });

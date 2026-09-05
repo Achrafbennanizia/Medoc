@@ -21,6 +21,7 @@ export type PatientDetailAnamTabProps = {
     anamQuick: PatientAnamnesisQuickFields;
     anamnesisSigned: boolean;
     anamnesisJson: string;
+    canWriteMedical: boolean;
     onAnamEditingChange: (editing: boolean) => void;
     onAnamQuickChange: (patch: Partial<PatientAnamnesisQuickFields>) => void;
     onAnamnesisSignChange: (signed: boolean) => void;
@@ -34,6 +35,7 @@ export function PatientDetailAnamTab({
     anamQuick,
     anamnesisSigned,
     anamnesisJson,
+    canWriteMedical,
     onAnamEditingChange,
     onAnamQuickChange,
     onAnamnesisSignChange,
@@ -64,11 +66,12 @@ export function PatientDetailAnamTab({
                         }
                         action={(
                             <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
-                                {!anamEditing ? (
+                                {canWriteMedical && !anamEditing ? (
                                     <Button size="sm" variant="secondary" type="button" onClick={() => onAnamEditingChange(true)}>
                                         {t("common.edit")}
                                     </Button>
-                                ) : (
+                                ) : null}
+                                {canWriteMedical && anamEditing ? (
                                     <>
                                         <Button size="sm" variant="ghost" type="button" onClick={onCancelEdit}>
                                             {t("common.cancel")}
@@ -77,7 +80,7 @@ export function PatientDetailAnamTab({
                                             {t("common.save")}
                                         </Button>
                                     </>
-                                )}
+                                ) : null}
                             </div>
                         )}
                     />

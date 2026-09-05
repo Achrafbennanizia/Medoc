@@ -16,9 +16,9 @@ import {
     paymentHistoryForExamination,
     paymentStatusDisplay,
     paymentMethodLabel,
+    parsePaymentLinkValue,
     maxNewPaymentTreatment,
     maxNewPaymentExamination,
-    parsePaymentLinkValue,
     type PaymentAssignmentSummaryRow,
 } from "@/lib/payment-booking";
 import { ChartEditFormOrInline, ChartInlineEditPanelShell, ConfirmOrInline } from "@/views/components/chart-confirm-presentation";
@@ -42,6 +42,12 @@ export type PaymentEditFormState = {
     description: string;
 };
 
+export type PaymentComposerPrefill = {
+    linkKind: "treatment" | "examination";
+    linkId: string;
+    amount?: string;
+};
+
 export type PatientDetailPaymentTabProps = {
     patientId: string | undefined;
     hasPaymentData: boolean;
@@ -50,7 +56,7 @@ export type PatientDetailPaymentTabProps = {
     canFinanceWrite: boolean;
     canViewClinical: boolean;
     showPaymentComposer: boolean;
-    onOpenPaymentComposer: () => void;
+    onOpenPaymentComposer: (prefill?: PaymentComposerPrefill) => void;
     onClosePaymentComposer: () => void;
     treatments: Treatment[];
     examinations: Examination[];
@@ -390,7 +396,7 @@ export function PatientDetailPaymentTab({
                                     variant="secondary"
                                     className="chart-payment-toolbar__cta"
                                     disabled={showPaymentComposer}
-                                    onClick={onOpenPaymentComposer}
+                                    onClick={() => onOpenPaymentComposer()}
                                 >
                                     {t("patient.detail.tab.payment.new_cta")}
                                 </Button>
@@ -798,6 +804,25 @@ export function PatientDetailPaymentTab({
                                                             label: t("patient.detail.tab.payment.receipt"),
                                                             onClick: () => handlePrintReceiptFromSummeRow(row),
                                                         },
+                                                        ...(canFinanceWrite
+                                                            && (row.offen == null || row.offen > PAYMENT_EUR_EPS)
+                                                            ? [
+                                                                {
+                                                                    id: "add-payment",
+                                                                    label: t("patient.detail.tab.payment.add_payment"),
+                                                                    onClick: () =>
+                                                                        onOpenPaymentComposer({
+                                                                            linkKind: row.kind,
+                                                                            linkId: row.lineId,
+                                                                            amount:
+                                                                                row.offen != null && row.offen > PAYMENT_EUR_EPS
+                                                                                    ? String(row.offen)
+                                                                                    : "",
+                                                                        }),
+                                                                    disabled: showPaymentComposer,
+                                                                } satisfies PaymentRowAction,
+                                                            ]
+                                                            : []),
                                                     ]}
                                                 />
                                             </td>

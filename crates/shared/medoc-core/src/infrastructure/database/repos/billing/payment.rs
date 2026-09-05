@@ -308,50 +308,47 @@ pub async fn create(pool: &SqlitePool, data: &CreatePayment) -> Result<Payment, 
 
     let status = compute_payment_status(amount, amount_expected);
 
-    // Prefer filling the FA-LEIST-06 0 € open booking instead of inserting a second row
-    // that leaves an “unfulfilled” outstanding payment on the billing list.
-    if !is_placeholder {
-        if let Some(existing_id) = find_zero_amount_open_booking_id(
-            pool,
-            &data.patient_id,
-            data.treatment_id.as_deref(),
-            data.examination_id.as_deref(),
+    // Prefer updating the FA-LEIST-06 0 € open booking instead of inserting a second row.
+    if let Some(existing_id) = find_zero_amount_open_booking_id(
+        pool,
+        &data.patient_id,
+        data.treatment_id.as_deref(),
+        data.examination_id.as_deref(),
+    )
+    .await?
+    {
+        sqlx::query(
+            "UPDATE payment SET
+                amount = ?1,
+                payment_method = ?2,
+                status = ?3,
+                service_item_id = ?4,
+                description = COALESCE(?5, description),
+                amount_expected = ?6
+             WHERE id = ?7",
         )
-        .await?
-        {
-            sqlx::query(
-                "UPDATE payment SET
-                    amount = ?1,
-                    payment_method = ?2,
-                    status = ?3,
-                    service_item_id = ?4,
-                    description = COALESCE(?5, description),
-                    amount_expected = ?6
-                 WHERE id = ?7",
-            )
-            .bind(amount)
-            .bind(&payment_method)
-            .bind(status)
-            .bind(&data.service_item_id)
-            .bind(&data.description)
-            .bind(amount_expected)
-            .bind(&existing_id)
-            .execute(pool)
-            .await?;
+        .bind(amount)
+        .bind(&payment_method)
+        .bind(status)
+        .bind(&data.service_item_id)
+        .bind(&data.description)
+        .bind(amount_expected)
+        .bind(&existing_id)
+        .execute(pool)
+        .await?;
 
-            let updated = sqlx::query_as::<_, Payment>("SELECT * FROM payment WHERE id = ?1")
-                .bind(&existing_id)
-                .fetch_one(pool)
-                .await?;
-            let body = serde_json::to_string(&updated)
-                .unwrap_or_else(|_| format!("{{\"id\":\"{existing_id}\"}}"));
-            crate::infrastructure::database::sync_outbox::record_or_noop(
-                pool, "payment", &existing_id, "UPDATE", &body,
-            )
+        let updated = sqlx::query_as::<_, Payment>("SELECT * FROM payment WHERE id = ?1")
+            .bind(&existing_id)
+            .fetch_one(pool)
             .await?;
-            after_payment_may_be_paid(pool, &updated).await?;
-            return Ok(updated);
-        }
+        let body = serde_json::to_string(&updated)
+            .unwrap_or_else(|_| format!("{{\"id\":\"{existing_id}\"}}"));
+        crate::infrastructure::database::sync_outbox::record_or_noop(
+            pool, "payment", &existing_id, "UPDATE", &body,
+        )
+        .await?;
+        after_payment_may_be_paid(pool, &updated).await?;
+        return Ok(updated);
     }
 
     sqlx::query(

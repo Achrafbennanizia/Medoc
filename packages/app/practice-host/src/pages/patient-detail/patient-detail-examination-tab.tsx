@@ -21,6 +21,7 @@ export type PatientDetailExaminationTabProps = {
     examinationEditUnlocked: boolean;
     examinationDeleteId: string | null;
     canViewClinical: boolean;
+    canWriteMedical: boolean;
     onStartNewExamination: () => void;
     onToggleDetail: (id: string, open: boolean) => void;
     onStartEdit: (u: Examination) => void;
@@ -47,6 +48,7 @@ export function PatientDetailExaminationTab({
     examinationEditUnlocked,
     examinationDeleteId,
     canViewClinical: _canViewClinical,
+    canWriteMedical,
     onStartNewExamination,
     onToggleDetail,
     onStartEdit,
@@ -73,15 +75,15 @@ export function PatientDetailExaminationTab({
                 <Card className="card-pad">
                     <CardHeader
                         title={t("patient.detail.tab.unter.title")}
-                        action={(
+                        action={canWriteMedical ? (
                             <Button size="sm" disabled={showExaminationComposer} onClick={onStartNewExamination}>
                                 {showExaminationComposer
                                     ? t("patient.detail.tab.unter.new_active")
                                     : t("patient.detail.tab.unter.new")}
                             </Button>
-                        )}
+                        ) : undefined}
                     />
-                    {chart && showExaminationComposer ? (
+                    {canWriteMedical && chart && showExaminationComposer ? (
                         <div className="chart-inline-panel" role="region" aria-label={t("patient.detail.tab.unter.new_aria")} style={{ marginBottom: 16 }}>
                             <div className="chart-inline-panel-head">
                                 <div>
@@ -162,12 +164,16 @@ export function PatientDetailExaminationTab({
                                                         ? t("patient.detail.tab.common.hide_detail")
                                                         : t("patient.detail.tab.common.show_detail")}
                                                 </Button>
-                                                <Button type="button" variant="ghost" size="sm" onClick={() => onStartEdit(u)}>
-                                                    {t("common.edit")}
-                                                </Button>
-                                                <Button type="button" variant="danger" size="sm" onClick={() => onRequestDelete(u.id)}>
-                                                    {t("common.delete")}
-                                                </Button>
+                                                {canWriteMedical ? (
+                                                    <>
+                                                        <Button type="button" variant="ghost" size="sm" onClick={() => onStartEdit(u)}>
+                                                            {t("common.edit")}
+                                                        </Button>
+                                                        <Button type="button" variant="danger" size="sm" onClick={() => onRequestDelete(u.id)}>
+                                                            {t("common.delete")}
+                                                        </Button>
+                                                    </>
+                                                ) : null}
                                             </div>
                                         </div>
                                         {open ? (
@@ -326,7 +332,7 @@ export function PatientDetailExaminationTab({
                                         ) : null}
                                     </div>
                                 );
-                                if (examinationEdit?.id === u.id && chart) {
+                                if (canWriteMedical && examinationEdit?.id === u.id && chart) {
                                     const num = (examinationEdit.examination_number ?? "").trim();
                                     return [
                                         <div key={`${u.id}-edit`} className="unter-stack-edit-slot">
@@ -375,7 +381,7 @@ export function PatientDetailExaminationTab({
                             })}
                         </div>
                     )}
-                    {examinationDeleteId ? (
+                    {canWriteMedical && examinationDeleteId ? (
                         <ConfirmOrInline
                             area="patient_chart_examination_delete"
                             open={!!examinationDeleteId}

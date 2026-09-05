@@ -313,7 +313,7 @@ export interface StatisticsOverview {
     // Treatments
     treatments_by_category: LabelValue[];
     treatments_per_month: MonthBucket[];
-    /** WAAD 9.5 — disease patterns (category/type) and monthly course. */
+    /** WAAD 9.5 — clinical diagnoses (examination + dental finding) and monthly course. */
     disease_patterns_top: LabelValue[];
     disease_patterns_monthly: MonthBucket[];
     medications_top: LabelValue[];

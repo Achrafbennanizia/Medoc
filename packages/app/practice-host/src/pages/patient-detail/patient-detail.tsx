@@ -92,15 +92,16 @@ export function PatientDetailPage() {
     const draft = detailQuery.get("draft") ?? "";
     const session = useAuthStore((s) => s.session);
     const role = session?.role ? parseRole(session.role) : null;
-    const canViewClinical = role != null && allowed("patient.read_medical", role);
+    const overrides = session?.permission_overrides;
+    const canViewClinical = role != null && allowed("patient.read_medical", role, overrides);
     const canListPatientDocuments =
         role != null
-        && (allowed("patient.read_medical", role) || allowed("patient.read_documents", role));
-    const canListTreatmentsForPayment = role != null && allowed("patient.treatments_list_for_payment", role);
-    const canWriteMedical = role != null && allowed("patient.write_medical", role);
-    const canReadDocuments = role != null && allowed("patient.read_documents", role);
-    const canReadFinance = role != null && allowed("finance.read", role);
-    const canAuditRead = role != null && allowed("audit.read", role);
+        && (allowed("patient.read_medical", role, overrides) || allowed("patient.read_documents", role, overrides));
+    const canListTreatmentsForPayment = role != null && allowed("patient.treatments_list_for_payment", role, overrides);
+    const canWriteMedical = role != null && allowed("patient.write_medical", role, overrides);
+    const canReadDocuments = role != null && allowed("patient.read_documents", role, overrides);
+    const canReadFinance = role != null && allowed("finance.read", role, overrides);
+    const canAuditRead = role != null && allowed("audit.read", role, overrides);
     const [patient, setPatient] = useState<Patient | null>(null);
     const [patientLoadError, setPatientLoadError] = useState<string | null>(null);
     const [chartLoadError, setChartLoadError] = useState<string | null>(null);
@@ -227,7 +228,7 @@ export function PatientDetailPage() {
     const tp = useTParams();
     const canFinanceWrite = (() => {
         const r = parseRole(session?.role);
-        return r ? allowed("finance.write", r) : false;
+        return r ? allowed("finance.write", r, overrides) : false;
     })();
 
     const {
@@ -455,10 +456,6 @@ export function PatientDetailPage() {
         setPatientDeleteOpen,
         setPatientDeleteBusy,
         load,
-        sessionRole: session?.role,
-        goTab,
-        setShowPaymentComposer,
-        setPaymentNewForm,
     });
 
     const {
@@ -707,6 +704,7 @@ export function PatientDetailPage() {
                     anamQuick={anamQuick}
                     anamnesisSigned={anamnesisSign}
                     anamnesisJson={anamnesisJson}
+                    canWriteMedical={canWriteMedical}
                     onAnamEditingChange={setAnamEditing}
                     onAnamQuickChange={(patch) => setAnamQuick((q) => ({ ...q, ...patch }))}
                     onAnamnesisSignChange={setAnamnesisSign}
@@ -728,6 +726,7 @@ export function PatientDetailPage() {
                     examinationEditUnlocked={unterEditUnlocked}
                     examinationDeleteId={unterDeleteId}
                     canViewClinical={canViewClinical}
+                    canWriteMedical={canWriteMedical}
                     onStartNewExamination={() => {
                         setUnterEdit(null);
                         setUnterDeleteId(null);
@@ -773,6 +772,7 @@ export function PatientDetailPage() {
                     treatmentEditId={treatmentEditId}
                     treatmentDeleteId={treatmentDeleteId}
                     canViewClinical={canViewClinical}
+                    canWriteMedical={canWriteMedical}
                     showClinicalPrices={showClinicalPrices}
                     onToggleClinicalPrices={() => setShowClinicalPrices((version) => !version)}
                     onStartNewTreatment={() => {
@@ -1017,13 +1017,13 @@ export function PatientDetailPage() {
                     canFinanceWrite={canFinanceWrite}
                     canViewClinical={canViewClinical}
                     showPaymentComposer={showPaymentComposer}
-                    onOpenPaymentComposer={() => {
+                    onOpenPaymentComposer={(prefill) => {
                         setPaymentEdit(null);
                         setPaymentDeleteId(null);
                         setPaymentNewForm({
-                            linkKind: "",
-                            linkId: "",
-                            amount: "",
+                            linkKind: prefill?.linkKind ?? "",
+                            linkId: prefill?.linkId ?? "",
+                            amount: prefill?.amount ?? "",
                             payment_method: "CASH",
                             description: "",
                         });

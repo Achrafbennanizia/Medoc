@@ -37,11 +37,14 @@ async fn mark_demo_seed_applied(pool: &SqlitePool) -> Result<(), AppError> {
 pub async fn run_post_migration_seed(pool: &SqlitePool) -> Result<(), AppError> {
     crate::infrastructure::database::brute_force_repo::ensure_schema(pool).await?;
     if should_run_demo_seed() {
-        if demo_seed_already_applied(pool).await? {
-            return Ok(());
+        if !demo_seed_already_applied(pool).await? {
+            seed_demo_data(pool).await?;
+            mark_demo_seed_applied(pool).await?;
         }
-        seed_demo_data(pool).await?;
-        mark_demo_seed_applied(pool).await?;
+        // Year-long volume is separate / idempotent so existing demo DBs still receive it.
+        super::seed_year::run_demo_year_volume_if_needed(pool).await?;
+        // Practice master data (Settings, admin hubs, planning, finance tools).
+        super::seed_practice::run_demo_practice_seed_if_needed(pool).await?;
     }
     Ok(())
 }

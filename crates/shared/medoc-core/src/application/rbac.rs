@@ -29,6 +29,10 @@ include!(concat!(env!("OUT_DIR"), "/rbac_generated.rs"));
 /// Finance read access: full finance overview (physician/tax advisor) or cash-desk area (reception).
 pub const FINANCE_READ_OR_RECEPTION: &[&str] = &["finance.read", "finance.reception.view"];
 
+/// Staff toggle: full patient chart visible, clinical mutations still forbidden.
+pub const PATIENT_READ_MEDICAL: &str = "patient.read_medical";
+pub const PATIENT_WRITE_MEDICAL: &str = "patient.write_medical";
+
 /// Permission matrix from `config/rbac.yaml` (generated at build time).
 pub fn allowed(action: &str, role: Role) -> bool {
     rbac_matrix_allowed(action, role)
