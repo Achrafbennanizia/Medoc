@@ -11,6 +11,8 @@ import { paymentLocalYmd } from "@/lib/day-close";
 import { getChart, listTreatments, listExaminations } from "@/systems/practice-host/controllers/chart.controller";
 import { allocateReceiptNumber } from "@/systems/practice-host/controllers/invoice.controller";
 import { getPatient } from "@/systems/practice-host/controllers/patient.controller";
+import { listTreatmentCatalog } from "@/systems/practice-host/controllers/practice.controller";
+import { listServices } from "@/systems/practice-host/controllers/service-item.controller";
 import type { HtmlExportDocumentKind } from "@/views/components/export-picker-dialog";
 
 export type ReceiptExportPayload = {
@@ -35,14 +37,24 @@ export async function buildReceiptExportForPayment(z: Payment): Promise<ReceiptE
     }
     const patient = await getPatient(z.patient_id);
     const chart = await getChart(z.patient_id);
-    const [treatments, examinations] = await Promise.all([
+    const [treatments, examinations, catalog, services] = await Promise.all([
         listTreatments(chart.id),
         listExaminations(chart.id),
+        listTreatmentCatalog().catch(() => []),
+        listServices().catch(() => []),
     ]);
     const receiptNumber = await allocateReceiptNumber(paymentLocalYmd(z.created_at));
     return {
         kind: "receipt",
-        bundle: bundleReceiptExport(z, patient, treatments, examinations, receiptNumber),
+        bundle: bundleReceiptExport(
+            z,
+            patient,
+            treatments,
+            examinations,
+            receiptNumber,
+            catalog,
+            services,
+        ),
         suggestedBasename: suggestReceiptExportBasename(z),
         exportPreviewTitle: `Receipt — ${patient.name}`,
     };

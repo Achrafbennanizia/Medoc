@@ -749,9 +749,14 @@ export function PatientDetailPage() {
                     onCancelDelete={() => setUnterDeleteId(null)}
                     onConfirmDelete={handleDeleteExaminationRow}
                     onCloseComposer={() => setShowUnterComposer(false)}
-                    onApplyTooth={async (tooth: number, statusKey: string) => {
+                    onApplyTooth={async (tooth: number, statusKey: string, notes?: string | null) => {
                         if (!chart) return;
-                        await createDentalFinding({ chart_id: chart.id, tooth_number: tooth, finding: statusKey });
+                        await createDentalFinding({
+                            chart_id: chart.id,
+                            tooth_number: tooth,
+                            finding: statusKey,
+                            notes: notes?.trim() || null,
+                        });
                         await load();
                     }}
                     onSaveEdit={runSaveExaminationEdit}

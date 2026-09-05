@@ -1,15 +1,27 @@
-import { useCallback, useEffect, useState, type FC } from "react";
+import { useCallback, useEffect, useMemo, useState, type FC } from "react";
 import { useNavigate } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
 import { useToastStore } from "./ui/toast-store";
-import { CheckIcon, PackageIcon, PillIcon, SparkleIcon, ChevronRightIcon } from "@/lib/icons";
+import {
+    CheckIcon,
+    ClipboardIcon,
+    PackageIcon,
+    PillIcon,
+    SparkleIcon,
+    ChevronRightIcon,
+} from "@/lib/icons";
 import {
     listInAppNotifications,
     markAllInAppNotificationsRead,
     markInAppNotificationRead,
 } from "@/systems/practice-host/controllers/in-app-notification.controller";
+import {
+    listPracticeTasksForMe,
+    type PracticeTask,
+} from "@/systems/practice-host/controllers/practice-task.controller";
 import type { InAppNotification } from "@/models/types";
 import { useDateFnsLocale, useT } from "@/lib/i18n";
+import { useAuthStore } from "@/models/store/auth-store";
 
 type Tone = "orange" | "red" | "green" | "blue" | "grey";
 
@@ -21,7 +33,8 @@ type NotifRow = {
     tone: Tone;
     unread: boolean;
     Icon: FC<{ size?: number }>;
-    raw: InAppNotification;
+    raw: InAppNotification | null;
+    taskId?: string;
 };
 
 const toneSoft: Record<Tone, string> = {
@@ -40,9 +53,18 @@ const toneFg: Record<Tone, string> = {
     grey: "var(--fg-3)",
 };
 
+function isTaskNotificationKind(kind: string): boolean {
+    return (
+        kind === "PRACTICE_TASK_ASSIGNED" ||
+        kind === "PRACTICE_TASK_DONE" ||
+        kind === "PRACTICE_TASK_BACK"
+    );
+}
+
 function toneForKind(kind: string): Tone {
     if (kind === "plan_hint_fulfilled") return "green";
     if (kind === "PRACTICE_TASK_BACK") return "orange";
+    if (kind === "PRACTICE_TASK_ASSIGNED") return "orange";
     if (kind === "PRACTICE_TASK_DONE") return "blue";
     if (kind.includes("prescription") || kind.includes("pill")) return "orange";
     if (kind.includes("inventory") || kind.includes("order")) return "red";
@@ -51,6 +73,7 @@ function toneForKind(kind: string): Tone {
 
 function iconForKind(kind: string): FC<{ size?: number }> {
     if (kind === "plan_hint_fulfilled") return CheckIcon;
+    if (isTaskNotificationKind(kind)) return ClipboardIcon;
     if (kind.includes("prescription") || kind.includes("pill")) return PillIcon;
     if (kind.includes("inventory") || kind.includes("order")) return PackageIcon;
     return SparkleIcon;
@@ -64,16 +87,64 @@ function formatNotifTime(raw: string, dateFnsLocale: ReturnType<typeof useDateFn
 }
 
 function mapToRows(items: InAppNotification[], dateFnsLocale: ReturnType<typeof useDateFnsLocale>): NotifRow[] {
-    return items.map((n) => ({
-        id: n.id,
-        title: n.title,
-        sub: n.body,
-        time: formatNotifTime(n.created_at, dateFnsLocale),
-        tone: toneForKind(n.kind),
-        unread: !n.read_at,
-        Icon: iconForKind(n.kind),
-        raw: n,
-    }));
+    return items.map((n) => {
+        let taskId: string | undefined;
+        if (n.payload_json) {
+            try {
+                const p = JSON.parse(n.payload_json) as { taskId?: string };
+                if (p.taskId) taskId = p.taskId;
+            } catch {
+                /* ignore */
+            }
+        }
+        return {
+            id: n.id,
+            title: n.title,
+            sub: n.body,
+            time: formatNotifTime(n.created_at, dateFnsLocale),
+            tone: toneForKind(n.kind),
+            unread: !n.read_at,
+            Icon: iconForKind(n.kind),
+            raw: n,
+            taskId,
+        };
+    });
+}
+
+function actionableTask(task: PracticeTask, role: string | undefined): boolean {
+    if (task.status === "OPEN" || task.status === "IN_PROGRESS" || task.status === "BACK") {
+        return true;
+    }
+    // Physician validates reception-completed work
+    return role === "PHYSICIAN" && task.status === "DONE_RECEPTION";
+}
+
+function taskRows(
+    tasks: PracticeTask[],
+    role: string | undefined,
+    t: (key: string) => string,
+    dateFnsLocale: ReturnType<typeof useDateFnsLocale>,
+    knownTaskIds: Set<string>,
+): NotifRow[] {
+    return tasks
+        .filter((task) => actionableTask(task, role) && !knownTaskIds.has(task.id))
+        .slice(0, 12)
+        .map((task) => ({
+            id: `task:${task.id}`,
+            title: task.title,
+            sub:
+                task.status === "BACK"
+                    ? t("app.notifications.task_returned")
+                    : task.status === "DONE_RECEPTION"
+                      ? t("app.notifications.task_needs_validation")
+                      : t("app.notifications.task_open"),
+            time: formatNotifTime(task.updated_at || task.created_at, dateFnsLocale),
+            tone: task.status === "BACK" || task.status === "OPEN" ? "orange" : "blue",
+            unread: true,
+            Icon: ClipboardIcon,
+            raw: null,
+            taskId: task.id,
+        }));
 }
 
 export function NotificationsPopover({
@@ -87,6 +158,9 @@ export function NotificationsPopover({
     const toast = useToastStore((s) => s.add);
     const t = useT();
     const dateFnsLocale = useDateFnsLocale();
+    const session = useAuthStore((s) => s.session);
+    const role = session?.role;
+    const canSeeTasks = role === "PHYSICIAN" || role === "RECEPTION";
     const [items, setItems] = useState<NotifRow[]>([]);
     const [loadError, setLoadError] = useState(false);
 
@@ -94,18 +168,35 @@ export function NotificationsPopover({
         try {
             setLoadError(false);
             const list = await listInAppNotifications();
-            setItems(mapToRows(list, dateFnsLocale));
+            const mapped = mapToRows(list, dateFnsLocale);
+            const known = new Set(
+                mapped.map((r) => r.taskId).filter((id): id is string => Boolean(id)),
+            );
+            let tasks: NotifRow[] = [];
+            if (canSeeTasks) {
+                try {
+                    const open = await listPracticeTasksForMe();
+                    tasks = taskRows(open, role, t, dateFnsLocale, known);
+                } catch {
+                    tasks = [];
+                }
+            }
+            setItems([...tasks, ...mapped]);
         } catch {
             setLoadError(true);
             setItems([]);
         }
-    }, [dateFnsLocale]);
+    }, [canSeeTasks, dateFnsLocale, role, t]);
 
     useEffect(() => {
         void reload();
     }, [reload]);
 
-    const unreadN = items.filter((x) => x.unread).length;
+    const unreadN = useMemo(() => items.filter((x) => x.unread).length, [items]);
+    const openTaskN = useMemo(
+        () => items.filter((x) => x.id.startsWith("task:") || (x.taskId && x.unread)).length,
+        [items],
+    );
 
     const markAllRead = async () => {
         try {
@@ -118,8 +209,13 @@ export function NotificationsPopover({
         }
     };
 
+    const openTickets = (taskId?: string) => {
+        onClose();
+        navigate(taskId ? `/tickets?task=${encodeURIComponent(taskId)}` : "/tickets");
+    };
+
     const onRowClick = async (row: NotifRow) => {
-        if (row.unread) {
+        if (row.raw && row.unread) {
             try {
                 await markInAppNotificationRead(row.id);
                 setItems((xs) => xs.map((x) => (x.id === row.id ? { ...x, unread: false } : x)));
@@ -128,8 +224,12 @@ export function NotificationsPopover({
                 /* still navigate */
             }
         }
+        if (row.taskId || (row.raw && isTaskNotificationKind(row.raw.kind))) {
+            openTickets(row.taskId);
+            return;
+        }
         try {
-            if (row.raw.payload_json) {
+            if (row.raw?.payload_json) {
                 const p = JSON.parse(row.raw.payload_json) as {
                     appointment_id?: string;
                     taskId?: string;
@@ -139,14 +239,8 @@ export function NotificationsPopover({
                     navigate("/appointments");
                     return;
                 }
-                if (
-                    p.taskId &&
-                    (row.raw.kind === "PRACTICE_TASK_DONE" ||
-                        row.raw.kind === "PRACTICE_TASK_BACK")
-                ) {
-                    onClose();
-                    navigate("/tickets");
-                    return;
+                if (p.taskId) {
+                    openTickets(p.taskId);
                 }
             }
         } catch {
@@ -247,11 +341,20 @@ export function NotificationsPopover({
                     className="btn btn-ghost nav-link-forward"
                     style={{ fontSize: 12.5, display: "inline-flex", alignItems: "center", gap: 4 }}
                     onClick={() => {
+                        if (canSeeTasks) {
+                            openTickets();
+                            return;
+                        }
                         onClose();
                         navigate("/");
                     }}
                 >
-                    {t("app.notifications.show_dashboard")} <ChevronRightIcon size={13} />
+                    {canSeeTasks
+                        ? openTaskN > 0
+                            ? t("app.notifications.show_tasks_count").replace("{{count}}", String(openTaskN))
+                            : t("app.notifications.show_tasks")
+                        : t("app.notifications.show_dashboard")}{" "}
+                    <ChevronRightIcon size={13} />
                 </button>
             </div>
         </div>

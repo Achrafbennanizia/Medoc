@@ -39,6 +39,16 @@ export function PracticeTaskInboxPanel({ userId, isPhysician, isReception, activ
     const [err, setErr] = useState<string | null>(null);
     const [selectedId, setSelectedId] = useState<string | null>(null);
 
+    useEffect(() => {
+        if (!active) return;
+        try {
+            const taskId = new URLSearchParams(window.location.search).get("task");
+            if (taskId?.trim()) setSelectedId(taskId.trim());
+        } catch {
+            /* ignore */
+        }
+    }, [active]);
+
     const load = useCallback(async () => {
         setErr(null);
         try {

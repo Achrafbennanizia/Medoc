@@ -24,8 +24,9 @@ import {
 } from "@/systems/practice-host/controllers/statistics.controller";
 import type { LabelValue, MonthBucket } from "../../models/types";
 import { errorMessage, formatCurrency } from "@/lib/utils";
-import { buildStatisticsReportBundle } from "@/lib/report-export";
-import { ReportExportToolbar } from "../components/report-export-toolbar";
+// TODO(later): restore Analytics Export/Import — see docs/coordination/todos-deferred-ui-blinds.md
+// import { buildStatisticsReportBundle } from "@/lib/report-export";
+// import { ReportExportToolbar } from "../components/report-export-toolbar";
 import { Card, CardHeader } from "../components/ui/card";
 import { DismissibleNotice } from "../components/ui/dismissible-notice";
 import { Button } from "../components/ui/button";
@@ -758,10 +759,11 @@ export function StatisticsPage() {
         };
     }, [stats, period]);
 
-    const buildExportBundle = useCallback(() => {
-        if (!stats) return null;
-        return buildStatisticsReportBundle(stats, period);
-    }, [stats, period]);
+    // TODO(later): restore Analytics Export/Import — see docs/coordination/todos-deferred-ui-blinds.md
+    // const buildExportBundle = useCallback(() => {
+    //     if (!stats) return null;
+    //     return buildStatisticsReportBundle(stats, period);
+    // }, [stats, period]);
 
     if (loadError) return <PageLoadError message={loadError} onRetry={reload} />;
     if (!stats) return <PageLoading />;
@@ -819,12 +821,14 @@ export function StatisticsPage() {
                     <Button type="button" variant="ghost" onClick={reload} title={t("page.statistics.refresh_title")}>
                         {t("page.statistics.refresh")}
                     </Button>
+                    {/* TODO(later): restore Analytics Export/Import — see docs/coordination/todos-deferred-ui-blinds.md
                     <ReportExportToolbar
                         dialogTitle={t("page.statistics.export_title")}
                         buildBundle={buildExportBundle}
                         defaultFormat="pdf"
                         showImport
                     />
+                    */}
                 </div>
             </div>
 

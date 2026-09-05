@@ -18,6 +18,13 @@ export const LICENSE_SUPPORT_ROW_ENABLED = false;
 /** Export dialogs: document-template (PDF layout) template picker. */
 export const PDF_LAYOUT_TEMPLATE_PICKER_ENABLED = false;
 
+/**
+ * Report toolbar **Import…** (JSON/XML round-trip) on Finance, Balance sheet,
+ * Audit, Compliance, Analytics — incomplete; re-enable via
+ * `docs/coordination/todos-deferred-ui-blinds.md`.
+ */
+export const REPORT_IMPORT_UI_ENABLED = false;
+
 /** NFA-USE-09 route coachmarks (onboarding). */
 export const ONBOARDING_COACHMARK_ENABLED = false;
 

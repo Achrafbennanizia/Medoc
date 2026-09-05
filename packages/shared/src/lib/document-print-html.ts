@@ -2,7 +2,14 @@ import { translateLocale, translateLocaleParams, useLocale, isRtlLocale } from "
 import type { Certificate } from "@/systems/practice-host/controllers/certificate.controller";
 import type { Prescription } from "@/systems/practice-host/controllers/prescription.controller";
 import { escapeHtml, formatDate, formatCurrency } from "@/lib/utils";
-import type { Patient, Treatment, Examination, Payment } from "@/models/types";
+import type {
+    Patient,
+    Treatment,
+    Examination,
+    Payment,
+    TreatmentCatalogItem,
+    ServiceItem,
+} from "@/models/types";
 import { getInvoicePracticeFromStorage } from "@/lib/invoice-service-item";
 import { buildClinicalTemplateHeaderLines } from "@/lib/clinical-document-pdf";
 import { emptyDocumentTemplatePayloadV1, type PracticeFieldKey } from "@/lib/document-template-schema";
@@ -17,6 +24,7 @@ import {
     buildReceiptPdfLayout,
     buildPrescriptionComboPdfLayout,
     buildPrescriptionPdfLayout,
+    receiptPriceBreakdown,
     type ClinicalPdfLayout,
 } from "@/lib/clinical-pdf-layout";
 
@@ -414,6 +422,8 @@ function receiptPdfLines(
     treatments: Treatment[],
     examinations: Examination[],
     receiptNumber: string,
+    catalog: TreatmentCatalogItem[] = [],
+    services: ServiceItem[] = [],
 ): string[] {
     const referenceLine = formatPaymentReferenceLine(z, treatments, examinations, docT, docTp);
     const practice = getInvoicePracticeFromStorage();
@@ -439,6 +449,9 @@ function receiptPdfLines(
             ? docT("document.print.amount_received")
             : "";
     const paymentDate = formatDate(z.created_at);
+    const prices = receiptPriceBreakdown(z, treatments, examinations, catalog, services);
+    const moneyOrDash = (n: number | null) =>
+        n != null && Number.isFinite(n) ? formatCurrency(n) : "—";
     return [
         ...practiceHeaderLinesForExport(),
         "",
@@ -452,7 +465,9 @@ function receiptPdfLines(
             : "",
         "",
         `${docT("document.print.payment_date")}: ${paymentDate}`,
-        `${docT("document.print.amount")}: ${formatCurrency(z.amount)}`,
+        `${docT("document.print.standard_price")}: ${moneyOrDash(prices.standardPrice)}`,
+        `${docT("document.print.price")}: ${moneyOrDash(prices.billedPrice)}`,
+        `${docT("document.print.amount_paid")}: ${formatCurrency(prices.paidPrice)}`,
         `${docT("document.print.payment_method")}: ${paymentMethodLabel(z.payment_method, docT)}`,
         `${docT("common.status")}: ${paymentStatusDisplay(z.status, docT).label}`,
         "",
@@ -474,16 +489,48 @@ export function bundleReceiptExport(
     treatments: Treatment[],
     examinations: Examination[],
     receiptNumber: string,
+    catalog: TreatmentCatalogItem[] = [],
+    services: ServiceItem[] = [],
 ): ClinicalDocumentExportBundle {
-    const pdfLayout = buildReceiptPdfLayout(z, patient, treatments, examinations, receiptNumber);
-    const pdfBodyLines = receiptPdfLines(z, patient, treatments, examinations, receiptNumber);
+    const pdfLayout = buildReceiptPdfLayout(
+        z,
+        patient,
+        treatments,
+        examinations,
+        receiptNumber,
+        catalog,
+        services,
+    );
+    const pdfBodyLines = receiptPdfLines(
+        z,
+        patient,
+        treatments,
+        examinations,
+        receiptNumber,
+        catalog,
+        services,
+    );
     const referenceLine = formatPaymentReferenceLine(z, treatments, examinations, docT, docTp);
+    const prices = receiptPriceBreakdown(z, treatments, examinations, catalog, services);
     const csvText =
-        `${csvRow(["Patient", "DateOfBirth", "PaymentDate", "AmountEUR", "PaymentMethod", "Status", "Assignment", "Description"])}\n`
+        `${csvRow([
+            "Patient",
+            "DateOfBirth",
+            "PaymentDate",
+            "StandardPriceEUR",
+            "PriceEUR",
+            "AmountPaidEUR",
+            "PaymentMethod",
+            "Status",
+            "Assignment",
+            "Description",
+        ])}\n`
         + `${csvRow([
             patient.name,
             formatDate(patient.date_of_birth),
             formatDate(z.created_at),
+            prices.standardPrice != null ? prices.standardPrice.toFixed(2) : "",
+            prices.billedPrice != null ? prices.billedPrice.toFixed(2) : "",
             z.amount.toFixed(2),
             paymentMethodLabel(z.payment_method, docT),
             paymentStatusDisplay(z.status, docT).label,
@@ -496,6 +543,9 @@ export function bundleReceiptExport(
         payment: {
             id: z.id,
             amount: z.amount,
+            standardPrice: prices.standardPrice,
+            billedPrice: prices.billedPrice,
+            amountPaid: prices.paidPrice,
             payment_method: z.payment_method,
             status: z.status,
             description: z.description,
@@ -506,7 +556,9 @@ export function bundleReceiptExport(
     const jsonText = `${JSON.stringify(jsonObj, null, 2)}\n`;
     const xmlText =
         `<?xml version="1.0" encoding="UTF-8"?>\n<receiptExport xmlns="urn:medoc:export:clinical-doc:1">\n`
-        + `  <amount>${escapeHtml(z.amount.toFixed(2))}</amount>\n`
+        + `  <standardPrice>${escapeHtml(prices.standardPrice != null ? prices.standardPrice.toFixed(2) : "")}</standardPrice>\n`
+        + `  <price>${escapeHtml(prices.billedPrice != null ? prices.billedPrice.toFixed(2) : "")}</price>\n`
+        + `  <amountPaid>${escapeHtml(z.amount.toFixed(2))}</amountPaid>\n`
         + `  <assignment>${escapeHtml(referenceLine)}</assignment>\n`
         + `</receiptExport>\n`;
     return { pdfBodyLines, pdfLayout, csvText, jsonText, xmlText };

@@ -154,7 +154,7 @@ export function PracticeTaskDetailDrawer({
                 : await transitionPracticeTask({ id: task.id, status, ...extra });
             toast(t("page.practice_tickets.task_updated_toast"), "success");
             onUpdated(updated);
-            if (status === "BACK") {
+            if (status === "BACK" || status === "DONE_RECEPTION") {
                 setShowReturnForm(false);
                 setReturnReason("");
                 void countOpenPracticeTasksForMe().then((n) => dispatchNavBadgeRefresh(n));
@@ -255,33 +255,29 @@ export function PracticeTaskDetailDrawer({
                                     canValidate &&
                                     task.status === "DONE_RECEPTION" &&
                                     step.status === "VALIDATED";
+                                const label = taskWorkflowStepLabel(t, step);
                                 return (
-                                    <button
-                                        key={step.status}
-                                        type="button"
-                                        className={[
-                                            "appointment-workflow-node",
-                                            i <= active ? "on" : "",
-                                            i === active ? "current" : "",
-                                            isNext ? "appointment-workflow-node--next" : "",
-                                        ]
-                                            .filter(Boolean)
-                                            .join(" ")}
-                                        title={taskWorkflowStepLabel(t, step)}
-                                        disabled={busy || !canClickWorkflowStep(i)}
-                                        onClick={() => onWorkflowStep(i)}
-                                    >
-                                        <Icon size={14} />
-                                    </button>
+                                    <div key={step.status} className="appointment-workflow-step">
+                                        <button
+                                            type="button"
+                                            className={[
+                                                "appointment-workflow-node",
+                                                i <= active ? "on" : "",
+                                                i === active ? "current" : "",
+                                                isNext ? "appointment-workflow-node--next" : "",
+                                            ]
+                                                .filter(Boolean)
+                                                .join(" ")}
+                                            title={label}
+                                            disabled={busy || !canClickWorkflowStep(i)}
+                                            onClick={() => onWorkflowStep(i)}
+                                        >
+                                            <Icon size={14} />
+                                        </button>
+                                        <span className="appointment-workflow-label">{label}</span>
+                                    </div>
                                 );
                             })}
-                        </div>
-                        <div className="appointment-workflow-captions">
-                            {TASK_WORKFLOW_STEPS.map((step) => (
-                                <span key={step.status} className="appointment-workflow-label">
-                                    {taskWorkflowStepLabel(t, step)}
-                                </span>
-                            ))}
                         </div>
                     </div>
 

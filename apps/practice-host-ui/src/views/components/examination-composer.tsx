@@ -52,7 +52,8 @@ function initialDataFromRecord(row: ExaminationComposerInitial): ExaminationV1 {
 
 function hasExamContent(data: ExaminationV1): boolean {
     if (data.generalNote.trim() || data.diagnosis.trim()) return true;
-    return Object.values(data.toothNotes).some((n) => n.trim());
+    if (Object.values(data.toothNotes).some((n) => n.trim())) return true;
+    return Object.values(data.toothStatuses).some((n) => n.trim());
 }
 
 function catalogDefaultCost(item: TreatmentCatalogItem | null): string {
@@ -66,7 +67,7 @@ interface Props {
     findings: DentalFinding[];
     /** Treatment catalog (`treatment_catalog`) — predefined examination price on create. */
     catalog?: TreatmentCatalogItem[];
-    onApplyTooth: (tooth: number, statusKey: string) => Promise<void>;
+    onApplyTooth: (tooth: number, statusKey: string, notes?: string | null) => Promise<void>;
     onCancel: () => void;
     onSave: (data: ExaminationSubmit) => Promise<void>;
     initialFromRecord?: ExaminationComposerInitial;
@@ -120,9 +121,9 @@ export function ExaminationComposer({
     const setToothNote = (tooth: string, note: string) => {
         setData((prev) => {
             const next = { ...prev.toothNotes };
-            const trimmed = note.trim();
-            if (!trimmed) delete next[tooth];
-            else next[tooth] = trimmed;
+            // Do not trim on each keystroke — that blocks spaces between words.
+            if (!note) delete next[tooth];
+            else next[tooth] = note;
             return { ...prev, toothNotes: next };
         });
     };
@@ -131,7 +132,15 @@ export function ExaminationComposer({
         if (!selectedTooth || locked || statusBusy) return;
         setStatusBusy(true);
         try {
-            await onApplyTooth(Number(selectedTooth), statusBrush);
+            setData((prev) => ({
+                ...prev,
+                toothStatuses: { ...prev.toothStatuses, [selectedTooth]: statusBrush },
+            }));
+            await onApplyTooth(
+                Number(selectedTooth),
+                statusBrush,
+                data.toothNotes[selectedTooth] ?? null,
+            );
         } finally {
             setStatusBusy(false);
         }
@@ -153,7 +162,20 @@ export function ExaminationComposer({
             await onSave({
                 chiefComplaint,
                 diagnosis,
-                resultsJson: JSON.stringify({ ...data, version: 1 }),
+                resultsJson: JSON.stringify({
+                    ...data,
+                    toothNotes: Object.fromEntries(
+                        Object.entries(data.toothNotes)
+                            .map(([tooth, note]) => [tooth, note.trim()] as const)
+                            .filter(([, note]) => note.length > 0),
+                    ),
+                    toothStatuses: Object.fromEntries(
+                        Object.entries(data.toothStatuses)
+                            .map(([tooth, status]) => [tooth, status.trim().toLowerCase()] as const)
+                            .filter(([, status]) => status.length > 0),
+                    ),
+                    version: 1,
+                }),
                 category: catalogService?.category?.trim() || null,
                 serviceName: catalogService?.name?.trim() || null,
                 totalCost: totalCostNum,

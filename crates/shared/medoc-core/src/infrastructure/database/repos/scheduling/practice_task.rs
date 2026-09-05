@@ -87,6 +87,88 @@ pub async fn insert_billing_for_clinical_line(
     insert(pool, &data, p.created_by).await
 }
 
+/// When a payment is fully `PAID`, close open BILLING tasks for the same clinical line
+/// so `/tickets` no longer asks reception to fulfill payment that is already booked.
+pub async fn close_billing_tasks_after_payment_paid(
+    pool: &SqlitePool,
+    payment_id: &str,
+    treatment_id: Option<&str>,
+    examination_id: Option<&str>,
+) -> Result<(), AppError> {
+    if treatment_id.is_none() && examination_id.is_none() {
+        return Ok(());
+    }
+    let ids: Vec<(String,)> = if let Some(bid) = treatment_id {
+        sqlx::query_as(
+            "SELECT id FROM practice_task
+             WHERE kind = 'BILLING' AND treatment_id = ?1
+               AND status NOT IN ('VALIDATED')",
+        )
+        .bind(bid)
+        .fetch_all(pool)
+        .await?
+    } else if let Some(uid) = examination_id {
+        sqlx::query_as(
+            "SELECT id FROM practice_task
+             WHERE kind = 'BILLING' AND examination_id = ?1
+               AND status NOT IN ('VALIDATED')",
+        )
+        .bind(uid)
+        .fetch_all(pool)
+        .await?
+    } else {
+        Vec::new()
+    };
+    for (id,) in ids {
+        update_status(
+            pool,
+            &id,
+            "VALIDATED",
+            Some("Closed automatically after payment"),
+            Some(payment_id),
+            None,
+        )
+        .await?;
+    }
+    Ok(())
+}
+
+async fn clinical_line_already_fully_paid(
+    pool: &SqlitePool,
+    total_cost: Option<f64>,
+    treatment_id: Option<&str>,
+    examination_id: Option<&str>,
+) -> Result<bool, AppError> {
+    const EPS: f64 = 1e-6;
+    let Some(target) = total_cost.filter(|g| g.is_finite() && *g > EPS) else {
+        return Ok(false);
+    };
+    let paid: f64 = if let Some(bid) = treatment_id {
+        sqlx::query_scalar(
+            "SELECT COALESCE(SUM(amount), 0) FROM payment
+             WHERE treatment_id = ?1
+               AND TRIM(UPPER(COALESCE(status, ''))) = 'PAID'",
+        )
+        .bind(bid)
+        .fetch_one(pool)
+        .await
+        .unwrap_or(0.0)
+    } else if let Some(uid) = examination_id {
+        sqlx::query_scalar(
+            "SELECT COALESCE(SUM(amount), 0) FROM payment
+             WHERE examination_id = ?1
+               AND TRIM(UPPER(COALESCE(status, ''))) = 'PAID'",
+        )
+        .bind(uid)
+        .fetch_one(pool)
+        .await
+        .unwrap_or(0.0)
+    } else {
+        return Ok(false);
+    };
+    Ok(paid + EPS >= target)
+}
+
 /// FA-AUFG-02 / G18 — idempotent auto-task after billable B/U save.
 pub async fn ensure_billing_task_for_clinical_line(
     pool: &SqlitePool,
@@ -99,6 +181,9 @@ pub async fn ensure_billing_task_for_clinical_line(
 ) -> Result<(), AppError> {
     use crate::domain::services::pricing;
     if !pricing::treatment_has_billable_service_item(service_name, total_cost) {
+        return Ok(());
+    }
+    if clinical_line_already_fully_paid(pool, total_cost, treatment_id, examination_id).await? {
         return Ok(());
     }
     let open: (i64,) = if let Some(bid) = treatment_id {
@@ -135,7 +220,7 @@ pub async fn ensure_billing_task_for_clinical_line(
         Some(g) => format!("{title} ({:.2} €)", g),
         None => title.clone(),
     };
-    insert_billing_for_clinical_line(
+    let task = insert_billing_for_clinical_line(
         pool,
         BillingTaskParams {
             patient_id,
@@ -149,6 +234,11 @@ pub async fn ensure_billing_task_for_clinical_line(
         },
     )
     .await?;
+    crate::application::practice_task_notify::notify_assignees_on_task_created(
+        pool, &task, created_by,
+    )
+    .await
+    .ok();
     Ok(())
 }
 

@@ -105,7 +105,8 @@ export function AuditPage() {
                         buildBundle={buildExportBundle}
                         defaultFormat="pdf"
                         disabled={total === 0 || !!loadError}
-                        showImport
+                        // TODO(later): restore Import — REPORT_IMPORT_UI_ENABLED + todos-deferred-ui-blinds.md
+                        // showImport
                     />
                 </div>
             </div>

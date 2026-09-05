@@ -13,6 +13,15 @@ vi.mock("@/systems/practice-host/controllers/in-app-notification.controller", ()
     markAllInAppNotificationsRead: vi.fn(),
 }));
 
+vi.mock("@/systems/practice-host/controllers/practice-task.controller", () => ({
+    listPracticeTasksForMe: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock("@/models/store/auth-store", () => ({
+    useAuthStore: (sel: (s: { session: { role: string } | null }) => unknown) =>
+        sel({ session: { role: "RECEPTION" } }),
+}));
+
 const TASK_DONE: InAppNotification = {
     id: "notif-aufg-1",
     user_id: "seed-physician-001",

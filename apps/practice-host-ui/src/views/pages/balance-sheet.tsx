@@ -110,7 +110,8 @@ export function BalanceSheetPage() {
                             dialogTitle={t("balance-sheet.export_title")}
                             buildBundle={buildExportBundle}
                             defaultFormat="pdf"
-                            showImport
+                            // TODO(later): restore Import — REPORT_IMPORT_UI_ENABLED + todos-deferred-ui-blinds.md
+                            // showImport
                         />
                         <Link to="/balance-sheet/new" className="btn btn-subtle">{t("balance-sheet.new_btn")}</Link>
                     </>

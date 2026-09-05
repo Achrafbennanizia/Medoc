@@ -4,6 +4,7 @@ use crate::domain::enums::PaymentMethod;
 use crate::domain::services::pricing;
 use crate::error::AppError;
 use crate::infrastructure::database::chart_repo;
+use crate::infrastructure::database::practice_task_repo;
 use sqlx::SqlitePool;
 
 /// Allowed tolerance for due/open checks (EUR) — frontend `PAYMENT_EUR_EPS` matches this value.
@@ -63,6 +64,62 @@ async fn refresh_payment_status(pool: &SqlitePool, id: &str) -> Result<(), AppEr
         .execute(pool)
         .await?;
     Ok(())
+}
+
+/// FA-LEIST-06 placeholder: open booking with amount ≈ 0 that should be filled in place
+/// when reception records the real payment (avoid a second “still outstanding” row).
+async fn find_zero_amount_open_booking_id(
+    pool: &SqlitePool,
+    patient_id: &str,
+    treatment_id: Option<&str>,
+    examination_id: Option<&str>,
+) -> Result<Option<String>, AppError> {
+    const EPS: f64 = 1e-6;
+    let row: Option<(String,)> = if let Some(bid) = treatment_id {
+        sqlx::query_as(
+            "SELECT id FROM payment
+             WHERE patient_id = ?1 AND treatment_id = ?2
+               AND amount <= ?3
+               AND TRIM(UPPER(COALESCE(status, ''))) IN ('OUTSTANDING', 'PARTIALLY_PAID')
+             ORDER BY datetime(created_at) ASC
+             LIMIT 1",
+        )
+        .bind(patient_id)
+        .bind(bid)
+        .bind(EPS)
+        .fetch_optional(pool)
+        .await?
+    } else if let Some(uid) = examination_id {
+        sqlx::query_as(
+            "SELECT id FROM payment
+             WHERE patient_id = ?1 AND examination_id = ?2
+               AND amount <= ?3
+               AND TRIM(UPPER(COALESCE(status, ''))) IN ('OUTSTANDING', 'PARTIALLY_PAID')
+             ORDER BY datetime(created_at) ASC
+             LIMIT 1",
+        )
+        .bind(patient_id)
+        .bind(uid)
+        .bind(EPS)
+        .fetch_optional(pool)
+        .await?
+    } else {
+        None
+    };
+    Ok(row.map(|r| r.0))
+}
+
+async fn after_payment_may_be_paid(pool: &SqlitePool, payment: &Payment) -> Result<(), AppError> {
+    if !payment.status.eq_ignore_ascii_case("PAID") {
+        return Ok(());
+    }
+    practice_task_repo::close_billing_tasks_after_payment_paid(
+        pool,
+        &payment.id,
+        payment.treatment_id.as_deref(),
+        payment.examination_id.as_deref(),
+    )
+    .await
 }
 
 pub async fn find_all(pool: &SqlitePool) -> Result<Vec<Payment>, AppError> {
@@ -251,6 +308,52 @@ pub async fn create(pool: &SqlitePool, data: &CreatePayment) -> Result<Payment, 
 
     let status = compute_payment_status(amount, amount_expected);
 
+    // Prefer filling the FA-LEIST-06 0 € open booking instead of inserting a second row
+    // that leaves an “unfulfilled” outstanding payment on the billing list.
+    if !is_placeholder {
+        if let Some(existing_id) = find_zero_amount_open_booking_id(
+            pool,
+            &data.patient_id,
+            data.treatment_id.as_deref(),
+            data.examination_id.as_deref(),
+        )
+        .await?
+        {
+            sqlx::query(
+                "UPDATE payment SET
+                    amount = ?1,
+                    payment_method = ?2,
+                    status = ?3,
+                    service_item_id = ?4,
+                    description = COALESCE(?5, description),
+                    amount_expected = ?6
+                 WHERE id = ?7",
+            )
+            .bind(amount)
+            .bind(&payment_method)
+            .bind(status)
+            .bind(&data.service_item_id)
+            .bind(&data.description)
+            .bind(amount_expected)
+            .bind(&existing_id)
+            .execute(pool)
+            .await?;
+
+            let updated = sqlx::query_as::<_, Payment>("SELECT * FROM payment WHERE id = ?1")
+                .bind(&existing_id)
+                .fetch_one(pool)
+                .await?;
+            let body = serde_json::to_string(&updated)
+                .unwrap_or_else(|_| format!("{{\"id\":\"{existing_id}\"}}"));
+            crate::infrastructure::database::sync_outbox::record_or_noop(
+                pool, "payment", &existing_id, "UPDATE", &body,
+            )
+            .await?;
+            after_payment_may_be_paid(pool, &updated).await?;
+            return Ok(updated);
+        }
+    }
+
     sqlx::query(
         "INSERT INTO payment (id, patient_id, amount, payment_method, status, service_item_id, description, treatment_id, examination_id, amount_expected, cash_verified)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 0)",
@@ -277,7 +380,42 @@ pub async fn create(pool: &SqlitePool, data: &CreatePayment) -> Result<Payment, 
         pool, "payment", &id, "INSERT", &body,
     )
     .await?;
+    after_payment_may_be_paid(pool, &inserted).await?;
     Ok(inserted)
+}
+
+fn open_booking_description(service_name: Option<&str>, total_cost: Option<f64>) -> String {
+    let name = service_name
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or("Service");
+    match total_cost.filter(|g| g.is_finite() && *g > OPEN_BOOKING_TOLERANCE_EUR) {
+        Some(g) => format!("{name} — open billing ({g:.2} €)"),
+        None => format!("{name} — open billing"),
+    }
+}
+
+async fn refresh_zero_open_booking_from_clinical(
+    pool: &SqlitePool,
+    payment_id: &str,
+    amount_expected: Option<f64>,
+    description: &str,
+) -> Result<(), AppError> {
+    sqlx::query(
+        "UPDATE payment SET
+            amount_expected = ?1,
+            description = ?2
+         WHERE id = ?3
+           AND amount <= ?4
+           AND TRIM(UPPER(COALESCE(status, ''))) IN ('OUTSTANDING', 'PARTIALLY_PAID')",
+    )
+    .bind(amount_expected)
+    .bind(description)
+    .bind(payment_id)
+    .bind(OPEN_BOOKING_TOLERANCE_EUR)
+    .execute(pool)
+    .await?;
+    Ok(())
 }
 
 /// FA-LEIST-06: implicit release + open booking (`OUTSTANDING`, 0 €) for billable treatment.
@@ -309,21 +447,29 @@ pub async fn ensure_open_booking_for_billable_treatment(
     let Some((patient_id,)) = row else {
         return Ok(());
     };
-    let n: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM payment
-         WHERE patient_id = ?1 AND treatment_id = ?2
-           AND (status IS NULL OR TRIM(UPPER(status)) != 'CANCELLED')",
-    )
-    .bind(&patient_id)
-    .bind(treatment_id)
-    .fetch_one(pool)
-    .await?;
-    if n.0 > 0 {
-        return Ok(());
-    }
     let amount_expected = b
         .total_cost
         .filter(|g| g.is_finite() && *g > OPEN_BOOKING_TOLERANCE_EUR);
+    let description = open_booking_description(b.service_name.as_deref(), b.total_cost);
+
+    let existing: Option<(String, f64)> = sqlx::query_as(
+        "SELECT id, amount FROM payment
+         WHERE patient_id = ?1 AND treatment_id = ?2
+           AND (status IS NULL OR TRIM(UPPER(status)) != 'CANCELLED')
+         ORDER BY datetime(created_at) ASC
+         LIMIT 1",
+    )
+    .bind(&patient_id)
+    .bind(treatment_id)
+    .fetch_optional(pool)
+    .await?;
+    if let Some((id, amt)) = existing {
+        if amt <= OPEN_BOOKING_TOLERANCE_EUR {
+            refresh_zero_open_booking_from_clinical(pool, &id, amount_expected, &description).await?;
+        }
+        return Ok(());
+    }
+
     create(
         pool,
         &CreatePayment {
@@ -331,9 +477,7 @@ pub async fn ensure_open_booking_for_billable_treatment(
             amount: 0.0,
             payment_method: PaymentMethod::Invoice,
             service_item_id: None,
-            description: Some(
-                "Created automatically after service entry: open billing (FA-LEIST-06).".into(),
-            ),
+            description: Some(description),
             treatment_id: Some(treatment_id.to_string()),
             examination_id: None,
             amount_expected,
@@ -373,21 +517,29 @@ pub async fn ensure_open_booking_for_billable_examination(
     let Some((patient_id,)) = row else {
         return Ok(());
     };
-    let n: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM payment
-         WHERE patient_id = ?1 AND examination_id = ?2
-           AND (status IS NULL OR TRIM(UPPER(status)) != 'CANCELLED')",
-    )
-    .bind(&patient_id)
-    .bind(examination_id)
-    .fetch_one(pool)
-    .await?;
-    if n.0 > 0 {
-        return Ok(());
-    }
     let amount_expected = u
         .total_cost
         .filter(|g| g.is_finite() && *g > OPEN_BOOKING_TOLERANCE_EUR);
+    let description = open_booking_description(u.service_name.as_deref(), u.total_cost);
+
+    let existing: Option<(String, f64)> = sqlx::query_as(
+        "SELECT id, amount FROM payment
+         WHERE patient_id = ?1 AND examination_id = ?2
+           AND (status IS NULL OR TRIM(UPPER(status)) != 'CANCELLED')
+         ORDER BY datetime(created_at) ASC
+         LIMIT 1",
+    )
+    .bind(&patient_id)
+    .bind(examination_id)
+    .fetch_optional(pool)
+    .await?;
+    if let Some((id, amt)) = existing {
+        if amt <= OPEN_BOOKING_TOLERANCE_EUR {
+            refresh_zero_open_booking_from_clinical(pool, &id, amount_expected, &description).await?;
+        }
+        return Ok(());
+    }
+
     create(
         pool,
         &CreatePayment {
@@ -395,9 +547,7 @@ pub async fn ensure_open_booking_for_billable_examination(
             amount: 0.0,
             payment_method: PaymentMethod::Invoice,
             service_item_id: None,
-            description: Some(
-                "Created automatically after service entry: open billing (FA-LEIST-06/07).".into(),
-            ),
+            description: Some(description),
             treatment_id: None,
             examination_id: Some(examination_id.to_string()),
             amount_expected,
@@ -567,6 +717,7 @@ pub async fn update_fields(pool: &SqlitePool, data: &UpdatePayment) -> Result<Pa
         pool, "payment", &data.id, "UPDATE", &body,
     )
     .await?;
+    after_payment_may_be_paid(pool, &updated).await?;
     Ok(updated)
 }
 
@@ -611,6 +762,7 @@ pub async fn update_status(pool: &SqlitePool, id: &str, status: &str) -> Result<
         pool, "payment", id, "UPDATE", &body,
     )
     .await?;
+    after_payment_may_be_paid(pool, &updated).await?;
     Ok(updated)
 }
 

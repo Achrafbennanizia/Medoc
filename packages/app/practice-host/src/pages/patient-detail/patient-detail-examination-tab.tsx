@@ -30,7 +30,7 @@ export type PatientDetailExaminationTabProps = {
     onCancelDelete: () => void;
     onConfirmDelete: () => void | Promise<void>;
     onCloseComposer: () => void;
-    onApplyTooth: (tooth: number, statusKey: string) => Promise<void>;
+    onApplyTooth: (tooth: number, statusKey: string, notes?: string | null) => Promise<void>;
     onSaveEdit: (payload: ExaminationSubmit) => Promise<void>;
     onCreateExamination: (payload: ExaminationSubmit) => Promise<void>;
 };

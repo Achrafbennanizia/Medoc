@@ -6002,7 +6002,7 @@ html[data-theme="dark"] {
     margin-top: 12px;
   }
   .settings-practice-billing-notice {
-    margin: 0 var(--card-pad-x) var(--space-3);
+    margin: var(--space-3) var(--card-pad-x) var(--space-3);
   }
   .settings-serverless-audit-block {
     margin-bottom: 12px;
@@ -11206,25 +11206,23 @@ body.appointment-calendar-dragging .appointment-appt-block:not(.appointment-appt
   font-size: 14px;
 }
 .appointment-workflow-simple {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px 4px;
   margin-top: 10px;
   padding: 0 4px;
 }
-.appointment-workflow-captions {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 4px;
-  margin-top: 6px;
-}
-.appointment-workflow-captions .appointment-workflow-label {
-  display: block;
+.appointment-workflow-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
 }
 .appointment-workflow-node {
   width: 34px;
   height: 34px;
+  flex-shrink: 0;
   border-radius: 999px;
   border: 2px solid var(--line-strong);
   background: var(--bg-elev);
@@ -11249,11 +11247,14 @@ body.appointment-calendar-dragging .appointment-appt-block:not(.appointment-appt
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 16%, transparent);
 }
 .appointment-workflow-label {
+  display: block;
+  width: 100%;
   font-size: 10px;
   font-weight: 600;
   color: var(--fg-3);
   text-align: center;
   line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 .appointment-drawer-note {
   margin: 16px 0;

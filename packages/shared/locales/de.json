@@ -755,6 +755,10 @@
   "document.print.active_ingredient": "Wirkstoff",
   "document.print.address": "Adresse: {address}",
   "document.print.amount": "Betrag",
+  "document.print.standard_price": "Standardpreis",
+  "document.print.price": "Preis",
+  "document.print.amount_paid": "Gezahlter Betrag",
+  "document.print.total": "Gesamt",
   "document.print.amount_received": "Betrag dankend erhalten.",
   "document.print.assignment": "Zuordnung",
   "document.print.aut_idem": "Aut-idem (kein Austausch)",
@@ -4538,5 +4542,10 @@
   "v1.billing.manufacturer_portal_hint": "Hersteller-Portal nicht konfiguriert — Rechnungen ggf. im klassischen Abo-Portal.",
   "v1.billing.portal_unavailable": "Abo-Portal derzeit nicht verfügbar (offline oder nicht konfiguriert).",
   "v1.migration.adapters_disabled": "Geräte-Adapter (GDT/DICOM/Scanner) sind in dieser Version deaktiviert.",
-  "work_time.stale_closed_banner": "{count} offene Arbeitszeit-Sitzung(en) vom Vortag wurden als unbeendet abgeschlossen."
+  "work_time.stale_closed_banner": "{count} offene Arbeitszeit-Sitzung(en) vom Vortag wurden als unbeendet abgeschlossen.",
+  "app.notifications.task_open": "Offene Aufgabe für Sie",
+  "app.notifications.task_returned": "Zurückgegeben — bitte bearbeiten",
+  "app.notifications.task_needs_validation": "Bereit zur Freigabe",
+  "app.notifications.show_tasks": "Meine Aufgaben",
+  "app.notifications.show_tasks_count": "Meine Aufgaben ({{count}})"
 }

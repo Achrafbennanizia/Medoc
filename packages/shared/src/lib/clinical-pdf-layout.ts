@@ -5,7 +5,14 @@
 
 import type { Certificate } from "@/systems/practice-host/controllers/certificate.controller";
 import type { Prescription } from "@/systems/practice-host/controllers/prescription.controller";
-import type { Patient, Treatment, Examination, Payment } from "@/models/types";
+import type {
+    Patient,
+    Treatment,
+    Examination,
+    Payment,
+    TreatmentCatalogItem,
+    ServiceItem,
+} from "@/models/types";
 import { translateLocale, translateLocaleParams, useLocale } from "@/lib/i18n";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import { getInvoicePracticeFromStorage } from "@/lib/invoice-service-item";
@@ -13,6 +20,7 @@ import { buildClinicalTemplateHeaderLines } from "@/lib/clinical-document-pdf";
 import { emptyDocumentTemplatePayloadV1, type PracticeFieldKey } from "@/lib/document-template-schema";
 import { loadPracticeHeaderPrivacy } from "@/lib/practice-header-privacy";
 import { formatPaymentReferenceLine, paymentStatusDisplay, paymentMethodLabel } from "@/lib/payment-booking";
+import { resolveCatalogIdForTreatment } from "@/lib/patient-detail-utils";
 
 const docT = (key: string) => translateLocale(useLocale.getState().locale, key);
 const docTp = (key: string, params: Record<string, string | number>) =>
@@ -272,12 +280,98 @@ export function buildPrescriptionComboPdfLayout(items: Prescription[], patient: 
     };
 }
 
+/** Prices shown on the patient receipt: catalog standard, charged line, amount paid. */
+export type ReceiptPriceBreakdown = {
+    standardPrice: number | null;
+    billedPrice: number | null;
+    paidPrice: number;
+};
+
+function moneyOrDash(n: number | null | undefined): string {
+    if (n == null || !Number.isFinite(n)) return "—";
+    return formatCurrency(n);
+}
+
+export function receiptPriceBreakdown(
+    z: Payment,
+    treatments: Treatment[],
+    examinations: Examination[],
+    catalog: TreatmentCatalogItem[] = [],
+    services: ServiceItem[] = [],
+): ReceiptPriceBreakdown {
+    const paidPrice = z.amount;
+    let billedPrice: number | null = null;
+    let serviceName = "";
+
+    if (z.treatment_id) {
+        const b = treatments.find((t) => t.id === z.treatment_id);
+        if (b) {
+            serviceName = (b.service_name || b.description || b.kind || "").trim();
+            if (b.total_cost != null && Number.isFinite(b.total_cost)) {
+                billedPrice = b.total_cost;
+            }
+        }
+    } else if (z.examination_id) {
+        const u = examinations.find((e) => e.id === z.examination_id);
+        if (u) {
+            serviceName = (u.service_name || "").trim();
+            if (u.total_cost != null && Number.isFinite(u.total_cost)) {
+                billedPrice = u.total_cost;
+            }
+        }
+    }
+
+    if (
+        billedPrice == null
+        && z.amount_expected != null
+        && Number.isFinite(z.amount_expected)
+        && z.amount_expected > 0
+    ) {
+        billedPrice = z.amount_expected;
+    }
+
+    let standardPrice: number | null = null;
+    if (z.service_item_id) {
+        const si = services.find((s) => s.id === z.service_item_id);
+        if (si && Number.isFinite(si.price)) {
+            standardPrice = si.price;
+        }
+    }
+    if (standardPrice == null && z.treatment_id) {
+        const b = treatments.find((t) => t.id === z.treatment_id);
+        if (b) {
+            const catId = resolveCatalogIdForTreatment(catalog, b);
+            const cat = catalog.find((k) => k.id === catId);
+            if (cat?.default_cost != null && Number.isFinite(cat.default_cost)) {
+                standardPrice = cat.default_cost;
+            }
+        }
+    }
+    if (standardPrice == null && serviceName) {
+        const exact = catalog.find((k) => k.active !== 0 && k.name === serviceName);
+        const fuzzy =
+            exact
+            ?? catalog.find(
+                (k) =>
+                    k.active !== 0
+                    && (serviceName.includes(k.name) || k.name.includes(serviceName)),
+            );
+        if (fuzzy?.default_cost != null && Number.isFinite(fuzzy.default_cost)) {
+            standardPrice = fuzzy.default_cost;
+        }
+    }
+
+    return { standardPrice, billedPrice, paidPrice };
+}
+
 export function buildReceiptPdfLayout(
     z: Payment,
     patient: Patient,
     treatments: Treatment[],
     examinations: Examination[],
     receiptNumber: string,
+    catalog: TreatmentCatalogItem[] = [],
+    services: ServiceItem[] = [],
 ): ClinicalPdfLayout {
     const reference = receiptServiceDescription(z, treatments, examinations);
     const practice = getInvoicePracticeFromStorage();
@@ -285,7 +379,8 @@ export function buildReceiptPdfLayout(
         (practice.vat_exemption_notice ?? "").trim() || "VAT-exempt under § 4 No. 14 UStG";
 
     const payDate = formatClinicalDate(z.created_at);
-    const amount = formatCurrency(z.amount);
+    const prices = receiptPriceBreakdown(z, treatments, examinations, catalog, services);
+    const paid = formatCurrency(prices.paidPrice);
 
     return {
         kind: "receipt",
@@ -325,9 +420,10 @@ export function buildReceiptPdfLayout(
         ],
         detailRecords: [],
         totals: [
-            { label: "Material costs", value: formatCurrency(0) },
-            { label: "Fee", value: amount },
-            { label: "Total", value: amount },
+            { label: docT("document.print.standard_price"), value: moneyOrDash(prices.standardPrice) },
+            { label: docT("document.print.price"), value: moneyOrDash(prices.billedPrice) },
+            { label: docT("document.print.amount_paid"), value: paid },
+            { label: docT("document.print.total"), value: paid },
         ],
         closingParagraphs: [
             `Payment method: ${paymentMethodLabel(z.payment_method, docT)} · Status: ${paymentStatusDisplay(z.status, docT).label}`,

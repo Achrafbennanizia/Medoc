@@ -12,6 +12,12 @@ vi.mock("@/systems/practice-host/controllers/chart.controller", () => ({
 vi.mock("@/systems/practice-host/controllers/invoice.controller", () => ({
     allocateReceiptNumber: vi.fn(),
 }));
+vi.mock("@/systems/practice-host/controllers/practice.controller", () => ({
+    listTreatmentCatalog: vi.fn(async () => []),
+}));
+vi.mock("@/systems/practice-host/controllers/service-item.controller", () => ({
+    listServices: vi.fn(async () => []),
+}));
 vi.mock("@/lib/invoice-service-item", () => ({
     getInvoicePracticeFromStorage: vi.fn(() => ({
         name: "Test practice",
@@ -63,6 +69,10 @@ describe("receipt-export-flow (GAP-11)", () => {
         expect(payload.kind).toBe("receipt");
         expect(payload.exportPreviewTitle).toContain("Lena Hoffmann");
         expect(payload.bundle.pdfLayout?.kind).toBe("receipt");
+        const totals = payload.bundle.pdfLayout?.totals ?? [];
+        expect(totals.map((row) => row.label)).toEqual(
+            expect.arrayContaining(["Standard price", "Price", "Amount paid", "Total"]),
+        );
         expect(allocateReceiptNumber).toHaveBeenCalled();
     });
 

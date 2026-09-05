@@ -178,6 +178,21 @@ function assignmentKeyExamination(id: string): string {
     return `examination:${id}`;
 }
 
+/** Parse assignment select values (`treatment:…` / `examination:…`; legacy `unter:…`). */
+export function parsePaymentLinkValue(
+    raw: string,
+): { kind: "treatment" | "examination"; id: string } | null {
+    const version = raw.trim();
+    if (!version.includes(":")) return null;
+    const i = version.indexOf(":");
+    const kindRaw = version.slice(0, i);
+    const id = version.slice(i + 1).trim();
+    if (!id) return null;
+    if (kindRaw === "treatment") return { kind: "treatment", id };
+    if (kindRaw === "examination" || kindRaw === "unter") return { kind: "examination", id };
+    return null;
+}
+
 /** For new payment assignment: line still open (remaining target or pending/partial bookings). */
 export function assignmentStillOpenForNewPayment(
     payments: Payment[],
@@ -186,10 +201,9 @@ export function assignmentStillOpenForNewPayment(
     examinations: Examination[],
     linkValue: string,
 ): boolean {
-    if (!linkValue.includes(":")) return true;
-    const i = linkValue.indexOf(":");
-    const kind = linkValue.slice(0, i);
-    const id = linkValue.slice(i + 1);
+    const parsed = parsePaymentLinkValue(linkValue);
+    if (!parsed) return true;
+    const { kind, id } = parsed;
     if (kind === "treatment") {
         const bh = treatments.find((b) => b.id === id);
         const ges =
@@ -208,7 +222,7 @@ export function assignmentStillOpenForNewPayment(
         if (rowsBh.length === 0) return true;
         return rowsBh.some((z) => z.status === "OUTSTANDING" || z.status === "PARTIALLY_PAID");
     }
-    if (kind === "examination" || kind === "unter") {
+    if (kind === "examination") {
         const u = examinations.find((x) => x.id === id);
         const ges =
             u?.total_cost != null && Number.isFinite(u.total_cost) ? u.total_cost : null;
@@ -437,8 +451,8 @@ export function buildPaymentLinkSelectOptions(
     for (const u of examinations) {
         const un = (u.examination_number ?? "").trim();
         const unr = un ? tp("payment.link.u_nr", { nr: un }) : t("payment.link.u_nr_missing");
-        const line = (u.diagnosis || t("payment.link.examination")).trim();
-        opts.push({ value: `unter:${u.id}`, label: line ? `${unr} — ${line}` : unr });
+        const line = (u.service_name || u.diagnosis || t("payment.link.examination")).trim();
+        opts.push({ value: `examination:${u.id}`, label: line ? `${unr} — ${line}` : unr });
     }
     return opts;
 }

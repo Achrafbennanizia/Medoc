@@ -101,6 +101,7 @@ Re-enable checklist: [`todos-deferred-v1-surfaces.md`](todos-deferred-v1-surface
 | Topic | Document |
 | ----- | -------- |
 | v1 surface blinds | [`todos-deferred-v1-surfaces.md`](todos-deferred-v1-surfaces.md) |
+| Incomplete UI options skipped for now (Export/Import blinds, …) | [`todos-deferred-ui-blinds.md`](todos-deferred-ui-blinds.md) |
 | Advisor roles re-enable | [`todos-deferred-roles.md`](todos-deferred-roles.md) |
 | Datenschutz UI re-enable | [`todos-deferred-features.md`](todos-deferred-features.md) |
 | Gap IDs & v0.1 scope | [`gap-deferrals-v0.1.md`](gap-deferrals-v0.1.md) |

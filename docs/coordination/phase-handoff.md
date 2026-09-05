@@ -1,6 +1,25 @@
 # Phase handoff
 
-**Last phase label:** USB installer license key + no auto-activate (2026-09-02)
+**Last phase label:** Payment fulfills open booking (2026-09-05)
+
+### Verified (2026-09-05 — payment → billing list)
+
+- Recording a real payment **updates** the FA-LEIST-06 0 € `OUTSTANDING` open booking in place (no second “still to fulfill” row).
+- When status becomes `PAID`, matching open `BILLING` practice tasks are set to `VALIDATED` with `payment_id`.
+- `ensure_billing_task_for_clinical_line` skips create if the clinical line is already fully paid.
+- `cargo test -p medoc --test payment_repo_tests` **PASS** (6).
+
+### Remains unverified
+
+- Click-through in Finance / patient payment / tickets after pay — **NOT OBSERVED**.
+
+### Required next
+
+1. Record a payment against an auto-open booking and confirm finance shows one `PAID` row and tickets no longer list “Payment erfassen”.
+
+---
+
+
 
 ### Verified (2026-09-02 — installer license UI)
 

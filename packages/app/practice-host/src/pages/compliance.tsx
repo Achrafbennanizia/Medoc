@@ -286,7 +286,8 @@ export function CompliancePage({ embedded = false }: CompliancePageProps = {}) {
                                     dialogTitle={t("page.compliance.export_title")}
                                     buildBundle={buildExportBundle}
                                     defaultFormat="pdf"
-                                    showImport
+                                    // TODO(later): restore Import — REPORT_IMPORT_UI_ENABLED + todos-deferred-ui-blinds.md
+                                    // showImport
                                 />
                                 <Button type="button" variant="secondary" onClick={printReport}>
                                     {t("page.compliance.btn.print")}

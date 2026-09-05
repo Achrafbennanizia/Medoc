@@ -124,6 +124,13 @@ pub async fn create_practice_task(
     }
 
     let a = practice_task_repo::insert(&pool, &payload, &session.user_id).await?;
+    crate::application::practice_task_notify::notify_assignees_on_task_created(
+        &pool,
+        &a,
+        &session.user_id,
+    )
+    .await
+    .ok();
     audit_repo::create(
         &pool,
         &session.user_id,
@@ -333,6 +340,13 @@ pub async fn create_practice_task_admin(
     }
 
     let a = practice_task_repo::insert(&pool, &payload, &session.user_id).await?;
+    crate::application::practice_task_notify::notify_assignees_on_task_created(
+        &pool,
+        &a,
+        &session.user_id,
+    )
+    .await
+    .ok();
     audit_repo::create(
         &pool,
         &session.user_id,

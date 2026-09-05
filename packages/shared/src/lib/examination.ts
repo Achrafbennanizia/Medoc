@@ -1,4 +1,5 @@
-import type { Examination } from "@/models/types";
+import type { Examination, DentalFinding } from "@/models/types";
+import { findingToStatusKey } from "@/lib/dental";
 
 export interface ExaminationV1 {
     version: 1;
@@ -37,6 +38,8 @@ export interface ExaminationV1 {
     generalNote: string;
     /** Per-FDI-tooth findings documented during this exam (e.g. "11" → note). */
     toothNotes: Record<string, string>;
+    /** Per-FDI dental status keys applied during this exam (e.g. "11" → "caries"). */
+    toothStatuses: Record<string, string>;
 }
 
 export const EXAMINATION_V1_EMPTY: ExaminationV1 = {
@@ -56,6 +59,7 @@ export const EXAMINATION_V1_EMPTY: ExaminationV1 = {
     plan: "",
     generalNote: "",
     toothNotes: {},
+    toothStatuses: {},
 };
 
 function isRecord(x: unknown): x is Record<string, unknown> {
@@ -86,6 +90,7 @@ export function normalizeExaminationV1(parsed: unknown): ExaminationV1 | null {
     const fn = isRecord(parsed.function) ? parsed.function : {};
     const img = isRecord(parsed.imaging) ? parsed.imaging : {};
     const toothRaw = isRecord(parsed.toothNotes) ? parsed.toothNotes : {};
+    const statusRaw = isRecord(parsed.toothStatuses) ? parsed.toothStatuses : {};
 
     return {
         version: 1,
@@ -133,6 +138,11 @@ export function normalizeExaminationV1(parsed: unknown): ExaminationV1 | null {
                 .filter(([k, version]) => /^\d{1,2}$/.test(k) && typeof version === "string" && version.trim())
                 .map(([k, version]) => [k, (version as string).trim()]),
         ),
+        toothStatuses: Object.fromEntries(
+            Object.entries(statusRaw)
+                .filter(([k, version]) => /^\d{1,2}$/.test(k) && typeof version === "string" && version.trim())
+                .map(([k, version]) => [k, (version as string).trim().toLowerCase()]),
+        ),
     };
 }
 
@@ -158,6 +168,7 @@ export function hasExamContent(data: ExaminationV1): boolean {
         return true;
     }
     if (Object.values(data.toothNotes).some((n) => n.trim())) return true;
+    if (Object.values(data.toothStatuses).some((n) => n.trim())) return true;
     const { extraoral, intraoral, psi, function: fn, imaging } = data;
     if (
         extraoral.asymmetry.trim() ||
@@ -218,6 +229,57 @@ export function examinationToothNotesForTooth(examinations: Examination[], fdi: 
         });
     }
     return out.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+/**
+ * Upsert chart `dental_finding` rows from examination tooth notes/statuses
+ * so Tooth status (header odontogram) reflects the new examination.
+ */
+export function dentalFindingUpsertsFromExamination(
+    chartId: string,
+    resultsJson: string,
+    existingFindings: DentalFinding[],
+): Array<{
+    chart_id: string;
+    tooth_number: number;
+    finding: string;
+    notes: string | null;
+    diagnosis: string | null;
+}> {
+    const parsed = parseExaminationV1(resultsJson);
+    if (!parsed) return [];
+    const teeth = new Set([
+        ...Object.keys(parsed.toothNotes),
+        ...Object.keys(parsed.toothStatuses),
+    ]);
+    const out: Array<{
+        chart_id: string;
+        tooth_number: number;
+        finding: string;
+        notes: string | null;
+        diagnosis: string | null;
+    }> = [];
+    for (const tooth of teeth) {
+        const tooth_number = Number(tooth);
+        if (!Number.isInteger(tooth_number)) continue;
+        const existing = existingFindings.find((b) => b.tooth_number === tooth_number);
+        const note = (parsed.toothNotes[tooth] ?? "").trim();
+        const statusRaw = (parsed.toothStatuses[tooth] ?? "").trim().toLowerCase();
+        const statusFromNote = findingToStatusKey(note);
+        let finding = statusRaw || existing?.finding || "";
+        if (!finding || finding === "healthy") {
+            finding = statusFromNote !== "healthy" ? statusFromNote : finding || "healthy";
+        }
+        if (!finding.trim() && !note) continue;
+        out.push({
+            chart_id: chartId,
+            tooth_number,
+            finding: finding.trim() || "healthy",
+            notes: note || existing?.notes || null,
+            diagnosis: existing?.diagnosis ?? null,
+        });
+    }
+    return out;
 }
 
 /** Next `U-{year}-{nnn}` per chart — same sequence as the SQLite `examination_number` helper in Rust. */

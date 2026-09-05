@@ -755,6 +755,10 @@
   "document.print.active_ingredient": "Active ingredient",
   "document.print.address": "Address: {address}",
   "document.print.amount": "Amount",
+  "document.print.standard_price": "Standard price",
+  "document.print.price": "Price",
+  "document.print.amount_paid": "Amount paid",
+  "document.print.total": "Total",
   "document.print.amount_received": "Amount gratefully received.",
   "document.print.assignment": "Assignment",
   "document.print.aut_idem": "Aut-idem (no substitution)",
@@ -4538,5 +4542,10 @@
   "v1.billing.manufacturer_portal_hint": "Manufacturer portal not configured — invoices may be in the classic subscription portal.",
   "v1.billing.portal_unavailable": "Subscription portal unavailable (offline or not configured).",
   "v1.migration.adapters_disabled": "Device adapters (GDT/DICOM/scanner) are disabled in this version.",
-  "work_time.stale_closed_banner": "{count} open work-time session(s) from a prior day were closed as unfinished."
+  "work_time.stale_closed_banner": "{count} open work-time session(s) from a prior day were closed as unfinished.",
+  "app.notifications.task_open": "Open task for you",
+  "app.notifications.task_returned": "Returned — needs attention",
+  "app.notifications.task_needs_validation": "Ready for validation",
+  "app.notifications.show_tasks": "My tasks",
+  "app.notifications.show_tasks_count": "My tasks ({{count}})"
 }

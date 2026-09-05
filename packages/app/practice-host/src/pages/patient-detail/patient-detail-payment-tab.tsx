@@ -16,6 +16,9 @@ import {
     paymentHistoryForExamination,
     paymentStatusDisplay,
     paymentMethodLabel,
+    maxNewPaymentTreatment,
+    maxNewPaymentExamination,
+    parsePaymentLinkValue,
     type PaymentAssignmentSummaryRow,
 } from "@/lib/payment-booking";
 import { ChartEditFormOrInline, ChartInlineEditPanelShell, ConfirmOrInline } from "@/views/components/chart-confirm-presentation";
@@ -444,13 +447,40 @@ export function PatientDetailPaymentTab({
                                 onChange={(e) => {
                                     const version = e.target.value;
                                     if (!version) {
-                                        setPaymentNewForm((p) => ({ ...p, linkKind: "", linkId: "" }));
+                                        setPaymentNewForm((p) => ({ ...p, linkKind: "", linkId: "", amount: "" }));
                                         return;
                                     }
-                                    const ci = version.indexOf(":");
-                                    const kind = version.slice(0, ci) as "treatment" | "examination";
-                                    const rest = version.slice(ci + 1);
-                                    setPaymentNewForm((p) => ({ ...p, linkKind: kind, linkId: rest }));
+                                    const parsed = parsePaymentLinkValue(version);
+                                    if (!parsed) {
+                                        setPaymentNewForm((p) => ({ ...p, linkKind: "", linkId: "", amount: "" }));
+                                        return;
+                                    }
+                                    const { kind, id: rest } = parsed;
+                                    setPaymentNewForm((p) => {
+                                        const next = { ...p, linkKind: kind, linkId: rest };
+                                        if (kind === "treatment" && id) {
+                                            const selBh = treatments.find((b) => b.id === rest);
+                                            const gesamt =
+                                                selBh?.total_cost != null && Number.isFinite(selBh.total_cost)
+                                                    ? selBh.total_cost
+                                                    : null;
+                                            const open = maxNewPaymentTreatment(payments, id, rest, gesamt);
+                                            if (open != null && open > 0 && !String(p.amount).trim()) {
+                                                next.amount = String(open);
+                                            }
+                                        } else if (kind === "examination" && id) {
+                                            const selU = examinations.find((u) => u.id === rest);
+                                            const gesamt =
+                                                selU?.total_cost != null && Number.isFinite(selU.total_cost)
+                                                    ? selU.total_cost
+                                                    : null;
+                                            const open = maxNewPaymentExamination(payments, id, rest, gesamt);
+                                            if (open != null && open > 0 && !String(p.amount).trim()) {
+                                                next.amount = String(open);
+                                            }
+                                        }
+                                        return next;
+                                    });
                                 }}
                             />
                             {paymentNewForm.linkKind && paymentNewForm.linkId && id ? (

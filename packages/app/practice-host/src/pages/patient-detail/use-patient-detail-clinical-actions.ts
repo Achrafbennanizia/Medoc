@@ -4,6 +4,7 @@ import { deletePatient, updatePatient } from "@/systems/practice-host/controller
 import {
     createTreatment,
     createExamination,
+    createDentalFinding,
     deleteTreatment,
     deleteExamination,
     saveAnamnesisForm,
@@ -28,7 +29,7 @@ import {
     planNextHasContent,
     type PlanNextAppointmentV2,
 } from "@/lib/plan-next-appointment";
-import { previewNextExaminationNumber } from "@/lib/examination";
+import { previewNextExaminationNumber, dentalFindingUpsertsFromExamination } from "@/lib/examination";
 import type {
     Treatment,
     TreatmentCatalogItem,
@@ -347,6 +348,14 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
         void persistTreatmentAfterConfirm();
     };
 
+    const syncExaminationTeethToToothStatus = async (resultsJson: string) => {
+        if (!chart) return;
+        const upserts = dentalFindingUpsertsFromExamination(chart.id, resultsJson, findings);
+        for (const row of upserts) {
+            await createDentalFinding(row);
+        }
+    };
+
     const persistExaminationCreate = async (data: {
         chiefComplaint: string;
         diagnosis: string;
@@ -367,6 +376,14 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
                 service_name: data.serviceName?.trim() || null,
                 total_cost: data.totalCost ?? null,
             });
+            try {
+                await syncExaminationTeethToToothStatus(data.resultsJson);
+            } catch (e) {
+                toast(
+                    tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }),
+                    "warning",
+                );
+            }
             toast(t("patient.detail.toast.examination_captured"), "success", {
                 durationMs: PATIENT_DETAIL_TOAST_UNDO_MS,
                 onUndo: async () => {
@@ -436,6 +453,14 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
                 service_name: unterEdit.service_name ?? null,
                 total_cost: unterEdit.total_cost ?? null,
             });
+            try {
+                await syncExaminationTeethToToothStatus(payload.resultsJson);
+            } catch (e) {
+                toast(
+                    tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }),
+                    "warning",
+                );
+            }
             toast(t("patient.detail.toast.examination_saved"), "success", {
                 durationMs: PATIENT_DETAIL_TOAST_UNDO_MS,
                 onUndo: async () => {

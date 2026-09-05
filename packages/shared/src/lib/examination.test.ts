@@ -4,6 +4,7 @@ import {
     clinicalSummaryFromExamination,
     hasExamContent,
     examinationToothNotesForTooth,
+    dentalFindingUpsertsFromExamination,
     EXAMINATION_V1_EMPTY,
 } from "./examination";
 
@@ -74,6 +75,33 @@ describe("examinationToothNotesForTooth", () => {
         expect(notes36[1]?.note).toBe("Old note");
         expect(examinationToothNotesForTooth([older, newer], "11")).toHaveLength(1);
         expect(examinationToothNotesForTooth([older, newer], "21")).toHaveLength(0);
+    });
+});
+
+describe("dentalFindingUpsertsFromExamination", () => {
+    it("maps tooth notes and statuses into dental_finding upserts", () => {
+        const results = JSON.stringify({
+            ...EXAMINATION_V1_EMPTY,
+            version: 1,
+            toothNotes: { "36": "Caries distal" },
+            toothStatuses: { "11": "filling" },
+        });
+        const rows = dentalFindingUpsertsFromExamination("chart-1", results, []);
+        expect(rows).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    chart_id: "chart-1",
+                    tooth_number: 36,
+                    finding: "caries",
+                    notes: "Caries distal",
+                }),
+                expect.objectContaining({
+                    chart_id: "chart-1",
+                    tooth_number: 11,
+                    finding: "filling",
+                }),
+            ]),
+        );
     });
 });
 

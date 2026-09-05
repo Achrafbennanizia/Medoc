@@ -132,28 +132,20 @@ export function AppointmentDetailDrawer({
                                 t("appointment.drawer.workflow.active"),
                                 t("appointment.drawer.workflow.done"),
                             ] as const).map((label, i) => (
-                                <button
-                                    key={label}
-                                    type="button"
-                                    className={`appointment-workflow-node ${i <= active ? "on" : ""} ${i === active ? "current" : ""}`}
-                                    title={label}
-                                    onClick={() => {
-                                        const map: Appointment["status"][] = ["PLANNED", "CONFIRMED", "CONFIRMED", "COMPLETED"];
-                                        onStatusChange(appointment.id, map[i]!);
-                                    }}
-                                >
-                                    {i === 0 ? <CheckIcon size={14} /> : i === 1 ? <EyeIcon size={14} /> : i === 2 ? <BoltIcon size={14} /> : <ShieldCheckIcon size={14} />}
-                                </button>
-                            ))}
-                        </div>
-                        <div className="appointment-workflow-captions">
-                            {([
-                                t("appointment.drawer.workflow.planned"),
-                                t("appointment.drawer.workflow.confirmed"),
-                                t("appointment.drawer.workflow.active"),
-                                t("appointment.drawer.workflow.done"),
-                            ] as const).map((label) => (
-                                <span key={label} className="appointment-workflow-label">{label}</span>
+                                <div key={label} className="appointment-workflow-step">
+                                    <button
+                                        type="button"
+                                        className={`appointment-workflow-node ${i <= active ? "on" : ""} ${i === active ? "current" : ""}`}
+                                        title={label}
+                                        onClick={() => {
+                                            const map: Appointment["status"][] = ["PLANNED", "CONFIRMED", "CONFIRMED", "COMPLETED"];
+                                            onStatusChange(appointment.id, map[i]!);
+                                        }}
+                                    >
+                                        {i === 0 ? <CheckIcon size={14} /> : i === 1 ? <EyeIcon size={14} /> : i === 2 ? <BoltIcon size={14} /> : <ShieldCheckIcon size={14} />}
+                                    </button>
+                                    <span className="appointment-workflow-label">{label}</span>
+                                </div>
                             ))}
                         </div>
                     </div>

@@ -395,7 +395,8 @@ export function FinancePage() {
                                     dialogTitle={t("page.finance.export_title")}
                                     buildBundle={buildExportBundle}
                                     defaultFormat="pdf"
-                                    showImport
+                                    // TODO(later): restore Finance Import — see docs/coordination/todos-deferred-ui-blinds.md
+                                    // showImport
                                     legacyCsv={{ rows: sortedRows, patientNames: patientMap }}
                                 />
                             ) : null}

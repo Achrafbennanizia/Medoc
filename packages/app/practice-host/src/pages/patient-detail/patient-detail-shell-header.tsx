@@ -93,7 +93,7 @@ export function PatientDetailShellHeader({
     chart,
     findings,
     treatments,
-    examinations: _examinations,
+    examinations,
     payments,
     patientDeleteOpen,
     patientDeleteBusy,
@@ -315,7 +315,12 @@ export function PatientDetailShellHeader({
                     </div>
                     {canViewClinical && chart ? (
                         <div className="patient-hero-dental">
-                            <DentalMiniBar findings={findings} treatments={treatments} visible />
+                            <DentalMiniBar
+                                findings={findings}
+                                treatments={treatments}
+                                examinations={examinations}
+                                visible
+                            />
                         </div>
                     ) : null}
                 </div>

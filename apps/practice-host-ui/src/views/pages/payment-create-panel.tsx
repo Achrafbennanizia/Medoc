@@ -23,6 +23,7 @@ import {
     formatPaymentReferenceLine,
     maxNewPaymentTreatment,
     maxNewPaymentExamination,
+    parsePaymentLinkValue,
     roundMoney2,
     sumPaymentsForTreatment,
     sumPaymentsForExamination,
@@ -193,6 +194,37 @@ function PaymentCreatePanelInner({ variant, onFinanceSaved, onFinanceClose }: Pa
         }
     }, [patientId, linkKind, linkId, paymentLinkOptions]);
 
+    // When exactly one open clinical line exists, assign it automatically and fill amount.
+    useEffect(() => {
+        if (!patientId || linkKind) return;
+        const open = paymentLinkOptions.map((o) => o.value).filter(Boolean);
+        if (open.length !== 1) return;
+        const parsed = parsePaymentLinkValue(open[0]!);
+        if (!parsed) return;
+        setLinkKind(parsed.kind);
+        setLinkId(parsed.id);
+        if (parsed.kind === "treatment") {
+            const selBh = treatments.find((b) => b.id === parsed.id);
+            const gesamt =
+                selBh?.total_cost != null && Number.isFinite(selBh.total_cost) ? selBh.total_cost : null;
+            const max = maxNewPaymentTreatment(paymentsPatient, patientId, parsed.id, gesamt);
+            if (max != null && max > 0) setAmount(String(max));
+        } else {
+            const selU = examinations.find((u) => u.id === parsed.id);
+            const gesamt =
+                selU?.total_cost != null && Number.isFinite(selU.total_cost) ? selU.total_cost : null;
+            const max = maxNewPaymentExamination(paymentsPatient, patientId, parsed.id, gesamt);
+            if (max != null && max > 0) setAmount(String(max));
+        }
+    }, [
+        patientId,
+        linkKind,
+        paymentLinkOptions,
+        treatments,
+        examinations,
+        paymentsPatient,
+    ]);
+
     const paymentLinkValue = linkKind && linkId ? `${linkKind}:${linkId}` : "";
 
     const paymentNewMaxAmountEur = useMemo(() => {
@@ -231,13 +263,32 @@ function PaymentCreatePanelInner({ variant, onFinanceSaved, onFinanceClose }: Pa
         if (!raw) {
             setLinkKind("");
             setLinkId("");
+            setAmount("");
             return;
         }
-        const i = raw.indexOf(":");
-        const kind = raw.slice(0, i) as "treatment" | "examination";
-        const rest = raw.slice(i + 1);
-        setLinkKind(kind);
-        setLinkId(rest);
+        const parsed = parsePaymentLinkValue(raw);
+        if (!parsed) {
+            setLinkKind("");
+            setLinkId("");
+            return;
+        }
+        setLinkKind(parsed.kind);
+        setLinkId(parsed.id);
+        if (!String(amount).trim() && patientId) {
+            if (parsed.kind === "treatment") {
+                const selBh = treatments.find((b) => b.id === parsed.id);
+                const gesamt =
+                    selBh?.total_cost != null && Number.isFinite(selBh.total_cost) ? selBh.total_cost : null;
+                const open = maxNewPaymentTreatment(paymentsPatient, patientId, parsed.id, gesamt);
+                if (open != null && open > 0) setAmount(String(open));
+            } else {
+                const selU = examinations.find((u) => u.id === parsed.id);
+                const gesamt =
+                    selU?.total_cost != null && Number.isFinite(selU.total_cost) ? selU.total_cost : null;
+                const open = maxNewPaymentExamination(paymentsPatient, patientId, parsed.id, gesamt);
+                if (open != null && open > 0) setAmount(String(open));
+            }
+        }
     }
 
     const submit = async () => {

@@ -10,6 +10,7 @@ import { importReportAndPreview } from "@/lib/report-import";
 import { useToastStore } from "./ui/toast-store";
 import { errorMessage } from "@/lib/utils";
 import { useT, useTParams } from "@/lib/i18n";
+import { REPORT_IMPORT_UI_ENABLED } from "@/lib/v1-ui-flags";
 import { ReportExportPickerDialog } from "./report-export-picker-dialog";
 
 export type ReportExportToolbarProps = {
@@ -21,7 +22,10 @@ export type ReportExportToolbarProps = {
     defaultFormat?: ReportExportFormat;
     disabled?: boolean;
     className?: string;
-    /** Show import button for round-trip JSON/XML reports. */
+    /**
+     * Request import button for round-trip JSON/XML reports.
+     * Ignored while `REPORT_IMPORT_UI_ENABLED` is false (deferred — see todos-deferred-ui-blinds.md).
+     */
     showImport?: boolean;
     /**
      * When set with format `csv`, export legacy comma-separated transactions
@@ -52,6 +56,7 @@ export function ReportExportToolbar({
     const [pickerOpen, setPickerOpen] = useState(false);
     const [importBusy, setImportBusy] = useState(false);
     const importRef = useRef<HTMLInputElement>(null);
+    const importVisible = REPORT_IMPORT_UI_ENABLED && showImport;
 
     const onImportFile = async (file: File | undefined) => {
         if (!file) return;
@@ -82,7 +87,7 @@ export function ReportExportToolbar({
                 >
                     <ExportIcon size={ICON_SIZE_SM} /> {t("export.report.export_btn")}
                 </Button>
-                {showImport ? (
+                {importVisible ? (
                     <>
                         <input
                             ref={importRef}

@@ -286,7 +286,6 @@ export function DashboardPage() {
             .slice(0, DASHBOARD_PURCHASE_ORDERS_MAX);
     }, [purchase_orders]);
 
-    const showAuditCta = role != null && allowed("audit.read", role);
     const showPlannedFreigabe = role != null && allowed("appointment.read", role) && heutePlannedCount > 0;
 
     const patientById = useMemo(() => new Map(patients.map((p) => [p.id, p])), [patients]);
@@ -502,16 +501,6 @@ export function DashboardPage() {
                         trend="neutral"
                     />
                 )}
-                {stats.products_low != null && (
-                    <StatCard
-                        label={t("dashboard.kpi.inventory_niedrig")}
-                        value={String(stats.products_low)}
-                        icon="Package"
-                        accent="#FF9500"
-                        sub={t("dashboard.kpi.inventory_niedrig_sub")}
-                        trend="neutral"
-                    />
-                )}
             </div>
             <div className="split dashboard-main-split" style={{ gridTemplateColumns: "1.25fr 1fr", flex: 1 }}>
                 <div className="col dashboard-col-primary">
@@ -522,11 +511,6 @@ export function DashboardPage() {
                                 <div className="card-sub">{freigabenSub}</div>
                             </div>
                             <div className="dashboard-wire-head-actions">
-                                {showAuditCta ? (
-                                    <button type="button" className="dashboard-wire-head-link" onClick={() => navigate("/audit")}>
-                                        {t("dashboard.freigaben.cta")}
-                                    </button>
-                                ) : null}
                                 <button type="button" className="dashboard-wire-head-link nav-link-forward" onClick={() => navigate("/patients")}>
                                     {t("dashboard.freigaben.show_all")} <span className="nav-chevron" aria-hidden>›</span>
                                 </button>
@@ -690,9 +674,6 @@ export function DashboardPage() {
                                 <div className="card-sub">{t("dashboard.purchase_orders.sub")}</div>
                             </div>
                             <div className="dashboard-wire-head-actions">
-                                <button type="button" className="dashboard-wire-head-link" onClick={() => navigate("/products")}>
-                                    {t("dashboard.purchase_orders.cta_products")}
-                                </button>
                                 <button type="button" className="dashboard-wire-head-link nav-link-forward" onClick={() => navigate("/purchase-orders")}>
                                     {t("dashboard.purchase_orders.show_all")} <span className="nav-chevron" aria-hidden>›</span>
                                 </button>

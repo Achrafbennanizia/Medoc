@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { Treatment, DentalFinding } from "@/models/types";
+import type { Treatment, DentalFinding, Examination } from "@/models/types";
 import { useT, useTParams } from "@/lib/i18n";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import {
@@ -17,6 +17,7 @@ import {
     dentalStatusLabel,
     dentalToothType,
 } from "@/lib/dental";
+import { examinationToothNotesForTooth } from "@/lib/examination";
 
 type PopState = {
     fdi: string;
@@ -31,15 +32,22 @@ type PopState = {
 type DentalMiniBarProps = {
     findings: DentalFinding[];
     treatments: Treatment[];
+    /** Structured examination tooth notes (ExaminationV1) for the popover. */
+    examinations?: Examination[];
     /** When false, render nothing (e.g. non-clinical role). */
     visible?: boolean;
 };
 
 /**
  * Compact two-row FDI odontogram for patient header.
- * Hover shows diagnoses (DentalFindings) and treatments (Treatments) for that tooth.
+ * Hover shows diagnoses (DentalFindings), examination notes, and treatments for that tooth.
  */
-export function DentalMiniBar({ findings, treatments, visible = true }: DentalMiniBarProps) {
+export function DentalMiniBar({
+    findings,
+    treatments,
+    examinations = [],
+    visible = true,
+}: DentalMiniBarProps) {
     const t = useT();
     const tp = useTParams();
     const [pop, setPop] = useState<PopState | null>(null);
@@ -88,6 +96,7 @@ export function DentalMiniBar({ findings, treatments, visible = true }: DentalMi
 
     const popFindings = pop ? findingsForTooth(findings, pop.fdi) : [];
     const popTreatment = pop ? treatmentsForTooth(treatments, pop.fdi) : [];
+    const popExaminations = pop ? examinationToothNotesForTooth(examinations, pop.fdi) : [];
     const popStatus: DentalStatusKey = pop ? findingToStatusKey(map.get(Number(pop.fdi))) : "healthy";
     const popLayout = useMemo(() => {
         if (!pop) return { left: 0, top: 0, width: 280, maxHeight: 360, placement: "below" as const };
@@ -117,7 +126,10 @@ export function DentalMiniBar({ findings, treatments, visible = true }: DentalMi
         const shape = DENTAL_TOOTH_SHAPES[type];
         const stateKey = findingToStatusKey(map.get(Number(fdi)));
         const st = DENTAL_STATES[stateKey];
-        const hasHistory = findingsForTooth(findings, fdi).length > 0 || treatmentsForTooth(treatments, fdi).length > 0;
+        const hasHistory =
+            findingsForTooth(findings, fdi).length > 0
+            || treatmentsForTooth(treatments, fdi).length > 0
+            || examinationToothNotesForTooth(examinations, fdi).length > 0;
         return (
             <div
                 key={fdi}
@@ -168,6 +180,26 @@ export function DentalMiniBar({ findings, treatments, visible = true }: DentalMi
                                 {b.diagnosis ? <span className="tooth-popover-sub">{b.diagnosis}</span> : null}
                                 {b.notes ? <span className="tooth-popover-sub">{b.notes}</span> : null}
                                 <span className="tooth-popover-date">{formatDateTime(b.created_at)}</span>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </div>
+            <div className="tooth-popover-section">
+                <div className="tooth-popover-h">{t("dental.mini.examinations_heading")}</div>
+                {popExaminations.length === 0 ? (
+                    <div className="tooth-popover-empty">{t("dental.mini.no_examinations")}</div>
+                ) : (
+                    <ul className="tooth-popover-list">
+                        {popExaminations.map((u) => (
+                            <li key={u.examinationId}>
+                                {u.examinationNumber ? (
+                                    <strong>{u.examinationNumber}</strong>
+                                ) : (
+                                    <strong>{t("patient.detail.subnav.tab.unter")}</strong>
+                                )}
+                                <span className="tooth-popover-sub">{u.note}</span>
+                                <span className="tooth-popover-date">{formatDateTime(u.createdAt)}</span>
                             </li>
                         ))}
                     </ul>

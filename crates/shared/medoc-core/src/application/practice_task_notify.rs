@@ -42,6 +42,54 @@ pub async fn notify_creator_if_task_done_by_other(
     .await
 }
 
+/// Notify reception pool or assigned physician when a new task is created for them.
+pub async fn notify_assignees_on_task_created(
+    pool: &SqlitePool,
+    task: &PracticeTask,
+    creating_user_id: &str,
+) -> Result<(), AppError> {
+    let recipients = resolve_assignee_recipients(pool, task).await?;
+    if recipients.is_empty() {
+        return Ok(());
+    }
+
+    let pname = patient_name(pool, task.patient_id.as_deref()).await?;
+    let title = if pname.is_empty() {
+        format!("New task: {}", task.title.trim())
+    } else {
+        format!("New task: {pname}")
+    };
+    let body = task
+        .body
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or(task.title.trim());
+    let pay = json!({
+        "taskId": task.id,
+        "patientId": task.patient_id,
+        "kind": task.kind,
+        "status": task.status,
+    })
+    .to_string();
+
+    for user_id in recipients {
+        if user_id.trim() == creating_user_id.trim() {
+            continue;
+        }
+        in_app_notification_repo::insert(
+            pool,
+            &user_id,
+            "PRACTICE_TASK_ASSIGNED",
+            &title,
+            body,
+            Some(&pay),
+        )
+        .await?;
+    }
+    Ok(())
+}
+
 /// FA-AUFG-05 — Notify recipients (reception pool or target physician) on `BACK`.
 pub async fn notify_assignees_if_task_back(
     pool: &SqlitePool,
@@ -55,7 +103,7 @@ pub async fn notify_assignees_if_task_back(
         return Ok(());
     }
 
-    let recipients = resolve_back_recipients(pool, before).await?;
+    let recipients = resolve_assignee_recipients(pool, before).await?;
     if recipients.is_empty() {
         return Ok(());
     }
@@ -104,7 +152,7 @@ async fn patient_name(pool: &SqlitePool, patient_id: Option<&str>) -> Result<Str
     }
 }
 
-async fn resolve_back_recipients(
+async fn resolve_assignee_recipients(
     pool: &SqlitePool,
     task: &PracticeTask,
 ) -> Result<Vec<String>, AppError> {

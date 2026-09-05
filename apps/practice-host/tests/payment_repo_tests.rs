@@ -167,7 +167,18 @@ async fn ensure_open_booking_for_billable_treatment_sets_release_and_outstanding
             .expect("payment row");
     assert_eq!(z.0, "OUTSTANDING");
     assert!(z.1 <= 0.005);
-    assert!(z.2.contains("FA-LEIST-06"));
+    assert!(
+        z.2.contains("Füllung") && z.2.contains("open billing"),
+        "description should include service + open billing: {}",
+        z.2
+    );
+    let expected: Option<f64> =
+        sqlx::query_scalar("SELECT amount_expected FROM payment WHERE treatment_id = ?1")
+            .bind(&beh_id)
+            .fetch_one(&pool)
+            .await
+            .expect("amount_expected");
+    assert_eq!(expected, Some(80.0));
 }
 
 #[tokio::test]
@@ -340,4 +351,112 @@ async fn update_fields_caps_replacement_amount_against_other_rows() {
     payment_repo::update_fields(&pool, &ok)
         .await
         .expect("within cap");
+}
+
+#[tokio::test]
+async fn create_fulfills_open_booking_in_place_and_closes_billing_task() {
+    use medoc_lib::domain::entities::practice_task::CreatePracticeTask;
+    use medoc_lib::infrastructure::database::practice_task_repo;
+
+    let pool = migrated_pool().await;
+    let patient_id = "t-fulfill-pat".to_string();
+    let chart_id = "t-fulfill-chart".to_string();
+    let beh_id = "t-fulfill-bh".to_string();
+    let physician_id = "seed-physician-001";
+
+    sqlx::query(
+        "INSERT INTO patient (id, name, date_of_birth, sex, insurance_number)
+         VALUES (?1, 'Fulfill', '1990-01-01', 'MALE', 'V-FF')",
+    )
+    .bind(&patient_id)
+    .execute(&pool)
+    .await
+    .expect("patient");
+
+    sqlx::query("INSERT INTO patient_chart (id, patient_id, status) VALUES (?1, ?2, 'DRAFT')")
+        .bind(&chart_id)
+        .bind(&patient_id)
+        .execute(&pool)
+        .await
+        .expect("chart");
+
+    sqlx::query(
+        "INSERT INTO treatment (
+            id, chart_id, kind, description, category, service_name, treatment_number,
+            session_number, treatment_status, total_cost, appointment_required, treatment_date
+        ) VALUES (
+            ?1, ?2, 'Füllung', 'Füllung', 'Konservierend', 'Füllung', 'FF-1',
+            1, 'COMPLETED', 80.0, 0, '2026-05-21'
+        )",
+    )
+    .bind(&beh_id)
+    .bind(&chart_id)
+    .execute(&pool)
+    .await
+    .expect("treatment");
+
+    payment_repo::ensure_open_booking_for_billable_treatment(&pool, &beh_id, physician_id)
+        .await
+        .expect("open booking");
+
+    let open_id: String =
+        sqlx::query_scalar("SELECT id FROM payment WHERE treatment_id = ?1")
+            .bind(&beh_id)
+            .fetch_one(&pool)
+            .await
+            .expect("open id");
+
+    let task = practice_task_repo::insert(
+        &pool,
+        &CreatePracticeTask {
+            patient_id: Some(patient_id.clone()),
+            kind: "BILLING".into(),
+            title: "Payment erfassen: Füllung".into(),
+            body: Some("80.00 €".into()),
+            assignee_role: Some("RECEPTION".into()),
+            assignee_user_id: None,
+            treatment_id: Some(beh_id.clone()),
+            examination_id: None,
+            service_name: Some("Füllung".into()),
+            total_cost: Some(80.0),
+        },
+        physician_id,
+    )
+    .await
+    .expect("billing task");
+
+    let paid = payment_repo::create(
+        &pool,
+        &CreatePayment {
+            patient_id: patient_id.clone(),
+            amount: 80.0,
+            payment_method: PaymentMethod::Cash,
+            service_item_id: None,
+            description: Some("Cash at desk".into()),
+            treatment_id: Some(beh_id.clone()),
+            examination_id: None,
+            amount_expected: Some(80.0),
+        },
+    )
+    .await
+    .expect("fulfill");
+
+    assert_eq!(paid.id, open_id, "must update open booking, not insert a second row");
+    assert_eq!(paid.status, "PAID");
+    assert!((paid.amount - 80.0).abs() < 1e-6);
+
+    let n: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM payment WHERE treatment_id = ?1")
+            .bind(&beh_id)
+            .fetch_one(&pool)
+            .await
+            .expect("count");
+    assert_eq!(n.0, 1, "billing list must not keep a leftover fulfill row");
+
+    let closed = practice_task_repo::find_by_id(&pool, &task.id)
+        .await
+        .expect("load")
+        .expect("task");
+    assert_eq!(closed.status, "VALIDATED");
+    assert_eq!(closed.payment_id.as_deref(), Some(paid.id.as_str()));
 }

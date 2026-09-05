@@ -1,5 +1,52 @@
 # Validation ledger
 
+**Last updated:** 2026-09-05 (payment assignment open rows)
+
+## Payment assignment / open booking (2026-09-05)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| payment_repo_tests | `cargo test -p medoc --test payment_repo_tests` | **PASS** |
+| open-assignment unit | `npm test -- --project node payment-booking.open-assignment` | **PASS** — 2/2 |
+| Live UI auto-assign after exam/treatment | — | **NOT OBSERVED** |
+
+---
+
+**Last updated:** 2026-09-05 (examination → tooth status)
+
+## Examination → Tooth status (2026-09-05)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| examination unit tests | `npm test -- --project node examination.test` | **PASS** — 6/6 |
+| tsc (filtered) | `npx tsc --noEmit` | **PASS** — no errors on changed paths |
+| Live UI (save exam → header Tooth status) | — | **NOT OBSERVED** |
+
+---
+
+**Last updated:** 2026-09-05 (payment receipt prices)
+
+## Payment receipt prices (2026-09-05)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| receipt-export-flow | `npm test -- --project mvp-unit …/receipt-export-flow.test.ts` | **PASS** — totals include Standard / Price / Amount paid |
+| receiptPriceBreakdown | `npm test -- --project node clinical-pdf-layout.receipt-prices` | **PASS** — 2/2 |
+| Printed receipt UI | — | **NOT OBSERVED** |
+
+---
+
+**Last updated:** 2026-09-05 (payment fulfills open booking)
+
+## Payment → billing list (2026-09-05)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| payment_repo_tests | `cargo test -p medoc --test payment_repo_tests` | **PASS** — 6/6 incl. `create_fulfills_open_booking_in_place_and_closes_billing_task` |
+| Live UI (Finance / tickets after pay) | — | **NOT OBSERVED** |
+
+---
+
 **Last updated:** 2026-09-02 (white window / custom-protocol)
 
 ## White MeDoc window (2026-09-02)

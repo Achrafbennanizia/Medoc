@@ -862,15 +862,21 @@ export function AppLayout() {
                         }}
                     >
                         <BellIcon size={ICON_SIZE_LG} />
-                        {inAppUnread > 0 ? <span className="dot" aria-hidden /> : null}
+                        {inAppUnread > 0 || openPracticeTasksCount > 0 ? (
+                            <span className="dot" aria-hidden />
+                        ) : null}
                     </button>
                     {notifOpen ? (
                         <NotificationsPopover
                             onClose={() => {
                                 setNotifOpen(false);
                                 void refreshInAppUnread();
+                                void refreshNavBadges();
                             }}
-                            onUnreadChanged={() => void refreshInAppUnread()}
+                            onUnreadChanged={() => {
+                                void refreshInAppUnread();
+                                void refreshNavBadges();
+                            }}
                         />
                     ) : null}
                 </div>

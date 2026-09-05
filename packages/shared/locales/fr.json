@@ -755,6 +755,10 @@
   "document.print.active_ingredient": "Principe actif",
   "document.print.address": "Adresse : {address}",
   "document.print.amount": "Montant",
+  "document.print.standard_price": "Prix standard",
+  "document.print.price": "Prix",
+  "document.print.amount_paid": "Montant payé",
+  "document.print.total": "Total",
   "document.print.amount_received": "Montant reçu avec remerciements.",
   "document.print.assignment": "Affectation",
   "document.print.aut_idem": "Aut-idem (pas de substitution)",
@@ -4538,5 +4542,10 @@
   "v1.billing.manufacturer_portal_hint": "Portail fabricant non configuré — les factures peuvent être dans le portail d'abonnement classique.",
   "v1.billing.portal_unavailable": "Portail d'abonnement indisponible (hors ligne ou non configuré).",
   "v1.migration.adapters_disabled": "Les adaptateurs appareils (GDT/DICOM/scanner) sont désactivés dans cette version.",
-  "work_time.stale_closed_banner": "{count} session(s) de temps de travail ouverte(s) du jour précédent ont été clôturées comme non terminées."
+  "work_time.stale_closed_banner": "{count} session(s) de temps de travail ouverte(s) du jour précédent ont été clôturées comme non terminées.",
+  "app.notifications.task_open": "Tâche ouverte pour vous",
+  "app.notifications.task_returned": "Renvoyée — à traiter",
+  "app.notifications.task_needs_validation": "Prête à valider",
+  "app.notifications.show_tasks": "Mes tâches",
+  "app.notifications.show_tasks_count": "Mes tâches ({{count}})"
 }

@@ -1,11 +1,19 @@
 # Action ledger
 
-**Last updated:** 2026-09-02 (white window / custom-protocol)
+**Last updated:** 2026-09-05 (payment fulfills open booking)
+
+## Done (2026-09-05 — payment → billing)
+
+- Payment create fills the 0 € open booking in place; closes BILLING tasks on `PAID`.
+- Tests: `payment_repo_tests` (incl. fulfill + close).
 
 ## Now
 
-- Confirm the relaunched MeDoc window shows login/onboarding (not white).
-- Future USB kits: production feature `custom-protocol` (or `tauri build --bundles app`).
+- Confirm in the running app: pay an open booking → one billed row, no leftover fulfill task.
+
+## Later
+
+- Deferred incomplete UI blinds (Analytics Export/Import, Finance Import, …): see [`todos-deferred-ui-blinds.md`](todos-deferred-ui-blinds.md).
 
 ## Done (2026-09-02 — white window)
 

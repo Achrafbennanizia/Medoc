@@ -755,6 +755,10 @@
   "document.print.active_ingredient": "المادة الفعالة",
   "document.print.address": "العنوان: {address}",
   "document.print.amount": "المبلغ",
+  "document.print.standard_price": "السعر القياسي",
+  "document.print.price": "السعر",
+  "document.print.amount_paid": "المبلغ المدفوع",
+  "document.print.total": "الإجمالي",
   "document.print.amount_received": "تم استلام المبلغ مشكورين.",
   "document.print.assignment": "الربط",
   "document.print.aut_idem": "Aut-idem (بدون استبدال)",
@@ -4538,5 +4542,10 @@
   "v1.billing.manufacturer_portal_hint": "بوابة المصنّع غير مُكوَّنة — قد تكون الفواتير في بوابة الاشتراك الكلاسيكية.",
   "v1.billing.portal_unavailable": "بوابة الاشتراك غير متاحة (غير متصل أو غير مُعدّ).",
   "v1.migration.adapters_disabled": "محولات الأجهزة (GDT/DICOM/scanner) معطّلة في هذه النسخة.",
-  "work_time.stale_closed_banner": "تم إغلاق {count} جلسة/جلسات وقت عمل مفتوحة من اليوم السابق على أنها غير منتهية."
+  "work_time.stale_closed_banner": "تم إغلاق {count} جلسة/جلسات وقت عمل مفتوحة من اليوم السابق على أنها غير منتهية.",
+  "app.notifications.task_open": "مهمة مفتوحة لك",
+  "app.notifications.task_returned": "مُعادة — تحتاج متابعة",
+  "app.notifications.task_needs_validation": "جاهزة للتحقق",
+  "app.notifications.show_tasks": "مهامي",
+  "app.notifications.show_tasks_count": "مهامي ({{count}})"
 }
