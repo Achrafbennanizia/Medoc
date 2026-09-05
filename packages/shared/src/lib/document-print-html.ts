@@ -37,6 +37,46 @@ function htmlLangDir(): { lang: string; dir: string } {
     return { lang: loc, dir: isRtlLocale(loc) ? "rtl" : "ltr" };
 }
 
+const PRACTICE_LOGO_LS_KEY = "medoc-practice-logo-v1";
+
+/** Sync logo cache for HTML print (Settings also writes this when saving). */
+export function cachePracticeLogoForPrint(mime: string, dataBase64: string): void {
+    try {
+        localStorage.setItem(PRACTICE_LOGO_LS_KEY, JSON.stringify({ mime, data: dataBase64 }));
+    } catch {
+        /* ignore */
+    }
+}
+
+function practiceLogoDataUrl(): string | null {
+    try {
+        const raw = localStorage.getItem(PRACTICE_LOGO_LS_KEY);
+        if (!raw) return null;
+        const j = JSON.parse(raw) as { mime?: string; data?: string };
+        if (!j.mime || !j.data) return null;
+        return `data:${j.mime};base64,${j.data}`;
+    } catch {
+        return null;
+    }
+}
+
+function printLetterheadHtml(): string {
+    const logo = practiceLogoDataUrl();
+    if (!logo) {
+        // No uploaded logo → classic print template (no logo chrome).
+        return "";
+    }
+    const { dir } = htmlLangDir();
+    return `<div class="letterhead" style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px;flex-direction:${dir === "rtl" ? "row-reverse" : "row"}">
+      <img class="practice-logo" src="${logo}" alt="" />
+      <div class="letterhead-spacer" style="flex:1"></div>
+    </div>`;
+}
+
+function printDocChromeCss(): string {
+    return `.practice-logo{height:48px;width:auto;max-width:120px;object-fit:contain}`;
+}
+
 function prescriptionStatusLabel(status: string): string {
     const s = status.trim();
     if (s === "ISSUED") return docT("enum.prescription_status.issued");
@@ -575,7 +615,9 @@ export function buildCertificatePrintHtml(a: Certificate, patient: Patient | nul
     return `<!doctype html><html lang="${htmlLangDir().lang}" dir="${htmlLangDir().dir}"><head><meta charset="utf-8"/><title>${title}</title>
             <style>body{font-family:Helvetica,Arial,sans-serif;padding:2cm;color:#000}
             h1{font-size:18pt}.row{margin:0.3cm 0}.label{display:inline-block;width:4cm;color:#555}
-            .body{margin:1cm 0;white-space:pre-wrap}</style></head><body>
+            .body{margin:1cm 0;white-space:pre-wrap}
+            .practice-logo{height:48px;width:auto;max-width:120px;object-fit:contain}</style></head><body>
+            ${printLetterheadHtml()}
             <h1>${kind}</h1>
             <div class="row"><span class="label">${escapeHtml(docT("document.print.patient"))}:</span>${patientLine}</div>
             <div class="row"><span class="label">${escapeHtml(docT("document.print.date_of_birth"))}:</span>${dob}</div>
@@ -617,7 +659,8 @@ export function buildPrescriptionPrintHtml(r: Prescription, patient: Patient | n
               th,td{border:1px solid #ccc;padding:8px 10px;text-align:left;vertical-align:top}
               th{background:#f4f4f4;font-weight:600;width:34%}
               .muted{color:#555;font-size:11px;margin-top:28px}
-            </style></head><body>
+            ${printDocChromeCss()}</style></head><body>
+            ${printLetterheadHtml()}
             <h1>${rxTitle}</h1>
             <table aria-label="${escapeHtml(docT("document.print.prescription_master_aria"))}">
               <tbody>
@@ -640,7 +683,8 @@ export function buildPrescriptionPrintHtml(r: Prescription, patient: Patient | n
 /** Multiple prescriptions on one printout (prescription overview). */
 export function buildPrescriptionsComboPrintHtml(items: Prescription[], patient: Patient | null): string {
     if (items.length === 0) {
-        return `<!doctype html><html lang="${htmlLangDir().lang}" dir="${htmlLangDir().dir}"><head><meta charset="utf-8"/><title>${escapeHtml(docT("document.print.prescription_title"))}</title></head><body><p>${docT("document.print.no_prescription")}</p></body></html>`;
+        return `<!doctype html><html lang="${htmlLangDir().lang}" dir="${htmlLangDir().dir}"><head><meta charset="utf-8"/><title>${escapeHtml(docT("document.print.prescription_title"))}</title></head><body>
+            ${printLetterheadHtml()}<p>${docT("document.print.no_prescription")}</p></body></html>`;
     }
     const first = items[0]!;
     const title =
@@ -656,7 +700,7 @@ export function buildPrescriptionsComboPrintHtml(items: Prescription[], patient:
             h1{font-size:18pt;margin-bottom:0.4cm}h2{font-size:13pt;margin:0.4cm 0 0.2cm;color:#333}
             .row{margin:0.25cm 0}.label{display:inline-block;width:4cm;color:#555}
             .rx{border-top:1px solid #ddd;padding-top:0.4cm;margin-top:0.4cm}
-            .rx:first-of-type{border-top:none;margin-top:0;padding-top:0}</style>
+            .rx:first-of-type{border-top:none;margin-top:0;padding-top:0} ${printDocChromeCss()}</style>
             </head><body>
             <h1>${escapeHtml(title)}</h1>
             <div class="row"><span class="label">${escapeHtml(docT("document.print.patient"))}:</span>${patientLine}</div>
@@ -691,7 +735,8 @@ export function buildReceiptPrintHtml(
               th,td{border:1px solid #ccc;padding:8px 10px;text-align:left}
               th{background:#f4f4f4;width:38%}
               .muted{color:#555;font-size:11px;margin-top:24px}
-            </style></head><body>
+            ${printDocChromeCss()}</style></head><body>
+            ${printLetterheadHtml()}
             <h1>${escapeHtml(docT("document.print.receipt_title"))}</h1>
             <table>
               <tbody>

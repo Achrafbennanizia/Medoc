@@ -279,6 +279,19 @@ async fn staff_quota_triggers_present(pool: &SqlitePool) -> Result<bool, AppErro
     Ok(true)
 }
 
+/// Drop staff-quota triggers (idempotent). Call before migration/demo seed so
+/// `INSERT OR IGNORE` of already-present staff does not trip `BEFORE INSERT`
+/// when the table is already at [`MAX_TOTAL_STAFF`].
+pub async fn drop_staff_quota_db_triggers(pool: &SqlitePool) -> Result<(), AppError> {
+    for name in ["trg_staff_quota_insert", "trg_staff_quota_update_role"] {
+        sqlx::query(&format!("DROP TRIGGER IF EXISTS {name}"))
+            .execute(pool)
+            .await
+            .map_err(AppError::Database)?;
+    }
+    Ok(())
+}
+
 /// DB-level belt-and-suspenders: (re)install triggers from [`staff_quota_limits`].
 pub async fn reinstall_staff_quota_db_triggers(pool: &SqlitePool) -> Result<(), AppError> {
     let limits = staff_quota_limits();
@@ -294,12 +307,7 @@ pub async fn reinstall_staff_quota_db_triggers(pool: &SqlitePool) -> Result<(), 
 
     let (insert_sql, update_sql) = staff_quota_trigger_ddl(limits);
 
-    for name in ["trg_staff_quota_insert", "trg_staff_quota_update_role"] {
-        sqlx::query(&format!("DROP TRIGGER IF EXISTS {name}"))
-            .execute(pool)
-            .await
-            .map_err(AppError::Database)?;
-    }
+    drop_staff_quota_db_triggers(pool).await?;
 
     sqlx::query(&insert_sql)
         .execute(pool)

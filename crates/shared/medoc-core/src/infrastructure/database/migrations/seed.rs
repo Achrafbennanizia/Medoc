@@ -92,16 +92,74 @@ async fn seed_demo_data(pool: &SqlitePool) -> Result<(), AppError> {
     // .bind(&hash)
     // .execute(pool)
     // .await?;
-    // TODO(deferred-roles): seed-ctl-001 (TAX_ADVISOR), seed-pharma-001 (PHARMA_CONSULTANT) — todos-deferred-roles.md
     // Ensure FK-referenced demo staff exists even when staff already had rows.
+    // System roles stay PHYSICIAN / RECEPTION; activity_area + specialty mirror a dental practice.
     sqlx::query(
-        "INSERT OR IGNORE INTO staff (id, name, email, password_hash, role, specialty) VALUES
-        ('seed-physician-001', 'Dr. Ahmed R.', 'ahmed@practice.de', ?1, 'PHYSICIAN', 'Dentistry'),
-        ('seed-rez-001', 'Aya M.', 'aya@practice.de', ?1, 'RECEPTION', NULL)",
+        "INSERT OR IGNORE INTO staff (id, name, email, password_hash, role, activity_area, specialty, phone) VALUES
+        ('seed-physician-001', 'Dr. Ahmed Rahman', 'ahmed@practice.de', ?1, 'PHYSICIAN', 'General dentistry', 'Restorative & prosthodontics', '+49 421 900100'),
+        ('seed-rez-001', 'Aya Müller', 'aya@practice.de', ?1, 'RECEPTION', 'Front desk', 'Scheduling & patient intake', '+49 421 900110')",
     )
     .bind(&hash)
     .execute(pool)
     .await?;
+    // Refresh demo job titles on existing installs (INSERT OR IGNORE skips updates).
+    sqlx::query(
+        "UPDATE staff SET
+            name = 'Dr. Ahmed Rahman',
+            activity_area = 'General dentistry',
+            specialty = 'Restorative & prosthodontics',
+            phone = COALESCE(NULLIF(phone, ''), '+49 421 900100')
+         WHERE id = 'seed-physician-001'",
+    )
+    .execute(pool)
+    .await?;
+    sqlx::query(
+        "UPDATE staff SET
+            name = 'Aya Müller',
+            activity_area = 'Front desk',
+            specialty = 'Scheduling & patient intake',
+            phone = COALESCE(NULLIF(phone, ''), '+49 421 900110')
+         WHERE id = 'seed-rez-001'",
+    )
+    .execute(pool)
+    .await?;
+    // Year-seed reception colleagues (created by year volume when MEDOC_DEV_SEED=1).
+    for (id, name, area, specialty, phone) in [
+        (
+            "seed-yr-rez-002",
+            "Nora Schneider",
+            "Practice management",
+            "Operations & team coordination",
+            "+49 421 900120",
+        ),
+        (
+            "seed-yr-rez-003",
+            "Tom Keller",
+            "Dental assisting",
+            "Chairside & sterilization",
+            "+49 421 900130",
+        ),
+        (
+            "seed-yr-rez-004",
+            "Lina Becker",
+            "Billing & insurance",
+            "Claims & day close",
+            "+49 421 900140",
+        ),
+    ] {
+        sqlx::query(
+            "UPDATE staff SET name = ?2, activity_area = ?3, specialty = ?4,
+                phone = COALESCE(NULLIF(phone, ''), ?5)
+             WHERE id = ?1",
+        )
+        .bind(id)
+        .bind(name)
+        .bind(area)
+        .bind(specialty)
+        .bind(phone)
+        .execute(pool)
+        .await?;
+    }
 
     let chart_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM patient_chart")
         .fetch_one(pool)

@@ -29,6 +29,7 @@
 use super::core::{
     wrap_soft, PageBuilder, ADDRESS_WINDOW_Y, M_LEFT, M_RIGHT, M_TOP, SENDER_HINT_Y,
 };
+use super::logo::PdfLogo;
 
 /// One row of the right meta block: "label" + "value".
 #[derive(Debug, Clone)]
@@ -66,6 +67,12 @@ pub struct Letterhead<'a> {
     /// When `true`, place the address block directly under the practice
     /// header (no DIN window-envelope gap). Used for receipts / screen PDFs.
     pub compact_address: bool,
+    /// Practice logo from Settings (`practice.logo.v1`). Top-left (LTR) / top-right (RTL).
+    pub logo: Option<&'a PdfLogo>,
+    /// Arabic / RTL: logo on the top-right; meta block moves to the left.
+    pub rtl: bool,
+    /// UI locale for chrome strings (`en`|`de`|`fr`|`ar`).
+    pub locale: &'a str,
 }
 
 /// Render the full letterhead on the current PageBuilder page
@@ -77,28 +84,58 @@ const LEFT_HEADER_WRAP: usize = 46;
 const LEFT_HEADER_MIN_Y: i32 = M_TOP - 88;
 
 pub fn emit_letterhead(pb: &mut PageBuilder, lh: &Letterhead) -> i32 {
-    // --- 1. Practice block top-left ---------------------------------------
+    // --- 0. Practice logo (optional) ----------------------------------------
+    // No logo → classic DIN letterhead (practice top-left, meta top-right).
+    let mut text_left = M_LEFT;
+    let mut text_wrap = LEFT_HEADER_WRAP;
+    let has_logo = lh.logo.is_some();
+    if let Some(logo) = lh.logo {
+        let x = logo.x_for_side(lh.rtl);
+        let y = logo.y_bottom(M_TOP);
+        pb.draw_image(0, x, y, logo.display_w, logo.display_h);
+        text_left = logo.practice_text_left(lh.rtl);
+        let cap = logo.practice_text_right_cap(lh.rtl);
+        let avail = (cap - text_left).max(80);
+        text_wrap = ((avail / 5) as usize).clamp(20, 46);
+    }
+
+    // --- 1. Practice block -------------------------------------------------
     let mut left_y = M_TOP;
     for (i, line) in lh.practice_lines.iter().enumerate() {
         if left_y < LEFT_HEADER_MIN_Y {
             break;
         }
-        let chunks = wrap_soft(line, LEFT_HEADER_WRAP);
+        let chunks = wrap_soft(line, text_wrap);
         for (ci, chunk) in chunks.iter().enumerate() {
             if left_y < LEFT_HEADER_MIN_Y {
                 break;
             }
             let first = i == 0 && ci == 0;
             pb.y = left_y;
-            pb.text(M_LEFT, if first { 12 } else { 9 }, first, chunk);
+            pb.text(text_left, if first { 12 } else { 9 }, first, chunk);
             left_y -= if first { 14 } else { 11 };
         }
     }
+    if let Some(logo) = lh.logo {
+        left_y = left_y.min(logo.y_bottom(M_TOP) as i32 - 4);
+    }
 
-    // --- 2. Meta block right or contact block right -----------------------
+    // --- 2. Meta / contact -------------------------------------------------
+    // Mirror meta to the left only when an Arabic logo occupies the top-right.
+    let mirror_meta = has_logo && lh.rtl;
     let mut right_y = M_TOP;
     if !lh.meta_rows.is_empty() {
-        right_y = emit_meta_block(pb, lh.meta_rows, M_TOP);
+        right_y = if mirror_meta {
+            emit_meta_block_left(pb, lh.meta_rows, M_TOP)
+        } else {
+            emit_meta_block(pb, lh.meta_rows, M_TOP)
+        };
+    } else if mirror_meta {
+        for line in lh.header_right_lines.iter().take(5) {
+            pb.y = right_y;
+            pb.text(M_LEFT, 9, false, line);
+            right_y -= 11;
+        }
     } else {
         for line in lh.header_right_lines.iter().take(5) {
             pb.y = right_y;
@@ -171,9 +208,24 @@ pub fn emit_letterhead(pb: &mut PageBuilder, lh: &Letterhead) -> i32 {
 /// Short header for continuation pages (practice name + document type only).
 /// Not part of `emit_letterhead`; call directly after `break_page()`.
 pub fn emit_continuation_header(pb: &mut PageBuilder, practice_name: &str, doc_title: &str) {
+    emit_continuation_header_locale(pb, practice_name, doc_title, "en");
+}
+
+pub fn emit_continuation_header_locale(
+    pb: &mut PageBuilder,
+    practice_name: &str,
+    doc_title: &str,
+    locale: &str,
+) {
+    let cont = match locale {
+        "de" => "Fortsetzung",
+        "fr" => "suite",
+        "ar" => "تابع",
+        _ => "continued",
+    };
     pb.y = M_TOP;
     pb.text(M_LEFT, 9, true, practice_name);
-    pb.text_right(M_RIGHT, 9, false, &format!("{doc_title} (Fortsetzung)"));
+    pb.text_right(M_RIGHT, 9, false, &format!("{doc_title} ({cont})"));
     pb.y -= 4;
     pb.hline_at(M_LEFT, pb.y, M_RIGHT);
     pb.y -= 16;
@@ -190,6 +242,23 @@ fn emit_meta_block(pb: &mut PageBuilder, rows: &[MetaRow], start_y: i32) -> i32 
         for chunk in wrap_soft(&row.value, 34) {
             pb.y = y;
             pb.text_right(M_RIGHT, 9, true, &chunk);
+            y -= 11;
+        }
+        y -= 4;
+    }
+    y
+}
+
+/// Left-aligned meta block (RTL documents — logo occupies the top-right).
+fn emit_meta_block_left(pb: &mut PageBuilder, rows: &[MetaRow], start_y: i32) -> i32 {
+    let mut y = start_y;
+    for row in rows {
+        pb.y = y;
+        pb.text(M_LEFT, 8, false, &row.label);
+        y -= 11;
+        for chunk in wrap_soft(&row.value, 34) {
+            pb.y = y;
+            pb.text(M_LEFT, 9, true, &chunk);
             y -= 11;
         }
         y -= 4;
@@ -262,12 +331,22 @@ pub fn emit_signature_block(
 
 /// Bank-details block for invoices.
 pub fn emit_bank_details(pb: &mut PageBuilder, lines: &[String]) {
+    emit_bank_details_locale(pb, lines, "en");
+}
+
+pub fn emit_bank_details_locale(pb: &mut PageBuilder, lines: &[String], locale: &str) {
     if lines.is_empty() {
         return;
     }
+    let title = match locale {
+        "de" => "Bankverbindung:",
+        "fr" => "Coordonnées bancaires :",
+        "ar" => "البيانات البنكية:",
+        _ => "Bank details:",
+    };
     pb.ensure_space(40 + lines.len() as i32 * 11);
     pb.advance(6);
-    pb.text(M_LEFT, 9, true, "Bank details:");
+    pb.text(M_LEFT, 9, true, title);
     pb.advance(11);
     for line in lines {
         pb.text(M_LEFT, 9, false, line);
@@ -316,6 +395,9 @@ mod tests {
             header_right_lines: &[],
             show_sender_hint: true,
             compact_address: false,
+            logo: None,
+            rtl: false,
+            locale: "en",
         };
         let y_after = emit_letterhead(&mut pb, &lh);
         assert!(y_after < M_TOP);
@@ -334,6 +416,9 @@ mod tests {
             header_right_lines: &[],
             show_sender_hint: false,
             compact_address: false,
+            logo: None,
+            rtl: false,
+            locale: "en",
         };
         let y_after = emit_letterhead(&mut pb, &lh);
         // Without an address field the divider must be earlier than DIN-5008 Y560.

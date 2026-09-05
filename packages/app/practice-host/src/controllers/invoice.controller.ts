@@ -34,6 +34,10 @@ export interface InvoiceInput {
     bank_details?: string[] | null;
     payment_terms_text?: string | null;
     vat_notice?: string | null;
+    /** UI locale for letterhead chrome (`en`|`de`|`fr`|`ar`). */
+    locale?: string | null;
+    /** Arabic: logo on the top-right. */
+    rtl?: boolean | null;
 }
 
 export type InvoiceDocKind = "RE" | "BR" | "QU";
@@ -71,8 +75,11 @@ export async function allocateReportNumber(
 
 /** FA-FIN-INVOICE: PDF bytes from the Rust print engine. */
 export async function renderInvoicePdf(invoice: InvoiceInput): Promise<Uint8Array> {
+    const { useLocale, isRtlLocale } = await import("@/lib/i18n");
+    const locale = invoice.locale ?? useLocale.getState().locale;
+    const rtl = invoice.rtl ?? isRtlLocale(locale as "en" | "de" | "fr" | "ar");
     const raw = await practiceSystem.invoke<number[]>("render_invoice_pdf", {
-        invoice,
+        invoice: { ...invoice, locale, rtl },
     });
     return new Uint8Array(raw);
 }

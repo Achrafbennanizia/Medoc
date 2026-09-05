@@ -15,12 +15,13 @@ use crate::error::AppError;
 use serde::Deserialize;
 
 use super::core::{
-    emit_multipage_pdf, table_row_height, truncate_cell, wrap_soft, wrap_text, PageBuilder,
-    CONTENT_WIDTH, M_BOTTOM, M_LEFT, M_RIGHT,
+    emit_multipage_pdf_with_images, table_row_height, truncate_cell, wrap_soft, wrap_text,
+    PageBuilder, CONTENT_WIDTH, M_BOTTOM, M_LEFT, M_RIGHT,
 };
 use super::letterhead::{
-    emit_continuation_header, emit_letterhead, emit_signature_block, Letterhead, MetaRow,
+    emit_continuation_header_locale, emit_letterhead, emit_signature_block, Letterhead, MetaRow,
 };
+use super::logo::PdfLogo;
 
 // ===========================================================================
 // Input schemas
@@ -145,6 +146,18 @@ pub struct ClinicalPdfLayout {
     pub clinician_zanr: Option<String>,
     #[serde(default)]
     pub clinician_bsnr: Option<String>,
+
+    /// Practice logo from Settings (`practice.logo.v1`) — `{mime,data}` base64.
+    #[serde(default)]
+    pub logo_kv_json: Option<String>,
+
+    /// UI locale (`en`|`de`|`fr`|`ar`) for chrome + page numbers.
+    #[serde(default)]
+    pub locale: Option<String>,
+
+    /// When true (Arabic), logo is placed top-right.
+    #[serde(default)]
+    pub rtl: bool,
 }
 
 // ===========================================================================
@@ -206,19 +219,60 @@ fn to_meta_rows(items: &[LabelValue]) -> Vec<MetaRow> {
 
 /// Main entry: render a clinical PDF.
 pub fn render_clinical_layout(doc: &ClinicalPdfLayout) -> Result<Vec<u8>, AppError> {
+    render_clinical_layout_with_logo(doc, None)
+}
+
+/// Same as [`render_clinical_layout`], with an optional pre-loaded logo
+/// (e.g. from `app_kv` when the layout JSON has no `logoKvJson`).
+pub fn render_clinical_layout_with_logo(
+    doc: &ClinicalPdfLayout,
+    logo_override: Option<&PdfLogo>,
+) -> Result<Vec<u8>, AppError> {
+    let owned_logo = doc
+        .logo_kv_json
+        .as_deref()
+        .and_then(PdfLogo::from_kv_json);
+    let logo = logo_override.or(owned_logo.as_ref());
+    let locale = doc.locale.as_deref().unwrap_or("en");
+
     let mut pb = PageBuilder::new();
 
     match doc.kind.as_str() {
-        "certificate" => render_certificate(&mut pb, doc),
-        "prescription" => render_prescription(&mut pb, doc),
-        "receipt" => render_receipt(&mut pb, doc),
-        _ => render_generic(&mut pb, doc),
+        "certificate" => render_certificate(&mut pb, doc, logo, locale),
+        "prescription" => render_prescription(&mut pb, doc, logo, locale),
+        "receipt" => render_receipt(&mut pb, doc, logo, locale),
+        _ => render_generic(&mut pb, doc, logo, locale),
     }
 
-    emit_clinical_privacy_footer(&mut pb, &doc.kind);
+    emit_clinical_privacy_footer(&mut pb, &doc.kind, locale);
 
     let pages = pb.finish();
-    emit_multipage_pdf(&pages, &format!("{} {}", doc.kind, doc.document_title))
+    let images: Vec<PdfLogo> = logo.cloned().into_iter().collect();
+    emit_multipage_pdf_with_images(
+        &pages,
+        &format!("{} {}", doc.kind, doc.document_title),
+        &images,
+        locale,
+    )
+}
+
+fn clinical_letterhead<'a>(
+    doc: &'a ClinicalPdfLayout,
+    meta: &'a [MetaRow],
+    logo: Option<&'a PdfLogo>,
+    locale: &'a str,
+) -> Letterhead<'a> {
+    Letterhead {
+        practice_lines: &doc.practice_lines,
+        meta_rows: meta,
+        address_lines: &doc.address_lines,
+        header_right_lines: &doc.header_right_lines,
+        show_sender_hint: !doc.address_lines.is_empty(),
+        compact_address: doc.kind == "receipt",
+        logo,
+        rtl: doc.rtl,
+        locale,
+    }
 }
 
 /// Plain preview when the frontend sends `bodyLines` only (no `layoutJson`).
@@ -253,6 +307,9 @@ pub fn render_plain_preview(
         header_right_lines: &[],
         show_sender_hint: false,
         compact_address: false,
+        logo: None,
+        rtl: false,
+        locale: "en",
     };
     emit_letterhead(&mut pb, &lh);
 
@@ -281,44 +338,38 @@ pub fn render_plain_preview(
         }
     }
 
-    emit_clinical_privacy_footer(&mut pb, kind);
+    emit_clinical_privacy_footer(&mut pb, kind, "en");
 
     let pages = pb.finish();
-    emit_multipage_pdf(&pages, &format!("Vorschau {template_name}"))
+    emit_multipage_pdf_with_images(&pages, &format!("Preview {template_name}"), &[], "en")
 }
 
-fn emit_clinical_privacy_footer(pb: &mut PageBuilder, kind: &str) {
+fn emit_clinical_privacy_footer(pb: &mut PageBuilder, kind: &str, locale: &str) {
     if kind == "receipt" {
         return;
     }
+    let notice = match locale {
+        "de" => "Vertrauliche Patientendaten gem. § 630f BGB / Art. 9 DSGVO. Weitergabe nur an berechtigte Personen.",
+        "fr" => "Données patient confidentielles (art. 9 RGPD). Divulgation uniquement aux personnes autorisées.",
+        "ar" => "بيانات مريض سرية وفق المادة 9 من اللائحة العامة لحماية البيانات. الإفصاح للمخولين فقط.",
+        _ => "Confidential patient data pursuant to § 630f BGB / Art. 9 GDPR. Disclosure only to authorized parties.",
+    };
     pb.ensure_space(40);
     pb.advance(12);
     pb.hline(M_LEFT, M_RIGHT);
     pb.advance(10);
-    pb.text(
-        M_LEFT,
-        7,
-        false,
-        "Confidential patient data pursuant to § 630f BGB / Art. 9 GDPR. Disclosure only to authorized parties.",
-    );
+    pb.text(M_LEFT, 7, false, notice);
 }
 
 // ---------------------------------------------------------------------------
 // CERTIFICATE  (Form-1 style)
 // ---------------------------------------------------------------------------
 
-fn render_certificate(pb: &mut PageBuilder, doc: &ClinicalPdfLayout) {
+fn render_certificate(pb: &mut PageBuilder, doc: &ClinicalPdfLayout, logo: Option<&PdfLogo>, locale: &str) {
     // Letterhead — certificates usually go to the patient directly, so
     // address_lines apply
     let meta_rows = to_meta_rows(&doc.meta_lines);
-    let lh = Letterhead {
-        practice_lines: &doc.practice_lines,
-        meta_rows: &meta_rows,
-        address_lines: &doc.address_lines,
-        header_right_lines: &doc.header_right_lines,
-        show_sender_hint: !doc.address_lines.is_empty(),
-        compact_address: false,
-    };
+    let lh = clinical_letterhead(doc, &meta_rows, logo, locale);
     emit_letterhead(pb, &lh);
 
     // Centered title
@@ -368,16 +419,9 @@ fn render_certificate(pb: &mut PageBuilder, doc: &ClinicalPdfLayout) {
 // PRESCRIPTION  (Form-16 style — private prescription)
 // ---------------------------------------------------------------------------
 
-fn render_prescription(pb: &mut PageBuilder, doc: &ClinicalPdfLayout) {
+fn render_prescription(pb: &mut PageBuilder, doc: &ClinicalPdfLayout, logo: Option<&PdfLogo>, locale: &str) {
     let meta_rows = to_meta_rows(&doc.meta_lines);
-    let lh = Letterhead {
-        practice_lines: &doc.practice_lines,
-        meta_rows: &meta_rows,
-        address_lines: &[],
-        header_right_lines: &[],
-        show_sender_hint: false,
-        compact_address: false,
-    };
+    let lh = clinical_letterhead(doc, &meta_rows, logo, locale);
     emit_letterhead(pb, &lh);
 
     // Large "Prescription" title on the left, optional subtitle (private / statutory / BtM)
@@ -434,16 +478,9 @@ fn render_prescription(pb: &mut PageBuilder, doc: &ClinicalPdfLayout) {
 // RECEIPT  (GoBD-compliant)
 // ---------------------------------------------------------------------------
 
-fn render_receipt(pb: &mut PageBuilder, doc: &ClinicalPdfLayout) {
+fn render_receipt(pb: &mut PageBuilder, doc: &ClinicalPdfLayout, logo: Option<&PdfLogo>, locale: &str) {
     let meta_rows = to_meta_rows(&doc.meta_lines);
-    let lh = Letterhead {
-        practice_lines: &doc.practice_lines,
-        meta_rows: &meta_rows,
-        address_lines: &doc.address_lines,
-        header_right_lines: &[],
-        show_sender_hint: !doc.address_lines.is_empty(),
-        compact_address: true,
-    };
+    let lh = clinical_letterhead(doc, &meta_rows, logo, locale);
     emit_letterhead(pb, &lh);
 
     pb.text_center(15, true, &doc.document_title);
@@ -489,16 +526,9 @@ fn render_receipt(pb: &mut PageBuilder, doc: &ClinicalPdfLayout) {
 // GENERIC  (fallback for unknown kind)
 // ---------------------------------------------------------------------------
 
-fn render_generic(pb: &mut PageBuilder, doc: &ClinicalPdfLayout) {
+fn render_generic(pb: &mut PageBuilder, doc: &ClinicalPdfLayout, logo: Option<&PdfLogo>, locale: &str) {
     let meta_rows = to_meta_rows(&doc.meta_lines);
-    let lh = Letterhead {
-        practice_lines: &doc.practice_lines,
-        meta_rows: &meta_rows,
-        address_lines: &doc.address_lines,
-        header_right_lines: &doc.header_right_lines,
-        show_sender_hint: !doc.address_lines.is_empty(),
-        compact_address: false,
-    };
+    let lh = clinical_letterhead(doc, &meta_rows, logo, locale);
     emit_letterhead(pb, &lh);
 
     pb.text(M_LEFT, 14, true, &doc.document_title);
@@ -801,7 +831,7 @@ fn emit_table_data_rows(
         let row_height = table_row_height(row_lines, line_step, font_size);
         if pb.y < M_BOTTOM + row_height + 20 {
             pb.break_page();
-            emit_continuation_header(pb, continuation.0, continuation.1);
+            emit_continuation_header_locale(pb, continuation.0, continuation.1, "en");
             pb.table_header_band(M_LEFT, pb.y + 2, CONTENT_WIDTH);
             for (ci, h) in table.headers.iter().enumerate() {
                 let x = col_xs.get(ci).copied().unwrap_or(M_LEFT);
@@ -982,12 +1012,57 @@ mod tests {
             clinician_professional_title: Some("Zahnärztin".into()),
             clinician_zanr: Some("987654321".into()),
             clinician_bsnr: Some("123456789".into()),
+            logo_kv_json: None,
+            locale: None,
+            rtl: false,
         };
         let pdf = render_clinical_layout(&doc).unwrap();
         assert!(pdf.starts_with(b"%PDF-1.4"));
         assert!(pdf.ends_with(b"%%EOF\n"));
         let text = String::from_utf8_lossy(&pdf);
         assert!(text.contains("CERTIFICATE") || text.contains("MEDICAL"));
+    }
+
+    #[test]
+    fn clinical_pdf_embeds_practice_logo_xobject() {
+        let img = image::RgbImage::from_pixel(24, 24, image::Rgb([10, 120, 200]));
+        let mut buf = Vec::new();
+        image::DynamicImage::ImageRgb8(img)
+            .write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png)
+            .expect("encode");
+        use base64::Engine;
+        let b64 = base64::engine::general_purpose::STANDARD.encode(&buf);
+        let logo_json = format!(r#"{{"mime":"image/png","data":"{b64}"}}"#);
+        let logo = PdfLogo::from_kv_json(&logo_json).expect("logo");
+        let doc = ClinicalPdfLayout {
+            kind: "certificate".into(),
+            practice_lines: practice(),
+            header_right_lines: vec![],
+            meta_lines: meta(),
+            address_lines: vec!["Max Sample".into()],
+            document_title: "MEDICAL CERTIFICATE".into(),
+            document_subtitle: None,
+            intro_paragraphs: vec!["Body".into()],
+            label_value_rows: vec![],
+            two_column: None,
+            tables: vec![],
+            detail_records: vec![],
+            totals: vec![],
+            closing_paragraphs: vec![],
+            signature_lines: vec![],
+            footer_meta_lines: vec![],
+            clinician_professional_title: None,
+            clinician_zanr: None,
+            clinician_bsnr: None,
+            logo_kv_json: None,
+            locale: Some("en".into()),
+            rtl: false,
+        };
+        let pdf = render_clinical_layout_with_logo(&doc, Some(&logo)).unwrap();
+        let text = String::from_utf8_lossy(&pdf);
+        assert!(text.contains("/Im0"), "page must reference logo XObject");
+        assert!(text.contains("/Subtype /Image"), "PDF must embed image XObject");
+        assert!(text.contains("Do"), "content stream must draw image");
     }
 
     #[test]
@@ -1041,6 +1116,9 @@ mod tests {
             clinician_professional_title: Some("Zahnarzt".into()),
             clinician_zanr: Some("987654321".into()),
             clinician_bsnr: Some("123456789".into()),
+            logo_kv_json: None,
+            locale: None,
+            rtl: false,
         };
         let pdf = render_clinical_layout(&doc).unwrap();
         assert!(pdf.starts_with(b"%PDF-1.4"));
@@ -1094,6 +1172,9 @@ mod tests {
             clinician_professional_title: None,
             clinician_zanr: None,
             clinician_bsnr: None,
+        logo_kv_json: None,
+        locale: None,
+        rtl: false,
         };
         let pdf = render_clinical_layout(&doc).unwrap();
         assert!(pdf.starts_with(b"%PDF-1.4"));
@@ -1123,6 +1204,9 @@ mod tests {
             clinician_professional_title: None,
             clinician_zanr: None,
             clinician_bsnr: None,
+        logo_kv_json: None,
+        locale: None,
+        rtl: false,
         };
         let pdf = render_clinical_layout(&doc).unwrap();
         assert!(pdf.starts_with(b"%PDF-1.4"));
@@ -1161,6 +1245,9 @@ mod tests {
             clinician_professional_title: None,
             clinician_zanr: None,
             clinician_bsnr: None,
+        logo_kv_json: None,
+        locale: None,
+        rtl: false,
         };
         let pdf = render_clinical_layout(&doc).unwrap();
         assert!(pdf.starts_with(b"%PDF-1.4"));
@@ -1195,6 +1282,9 @@ mod tests {
             clinician_professional_title: None,
             clinician_zanr: None,
             clinician_bsnr: None,
+        logo_kv_json: None,
+        locale: None,
+        rtl: false,
         };
         let pdf = render_clinical_layout(&doc).unwrap();
         assert!(pdf.starts_with(b"%PDF-1.4"));
@@ -1234,6 +1324,9 @@ mod tests {
             clinician_professional_title: None,
             clinician_zanr: None,
             clinician_bsnr: None,
+        logo_kv_json: None,
+        locale: None,
+        rtl: false,
         };
         let pdf = render_clinical_layout(&doc).unwrap();
         let text = String::from_utf8_lossy(&pdf);

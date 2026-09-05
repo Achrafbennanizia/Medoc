@@ -304,6 +304,14 @@ impl PageBuilder {
         self.text(x, size, bold, s);
     }
 
+    /// Draw shared Image XObject `/Im{index}` with bottom-left at `(x, y)`.
+    pub fn draw_image(&mut self, index: usize, x: f64, y: f64, w: f64, h: f64) {
+        let _ = writeln!(
+            self.cur,
+            "q {w:.2} 0 0 {h:.2} {x:.2} {y:.2} cm /Im{index} Do Q"
+        );
+    }
+
     /// Text centered between `M_LEFT` and `M_RIGHT`.
     pub fn text_center(&mut self, size: i32, bold: bool, s: &str) {
         let w = approx_text_width(s, size);
@@ -437,10 +445,25 @@ pub fn table_row_height(line_count: usize, line_step: i32, font_size: i32) -> i3
 ///
 /// Typically called after `let pages = page_builder.finish();`.
 pub fn emit_multipage_pdf(page_streams: &[String], pdf_title: &str) -> Result<Vec<u8>, AppError> {
+    emit_multipage_pdf_with_images(page_streams, pdf_title, &[], "en")
+}
+
+/// Like [`emit_multipage_pdf`], with optional Image XObjects (`/Im0` …) and
+/// localized page-number footer (`locale`: `en`|`de`|`fr`|`ar`).
+pub fn emit_multipage_pdf_with_images(
+    page_streams: &[String],
+    pdf_title: &str,
+    images: &[super::logo::PdfLogo],
+    locale: &str,
+) -> Result<Vec<u8>, AppError> {
     let n = page_streams.len().max(1);
+    let image_count = images.len();
+    // Object layout: 1=Catalog, 2=Pages, then page/content pairs, then fonts,
+    // then images, then Info.
     let font_regular_id = 3 + n * 2;
     let font_bold_id = font_regular_id + 1;
-    let info_id = font_bold_id + 1;
+    let first_image_id = font_bold_id + 1;
+    let info_id = first_image_id + image_count;
 
     let mut out: Vec<u8> = Vec::new();
     let mut offsets: Vec<usize> = Vec::new();
@@ -466,13 +489,23 @@ pub fn emit_multipage_pdf(page_streams: &[String], pdf_title: &str) -> Result<Ve
         .as_bytes(),
     );
 
+    let xobject_dict = if image_count == 0 {
+        String::new()
+    } else {
+        let entries: String = (0..image_count)
+            .map(|i| format!("/Im{i} {} 0 R", first_image_id + i))
+            .collect::<Vec<_>>()
+            .join(" ");
+        format!(" /XObject << {entries} >>")
+    };
+
     // 3 0 obj .. — Page + Content per page
     for i in 0..n {
         let page_id = 3 + i * 2;
         let content_id = 4 + i * 2;
 
         let mut stream = page_streams.get(i).cloned().unwrap_or_default();
-        append_page_number_footer(&mut stream, i, n);
+        append_page_number_footer(&mut stream, i, n, locale);
         let bytes = stream.as_bytes();
 
         offsets.push(out.len());
@@ -480,13 +513,14 @@ pub fn emit_multipage_pdf(page_streams: &[String], pdf_title: &str) -> Result<Ve
             format!(
                 "{p} 0 obj\n<< /Type /Page /Parent 2 0 R \
                  /MediaBox [0 0 {w} {h}] \
-                 /Resources << /Font << /F1 {f} 0 R /F2 {fb} 0 R >> >> \
+                 /Resources << /Font << /F1 {f} 0 R /F2 {fb} 0 R >>{xo} >> \
                  /Contents {c} 0 R >>\nendobj\n",
                 p = page_id,
                 w = PAGE_WIDTH,
                 h = PAGE_HEIGHT,
                 f = font_regular_id,
                 fb = font_bold_id,
+                xo = xobject_dict,
                 c = content_id,
             )
             .as_bytes(),
@@ -523,6 +557,26 @@ pub fn emit_multipage_pdf(page_streams: &[String], pdf_title: &str) -> Result<Ve
         .as_bytes(),
     );
 
+    // Images
+    for (i, img) in images.iter().enumerate() {
+        let id = first_image_id + i;
+        offsets.push(out.len());
+        out.extend_from_slice(
+            format!(
+                "{id} 0 obj\n<< /Type /XObject /Subtype /Image \
+                 /Width {w} /Height {h} /ColorSpace /DeviceRGB /BitsPerComponent 8 \
+                 /Filter /FlateDecode /Length {len} >>\nstream\n",
+                id = id,
+                w = img.width_px,
+                h = img.height_px,
+                len = img.data.len(),
+            )
+            .as_bytes(),
+        );
+        out.extend_from_slice(&img.data);
+        out.extend_from_slice(b"\nendstream\nendobj\n");
+    }
+
     // Info-Dictionary
     offsets.push(out.len());
     out.extend_from_slice(
@@ -556,8 +610,17 @@ pub fn emit_multipage_pdf(page_streams: &[String], pdf_title: &str) -> Result<Ve
     Ok(out)
 }
 
-fn append_page_number_footer(stream: &mut String, page_index: usize, page_total: usize) {
-    let label = format!("Page {} of {}", page_index + 1, page_total);
+fn page_of_label(locale: &str, page: usize, total: usize) -> String {
+    match locale {
+        "de" => format!("Seite {page} von {total}"),
+        "fr" => format!("Page {page} sur {total}"),
+        "ar" => format!("صفحة {page} من {total}"),
+        _ => format!("Page {page} of {total}"),
+    }
+}
+
+fn append_page_number_footer(stream: &mut String, page_index: usize, page_total: usize, locale: &str) {
+    let label = page_of_label(locale, page_index + 1, page_total);
     let op = text_operand(&label);
     // Centered in the footer.
     let x = (PAGE_WIDTH - approx_text_width(&label, 9)) / 2;

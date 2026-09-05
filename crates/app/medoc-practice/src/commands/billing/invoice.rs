@@ -1,6 +1,7 @@
 // Invoice PDF export command (FA-FIN-INVOICE).
 
 use serde::Deserialize;
+use sqlx::SqlitePool;
 use tauri::State;
 
 use crate::application::rbac;
@@ -40,15 +41,41 @@ pub struct InvoiceDto {
     pub bank_details: Option<Vec<String>>,
     pub payment_terms_text: Option<String>,
     pub vat_notice: Option<String>,
+    #[serde(default)]
+    pub locale: Option<String>,
+    #[serde(default)]
+    pub rtl: Option<bool>,
 }
 
 #[tauri::command]
-#[tracing::instrument(level = "info", skip(session_state, invoice))]
-pub fn render_invoice_pdf(
+#[tracing::instrument(level = "info", skip(pool, session_state, invoice))]
+pub async fn render_invoice_pdf(
+    pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
     invoice: InvoiceDto,
 ) -> Result<Vec<u8>, AppError> {
     rbac::require(&session_state, "finance.write")?;
+    let logo = match crate::infrastructure::database::app_kv_repo::get(&pool, "practice.logo.v1").await
+    {
+        Ok(Some(raw)) => match crate::infrastructure::pdf::PdfLogo::from_kv_json(&raw) {
+            Some(logo) => Some(logo),
+            None => {
+                tracing::warn!(
+                    event = "PRACTICE_LOGO_DECODE_SKIPPED",
+                    bytes = raw.len(),
+                    "practice.logo.v1 present but not usable for PDF"
+                );
+                None
+            }
+        },
+        Ok(None) => None,
+        Err(e) => {
+            tracing::warn!(event = "PRACTICE_LOGO_KV_READ_FAILED", error = %e);
+            None
+        }
+    };
+    let locale = invoice.locale.unwrap_or_else(|| "en".into());
+    let rtl = locale == "ar" || invoice.rtl.unwrap_or(false);
     let model = Invoice {
         number: invoice.number,
         date: invoice.date,
@@ -80,6 +107,9 @@ pub fn render_invoice_pdf(
         bank_details: invoice.bank_details,
         payment_terms_text: invoice.payment_terms_text,
         vat_notice: invoice.vat_notice,
+        logo,
+        locale,
+        rtl,
     };
     log_system!(info, event = "INVOICE_PDF", number = %model.number, total_cents = model.total_cents());
     render(&model)

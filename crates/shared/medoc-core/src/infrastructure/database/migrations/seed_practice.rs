@@ -104,9 +104,16 @@ async fn seed_practice_master(pool: &SqlitePool) -> Result<(), AppError> {
 }"#;
     upsert_kv(pool, "invoice.practice.v1", practice_json).await?;
 
-    // Tiny 1×1 PNG (transparent) so logo slot is non-empty.
+    // Tiny 1×1 PNG only when no logo exists yet — never overwrite a user upload.
     let logo_json = r#"{"mime":"image/png","data":"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="}"#;
-    upsert_kv(pool, "practice.logo.v1", logo_json).await?;
+    sqlx::query(
+        "INSERT INTO app_kv (key, value, updated_at) VALUES ('practice.logo.v1', ?1, CURRENT_TIMESTAMP)
+         ON CONFLICT(key) DO NOTHING",
+    )
+    .bind(logo_json)
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?;
 
     let closures = format!(
         r#"[

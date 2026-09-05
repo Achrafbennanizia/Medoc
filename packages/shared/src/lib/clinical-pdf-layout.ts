@@ -68,7 +68,20 @@ export type ClinicalPdfLayout = {
     signatureLines: string[];
     /** Meta bottom-right (Certificate: issue date, number). */
     footerMetaLines?: { label: string; value: string }[];
+    /** UI locale for chrome (`en`|`de`|`fr`|`ar`). */
+    locale?: string;
+    /** Arabic: practice logo top-right. */
+    rtl?: boolean;
 };
+
+function withDocumentLocale<T extends ClinicalPdfLayout>(layout: T): T {
+    const locale = useLocale.getState().locale;
+    return {
+        ...layout,
+        locale,
+        rtl: locale === "ar",
+    };
+}
 
 function headerContactRightFromPractice(): string[] {
     const p = getInvoicePracticeFromStorage();
@@ -148,13 +161,13 @@ export function buildCertificatePdfLayout(a: Certificate, patient: Patient | nul
     }
     labelRows.push({ label: "Place, date", value: "________________________________________" });
 
-    return {
+    return withDocumentLocale({
         kind: "certificate",
         practiceLines: practiceLinesForPdf(),
         headerRightLines: headerContactRightFromPractice(),
         metaLines: [],
         addressLines: [],
-        documentTitle: "MEDICAL CERTIFICATE",
+        documentTitle: docT("document.print.medical_certificate"),
         documentSubtitle: null,
         introParagraphs: intro,
         labelValueRows: labelRows,
@@ -168,7 +181,7 @@ export function buildCertificatePdfLayout(a: Certificate, patient: Patient | nul
             { label: "Issue date", value: issued },
             { label: "Certificate-Nr.", value: a.id.slice(0, 8).toUpperCase() },
         ],
-    };
+    });
 }
 
 export function buildPrescriptionPdfLayout(r: Prescription, patient: Patient | null): ClinicalPdfLayout {
@@ -183,7 +196,7 @@ export function buildPrescriptionPdfLayout(r: Prescription, patient: Patient | n
         patient?.address?.trim() ? patient.address.trim().replace(/\n/g, ", ") : "",
     ].filter(Boolean);
 
-    return {
+    return withDocumentLocale({
         kind: "prescription",
         practiceLines: practiceLinesForPdf(),
         metaLines: [
@@ -192,11 +205,11 @@ export function buildPrescriptionPdfLayout(r: Prescription, patient: Patient | n
             { label: "Prescription type", value: kind },
         ],
         addressLines: [],
-        documentTitle: "PRESCRIPTION",
+        documentTitle: docT("document.print.prescription_title").toUpperCase(),
         documentSubtitle: `Prescription (${kind})`,
         introParagraphs: [],
         twoColumn: {
-            leftTitle: "Patient",
+            leftTitle: docT("document.print.patient"),
             leftLines: left,
             rightTitle: "Address",
             rightLines: right.length > 0 ? right : ["—"],
@@ -228,7 +241,7 @@ export function buildPrescriptionPdfLayout(r: Prescription, patient: Patient | n
         totals: [],
         closingParagraphs: [],
         signatureLines: signatureLines(),
-    };
+    });
 }
 
 export function buildPrescriptionComboPdfLayout(items: Prescription[], patient: Patient | null): ClinicalPdfLayout {
@@ -240,7 +253,7 @@ export function buildPrescriptionComboPdfLayout(items: Prescription[], patient: 
         r.duration,
         (r.pzn ?? "").trim() || "—",
     ]);
-    return {
+    return withDocumentLocale({
         kind: "prescription",
         practiceLines: practiceLinesForPdf(),
         metaLines: [
@@ -248,18 +261,20 @@ export function buildPrescriptionComboPdfLayout(items: Prescription[], patient: 
             { label: "Line items", value: String(items.length) },
         ],
         addressLines: [],
-        documentTitle: "COMBINATION PRESCRIPTION",
-        documentSubtitle: `${items.length} medications`,
+        documentTitle: docTp("document.print.combo_heading", { count: items.length }),
+        documentSubtitle: docTp("document.print.prescription_combo_title", { count: items.length }),
         introParagraphs: [],
         twoColumn: patient
             ? {
-                  leftTitle: "Patient",
+                  leftTitle: docT("document.print.patient"),
                   leftLines: [
-                      `Name: ${patient.name}`,
-                      `Date of birth: ${formatDate(patient.date_of_birth)}`,
-                      patient.insurance_number ? `Ins. no.: ${patient.insurance_number}` : "",
+                      `${docT("document.print.patient")}: ${patient.name}`,
+                      `${docT("document.print.date_of_birth")}: ${formatDate(patient.date_of_birth)}`,
+                      patient.insurance_number
+                          ? docTp("document.print.insurance_no", { number: patient.insurance_number })
+                          : "",
                   ].filter(Boolean),
-                  rightTitle: "Address",
+                  rightTitle: docT("document.print.address").split(":")[0]!.trim(),
                   rightLines: patient.address?.trim()
                       ? [patient.address.trim().replace(/\n/g, ", ")]
                       : ["—"],
@@ -277,7 +292,7 @@ export function buildPrescriptionComboPdfLayout(items: Prescription[], patient: 
         totals: [],
         closingParagraphs: [],
         signatureLines: signatureLines(),
-    };
+    });
 }
 
 /** Prices shown on the patient receipt: catalog standard, charged line, amount paid. */
@@ -382,7 +397,7 @@ export function buildReceiptPdfLayout(
     const prices = receiptPriceBreakdown(z, treatments, examinations, catalog, services);
     const paid = formatCurrency(prices.paidPrice);
 
-    return {
+    return withDocumentLocale({
         kind: "receipt",
         practiceLines: practiceLinesForPdf(),
         metaLines: [
@@ -399,11 +414,11 @@ export function buildReceiptPdfLayout(
                       .filter(Boolean)
                 : []),
         ],
-        documentTitle: "PATIENT RECEIPT",
+        documentTitle: docT("document.print.receipt_heading"),
         documentSubtitle: `for ${patient.name}`,
         introParagraphs: [`Billed service items for ${payDate}`],
         labelValueRows: [
-            { label: "Patient", value: patient.name },
+            { label: docT("document.print.patient"), value: patient.name },
             { label: "Date of birth", value: formatClinicalDate(patient.date_of_birth) },
             ...(patient.insurance_number
                 ? [{ label: "Insurance number", value: patient.insurance_number }]
@@ -435,7 +450,7 @@ export function buildReceiptPdfLayout(
                 : []),
         ],
         signatureLines: signatureLines(),
-    };
+    });
 }
 
 /** DD.MM.YYYY for clinical printouts (independent of UI locale). */

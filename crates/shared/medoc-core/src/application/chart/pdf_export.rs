@@ -103,6 +103,13 @@ async fn chart_header_from_app_kv(
         zanr: get("zanr"),
         created_by: Some(created_by.to_string()),
         document_id: Some(document_id.to_string()),
+        logo: app_kv_repo::get(pool, "practice.logo.v1")
+            .await
+            .ok()
+            .flatten()
+            .and_then(|raw| crate::infrastructure::pdf::PdfLogo::from_kv_json(&raw)),
+        locale: "en".into(),
+        rtl: false,
     })
 }
 

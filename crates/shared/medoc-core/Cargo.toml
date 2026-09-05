@@ -59,6 +59,8 @@ tracing-appender = "0.2"
 # Filesystem helpers
 dirs = "5"
 zip = { version = "2", default-features = false, features = ["deflate"] }
+flate2 = "1"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif"] }
 
 # OS keyring (db_key.rs + secret_store.rs)
 keyring = "3"

@@ -13,14 +13,15 @@
 use crate::error::AppError;
 
 use super::core::{
-    approx_text_width, emit_multipage_pdf, format_date_dmy, format_eur, sanitize_pdf_money,
+    approx_text_width, emit_multipage_pdf_with_images, format_date_dmy, format_eur, sanitize_pdf_money,
     table_row_height, truncate_cell, wrap_soft, wrap_text, PageBuilder, CONTENT_WIDTH, M_BOTTOM,
     M_LEFT, M_RIGHT,
 };
 use super::letterhead::{
-    emit_bank_details, emit_continuation_header, emit_letterhead, emit_signature_block,
+    emit_bank_details_locale, emit_continuation_header_locale, emit_letterhead, emit_signature_block,
     Letterhead, MetaRow,
 };
+use super::logo::PdfLogo;
 
 // ===========================================================================
 // INVOICE
@@ -73,7 +74,7 @@ impl InvoiceLine {
 }
 
 /// Complete invoice (all required/recommended fields per UStG § 14 + GOZ § 10).
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct Invoice {
     pub number: String,
     pub date: String, // ISO date (converted to DE format internally)
@@ -93,6 +94,36 @@ pub struct Invoice {
     pub payment_terms_text: Option<String>,
     /// E.g. "Exempt from VAT under UStG § 4 no. 14"
     pub vat_notice: Option<String>,
+    /// Optional practice logo for the letterhead.
+    pub logo: Option<PdfLogo>,
+    /// Document locale (`en`|`de`|`fr`|`ar`).
+    pub locale: String,
+    /// Arabic: logo top-right.
+    pub rtl: bool,
+}
+
+impl Default for Invoice {
+    fn default() -> Self {
+        Self {
+            number: String::new(),
+            date: String::new(),
+            recipient_name: String::new(),
+            recipient_address: Vec::new(),
+            practice_name: String::new(),
+            practice_address: Vec::new(),
+            lines: Vec::new(),
+            note: None,
+            clinician_name: None,
+            clinician_zanr: None,
+            practice_bsnr: None,
+            bank_details: None,
+            payment_terms_text: None,
+            vat_notice: None,
+            logo: None,
+            locale: "en".into(),
+            rtl: false,
+        }
+    }
 }
 
 impl Invoice {
@@ -156,6 +187,7 @@ pub fn render(invoice: &Invoice) -> Result<Vec<u8>, AppError> {
     let mut recipient = vec![invoice.recipient_name.clone()];
     recipient.extend(invoice.recipient_address.iter().cloned());
 
+    let locale = if invoice.locale.trim().is_empty() { "en" } else { invoice.locale.as_str() };
     let lh = Letterhead {
         practice_lines: &practice_full,
         meta_rows: &meta,
@@ -163,6 +195,9 @@ pub fn render(invoice: &Invoice) -> Result<Vec<u8>, AppError> {
         header_right_lines: &[],
         show_sender_hint: true,
         compact_address: false,
+        logo: invoice.logo.as_ref(),
+        rtl: invoice.rtl,
+        locale,
     };
     emit_letterhead(&mut pb, &lh);
 
@@ -181,7 +216,7 @@ pub fn render(invoice: &Invoice) -> Result<Vec<u8>, AppError> {
     for (i, line) in invoice.lines.iter().enumerate() {
         if pb.y < M_BOTTOM + 120 {
             pb.break_page();
-            emit_continuation_header(&mut pb, &invoice.practice_name, "Invoice");
+            emit_continuation_header_locale(&mut pb, &invoice.practice_name, "Invoice", locale);
             emit_invoice_table_header(&mut pb);
         }
         emit_invoice_line(&mut pb, i, line);
@@ -206,7 +241,7 @@ pub fn render(invoice: &Invoice) -> Result<Vec<u8>, AppError> {
 
     // ---------- Bank details ----------------------------------------------
     if let Some(bank) = &invoice.bank_details {
-        emit_bank_details(&mut pb, bank);
+        emit_bank_details_locale(&mut pb, bank, locale);
     }
 
     // ---------- Signature -------------------------------------------------
@@ -220,7 +255,10 @@ pub fn render(invoice: &Invoice) -> Result<Vec<u8>, AppError> {
     );
 
     let pages = pb.finish();
-    emit_multipage_pdf(&pages, &format!("Invoice {}", invoice.number))
+    {
+        let images: Vec<PdfLogo> = invoice.logo.clone().into_iter().collect();
+        emit_multipage_pdf_with_images(&pages, &format!("Invoice {}", invoice.number), &images, locale)
+    }
 }
 
 fn emit_invoice_table_header(pb: &mut PageBuilder) {
@@ -437,7 +475,7 @@ pub struct ChartDocument {
 
 /// Practice header data for record / fact sheet (optional — when `None` a
 /// slim header without DIN-5008 letterhead is rendered).
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct ChartHeaderContext {
     pub practice_lines: Vec<String>,
     pub clinician_name: Option<String>,
@@ -446,6 +484,26 @@ pub struct ChartHeaderContext {
     pub zanr: Option<String>,
     pub created_by: Option<String>,
     pub document_id: Option<String>,
+    pub logo: Option<PdfLogo>,
+    pub locale: String,
+    pub rtl: bool,
+}
+
+impl Default for ChartHeaderContext {
+    fn default() -> Self {
+        Self {
+            practice_lines: Vec::new(),
+            clinician_name: None,
+            professional_title: None,
+            bsnr: None,
+            zanr: None,
+            created_by: None,
+            document_id: None,
+            logo: None,
+            locale: "en".into(),
+            rtl: false,
+        }
+    }
 }
 
 /// Main renderer for the patient record as PDF (modular).
@@ -475,6 +533,7 @@ pub fn render_chart_blocks(
             meta.push(MetaRow::new("Clinician", b));
         }
 
+        let locale = if h.locale.trim().is_empty() { "en" } else { h.locale.as_str() };
         let lh = Letterhead {
             practice_lines: &h.practice_lines,
             meta_rows: &meta,
@@ -482,6 +541,9 @@ pub fn render_chart_blocks(
             header_right_lines: &[],
             show_sender_hint: false,
             compact_address: false,
+            logo: h.logo.as_ref(),
+            rtl: h.rtl,
+            locale,
         };
         emit_letterhead(&mut pb, &lh);
     } else {
@@ -535,7 +597,11 @@ pub fn render_chart_blocks(
     }
 
     let pages = pb.finish();
-    emit_multipage_pdf(&pages, pdf_title_meta)
+    {
+        let images: Vec<PdfLogo> = header.and_then(|h| h.logo.clone()).into_iter().collect();
+        let locale = header.map(|h| h.locale.as_str()).filter(|s| !s.is_empty()).unwrap_or("en");
+        emit_multipage_pdf_with_images(&pages, pdf_title_meta, &images, locale)
+    }
 }
 
 fn emit_chart_block(
@@ -548,7 +614,7 @@ fn emit_chart_block(
     pb.ensure_space(48);
     if pb.y < M_BOTTOM + 100 {
         pb.break_page();
-        emit_continuation_header(pb, practice_name, doc_title);
+        emit_continuation_header_locale(pb, practice_name, doc_title, "en");
     }
 
     // Block-Titel in Hellgrau-Band
@@ -578,7 +644,7 @@ fn emit_chart_block(
             for chunk in wrap_text(&display, 90) {
                 if pb.y < M_BOTTOM + 24 {
                     pb.break_page();
-                    emit_continuation_header(pb, practice_name, doc_title);
+                    emit_continuation_header_locale(pb, practice_name, doc_title, "en");
                 }
                 pb.text(M_LEFT, 10, false, &chunk);
                 pb.advance(12);
@@ -617,7 +683,7 @@ fn emit_chart_kv_pair(
 
     if pb.y < M_BOTTOM + 30 {
         pb.break_page();
-        emit_continuation_header(pb, practice_name, doc_title);
+        emit_continuation_header_locale(pb, practice_name, doc_title, "en");
     }
 
     if fits_one_line {
@@ -630,7 +696,7 @@ fn emit_chart_kv_pair(
         for chunk in wrap_text(&display, 90) {
             if pb.y < M_BOTTOM + 24 {
                 pb.break_page();
-                emit_continuation_header(pb, practice_name, doc_title);
+                emit_continuation_header_locale(pb, practice_name, doc_title, "en");
             }
             pb.text(M_LEFT + 8, 10, false, &chunk);
             pb.advance(12);
@@ -708,7 +774,7 @@ fn emit_chart_table(pb: &mut PageBuilder, tbl: &ChartPdfTable, practice_name: &s
 
     if pb.y < M_BOTTOM + 60 {
         pb.break_page();
-        emit_continuation_header(pb, practice_name, doc_title);
+        emit_continuation_header_locale(pb, practice_name, doc_title, "en");
     }
 
     emit_chart_table_header_row(pb, tbl, &col_xs, &col_chars);
@@ -736,7 +802,7 @@ fn emit_chart_table(pb: &mut PageBuilder, tbl: &ChartPdfTable, practice_name: &s
         let row_height = table_row_height(row_lines, line_step, font_size);
         if pb.y < M_BOTTOM + row_height + 20 {
             pb.break_page();
-            emit_continuation_header(pb, practice_name, doc_title);
+            emit_continuation_header_locale(pb, practice_name, doc_title, "en");
             emit_chart_table_header_row(pb, tbl, &col_xs, &col_chars);
         }
 
@@ -991,6 +1057,9 @@ mod tests {
             ]),
             payment_terms_text: Some("Payable within 14 days with no deduction.".into()),
             vat_notice: Some("VAT-exempt under § 4 No. 14 UStG".into()),
+            logo: None,
+            locale: "en".into(),
+            rtl: false,
         }
     }
 

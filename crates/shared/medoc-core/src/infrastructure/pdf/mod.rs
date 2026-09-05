@@ -8,10 +8,12 @@ pub mod clinical_layout;
 pub mod core;
 pub mod export;
 pub mod letterhead;
+pub mod logo;
 pub mod render;
 
 pub use clinical_layout::*;
 pub use core::*;
 pub use export::*;
 pub use letterhead::*;
+pub use logo::*;
 pub use render::*;

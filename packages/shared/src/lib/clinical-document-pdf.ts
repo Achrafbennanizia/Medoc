@@ -14,6 +14,7 @@ import {
     maskPracticeExportToken,
     type PracticeHeaderPrivacyV1,
 } from "@/lib/practice-header-privacy";
+import { translateLocale, useLocale } from "@/lib/i18n";
 
 const HEADER_ORDER: PracticeFieldKey[] = [
     "name",
@@ -67,13 +68,15 @@ export function buildClinicalTemplateHeaderLines(
             case "phone": {
                 const t = (practice.phone ?? "").trim();
                 if (!t) break;
-                lines.push(`Tel. ${privacy.tel ? t : maskPracticeExportToken(t)}`);
+                const tel = translateLocale(useLocale.getState().locale, "document.print.phone");
+                lines.push(`${tel} ${privacy.tel ? t : maskPracticeExportToken(t)}`);
                 break;
             }
             case "fax": {
                 const t = (practice.fax ?? "").trim();
                 if (!t) break;
-                lines.push(`Fax ${privacy.fax ? t : maskPracticeExportToken(t)}`);
+                const fax = translateLocale(useLocale.getState().locale, "document.print.fax");
+                lines.push(`${fax} ${privacy.fax ? t : maskPracticeExportToken(t)}`);
                 break;
             }
             case "web": {

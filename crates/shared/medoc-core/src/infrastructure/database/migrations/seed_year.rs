@@ -6,7 +6,7 @@
 //! - ≥ 5_000 prescriptions + ≥ 7_000 certificates
 //! - ≥ €300_000 cash flow (payments + purchase orders)
 //! - ≥ 50 treatment catalog entries
-//! - 5 staff (1 PHYSICIAN + 4 RECEPTION — MVP quota)
+//! - 5 staff (1 dentist PHYSICIAN + 4 front-desk/support RECEPTION — MVP quota)
 //! - Dense appointments using every kind/status
 //!
 //! Skipped under `cfg!(test)` via [`run_demo_year_volume_if_needed`]. Idempotent: `year_v3`.
@@ -116,10 +116,10 @@ pub async fn run_demo_year_volume_if_needed(pool: &SqlitePool) -> Result<(), App
     if already_applied(pool).await? {
         return Ok(());
     }
-    tracing::info!("demo year seed v2: generating full practice volume");
+    tracing::info!("demo year seed v3: generating full practice volume");
     seed_year_volume(pool, Scale::full()).await?;
     mark_applied(pool).await?;
-    tracing::info!("demo year seed v2: done");
+    tracing::info!("demo year seed v3: done");
     Ok(())
 }
 
@@ -140,32 +140,74 @@ async fn seed_year_volume(pool: &SqlitePool, scale: Scale) -> Result<(), AppErro
     let hash = bcrypt::hash("password123", 8)
         .map_err(|e| AppError::Internal(format!("year seed bcrypt: {e}")))?;
 
-    // 5 personnel total: existing physician + 4 reception (MVP max).
-    for (i, rid) in RECEPTION_IDS.iter().enumerate() {
-        let name = match i {
-            0 => "Aya M.",
-            1 => "Nora S.",
-            2 => "Tom K.",
-            _ => "Lina B.",
-        };
-        let email = match i {
-            0 => "aya@practice.de",
-            1 => "nora@practice.de",
-            2 => "tom@practice.de",
-            _ => "lina@practice.de",
-        };
+    // 5 personnel total: existing dentist + 4 front-office / clinical support (MVP max).
+    // Login role remains RECEPTION; activity_area describes the realistic practice job.
+    let reception_profiles: &[(&str, &str, &str, &str, &str)] = &[
+        (
+            RECEPTION_IDS[0],
+            "Aya Müller",
+            "aya@practice.de",
+            "Front desk",
+            "Scheduling & patient intake",
+        ),
+        (
+            RECEPTION_IDS[1],
+            "Nora Schneider",
+            "nora@practice.de",
+            "Practice management",
+            "Operations & team coordination",
+        ),
+        (
+            RECEPTION_IDS[2],
+            "Tom Keller",
+            "tom@practice.de",
+            "Dental assisting",
+            "Chairside & sterilization",
+        ),
+        (
+            RECEPTION_IDS[3],
+            "Lina Becker",
+            "lina@practice.de",
+            "Billing & insurance",
+            "Claims & day close",
+        ),
+    ];
+    for (rid, name, email, area, specialty) in reception_profiles {
         sqlx::query(
-            "INSERT OR IGNORE INTO staff (id, name, email, password_hash, role, specialty)
-             VALUES (?1, ?2, ?3, ?4, 'RECEPTION', NULL)",
+            "INSERT OR IGNORE INTO staff (id, name, email, password_hash, role, activity_area, specialty)
+             VALUES (?1, ?2, ?3, ?4, 'RECEPTION', ?5, ?6)",
         )
         .bind(rid)
         .bind(name)
         .bind(email)
         .bind(&hash)
+        .bind(area)
+        .bind(specialty)
+        .execute(&mut *tx)
+        .await
+        .map_err(AppError::Database)?;
+        sqlx::query(
+            "UPDATE staff SET name = ?2, activity_area = ?3, specialty = ?4 WHERE id = ?1",
+        )
+        .bind(rid)
+        .bind(name)
+        .bind(area)
+        .bind(specialty)
         .execute(&mut *tx)
         .await
         .map_err(AppError::Database)?;
     }
+    sqlx::query(
+        "UPDATE staff SET
+            name = 'Dr. Ahmed Rahman',
+            activity_area = 'General dentistry',
+            specialty = 'Restorative & prosthodontics'
+         WHERE id = ?1",
+    )
+    .bind(PHYSICIAN_ID)
+    .execute(&mut *tx)
+    .await
+    .map_err(AppError::Database)?;
 
     let today = Local::now().date_naive();
     let start = today - Duration::days(364);

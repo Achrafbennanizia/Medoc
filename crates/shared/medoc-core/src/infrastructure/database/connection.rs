@@ -208,6 +208,10 @@ pub async fn run_migrations(pool: &SqlitePool) -> Result<(), AppError> {
     // CREATE IF NOT EXISTS, so we never create an empty English twin beside
     // a populated German table.
     migrations::run_english_schema_upgrade(pool).await?;
+    // Existing installs keep quota triggers from the last launch. Drop them
+    // before legacy/demo seed so INSERT OR IGNORE of existing staff cannot
+    // RAISE "Maximum N users allowed" when already at cap.
+    crate::mvp_security::drop_staff_quota_db_triggers(pool).await?;
     if migrations::schema_already_present(pool).await? {
         migrations::run_legacy_embedded_migrations(pool).await?;
         migrations::run_rust_only_migrations(pool).await?;

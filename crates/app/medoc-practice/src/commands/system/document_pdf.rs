@@ -2,11 +2,14 @@
 
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use serde::Deserialize;
+use sqlx::SqlitePool;
 use tauri::State;
 
 use crate::application::rbac;
 use crate::commands::auth_commands::SessionState;
 use crate::error::AppError;
+use crate::infrastructure::database::app_kv_repo;
+use crate::infrastructure::pdf::{render_clinical_layout_with_logo, PdfLogo};
 use crate::infrastructure::pdf_export::render_template_preview_pdf;
 
 #[derive(Debug, Deserialize)]
@@ -22,8 +25,9 @@ pub struct PreviewDocumentPdfArgs {
 
 /// Production PDF content (same renderer as template preview); lines from structured data — no raw HTML.
 #[tauri::command]
-#[tracing::instrument(level = "info", skip(session_state, args))]
-pub fn preview_document_pdf(
+#[tracing::instrument(level = "info", skip(pool, session_state, args))]
+pub async fn preview_document_pdf(
+    pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
     args: PreviewDocumentPdfArgs,
 ) -> Result<String, AppError> {
@@ -42,14 +46,40 @@ pub fn preview_document_pdf(
         .chars()
         .take(240)
         .collect::<String>();
-    let bytes = render_template_preview_pdf(
-        &args.kind,
-        &args.template_name,
-        &footer,
-        body_pt,
-        &args.body_lines,
-        args.layout_json.as_deref(),
-    )?;
+
+    let logo = match app_kv_repo::get(&pool, "practice.logo.v1").await {
+        Ok(Some(raw)) => match PdfLogo::from_kv_json(&raw) {
+            Some(logo) => Some(logo),
+            None => {
+                tracing::warn!(
+                    event = "PRACTICE_LOGO_DECODE_SKIPPED",
+                    bytes = raw.len(),
+                    "practice.logo.v1 present but not usable for PDF (placeholder or unsupported image)"
+                );
+                None
+            }
+        },
+        Ok(None) => None,
+        Err(e) => {
+            tracing::warn!(event = "PRACTICE_LOGO_KV_READ_FAILED", error = %e);
+            None
+        }
+    };
+
+    let bytes = if let Some(json) = args.layout_json.as_deref().filter(|s| !s.trim().is_empty()) {
+        let layout: crate::infrastructure::pdf::ClinicalPdfLayout = serde_json::from_str(json)
+            .map_err(|e| AppError::Validation(format!("PDF-Layout: {e}")))?;
+        render_clinical_layout_with_logo(&layout, logo.as_ref())?
+    } else {
+        render_template_preview_pdf(
+            &args.kind,
+            &args.template_name,
+            &footer,
+            body_pt,
+            &args.body_lines,
+            None,
+        )?
+    };
     Ok(STANDARD.encode(&bytes))
 }
 
