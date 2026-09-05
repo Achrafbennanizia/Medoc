@@ -31,6 +31,48 @@ pub async fn list_patients(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, params))]
+pub async fn list_patients_paged(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    params: Option<crate::commands::list_params::ListParams>,
+) -> Result<crate::commands::list_params::ListResponse<Patient>, AppError> {
+    let session = rbac::require(&session_state, "patient.read")?;
+    let p = params.unwrap_or_default();
+    let limit = p.limit();
+    let offset = p.offset();
+    let (items, total) =
+        patient_repo::find_paginated(&pool, limit, offset, p.search.as_deref()).await?;
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "READ_LIST",
+        "Patient",
+        None,
+        Some(&format!("count={} page={}", items.len(), p.page_one_based())),
+    )
+    .await
+    .ok();
+    Ok(crate::commands::list_params::ListResponse {
+        items,
+        total,
+        page: p.page_one_based(),
+        page_size: limit,
+    })
+}
+
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, ids))]
+pub async fn list_patients_by_ids(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    ids: Vec<String>,
+) -> Result<Vec<Patient>, AppError> {
+    rbac::require(&session_state, "patient.read")?;
+    patient_repo::find_by_ids(&pool, &ids).await
+}
+
+#[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state))]
 pub async fn get_patient(
     pool: State<'_, SqlitePool>,
@@ -181,6 +223,8 @@ pub async fn search_patients(
 macro_rules! register_patient_commands {
     () => {
         $crate::commands::patient_commands::list_patients,
+        $crate::commands::patient_commands::list_patients_paged,
+        $crate::commands::patient_commands::list_patients_by_ids,
         $crate::commands::patient_commands::get_patient,
         $crate::commands::patient_commands::create_patient,
         $crate::commands::patient_commands::update_patient,

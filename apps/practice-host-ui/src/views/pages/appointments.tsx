@@ -20,10 +20,11 @@ import {
     parseISO,
     startOfWeek,
 } from "date-fns";
-import { listAppointments, deleteAppointment, updateAppointment } from "@/systems/practice-host/controllers/appointment.controller";
+import { listAppointmentsPaged, deleteAppointment, updateAppointment } from "@/systems/practice-host/controllers/appointment.controller";
 import { useDateFnsLocale, useT, useTParams, useLocale, isRtlLocale } from "@/lib/i18n";
-import { listPatients } from "@/systems/practice-host/controllers/patient.controller";
+import { listPatientsByIds } from "@/systems/practice-host/controllers/patient.controller";
 import { listPhysicians, type PhysicianSummary } from "@/systems/practice-host/controllers/staff.controller";
+import { LAZY_PAGE_SIZE, mergeUniqueById } from "@/lib/lazy-list";
 import { listAbsences } from "@/systems/practice-host/controllers/practice.controller";
 import { errorMessage } from "@/lib/utils";
 import { MEDOC_PENDING_APPOINTMENT_MENU_KEY } from "@/lib/native-go-menu";
@@ -250,8 +251,33 @@ export function AppointmentsPage() {
         setLoading(true);
         setLoadError(null);
         try {
-            const [t, p, a] = await Promise.all([listAppointments(), listPatients(), listPhysicians()]);
-            setAppointments(t);
+            // Calendar needs a date window, not the full year seed (8k+ rows).
+            const today = new Date();
+            const from = new Date(today.getFullYear(), today.getMonth() - 2, 1);
+            const to = new Date(today.getFullYear(), today.getMonth() + 3, 0);
+            const ymd = (d: Date) =>
+                `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+            let page = 1;
+            let total = Infinity;
+            let appts: Awaited<ReturnType<typeof listAppointmentsPaged>>["items"] = [];
+            while (appts.length < total) {
+                const resp = await listAppointmentsPaged({
+                    page,
+                    pageSize: LAZY_PAGE_SIZE,
+                    filter: { dateFrom: ymd(from), dateTo: ymd(to) },
+                });
+                total = resp.total;
+                appts = mergeUniqueById(appts, resp.items);
+                if (resp.items.length === 0 || page * resp.pageSize >= total) break;
+                page += 1;
+                if (page > 100) break;
+            }
+            const patientIds = [...new Set(appts.map((a) => a.patient_id).filter(Boolean))];
+            const [p, a] = await Promise.all([
+                patientIds.length ? listPatientsByIds(patientIds) : Promise.resolve([]),
+                listPhysicians(),
+            ]);
+            setAppointments(appts);
             setPatients(p);
             setPhysicians(a);
             try {

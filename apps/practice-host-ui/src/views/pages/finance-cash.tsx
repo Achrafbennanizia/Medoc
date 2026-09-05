@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { listPayments } from "@/systems/practice-host/controllers/payment.controller";
-import { listPatients } from "@/systems/practice-host/controllers/patient.controller";
+import type { Patient, Payment } from "@/models/types";
 import { filterReceptionCashQueue } from "@/lib/day-close";
 import { allowed, parseRole } from "@/lib/rbac";
 import { errorMessage, formatCurrency, formatDateTime } from "@/lib/utils";
 import { paymentMethodLabel } from "@/lib/finance-order-labels";
 import { useLocale, useT, useTParams } from "@/lib/i18n";
-import type { Patient, Payment } from "@/models/types";
 import { useAuthStore } from "../../models/store/auth-store";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -46,15 +44,34 @@ export function FinanceCashPage() {
         setLoading(true);
         setLoadError(null);
         try {
-            const [z, p] = await Promise.all([listPayments(), listPatients()]);
-            setPayments(z);
-            setPatients(p);
+            const { listPaymentsPaged } = await import("@/systems/practice-host/controllers/payment.controller");
+            const { listPatientsByIds } = await import("@/systems/practice-host/controllers/patient.controller");
+            const resp = await listPaymentsPaged({
+                page: 1,
+                pageSize: 500,
+                filter: { dateOn: today },
+            });
+            // Cash queue can span pages if a busy day exceeds 500; pull remaining pages.
+            let all = resp.items;
+            let page = resp.page;
+            while (page * resp.pageSize < resp.total) {
+                page += 1;
+                const more = await listPaymentsPaged({
+                    page,
+                    pageSize: 500,
+                    filter: { dateOn: today },
+                });
+                all = all.concat(more.items);
+            }
+            setPayments(all);
+            const ids = [...new Set(all.map((z) => z.patient_id).filter(Boolean))];
+            setPatients(ids.length ? await listPatientsByIds(ids) : []);
         } catch (e) {
             setLoadError(errorMessage(e));
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [today]);
 
     useEffect(() => {
         void load();

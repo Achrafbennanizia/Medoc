@@ -18,6 +18,58 @@ pub async fn list_payments(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, params))]
+pub async fn list_payments_paged(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    params: Option<crate::commands::list_params::ListParams>,
+) -> Result<crate::commands::list_params::ListResponse<Payment>, AppError> {
+    rbac::require_one_of(&session_state, FINANCE_READ_OR_RECEPTION)?;
+    let p = params.unwrap_or_default();
+    let limit = p.limit();
+    let offset = p.offset();
+    let sort_dir = p
+        .sort_dir_or(crate::commands::list_params::SortDir::Desc)
+        .sql();
+    let filter = payment_repo::PaymentListFilter {
+        status: p.filter_str("status"),
+        payment_method: p.filter_str("paymentMethod").or_else(|| p.filter_str("method")),
+        date_on: p.filter_str("dateOn"),
+        date_from: p.filter_str("dateFrom"),
+        date_to: p.filter_str("dateTo"),
+    };
+    let (items, total) =
+        payment_repo::find_paginated(&pool, limit, offset, sort_dir, filter).await?;
+    Ok(crate::commands::list_params::ListResponse {
+        items,
+        total,
+        page: p.page_one_based(),
+        page_size: limit,
+    })
+}
+
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
+pub async fn payment_finance_kpis(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+) -> Result<payment_repo::PaymentFinanceKpis, AppError> {
+    rbac::require_one_of(&session_state, FINANCE_READ_OR_RECEPTION)?;
+    payment_repo::finance_kpis(&pool).await
+}
+
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
+pub async fn payment_monthly_breakdown(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    months: Option<u32>,
+) -> Result<Vec<payment_repo::PaymentMonthBucket>, AppError> {
+    rbac::require_one_of(&session_state, FINANCE_READ_OR_RECEPTION)?;
+    payment_repo::monthly_breakdown(&pool, months.unwrap_or(12)).await
+}
+
+#[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state, patient_id))]
 pub async fn list_payments_for_patient(
     pool: State<'_, SqlitePool>,
@@ -169,6 +221,9 @@ pub async fn set_payments_cash_verified(
 macro_rules! register_payment_commands {
     () => {
         $crate::commands::payment_commands::list_payments,
+        $crate::commands::payment_commands::list_payments_paged,
+        $crate::commands::payment_commands::payment_finance_kpis,
+        $crate::commands::payment_commands::payment_monthly_breakdown,
         $crate::commands::payment_commands::list_payments_for_patient,
         $crate::commands::payment_commands::list_patient_ids_open_invoice,
         $crate::commands::payment_commands::create_payment,

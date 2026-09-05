@@ -20,6 +20,37 @@ pub async fn list_appointments(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, params))]
+pub async fn list_appointments_paged(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    params: Option<crate::commands::list_params::ListParams>,
+) -> Result<crate::commands::list_params::ListResponse<Appointment>, AppError> {
+    rbac::require(&session_state, "appointment.read")?;
+    let p = params.unwrap_or_default();
+    let limit = p.limit();
+    let offset = p.offset();
+    let sort_dir = p
+        .sort_dir_or(crate::commands::list_params::SortDir::Desc)
+        .sql();
+    let (items, total) = appointment_repo::find_paginated(
+        &pool,
+        limit,
+        offset,
+        sort_dir,
+        p.filter_str("dateFrom"),
+        p.filter_str("dateTo"),
+    )
+    .await?;
+    Ok(crate::commands::list_params::ListResponse {
+        items,
+        total,
+        page: p.page_one_based(),
+        page_size: limit,
+    })
+}
+
+#[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state))]
 pub async fn get_appointment(
     pool: State<'_, SqlitePool>,
@@ -116,6 +147,7 @@ pub async fn list_appointments_by_date(
 macro_rules! register_appointment_commands {
     () => {
         $crate::commands::appointment_commands::list_appointments,
+        $crate::commands::appointment_commands::list_appointments_paged,
         $crate::commands::appointment_commands::get_appointment,
         $crate::commands::appointment_commands::create_appointment,
         $crate::commands::appointment_commands::update_appointment,

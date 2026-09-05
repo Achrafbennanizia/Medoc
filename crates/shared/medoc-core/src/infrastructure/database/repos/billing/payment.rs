@@ -129,6 +129,197 @@ pub async fn find_all(pool: &SqlitePool) -> Result<Vec<Payment>, AppError> {
     Ok(rows)
 }
 
+/// Filters for paginated payment lists (finance / cash / day-close).
+#[derive(Debug, Default, Clone)]
+pub struct PaymentListFilter<'a> {
+    pub status: Option<&'a str>,
+    pub payment_method: Option<&'a str>,
+    /// Inclusive local calendar day `YYYY-MM-DD` (matches `date(created_at)`).
+    pub date_on: Option<&'a str>,
+    pub date_from: Option<&'a str>,
+    pub date_to: Option<&'a str>,
+}
+
+pub async fn find_paginated(
+    pool: &SqlitePool,
+    limit: u32,
+    offset: u32,
+    sort_dir_sql: &'static str,
+    filter: PaymentListFilter<'_>,
+) -> Result<(Vec<Payment>, i64), AppError> {
+    // sort_dir_sql is whitelisted by callers (ASC|DESC only).
+    let mut wheres: Vec<String> = Vec::new();
+    let mut binds: Vec<String> = Vec::new();
+    if let Some(s) = filter.status {
+        if s.contains(',') {
+            let parts: Vec<&str> = s
+                .split(',')
+                .map(str::trim)
+                .filter(|x| !x.is_empty())
+                .collect();
+            if !parts.is_empty() {
+                let start = binds.len() + 1;
+                for p in &parts {
+                    binds.push((*p).to_string());
+                }
+                let ph: Vec<String> = (0..parts.len())
+                    .map(|i| format!("UPPER(?{})", start + i))
+                    .collect();
+                wheres.push(format!(
+                    "TRIM(UPPER(COALESCE(status, ''))) IN ({})",
+                    ph.join(", ")
+                ));
+            }
+        } else {
+            wheres.push(format!(
+                "TRIM(UPPER(COALESCE(status, ''))) = UPPER(?{})",
+                binds.len() + 1
+            ));
+            binds.push(s.to_string());
+        }
+    }
+    if let Some(m) = filter.payment_method {
+        wheres.push(format!(
+            "TRIM(UPPER(COALESCE(payment_method, ''))) = UPPER(?{})",
+            binds.len() + 1
+        ));
+        binds.push(m.to_string());
+    }
+    if let Some(d) = filter.date_on {
+        wheres.push(format!("date(created_at) = date(?{})", binds.len() + 1));
+        binds.push(d.to_string());
+    } else {
+        if let Some(d) = filter.date_from {
+            wheres.push(format!("date(created_at) >= date(?{})", binds.len() + 1));
+            binds.push(d.to_string());
+        }
+        if let Some(d) = filter.date_to {
+            wheres.push(format!("date(created_at) <= date(?{})", binds.len() + 1));
+            binds.push(d.to_string());
+        }
+    }
+    let where_sql = if wheres.is_empty() {
+        String::new()
+    } else {
+        format!("WHERE {}", wheres.join(" AND "))
+    };
+
+    let count_sql = format!("SELECT COUNT(*) FROM payment {where_sql}");
+    let mut count_q = sqlx::query_as::<_, (i64,)>(&count_sql);
+    for b in &binds {
+        count_q = count_q.bind(b);
+    }
+    let total = count_q.fetch_one(pool).await?.0;
+
+    let lim_i = binds.len() + 1;
+    let off_i = binds.len() + 2;
+    let list_sql = format!(
+        "SELECT * FROM payment {where_sql} ORDER BY created_at {sort_dir_sql} LIMIT ?{lim_i} OFFSET ?{off_i}"
+    );
+    let mut list_q = sqlx::query_as::<_, Payment>(&list_sql);
+    for b in &binds {
+        list_q = list_q.bind(b);
+    }
+    let rows = list_q
+        .bind(limit as i64)
+        .bind(offset as i64)
+        .fetch_all(pool)
+        .await?;
+    Ok((rows, total))
+}
+
+/// KPI snapshot for the finance dashboard (avoids shipping every payment row).
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PaymentFinanceKpis {
+    pub income_mtd: f64,
+    pub income_prev_mtd: f64,
+    pub cancelled_mtd: f64,
+    pub cancelled_prev_mtd: f64,
+    pub open_count: i64,
+    pub open_sum: f64,
+}
+
+pub async fn finance_kpis(pool: &SqlitePool) -> Result<PaymentFinanceKpis, AppError> {
+    let row: (f64, f64, f64, f64, i64, f64) = sqlx::query_as(
+        "SELECT
+            COALESCE(SUM(CASE
+                WHEN strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now', 'localtime')
+                 AND TRIM(UPPER(COALESCE(status,''))) IN ('PAID','PARTIALLY_PAID')
+                THEN amount ELSE 0 END), 0),
+            COALESCE(SUM(CASE
+                WHEN strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now', 'localtime', '-1 month')
+                 AND TRIM(UPPER(COALESCE(status,''))) IN ('PAID','PARTIALLY_PAID')
+                THEN amount ELSE 0 END), 0),
+            COALESCE(SUM(CASE
+                WHEN strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now', 'localtime')
+                 AND TRIM(UPPER(COALESCE(status,''))) = 'CANCELLED'
+                THEN amount ELSE 0 END), 0),
+            COALESCE(SUM(CASE
+                WHEN strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now', 'localtime', '-1 month')
+                 AND TRIM(UPPER(COALESCE(status,''))) = 'CANCELLED'
+                THEN amount ELSE 0 END), 0),
+            COALESCE(SUM(CASE
+                WHEN TRIM(UPPER(COALESCE(status,''))) IN ('OUTSTANDING','PARTIALLY_PAID')
+                THEN 1 ELSE 0 END), 0),
+            COALESCE(SUM(CASE
+                WHEN TRIM(UPPER(COALESCE(status,''))) IN ('OUTSTANDING','PARTIALLY_PAID')
+                THEN amount ELSE 0 END), 0)
+         FROM payment",
+    )
+    .fetch_one(pool)
+    .await?;
+    Ok(PaymentFinanceKpis {
+        income_mtd: row.0,
+        income_prev_mtd: row.1,
+        cancelled_mtd: row.2,
+        cancelled_prev_mtd: row.3,
+        open_count: row.4,
+        open_sum: row.5,
+    })
+}
+
+/// Last N calendar months of income / outstanding / cancelled (for balance sheet chart).
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PaymentMonthBucket {
+    pub year_month: String,
+    pub income: f64,
+    pub outstanding: f64,
+    pub cancelled: f64,
+}
+
+pub async fn monthly_breakdown(
+    pool: &SqlitePool,
+    months: u32,
+) -> Result<Vec<PaymentMonthBucket>, AppError> {
+    let months = months.clamp(1, 36) as i64;
+    let rows: Vec<(String, f64, f64, f64)> = sqlx::query_as(
+        "SELECT
+            strftime('%Y-%m', created_at) AS ym,
+            COALESCE(SUM(CASE WHEN TRIM(UPPER(COALESCE(status,''))) = 'PAID' THEN amount ELSE 0 END), 0),
+            COALESCE(SUM(CASE WHEN TRIM(UPPER(COALESCE(status,''))) IN ('OUTSTANDING','PARTIALLY_PAID') THEN amount ELSE 0 END), 0),
+            COALESCE(SUM(CASE WHEN TRIM(UPPER(COALESCE(status,''))) = 'CANCELLED' THEN amount ELSE 0 END), 0)
+         FROM payment
+         WHERE date(created_at) >= date('now', 'localtime', '-' || ?1 || ' months')
+         GROUP BY ym
+         ORDER BY ym DESC
+         LIMIT ?1",
+    )
+    .bind(months)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|(year_month, income, outstanding, cancelled)| PaymentMonthBucket {
+            year_month,
+            income,
+            outstanding,
+            cancelled,
+        })
+        .collect())
+}
+
 pub async fn find_by_patient_id(
     pool: &SqlitePool,
     patient_id: &str,

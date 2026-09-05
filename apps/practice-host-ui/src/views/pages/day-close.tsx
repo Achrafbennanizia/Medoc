@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { DayCloseProtocolExtra } from "../components/day-close-form";
 import { useNavigate } from "react-router-dom";
-import { listPatients } from "@/systems/practice-host/controllers/patient.controller";
+import { listPatientsByIds } from "@/systems/practice-host/controllers/patient.controller";
 import {
     createDayCloseProtocol,
     deleteDayCloseProtocol,
@@ -9,7 +9,7 @@ import {
     type CreateDayCloseProtocol,
     type DayCloseProtocol,
 } from "@/systems/practice-host/controllers/day-close-protocol.controller";
-import { listPayments } from "@/systems/practice-host/controllers/payment.controller";
+import { listPaymentsPaged } from "@/systems/practice-host/controllers/payment.controller";
 import { errorMessage, formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { paymentLocalYmd } from "@/lib/day-close";
 import { downloadDayCloseReportPdf } from "@/lib/day-close-invoice-pdf";
@@ -25,6 +25,23 @@ import { ConfirmDialog } from "../components/ui/dialog";
 import { useToastStore } from "../components/ui/toast-store";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { AdministrationPageHeader } from "../components/administration-page-header";
+import { LAZY_PAGE_SIZE, mergeUniqueById } from "@/lib/lazy-list";
+
+async function loadAllPaymentsPaged(): Promise<Payment[]> {
+    let page = 1;
+    let all: Payment[] = [];
+    let total = Infinity;
+    while (all.length < total) {
+        const resp = await listPaymentsPaged({ page, pageSize: LAZY_PAGE_SIZE });
+        total = resp.total;
+        all = mergeUniqueById(all, resp.items);
+        if (resp.items.length === 0 || page * resp.pageSize >= total) break;
+        page += 1;
+        // Safety: don't loop forever on pathological totals
+        if (page > 200) break;
+    }
+    return all;
+}
 
 /**
  * DayClose — list of logged closings + new run / detail (cash reconciliation).
@@ -72,7 +89,9 @@ export function DayClosePage() {
                 setLoadError(null);
             }
             try {
-                const [pats, prots, zahls] = await Promise.all([listPatients(), listDayCloseProtocols(), listPayments()]);
+                const [prots, zahls] = await Promise.all([listDayCloseProtocols(), loadAllPaymentsPaged()]);
+                const ids = [...new Set(zahls.map((z) => z.patient_id).filter(Boolean))];
+                const pats = ids.length ? await listPatientsByIds(ids) : [];
                 setPatients(pats);
                 setProtocols(prots);
                 setPayments(zahls);

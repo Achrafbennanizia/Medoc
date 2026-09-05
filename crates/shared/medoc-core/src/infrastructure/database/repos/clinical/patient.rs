@@ -10,6 +10,69 @@ pub async fn find_all(pool: &SqlitePool) -> Result<Vec<Patient>, AppError> {
     Ok(rows)
 }
 
+pub async fn find_paginated(
+    pool: &SqlitePool,
+    limit: u32,
+    offset: u32,
+    search: Option<&str>,
+) -> Result<(Vec<Patient>, i64), AppError> {
+    let q = search.map(str::trim).filter(|s| !s.is_empty());
+    if let Some(q) = q {
+        let pattern = format!("%{q}%");
+        let total: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM patient WHERE name LIKE ?1 OR insurance_number LIKE ?1",
+        )
+        .bind(&pattern)
+        .fetch_one(pool)
+        .await?;
+        let rows = sqlx::query_as::<_, Patient>(
+            "SELECT * FROM patient WHERE name LIKE ?1 OR insurance_number LIKE ?1
+             ORDER BY name LIMIT ?2 OFFSET ?3",
+        )
+        .bind(&pattern)
+        .bind(limit as i64)
+        .bind(offset as i64)
+        .fetch_all(pool)
+        .await?;
+        Ok((rows, total.0))
+    } else {
+        let total: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM patient")
+            .fetch_one(pool)
+            .await?;
+        let rows = sqlx::query_as::<_, Patient>(
+            "SELECT * FROM patient ORDER BY name LIMIT ?1 OFFSET ?2",
+        )
+        .bind(limit as i64)
+        .bind(offset as i64)
+        .fetch_all(pool)
+        .await?;
+        Ok((rows, total.0))
+    }
+}
+
+pub async fn find_by_ids(pool: &SqlitePool, ids: &[String]) -> Result<Vec<Patient>, AppError> {
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    // Cap to avoid huge IN lists from a bad client.
+    let ids: Vec<&str> = ids.iter().map(String::as_str).take(500).collect();
+    let mut out = Vec::with_capacity(ids.len());
+    for chunk in ids.chunks(50) {
+        let placeholders = (1..=chunk.len())
+            .map(|i| format!("?{i}"))
+            .collect::<Vec<_>>()
+            .join(",");
+        let sql = format!("SELECT * FROM patient WHERE id IN ({placeholders})");
+        let mut q = sqlx::query_as::<_, Patient>(&sql);
+        for id in chunk {
+            q = q.bind(*id);
+        }
+        let rows = q.fetch_all(pool).await?;
+        out.extend(rows);
+    }
+    Ok(out)
+}
+
 pub async fn find_by_id(pool: &SqlitePool, id: &str) -> Result<Option<Patient>, AppError> {
     let row = sqlx::query_as::<_, Patient>("SELECT * FROM patient WHERE id = ?1")
         .bind(id)

@@ -9,7 +9,7 @@
 export interface ListParams {
     /** 1-based page index (default 1). */
     page?: number;
-    /** Page size, capped server-side at 200 (default 50). */
+    /** Page size, capped server-side at 500 (default 50). */
     pageSize?: number;
     /** Optional free-text search (server decides which columns to match). */
     search?: string;

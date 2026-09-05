@@ -11,6 +11,54 @@ pub async fn find_all(pool: &SqlitePool) -> Result<Vec<Appointment>, AppError> {
     Ok(rows)
 }
 
+pub async fn find_paginated(
+    pool: &SqlitePool,
+    limit: u32,
+    offset: u32,
+    sort_dir_sql: &'static str,
+    date_from: Option<&str>,
+    date_to: Option<&str>,
+) -> Result<(Vec<Appointment>, i64), AppError> {
+    let mut wheres: Vec<String> = Vec::new();
+    let mut binds: Vec<String> = Vec::new();
+    if let Some(d) = date_from {
+        wheres.push(format!("date >= ?{}", binds.len() + 1));
+        binds.push(d.to_string());
+    }
+    if let Some(d) = date_to {
+        wheres.push(format!("date <= ?{}", binds.len() + 1));
+        binds.push(d.to_string());
+    }
+    let where_sql = if wheres.is_empty() {
+        String::new()
+    } else {
+        format!("WHERE {}", wheres.join(" AND "))
+    };
+    let count_sql = format!("SELECT COUNT(*) FROM appointment {where_sql}");
+    let mut count_q = sqlx::query_as::<_, (i64,)>(&count_sql);
+    for b in &binds {
+        count_q = count_q.bind(b);
+    }
+    let total = count_q.fetch_one(pool).await?.0;
+
+    let lim_i = binds.len() + 1;
+    let off_i = binds.len() + 2;
+    // Date primary; time secondary always ASC within a day.
+    let list_sql = format!(
+        "SELECT * FROM appointment {where_sql} ORDER BY date {sort_dir_sql}, time ASC LIMIT ?{lim_i} OFFSET ?{off_i}"
+    );
+    let mut list_q = sqlx::query_as::<_, Appointment>(&list_sql);
+    for b in &binds {
+        list_q = list_q.bind(b);
+    }
+    let rows = list_q
+        .bind(limit as i64)
+        .bind(offset as i64)
+        .fetch_all(pool)
+        .await?;
+    Ok((rows, total))
+}
+
 pub async fn find_by_id(pool: &SqlitePool, id: &str) -> Result<Option<Appointment>, AppError> {
     let row = sqlx::query_as::<_, Appointment>("SELECT * FROM appointment WHERE id = ?1")
         .bind(id)

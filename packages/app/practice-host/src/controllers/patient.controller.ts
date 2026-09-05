@@ -5,9 +5,19 @@ import {
     UpdatePatientSchema,
     parseOrThrow,
 } from "@/lib/schemas";
+import type { ListParams, ListResponse } from "@/lib/list-params";
 
 export async function listPatients(): Promise<Patient[]> {
     return practiceSystem.invoke<Patient[]>("list_patients");
+}
+
+export async function listPatientsPaged(params?: ListParams): Promise<ListResponse<Patient>> {
+    return practiceSystem.invoke<ListResponse<Patient>>("list_patients_paged", { params });
+}
+
+export async function listPatientsByIds(ids: string[]): Promise<Patient[]> {
+    if (ids.length === 0) return [];
+    return practiceSystem.invoke<Patient[]>("list_patients_by_ids", { ids });
 }
 
 export async function getPatient(id: string): Promise<Patient> {

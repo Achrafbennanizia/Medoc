@@ -11,7 +11,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 const DEFAULT_PAGE_SIZE: u32 = 50;
-const MAX_PAGE_SIZE: u32 = 200;
+/// Chunk size for lazy-loaded entity lists (finance, patients, appointments).
+const MAX_PAGE_SIZE: u32 = 500;
 
 #[derive(Debug, Default, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -111,5 +112,19 @@ impl ListParams {
                 FilterValue::Text(s) => Some(s == "1" || s.eq_ignore_ascii_case("true")),
                 _ => None,
             })
+    }
+
+    pub fn filter_str(&self, key: &str) -> Option<&str> {
+        self.filter.as_ref().and_then(|m| m.get(key)).and_then(|v| match v {
+            FilterValue::Text(s) => {
+                let t = s.trim();
+                if t.is_empty() {
+                    None
+                } else {
+                    Some(t)
+                }
+            }
+            _ => None,
+        })
     }
 }

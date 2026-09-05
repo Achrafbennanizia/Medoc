@@ -203,6 +203,8 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::ops_commands::pick_backup_file,
             $crate::commands::ops_commands::enforce_log_retention,
             $crate::commands::patient_commands::list_patients,
+            $crate::commands::patient_commands::list_patients_paged,
+            $crate::commands::patient_commands::list_patients_by_ids,
             $crate::commands::patient_commands::get_patient,
             $crate::commands::patient_commands::create_patient,
             $crate::commands::patient_commands::update_patient,
@@ -302,6 +304,7 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::day_close_protocol_commands::create_day_close_protocol,
             $crate::commands::day_close_protocol_commands::delete_day_close_protocol,
             $crate::commands::appointment_commands::list_appointments,
+            $crate::commands::appointment_commands::list_appointments_paged,
             $crate::commands::appointment_commands::get_appointment,
             $crate::commands::appointment_commands::create_appointment,
             $crate::commands::appointment_commands::update_appointment,
@@ -312,6 +315,9 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::contract_commands::delete_contract,
             $crate::commands::contract_commands::open_contract_document,
             $crate::commands::payment_commands::list_payments,
+            $crate::commands::payment_commands::list_payments_paged,
+            $crate::commands::payment_commands::payment_finance_kpis,
+            $crate::commands::payment_commands::payment_monthly_breakdown,
             $crate::commands::payment_commands::list_payments_for_patient,
             $crate::commands::payment_commands::list_patient_ids_open_invoice,
             $crate::commands::payment_commands::create_payment,
@@ -324,7 +330,7 @@ macro_rules! medoc_invoke_handler {
     };
 }
 
-pub const EXPECTED_INVOKE_COMMAND_COUNT: usize = 302;
+pub const EXPECTED_INVOKE_COMMAND_COUNT: usize = 313;
 
 /// Attach the consolidated IPC handler to the Tauri builder.
 ///

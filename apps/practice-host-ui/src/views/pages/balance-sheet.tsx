@@ -1,13 +1,16 @@
 import { useT, useTParams } from "@/lib/i18n";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
 import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "@/models/store/auth-store";
 import { AdministrationPageHeader } from "../components/administration-page-header";
 import { Card, CardHeader } from "../components/ui/card";
-import { listPayments, getBalanceSheet } from "@/systems/practice-host/controllers/payment.controller";
+import {
+    getBalanceSheet,
+    listPaymentsPaged,
+    paymentMonthlyBreakdown,
+} from "@/systems/practice-host/controllers/payment.controller";
 import { listBalanceSheetSnapshots, deleteBalanceSheetSnapshot, type BalanceSheetSnapshot } from "@/systems/practice-host/controllers/balance-sheet-snapshot.controller";
-import type { Payment, BalanceSheet } from "../../models/types";
+import type { BalanceSheet, Payment } from "../../models/types";
 import { errorMessage, formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { buildBalanceSheetReportBundle } from "@/lib/report-export";
 import { ReportExportToolbar } from "../components/report-export-toolbar";
@@ -15,11 +18,12 @@ import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { ConfirmDialog } from "../components/ui/dialog";
 import { Button } from "../components/ui/button";
 import { useToastStore } from "../components/ui/toast-store";
+import { Link } from "react-router-dom";
 
 /**
  * BalanceSheet overview (FA-FIN-03 / FA-FIN-09 / FA-FIN-10).
  * Backend delivers aggregates (revenue, outstanding, cancelled).
- * Frontend adds monthly breakdown from payment list.
+ * Monthly chart uses SQL bucket aggregates (not a full payment download).
  */
 export function BalanceSheetPage() {
     const t = useT();
@@ -27,7 +31,8 @@ export function BalanceSheetPage() {
     const role = parseRole(useAuthStore((s) => s.session?.role));
     const canBackAdministration = role != null && allowed("administration.read", role);
     const [balance_sheet, setBalanceSheet] = useState<BalanceSheet | null>(null);
-    const [payments, setPayments] = useState<Payment[]>([]);
+    const [byMonth, setByMonth] = useState<[string, { income: number; outstanding: number; cancelled: number }][]>([]);
+    const [recentPayments, setRecentPayments] = useState<Payment[]>([]);
     const [snapshots, setSnapshots] = useState<BalanceSheetSnapshot[]>([]);
     const [snapshotDeleteId, setSnapshotDeleteId] = useState<string | null>(null);
     const [loadError, setLoadError] = useState<string | null>(null);
@@ -40,11 +45,22 @@ export function BalanceSheetPage() {
         let cancelled = false;
         setLoadError(null);
         setStatus("loading");
-        Promise.all([getBalanceSheet(), listPayments(), listBalanceSheetSnapshots()])
-            .then(([b, z, snap]) => {
+        Promise.all([
+            getBalanceSheet(),
+            paymentMonthlyBreakdown(12),
+            listPaymentsPaged({ page: 1, pageSize: 20 }),
+            listBalanceSheetSnapshots(),
+        ])
+            .then(([b, months, recent, snap]) => {
                 if (!cancelled) {
                     setBalanceSheet(b);
-                    setPayments(z);
+                    setByMonth(
+                        months.map((m) => [
+                            m.yearMonth,
+                            { income: m.income, outstanding: m.outstanding, cancelled: m.cancelled },
+                        ]),
+                    );
+                    setRecentPayments(recent.items);
                     setSnapshots(snap);
                     setStatus("ready");
                 }
@@ -69,21 +85,6 @@ export function BalanceSheetPage() {
             setSnapshotDeleteId(null);
         }
     }
-
-    const byMonth = useMemo(() => {
-        const m = new Map<string, { income: number; outstanding: number; cancelled: number }>();
-        for (const z of payments) {
-            const key = z.created_at.slice(0, 7); // YYYY-MM
-            const cur = m.get(key) ?? { income: 0, outstanding: 0, cancelled: 0 };
-            if (z.status === "PAID") cur.income += z.amount;
-            else if (z.status === "OUTSTANDING" || z.status === "PARTIALLY_PAID") cur.outstanding += z.amount;
-            else if (z.status === "CANCELLED") cur.cancelled += z.amount;
-            m.set(key, cur);
-        }
-        return Array.from(m.entries())
-            .sort(([a], [b]) => b.localeCompare(a))
-            .slice(0, 12);
-    }, [payments]);
 
     const max = Math.max(1, ...byMonth.map(([, version]) => version.income));
 
@@ -218,7 +219,7 @@ export function BalanceSheetPage() {
 
             <Card className="card-pad">
                 <CardHeader title={t("balance-sheet.recent_payments")} />
-                {payments.length === 0 ? (
+                {recentPayments.length === 0 ? (
                     <p className="text-body text-on-surface-variant">{t("balance-sheet.no_payments")}</p>
                 ) : (
                     <div className="tbl-scroll">
@@ -229,7 +230,7 @@ export function BalanceSheetPage() {
                             </tr>
                         </thead>
                         <tbody>
-                            {payments.slice(0, 20).map((z) => (
+                            {recentPayments.map((z) => (
                                 <tr key={z.id}>
                                     <td>{formatDate(z.created_at)}</td>
                                     <td>{z.status}</td>

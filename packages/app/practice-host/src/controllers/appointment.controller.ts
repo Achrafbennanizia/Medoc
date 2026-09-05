@@ -5,9 +5,15 @@ import {
     UpdateAppointmentSchema,
     parseOrThrow,
 } from "@/lib/schemas";
+import type { ListParams, ListResponse } from "@/lib/list-params";
 
 export async function listAppointments(): Promise<Appointment[]> {
     return practiceSystem.invoke<Appointment[]>("list_appointments");
+}
+
+/** Paginated / date-filtered appointments for calendar and large lists. */
+export async function listAppointmentsPaged(params?: ListParams): Promise<ListResponse<Appointment>> {
+    return practiceSystem.invoke<ListResponse<Appointment>>("list_appointments_paged", { params });
 }
 
 export async function listAppointmentsByDate(date: string): Promise<Appointment[]> {

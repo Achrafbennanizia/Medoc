@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { deletePatient, listPatients, searchPatients } from "@/systems/practice-host/controllers/patient.controller";
+import { deletePatient, listPatientsPaged, searchPatients } from "@/systems/practice-host/controllers/patient.controller";
 import { listPatientIdsOpenInvoice } from "@/systems/practice-host/controllers/payment.controller";
 import { errorMessage, formatDate } from "@/lib/utils";
 import { loadClientSettings } from "@/lib/client-settings";
@@ -20,6 +20,7 @@ import { DataExportPickerDialog } from "../components/data-export-picker-dialog"
 import { ConfirmDialog, Dialog } from "../components/ui/dialog";
 import { Button } from "../components/ui/button";
 import { WorkspacePageHeader } from "../components/administration-page-header";
+import { LAZY_PAGE_SIZE, mergeUniqueById } from "@/lib/lazy-list";
 
 const SEARCH_DEBOUNCE_MS = 250;
 
@@ -80,6 +81,9 @@ export function PatientsPage() {
     const canViewMedical = role != null && allowed("patient.read_medical", role, session?.permission_overrides);
     const canCreatePatient = role != null && allowed("patient.write", role, session?.permission_overrides);
     const [patients, setPatients] = useState<Patient[]>([]);
+    const [patientTotal, setPatientTotal] = useState(0);
+    const [patientPage, setPatientPage] = useState(0);
+    const [loadingMore, setLoadingMore] = useState(false);
     const [nameDirectory, setNameDirectory] = useState<string[]>([]);
     /** Full directory from last unfiltered list — keeps spellcheck suggestions while searching. */
     const [allPatientNames, setAllPatientNames] = useState<string[]>([]);
@@ -95,6 +99,8 @@ export function PatientsPage() {
     const [loadError, setLoadError] = useState<string | null>(null);
     const [exportPickerOpen, setExportPickerOpen] = useState(false);
     const actionLayerRef = useRef<HTMLDivElement>(null);
+    const listScrollRef = useRef<HTMLDivElement>(null);
+    const loadMoreLock = useRef(false);
     const searchLoadTokenRef = useRef(0);
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
@@ -120,18 +126,20 @@ export function PatientsPage() {
         setLoadError(null);
         try {
             const q = debouncedSearch.trim();
-            const [data, ids] = await Promise.all([
+            const [dataResp, ids] = await Promise.all([
                 q
                     ? searchPatients(q, {
                           includeInsuranceNumber: loadClientSettings().search?.patientIncludeInsuranceNumber !== false,
-                      })
-                    : listPatients(),
+                      }).then((items) => ({ items, total: items.length, page: 1, pageSize: items.length || LAZY_PAGE_SIZE }))
+                    : listPatientsPaged({ page: 1, pageSize: LAZY_PAGE_SIZE }),
                 listPatientIdsOpenInvoice().catch(() => [] as string[]),
             ]);
             if (token !== searchLoadTokenRef.current) return;
-            setPatients(data);
+            setPatients(dataResp.items);
+            setPatientTotal(dataResp.total);
+            setPatientPage(dataResp.page);
             setOpenPaymentPatientIds(new Set(ids));
-            const names = data.map((p) => p.name);
+            const names = dataResp.items.map((p) => p.name);
             if (!q) {
                 setNameDirectory(names);
                 setAllPatientNames(names);
@@ -149,6 +157,32 @@ export function PatientsPage() {
     useEffect(() => {
         void load();
     }, [load]);
+
+    const patientsHaveMore = !debouncedSearch.trim() && patientPage * LAZY_PAGE_SIZE < patientTotal;
+
+    const onListScroll = useCallback(() => {
+        const el = listScrollRef.current;
+        if (!el || !patientsHaveMore || loadingMore || loadMoreLock.current) return;
+        if (el.scrollTop + el.clientHeight < el.scrollHeight - 120) return;
+        loadMoreLock.current = true;
+        setLoadingMore(true);
+        void listPatientsPaged({ page: patientPage + 1, pageSize: LAZY_PAGE_SIZE })
+            .then((resp) => {
+                setPatientPage(resp.page);
+                setPatientTotal(resp.total);
+                setPatients((prev) => mergeUniqueById(prev, resp.items));
+                setAllPatientNames((prev) => {
+                    const next = new Set(prev);
+                    for (const p of resp.items) next.add(p.name);
+                    return [...next];
+                });
+            })
+            .catch((e) => toast(tp("common.refresh_failed", { message: errorMessage(e) }), "error"))
+            .finally(() => {
+                setLoadingMore(false);
+                loadMoreLock.current = false;
+            });
+    }, [patientsHaveMore, loadingMore, patientPage, toast, tp]);
 
     const filtered = useMemo(() => {
         return patients.filter((p) => {
@@ -304,7 +338,7 @@ export function PatientsPage() {
                     </div>
                 </div>
             ) : (
-                <div className="card patients-table card--overflow-visible tbl-scroll">
+                <div className="card patients-table card--overflow-visible tbl-scroll" ref={listScrollRef} onScroll={onListScroll}>
                     <div className="patients-grid-head">
                         <div>{t("patient.table.patient")}</div><div>{t("patient.table.birthdate")}</div><div>{t("patient.table.contact")}</div><div>{t("patient.table.status")}</div><div />
                     </div>

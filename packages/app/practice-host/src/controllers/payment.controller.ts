@@ -1,9 +1,39 @@
 import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
 import type { BalanceSheet, Payment, PaymentMethod, PaymentStatus } from "@/models/types";
 import { CreatePaymentSchema, UpdatePaymentSchema, parseOrThrow } from "@/lib/schemas";
+import type { ListParams, ListResponse } from "@/lib/list-params";
+
+export type PaymentFinanceKpis = {
+    incomeMtd: number;
+    incomePrevMtd: number;
+    cancelledMtd: number;
+    cancelledPrevMtd: number;
+    openCount: number;
+    openSum: number;
+};
+
+export type PaymentMonthBucket = {
+    yearMonth: string;
+    income: number;
+    outstanding: number;
+    cancelled: number;
+};
 
 export async function listPayments(): Promise<Payment[]> {
     return practiceSystem.invoke<Payment[]>("list_payments");
+}
+
+/** Paginated payments — use for finance / cash / day-close when totals can exceed ~500. */
+export async function listPaymentsPaged(params?: ListParams): Promise<ListResponse<Payment>> {
+    return practiceSystem.invoke<ListResponse<Payment>>("list_payments_paged", { params });
+}
+
+export async function paymentFinanceKpis(): Promise<PaymentFinanceKpis> {
+    return practiceSystem.invoke<PaymentFinanceKpis>("payment_finance_kpis");
+}
+
+export async function paymentMonthlyBreakdown(months = 12): Promise<PaymentMonthBucket[]> {
+    return practiceSystem.invoke<PaymentMonthBucket[]>("payment_monthly_breakdown", { months });
 }
 
 /** Bookings for one Patient only (same right as `list_payments`; less data transfer). */
