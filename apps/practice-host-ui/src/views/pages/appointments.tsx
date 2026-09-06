@@ -251,9 +251,9 @@ export function AppointmentsPage() {
         setLoading(true);
         setLoadError(null);
         try {
-            // Calendar needs a date window, not the full year seed (8k+ rows).
+            // Full practice year (± look-ahead) — paged so density stays manageable.
             const today = new Date();
-            const from = new Date(today.getFullYear(), today.getMonth() - 2, 1);
+            const from = new Date(today.getFullYear(), today.getMonth() - 11, 1);
             const to = new Date(today.getFullYear(), today.getMonth() + 3, 0);
             const ymd = (d: Date) =>
                 `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;

@@ -12,8 +12,8 @@ export MEDOC_DB_KEY="${MEDOC_DB_KEY:-0123456789abcdef0123456789abcdef0123456789a
 export MEDOC_AUDIT_KEY="${MEDOC_AUDIT_KEY:-k9-medoc-test-audit-key-32bytes!}"
 export MEDOC_DEV_SEED=1
 # With MEDOC_DEV_SEED=1, migrations also load:
-# - year volume (year_v3): 1000 patients, 10k clinical lines, ≥5k prescriptions,
-#   ≥7k certificates, ≥€300k cash flow, …
+# - year volume (year_v4): 1000 patients, 10k clinical lines, ≥5k prescriptions,
+#   ≥7k certificates, ≥€300k cash flow, calendar 3–17 appts/weekday, …
 # - practice master (practice_v1): Settings profile, work hours, absences, products,
 #   contracts, day-close, balance sheets, templates, suppliers, tickets, notifications
 # Delete the matching app_kv keys and restart to regenerate. Skipped in cargo tests.

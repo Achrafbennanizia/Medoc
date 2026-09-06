@@ -7,16 +7,18 @@
 //! - ≥ €300_000 cash flow (payments + purchase orders)
 //! - ≥ 50 treatment catalog entries
 //! - 5 staff (1 dentist PHYSICIAN + 4 front-desk/support RECEPTION — MVP quota)
-//! - Dense appointments using every kind/status
+//! - Full-year calendar: 3–17 appointments per weekday (existing patients + catalog acts)
 //!
-//! Skipped under `cfg!(test)` via [`run_demo_year_volume_if_needed`]. Idempotent: `year_v3`.
+//! Skipped under `cfg!(test)` via [`run_demo_year_volume_if_needed`]. Idempotent: `year_v4`.
+//! DBs already marked `year_v3` only refresh appointments (calendar upgrade).
 
-use chrono::{Datelike, Duration, Local, Weekday};
+use chrono::{Datelike, Duration, Local, NaiveDate, Weekday};
 use sqlx::sqlite::SqlitePool;
 
 use crate::error::AppError;
 
-const YEAR_SEED_KV_KEY: &str = "migration.demo_seed.year_v3";
+const YEAR_SEED_KV_KEY: &str = "migration.demo_seed.year_v4";
+const YEAR_SEED_KV_KEY_V3: &str = "migration.demo_seed.year_v3";
 
 const PHYSICIAN_ID: &str = "seed-physician-001";
 const RECEPTION_IDS: &[&str] = &[
@@ -31,7 +33,11 @@ struct Scale {
     patients: u32,
     treatments: u32,
     examinations: u32,
-    appointments: u32,
+    /// Inclusive range of appointments per weekday (Mon–Fri).
+    apt_per_weekday_min: u32,
+    apt_per_weekday_max: u32,
+    /// How many days into the future to schedule (calendar lookahead).
+    apt_future_days: u32,
     prescriptions: u32,
     certificates: u32,
     min_cash_eur: f64,
@@ -47,7 +53,9 @@ impl Scale {
             patients: 1000,
             treatments: 6000,
             examinations: 4000,
-            appointments: 8000,
+            apt_per_weekday_min: 3,
+            apt_per_weekday_max: 17,
+            apt_future_days: 60,
             prescriptions: 5200,
             certificates: 7200,
             min_cash_eur: 300_000.0,
@@ -63,7 +71,9 @@ impl Scale {
             patients: 12,
             treatments: 20,
             examinations: 15,
-            appointments: 40,
+            apt_per_weekday_min: 2,
+            apt_per_weekday_max: 4,
+            apt_future_days: 7,
             prescriptions: 8,
             certificates: 10,
             min_cash_eur: 5_000.0,
@@ -80,13 +90,17 @@ fn should_run() -> bool {
             || std::env::args().any(|a| a == "--dev-seed"))
 }
 
-async fn already_applied(pool: &SqlitePool) -> Result<bool, AppError> {
+async fn kv_present(pool: &SqlitePool, key: &str) -> Result<bool, AppError> {
     let row: Option<(String,)> = sqlx::query_as("SELECT value FROM app_kv WHERE key = ?1")
-        .bind(YEAR_SEED_KV_KEY)
+        .bind(key)
         .fetch_optional(pool)
         .await
         .map_err(AppError::Database)?;
     Ok(row.is_some())
+}
+
+async fn already_applied(pool: &SqlitePool) -> Result<bool, AppError> {
+    kv_present(pool, YEAR_SEED_KV_KEY).await
 }
 
 async fn mark_applied(pool: &SqlitePool) -> Result<(), AppError> {
@@ -109,6 +123,223 @@ fn pick<'a, T>(n: u64, items: &'a [T]) -> &'a T {
     &items[(mix(n) as usize) % items.len()]
 }
 
+const APT_KINDS: &[&str] = &[
+    "FIRST_VISIT",
+    "EXAMINATION",
+    "TREATMENT",
+    "CHECKUP",
+    "CONSULTATION",
+];
+const APT_STATUSES_PAST: &[&str] = &[
+    "COMPLETED",
+    "COMPLETED",
+    "COMPLETED",
+    "CONFIRMED",
+    "NO_SHOW",
+    "CANCELLED",
+    "COMPLETED",
+];
+const APT_TIMES: &[&str] = &[
+    "08:00", "08:20", "08:40", "09:00", "09:20", "09:40", "10:00", "10:20", "10:40",
+    "11:00", "11:20", "11:40", "13:00", "13:20", "13:40", "14:00", "14:20", "14:40",
+    "15:00", "15:20", "15:40", "16:00", "16:20", "16:40",
+];
+const APT_COMPLAINTS: &[&str] = &[
+    "Tooth sensitivity",
+    "Gum bleeding",
+    "Chewing pain",
+    "Routine checkup",
+    "Crown / bridge check",
+    "Swelling",
+    "Broken filling",
+    "Recall",
+    "Post-op review",
+    "Whitening consult",
+];
+
+fn weekday_apt_count(day: NaiveDate, min: u32, max: u32) -> u32 {
+    debug_assert!(min <= max);
+    let span = (max - min).saturating_add(1);
+    let n = mix(day.num_days_from_ce() as u64);
+    min + (n % span as u64) as u32
+}
+
+fn shuffled_times(day: NaiveDate, count: usize) -> Vec<&'static str> {
+    let mut slots: Vec<&'static str> = APT_TIMES.to_vec();
+    let day_n = day.num_days_from_ce() as u64;
+    for i in (1..slots.len()).rev() {
+        let j = (mix(day_n.wrapping_mul(17).wrapping_add(i as u64)) as usize) % (i + 1);
+        slots.swap(i, j);
+    }
+    slots.truncate(count.min(slots.len()));
+    slots
+}
+
+fn act_for_kind<'a>(kind: &str, n: u64, catalog: &'a [(&str, &str, f64)]) -> (&'a str, &'a str) {
+    if catalog.is_empty() {
+        return ("Visit", "Scheduled visit");
+    }
+    let preferred: &[&str] = match kind {
+        "FIRST_VISIT" => &["Checkup"],
+        "EXAMINATION" => &["Diagnostics", "Checkup"],
+        "TREATMENT" => &[
+            "FillingTherapy",
+            "Periodontology",
+            "Endodontics",
+            "Surgery",
+            "Prosthodontics",
+            "Prevention",
+        ],
+        "CHECKUP" => &["Checkup", "Prevention"],
+        "CONSULTATION" => &["Aesthetics", "Functional", "Orthodontics", "Checkup"],
+        _ => &["Checkup"],
+    };
+    let matching: Vec<_> = catalog
+        .iter()
+        .filter(|(cat, _, _)| preferred.iter().any(|p| *p == *cat))
+        .collect();
+    let (cat, svc, _) = if matching.is_empty() {
+        catalog[(n as usize) % catalog.len()]
+    } else {
+        *matching[(n as usize) % matching.len()]
+    };
+    (cat, svc)
+}
+
+async fn seed_calendar_appointments_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    scale: Scale,
+    start: NaiveDate,
+    today: NaiveDate,
+    patient_ids: &[String],
+    catalog: &[(&str, &str, f64)],
+) -> Result<u32, AppError> {
+    if patient_ids.is_empty() {
+        return Ok(0);
+    }
+    sqlx::query("DELETE FROM appointment WHERE id LIKE 'seed-yr-apt-%'")
+        .execute(&mut **tx)
+        .await
+        .map_err(AppError::Database)?;
+
+    let end = today + Duration::days(scale.apt_future_days as i64);
+    let min = scale.apt_per_weekday_min;
+    let max = scale.apt_per_weekday_max.min(APT_TIMES.len() as u32).max(min);
+
+    let mut a: u32 = 0;
+    let mut day = start;
+    while day <= end {
+        let is_weekday = day.weekday() != Weekday::Sat && day.weekday() != Weekday::Sun;
+        if is_weekday {
+            let count = weekday_apt_count(day, min, max) as usize;
+            let times = shuffled_times(day, count);
+            // Spread patients across the day; avoid same patient twice on one day when possible.
+            let mut used_patients = std::collections::HashSet::new();
+            for (slot_i, time) in times.into_iter().enumerate() {
+                let n = mix(
+                    (day.num_days_from_ce() as u64)
+                        .wrapping_mul(31)
+                        .wrapping_add(slot_i as u64)
+                        .wrapping_add(9),
+                );
+                let mut pat_idx = (n as usize) % patient_ids.len();
+                if used_patients.len() < patient_ids.len() {
+                    let mut tries = 0;
+                    while used_patients.contains(&pat_idx) && tries < 8 {
+                        pat_idx = (pat_idx + 1 + (mix(n + tries) as usize % 7)) % patient_ids.len();
+                        tries += 1;
+                    }
+                }
+                used_patients.insert(pat_idx);
+
+                let kind = *pick(n + 1, APT_KINDS);
+                let (act_cat, act_svc) = act_for_kind(kind, n + 2, catalog);
+                let status = if day > today {
+                    if n % 3 == 0 {
+                        "PLANNED"
+                    } else {
+                        "CONFIRMED"
+                    }
+                } else if day == today {
+                    *pick(n + 3, &["CONFIRMED", "PLANNED", "COMPLETED"])
+                } else {
+                    *pick(n + 3, APT_STATUSES_PAST)
+                };
+                let notes = format!("{act_cat}: {act_svc}");
+                let complaint = *pick(n + 5, APT_COMPLAINTS);
+                let created = format!("{day} {time}:00");
+                sqlx::query(
+                    "INSERT OR IGNORE INTO appointment
+                     (id, date, time, kind, status, notes, chief_complaint, patient_id, physician_id, created_at, updated_at)
+                     VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?10)",
+                )
+                .bind(format!("seed-yr-apt-{a:05}"))
+                .bind(day.to_string())
+                .bind(time)
+                .bind(kind)
+                .bind(status)
+                .bind(&notes)
+                .bind(complaint)
+                .bind(&patient_ids[pat_idx])
+                .bind(PHYSICIAN_ID)
+                .bind(&created)
+                .execute(&mut **tx)
+                .await
+                .map_err(AppError::Database)?;
+                a += 1;
+            }
+        }
+        day += Duration::days(1);
+    }
+    Ok(a)
+}
+
+async fn refresh_year_calendar_appointments(pool: &SqlitePool, scale: Scale) -> Result<(), AppError> {
+    let mut tx = pool.begin().await.map_err(AppError::Database)?;
+    let today = Local::now().date_naive();
+    let start = today - Duration::days(364);
+
+    let patient_ids: Vec<String> = sqlx::query_as::<_, (String,)>(
+        "SELECT id FROM patient ORDER BY id",
+    )
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(AppError::Database)?
+    .into_iter()
+    .map(|(id,)| id)
+    .collect();
+
+    let catalog_rows: Vec<(String, String)> = sqlx::query_as(
+        "SELECT category, name FROM treatment_catalog WHERE active = 1 ORDER BY id LIMIT 80",
+    )
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(AppError::Database)?;
+
+    let catalog_owned: Vec<(String, String, f64)> = catalog_rows
+        .into_iter()
+        .map(|(cat, name)| (cat, name, 0.0))
+        .collect();
+    // act_for_kind needs &[(&str,&str,f64)] — build refs
+    let catalog_refs: Vec<(&str, &str, f64)> = catalog_owned
+        .iter()
+        .map(|(c, n, p)| (c.as_str(), n.as_str(), *p))
+        .collect();
+
+    let count = seed_calendar_appointments_tx(
+        &mut tx,
+        scale,
+        start,
+        today,
+        &patient_ids,
+        &catalog_refs,
+    )
+    .await?;
+    tx.commit().await.map_err(AppError::Database)?;
+    tracing::info!(appointments = count, "demo year calendar refresh counts");
+    Ok(())
+}
+
 pub async fn run_demo_year_volume_if_needed(pool: &SqlitePool) -> Result<(), AppError> {
     if !should_run() {
         return Ok(());
@@ -116,10 +347,18 @@ pub async fn run_demo_year_volume_if_needed(pool: &SqlitePool) -> Result<(), App
     if already_applied(pool).await? {
         return Ok(());
     }
-    tracing::info!("demo year seed v3: generating full practice volume");
+    // Existing year_v3 DBs: refresh calendar density only (keep clinical/billing volume).
+    if kv_present(pool, YEAR_SEED_KV_KEY_V3).await? {
+        tracing::info!("demo year seed v4: refreshing calendar appointments (3–17/weekday)");
+        refresh_year_calendar_appointments(pool, Scale::full()).await?;
+        mark_applied(pool).await?;
+        tracing::info!("demo year seed v4: calendar refresh done");
+        return Ok(());
+    }
+    tracing::info!("demo year seed v4: generating full practice volume");
     seed_year_volume(pool, Scale::full()).await?;
     mark_applied(pool).await?;
-    tracing::info!("demo year seed v3: done");
+    tracing::info!("demo year seed v4: done");
     Ok(())
 }
 
@@ -469,18 +708,6 @@ async fn seed_year_volume(pool: &SqlitePool, scale: Scale) -> Result<(), AppErro
         chart_ids.push(cid);
     }
 
-    const APT_KINDS: &[&str] = &[
-        "FIRST_VISIT", "EXAMINATION", "TREATMENT", "CHECKUP", "CONSULTATION",
-    ];
-    const APT_STATUSES: &[&str] = &[
-        "PLANNED", "CONFIRMED", "COMPLETED", "COMPLETED", "COMPLETED",
-        "NO_SHOW", "CANCELLED", "CONFIRMED",
-    ];
-    const APT_TIMES: &[&str] = &[
-        "08:00", "08:20", "08:40", "09:00", "09:20", "09:40", "10:00", "10:20",
-        "10:40", "11:00", "11:20", "11:40", "13:00", "13:20", "13:40", "14:00",
-        "14:20", "14:40", "15:00", "15:20", "15:40", "16:00", "16:20", "16:40",
-    ];
     const PAY_METHODS: &[&str] = &["CASH", "CARD", "BANK_TRANSFER", "INVOICE"];
     const PAY_STATUSES: &[&str] = &[
         "PAID", "PAID", "PAID", "PAID", "PARTIALLY_PAID", "OUTSTANDING", "CANCELLED",
@@ -494,7 +721,7 @@ async fn seed_year_volume(pool: &SqlitePool, scale: Scale) -> Result<(), AppErro
 
     let mut cash_flow = 0.0_f64;
 
-    // --- Dense appointments (every kind/status) ---
+    // Weekdays used by treatments / exams / payments date distribution.
     let weekdays: Vec<_> = {
         let mut d = start;
         let mut days = Vec::new();
@@ -508,42 +735,16 @@ async fn seed_year_volume(pool: &SqlitePool, scale: Scale) -> Result<(), AppErro
     };
     let weekday_n = weekdays.len().max(1);
 
-    for a in 0..scale.appointments as u64 {
-        let day = weekdays[(a as usize) % weekday_n];
-        let n = mix(a.wrapping_mul(31) + 9);
-        let pat_idx = (n as usize) % patient_ids.len();
-        let kind = *pick(n + 1, APT_KINDS);
-        let time = *pick(n + 2, APT_TIMES);
-        let status = if day > today {
-            if n % 2 == 0 { "PLANNED" } else { "CONFIRMED" }
-        } else {
-            *pick(n + 3, APT_STATUSES)
-        };
-        let created = format!("{day} {time}:00");
-        sqlx::query(
-            "INSERT OR IGNORE INTO appointment
-             (id, date, time, kind, status, notes, chief_complaint, patient_id, physician_id, created_at, updated_at)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?10)",
-        )
-        .bind(format!("seed-yr-apt-{a:05}"))
-        .bind(day.to_string())
-        .bind(time)
-        .bind(kind)
-        .bind(status)
-        .bind(*pick(n + 4, &[
-            "Routine", "Follow-up", "Acute", "Recall", "Lab try-in", "Post-op", "",
-        ]))
-        .bind(*pick(n + 5, &[
-            "Tooth sensitivity", "Gum bleeding", "Chewing pain", "Checkup",
-            "Crown check", "None", "Swelling", "Broken filling",
-        ]))
-        .bind(&patient_ids[pat_idx])
-        .bind(PHYSICIAN_ID)
-        .bind(&created)
-        .execute(&mut *tx)
-        .await
-        .map_err(AppError::Database)?;
-    }
+    // --- Full-year calendar: 3–17 appointments per weekday ---
+    let appointment_count = seed_calendar_appointments_tx(
+        &mut tx,
+        scale,
+        start,
+        today,
+        &patient_ids,
+        &CATALOG[..catalog_n],
+    )
+    .await?;
 
     // --- Treatments (6000) ---
     for t in 0..scale.treatments as u64 {
@@ -916,12 +1117,12 @@ async fn seed_year_volume(pool: &SqlitePool, scale: Scale) -> Result<(), AppErro
         patients = scale.patients,
         treatments = scale.treatments,
         examinations = scale.examinations,
-        appointments = scale.appointments,
+        appointments = appointment_count,
         prescriptions = scale.prescriptions,
         certificates = scale.certificates,
         cash_flow_eur = cash_flow,
         catalog = catalog_n,
-        "demo year seed v3 counts"
+        "demo year seed v4 counts"
     );
     Ok(())
 }
@@ -986,5 +1187,31 @@ mod tests {
         assert_eq!(certificates.0, 10);
         assert!(catalog.0 >= 50, "catalog={}", catalog.0);
         assert_eq!(staff.0, 5);
+
+        let appointments: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM appointment WHERE id LIKE 'seed-yr-apt-%'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert!(
+            appointments.0 >= 10,
+            "expected calendar appointments, got {}",
+            appointments.0
+        );
+
+        // Each seeded weekday should sit in [2, 4] for smoke scale.
+        let day_counts: Vec<(i64,)> = sqlx::query_as(
+            "SELECT COUNT(*) FROM appointment WHERE id LIKE 'seed-yr-apt-%' GROUP BY date",
+        )
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+        assert!(!day_counts.is_empty());
+        for (c,) in &day_counts {
+            assert!(
+                *c >= 2 && *c <= 4,
+                "weekday appointment count out of range: {c}"
+            );
+        }
     }
 }
