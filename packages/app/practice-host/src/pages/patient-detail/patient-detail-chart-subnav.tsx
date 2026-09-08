@@ -7,6 +7,18 @@ import type { Payment } from "@/models/types";
 
 type ChartTabDef = { id: PatientDetailChartTab; labelKey: string; needsClinical?: boolean };
 
+/** DOM ids for tabs/panels — keep short legacy ids used by panel `aria-labelledby`. */
+function chartTabDomId(tab: PatientDetailChartTab): string {
+    switch (tab) {
+        case "anamnesis":
+            return "anam";
+        case "examination":
+            return "unter";
+        default:
+            return tab;
+    }
+}
+
 const CHART_TABS: ChartTabDef[] = [
     { id: "anamnesis", labelKey: "patient.detail.subnav.tab.anam", needsClinical: true },
     { id: "examination", labelKey: "patient.detail.subnav.tab.unter", needsClinical: true },
@@ -94,9 +106,9 @@ export function PatientDetailChartSubnav({
                                 key={tab.id}
                                 type="button"
                                 role="tab"
-                                id={`tab-${tab.id}`}
+                                id={`tab-${chartTabDomId(tab.id)}`}
                                 aria-selected={activeTab === tab.id}
-                                aria-controls={`panel-${tab.id}`}
+                                aria-controls={`panel-${chartTabDomId(tab.id)}`}
                                 className={`${activeTab === tab.id ? "active" : ""}`}
                                 title={tab.id === "anamnesis" ? t("patient.detail.subnav.anam_title") : undefined}
                                 onClick={() => onSelectTab(tab.id)}

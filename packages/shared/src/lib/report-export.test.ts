@@ -43,7 +43,7 @@ const minimalBalanceSheet: BalanceSheet = {
 
 describe("buildStatisticsReportBundle", () => {
     it("includes Income section and PDF-friendly basename", () => {
-        const bundle = buildStatisticsReportBundle(minimalStats, "6m", "de");
+        const bundle = buildStatisticsReportBundle(minimalStats, "6m", "en");
         expect(bundle.docTitle.toLowerCase()).toContain("income");
         expect(bundle.sections.some((s) => s.title.toLowerCase().includes("income"))).toBe(true);
         expect(bundle.suggestedBasename).toMatch(/^medoc-statistics-6m-/);
@@ -81,7 +81,7 @@ describe("buildAuditReportBundleFromCsv", () => {
 });
 
 describe("report serializations", () => {
-    const bundle = buildStatisticsReportBundle(minimalStats, "12m", "de");
+    const bundle = buildStatisticsReportBundle(minimalStats, "12m", "en");
 
     it("produces UTF-8 BOM CSV with semicolons", () => {
         const csv = reportBundleToCsv(bundle);
