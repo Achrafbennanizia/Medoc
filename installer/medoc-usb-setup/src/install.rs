@@ -2,7 +2,7 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Command;
 use std::time::SystemTime;
 
 use medoc_core::error::AppError;
@@ -744,9 +744,9 @@ fn macos_spawn_medoc(app: &Path) -> Result<(), AppError> {
         .map_err(|e| AppError::Internal(format!("clone last-launch.log: {e}")))?;
     let mut cmd = Command::new("/usr/bin/nohup");
     cmd.arg(&exe);
-    cmd.stdin(Stdio::null())
-        .stdout(Stdio::from(log))
-        .stderr(Stdio::from(err));
+    cmd.stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::from(log))
+        .stderr(std::process::Stdio::from(err));
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;

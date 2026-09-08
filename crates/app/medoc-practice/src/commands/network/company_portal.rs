@@ -18,8 +18,7 @@ use crate::infrastructure::database::app_kv_repo;
 use crate::systems::company::{CompanyPortalPort, COMPANY_PORTAL};
 use medoc_core::domain::enums::Role;
 use medoc_sync::cluster::services::{
-    cluster_status, sync_staff_from_stored_admin_endpoint,
-    sync_staff_from_stored_admin_endpoint_required,
+    cluster_status, sync_staff_from_stored_admin_endpoint_required,
 };
 
 #[tauri::command]

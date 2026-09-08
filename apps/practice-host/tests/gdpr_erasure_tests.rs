@@ -4,7 +4,7 @@ use medoc_lib::infrastructure::backup;
 use medoc_lib::infrastructure::database::audit_repo;
 use medoc_lib::infrastructure::database::connection::{init_db_headless, run_migrations};
 use medoc_lib::infrastructure::database::{db_key, sqlcipher};
-use medoc_lib::infrastructure::dsgvo;
+use medoc_lib::infrastructure::gdpr;
 use medoc_lib::infrastructure::logging::sanitizer;
 use std::path::PathBuf;
 use std::sync::{Mutex, Once};
@@ -100,7 +100,7 @@ async fn erase_removes_treatment_via_chart_and_anonymises_patient() {
     )
     .expect("write log");
 
-    let report = dsgvo::erase_patient(&pool, "p-dsgvo-1", &app_dir)
+    let report = gdpr::erase_patient(&pool, "p-dsgvo-1", &app_dir)
         .await
         .expect("erase");
 
