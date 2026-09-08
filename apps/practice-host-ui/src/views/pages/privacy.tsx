@@ -81,7 +81,7 @@ export function PrivacyPage() {
             textBody: JSON.stringify(data, null, 2),
             mime: "application/json;charset=utf-8",
         };
-    }, [exportPatient, tp]);
+    }, [exportPatient, tp, t]);
 
     async function handleErase() {
         if (!confirmErase) return;

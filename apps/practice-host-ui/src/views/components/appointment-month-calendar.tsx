@@ -47,8 +47,8 @@ export function AppointmentMonthCalendar({
     const anchor = addMonths(new Date(), monthOffset);
     const y = anchor.getFullYear();
     const m = anchor.getMonth();
-    const first = new Date(y, m, 1);
-    const gridStart = useMemo(() => startOfWeek(first, { weekStartsOn: 1 }), [y, m]);
+    const first = useMemo(() => new Date(y, m, 1), [y, m]);
+    const gridStart = useMemo(() => startOfWeek(first, { weekStartsOn: 1 }), [first]);
     const monthCells = useMemo(
         () => buildAppointmentMonthCalendarCells(gridStart, practiceCfg),
         [gridStart, practiceCfg],

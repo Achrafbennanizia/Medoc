@@ -23,7 +23,7 @@ function pillClass(variant: "success" | "warning" | "default"): string {
     return "pill grey";
 }
 
-export function financeTxRowKey(row: FinanceTxRow): string {
+export function financeTxRowKey(row: FinanceTxRow): string { // eslint-disable-line react-refresh/only-export-components -- shared row key helper
     return row.kind === "payment" ? `z-${row.z.id}` : `b-${row.b.id}`;
 }
 

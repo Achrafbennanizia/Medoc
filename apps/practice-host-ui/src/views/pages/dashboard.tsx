@@ -171,7 +171,7 @@ export function DashboardPage() {
         return () => {
             cancelled = true;
         };
-    }, [reloadToken, session?.role, toast]);
+    }, [reloadToken, session?.role, toast, t]);
 
     useEffect(() => {
         let cancelled = false;
@@ -193,7 +193,7 @@ export function DashboardPage() {
         return () => {
             cancelled = true;
         };
-    }, [reloadToken, session?.role, toast]);
+    }, [reloadToken, session?.role, toast, t]);
 
     useEffect(() => {
         let cancelled = false;
@@ -258,7 +258,7 @@ export function DashboardPage() {
         check();
         const id = window.setInterval(check, 30_000);
         return () => window.clearInterval(id);
-    }, [toast]);
+    }, [toast, t]);
 
     const todayIso = format(new Date(), "yyyy-MM-dd");
     const patientNameById = useMemo(() => new Map(patients.map((p) => [p.id, p.name])), [patients]);
@@ -273,7 +273,7 @@ export function DashboardPage() {
         return [...pruefMasterPendingIds].sort((a, b) =>
             (patientNameById.get(a) ?? "").localeCompare(patientNameById.get(b) ?? "", sortLocale, { sensitivity: "base" }),
         );
-    }, [pruefMasterPendingIds, patientNameById]);
+    }, [pruefMasterPendingIds, patientNameById, sortLocale]);
 
     const dashboardPurchaseOrders = useMemo(() => {
         return purchase_orders

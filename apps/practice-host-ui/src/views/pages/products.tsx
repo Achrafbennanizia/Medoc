@@ -239,7 +239,7 @@ export function ProductsPage() {
 
     const productsSorted = useMemo(
         () => [...products].sort((a, b) => a.name.localeCompare(b.name, sortLocale)),
-        [products],
+        [products, sortLocale],
     );
 
     /** Distinct categories from inventory — as suggestions for input + selection (datalist). */
@@ -250,7 +250,7 @@ export function ProductsPage() {
             if (k) s.add(k);
         }
         return [...s].sort((a, b) => a.localeCompare(b, sortLocale));
-    }, [products]);
+    }, [products, sortLocale]);
 
     const readField = (label: string, value: string | number | null | undefined) => (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>

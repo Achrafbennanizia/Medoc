@@ -234,6 +234,7 @@ function ChartExportPickerInner({
         canAuditRead,
         patient,
         toast,
+        tp,
         revokePreview,
     ]);
 
@@ -678,7 +679,7 @@ function HtmlDocumentExportPickerInner({
         return () => {
             window.clearTimeout(t);
         };
-    }, [open, format, templateKind, bundle.pdfBodyLines, bundle.pdfLayout, resolvedTpl, toast, revokePdfPreview]);
+    }, [open, format, templateKind, bundle.pdfBodyLines, bundle.pdfLayout, resolvedTpl, toast, tp, revokePdfPreview]);
 
     useEffect(() => {
         if (!open) revokePdfPreview();
@@ -694,7 +695,7 @@ function HtmlDocumentExportPickerInner({
         if (!formatsCfg) return "";
         const eff = defaultFormatForKind(formatsCfg, templateKind);
         return tp("export.picker.settings_default", { kind: documentKindLabel(t, templateKind), format: eff.toUpperCase() });
-    }, [formatsCfg, templateKind, tp]);
+    }, [formatsCfg, templateKind, tp, t]);
 
     const templateOptions = useMemo(() => {
         const o: { value: string; label: string }[] = [

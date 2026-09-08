@@ -281,7 +281,7 @@ function AppointmentTimeColumnBody({
         const topPx = (dragState.currentStartMin - dayStartMin) * pxPerMin;
         el.style.setProperty("--appointment-drag-top", `${topPx}px`);
         paintAppointmentDragVisual(topPx, dragState.currentStartMin, !dragState.dropAllowed);
-    }, [dragState, iso, dayStartMin, pxPerMin]);
+    }, [dragState, iso, dayStartMin, pxPerMin, singleDay]);
 
     const onColDblClick = (e: ReactMouseEvent<HTMLDivElement>) => {
         const el = e.currentTarget;

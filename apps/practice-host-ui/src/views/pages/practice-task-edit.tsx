@@ -80,7 +80,7 @@ export function PracticeTaskEditPage() {
         } finally {
             setLoading(false);
         }
-    }, [id, role, session?.permission_overrides]);
+    }, [id, role, session]);
 
     useEffect(() => {
         void load();

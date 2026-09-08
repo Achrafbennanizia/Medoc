@@ -106,7 +106,7 @@ export function AdministrationFinanceToolsPage() {
                 setInvoiceHistory([]);
             }
         })();
-    }, [canWritePayment, toast]);
+    }, [canWritePayment, toast, tp]);
 
     useEffect(() => {
         if (!patientId) {
@@ -164,7 +164,7 @@ export function AdministrationFinanceToolsPage() {
         return () => {
             cancel = true;
         };
-    }, [patientId, toast]);
+    }, [patientId, toast, tp]);
 
     const selectedEntry = useMemo(
         () => invoiceHistory.find((x) => x.id === selectedHistoryId) ?? null,

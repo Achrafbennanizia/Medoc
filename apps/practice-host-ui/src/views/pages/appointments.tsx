@@ -205,8 +205,12 @@ export function AppointmentsPage() {
     const lastDragPatchRef = useRef<AppointmentDragPatch | null>(null);
     const practicePlanCfgRef = useRef(practicePlanCfg);
     const absencesRef = useRef(absences);
-    practicePlanCfgRef.current = practicePlanCfg;
-    absencesRef.current = absences;
+    useEffect(() => {
+        practicePlanCfgRef.current = practicePlanCfg;
+    }, [practicePlanCfg]);
+    useEffect(() => {
+        absencesRef.current = absences;
+    }, [absences]);
     const goNewAppointment = useCallback((opts?: {
         date?: string;
         patient_id?: string;
@@ -347,7 +351,7 @@ export function AppointmentsPage() {
             document.removeEventListener("visibilitychange", onVis);
             window.removeEventListener(PRACTICE_WORK_HOURS_CHANGED_EVENT, onCfgChanged);
         };
-    }, [location.pathname, toast]);
+    }, [location.pathname, toast, tp]);
 
     useEffect(() => {
         const cur = loadClientSettings();
@@ -494,7 +498,7 @@ export function AppointmentsPage() {
             window.removeEventListener("keydown", onKey);
             window.removeEventListener("keydown", onKeyNav);
         };
-    }, [view, toast, goNewAppointment, selectedDayIso]);
+    }, [view, toast, goNewAppointment, selectedDayIso, t]);
 
     useEffect(() => {
         const q = quickSearch.trim().toLowerCase();
@@ -754,10 +758,11 @@ export function AppointmentsPage() {
         invalidateAppointmentDragColumnCache();
         document.body.classList.add("appointment-calendar-dragging");
 
+        const dragSnapshot = dragStateRef.current;
         lastDragPatchRef.current = {
-            currentDate: dragState.currentDate,
-            currentStartMin: dragState.currentStartMin,
-            dropAllowed: dragState.dropAllowed,
+            currentDate: dragSnapshot?.currentDate ?? "",
+            currentStartMin: dragSnapshot?.currentStartMin ?? 0,
+            dropAllowed: dragSnapshot?.dropAllowed ?? false,
         };
 
         const spanMin = dayEndMin - dayStartMin;
@@ -1075,7 +1080,7 @@ export function AppointmentsPage() {
             document.body.classList.remove("appointment-calendar-dragging");
             lastDragDateNavAtRef.current = 0;
         };
-    }, [dragState?.id, view, commitDrag, dayStartMin, dayEndMin, t]);
+    }, [dragState?.id, view, commitDrag, dayStartMin, dayEndMin, t, toast]);
 
     const openDrawerFor = useCallback(
         (appointment: TCalEvent) => {
@@ -1104,7 +1109,7 @@ export function AppointmentsPage() {
                 toast(errorMessage(e));
             }
         },
-        [load, toast, patchAppointmentLocal, t, tp],
+        [load, toast, patchAppointmentLocal, tp],
     );
 
     useEffect(() => {

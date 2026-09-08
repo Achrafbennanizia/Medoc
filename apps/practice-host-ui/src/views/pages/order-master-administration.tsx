@@ -90,7 +90,7 @@ export function OrderMasterAdministrationPage() {
             setLoadError(errorMessage(e));
             setStatus("error");
         }
-    }, []);
+    }, [setComboLiefId, setComboContactId, setComboProductId]);
 
     useEffect(() => {
         void reload();
@@ -107,7 +107,7 @@ export function OrderMasterAdministrationPage() {
 
     const productsSorted = useMemo(
         () => [...products].sort((a, b) => a.name.localeCompare(b.name, sortLocale)),
-        [products],
+        [products, sortLocale],
     );
     const productOptions = useMemo(
         () =>
@@ -125,7 +125,7 @@ export function OrderMasterAdministrationPage() {
             if (k) s.add(k);
         }
         return [...s].sort((a, b) => a.localeCompare(b, sortLocale));
-    }, [products]);
+    }, [products, sortLocale]);
 
     const addSupplier = async () => {
         if (!canWrite || !newLief.trim()) {

@@ -46,7 +46,7 @@ export function PracticeTaskCreatePage() {
         } finally {
             setLoading(false);
         }
-    }, [role, session?.permission_overrides]);
+    }, [role, session]);
 
     useEffect(() => {
         void load();

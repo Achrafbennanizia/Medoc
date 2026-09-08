@@ -33,7 +33,7 @@ export function WorkTimeTrackingPage() {
     const [overview, setOverview] = useState<WorkTimeWeekOverview | null>(null);
     const [weekAnchor, setWeekAnchor] = useState(() => new Date());
     const [busy, setBusy] = useState(false);
-    const [tick, setTick] = useState(0);
+    const [, setTick] = useState(0);
 
     const dowShort = useMemo(
         () => DAY_SHORT_KEYS.map((k) => t(`page.workTime.day_short.${k}`)),
@@ -43,7 +43,7 @@ export function WorkTimeTrackingPage() {
     const weekStart = useMemo(() => weekStartMonday(weekAnchor), [weekAnchor]);
     const weekStartYmd = useMemo(() => ymd(weekStart), [weekStart]);
     const weekDays = useMemo(() => weekDaysMonFirst(weekStart).map((d) => ymd(d)), [weekStart]);
-    const weeklyRules = useMemo(() => loadWorkPlanStore().weeklyRules, [tick]);
+    const weeklyRules = loadWorkPlanStore().weeklyRules;
 
     const refresh = useCallback(async () => {
         try {
@@ -68,23 +68,20 @@ export function WorkTimeTrackingPage() {
     }, []);
 
     const session = active?.session ?? null;
-    const liveMinutes = useMemo(() => {
-        if (!session) return 0;
-        return liveElapsedMinutes(session, active?.openPauseMinutes ?? 0);
-    }, [session, active?.openPauseMinutes, tick]);
-
-    const weekBars = useMemo(() => {
-        if (!overview || !staffId) return [];
-        return buildWeekBarDays(
-            weekDays,
-            dowShort,
-            staffId,
-            weeklyRules,
-            overview.days,
-            session,
-            active?.openPauseMinutes ?? 0,
-        );
-    }, [overview, staffId, weekDays, weeklyRules, session, active?.openPauseMinutes, tick, dowShort]);
+    // Interval `setTick` re-renders so liveElapsedMinutes / week bars stay current.
+    const liveMinutes = !session ? 0 : liveElapsedMinutes(session, active?.openPauseMinutes ?? 0);
+    const weekBars =
+        !overview || !staffId
+            ? []
+            : buildWeekBarDays(
+                  weekDays,
+                  dowShort,
+                  staffId,
+                  weeklyRules,
+                  overview.days,
+                  session,
+                  active?.openPauseMinutes ?? 0,
+              );
 
     const run = async (fn: () => Promise<unknown>) => {
         setBusy(true);

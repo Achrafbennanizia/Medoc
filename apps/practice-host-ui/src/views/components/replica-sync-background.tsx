@@ -96,7 +96,7 @@ export function ReplicaSyncBackground() {
             }
             window.removeEventListener("online", onOnline);
         };
-    }, [toast]);
+    }, [toast, setLastSyncError]);
 
     return null;
 }

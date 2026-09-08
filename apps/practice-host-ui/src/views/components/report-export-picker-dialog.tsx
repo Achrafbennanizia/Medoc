@@ -131,7 +131,7 @@ export function ReportExportPickerDialog({
         return () => {
             cancelled = true;
         };
-    }, [open, buildBundle, defaultFormat, toast, revokePreview]);
+    }, [open, buildBundle, defaultFormat, toast, tp, revokePreview]);
 
     useEffect(() => {
         if (!open || !bundle) return;
@@ -166,7 +166,7 @@ export function ReportExportPickerDialog({
             })();
         }, 420);
         return () => window.clearTimeout(t);
-    }, [open, format, bundle, toast, revokePreview]);
+    }, [open, format, bundle, toast, tp, revokePreview]);
 
     const csvPreviewRows = useMemo(() => {
         if (!bundle || format !== "csv") return [] as string[][];

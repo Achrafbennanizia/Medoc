@@ -111,7 +111,7 @@ export function TemplatesPrescriptionsCertificatesPage() {
 
     const sorted = useMemo(
         () => [...rows].sort((a, b) => a.title.localeCompare(b.title, sortLocale)),
-        [rows],
+        [rows, sortLocale],
     );
 
     const editorTitle = useMemo(() => {

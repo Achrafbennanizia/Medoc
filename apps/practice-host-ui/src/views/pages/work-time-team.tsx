@@ -65,7 +65,7 @@ export function WorkTimeTeamPage() {
     const weekLabel = format(weekStart, "d. MMM", { locale: dateFnsLocale });
     const weekEndLabel = format(addWeeks(weekStart, 1), "d. MMM yyyy", { locale: dateFnsLocale });
 
-    const members = overview?.members ?? [];
+    const members = useMemo(() => overview?.members ?? [], [overview?.members]);
 
     const filteredMembers = useMemo(() => {
         const q = query.trim().toLowerCase();

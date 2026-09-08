@@ -104,7 +104,7 @@ export function DataExportPickerDialog({
         return () => {
             cancelled = true;
         };
-    }, [open, format, resolvePayload, defaultFormat, toast]);
+    }, [open, format, resolvePayload, defaultFormat, toast, tp]);
 
     const csvPreviewRows = useMemo(() => {
         if (!payload?.textBody || format !== "csv") return [] as string[][];

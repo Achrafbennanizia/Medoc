@@ -347,7 +347,7 @@ export function StaffPage() {
 
     const sorted = useMemo(
         () => [...staff].sort((a, b) => a.name.localeCompare(b.name, sortLocale)),
-        [staff],
+        [staff, sortLocale],
     );
 
     const roleOptions = useMemo(

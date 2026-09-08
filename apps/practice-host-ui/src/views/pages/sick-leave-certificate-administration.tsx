@@ -63,7 +63,7 @@ export function SickLeaveCertificateFormPage() {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [staffId]);
 
     useEffect(() => {
         void load();

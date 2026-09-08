@@ -67,7 +67,7 @@ export function PracticeTaskInboxPanel({ userId, isPhysician, isReception, activ
         } finally {
             setLoading(false);
         }
-    }, [role, session?.permission_overrides]);
+    }, [role, session]);
 
     useEffect(() => {
         if (!active) return;
@@ -129,4 +129,4 @@ export function PracticeTaskInboxPanel({ userId, isPhysician, isReception, activ
     );
 }
 
-export { dispatchNavBadgeRefresh };
+export { dispatchNavBadgeRefresh }; // eslint-disable-line react-refresh/only-export-components -- shared badge helper

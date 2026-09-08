@@ -67,7 +67,7 @@ export function PracticeTaskAdminPanel({ embedded = false, backHref = "/administ
         } finally {
             setLoading(false);
         }
-    }, [parsedRole, session?.permission_overrides]);
+    }, [parsedRole, session]);
 
     useEffect(() => {
         void load();

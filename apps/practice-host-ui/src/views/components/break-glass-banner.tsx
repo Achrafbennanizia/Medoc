@@ -21,8 +21,6 @@ function formatRemaining(totalSecs: number): string {
  * ISO 22600-style visibility: shows when break-glass is active for the signed-in user.
  */
 export function BreakGlassBanner({ userId }: { userId: string | undefined }) {
-    if (!BREAK_GLASS_ENABLED) return null;
-
     const t = useT();
     const tp = useTParams();
     const [mine, setMine] = useState<BreakGlassEntry[]>([]);
@@ -47,7 +45,7 @@ export function BreakGlassBanner({ userId }: { userId: string | undefined }) {
     }, []);
 
     const poll = useCallback(async () => {
-        if (!userId) {
+        if (!BREAK_GLASS_ENABLED || !userId) {
             setMine([]);
             return;
         }
@@ -66,6 +64,7 @@ export function BreakGlassBanner({ userId }: { userId: string | undefined }) {
     }, [poll]);
 
     useEffect(() => {
+        if (!BREAK_GLASS_ENABLED) return;
         const id = window.setInterval(() => {
             void poll();
         }, 30_000);
@@ -79,7 +78,7 @@ export function BreakGlassBanner({ userId }: { userId: string | undefined }) {
         };
     }, [poll]);
 
-    if (!userId || mine.length === 0) return null;
+    if (!BREAK_GLASS_ENABLED || !userId || mine.length === 0) return null;
 
     const remainSecs = Math.min(
         ...mine.map((e) => Math.max(0, BREAK_GLASS_WINDOW_SECS - Number(e.elapsed_secs ?? 0))),

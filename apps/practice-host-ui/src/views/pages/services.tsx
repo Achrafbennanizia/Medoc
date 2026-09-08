@@ -74,7 +74,7 @@ export function ServicesPage() {
     const t = useT();
     const tp = useTParams();
     const sortLocale = useCollatorLocale();
-    const specialExamCategory = t("services.kind.special_examination_category");
+    const specialExamCategory = String(t("services.kind.special_examination_category"));
     const [searchParams, setSearchParams] = useSearchParams();
     const [services, setServices] = useState<ServiceItem[]>([]);
     const [loading, setLoading] = useState(true);

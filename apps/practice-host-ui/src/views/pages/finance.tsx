@@ -285,7 +285,7 @@ export function FinancePage() {
                 if (isInitial) setListLoading(false);
             }
         },
-        [loadPaymentsPage, toast, tp],
+        [loadPaymentsPage, toast, tp, setPurchaseOrders],
     );
 
     useEffect(() => {
@@ -337,7 +337,7 @@ export function FinancePage() {
                 setPaymentsLoadingMore(false);
                 loadMoreLock.current = false;
             });
-    }, [paymentsHaveMore, paymentsLoadingMore, loadPaymentsPage, paymentPage, toast, tp]);
+    }, [paymentsHaveMore, paymentsLoadingMore, loadPaymentsPage, paymentPage, toast, tp, setPaymentsLoadingMore]);
 
     useEffect(() => {
         if (selectedTxKey && !sortedRows.some((r) => financeTxRowKey(r) === selectedTxKey)) {

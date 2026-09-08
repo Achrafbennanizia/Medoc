@@ -472,7 +472,7 @@ export function AppLayout() {
                 toast(tp("app.layout.practice_sync_error", { message: errorMessage(e) }), "warning");
             }
         })();
-    }, [sessionUserId, toast]);
+    }, [sessionUserId, toast, tp]);
 
     useEffect(() => {
         if (!session) return;
@@ -507,7 +507,7 @@ export function AppLayout() {
                 setBgPatients([]);
                 toast(tp("app.layout.break_glass.toast_patients_error", { message: errorMessage(e) }), "error");
             });
-    }, [breakOpen, toast]);
+    }, [breakOpen, toast, tp]);
 
     useEffect(() => {
         const onOnline = () => setIsOnline(true);
@@ -753,7 +753,7 @@ export function AppLayout() {
             disposed = true;
             unlisten?.();
         };
-    }, [navigate, location.pathname, locale]);
+    }, [navigate, location.pathname, locale, tp]);
 
     const isMacUnifiedChrome = desktopChrome === "mac-overlay";
 
