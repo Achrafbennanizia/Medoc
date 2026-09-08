@@ -42,10 +42,13 @@ fn test_invoice_goz_has_required_fields() {
         bank_details: Some(vec!["IBAN DE00".into()]),
         payment_terms_text: Some("Payable within 14 days.".into()),
         vat_notice: Some("VAT-exempt".into()),
+        logo: None,
+        locale: "en".into(),
+        rtl: false,
     };
     let pdf = render(&inv).expect("render");
     let s = String::from_utf8_lossy(&pdf);
-    for needle in ["GOZ", "Fak", "IBAN", "VAT-exempt", "Payable within"] {
+    for needle in ["GOZ", "Factor", "IBAN", "VAT-exempt", "Payable within"] {
         assert!(s.contains(needle), "missing {needle}");
     }
 }
@@ -67,6 +70,9 @@ fn test_invoice_without_goz_still_works() {
         bank_details: None,
         payment_terms_text: None,
         vat_notice: None,
+        logo: None,
+        locale: "en".into(),
+        rtl: false,
     };
     let pdf = render(&inv).expect("render");
     assert!(pdf.starts_with(b"%PDF-1.4"));
@@ -119,6 +125,9 @@ fn test_clinical_certificate_layout_markers() {
         clinician_professional_title: None,
         clinician_zanr: None,
         clinician_bsnr: None,
+        logo_kv_json: None,
+        locale: Some("en".into()),
+        rtl: false,
     };
     let pdf = render_clinical_layout(&doc).expect("certificate pdf");
     let s = String::from_utf8_lossy(&pdf);
@@ -159,7 +168,7 @@ fn test_chart_examination_table_renders_full_psi() {
     let pdf = render_chart_blocks("Chart", "2026-05-19", "Chart U", &blocks, None).expect("pdf");
     let s = String::from_utf8_lossy(&pdf);
     for needle in [
-        "Parodontalstatus",
+        "Periodontal status",
         "Sextant I",
         "Sextant IV",
         "Parodontitis",
@@ -212,6 +221,9 @@ fn test_clinical_receipt_table_layout() {
         clinician_professional_title: None,
         clinician_zanr: None,
         clinician_bsnr: None,
+        logo_kv_json: None,
+        locale: Some("en".into()),
+        rtl: false,
     };
     let pdf = render_clinical_layout(&doc).expect("receipt pdf");
     let s = String::from_utf8_lossy(&pdf);

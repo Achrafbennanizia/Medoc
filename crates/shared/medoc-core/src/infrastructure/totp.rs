@@ -64,3 +64,13 @@ pub fn verify_code(secret_base32: &str, code: &str) -> Result<bool, AppError> {
     let totp = build_totp(secret, "")?;
     Ok(totp.check_current(trimmed).unwrap_or(false))
 }
+
+/// Current 6-digit code for a base32 secret (tests / enrollment confirmation flows).
+pub fn current_code(secret_base32: &str) -> Result<String, AppError> {
+    let secret = Secret::Encoded(secret_base32.to_string())
+        .to_bytes()
+        .map_err(|e| AppError::Internal(format!("TOTP decode: {e}")))?;
+    let totp = build_totp(secret, "")?;
+    totp.generate_current()
+        .map_err(|e| AppError::Internal(format!("TOTP generate: {e}")))
+}

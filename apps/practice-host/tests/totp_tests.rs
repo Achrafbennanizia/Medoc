@@ -86,12 +86,7 @@ async fn enrolled_physician_logs_in_with_valid_totp() {
     .await
     .unwrap();
 
-    let totp_inst = {
-        use totp_rs::{Algorithm, Secret, TOTP};
-        let bytes = Secret::Encoded(secret.clone()).to_bytes().unwrap();
-        TOTP::new(Algorithm::SHA1, 6, 1, 30, bytes, None, String::new()).unwrap()
-    };
-    let code = totp_inst.generate_current().unwrap();
+    let code = totp::current_code(&secret).unwrap();
 
     let session = authenticate(
         &pool,
@@ -149,12 +144,7 @@ async fn confirm_enrollment_persists() {
     staff_repo::set_totp_pending_secret(&pool, "a1", &secret)
         .await
         .unwrap();
-    let totp_inst = {
-        use totp_rs::{Algorithm, Secret, TOTP};
-        let bytes = Secret::Encoded(secret.clone()).to_bytes().unwrap();
-        TOTP::new(Algorithm::SHA1, 6, 1, 30, bytes, None, String::new()).unwrap()
-    };
-    let code = totp_inst.generate_current().unwrap();
+    let code = totp::current_code(&secret).unwrap();
     assert!(totp::verify_code(&secret, &code).unwrap());
     staff_repo::confirm_totp_enrollment(&pool, "a1")
         .await
@@ -179,12 +169,7 @@ async fn deactivate_totp_clears_enrolled_secret_with_valid_code() {
     .await
     .unwrap();
 
-    let totp_inst = {
-        use totp_rs::{Algorithm, Secret, TOTP};
-        let bytes = Secret::Encoded(secret.clone()).to_bytes().unwrap();
-        TOTP::new(Algorithm::SHA1, 6, 1, 30, bytes, None, String::new()).unwrap()
-    };
-    let code = totp_inst.generate_current().unwrap();
+    let code = totp::current_code(&secret).unwrap();
 
     let outcome = medoc_lib::application::totp_service::deactivate_totp(&pool, "a1", Some(&code))
         .await
