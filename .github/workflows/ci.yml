@@ -93,6 +93,12 @@ jobs:
       - name: npm ci
         run: npm ci
 
+      # npm workspace junctions under apps/*/node_modules break Node realpath on Windows (EPERM).
+      - name: Unwrap Windows workspace node_modules links
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/ci-windows-unwrap-workspace-node-modules.ps1
+
       # Audit once on Linux (lockfile is OS-independent).
       - name: npm audit
         if: runner.os == 'Linux'
@@ -142,6 +148,11 @@ jobs:
 
       - name: npm ci
         run: npm ci
+
+      - name: Unwrap Windows workspace node_modules links
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/ci-windows-unwrap-workspace-node-modules.ps1
 
       - name: tauri build (debug, no bundle)
         run: npm run tauri build -- --debug --no-bundle
