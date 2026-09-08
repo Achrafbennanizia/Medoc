@@ -22,7 +22,7 @@
         "date-fns": "^4.1.0",
         "react": "^19.1.0",
         "react-dom": "^19.1.0",
-        "react-router-dom": "^7.6.1",
+        "react-router-dom": "^7.18.3",
         "recharts": "^2.15.3",
         "tailwind-merge": "^3.3.0",
         "zod": "^3.25.67",
