@@ -13,12 +13,11 @@ fn should_run_demo_seed() -> bool {
 const DEMO_SEED_KV_KEY: &str = "migration.demo_seed.v1";
 
 async fn demo_seed_already_applied(pool: &SqlitePool) -> Result<bool, AppError> {
-    let row: Option<(String,)> =
-        sqlx::query_as("SELECT value FROM app_kv WHERE key = ?1")
-            .bind(DEMO_SEED_KV_KEY)
-            .fetch_optional(pool)
-            .await
-            .map_err(AppError::Database)?;
+    let row: Option<(String,)> = sqlx::query_as("SELECT value FROM app_kv WHERE key = ?1")
+        .bind(DEMO_SEED_KV_KEY)
+        .fetch_optional(pool)
+        .await
+        .map_err(AppError::Database)?;
     Ok(row.is_some())
 }
 
@@ -514,11 +513,10 @@ async fn seed_demo_data(pool: &SqlitePool) -> Result<(), AppError> {
     .await?;
 
     let anam_demo = r#"{"version":1,"insuranceStatus":"GKV","health_insurance":"AOK Bremen / Plus","preExisting":{"chronic":"Mild asthma","previousDiagnoses":"Caries in adolescence","surgeries":"","hospital":"","mental":""},"medication":{"regular":"Vitamin D 1000 IE","dosing":"täglich morgens","self":"","missed":"","sideEffects":""},"allergies":{"medications":"Penicillin","foods":"Nuts","other":"","material":"","vaccineReactions":""}}"#;
-    let _ =
-        sqlx::query("UPDATE anamnesis_form SET answers = ?1 WHERE patient_id = 'seed-pat-001'")
-            .bind(anam_demo)
-            .execute(pool)
-            .await;
+    let _ = sqlx::query("UPDATE anamnesis_form SET answers = ?1 WHERE patient_id = 'seed-pat-001'")
+        .bind(anam_demo)
+        .execute(pool)
+        .await;
 
     // ---------------------------------------------------------------
     // PurchaseOrders: dummy demo data so the page is populated and the

@@ -1,7 +1,5 @@
 //! Day-close protocols (finance / cash drawer).
-use crate::domain::entities::day_close_protocol::{
-    CreateDayCloseProtocol, DayCloseProtocol,
-};
+use crate::domain::entities::day_close_protocol::{CreateDayCloseProtocol, DayCloseProtocol};
 use crate::error::AppError;
 use chrono::NaiveDate;
 use sqlx::SqlitePool;

@@ -9,14 +9,14 @@
 //! `record_or_noop` directly so we catch the wiring at call sites.
 
 use chrono::NaiveDate;
+use medoc_core::domain::entities::appointment::{CreateAppointment, UpdateAppointment};
 use medoc_core::domain::entities::patient::CreatePatient;
 use medoc_core::domain::entities::practice_task::CreatePracticeTask;
 use medoc_core::domain::entities::prescription::CreatePrescription;
-use medoc_core::domain::entities::appointment::{CreateAppointment, UpdateAppointment};
-use medoc_core::domain::enums::{Sex, AppointmentKind};
+use medoc_core::domain::enums::{AppointmentKind, Sex};
 use medoc_core::infrastructure::database::{
-    chart_repo, app_kv_repo, connection, patient_repo, practice_task_repo, practice_ticket_repo,
-    prescription_repo, appointment_repo, payment_repo,
+    app_kv_repo, appointment_repo, chart_repo, connection, patient_repo, payment_repo,
+    practice_task_repo, practice_ticket_repo, prescription_repo,
 };
 use sqlx::SqlitePool;
 
@@ -146,7 +146,9 @@ async fn appointment_lifecycle_emits_three_outbox_rows() {
         chief_complaint: None,
         physician_id: "physician-1".into(),
     };
-    let t = appointment_repo::create(&pool, &create).await.expect("create");
+    let t = appointment_repo::create(&pool, &create)
+        .await
+        .expect("create");
 
     appointment_repo::update(
         &pool,
@@ -164,7 +166,9 @@ async fn appointment_lifecycle_emits_three_outbox_rows() {
     .await
     .expect("update");
 
-    appointment_repo::delete(&pool, &t.id).await.expect("delete");
+    appointment_repo::delete(&pool, &t.id)
+        .await
+        .expect("delete");
 
     assert_eq!(outbox_count(&pool, "appointment").await, 3);
 }
@@ -206,16 +210,9 @@ async fn practice_task_insert_and_status_emit_two_rows() {
     .await
     .expect("insert task");
 
-    practice_task_repo::update_status(
-        &pool,
-        &task.id,
-        "DONE_RECEPTION",
-        Some("done"),
-        None,
-        None,
-    )
-    .await
-    .expect("update status");
+    practice_task_repo::update_status(&pool, &task.id, "DONE_RECEPTION", Some("done"), None, None)
+        .await
+        .expect("update status");
 
     assert_eq!(outbox_count(&pool, "practice_task").await, 2);
 }

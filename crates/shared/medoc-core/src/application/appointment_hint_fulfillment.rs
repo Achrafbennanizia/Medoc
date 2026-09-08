@@ -4,7 +4,7 @@
 use crate::domain::entities::Appointment;
 use crate::error::AppError;
 use crate::infrastructure::database::{
-    chart_next_appointment_repo, audit_repo, in_app_notification_repo, patient_repo,
+    audit_repo, chart_next_appointment_repo, in_app_notification_repo, patient_repo,
 };
 use sqlx::SqlitePool;
 

@@ -12,12 +12,12 @@
 //! - `practice_desktop` mode must not append any rows.
 
 use chrono::NaiveDate;
-use medoc_core::domain::entities::treatment::{
-    CreateTreatment, CreateExamination, UpdateTreatment, UpdateExamination,
-};
 use medoc_core::domain::entities::patient::CreatePatient;
+use medoc_core::domain::entities::treatment::{
+    CreateExamination, CreateTreatment, UpdateExamination, UpdateTreatment,
+};
 use medoc_core::domain::enums::Sex;
-use medoc_core::infrastructure::database::{chart_repo, app_kv_repo, connection, patient_repo};
+use medoc_core::infrastructure::database::{app_kv_repo, chart_repo, connection, patient_repo};
 use sqlx::SqlitePool;
 
 const SERVERLESS_DEPLOYMENT_JSON: &str = r#"{"schemaVersion":1,"mode":"serverless_peer","role":"REPLICA","masterBaseUrl":"","masterCertSha256":"","masterAccessToken":"","deviceLabel":"E2E"}"#;

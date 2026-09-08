@@ -1,5 +1,7 @@
 //! Persistence for the BalanceSheet wizard snapshots.
-use crate::domain::entities::balance_sheet_snapshot::{BalanceSheetSnapshot, CreateBalanceSheetSnapshot};
+use crate::domain::entities::balance_sheet_snapshot::{
+    BalanceSheetSnapshot, CreateBalanceSheetSnapshot,
+};
 use crate::error::AppError;
 use sqlx::SqlitePool;
 

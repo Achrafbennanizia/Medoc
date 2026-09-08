@@ -56,7 +56,11 @@ pub async fn create(pool: &SqlitePool, data: &CreateCertificate) -> Result<Certi
         .ok_or(AppError::Internal("Certificate create failed".into()))?;
     let body = serde_json::to_string(&inserted).unwrap_or_else(|_| format!("{{\"id\":\"{id}\"}}"));
     crate::infrastructure::database::sync_outbox::record_or_noop(
-        pool, "certificate", &id, "INSERT", &body,
+        pool,
+        "certificate",
+        &id,
+        "INSERT",
+        &body,
     )
     .await?;
     Ok(inserted)
@@ -68,7 +72,11 @@ pub async fn delete(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
         .execute(pool)
         .await?;
     crate::infrastructure::database::sync_outbox::record_or_noop(
-        pool, "certificate", id, "DELETE", "{}",
+        pool,
+        "certificate",
+        id,
+        "DELETE",
+        "{}",
     )
     .await?;
     Ok(())

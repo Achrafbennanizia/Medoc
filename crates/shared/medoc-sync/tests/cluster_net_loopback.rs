@@ -4,21 +4,19 @@ use std::net::IpAddr;
 
 use medoc_core::infrastructure::database::audit_repo::init_audit_hmac_key;
 use medoc_core::infrastructure::database::connection::{run_migrations, test_memory_pool};
+use medoc_sync::cluster::crypto::DeviceIdentity;
+use medoc_sync::cluster::services::list_pending_requests;
+use medoc_sync::cluster::SeatRole;
 use medoc_sync::net::{
     bind_cluster_listener, complete_xx_handshake, generate_keypair, handle_join_connection,
     join_admin_endpoint, run_xx_initiator, run_xx_responder,
 };
 use medoc_sync::schema::ensure_sync_tables;
-use medoc_sync::cluster::crypto::DeviceIdentity;
-use medoc_sync::cluster::services::list_pending_requests;
-use medoc_sync::cluster::SeatRole;
 use tokio::net::TcpStream;
 
 async fn fresh_pool() -> sqlx::SqlitePool {
-    let audit_dir = std::env::temp_dir().join(format!(
-        "medoc-cluster-test-{}",
-        uuid::Uuid::new_v4()
-    ));
+    let audit_dir =
+        std::env::temp_dir().join(format!("medoc-cluster-test-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&audit_dir).expect("audit dir");
     init_audit_hmac_key(&audit_dir).expect("audit key");
     let pool = test_memory_pool().await.expect("pool");
@@ -44,7 +42,9 @@ fn noise_xx_produces_shared_transcript() {
 
 #[tokio::test]
 async fn xx_handshake_over_tcp_matches_transcript() {
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind");
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind");
     let addr = listener.local_addr().expect("addr");
     let server = tokio::spawn(async move {
         let (mut stream, _) = listener.accept().await.expect("accept");

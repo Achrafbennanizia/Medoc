@@ -55,11 +55,8 @@ pub fn generate() -> VVT {
         activities: vec![
             ProcessingActivity {
                 name: "Patient master data and treatment documentation".into(),
-                purpose:
-                    "Provision of dental services; documentation duty under § 630f BGB"
-                        .into(),
-                legal_basis: "GDPR Art. 9(2)(h) in conjunction with § 22(1) no. 1(b) BDSG"
-                    .into(),
+                purpose: "Provision of dental services; documentation duty under § 630f BGB".into(),
+                legal_basis: "GDPR Art. 9(2)(h) in conjunction with § 22(1) no. 1(b) BDSG".into(),
                 data_categories: vec![
                     "Identification data (name, date of birth, address)",
                     "Insurance data",
@@ -79,7 +76,8 @@ pub fn generate() -> VVT {
             ProcessingActivity {
                 name: "Appointment management".into(),
                 purpose: "Planning and reminders for treatment appointments".into(),
-                legal_basis: "GDPR Art. 6(1)(b) (steps prior to / performance of a contract)".into(),
+                legal_basis: "GDPR Art. 6(1)(b) (steps prior to / performance of a contract)"
+                    .into(),
                 data_categories: vec!["Identification data", "Appointment history", "Contact data"],
                 data_subjects: vec!["Patients"],
                 recipients: vec!["Practice staff"],
@@ -89,8 +87,7 @@ pub fn generate() -> VVT {
             },
             ProcessingActivity {
                 name: "Billing and accounting".into(),
-                purpose: "Invoices, BEMA/GOZ billing, payment tracking"
-                    .into(),
+                purpose: "Invoices, BEMA/GOZ billing, payment tracking".into(),
                 legal_basis: "GDPR Art. 6(1)(b)/(c) (contract; legal obligation)".into(),
                 data_categories: vec![
                     "Identification data",
@@ -121,11 +118,8 @@ pub fn generate() -> VVT {
             },
             ProcessingActivity {
                 name: "Audit log and security log".into(),
-                purpose:
-                    "Traceability of data access; detection of security incidents"
-                        .into(),
-                legal_basis: "GDPR Art. 32 (security of processing), Art. 33 (notification)"
-                    .into(),
+                purpose: "Traceability of data access; detection of security incidents".into(),
+                legal_basis: "GDPR Art. 32 (security of processing), Art. 33 (notification)".into(),
                 data_categories: vec![
                     "User IDs",
                     "Timestamps",

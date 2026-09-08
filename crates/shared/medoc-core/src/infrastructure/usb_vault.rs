@@ -188,14 +188,15 @@ pub fn init_campaign_vault(
     let sealed = seal_json(passphrase, &plain)?;
     let json =
         serde_json::to_string_pretty(&sealed).map_err(|e| AppError::Internal(e.to_string()))?;
-    fs::write(vault_path(root), json).map_err(|e| AppError::Internal(format!("write vault: {e}")))?;
+    fs::write(vault_path(root), json)
+        .map_err(|e| AppError::Internal(format!("write vault: {e}")))?;
     let audit = AuditPlain {
         schema_version: AUDIT_SCHEMA,
         entries: vec![],
     };
     let audit_sealed = seal_json(passphrase, &audit)?;
-    let audit_json =
-        serde_json::to_string_pretty(&audit_sealed).map_err(|e| AppError::Internal(e.to_string()))?;
+    let audit_json = serde_json::to_string_pretty(&audit_sealed)
+        .map_err(|e| AppError::Internal(e.to_string()))?;
     fs::write(audit_path(root), audit_json)
         .map_err(|e| AppError::Internal(format!("write audit: {e}")))?;
     Ok(campaign)
@@ -206,9 +207,11 @@ pub fn current_volume_id() -> Option<String> {
     {
         std::env::var("MEDOC_USB_VOLUME_SERIAL").ok().or_else(|| {
             // Best-effort: use current exe drive root (ops can set env on bind).
-            std::env::current_exe()
-                .ok()
-                .and_then(|p| p.components().next().map(|c| c.as_os_str().to_string_lossy().into_owned()))
+            std::env::current_exe().ok().and_then(|p| {
+                p.components()
+                    .next()
+                    .map(|c| c.as_os_str().to_string_lossy().into_owned())
+            })
         })
     }
     #[cfg(not(windows))]
@@ -253,7 +256,8 @@ pub fn save_campaign(
     let sealed = seal_json(passphrase, &plain)?;
     let json =
         serde_json::to_string_pretty(&sealed).map_err(|e| AppError::Internal(e.to_string()))?;
-    fs::write(vault_path(root), json).map_err(|e| AppError::Internal(format!("write vault: {e}")))?;
+    fs::write(vault_path(root), json)
+        .map_err(|e| AppError::Internal(format!("write vault: {e}")))?;
     Ok(())
 }
 
@@ -308,7 +312,11 @@ pub fn mark_slot_done(
     slot_index: u32,
 ) -> Result<UsbCampaignVault, AppError> {
     let mut campaign = unlock_campaign(root, passphrase)?;
-    if let Some(slot) = campaign.slots.iter_mut().find(|s| s.slot_index == slot_index) {
+    if let Some(slot) = campaign
+        .slots
+        .iter_mut()
+        .find(|s| s.slot_index == slot_index)
+    {
         slot.status = SlotStatus::Done;
     }
     if campaign.chain_next_index == slot_index {
@@ -336,8 +344,7 @@ pub fn host_fingerprint() -> String {
 
 pub fn wipe_temp_dir(path: &Path) -> Result<(), AppError> {
     if path.exists() {
-        fs::remove_dir_all(path)
-            .map_err(|e| AppError::Internal(format!("wipe temp: {e}")))?;
+        fs::remove_dir_all(path).map_err(|e| AppError::Internal(format!("wipe temp: {e}")))?;
     }
     Ok(())
 }
@@ -349,7 +356,8 @@ pub fn make_temp_extract_dir() -> PathBuf {
 
 pub fn write_sidecar_plan(plan: &InstallPlan, dest: &Path) -> Result<(), AppError> {
     if let Some(parent) = dest.parent() {
-        fs::create_dir_all(parent).map_err(|e| AppError::Internal(format!("mkdir sidecar: {e}")))?;
+        fs::create_dir_all(parent)
+            .map_err(|e| AppError::Internal(format!("mkdir sidecar: {e}")))?;
     }
     let sidecar = crate::infrastructure::install_plan::PendingInstallPlanSidecar {
         plan: plan.clone(),
@@ -433,8 +441,13 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("medoc-usb-badpw-{}", Uuid::new_v4()));
         fs::create_dir_all(&dir).unwrap();
         let plan = InstallPlan::new_master("Test");
-        init_campaign_vault(&dir, "correct-kit-password", UsbInstallMode::Default, vec![plan])
-            .unwrap();
+        init_campaign_vault(
+            &dir,
+            "correct-kit-password",
+            UsbInstallMode::Default,
+            vec![plan],
+        )
+        .unwrap();
         let err = unlock_campaign(&dir, "demo123").unwrap_err();
         assert!(
             err.to_string().contains("wrong USB kit password"),

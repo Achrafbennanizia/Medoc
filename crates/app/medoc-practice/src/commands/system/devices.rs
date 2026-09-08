@@ -58,7 +58,9 @@ pub fn scanner_list_recent(
 ) -> Result<Vec<scanner::ScannedDocument>, AppError> {
     let session = rbac::require_authenticated(&session_state)?;
     let role = rbac::Role::parse(&session.role).ok_or(AppError::Forbidden)?;
-    if !rbac::allowed("patient.write", role) && !rbac::allowed("administration.contracts.write", role) {
+    if !rbac::allowed("patient.write", role)
+        && !rbac::allowed("administration.contracts.write", role)
+    {
         return Err(AppError::Forbidden);
     }
     scanner::list_recent(&PathBuf::from(folder), limit.unwrap_or(20))

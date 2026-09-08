@@ -23,17 +23,11 @@ use std::path::Path;
 /// **must match** the desktop app's data directory so LAN clients and the
 /// GUI share one database.
 pub async fn init_db_headless(app_data_dir: &std::path::Path) -> Result<SqlitePool, AppError> {
-    std::fs::create_dir_all(app_data_dir).map_err(|e| {
-        AppError::Internal(format!(
-            "Could not create app data directory: {e}"
-        ))
-    })?;
+    std::fs::create_dir_all(app_data_dir)
+        .map_err(|e| AppError::Internal(format!("Could not create app data directory: {e}")))?;
 
-    audit_repo::init_audit_hmac_key(app_data_dir).map_err(|e| {
-        AppError::Internal(format!(
-            "Could not initialise audit HMAC key: {e}"
-        ))
-    })?;
+    audit_repo::init_audit_hmac_key(app_data_dir)
+        .map_err(|e| AppError::Internal(format!("Could not initialise audit HMAC key: {e}")))?;
 
     open_pool_with_migrations(app_data_dir).await
 }
@@ -45,9 +39,7 @@ pub async fn reopen_app_pool(app_data_dir: &std::path::Path) -> Result<SqlitePoo
 
 fn db_error_is_unreadable(err: &AppError) -> bool {
     let s = err.to_string().to_lowercase();
-    s.contains("(code: 26)")
-        || s.contains("file is not a database")
-        || s.contains("not a database")
+    s.contains("(code: 26)") || s.contains("file is not a database") || s.contains("not a database")
 }
 
 fn remove_sqlite_sidecars(db_path: &Path) {
@@ -72,9 +64,8 @@ fn quarantine_db_file(db_path: &Path) {
 /// current SQLCipher key, move it aside so MeDoc can create a fresh store
 /// instead of panicking in Tauri setup.
 pub fn prepare_practice_db_before_launch(app_dir: &std::path::Path) -> Result<(), AppError> {
-    std::fs::create_dir_all(app_dir).map_err(|e| {
-        AppError::Internal(format!("Could not create app data directory: {e}"))
-    })?;
+    std::fs::create_dir_all(app_dir)
+        .map_err(|e| AppError::Internal(format!("Could not create app data directory: {e}")))?;
     let db_path = app_dir.join("medoc.db");
     if !db_path.exists() {
         return Ok(());

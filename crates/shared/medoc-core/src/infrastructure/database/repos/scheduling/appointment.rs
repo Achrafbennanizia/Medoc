@@ -5,9 +5,10 @@ use crate::error::AppError;
 use sqlx::SqlitePool;
 
 pub async fn find_all(pool: &SqlitePool) -> Result<Vec<Appointment>, AppError> {
-    let rows = sqlx::query_as::<_, Appointment>("SELECT * FROM appointment ORDER BY date DESC, time ASC")
-        .fetch_all(pool)
-        .await?;
+    let rows =
+        sqlx::query_as::<_, Appointment>("SELECT * FROM appointment ORDER BY date DESC, time ASC")
+            .fetch_all(pool)
+            .await?;
     Ok(rows)
 }
 
@@ -68,11 +69,12 @@ pub async fn find_by_id(pool: &SqlitePool, id: &str) -> Result<Option<Appointmen
 }
 
 pub async fn find_by_date(pool: &SqlitePool, date: &str) -> Result<Vec<Appointment>, AppError> {
-    let rows =
-        sqlx::query_as::<_, Appointment>("SELECT * FROM appointment WHERE date = ?1 ORDER BY time ASC")
-            .bind(date)
-            .fetch_all(pool)
-            .await?;
+    let rows = sqlx::query_as::<_, Appointment>(
+        "SELECT * FROM appointment WHERE date = ?1 ORDER BY time ASC",
+    )
+    .bind(date)
+    .fetch_all(pool)
+    .await?;
     Ok(rows)
 }
 
@@ -98,10 +100,9 @@ pub async fn check_conflict(
 pub async fn create(pool: &SqlitePool, data: &CreateAppointment) -> Result<Appointment, AppError> {
     // Check for time conflict
     if check_conflict(pool, &data.date, &data.time, &data.physician_id, None).await? {
-        return Err(AppError::Conflict(conflict::physician_slot_conflict_message(
-            &data.date,
-            &data.time,
-        )));
+        return Err(AppError::Conflict(
+            conflict::physician_slot_conflict_message(&data.date, &data.time),
+        ));
     }
 
     let id = uuid::Uuid::new_v4().to_string();
@@ -130,20 +131,31 @@ pub async fn create(pool: &SqlitePool, data: &CreateAppointment) -> Result<Appoi
         .ok_or(AppError::Internal("Insert failed".into()))?;
     let body = serde_json::to_string(&inserted).unwrap_or_else(|_| format!("{{\"id\":\"{id}\"}}"));
     crate::infrastructure::database::sync_outbox::record_or_noop(
-        pool, "appointment", &id, "INSERT", &body,
+        pool,
+        "appointment",
+        &id,
+        "INSERT",
+        &body,
     )
     .await?;
     Ok(inserted)
 }
 
-pub async fn update(pool: &SqlitePool, id: &str, data: &UpdateAppointment) -> Result<Appointment, AppError> {
+pub async fn update(
+    pool: &SqlitePool,
+    id: &str,
+    data: &UpdateAppointment,
+) -> Result<Appointment, AppError> {
     let existing = find_by_id(pool, id)
         .await?
         .ok_or(AppError::NotFound("Appointment".into()))?;
 
     let date = data.date.as_deref().unwrap_or(&existing.date);
     let time = data.time.as_deref().unwrap_or(&existing.time);
-    let physician_id = data.physician_id.as_deref().unwrap_or(&existing.physician_id);
+    let physician_id = data
+        .physician_id
+        .as_deref()
+        .unwrap_or(&existing.physician_id);
 
     // Check conflict if date/time/physician changed
     if (date != existing.date || time != existing.time || physician_id != existing.physician_id)
@@ -194,7 +206,11 @@ pub async fn update(pool: &SqlitePool, id: &str, data: &UpdateAppointment) -> Re
         .ok_or(AppError::Internal("Update failed".into()))?;
     let body = serde_json::to_string(&updated).unwrap_or_else(|_| format!("{{\"id\":\"{id}\"}}"));
     crate::infrastructure::database::sync_outbox::record_or_noop(
-        pool, "appointment", id, "UPDATE", &body,
+        pool,
+        "appointment",
+        id,
+        "UPDATE",
+        &body,
     )
     .await?;
     Ok(updated)

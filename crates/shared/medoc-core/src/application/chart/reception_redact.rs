@@ -1,7 +1,7 @@
 //! Reception need-to-know redaction for treatment/examination lists (GAP-01 mitigation).
 
 use crate::application::rbac::Role;
-use crate::domain::entities::treatment::{Treatment, Examination};
+use crate::domain::entities::treatment::{Examination, Treatment};
 
 pub fn redact_treatment_for_reception(mut b: Treatment) -> Treatment {
     b.description = None;
@@ -28,10 +28,7 @@ pub fn apply_reception_redact_treatments(role: &str, rows: Vec<Treatment>) -> Ve
     }
 }
 
-pub fn apply_reception_redact_examinations(
-    role: &str,
-    rows: Vec<Examination>,
-) -> Vec<Examination> {
+pub fn apply_reception_redact_examinations(role: &str, rows: Vec<Examination>) -> Vec<Examination> {
     match Role::parse(role) {
         Some(Role::Reception) => rows
             .into_iter()
@@ -44,7 +41,7 @@ pub fn apply_reception_redact_examinations(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::entities::treatment::{Treatment, Examination};
+    use crate::domain::entities::treatment::{Examination, Treatment};
     use chrono::NaiveDateTime;
 
     fn sample_treatment() -> Treatment {
@@ -107,8 +104,7 @@ mod tests {
 
     #[test]
     fn gap_01_reception_examination_redaction_strips_clinical_fields() {
-        let redacted =
-            apply_reception_redact_examinations("RECEPTION", vec![sample_examination()]);
+        let redacted = apply_reception_redact_examinations("RECEPTION", vec![sample_examination()]);
         let u = &redacted[0];
         assert_eq!(u.service_name.as_deref(), Some("Kontrolle"));
         assert!(u.chief_complaint.is_none());

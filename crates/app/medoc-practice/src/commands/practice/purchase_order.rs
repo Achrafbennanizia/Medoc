@@ -4,7 +4,9 @@
 //! - Mutations are recorded in the audit log so the inventory trail is auditable.
 use crate::application::rbac;
 use crate::commands::auth_commands::SessionState;
-use crate::domain::entities::purchase_order::{PurchaseOrder, CreatePurchaseOrder, UpdatePurchaseOrder};
+use crate::domain::entities::purchase_order::{
+    CreatePurchaseOrder, PurchaseOrder, UpdatePurchaseOrder,
+};
 use crate::error::AppError;
 use crate::infrastructure::database::{audit_repo, purchase_order_repo};
 use sqlx::SqlitePool;

@@ -57,11 +57,12 @@ async fn tier_1_prescription_push_applies_on_master() {
         "2026-06-02T12:00:00Z",
     );
     assert_eq!(push_one(&mut lan, &token, device, entry).await, 1);
-    let med: Option<String> = sqlx::query_scalar("SELECT medication FROM prescription WHERE id = ?1")
-        .bind(id)
-        .fetch_optional(&lan.pool)
-        .await
-        .unwrap();
+    let med: Option<String> =
+        sqlx::query_scalar("SELECT medication FROM prescription WHERE id = ?1")
+            .bind(id)
+            .fetch_optional(&lan.pool)
+            .await
+            .unwrap();
     assert_eq!(med.as_deref(), Some("Tier1 E2E Prescription"));
 }
 

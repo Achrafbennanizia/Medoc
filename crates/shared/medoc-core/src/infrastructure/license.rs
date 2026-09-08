@@ -277,8 +277,7 @@ fn dev_signing_key() -> Result<SigningKey, AppError> {
     let sk = SigningKey::from_bytes(&sk_bytes);
     if sk.verifying_key().to_bytes() != VENDOR_PUBKEY {
         return Err(AppError::Internal(
-            "Dev license signing unavailable (VENDOR_PUBKEY does not match test key)."
-                .into(),
+            "Dev license signing unavailable (VENDOR_PUBKEY does not match test key).".into(),
         ));
     }
     Ok(sk)

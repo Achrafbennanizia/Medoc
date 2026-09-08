@@ -4,8 +4,8 @@ use medoc_core::discovery::primary_local_ipv4;
 use medoc_core::error::AppError;
 use tokio::net::TcpStream;
 
-use crate::cluster::SeatRole;
 use crate::cluster::crypto::DeviceIdentity;
+use crate::cluster::SeatRole;
 
 use super::channel::{recv_wire_message, send_wire_message};
 use super::handshake::run_xx_initiator;

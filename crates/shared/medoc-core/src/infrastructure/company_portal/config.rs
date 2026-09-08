@@ -56,8 +56,7 @@ pub fn require_callable(
     })?;
     if effective_api_key(cfg).trim().is_empty() {
         return Err(AppError::Validation(
-            "Vendor portal: API key missing (configuration or MEDOC_COMPANY_API_KEY)."
-                .into(),
+            "Vendor portal: API key missing (configuration or MEDOC_COMPANY_API_KEY).".into(),
         ));
     }
     if cfg.practice_slug.trim().is_empty() {

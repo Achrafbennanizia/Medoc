@@ -55,25 +55,25 @@ pub async fn render_invoice_pdf(
     invoice: InvoiceDto,
 ) -> Result<Vec<u8>, AppError> {
     rbac::require(&session_state, "finance.write")?;
-    let logo = match crate::infrastructure::database::app_kv_repo::get(&pool, "practice.logo.v1").await
-    {
-        Ok(Some(raw)) => match crate::infrastructure::pdf::PdfLogo::from_kv_json(&raw) {
-            Some(logo) => Some(logo),
-            None => {
-                tracing::warn!(
-                    event = "PRACTICE_LOGO_DECODE_SKIPPED",
-                    bytes = raw.len(),
-                    "practice.logo.v1 present but not usable for PDF"
-                );
+    let logo =
+        match crate::infrastructure::database::app_kv_repo::get(&pool, "practice.logo.v1").await {
+            Ok(Some(raw)) => match crate::infrastructure::pdf::PdfLogo::from_kv_json(&raw) {
+                Some(logo) => Some(logo),
+                None => {
+                    tracing::warn!(
+                        event = "PRACTICE_LOGO_DECODE_SKIPPED",
+                        bytes = raw.len(),
+                        "practice.logo.v1 present but not usable for PDF"
+                    );
+                    None
+                }
+            },
+            Ok(None) => None,
+            Err(e) => {
+                tracing::warn!(event = "PRACTICE_LOGO_KV_READ_FAILED", error = %e);
                 None
             }
-        },
-        Ok(None) => None,
-        Err(e) => {
-            tracing::warn!(event = "PRACTICE_LOGO_KV_READ_FAILED", error = %e);
-            None
-        }
-    };
+        };
     let locale = invoice.locale.unwrap_or_else(|| "en".into());
     let rtl = locale == "ar" || invoice.rtl.unwrap_or(false);
     let model = Invoice {

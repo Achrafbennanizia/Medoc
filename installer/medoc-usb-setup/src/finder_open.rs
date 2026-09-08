@@ -21,8 +21,7 @@ fn main() {
             .status();
         return;
     }
-    let log_path = home()
-        .join("Library/Application Support/de.medoc.app/last-launch.log");
+    let log_path = home().join("Library/Application Support/de.medoc.app/last-launch.log");
     if let Some(parent) = log_path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }

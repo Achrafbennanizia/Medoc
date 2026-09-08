@@ -52,5 +52,7 @@ pub async fn deactivate_totp(
         return Ok(TotpDeactivateResult::CancelledPending);
     }
 
-    Err(AppError::Conflict("Two-factor authentication is not active".into()))
+    Err(AppError::Conflict(
+        "Two-factor authentication is not active".into(),
+    ))
 }

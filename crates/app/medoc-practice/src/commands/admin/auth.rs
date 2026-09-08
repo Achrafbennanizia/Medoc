@@ -58,8 +58,7 @@ pub async fn login(
     brute_force: State<'_, BruteForceState>,
     email: String,
     password: String,
-    #[allow(unused_variables)]
-    totp_code: Option<String>,
+    #[allow(unused_variables)] totp_code: Option<String>,
     device_label: Option<String>,
     user_agent: Option<String>,
     client_ip: Option<String>,
@@ -228,9 +227,7 @@ pub async fn logout(
         {
             if pref.auto_record_on_logout {
                 let _ = crate::commands::work_time_commands::end_open_session_for_user(
-                    &pool,
-                    &user_id,
-                    "logout",
+                    &pool, &user_id, "logout",
                 )
                 .await;
             }

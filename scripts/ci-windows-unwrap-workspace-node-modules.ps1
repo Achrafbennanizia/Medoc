@@ -16,21 +16,41 @@ $paths = @(
     "packages/server/company/node_modules"
 )
 
-foreach ($rel in $paths) {
+function Remove-ReparseOrDir([string]$rel) {
     if (-not (Test-Path -LiteralPath $rel)) {
-        continue
+        return
     }
     $item = Get-Item -LiteralPath $rel -Force
-    Write-Host "Removing workspace node_modules link: $rel (LinkType=$($item.LinkType))"
-    # rmdir removes a junction/symlink directory entry without deleting the target.
-    cmd /c "rmdir `"$($item.FullName)`"" | Out-Null
-    if (Test-Path -LiteralPath $rel) {
-        Remove-Item -LiteralPath $rel -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Host "Removing workspace node_modules: $rel (LinkType=$($item.LinkType); Attributes=$($item.Attributes))"
+
+    # Prefer deleting the reparse point itself (do not recurse into the hoist target).
+    try {
+        if ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+            # Directory symlink / junction: Delete() removes the link entry only.
+            $item.Delete()
+        }
+        else {
+            Remove-Item -LiteralPath $rel -Recurse -Force -ErrorAction Stop
+        }
     }
+    catch {
+        Write-Host "Primary delete failed ($($_.Exception.Message)); trying cmd rmdir / fallbacks"
+        cmd.exe /c "rmdir `"$($item.FullName)`"" 2>$null | Out-Null
+        if (Test-Path -LiteralPath $rel) {
+            # Last resort: .NET API without following the link.
+            [System.IO.Directory]::Delete($item.FullName, $false)
+        }
+    }
+
     if (Test-Path -LiteralPath $rel) {
-        Write-Error "Failed to remove $rel"
-        exit 1
+        throw "Failed to remove $rel"
     }
 }
 
+foreach ($rel in $paths) {
+    Remove-ReparseOrDir $rel
+}
+
 Write-Host "Windows workspace node_modules unwrap complete."
+# Native `cmd` failures must not fail the GHA step after a successful unwrap.
+exit 0

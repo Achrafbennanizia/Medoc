@@ -32,9 +32,7 @@ pub async fn upsert(
     }
     let eff = effect.trim().to_ascii_uppercase();
     if eff != "ALLOW" && eff != "DENY" {
-        return Err(AppError::Validation(
-            "effect must be ALLOW or DENY.".into(),
-        ));
+        return Err(AppError::Validation("effect must be ALLOW or DENY.".into()));
     }
     sqlx::query(
         "INSERT INTO staff_permission_override (staff_id, action, effect) VALUES (?1, ?2, ?3)
@@ -53,24 +51,20 @@ pub async fn delete_override(
     staff_id: &str,
     action: &str,
 ) -> Result<(), AppError> {
-    let n = sqlx::query(
-        "DELETE FROM staff_permission_override WHERE staff_id = ?1 AND action = ?2",
-    )
-    .bind(staff_id)
-    .bind(action.trim())
-    .execute(pool)
-    .await?
-    .rows_affected();
+    let n =
+        sqlx::query("DELETE FROM staff_permission_override WHERE staff_id = ?1 AND action = ?2")
+            .bind(staff_id)
+            .bind(action.trim())
+            .execute(pool)
+            .await?
+            .rows_affected();
     if n == 0 {
         return Err(AppError::NotFound("Berechtigungs-Override".into()));
     }
     Ok(())
 }
 
-pub async fn delete_all_for_staff(
-    pool: &SqlitePool,
-    staff_id: &str,
-) -> Result<u64, AppError> {
+pub async fn delete_all_for_staff(pool: &SqlitePool, staff_id: &str) -> Result<u64, AppError> {
     let n = sqlx::query("DELETE FROM staff_permission_override WHERE staff_id = ?1")
         .bind(staff_id)
         .execute(pool)

@@ -1,6 +1,6 @@
 //! TASK 3.5 — domain enums generated from `config/enums.yaml`.
 
-use medoc_lib::domain::enums::{Sex, AppointmentKind, AppointmentStatus, PaymentMethod};
+use medoc_lib::domain::enums::{AppointmentKind, AppointmentStatus, PaymentMethod, Sex};
 
 const RUST_ENUMS: &[(&str, usize)] = &[
     ("Role", 4),
@@ -46,10 +46,7 @@ fn wire_values_roundtrip_json() {
         serde_json::to_string(&AppointmentStatus::NoShow).unwrap(),
         "\"NO_SHOW\""
     );
-    assert_eq!(
-        serde_json::from_str::<Sex>("\"MALE\"").unwrap(),
-        Sex::Male
-    );
+    assert_eq!(serde_json::from_str::<Sex>("\"MALE\"").unwrap(), Sex::Male);
     assert_eq!(
         serde_json::from_str::<AppointmentKind>("\"CHECKUP\"").unwrap(),
         AppointmentKind::Checkup

@@ -7,7 +7,9 @@ use eframe::egui::{self, Color32, RichText, Vec2};
 use crate::{cmd_init_campaign, cmd_install, kit_root, Cli};
 use medoc_core::infrastructure::database::license_repo;
 use medoc_core::infrastructure::install_plan::{InstallRole, PlanActivationMode, SlotStatus};
-use medoc_core::infrastructure::usb_vault::{next_pending_slot, unlock_campaign, practice_app_data_dir};
+use medoc_core::infrastructure::usb_vault::{
+    next_pending_slot, practice_app_data_dir, unlock_campaign,
+};
 use medoc_sync::cluster::services::mint_and_activate_usb_owner_license;
 
 pub fn run(root: Option<PathBuf>) -> Result<(), medoc_core::error::AppError> {
@@ -53,12 +55,8 @@ pub fn run(root: Option<PathBuf>) -> Result<(), medoc_core::error::AppError> {
         copy_flash: String::new(),
         confirm_wipe: false,
     };
-    eframe::run_native(
-        "MeDoc USB Setup",
-        native,
-        Box::new(|_cc| Ok(Box::new(app))),
-    )
-    .map_err(|e| medoc_core::error::AppError::Internal(e.to_string()))
+    eframe::run_native("MeDoc USB Setup", native, Box::new(|_cc| Ok(Box::new(app))))
+        .map_err(|e| medoc_core::error::AppError::Internal(e.to_string()))
 }
 
 struct InstallerApp {

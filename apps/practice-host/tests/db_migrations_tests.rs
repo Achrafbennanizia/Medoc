@@ -345,10 +345,11 @@ async fn english_upgrade_renames_legacy_german_and_camelcase_tables() {
             .expect("service_item.category");
     assert_eq!(category, "Checkup");
 
-    let po: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM purchase_order WHERE id = 'legacy-po-1'")
-        .fetch_one(&pool)
-        .await
-        .expect("purchase_order row");
+    let po: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM purchase_order WHERE id = 'legacy-po-1'")
+            .fetch_one(&pool)
+            .await
+            .expect("purchase_order row");
     assert_eq!(po, 1);
 
     for gone in ["personal", "patienten", "serviceItem", "purchaseOrder"] {
@@ -419,12 +420,11 @@ async fn english_upgrade_remaps_app_kv_and_template_json() {
 
     run_migrations(&pool).await.expect("json english upgrade");
 
-    let pref_key: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM app_kv WHERE key = 'practice.preferences.v1'",
-    )
-    .fetch_one(&pool)
-    .await
-    .expect("pref key renamed");
+    let pref_key: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM app_kv WHERE key = 'practice.preferences.v1'")
+            .fetch_one(&pool)
+            .await
+            .expect("pref key renamed");
     assert_eq!(pref_key, 1);
 
     let legacy_pref: i64 =
@@ -488,5 +488,7 @@ async fn english_upgrade_remaps_app_kv_and_template_json() {
             .expect("chief_complaint");
     assert_eq!(complaint, "Toothache (tooth 16)");
 
-    run_migrations(&pool).await.expect("json upgrade idempotent");
+    run_migrations(&pool)
+        .await
+        .expect("json upgrade idempotent");
 }

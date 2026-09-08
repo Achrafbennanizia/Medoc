@@ -4,7 +4,7 @@ use crate::application::own_profile::{self, OwnProfileDto};
 use crate::application::rbac;
 use crate::commands::auth_commands::{BruteForceState, SessionState};
 use crate::domain::entities::staff::{CreateStaff, UpdateOwnProfile, UpdateStaff};
-use crate::domain::entities::{PhysicianSummary, TaskTeamMember, Staff};
+use crate::domain::entities::{PhysicianSummary, Staff, TaskTeamMember};
 use crate::error::AppError;
 use crate::infrastructure::crypto;
 use crate::infrastructure::database::{audit_repo, staff_permission_repo, staff_repo};
@@ -156,16 +156,9 @@ pub async fn update_staff(
     } else {
         staff_repo::update(&pool, &id, &data).await?
     };
-    audit_repo::create(
-        &pool,
-        &session.user_id,
-        "UPDATE",
-        "Staff",
-        Some(&id),
-        None,
-    )
-    .await
-    .ok();
+    audit_repo::create(&pool, &session.user_id, "UPDATE", "Staff", Some(&id), None)
+        .await
+        .ok();
     Ok(p)
 }
 
@@ -178,16 +171,9 @@ pub async fn delete_staff(
 ) -> Result<(), AppError> {
     let session = rbac::require(&session_state, "staff.write")?;
     staff_repo::delete(&pool, &id).await?;
-    audit_repo::create(
-        &pool,
-        &session.user_id,
-        "DELETE",
-        "Staff",
-        Some(&id),
-        None,
-    )
-    .await
-    .ok();
+    audit_repo::create(&pool, &session.user_id, "DELETE", "Staff", Some(&id), None)
+        .await
+        .ok();
     Ok(())
 }
 
@@ -358,20 +344,10 @@ pub async fn set_staff_full_chart_readonly(
         .await?
         .ok_or(AppError::NotFound("error.entity.staff".into()))?;
     if enabled {
-        staff_permission_repo::upsert(
-            &pool,
-            &staff_id,
-            rbac::PATIENT_READ_MEDICAL,
-            "ALLOW",
-        )
-        .await?;
-        staff_permission_repo::upsert(
-            &pool,
-            &staff_id,
-            rbac::PATIENT_WRITE_MEDICAL,
-            "DENY",
-        )
-        .await?;
+        staff_permission_repo::upsert(&pool, &staff_id, rbac::PATIENT_READ_MEDICAL, "ALLOW")
+            .await?;
+        staff_permission_repo::upsert(&pool, &staff_id, rbac::PATIENT_WRITE_MEDICAL, "DENY")
+            .await?;
     } else {
         staff_permission_repo::delete_override(&pool, &staff_id, rbac::PATIENT_READ_MEDICAL)
             .await?;

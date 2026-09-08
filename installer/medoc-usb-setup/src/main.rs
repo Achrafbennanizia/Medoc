@@ -8,12 +8,12 @@ use std::path::PathBuf;
 use chrono::Utc;
 use clap::{Parser, Subcommand};
 use dialoguer::{Confirm, Input, Password, Select};
+use medoc_core::infrastructure::install_plan::UsbInstallAuditEntry;
 use medoc_core::infrastructure::install_plan::{
     DiscoverConfig, DiscoverMode, InstallComponent, InstallPlan, InstallRole, InstallTopology,
     PlanActivationMode, SlotStatus, UsbInstallMode, FLAG_AUTO_ACTIVATE, FLAG_CHAIN_MEMBER,
     FLAG_INSTALL_SERVER, FLAG_LAN_CLIENT_ONLY, FLAG_OPEN_PORTS_WINDOW, FLAG_SCAN_LAN,
 };
-use medoc_core::infrastructure::install_plan::UsbInstallAuditEntry;
 use medoc_core::infrastructure::usb_vault::{
     self, append_audit_entry, init_campaign_vault, kit_root_from_exe, mark_slot_done,
     next_pending_slot, read_audit_entries, unlock_campaign,
@@ -27,7 +27,11 @@ use uuid::Uuid;
     after_help = "With no subcommand, opens a small install window. Scripted use: init-campaign, install, wizard, status, audit, wipe-pc."
 )]
 pub(crate) struct Cli {
-    #[arg(long, global = true, help = "USB kit root (default: directory of this exe)")]
+    #[arg(
+        long,
+        global = true,
+        help = "USB kit root (default: directory of this exe)"
+    )]
     pub(crate) root: Option<PathBuf>,
 
     #[command(subcommand)]
@@ -289,7 +293,10 @@ fn cmd_status(cli: &Cli, password: Option<String>) -> Result<(), medoc_core::err
         campaign
             .slots
             .iter()
-            .filter(|s| matches!(s.status, medoc_core::infrastructure::install_plan::SlotStatus::Done))
+            .filter(|s| matches!(
+                s.status,
+                medoc_core::infrastructure::install_plan::SlotStatus::Done
+            ))
             .count(),
         campaign.chain_total,
         campaign.chain_next_index
@@ -417,10 +424,9 @@ pub(crate) fn cmd_install(
         if auto_launch {
             if let Some(target) = practice_target.as_ref() {
                 match install::launch_practice_app(target) {
-                    Ok(()) => println!(
-                        "MeDoc is installed at {} and is running.",
-                        target.display()
-                    ),
+                    Ok(()) => {
+                        println!("MeDoc is installed at {} and is running.", target.display())
+                    }
                     Err(e) => println!(
                         "Install OK at {}. Auto-launch: {e}. Double-click MeDoc in that folder.",
                         target.display()
@@ -564,7 +570,14 @@ fn cmd_wizard(cli: &Cli, password: Option<String>) -> Result<(), medoc_core::err
         .interact()
         .map_err(|e| medoc_core::error::AppError::Internal(e.to_string()))?;
 
-    cmd_install(cli, Some(pw), silent, wizard_role_override(role_idx), false, None)
+    cmd_install(
+        cli,
+        Some(pw),
+        silent,
+        wizard_role_override(role_idx),
+        false,
+        None,
+    )
 }
 
 fn cmd_wipe_pc(yes: bool) -> Result<(), medoc_core::error::AppError> {

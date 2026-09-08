@@ -183,12 +183,11 @@ async fn register_practice(
         return Err((StatusCode::BAD_REQUEST, "invalid admin_email").into_response());
     }
 
-    let existing: Option<(String,)> =
-        sqlx::query_as("SELECT slug FROM practice WHERE slug = ?1")
-            .bind(&slug)
-            .fetch_optional(&state.pool)
-            .await
-            .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "db").into_response())?;
+    let existing: Option<(String,)> = sqlx::query_as("SELECT slug FROM practice WHERE slug = ?1")
+        .bind(&slug)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "db").into_response())?;
     if existing.is_some() {
         return Err((StatusCode::CONFLICT, "slug already registered").into_response());
     }

@@ -149,8 +149,8 @@ pub fn complete_xx_handshake(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::net::wire::{encode_frame, WireMessage};
     use crate::cluster::crypto::derive_sas_from_transcript;
+    use crate::net::wire::{encode_frame, WireMessage};
 
     #[test]
     fn xx_handshake_and_encrypted_frame() {

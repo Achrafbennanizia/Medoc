@@ -40,7 +40,8 @@ pub fn run_practice_installer(root: &Path, silent: bool) -> Result<PathBuf, AppE
     )
     .ok_or_else(|| {
         AppError::Validation(
-            "practice installer payload missing in medoc-usb/payloads/ (build MeDoc.app first)".into(),
+            "practice installer payload missing in medoc-usb/payloads/ (build MeDoc.app first)"
+                .into(),
         )
     })?;
     let installed = run_installer(&payload, silent)?;
@@ -56,8 +57,7 @@ pub fn run_lan_server_install(root: &Path) -> Result<(), AppError> {
     if let Some(parent) = dest.parent() {
         fs::create_dir_all(parent).map_err(|e| AppError::Internal(format!("mkdir server: {e}")))?;
     }
-    fs::copy(&payload, &dest)
-        .map_err(|e| AppError::Internal(format!("copy server: {e}")))?;
+    fs::copy(&payload, &dest).map_err(|e| AppError::Internal(format!("copy server: {e}")))?;
     Ok(())
 }
 
@@ -72,7 +72,10 @@ fn run_installer(path: &Path, silent: bool) -> Result<Option<PathBuf>, AppError>
         .and_then(|e| e.to_str())
         .unwrap_or("")
         .to_lowercase();
-    if ext.is_empty() || ext == "medoc" || path.file_name().and_then(|n| n.to_str()) == Some("medoc") {
+    if ext.is_empty()
+        || ext == "medoc"
+        || path.file_name().and_then(|n| n.to_str()) == Some("medoc")
+    {
         let dest = dirs::home_dir()
             .unwrap_or_else(|| PathBuf::from("."))
             .join("Applications/MeDoc/medoc");
@@ -136,7 +139,9 @@ pub fn install_components(
     Ok(practice_target)
 }
 
-pub fn write_plan_sidecar(plan: &medoc_core::infrastructure::install_plan::InstallPlan) -> Result<(), AppError> {
+pub fn write_plan_sidecar(
+    plan: &medoc_core::infrastructure::install_plan::InstallPlan,
+) -> Result<(), AppError> {
     let dest = usb_vault::default_sidecar_path();
     usb_vault::write_sidecar_plan(plan, &dest)
 }
@@ -223,13 +228,16 @@ fn sanitize_macos_app_bundle(app: &Path) {
 /// Copy the .app into the user Applications folder (always visible in Finder).
 /// Also try /Applications when writable so Spotlight/Launchpad pick it up.
 fn install_macos_app_bundle(src: &Path) -> Result<PathBuf, AppError> {
-    let name = src.file_name().ok_or_else(|| {
-        AppError::Validation("practice .app payload has no name".into())
-    })?;
+    let name = src
+        .file_name()
+        .ok_or_else(|| AppError::Validation("practice .app payload has no name".into()))?;
     let user_dest = macos_user_app_dest(name);
     ditto_copy(src, &user_dest)?;
     #[cfg(target_os = "macos")]
-    write_finder_open_command(user_dest.parent().unwrap_or(user_dest.as_path()), &user_dest);
+    write_finder_open_command(
+        user_dest.parent().unwrap_or(user_dest.as_path()),
+        &user_dest,
+    );
 
     let system = PathBuf::from("/Applications").join(name);
     if system_applications_writable() {
@@ -278,7 +286,11 @@ fn cargo_target_dirs(repo: &Path) -> Vec<PathBuf> {
             dirs.push(p);
         }
     }
-    for rel in ["target", "apps/practice-host/target", "apps/practice-host-ui/src-tauri/target"] {
+    for rel in [
+        "target",
+        "apps/practice-host/target",
+        "apps/practice-host-ui/src-tauri/target",
+    ] {
         let p = repo.join(rel);
         if p.is_dir() {
             dirs.push(p);
@@ -614,16 +626,16 @@ fn stop_running_medoc() {
     #[cfg(target_os = "windows")]
     {
         for image in ["medoc.exe", "medoc-server.exe", "medoc-lan-server.exe"] {
-            let _ = Command::new("taskkill")
-                .args(["/F", "/IM", image])
-                .status();
+            let _ = Command::new("taskkill").args(["/F", "/IM", image]).status();
         }
     }
     std::thread::sleep(std::time::Duration::from_millis(500));
     #[cfg(target_os = "macos")]
     {
         let _ = Command::new("killall").args(["-9", "medoc"]).status();
-        let _ = Command::new("killall").args(["-9", "medoc-server"]).status();
+        let _ = Command::new("killall")
+            .args(["-9", "medoc-server"])
+            .status();
         for port in [8787_u16, 47_830, 49_300] {
             kill_listeners_on_port(port);
         }

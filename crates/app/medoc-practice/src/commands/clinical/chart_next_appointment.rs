@@ -10,7 +10,7 @@ use tauri::State;
 use crate::application::rbac;
 use crate::commands::auth_commands::SessionState;
 use crate::error::AppError;
-use crate::infrastructure::database::{chart_next_appointment_repo, audit_repo};
+use crate::infrastructure::database::{audit_repo, chart_next_appointment_repo};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]

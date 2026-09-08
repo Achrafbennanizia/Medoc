@@ -120,7 +120,9 @@ async fn activation_token_with_appointment_read_lists_appointments() {
     )
     .await;
 
-    let (status, body) = lan.json("GET", "/api/v1/appointments", None, Some(&token)).await;
+    let (status, body) = lan
+        .json("GET", "/api/v1/appointments", None, Some(&token))
+        .await;
     assert_eq!(status, StatusCode::OK, "appointments: {body:?}");
     assert!(body.is_array());
 }

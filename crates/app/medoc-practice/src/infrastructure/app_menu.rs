@@ -135,16 +135,19 @@ fn build_file_submenu<R: Runtime, M: Manager<R>>(
     }
     if gates.purchase_order {
         new_items.push(
-            MenuItemBuilder::with_id("menu_new_purchase_order", "New Purchase Order…").build(manager)?,
+            MenuItemBuilder::with_id("menu_new_purchase_order", "New Purchase Order…")
+                .build(manager)?,
         );
     }
     if gates.service_item {
-        new_items
-            .push(MenuItemBuilder::with_id("menu_new_service_item", "New Service…").build(manager)?);
+        new_items.push(
+            MenuItemBuilder::with_id("menu_new_service_item", "New Service…").build(manager)?,
+        );
     }
     if gates.balance_sheet {
         new_items.push(
-            MenuItemBuilder::with_id("menu_new_balance_sheet", "New Balance Sheet Entry…").build(manager)?,
+            MenuItemBuilder::with_id("menu_new_balance_sheet", "New Balance Sheet Entry…")
+                .build(manager)?,
         );
     }
 
@@ -155,12 +158,9 @@ fn build_file_submenu<R: Runtime, M: Manager<R>>(
     #[cfg(target_os = "macos")]
     let role_placeholder: Option<MenuItem<R>> = if new_items.is_empty() {
         Some(
-            MenuItemBuilder::with_id(
-                "menu_file_placeholder",
-                "(No new items for this role)",
-            )
-            .enabled(false)
-            .build(manager)?,
+            MenuItemBuilder::with_id("menu_file_placeholder", "(No new items for this role)")
+                .enabled(false)
+                .build(manager)?,
         )
     } else {
         None
@@ -207,13 +207,16 @@ fn build_full_menu<R: Runtime, M: Manager<R>>(
     let appointment_week =
         MenuItemBuilder::with_id("menu_appointment_view_week", "Calendar: Week").build(manager)?;
     let appointment_month =
-        MenuItemBuilder::with_id("menu_appointment_view_month", "Calendar: Month").build(manager)?;
+        MenuItemBuilder::with_id("menu_appointment_view_month", "Calendar: Month")
+            .build(manager)?;
     let appointment_today =
         MenuItemBuilder::with_id("menu_appointment_today", "Calendar: Today").build(manager)?;
-    let appointment_prev = MenuItemBuilder::with_id("menu_appointment_nav_prev", "Calendar: Previous period")
-        .build(manager)?;
-    let appointment_next = MenuItemBuilder::with_id("menu_appointment_nav_next", "Calendar: Next period")
-        .build(manager)?;
+    let appointment_prev =
+        MenuItemBuilder::with_id("menu_appointment_nav_prev", "Calendar: Previous period")
+            .build(manager)?;
+    let appointment_next =
+        MenuItemBuilder::with_id("menu_appointment_nav_next", "Calendar: Next period")
+            .build(manager)?;
 
     let palette = MenuItemBuilder::with_id("menu_app_command_palette", "Command Palette…")
         .accelerator("CmdOrCtrl+K")
@@ -283,8 +286,7 @@ fn build_full_menu<R: Runtime, M: Manager<R>>(
         .build(manager)?;
     let help_feedback =
         MenuItemBuilder::with_id("menu_help_feedback", "Feedback …").build(manager)?;
-    let help_privacy =
-        MenuItemBuilder::with_id("menu_help_privacy", "Privacy …").build(manager)?;
+    let help_privacy = MenuItemBuilder::with_id("menu_help_privacy", "Privacy …").build(manager)?;
     let help_about = MenuItemBuilder::with_id("menu_help_about", "About MeDoc").build(manager)?;
 
     let mut help_b = SubmenuBuilder::new(manager, "Help").item(&help_shortcuts);
@@ -385,35 +387,47 @@ pub fn handle_menu_event<R: Runtime>(app: &tauri::AppHandle<R>, event: &MenuEven
     }
 
     match id {
-        "menu_new_appointment" => emit_menu(app, json!({ "kind": "navigate", "path": "/appointments/new" })),
+        "menu_new_appointment" => emit_menu(
+            app,
+            json!({ "kind": "navigate", "path": "/appointments/new" }),
+        ),
         "menu_new_patient" => {
             emit_menu(app, json!({ "kind": "navigate", "path": "/patients/new" }))
         }
-        "menu_new_payment" => {
-            emit_menu(app, json!({ "kind": "navigate", "path": "/finance/new" }))
-        }
+        "menu_new_payment" => emit_menu(app, json!({ "kind": "navigate", "path": "/finance/new" })),
         "menu_new_purchase_order" => emit_menu(
             app,
             json!({ "kind": "navigate", "path": "/purchase-orders/new" }),
         ),
-        "menu_new_service_item" => emit_menu(
+        "menu_new_service_item" => {
+            emit_menu(app, json!({ "kind": "navigate", "path": "/services/new" }))
+        }
+        "menu_new_balance_sheet" => emit_menu(
             app,
-            json!({ "kind": "navigate", "path": "/services/new" }),
+            json!({ "kind": "navigate", "path": "/balance-sheet/new" }),
         ),
-        "menu_new_balance_sheet" => emit_menu(app, json!({ "kind": "navigate", "path": "/balance-sheet/new" })),
 
         "menu_file_print" => emit_menu(app, json!({ "kind": "app", "action": "print" })),
 
-        "menu_appointment_view_day" => emit_menu(app, json!({ "kind": "appointment", "action": "view_day" })),
+        "menu_appointment_view_day" => {
+            emit_menu(app, json!({ "kind": "appointment", "action": "view_day" }))
+        }
         "menu_appointment_view_week" => {
             emit_menu(app, json!({ "kind": "appointment", "action": "view_week" }))
         }
-        "menu_appointment_view_month" => {
-            emit_menu(app, json!({ "kind": "appointment", "action": "view_month" }))
+        "menu_appointment_view_month" => emit_menu(
+            app,
+            json!({ "kind": "appointment", "action": "view_month" }),
+        ),
+        "menu_appointment_today" => {
+            emit_menu(app, json!({ "kind": "appointment", "action": "today" }))
         }
-        "menu_appointment_today" => emit_menu(app, json!({ "kind": "appointment", "action": "today" })),
-        "menu_appointment_nav_prev" => emit_menu(app, json!({ "kind": "appointment", "action": "nav_prev" })),
-        "menu_appointment_nav_next" => emit_menu(app, json!({ "kind": "appointment", "action": "nav_next" })),
+        "menu_appointment_nav_prev" => {
+            emit_menu(app, json!({ "kind": "appointment", "action": "nav_prev" }))
+        }
+        "menu_appointment_nav_next" => {
+            emit_menu(app, json!({ "kind": "appointment", "action": "nav_next" }))
+        }
 
         "menu_app_command_palette" => {
             emit_menu(app, json!({ "kind": "app", "action": "command_palette" }))
@@ -427,9 +441,7 @@ pub fn handle_menu_event<R: Runtime>(app: &tauri::AppHandle<R>, event: &MenuEven
         "menu_help_calendar" => emit_menu(app, json!({ "kind": "help", "topic": "calendar" })),
         "menu_help_open_page" => emit_menu(app, json!({ "kind": "navigate", "path": "/help" })),
         "menu_help_feedback" => emit_menu(app, json!({ "kind": "navigate", "path": "/feedback" })),
-        "menu_help_privacy" => {
-            emit_menu(app, json!({ "kind": "navigate", "path": "/privacy" }))
-        }
+        "menu_help_privacy" => emit_menu(app, json!({ "kind": "navigate", "path": "/privacy" })),
         "menu_help_about" => emit_menu(
             app,
             json!({ "kind": "help", "topic": "about", "version": ver }),

@@ -45,13 +45,7 @@ fn test_invoice_goz_has_required_fields() {
     };
     let pdf = render(&inv).expect("render");
     let s = String::from_utf8_lossy(&pdf);
-    for needle in [
-        "GOZ",
-        "Fak",
-        "IBAN",
-        "VAT-exempt",
-        "Payable within",
-    ] {
+    for needle in ["GOZ", "Fak", "IBAN", "VAT-exempt", "Payable within"] {
         assert!(s.contains(needle), "missing {needle}");
     }
 }
@@ -198,11 +192,7 @@ fn test_clinical_receipt_table_layout() {
         tables: vec![PdfTableSpec {
             title: None,
             headers: vec!["Date".into(), "Item".into(), "Short description".into()],
-            rows: vec![vec![
-                "19.05.2026".into(),
-                "Q-001".into(),
-                "Checkup".into(),
-            ]],
+            rows: vec![vec!["19.05.2026".into(), "Q-001".into(), "Checkup".into()]],
             column_layout: TableColumnLayout::Receipt,
         }],
         detail_records: vec![],
@@ -287,12 +277,7 @@ fn test_financial_report_pdf_markers() {
     let pdf = render_report_pdf(&input).expect("report pdf");
     let s = String::from_utf8_lossy(&pdf);
     assert!(pdf.starts_with(b"%PDF"));
-    for needle in [
-        "Balance report",
-        "Summary",
-        "Monthly trend",
-        "Page",
-    ] {
+    for needle in ["Balance report", "Summary", "Monthly trend", "Page"] {
         assert!(s.contains(needle), "missing {needle}");
     }
 }

@@ -134,11 +134,15 @@ async fn apply_inserts_new_patient_from_remote() {
             "updated_at":"2099-02-01T00:00:00Z"}}"#
     );
     let e = entry("remote", 6, "patient", id, "INSERT", &payload);
-    assert!(
-        apply_remote_entry(&pool, LOCAL_REPLICA, false, ConflictPolicy::LastWriteWins, &e)
-            .await
-            .unwrap()
-    );
+    assert!(apply_remote_entry(
+        &pool,
+        LOCAL_REPLICA,
+        false,
+        ConflictPolicy::LastWriteWins,
+        &e
+    )
+    .await
+    .unwrap());
     let name: String = sqlx::query_scalar("SELECT name FROM patient WHERE id = ?1")
         .bind(id)
         .fetch_one(&pool)
@@ -155,11 +159,15 @@ async fn apply_skips_stale_remote_when_local_is_newer() {
     let payload =
         format!(r#"{{"id":"{id}","name":"Stale Remote","updated_at":"2099-01-01T00:00:00Z"}}"#);
     let e = entry("master", 7, "patient", id, "UPDATE", &payload);
-    assert!(
-        apply_remote_entry(&pool, LOCAL_REPLICA, false, ConflictPolicy::LastWriteWins, &e)
-            .await
-            .unwrap()
-    );
+    assert!(apply_remote_entry(
+        &pool,
+        LOCAL_REPLICA,
+        false,
+        ConflictPolicy::LastWriteWins,
+        &e
+    )
+    .await
+    .unwrap());
     let name: String = sqlx::query_scalar("SELECT name FROM patient WHERE id = ?1")
         .bind(id)
         .fetch_one(&pool)
@@ -176,11 +184,15 @@ async fn apply_sqlite_timestamp_format_in_payload() {
     let payload =
         format!(r#"{{"id":"{id}","name":"SQLite TS","updated_at":"2099-03-15 12:30:00"}}"#);
     let e = entry("master", 8, "patient", id, "UPDATE", &payload);
-    assert!(
-        apply_remote_entry(&pool, LOCAL_REPLICA, false, ConflictPolicy::LastWriteWins, &e)
-            .await
-            .unwrap()
-    );
+    assert!(apply_remote_entry(
+        &pool,
+        LOCAL_REPLICA,
+        false,
+        ConflictPolicy::LastWriteWins,
+        &e
+    )
+    .await
+    .unwrap());
     let name: String = sqlx::query_scalar("SELECT name FROM patient WHERE id = ?1")
         .bind(id)
         .fetch_one(&pool)
@@ -207,11 +219,15 @@ async fn apply_fresher_remote_overwrites_local() {
     let payload =
         format!(r#"{{"id":"{id}","name":"Remote Fresher","updated_at":"2099-08-01T00:00:00Z"}}"#);
     let e = entry("master", 10, "patient", id, "UPDATE", &payload);
-    assert!(
-        apply_remote_entry(&pool, LOCAL_REPLICA, false, ConflictPolicy::LastWriteWins, &e)
-            .await
-            .unwrap()
-    );
+    assert!(apply_remote_entry(
+        &pool,
+        LOCAL_REPLICA,
+        false,
+        ConflictPolicy::LastWriteWins,
+        &e
+    )
+    .await
+    .unwrap());
     let name: String = sqlx::query_scalar("SELECT name FROM patient WHERE id = ?1")
         .bind(id)
         .fetch_one(&pool)
@@ -269,11 +285,15 @@ async fn apply_replica_skips_collision_without_timestamps() {
     seed_patient(&pool, id, "Replica Local", "2099-01-01 00:00:00").await;
     let payload = format!(r#"{{"id":"{id}","name":"Remote No TS"}}"#);
     let e = entry("master", 12, "patient", id, "UPDATE", &payload);
-    assert!(
-        apply_remote_entry(&pool, LOCAL_REPLICA, false, ConflictPolicy::LastWriteWins, &e)
-            .await
-            .unwrap()
-    );
+    assert!(apply_remote_entry(
+        &pool,
+        LOCAL_REPLICA,
+        false,
+        ConflictPolicy::LastWriteWins,
+        &e
+    )
+    .await
+    .unwrap());
     let name: String = sqlx::query_scalar("SELECT name FROM patient WHERE id = ?1")
         .bind(id)
         .fetch_one(&pool)
@@ -289,18 +309,16 @@ async fn apply_replica_accepts_admin_pull_without_timestamps() {
     seed_patient(&pool, id, "Replica Local", "2099-01-01 00:00:00").await;
     let payload = format!(r#"{{"id":"{id}","name":"Admin Authoritative"}}"#);
     let e = entry("master", 12, "patient", id, "UPDATE", &payload);
-    assert!(
-        apply_remote_entry_phased(
-            &pool,
-            LOCAL_REPLICA,
-            false,
-            true,
-            ConflictPolicy::LastWriteWins,
-            &e,
-        )
-        .await
-        .unwrap()
-    );
+    assert!(apply_remote_entry_phased(
+        &pool,
+        LOCAL_REPLICA,
+        false,
+        true,
+        ConflictPolicy::LastWriteWins,
+        &e,
+    )
+    .await
+    .unwrap());
     let name: String = sqlx::query_scalar("SELECT name FROM patient WHERE id = ?1")
         .bind(id)
         .fetch_one(&pool)
@@ -374,11 +392,15 @@ async fn apply_replica_accepts_master_tie_break() {
     let payload =
         format!(r#"{{"id":"{id}","name":"Master Wins Tie","updated_at":"2099-05-01T00:00:00Z"}}"#);
     let e = entry("master", 16, "patient", id, "UPDATE", &payload);
-    assert!(
-        apply_remote_entry(&pool, LOCAL_REPLICA, false, ConflictPolicy::LastWriteWins, &e)
-            .await
-            .unwrap()
-    );
+    assert!(apply_remote_entry(
+        &pool,
+        LOCAL_REPLICA,
+        false,
+        ConflictPolicy::LastWriteWins,
+        &e
+    )
+    .await
+    .unwrap());
     let name: String = sqlx::query_scalar("SELECT name FROM patient WHERE id = ?1")
         .bind(id)
         .fetch_one(&pool)

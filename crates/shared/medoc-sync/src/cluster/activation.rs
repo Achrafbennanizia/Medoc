@@ -2,28 +2,28 @@
 
 use std::path::Path;
 
-use medoc_core::argon2::{Algorithm, Argon2, Params, Version};
 use base64::{engine::general_purpose::STANDARD, Engine};
+use chacha20poly1305::aead::{Aead, KeyInit};
+use chacha20poly1305::{XChaCha20Poly1305, XNonce};
 use chrono::Utc;
 use ed25519_dalek::SigningKey;
+use medoc_core::argon2::{Algorithm, Argon2, Params, Version};
 use medoc_core::error::AppError;
 use medoc_core::infrastructure::database::connection;
 use medoc_core::infrastructure::database::db_key;
 use medoc_core::infrastructure::license_repo;
 use sqlx::SqlitePool;
 use uuid::Uuid;
-use chacha20poly1305::aead::{Aead, KeyInit};
-use chacha20poly1305::{XChaCha20Poly1305, XNonce};
 use zeroize::Zeroizing;
 
-use crate::master_keys;
 use crate::cluster::crypto::device_identity::DeviceIdentity;
 use crate::cluster::entities::{Device, License};
 use crate::cluster::enums::{DeviceStatus, SeatRole};
 use crate::cluster::ports::{DeviceRepo, LicenseRepo, SqliteClusterRepos};
 use crate::cluster::seat_budget::seat_budget_from_edition;
 use crate::cluster::services::audit;
-use crate::cluster::services::license_service::{require_owner_activation_device, cluster_status};
+use crate::cluster::services::license_service::{cluster_status, require_owner_activation_device};
+use crate::master_keys;
 
 #[derive(serde::Deserialize)]
 struct Kdf {
@@ -116,10 +116,7 @@ fn unwrap_manifest(m: &Manifest, passphrase: &str) -> Result<Zeroizing<Vec<u8>>,
     let plain = cipher
         .decrypt(XNonce::from_slice(&nonce), ct.as_ref())
         .map_err(|_| {
-            AppError::Validation(
-                "Decryption failed (wrong passphrase or tampered manifest)"
-                    .into(),
-            )
+            AppError::Validation("Decryption failed (wrong passphrase or tampered manifest)".into())
         })?;
 
     if plain.len() != 160 {
@@ -156,15 +153,15 @@ fn verify_device_pubkey(device_pk: &[u8], plain: &[u8]) -> Result<(), AppError> 
     VerifyingKey::from_bytes(&pk_arr)
         .map_err(|e| AppError::Validation(format!("device_pubkey invalid: {e}")))?
         .verify(MSG, &sig)
-        .map_err(|_| {
-            AppError::Validation("Device key signature verification failed".into())
-        })?;
+        .map_err(|_| AppError::Validation("Device key signature verification failed".into()))?;
     Ok(())
 }
 
 fn verify_ca_pubkey(ca_pk: &[u8], plain: &[u8]) -> Result<(), AppError> {
     if ca_pk.len() != 32 {
-        return Err(AppError::Validation("cluster_ca_pubkey length invalid".into()));
+        return Err(AppError::Validation(
+            "cluster_ca_pubkey length invalid".into(),
+        ));
     }
     let ca_seed: [u8; 32] = plain[64..96]
         .try_into()
@@ -190,7 +187,9 @@ pub async fn import_owner_activation(
 ) -> Result<ActivationSummary, AppError> {
     require_owner_activation_device(pool).await?;
     if passphrase.is_empty() {
-        return Err(AppError::validation_code("error.cluster.passphrase_required"));
+        return Err(AppError::validation_code(
+            "error.cluster.passphrase_required",
+        ));
     }
     if activation_already_done(pool).await? {
         let status = cluster_status(pool).await?;
@@ -243,13 +242,9 @@ pub async fn import_owner_activation(
         .map_err(|_| AppError::Internal("db key".into()))?;
 
     let db_path = app_data_dir.join("medoc.db");
-    let rekeyed = db_key::apply_activation_sqlcipher_key(
-        pool,
-        app_data_dir,
-        &db_path,
-        &sqlcipher_key,
-    )
-    .await?;
+    let rekeyed =
+        db_key::apply_activation_sqlcipher_key(pool, app_data_dir, &db_path, &sqlcipher_key)
+            .await?;
 
     let work_pool = if rekeyed {
         connection::reopen_app_pool(app_data_dir).await?
@@ -275,9 +270,7 @@ pub async fn import_owner_activation(
     };
 
     let device_id = license_repo::ensure_device_id(&work_pool).await?;
-    let repos = SqliteClusterRepos {
-        pool: &work_pool,
-    };
+    let repos = SqliteClusterRepos { pool: &work_pool };
     repos.save(&license).await?;
 
     let device = Device {
@@ -285,9 +278,7 @@ pub async fn import_owner_activation(
         cluster_id: cluster_id.clone(),
         device_id,
         pubkey: identity.pubkey_bytes.to_vec(),
-        hostname: hostname::get()
-            .ok()
-            .and_then(|h| h.into_string().ok()),
+        hostname: hostname::get().ok().and_then(|h| h.into_string().ok()),
         os: Some(std::env::consts::OS.into()),
         last_ip: None,
         seat_role: SeatRole::Admin,
@@ -387,10 +378,8 @@ mod tests {
             "missing {} — run scripts/dev-onboarding-reset.sh",
             manifest.display()
         );
-        let app_dir = std::path::PathBuf::from(
-            std::env::var("HOME").expect("HOME"),
-        )
-        .join("Library/Application Support/de.medoc.app");
+        let app_dir = std::path::PathBuf::from(std::env::var("HOME").expect("HOME"))
+            .join("Library/Application Support/de.medoc.app");
         let pool = connection::init_db_headless(&app_dir)
             .await
             .expect("open medoc.db (set MEDOC_DB_KEY like tools/dev-tauri.sh)");

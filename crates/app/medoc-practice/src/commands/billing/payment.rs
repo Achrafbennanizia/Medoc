@@ -33,7 +33,9 @@ pub async fn list_payments_paged(
         .sql();
     let filter = payment_repo::PaymentListFilter {
         status: p.filter_str("status"),
-        payment_method: p.filter_str("paymentMethod").or_else(|| p.filter_str("method")),
+        payment_method: p
+            .filter_str("paymentMethod")
+            .or_else(|| p.filter_str("method")),
         date_on: p.filter_str("dateOn"),
         date_from: p.filter_str("dateFrom"),
         date_to: p.filter_str("dateTo"),

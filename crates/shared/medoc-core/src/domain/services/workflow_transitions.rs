@@ -26,12 +26,7 @@ fn allowed_transition(current: &str, next: &str, allowed: &[&str]) -> Result<(),
 pub fn appointment_status_transition(current: &str, next: &str) -> Result<(), AppError> {
     let cur = current.trim().to_uppercase();
     let allowed: &[&str] = match cur.as_str() {
-        "PLANNED" => &[
-            "CONFIRMED",
-            "COMPLETED",
-            "CANCELLED",
-            "NO_SHOW",
-        ],
+        "PLANNED" => &["CONFIRMED", "COMPLETED", "CANCELLED", "NO_SHOW"],
         "CONFIRMED" => &["COMPLETED", "CANCELLED", "NO_SHOW"],
         "COMPLETED" | "CANCELLED" | "NO_SHOW" | "NICHTERSCHIENEN" => &[],
         _ => return Ok(()),
@@ -88,13 +83,7 @@ pub fn practice_ticket_status_transition(current: &str, next: &str) -> Result<()
     allowed_transition(&cur, next, allowed)
 }
 
-const TASK_STATUSES: &[&str] = &[
-    "OPEN",
-    "IN_PROGRESS",
-    "DONE_RECEPTION",
-    "VALIDATED",
-    "BACK",
-];
+const TASK_STATUSES: &[&str] = &["OPEN", "IN_PROGRESS", "DONE_RECEPTION", "VALIDATED", "BACK"];
 
 fn task_closed() -> AppError {
     AppError::validation_code("error.workflow.task_closed")
@@ -110,10 +99,7 @@ pub fn practice_task_admin_status_transition(current: &str, next: &str) -> Resul
     if cur == "VALIDATED" {
         return Err(task_closed());
     }
-    if !TASK_STATUSES
-        .iter()
-        .any(|s| s.eq_ignore_ascii_case(&nxt))
-    {
+    if !TASK_STATUSES.iter().any(|s| s.eq_ignore_ascii_case(&nxt)) {
         return Err(AppError::validation_code_params(
             "error.workflow.task_unknown_status",
             &[("status", &nxt)],

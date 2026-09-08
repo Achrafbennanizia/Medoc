@@ -83,9 +83,11 @@ pub async fn run_legacy_embedded_migrations(pool: &SqlitePool) -> Result<(), App
     .execute(pool)
     .await?;
 
-    sqlx::query("CREATE INDEX IF NOT EXISTS idx_chart_attachment_chart ON chart_attachment(chart_id)")
-        .execute(pool)
-        .await?;
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_chart_attachment_chart ON chart_attachment(chart_id)",
+    )
+    .execute(pool)
+    .await?;
 
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS appointment (
@@ -617,10 +619,7 @@ pub async fn run_legacy_embedded_migrations(pool: &SqlitePool) -> Result<(), App
     }
 
     for (sql, col) in [
-        (
-            "ALTER TABLE treatment ADD COLUMN category TEXT",
-            "category",
-        ),
+        ("ALTER TABLE treatment ADD COLUMN category TEXT", "category"),
         (
             "ALTER TABLE treatment ADD COLUMN service_name TEXT",
             "service_name",

@@ -53,7 +53,9 @@ fn parse_args() -> Result<Args, String> {
                 let version = args
                     .next()
                     .ok_or_else(|| "--http-port requires PORT".to_string())?;
-                http_port = version.parse().map_err(|_| "invalid http port".to_string())?;
+                http_port = version
+                    .parse()
+                    .map_err(|_| "invalid http port".to_string())?;
             }
             "--discovery-port" => {
                 let version = args

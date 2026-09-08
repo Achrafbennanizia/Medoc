@@ -4,7 +4,8 @@
 //! Clean Architecture data layer.
 
 use crate::domain::entities::purchase_order::{
-    is_valid_status, PurchaseOrder, CreatePurchaseOrder, UpdatePurchaseOrder, STATUS_DELIVERED, STATUS_OPEN,
+    is_valid_status, CreatePurchaseOrder, PurchaseOrder, UpdatePurchaseOrder, STATUS_DELIVERED,
+    STATUS_OPEN,
 };
 use crate::error::AppError;
 use chrono::Datelike;
@@ -34,11 +35,12 @@ async fn next_order_number(pool: &SqlitePool) -> Result<String, AppError> {
     let now = chrono::Local::now().date_naive();
     let prefix = format!("B-{:04}-{:02}-", now.year(), now.month());
     let pattern = format!("{prefix}%");
-    let max_seq: Option<String> =
-        sqlx::query_scalar("SELECT MAX(order_number) FROM purchase_order WHERE order_number LIKE ?1")
-            .bind(&pattern)
-            .fetch_one(pool)
-            .await?;
+    let max_seq: Option<String> = sqlx::query_scalar(
+        "SELECT MAX(order_number) FROM purchase_order WHERE order_number LIKE ?1",
+    )
+    .bind(&pattern)
+    .fetch_one(pool)
+    .await?;
     let next = match max_seq.as_deref() {
         Some(prev) => prev
             .rsplit('-')
@@ -120,9 +122,7 @@ pub async fn update_status(
     status: &str,
 ) -> Result<PurchaseOrder, AppError> {
     if !is_valid_status(status) {
-        return Err(AppError::Validation(format!(
-            "Unknown status: {status}"
-        )));
+        return Err(AppError::Validation(format!("Unknown status: {status}")));
     }
     let cur = fetch_by_id(pool, id).await?;
     crate::domain::services::workflow_transitions::purchase_order_status_transition(

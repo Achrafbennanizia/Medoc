@@ -86,10 +86,7 @@ pub async fn apply_own_profile_update(
         name: data.name.as_ref().map(|s| s.trim().to_string()),
         email: data.email.as_ref().map(|s| s.trim().to_string()),
         role: None,
-        activity_area: data
-            .activity_area
-            .as_ref()
-            .map(|s| s.trim().to_string()),
+        activity_area: data.activity_area.as_ref().map(|s| s.trim().to_string()),
         specialty: data.specialty.as_ref().map(|s| s.trim().to_string()),
         phone: data.phone.as_ref().map(|s| s.trim().to_string()),
         available: None,

@@ -32,7 +32,9 @@ pub async fn submit_request(
         return Err(AppError::validation_code("error.pairing.device_id_empty"));
     }
     if submit.slave_pubkey.trim().is_empty() {
-        return Err(AppError::validation_code("error.pairing.slave_pubkey_empty"));
+        return Err(AppError::validation_code(
+            "error.pairing.slave_pubkey_empty",
+        ));
     }
 
     let existing: Option<(String, String)> =

@@ -97,7 +97,10 @@ pub async fn list_created_by(
     Ok(rows)
 }
 
-pub async fn count_open_for_physician(pool: &SqlitePool, physician_id: &str) -> Result<i64, AppError> {
+pub async fn count_open_for_physician(
+    pool: &SqlitePool,
+    physician_id: &str,
+) -> Result<i64, AppError> {
     let row: (i64,) = sqlx::query_as(
         "SELECT COUNT(*) FROM practice_ticket
          WHERE to_physician_id = ?1 AND status IN ('OPEN','IN_PROGRESS')",

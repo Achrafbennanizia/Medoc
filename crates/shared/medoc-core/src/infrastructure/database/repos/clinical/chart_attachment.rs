@@ -78,7 +78,10 @@ pub async fn list_for_chart(
     Ok(rows)
 }
 
-pub async fn find_by_id(pool: &SqlitePool, id: &str) -> Result<Option<ChartAttachmentRow>, AppError> {
+pub async fn find_by_id(
+    pool: &SqlitePool,
+    id: &str,
+) -> Result<Option<ChartAttachmentRow>, AppError> {
     let row = sqlx::query_as::<_, ChartAttachmentRow>(
         "SELECT id, chart_id, display_name, mime_type, size_bytes, rel_storage_path, document_kind, created_at
          FROM chart_attachment WHERE id = ?1",
@@ -117,17 +120,15 @@ pub async fn create(
     let rel = format!("chart_attachments/{chart_id}/{id}{ext}");
 
     let dir = storage_dir_for_chart(app_data_dir, chart_id);
-    std::fs::create_dir_all(&dir).map_err(|e| {
-        AppError::Internal(format!("Could not create attachment folder: {e}"))
-    })?;
+    std::fs::create_dir_all(&dir)
+        .map_err(|e| AppError::Internal(format!("Could not create attachment folder: {e}")))?;
 
     let disk_path = absolute_path(app_data_dir, &rel);
     std::fs::write(&disk_path, bytes)
         .map_err(|e| AppError::Internal(format!("Could not save file: {e}")))?;
 
-    let size_i64 = i64::try_from(bytes.len()).map_err(|_| {
-        AppError::Internal("File size outside supported range".into())
-    })?;
+    let size_i64 = i64::try_from(bytes.len())
+        .map_err(|_| AppError::Internal("File size outside supported range".into()))?;
 
     let created = chrono::Utc::now().to_rfc3339();
     sqlx::query(

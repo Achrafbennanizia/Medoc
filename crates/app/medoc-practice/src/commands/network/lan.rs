@@ -347,7 +347,9 @@ pub async fn auto_start_replica_sync_lan(
         Err(e) if matches!(e, AppError::Conflict(_)) => {
             tracing::info!(target: "medoc::lan", event = "REPLICA_LAN_ALREADY", error = %e);
         }
-        Err(e) => tracing::warn!(target: "medoc::lan", event = "REPLICA_LAN_START_FAIL", error = %e),
+        Err(e) => {
+            tracing::warn!(target: "medoc::lan", event = "REPLICA_LAN_START_FAIL", error = %e)
+        }
     }
 }
 

@@ -32,7 +32,11 @@ pub async fn create(pool: &SqlitePool, data: &CreateServiceItem) -> Result<Servi
         .await?;
     let body = serde_json::to_string(&inserted).unwrap_or_else(|_| format!("{{\"id\":\"{id}\"}}"));
     crate::infrastructure::database::sync_outbox::record_or_noop(
-        pool, "service_item", &id, "INSERT", &body,
+        pool,
+        "service_item",
+        &id,
+        "INSERT",
+        &body,
     )
     .await?;
     Ok(inserted)
@@ -72,7 +76,11 @@ pub async fn update(
         .await?;
     let body = serde_json::to_string(&updated).unwrap_or_else(|_| format!("{{\"id\":\"{id}\"}}"));
     crate::infrastructure::database::sync_outbox::record_or_noop(
-        pool, "service_item", id, "UPDATE", &body,
+        pool,
+        "service_item",
+        id,
+        "UPDATE",
+        &body,
     )
     .await?;
     Ok(updated)
@@ -84,15 +92,20 @@ pub async fn delete(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
         .bind(id)
         .execute(pool)
         .await?;
-    if let Ok(updated) = sqlx::query_as::<_, ServiceItem>("SELECT * FROM service_item WHERE id = ?1")
-        .bind(id)
-        .fetch_one(pool)
-        .await
+    if let Ok(updated) =
+        sqlx::query_as::<_, ServiceItem>("SELECT * FROM service_item WHERE id = ?1")
+            .bind(id)
+            .fetch_one(pool)
+            .await
     {
         let body =
             serde_json::to_string(&updated).unwrap_or_else(|_| format!("{{\"id\":\"{id}\"}}"));
         crate::infrastructure::database::sync_outbox::record_or_noop(
-            pool, "service_item", id, "UPDATE", &body,
+            pool,
+            "service_item",
+            id,
+            "UPDATE",
+            &body,
         )
         .await?;
     }

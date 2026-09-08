@@ -6,7 +6,10 @@ fn role_parse_round_trip() {
     assert_eq!(Role::parse("PHYSICIAN"), Some(Role::Physician));
     assert_eq!(Role::parse("RECEPTION"), Some(Role::Reception));
     assert_eq!(Role::parse("TAX_ADVISOR"), Some(Role::TaxAdvisor));
-    assert_eq!(Role::parse("PHARMA_CONSULTANT"), Some(Role::PharmaConsultant));
+    assert_eq!(
+        Role::parse("PHARMA_CONSULTANT"),
+        Some(Role::PharmaConsultant)
+    );
     assert_eq!(Role::parse("HACKER"), None);
 }
 
@@ -41,8 +44,14 @@ fn reception_cannot_read_medical_records_or_audit() {
     assert!(!allowed("audit.read", Role::Reception));
     assert!(!allowed("staff.read", Role::Reception));
     assert!(!allowed("administration.team.read", Role::Reception));
-    assert!(!allowed("administration.practice_planning.read", Role::Reception));
-    assert!(!allowed("administration.practice_planning.write", Role::Reception));
+    assert!(!allowed(
+        "administration.practice_planning.read",
+        Role::Reception
+    ));
+    assert!(!allowed(
+        "administration.practice_planning.write",
+        Role::Reception
+    ));
     assert!(!allowed("ops.backup", Role::Reception));
     assert!(allowed("appointment.list_physicians", Role::Reception));
     assert!(!allowed("administration.read", Role::Reception));
@@ -109,8 +118,16 @@ fn full_chart_readonly_preset_for_reception() {
     ];
     assert!(!allowed("patient.read_medical", Role::Reception));
     assert!(!allowed("patient.write_medical", Role::Reception));
-    assert!(effective_allowed("patient.read_medical", Role::Reception, &o));
-    assert!(!effective_allowed("patient.write_medical", Role::Reception, &o));
+    assert!(effective_allowed(
+        "patient.read_medical",
+        Role::Reception,
+        &o
+    ));
+    assert!(!effective_allowed(
+        "patient.write_medical",
+        Role::Reception,
+        &o
+    ));
 }
 
 #[test]
@@ -126,6 +143,14 @@ fn full_chart_readonly_preset_blocks_physician_write() {
         },
     ];
     assert!(allowed("patient.write_medical", Role::Physician));
-    assert!(effective_allowed("patient.read_medical", Role::Physician, &o));
-    assert!(!effective_allowed("patient.write_medical", Role::Physician, &o));
+    assert!(effective_allowed(
+        "patient.read_medical",
+        Role::Physician,
+        &o
+    ));
+    assert!(!effective_allowed(
+        "patient.write_medical",
+        Role::Physician,
+        &o
+    ));
 }

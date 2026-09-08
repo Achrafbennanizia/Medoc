@@ -88,14 +88,12 @@ async fn create_rejects_over_open_even_with_float_noise() {
         .await
         .expect_err("over open");
     match err {
-        AppError::ValidationCode(msg) => assert!(
-            msg.contains("error.payment.overpayment"),
-            "{msg}"
-        ),
-        AppError::Validation(msg) => assert!(
-            msg.contains("exceeds") || msg.contains("open"),
-            "{msg}"
-        ),
+        AppError::ValidationCode(msg) => {
+            assert!(msg.contains("error.payment.overpayment"), "{msg}")
+        }
+        AppError::Validation(msg) => {
+            assert!(msg.contains("exceeds") || msg.contains("open"), "{msg}")
+        }
         e => panic!("expected overpayment validation, got {e:?}"),
     }
 
@@ -149,13 +147,12 @@ async fn ensure_open_booking_for_billable_treatment_sets_release_and_outstanding
         .await
         .expect("open booking");
 
-    let released: (Option<String>, Option<String>) = sqlx::query_as(
-        "SELECT released_by_physician_id, released_at FROM treatment WHERE id = ?1",
-    )
-    .bind(&beh_id)
-    .fetch_one(&pool)
-    .await
-    .expect("read freigabe");
+    let released: (Option<String>, Option<String>) =
+        sqlx::query_as("SELECT released_by_physician_id, released_at FROM treatment WHERE id = ?1")
+            .bind(&beh_id)
+            .fetch_one(&pool)
+            .await
+            .expect("read freigabe");
     assert!(released.0.as_deref().is_some_and(|s| !s.is_empty()));
     assert!(released.1.as_deref().is_some_and(|s| !s.is_empty()));
 
@@ -288,10 +285,9 @@ async fn create_rejects_treatment_without_physician_release() {
         .await
         .expect_err("must fail without FA-LEIST-05 release");
     match err {
-        AppError::ValidationCode(msg) => assert!(
-            msg.contains("error.billing.not_released"),
-            "{msg}"
-        ),
+        AppError::ValidationCode(msg) => {
+            assert!(msg.contains("error.billing.not_released"), "{msg}")
+        }
         AppError::Validation(msg) => assert!(
             msg.contains("FA-LEIST-05") || msg.contains("freigegeben") || msg.contains("released"),
             "{msg}"
@@ -330,10 +326,9 @@ async fn update_fields_caps_replacement_amount_against_other_rows() {
         .await
         .expect_err("too high");
     match err {
-        AppError::ValidationCode(msg) => assert!(
-            msg.contains("error.payment.overpayment"),
-            "{msg}"
-        ),
+        AppError::ValidationCode(msg) => {
+            assert!(msg.contains("error.payment.overpayment"), "{msg}")
+        }
         AppError::Validation(msg) => assert!(
             msg.contains("exceeds") || msg.contains("open") || msg.contains("limit"),
             "{msg}"
@@ -399,12 +394,11 @@ async fn create_fulfills_open_booking_in_place_and_closes_billing_task() {
         .await
         .expect("open booking");
 
-    let open_id: String =
-        sqlx::query_scalar("SELECT id FROM payment WHERE treatment_id = ?1")
-            .bind(&beh_id)
-            .fetch_one(&pool)
-            .await
-            .expect("open id");
+    let open_id: String = sqlx::query_scalar("SELECT id FROM payment WHERE treatment_id = ?1")
+        .bind(&beh_id)
+        .fetch_one(&pool)
+        .await
+        .expect("open id");
 
     let task = practice_task_repo::insert(
         &pool,
@@ -441,16 +435,18 @@ async fn create_fulfills_open_booking_in_place_and_closes_billing_task() {
     .await
     .expect("fulfill");
 
-    assert_eq!(paid.id, open_id, "must update open booking, not insert a second row");
+    assert_eq!(
+        paid.id, open_id,
+        "must update open booking, not insert a second row"
+    );
     assert_eq!(paid.status, "PAID");
     assert!((paid.amount - 80.0).abs() < 1e-6);
 
-    let n: (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM payment WHERE treatment_id = ?1")
-            .bind(&beh_id)
-            .fetch_one(&pool)
-            .await
-            .expect("count");
+    let n: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM payment WHERE treatment_id = ?1")
+        .bind(&beh_id)
+        .fetch_one(&pool)
+        .await
+        .expect("count");
     assert_eq!(n.0, 1, "billing list must not keep a leftover fulfill row");
 
     let closed = practice_task_repo::find_by_id(&pool, &task.id)

@@ -58,11 +58,10 @@ pub async fn get_dashboard_stats(
     };
 
     let products_low = if allowed("product.read") {
-        let row: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM product WHERE active = 1 AND stock <= min_stock",
-        )
-        .fetch_one(pool.inner())
-        .await?;
+        let row: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM product WHERE active = 1 AND stock <= min_stock")
+                .fetch_one(pool.inner())
+                .await?;
         Some(row.0)
     } else {
         None
@@ -261,11 +260,10 @@ pub async fn get_statistics_overview(
             .collect();
 
         // Genders
-        let gender: Vec<(String, i64)> = sqlx::query_as(
-            "SELECT sex, COUNT(*) FROM patient GROUP BY sex ORDER BY sex",
-        )
-        .fetch_all(pool.inner())
-        .await?;
+        let gender: Vec<(String, i64)> =
+            sqlx::query_as("SELECT sex, COUNT(*) FROM patient GROUP BY sex ORDER BY sex")
+                .fetch_all(pool.inner())
+                .await?;
         out.sexes = group_label_value(gender)
             .into_iter()
             .map(|lv| LabelValue {
@@ -402,10 +400,11 @@ pub async fn get_statistics_overview(
             .collect();
         out.appointments_per_month = align_months(appt_mon_f, &months_12);
 
-        let appt_st: Vec<(String, i64)> =
-            sqlx::query_as("SELECT status, COUNT(*) FROM appointment GROUP BY status ORDER BY status")
-                .fetch_all(pool.inner())
-                .await?;
+        let appt_st: Vec<(String, i64)> = sqlx::query_as(
+            "SELECT status, COUNT(*) FROM appointment GROUP BY status ORDER BY status",
+        )
+        .fetch_all(pool.inner())
+        .await?;
         out.appointment_status = group_label_value(appt_st)
             .into_iter()
             .map(|lv| LabelValue {
@@ -527,11 +526,10 @@ pub async fn get_statistics_overview(
     }
 
     if allowed("product.read") {
-        let row: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM product WHERE active=1 AND stock <= min_stock",
-        )
-        .fetch_one(pool.inner())
-        .await?;
+        let row: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM product WHERE active=1 AND stock <= min_stock")
+                .fetch_one(pool.inner())
+                .await?;
         out.products_low = row.0;
     }
 

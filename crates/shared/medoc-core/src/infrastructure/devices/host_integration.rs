@@ -14,9 +14,7 @@ pub fn open_system_scan_utility() -> Result<(), AppError> {
             .status()
             .map_err(|e| AppError::Internal(format!("Start scanner program: {e}")))?;
         if !status.success() {
-            return Err(AppError::Internal(
-                "Could not start Image Capture.".into(),
-            ));
+            return Err(AppError::Internal("Could not start Image Capture.".into()));
         }
         log_device!(
             info,

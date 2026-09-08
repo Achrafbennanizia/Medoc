@@ -20,8 +20,8 @@ pub struct GdtRecord {
     pub patient_id: Option<String>,         // 3000
     pub patient_name: Option<String>,       // 3101
     pub patient_first_name: Option<String>, // 3102
-    pub date_of_birth: Option<String>,       // 3103
-    pub finding: Option<String>,             // 6220
+    pub date_of_birth: Option<String>,      // 3103
+    pub finding: Option<String>,            // 6220
     pub raw_lines: Vec<(String, String)>,   // (field-id, content)
 }
 

@@ -82,9 +82,7 @@ fn open_path_with_os_default(path: &Path) -> Result<(), AppError> {
             .status()
             .map_err(|e| AppError::Internal(format!("start: {e}")))?;
         if !st.success() {
-            return Err(AppError::Internal(
-                "Could not open file.".into(),
-            ));
+            return Err(AppError::Internal("Could not open file.".into()));
         }
         return Ok(());
     }
@@ -93,9 +91,7 @@ fn open_path_with_os_default(path: &Path) -> Result<(), AppError> {
         .status()
         .map_err(|e| AppError::Internal(format!("xdg-open: {e}")))?;
     if !st.success() {
-        return Err(AppError::Internal(
-            "Could not open file.".into(),
-        ));
+        return Err(AppError::Internal("Could not open file.".into()));
     }
     Ok(())
 }

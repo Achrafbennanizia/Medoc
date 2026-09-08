@@ -39,13 +39,12 @@ pub async fn find_paginated(
         let total: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM patient")
             .fetch_one(pool)
             .await?;
-        let rows = sqlx::query_as::<_, Patient>(
-            "SELECT * FROM patient ORDER BY name LIMIT ?1 OFFSET ?2",
-        )
-        .bind(limit as i64)
-        .bind(offset as i64)
-        .fetch_all(pool)
-        .await?;
+        let rows =
+            sqlx::query_as::<_, Patient>("SELECT * FROM patient ORDER BY name LIMIT ?1 OFFSET ?2")
+                .bind(limit as i64)
+                .bind(offset as i64)
+                .fetch_all(pool)
+                .await?;
         Ok((rows, total.0))
     }
 }
@@ -229,13 +228,10 @@ pub async fn expire_new_status_after_completed_appointment(
     let updated = find_by_id(pool, patient_id)
         .await?
         .ok_or(AppError::Internal("Update failed".into()))?;
-    let body = serde_json::to_string(&updated).unwrap_or_else(|_| format!("{{\"id\":\"{patient_id}\"}}"));
+    let body =
+        serde_json::to_string(&updated).unwrap_or_else(|_| format!("{{\"id\":\"{patient_id}\"}}"));
     crate::infrastructure::database::sync_outbox::record_or_noop(
-        pool,
-        "patient",
-        patient_id,
-        "UPDATE",
-        &body,
+        pool, "patient", patient_id, "UPDATE", &body,
     )
     .await?;
     Ok(true)

@@ -114,7 +114,10 @@ async fn lan_http_route_matrix_all_endpoints() {
         .expect("activationToken after PIN confirm")
         .to_string();
 
-    let today = chrono::Local::now().date_naive().format("%Y-%m-%d").to_string();
+    let today = chrono::Local::now()
+        .date_naive()
+        .format("%Y-%m-%d")
+        .to_string();
 
     let cases: Vec<Case> = vec![
         Case {
@@ -538,7 +541,9 @@ async fn lan_http_route_matrix_all_endpoints() {
          **Result:** {passed} passed / {failed} failed / {} total\n\n",
         rows.len()
     ));
-    md.push_str("| # | Test / function | Method | Path | Expect | Status | OK | Output (truncated) |\n");
+    md.push_str(
+        "| # | Test / function | Method | Path | Expect | Status | OK | Output (truncated) |\n",
+    );
     md.push_str("|---:|---|---|---|---|---:|:---:|---|\n");
     for (i, r) in rows.iter().enumerate() {
         let mark = if r.ok { "PASS" } else { "**FAIL**" };
@@ -559,7 +564,9 @@ async fn lan_http_route_matrix_all_endpoints() {
     md.push_str("- Company proxy routes expect 400 when vendor portal URL is unset.\n");
     md.push_str("- Auth uses seeded `ahmed@practice.de` / `password123` plus ops JWT.\n");
     md.push_str("- Sync/peers use activation token after pairing decide + PIN confirm.\n");
-    md.push_str("- `license.activate_invalid` returns HTTP 200 with `valid:false` (structured status).\n");
+    md.push_str(
+        "- `license.activate_invalid` returns HTTP 200 with `valid:false` (structured status).\n",
+    );
 
     let out = results_path();
     if let Some(parent) = out.parent() {

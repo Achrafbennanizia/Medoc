@@ -2,11 +2,11 @@
 
 use chrono::Utc;
 use medoc_core::infrastructure::database::connection::{run_migrations, test_memory_pool};
-use medoc_sync::schema::ensure_sync_tables;
 use medoc_sync::cluster::{
     reserve_seat_atomic, Device, DeviceRepo, DeviceStatus, License, LicenseRepo, SeatRole,
     SqliteClusterRepos,
 };
+use medoc_sync::schema::ensure_sync_tables;
 use uuid::Uuid;
 
 async fn fresh_pool() -> sqlx::SqlitePool {

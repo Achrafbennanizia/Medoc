@@ -8,9 +8,10 @@ use medoc_e2e::harness::{
 };
 use medoc_e2e::port_client::{
     company_url_from_env, master_url_from_env, pair_replica_over_port, patient_insert_entry,
-    patient_update_entry, port_e2e_or_skip, practice_ticket_insert_entry, replica_port_a_from_env,
-    replica_port_b_from_env, prescription_insert_entry, spawn_medoc_server, submit_pairing_request,
-    sync_pull_since, sync_push_entries, sync_push_raw, MedocServerProcess, PortE2eClient,
+    patient_update_entry, port_e2e_or_skip, practice_ticket_insert_entry,
+    prescription_insert_entry, replica_port_a_from_env, replica_port_b_from_env,
+    spawn_medoc_server, submit_pairing_request, sync_pull_since, sync_push_entries, sync_push_raw,
+    MedocServerProcess, PortE2eClient,
 };
 use medoc_sync::engine::SyncEngine;
 use medoc_sync::pairing::ACTIVATION_TOKEN_PREFIX;
@@ -647,11 +648,12 @@ async fn port_sync_prescription_push_applies_on_master() {
     sync_push_entries(&client, &token, device_id, &[entry]).await;
 
     let master_pool = open_headless_pool(std::path::Path::new(&master_data_dir)).await;
-    let med: Option<String> = sqlx::query_scalar("SELECT medication FROM prescription WHERE id = ?1")
-        .bind(prescription_id)
-        .fetch_optional(&master_pool)
-        .await
-        .expect("read prescription");
+    let med: Option<String> =
+        sqlx::query_scalar("SELECT medication FROM prescription WHERE id = ?1")
+            .bind(prescription_id)
+            .fetch_optional(&master_pool)
+            .await
+            .expect("read prescription");
     assert_eq!(med.as_deref(), Some("Port E2E Prescription"));
 }
 

@@ -8,28 +8,18 @@ use crate::domain::entities::practice_task::{
 };
 use crate::domain::services::workflow_transitions;
 use crate::error::AppError;
-use crate::infrastructure::database::{
-    audit_repo, patient_repo, staff_repo, practice_task_repo,
-};
+use crate::infrastructure::database::{audit_repo, patient_repo, practice_task_repo, staff_repo};
 use sqlx::SqlitePool;
 use tauri::State;
 
 const TASK_KINDS: &[&str] = &["BILLING", "APPOINTMENT", "PRINT", "MASTER_DATA", "OTHER"];
 
 /// Inbox visibility or practice-task admin (`administration.read`).
-fn assert_task_readable(
-    session: &Session,
-    role: Role,
-    a: &PracticeTask,
-) -> Result<(), AppError> {
+fn assert_task_readable(session: &Session, role: Role, a: &PracticeTask) -> Result<(), AppError> {
     if effective_allowed("administration.read", role, &session.permission_overrides) {
         return Ok(());
     }
-    crate::domain::services::task_visibility::assert_user_can_view_task(
-        a,
-        &session.user_id,
-        role,
-    )
+    crate::domain::services::task_visibility::assert_user_can_view_task(a, &session.user_id, role)
 }
 
 fn normalize_patient_id(raw: Option<&str>) -> Option<String> {
@@ -68,7 +58,9 @@ pub async fn create_practice_task(
     let role = Role::parse(&session.role).ok_or(AppError::Unauthorized)?;
     let title = data.title.trim().to_string();
     if title.is_empty() {
-        return Err(AppError::validation_code("error.practice_task.title_required"));
+        return Err(AppError::validation_code(
+            "error.practice_task.title_required",
+        ));
     }
     let patient_id = normalize_patient_id(data.patient_id.as_deref());
     let pid = patient_id
@@ -111,12 +103,16 @@ pub async fn create_practice_task(
                 .as_deref()
                 .map(str::trim)
                 .filter(|s| !s.is_empty())
-                .ok_or_else(|| AppError::validation_code("error.practice_task.assignee_doctor_required"))?;
+                .ok_or_else(|| {
+                    AppError::validation_code("error.practice_task.assignee_doctor_required")
+                })?;
             let physician = staff_repo::find_by_id(&pool, aid)
                 .await?
                 .ok_or(AppError::NotFound("Physician".into()))?;
             if !physician.role.eq_ignore_ascii_case("PHYSICIAN") {
-                return Err(AppError::validation_code("error.practice_task.target_must_be_doctor"));
+                return Err(AppError::validation_code(
+                    "error.practice_task.target_must_be_doctor",
+                ));
             }
             payload.assignee_role = None;
         }
@@ -156,7 +152,9 @@ pub async fn list_practice_tasks_for_me(
         Role::Reception => {
             practice_task_repo::list_for_user(&pool, &session.user_id, true, 200).await
         }
-        Role::Physician => practice_task_repo::list_for_user(&pool, &session.user_id, false, 200).await,
+        Role::Physician => {
+            practice_task_repo::list_for_user(&pool, &session.user_id, false, 200).await
+        }
         _ => Err(AppError::Unauthorized),
     }
 }
@@ -185,11 +183,8 @@ pub async fn transition_practice_task(
         )?;
     }
 
-    let can_fulfill_status = effective_allowed(
-        "task.status.fulfill",
-        role,
-        &session.permission_overrides,
-    );
+    let can_fulfill_status =
+        effective_allowed("task.status.fulfill", role, &session.permission_overrides);
 
     workflow_transitions::practice_task_status_transition(
         &current.status,
@@ -310,7 +305,9 @@ pub async fn create_practice_task_admin(
     let session = rbac::require(&session_state, "administration.read")?;
     let title = data.title.trim().to_string();
     if title.is_empty() {
-        return Err(AppError::validation_code("error.practice_task.title_required"));
+        return Err(AppError::validation_code(
+            "error.practice_task.title_required",
+        ));
     }
     let patient_id = normalize_patient_id(data.patient_id.as_deref());
     if let Some(pid) = patient_id.as_deref() {
@@ -375,7 +372,9 @@ pub async fn update_practice_task_admin(
         .map(str::trim)
         .is_some_and(|s| s.is_empty())
     {
-        return Err(AppError::validation_code("error.practice_task.title_required"));
+        return Err(AppError::validation_code(
+            "error.practice_task.title_required",
+        ));
     }
     if let Some(t) = patch.kind.as_deref() {
         normalize_kind(t)?;
@@ -437,13 +436,9 @@ pub async fn add_practice_task_comment(
         .await?
         .ok_or(AppError::NotFound("Task".into()))?;
     assert_task_readable(&session, role, &current)?;
-    let out = practice_task_repo::insert_comment(
-        &pool,
-        &args.task_id,
-        &session.user_id,
-        &args.body,
-    )
-    .await?;
+    let out =
+        practice_task_repo::insert_comment(&pool, &args.task_id, &session.user_id, &args.body)
+            .await?;
     audit_repo::create(
         &pool,
         &session.user_id,

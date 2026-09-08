@@ -5,8 +5,8 @@ use crate::application::auth_service::Session;
 use crate::application::rbac::{self, Role};
 use crate::error::AppError;
 use crate::infrastructure::database::{
-    chart_attachment_repo, chart_repo, app_kv_repo, certificate_repo, audit_repo, patient_repo, prescription_repo,
-    appointment_repo, payment_repo,
+    app_kv_repo, appointment_repo, audit_repo, certificate_repo, chart_attachment_repo, chart_repo,
+    patient_repo, payment_repo, prescription_repo,
 };
 use crate::infrastructure::pdf::{
     render_chart_blocks, ChartHeaderContext, ChartPdfBlock, ChartPdfTable,
@@ -249,10 +249,7 @@ pub async fn export_chart_pdf(
             ("Name".into(), patient.name.clone()),
             ("Date of birth".into(), patient.date_of_birth.to_string()),
             ("Sex".into(), patient.sex.clone()),
-            (
-                "Insurance number".into(),
-                patient.insurance_number.clone(),
-            ),
+            ("Insurance number".into(), patient.insurance_number.clone()),
             ("Patient status".into(), patient.status.clone()),
         ];
         if let Some(t) = &patient.phone {
@@ -356,9 +353,8 @@ pub async fn export_chart_pdf(
     if sec.anamnesis && medical {
         if let Some(am) = chart_repo::find_anamnesis_form(pool, &patient_id).await? {
             let signed = if am.signed { "Yes" } else { "No" };
-            let mut lines = crate::infrastructure::clinical_text_format::format_anamnesis_answers(
-                &am.answers,
-            );
+            let mut lines =
+                crate::infrastructure::clinical_text_format::format_anamnesis_answers(&am.answers);
             lines.insert(0, format!("Signed: {signed}"));
             blocks.push(ChartPdfBlock {
                 title: "Anamnesis / questionnaire".into(),
@@ -589,7 +585,10 @@ pub async fn export_chart_pdf(
                         });
                     }
                 }
-                blocks.push(ChartPdfBlock::body(format!("Certificate — {}", a.kind), lines));
+                blocks.push(ChartPdfBlock::body(
+                    format!("Certificate — {}", a.kind),
+                    lines,
+                ));
             }
         }
     }
@@ -942,10 +941,7 @@ pub async fn export_discharge_leaflet_pdf(
                 ln.to_string()
             });
         }
-        blocks.push(ChartPdfBlock::body(
-            "Referral / onward care",
-            lines,
-        ));
+        blocks.push(ChartPdfBlock::body("Referral / onward care", lines));
     }
 
     if let Some(txt) = args
@@ -962,10 +958,7 @@ pub async fn export_discharge_leaflet_pdf(
                 ln.to_string()
             });
         }
-        blocks.push(ChartPdfBlock::body(
-            "Additional notes / aftercare",
-            lines,
-        ));
+        blocks.push(ChartPdfBlock::body("Additional notes / aftercare", lines));
     }
 
     if let Ok(Some(raw)) = app_kv_repo::get(pool, "invoice.practice.v1").await {
@@ -989,8 +982,16 @@ pub async fn export_discharge_leaflet_pdf(
                 if !professional_title.is_empty() {
                     sig.push(professional_title.to_string());
                 }
-                let zanr = j.get("zanr").and_then(|version| version.as_str()).unwrap_or("").trim();
-                let bsnr = j.get("bsnr").and_then(|version| version.as_str()).unwrap_or("").trim();
+                let zanr = j
+                    .get("zanr")
+                    .and_then(|version| version.as_str())
+                    .unwrap_or("")
+                    .trim();
+                let bsnr = j
+                    .get("bsnr")
+                    .and_then(|version| version.as_str())
+                    .unwrap_or("")
+                    .trim();
                 if !zanr.is_empty() || !bsnr.is_empty() {
                     sig.push(format!("ZANR: {zanr} · BSNR: {bsnr}"));
                 }

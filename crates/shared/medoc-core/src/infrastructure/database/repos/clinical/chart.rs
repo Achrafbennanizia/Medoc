@@ -1,10 +1,9 @@
 use crate::domain::entities::anamnesis_form::SaveAnamnesisForm;
-use crate::domain::entities::treatment::{
-    Treatment, CreateTreatment, CreateExamination, Examination, UpdateTreatment,
-    UpdateExamination,
-};
 use crate::domain::entities::dental_finding::CreateDentalFinding;
-use crate::domain::entities::{AnamnesisForm, PatientChart, DentalFinding};
+use crate::domain::entities::treatment::{
+    CreateExamination, CreateTreatment, Examination, Treatment, UpdateExamination, UpdateTreatment,
+};
+use crate::domain::entities::{AnamnesisForm, DentalFinding, PatientChart};
 use crate::error::AppError;
 use sqlx::SqlitePool;
 
@@ -87,10 +86,11 @@ pub async fn upsert_dental_finding(
         .execute(pool)
         .await?;
 
-        let updated = sqlx::query_as::<_, DentalFinding>("SELECT * FROM dental_finding WHERE id = ?1")
-            .bind(&ex.id)
-            .fetch_one(pool)
-            .await?;
+        let updated =
+            sqlx::query_as::<_, DentalFinding>("SELECT * FROM dental_finding WHERE id = ?1")
+                .bind(&ex.id)
+                .fetch_one(pool)
+                .await?;
         let body =
             serde_json::to_string(&updated).unwrap_or_else(|_| format!("{{\"id\":\"{}\"}}", ex.id));
         crate::infrastructure::database::sync_outbox::record_or_noop(
@@ -117,10 +117,11 @@ pub async fn upsert_dental_finding(
         .execute(pool)
         .await?;
 
-        let inserted = sqlx::query_as::<_, DentalFinding>("SELECT * FROM dental_finding WHERE id = ?1")
-            .bind(&id)
-            .fetch_one(pool)
-            .await?;
+        let inserted =
+            sqlx::query_as::<_, DentalFinding>("SELECT * FROM dental_finding WHERE id = ?1")
+                .bind(&id)
+                .fetch_one(pool)
+                .await?;
         let body =
             serde_json::to_string(&inserted).unwrap_or_else(|_| format!("{{\"id\":\"{id}\"}}"));
         crate::infrastructure::database::sync_outbox::record_or_noop(
@@ -161,7 +162,7 @@ pub async fn save_anamnesis_form(
     if let Some(ex) = existing {
         sqlx::query(
             "UPDATE anamnesis_form SET answers = ?1, signed = ?2, updated_at = CURRENT_TIMESTAMP
-             WHERE id = ?3"
+             WHERE id = ?3",
         )
         .bind(&answers_json)
         .bind(data.signed)

@@ -26,11 +26,11 @@ use medoc_core::application::own_profile::{self, OwnProfileDto};
 use medoc_core::application::rbac::{self, Role};
 use medoc_core::company::{CompanyPortalPort, COMPANY_PORTAL};
 use medoc_core::domain::entities::staff::UpdateOwnProfile;
-use medoc_core::domain::entities::{Patient, Appointment};
+use medoc_core::domain::entities::{Appointment, Patient};
 use medoc_core::error::AppError;
 use medoc_core::infrastructure::company_portal::load_company_portal_config;
 use medoc_core::infrastructure::cors_policy::{self, CorsGate};
-use medoc_core::infrastructure::database::{app_kv_repo, patient_repo, appointment_repo};
+use medoc_core::infrastructure::database::{app_kv_repo, appointment_repo, patient_repo};
 use medoc_core::infrastructure::logging::brute_force::{BruteForceTracker, BruteKey, CheckResult};
 use medoc_sync::pairing::ActivationTokenPayload;
 
@@ -221,7 +221,10 @@ pub fn build_router(state: LanHttpState) -> Router {
             post(self::eprescription::validate),
         )
         .route("/eprescriptions/submit", post(self::eprescription::submit))
-        .route("/license", get(self::license::status).delete(self::license::clear))
+        .route(
+            "/license",
+            get(self::license::status).delete(self::license::clear),
+        )
         .route("/license/activate", post(self::license::activate))
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -268,7 +271,9 @@ async fn login(
         CheckResult::Locked { remaining_secs } => {
             return Err((
                 StatusCode::TOO_MANY_REQUESTS,
-                Json(json!({ "error": format!("error.app.rate_limited|seconds={remaining_secs}") })),
+                Json(
+                    json!({ "error": format!("error.app.rate_limited|seconds={remaining_secs}") }),
+                ),
             )
                 .into_response());
         }

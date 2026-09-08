@@ -5,8 +5,8 @@ use medoc_core::infrastructure::database::app_kv_repo;
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
-use crate::net::fetch_staff_directory;
 use crate::cluster::crypto::DeviceIdentity;
+use crate::net::fetch_staff_directory;
 
 const DIRECTORY_VERSION: u32 = 1;
 pub const CLUSTER_ADMIN_ENDPOINT_KV: &str = "cluster.join.admin_endpoint.v1";
@@ -87,7 +87,10 @@ pub async fn import_staff_directory_json(pool: &SqlitePool, raw: &str) -> Result
     Ok(imported)
 }
 
-async fn upsert_staff_entry(pool: &SqlitePool, entry: &StaffDirectoryEntry) -> Result<bool, AppError> {
+async fn upsert_staff_entry(
+    pool: &SqlitePool,
+    entry: &StaffDirectoryEntry,
+) -> Result<bool, AppError> {
     let email = entry.email.trim();
     if email.is_empty() || entry.password_hash.trim().is_empty() {
         return Ok(false);
@@ -284,12 +287,12 @@ async fn sync_staff_from_stored_admin_endpoint_inner(
         return Ok(0);
     }
     let identity = DeviceIdentity::load_or_create()?;
-    let directory_json =
-        fetch_staff_directory(&endpoint.host, endpoint.port, &identity).await?;
+    let directory_json = fetch_staff_directory(&endpoint.host, endpoint.port, &identity).await?;
     let imported = import_staff_directory_json(pool, &directory_json).await?;
     if require_import && imported == 0 {
         return Err(AppError::Validation(
-            "No user accounts received from the main device — main device must be signed in.".into(),
+            "No user accounts received from the main device — main device must be signed in."
+                .into(),
         ));
     }
     Ok(imported)
@@ -306,8 +309,7 @@ pub async fn fetch_provisioning_settings_json(pool: &SqlitePool) -> Result<Strin
         return Ok("{}".to_string());
     }
     let identity = DeviceIdentity::load_or_create()?;
-    let staff_json =
-        fetch_staff_directory(&endpoint.host, endpoint.port, &identity).await?;
+    let staff_json = fetch_staff_directory(&endpoint.host, endpoint.port, &identity).await?;
     if staff_json.trim().is_empty() {
         return Ok("{}".to_string());
     }
@@ -340,11 +342,10 @@ mod tests {
             .unwrap();
         let n = import_staff_directory_json(&pool, &json).await.unwrap();
         assert!(n >= 1);
-        let (email,): (String,) =
-            sqlx::query_as("SELECT email FROM staff WHERE id = 'u-rez'")
-                .fetch_one(&pool)
-                .await
-                .unwrap();
+        let (email,): (String,) = sqlx::query_as("SELECT email FROM staff WHERE id = 'u-rez'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
         assert_eq!(email, "a@practice.de");
     }
 }

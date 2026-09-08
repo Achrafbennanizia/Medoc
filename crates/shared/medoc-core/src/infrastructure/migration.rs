@@ -130,9 +130,7 @@ pub async fn import_patients(
             }
             Err(e) => {
                 report.failed += 1;
-                report
-                    .errors
-                    .push(format!("Row {lineno}: DB error: {e}"));
+                report.errors.push(format!("Row {lineno}: DB error: {e}"));
             }
         }
     }

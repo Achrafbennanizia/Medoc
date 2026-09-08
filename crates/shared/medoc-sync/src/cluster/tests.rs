@@ -5,7 +5,7 @@ use medoc_core::infrastructure::database::connection::{run_migrations, test_memo
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
-use super::entities::{Device, License, SeatUsage, Cluster};
+use super::entities::{Cluster, Device, License, SeatUsage};
 use super::enums::{DeviceStatus, PairingStatus, SeatRole};
 use super::ports::{reserve_seat_atomic, DeviceRepo, LicenseRepo, SqliteClusterRepos};
 use crate::schema::ensure_sync_tables;

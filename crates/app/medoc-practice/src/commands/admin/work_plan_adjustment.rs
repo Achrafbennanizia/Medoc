@@ -59,14 +59,12 @@ pub async fn deactivate_adjustments_for_source(
     source: &str,
     source_id: &str,
 ) -> Result<(), AppError> {
-    sqlx::query(
-        "UPDATE work_plan_adjustment SET active = 0 WHERE source = ?1 AND source_id = ?2",
-    )
-    .bind(source)
-    .bind(source_id)
-    .execute(pool)
-    .await
-    .map_err(AppError::Database)?;
+    sqlx::query("UPDATE work_plan_adjustment SET active = 0 WHERE source = ?1 AND source_id = ?2")
+        .bind(source)
+        .bind(source_id)
+        .execute(pool)
+        .await
+        .map_err(AppError::Database)?;
     Ok(())
 }
 
@@ -108,17 +106,19 @@ pub async fn list_work_plan_adjustments(
     .map_err(AppError::Database)?;
     Ok(rows
         .into_iter()
-        .map(|(id, source, source_id, staff_id, payload_json, active, created_at)| {
-            WorkPlanAdjustmentRecord {
-                id,
-                source,
-                source_id,
-                staff_id,
-                payload_json,
-                active: active != 0,
-                created_at,
-            }
-        })
+        .map(
+            |(id, source, source_id, staff_id, payload_json, active, created_at)| {
+                WorkPlanAdjustmentRecord {
+                    id,
+                    source,
+                    source_id,
+                    staff_id,
+                    payload_json,
+                    active: active != 0,
+                    created_at,
+                }
+            },
+        )
         .collect())
 }
 

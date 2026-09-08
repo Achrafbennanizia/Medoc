@@ -13,13 +13,19 @@ struct ProvisioningSettings {
     staff_directory_json: Option<String>,
 }
 
-async fn apply_provisioning_settings(pool: &SqlitePool, settings_json: &str) -> Result<(), AppError> {
+async fn apply_provisioning_settings(
+    pool: &SqlitePool,
+    settings_json: &str,
+) -> Result<(), AppError> {
     if settings_json.trim().is_empty() || settings_json.trim() == "{}" {
         return Ok(());
     }
     let settings: ProvisioningSettings = serde_json::from_str(settings_json)
         .map_err(|e| AppError::Validation(format!("Provisioning-Settings: {e}")))?;
-    if let Some(staff_json) = settings.staff_directory_json.filter(|s| !s.trim().is_empty()) {
+    if let Some(staff_json) = settings
+        .staff_directory_json
+        .filter(|s| !s.trim().is_empty())
+    {
         import_staff_directory_json(pool, &staff_json).await?;
     }
     Ok(())

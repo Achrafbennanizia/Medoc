@@ -1,10 +1,12 @@
 use crate::domain::entities::staff::{CreateStaff, UpdateStaff};
-use crate::domain::entities::{PhysicianSummary, TaskTeamMember, Staff};
+use crate::domain::entities::{PhysicianSummary, Staff, TaskTeamMember};
 use crate::error::AppError;
 use sqlx::SqlitePool;
 
 /// All users with role PHYSICIAN (for appointment “Clinician” selection).
-pub async fn find_physician_summaries(pool: &SqlitePool) -> Result<Vec<PhysicianSummary>, AppError> {
+pub async fn find_physician_summaries(
+    pool: &SqlitePool,
+) -> Result<Vec<PhysicianSummary>, AppError> {
     let rows = sqlx::query_as::<_, PhysicianSummary>(
         "SELECT id, name FROM staff WHERE UPPER(role) = 'PHYSICIAN' ORDER BY name",
     )
@@ -23,9 +25,7 @@ pub async fn find_user_ids_by_role(pool: &SqlitePool, role: &str) -> Result<Vec<
     Ok(rows.into_iter().map(|r| r.0).collect())
 }
 
-pub async fn find_task_team_summaries(
-    pool: &SqlitePool,
-) -> Result<Vec<TaskTeamMember>, AppError> {
+pub async fn find_task_team_summaries(pool: &SqlitePool) -> Result<Vec<TaskTeamMember>, AppError> {
     let rows = sqlx::query_as::<_, TaskTeamMember>(
         "SELECT id, name, role FROM staff
          WHERE UPPER(role) IN ('PHYSICIAN', 'RECEPTION')
@@ -52,20 +52,15 @@ pub async fn find_by_id(pool: &SqlitePool, id: &str) -> Result<Option<Staff>, Ap
 }
 
 pub async fn find_by_email(pool: &SqlitePool, email: &str) -> Result<Option<Staff>, AppError> {
-    let row = sqlx::query_as::<_, Staff>(
-        "SELECT * FROM staff WHERE LOWER(email) = LOWER(?1) LIMIT 1",
-    )
-    .bind(email.trim())
-    .fetch_optional(pool)
-    .await?;
+    let row =
+        sqlx::query_as::<_, Staff>("SELECT * FROM staff WHERE LOWER(email) = LOWER(?1) LIMIT 1")
+            .bind(email.trim())
+            .fetch_optional(pool)
+            .await?;
     Ok(row)
 }
 
-pub async fn create(
-    pool: &SqlitePool,
-    data: &CreateStaff,
-    hash: &str,
-) -> Result<Staff, AppError> {
+pub async fn create(pool: &SqlitePool, data: &CreateStaff, hash: &str) -> Result<Staff, AppError> {
     let id = uuid::Uuid::new_v4().to_string();
     let role = serde_json::to_string(&data.role)
         .map_err(|e| AppError::Internal(format!("Role serialisieren: {e}")))?
@@ -152,11 +147,7 @@ async fn find_by_id_in_tx(
     Ok(row)
 }
 
-pub async fn update(
-    pool: &SqlitePool,
-    id: &str,
-    data: &UpdateStaff,
-) -> Result<Staff, AppError> {
+pub async fn update(pool: &SqlitePool, id: &str, data: &UpdateStaff) -> Result<Staff, AppError> {
     let existing = find_by_id(pool, id)
         .await?
         .ok_or(AppError::NotFound("Staff".into()))?;

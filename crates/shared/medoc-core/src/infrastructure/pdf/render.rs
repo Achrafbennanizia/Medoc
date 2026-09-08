@@ -13,13 +13,13 @@
 use crate::error::AppError;
 
 use super::core::{
-    approx_text_width, emit_multipage_pdf_with_images, format_date_dmy, format_eur, sanitize_pdf_money,
-    table_row_height, truncate_cell, wrap_soft, wrap_text, PageBuilder, CONTENT_WIDTH, M_BOTTOM,
-    M_LEFT, M_RIGHT,
+    approx_text_width, emit_multipage_pdf_with_images, format_date_dmy, format_eur,
+    sanitize_pdf_money, table_row_height, truncate_cell, wrap_soft, wrap_text, PageBuilder,
+    CONTENT_WIDTH, M_BOTTOM, M_LEFT, M_RIGHT,
 };
 use super::letterhead::{
-    emit_bank_details_locale, emit_continuation_header_locale, emit_letterhead, emit_signature_block,
-    Letterhead, MetaRow,
+    emit_bank_details_locale, emit_continuation_header_locale, emit_letterhead,
+    emit_signature_block, Letterhead, MetaRow,
 };
 use super::logo::PdfLogo;
 
@@ -156,10 +156,7 @@ pub fn render(invoice: &Invoice) -> Result<Vec<u8>, AppError> {
     // ---------- Letterhead (first page only) ------------------------------
     let mut meta = Vec::new();
     meta.push(MetaRow::new("Invoice-Nr.", &invoice.number));
-    meta.push(MetaRow::new(
-        "Invoice date",
-        format_date_dmy(&invoice.date),
-    ));
+    meta.push(MetaRow::new("Invoice date", format_date_dmy(&invoice.date)));
     if let Some(b) = invoice
         .clinician_name
         .as_deref()
@@ -187,7 +184,11 @@ pub fn render(invoice: &Invoice) -> Result<Vec<u8>, AppError> {
     let mut recipient = vec![invoice.recipient_name.clone()];
     recipient.extend(invoice.recipient_address.iter().cloned());
 
-    let locale = if invoice.locale.trim().is_empty() { "en" } else { invoice.locale.as_str() };
+    let locale = if invoice.locale.trim().is_empty() {
+        "en"
+    } else {
+        invoice.locale.as_str()
+    };
     let lh = Letterhead {
         practice_lines: &practice_full,
         meta_rows: &meta,
@@ -257,7 +258,12 @@ pub fn render(invoice: &Invoice) -> Result<Vec<u8>, AppError> {
     let pages = pb.finish();
     {
         let images: Vec<PdfLogo> = invoice.logo.clone().into_iter().collect();
-        emit_multipage_pdf_with_images(&pages, &format!("Invoice {}", invoice.number), &images, locale)
+        emit_multipage_pdf_with_images(
+            &pages,
+            &format!("Invoice {}", invoice.number),
+            &images,
+            locale,
+        )
     }
 }
 
@@ -533,7 +539,11 @@ pub fn render_chart_blocks(
             meta.push(MetaRow::new("Clinician", b));
         }
 
-        let locale = if h.locale.trim().is_empty() { "en" } else { h.locale.as_str() };
+        let locale = if h.locale.trim().is_empty() {
+            "en"
+        } else {
+            h.locale.as_str()
+        };
         let lh = Letterhead {
             practice_lines: &h.practice_lines,
             meta_rows: &meta,
@@ -599,7 +609,10 @@ pub fn render_chart_blocks(
     let pages = pb.finish();
     {
         let images: Vec<PdfLogo> = header.and_then(|h| h.logo.clone()).into_iter().collect();
-        let locale = header.map(|h| h.locale.as_str()).filter(|s| !s.is_empty()).unwrap_or("en");
+        let locale = header
+            .map(|h| h.locale.as_str())
+            .filter(|s| !s.is_empty())
+            .unwrap_or("en");
         emit_multipage_pdf_with_images(&pages, pdf_title_meta, &images, locale)
     }
 }
@@ -670,9 +683,8 @@ fn emit_chart_kv_pair(
     practice_name: &str,
     doc_title: &str,
 ) {
-    let display = sanitize_pdf_money(
-        &crate::infrastructure::clinical_text_format::plain_text_for_pdf(value),
-    );
+    let display =
+        sanitize_pdf_money(&crate::infrastructure::clinical_text_format::plain_text_for_pdf(value));
     let label = format!("{key}:");
     let label_w = approx_text_width(&label, 9);
     // Long labels (e.g. "Income (current calendar month)") must not collide with values.
@@ -763,7 +775,12 @@ fn emit_chart_table_header_row(
     pb.advance(10);
 }
 
-fn emit_chart_table(pb: &mut PageBuilder, tbl: &ChartPdfTable, practice_name: &str, doc_title: &str) {
+fn emit_chart_table(
+    pb: &mut PageBuilder,
+    tbl: &ChartPdfTable,
+    practice_name: &str,
+    doc_title: &str,
+) {
     let ncol = tbl
         .headers
         .len()
@@ -871,10 +888,7 @@ pub fn render_chart(doc: &ChartDocument) -> Result<Vec<u8>, AppError> {
             vec![
                 ("Patient".into(), doc.patient_name.clone()),
                 ("Date of birth".into(), doc.patient_date_of_birth.clone()),
-                (
-                    "Insurance no.".into(),
-                    doc.patient_insurance_number.clone(),
-                ),
+                ("Insurance no.".into(), doc.patient_insurance_number.clone()),
                 ("Chart status".into(), doc.chart_status.clone()),
             ],
         ),
@@ -1001,13 +1015,7 @@ pub fn render_template_preview_pdf(
         return super::clinical_layout::render_clinical_layout(&layout);
     }
 
-    super::clinical_layout::render_plain_preview(
-        kind,
-        template_name,
-        footer,
-        body_pt,
-        body_lines,
-    )
+    super::clinical_layout::render_plain_preview(kind, template_name, footer, body_pt, body_lines)
 }
 
 // ===========================================================================
@@ -1216,12 +1224,7 @@ mod tests {
         let pdf = render_report_pdf(&input).unwrap();
         let text = String::from_utf8_lossy(&pdf);
         assert!(pdf.starts_with(b"%PDF-1.4"));
-        for needle in [
-            "Income report",
-            "Summary",
-            "Income by month",
-            "Page",
-        ] {
+        for needle in ["Income report", "Summary", "Income by month", "Page"] {
             assert!(text.contains(needle), "missing {needle}");
         }
     }

@@ -5,17 +5,17 @@ use medoc_core::error::AppError;
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
-use crate::master_keys;
 use crate::cluster::crypto::{
     derive_sas_from_transcript, hash_sas, mint_seat_certificate, normalise_sas_input,
     validate_sas_match, DeviceIdentity,
 };
 use crate::cluster::entities::{Device, PairingSession};
 use crate::cluster::enums::{DeviceStatus, PairingStatus, SeatRole};
-use crate::cluster::repo;
 use crate::cluster::ports::{
-    reserve_seat_atomic, DeviceRepo, PairingRepo, LicenseRepo, SqliteClusterRepos,
+    reserve_seat_atomic, DeviceRepo, LicenseRepo, PairingRepo, SqliteClusterRepos,
 };
+use crate::cluster::repo;
+use crate::master_keys;
 
 use super::audit;
 use super::license_service::require_owner_admin;
@@ -99,9 +99,7 @@ pub async fn create_join_request(
         state: PairingStatus::JoinRequested,
         sas_hash: None,
         requested_role,
-        hostname: hostname
-            .map(str::to_string)
-            .or_else(local_hostname),
+        hostname: hostname.map(str::to_string).or_else(local_hostname),
         created_at: now,
         expires_at: now + Duration::seconds(KOPPLUNG_TTL_SECS),
     };

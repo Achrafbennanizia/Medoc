@@ -116,7 +116,8 @@ async fn mark_applied(pool: &SqlitePool) -> Result<(), AppError> {
 }
 
 fn mix(n: u64) -> u64 {
-    n.wrapping_mul(0x9E37_79B9_7F4A_7C15).wrapping_add(0xA5A5_A5A5_5A5A_5A5A)
+    n.wrapping_mul(0x9E37_79B9_7F4A_7C15)
+        .wrapping_add(0xA5A5_A5A5_5A5A_5A5A)
 }
 
 fn pick<'a, T>(n: u64, items: &'a [T]) -> &'a T {
@@ -140,9 +141,9 @@ const APT_STATUSES_PAST: &[&str] = &[
     "COMPLETED",
 ];
 const APT_TIMES: &[&str] = &[
-    "08:00", "08:20", "08:40", "09:00", "09:20", "09:40", "10:00", "10:20", "10:40",
-    "11:00", "11:20", "11:40", "13:00", "13:20", "13:40", "14:00", "14:20", "14:40",
-    "15:00", "15:20", "15:40", "16:00", "16:20", "16:40",
+    "08:00", "08:20", "08:40", "09:00", "09:20", "09:40", "10:00", "10:20", "10:40", "11:00",
+    "11:20", "11:40", "13:00", "13:20", "13:40", "14:00", "14:20", "14:40", "15:00", "15:20",
+    "15:40", "16:00", "16:20", "16:40",
 ];
 const APT_COMPLAINTS: &[&str] = &[
     "Tooth sensitivity",
@@ -224,7 +225,10 @@ async fn seed_calendar_appointments_tx(
 
     let end = today + Duration::days(scale.apt_future_days as i64);
     let min = scale.apt_per_weekday_min;
-    let max = scale.apt_per_weekday_max.min(APT_TIMES.len() as u32).max(min);
+    let max = scale
+        .apt_per_weekday_max
+        .min(APT_TIMES.len() as u32)
+        .max(min);
 
     let mut a: u32 = 0;
     let mut day = start;
@@ -236,12 +240,10 @@ async fn seed_calendar_appointments_tx(
             // Spread patients across the day; avoid same patient twice on one day when possible.
             let mut used_patients = std::collections::HashSet::new();
             for (slot_i, time) in times.into_iter().enumerate() {
-                let n = mix(
-                    (day.num_days_from_ce() as u64)
-                        .wrapping_mul(31)
-                        .wrapping_add(slot_i as u64)
-                        .wrapping_add(9),
-                );
+                let n = mix((day.num_days_from_ce() as u64)
+                    .wrapping_mul(31)
+                    .wrapping_add(slot_i as u64)
+                    .wrapping_add(9));
                 let mut pat_idx = (n as usize) % patient_ids.len();
                 if used_patients.len() < patient_ids.len() {
                     let mut tries = 0;
@@ -294,20 +296,22 @@ async fn seed_calendar_appointments_tx(
     Ok(a)
 }
 
-async fn refresh_year_calendar_appointments(pool: &SqlitePool, scale: Scale) -> Result<(), AppError> {
+async fn refresh_year_calendar_appointments(
+    pool: &SqlitePool,
+    scale: Scale,
+) -> Result<(), AppError> {
     let mut tx = pool.begin().await.map_err(AppError::Database)?;
     let today = Local::now().date_naive();
     let start = today - Duration::days(364);
 
-    let patient_ids: Vec<String> = sqlx::query_as::<_, (String,)>(
-        "SELECT id FROM patient ORDER BY id",
-    )
-    .fetch_all(&mut *tx)
-    .await
-    .map_err(AppError::Database)?
-    .into_iter()
-    .map(|(id,)| id)
-    .collect();
+    let patient_ids: Vec<String> =
+        sqlx::query_as::<_, (String,)>("SELECT id FROM patient ORDER BY id")
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(AppError::Database)?
+            .into_iter()
+            .map(|(id,)| id)
+            .collect();
 
     let catalog_rows: Vec<(String, String)> = sqlx::query_as(
         "SELECT category, name FROM treatment_catalog WHERE active = 1 ORDER BY id LIMIT 80",
@@ -326,15 +330,9 @@ async fn refresh_year_calendar_appointments(pool: &SqlitePool, scale: Scale) -> 
         .map(|(c, n, p)| (c.as_str(), n.as_str(), *p))
         .collect();
 
-    let count = seed_calendar_appointments_tx(
-        &mut tx,
-        scale,
-        start,
-        today,
-        &patient_ids,
-        &catalog_refs,
-    )
-    .await?;
+    let count =
+        seed_calendar_appointments_tx(&mut tx, scale, start, today, &patient_ids, &catalog_refs)
+            .await?;
     tx.commit().await.map_err(AppError::Database)?;
     tracing::info!(appointments = count, "demo year calendar refresh counts");
     Ok(())
@@ -425,16 +423,14 @@ async fn seed_year_volume(pool: &SqlitePool, scale: Scale) -> Result<(), AppErro
         .execute(&mut *tx)
         .await
         .map_err(AppError::Database)?;
-        sqlx::query(
-            "UPDATE staff SET name = ?2, activity_area = ?3, specialty = ?4 WHERE id = ?1",
-        )
-        .bind(rid)
-        .bind(name)
-        .bind(area)
-        .bind(specialty)
-        .execute(&mut *tx)
-        .await
-        .map_err(AppError::Database)?;
+        sqlx::query("UPDATE staff SET name = ?2, activity_area = ?3, specialty = ?4 WHERE id = ?1")
+            .bind(rid)
+            .bind(name)
+            .bind(area)
+            .bind(specialty)
+            .execute(&mut *tx)
+            .await
+            .map_err(AppError::Database)?;
     }
     sqlx::query(
         "UPDATE staff SET
@@ -544,22 +540,55 @@ async fn seed_year_volume(pool: &SqlitePool, scale: Scale) -> Result<(), AppErro
 
     // --- Patients (rich / multi profiles) ---
     const FIRST: &[&str] = &[
-        "Anna", "Ben", "Clara", "David", "Emma", "Felix", "Greta", "Hans", "Iris", "Jan",
-        "Kara", "Leo", "Mila", "Noah", "Olga", "Paul", "Quinn", "Rosa", "Sam", "Tina",
-        "Uwe", "Vera", "Will", "Xena", "Yara", "Zoe", "Amir", "Basma", "Chantal", "Diego",
-        "Elena", "Farid", "Giulia", "Hugo", "Ines", "Jamal", "Kira", "Luca", "Maya", "Nils",
+        "Anna", "Ben", "Clara", "David", "Emma", "Felix", "Greta", "Hans", "Iris", "Jan", "Kara",
+        "Leo", "Mila", "Noah", "Olga", "Paul", "Quinn", "Rosa", "Sam", "Tina", "Uwe", "Vera",
+        "Will", "Xena", "Yara", "Zoe", "Amir", "Basma", "Chantal", "Diego", "Elena", "Farid",
+        "Giulia", "Hugo", "Ines", "Jamal", "Kira", "Luca", "Maya", "Nils",
     ];
     const LAST: &[&str] = &[
-        "Meyer", "Schmidt", "Weber", "Wagner", "Becker", "Schulz", "Hoffmann", "Koch",
-        "Richter", "Klein", "Wolf", "Neumann", "Schwarz", "Zimmermann", "Braun", "Krueger",
-        "Hofmann", "Hartmann", "Lange", "Schmitt", "Werner", "Schmitz", "Krause", "Lehmann",
-        "Alvarez", "Yilmaz", "Nguyen", "Kowalski", "Silva", "Andersen", "Petrov", "Dubois",
+        "Meyer",
+        "Schmidt",
+        "Weber",
+        "Wagner",
+        "Becker",
+        "Schulz",
+        "Hoffmann",
+        "Koch",
+        "Richter",
+        "Klein",
+        "Wolf",
+        "Neumann",
+        "Schwarz",
+        "Zimmermann",
+        "Braun",
+        "Krueger",
+        "Hofmann",
+        "Hartmann",
+        "Lange",
+        "Schmitt",
+        "Werner",
+        "Schmitz",
+        "Krause",
+        "Lehmann",
+        "Alvarez",
+        "Yilmaz",
+        "Nguyen",
+        "Kowalski",
+        "Silva",
+        "Andersen",
+        "Petrov",
+        "Dubois",
     ];
     const SEXES: &[&str] = &["FEMALE", "MALE", "DIVERSE", "FEMALE", "MALE"];
     const STATUSES: &[&str] = &["NEW", "ACTIVE", "ACTIVE", "VALIDATED", "READONLY", "ACTIVE"];
     const INSURERS: &[&str] = &["AOK", "TK", "BKK", "DAK", "IKK", "Barmer", "KKH", "HEK"];
     const CITIES: &[&str] = &[
-        "Bremen", "Hamburg", "Oldenburg", "Delmenhorst", "Bremerhaven", "Verden",
+        "Bremen",
+        "Hamburg",
+        "Oldenburg",
+        "Delmenhorst",
+        "Bremerhaven",
+        "Verden",
     ];
     const ANAMS: &[&str] = &[
         r#"{"version":1,"allergies":{"medications":"Penicillin"},"medication":{"regular":"Ramipril 5mg"},"preExisting":{"chronic":"Hypertension"}}"#,
@@ -636,25 +665,31 @@ async fn seed_year_volume(pool: &SqlitePool, scale: Scale) -> Result<(), AppErro
         .bind(&cid)
         .bind(&pid)
         .bind(chart_status)
-        .bind(*pick(i + 21, &[
-            "Caries risk elevated",
-            "Periodontal maintenance",
-            "Recall patient",
-            "Endodontic follow-up",
-            "Prosthetic planning",
-            "Orthodontic consult",
-            "Acute pain pathway",
-            "Implant aftercare",
-        ]))
-        .bind(*pick(i + 23, &[
-            "Stable findings",
-            "Bleeding on probing localized",
-            "Occlusal wear noted",
-            "Good oral hygiene",
-            "Sensitivity reported",
-            "Multiple restorations present",
-            "Partial edentulism",
-        ]))
+        .bind(*pick(
+            i + 21,
+            &[
+                "Caries risk elevated",
+                "Periodontal maintenance",
+                "Recall patient",
+                "Endodontic follow-up",
+                "Prosthetic planning",
+                "Orthodontic consult",
+                "Acute pain pathway",
+                "Implant aftercare",
+            ],
+        ))
+        .bind(*pick(
+            i + 23,
+            &[
+                "Stable findings",
+                "Bleeding on probing localized",
+                "Occlusal wear noted",
+                "Good oral hygiene",
+                "Sensitivity reported",
+                "Multiple restorations present",
+                "Partial edentulism",
+            ],
+        ))
         .bind(format!("{created} 09:15:00"))
         .execute(&mut *tx)
         .await
@@ -689,14 +724,33 @@ async fn seed_year_volume(pool: &SqlitePool, scale: Scale) -> Result<(), AppErro
             .bind(format!("seed-yr-zb-{i:04}-{f}"))
             .bind(&cid)
             .bind(11 + (n % 37) as i64)
-            .bind(*pick(n, &[
-                "Caries", "Filling intact", "Pocket 4mm", "Crack", "Abrasion",
-                "Missing", "Crown", "Implant", "Sealant", "Watch",
-            ]))
-            .bind(*pick(n + 2, &[
-                "Initial caries", "Secondary caries", "Gingivitis", "Periodontitis stage I",
-                "Healthy", "Fracture risk", "Peri-implant mucositis",
-            ]))
+            .bind(*pick(
+                n,
+                &[
+                    "Caries",
+                    "Filling intact",
+                    "Pocket 4mm",
+                    "Crack",
+                    "Abrasion",
+                    "Missing",
+                    "Crown",
+                    "Implant",
+                    "Sealant",
+                    "Watch",
+                ],
+            ))
+            .bind(*pick(
+                n + 2,
+                &[
+                    "Initial caries",
+                    "Secondary caries",
+                    "Gingivitis",
+                    "Periodontitis stage I",
+                    "Healthy",
+                    "Fracture risk",
+                    "Peri-implant mucositis",
+                ],
+            ))
             .bind("Year demo multi-finding")
             .bind(format!("{created} 09:3{f}:00"))
             .execute(&mut *tx)
@@ -710,13 +764,28 @@ async fn seed_year_volume(pool: &SqlitePool, scale: Scale) -> Result<(), AppErro
 
     const PAY_METHODS: &[&str] = &["CASH", "CARD", "BANK_TRANSFER", "INVOICE"];
     const PAY_STATUSES: &[&str] = &[
-        "PAID", "PAID", "PAID", "PAID", "PARTIALLY_PAID", "OUTSTANDING", "CANCELLED",
+        "PAID",
+        "PAID",
+        "PAID",
+        "PAID",
+        "PARTIALLY_PAID",
+        "OUTSTANDING",
+        "CANCELLED",
     ];
     const DIAGNOSES: &[&str] = &[
-        "Initial occlusal caries", "Gingivitis", "Periodontitis stage I",
-        "Dentine hypersensitivity", "Reversible pulpitis", "Cracked tooth syndrome",
-        "Pericoronitis", "Abrasion / attrition", "Secondary caries", "Healthy recall",
-        "Irreversible pulpitis", "Apical periodontitis", "Tooth fracture",
+        "Initial occlusal caries",
+        "Gingivitis",
+        "Periodontitis stage I",
+        "Dentine hypersensitivity",
+        "Reversible pulpitis",
+        "Cracked tooth syndrome",
+        "Pericoronitis",
+        "Abrasion / attrition",
+        "Secondary caries",
+        "Healthy recall",
+        "Irreversible pulpitis",
+        "Apical periodontitis",
+        "Tooth fracture",
     ];
 
     let mut cash_flow = 0.0_f64;
@@ -752,11 +821,7 @@ async fn seed_year_volume(pool: &SqlitePool, scale: Scale) -> Result<(), AppErro
         let pat_idx = (n as usize) % patient_ids.len();
         let day = weekdays[(n as usize) % weekday_n];
         let (cat, svc, cost) = CATALOG[(n as usize) % catalog_n];
-        let created = format!(
-            "{day} {:02}:{:02}:00",
-            8 + (n % 9),
-            (n % 6) * 10
-        );
+        let created = format!("{day} {:02}:{:02}:00", 8 + (n % 9), (n % 6) * 10);
         let tid = format!("seed-yr-bh-{t:05}");
         let tooth = 11 + (mix(n + 9) % 37) as i64;
         sqlx::query(
@@ -777,7 +842,10 @@ async fn seed_year_volume(pool: &SqlitePool, scale: Scale) -> Result<(), AppErro
         .bind(cat)
         .bind(svc)
         .bind(tooth.to_string())
-        .bind(*pick(n + 10, &["Composite A2", "Amalgam", "-", "Zirconia", "None", "Gold"]))
+        .bind(*pick(
+            n + 10,
+            &["Composite A2", "Amalgam", "-", "Zirconia", "None", "Gold"],
+        ))
         .bind("Year demo treatment")
         .bind(cat)
         .bind(svc)
@@ -868,11 +936,7 @@ async fn seed_year_volume(pool: &SqlitePool, scale: Scale) -> Result<(), AppErro
         let n = mix(r.wrapping_mul(31) + 11);
         let pat_idx = (n as usize) % patient_ids.len();
         let day = weekdays[(n as usize) % weekday_n];
-        let created = format!(
-            "{day} {:02}:{:02}:00",
-            9 + (n % 8),
-            (n % 6) * 10
-        );
+        let created = format!("{day} {:02}:{:02}:00", 9 + (n % 8), (n % 6) * 10);
         let (med, ingredient) = RX_MEDS[(n as usize) % RX_MEDS.len()];
         sqlx::query(
             "INSERT OR IGNORE INTO prescription
@@ -886,7 +950,10 @@ async fn seed_year_volume(pool: &SqlitePool, scale: Scale) -> Result<(), AppErro
         .bind(med)
         .bind(ingredient)
         .bind(*pick(n + 2, &["1-0-1", "1-1-1", "As directed", "2× daily"]))
-        .bind(*pick(n + 3, &["3 days", "5 days", "7 days", "10 days", "14 days"]))
+        .bind(*pick(
+            n + 3,
+            &["3 days", "5 days", "7 days", "10 days", "14 days"],
+        ))
         .bind("Demo prescription — year volume seed.")
         .bind(*pick(n + 4, RX_STATUSES))
         .bind(&created)
@@ -908,11 +975,7 @@ async fn seed_year_volume(pool: &SqlitePool, scale: Scale) -> Result<(), AppErro
         let pat_idx = (n as usize) % patient_ids.len();
         let day = weekdays[(n as usize) % weekday_n];
         let until = day + Duration::days(2 + (n % 14) as i64);
-        let created = format!(
-            "{day} {:02}:{:02}:00",
-            10 + (n % 7),
-            (n % 5) * 12
-        );
+        let created = format!("{day} {:02}:{:02}:00", 10 + (n % 7), (n % 5) * 12);
         let kind = *pick(n + 5, CERT_KINDS);
         sqlx::query(
             "INSERT OR IGNORE INTO certificate
@@ -938,11 +1001,7 @@ async fn seed_year_volume(pool: &SqlitePool, scale: Scale) -> Result<(), AppErro
         let n = mix(e.wrapping_mul(19) + 5);
         let pat_idx = (n as usize) % patient_ids.len();
         let day = weekdays[(n as usize) % weekday_n];
-        let created = format!(
-            "{day} {:02}:{:02}:00",
-            8 + (n % 9),
-            (n % 6) * 10
-        );
+        let created = format!("{day} {:02}:{:02}:00", 8 + (n % 9), (n % 6) * 10);
         let diagnosis = *pick(n + 14, DIAGNOSES);
         let exam_cost = 49.0 + (n % 8) as f64 * 12.0;
         let eid = format!("seed-yr-un-{e:05}");
@@ -954,9 +1013,18 @@ async fn seed_year_volume(pool: &SqlitePool, scale: Scale) -> Result<(), AppErro
         )
         .bind(&eid)
         .bind(&chart_ids[pat_idx])
-        .bind(*pick(n + 15, &[
-            "Pain", "Bleeding", "Sensitivity", "Checkup", "Swelling", "Trauma", "Follow-up",
-        ]))
+        .bind(*pick(
+            n + 15,
+            &[
+                "Pain",
+                "Bleeding",
+                "Sensitivity",
+                "Checkup",
+                "Swelling",
+                "Trauma",
+                "Follow-up",
+            ],
+        ))
         .bind(format!(
             r#"{{"version":1,"diagnosis":"{diagnosis}","findings":"Year demo examination"}}"#
         ))
@@ -1001,17 +1069,33 @@ async fn seed_year_volume(pool: &SqlitePool, scale: Scale) -> Result<(), AppErro
 
     // --- Purchase orders (cash outflow / procurement volume) ---
     const SUPPLIERS: &[&str] = &[
-        "Henry Schein Dental", "Pluradent", "Speiko", "Komet", "Septodont", "Voco", "Bisico",
+        "Henry Schein Dental",
+        "Pluradent",
+        "Speiko",
+        "Komet",
+        "Septodont",
+        "Voco",
+        "Bisico",
     ];
     const ITEMS: &[&str] = &[
-        "Composite capsules", "Nitrile gloves M", "Etch gel", "Anaesthetic cartridges",
-        "Suture 4-0", "Fluoride varnish", "Sterilization pouches", "Impression material",
-        "Diamond burs", "Matrix bands", "Cotton rolls", "Alginate",
+        "Composite capsules",
+        "Nitrile gloves M",
+        "Etch gel",
+        "Anaesthetic cartridges",
+        "Suture 4-0",
+        "Fluoride varnish",
+        "Sterilization pouches",
+        "Impression material",
+        "Diamond burs",
+        "Matrix bands",
+        "Cotton rolls",
+        "Alginate",
     ];
     const ORDER_STATUSES: &[&str] = &["OPEN", "IN_TRANSIT", "DELIVERED", "DELIVERED", "CANCELLED"];
 
     for o in 0..scale.purchase_orders as u64 {
-        let order_day = start + Duration::days(((o * 364) / scale.purchase_orders.max(1) as u64) as i64);
+        let order_day =
+            start + Duration::days(((o * 364) / scale.purchase_orders.max(1) as u64) as i64);
         if order_day > today {
             continue;
         }

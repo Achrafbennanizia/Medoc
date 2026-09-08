@@ -1,11 +1,11 @@
-use crate::application::rbac;
 use crate::application::appointment_hint_fulfillment;
+use crate::application::rbac;
 use crate::commands::auth_commands::SessionState;
 use crate::domain::entities::appointment::{CreateAppointment, UpdateAppointment};
 use crate::domain::entities::Appointment;
 use crate::domain::services::workflow_transitions;
 use crate::error::AppError;
-use crate::infrastructure::database::{audit_repo, patient_repo, appointment_repo};
+use crate::infrastructure::database::{appointment_repo, audit_repo, patient_repo};
 use sqlx::SqlitePool;
 use tauri::State;
 
@@ -82,7 +82,12 @@ pub async fn create_appointment(
     )
     .await
     .ok();
-    appointment_hint_fulfillment::after_appointment_created_best_effort(&pool, &session.user_id, &t).await;
+    appointment_hint_fulfillment::after_appointment_created_best_effort(
+        &pool,
+        &session.user_id,
+        &t,
+    )
+    .await;
     Ok(t)
 }
 
@@ -105,13 +110,21 @@ pub async fn update_appointment(
         workflow_transitions::appointment_status_transition(&current.status, &new_str)?;
     }
     let t = appointment_repo::update(&pool, &id, &data).await?;
-    audit_repo::create(&pool, &session.user_id, "UPDATE", "Appointment", Some(&id), None)
-        .await
-        .ok();
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "UPDATE",
+        "Appointment",
+        Some(&id),
+        None,
+    )
+    .await
+    .ok();
     let became_completed = !current.status.eq_ignore_ascii_case("COMPLETED")
         && t.status.eq_ignore_ascii_case("COMPLETED");
     if became_completed {
-        let _ = patient_repo::expire_new_status_after_completed_appointment(&pool, &t.patient_id).await;
+        let _ =
+            patient_repo::expire_new_status_after_completed_appointment(&pool, &t.patient_id).await;
     }
     Ok(t)
 }
@@ -125,9 +138,16 @@ pub async fn delete_appointment(
 ) -> Result<(), AppError> {
     let session = rbac::require(&session_state, "appointment.write")?;
     appointment_repo::delete(&pool, &id).await?;
-    audit_repo::create(&pool, &session.user_id, "DELETE", "Appointment", Some(&id), None)
-        .await
-        .ok();
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "DELETE",
+        "Appointment",
+        Some(&id),
+        None,
+    )
+    .await
+    .ok();
     Ok(())
 }
 

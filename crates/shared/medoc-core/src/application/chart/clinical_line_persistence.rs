@@ -2,11 +2,10 @@
 
 use crate::application::rbac::Role;
 use crate::domain::entities::treatment::{
-    Treatment, CreateTreatment, CreateExamination, Examination, UpdateTreatment,
-    UpdateExamination,
+    CreateExamination, CreateTreatment, Examination, Treatment, UpdateExamination, UpdateTreatment,
 };
 use crate::error::AppError;
-use crate::infrastructure::database::{chart_repo, audit_repo, practice_task_repo, payment_repo};
+use crate::infrastructure::database::{audit_repo, chart_repo, payment_repo, practice_task_repo};
 use sqlx::SqlitePool;
 
 pub async fn patient_id_for_clinical_line(

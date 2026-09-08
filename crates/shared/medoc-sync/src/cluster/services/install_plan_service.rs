@@ -7,7 +7,7 @@ use medoc_core::error::AppError;
 use medoc_core::infrastructure::database::app_kv_repo;
 use medoc_core::infrastructure::install_plan::{
     DiscoverMode, InstallComponent, InstallPlan, InstallRole, InstallTopology,
-    PlanActivationMode, ProvisioningWindowState, PendingInstallPlanSidecar,
+    PendingInstallPlanSidecar, PlanActivationMode, ProvisioningWindowState,
     APP_KV_INSTALL_PLAN_PENDING, APP_KV_INSTALL_PLAN_PROVISIONING, FLAG_LAN_CLIENT_ONLY,
     FLAG_OPEN_PORTS_WINDOW, FLAG_SCAN_LAN,
 };
@@ -72,7 +72,9 @@ pub fn plan_to_deployment(plan: &InstallPlan) -> SyncDeploymentConfig {
 
 async fn merge_locale(pool: &SqlitePool, locale: &str) -> Result<(), AppError> {
     let mut prefs: Value = match app_kv_repo::get(pool, "practice.preferences.v1").await? {
-        Some(raw) => serde_json::from_str(&raw).unwrap_or_else(|_| serde_json::json!({"version": 1})),
+        Some(raw) => {
+            serde_json::from_str(&raw).unwrap_or_else(|_| serde_json::json!({"version": 1}))
+        }
         None => serde_json::json!({"version": 1}),
     };
     if let Some(obj) = prefs.as_object_mut() {
@@ -138,7 +140,9 @@ pub async fn apply_install_plan(
         None
     };
 
-    app_kv_repo::delete(pool, APP_KV_INSTALL_PLAN_PENDING).await.ok();
+    app_kv_repo::delete(pool, APP_KV_INSTALL_PLAN_PENDING)
+        .await
+        .ok();
 
     Ok(ApplyInstallPlanResult {
         applied: true,
@@ -157,9 +161,7 @@ pub async fn apply_install_plan_from_license_v2(
     let Some(plan) = &license.install_plan else {
         return Ok(None);
     };
-    apply_install_plan(pool, plan)
-        .await
-        .map(Some)
+    apply_install_plan(pool, plan).await.map(Some)
 }
 
 pub async fn load_sidecar_plan(path: &Path) -> Result<Option<InstallPlan>, AppError> {
@@ -232,7 +234,9 @@ pub async fn run_provisioning_tasks(pool: &SqlitePool) -> Result<Option<String>,
     };
     let dep_raw = app_kv_repo::get(pool, APP_KV_DEPLOYMENT_KEY).await?;
     let Some(dep_raw) = dep_raw else {
-        return Ok(Some("provisioning window active — deployment not set".into()));
+        return Ok(Some(
+            "provisioning window active — deployment not set".into(),
+        ));
     };
     let cfg: SyncDeploymentConfig = serde_json::from_str(&dep_raw)
         .map_err(|e| AppError::Validation(format!("deployment json: {e}")))?;

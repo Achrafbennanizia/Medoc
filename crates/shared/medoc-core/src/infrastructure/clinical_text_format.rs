@@ -177,7 +177,10 @@ fn examination_v_1_lines_from_json(json: &str) -> Vec<String> {
         ("Mucosa", nested_str(&root, "intraoral", "mucosa")),
         ("Tongue", nested_str(&root, "intraoral", "tongue")),
         ("Gingiva", nested_str(&root, "intraoral", "gingiva")),
-        ("Salivary glands", nested_str(&root, "intraoral", "salivary")),
+        (
+            "Salivary glands",
+            nested_str(&root, "intraoral", "salivary"),
+        ),
     ] {
         push_label_line(&mut lines, &format!("  {label}"), &val);
     }

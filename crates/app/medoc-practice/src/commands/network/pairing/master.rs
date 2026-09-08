@@ -1,8 +1,8 @@
 //! Master-side pairing IPC (inbox, decide, revoke).
 
+use medoc_sync::cluster::services::list_pending_requests;
 use medoc_sync::master_keys;
 use medoc_sync::pairing::{self as pairing, PairingDecideResult, PairingDecision, PairingRequest};
-use medoc_sync::cluster::services::list_pending_requests;
 use sqlx::SqlitePool;
 use tauri::State;
 

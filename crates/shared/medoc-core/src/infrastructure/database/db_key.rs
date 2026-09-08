@@ -203,9 +203,8 @@ fn read_local_key_file(app_dir: &Path) -> Result<Vec<u8>, AppError> {
 }
 
 fn write_local_key_file(app_dir: &Path, key: &[u8]) -> Result<(), AppError> {
-    std::fs::create_dir_all(app_dir).map_err(|e| {
-        AppError::Internal(format!("Could not create app data directory: {e}"))
-    })?;
+    std::fs::create_dir_all(app_dir)
+        .map_err(|e| AppError::Internal(format!("Could not create app data directory: {e}")))?;
     let path = local_key_path(app_dir);
     std::fs::write(&path, STANDARD.encode(key))
         .map_err(|e| AppError::Internal(format!("sqlcipher.key write: {e}")))?;

@@ -131,7 +131,11 @@ fn render_ts(enums: &BTreeMap<String, EnumDef>) -> String {
             .ts_const
             .as_ref()
             .unwrap_or_else(|| panic!("enum {name}: missing ts_const"));
-        let wires: Vec<&str> = def.variants.iter().map(|version| version.wire.as_str()).collect();
+        let wires: Vec<&str> = def
+            .variants
+            .iter()
+            .map(|version| version.wire.as_str())
+            .collect();
         let joined = wires
             .iter()
             .map(|w| format!("\"{w}\""))
@@ -185,7 +189,11 @@ fn render_sql_fragments(enums: &BTreeMap<String, EnumDef>) -> String {
         let Some(col) = &def.sql_column else {
             continue;
         };
-        let wires: Vec<&str> = def.variants.iter().map(|version| version.wire.as_str()).collect();
+        let wires: Vec<&str> = def
+            .variants
+            .iter()
+            .map(|version| version.wire.as_str())
+            .collect();
         let in_list = wires
             .iter()
             .map(|w| format!("'{w}'"))

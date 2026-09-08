@@ -311,12 +311,14 @@ pub async fn monthly_breakdown(
     .await?;
     Ok(rows
         .into_iter()
-        .map(|(year_month, income, outstanding, cancelled)| PaymentMonthBucket {
-            year_month,
-            income,
-            outstanding,
-            cancelled,
-        })
+        .map(
+            |(year_month, income, outstanding, cancelled)| PaymentMonthBucket {
+                year_month,
+                income,
+                outstanding,
+                cancelled,
+            },
+        )
         .collect())
 }
 
@@ -368,7 +370,9 @@ pub async fn create(pool: &SqlitePool, data: &CreatePayment) -> Result<Payment, 
         .fetch_optional(pool)
         .await?;
         let Some((_, vid, vam)) = row else {
-            return Err(AppError::validation_code("error.payment.treatment_not_found"));
+            return Err(AppError::validation_code(
+                "error.payment.treatment_not_found",
+            ));
         };
         crate::domain::services::pricing::require_released_for_billing(
             vid.as_deref(),
@@ -387,7 +391,9 @@ pub async fn create(pool: &SqlitePool, data: &CreatePayment) -> Result<Payment, 
         .fetch_optional(pool)
         .await?;
         let Some((_, vid, vam)) = ok else {
-            return Err(AppError::validation_code("error.payment.examination_not_found"));
+            return Err(AppError::validation_code(
+                "error.payment.examination_not_found",
+            ));
         };
         crate::domain::services::pricing::require_released_for_billing(
             vid.as_deref(),
@@ -402,14 +408,18 @@ pub async fn create(pool: &SqlitePool, data: &CreatePayment) -> Result<Payment, 
         return Err(AppError::validation_code("error.payment.amount_invalid"));
     }
     if is_placeholder && data.service_item_id.is_some() {
-        return Err(AppError::validation_code("error.payment.service_item_positive_required"));
+        return Err(AppError::validation_code(
+            "error.payment.service_item_positive_required",
+        ));
     }
 
     // When amount is positive: optionally take price from `service_item`.
     let amount = if is_placeholder {
         0.0
     } else if data.amount <= EPS {
-        return Err(AppError::validation_code("error.payment.amount_must_be_positive"));
+        return Err(AppError::validation_code(
+            "error.payment.amount_must_be_positive",
+        ));
     } else if let Some(ref lid) = data.service_item_id {
         let row: Option<(f64,)> = sqlx::query_as("SELECT price FROM service_item WHERE id = ?1")
             .bind(lid)
@@ -535,7 +545,11 @@ pub async fn create(pool: &SqlitePool, data: &CreatePayment) -> Result<Payment, 
         let body = serde_json::to_string(&updated)
             .unwrap_or_else(|_| format!("{{\"id\":\"{existing_id}\"}}"));
         crate::infrastructure::database::sync_outbox::record_or_noop(
-            pool, "payment", &existing_id, "UPDATE", &body,
+            pool,
+            "payment",
+            &existing_id,
+            "UPDATE",
+            &body,
         )
         .await?;
         after_payment_may_be_paid(pool, &updated).await?;
@@ -653,7 +667,8 @@ pub async fn ensure_open_booking_for_billable_treatment(
     .await?;
     if let Some((id, amt)) = existing {
         if amt <= OPEN_BOOKING_TOLERANCE_EUR {
-            refresh_zero_open_booking_from_clinical(pool, &id, amount_expected, &description).await?;
+            refresh_zero_open_booking_from_clinical(pool, &id, amount_expected, &description)
+                .await?;
         }
         return Ok(());
     }
@@ -723,7 +738,8 @@ pub async fn ensure_open_booking_for_billable_examination(
     .await?;
     if let Some((id, amt)) = existing {
         if amt <= OPEN_BOOKING_TOLERANCE_EUR {
-            refresh_zero_open_booking_from_clinical(pool, &id, amount_expected, &description).await?;
+            refresh_zero_open_booking_from_clinical(pool, &id, amount_expected, &description)
+                .await?;
         }
         return Ok(());
     }
@@ -803,14 +819,18 @@ pub async fn update_fields(pool: &SqlitePool, data: &UpdatePayment) -> Result<Pa
         return Err(AppError::NotFound("Payment".into()));
     };
     if st != "OUTSTANDING" && st != "PARTIALLY_PAID" {
-        return Err(AppError::validation_code("error.payment.edit_locked_status"));
+        return Err(AppError::validation_code(
+            "error.payment.edit_locked_status",
+        ));
     }
     let payment_method = serde_json::to_string(&data.payment_method)
         .map_err(|e| AppError::Internal(format!("Serialize payment type: {e}")))?
         .trim_matches('"')
         .to_uppercase();
     if data.amount <= 0.0 {
-        return Err(AppError::validation_code("error.payment.amount_must_be_positive"));
+        return Err(AppError::validation_code(
+            "error.payment.amount_must_be_positive",
+        ));
     }
 
     if let Some(ref bid) = treatment_id {
@@ -916,7 +936,9 @@ pub async fn delete_if_pending(pool: &SqlitePool, id: &str) -> Result<(), AppErr
         .await?;
     let st = row.ok_or(AppError::NotFound("Payment".into()))?.0;
     if st != "OUTSTANDING" && st != "PARTIALLY_PAID" {
-        return Err(AppError::validation_code("error.payment.delete_locked_status"));
+        return Err(AppError::validation_code(
+            "error.payment.delete_locked_status",
+        ));
     }
     sqlx::query("DELETE FROM payment WHERE id = ?1")
         .bind(id)

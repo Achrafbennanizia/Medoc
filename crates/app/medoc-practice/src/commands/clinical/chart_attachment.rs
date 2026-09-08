@@ -9,18 +9,11 @@ use tauri::{AppHandle, Manager, State};
 use crate::application::rbac;
 use crate::commands::auth_commands::SessionState;
 use crate::error::AppError;
-use crate::infrastructure::database::chart_attachment_repo::{self, ChartAttachmentRow};
 use crate::infrastructure::database::audit_repo;
+use crate::infrastructure::database::chart_attachment_repo::{self, ChartAttachmentRow};
 
-const ALLOWED_DOCUMENT_KINDS: &[&str] = &[
-    "MRT",
-    "CT",
-    "XRAY",
-    "LAB",
-    "REFERRAL",
-    "CONSENT",
-    "OTHER",
-];
+const ALLOWED_DOCUMENT_KINDS: &[&str] =
+    &["MRT", "CT", "XRAY", "LAB", "REFERRAL", "CONSENT", "OTHER"];
 
 fn normalize_document_kind(input: Option<&str>) -> String {
     let s = input.unwrap_or("OTHER").trim().to_ascii_uppercase();
@@ -81,7 +74,18 @@ fn allowed_attachment_extension(path: &Path) -> bool {
         .to_ascii_lowercase();
     matches!(
         ext.as_str(),
-        "pdf" | "jpg" | "jpeg" | "png" | "webp" | "heic" | "heif" | "gif" | "bmp" | "tif" | "tiff" | "dcm"
+        "pdf"
+            | "jpg"
+            | "jpeg"
+            | "png"
+            | "webp"
+            | "heic"
+            | "heif"
+            | "gif"
+            | "bmp"
+            | "tif"
+            | "tiff"
+            | "dcm"
     )
 }
 
@@ -171,9 +175,7 @@ fn open_file_with_optional_app(path: &Path, app_opt: Option<&str>) -> Result<(),
                 .status()
                 .map_err(|e| AppError::Internal(format!("start: {e}")))?;
             if !st.success() {
-                return Err(AppError::Internal(
-                    "Could not open the file.".into(),
-                ));
+                return Err(AppError::Internal("Could not open the file.".into()));
             }
         }
         return Ok(());
@@ -195,9 +197,7 @@ fn open_file_with_optional_app(path: &Path, app_opt: Option<&str>) -> Result<(),
             .status()
             .map_err(|e| AppError::Internal(format!("xdg-open: {e}")))?;
         if !st.success() {
-            return Err(AppError::Internal(
-                "Could not open the file.".into(),
-            ));
+            return Err(AppError::Internal("Could not open the file.".into()));
         }
     }
     Ok(())
@@ -289,11 +289,7 @@ pub async fn create_chart_attachment_from_path(
         .map(str::trim)
         .filter(|s| !s.is_empty())
         .map(str::to_string)
-        .or_else(|| {
-            src.file_name()
-                .and_then(|n| n.to_str())
-                .map(str::to_string)
-        })
+        .or_else(|| src.file_name().and_then(|n| n.to_str()).map(str::to_string))
         .unwrap_or_else(|| "scan".to_string());
     let kind = normalize_document_kind(data.document_kind.as_deref());
     let mime = mime_from_path(src);

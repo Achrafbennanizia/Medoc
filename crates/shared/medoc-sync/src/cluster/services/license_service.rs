@@ -7,12 +7,12 @@ use medoc_core::infrastructure::license_repo;
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
-use crate::master_keys;
 use crate::cluster::crypto::DeviceIdentity;
 use crate::cluster::entities::{Device, License, SeatUsage};
 use crate::cluster::enums::{DeviceStatus, SeatRole};
 use crate::cluster::ports::{mark_provisioned, DeviceRepo, LicenseRepo, SqliteClusterRepos};
 use crate::cluster::seat_budget::seat_budget_from_edition;
+use crate::master_keys;
 
 use super::audit;
 use super::install_plan_service::apply_install_plan_from_license_v2;
@@ -222,9 +222,10 @@ pub fn mint_and_activate_usb_owner_license(
                 .build()
                 .map_err(|e| AppError::Internal(format!("tokio: {e}")))?;
             rt.block_on(async move {
-                let pool =
-                    medoc_core::infrastructure::database::connection::init_db_headless(&app_data_dir)
-                        .await?;
+                let pool = medoc_core::infrastructure::database::connection::init_db_headless(
+                    &app_data_dir,
+                )
+                .await?;
                 let device_id = license_repo::ensure_device_id(&pool).await?;
                 medoc_core::infrastructure::database::app_kv_repo::set(
                     &pool,
@@ -232,11 +233,8 @@ pub fn mint_and_activate_usb_owner_license(
                     &device_id,
                 )
                 .await?;
-                let envelope = license::mint_dev_v2_license_envelope(
-                    &device_id,
-                    &customer_id,
-                    &edition,
-                )?;
+                let envelope =
+                    license::mint_dev_v2_license_envelope(&device_id, &customer_id, &edition)?;
                 activate_cluster_license(&pool, "usb-setup", &envelope).await?;
                 enable_lan_auto_start(&pool).await?;
                 pool.close().await;
@@ -349,18 +347,18 @@ pub async fn cluster_status(pool: &SqlitePool) -> Result<ClusterStatus, AppError
 
 #[cfg(test)]
 mod tests {
+    use crate::schema::ensure_sync_tables;
     use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine};
+    use chrono::{TimeZone, Utc};
     use ed25519_dalek::Signer;
     use medoc_core::infrastructure::database::connection::{run_migrations, test_memory_pool};
     use medoc_core::infrastructure::license::{encrypt_v2_for_device, LicenseV2, VENDOR_PUBKEY};
     use serial_test::serial;
-    use crate::schema::ensure_sync_tables;
-    use chrono::{TimeZone, Utc};
 
     use super::*;
-    use crate::master_keys;
     use crate::cluster::enums::{DeviceStatus, SeatRole};
     use crate::cluster::ports::SqliteClusterRepos;
+    use crate::master_keys;
 
     const TEST_SIGNING_KEY_HEX: &str =
         "8762be1a9a0963f36d98d47c0de6a73a0124b77d3268c170365824a6045d2fbf";
@@ -394,10 +392,8 @@ mod tests {
     }
 
     async fn fresh_pool() -> sqlx::SqlitePool {
-        let audit_dir = std::env::temp_dir().join(format!(
-            "medoc-sync-test-audit-{}",
-            uuid::Uuid::new_v4()
-        ));
+        let audit_dir =
+            std::env::temp_dir().join(format!("medoc-sync-test-audit-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&audit_dir).expect("audit dir");
         medoc_core::infrastructure::database::audit_repo::init_audit_hmac_key(&audit_dir)
             .expect("audit key");
@@ -434,7 +430,9 @@ mod tests {
             .await
             .expect("license");
 
-        let device_id = license_repo::ensure_device_id(&pool).await.expect("device id");
+        let device_id = license_repo::ensure_device_id(&pool)
+            .await
+            .expect("device id");
         repos
             .upsert(&Device {
                 fingerprint: fp_before.clone(),
@@ -500,7 +498,9 @@ mod tests {
             .await
             .expect("license");
 
-        let device_id = license_repo::ensure_device_id(&pool).await.expect("device id");
+        let device_id = license_repo::ensure_device_id(&pool)
+            .await
+            .expect("device id");
         repos
             .upsert(&Device {
                 fingerprint: identity.fingerprint.clone(),
@@ -519,8 +519,13 @@ mod tests {
             .await
             .expect("device");
 
-        let lic = license_repo::current_status(&pool).await.expect("license status");
-        assert!(!lic.valid, "empty license_ref / no app_kv must not imply valid license");
+        let lic = license_repo::current_status(&pool)
+            .await
+            .expect("license status");
+        assert!(
+            !lic.valid,
+            "empty license_ref / no app_kv must not imply valid license"
+        );
 
         let vs = cluster_status(&pool).await.expect("cluster status");
         assert!(vs.is_owner);

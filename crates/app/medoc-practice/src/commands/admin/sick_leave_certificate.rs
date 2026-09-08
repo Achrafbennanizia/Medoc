@@ -130,7 +130,10 @@ pub async fn sick_leave_certificate_save(
     fetch_sick_leave(&pool, &id).await
 }
 
-async fn fetch_sick_leave(pool: &SqlitePool, id: &str) -> Result<SickLeaveCertificateRecord, AppError> {
+async fn fetch_sick_leave(
+    pool: &SqlitePool,
+    id: &str,
+) -> Result<SickLeaveCertificateRecord, AppError> {
     sqlx::query_as::<_, SickLeaveCertificateRecord>(
         "SELECT id, staff_id, note, document_ref, date_from, date_to, start_min, end_min,
                 status, created_by, created_at, ended_at, ended_by

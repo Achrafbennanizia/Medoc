@@ -64,7 +64,8 @@ fn resolve_roles(
         serde_yaml::Value::Sequence(seq) => seq
             .iter()
             .map(|version| {
-                version.as_str()
+                version
+                    .as_str()
                     .unwrap_or_else(|| panic!("action {action}: role must be string"))
                     .to_string()
             })

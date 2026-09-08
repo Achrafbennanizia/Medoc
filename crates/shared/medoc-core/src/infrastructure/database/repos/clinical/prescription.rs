@@ -25,7 +25,10 @@ pub async fn find_by_id(pool: &SqlitePool, id: &str) -> Result<Option<Prescripti
     Ok(row)
 }
 
-pub async fn create(pool: &SqlitePool, data: &CreatePrescription) -> Result<Prescription, AppError> {
+pub async fn create(
+    pool: &SqlitePool,
+    data: &CreatePrescription,
+) -> Result<Prescription, AppError> {
     let id = Uuid::new_v4().to_string();
     let aut_idem = data.aut_idem.unwrap_or(true);
     let prescription_type = data
@@ -62,7 +65,11 @@ pub async fn create(pool: &SqlitePool, data: &CreatePrescription) -> Result<Pres
         .ok_or(AppError::Internal("Prescription create failed".into()))?;
     let body = serde_json::to_string(&inserted).unwrap_or_else(|_| format!("{{\"id\":\"{id}\"}}"));
     crate::infrastructure::database::sync_outbox::record_or_noop(
-        pool, "prescription", &id, "INSERT", &body,
+        pool,
+        "prescription",
+        &id,
+        "INSERT",
+        &body,
     )
     .await?;
     Ok(inserted)
@@ -74,13 +81,20 @@ pub async fn delete(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
         .execute(pool)
         .await?;
     crate::infrastructure::database::sync_outbox::record_or_noop(
-        pool, "prescription", id, "DELETE", "{}",
+        pool,
+        "prescription",
+        id,
+        "DELETE",
+        "{}",
     )
     .await?;
     Ok(())
 }
 
-pub async fn update(pool: &SqlitePool, data: &UpdatePrescription) -> Result<Prescription, AppError> {
+pub async fn update(
+    pool: &SqlitePool,
+    data: &UpdatePrescription,
+) -> Result<Prescription, AppError> {
     let ex = find_by_id(pool, &data.id)
         .await?
         .ok_or(AppError::NotFound("Prescription".into()))?;

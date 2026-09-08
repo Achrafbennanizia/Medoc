@@ -115,16 +115,19 @@ impl ListParams {
     }
 
     pub fn filter_str(&self, key: &str) -> Option<&str> {
-        self.filter.as_ref().and_then(|m| m.get(key)).and_then(|v| match v {
-            FilterValue::Text(s) => {
-                let t = s.trim();
-                if t.is_empty() {
-                    None
-                } else {
-                    Some(t)
+        self.filter
+            .as_ref()
+            .and_then(|m| m.get(key))
+            .and_then(|v| match v {
+                FilterValue::Text(s) => {
+                    let t = s.trim();
+                    if t.is_empty() {
+                        None
+                    } else {
+                        Some(t)
+                    }
                 }
-            }
-            _ => None,
-        })
+                _ => None,
+            })
     }
 }

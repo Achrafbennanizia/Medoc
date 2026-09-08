@@ -117,8 +117,7 @@ pub fn audit_hmac(key: &[u8], data: &str) -> Result<String, String> {
 
 /// Streaming HMAC-SHA256 (hex) over arbitrary bytes — used for backup integrity tags.
 pub fn audit_hmac_bytes(key: &[u8], data: &[u8]) -> Result<String, String> {
-    let mut mac =
-        HmacSha256::new_from_slice(key).map_err(|e| format!("Invalid HMAC key: {e}"))?;
+    let mut mac = HmacSha256::new_from_slice(key).map_err(|e| format!("Invalid HMAC key: {e}"))?;
     mac.update(data);
     Ok(hex_hmac(mac.finalize().into_bytes()))
 }
@@ -126,14 +125,11 @@ pub fn audit_hmac_bytes(key: &[u8], data: &[u8]) -> Result<String, String> {
 /// HMAC-SHA256 (hex) over a file on disk (64 KiB chunks).
 pub fn audit_hmac_file(key: &[u8], path: &std::path::Path) -> Result<String, String> {
     use std::io::Read;
-    let mut mac =
-        HmacSha256::new_from_slice(key).map_err(|e| format!("Invalid HMAC key: {e}"))?;
+    let mut mac = HmacSha256::new_from_slice(key).map_err(|e| format!("Invalid HMAC key: {e}"))?;
     let mut file = std::fs::File::open(path).map_err(|e| format!("Open file: {e}"))?;
     let mut buf = [0u8; 64 * 1024];
     loop {
-        let n = file
-            .read(&mut buf)
-            .map_err(|e| format!("Read file: {e}"))?;
+        let n = file.read(&mut buf).map_err(|e| format!("Read file: {e}"))?;
         if n == 0 {
             break;
         }

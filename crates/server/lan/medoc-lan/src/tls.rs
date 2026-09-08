@@ -13,17 +13,19 @@ const CERT_FILE: &str = "lan-tls.crt";
 const KEY_FILE: &str = "lan-tls.key";
 
 fn install_rustls_provider() -> Result<(), AppError> {
-    use std::sync::{Once, Mutex};
+    use std::sync::{Mutex, Once};
     static INIT: Once = Once::new();
     static RESULT: Mutex<Option<Result<(), String>>> = Mutex::new(None);
-    
+
     // Check if already initialized
     if let Ok(guard) = RESULT.lock() {
         if let Some(result) = guard.as_ref() {
-            return result.clone().map_err(|e| AppError::Internal(format!("TLS crypto provider: {e}")));
+            return result
+                .clone()
+                .map_err(|e| AppError::Internal(format!("TLS crypto provider: {e}")));
         }
     }
-    
+
     // Initialize on first call
     INIT.call_once(|| {
         let init_result = rustls::crypto::aws_lc_rs::default_provider()
@@ -33,14 +35,14 @@ fn install_rustls_provider() -> Result<(), AppError> {
             *guard = Some(init_result);
         }
     });
-    
+
     // Retrieve the result
     if let Ok(guard) = RESULT.lock() {
         if let Some(result) = guard.as_ref() {
             return result.clone().map_err(|e| AppError::Internal(e.clone()));
         }
     }
-    
+
     Ok(())
 }
 

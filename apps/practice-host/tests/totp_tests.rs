@@ -159,10 +159,7 @@ async fn confirm_enrollment_persists() {
     staff_repo::confirm_totp_enrollment(&pool, "a1")
         .await
         .unwrap();
-    let user = staff_repo::find_by_id(&pool, "a1")
-        .await
-        .unwrap()
-        .unwrap();
+    let user = staff_repo::find_by_id(&pool, "a1").await.unwrap().unwrap();
     assert!(staff_repo::is_totp_enrolled(&user));
 }
 
@@ -197,10 +194,7 @@ async fn deactivate_totp_clears_enrolled_secret_with_valid_code() {
         medoc_lib::application::totp_service::TotpDeactivateResult::Deactivated
     );
 
-    let user = staff_repo::find_by_id(&pool, "a1")
-        .await
-        .unwrap()
-        .unwrap();
+    let user = staff_repo::find_by_id(&pool, "a1").await.unwrap().unwrap();
     assert!(!staff_repo::is_totp_enrolled(&user));
     assert!(user.totp_secret.is_none());
 
@@ -246,9 +240,6 @@ async fn deactivate_totp_cancels_pending_without_code() {
         medoc_lib::application::totp_service::TotpDeactivateResult::CancelledPending
     );
 
-    let user = staff_repo::find_by_id(&pool, "r1")
-        .await
-        .unwrap()
-        .unwrap();
+    let user = staff_repo::find_by_id(&pool, "r1").await.unwrap().unwrap();
     assert!(user.totp_secret.is_none());
 }

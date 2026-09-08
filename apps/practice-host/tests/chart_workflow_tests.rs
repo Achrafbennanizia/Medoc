@@ -1,7 +1,7 @@
 //! FA-AKTE-14/15 — validation queue list/count/validate + forward enqueue.
 
-use medoc_lib::infrastructure::database::connection::{run_migrations, test_memory_pool};
 use medoc_lib::infrastructure::database::chart_repo;
+use medoc_lib::infrastructure::database::connection::{run_migrations, test_memory_pool};
 
 async fn migrated_pool() -> sqlx::SqlitePool {
     let pool = test_memory_pool().await.expect("pool");
@@ -9,7 +9,11 @@ async fn migrated_pool() -> sqlx::SqlitePool {
     pool
 }
 
-async fn seed_patient_with_chart(pool: &sqlx::SqlitePool, patient_id: &str, status: &str) -> String {
+async fn seed_patient_with_chart(
+    pool: &sqlx::SqlitePool,
+    patient_id: &str,
+    status: &str,
+) -> String {
     let insurance_number = format!("V-QUEUE-{patient_id}");
     sqlx::query(
         "INSERT INTO patient (id, name, date_of_birth, sex, insurance_number)
@@ -21,15 +25,13 @@ async fn seed_patient_with_chart(pool: &sqlx::SqlitePool, patient_id: &str, stat
     .await
     .expect("patient");
     let chart_id = format!("{patient_id}-chart");
-    sqlx::query(
-        "INSERT INTO patient_chart (id, patient_id, status) VALUES (?1, ?2, ?3)",
-    )
-    .bind(&chart_id)
-    .bind(patient_id)
-    .bind(status)
-    .execute(pool)
-    .await
-    .expect("chart");
+    sqlx::query("INSERT INTO patient_chart (id, patient_id, status) VALUES (?1, ?2, ?3)")
+        .bind(&chart_id)
+        .bind(patient_id)
+        .bind(status)
+        .execute(pool)
+        .await
+        .expect("chart");
     chart_id
 }
 
@@ -40,7 +42,9 @@ async fn list_and_count_pending_validation_queue() {
     seed_patient_with_chart(&pool, "q-pat-bearb", "IN_PROGRESS").await;
     seed_patient_with_chart(&pool, "q-pat-done", "VALIDATED").await;
 
-    let rows = chart_repo::list_charts_to_validate(&pool).await.expect("list");
+    let rows = chart_repo::list_charts_to_validate(&pool)
+        .await
+        .expect("list");
     assert_eq!(rows.len(), 2, "DRAFT + IN_PROGRESS only");
     let ids: Vec<_> = rows.iter().map(|r| r.patient_id.as_str()).collect();
     assert!(ids.contains(&"q-pat-draft"));

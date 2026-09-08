@@ -23,15 +23,7 @@ pub async fn apply_remote_entry(
     policy: ConflictPolicy,
     entry: &OutboxEntry,
 ) -> Result<bool, AppError> {
-    apply_remote_entry_phased(
-        pool,
-        local_device_id,
-        local_is_master,
-        false,
-        policy,
-        entry,
-    )
-    .await
+    apply_remote_entry_phased(pool, local_device_id, local_is_master, false, policy, entry).await
 }
 
 /// `admin_pull`: replica applying master rows after push-then-pull — admin
@@ -240,7 +232,10 @@ async fn apply_app_kv(
         .map(json_to_sql_literal)
         .transpose()?
         .unwrap_or_default();
-    let row_key = obj.get("key").and_then(|version| version.as_str()).unwrap_or(key);
+    let row_key = obj
+        .get("key")
+        .and_then(|version| version.as_str())
+        .unwrap_or(key);
     sqlx::query("INSERT OR REPLACE INTO app_kv (key, value) VALUES (?1, ?2)")
         .bind(row_key)
         .bind(value)

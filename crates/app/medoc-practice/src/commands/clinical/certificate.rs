@@ -6,7 +6,7 @@ use crate::commands::auth_commands::SessionState;
 use crate::domain::entities::certificate::CreateCertificate;
 use crate::domain::entities::Certificate;
 use crate::error::AppError;
-use crate::infrastructure::database::{certificate_repo, audit_repo};
+use crate::infrastructure::database::{audit_repo, certificate_repo};
 
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state, patient_id))]
@@ -69,9 +69,16 @@ pub async fn delete_certificate(
 ) -> Result<(), AppError> {
     let session = rbac::require(&session_state, "patient.write_medical")?;
     certificate_repo::delete(&pool, &id).await?;
-    audit_repo::create(&pool, &session.user_id, "DELETE", "Certificate", Some(&id), None)
-        .await
-        .ok();
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "DELETE",
+        "Certificate",
+        Some(&id),
+        None,
+    )
+    .await
+    .ok();
     Ok(())
 }
 

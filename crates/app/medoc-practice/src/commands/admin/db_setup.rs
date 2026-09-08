@@ -57,9 +57,7 @@ pub async fn provision_db_passphrase(
     confirm: String,
 ) -> Result<(), AppError> {
     if passphrase != confirm {
-        return Err(AppError::Validation(
-            "Passphrases do not match.".into(),
-        ));
+        return Err(AppError::Validation("Passphrases do not match.".into()));
     }
     let app_dir = app
         .path()

@@ -46,15 +46,14 @@ pub async fn list_absences(pool: &SqlitePool) -> Result<Vec<Absence>, AppError> 
     Ok(rows)
 }
 
-pub async fn create_absence(
-    pool: &SqlitePool,
-    data: &CreateAbsence,
-) -> Result<Absence, AppError> {
+pub async fn create_absence(pool: &SqlitePool, data: &CreateAbsence) -> Result<Absence, AppError> {
     if data.kind.trim().is_empty() {
         return Err(AppError::validation_code("error.master.type_required"));
     }
     if data.from_day.trim().is_empty() || data.to_day.trim().is_empty() {
-        return Err(AppError::validation_code("error.master.date_range_required"));
+        return Err(AppError::validation_code(
+            "error.master.date_range_required",
+        ));
     }
     let id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
@@ -135,7 +134,9 @@ pub async fn update_absence(
         .trim()
         .to_string();
     if from_day.is_empty() || to_day.is_empty() {
-        return Err(AppError::validation_code("error.master.date_range_required"));
+        return Err(AppError::validation_code(
+            "error.master.date_range_required",
+        ));
     }
     let from_time = match &data.from_time {
         None => existing.from_time.clone(),
@@ -211,10 +212,11 @@ pub struct UpdateDocumentTemplate {
 }
 
 pub async fn list_document_templates(pool: &SqlitePool) -> Result<Vec<DocumentTemplate>, AppError> {
-    let rows =
-        sqlx::query_as::<_, DocumentTemplate>("SELECT * FROM document_template ORDER BY kind, title")
-            .fetch_all(pool)
-            .await?;
+    let rows = sqlx::query_as::<_, DocumentTemplate>(
+        "SELECT * FROM document_template ORDER BY kind, title",
+    )
+    .fetch_all(pool)
+    .await?;
     Ok(rows)
 }
 
@@ -232,7 +234,11 @@ pub async fn create_document_template(
 ) -> Result<DocumentTemplate, AppError> {
     let kind = match normalize_document_template_kind(&data.kind) {
         Some(k) => k.to_string(),
-        None => return Err(AppError::validation_code("error.master.template_kind_invalid")),
+        None => {
+            return Err(AppError::validation_code(
+                "error.master.template_kind_invalid",
+            ))
+        }
     };
     if data.title.trim().is_empty() {
         return Err(AppError::validation_code("error.master.title_required"));
@@ -350,7 +356,9 @@ pub async fn create_treatment_catalog_item(
     data: &CreateTreatmentCatalogItem,
 ) -> Result<TreatmentCatalogItem, AppError> {
     if data.category.trim().is_empty() || data.name.trim().is_empty() {
-        return Err(AppError::validation_code("error.master.category_name_required"));
+        return Err(AppError::validation_code(
+            "error.master.category_name_required",
+        ));
     }
     let id = uuid::Uuid::new_v4().to_string();
     let sort = data.sort_order.unwrap_or(0);
@@ -378,7 +386,9 @@ pub async fn update_treatment_catalog_item(
     data: &UpdateTreatmentCatalogItem,
 ) -> Result<TreatmentCatalogItem, AppError> {
     if data.category.trim().is_empty() || data.name.trim().is_empty() {
-        return Err(AppError::validation_code("error.master.category_name_required"));
+        return Err(AppError::validation_code(
+            "error.master.category_name_required",
+        ));
     }
     let sort = data.sort_order.unwrap_or(0);
     let r = sqlx::query(
@@ -487,16 +497,20 @@ pub async fn create_supplier_master(
 ) -> Result<SupplierMasterRow, AppError> {
     let name = data.name.trim();
     if name.is_empty() {
-        return Err(AppError::validation_code("error.master.supplier_name_required"));
+        return Err(AppError::validation_code(
+            "error.master.supplier_name_required",
+        ));
     }
     let id = uuid::Uuid::new_v4().to_string();
     let sort = data.sort_order.unwrap_or(0);
-    sqlx::query("INSERT INTO supplier_master (id, name, sort_order, active) VALUES (?1, ?2, ?3, 1)")
-        .bind(&id)
-        .bind(name)
-        .bind(sort)
-        .execute(pool)
-        .await?;
+    sqlx::query(
+        "INSERT INTO supplier_master (id, name, sort_order, active) VALUES (?1, ?2, ?3, 1)",
+    )
+    .bind(&id)
+    .bind(name)
+    .bind(sort)
+    .execute(pool)
+    .await?;
     sqlx::query_as::<_, SupplierMasterRow>("SELECT * FROM supplier_master WHERE id = ?1")
         .bind(&id)
         .fetch_one(pool)
@@ -536,7 +550,9 @@ pub async fn create_pharma_consultant_master(
 ) -> Result<PharmaConsultantMasterRow, AppError> {
     let name = data.name.trim();
     if name.is_empty() {
-        return Err(AppError::validation_code("error.master.contact_name_required"));
+        return Err(AppError::validation_code(
+            "error.master.contact_name_required",
+        ));
     }
     let id = uuid::Uuid::new_v4().to_string();
     let sort = data.sort_order.unwrap_or(0);
@@ -548,11 +564,13 @@ pub async fn create_pharma_consultant_master(
     .bind(sort)
     .execute(pool)
     .await?;
-    sqlx::query_as::<_, PharmaConsultantMasterRow>("SELECT * FROM pharma_consultant_master WHERE id = ?1")
-        .bind(&id)
-        .fetch_one(pool)
-        .await
-        .map_err(AppError::from)
+    sqlx::query_as::<_, PharmaConsultantMasterRow>(
+        "SELECT * FROM pharma_consultant_master WHERE id = ?1",
+    )
+    .bind(&id)
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::from)
 }
 
 pub async fn delete_pharma_consultant_master(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
@@ -640,7 +658,9 @@ pub async fn create_supplier_pharma_template(
     let pid = data.pharma_consultant_id.trim();
     let prid = data.product_id.trim();
     if lid.is_empty() || pid.is_empty() || prid.is_empty() {
-        return Err(AppError::validation_code("error.master.order_fields_required"));
+        return Err(AppError::validation_code(
+            "error.master.order_fields_required",
+        ));
     }
     let l_ok: (i64,) =
         sqlx::query_as("SELECT COUNT(*) FROM supplier_master WHERE id = ?1 AND active = 1")
@@ -651,12 +671,13 @@ pub async fn create_supplier_pharma_template(
     if l_ok.0 == 0 {
         return Err(AppError::validation_code("error.master.invalid_supplier"));
     }
-    let p_ok: (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM pharma_consultant_master WHERE id = ?1 AND active = 1")
-            .bind(pid)
-            .fetch_one(pool)
-            .await
-            .map_err(AppError::from)?;
+    let p_ok: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM pharma_consultant_master WHERE id = ?1 AND active = 1",
+    )
+    .bind(pid)
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::from)?;
     if p_ok.0 == 0 {
         return Err(AppError::validation_code("error.master.invalid_contact"));
     }

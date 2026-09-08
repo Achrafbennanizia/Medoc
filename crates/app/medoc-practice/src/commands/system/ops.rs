@@ -41,7 +41,8 @@ pub async fn create_backup(
 pub fn list_backups(session_state: State<'_, SessionState>) -> Result<Vec<BackupInfo>, AppError> {
     rbac::require(&session_state, "ops.backup")?;
     backup::list().map(|version| {
-        version.into_iter()
+        version
+            .into_iter()
             .map(|e| BackupInfo {
                 path: e.path.display().to_string(),
                 size_bytes: e.size_bytes,

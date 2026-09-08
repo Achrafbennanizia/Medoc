@@ -158,7 +158,12 @@ async fn appointment_query_param_parses_and_returns_array() {
     let physician = physician_jwt(&lan);
 
     let (status, body) = lan
-        .json("GET", "/api/v1/appointments?date=2099-01-01", None, Some(&physician))
+        .json(
+            "GET",
+            "/api/v1/appointments?date=2099-01-01",
+            None,
+            Some(&physician),
+        )
         .await;
     assert_eq!(status, StatusCode::OK, "appointments ?date=: {body:?}");
     assert!(body.is_array());

@@ -1,8 +1,8 @@
 //! FA-LEIST-05 — physician release for billing (B/U lines).
 
-use crate::domain::entities::treatment::{Treatment, Examination};
+use crate::domain::entities::treatment::{Examination, Treatment};
 use crate::error::AppError;
-use crate::infrastructure::database::{chart_repo, audit_repo};
+use crate::infrastructure::database::{audit_repo, chart_repo};
 use sqlx::SqlitePool;
 
 pub async fn release_treatment_for_billing(

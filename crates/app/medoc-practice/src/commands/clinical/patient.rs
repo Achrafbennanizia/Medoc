@@ -3,7 +3,7 @@ use crate::commands::auth_commands::SessionState;
 use crate::domain::entities::patient::{CreatePatient, UpdatePatient};
 use crate::domain::entities::Patient;
 use crate::error::AppError;
-use crate::infrastructure::database::{chart_attachment_repo, audit_repo, patient_repo};
+use crate::infrastructure::database::{audit_repo, chart_attachment_repo, patient_repo};
 use sqlx::SqlitePool;
 use tauri::{AppHandle, Manager, State};
 
@@ -49,7 +49,11 @@ pub async fn list_patients_paged(
         "READ_LIST",
         "Patient",
         None,
-        Some(&format!("count={} page={}", items.len(), p.page_one_based())),
+        Some(&format!(
+            "count={} page={}",
+            items.len(),
+            p.page_one_based()
+        )),
     )
     .await
     .ok();

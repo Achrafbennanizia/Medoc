@@ -48,7 +48,8 @@ impl BreakGlassState {
     ) -> Option<String> {
         let mut version = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         self.prune(&mut version);
-        version.iter()
+        version
+            .iter()
             .find(|g| g.user_id == user_id && grant_matches_audit(g, entity, entity_id))
             .map(|g| g.reason.clone())
     }

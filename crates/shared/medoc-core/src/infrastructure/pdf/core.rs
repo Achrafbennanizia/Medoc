@@ -619,7 +619,12 @@ fn page_of_label(locale: &str, page: usize, total: usize) -> String {
     }
 }
 
-fn append_page_number_footer(stream: &mut String, page_index: usize, page_total: usize, locale: &str) {
+fn append_page_number_footer(
+    stream: &mut String,
+    page_index: usize,
+    page_total: usize,
+    locale: &str,
+) {
     let label = page_of_label(locale, page_index + 1, page_total);
     let op = text_operand(&label);
     // Centered in the footer.
@@ -773,8 +778,25 @@ fn collect_german_hyphen_points(word: &str) -> Vec<usize> {
     let mut set = std::collections::BTreeSet::new();
 
     const PREFIXES: &[&str] = &[
-        "be", "ge", "ver", "zer", "er", "emp", "ent", "auf", "aus", "ein", "über", "examination", "voll",
-        "teil", "haus", "grund", "haupt", "neben", "zwischen",
+        "be",
+        "ge",
+        "ver",
+        "zer",
+        "er",
+        "emp",
+        "ent",
+        "auf",
+        "aus",
+        "ein",
+        "über",
+        "examination",
+        "voll",
+        "teil",
+        "haus",
+        "grund",
+        "haupt",
+        "neben",
+        "zwischen",
     ];
     for p in PREFIXES {
         if lower.starts_with(p) && n > p.len() + 4 {
@@ -1017,8 +1039,14 @@ mod tests {
         let ascent = table_font_ascent(font);
         let y_bottom = baseline + ascent - h;
         let y_top = y_bottom + h;
-        assert!(y_top > baseline, "band top {y_top} must be above baseline {baseline}");
-        assert!(y_bottom < baseline, "band bottom {y_bottom} must be below baseline");
+        assert!(
+            y_top > baseline,
+            "band top {y_top} must be above baseline {baseline}"
+        );
+        assert!(
+            y_bottom < baseline,
+            "band bottom {y_bottom} must be below baseline"
+        );
         assert_eq!(y_top - baseline, ascent);
     }
 

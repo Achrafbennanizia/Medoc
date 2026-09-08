@@ -76,10 +76,7 @@ pub fn assess_session(
     }
 
     if peers.len() > HIGH_ACTIVE_SESSION_COUNT {
-        reasons.push(format!(
-            "Unusually many active sessions ({})",
-            peers.len()
-        ));
+        reasons.push(format!("Unusually many active sessions ({})", peers.len()));
     }
 
     DeviceSessionRiskAssessment {

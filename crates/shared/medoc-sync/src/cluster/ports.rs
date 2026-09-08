@@ -5,7 +5,7 @@ use std::future::Future;
 use medoc_core::error::AppError;
 use sqlx::SqlitePool;
 
-use super::entities::{Device, PairingSession, License, SeatUsage, Cluster};
+use super::entities::{Cluster, Device, License, PairingSession, SeatUsage};
 use super::enums::{DeviceStatus, PairingStatus, SeatRole};
 
 pub trait LicenseRepo: Send + Sync {

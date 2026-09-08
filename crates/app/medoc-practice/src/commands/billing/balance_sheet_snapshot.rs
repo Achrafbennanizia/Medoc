@@ -1,7 +1,9 @@
 //! Tauri commands for balance-sheet (BalanceSheet) wizard snapshots (FA-FIN-09/10).
 use crate::application::rbac::{self, FINANCE_READ_OR_RECEPTION};
 use crate::commands::auth_commands::SessionState;
-use crate::domain::entities::balance_sheet_snapshot::{BalanceSheetSnapshot, CreateBalanceSheetSnapshot};
+use crate::domain::entities::balance_sheet_snapshot::{
+    BalanceSheetSnapshot, CreateBalanceSheetSnapshot,
+};
 use crate::error::AppError;
 use crate::infrastructure::database::{audit_repo, balance_sheet_snapshot_repo};
 use sqlx::SqlitePool;

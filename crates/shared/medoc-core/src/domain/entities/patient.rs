@@ -1,4 +1,4 @@
-use crate::domain::enums::{Sex, PatientStatus};
+use crate::domain::enums::{PatientStatus, Sex};
 use chrono::{NaiveDate, NaiveDateTime};
 use serde::{Deserialize, Serialize};
 

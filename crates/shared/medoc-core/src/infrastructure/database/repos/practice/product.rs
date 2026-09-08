@@ -49,10 +49,14 @@ pub async fn update(
 
     sqlx::query(
         "UPDATE product SET name = ?1, description = ?2, category = ?3, price = ?4,
-         stock = ?5, min_stock = ?6, active = ?7, updated_at = CURRENT_TIMESTAMP WHERE id = ?8"
+         stock = ?5, min_stock = ?6, active = ?7, updated_at = CURRENT_TIMESTAMP WHERE id = ?8",
     )
     .bind(data.name.as_deref().unwrap_or(&existing.name))
-    .bind(data.description.as_deref().or(existing.description.as_deref()))
+    .bind(
+        data.description
+            .as_deref()
+            .or(existing.description.as_deref()),
+    )
     .bind(data.category.as_deref().unwrap_or(&existing.category))
     .bind(data.price.unwrap_or(existing.price))
     .bind(data.stock.unwrap_or(existing.stock))

@@ -3,23 +3,23 @@
 use std::net::IpAddr;
 use std::time::Duration;
 
-use medoc_sync::net::{
-    bind_cluster_listener, join_admin_endpoint, scan_admins, spawn_cluster_connection_handler,
-    AdminEndpoint, DEFAULT_CLUSTER_PORT, MdnsResponder,
-};
+use medoc_core::infrastructure::install_plan::{InstallPlan, ProvisioningWindowState};
 use medoc_sync::cluster::crypto::DeviceIdentity;
 use medoc_sync::cluster::services::{
-    accept_join_request, activate_cluster_license, block_device,
-    import_owner_activation, list_devices, list_pending_requests, mirror_join_session,
-    reclaim_stale_seat, reject_join_request, require_owner_admin, revoke_device, store_join_admin_endpoint,
-    submit_sas, sync_staff_from_stored_admin_endpoint, unblock_device, cluster_network_ready,
-    cluster_status, DeviceView, ImportActivationResult, JoinRequestResult, PairingHandle,
-    PendingRequest, ProvisionResult, SasCode, ClusterStatus,
-    apply_install_plan, consume_default_sidecar_and_apply, get_provisioning_window,
-    ApplyInstallPlanResult, run_provisioning_tasks,
+    accept_join_request, activate_cluster_license, apply_install_plan, block_device,
+    cluster_network_ready, cluster_status, consume_default_sidecar_and_apply,
+    get_provisioning_window, import_owner_activation, list_devices, list_pending_requests,
+    mirror_join_session, reclaim_stale_seat, reject_join_request, require_owner_admin,
+    revoke_device, run_provisioning_tasks, store_join_admin_endpoint, submit_sas,
+    sync_staff_from_stored_admin_endpoint, unblock_device, ApplyInstallPlanResult, ClusterStatus,
+    DeviceView, ImportActivationResult, JoinRequestResult, PairingHandle, PendingRequest,
+    ProvisionResult, SasCode,
 };
-use medoc_core::infrastructure::install_plan::{InstallPlan, ProvisioningWindowState};
 use medoc_sync::cluster::SeatRole;
+use medoc_sync::net::{
+    bind_cluster_listener, join_admin_endpoint, scan_admins, spawn_cluster_connection_handler,
+    AdminEndpoint, MdnsResponder, DEFAULT_CLUSTER_PORT,
+};
 use serde::Deserialize;
 use sqlx::SqlitePool;
 use tauri::{AppHandle, Manager, State};
@@ -69,9 +69,11 @@ pub async fn license_activate(
 ) -> Result<ClusterStatus, AppError> {
     // Pre-login onboarding: no session yet — use bootstrap actor id.
     let uid = user_id(&session_state).unwrap_or_else(|_| "onboarding".into());
-    let resolved =
-        crate::commands::company_portal_commands::resolve_onboarding_license_key(&pool, &license_key)
-            .await?;
+    let resolved = crate::commands::company_portal_commands::resolve_onboarding_license_key(
+        &pool,
+        &license_key,
+    )
+    .await?;
     let status = activate_cluster_license(&pool, &uid, &resolved).await?;
     if status.licensed {
         crate::commands::company_portal_commands::reset_onboarding_after_owner_license_activation(
@@ -181,9 +183,7 @@ pub async fn cluster_send_join_request(
     payload: JoinRequestPayload,
 ) -> Result<JoinRequestResult, AppError> {
     if payload.admin_host.trim().is_empty() || payload.admin_port == 0 {
-        return Err(AppError::Validation(
-            "Admin host and port required".into(),
-        ));
+        return Err(AppError::Validation("Admin host and port required".into()));
     }
     let role = SeatRole::parse(&payload.requested_role).unwrap_or(SeatRole::Member);
     let identity = DeviceIdentity::load_or_create()?;
@@ -255,9 +255,7 @@ pub async fn cluster_submit_sas(
 }
 
 #[tauri::command]
-pub async fn cluster_sync_staff_directory(
-    pool: State<'_, SqlitePool>,
-) -> Result<u32, AppError> {
+pub async fn cluster_sync_staff_directory(pool: State<'_, SqlitePool>) -> Result<u32, AppError> {
     sync_staff_from_stored_admin_endpoint(&pool).await
 }
 
@@ -479,14 +477,11 @@ pub async fn cluster_unblock_device(
 
 /// Background poll for member devices to detect owner-initiated cluster reset.
 pub fn spawn_member_cluster_watch_task(app: tauri::AppHandle, pool: SqlitePool) {
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .unwrap_or_else(|_| {
-            dirs::home_dir()
-                .map(|h| h.join("Library/Application Support/de.medoc.app"))
-                .unwrap_or_else(|| std::path::PathBuf::from("./medoc-data"))
-        });
+    let app_data_dir = app.path().app_data_dir().unwrap_or_else(|_| {
+        dirs::home_dir()
+            .map(|h| h.join("Library/Application Support/de.medoc.app"))
+            .unwrap_or_else(|| std::path::PathBuf::from("./medoc-data"))
+    });
     let emit_app = app.clone();
     medoc_sync::net::member_cluster_watch::spawn_member_cluster_watch(
         pool,
@@ -595,9 +590,13 @@ pub async fn cluster_execute_cluster_reset(
         .app_data_dir()
         .map_err(|e| AppError::Internal(format!("App data directory: {e}")))?;
 
-    let report =
-        medoc_sync::cluster::services::execute_owner_cluster_reset(&pool, &app_data_dir, &uid, mode)
-            .await?;
+    let report = medoc_sync::cluster::services::execute_owner_cluster_reset(
+        &pool,
+        &app_data_dir,
+        &uid,
+        mode,
+    )
+    .await?;
 
     {
         let mut guard = session_state.lock_session();

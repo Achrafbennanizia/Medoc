@@ -50,12 +50,7 @@ fn to_client_status(status: &LicenseStatus) -> Value {
         .license_v2
         .as_ref()
         .map(|l| l.activated_at.to_rfc3339())
-        .or_else(|| {
-            status
-                .license
-                .as_ref()
-                .map(|l| l.issued_at.to_rfc3339())
-        })
+        .or_else(|| status.license.as_ref().map(|l| l.issued_at.to_rfc3339()))
         .unwrap_or_default();
     json!({
         "status": if active { "ACTIVE" } else { "INACTIVE" },

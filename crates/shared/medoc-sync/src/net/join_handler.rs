@@ -4,10 +4,12 @@ use medoc_core::error::AppError;
 use sqlx::SqlitePool;
 use tokio::net::TcpStream;
 
-use crate::cluster::SeatRole;
-use crate::cluster::services::cluster_reset_service::{load_pending_reset, queue_verified_remote_reset};
+use crate::cluster::services::cluster_reset_service::{
+    load_pending_reset, queue_verified_remote_reset,
+};
 use crate::cluster::services::create_join_request;
 use crate::cluster::services::export_staff_directory_json;
+use crate::cluster::SeatRole;
 
 use super::channel::{recv_wire_message, send_wire_message};
 use super::handshake::run_xx_responder;
@@ -76,14 +78,28 @@ async fn handle_cluster_connection_inner(
             hostname,
             requested_role,
             ..
-        } => handle_join_request(stream, &mut transport, pool, &transcript, fingerprint, hostname, requested_role).await,
+        } => {
+            handle_join_request(
+                stream,
+                &mut transport,
+                pool,
+                &transcript,
+                fingerprint,
+                hostname,
+                requested_role,
+            )
+            .await
+        }
         WireMessage::ClusterStatusRequest { cluster_id, .. } => {
             handle_cluster_status_request(stream, &mut transport, pool, &cluster_id).await
         }
         WireMessage::ClusterReset {
             token_json,
             signature_b64,
-        } => handle_inbound_cluster_reset(stream, &mut transport, pool, &token_json, &signature_b64).await,
+        } => {
+            handle_inbound_cluster_reset(stream, &mut transport, pool, &token_json, &signature_b64)
+                .await
+        }
         WireMessage::StaffDirectoryRequest { fingerprint } => {
             handle_staff_directory_request(stream, &mut transport, pool, &fingerprint).await
         }

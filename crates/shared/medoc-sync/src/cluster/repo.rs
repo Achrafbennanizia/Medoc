@@ -7,7 +7,7 @@ use medoc_core::error::AppError;
 use medoc_core::infrastructure::database::migrations::ensure_cluster_tables;
 use sqlx::SqlitePool;
 
-use super::entities::{Device, PairingSession, License, SeatUsage};
+use super::entities::{Device, License, PairingSession, SeatUsage};
 use super::enums::{DeviceStatus, PairingStatus, SeatRole};
 
 async fn ensure(pool: &SqlitePool) -> Result<(), AppError> {

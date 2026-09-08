@@ -1,14 +1,13 @@
 use crate::application::rbac::{self, Role};
 use crate::commands::auth_commands::SessionState;
 use crate::domain::entities::anamnesis_form::SaveAnamnesisForm;
-use crate::domain::entities::treatment::{
-    Treatment, CreateTreatment, CreateExamination, Examination, UpdateTreatment,
-    UpdateExamination,
-};
 use crate::domain::entities::dental_finding::CreateDentalFinding;
-use crate::domain::entities::{AnamnesisForm, PatientChart, DentalFinding};
+use crate::domain::entities::treatment::{
+    CreateExamination, CreateTreatment, Examination, Treatment, UpdateExamination, UpdateTreatment,
+};
+use crate::domain::entities::{AnamnesisForm, DentalFinding, PatientChart};
 use crate::error::AppError;
-use crate::infrastructure::database::{chart_repo, audit_repo};
+use crate::infrastructure::database::{audit_repo, chart_repo};
 use sqlx::SqlitePool;
 use tauri::State;
 
@@ -340,8 +339,7 @@ pub async fn export_discharge_leaflet_pdf(
     args: crate::application::chart::pdf_export::ExportDischargeLeafletPdfArgs,
 ) -> Result<String, AppError> {
     let session = rbac::require(&session_state, "patient.read_medical")?;
-    crate::application::chart::pdf_export::export_discharge_leaflet_pdf(&pool, &session, args)
-        .await
+    crate::application::chart::pdf_export::export_discharge_leaflet_pdf(&pool, &session, args).await
 }
 
 /// IPC commands for [`crate::commands::register`].

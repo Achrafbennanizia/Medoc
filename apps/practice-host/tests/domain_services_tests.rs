@@ -1,6 +1,6 @@
 //! Domain services (Phase 3.2): konflikt, pricing, workflow_transitions.
 
-use medoc_lib::domain::services::{device_session_risk, conflict, pricing, workflow_transitions};
+use medoc_lib::domain::services::{conflict, device_session_risk, pricing, workflow_transitions};
 use medoc_lib::error::AppError;
 use medoc_lib::infrastructure::database::connection::{run_migrations, test_memory_pool};
 
@@ -79,7 +79,10 @@ fn pricing_round_trip_and_release() {
         Some("Füllung"),
         None
     ));
-    assert!(pricing::treatment_has_billable_service_item(None, Some(42.0)));
+    assert!(pricing::treatment_has_billable_service_item(
+        None,
+        Some(42.0)
+    ));
     assert!(!pricing::treatment_has_billable_service_item(None, None));
     assert!(!pricing::treatment_has_billable_service_item(
         Some("  "),
@@ -194,16 +197,14 @@ fn workflow_practice_task_transitions() {
 fn workflow_purchase_order_and_ticket() {
     assert!(workflow_transitions::purchase_order_status_transition("OPEN", "IN_TRANSIT").is_ok());
     assert!(workflow_transitions::purchase_order_status_transition("DELIVERED", "OPEN").is_err());
-    assert!(
-        workflow_transitions::practice_ticket_status_transition("OPEN", "IN_PROGRESS").is_ok()
-    );
+    assert!(workflow_transitions::practice_ticket_status_transition("OPEN", "IN_PROGRESS").is_ok());
     assert!(workflow_transitions::practice_ticket_status_transition("DONE", "OPEN").is_err());
 }
 
 #[test]
 fn pricing_require_release_maps_to_validation() {
-    let err =
-        pricing::require_released_for_billing(None, None, "error.entity.treatment").expect_err("must fail");
+    let err = pricing::require_released_for_billing(None, None, "error.entity.treatment")
+        .expect_err("must fail");
     assert!(matches!(err, AppError::Validation(_)));
 }
 

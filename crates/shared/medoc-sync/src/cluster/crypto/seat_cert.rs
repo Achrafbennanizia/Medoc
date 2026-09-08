@@ -6,9 +6,9 @@ use ed25519_dalek::{SigningKey, VerifyingKey};
 use medoc_core::error::AppError;
 use uuid::Uuid;
 
-use crate::master_keys;
 use crate::cluster::entities::SeatCertificate;
 use crate::cluster::enums::SeatRole;
+use crate::master_keys;
 
 pub const SEAT_CERT_PREFIX: &str = "sc1.";
 

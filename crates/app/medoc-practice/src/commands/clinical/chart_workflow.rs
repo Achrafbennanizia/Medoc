@@ -4,8 +4,8 @@ use crate::commands::auth_commands::SessionState;
 use crate::domain::services::workflow_transitions;
 use crate::error::AppError;
 use crate::infrastructure::database::{
-    chart_repo, audit_repo, in_app_notification_repo, patient_repo, staff_repo,
-    practice_ticket_repo,
+    audit_repo, chart_repo, in_app_notification_repo, patient_repo, practice_ticket_repo,
+    staff_repo,
 };
 use serde::Deserialize;
 use serde_json::json;
@@ -107,7 +107,9 @@ pub async fn forward_chart_to_physicians(
         .into_iter()
         .collect();
     if ids.is_empty() {
-        return Err(AppError::validation_code("error.chart.select_doctor_required"));
+        return Err(AppError::validation_code(
+            "error.chart.select_doctor_required",
+        ));
     }
     patient_repo::find_by_id(&pool, &args.patient_id)
         .await?
@@ -122,11 +124,9 @@ pub async fn forward_chart_to_physicians(
         .map(|p| p.name)
         .unwrap_or_else(|| session.user_id.clone());
     for aid in &ids {
-        let p = staff_repo::find_by_id(&pool, aid)
-            .await?
-            .ok_or_else(|| {
-                AppError::validation_code_params("error.chart.unknown_doctor", &[("id", aid)])
-            })?;
+        let p = staff_repo::find_by_id(&pool, aid).await?.ok_or_else(|| {
+            AppError::validation_code_params("error.chart.unknown_doctor", &[("id", aid)])
+        })?;
         if !p.role.eq_ignore_ascii_case("PHYSICIAN") {
             return Err(AppError::validation_code_params(
                 "error.chart.not_doctor",
@@ -199,7 +199,9 @@ pub async fn create_practice_ticket(
         .await?
         .ok_or(AppError::NotFound("error.entity.physician".into()))?;
     if !to.role.eq_ignore_ascii_case("PHYSICIAN") {
-        return Err(AppError::validation_code("error.chart.target_must_be_doctor"));
+        return Err(AppError::validation_code(
+            "error.chart.target_must_be_doctor",
+        ));
     }
     let t = practice_ticket_repo::insert(
         &pool,
@@ -251,8 +253,12 @@ pub async fn list_practice_tickets_for_me(
     let session = rbac::require_authenticated(&session_state)?;
     let role = Role::parse(&session.role).ok_or(AppError::Unauthorized)?;
     match role {
-        Role::Physician => practice_ticket_repo::list_for_physician(&pool, &session.user_id, 200).await,
-        Role::Reception => practice_ticket_repo::list_created_by(&pool, &session.user_id, 200).await,
+        Role::Physician => {
+            practice_ticket_repo::list_for_physician(&pool, &session.user_id, 200).await
+        }
+        Role::Reception => {
+            practice_ticket_repo::list_created_by(&pool, &session.user_id, 200).await
+        }
         _ => Err(AppError::Unauthorized),
     }
 }

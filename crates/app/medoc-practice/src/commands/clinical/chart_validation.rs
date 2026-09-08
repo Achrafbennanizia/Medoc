@@ -7,7 +7,7 @@ use tauri::State;
 use crate::application::rbac;
 use crate::commands::auth_commands::SessionState;
 use crate::error::AppError;
-use crate::infrastructure::database::{chart_validation_repo, audit_repo};
+use crate::infrastructure::database::{audit_repo, chart_validation_repo};
 
 #[derive(Debug, Serialize)]
 pub struct ChartValidationRowDto {
@@ -107,8 +107,10 @@ pub async fn clear_chart_validation(
     let mut n: u64 = 0;
     if let Some(ref s) = section_or_item {
         if s == "master" {
-            n += chart_validation_repo::clear_for_patient(&pool, &patient_id, Some("master")).await?;
-            n += chart_validation_repo::clear_for_patient(&pool, &patient_id, Some("anamnesis")).await?;
+            n += chart_validation_repo::clear_for_patient(&pool, &patient_id, Some("master"))
+                .await?;
+            n += chart_validation_repo::clear_for_patient(&pool, &patient_id, Some("anamnesis"))
+                .await?;
         } else {
             n += chart_validation_repo::clear_for_patient(&pool, &patient_id, Some(s)).await?;
         }

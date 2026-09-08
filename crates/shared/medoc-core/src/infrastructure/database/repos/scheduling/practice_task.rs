@@ -415,7 +415,10 @@ pub async fn count_open_for_reception(pool: &SqlitePool, user_id: &str) -> Resul
     Ok(pool_open.0 + outgoing.0 + validate.0)
 }
 
-pub async fn count_open_for_physician(pool: &SqlitePool, physician_id: &str) -> Result<i64, AppError> {
+pub async fn count_open_for_physician(
+    pool: &SqlitePool,
+    physician_id: &str,
+) -> Result<i64, AppError> {
     let assigned: (i64,) = sqlx::query_as(
         "SELECT COUNT(*) FROM practice_task
          WHERE assignee_user_id = ?1
@@ -488,13 +491,7 @@ pub async fn list_all_admin(pool: &SqlitePool, limit: i64) -> Result<Vec<Practic
     .map_err(Into::into)
 }
 
-const TASK_STATUSES: &[&str] = &[
-    "OPEN",
-    "IN_PROGRESS",
-    "DONE_RECEPTION",
-    "VALIDATED",
-    "BACK",
-];
+const TASK_STATUSES: &[&str] = &["OPEN", "IN_PROGRESS", "DONE_RECEPTION", "VALIDATED", "BACK"];
 
 pub async fn update_admin(
     pool: &SqlitePool,
@@ -547,9 +544,7 @@ pub async fn update_admin(
         .map(|s| s.trim().to_uppercase())
         .unwrap_or_else(|| current.status.clone());
     if !TASK_STATUSES.iter().any(|s| *s == status) {
-        return Err(AppError::Validation(format!(
-            "Unknown status: {status}"
-        )));
+        return Err(AppError::Validation(format!("Unknown status: {status}")));
     }
 
     let n = sqlx::query(
@@ -618,9 +613,7 @@ pub async fn insert_comment(
 ) -> Result<PracticeTaskComment, AppError> {
     let text = body.trim();
     if text.is_empty() {
-        return Err(AppError::Validation(
-            "Comment must not be empty.".into(),
-        ));
+        return Err(AppError::Validation("Comment must not be empty.".into()));
     }
     let id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
@@ -633,11 +626,9 @@ pub async fn insert_comment(
     .bind(text)
     .execute(pool)
     .await?;
-    sqlx::query_as::<_, PracticeTaskComment>(
-        "SELECT * FROM practice_task_comment WHERE id = ?1",
-    )
-    .bind(&id)
-    .fetch_one(pool)
-    .await
-    .map_err(Into::into)
+    sqlx::query_as::<_, PracticeTaskComment>("SELECT * FROM practice_task_comment WHERE id = ?1")
+        .bind(&id)
+        .fetch_one(pool)
+        .await
+        .map_err(Into::into)
 }

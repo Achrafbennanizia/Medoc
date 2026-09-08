@@ -11,13 +11,13 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
-use crate::master_keys;
-use crate::net::reset_broadcast::{broadcast_cluster_reset, MemberResetTarget};
 use crate::cluster::crypto::DeviceIdentity;
 use crate::cluster::enums::{DeviceStatus, SeatRole};
 use crate::cluster::ports::{DeviceRepo, LicenseRepo, SqliteClusterRepos};
 use crate::cluster::services::audit;
-use crate::cluster::services::license_service::{require_owner_admin, cluster_status};
+use crate::cluster::services::license_service::{cluster_status, require_owner_admin};
+use crate::master_keys;
+use crate::net::reset_broadcast::{broadcast_cluster_reset, MemberResetTarget};
 
 pub const KV_CLUSTER_RESET_PENDING: &str = "cluster.cluster_reset_pending.v1";
 pub const KV_CLUSTER_CA_PUBKEY: &str = "cluster.cluster_ca_pubkey.v1";
@@ -103,7 +103,10 @@ pub struct ClusterResetReport {
     pub requires_app_restart: bool,
 }
 
-pub fn mint_reset_token(cluster_id: &str, mode: ClusterResetMode) -> Result<ClusterResetToken, AppError> {
+pub fn mint_reset_token(
+    cluster_id: &str,
+    mode: ClusterResetMode,
+) -> Result<ClusterResetToken, AppError> {
     let sk = master_keys::load_or_create()?;
     Ok(ClusterResetToken {
         reset_id: Uuid::new_v4().to_string(),
@@ -147,9 +150,7 @@ pub async fn verify_reset_token(
     let pinned = read_pinned_cluster_ca_pubkey(pool)
         .await?
         .unwrap_or_else(|| {
-            master_keys::pubkey_b64(
-                &master_keys::load_or_create().expect("master signing key"),
-            )
+            master_keys::pubkey_b64(&master_keys::load_or_create().expect("master signing key"))
         });
     verify_reset_token_with_pubkey(token_json, signature_b64, &pinned)?;
     Ok(token)
@@ -165,13 +166,18 @@ pub async fn persist_cluster_ca_pubkey(pool: &SqlitePool) -> Result<(), AppError
     app_kv_repo::set(pool, KV_CLUSTER_CA_PUBKEY, &b64).await
 }
 
-pub async fn store_pending_reset(pool: &SqlitePool, pending: &ClusterResetPending) -> Result<(), AppError> {
+pub async fn store_pending_reset(
+    pool: &SqlitePool,
+    pending: &ClusterResetPending,
+) -> Result<(), AppError> {
     let raw = serde_json::to_string(pending)
         .map_err(|e| AppError::Internal(format!("pending reset json: {e}")))?;
     app_kv_repo::set(pool, KV_CLUSTER_RESET_PENDING, &raw).await
 }
 
-pub async fn load_pending_reset(pool: &SqlitePool) -> Result<Option<ClusterResetPending>, AppError> {
+pub async fn load_pending_reset(
+    pool: &SqlitePool,
+) -> Result<Option<ClusterResetPending>, AppError> {
     let Some(raw) = app_kv_repo::get(pool, KV_CLUSTER_RESET_PENDING).await? else {
         return Ok(None);
     };
@@ -197,7 +203,8 @@ pub async fn cluster_reset_preview(pool: &SqlitePool) -> Result<ClusterResetPrev
             serde_json::from_str::<serde_json::Value>(&raw)
                 .ok()
                 .and_then(|version| {
-                    version.get("practiceSlug")
+                    version
+                        .get("practiceSlug")
                         .or_else(|| version.get("practice_slug"))
                         .and_then(|s| s.as_str())
                         .map(str::to_string)
@@ -253,11 +260,10 @@ async fn revoke_all_remote_devices(pool: &SqlitePool, actor_user_id: &str) -> Re
         if g.fingerprint == local_fp {
             continue;
         }
-        repos.set_status(&g.fingerprint, DeviceStatus::Revoked).await?;
         repos
-            .block(&g.fingerprint, "cluster_reset")
-            .await
-            .ok();
+            .set_status(&g.fingerprint, DeviceStatus::Revoked)
+            .await?;
+        repos.block(&g.fingerprint, "cluster_reset").await.ok();
         audit::log_cluster(
             pool,
             actor_user_id,
@@ -540,23 +546,17 @@ mod tests {
         wipe_network_kv(&pool).await.unwrap();
 
         assert!(license_repo::load_v2(&pool).await.unwrap().is_none());
-        assert!(
-            app_kv_repo::get(&pool, "onboarding.setup_complete.v1")
-                .await
-                .unwrap()
-                .is_none()
-        );
-        assert!(
-            app_kv_repo::get(&pool, "onboarding.progress.v1.physician")
-                .await
-                .unwrap()
-                .is_none()
-        );
-        assert!(
-            app_kv_repo::get(&pool, "sync.device_id.v1")
-                .await
-                .unwrap()
-                .is_none()
-        );
+        assert!(app_kv_repo::get(&pool, "onboarding.setup_complete.v1")
+            .await
+            .unwrap()
+            .is_none());
+        assert!(app_kv_repo::get(&pool, "onboarding.progress.v1.physician")
+            .await
+            .unwrap()
+            .is_none());
+        assert!(app_kv_repo::get(&pool, "sync.device_id.v1")
+            .await
+            .unwrap()
+            .is_none());
     }
 }

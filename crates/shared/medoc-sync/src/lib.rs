@@ -5,6 +5,7 @@
 //! arbitrates conflicts; **replicas** queue changes while offline and push
 //! when the master is reachable (direct HTTPS on the LAN — no central server).
 
+pub mod cluster;
 pub mod deployment;
 pub mod engine;
 pub mod master_keys;
@@ -14,7 +15,6 @@ pub mod pairing;
 pub mod ports;
 pub mod repo;
 pub mod schema;
-pub mod cluster;
 
 pub use deployment::{DeploymentMode, DeviceRole, SyncDeploymentConfig};
 pub use engine::{SyncEngine, SyncPullResult, SyncPushResult, SyncRunReport};

@@ -1,9 +1,7 @@
 //! Day-end closing (cash / reconciliation) — logged runs.
 use crate::application::rbac;
 use crate::commands::auth_commands::SessionState;
-use crate::domain::entities::day_close_protocol::{
-    CreateDayCloseProtocol, DayCloseProtocol,
-};
+use crate::domain::entities::day_close_protocol::{CreateDayCloseProtocol, DayCloseProtocol};
 use crate::error::AppError;
 use crate::infrastructure::database::{audit_repo, day_close_protocol_repo};
 use sqlx::SqlitePool;

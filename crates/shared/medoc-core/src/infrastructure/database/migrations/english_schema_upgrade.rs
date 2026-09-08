@@ -94,7 +94,11 @@ const COLUMN_RENAMES: &[(&str, &str, &str)] = &[
     ("certificate", "gueltig_von", "valid_from"),
     ("certificate", "gueltig_bis", "valid_until"),
     ("certificate", "arzt_id", "physician_id"),
-    ("certificate", "ausstellender_arzt_id", "issuing_physician_id"),
+    (
+        "certificate",
+        "ausstellender_arzt_id",
+        "issuing_physician_id",
+    ),
     ("certificate", "arbeitgeber", "employer"),
     ("prescription", "arzt_id", "physician_id"),
     ("prescription", "medikament", "medication"),
@@ -102,17 +106,29 @@ const COLUMN_RENAMES: &[(&str, &str, &str)] = &[
     ("prescription", "dosierung", "dosage"),
     ("prescription", "dauer", "duration"),
     ("prescription", "hinweise", "instructions"),
-    ("prescription", "verordnender_arzt_id", "prescribing_physician_id"),
+    (
+        "prescription",
+        "verordnender_arzt_id",
+        "prescribing_physician_id",
+    ),
     ("chart_attachment", "dokument_art", "document_kind"),
     ("treatment", "art", "kind"),
     ("treatment", "beschreibung", "description"),
     ("treatment", "zaehne", "teeth"),
     ("treatment", "notizen", "notes"),
     ("treatment", "kategorie", "category"),
-    ("treatment", "freigegeben_von_arzt_id", "released_by_physician_id"),
+    (
+        "treatment",
+        "freigegeben_von_arzt_id",
+        "released_by_physician_id",
+    ),
     ("treatment", "freigegeben_am", "released_at"),
     ("examination", "beschwerden", "chief_complaint"),
-    ("examination", "freigegeben_von_arzt_id", "released_by_physician_id"),
+    (
+        "examination",
+        "freigegeben_von_arzt_id",
+        "released_by_physician_id",
+    ),
     ("examination", "freigegeben_am", "released_at"),
     ("patient_chart", "befunde", "findings"),
     ("patient_chart", "diagnose", "diagnosis"),
@@ -126,17 +142,53 @@ const COLUMN_RENAMES: &[(&str, &str, &str)] = &[
     ("practice_task", "done_notiz", "done_note"),
     ("day_close_protocol", "stichtag", "as_of_date"),
     ("day_close_protocol", "gezaehlt_eur", "counted_eur"),
-    ("day_close_protocol", "bar_laut_system_eur", "system_cash_eur"),
-    ("day_close_protocol", "einnahmen_laut_system_eur", "system_income_eur"),
-    ("day_close_protocol", "income_laut_system_eur", "system_income_eur"),
+    (
+        "day_close_protocol",
+        "bar_laut_system_eur",
+        "system_cash_eur",
+    ),
+    (
+        "day_close_protocol",
+        "einnahmen_laut_system_eur",
+        "system_income_eur",
+    ),
+    (
+        "day_close_protocol",
+        "income_laut_system_eur",
+        "system_income_eur",
+    ),
     ("day_close_protocol", "abweichung_eur", "variance_eur"),
     ("day_close_protocol", "bar_stimmt", "cash_matches"),
-    ("day_close_protocol", "anzahl_zahlungen_tag", "day_payment_count"),
-    ("day_close_protocol", "anzahl_payments_tag", "day_payment_count"),
-    ("day_close_protocol", "anzahl_kasse_geprueft", "cash_verified_count"),
-    ("day_close_protocol", "anzahl_cash_geprueft", "cash_verified_count"),
-    ("day_close_protocol", "alle_zahlungen_geprueft", "all_payments_verified"),
-    ("day_close_protocol", "alle_payments_geprueft", "all_payments_verified"),
+    (
+        "day_close_protocol",
+        "anzahl_zahlungen_tag",
+        "day_payment_count",
+    ),
+    (
+        "day_close_protocol",
+        "anzahl_payments_tag",
+        "day_payment_count",
+    ),
+    (
+        "day_close_protocol",
+        "anzahl_kasse_geprueft",
+        "cash_verified_count",
+    ),
+    (
+        "day_close_protocol",
+        "anzahl_cash_geprueft",
+        "cash_verified_count",
+    ),
+    (
+        "day_close_protocol",
+        "alle_zahlungen_geprueft",
+        "all_payments_verified",
+    ),
+    (
+        "day_close_protocol",
+        "alle_payments_geprueft",
+        "all_payments_verified",
+    ),
     ("day_close_protocol", "notiz", "note"),
     ("day_close_protocol", "protokolliert_at", "recorded_at"),
 ];
@@ -246,10 +298,7 @@ const ENUM_UPDATES: &[(&str, &str, &[(&str, &str)])] = &[
     (
         "chart_attachment",
         "document_kind",
-        &[
-            ("UEBERWEISUNG", "REFERRAL"),
-            ("BANK_TRANSFER", "REFERRAL"),
-        ],
+        &[("UEBERWEISUNG", "REFERRAL"), ("BANK_TRANSFER", "REFERRAL")],
     ),
     (
         "practice_task",
@@ -355,11 +404,12 @@ pub async fn run_english_schema_upgrade(pool: &SqlitePool) -> Result<(), AppErro
         rename_column_if_needed(pool, table, old, new).await?;
     }
 
-    let tables: Vec<String> =
-        sqlx::query_scalar("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")
-            .fetch_all(pool)
-            .await
-            .map_err(AppError::Database)?;
+    let tables: Vec<String> = sqlx::query_scalar(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(AppError::Database)?;
     for table in tables {
         if table_ddl_has_german_check(pool, &table).await? {
             rebuild_table_without_checks(pool, &table).await?;
@@ -393,13 +443,12 @@ pub async fn run_english_schema_upgrade(pool: &SqlitePool) -> Result<(), AppErro
 }
 
 async fn table_exists(pool: &SqlitePool, name: &str) -> Result<bool, AppError> {
-    let n: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?1",
-    )
-    .bind(name)
-    .fetch_one(pool)
-    .await
-    .map_err(AppError::Database)?;
+    let n: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?1")
+            .bind(name)
+            .fetch_one(pool)
+            .await
+            .map_err(AppError::Database)?;
     Ok(n > 0)
 }
 
@@ -407,14 +456,12 @@ async fn column_exists(pool: &SqlitePool, table: &str, column: &str) -> Result<b
     if !table_exists(pool, table).await? {
         return Ok(false);
     }
-    let n: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM pragma_table_info(?1) WHERE name = ?2",
-    )
-    .bind(table)
-    .bind(column)
-    .fetch_one(pool)
-    .await
-    .map_err(AppError::Database)?;
+    let n: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM pragma_table_info(?1) WHERE name = ?2")
+        .bind(table)
+        .bind(column)
+        .fetch_one(pool)
+        .await
+        .map_err(AppError::Database)?;
     Ok(n > 0)
 }
 
@@ -540,13 +587,12 @@ async fn table_ddl_has_german_check(pool: &SqlitePool, table: &str) -> Result<bo
 async fn rebuild_table_without_checks(pool: &SqlitePool, table: &str) -> Result<(), AppError> {
     // pragma_table_info: name, notnull, dflt_value, pk (affinity is not required;
     // SQLite will coerce on insert from the copied rows).
-    let cols: Vec<(String, i64, Option<String>, i64)> = sqlx::query_as(
-        "SELECT name, \"notnull\", dflt_value, pk FROM pragma_table_info(?1)",
-    )
-    .bind(table)
-    .fetch_all(pool)
-    .await
-    .map_err(AppError::Database)?;
+    let cols: Vec<(String, i64, Option<String>, i64)> =
+        sqlx::query_as("SELECT name, \"notnull\", dflt_value, pk FROM pragma_table_info(?1)")
+            .bind(table)
+            .fetch_all(pool)
+            .await
+            .map_err(AppError::Database)?;
     if cols.is_empty() {
         return Ok(());
     }
@@ -596,13 +642,10 @@ async fn rebuild_table_without_checks(pool: &SqlitePool, table: &str) -> Result<
         .execute(pool)
         .await
         .map_err(AppError::Database)?;
-    sqlx::query(&format!(
-        "CREATE TABLE \"{tmp}\" ({})",
-        defs.join(", ")
-    ))
-    .execute(pool)
-    .await
-    .map_err(AppError::Database)?;
+    sqlx::query(&format!("CREATE TABLE \"{tmp}\" ({})", defs.join(", ")))
+        .execute(pool)
+        .await
+        .map_err(AppError::Database)?;
 
     let col_list = cols
         .iter()
@@ -696,9 +739,8 @@ async fn apply_category_and_copy_updates(pool: &SqlitePool) -> Result<(), AppErr
         for (from, to) in *pairs {
             cases.push_str(&format!(" WHEN '{from}' THEN '{to}'"));
         }
-        let sql = format!(
-            "UPDATE \"{table}\" SET category = CASE category{cases} ELSE category END"
-        );
+        let sql =
+            format!("UPDATE \"{table}\" SET category = CASE category{cases} ELSE category END");
         sqlx::query(&sql)
             .execute(pool)
             .await
@@ -795,7 +837,10 @@ const JSON_STRING_VALUE_RENAMES: &[(&str, &str)] = &[
 
 const APP_KV_KEY_RENAMES: &[(&str, &str)] = &[
     ("praxis.preferences.v1", "practice.preferences.v1"),
-    ("praxis.preferences-appointment.v1", "practice.preferences-appointment.v1"),
+    (
+        "praxis.preferences-appointment.v1",
+        "practice.preferences-appointment.v1",
+    ),
 ];
 
 fn rename_json_keys_prefer_english(value: &mut serde_json::Value, renames: &[(&str, &str)]) {
@@ -886,13 +931,12 @@ async fn apply_stored_json_english_upgrade(pool: &SqlitePool) -> Result<(), AppE
     if table_exists(pool, "app_kv").await? {
         for (old_key, new_key) in APP_KV_KEY_RENAMES {
             // Prefer existing English key; otherwise rename leftover key.
-            let english_exists: i64 = sqlx::query_scalar(
-                "SELECT COUNT(*) FROM app_kv WHERE key = ?1",
-            )
-            .bind(new_key)
-            .fetch_one(pool)
-            .await
-            .map_err(AppError::Database)?;
+            let english_exists: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM app_kv WHERE key = ?1")
+                    .bind(new_key)
+                    .fetch_one(pool)
+                    .await
+                    .map_err(AppError::Database)?;
             if english_exists == 0 {
                 sqlx::query("UPDATE app_kv SET key = ?1 WHERE key = ?2")
                     .bind(new_key)
@@ -934,11 +978,12 @@ async fn apply_stored_json_english_upgrade(pool: &SqlitePool) -> Result<(), AppE
     if table_exists(pool, "document_template").await?
         && column_exists(pool, "document_template", "payload").await?
     {
-        let rows: Vec<(String, String)> =
-            sqlx::query_as("SELECT id, payload FROM document_template WHERE payload IS NOT NULL AND payload != ''")
-                .fetch_all(pool)
-                .await
-                .map_err(AppError::Database)?;
+        let rows: Vec<(String, String)> = sqlx::query_as(
+            "SELECT id, payload FROM document_template WHERE payload IS NOT NULL AND payload != ''",
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(AppError::Database)?;
         for (id, payload) in rows {
             if let Some(next) = upgrade_stored_json_blob(&payload) {
                 sqlx::query("UPDATE document_template SET payload = ?1 WHERE id = ?2")
@@ -1039,11 +1084,12 @@ async fn apply_appointment_text_english_upgrade(pool: &SqlitePool) -> Result<(),
         return Ok(());
     }
     if column_exists(pool, "appointment", "notes").await? {
-        let rows: Vec<(String, Option<String>)> =
-            sqlx::query_as("SELECT id, notes FROM appointment WHERE notes IS NOT NULL AND notes != ''")
-                .fetch_all(pool)
-                .await
-                .map_err(AppError::Database)?;
+        let rows: Vec<(String, Option<String>)> = sqlx::query_as(
+            "SELECT id, notes FROM appointment WHERE notes IS NOT NULL AND notes != ''",
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(AppError::Database)?;
         for (id, notes) in rows {
             if let Some(raw) = notes {
                 if let Some(next) = upgrade_appointment_text(&raw) {
