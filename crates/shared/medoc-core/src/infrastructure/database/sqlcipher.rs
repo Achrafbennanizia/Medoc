@@ -27,9 +27,23 @@ pub fn is_plaintext_sqlite_file(path: &Path) -> bool {
 }
 
 /// True when `medoc.db` opens with the SQLCipher key (already encrypted).
+///
+/// Uses DELETE journal mode and a single connection so leftover `*-wal` / `*-shm`
+/// from a previous live DB cannot poison the probe (common on Windows CI).
 pub async fn opens_with_sqlcipher_key(db_path: &Path, key: &[u8]) -> bool {
     let key = Zeroizing::new(key.to_vec());
-    match open_encrypted_pool(db_path, key, false).await {
+    let key_pragma = db_key::pragma_key_value(&key);
+    let options = SqliteConnectOptions::new()
+        .filename(db_path)
+        .journal_mode(sqlx::sqlite::SqliteJournalMode::Delete)
+        .create_if_missing(false)
+        .pragma("key", key_pragma);
+
+    match SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect_with(options)
+        .await
+    {
         Ok(pool) => {
             let ok = sqlx::query("SELECT count(*) FROM sqlite_master")
                 .fetch_one(&pool)

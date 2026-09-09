@@ -290,17 +290,27 @@ pub async fn restore_from_backup(
     let pre = create(pool).await.is_ok();
 
     let db_path = app_data_dir.join("medoc.db");
+    let key = db_key::ensure_sqlcipher_key(app_data_dir, false)?;
+
+    // Fail fast if the snapshot itself is unreadable with the live key.
+    if !sqlcipher::opens_with_sqlcipher_key(backup_path, &key).await
+        && !sqlcipher::is_plaintext_sqlite_file(backup_path)
+    {
+        return Err(AppError::validation_code("error.backup.invalid_medoc_db"));
+    }
+
     pool.close().await;
 
     // Close releases handles asynchronously on Windows; retry sidecar + replace.
     replace_live_db_with_backup(&db_path, backup_path).await?;
+    remove_db_sidecars(&db_path);
 
     // `VACUUM INTO` may yield plaintext or SQLCipher (header is always "SQLite format 3").
-    let key = db_key::ensure_sqlcipher_key(app_data_dir, false)?;
     let mut opened = sqlcipher::opens_with_sqlcipher_key(&db_path, &key).await;
     if !opened {
-        for attempt in 1..8u32 {
-            tokio::time::sleep(std::time::Duration::from_millis(25 * u64::from(attempt))).await;
+        for attempt in 1..10u32 {
+            remove_db_sidecars(&db_path);
+            tokio::time::sleep(std::time::Duration::from_millis(30 * u64::from(attempt))).await;
             opened = sqlcipher::opens_with_sqlcipher_key(&db_path, &key).await;
             if opened {
                 break;
@@ -308,8 +318,22 @@ pub async fn restore_from_backup(
         }
     }
     if !opened {
-        if sqlcipher::is_plaintext_sqlite_file(&db_path) {
+        // Encrypted SQLCipher files share the SQLite header — only migrate when
+        // the snapshot is known-plaintext or the backup itself opens as plain.
+        if sqlcipher::is_plaintext_sqlite_file(backup_path)
+            && !sqlcipher::opens_with_sqlcipher_key(backup_path, &key).await
+        {
+            // Re-copy then migrate: destination may still have been locked mid-write.
+            replace_live_db_with_backup(&db_path, backup_path).await?;
+            remove_db_sidecars(&db_path);
             sqlcipher::migrate_plaintext_to_sqlcipher(&db_path, &key).await?;
+        } else if sqlcipher::opens_with_sqlcipher_key(backup_path, &key).await {
+            // Backup is fine; destination still poisoned — replace once more.
+            replace_live_db_with_backup(&db_path, backup_path).await?;
+            remove_db_sidecars(&db_path);
+            if !sqlcipher::opens_with_sqlcipher_key(&db_path, &key).await {
+                return Err(AppError::validation_code("error.backup.invalid_medoc_db"));
+            }
         } else {
             return Err(AppError::validation_code("error.backup.invalid_medoc_db"));
         }
@@ -344,15 +368,21 @@ fn remove_db_sidecars(db_path: &Path) {
 
 /// Copy `backup_path` onto `db_path` without leaving a stale WAL next to a replaced file.
 async fn replace_live_db_with_backup(db_path: &Path, backup_path: &Path) -> Result<(), AppError> {
-    let staging = db_path.with_extension("db.restore-tmp");
+    // `Path::with_extension("db.restore-tmp")` on `medoc.db` → `medoc.db.restore-tmp`.
+    let staging = db_path.with_file_name("medoc.db.restore-tmp");
     let _ = std::fs::remove_file(&staging);
 
     std::fs::copy(backup_path, &staging).map_err(|e| {
         AppError::Internal(format!("Restore failed (stage {}): {e}", staging.display()))
     })?;
 
+    // Ensure staged copy is fully flushed before we swap (Windows AV / SMB).
+    if let Ok(f) = std::fs::File::open(&staging) {
+        let _ = f.sync_all();
+    }
+
     let mut last_err = None;
-    for attempt in 0..12u32 {
+    for attempt in 0..16u32 {
         remove_db_sidecars(db_path);
         let gone = match std::fs::remove_file(db_path) {
             Ok(()) => true,
@@ -367,19 +397,25 @@ async fn replace_live_db_with_backup(db_path: &Path, backup_path: &Path) -> Resu
         };
         if gone {
             match std::fs::rename(&staging, db_path) {
-                Ok(()) => return Ok(()),
+                Ok(()) => {
+                    remove_db_sidecars(db_path);
+                    return Ok(());
+                }
                 Err(e) => {
-                    // Fall back to copy+delete staging if rename is cross-volume.
-                    if std::fs::copy(&staging, db_path).is_ok() {
-                        let _ = std::fs::remove_file(&staging);
-                        return Ok(());
+                    // Fall back to copy+delete staging if rename is cross-volume / locked.
+                    match std::fs::copy(&staging, db_path) {
+                        Ok(_) => {
+                            let _ = std::fs::remove_file(&staging);
+                            remove_db_sidecars(db_path);
+                            return Ok(());
+                        }
+                        Err(_) => last_err = Some(e),
                     }
-                    last_err = Some(e);
                 }
             }
         }
         tokio::time::sleep(std::time::Duration::from_millis(
-            20 * u64::from(attempt + 1),
+            25 * u64::from(attempt + 1),
         ))
         .await;
     }

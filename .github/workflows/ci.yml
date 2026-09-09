@@ -131,15 +131,15 @@ jobs:
       - name: unit tests
         if: runner.os != 'Windows'
         env:
-          NODE_OPTIONS: --max-old-space-size=8192
-        run: npm run test -- --pool=forks --maxWorkers=2 --fileParallelism=false
+          NODE_OPTIONS: --max-old-space-size=4096
+        run: bash ./scripts/ci-frontend-test.sh
 
       - name: unit tests (Windows)
         if: runner.os == 'Windows'
         env:
-          NODE_OPTIONS: --max-old-space-size=8192
+          NODE_OPTIONS: --max-old-space-size=4096
         shell: pwsh
-        run: npm run test -- --pool=forks --maxWorkers=2 --fileParallelism=false
+        run: ./scripts/ci-frontend-test.ps1
 
       - name: production build
         run: npm run build

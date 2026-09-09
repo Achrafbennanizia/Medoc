@@ -77,6 +77,10 @@ async fn restore_from_backup_replaces_live_db_file() {
         .unwrap();
 
     let backup_dir = temp_backup_dir("restore-target");
+    // Flush WAL so VACUUM INTO / file replace are not racing Windows locks.
+    let _ = sqlx::query("PRAGMA wal_checkpoint(TRUNCATE)")
+        .execute(&pool)
+        .await;
     let backup_path = medoc_lib::infrastructure::backup::create(&pool)
         .await
         .expect("vacuum backup");
@@ -85,6 +89,9 @@ async fn restore_from_backup_replaces_live_db_file() {
         .execute(&pool)
         .await
         .unwrap();
+    let _ = sqlx::query("PRAGMA wal_checkpoint(TRUNCATE)")
+        .execute(&pool)
+        .await;
 
     medoc_lib::infrastructure::backup::restore_from_backup(&pool, &dir, &backup_path)
         .await
