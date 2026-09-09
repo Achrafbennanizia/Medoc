@@ -20,15 +20,17 @@ async fn authenticate_succeeds_for_physician_without_totp_when_2_fa_disabled() {
     let pool = test_memory_pool().await.expect("pool");
     run_migrations(&pool).await.expect("migrations");
 
+    // Migrations seed the single MVP PHYSICIAN slot — update that row instead of inserting another.
     let hash = medoc_lib::infrastructure::crypto::hash_password("SecurePass42").unwrap();
-    sqlx::query(
-        "INSERT INTO staff (id, name, email, password_hash, role)
-         VALUES ('a1', 'Dr. Test', 'physician@practice.de', ?1, 'PHYSICIAN')",
+    let updated = sqlx::query(
+        "UPDATE staff SET email = 'physician@practice.de', password_hash = ?1, name = 'Dr. Test'
+         WHERE id = 'seed-physician-001'",
     )
     .bind(&hash)
     .execute(&pool)
     .await
-    .unwrap();
+    .expect("update seed physician");
+    assert_eq!(updated.rows_affected(), 1, "expected seeded physician row");
 
     let session = authenticate(
         &pool,

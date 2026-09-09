@@ -8,7 +8,7 @@ describe("levenshtein", () => {
     });
     it("counts single-character edits", () => {
         expect(levenshtein("kitten", "sitting")).toBe(3);
-        expect(levenshtein("appointments", "termene")).toBe(1);
+        expect(levenshtein("appointment", "appointments")).toBe(1);
     });
 });
 
