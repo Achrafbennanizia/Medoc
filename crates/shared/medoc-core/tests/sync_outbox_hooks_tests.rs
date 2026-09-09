@@ -174,15 +174,7 @@ async fn practice_task_insert_and_status_emit_two_rows() {
         .await
         .expect("create patient");
 
-    // Seed a `staff` row so the `created_by` FK resolves.
-    sqlx::query(
-        "INSERT INTO staff (id, name, email, password_hash, role)
-         VALUES ('rez-1', 'Frau Test', 'rez@test', 'x', 'RECEPTION')",
-    )
-    .execute(&pool)
-    .await
-    .ok();
-
+    // Seed reception already exists (`seed-rez-001`); avoid quota / FK races.
     let task = practice_task_repo::insert(
         &pool,
         &CreatePracticeTask {
@@ -197,7 +189,7 @@ async fn practice_task_insert_and_status_emit_two_rows() {
             service_name: None,
             total_cost: None,
         },
-        "rez-1",
+        "seed-rez-001",
     )
     .await
     .expect("insert task");
@@ -281,19 +273,11 @@ async fn prescription_create_emits_one_outbox_row() {
         .await
         .expect("create patient");
 
-    sqlx::query(
-        "INSERT INTO staff (id, name, email, password_hash, role)
-         VALUES ('physician-prescription', 'Dr. Prescription', 'prescription@test', 'x', 'PHYSICIAN')",
-    )
-    .execute(&pool)
-    .await
-    .ok();
-
     prescription_repo::create(
         &pool,
         &CreatePrescription {
             patient_id: p.id.clone(),
-            physician_id: "physician-prescription".into(),
+            physician_id: "seed-physician-001".into(),
             medication: "Ibuprofen 600mg".into(),
             active_ingredient: Some("Ibuprofen".into()),
             dosage: "1-0-1".into(),
@@ -324,20 +308,12 @@ async fn practice_ticket_insert_emits_one_outbox_row() {
         .await
         .expect("create patient");
 
-    sqlx::query(
-        "INSERT INTO staff (id, name, email, password_hash, role)
-         VALUES ('rez-ticket', 'Frau Reception', 'rez@test', 'x', 'RECEPTION'),
-               ('physician-ticket', 'Dr. Ticket', 'physician@test', 'x', 'PHYSICIAN')",
-    )
-    .execute(&pool)
-    .await
-    .ok();
-
+    // Migrations already seed MVP staff — avoid a second PHYSICIAN insert (quota trigger).
     practice_ticket_repo::insert(
         &pool,
         &p.id,
-        "rez-ticket",
-        "physician-ticket",
+        "seed-rez-001",
+        "seed-physician-001",
         "Port hook ticket",
     )
     .await

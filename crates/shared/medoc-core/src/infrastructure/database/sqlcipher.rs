@@ -10,9 +10,10 @@ use crate::error::AppError;
 use crate::infrastructure::database::db_key;
 
 /// Connect options for a legacy **unencrypted** `SQLite format 3` file via SQLCipher.
-fn plain_connect_options(plain_url: &str) -> Result<SqliteConnectOptions, AppError> {
-    Ok(SqliteConnectOptions::from_str(plain_url)
-        .map_err(AppError::Database)?
+fn plain_connect_options(db_path: &Path) -> Result<SqliteConnectOptions, AppError> {
+    Ok(SqliteConnectOptions::new()
+        .filename(db_path)
+        .create_if_missing(false)
         .pragma("cipher_plaintext_header", "1"))
 }
 
@@ -50,8 +51,7 @@ pub async fn migrate_plaintext_to_sqlcipher(db_path: &Path, key: &[u8]) -> Resul
     let _ = std::fs::remove_file(&tmp);
 
     let key_pragma = db_key::pragma_key_value(key);
-    let plain_url = format!("sqlite:{}?mode=rwc", db_path.display());
-    let plain_opts = plain_connect_options(&plain_url)?;
+    let plain_opts = plain_connect_options(db_path)?;
 
     let pool = SqlitePoolOptions::new()
         .max_connections(1)
@@ -59,7 +59,10 @@ pub async fn migrate_plaintext_to_sqlcipher(db_path: &Path, key: &[u8]) -> Resul
         .await
         .map_err(AppError::Database)?;
 
-    let tmp_escaped = tmp.display().to_string().replace('\'', "''");
+    let tmp_escaped = tmp
+        .to_string_lossy()
+        .replace('\\', "/")
+        .replace('\'', "''");
     let sql = format!(
         "ATTACH DATABASE '{tmp_escaped}' AS encrypted KEY {key_pragma}; \
          SELECT sqlcipher_export('encrypted'); \
@@ -83,9 +86,10 @@ pub async fn open_encrypted_pool(
     create_if_missing: bool,
 ) -> Result<SqlitePool, AppError> {
     let key_pragma = db_key::pragma_key_value(&key);
-    let db_url = format!("sqlite:{}?mode=rwc", db_path.display());
-    let options = SqliteConnectOptions::from_str(&db_url)
-        .map_err(AppError::Database)?
+    // Prefer `.filename(...)` over `sqlite:C:\...` URLs — Windows drive-letter
+    // paths break URL parsing and fail intermittently under cargo test.
+    let options = SqliteConnectOptions::new()
+        .filename(db_path)
         .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
         .create_if_missing(create_if_missing)
         .pragma("key", key_pragma);

@@ -94,7 +94,10 @@ pub async fn create(pool: &SqlitePool) -> Result<PathBuf, AppError> {
 
     log_system!(info, event = "BACKUP_START", target = %target.display());
 
-    let path_lit = target.display().to_string().replace('\'', "''");
+    let path_lit = target
+        .to_string_lossy()
+        .replace('\\', "/")
+        .replace('\'', "''");
     sqlx::query(&format!("VACUUM INTO '{path_lit}'"))
         .execute(pool)
         .await
@@ -289,21 +292,22 @@ pub async fn restore_from_backup(
     let db_path = app_data_dir.join("medoc.db");
     pool.close().await;
 
-    for suffix in ["-wal", "-shm", "-journal"] {
-        let p = PathBuf::from(format!("{}{}", db_path.display(), suffix));
-        let _ = std::fs::remove_file(p);
-    }
-
-    std::fs::copy(backup_path, &db_path).map_err(|e| {
-        AppError::Internal(format!(
-            "Restore failed (copy to {}): {e}",
-            db_path.display()
-        ))
-    })?;
+    // Close releases handles asynchronously on Windows; retry sidecar + replace.
+    replace_live_db_with_backup(&db_path, backup_path).await?;
 
     // `VACUUM INTO` may yield plaintext or SQLCipher (header is always "SQLite format 3").
     let key = db_key::ensure_sqlcipher_key(app_data_dir, false)?;
-    if !sqlcipher::opens_with_sqlcipher_key(&db_path, &key).await {
+    let mut opened = sqlcipher::opens_with_sqlcipher_key(&db_path, &key).await;
+    if !opened {
+        for attempt in 1..8u32 {
+            tokio::time::sleep(std::time::Duration::from_millis(25 * u64::from(attempt))).await;
+            opened = sqlcipher::opens_with_sqlcipher_key(&db_path, &key).await;
+            if opened {
+                break;
+            }
+        }
+    }
+    if !opened {
         if sqlcipher::is_plaintext_sqlite_file(&db_path) {
             sqlcipher::migrate_plaintext_to_sqlcipher(&db_path, &key).await?;
         } else {
@@ -324,6 +328,70 @@ pub async fn restore_from_backup(
         restored_from: backup_path.to_path_buf(),
         pre_restore_backup_created: pre,
     })
+}
+
+fn db_sidecar(db_path: &Path, suffix: &str) -> PathBuf {
+    let mut os = db_path.as_os_str().to_owned();
+    os.push(suffix);
+    PathBuf::from(os)
+}
+
+fn remove_db_sidecars(db_path: &Path) {
+    for suffix in ["-wal", "-shm", "-journal"] {
+        let _ = std::fs::remove_file(db_sidecar(db_path, suffix));
+    }
+}
+
+/// Copy `backup_path` onto `db_path` without leaving a stale WAL next to a replaced file.
+async fn replace_live_db_with_backup(db_path: &Path, backup_path: &Path) -> Result<(), AppError> {
+    let staging = db_path.with_extension("db.restore-tmp");
+    let _ = std::fs::remove_file(&staging);
+
+    std::fs::copy(backup_path, &staging).map_err(|e| {
+        AppError::Internal(format!(
+            "Restore failed (stage {}): {e}",
+            staging.display()
+        ))
+    })?;
+
+    let mut last_err = None;
+    for attempt in 0..12u32 {
+        remove_db_sidecars(db_path);
+        let gone = match std::fs::remove_file(db_path) {
+            Ok(()) => true,
+            Err(e) => {
+                if db_path.exists() {
+                    last_err = Some(e);
+                    false
+                } else {
+                    true
+                }
+            }
+        };
+        if gone {
+            match std::fs::rename(&staging, db_path) {
+                Ok(()) => return Ok(()),
+                Err(e) => {
+                    // Fall back to copy+delete staging if rename is cross-volume.
+                    if std::fs::copy(&staging, db_path).is_ok() {
+                        let _ = std::fs::remove_file(&staging);
+                        return Ok(());
+                    }
+                    last_err = Some(e);
+                }
+            }
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(20 * u64::from(attempt + 1))).await;
+    }
+
+    let _ = std::fs::remove_file(&staging);
+    Err(AppError::Internal(format!(
+        "Restore failed (replace {}): {}",
+        db_path.display(),
+        last_err
+            .map(|e| e.to_string())
+            .unwrap_or_else(|| "destination still locked".into())
+    )))
 }
 
 /// Validate that a backup file looks like a SQLite database.
