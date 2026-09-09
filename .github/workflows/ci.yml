@@ -47,6 +47,23 @@ jobs:
         shell: pwsh
         run: ./scripts/ci-windows-install-openssl.ps1
 
+      # Belt-and-suspenders: pin OPENSSL_* for Windows cargo steps even if
+      # GITHUB_ENV encoding is odd on the runner (libsqlite3-sys requires these).
+      - name: Export OpenSSL env (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $root = if ($env:VCPKG_INSTALLATION_ROOT) { $env:VCPKG_INSTALLATION_ROOT } else { "C:\vcpkg" }
+          $dir = Join-Path $root "installed\x64-windows"
+          $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+          $lines = @(
+            "OPENSSL_DIR=$dir"
+            "OPENSSL_LIB_DIR=$(Join-Path $dir 'lib')"
+            "OPENSSL_INCLUDE_DIR=$(Join-Path $dir 'include')"
+          )
+          [System.IO.File]::AppendAllLines($env:GITHUB_ENV, $lines, $utf8NoBom)
+          $lines | ForEach-Object { Write-Host $_ }
+
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: . -> target
@@ -156,6 +173,21 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: ./scripts/ci-windows-install-openssl.ps1
+
+      - name: Export OpenSSL env (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $root = if ($env:VCPKG_INSTALLATION_ROOT) { $env:VCPKG_INSTALLATION_ROOT } else { "C:\vcpkg" }
+          $dir = Join-Path $root "installed\x64-windows"
+          $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+          $lines = @(
+            "OPENSSL_DIR=$dir"
+            "OPENSSL_LIB_DIR=$(Join-Path $dir 'lib')"
+            "OPENSSL_INCLUDE_DIR=$(Join-Path $dir 'include')"
+          )
+          [System.IO.File]::AppendAllLines($env:GITHUB_ENV, $lines, $utf8NoBom)
+          $lines | ForEach-Object { Write-Host $_ }
 
       - uses: Swatinem/rust-cache@v2
         with:

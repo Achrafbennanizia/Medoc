@@ -128,15 +128,7 @@ async fn appointment_lifecycle_emits_three_outbox_rows() {
         .await
         .expect("create patient");
 
-    // Seed a `staff` row so the `physician_id` FK resolves.
-    sqlx::query(
-        "INSERT INTO staff (id, name, email, password_hash, role)
-         VALUES ('physician-1', 'Dr. Test', 'physician@test', 'x', 'PHYSICIAN')",
-    )
-    .execute(&pool)
-    .await
-    .ok();
-
+    // Migrations already seed the single MVP PHYSICIAN (`seed-physician-001`).
     let create = CreateAppointment {
         patient_id: p.id.clone(),
         date: "2099-01-01".into(),
@@ -144,7 +136,7 @@ async fn appointment_lifecycle_emits_three_outbox_rows() {
         kind: AppointmentKind::Checkup,
         notes: None,
         chief_complaint: None,
-        physician_id: "physician-1".into(),
+        physician_id: "seed-physician-001".into(),
     };
     let t = appointment_repo::create(&pool, &create)
         .await

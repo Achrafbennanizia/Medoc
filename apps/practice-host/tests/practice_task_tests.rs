@@ -491,7 +491,10 @@ fn workflow_task_rejects_invalid_transition() {
         false,
     )
     .expect_err("physician cannot reopen without BACK");
-    assert!(matches!(err, AppError::Validation(_)));
+    assert!(
+        matches!(err, AppError::ValidationCode(_)),
+        "expected ValidationCode, got {err:?}"
+    );
 }
 
 #[tokio::test]

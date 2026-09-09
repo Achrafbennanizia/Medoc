@@ -409,6 +409,17 @@ async fn english_upgrade_remaps_app_kv_and_template_json() {
     .await
     .expect("insert leftover user template");
 
+    // Demo patient rows only appear when `MEDOC_DEV_SEED=1` / medoc-core `cfg!(test)`.
+    // Practice-host integration tests link medoc-core as a normal lib, so insert the FK target here.
+    sqlx::query(
+        "INSERT OR IGNORE INTO patient (id, name, date_of_birth, sex, insurance_number, phone, email, address, status)
+         VALUES ('seed-pat-001', 'Lena Hoffmann', '1990-04-12', 'FEMALE', 'AOK-1000001',
+                 '+49 151 1234567', 'lena.hoffmann@medoc-demo.de', 'Rosenweg 4, 28195 Bremen', 'NEW')",
+    )
+    .execute(&pool)
+    .await
+    .expect("ensure seed patient for appointment FK");
+
     sqlx::query(
         "INSERT INTO appointment (id, date, time, kind, status, notes, chief_complaint, patient_id, physician_id)
          VALUES ('appt-legacy-1', '2026-08-20', '10:00', 'CHECKUP', 'PLANNED',

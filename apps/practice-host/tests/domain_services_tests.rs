@@ -205,7 +205,15 @@ fn workflow_purchase_order_and_ticket() {
 fn pricing_require_release_maps_to_validation() {
     let err = pricing::require_released_for_billing(None, None, "error.entity.treatment")
         .expect_err("must fail");
-    assert!(matches!(err, AppError::Validation(_)));
+    match err {
+        AppError::ValidationCode(code) => {
+            assert!(
+                code.starts_with("error.billing.not_released"),
+                "unexpected code: {code}"
+            );
+        }
+        other => panic!("expected ValidationCode, got {other:?}"),
+    }
 }
 
 #[test]

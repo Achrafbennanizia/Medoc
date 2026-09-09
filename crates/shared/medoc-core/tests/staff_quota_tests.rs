@@ -159,7 +159,15 @@ async fn update_with_quota_rejects_reception_to_physician_when_physician_full() 
     let err = staff_repo::update_with_quota(&pool, "r1", &data, "PHYSICIAN")
         .await
         .expect_err("physician slot taken");
-    assert!(matches!(err, AppError::Validation(msg) if msg.contains("Physician")));
+    match err {
+        AppError::Validation(msg) => {
+            assert!(
+                msg.to_ascii_lowercase().contains("physician"),
+                "unexpected message: {msg}"
+            );
+        }
+        other => panic!("expected Validation, got {other:?}"),
+    }
 }
 
 #[tokio::test]
