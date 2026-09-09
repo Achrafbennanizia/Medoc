@@ -130,7 +130,9 @@ jobs:
 
       - name: unit tests
         if: runner.os != 'Windows'
-        run: npm run test
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
+        run: npm run test -- --pool=forks --maxWorkers=2 --fileParallelism=false
 
       - name: unit tests (Windows)
         if: runner.os == 'Windows'

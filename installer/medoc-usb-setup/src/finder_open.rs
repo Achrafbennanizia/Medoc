@@ -1,11 +1,23 @@
 //! Finder double-click target. Not an `.app` bundle — Launch Services refuses
 //! unsigned USB app bundles. `open` of this Mach-O starts MeDoc the same way
 //! the installer button does (no Terminal).
+//!
+//! macOS-only; other targets compile a stub so `cargo check --all-targets` works on CI.
 
+#[cfg(target_os = "macos")]
 use std::os::unix::process::CommandExt;
+#[cfg(target_os = "macos")]
 use std::path::PathBuf;
+#[cfg(target_os = "macos")]
 use std::process::{Command, Stdio};
 
+#[cfg(not(target_os = "macos"))]
+fn main() {
+    eprintln!("medoc-finder-open is only supported on macOS");
+    std::process::exit(1);
+}
+
+#[cfg(target_os = "macos")]
 fn main() {
     let medoc = resolve_medoc();
     if !medoc.is_file() {
@@ -45,6 +57,7 @@ fn main() {
     }
 }
 
+#[cfg(target_os = "macos")]
 fn medoc_running() -> bool {
     Command::new("pgrep")
         .args(["-f", "MeDoc.app/Contents/MacOS/medoc"])
@@ -55,6 +68,7 @@ fn medoc_running() -> bool {
         .unwrap_or(false)
 }
 
+#[cfg(target_os = "macos")]
 fn resolve_medoc() -> PathBuf {
     if let Ok(me) = std::env::current_exe() {
         if let Some(dir) = me.parent() {
@@ -82,6 +96,7 @@ fn resolve_medoc() -> PathBuf {
     PathBuf::from("/Applications/MeDoc.app/Contents/MacOS/medoc")
 }
 
+#[cfg(target_os = "macos")]
 fn home() -> PathBuf {
     std::env::var_os("HOME")
         .map(PathBuf::from)
