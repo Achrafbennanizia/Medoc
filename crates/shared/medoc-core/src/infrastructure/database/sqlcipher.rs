@@ -59,10 +59,7 @@ pub async fn migrate_plaintext_to_sqlcipher(db_path: &Path, key: &[u8]) -> Resul
         .await
         .map_err(AppError::Database)?;
 
-    let tmp_escaped = tmp
-        .to_string_lossy()
-        .replace('\\', "/")
-        .replace('\'', "''");
+    let tmp_escaped = tmp.to_string_lossy().replace('\\', "/").replace('\'', "''");
     let sql = format!(
         "ATTACH DATABASE '{tmp_escaped}' AS encrypted KEY {key_pragma}; \
          SELECT sqlcipher_export('encrypted'); \

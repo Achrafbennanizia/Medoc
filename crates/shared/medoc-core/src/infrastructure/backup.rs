@@ -348,10 +348,7 @@ async fn replace_live_db_with_backup(db_path: &Path, backup_path: &Path) -> Resu
     let _ = std::fs::remove_file(&staging);
 
     std::fs::copy(backup_path, &staging).map_err(|e| {
-        AppError::Internal(format!(
-            "Restore failed (stage {}): {e}",
-            staging.display()
-        ))
+        AppError::Internal(format!("Restore failed (stage {}): {e}", staging.display()))
     })?;
 
     let mut last_err = None;
@@ -381,7 +378,10 @@ async fn replace_live_db_with_backup(db_path: &Path, backup_path: &Path) -> Resu
                 }
             }
         }
-        tokio::time::sleep(std::time::Duration::from_millis(20 * u64::from(attempt + 1))).await;
+        tokio::time::sleep(std::time::Duration::from_millis(
+            20 * u64::from(attempt + 1),
+        ))
+        .await;
     }
 
     let _ = std::fs::remove_file(&staging);
