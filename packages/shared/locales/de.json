@@ -865,7 +865,7 @@
   "enum.certificate_kind.sports_exemption": "Sportbefreiung",
   "enum.certificate_kind.treatment_confirmation": "Behandlungsbestätigung",
   "enum.charts_status.draft": "Entwurf",
-  "enum.charts_status.in_processing": "In Bearbeitung",
+  "enum.charts_status.in_progress": "In Bearbeitung",
   "enum.charts_status.readonly": "Schreibgeschützt",
   "enum.charts_status.validated": "Validiert",
   "enum.patient_status.active": "Aktiv",

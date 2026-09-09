@@ -872,7 +872,7 @@
   "enum.certificate_kind.sports_exemption": "إعفاء رياضي",
   "enum.certificate_kind.treatment_confirmation": "تأكيد العلاج",
   "enum.charts_status.draft": "مسودة",
-  "enum.charts_status.in_processing": "قيد المعالجة",
+  "enum.charts_status.in_progress": "قيد المعالجة",
   "enum.charts_status.readonly": "للقراءة فقط",
   "enum.charts_status.validated": "مُحقق",
   "enum.patient_status.active": "نشط",

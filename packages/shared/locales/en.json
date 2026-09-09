@@ -872,7 +872,7 @@
   "enum.certificate_kind.sports_exemption": "Sports exemption",
   "enum.certificate_kind.treatment_confirmation": "Treatment confirmation",
   "enum.charts_status.draft": "Draft",
-  "enum.charts_status.in_processing": "In progress",
+  "enum.charts_status.in_progress": "In progress",
   "enum.charts_status.readonly": "Read-only",
   "enum.charts_status.validated": "Validated",
   "enum.patient_status.active": "Active",

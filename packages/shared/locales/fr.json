@@ -872,7 +872,7 @@
   "enum.certificate_kind.sports_exemption": "Dispense sportive",
   "enum.certificate_kind.treatment_confirmation": "Confirmation de traitement",
   "enum.charts_status.draft": "Brouillon",
-  "enum.charts_status.in_processing": "En cours",
+  "enum.charts_status.in_progress": "En cours",
   "enum.charts_status.readonly": "Lecture seule",
   "enum.charts_status.validated": "Validé",
   "enum.patient_status.active": "Actif",
