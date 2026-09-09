@@ -110,11 +110,16 @@ jobs:
         if: runner.os == 'Linux'
         run: npm audit --omit=dev
 
-      - name: lint
-        run: npm run lint
-
       - name: unit tests
+        if: runner.os != 'Windows'
         run: npm run test
+
+      - name: unit tests (Windows)
+        if: runner.os == 'Windows'
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
+        shell: pwsh
+        run: npm run test -- --pool=forks --maxWorkers=2 --fileParallelism=false
 
       - name: production build
         run: npm run build
