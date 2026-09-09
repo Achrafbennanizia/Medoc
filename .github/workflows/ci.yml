@@ -61,7 +61,8 @@ jobs:
             "OPENSSL_LIB_DIR=$(Join-Path $dir 'lib')"
             "OPENSSL_INCLUDE_DIR=$(Join-Path $dir 'include')"
           )
-          [System.IO.File]::AppendAllLines($env:GITHUB_ENV, $lines, $utf8NoBom)
+          $payload = ($lines -join [Environment]::NewLine) + [Environment]::NewLine
+          [System.IO.File]::AppendAllText($env:GITHUB_ENV, $payload, $utf8NoBom)
           $lines | ForEach-Object { Write-Host $_ }
 
       - uses: Swatinem/rust-cache@v2
@@ -186,7 +187,8 @@ jobs:
             "OPENSSL_LIB_DIR=$(Join-Path $dir 'lib')"
             "OPENSSL_INCLUDE_DIR=$(Join-Path $dir 'include')"
           )
-          [System.IO.File]::AppendAllLines($env:GITHUB_ENV, $lines, $utf8NoBom)
+          $payload = ($lines -join [Environment]::NewLine) + [Environment]::NewLine
+          [System.IO.File]::AppendAllText($env:GITHUB_ENV, $payload, $utf8NoBom)
           $lines | ForEach-Object { Write-Host $_ }
 
       - uses: Swatinem/rust-cache@v2

@@ -5,6 +5,14 @@
 
 $ErrorActionPreference = "Stop"
 
+function Append-GitHubEnvLines([string]$Path, [string[]]$Lines) {
+    # Use AppendAllText — AppendAllLines(path, lines, encoding) is missing on
+    # some GHA PowerShell/.NET hosts ("Cannot find an overload... argument count: 3").
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    $payload = ($Lines -join [Environment]::NewLine) + [Environment]::NewLine
+    [System.IO.File]::AppendAllText($Path, $payload, $utf8NoBom)
+}
+
 if (-not $env:VCPKG_INSTALLATION_ROOT) {
     throw "VCPKG_INSTALLATION_ROOT is not set (expected on windows-latest runners)"
 }
@@ -36,12 +44,11 @@ $lines = @(
     "OPENSSL_INCLUDE_DIR=$incDir"
 )
 
-# ASCII append avoids BOM; GitHub Actions docs use shell redirection for this reason.
-$utf8NoBom = New-Object System.Text.UTF8Encoding $false
-[System.IO.File]::AppendAllLines($env:GITHUB_ENV, $lines, $utf8NoBom)
+Append-GitHubEnvLines -Path $env:GITHUB_ENV -Lines $lines
 $lines | ForEach-Object { Write-Host $_ }
 
 if (Test-Path -LiteralPath $binDir) {
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
     [System.IO.File]::AppendAllText(
         $env:GITHUB_PATH,
         "$binDir$([Environment]::NewLine)",
