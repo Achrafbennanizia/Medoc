@@ -10,11 +10,14 @@ use crate::error::AppError;
 use crate::infrastructure::database::db_key;
 
 /// Connect options for a legacy **unencrypted** `SQLite format 3` file via SQLCipher.
+///
+/// Stock plaintext DBs open without a key; `cipher_plaintext_header` is only for
+/// SQLCipher files that intentionally expose a plaintext header.
 fn plain_connect_options(db_path: &Path) -> Result<SqliteConnectOptions, AppError> {
     Ok(SqliteConnectOptions::new()
         .filename(db_path)
-        .create_if_missing(false)
-        .pragma("cipher_plaintext_header", "1"))
+        .journal_mode(sqlx::sqlite::SqliteJournalMode::Delete)
+        .create_if_missing(false))
 }
 
 pub fn is_plaintext_sqlite_file(path: &Path) -> bool {
@@ -86,8 +89,18 @@ pub async fn migrate_plaintext_to_sqlcipher(db_path: &Path, key: &[u8]) -> Resul
         .map_err(AppError::Database)?;
     pool.close().await;
 
-    std::fs::rename(&tmp, db_path)
-        .map_err(|e| AppError::Internal(format!("SQLCipher migration rename: {e}")))?;
+    // Windows: rename over an existing path often fails; prefer replace via remove+rename, then copy.
+    if db_path.exists() {
+        let _ = std::fs::remove_file(db_path);
+    }
+    if let Err(e) = std::fs::rename(&tmp, db_path) {
+        std::fs::copy(&tmp, db_path).map_err(|copy_err| {
+            AppError::Internal(format!(
+                "SQLCipher migration replace failed (rename: {e}; copy: {copy_err})"
+            ))
+        })?;
+        let _ = std::fs::remove_file(&tmp);
+    }
     Ok(())
 }
 

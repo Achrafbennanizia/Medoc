@@ -101,16 +101,33 @@ async fn migrate_plaintext_file_to_sqlcipher() {
     let dir = std::env::temp_dir().join(format!("medoc-plain-mig-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&dir).unwrap();
     let db_path = dir.join("medoc.db");
-    let status = std::process::Command::new("sqlite3")
-        .arg(&db_path)
-        .arg("CREATE TABLE plain_probe (id INTEGER PRIMARY KEY); INSERT INTO plain_probe VALUES (1);")
-        .status()
-        .expect("sqlite3 CLI");
+
+    // Create a stock plaintext SQLite file without the `sqlite3` CLI (missing on Windows GHA).
+    // SQLCipher leaves the file unencrypted until PRAGMA key is set.
+    {
+        let opts = SqliteConnectOptions::new()
+            .filename(&db_path)
+            .create_if_missing(true)
+            .journal_mode(sqlx::sqlite::SqliteJournalMode::Delete);
+        let plain_pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect_with(opts)
+            .await
+            .expect("create plaintext sqlite");
+        sqlx::query("CREATE TABLE plain_probe (id INTEGER PRIMARY KEY)")
+            .execute(&plain_pool)
+            .await
+            .expect("create plaintext table");
+        sqlx::query("INSERT INTO plain_probe VALUES (1)")
+            .execute(&plain_pool)
+            .await
+            .expect("seed plaintext row");
+        plain_pool.close().await;
+    }
     assert!(
-        status.success(),
-        "sqlite3 must be available for migration test"
+        medoc_lib::infrastructure::database::sqlcipher::is_plaintext_sqlite_file(&db_path),
+        "expected unencrypted SQLite header"
     );
-    assert!(medoc_lib::infrastructure::database::sqlcipher::is_plaintext_sqlite_file(&db_path));
 
     std::env::set_var("MEDOC_DB_KEY", HEX_KEY);
     let key = db_key::env_override_key().expect("MEDOC_DB_KEY");
@@ -118,7 +135,11 @@ async fn migrate_plaintext_file_to_sqlcipher() {
         .await
         .expect("migrate plaintext → SQLCipher");
 
-    assert!(!medoc_lib::infrastructure::database::sqlcipher::is_plaintext_sqlite_file(&db_path));
+    assert!(
+        medoc_lib::infrastructure::database::sqlcipher::opens_with_sqlcipher_key(&db_path, &key)
+            .await,
+        "migrated file must open with the SQLCipher key"
+    );
     let pool = init_db_headless(&dir).await.expect("open migrated db");
     let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM plain_probe")
         .fetch_one(&pool)
