@@ -307,7 +307,7 @@ pub async fn export_chart_pdf(
         });
     }
 
-        if sec.dental_findings && medical {
+    if sec.dental_findings && medical {
         let rows_db = chart_repo::find_dental_findings(pool, &chart.id).await?;
         let tbl = if rows_db.is_empty() {
             ChartPdfTable {
