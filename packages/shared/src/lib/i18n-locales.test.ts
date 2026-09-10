@@ -18,12 +18,14 @@ describe("i18n locale parity", () => {
     });
 
     it("fr and ar expose every de key with non-key values", () => {
+        // ~4.5k keys: avoid per-key expect()/Array.includes (O(n²) → Windows CI timeout).
         const deKeys = localeCatalogKeys("de");
         for (const loc of ["fr", "ar"] as const) {
-            for (const key of deKeys) {
-                expect(localeCatalogKeys(loc)).toContain(key);
-                expect(translateLocale(loc, key)).not.toBe(key);
-            }
+            const keySet = new Set(localeCatalogKeys(loc));
+            const missing = deKeys.filter((key) => !keySet.has(key));
+            const untranslated = deKeys.filter((key) => translateLocale(loc, key) === key);
+            expect(missing, `${loc} missing keys`).toEqual([]);
+            expect(untranslated, `${loc} value===key`).toEqual([]);
         }
     });
 
