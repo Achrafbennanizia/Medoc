@@ -115,6 +115,7 @@ fn parse_mode(s: &str) -> UsbInstallMode {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_slot_plan(
     role: InstallRole,
     label: &str,
@@ -171,6 +172,7 @@ fn build_slot_plan(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn cmd_init_campaign(
     cli: &Cli,
     password: Option<String>,

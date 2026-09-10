@@ -143,7 +143,7 @@ pub async fn serve_tls_router(
     shutdown: std::sync::Arc<std::sync::atomic::AtomicBool>,
 ) -> Result<(), std::io::Error> {
     install_rustls_provider()
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+        .map_err(|e| std::io::Error::other(e.to_string()))?;
     let config = RustlsConfig::from_pem_file(&identity.cert_path, &identity.key_path).await?;
     let handle = axum_server::Handle::new();
     let graceful = handle.clone();

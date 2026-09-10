@@ -53,6 +53,7 @@ async fn inspect_local_staff_accounts() {
         .expect("open local db (set MEDOC_DB_KEY like dev-tauri.sh)");
 
     #[derive(Debug)]
+    #[allow(dead_code)] // printed via Debug for local DB inspection
     struct Row {
         id: String,
         name: String,

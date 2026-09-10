@@ -9,6 +9,8 @@
 //!   the signature against the master's Ed25519 public key, and rejects
 //!   pushes whose `from_device_id` does not match the token's `device_id`.
 
+#![allow(clippy::result_large_err)] // axum handlers return `Response` as Err
+
 use std::net::SocketAddr;
 
 use axum::extract::{ConnectInfo, State};

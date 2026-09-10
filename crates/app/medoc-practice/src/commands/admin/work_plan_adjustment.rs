@@ -82,7 +82,8 @@ pub async fn list_work_plan_adjustments(
         session.user_id.clone()
     };
     let active_only = query.active_only.unwrap_or(true);
-    let rows: Vec<(String, String, Option<String>, String, String, i64, String)> = if active_only {
+    type AdjustmentRow = (String, String, Option<String>, String, String, i64, String);
+    let rows: Vec<AdjustmentRow> = if active_only {
         sqlx::query_as(
             "SELECT id, source, source_id, staff_id, payload_json, active, created_at
              FROM work_plan_adjustment

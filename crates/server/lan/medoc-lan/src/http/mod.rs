@@ -3,6 +3,8 @@
 //! **Background / ops:** The embedded host runs in its own Tokio tasks (`lan_commands`) and does not
 //! block the Tauri UI. Headless: `medoc-server` binary. **Timeouts** prevent hung LAN requests.
 
+#![allow(clippy::result_large_err)] // axum handlers return `Response` as Err
+
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;

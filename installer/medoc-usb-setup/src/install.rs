@@ -673,9 +673,9 @@ pub fn launch_practice_app(installed: &Path) -> Result<(), AppError> {
     }
     #[cfg(target_os = "macos")]
     {
-        let app = if installed.extension().and_then(|e| e.to_str()) == Some("app") {
-            installed.to_path_buf()
-        } else if installed.join("Contents/MacOS/medoc").is_file() {
+        let app = if installed.extension().and_then(|e| e.to_str()) == Some("app")
+            || installed.join("Contents/MacOS/medoc").is_file()
+        {
             installed.to_path_buf()
         } else {
             installed
@@ -704,7 +704,7 @@ pub fn launch_practice_app(installed: &Path) -> Result<(), AppError> {
             ));
         }
         macos_activate_medoc();
-        return Ok(());
+        Ok(())
     }
     #[cfg(target_os = "windows")]
     {

@@ -308,8 +308,6 @@ fn normalize_slug(raw: &str) -> String {
         .map(|c| {
             if c.is_ascii_alphanumeric() {
                 c
-            } else if c.is_whitespace() || c == '_' {
-                '-'
             } else {
                 '-'
             }
@@ -781,12 +779,10 @@ pub async fn register_onboarding_subscription(
         .as_deref()
         .map(str::trim)
         .unwrap_or("");
-    if needs_admin {
-        if admin_password.len() < 8 {
-            return Err(AppError::Validation(
-                "Administrator password required (min. 8 characters).".into(),
-            ));
-        }
+    if needs_admin && admin_password.len() < 8 {
+        return Err(AppError::Validation(
+            "Administrator password required (min. 8 characters).".into(),
+        ));
     }
 
     register_portal_subscription(

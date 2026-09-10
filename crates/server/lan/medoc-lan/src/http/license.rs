@@ -38,12 +38,12 @@ fn to_client_status(status: &LicenseStatus) -> Value {
     let hint = status
         .license_v2
         .as_ref()
-        .map(|l| format!("{}…", &l.customer_id.chars().take(4).collect::<String>()))
+        .map(|l| format!("{}…", l.customer_id.chars().take(4).collect::<String>()))
         .or_else(|| {
             status
                 .license
                 .as_ref()
-                .map(|l| format!("{}…", &l.customer_id.chars().take(4).collect::<String>()))
+                .map(|l| format!("{}…", l.customer_id.chars().take(4).collect::<String>()))
         })
         .unwrap_or_default();
     let activated = status

@@ -21,5 +21,5 @@ pub async fn apply_usb_install_plan_on_startup(
 pub async fn run_usb_provisioning_on_startup(
     pool: &SqlitePool,
 ) -> Result<Option<String>, AppError> {
-    Ok(run_provisioning_tasks(pool).await?)
+    run_provisioning_tasks(pool).await
 }

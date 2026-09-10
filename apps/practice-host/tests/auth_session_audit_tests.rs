@@ -12,10 +12,12 @@ use medoc_lib::infrastructure::database::connection::{run_migrations, test_memor
 
 #[tokio::test]
 async fn authenticate_succeeds_for_physician_without_totp_when_2_fa_disabled() {
-    assert!(
-        !mvp_security::TOTP_2FA_ENABLED,
-        "test documents intentional MVP bypass via centralized authenticate chokepoint"
-    );
+    const {
+        assert!(
+            !mvp_security::TOTP_2FA_ENABLED,
+            "test documents intentional MVP bypass via centralized authenticate chokepoint"
+        );
+    }
 
     let pool = test_memory_pool().await.expect("pool");
     run_migrations(&pool).await.expect("migrations");
