@@ -1,5 +1,7 @@
 //! HTTP API for the **MeDoc Company Server** (`medoc-company-server` binary).
 
+#![allow(clippy::result_large_err)] // axum handlers return `Response` as Err
+
 use std::net::SocketAddr;
 use std::sync::Arc;
 

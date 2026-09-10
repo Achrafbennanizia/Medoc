@@ -46,6 +46,7 @@ struct Manifest {
     device_pubkey: String,
     device_fingerprint: String,
     cluster_ca_pubkey: String,
+    #[allow(dead_code)] // present in activation JSON; retained for forward-compat
     created_at: String,
     kdf: Kdf,
     sealed: Sealed,
