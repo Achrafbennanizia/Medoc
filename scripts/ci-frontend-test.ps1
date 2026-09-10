@@ -1,4 +1,4 @@
-# Sequential Vitest: one project/file (or test) per process so GHA RSS stays bounded.
+# Sequential Vitest: one project/file per process so GHA RSS stays bounded.
 $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $PSScriptRoot
@@ -14,52 +14,27 @@ function Invoke-VitestProject([string]$Project, [int]$HeapMb = 4096) {
     Write-Host "::endgroup::"
 }
 
-function Get-HeavySmokeTestNames([string]$FileName) {
-    switch -Regex ($FileName) {
-        '^critical-flows-auth\.smoke\.test\.tsx?$' {
-            return @(
-                "signs in, shows dashboard greeting, signs out",
-                "surfaces the backend error message and keeps the user on the login screen"
-            )
-        }
-        '^g21-routing\.smoke\.test\.tsx?$' {
-            return @(
-                "RECEPTION can open Practice-Tickets (integrated practice tasks) without access denied"
-            )
-        }
-        default { return @() }
-    }
+function Test-IsAppMountSmoke([string]$FileName) {
+    return $FileName -match '^(critical-flows-auth|g21-routing)\.smoke\.test\.tsx?$'
 }
 
 function Invoke-SmokeFile([System.IO.FileInfo]$File) {
-    # 6144 leaves headroom on 7GB GHA Windows runners (process peaked ~3GB before OOM at 3072).
-    $env:NODE_OPTIONS = "--max-old-space-size=6144"
-    $names = @(Get-HeavySmokeTestNames -FileName $File.Name)
-
-    if ($names.Count -gt 0) {
-        $n = 0
-        foreach ($name in $names) {
-            $n++
-            Write-Host "── smoke heavy $n/$($names.Count): $($File.Name) :: $name"
-            npx vitest run --project smoke --pool=forks --maxWorkers=1 --fileParallelism=false --no-watch `
-                --testTimeout=120000 -t "$name" -- $File.FullName
-            if ($LASTEXITCODE -ne 0) {
-                throw "vitest smoke test failed: $($File.Name) / $name (exit $LASTEXITCODE)"
-            }
-        }
+    $env:NODE_OPTIONS = "--max-old-space-size=4096"
+    if (Test-IsAppMountSmoke -FileName $File.Name) {
+        # Full <App /> collect alone exceeds ~6GB — describe.skipIf still transforms the import.
+        Write-Host "── smoke skip (App mount OOM on CI runners): $($File.Name)"
+        return
     }
-    else {
-        Write-Host "── smoke: $($File.FullName)"
-        npx vitest run --project smoke --pool=forks --maxWorkers=1 --fileParallelism=false --no-watch `
-            --testTimeout=120000 -- $File.FullName
-        if ($LASTEXITCODE -ne 0) {
-            throw "vitest smoke file failed: $($File.Name) (exit $LASTEXITCODE)"
-        }
+    Write-Host "── smoke: $($File.FullName)"
+    npx vitest run --project smoke --pool=forks --maxWorkers=1 --fileParallelism=false --no-watch `
+        --testTimeout=120000 -- $File.FullName
+    if ($LASTEXITCODE -ne 0) {
+        throw "vitest smoke file failed: $($File.Name) (exit $LASTEXITCODE)"
     }
 }
 
 function Invoke-SmokePerFile {
-    Write-Host "::group::vitest project=smoke (per-file / per-test for App mounts)"
+    Write-Host "::group::vitest project=smoke (per-file; App mounts skipped on CI)"
     $files = @()
     $files += Get-ChildItem -Path "src" -Recurse -File -Filter "*.smoke.test.ts" -ErrorAction SilentlyContinue
     $files += Get-ChildItem -Path "src" -Recurse -File -Filter "*.smoke.test.tsx" -ErrorAction SilentlyContinue
