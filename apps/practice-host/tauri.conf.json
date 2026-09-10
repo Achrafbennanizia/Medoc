@@ -4,6 +4,7 @@
   "identifier": "de.medoc.app",
   "build": {
     "beforeDevCommand": "npm run dev -w medoc --prefix ../..",
+    "beforeBuildCommand": "npm run build -w medoc --prefix ../..",
     "devUrl": "http://localhost:1420",
     "frontendDist": "../practice-host-ui/dist"
   },

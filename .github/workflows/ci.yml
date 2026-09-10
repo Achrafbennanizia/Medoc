@@ -206,8 +206,15 @@ jobs:
         shell: pwsh
         run: ./scripts/ci-windows-unwrap-workspace-node-modules.ps1
 
+      # Vite dist is required by frontendDist; also run via beforeBuildCommand.
+      - name: Build web assets
+        run: npm run build -w medoc
+
+      # Run from medoc-tauri-host (apps/practice-host), not -w medoc: the UI
+      # package's src-tauri symlink breaks cargo metadata on Windows (path is
+      # practice-host-ui\src-tauri, which is not a workspace member).
       - name: tauri build (debug, no bundle)
-        run: npm run tauri build -- --debug --no-bundle
+        run: npm run tauri -w medoc-tauri-host -- build --debug --no-bundle
 
   ci-ok:
     name: CI gate
