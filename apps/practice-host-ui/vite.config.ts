@@ -55,7 +55,6 @@ export default defineConfig(async () => ({
             include: ["src/**/*.{ts,tsx}", "../../packages/**/src/**/*.{ts,tsx}"],
             exclude: [
                 "**/*.test.{ts,tsx}",
-                "**/*.smoke.test.{ts,tsx}",
                 "**/*.generated.{ts,tsx}",
                 "src/vitest-setup.ts",
                 "src/main.tsx",
@@ -74,19 +73,9 @@ export default defineConfig(async () => ({
                         "../../packages/**/*.test.tsx",
                     ],
                     exclude: [
-                        "**/*.smoke.test.ts",
-                        "**/*.smoke.test.tsx",
                         "src/lib/**/*.test.ts",
                         "src/lib/**/*.test.tsx",
                     ],
-                },
-            },
-            {
-                extends: true,
-                test: {
-                    name: "smoke",
-                    environment: "jsdom",
-                    include: ["**/*.smoke.test.ts", "**/*.smoke.test.tsx"],
                 },
             },
             {

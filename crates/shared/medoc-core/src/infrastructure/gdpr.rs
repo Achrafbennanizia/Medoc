@@ -184,6 +184,39 @@ pub async fn erase_patient_records(
         .await?
         .rows_affected();
 
+    // Chart children: do not rely on ON DELETE CASCADE (SQLite FK may be off).
+    deleted += sqlx::query(
+        "DELETE FROM treatment WHERE chart_id IN (SELECT id FROM patient_chart WHERE patient_id = ?1)",
+    )
+    .bind(patient_id)
+    .execute(&mut *tx)
+    .await?
+    .rows_affected();
+
+    deleted += sqlx::query(
+        "DELETE FROM examination WHERE chart_id IN (SELECT id FROM patient_chart WHERE patient_id = ?1)",
+    )
+    .bind(patient_id)
+    .execute(&mut *tx)
+    .await?
+    .rows_affected();
+
+    deleted += sqlx::query(
+        "DELETE FROM dental_finding WHERE chart_id IN (SELECT id FROM patient_chart WHERE patient_id = ?1)",
+    )
+    .bind(patient_id)
+    .execute(&mut *tx)
+    .await?
+    .rows_affected();
+
+    deleted += sqlx::query(
+        "DELETE FROM chart_attachment WHERE chart_id IN (SELECT id FROM patient_chart WHERE patient_id = ?1)",
+    )
+    .bind(patient_id)
+    .execute(&mut *tx)
+    .await?
+    .rows_affected();
+
     deleted += sqlx::query("DELETE FROM patient_chart WHERE patient_id = ?1")
         .bind(patient_id)
         .execute(&mut *tx)
