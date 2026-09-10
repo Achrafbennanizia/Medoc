@@ -193,6 +193,7 @@ const COLUMN_RENAMES: &[(&str, &str, &str)] = &[
     ("day_close_protocol", "protokolliert_at", "recorded_at"),
 ];
 
+#[allow(clippy::type_complexity)]
 const ENUM_UPDATES: &[(&str, &str, &[(&str, &str)])] = &[
     (
         "staff",

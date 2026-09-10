@@ -318,7 +318,7 @@ async fn collect_related(pool: &SqlitePool, patient_id: &str) -> Result<Value, A
     .fetch_all(pool)
     .await?;
 
-    let dentalFindings: Vec<(String,)> = sqlx::query_as(
+    let dental_findings: Vec<(String,)> = sqlx::query_as(
         "SELECT 'row:' || id FROM dental_finding WHERE chart_id IN
          (SELECT id FROM patient_chart WHERE patient_id = ?1)",
     )
@@ -326,7 +326,7 @@ async fn collect_related(pool: &SqlitePool, patient_id: &str) -> Result<Value, A
     .fetch_all(pool)
     .await?;
 
-    let anamnesisForm: Vec<(String,)> =
+    let anamnesis_form: Vec<(String,)> =
         sqlx::query_as("SELECT 'row:' || id FROM anamnesis_form WHERE patient_id = ?1")
             .bind(patient_id)
             .fetch_all(pool)
@@ -338,7 +338,7 @@ async fn collect_related(pool: &SqlitePool, patient_id: &str) -> Result<Value, A
             .fetch_all(pool)
             .await?;
 
-    let patientChart: Vec<(String,)> =
+    let patient_chart: Vec<(String,)> =
         sqlx::query_as("SELECT 'row:' || id FROM patient_chart WHERE patient_id = ?1")
             .bind(patient_id)
             .fetch_all(pool)
@@ -369,10 +369,10 @@ async fn collect_related(pool: &SqlitePool, patient_id: &str) -> Result<Value, A
         ("appointments", appointments),
         ("treatments", treatments),
         ("examinations", examinations),
-        ("dentalFindings", dentalFindings),
-        ("anamnesis_form", anamnesisForm),
+        ("dentalFindings", dental_findings),
+        ("anamnesis_form", anamnesis_form),
         ("payments", payments),
-        ("patient_chart", patientChart),
+        ("patient_chart", patient_chart),
         ("prescriptions", prescriptions),
         ("certificates", certificates),
         ("chart_attachment", chart_attachment),

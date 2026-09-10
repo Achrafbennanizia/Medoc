@@ -404,10 +404,10 @@ async fn seed_practice_master(pool: &SqlitePool) -> Result<(), AppError> {
 
     // --- Balance sheet snapshots ---
     for (i, (period, label, income, expense)) in [
-        ("2025-Q4", "Q4 2025", 128_500_00i64, 74_200_00i64),
-        ("2026-Q1", "Q1 2026", 141_200_00, 81_050_00),
-        ("2026-YTD", "Year to date", 265_000_00, 152_400_00),
-        ("2026-04", "April snapshot", 48_900_00, 27_300_00),
+        ("2025-Q4", "Q4 2025", 12_850_000_i64, 7_420_000_i64),
+        ("2026-Q1", "Q1 2026", 14_120_000, 8_105_000),
+        ("2026-YTD", "Year to date", 26_500_000, 15_240_000),
+        ("2026-04", "April snapshot", 4_890_000, 2_730_000),
     ]
     .into_iter()
     .enumerate()

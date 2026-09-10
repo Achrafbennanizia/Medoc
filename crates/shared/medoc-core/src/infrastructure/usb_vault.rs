@@ -392,11 +392,11 @@ pub fn legacy_sidecar_dir() -> PathBuf {
 }
 
 pub fn default_sidecar_path() -> PathBuf {
-    practice_app_data_dir().join(crate::infrastructure::install_plan::PENDING_PLAN_SIDEcar_FILE)
+    practice_app_data_dir().join(crate::infrastructure::install_plan::PENDING_PLAN_SIDECAR_FILE)
 }
 
 pub fn legacy_sidecar_path() -> PathBuf {
-    legacy_sidecar_dir().join(crate::infrastructure::install_plan::PENDING_PLAN_SIDEcar_FILE)
+    legacy_sidecar_dir().join(crate::infrastructure::install_plan::PENDING_PLAN_SIDECAR_FILE)
 }
 
 #[cfg(test)]

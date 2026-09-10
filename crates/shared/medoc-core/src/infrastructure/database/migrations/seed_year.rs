@@ -66,6 +66,7 @@ impl Scale {
     }
 
     /// Tiny scale for unit tests.
+    #[cfg(test)]
     const fn smoke() -> Self {
         Self {
             patients: 12,
@@ -120,7 +121,7 @@ fn mix(n: u64) -> u64 {
         .wrapping_add(0xA5A5_A5A5_5A5A_5A5A)
 }
 
-fn pick<'a, T>(n: u64, items: &'a [T]) -> &'a T {
+fn pick<T>(n: u64, items: &[T]) -> &T {
     &items[(mix(n) as usize) % items.len()]
 }
 
@@ -197,7 +198,7 @@ fn act_for_kind<'a>(kind: &str, n: u64, catalog: &'a [(&str, &str, f64)]) -> (&'
     };
     let matching: Vec<_> = catalog
         .iter()
-        .filter(|(cat, _, _)| preferred.iter().any(|p| *p == *cat))
+        .filter(|(cat, _, _)| preferred.contains(cat))
         .collect();
     let (cat, svc, _) = if matching.is_empty() {
         catalog[(n as usize) % catalog.len()]
@@ -257,7 +258,7 @@ async fn seed_calendar_appointments_tx(
                 let kind = *pick(n + 1, APT_KINDS);
                 let (act_cat, act_svc) = act_for_kind(kind, n + 2, catalog);
                 let status = if day > today {
-                    if n % 3 == 0 {
+                    if n.is_multiple_of(3) {
                         "PLANNED"
                     } else {
                         "CONFIRMED"
@@ -696,7 +697,7 @@ async fn seed_year_volume(pool: &SqlitePool, scale: Scale) -> Result<(), AppErro
         .map_err(AppError::Database)?;
 
         // Multi profile: anamnesis for most patients
-        if mix(i + 31) % 5 != 0 {
+        if !mix(i + 31).is_multiple_of(5) {
             sqlx::query(
                 "INSERT OR IGNORE INTO anamnesis_form
                  (id, patient_id, answers, signed, created_at, updated_at)
@@ -705,7 +706,7 @@ async fn seed_year_volume(pool: &SqlitePool, scale: Scale) -> Result<(), AppErro
             .bind(format!("seed-yr-anam-{i:04}"))
             .bind(&pid)
             .bind(*pick(i + 33, ANAMS))
-            .bind(i32::from(mix(i) % 3 != 0))
+            .bind(i32::from(!mix(i).is_multiple_of(3)))
             .bind(format!("{created} 09:20:00"))
             .execute(&mut *tx)
             .await
@@ -713,7 +714,7 @@ async fn seed_year_volume(pool: &SqlitePool, scale: Scale) -> Result<(), AppErro
         }
 
         // Multiple dental findings for a dense tooth-status look
-        let finding_count = 1 + (mix(i + 40) % 4) as u64;
+        let finding_count = 1 + (mix(i + 40) % 4);
         for f in 0..finding_count {
             let n = mix(i * 17 + f);
             sqlx::query(

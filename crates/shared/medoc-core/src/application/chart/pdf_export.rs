@@ -121,7 +121,7 @@ pub struct ChartExportSections {
     #[serde(default = "default_true")]
     pub chart_core: bool,
     #[serde(default = "default_true")]
-    pub dentalFindings: bool,
+    pub dental_findings: bool,
     #[serde(default = "default_true")]
     pub anamnesis: bool,
     #[serde(default = "default_true")]
@@ -146,7 +146,7 @@ impl Default for ChartExportSections {
         Self {
             patient: true,
             chart_core: true,
-            dentalFindings: true,
+            dental_findings: true,
             anamnesis: true,
             examinations: true,
             treatments: true,
@@ -199,7 +199,7 @@ pub async fn export_chart_pdf(
     let patient_id = args.patient_id.clone();
     let mut sec = args.sections;
     if !medical {
-        sec.dentalFindings = false;
+        sec.dental_findings = false;
         sec.anamnesis = false;
         sec.examinations = false;
         sec.treatments = false;
@@ -307,7 +307,7 @@ pub async fn export_chart_pdf(
         });
     }
 
-    if sec.dentalFindings && medical {
+        if sec.dental_findings && medical {
         let rows_db = chart_repo::find_dental_findings(pool, &chart.id).await?;
         let tbl = if rows_db.is_empty() {
             ChartPdfTable {
@@ -622,8 +622,8 @@ pub async fn export_chart_pdf(
                         vec![
                             z.created_at.format("%Y-%m-%d %H:%M").to_string(),
                             format!("{:.2}", z.amount),
-                            format!("{}", z.payment_method),
-                            format!("{}", z.status),
+                            z.payment_method.to_string(),
+                            z.status.to_string(),
                             z.description.as_deref().unwrap_or("-").to_string(),
                         ]
                     })

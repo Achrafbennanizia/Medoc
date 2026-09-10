@@ -104,6 +104,7 @@ impl CorsGate {
     }
 }
 
+#[allow(clippy::result_large_err)] // axum middleware Err must be Response
 pub async fn cors_origin_gate_middleware(
     gate: axum::extract::State<CorsGate>,
     req: axum::extract::Request,

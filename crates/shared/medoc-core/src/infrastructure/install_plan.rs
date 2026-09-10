@@ -14,7 +14,7 @@ pub const FLAG_SCAN_LAN: u32 = 1 << 3;
 pub const FLAG_INSTALL_SERVER: u32 = 1 << 4;
 pub const FLAG_LAN_CLIENT_ONLY: u32 = 1 << 5;
 
-pub const PENDING_PLAN_SIDEcar_FILE: &str = "install_plan.pending.json";
+pub const PENDING_PLAN_SIDECAR_FILE: &str = "install_plan.pending.json";
 pub const APP_KV_INSTALL_PLAN_PENDING: &str = "install_plan.pending.v1";
 pub const APP_KV_INSTALL_PLAN_PROVISIONING: &str = "install_plan.provisioning.v1";
 
