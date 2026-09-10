@@ -1,0 +1,17 @@
+# cargo-audit configuration (used by `cargo audit` in CI).
+#
+# Unmaintained / yank / some unsound warnings are reported but do not fail CI
+# unless listed as vulnerabilities. Only unignored vulns fail the job.
+
+[advisories]
+ignore = [
+    # sqlx workspace pulls sqlx-mysql → rsa; MeDoc uses SQLite/SQLCipher only.
+    # No fixed rsa release for Marvin (RUSTSEC-2023-0071).
+    "RUSTSEC-2023-0071",
+
+    # Remaining quick-xml 0.39 comes from egui-winit→smithay-clipboard→wayland-scanner
+    # (eframe hardcodes the clipboard feature). Not reachable for untrusted network XML;
+    # clearing requires an eframe major bump. Patched other quick-xml paths to ≥0.41.
+    "RUSTSEC-2026-0194",
+    "RUSTSEC-2026-0195",
+]
