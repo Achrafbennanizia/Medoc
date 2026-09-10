@@ -1,4 +1,4 @@
-# Sequential Vitest: one project/file per process so GHA RSS stays bounded.
+# Sequential Vitest: one project/file (or test) per process so GHA RSS stays bounded.
 $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $PSScriptRoot
@@ -14,9 +14,52 @@ function Invoke-VitestProject([string]$Project, [int]$HeapMb = 4096) {
     Write-Host "::endgroup::"
 }
 
+function Get-HeavySmokeTestNames([string]$FileName) {
+    switch -Regex ($FileName) {
+        '^critical-flows-auth\.smoke\.test\.tsx?$' {
+            return @(
+                "signs in, shows dashboard greeting, signs out",
+                "surfaces the backend error message and keeps the user on the login screen"
+            )
+        }
+        '^g21-routing\.smoke\.test\.tsx?$' {
+            return @(
+                "RECEPTION can open Practice-Tickets (integrated practice tasks) without access denied"
+            )
+        }
+        default { return @() }
+    }
+}
+
+function Invoke-SmokeFile([System.IO.FileInfo]$File) {
+    # 6144 leaves headroom on 7GB GHA Windows runners (process peaked ~3GB before OOM at 3072).
+    $env:NODE_OPTIONS = "--max-old-space-size=6144"
+    $names = @(Get-HeavySmokeTestNames -FileName $File.Name)
+
+    if ($names.Count -gt 0) {
+        $n = 0
+        foreach ($name in $names) {
+            $n++
+            Write-Host "── smoke heavy $n/$($names.Count): $($File.Name) :: $name"
+            npx vitest run --project smoke --pool=forks --maxWorkers=1 --fileParallelism=false --no-watch `
+                --testTimeout=120000 -t "$name" -- $File.FullName
+            if ($LASTEXITCODE -ne 0) {
+                throw "vitest smoke test failed: $($File.Name) / $name (exit $LASTEXITCODE)"
+            }
+        }
+    }
+    else {
+        Write-Host "── smoke: $($File.FullName)"
+        npx vitest run --project smoke --pool=forks --maxWorkers=1 --fileParallelism=false --no-watch `
+            --testTimeout=120000 -- $File.FullName
+        if ($LASTEXITCODE -ne 0) {
+            throw "vitest smoke file failed: $($File.Name) (exit $LASTEXITCODE)"
+        }
+    }
+}
+
 function Invoke-SmokePerFile {
-    $env:NODE_OPTIONS = "--max-old-space-size=3072"
-    Write-Host "::group::vitest project=smoke (per-file)"
+    Write-Host "::group::vitest project=smoke (per-file / per-test for App mounts)"
     $files = @()
     $files += Get-ChildItem -Path "src" -Recurse -File -Filter "*.smoke.test.ts" -ErrorAction SilentlyContinue
     $files += Get-ChildItem -Path "src" -Recurse -File -Filter "*.smoke.test.tsx" -ErrorAction SilentlyContinue
@@ -29,11 +72,8 @@ function Invoke-SmokePerFile {
     $i = 0
     foreach ($f in $files) {
         $i++
-        Write-Host "── smoke $i/$($files.Count): $($f.FullName)"
-        npx vitest run --project smoke --pool=forks --maxWorkers=1 --fileParallelism=false --no-watch -- $f.FullName
-        if ($LASTEXITCODE -ne 0) {
-            throw "vitest smoke file failed: $($f.Name) (exit $LASTEXITCODE)"
-        }
+        Write-Host "── smoke file $i/$($files.Count)"
+        Invoke-SmokeFile -File $f
     }
     Write-Host "::endgroup::"
 }
