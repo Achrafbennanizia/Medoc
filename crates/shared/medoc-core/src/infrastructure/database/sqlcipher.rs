@@ -1,6 +1,6 @@
 //! SQLCipher connect helpers + plaintext → encrypted migration.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions};
 use std::str::FromStr;
@@ -64,30 +64,58 @@ pub async fn migrate_plaintext_to_sqlcipher(db_path: &Path, key: &[u8]) -> Resul
     std::fs::copy(db_path, &backup)
         .map_err(|e| AppError::Internal(format!("Backup before SQLCipher migration: {e}")))?;
 
-    let tmp = db_path.with_extension("db.enc-migrate-tmp");
+    // Short sibling name — `Path::with_extension("db.enc-…")` yields awkward multi-dot paths
+    // that SQLCipher ATTACH has rejected with SQLITE_CANTOPEN on CI.
+    let tmp = db_path
+        .parent()
+        .map(|p| p.join("medoc-migrate-enc.db"))
+        .unwrap_or_else(|| PathBuf::from("medoc-migrate-enc.db"));
     let _ = std::fs::remove_file(&tmp);
 
-    let key_pragma = db_key::pragma_key_value(key);
-    let plain_opts = plain_connect_options(db_path)?;
+    // Create the destination as a normal SQLCipher DB first (proves path + key work),
+    // then overwrite it via sqlcipher_export from the plaintext source.
+    {
+        let enc = open_encrypted_pool(&tmp, Zeroizing::new(key.to_vec()), true).await?;
+        enc.close().await;
+    }
 
+    let plain_opts = plain_connect_options(db_path)?;
     let pool = SqlitePoolOptions::new()
         .max_connections(1)
         .connect_with(plain_opts)
         .await
         .map_err(AppError::Database)?;
 
+    // One connection + one statement each — sqlx::query cannot reliably run
+    // ATTACH / sqlcipher_export / DETACH as a multi-statement prepare (sqlx 0.8).
+    let mut conn = pool.acquire().await.map_err(AppError::Database)?;
     let tmp_escaped = tmp.to_string_lossy().replace('\\', "/").replace('\'', "''");
-    let sql = format!(
-        "ATTACH DATABASE '{tmp_escaped}' AS encrypted KEY {key_pragma}; \
-         SELECT sqlcipher_export('encrypted'); \
-         DETACH DATABASE encrypted;",
-        key_pragma = key_pragma
-    );
-    sqlx::query(&sql)
-        .execute(&pool)
+    // ATTACH KEY must match sqlx `.pragma("key", …)` / open_encrypted_pool formatting.
+    let key_hex: String = key.iter().map(|b| format!("{b:02x}")).collect();
+    sqlx::query(&format!(
+        "ATTACH DATABASE '{tmp_escaped}' AS encrypted KEY \"x'{key_hex}'\""
+    ))
+    .execute(&mut *conn)
+    .await
+    .map_err(|e| AppError::Internal(format!("SQLCipher migrate ATTACH failed: {e}")))?;
+    sqlx::query("SELECT sqlcipher_export('encrypted')")
+        .execute(&mut *conn)
         .await
-        .map_err(AppError::Database)?;
+        .map_err(|e| {
+            AppError::Internal(format!("SQLCipher migrate sqlcipher_export failed: {e}"))
+        })?;
+    sqlx::query("DETACH DATABASE encrypted")
+        .execute(&mut *conn)
+        .await
+        .map_err(|e| AppError::Internal(format!("SQLCipher migrate DETACH failed: {e}")))?;
+    drop(conn);
     pool.close().await;
+
+    if !tmp.exists() {
+        return Err(AppError::Internal(
+            "SQLCipher migrate produced no encrypted temp file".into(),
+        ));
+    }
 
     // Windows: rename over an existing path often fails; prefer replace via remove+rename, then copy.
     if db_path.exists() {

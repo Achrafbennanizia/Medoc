@@ -4,6 +4,7 @@ use medoc_lib::infrastructure::database::connection::init_db_headless;
 use medoc_lib::infrastructure::database::connection::test_memory_pool;
 use medoc_lib::infrastructure::database::db_key;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use std::path::Path;
 use std::str::FromStr;
 
 const HEX_KEY: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
@@ -102,28 +103,12 @@ async fn migrate_plaintext_file_to_sqlcipher() {
     std::fs::create_dir_all(&dir).unwrap();
     let db_path = dir.join("medoc.db");
 
-    // Create a stock plaintext SQLite file without the `sqlite3` CLI (missing on Windows GHA).
-    // SQLCipher leaves the file unencrypted until PRAGMA key is set.
-    {
-        let opts = SqliteConnectOptions::new()
-            .filename(&db_path)
-            .create_if_missing(true)
-            .journal_mode(sqlx::sqlite::SqliteJournalMode::Delete);
-        let plain_pool = SqlitePoolOptions::new()
-            .max_connections(1)
-            .connect_with(opts)
-            .await
-            .expect("create plaintext sqlite");
-        sqlx::query("CREATE TABLE plain_probe (id INTEGER PRIMARY KEY)")
-            .execute(&plain_pool)
-            .await
-            .expect("create plaintext table");
-        sqlx::query("INSERT INTO plain_probe VALUES (1)")
-            .execute(&plain_pool)
-            .await
-            .expect("seed plaintext row");
-        plain_pool.close().await;
-    }
+    // Stock SQLite fixture (not created via SQLCipher) — Windows GHA has no `sqlite3` CLI.
+    std::fs::copy(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/plaintext-probe.sqlite"),
+        &db_path,
+    )
+    .expect("copy plaintext fixture");
     assert!(
         medoc_lib::infrastructure::database::sqlcipher::is_plaintext_sqlite_file(&db_path),
         "expected unencrypted SQLite header"
@@ -133,7 +118,7 @@ async fn migrate_plaintext_file_to_sqlcipher() {
     let key = db_key::env_override_key().expect("MEDOC_DB_KEY");
     medoc_lib::infrastructure::database::sqlcipher::migrate_plaintext_to_sqlcipher(&db_path, &key)
         .await
-        .expect("migrate plaintext → SQLCipher");
+        .unwrap_or_else(|e| panic!("migrate plaintext → SQLCipher: {e:?}"));
 
     assert!(
         medoc_lib::infrastructure::database::sqlcipher::opens_with_sqlcipher_key(&db_path, &key)
