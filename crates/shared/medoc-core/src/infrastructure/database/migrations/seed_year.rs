@@ -210,7 +210,7 @@ fn packed_day_slots(day: NaiveDate, count: usize) -> Vec<(String, &'static str, 
         let kind = *pick(n + 1, APT_KINDS);
         let dur = duration_for_kind(kind, n + 2);
         // Snap start to a clean 5-minute mark.
-        cursor = ((cursor + 4) / 5) * 5;
+        cursor = cursor.div_ceil(5) * 5;
         if cursor < LUNCH_END && cursor + dur > LUNCH_START {
             cursor = LUNCH_END;
         }
