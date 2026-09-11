@@ -126,13 +126,15 @@ export function TreatmentChartComposerPanel({
                     </div>
                 ) : null}
                 {chart ? (
-                    <DentalChart
-                        mode="picker"
-                        findings={findings}
-                        selectedTooth={selectedTreatmentTooth}
-                        onToothSelect={onSelectTooth}
-                        disabled={treatmentFieldsLocked}
-                    />
+                    <div className="treatment-composer-dental">
+                        <DentalChart
+                            mode="picker"
+                            findings={findings}
+                            selectedTooth={selectedTreatmentTooth}
+                            onToothSelect={onSelectTooth}
+                            disabled={treatmentFieldsLocked}
+                        />
+                    </div>
                 ) : null}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" style={{ marginTop: 16 }}>
                     <Input

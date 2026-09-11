@@ -11,6 +11,7 @@ import {
     APPOINTMENT_DEFAULT_DUR_MIN,
     timeToMinutes,
 } from "@/lib/appointment-calendar-ui";
+import { parseAppointmentDurationMin } from "@/lib/appointment-domain";
 import {
     BoltIcon,
     CheckIcon,
@@ -62,7 +63,7 @@ export function AppointmentDetailDrawer({
     const panelRef = useRef<HTMLDivElement>(null);
     const st = appointmentStateDisplay(appointment);
     const active = appointmentDrawerActiveStep(appointment.status);
-    const duration = APPOINTMENT_DEFAULT_DUR_MIN;
+    const duration = Math.max(5, parseAppointmentDurationMin(appointment.notes, APPOINTMENT_DEFAULT_DUR_MIN));
 
     useEffect(() => {
         const prevOverflow = document.body.style.overflow;

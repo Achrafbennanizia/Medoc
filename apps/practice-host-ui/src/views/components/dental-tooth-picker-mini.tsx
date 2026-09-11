@@ -10,6 +10,8 @@ import {
     DENTAL_UPPER_R,
     findingToStatusKey,
     dentalToothType,
+    formatDentalToothLabel,
+    formatDentalToothList,
     sortFdiTeeth,
 } from "@/lib/dental";
 
@@ -50,12 +52,13 @@ export function DentalToothPickerMini({
         const stateKey = findingToStatusKey(map.get(Number(n)));
         const state = DENTAL_STATES[stateKey];
         const isSel = selectedSet.has(n);
+        const label = formatDentalToothLabel(n, t);
         return (
             <button
                 key={n}
                 type="button"
                 className={`dental-mini-tooth-btn${isSel ? " dental-mini-tooth-btn--selected" : ""}`}
-                aria-label={tp("dental.tooth_aria", { tooth: n })}
+                aria-label={tp("dental.tooth_aria", { tooth: label })}
                 aria-pressed={isSel}
                 onClick={() => onToggleTooth(n)}
             >
@@ -73,7 +76,7 @@ export function DentalToothPickerMini({
                         strokeWidth={isSel ? 1.35 : 0.85}
                     />
                 </svg>
-                <span className="dental-mini-tooth-num">{n}</span>
+                <span className="dental-mini-tooth-num">{label}</span>
             </button>
         );
     };
@@ -86,15 +89,42 @@ export function DentalToothPickerMini({
                     {t("dental.picker.selected_label")}{" "}
                     <strong>
                         {pickedLabel.length === 1
-                            ? tp("dental.picker.one_tooth", { tooth: pickedLabel[0] })
-                            : tp("dental.picker.many_teeth", { teeth: pickedLabel.join(", ") })}
+                            ? tp("dental.picker.one_tooth", { tooth: formatDentalToothLabel(pickedLabel[0]!, t) })
+                            : tp("dental.picker.many_teeth", { teeth: formatDentalToothList(pickedLabel, t) })}
                     </strong>
                 </p>
             ) : null}
-            <div className="dental-tooth-picker-mini__rows">
-                <div className="dental-tooth-picker-mini__row">{DENTAL_UPPER_R.map(renderTooth)}{DENTAL_UPPER_L.map(renderTooth)}</div>
-                <div className="dental-tooth-picker-mini__divider" aria-hidden />
-                <div className="dental-tooth-picker-mini__row">{DENTAL_LOWER_R.map(renderTooth)}{DENTAL_LOWER_L.map(renderTooth)}</div>
+            <div className="dental-odontogram dental-odontogram--picker">
+                <span className="dental-odontogram__axis dental-odontogram__axis--top" aria-hidden>
+                    {t("dental.axis.top")}
+                </span>
+                <div className="dental-odontogram__body">
+                    <span className="dental-odontogram__axis dental-odontogram__axis--start" aria-hidden>
+                        {t("dental.axis.right")}
+                    </span>
+                    <div className="dental-odontogram__chart" role="group">
+                        <div className="dental-odontogram__quad dental-odontogram__quad--ur dental-odontogram__quad--gap-sm">
+                            {DENTAL_UPPER_R.map(renderTooth)}
+                        </div>
+                        <div className="dental-odontogram__vline" aria-hidden />
+                        <div className="dental-odontogram__quad dental-odontogram__quad--ul dental-odontogram__quad--gap-sm">
+                            {DENTAL_UPPER_L.map(renderTooth)}
+                        </div>
+                        <div className="dental-odontogram__hline" aria-hidden />
+                        <div className="dental-odontogram__quad dental-odontogram__quad--lr dental-odontogram__quad--gap-sm">
+                            {DENTAL_LOWER_R.map(renderTooth)}
+                        </div>
+                        <div className="dental-odontogram__quad dental-odontogram__quad--ll dental-odontogram__quad--gap-sm">
+                            {DENTAL_LOWER_L.map(renderTooth)}
+                        </div>
+                    </div>
+                    <span className="dental-odontogram__axis dental-odontogram__axis--end" aria-hidden>
+                        {t("dental.axis.left")}
+                    </span>
+                </div>
+                <span className="dental-odontogram__axis dental-odontogram__axis--bottom" aria-hidden>
+                    {t("dental.axis.bottom")}
+                </span>
             </div>
         </div>
     );

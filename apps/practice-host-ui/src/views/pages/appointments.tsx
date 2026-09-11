@@ -52,7 +52,9 @@ import { PRACTICE_WORK_HOURS_CHANGED_EVENT } from "@/lib/appointment-calendar-la
 import { validateAppointmentSchedulingUpdates } from "@/lib/appointment-availability";
 import { deriveDayPackingBounds, snapAppointmentDragPosition } from "@/lib/appointment-drag-snap";
 import {
+    bindAppointmentDragBlock,
     clearAppointmentDragSession,
+    createAppointmentDragGhost,
     findAppointmentDragColumnByIso,
     hitAppointmentDragHourGutter,
     invalidateAppointmentDragColumnCache,
@@ -77,7 +79,11 @@ import { AppointmentContextMenu } from "../components/appointment-context-menu";
 import { AppointmentDetailDrawer } from "../components/appointment-detail-drawer";
 import { DoctorLegend } from "../components/appointment-doctor-legend";
 import { AppointmentMonthCalendar } from "../components/appointment-month-calendar";
-import { AppointmentDaySplit, AppointmentWeekGrid } from "../components/appointment-week-day-grid";
+import {
+    AppointmentDaySplit,
+    AppointmentWeekGrid,
+    type AppointmentDragState,
+} from "../components/appointment-week-day-grid";
 import { WorkspacePageHeader } from "../components/administration-page-header";
 import {
     // AmbulanceIcon, — calendar: emergency toolbar temporarily disabled
@@ -119,10 +125,15 @@ const WEEK_NAV_EDGE_PX = 48;
 const DRAG_DATE_NAV_COOLDOWN_MS = 500;
 /** After drag: briefly suppress context menu (trackpad/OS often fires "contextmenu" on release). */
 const APPT_CTX_SUPPRESS_AFTER_DRAG_MS = 1400;
-/** Week view: block first click after drag (browser often fires click right after mouseup on Appointment button). */
+/** Block the synthetic `click` after pointer mouseup (drawer opens on a short delay instead). */
 const APPT_CLICK_SUPPRESS_AFTER_DROP_MS = 500;
-/** Sum of pointer movement (|dx|+|dy|) from drag start — above this threshold counts as drag gesture. */
-const APPT_DRAG_TRAVEL_SUPPRESS_CTX_PX = 6;
+/** Travel below this on mouseup = click (open sidebar); at/above = drag (no sidebar). */
+const APPT_DRAG_TRAVEL_PX = 5;
+/**
+ * After a click (no drag), wait before opening the detail sidebar so the user can
+ * press again and drag without the drawer stealing focus.
+ */
+const APPT_DRAWER_OPEN_DELAY_MS = 320;
 
 const timeToMinutes = appointmentTimeToMinutes;
 
@@ -176,35 +187,39 @@ export function AppointmentsPage() {
     // const pauseTitleId = useId();
     const [drawerAppointment, setDrawerAppointment] = useState<TCalEvent | null>(null);
     const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; appointment: TCalEvent } | null>(null);
-    const [dragState, setDragState] = useState<null | {
-        id: string;
-        physicianId: string;
-        date: string;
-        durMin: number;
-        originalDate: string;
-        originalStartMin: number;
-        currentDate: string;
-        currentStartMin: number;
-        dropAllowed: boolean;
-    }>(null);
+    const [dragState, setDragState] = useState<AppointmentDragState | null>(null);
     /** Day view: last hour chosen via drag on the hour rail (persists until new interaction). */
     const [appointmentDaySnapLabel, setAppointmentDaySnapLabel] = useState<null | { iso: string; startMin: number }>(null);
+    /** Detach window listeners for the active drag (must not wait for useEffect — see beginAppointmentDrag). */
+    const dragTrackingTeardownRef = useRef<(() => void) | null>(null);
     const dragStateRef = useRef(dragState);
     useLayoutEffect(() => {
+        // Do not clobber the live drag session ref while window listeners own it.
+        if (dragTrackingTeardownRef.current) return;
         dragStateRef.current = dragState;
     }, [dragState]);
+    const viewRef = useRef(view);
+    useLayoutEffect(() => {
+        viewRef.current = view;
+    }, [view]);
     /** Last change of `currentDate` via drag (day column, edge, week ±1). */
     const lastDragDateNavAtRef = useRef(0);
     const suppressApptContextMenuUntilRef = useRef(0);
-    /** Week view only: re-allow Appointment tile click after drag-drop (see `APPT_CLICK_SUPPRESS_AFTER_DROP_MS`). */
+    /** Re-allow Appointment tile click after pointer interaction (see `APPT_CLICK_SUPPRESS_AFTER_DROP_MS`). */
     const suppressApptClickUntilRef = useRef(0);
     const dragPointerTravelRef = useRef(0);
     const dragLastClientRef = useRef<{ x: number; y: number } | null>(null);
     const dragRafRef = useRef<number | null>(null);
     const dragMoveEventRef = useRef<MouseEvent | null>(null);
     const lastDragPatchRef = useRef<AppointmentDragPatch | null>(null);
+    const appointmentsRef = useRef(appointments);
+    const pendingDrawerTimerRef = useRef<number | null>(null);
+    const pendingDrawerApptIdRef = useRef<string | null>(null);
     const practicePlanCfgRef = useRef(practicePlanCfg);
     const absencesRef = useRef(absences);
+    useEffect(() => {
+        appointmentsRef.current = appointments;
+    }, [appointments]);
     useEffect(() => {
         practicePlanCfgRef.current = practicePlanCfg;
     }, [practicePlanCfg]);
@@ -748,339 +763,411 @@ export function AppointmentsPage() {
         setCtxMenu({ x: e.clientX, y: e.clientY, appointment });
     }, []);
 
-    useEffect(() => {
-        const dragId = dragState?.id;
-        if (!dragId) return undefined;
-        dragPointerTravelRef.current = 0;
-        dragLastClientRef.current = null;
-        dragMoveEventRef.current = null;
-        lastDragPatchRef.current = null;
-        invalidateAppointmentDragColumnCache();
-        document.body.classList.add("appointment-calendar-dragging");
+    const cancelPendingDrawerOpen = useCallback(() => {
+        if (pendingDrawerTimerRef.current != null) {
+            window.clearTimeout(pendingDrawerTimerRef.current);
+            pendingDrawerTimerRef.current = null;
+        }
+        pendingDrawerApptIdRef.current = null;
+    }, []);
 
-        const dragSnapshot = dragStateRef.current;
-        lastDragPatchRef.current = {
-            currentDate: dragSnapshot?.currentDate ?? "",
-            currentStartMin: dragSnapshot?.currentStartMin ?? 0,
-            dropAllowed: dragSnapshot?.dropAllowed ?? false,
-        };
+    const scheduleDrawerOpen = useCallback((appointmentId: string) => {
+        cancelPendingDrawerOpen();
+        pendingDrawerApptIdRef.current = appointmentId;
+        pendingDrawerTimerRef.current = window.setTimeout(() => {
+            pendingDrawerTimerRef.current = null;
+            const id = pendingDrawerApptIdRef.current;
+            pendingDrawerApptIdRef.current = null;
+            if (!id) return;
+            const ap = appointmentsRef.current.find((x) => x.id === id);
+            if (!ap) return;
+            setDrawerAppointment(ap);
+            setCtxMenu(null);
+        }, APPT_DRAWER_OPEN_DELAY_MS);
+    }, [cancelPendingDrawerOpen]);
 
-        const spanMin = dayEndMin - dayStartMin;
-        const timelineBoundsLocal = { startMin: dayStartMin, endMin: dayEndMin };
-        const weekCanvas = document.querySelector<HTMLElement>("[data-appointment-week-canvas]");
-        const dayCanvas = document.querySelector<HTMLElement>("[data-appointment-day-canvas]");
-        let weekCanvasRect = weekCanvas?.getBoundingClientRect() ?? null;
-        let dayCanvasRect = dayCanvas?.getBoundingClientRect() ?? null;
+    const beginAppointmentDrag = useCallback(
+        (
+            next: AppointmentDragState,
+            el: HTMLButtonElement,
+            singleDay: boolean,
+            pointer: { clientX: number; clientY: number },
+        ) => {
+            // Pressing again cancels a pending sidebar open so the user can drag instead.
+            cancelPendingDrawerOpen();
+            dragTrackingTeardownRef.current?.();
+            dragTrackingTeardownRef.current = null;
+            clearAppointmentDragSession();
 
-        const activeDragDate = () =>
-            lastDragPatchRef.current?.currentDate ?? dragStateRef.current?.currentDate ?? "";
-        const activeDragStartMin = () =>
-            lastDragPatchRef.current?.currentStartMin ?? dragStateRef.current?.currentStartMin ?? 0;
+            const dragId = next.id;
+            const dragView = viewRef.current;
 
-        const repaintAfterNav = () => {
-            requestAnimationFrame(() => {
-                invalidateAppointmentDragColumnCache();
-                const patch = lastDragPatchRef.current;
-                if (patch) {
-                    paintDragVisual(patch.currentDate, patch.currentStartMin, !patch.dropAllowed);
-                }
-            });
-        };
-
-        const pxPerMinForColumn = (height: number) => (height > 8 ? height / spanMin : PX_PER_MIN);
-
-        const paintDragVisual = (finalIso: string, startMin: number, dropAllowed: boolean) => {
-            const col = findAppointmentDragColumnByIso(finalIso);
-            if (!col) return;
-            const topPx = (startMin - dayStartMin) * pxPerMinForColumn(col.height);
-            if (view === "week") {
-                positionAppointmentDragGhost(col, topPx, startMin, !dropAllowed);
-            } else {
-                paintAppointmentDragVisual(topPx, startMin, !dropAllowed);
-            }
-            paintAppointmentHourGutterSnap(topPx, startMin);
-        };
-
-        const commitDragPatch = (patch: AppointmentDragPatch) => {
-            paintDragVisual(patch.currentDate, patch.currentStartMin, patch.dropAllowed);
-            if (!appointmentDragPatchChanged(lastDragPatchRef.current, patch)) return;
-            lastDragPatchRef.current = patch;
-            const prev = dragStateRef.current;
-            if (!prev || prev.id !== dragId) return;
-            dragStateRef.current = { ...prev, ...patch };
-            if (view === "week") return;
-            setDragState((p) => (p && p.id === dragId ? { ...p, ...patch } : p));
-        };
-
-        const resolveSnapped = (targetIso: string, rawMin: number) => {
-            const prev = dragStateRef.current;
-            if (!prev || prev.id !== dragId) return null;
-            return snapAppointmentDragPosition({
-                practiceCfg: practicePlanCfgRef.current,
-                absences: absencesRef.current,
-                physicianId: prev.physicianId,
-                isoDate: targetIso,
-                rawStartMin: rawMin,
-                durMin: prev.durMin,
-                timelineBounds: timelineBoundsLocal,
-            });
-        };
-
-        const clampStartMin = (rawMin: number, durMin: number) => {
-            const snapped = Math.round(rawMin / 5) * 5;
-            const lo = dayStartMin;
-            const hi = dayEndMin - durMin;
-            return Math.max(lo, Math.min(snapped, hi));
-        };
-
-        const timeFromY = (clientY: number, colTop: number, colHeight: number, durMin: number) => {
-            const y = clientY - colTop;
-            const minRaw = dayStartMin + y / pxPerMinForColumn(colHeight);
-            return clampStartMin(minRaw, durMin);
-        };
-
-        const applyDragTimeline = (targetIso: string, rawMin: number, jumpIfDayChanges: boolean) => {
-            const prev = dragStateRef.current;
-            if (!prev || prev.id !== dragId) return;
-
-            const activeDate = lastDragPatchRef.current?.currentDate ?? prev.currentDate;
-            if (targetIso !== activeDate) {
-                const probe = resolveSnapped(targetIso, rawMin);
-                if (!probe?.dayAllowed) return;
-                if (view !== "week") {
-                    const nowTs = Date.now();
-                    if (nowTs - lastDragDateNavAtRef.current < DRAG_DATE_NAV_COOLDOWN_MS) return;
-                    lastDragDateNavAtRef.current = nowTs;
-                }
-            }
-
-            const snap = resolveSnapped(targetIso, rawMin);
-            if (!snap) return;
-            const finalIso = snap.dayAllowed ? targetIso : activeDate;
-            const finalSnap = snap.dayAllowed ? snap : resolveSnapped(activeDate, rawMin);
-            if (!finalSnap) return;
-
-            commitDragPatch({
-                currentDate: finalIso,
-                currentStartMin: finalSnap.startMin,
-                dropAllowed: finalSnap.dayAllowed && finalSnap.slotAllowed,
-            });
-
-            if (jumpIfDayChanges && view !== "week" && finalIso !== activeDate && snap.dayAllowed) {
-                jumpToIsoDateRef.current(finalIso);
-            }
-        };
-
-        const tryWeekHop = (deltaDays: number, deltaWeekOffset: number, clientX: number, clientY: number) => {
-            const prev = dragStateRef.current;
-            if (!prev || prev.id !== dragId) return false;
-            const now = Date.now();
-            if (now - lastDragDateNavAtRef.current < DRAG_DATE_NAV_COOLDOWN_MS) return true;
-            const date = activeDragDate();
-            const startMin = activeDragStartMin();
-            const newDate = format(addDays(parseISO(date), deltaDays), "yyyy-MM-dd");
-            const refCol =
-                findAppointmentDragColumnByIso(date)
-                ?? pickAppointmentDragColumn(clientX, clientY)
-                ?? listAppointmentDragColumns()[0];
-            const rawMin = refCol
-                ? timeFromY(clientY, refCol.top, refCol.height, prev.durMin)
-                : startMin;
-            const snap = resolveSnapped(newDate, rawMin);
-            if (!snap?.dayAllowed) return true;
-            lastDragDateNavAtRef.current = now;
-            setWeekOffset((w) => w + deltaWeekOffset);
-            invalidateAppointmentDragColumnCache();
-            commitDragPatch({
-                currentDate: newDate,
-                currentStartMin: snap.startMin,
-                dropAllowed: snap.slotAllowed,
-            });
-            repaintAfterNav();
-            return true;
-        };
-
-        const tryDayHop = (deltaDays: number, clientY: number) => {
-            const prev = dragStateRef.current;
-            if (!prev || prev.id !== dragId) return false;
-            const now = Date.now();
-            if (now - lastDragDateNavAtRef.current < DRAG_DATE_NAV_COOLDOWN_MS) return true;
-            const date = activeDragDate();
-            const col = findAppointmentDragColumnByIso(date) ?? listAppointmentDragColumns()[0];
-            const rawMin = col ? timeFromY(clientY, col.top, col.height, prev.durMin) : activeDragStartMin();
-            const newDate = format(addDays(parseISO(date), deltaDays), "yyyy-MM-dd");
-            const snap = resolveSnapped(newDate, rawMin);
-            if (!snap?.dayAllowed || !snap.slotAllowed) return true;
-            lastDragDateNavAtRef.current = now;
-            commitDragPatch({
-                currentDate: newDate,
-                currentStartMin: snap.startMin,
-                dropAllowed: true,
-            });
-            jumpToIsoDateRef.current(newDate);
-            repaintAfterNav();
-            return true;
-        };
-
-        const processMove = (e: MouseEvent) => {
-            const ds = dragStateRef.current;
-            if (!ds || ds.id !== dragId) return;
-
-            if (dragLastClientRef.current === null) {
-                dragLastClientRef.current = { x: e.clientX, y: e.clientY };
-            } else {
-                const lx = dragLastClientRef.current.x;
-                const ly = dragLastClientRef.current.y;
-                dragPointerTravelRef.current += Math.abs(e.clientX - lx) + Math.abs(e.clientY - ly);
-                dragLastClientRef.current = { x: e.clientX, y: e.clientY };
-            }
-
-            if (view === "week" && weekCanvasRect) {
-                const edge = detectWeekGridDragEdge(
-                    e.clientX,
-                    e.clientY,
-                    weekCanvasRect,
-                    CANVAS_DRAG_EDGE_ZONE_PX,
-                );
-                const outsideLeft = e.clientX < weekCanvasRect.left - WEEK_NAV_EDGE_PX;
-                const outsideRight = e.clientX > weekCanvasRect.right + WEEK_NAV_EDGE_PX;
-                setAppointmentDragNavEdge(weekCanvas, edge);
-                if (edge === "left" || outsideLeft) {
-                    if (tryWeekHop(-7, -1, e.clientX, e.clientY)) return;
-                }
-                if (edge === "right" || outsideRight) {
-                    if (tryWeekHop(7, 1, e.clientX, e.clientY)) return;
-                }
-            } else if (view === "day" && dayCanvasRect) {
-                const edge = detectCanvasDragEdge(
-                    e.clientX,
-                    e.clientY,
-                    dayCanvasRect,
-                    CANVAS_DRAG_EDGE_ZONE_PX,
-                );
-                const outsideLeft = e.clientX < dayCanvasRect.left - DAY_DRAG_EDGE_PX;
-                const outsideRight = e.clientX > dayCanvasRect.right + DAY_DRAG_EDGE_PX;
-                setAppointmentDragNavEdge(dayCanvas, edge);
-                if (edge === "left" || outsideLeft) {
-                    if (tryDayHop(-1, e.clientY)) return;
-                }
-                if (edge === "right" || outsideRight) {
-                    if (tryDayHop(1, e.clientY)) return;
-                }
-            } else {
-                setAppointmentDragNavEdge(null, null);
-            }
-
-            if (view === "week") {
-                const col = pickAppointmentDragColumn(e.clientX, e.clientY);
-                if (col) {
-                    applyDragTimeline(col.iso, timeFromY(e.clientY, col.top, col.height, ds.durMin), false);
-                    return;
-                }
-                const gutter = hitAppointmentDragHourGutter(e.clientX, e.clientY);
-                if (gutter) {
-                    const activeDate = lastDragPatchRef.current?.currentDate ?? ds.currentDate;
-                    applyDragTimeline(
-                        activeDate,
-                        timeFromY(e.clientY, gutter.top, gutter.height, ds.durMin),
-                        false,
-                    );
-                }
-                return;
-            }
-
-            const cols = listAppointmentDragColumns();
-            const col = cols[0];
-            if (col) {
-                if (e.clientX >= col.left && e.clientX <= col.right) {
-                    applyDragTimeline(col.iso, timeFromY(e.clientY, col.top, col.height, ds.durMin), false);
-                    return;
-                }
-                const gutter = hitAppointmentDragHourGutter(e.clientX, e.clientY);
-                if (gutter) {
-                    applyDragTimeline(
-                        activeDragDate(),
-                        timeFromY(e.clientY, gutter.top, gutter.height, ds.durMin),
-                        false,
-                    );
-                }
-            }
-        };
-
-        const flushMove = () => {
-            dragRafRef.current = null;
-            const e = dragMoveEventRef.current;
-            if (!e) return;
-            processMove(e);
-        };
-
-        const onMove = (e: MouseEvent) => {
-            dragMoveEventRef.current = e;
-            if (dragRafRef.current != null) return;
-            dragRafRef.current = requestAnimationFrame(flushMove);
-        };
-
-        const onScroll = () => {
-            invalidateAppointmentDragColumnCache();
-            weekCanvasRect = weekCanvas?.getBoundingClientRect() ?? null;
-            dayCanvasRect = dayCanvas?.getBoundingClientRect() ?? null;
-        };
-
-        const onUp = () => {
-            if (dragRafRef.current != null) {
-                cancelAnimationFrame(dragRafRef.current);
-                dragRafRef.current = null;
-            }
-            const travel = dragPointerTravelRef.current;
+            // Activate on the same press — single press+drag works; click is decided on mouseup.
+            dragStateRef.current = next;
+            setDragState(next);
+            lastDragPatchRef.current = {
+                currentDate: next.currentDate,
+                currentStartMin: next.currentStartMin,
+                dropAllowed: next.dropAllowed,
+            };
             dragPointerTravelRef.current = 0;
-            dragLastClientRef.current = null;
+            dragLastClientRef.current = { x: pointer.clientX, y: pointer.clientY };
             dragMoveEventRef.current = null;
-            const prev = dragStateRef.current;
-            if (!prev || prev.id !== dragId) return;
-            const live = lastDragPatchRef.current;
-            const finalDate = live?.currentDate ?? prev.currentDate;
-            const finalStart = live?.currentStartMin ?? prev.currentStartMin;
-            const finalDrop = live?.dropAllowed ?? prev.dropAllowed;
-            lastDragPatchRef.current = null;
-            const changed =
-                finalDate !== prev.originalDate || finalStart !== prev.originalStartMin;
-            if (changed) {
-                if (finalDrop) {
-                    void commitDrag(prev.id, finalDate, finalStart);
-                } else {
-                    toast(t("appointments.scheduling.outside_hours"), "error");
-                }
+            invalidateAppointmentDragColumnCache();
+            document.body.classList.add("appointment-calendar-dragging");
+            if (singleDay) {
+                const col = findAppointmentDragColumnByIso(next.currentDate);
+                const span = Math.max(1, dayEndMin - dayStartMin);
+                const ppm = col && col.height > 8 ? col.height / span : PX_PER_MIN;
+                const topPx = (next.originalStartMin - dayStartMin) * ppm;
+                el.style.setProperty("--appointment-drag-top", `${topPx}px`);
+                bindAppointmentDragBlock(el);
+            } else {
+                createAppointmentDragGhost(el, next.id);
             }
-            const endedDragGesture = changed || travel >= APPT_DRAG_TRAVEL_SUPPRESS_CTX_PX;
-            if (endedDragGesture) {
-                suppressApptContextMenuUntilRef.current = Date.now() + APPT_CTX_SUPPRESS_AFTER_DRAG_MS;
-                if (view === "week") {
-                    suppressApptClickUntilRef.current = Date.now() + APPT_CLICK_SUPPRESS_AFTER_DROP_MS;
-                }
-            }
-            clearAppointmentDragSession();
-            document.body.classList.remove("appointment-calendar-dragging");
-            setDragState(null);
-        };
 
-        window.addEventListener("mousemove", onMove, { passive: true });
-        window.addEventListener("mouseup", onUp);
-        window.addEventListener("scroll", onScroll, true);
-        window.addEventListener("resize", onScroll);
-        return () => {
-            window.removeEventListener("mousemove", onMove);
-            window.removeEventListener("mouseup", onUp);
-            window.removeEventListener("scroll", onScroll, true);
-            window.removeEventListener("resize", onScroll);
-            if (dragRafRef.current != null) {
-                cancelAnimationFrame(dragRafRef.current);
+            const spanMin = dayEndMin - dayStartMin;
+            const timelineBoundsLocal = { startMin: dayStartMin, endMin: dayEndMin };
+            const weekCanvas = document.querySelector<HTMLElement>("[data-appointment-week-canvas]");
+            const dayCanvas = document.querySelector<HTMLElement>("[data-appointment-day-canvas]");
+            let weekCanvasRect = weekCanvas?.getBoundingClientRect() ?? null;
+            let dayCanvasRect = dayCanvas?.getBoundingClientRect() ?? null;
+
+            const activeDragDate = () =>
+                lastDragPatchRef.current?.currentDate ?? dragStateRef.current?.currentDate ?? "";
+            const activeDragStartMin = () =>
+                lastDragPatchRef.current?.currentStartMin ?? dragStateRef.current?.currentStartMin ?? 0;
+
+            const repaintAfterNav = () => {
+                requestAnimationFrame(() => {
+                    invalidateAppointmentDragColumnCache();
+                    const patch = lastDragPatchRef.current;
+                    if (patch) {
+                        paintDragVisual(patch.currentDate, patch.currentStartMin, !patch.dropAllowed);
+                    }
+                });
+            };
+
+            const pxPerMinForColumn = (height: number) => (height > 8 ? height / spanMin : PX_PER_MIN);
+
+            const paintDragVisual = (finalIso: string, startMin: number, dropAllowed: boolean) => {
+                const col = findAppointmentDragColumnByIso(finalIso);
+                if (!col) return;
+                const topPx = (startMin - dayStartMin) * pxPerMinForColumn(col.height);
+                if (dragView === "week") {
+                    positionAppointmentDragGhost(col, topPx, startMin, !dropAllowed);
+                } else {
+                    paintAppointmentDragVisual(topPx, startMin, !dropAllowed);
+                }
+                paintAppointmentHourGutterSnap(topPx, startMin);
+            };
+
+            const commitDragPatch = (patch: AppointmentDragPatch) => {
+                paintDragVisual(patch.currentDate, patch.currentStartMin, patch.dropAllowed);
+                if (!appointmentDragPatchChanged(lastDragPatchRef.current, patch)) return;
+                lastDragPatchRef.current = patch;
+                const prev = dragStateRef.current;
+                if (!prev || prev.id !== dragId) return;
+                dragStateRef.current = { ...prev, ...patch };
+                if (dragView === "week") return;
+                setDragState((p) => (p && p.id === dragId ? { ...p, ...patch } : p));
+            };
+
+            const resolveSnapped = (targetIso: string, rawMin: number) => {
+                const prev = dragStateRef.current;
+                if (!prev || prev.id !== dragId) return null;
+                return snapAppointmentDragPosition({
+                    practiceCfg: practicePlanCfgRef.current,
+                    absences: absencesRef.current,
+                    physicianId: prev.physicianId,
+                    isoDate: targetIso,
+                    rawStartMin: rawMin,
+                    durMin: prev.durMin,
+                    timelineBounds: timelineBoundsLocal,
+                });
+            };
+
+            const clampStartMin = (rawMin: number, durMin: number) => {
+                const snapped = Math.round(rawMin / 5) * 5;
+                const lo = dayStartMin;
+                const hi = dayEndMin - durMin;
+                return Math.max(lo, Math.min(snapped, hi));
+            };
+
+            const timeFromY = (clientY: number, colTop: number, colHeight: number, durMin: number) => {
+                const y = clientY - colTop;
+                const minRaw = dayStartMin + y / pxPerMinForColumn(colHeight);
+                return clampStartMin(minRaw, durMin);
+            };
+
+            const applyDragTimeline = (targetIso: string, rawMin: number, jumpIfDayChanges: boolean) => {
+                const prev = dragStateRef.current;
+                if (!prev || prev.id !== dragId) return;
+
+                const activeDate = lastDragPatchRef.current?.currentDate ?? prev.currentDate;
+                if (targetIso !== activeDate) {
+                    const probe = resolveSnapped(targetIso, rawMin);
+                    if (!probe?.dayAllowed) return;
+                    if (dragView !== "week") {
+                        const nowTs = Date.now();
+                        if (nowTs - lastDragDateNavAtRef.current < DRAG_DATE_NAV_COOLDOWN_MS) return;
+                        lastDragDateNavAtRef.current = nowTs;
+                    }
+                }
+
+                const snap = resolveSnapped(targetIso, rawMin);
+                if (!snap) return;
+                const finalIso = snap.dayAllowed ? targetIso : activeDate;
+                const finalSnap = snap.dayAllowed ? snap : resolveSnapped(activeDate, rawMin);
+                if (!finalSnap) return;
+
+                commitDragPatch({
+                    currentDate: finalIso,
+                    currentStartMin: finalSnap.startMin,
+                    dropAllowed: finalSnap.dayAllowed && finalSnap.slotAllowed,
+                });
+
+                if (jumpIfDayChanges && dragView !== "week" && finalIso !== activeDate && snap.dayAllowed) {
+                    jumpToIsoDateRef.current(finalIso);
+                }
+            };
+
+            const tryWeekHop = (deltaDays: number, deltaWeekOffset: number, clientX: number, clientY: number) => {
+                const prev = dragStateRef.current;
+                if (!prev || prev.id !== dragId) return false;
+                const now = Date.now();
+                if (now - lastDragDateNavAtRef.current < DRAG_DATE_NAV_COOLDOWN_MS) return true;
+                const date = activeDragDate();
+                const startMin = activeDragStartMin();
+                const newDate = format(addDays(parseISO(date), deltaDays), "yyyy-MM-dd");
+                const refCol =
+                    findAppointmentDragColumnByIso(date)
+                    ?? pickAppointmentDragColumn(clientX, clientY)
+                    ?? listAppointmentDragColumns()[0];
+                const rawMin = refCol
+                    ? timeFromY(clientY, refCol.top, refCol.height, prev.durMin)
+                    : startMin;
+                const snap = resolveSnapped(newDate, rawMin);
+                if (!snap?.dayAllowed) return true;
+                lastDragDateNavAtRef.current = now;
+                setWeekOffset((w) => w + deltaWeekOffset);
+                invalidateAppointmentDragColumnCache();
+                commitDragPatch({
+                    currentDate: newDate,
+                    currentStartMin: snap.startMin,
+                    dropAllowed: snap.slotAllowed,
+                });
+                repaintAfterNav();
+                return true;
+            };
+
+            const tryDayHop = (deltaDays: number, clientY: number) => {
+                const prev = dragStateRef.current;
+                if (!prev || prev.id !== dragId) return false;
+                const now = Date.now();
+                if (now - lastDragDateNavAtRef.current < DRAG_DATE_NAV_COOLDOWN_MS) return true;
+                const date = activeDragDate();
+                const col = findAppointmentDragColumnByIso(date) ?? listAppointmentDragColumns()[0];
+                const rawMin = col ? timeFromY(clientY, col.top, col.height, prev.durMin) : activeDragStartMin();
+                const newDate = format(addDays(parseISO(date), deltaDays), "yyyy-MM-dd");
+                const snap = resolveSnapped(newDate, rawMin);
+                if (!snap?.dayAllowed || !snap.slotAllowed) return true;
+                lastDragDateNavAtRef.current = now;
+                commitDragPatch({
+                    currentDate: newDate,
+                    currentStartMin: snap.startMin,
+                    dropAllowed: true,
+                });
+                jumpToIsoDateRef.current(newDate);
+                repaintAfterNav();
+                return true;
+            };
+
+            const processMove = (e: MouseEvent) => {
+                const ds = dragStateRef.current;
+                if (!ds || ds.id !== dragId) return;
+
+                if (dragLastClientRef.current === null) {
+                    dragLastClientRef.current = { x: e.clientX, y: e.clientY };
+                } else {
+                    const lx = dragLastClientRef.current.x;
+                    const ly = dragLastClientRef.current.y;
+                    dragPointerTravelRef.current += Math.abs(e.clientX - lx) + Math.abs(e.clientY - ly);
+                    dragLastClientRef.current = { x: e.clientX, y: e.clientY };
+                }
+
+                if (dragView === "week" && weekCanvasRect) {
+                    const edge = detectWeekGridDragEdge(
+                        e.clientX,
+                        e.clientY,
+                        weekCanvasRect,
+                        CANVAS_DRAG_EDGE_ZONE_PX,
+                    );
+                    const outsideLeft = e.clientX < weekCanvasRect.left - WEEK_NAV_EDGE_PX;
+                    const outsideRight = e.clientX > weekCanvasRect.right + WEEK_NAV_EDGE_PX;
+                    setAppointmentDragNavEdge(weekCanvas, edge);
+                    if (edge === "left" || outsideLeft) {
+                        if (tryWeekHop(-7, -1, e.clientX, e.clientY)) return;
+                    }
+                    if (edge === "right" || outsideRight) {
+                        if (tryWeekHop(7, 1, e.clientX, e.clientY)) return;
+                    }
+                } else if (dragView === "day" && dayCanvasRect) {
+                    const edge = detectCanvasDragEdge(
+                        e.clientX,
+                        e.clientY,
+                        dayCanvasRect,
+                        CANVAS_DRAG_EDGE_ZONE_PX,
+                    );
+                    const outsideLeft = e.clientX < dayCanvasRect.left - DAY_DRAG_EDGE_PX;
+                    const outsideRight = e.clientX > dayCanvasRect.right + DAY_DRAG_EDGE_PX;
+                    setAppointmentDragNavEdge(dayCanvas, edge);
+                    if (edge === "left" || outsideLeft) {
+                        if (tryDayHop(-1, e.clientY)) return;
+                    }
+                    if (edge === "right" || outsideRight) {
+                        if (tryDayHop(1, e.clientY)) return;
+                    }
+                } else {
+                    setAppointmentDragNavEdge(null, null);
+                }
+
+                if (dragView === "week") {
+                    const col = pickAppointmentDragColumn(e.clientX, e.clientY);
+                    if (col) {
+                        applyDragTimeline(col.iso, timeFromY(e.clientY, col.top, col.height, ds.durMin), false);
+                        return;
+                    }
+                    const gutter = hitAppointmentDragHourGutter(e.clientX, e.clientY);
+                    if (gutter) {
+                        const activeDate = lastDragPatchRef.current?.currentDate ?? ds.currentDate;
+                        applyDragTimeline(
+                            activeDate,
+                            timeFromY(e.clientY, gutter.top, gutter.height, ds.durMin),
+                            false,
+                        );
+                    }
+                    return;
+                }
+
+                const cols = listAppointmentDragColumns();
+                const col = cols[0];
+                if (col) {
+                    if (e.clientX >= col.left && e.clientX <= col.right) {
+                        applyDragTimeline(col.iso, timeFromY(e.clientY, col.top, col.height, ds.durMin), false);
+                        return;
+                    }
+                    const gutter = hitAppointmentDragHourGutter(e.clientX, e.clientY);
+                    if (gutter) {
+                        applyDragTimeline(
+                            activeDragDate(),
+                            timeFromY(e.clientY, gutter.top, gutter.height, ds.durMin),
+                            false,
+                        );
+                    }
+                }
+            };
+
+            const flushMove = () => {
                 dragRafRef.current = null;
-            }
-            clearAppointmentDragSession();
-            document.body.classList.remove("appointment-calendar-dragging");
-            lastDragDateNavAtRef.current = 0;
+                const e = dragMoveEventRef.current;
+                if (!e) return;
+                processMove(e);
+            };
+
+            const onMove = (e: MouseEvent) => {
+                dragMoveEventRef.current = e;
+                if (dragRafRef.current != null) return;
+                dragRafRef.current = requestAnimationFrame(flushMove);
+            };
+
+            const onScroll = () => {
+                invalidateAppointmentDragColumnCache();
+                weekCanvasRect = weekCanvas?.getBoundingClientRect() ?? null;
+                dayCanvasRect = dayCanvas?.getBoundingClientRect() ?? null;
+            };
+
+            const detachListeners = () => {
+                window.removeEventListener("mousemove", onMove);
+                window.removeEventListener("mouseup", onUp);
+                window.removeEventListener("blur", onUp);
+                window.removeEventListener("scroll", onScroll, true);
+                window.removeEventListener("resize", onScroll);
+                if (dragRafRef.current != null) {
+                    cancelAnimationFrame(dragRafRef.current);
+                    dragRafRef.current = null;
+                }
+            };
+
+            const onUp = () => {
+                detachListeners();
+                dragTrackingTeardownRef.current = null;
+                const travel = dragPointerTravelRef.current;
+                dragPointerTravelRef.current = 0;
+                dragLastClientRef.current = null;
+                dragMoveEventRef.current = null;
+                suppressApptClickUntilRef.current = Date.now() + APPT_CLICK_SUPPRESS_AFTER_DROP_MS;
+
+                const prev = dragStateRef.current;
+                if (!prev || prev.id !== dragId) {
+                    clearAppointmentDragSession();
+                    document.body.classList.remove("appointment-calendar-dragging");
+                    setDragState(null);
+                    return;
+                }
+                const live = lastDragPatchRef.current;
+                const finalDate = live?.currentDate ?? prev.currentDate;
+                const finalStart = live?.currentStartMin ?? prev.currentStartMin;
+                const finalDrop = live?.dropAllowed ?? prev.dropAllowed;
+                lastDragPatchRef.current = null;
+                const changed =
+                    finalDate !== prev.originalDate || finalStart !== prev.originalStartMin;
+                const wasDrag = changed || travel >= APPT_DRAG_TRAVEL_PX;
+
+                if (wasDrag) {
+                    cancelPendingDrawerOpen();
+                    if (changed) {
+                        if (finalDrop) {
+                            void commitDrag(prev.id, finalDate, finalStart);
+                        } else {
+                            toast(t("appointments.scheduling.outside_hours"), "error");
+                        }
+                    }
+                    suppressApptContextMenuUntilRef.current = Date.now() + APPT_CTX_SUPPRESS_AFTER_DRAG_MS;
+                } else {
+                    // Click without dragging → delayed sidebar (cancelled if user presses again).
+                    scheduleDrawerOpen(prev.id);
+                }
+
+                clearAppointmentDragSession();
+                document.body.classList.remove("appointment-calendar-dragging");
+                lastDragDateNavAtRef.current = 0;
+                setDragState(null);
+            };
+
+            window.addEventListener("mousemove", onMove, { passive: true });
+            window.addEventListener("mouseup", onUp);
+            window.addEventListener("blur", onUp);
+            window.addEventListener("scroll", onScroll, true);
+            window.addEventListener("resize", onScroll);
+            dragTrackingTeardownRef.current = () => {
+                detachListeners();
+                clearAppointmentDragSession();
+                document.body.classList.remove("appointment-calendar-dragging");
+                lastDragDateNavAtRef.current = 0;
+                dragTrackingTeardownRef.current = null;
+            };
+        },
+        [cancelPendingDrawerOpen, commitDrag, dayStartMin, dayEndMin, scheduleDrawerOpen, t, toast],
+    );
+
+    useEffect(() => {
+        return () => {
+            cancelPendingDrawerOpen();
+            dragTrackingTeardownRef.current?.();
+            dragTrackingTeardownRef.current = null;
         };
-    }, [dragState?.id, view, commitDrag, dayStartMin, dayEndMin, t, toast]);
+    }, [cancelPendingDrawerOpen]);
 
     const openDrawerFor = useCallback(
         (appointment: TCalEvent) => {
@@ -1420,7 +1507,8 @@ export function AppointmentsPage() {
                             daySnapLabel={appointmentDaySnapLabel}
                             onClearDaySnapLabel={() => setAppointmentDaySnapLabel(null)}
                             dragState={dragState}
-                            setDragState={setDragState}
+                            onAppointmentDragStart={beginAppointmentDrag}
+                            clickSuppressUntilRef={suppressApptClickUntilRef}
                             onOpenDrawer={openDrawerFor}
                             onContextMenu={handleApptContextMenu}
                             onNewAt={(iso, min) => goNewAppointment({ date: iso, time: minutesToTime(min) })}
@@ -1464,7 +1552,7 @@ export function AppointmentsPage() {
                             physicianToneMap={physicianToneMap}
                             practiceCfg={practicePlanCfg}
                             dragState={dragState}
-                            setDragState={setDragState}
+                            onAppointmentDragStart={beginAppointmentDrag}
                             snapLabel={appointmentDaySnapLabel}
                             onClearSnapLabel={() => setAppointmentDaySnapLabel(null)}
                             clickSuppressUntilRef={suppressApptClickUntilRef}

@@ -35,6 +35,15 @@ async fn mark_demo_seed_applied(pool: &SqlitePool) -> Result<(), AppError> {
 
 pub async fn run_post_migration_seed(pool: &SqlitePool) -> Result<(), AppError> {
     crate::infrastructure::database::brute_force_repo::ensure_schema(pool).await?;
+    // Drop dense year-demo rows that lack Duration (UI defaults to 45 min → overlaps).
+    sqlx::query(
+        "DELETE FROM appointment
+         WHERE id LIKE 'seed-yr-apt-%'
+           AND (notes IS NULL OR notes NOT LIKE 'Duration:%')",
+    )
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?;
     if should_run_demo_seed() {
         if !demo_seed_already_applied(pool).await? {
             seed_demo_data(pool).await?;
@@ -351,11 +360,11 @@ async fn seed_demo_data(pool: &SqlitePool) -> Result<(), AppError> {
     if appointment_count.0 == 0 {
         sqlx::query(
             "INSERT INTO appointment (id, date, time, kind, status, notes, chief_complaint, patient_id, physician_id) VALUES
-            ('seed-ter-001', date('now','localtime'), '08:30', 'FIRST_VISIT', 'CONFIRMED', 'Take anamnesis', 'Hot/cold sensitivity', 'seed-pat-001', 'seed-physician-001'),
-            ('seed-ter-002', date('now','localtime'), '10:00', 'EXAMINATION', 'PLANNED', 'Record periodontal status', 'Gingival bleeding', 'seed-pat-002', 'seed-physician-001'),
-            ('seed-ter-003', date('now','localtime','+1 day'), '09:15', 'TREATMENT', 'PLANNED', 'Composite filling planned', 'Pressure pain tooth 16', 'seed-pat-001', 'seed-physician-001'),
-            ('seed-ter-004', date('now','localtime','+2 day'), '14:00', 'CHECKUP', 'COMPLETED', 'Post-op checkup', NULL, 'seed-pat-003', 'seed-physician-001'),
-            ('seed-ter-005', date('now','localtime','-1 day'), '11:30', 'CONSULTATION', 'CANCELLED', 'Aesthetic consultation', NULL, 'seed-pat-005', 'seed-physician-001')",
+            ('seed-ter-001', date('now','localtime'), '08:30', 'FIRST_VISIT', 'CONFIRMED', 'Duration: 45 min · Take anamnesis', 'Hot/cold sensitivity', 'seed-pat-001', 'seed-physician-001'),
+            ('seed-ter-002', date('now','localtime'), '10:00', 'EXAMINATION', 'PLANNED', 'Duration: 30 min · Record periodontal status', 'Gingival bleeding', 'seed-pat-002', 'seed-physician-001'),
+            ('seed-ter-003', date('now','localtime','+1 day'), '09:15', 'TREATMENT', 'PLANNED', 'Duration: 45 min · Composite filling planned', 'Pressure pain tooth 16', 'seed-pat-001', 'seed-physician-001'),
+            ('seed-ter-004', date('now','localtime','+2 day'), '14:00', 'CHECKUP', 'COMPLETED', 'Duration: 20 min · Post-op checkup', NULL, 'seed-pat-003', 'seed-physician-001'),
+            ('seed-ter-005', date('now','localtime','-1 day'), '11:30', 'CONSULTATION', 'CANCELLED', 'Duration: 30 min · Aesthetic consultation', NULL, 'seed-pat-005', 'seed-physician-001')",
         )
         .execute(pool)
         .await?;
@@ -426,11 +435,11 @@ async fn seed_demo_data(pool: &SqlitePool) -> Result<(), AppError> {
 
     sqlx::query(
         "INSERT OR IGNORE INTO appointment (id, date, time, kind, status, notes, chief_complaint, patient_id, physician_id) VALUES
-        ('seed-ter-006', date('now','localtime','+3 day'), '08:45', 'CHECKUP', 'CONFIRMED', 'Recall appointment', NULL, 'seed-pat-006', 'seed-physician-001'),
-        ('seed-ter-007', date('now','localtime','+3 day'), '11:00', 'TREATMENT', 'PLANNED', 'Fissure sealant', 'Sensitivity when chewing', 'seed-pat-007', 'seed-physician-001'),
-        ('seed-ter-008', date('now','localtime','+4 day'), '09:30', 'CONSULTATION', 'PLANNED', 'Splint therapy briefing', 'Morning jaw pain', 'seed-pat-008', 'seed-physician-001'),
-        ('seed-ter-009', date('now','localtime','-2 day'), '15:10', 'EXAMINATION', 'NO_SHOW', 'Phone follow-up', NULL, 'seed-pat-006', 'seed-physician-001'),
-        ('seed-ter-010', date('now','localtime','+5 day'), '13:40', 'FIRST_VISIT', 'PLANNED', 'New patient intake', 'Pressure pain lower right', 'seed-pat-008', 'seed-physician-001')",
+        ('seed-ter-006', date('now','localtime','+3 day'), '08:45', 'CHECKUP', 'CONFIRMED', 'Duration: 20 min · Recall appointment', NULL, 'seed-pat-006', 'seed-physician-001'),
+        ('seed-ter-007', date('now','localtime','+3 day'), '11:00', 'TREATMENT', 'PLANNED', 'Duration: 45 min · Fissure sealant', 'Sensitivity when chewing', 'seed-pat-007', 'seed-physician-001'),
+        ('seed-ter-008', date('now','localtime','+4 day'), '09:30', 'CONSULTATION', 'PLANNED', 'Duration: 30 min · Splint therapy briefing', 'Morning jaw pain', 'seed-pat-008', 'seed-physician-001'),
+        ('seed-ter-009', date('now','localtime','-2 day'), '15:10', 'EXAMINATION', 'NO_SHOW', 'Duration: 30 min · Phone follow-up', NULL, 'seed-pat-006', 'seed-physician-001'),
+        ('seed-ter-010', date('now','localtime','+5 day'), '13:40', 'FIRST_VISIT', 'PLANNED', 'Duration: 45 min · New patient intake', 'Pressure pain lower right', 'seed-pat-008', 'seed-physician-001')",
     )
     .execute(pool)
     .await?;
@@ -477,6 +486,34 @@ async fn seed_demo_data(pool: &SqlitePool) -> Result<(), AppError> {
             'seed-ter-001','seed-ter-002','seed-ter-003','seed-ter-004','seed-ter-005',
             'seed-ter-006','seed-ter-007','seed-ter-008','seed-ter-009','seed-ter-010'
         )",
+    )
+    .execute(pool)
+    .await?;
+
+    // Backfill Duration into notes for older seed rows (INSERT OR IGNORE leaves prose-only notes).
+    sqlx::query(
+        "UPDATE appointment SET notes = CASE id
+            WHEN 'seed-ter-001' THEN 'Duration: 45 min · Take anamnesis'
+            WHEN 'seed-ter-002' THEN 'Duration: 30 min · Record periodontal status'
+            WHEN 'seed-ter-003' THEN 'Duration: 45 min · Composite filling planned'
+            WHEN 'seed-ter-004' THEN 'Duration: 20 min · Post-op checkup'
+            WHEN 'seed-ter-005' THEN 'Duration: 30 min · Aesthetic consultation'
+            WHEN 'seed-ter-006' THEN 'Duration: 20 min · Recall appointment'
+            WHEN 'seed-ter-007' THEN 'Duration: 45 min · Fissure sealant'
+            WHEN 'seed-ter-008' THEN 'Duration: 30 min · Splint therapy briefing'
+            WHEN 'seed-ter-009' THEN 'Duration: 30 min · Phone follow-up'
+            WHEN 'seed-ter-010' THEN 'Duration: 45 min · New patient intake'
+            WHEN 'seed-ter-h01' THEN 'Duration: 30 min · Routine'
+            WHEN 'seed-ter-h02' THEN 'Duration: 45 min · Composite'
+            WHEN 'seed-ter-h03' THEN 'Duration: 20 min · Recall'
+            WHEN 'seed-ter-h04' THEN 'Duration: 30 min · Splint consult'
+            WHEN 'seed-ter-h05' THEN 'Duration: 30 min · Periodontal status'
+            WHEN 'seed-ter-h06' THEN 'Duration: 20 min · Recall'
+            WHEN 'seed-ter-h07' THEN 'Duration: 60 min · Endo'
+            WHEN 'seed-ter-h08' THEN 'Duration: 30 min · Initial consult'
+            ELSE notes
+        END
+        WHERE id LIKE 'seed-ter-%' AND (notes IS NULL OR notes NOT LIKE 'Duration:%')",
     )
     .execute(pool)
     .await?;
@@ -653,14 +690,14 @@ async fn seed_demo_data(pool: &SqlitePool) -> Result<(), AppError> {
     // Spread some demo appointments across past months so appointments_per_month is non-empty
     sqlx::query(
         "INSERT OR IGNORE INTO appointment (id, date, time, kind, status, notes, chief_complaint, patient_id, physician_id, created_at) VALUES
-        ('seed-ter-h01', date('now','localtime','-40 day'),  '09:00','EXAMINATION','COMPLETED','Routine','—','seed-pat-001','seed-physician-001', datetime('now','localtime','-40 day')),
-        ('seed-ter-h02', date('now','localtime','-70 day'),  '11:00','TREATMENT','COMPLETED','Composite',NULL,'seed-pat-002','seed-physician-001', datetime('now','localtime','-70 day')),
-        ('seed-ter-h03', date('now','localtime','-100 day'), '14:00','CHECKUP','COMPLETED','Recall',NULL,'seed-pat-003','seed-physician-001', datetime('now','localtime','-100 day')),
-        ('seed-ter-h04', date('now','localtime','-130 day'), '08:30','CONSULTATION','COMPLETED','Schiene',NULL,'seed-pat-004','seed-physician-001', datetime('now','localtime','-130 day')),
-        ('seed-ter-h05', date('now','localtime','-160 day'), '15:30','EXAMINATION','COMPLETED','PA-Status',NULL,'seed-pat-005','seed-physician-001', datetime('now','localtime','-160 day')),
-        ('seed-ter-h06', date('now','localtime','-25 day'),  '10:00','CHECKUP','COMPLETED','Recall',NULL,'seed-pat-006','seed-physician-001', datetime('now','localtime','-25 day')),
-        ('seed-ter-h07', date('now','localtime','-90 day'),  '13:00','TREATMENT','COMPLETED','Endo',NULL,'seed-pat-007','seed-physician-001', datetime('now','localtime','-90 day')),
-        ('seed-ter-h08', date('now','localtime','-180 day'), '16:00','CONSULTATION','COMPLETED','Initial consult',NULL,'seed-pat-008','seed-physician-001', datetime('now','localtime','-180 day'))",
+        ('seed-ter-h01', date('now','localtime','-40 day'),  '09:00','EXAMINATION','COMPLETED','Duration: 30 min · Routine','—','seed-pat-001','seed-physician-001', datetime('now','localtime','-40 day')),
+        ('seed-ter-h02', date('now','localtime','-70 day'),  '11:00','TREATMENT','COMPLETED','Duration: 45 min · Composite',NULL,'seed-pat-002','seed-physician-001', datetime('now','localtime','-70 day')),
+        ('seed-ter-h03', date('now','localtime','-100 day'), '14:00','CHECKUP','COMPLETED','Duration: 20 min · Recall',NULL,'seed-pat-003','seed-physician-001', datetime('now','localtime','-100 day')),
+        ('seed-ter-h04', date('now','localtime','-130 day'), '08:30','CONSULTATION','COMPLETED','Duration: 30 min · Splint consult',NULL,'seed-pat-004','seed-physician-001', datetime('now','localtime','-130 day')),
+        ('seed-ter-h05', date('now','localtime','-160 day'), '15:30','EXAMINATION','COMPLETED','Duration: 30 min · Periodontal status',NULL,'seed-pat-005','seed-physician-001', datetime('now','localtime','-160 day')),
+        ('seed-ter-h06', date('now','localtime','-25 day'),  '10:00','CHECKUP','COMPLETED','Duration: 20 min · Recall',NULL,'seed-pat-006','seed-physician-001', datetime('now','localtime','-25 day')),
+        ('seed-ter-h07', date('now','localtime','-90 day'),  '13:00','TREATMENT','COMPLETED','Duration: 60 min · Endo',NULL,'seed-pat-007','seed-physician-001', datetime('now','localtime','-90 day')),
+        ('seed-ter-h08', date('now','localtime','-180 day'), '16:00','CONSULTATION','COMPLETED','Duration: 30 min · Initial consult',NULL,'seed-pat-008','seed-physician-001', datetime('now','localtime','-180 day'))",
     ).execute(pool).await?;
 
     // Add treatments across months for treatment-chart

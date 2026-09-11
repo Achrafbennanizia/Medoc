@@ -3412,10 +3412,12 @@ html[data-theme="dark"] {
     min-height: 0;
     background: var(--surface-1);
     border: 1px solid var(--line);
+    /* .card sets overflow:hidden — that clipped UR8/UL8 / LR8/LL8 on the odontogram */
+    overflow: visible;
   }
   .patient-hero-top {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, auto);
+    grid-template-columns: minmax(0, 1fr) max-content;
     align-items: center;
     justify-items: stretch;
     gap: clamp(10px, 2vw, 16px) clamp(12px, 3vw, 20px);
@@ -3456,10 +3458,12 @@ html[data-theme="dark"] {
   }
   .patient-hero-dental {
     justify-self: end;
-    min-width: 0;
-    width: min(max-content, 100%);
+    width: max-content;
     max-width: min(100%, 100vw - 2rem);
-    overflow: visible;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: visible;
+    scrollbar-width: thin;
   }
   @media (max-width: 720px) {
     .patient-hero-top {
@@ -3468,10 +3472,7 @@ html[data-theme="dark"] {
     .patient-hero-dental {
       justify-self: start;
       width: 100%;
-      max-width: none;
-    }
-    .dental-mini-bar {
-      max-width: none;
+      max-width: 100%;
     }
   }
   .patient-hero-contacts {
@@ -3542,16 +3543,18 @@ html[data-theme="dark"] {
     position: relative;
     flex: 0 0 auto;
     width: max-content;
-    max-width: min(100%, 440px);
-    min-width: 0;
+    max-width: none;
+    min-width: max-content;
     overflow: visible;
   }
   .dental-mini-bar-inner {
+    box-sizing: border-box;
     border: 1px solid var(--line);
     border-radius: var(--radius-card);
     background: var(--surface-1);
-    padding: 6px 10px 8px;
+    padding: 10px 14px 12px;
     overflow: visible;
+    width: max-content;
   }
   .dental-mini-title {
     display: block;
@@ -3561,6 +3564,157 @@ html[data-theme="dark"] {
     text-transform: uppercase;
     color: var(--fg-3);
     margin-bottom: 6px;
+  }
+  /* French-chart style cross: H/B vertical + D/G horizontal (patient right on start). */
+  .dental-odontogram {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    width: max-content;
+    max-width: none;
+    min-width: max-content;
+  }
+  .dental-odontogram__body {
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    gap: 6px;
+    width: max-content;
+    max-width: none;
+    min-width: max-content;
+  }
+  .dental-odontogram__chart {
+    flex: 0 0 auto;
+    width: max-content;
+    min-width: max-content;
+    display: grid;
+    grid-template-columns: max-content 2px max-content;
+    grid-template-rows: auto 2px auto;
+    align-items: stretch;
+    column-gap: 0;
+  }
+  .dental-odontogram__quad {
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    align-items: flex-end;
+    gap: 5px;
+    width: max-content;
+    min-width: max-content;
+    overflow: visible;
+  }
+  .dental-odontogram__quad--ur {
+    grid-column: 1;
+    grid-row: 1;
+    justify-content: flex-end;
+    padding: 2px 12px 8px 4px;
+  }
+  .dental-odontogram__quad--ul {
+    grid-column: 3;
+    grid-row: 1;
+    justify-content: flex-start;
+    padding: 2px 4px 8px 12px;
+  }
+  .dental-odontogram__quad--lr {
+    grid-column: 1;
+    grid-row: 3;
+    justify-content: flex-end;
+    padding: 8px 12px 2px 4px;
+  }
+  .dental-odontogram__quad--ll {
+    grid-column: 3;
+    grid-row: 3;
+    justify-content: flex-start;
+    padding: 8px 4px 2px 12px;
+  }
+  .dental-odontogram__quad--gap { gap: 6px; }
+  .dental-odontogram__quad--gap-sm { gap: 5px; }
+  .dental-odontogram__vline {
+    grid-column: 2;
+    grid-row: 1 / -1;
+    width: 2px;
+    justify-self: center;
+    background: var(--fg);
+    opacity: 0.82;
+    border-radius: 1px;
+  }
+  .dental-odontogram__hline {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    height: 2px;
+    align-self: center;
+    background: var(--fg);
+    opacity: 0.82;
+    border-radius: 1px;
+  }
+  .dental-odontogram__axis {
+    flex: 0 0 auto;
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1;
+    color: var(--fg);
+    letter-spacing: 0.02em;
+    user-select: none;
+  }
+  .dental-odontogram__axis--top,
+  .dental-odontogram__axis--bottom {
+    text-align: center;
+    padding-block: 2px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+  .dental-odontogram__axis--top::after,
+  .dental-odontogram__axis--bottom::before {
+    content: "";
+    display: block;
+    width: 2px;
+    height: 8px;
+    background: var(--fg);
+    opacity: 0.82;
+    border-radius: 1px;
+  }
+  .dental-odontogram__axis--start,
+  .dental-odontogram__axis--end {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.1em;
+    padding-inline: 2px;
+    gap: 2px;
+  }
+  .dental-odontogram__axis--start::after,
+  .dental-odontogram__axis--end::before {
+    content: "";
+    display: block;
+    width: 8px;
+    height: 2px;
+    background: var(--fg);
+    opacity: 0.82;
+    border-radius: 1px;
+  }
+  .dental-odontogram--chart {
+    margin-top: 4px;
+    margin-inline: auto;
+  }
+  .dental-odontogram--picker {
+    margin-top: 8px;
+  }
+  /* Treatments composer: center the tooth-status chart in the panel */
+  .treatment-composer-dental {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+  }
+  .treatment-composer-dental > .card {
+    width: max-content;
+    max-width: 100%;
+    margin-inline: auto;
+  }
+  .treatment-composer-dental .dental-odontogram {
+    margin-inline: auto;
   }
   .dental-mini-row {
     display: flex;
@@ -3572,11 +3726,6 @@ html[data-theme="dark"] {
     padding-inline: 4px;
     padding-bottom: 4px;
     scrollbar-width: thin;
-  }
-  /* Upper jaw: leave room so FDI labels clear the dashed midline */
-  .dental-mini-bar-inner > .dental-mini-title + .dental-mini-row {
-    padding-bottom: 12px;
-    margin-bottom: 2px;
   }
   .dental-mini-divider {
     flex-shrink: 0;
@@ -3591,14 +3740,17 @@ html[data-theme="dark"] {
   }
   .dental-mini-tooth-wrap {
     flex: 0 0 auto;
-    padding: 2px;
+    width: max-content;
+    padding: 1px 1px;
   }
   .dental-mini-tooth {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 2px;
-    padding: 2px 1px 4px;
+    padding: 3px 3px 4px;
+    min-width: 24px;
+    box-sizing: border-box;
     border: 1.5px solid transparent;
     background: transparent;
     cursor: default;
@@ -3640,12 +3792,15 @@ html[data-theme="dark"] {
     box-shadow: inset 0 1px 0 color-mix(in oklab, var(--text-on-accent) 20%, transparent);
   }
   .dental-mini-label {
-    font-size: 9px;
+    font-size: 8px;
     color: var(--fg-3);
-    line-height: 1.2;
+    line-height: 1.15;
     margin-top: 0;
     padding-bottom: 1px;
     font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
   }
   .tooth-popover {
     position: fixed;
@@ -4106,10 +4261,13 @@ html[data-theme="dark"] {
     flex-shrink: 0;
   }
   .dental-mini-tooth-num {
-    font-size: 9px;
+    font-size: 8px;
     font-weight: 600;
     color: var(--fg-3);
-    line-height: 1;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
   }
   .dental-mini-tooth-btn--selected .dental-mini-tooth-num {
     color: var(--accent-ink);
@@ -4124,7 +4282,7 @@ html[data-theme="dark"] {
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .appointment-appt-block--week-compact .appointment-appt-block-tooth {
+  .appointment-appt-block--week .appointment-appt-block-tooth {
     font-size: 8px;
   }
 
@@ -10122,11 +10280,12 @@ html[data-sidebar-tone="dark"] .app-sidebar-brand-hit:hover {
 }
 
 .appointment-week-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   padding-bottom: 0.5rem;
   flex: 1 1 auto;
   min-height: 0;
-  display: flex;
-  flex-direction: column;
   overflow: hidden;
 }
 .appointment-week-head-grid {
@@ -10244,9 +10403,8 @@ html[data-sidebar-tone="dark"] .app-sidebar-brand-hit:hover {
 .appointment-week-card--workweek .appointment-week-dow-num {
   font-size: clamp(13px, 1.35vw, 17px);
 }
-.appointment-week-card--workweek .appointment-appt-block--week-compact {
-  padding: 4px 6px 4px 5px;
-  gap: 6px;
+.appointment-week-card--workweek .appointment-appt-block--week {
+  /* density classes own padding */
 }
 .appointment-week-card--workweek .appointment-appt-block-time-col {
   min-width: 0;
@@ -10358,13 +10516,18 @@ html[data-sidebar-tone="dark"] .app-sidebar-brand-hit:hover {
   text-align: start;
   cursor: grab;
   overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
   transition: transform 120ms ease, box-shadow 120ms ease;
   z-index: 4;
-  width: calc(100% - 8px);
+  /* width set inline (full column or overlap lane) */
+  max-width: calc(100% - 8px);
   background: var(--bg-elev);
   color: var(--fg);
   box-shadow: 0 1px 3px rgba(10, 12, 16, 0.06);
-  container-type: inline-size;
+  /* size → height + width queries so short duration cards can drop secondary content */
+  container-type: size;
   container-name: appointment-appt;
 }
 .appointment-appt-block:hover:not(.appointment-appt-block--dragging) {
@@ -10418,64 +10581,71 @@ body.appointment-calendar-dragging .appointment-appt-block:not(.appointment-appt
   background: var(--bg-elev);
   color: var(--fg);
 }
-.appointment-appt-block--calendar-row {
+/* —— Appointment card densities (micro / standard / roomy) —— */
+.appointment-appt-block--day,
+.appointment-appt-block--week {
   display: flex;
   flex-direction: row;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px 8px 10px;
+  align-items: stretch;
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+  padding: 0;
 }
-.appointment-appt-block--calendar-row.appointment-appt-block--week-compact {
-  padding: 5px 8px 5px 6px;
-  gap: 8px;
-  border-radius: 8px;
-}
-.appointment-appt-block--calendar-row.appointment-appt-block--day-tall {
-  padding: 10px 14px 10px 12px;
-  gap: 12px;
-  border-radius: 12px;
-}
-.appointment-appt-block-time-col {
+.appointment-appt-block--day { border-radius: 12px; }
+.appointment-appt-block--week { border-radius: 8px; }
+
+.appointment-appt-block-shell {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  flex-shrink: 0;
-  min-width: 2.85rem;
+  flex-direction: row;
+  align-items: stretch;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
-.appointment-appt-block-time-col .appointment-appt-block-time {
-  font-size: 13px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--fg);
-  line-height: 1.2;
-}
-.appointment-appt-block--week-compact .appointment-appt-block-time-col .appointment-appt-block-time {
-  font-size: 11px;
-}
-.appointment-appt-block-duration {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--fg-3);
-  line-height: 1.2;
-}
-.appointment-appt-block--week-compact .appointment-appt-block-duration {
-  font-size: 9px;
-}
+
 .appointment-appt-block-stripe {
   width: 3px;
   align-self: stretch;
-  min-height: 2.25rem;
-  border-radius: 2px;
+  min-height: 0;
   flex-shrink: 0;
+  border-radius: 2px;
 }
-.appointment-appt-block-body-col {
-  flex: 1;
+.appointment-appt-block-time {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.appointment-appt-block-duration {
+  font-weight: 500;
+  color: var(--fg-3);
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.appointment-appt-block-name {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  justify-content: center;
+  line-height: 1.15;
+}
+.appointment-appt-block-type {
+  font-weight: 500;
+  color: var(--fg-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  line-height: 1.15;
 }
 .appointment-appt-block-name-row {
   display: flex;
@@ -10489,132 +10659,215 @@ body.appointment-calendar-dragging .appointment-appt-block:not(.appointment-appt
   display: inline-flex;
   align-items: center;
 }
-.appointment-appt-block-body-col .appointment-appt-block-name {
-  font-size: 13px;
+.appointment-appt-block-tooth {
+  font-size: 10px;
   font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--fg);
+  color: var(--accent-ink);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  min-width: 0;
-}
-.appointment-appt-block--day-tall .appointment-appt-block-body-col .appointment-appt-block-name {
-  font-size: 14px;
-}
-.appointment-appt-block--week-compact .appointment-appt-block-body-col .appointment-appt-block-name {
-  font-size: 11px;
-}
-.appointment-appt-block-body-col .appointment-appt-block-type {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--fg-3);
-  line-height: 1.25;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.appointment-appt-block--week-compact .appointment-appt-block-body-col .appointment-appt-block-type {
-  font-size: 9px;
-}
-.appointment-appt-block-sub {
-  display: block;
-  min-width: 0;
-}
-.appointment-appt-block-duration--compact,
-.appointment-appt-block-sub-sep {
-  display: none;
-}
-.appointment-appt-block-sub .appointment-appt-block-type {
-  display: block;
-}
-@container appointment-appt (max-width: 8.5rem) {
-  .appointment-appt-block--calendar-row.appointment-appt-block--week-compact {
-    align-items: stretch;
-    gap: 5px;
-    padding: 4px 5px 4px 4px;
-  }
-  .appointment-appt-block-time-col {
-    display: none;
-  }
-  .appointment-appt-block-stripe {
-    order: -1;
-    align-self: stretch;
-    min-height: auto;
-    margin-block: 2px;
-    border-radius: 999px;
-  }
-  .appointment-appt-block-body-col {
-    display: flex;
-    flex: 1;
-    min-width: 0;
-    gap: 1px;
-    justify-content: center;
-  }
-  .appointment-appt-block-body-col .appointment-appt-block-name {
-    font-size: 11px;
-    line-height: 1.15;
-  }
-  .appointment-appt-block-sub {
-    display: flex;
-    align-items: center;
-    gap: 3px;
-    min-width: 0;
-    overflow: hidden;
-    font-size: 9px;
-    font-weight: 500;
-    line-height: 1.15;
-    color: var(--fg-3);
-  }
-  .appointment-appt-block-duration--compact,
-  .appointment-appt-block-sub-sep {
-    display: inline;
-  }
-  .appointment-appt-block-sub .appointment-appt-block-type {
-    display: inline;
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: inherit;
-    font-weight: inherit;
-    color: inherit;
-  }
-  .appointment-appt-block-duration--compact {
-    flex-shrink: 0;
-    font-size: inherit;
-    font-weight: inherit;
-    color: inherit;
-  }
-  .appointment-appt-block-sub-sep {
-    flex-shrink: 0;
-    font-weight: 600;
-    opacity: 0.65;
-  }
-  .appointment-appt-block--dragging .appointment-appt-block-time-col {
-    display: flex;
-    flex: 1;
-    min-width: 0;
-  }
-  .appointment-appt-block--dragging .appointment-appt-block-body-col {
-    display: none;
-  }
 }
 .appointment-appt-status-pill {
   flex-shrink: 0;
-  font-size: 11px;
+  align-self: center;
   font-weight: 700;
-  padding: 4px 10px;
+  padding: 2px 8px;
   border-radius: 999px;
   line-height: 1.2;
   white-space: nowrap;
-  margin-inline-start: auto;
+  max-width: 7.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.appointment-appt-block--week-compact .appointment-appt-status-pill {
+
+/* Density: micro (≤25 min) — single strip, all fields visible */
+.appointment-appt-block--density-micro > .appointment-appt-block-shell {
+  padding: 2px 8px 2px 4px;
+  gap: 6px;
+  align-items: center;
+}
+.appointment-appt-block--density-micro.appointment-appt-block--day > .appointment-appt-block-shell {
+  padding: 4px 10px 4px 6px;
+  gap: 8px;
+}
+.appointment-appt-block--density-micro.appointment-appt-block--week > .appointment-appt-block-shell {
+  padding: 2px 5px 2px 3px;
+  gap: 5px;
+}
+.appointment-appt-block--density-micro .appointment-appt-block-stripe {
+  align-self: stretch;
+  min-height: 0;
+  border-radius: 999px;
+}
+.appointment-appt-block-micro {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 0;
+  overflow: hidden;
+  justify-content: flex-start;
+}
+.appointment-appt-block-micro .appointment-appt-block-name,
+.appointment-appt-block-micro--day .appointment-appt-block-name {
+  flex: 1 1 auto;
+  max-width: 40%;
+}
+.appointment-appt-block-micro .appointment-appt-block-type,
+.appointment-appt-block-micro--day .appointment-appt-block-type {
+  flex: 0 1 auto;
+  max-width: 28%;
+}
+.appointment-appt-block-micro .appointment-appt-block-time,
+.appointment-appt-block-micro .appointment-appt-block-duration,
+.appointment-appt-block-micro .appointment-appt-block-micro-sep,
+.appointment-appt-block-micro--day .appointment-appt-block-time,
+.appointment-appt-block-micro--day .appointment-appt-block-duration,
+.appointment-appt-block-micro--day .appointment-appt-block-micro-sep {
+  flex-shrink: 0;
+}
+.appointment-appt-block-micro-line {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+.appointment-appt-block-micro-line--sub {
+  opacity: 0.92;
+}
+.appointment-appt-block-micro-sep {
+  flex-shrink: 0;
+  margin-inline: 4px;
+  color: var(--fg-3);
+  font-weight: 600;
+  opacity: 0.7;
+}
+.appointment-appt-block--density-micro .appointment-appt-block-time { font-size: 10px; }
+.appointment-appt-block--density-micro .appointment-appt-block-duration { font-size: 9px; }
+.appointment-appt-block--density-micro .appointment-appt-block-name { font-size: 10px; }
+.appointment-appt-block--density-micro .appointment-appt-block-type { font-size: 9px; }
+.appointment-appt-block--density-micro .appointment-appt-status-pill {
   font-size: 9px;
-  padding: 3px 7px;
+  padding: 1px 6px;
+  max-width: 5.75rem;
 }
+.appointment-appt-block--density-micro.appointment-appt-block--week .appointment-appt-block-time { font-size: 9px; }
+.appointment-appt-block--density-micro.appointment-appt-block--week .appointment-appt-block-name { font-size: 9.5px; }
+.appointment-appt-block--density-micro.appointment-appt-block--week .appointment-appt-block-duration,
+.appointment-appt-block--density-micro.appointment-appt-block--week .appointment-appt-block-type { font-size: 8px; }
+
+/* Ultra-short week cards: tighten type so the strip still fits */
+@container appointment-appt (max-height: 26px) {
+  .appointment-appt-block--week > .appointment-appt-block-shell {
+    padding-block: 0 !important;
+    padding-inline: 2px 3px !important;
+    gap: 3px !important;
+  }
+  .appointment-appt-block--week .appointment-appt-block-time,
+  .appointment-appt-block--week .appointment-appt-block-name { font-size: 8px !important; }
+  .appointment-appt-block--week .appointment-appt-block-duration,
+  .appointment-appt-block--week .appointment-appt-block-type { font-size: 7.5px !important; }
+  .appointment-appt-block--week .appointment-appt-block-micro-sep { margin-inline: 2px; }
+  .appointment-appt-block--week .appointment-appt-block-micro .appointment-appt-block-type {
+    max-width: 28%;
+  }
+  .appointment-appt-block--week .appointment-appt-block-emergency-ic {
+    transform: scale(0.85);
+  }
+}
+
+/* Density: standard (26–40 min) — time stack | stripe | body | pill */
+.appointment-appt-block--density-standard > .appointment-appt-block-shell {
+  padding: 4px 8px 4px 6px;
+  gap: 8px;
+  align-items: stretch;
+}
+.appointment-appt-block--density-standard .appointment-appt-block-time-col {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 2.5rem;
+  overflow: hidden;
+}
+.appointment-appt-block--density-standard .appointment-appt-block-body-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  overflow: hidden;
+}
+.appointment-appt-block--density-standard .appointment-appt-block-time { font-size: 12px; }
+.appointment-appt-block--density-standard .appointment-appt-block-duration { font-size: 10px; }
+.appointment-appt-block--density-standard .appointment-appt-block-name { font-size: 12px; }
+.appointment-appt-block--density-standard .appointment-appt-block-type { font-size: 10px; }
+.appointment-appt-block--density-standard .appointment-appt-status-pill { font-size: 10px; }
+.appointment-appt-block--density-standard.appointment-appt-block--week > .appointment-appt-block-shell {
+  padding: 3px 5px 3px 4px;
+  gap: 5px;
+}
+.appointment-appt-block--density-standard.appointment-appt-block--week .appointment-appt-block-time-col { min-width: 2.1rem; }
+.appointment-appt-block--density-standard.appointment-appt-block--week .appointment-appt-block-time { font-size: 10px; }
+.appointment-appt-block--density-standard.appointment-appt-block--week .appointment-appt-block-duration { font-size: 8px; }
+.appointment-appt-block--density-standard.appointment-appt-block--week .appointment-appt-block-name { font-size: 10.5px; }
+.appointment-appt-block--density-standard.appointment-appt-block--week .appointment-appt-block-type { font-size: 8.5px; }
+
+/* Density: roomy (≥45 min) — stacked hierarchy */
+.appointment-appt-block--density-roomy > .appointment-appt-block-shell {
+  padding: 6px 10px 6px 6px;
+  gap: 8px;
+  align-items: stretch;
+}
+.appointment-appt-block-roomy {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  overflow: hidden;
+}
+.appointment-appt-block-roomy-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+.appointment-appt-block-roomy-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.appointment-appt-block--density-roomy .appointment-appt-block-time { font-size: 13px; }
+.appointment-appt-block--density-roomy .appointment-appt-block-duration { font-size: 11px; }
+.appointment-appt-block--density-roomy .appointment-appt-block-name { font-size: 14px; }
+.appointment-appt-block--density-roomy .appointment-appt-block-type { font-size: 11px; }
+.appointment-appt-block--density-roomy .appointment-appt-status-pill { font-size: 11px; padding: 3px 10px; }
+.appointment-appt-block--density-roomy.appointment-appt-block--week > .appointment-appt-block-shell {
+  padding: 4px 6px 4px 4px;
+  gap: 5px;
+}
+.appointment-appt-block--density-roomy.appointment-appt-block--week .appointment-appt-block-time { font-size: 11px; }
+.appointment-appt-block--density-roomy.appointment-appt-block--week .appointment-appt-block-duration { font-size: 9px; }
+.appointment-appt-block--density-roomy.appointment-appt-block--week .appointment-appt-block-name { font-size: 11px; }
+.appointment-appt-block--density-roomy.appointment-appt-block--week .appointment-appt-block-type { font-size: 9px; }
+.appointment-appt-block--density-roomy.appointment-appt-block--week .appointment-appt-block-roomy-meta { gap: 5px; }
+.appointment-appt-block--density-roomy.appointment-appt-block--week .appointment-appt-block-roomy {
+  justify-content: space-between;
+  gap: 4px;
+}
+.appointment-appt-block--density-standard.appointment-appt-block--week .appointment-appt-block-stripe {
+  border-radius: 999px;
+}
+
 .appointment-appt-status-pill--active {
   background: color-mix(in oklab, var(--green) 16%, var(--bg-elev));
   color: #146c2e;
@@ -10638,76 +10891,71 @@ body.appointment-calendar-dragging .appointment-appt-block:not(.appointment-appt
 }
 
 /* Week view: entire card in status color (no separate pill — more room for names) */
-.appointment-appt-block--calendar-row.appointment-appt-block--week-compact.appointment-appt-status-surface--planned {
+.appointment-appt-block--week.appointment-appt-status-surface--planned {
   background: color-mix(in oklab, var(--fg) 7%, var(--bg-elev));
   border-color: color-mix(in oklab, var(--fg) 18%, var(--line));
 }
-.appointment-appt-block--calendar-row.appointment-appt-block--week-compact.appointment-appt-status-surface--planned .appointment-appt-block-time-col .appointment-appt-block-time,
-.appointment-appt-block--calendar-row.appointment-appt-block--week-compact.appointment-appt-status-surface--planned .appointment-appt-block-body-col .appointment-appt-block-name {
+.appointment-appt-block--week.appointment-appt-status-surface--planned .appointment-appt-block-time,
+.appointment-appt-block--week.appointment-appt-status-surface--planned .appointment-appt-block-name {
   color: var(--fg);
 }
-.appointment-appt-block--calendar-row.appointment-appt-block--week-compact.appointment-appt-status-surface--planned .appointment-appt-block-duration,
-.appointment-appt-block--calendar-row.appointment-appt-block--week-compact.appointment-appt-status-surface--planned .appointment-appt-block-body-col .appointment-appt-block-type,
-.appointment-appt-block--calendar-row.appointment-appt-block--week-compact.appointment-appt-status-surface--planned .appointment-appt-block-sub {
+.appointment-appt-block--week.appointment-appt-status-surface--planned .appointment-appt-block-duration,
+.appointment-appt-block--week.appointment-appt-status-surface--planned .appointment-appt-block-type {
   color: var(--fg-2);
 }
 
-.appointment-appt-block--calendar-row.appointment-appt-block--week-compact.appointment-appt-status-surface--active {
+.appointment-appt-block--week.appointment-appt-status-surface--active {
   background: color-mix(in oklab, var(--green) 16%, var(--bg-elev));
   border-color: color-mix(in oklab, var(--green) 35%, var(--line));
 }
-.appointment-appt-block--calendar-row.appointment-appt-block--week-compact.appointment-appt-status-surface--active .appointment-appt-block-time-col .appointment-appt-block-time,
-.appointment-appt-block--calendar-row.appointment-appt-block--week-compact.appointment-appt-status-surface--active .appointment-appt-block-body-col .appointment-appt-block-name {
+.appointment-appt-block--week.appointment-appt-status-surface--active .appointment-appt-block-time,
+.appointment-appt-block--week.appointment-appt-status-surface--active .appointment-appt-block-name {
   color: #146c2e;
 }
-.appointment-appt-block--calendar-row.appointment-appt-block--week-compact.appointment-appt-status-surface--active .appointment-appt-block-duration,
-.appointment-appt-block--calendar-row.appointment-appt-block--week-compact.appointment-appt-status-surface--active .appointment-appt-block-body-col .appointment-appt-block-type,
-.appointment-appt-block--calendar-row.appointment-appt-block--week-compact.appointment-appt-status-surface--active .appointment-appt-block-sub {
+.appointment-appt-block--week.appointment-appt-status-surface--active .appointment-appt-block-duration,
+.appointment-appt-block--week.appointment-appt-status-surface--active .appointment-appt-block-type {
   color: color-mix(in oklab, #146c2e 65%, var(--fg-3));
 }
 
-.appointment-appt-block--calendar-row.appointment-appt-block--week-compact.appointment-appt-status-surface--done {
+.appointment-appt-block--week.appointment-appt-status-surface--done {
   background: color-mix(in oklab, var(--accent) 14%, var(--bg-elev));
   border-color: color-mix(in oklab, var(--accent) 28%, var(--line));
 }
-.appointment-appt-block--calendar-row.appointment-appt-block--week-compact.appointment-appt-status-surface--done .appointment-appt-block-time-col .appointment-appt-block-time,
-.appointment-appt-block--calendar-row.appointment-appt-block--week-compact.appointment-appt-status-surface--done .appointment-appt-block-body-col .appointment-appt-block-name {
+.appointment-appt-block--week.appointment-appt-status-surface--done .appointment-appt-block-time,
+.appointment-appt-block--week.appointment-appt-status-surface--done .appointment-appt-block-name {
   color: var(--accent-ink);
 }
-.appointment-appt-block--calendar-row.appointment-appt-block--week-compact.appointment-appt-status-surface--done .appointment-appt-block-duration,
-.appointment-appt-block--calendar-row.appointment-appt-block--week-compact.appointment-appt-status-surface--done .appointment-appt-block-body-col .appointment-appt-block-type,
-.appointment-appt-block--calendar-row.appointment-appt-block--week-compact.appointment-appt-status-surface--done .appointment-appt-block-sub {
+.appointment-appt-block--week.appointment-appt-status-surface--done .appointment-appt-block-duration,
+.appointment-appt-block--week.appointment-appt-status-surface--done .appointment-appt-block-type {
   color: color-mix(in oklab, var(--accent-ink) 70%, var(--fg-3));
 }
 
-.appointment-appt-block--calendar-row.appointment-appt-block--week-compact.appointment-appt-status-surface--cancel {
+.appointment-appt-block--week.appointment-appt-status-surface--cancel {
   background: var(--red-soft);
   border-color: color-mix(in oklab, #9f1239 22%, var(--line));
 }
-.appointment-appt-block--calendar-row.appointment-appt-block--week-compact.appointment-appt-status-surface--cancel .appointment-appt-block-time-col .appointment-appt-block-time,
-.appointment-appt-block--calendar-row.appointment-appt-block--week-compact.appointment-appt-status-surface--cancel .appointment-appt-block-body-col .appointment-appt-block-name {
+.appointment-appt-block--week.appointment-appt-status-surface--cancel .appointment-appt-block-time,
+.appointment-appt-block--week.appointment-appt-status-surface--cancel .appointment-appt-block-name {
   color: #9f1239;
 }
-.appointment-appt-block--calendar-row.appointment-appt-block--week-compact.appointment-appt-status-surface--cancel .appointment-appt-block-duration,
-.appointment-appt-block--calendar-row.appointment-appt-block--week-compact.appointment-appt-status-surface--cancel .appointment-appt-block-body-col .appointment-appt-block-type,
-.appointment-appt-block--calendar-row.appointment-appt-block--week-compact.appointment-appt-status-surface--cancel .appointment-appt-block-sub {
+.appointment-appt-block--week.appointment-appt-status-surface--cancel .appointment-appt-block-duration,
+.appointment-appt-block--week.appointment-appt-status-surface--cancel .appointment-appt-block-type {
   color: color-mix(in oklab, #9f1239 55%, var(--fg-3));
 }
 
-.appointment-appt-block--calendar-row.appointment-appt-block--week-compact.appointment-appt-status-surface--edit {
+.appointment-appt-block--week.appointment-appt-status-surface--edit {
   background: var(--yellow-soft);
   border-color: color-mix(in oklab, #92400e 22%, var(--line));
 }
-.appointment-appt-block--calendar-row.appointment-appt-block--week-compact.appointment-appt-status-surface--edit .appointment-appt-block-time-col .appointment-appt-block-time,
-.appointment-appt-block--calendar-row.appointment-appt-block--week-compact.appointment-appt-status-surface--edit .appointment-appt-block-body-col .appointment-appt-block-name {
+.appointment-appt-block--week.appointment-appt-status-surface--edit .appointment-appt-block-time,
+.appointment-appt-block--week.appointment-appt-status-surface--edit .appointment-appt-block-name {
   color: #92400e;
 }
-.appointment-appt-block--calendar-row.appointment-appt-block--week-compact.appointment-appt-status-surface--edit .appointment-appt-block-duration,
-.appointment-appt-block--calendar-row.appointment-appt-block--week-compact.appointment-appt-status-surface--edit .appointment-appt-block-body-col .appointment-appt-block-type,
-.appointment-appt-block--calendar-row.appointment-appt-block--week-compact.appointment-appt-status-surface--edit .appointment-appt-block-sub {
+.appointment-appt-block--week.appointment-appt-status-surface--edit .appointment-appt-block-duration,
+.appointment-appt-block--week.appointment-appt-status-surface--edit .appointment-appt-block-type {
   color: color-mix(in oklab, #92400e 58%, var(--fg-3));
 }
-.appointment-appt-block--calendar-row.appointment-appt-block--week-compact.appointment-appt-status-surface--edit .appointment-appt-block-emergency-ic {
+.appointment-appt-block--week.appointment-appt-status-surface--edit .appointment-appt-block-emergency-ic {
   color: #92400e;
 }
 

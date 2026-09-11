@@ -162,3 +162,55 @@ export function extractToothacheFdisFromChiefComplaint(raw: string | null | unde
     }
     return [];
 }
+
+/** Permanent-tooth quadrant relative to the patient (screen: right is left in LTR odontograms). */
+export type DentalPatientQuadrant = "upper_right" | "upper_left" | "lower_right" | "lower_left";
+
+/**
+ * FDI permanent tooth → patient quadrant.
+ * Q1 11–18 upper right, Q2 21–28 upper left, Q3 31–38 lower left, Q4 41–48 lower right.
+ */
+export function fdiPatientQuadrant(fdi: string | number): DentalPatientQuadrant | null {
+    const s = String(fdi).trim();
+    if (!/^\d{1,2}$/.test(s)) return null;
+    const n = Number(s);
+    const q = Math.floor(n / 10);
+    if (q === 1) return "upper_right";
+    if (q === 2) return "upper_left";
+    if (q === 3) return "lower_left";
+    if (q === 4) return "lower_right";
+    return null;
+}
+
+/** Position within quadrant (1 = midline … 8 = third molar). */
+export function fdiQuadrantIndex(fdi: string | number): number | null {
+    const s = String(fdi).trim();
+    if (!/^\d{1,2}$/.test(s)) return null;
+    const idx = Number(s) % 10;
+    if (idx < 1 || idx > 8) return null;
+    return idx;
+}
+
+const QUAD_I18N: Record<DentalPatientQuadrant, string> = {
+    upper_right: "dental.quad.upper_right",
+    upper_left: "dental.quad.upper_left",
+    lower_right: "dental.quad.lower_right",
+    lower_left: "dental.quad.lower_left",
+};
+
+/**
+ * Localized display name for a permanent FDI tooth (e.g. FR `HD1` for 11, EN `UR1`).
+ * Storage / IPC stay FDI; this is UI-only.
+ */
+export function formatDentalToothLabel(fdi: string | number, t: DentalLabelFn): string {
+    const s = String(fdi).trim();
+    const quad = fdiPatientQuadrant(s);
+    const idx = fdiQuadrantIndex(s);
+    if (!quad || idx == null) return s;
+    return `${t(QUAD_I18N[quad])}${idx}`;
+}
+
+/** Format many FDI tokens with the same localized scheme. */
+export function formatDentalToothList(teeth: readonly string[], t: DentalLabelFn): string {
+    return teeth.map((x) => formatDentalToothLabel(x, t)).join(", ");
+}

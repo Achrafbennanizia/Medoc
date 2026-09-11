@@ -56,6 +56,17 @@ export const APPOINTMENT_DAY_END_MIN = APPOINTMENT_TIMELINE_DEFAULT_END_MIN;
 export const APPOINTMENT_DEFAULT_DUR_MIN = 45;
 export const APPOINTMENT_HOUR_PX = 84;
 export const APPOINTMENT_PX_PER_MIN = 1.4;
+/** Vertical gap between back-to-back appointment cards on the day/week timeline (px). */
+export const APPOINTMENT_BLOCK_GAP_PX = 3;
+
+export {
+    APPOINTMENT_BLOCK_EDGE_PX,
+    APPOINTMENT_OVERLAP_LANE_GAP_PX,
+    assignAppointmentOverlapLanes,
+    appointmentOverlapLaneInsets,
+    type AppointmentTimelineSpan,
+    type AppointmentOverlapLane,
+} from "./appointment-overlap";
 
 export const APPOINTMENT_EVENT_TONE_BY_KIND: Record<string, "blue" | "accent" | "orange" | "purple" | "green"> = {
     FIRST_VISIT: "blue",

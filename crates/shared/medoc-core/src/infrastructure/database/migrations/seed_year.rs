@@ -7,17 +7,20 @@
 //! - ≥ €300_000 cash flow (payments + purchase orders)
 //! - ≥ 50 treatment catalog entries
 //! - 5 staff (1 dentist PHYSICIAN + 4 front-desk/support RECEPTION — MVP quota)
-//! - Full-year calendar: 3–17 appointments per weekday (existing patients + catalog acts)
+//! - Full-year calendar: 3–8 non-overlapping appointments per weekday (durations in notes)
 //!
-//! Skipped under `cfg!(test)` via [`run_demo_year_volume_if_needed`]. Idempotent: `year_v4`.
-//! DBs already marked `year_v3` only refresh appointments (calendar upgrade).
+//! Skipped under `cfg!(test)` via [`run_demo_year_volume_if_needed`]. Idempotent: `year_v7`.
+//! DBs already marked `year_v3`–`year_v6` only refresh appointments (calendar upgrade).
 
 use chrono::{Datelike, Duration, Local, NaiveDate, Weekday};
 use sqlx::sqlite::SqlitePool;
 
 use crate::error::AppError;
 
-const YEAR_SEED_KV_KEY: &str = "migration.demo_seed.year_v4";
+const YEAR_SEED_KV_KEY: &str = "migration.demo_seed.year_v7";
+const YEAR_SEED_KV_KEY_V6: &str = "migration.demo_seed.year_v6";
+const YEAR_SEED_KV_KEY_V5: &str = "migration.demo_seed.year_v5";
+const YEAR_SEED_KV_KEY_V4: &str = "migration.demo_seed.year_v4";
 const YEAR_SEED_KV_KEY_V3: &str = "migration.demo_seed.year_v3";
 
 const PHYSICIAN_ID: &str = "seed-physician-001";
@@ -53,8 +56,9 @@ impl Scale {
             patients: 1000,
             treatments: 6000,
             examinations: 4000,
+            // One chair: keep weekday load realistic (non-overlapping durations).
             apt_per_weekday_min: 3,
-            apt_per_weekday_max: 17,
+            apt_per_weekday_max: 8,
             apt_future_days: 60,
             prescriptions: 5200,
             certificates: 7200,
@@ -137,14 +141,13 @@ const APT_STATUSES_PAST: &[&str] = &[
     "COMPLETED",
     "COMPLETED",
     "CONFIRMED",
-    "NO_SHOW",
-    "CANCELLED",
+    "COMPLETED",
+    "COMPLETED",
     "COMPLETED",
 ];
 const APT_TIMES: &[&str] = &[
-    "08:00", "08:20", "08:40", "09:00", "09:20", "09:40", "10:00", "10:20", "10:40", "11:00",
-    "11:20", "11:40", "13:00", "13:20", "13:40", "14:00", "14:20", "14:40", "15:00", "15:20",
-    "15:40", "16:00", "16:20", "16:40",
+    "08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
+    "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30",
 ];
 const APT_COMPLAINTS: &[&str] = &[
     "Tooth sensitivity",
@@ -159,6 +162,28 @@ const APT_COMPLAINTS: &[&str] = &[
     "Whitening consult",
 ];
 
+fn minutes_to_time(min: u32) -> String {
+    format!("{:02}:{:02}", min / 60, min % 60)
+}
+
+/// Duration that matches typical chair time for the appointment kind.
+fn duration_for_kind(kind: &str, n: u64) -> u32 {
+    match kind {
+        "CHECKUP" => 20,
+        "EXAMINATION" => 30,
+        "CONSULTATION" => 30,
+        "FIRST_VISIT" => 45,
+        "TREATMENT" => {
+            if n.is_multiple_of(3) {
+                60
+            } else {
+                45
+            }
+        }
+        _ => 30,
+    }
+}
+
 fn weekday_apt_count(day: NaiveDate, min: u32, max: u32) -> u32 {
     debug_assert!(min <= max);
     let span = (max - min).saturating_add(1);
@@ -166,15 +191,37 @@ fn weekday_apt_count(day: NaiveDate, min: u32, max: u32) -> u32 {
     min + (n % span as u64) as u32
 }
 
-fn shuffled_times(day: NaiveDate, count: usize) -> Vec<&'static str> {
-    let mut slots: Vec<&'static str> = APT_TIMES.to_vec();
+/// Pack non-overlapping appointments into the day (lunch 12:00–13:00 closed).
+/// Starts snap to 5-minute marks; each slot gets an explicit duration that fits before the next.
+fn packed_day_slots(day: NaiveDate, count: usize) -> Vec<(String, &'static str, u32)> {
+    const DAY_START: u32 = 8 * 60;
+    const DAY_END: u32 = 17 * 60;
+    const LUNCH_START: u32 = 12 * 60;
+    const LUNCH_END: u32 = 13 * 60;
+    /// Buffer between consecutive appointments (minutes) — UI leaves a 3px visual gap.
+    const BETWEEN_MIN: u32 = 5;
+
     let day_n = day.num_days_from_ce() as u64;
-    for i in (1..slots.len()).rev() {
-        let j = (mix(day_n.wrapping_mul(17).wrapping_add(i as u64)) as usize) % (i + 1);
-        slots.swap(i, j);
+    let mut out = Vec::with_capacity(count);
+    let mut cursor = DAY_START;
+    let mut slot_i = 0u64;
+    while out.len() < count && cursor < DAY_END {
+        let n = mix(day_n.wrapping_mul(31).wrapping_add(slot_i).wrapping_add(9));
+        let kind = *pick(n + 1, APT_KINDS);
+        let dur = duration_for_kind(kind, n + 2);
+        // Snap start to a clean 5-minute mark.
+        cursor = ((cursor + 4) / 5) * 5;
+        if cursor < LUNCH_END && cursor + dur > LUNCH_START {
+            cursor = LUNCH_END;
+        }
+        if cursor + dur > DAY_END {
+            break;
+        }
+        out.push((minutes_to_time(cursor), kind, dur));
+        cursor = cursor + dur + BETWEEN_MIN;
+        slot_i += 1;
     }
-    slots.truncate(count.min(slots.len()));
-    slots
+    out
 }
 
 fn act_for_kind<'a>(kind: &str, n: u64, catalog: &'a [(&str, &str, f64)]) -> (&'a str, &'a str) {
@@ -223,6 +270,16 @@ async fn seed_calendar_appointments_tx(
         .execute(&mut **tx)
         .await
         .map_err(AppError::Database)?;
+    // Near-term curated seed-ter rows collide with the packed year calendar on the same chair.
+    sqlx::query(
+        "DELETE FROM appointment WHERE id IN (
+            'seed-ter-001','seed-ter-002','seed-ter-003','seed-ter-004','seed-ter-005',
+            'seed-ter-006','seed-ter-007','seed-ter-008','seed-ter-009','seed-ter-010'
+        )",
+    )
+    .execute(&mut **tx)
+    .await
+    .map_err(AppError::Database)?;
 
     let end = today + Duration::days(scale.apt_future_days as i64);
     let min = scale.apt_per_weekday_min;
@@ -237,10 +294,10 @@ async fn seed_calendar_appointments_tx(
         let is_weekday = day.weekday() != Weekday::Sat && day.weekday() != Weekday::Sun;
         if is_weekday {
             let count = weekday_apt_count(day, min, max) as usize;
-            let times = shuffled_times(day, count);
+            let slots = packed_day_slots(day, count);
             // Spread patients across the day; avoid same patient twice on one day when possible.
             let mut used_patients = std::collections::HashSet::new();
-            for (slot_i, time) in times.into_iter().enumerate() {
+            for (slot_i, (time, kind, dur)) in slots.into_iter().enumerate() {
                 let n = mix((day.num_days_from_ce() as u64)
                     .wrapping_mul(31)
                     .wrapping_add(slot_i as u64)
@@ -255,7 +312,6 @@ async fn seed_calendar_appointments_tx(
                 }
                 used_patients.insert(pat_idx);
 
-                let kind = *pick(n + 1, APT_KINDS);
                 let (act_cat, act_svc) = act_for_kind(kind, n + 2, catalog);
                 let status = if day > today {
                     if n.is_multiple_of(3) {
@@ -268,7 +324,7 @@ async fn seed_calendar_appointments_tx(
                 } else {
                     *pick(n + 3, APT_STATUSES_PAST)
                 };
-                let notes = format!("{act_cat}: {act_svc}");
+                let notes = format!("Duration: {dur} min · {act_cat}: {act_svc}");
                 let complaint = *pick(n + 5, APT_COMPLAINTS);
                 let created = format!("{day} {time}:00");
                 sqlx::query(
@@ -278,7 +334,7 @@ async fn seed_calendar_appointments_tx(
                 )
                 .bind(format!("seed-yr-apt-{a:05}"))
                 .bind(day.to_string())
-                .bind(time)
+                .bind(&time)
                 .bind(kind)
                 .bind(status)
                 .bind(&notes)
@@ -346,18 +402,22 @@ pub async fn run_demo_year_volume_if_needed(pool: &SqlitePool) -> Result<(), App
     if already_applied(pool).await? {
         return Ok(());
     }
-    // Existing year_v3 DBs: refresh calendar density only (keep clinical/billing volume).
-    if kv_present(pool, YEAR_SEED_KV_KEY_V3).await? {
-        tracing::info!("demo year seed v4: refreshing calendar appointments (3–17/weekday)");
+    // Existing year_v3–v6 DBs: refresh calendar only (keep clinical/billing volume).
+    let prior = kv_present(pool, YEAR_SEED_KV_KEY_V6).await?
+        || kv_present(pool, YEAR_SEED_KV_KEY_V5).await?
+        || kv_present(pool, YEAR_SEED_KV_KEY_V4).await?
+        || kv_present(pool, YEAR_SEED_KV_KEY_V3).await?;
+    if prior {
+        tracing::info!("demo year seed v7: refreshing calendar appointments (non-overlapping)");
         refresh_year_calendar_appointments(pool, Scale::full()).await?;
         mark_applied(pool).await?;
-        tracing::info!("demo year seed v4: calendar refresh done");
+        tracing::info!("demo year seed v7: calendar refresh done");
         return Ok(());
     }
-    tracing::info!("demo year seed v4: generating full practice volume");
+    tracing::info!("demo year seed v7: generating full practice volume");
     seed_year_volume(pool, Scale::full()).await?;
     mark_applied(pool).await?;
-    tracing::info!("demo year seed v4: done");
+    tracing::info!("demo year seed v7: done");
     Ok(())
 }
 

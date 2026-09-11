@@ -16,6 +16,7 @@ import {
     treatmentsForTooth,
     dentalStatusLabel,
     dentalToothType,
+    formatDentalToothLabel,
 } from "@/lib/dental";
 import { examinationToothNotesForTooth } from "@/lib/examination";
 
@@ -126,6 +127,7 @@ export function DentalMiniBar({
         const shape = DENTAL_TOOTH_SHAPES[type];
         const stateKey = findingToStatusKey(map.get(Number(fdi)));
         const st = DENTAL_STATES[stateKey];
+        const label = formatDentalToothLabel(fdi, t);
         const hasHistory =
             findingsForTooth(findings, fdi).length > 0
             || treatmentsForTooth(treatments, fdi).length > 0
@@ -140,13 +142,13 @@ export function DentalMiniBar({
                 <button
                     type="button"
                     className={`dental-mini-tooth ${hasHistory ? "has-history" : ""} ${pop?.fdi === fdi ? "is-active" : ""}`}
-                    aria-label={tp("dental.tooth_status_aria", { tooth: fdi, status: dentalStatusLabel(t, stateKey) })}
+                    aria-label={tp("dental.tooth_status_aria", { tooth: label, status: dentalStatusLabel(t, stateKey) })}
                 >
-                    <svg width="16" height="26" viewBox="0 0 20 34" aria-hidden>
+                    <svg width="18" height="28" viewBox="0 0 20 34" aria-hidden>
                         <path d={shape.crown} fill={st.fill} stroke={st.stroke} strokeWidth={1.1} />
                         <path d={shape.root} fill={st.fill} stroke={st.stroke} strokeWidth={1.1} />
                     </svg>
-                    <span className="dental-mini-label">{fdi}</span>
+                    <span className="dental-mini-label">{label}</span>
                 </button>
             </div>
         );
@@ -166,7 +168,7 @@ export function DentalMiniBar({
             onMouseLeave={scheduleClose}
             role="tooltip"
         >
-            <div className="tooth-popover-title">{tp("dental.picker.one_tooth", { tooth: pop.fdi })}</div>
+            <div className="tooth-popover-title">{tp("dental.picker.one_tooth", { tooth: formatDentalToothLabel(pop.fdi, t) })}</div>
             <div className="tooth-popover-meta">{dentalStatusLabel(t, popStatus)}</div>
             <div className="tooth-popover-section">
                 <div className="tooth-popover-h">{t("dental.mini.findings_heading")}</div>
@@ -230,9 +232,39 @@ export function DentalMiniBar({
         <div className="dental-mini-bar" onMouseLeave={scheduleClose}>
             <div className="dental-mini-bar-inner">
                 <span className="dental-mini-title">{t("dental.mini.title")}</span>
-                <div className="dental-mini-row">{DENTAL_UPPER_R.map(renderMini)}{DENTAL_UPPER_L.map(renderMini)}</div>
-                <div className="dental-mini-divider" />
-                <div className="dental-mini-row">{DENTAL_LOWER_R.map(renderMini)}{DENTAL_LOWER_L.map(renderMini)}</div>
+                <div className="dental-odontogram">
+                    <span className="dental-odontogram__axis dental-odontogram__axis--top" aria-hidden>
+                        {t("dental.axis.top")}
+                    </span>
+                    <div className="dental-odontogram__body">
+                        {/* Patient right = viewer left (standard chart). */}
+                        <span className="dental-odontogram__axis dental-odontogram__axis--start" aria-hidden>
+                            {t("dental.axis.right")}
+                        </span>
+                        <div className="dental-odontogram__chart" role="group" aria-label={t("dental.mini.title")}>
+                            <div className="dental-odontogram__quad dental-odontogram__quad--ur">
+                                {DENTAL_UPPER_R.map(renderMini)}
+                            </div>
+                            <div className="dental-odontogram__vline" aria-hidden />
+                            <div className="dental-odontogram__quad dental-odontogram__quad--ul">
+                                {DENTAL_UPPER_L.map(renderMini)}
+                            </div>
+                            <div className="dental-odontogram__hline" aria-hidden />
+                            <div className="dental-odontogram__quad dental-odontogram__quad--lr">
+                                {DENTAL_LOWER_R.map(renderMini)}
+                            </div>
+                            <div className="dental-odontogram__quad dental-odontogram__quad--ll">
+                                {DENTAL_LOWER_L.map(renderMini)}
+                            </div>
+                        </div>
+                        <span className="dental-odontogram__axis dental-odontogram__axis--end" aria-hidden>
+                            {t("dental.axis.left")}
+                        </span>
+                    </div>
+                    <span className="dental-odontogram__axis dental-odontogram__axis--bottom" aria-hidden>
+                        {t("dental.axis.bottom")}
+                    </span>
+                </div>
             </div>
             {/* Popover is portaled to <body> so that ancestors with `transform`
                 (e.g. `.animate-fade-in` keyframes) cannot turn it into a

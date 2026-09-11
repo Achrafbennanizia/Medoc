@@ -13,7 +13,7 @@ import {
 import { addMonths, addWeeks, format, parseISO, startOfWeek } from "date-fns";
 import type { PhysicianSummary } from "@/systems/practice-host/controllers/staff.controller";
 import { useDateFnsLocale, useT, useTParams } from "@/lib/i18n";
-import { extractToothacheFdisFromChiefComplaint } from "@/lib/dental";
+import { extractToothacheFdisFromChiefComplaint, formatDentalToothLabel, formatDentalToothList } from "@/lib/dental";
 import { appointmentIsEmergencyMarked, parseAppointmentDurationMin } from "@/lib/appointment-domain";
 import { minutesToTime } from "@/lib/appointment-availability";
 import type { PracticeWorkHoursConfig } from "@/lib/practice-planning";
@@ -31,8 +31,11 @@ import {
     appointmentCalendarWeekDays,
     appointmentCountsAsPlanned,
     APPOINTMENT_DEFAULT_DUR_MIN,
+    APPOINTMENT_BLOCK_GAP_PX,
     APPOINTMENT_HOUR_PX,
     APPOINTMENT_PX_PER_MIN,
+    assignAppointmentOverlapLanes,
+    appointmentOverlapLaneInsets,
     appointmentTimelineHourLabels,
     appointmentTimeToMinutes,
     type AppointmentDoctorTone,
@@ -43,7 +46,7 @@ import { BoltIcon, CalendarIcon, ChevronLeftIcon, ChevronRightIcon } from "@/lib
 import { Button } from "@/views/components/ui/button";
 import { EmptyState } from "@/views/components/ui/empty-state";
 import { DoctorLegend } from "@/views/components/appointment-doctor-legend";
-import { bindAppointmentDragBlock, createAppointmentDragGhost, paintAppointmentDragVisual } from "@/lib/appointment-drag-runtime";
+import { bindAppointmentDragBlock, paintAppointmentDragVisual } from "@/lib/appointment-drag-runtime";
 
 const PX_PER_MIN = APPOINTMENT_PX_PER_MIN;
 const HOUR_PX = APPOINTMENT_HOUR_PX;
@@ -146,10 +149,11 @@ const AppointmentApptBlockView = memo(function AppointmentApptBlockView({
     /** Day view: short date of target when another day is chosen via drag */
     dragTargetDateHint?: string;
     style?: CSSProperties;
-    onClick: () => void;
+    onClick: (e: ReactMouseEvent) => void;
     onMouseDown: (e: ReactMouseEvent) => void;
     onContextMenu: (e: ReactMouseEvent) => void;
 }) {
+    const t = useT();
     const tp = useTParams();
     const blockTone = blockToneForAppointment(appointment, doctorTone);
     const cancelled = appointment.status === "CANCELLED" || appointment.status === "NO_SHOW";
@@ -157,60 +161,92 @@ const AppointmentApptBlockView = memo(function AppointmentApptBlockView({
     const timeStr = (dragPreviewTime ?? appointment.time).slice(0, 5);
     const pill = appointmentCalendarStatusPill(appointment);
     const stripeColor = doctorStripeVar(doctorTone);
-    const weekCompact = !dayColumn;
+    const weekView = !dayColumn;
     const painTeeth = extractToothacheFdisFromChiefComplaint(appointment.chief_complaint);
+    const kindLabel = appointmentKindLabelFromAppointment(appointment);
+    const durLabel = `${durMin} min`;
+    const toothLabel = painTeeth.length
+        ? painTeeth.length === 1
+            ? tp("dental.picker.one_tooth", { tooth: formatDentalToothLabel(painTeeth[0]!, t) })
+            : tp("dental.picker.many_teeth", { teeth: formatDentalToothList(painTeeth, t) })
+        : null;
+    const a11ySummary = [timeStr, durLabel, patientName, kindLabel, pill.label, toothLabel, dragTargetDateHint]
+        .filter(Boolean)
+        .join(" · ");
+
+    const emergencyIc = appointmentIsEmergencyMarked(appointment) ? (
+        <span className="appointment-appt-block-emergency-ic" aria-hidden>
+            <BoltIcon size={10} />
+        </span>
+    ) : null;
+
+    const statusPill = weekView ? (
+        <span className="sr-only">{pill.label}</span>
+    ) : (
+        <span className={`appointment-appt-status-pill appointment-appt-status-pill--${pill.tone}`}>{pill.label}</span>
+    );
+
+    const timeLiveClass = dragPreviewTime ? " appointment-appt-block-time--drag-live" : "";
+
+    const dragHintInline = dragTargetDateHint ? (
+        <>
+            <span className="appointment-appt-block-micro-sep" aria-hidden>
+                ·
+            </span>
+            <span className="appointment-appt-block-target-day">{dragTargetDateHint}</span>
+        </>
+    ) : null;
+
+    // Week + day: single horizontal strip so all fields stay visible at any block height.
+    const inner = (
+        <>
+            <span className="appointment-appt-block-stripe" style={{ background: stripeColor }} aria-hidden />
+            <span className={`appointment-appt-block-micro${weekView ? "" : " appointment-appt-block-micro--day"}`}>
+                <span className={`appointment-appt-block-time${timeLiveClass}`}>{timeStr}</span>
+                <span className="appointment-appt-block-micro-sep" aria-hidden>
+                    ·
+                </span>
+                <span className="appointment-appt-block-duration">{durLabel}</span>
+                <span className="appointment-appt-block-micro-sep" aria-hidden>
+                    ·
+                </span>
+                {emergencyIc}
+                <span className="appointment-appt-block-name">{patientName}</span>
+                <span className="appointment-appt-block-micro-sep" aria-hidden>
+                    ·
+                </span>
+                <span className="appointment-appt-block-type">{kindLabel}</span>
+                {dragHintInline}
+            </span>
+            {statusPill}
+        </>
+    );
+
     return (
         <button
             type="button"
             data-appointment-appt-id={appointment.id}
-            className={`appointment-appt-block appointment-appt-block--calendar-row ${dayColumn ? "appointment-appt-block--day-tall" : "appointment-appt-block--week-compact"} appointment-appt-block--${blockTone}${cancelled ? " appointment-appt-block--cancelled" : ""}${dragging ? " appointment-appt-block--dragging" : ""}${dragging && dragInvalid ? " appointment-appt-block--drag-invalid" : ""}${weekCompact ? ` appointment-appt-status-surface--${pill.tone}` : ""}`}
-            style={{
-                ...style,
-            }}
+            data-appointment-density="micro"
+            title={a11ySummary}
+            aria-label={a11ySummary}
+            className={[
+                "appointment-appt-block",
+                "appointment-appt-block--density-micro",
+                dayColumn ? "appointment-appt-block--day" : "appointment-appt-block--week",
+                `appointment-appt-block--${blockTone}`,
+                cancelled ? "appointment-appt-block--cancelled" : "",
+                dragging ? "appointment-appt-block--dragging" : "",
+                dragging && dragInvalid ? "appointment-appt-block--drag-invalid" : "",
+                weekView ? `appointment-appt-status-surface--${pill.tone}` : "",
+            ]
+                .filter(Boolean)
+                .join(" ")}
+            style={style}
             onClick={onClick}
             onMouseDown={onMouseDown}
             onContextMenu={onContextMenu}
         >
-            <span className="appointment-appt-block-time-col">
-                <span className={`appointment-appt-block-time${dragPreviewTime ? " appointment-appt-block-time--drag-live" : ""}`}>{timeStr}</span>
-                <span className="appointment-appt-block-duration">{durMin} min</span>
-            </span>
-            <span className="appointment-appt-block-stripe" style={{ background: stripeColor }} aria-hidden />
-            <span className="appointment-appt-block-body-col">
-                <span className="appointment-appt-block-name-row">
-                    {appointmentIsEmergencyMarked(appointment) ? (
-                        <span className="appointment-appt-block-emergency-ic" aria-hidden>
-                            <BoltIcon size={12} />
-                        </span>
-                    ) : null}
-                    <span className="appointment-appt-block-name">{patientName}</span>
-                </span>
-                <span className="appointment-appt-block-sub">
-                    <span className="appointment-appt-block-duration appointment-appt-block-duration--compact">{durMin} min</span>
-                    <span className="appointment-appt-block-sub-sep" aria-hidden>
-                        ·
-                    </span>
-                    <span className="appointment-appt-block-type">{appointmentKindLabelFromAppointment(appointment)}</span>
-                </span>
-                {painTeeth.length ? (
-                    <span
-                        className="appointment-appt-block-tooth"
-                        title={tp("dental.toothache.title", { teeth: painTeeth.join(", ") })}
-                    >
-                        {painTeeth.length === 1
-                            ? tp("dental.picker.one_tooth", { tooth: painTeeth[0] })
-                            : tp("dental.picker.many_teeth", { teeth: painTeeth.join(", ") })}
-                    </span>
-                ) : null}
-                {dragTargetDateHint ? (
-                    <span className="appointment-appt-block-target-day">{dragTargetDateHint}</span>
-                ) : null}
-            </span>
-            {weekCompact ? (
-                <span className="sr-only">{pill.label}</span>
-            ) : (
-                <span className={`appointment-appt-status-pill appointment-appt-status-pill--${pill.tone}`}>{pill.label}</span>
-            )}
+            <span className="appointment-appt-block-shell">{inner}</span>
         </button>
     );
 });
@@ -222,7 +258,7 @@ function AppointmentTimeColumnBody({
     physicianToneMap,
     physicianNameById,
     dragState,
-    setDragState,
+    onAppointmentDragStart,
     onBeginAppointmentDrag,
     onOpenDrawer,
     onContextMenu,
@@ -240,7 +276,7 @@ function AppointmentTimeColumnBody({
     physicianToneMap: Map<string, AppointmentDoctorTone>;
     physicianNameById?: Map<string, string>;
     dragState: AppointmentDragState | null;
-    setDragState: Dispatch<SetStateAction<AppointmentDragState | null>>;
+    onAppointmentDragStart: (state: AppointmentDragState, el: HTMLButtonElement, singleDay: boolean, pointer: { clientX: number; clientY: number }) => void;
     /** Day view: reset hour snap when a Appointment block is grabbed for dragging */
     onBeginAppointmentDrag?: () => void;
     onOpenDrawer: (t: Appointment) => void;
@@ -267,6 +303,14 @@ function AppointmentTimeColumnBody({
     const isTodayCol = iso === todayIso;
     const isInactiveDay = !isAppointmentCalendarWorkingDay(parseISO(iso), practiceCfg);
     const dayList = useMemo(() => [...appointments].sort((a, b) => a.time.localeCompare(b.time)), [appointments]);
+    const overlapLanes = useMemo(() => {
+        const spans = dayList.map((ap) => {
+            const startMin = timeToMinutes(ap.time);
+            const dur = Math.max(5, parseAppointmentDurationMin(ap.notes, APPOINTMENT_DEFAULT_DUR_MIN));
+            return { id: ap.id, startMin, endMin: startMin + dur };
+        });
+        return assignAppointmentOverlapLanes(spans);
+    }, [dayList]);
     const closedSpans = useMemo(
         () => deriveDayClosedSpans(practiceCfg, iso, timelineBounds),
         [practiceCfg, iso, timelineBounds],
@@ -340,9 +384,10 @@ function AppointmentTimeColumnBody({
                 const dispStart = isDragThis ? dragState!.currentStartMin : st;
                 const layoutTop = (dispStart - dayStartMin) * pxPerMin;
                 const dur = Math.max(5, parseAppointmentDurationMin(ap.notes, APPOINTMENT_DEFAULT_DUR_MIN));
-                const minDayBlockPx = singleDay ? Math.max(56, pxPerMin * 24) : 0;
-                const minWeekBlockPx = singleDay ? 0 : 48;
-                const blockHeight = Math.max(dur * pxPerMin - 2, singleDay ? minDayBlockPx : minWeekBlockPx);
+                // Height tracks duration on the timeline; leave a small gap before the next block.
+                const blockHeight = Math.max(dur * pxPerMin - APPOINTMENT_BLOCK_GAP_PX, 1);
+                const lane = overlapLanes.get(ap.id) ?? { col: 0, colCount: 1 };
+                const insets = appointmentOverlapLaneInsets(lane);
                 const targetDayHint =
                     singleDay && isDragThis && dragState && dragState.currentDate !== iso
                         ? `→ ${format(parseISO(dragState.currentDate), "EEE d. MMM", { locale: dateFnsLocale })}`
@@ -364,10 +409,14 @@ function AppointmentTimeColumnBody({
                         style={{
                             ...(isDragThis ? {} : { top: layoutTop }),
                             height: blockHeight,
-                            insetInlineStart: 4,
-                            insetInlineEnd: 4,
+                            insetInlineStart: insets.insetInlineStart,
+                            width: insets.width,
+                            insetInlineEnd: "auto",
+                            zIndex: isDragThis ? undefined : 4 + lane.col,
                         }}
-                        onClick={() => {
+                        onClick={(e) => {
+                            // Pointer opens the drawer after drag mouseup (delayed). Keyboard Enter/Space still works.
+                            if (e.detail !== 0) return;
                             if (clickSuppressUntilRef && Date.now() < clickSuppressUntilRef.current) return;
                             onOpenDrawer(ap);
                         }}
@@ -377,24 +426,22 @@ function AppointmentTimeColumnBody({
                             onBeginAppointmentDrag?.();
                             const el = e.currentTarget as HTMLButtonElement;
                             const durMin = Math.max(5, parseAppointmentDurationMin(ap.notes, APPOINTMENT_DEFAULT_DUR_MIN));
-                            if (singleDay) {
-                                const topPx = (st - dayStartMin) * pxPerMin;
-                                el.style.setProperty("--appointment-drag-top", `${topPx}px`);
-                                bindAppointmentDragBlock(el);
-                            } else {
-                                createAppointmentDragGhost(el, ap.id);
-                            }
-                            setDragState({
-                                id: ap.id,
-                                physicianId: ap.physician_id,
-                                date: iso,
-                                durMin,
-                                originalDate: ap.date,
-                                originalStartMin: st,
-                                currentDate: ap.date,
-                                currentStartMin: st,
-                                dropAllowed: true,
-                            });
+                            onAppointmentDragStart(
+                                {
+                                    id: ap.id,
+                                    physicianId: ap.physician_id,
+                                    date: iso,
+                                    durMin,
+                                    originalDate: ap.date,
+                                    originalStartMin: st,
+                                    currentDate: ap.date,
+                                    currentStartMin: st,
+                                    dropAllowed: true,
+                                },
+                                el,
+                                singleDay,
+                                { clientX: e.clientX, clientY: e.clientY },
+                            );
                         }}
                         onContextMenu={(e) => onContextMenu(ap, e)}
                     />
@@ -411,7 +458,7 @@ export function AppointmentWeekGrid({
     physicianToneMap,
     practiceCfg,
     dragState,
-    setDragState,
+    onAppointmentDragStart,
     snapLabel,
     onClearSnapLabel,
     clickSuppressUntilRef,
@@ -428,7 +475,7 @@ export function AppointmentWeekGrid({
     practiceCfg: PracticeWorkHoursConfig;
     clickSuppressUntilRef: MutableRefObject<number>;
     dragState: AppointmentDragState | null;
-    setDragState: Dispatch<SetStateAction<AppointmentDragState | null>>;
+    onAppointmentDragStart: (state: AppointmentDragState, el: HTMLButtonElement, singleDay: boolean, pointer: { clientX: number; clientY: number }) => void;
     snapLabel: { iso: string; startMin: number } | null;
     onClearSnapLabel: () => void;
     onHeaderDay: (iso: string) => void;
@@ -520,7 +567,7 @@ export function AppointmentWeekGrid({
                                 patientNameById={patientNameById}
                                 physicianToneMap={physicianToneMap}
                                 dragState={dragState}
-                                setDragState={setDragState}
+                                onAppointmentDragStart={onAppointmentDragStart}
                                 onOpenDrawer={onOpenDrawer}
                                 onContextMenu={onContextMenu}
                                 onNewAt={onNewAt}
@@ -553,7 +600,8 @@ export function AppointmentDaySplit({
     daySnapLabel,
     onClearDaySnapLabel,
     dragState,
-    setDragState,
+    onAppointmentDragStart,
+    clickSuppressUntilRef,
     onOpenDrawer,
     onContextMenu,
     onNewAt,
@@ -575,7 +623,8 @@ export function AppointmentDaySplit({
     daySnapLabel: { iso: string; startMin: number } | null;
     onClearDaySnapLabel: () => void;
     dragState: AppointmentDragState | null;
-    setDragState: Dispatch<SetStateAction<AppointmentDragState | null>>;
+    onAppointmentDragStart: (state: AppointmentDragState, el: HTMLButtonElement, singleDay: boolean, pointer: { clientX: number; clientY: number }) => void;
+    clickSuppressUntilRef: MutableRefObject<number>;
     onOpenDrawer: (t: Appointment) => void;
     onContextMenu: (t: Appointment, e: ReactMouseEvent) => void;
     onNewAt: (iso: string, min: number) => void;
@@ -605,7 +654,10 @@ export function AppointmentDaySplit({
     const planned = appointments.filter(appointmentCountsAsPlanned);
     const confirmed = appointments.filter((t) => t.status === "CONFIRMED").length;
     const slotMin = timelineBounds.endMin - timelineBounds.startMin;
-    const bookedMin = planned.length * APPOINTMENT_DEFAULT_DUR_MIN;
+    const bookedMin = planned.reduce(
+        (sum, ap) => sum + Math.max(5, parseAppointmentDurationMin(ap.notes, APPOINTMENT_DEFAULT_DUR_MIN)),
+        0,
+    );
     const auslastung = slotMin > 0 ? Math.min(100, Math.round((bookedMin / slotMin) * 100)) : 0;
     const freiH = Math.max(0, Math.round(((slotMin - bookedMin) / 60) * 10) / 10);
     const nMin = nowMin();
@@ -769,13 +821,14 @@ export function AppointmentDaySplit({
                                 physicianToneMap={physicianToneMap}
                                 physicianNameById={physicianNameById}
                                 dragState={dragState}
-                                setDragState={setDragState}
+                                onAppointmentDragStart={onAppointmentDragStart}
                                 onBeginAppointmentDrag={onClearDaySnapLabel}
                                 onOpenDrawer={onOpenDrawer}
                                 onContextMenu={onContextMenu}
                                 onNewAt={onNewAt}
                                 nowMin={nowMin}
                                 singleDay
+                                clickSuppressUntilRef={clickSuppressUntilRef}
                                 axisLayout={dayAxisLayout}
                                 timelineBounds={timelineBounds}
                                 practiceCfg={practiceCfg}
