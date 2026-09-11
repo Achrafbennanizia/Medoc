@@ -10,6 +10,7 @@ import type { PatientChart } from "@/models/types";
 import type { PatientDetailPrescriptionTabHandle } from "./patient-detail-prescription-tab";
 import { useT, useTParams } from "@/lib/i18n";
 import { useToastStore } from "@/views/components/ui/toast-store";
+import { errorMessage } from "@/lib/utils";
 
 export type UsePatientDetailChartSaveArgs = {
     chartSaveConfirm: ChartSavePending | null;
@@ -92,7 +93,7 @@ export function usePatientDetailChartSave({
             if (e instanceof Error && (e.message === "invalid-json" || e.message === "invalid-amount")) {
                 /* bereits per Toast gemeldet */
             } else {
-                toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
+                toast(tp("common.error_with_message", { message: errorMessage(e) }), "error");
             }
         } finally {
             setChartSaveBusy(false);

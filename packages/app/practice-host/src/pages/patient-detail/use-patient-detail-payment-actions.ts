@@ -19,7 +19,7 @@ import {
     sumPaymentsForTreatment,
     type PaymentAssignmentSummaryRow,
 } from "@/lib/payment-booking";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, errorMessage} from "@/lib/utils";
 import { useT, useTParams } from "@/lib/i18n";
 import { useToastStore } from "@/views/components/ui/toast-store";
 
@@ -180,14 +180,14 @@ export function usePatientDetailPaymentActions(args: UsePatientDetailPaymentActi
                         });
                         await load();
                     } catch (e) {
-                        toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
+                        toast(tp("common.error_with_message", { message: errorMessage(e) }), "error");
                     }
                 },
             });
             setPaymentEdit(null);
             await load();
         } catch (e) {
-            toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
+            toast(tp("common.error_with_message", { message: errorMessage(e) }), "error");
         }
     };
 
@@ -242,7 +242,7 @@ export function usePatientDetailPaymentActions(args: UsePatientDetailPaymentActi
             });
             await load();
         } catch (e) {
-            toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
+            toast(tp("common.error_with_message", { message: errorMessage(e) }), "error");
         }
     };
 
@@ -254,7 +254,7 @@ export function usePatientDetailPaymentActions(args: UsePatientDetailPaymentActi
             setPaymentDeleteId(null);
             await load();
         } catch (e) {
-            toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
+            toast(tp("common.error_with_message", { message: errorMessage(e) }), "error");
         }
     };
 
@@ -263,7 +263,7 @@ export function usePatientDetailPaymentActions(args: UsePatientDetailPaymentActi
         try {
             setHtmlDocExport(await buildReceiptExportForPayment(z));
         } catch (e) {
-            toast(tp("patient.detail.toast.receipt_failed", { message: e instanceof Error ? e.message : String(e) }), "error");
+            toast(tp("patient.detail.toast.receipt_failed", { message: errorMessage(e) }), "error");
         }
     };
 

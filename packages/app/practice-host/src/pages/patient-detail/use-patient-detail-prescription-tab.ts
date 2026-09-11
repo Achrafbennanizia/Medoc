@@ -48,6 +48,7 @@ import { useToastStore } from "@/views/components/ui/toast-store";
 import type { HtmlExportDocumentKind } from "@/views/components/export-picker-dialog";
 import type { ClinicalDocumentExportBundle } from "@/lib/document-print-html";
 import { useT, useTParams } from "@/lib/i18n";
+import { errorMessage } from "@/lib/utils";
 
 export type PatientDetailPrescriptionTabProps = {
     patientId: string;
@@ -214,7 +215,7 @@ export function usePatientDetailPrescriptionTab({
             setPrescriptionDeleteId(null);
             await onReload();
         } catch (e) {
-            toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
+            toast(tp("common.error_with_message", { message: errorMessage(e) }), "error");
         }
     };
 
@@ -226,7 +227,7 @@ export function usePatientDetailPrescriptionTab({
             setCertificateDeleteId(null);
             await onReload();
         } catch (e) {
-            toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
+            toast(tp("common.error_with_message", { message: errorMessage(e) }), "error");
         }
     };
 
@@ -384,14 +385,14 @@ export function usePatientDetailPrescriptionTab({
                         });
                         await onReload();
                     } catch (e) {
-                        toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
+                        toast(tp("common.error_with_message", { message: errorMessage(e) }), "error");
                     }
                 },
             });
             setPrescriptionEdit(null);
             await onReload();
         } catch (e) {
-            toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
+            toast(tp("common.error_with_message", { message: errorMessage(e) }), "error");
         }
     };
 

@@ -52,6 +52,7 @@ import { isTauriApp } from "@/lib/save-download";
 import { getInvoicePracticeFromStorage } from "@/lib/invoice-service-item";
 import { checkPracticeDocumentReadiness } from "@/lib/practice-completeness";
 import { PracticeReadinessDialog } from "./practice-readiness-dialog";
+import { errorMessage } from "@/lib/utils";
 
 export type ExportPickerChartProps = {
     open: boolean;
@@ -212,7 +213,7 @@ function ChartExportPickerInner({
                     previewUrlRef.current = url;
                     setPreviewUrl(url);
                 } catch (e) {
-                    toast(tp("export.picker.preview_error", { message: e instanceof Error ? e.message : String(e) }), "error");
+                    toast(tp("export.picker.preview_error", { message: errorMessage(e) }), "error");
                     revokePreview();
                 } finally {
                     setPreviewBusy(false);
@@ -323,7 +324,7 @@ function ChartExportPickerInner({
             }
             onClose();
         } catch (e) {
-            toast(tp("common.export_failed", { message: e instanceof Error ? e.message : String(e) }), "error");
+            toast(tp("common.export_failed", { message: errorMessage(e) }), "error");
         } finally {
             setBusy(false);
         }
@@ -669,7 +670,7 @@ function HtmlDocumentExportPickerInner({
                     pdfPreviewUrlRef.current = url;
                     setPdfPreviewUrl(url);
                 } catch (e) {
-                    toast(tp("export.picker.preview_pdf_error", { message: e instanceof Error ? e.message : String(e) }), "error");
+                    toast(tp("export.picker.preview_pdf_error", { message: errorMessage(e) }), "error");
                     revokePdfPreview();
                 } finally {
                     setPdfPreviewBusy(false);
@@ -786,7 +787,7 @@ function HtmlDocumentExportPickerInner({
             }
             onClose();
         } catch (e) {
-            toast(tp("common.export_failed", { message: e instanceof Error ? e.message : String(e) }), "error");
+            toast(tp("common.export_failed", { message: errorMessage(e) }), "error");
         } finally {
             setBusy(false);
         }

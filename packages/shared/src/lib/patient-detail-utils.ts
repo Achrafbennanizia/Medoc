@@ -1,6 +1,7 @@
 import { deriveAttachmentDisplayName } from "./chart-attachments";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import { t, translateLocaleParams, useLocale } from "@/lib/i18n";
+import { ipcErrorRaw } from "@/lib/ipc-errors";
 import type { PrescriptionLine } from "@/lib/medications";
 import type { CertificateComposerFormFields } from "@/lib/certificate-composer";
 import type { Treatment, TreatmentCatalogItem } from "@/models/types";
@@ -16,8 +17,11 @@ export function validatePrescriptionLine(line: PrescriptionLine, t: TFn): string
 }
 
 export function isPatientChartMissingError(e: unknown): boolean {
-    const m = e instanceof Error ? e.message : String(e);
-    return m.includes("PatientChart not found") || /PatientChart.*?not found/i.test(m);
+    const m = ipcErrorRaw(e);
+    if (m.includes("PatientChart not found") || /PatientChart.*?not found/i.test(m)) return true;
+    // Coded backend errors: error.app.not_found|resource=…PatientChart…
+    if (/^error\.app\.not_found(\||$)/i.test(m) && /patientchart/i.test(m)) return true;
+    return false;
 }
 
 export const PATIENT_DETAIL_TAB_IDS = ["anamnesis", "examination", "treatment", "prescription", "attachment", "payment"] as const;

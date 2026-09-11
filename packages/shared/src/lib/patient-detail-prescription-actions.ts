@@ -13,6 +13,7 @@ import type { PrescriptionLine } from "@/lib/medications";
 import { prescriptionLinesToTemplateItems } from "@/lib/medications";
 import { t, translateLocaleParams, useLocale } from "@/lib/i18n";
 import { PATIENT_DETAIL_TOAST_UNDO_MS, type ChartSavePending } from "@/lib/patient-detail-utils";
+import { errorMessage } from "@/lib/utils";
 
 function tp(key: string, params: Record<string, string | number>): string {
     return translateLocaleParams(useLocale.getState().locale, key, params);
@@ -20,7 +21,7 @@ function tp(key: string, params: Record<string, string | number>): string {
 
 function toastError(ctx: PatientDetailPrescriptionActionsCtx, e: unknown): void {
     ctx.toast(
-        tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }),
+        tp("common.error_with_message", { message: errorMessage(e) }),
         "error",
     );
 }

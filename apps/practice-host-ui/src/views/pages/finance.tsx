@@ -400,7 +400,7 @@ export function FinancePage() {
             setPurchaseOrders((list) => list.map((row) => (row.id === updated.id ? updated : row)));
             toast(t("page.finance.toast_order_status"));
         } catch (e) {
-            toast(`${t("common.error_prefix")} ${e instanceof Error ? e.message : String(e)}`);
+            toast(`${t("common.error_prefix")} ${errorMessage(e)}`);
         } finally {
             setStatusUpdatingOrderId(null);
         }

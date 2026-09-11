@@ -10,6 +10,7 @@ import {
 } from "@/systems/practice-host/controllers/validation.controller";
 import { useT, useTParams } from "@/lib/i18n";
 import { useToastStore } from "@/views/components/ui/toast-store";
+import { errorMessage } from "@/lib/utils";
 
 export type UsePatientDetailValidationArgs = {
     patientId: string | undefined;
@@ -45,7 +46,7 @@ export function usePatientDetailValidation({
                 await refreshValidationFromBackend();
             } catch (e) {
                 useToastStore.getState().add(
-                    tp("patient.validation.load_error", { message: e instanceof Error ? e.message : String(e) }),
+                    tp("patient.validation.load_error", { message: errorMessage(e) }),
                     "error",
                 );
             }
@@ -67,7 +68,7 @@ export function usePatientDetailValidation({
                 }
                 await refreshValidationFromBackend();
             } catch (e) {
-                toast(tp("patient.validation.error", { message: e instanceof Error ? e.message : String(e) }), "error");
+                toast(tp("patient.validation.error", { message: errorMessage(e) }), "error");
             }
         },
         [patientId, sessionUserId, toast, refreshValidationFromBackend],
@@ -87,7 +88,7 @@ export function usePatientDetailValidation({
                 }
                 await refreshValidationFromBackend();
             } catch (e) {
-                toast(`Validierung: ${e instanceof Error ? e.message : String(e)}`, "error");
+                toast(tp("patient.validation.error", { message: errorMessage(e) }), "error");
             }
         },
         [patientId, toast, refreshValidationFromBackend],
@@ -101,7 +102,7 @@ export function usePatientDetailValidation({
                 await refreshValidationFromBackend();
                 toast(tp("patient.validation.item_marked", { label }), "success");
             } catch (e) {
-                toast(`Validierung: ${e instanceof Error ? e.message : String(e)}`, "error");
+                toast(tp("patient.validation.error", { message: errorMessage(e) }), "error");
             }
         },
         [patientId, sessionUserId, toast, refreshValidationFromBackend],
@@ -115,7 +116,7 @@ export function usePatientDetailValidation({
                 await refreshValidationFromBackend();
                 toast(tp("patient.validation.item_revoked", { label: shortLabel }), "info");
             } catch (e) {
-                toast(`Validierung: ${e instanceof Error ? e.message : String(e)}`, "error");
+                toast(tp("patient.validation.error", { message: errorMessage(e) }), "error");
             }
         },
         [patientId, toast, refreshValidationFromBackend],

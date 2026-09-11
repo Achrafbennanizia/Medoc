@@ -288,7 +288,7 @@ export function AdministrationFinanceToolsPage() {
             setCreating(false);
             toast(t("page.administration_finance_tools.toast.pdf_saved"), "success");
         } catch (e) {
-            toast(tp("page.administration_finance_tools.toast.error", { message: e instanceof Error ? e.message : String(e) }), "error");
+            toast(tp("page.administration_finance_tools.toast.error", { message: errorMessage(e) }), "error");
         } finally {
             setInvBusy(false);
         }
@@ -331,7 +331,7 @@ export function AdministrationFinanceToolsPage() {
                 binaryBody: new Uint8Array(bytes),
             });
         } catch (e) {
-            toast(tp("page.administration_finance_tools.toast.error", { message: e instanceof Error ? e.message : String(e) }), "error");
+            toast(tp("page.administration_finance_tools.toast.error", { message: errorMessage(e) }), "error");
         } finally {
             setInvBusy(false);
         }

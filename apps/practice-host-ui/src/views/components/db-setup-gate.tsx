@@ -52,7 +52,7 @@ export function DbSetupGate({ children }: { children: ReactNode }) {
             await provisionDbPassphrase(passphrase, confirm);
             window.location.reload();
         } catch (err) {
-            setError(err instanceof Error ? err.message : String(err));
+            setError(errorMessage(err));
         } finally {
             setBusy(false);
         }

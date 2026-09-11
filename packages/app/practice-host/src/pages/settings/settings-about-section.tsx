@@ -8,6 +8,7 @@ import {
 } from "@/systems/practice-host/controllers/settings-page.controller";
 import { Button } from "@/views/components/ui/button";
 import { useToastStore } from "@/views/components/ui/toast-store";
+import { errorMessage } from "@/lib/utils";
 
 export function SettingsAboutSection() {
     const t = useT();
@@ -45,7 +46,7 @@ export function SettingsAboutSection() {
                 info.update_available ? "info" : "success",
             );
         } catch (e) {
-            toast(tp("settings.about.check_update_failed", { message: (e as Error).message ?? String(e) }), "error");
+            toast(tp("settings.about.check_update_failed", { message: errorMessage(e) }), "error");
         } finally {
             setUpdateBusy(false);
         }
@@ -57,7 +58,7 @@ export function SettingsAboutSection() {
             await installAvailableUpdate();
             toast(t("settings.about.install_update_success"), "success");
         } catch (e) {
-            toast(tp("settings.about.install_update_failed", { message: (e as Error).message ?? String(e) }), "error");
+            toast(tp("settings.about.install_update_failed", { message: errorMessage(e) }), "error");
         } finally {
             setInstallBusy(false);
         }

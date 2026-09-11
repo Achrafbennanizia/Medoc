@@ -252,7 +252,7 @@ export function PatientDetailPage() {
                 setPlanNext(emptyPlanNextAppointment());
                 toast(
                     tp("patient.detail.toast.plan_load_failed", {
-                        message: e instanceof Error ? e.message : String(e),
+                        message: errorMessage(e),
                     }),
                     "error",
                 );
@@ -270,7 +270,7 @@ export function PatientDetailPage() {
                     canViewClinical ? next : { ...next, internalNote: prev.internalNote };
                 if (id) {
                     void persistPlanNextAppointmentToBackend(id, merged).catch((e) => {
-                        toast(tp("patient.detail.toast.plan_save_failed", { message: e instanceof Error ? e.message : String(e) }), "error");
+                        toast(tp("patient.detail.toast.plan_save_failed", { message: errorMessage(e) }), "error");
                     });
                 }
                 return merged;
@@ -322,7 +322,7 @@ export function PatientDetailPage() {
             setEditForm({ name: p.name, phone: p.phone ?? "", email: p.email ?? "", address: p.address ?? "" });
         } catch (e) {
             setPatient(null);
-            setPatientLoadError(e instanceof Error ? e.message : String(e));
+            setPatientLoadError(errorMessage(e));
             setChart(null);
             setFindings([]);
             setTreatments([]);
@@ -392,7 +392,7 @@ export function PatientDetailPage() {
             if (isPatientChartMissingError(e)) {
                 setChartLoadError(null);
             } else {
-                setChartLoadError(e instanceof Error ? e.message : String(e));
+                setChartLoadError(errorMessage(e));
             }
         }
     }, [id, canViewClinical, canListPatientDocuments, canListTreatmentsForPayment, refreshAttachments, toast]);
@@ -818,7 +818,7 @@ export function PatientDetailPage() {
                             setTreatments((prev) => prev.map((x) => (x.id === treatmentId ? upd : x)));
                             toast(t("patient.detail.toast.released_billing"), "success");
                         } catch (e) {
-                            toast(e instanceof Error ? e.message : String(e), "error");
+                            toast(errorMessage(e), "error");
                         }
                     }}
                     onOpenEditTreatment={(b: Treatment) => {
@@ -904,7 +904,7 @@ export function PatientDetailPage() {
                             } catch (e) {
                                 toast(
                                     tp("patient.detail.toast.attachment_kind_failed", {
-                                        message: e instanceof Error ? e.message : String(e),
+                                        message: errorMessage(e),
                                     }),
                                     "error",
                                 );
@@ -920,7 +920,7 @@ export function PatientDetailPage() {
                             try {
                                 await renameChartAttachment(row.id, name);
                             } catch (e) {
-                                toast(tp("patient.detail.toast.attachment_rename_failed", { message: e instanceof Error ? e.message : String(e) }), "error");
+                                toast(tp("patient.detail.toast.attachment_rename_failed", { message: errorMessage(e) }), "error");
                                 if (chart) await refreshAttachments(chart.id);
                             }
                         })();
@@ -940,7 +940,7 @@ export function PatientDetailPage() {
                                 );
                                 await openChartAttachmentExternally(row.id, withApp);
                             } catch (e) {
-                                toast(tp("patient.detail.toast.attachment_open_failed", { message: e instanceof Error ? e.message : String(e) }), "error");
+                                toast(tp("patient.detail.toast.attachment_open_failed", { message: errorMessage(e) }), "error");
                             }
                         })();
                     }}
@@ -957,7 +957,7 @@ export function PatientDetailPage() {
                                       } catch (e) {
                                           toast(
                                               tp("patient.detail.toast.attachment_duplicate_failed", {
-                                                  message: e instanceof Error ? e.message : String(e),
+                                                  message: errorMessage(e),
                                               }),
                                               "error",
                                           );

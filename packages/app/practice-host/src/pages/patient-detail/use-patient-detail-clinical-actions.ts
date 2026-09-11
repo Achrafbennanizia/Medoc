@@ -41,6 +41,7 @@ import type {
 import type { TreatmentChartComposerPanelProps } from "@/views/components/treatment-chart-composer-panel";
 import { useT, useTParams , useCollatorLocale} from "@/lib/i18n";
 import { useToastStore } from "@/views/components/ui/toast-store";
+import { errorMessage } from "@/lib/utils";
 
 export type TreatmentFormState = {
     date: string;
@@ -200,14 +201,14 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
                         });
                         await load();
                     } catch (err) {
-                        toast(tp("common.error_with_message", { message: err instanceof Error ? err.message : String(err) }), "error");
+                        toast(tp("common.error_with_message", { message: errorMessage(err) }), "error");
                     }
                 },
             });
             setShowEditPatient(false);
             await load();
         } catch (e) {
-            toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
+            toast(tp("common.error_with_message", { message: errorMessage(e) }), "error");
         }
     };
 
@@ -252,7 +253,7 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
                             await updateTreatment(treatmentToUpdatePayload(prevBh));
                             await load();
                         } catch (err) {
-                            toast(tp("common.error_with_message", { message: err instanceof Error ? err.message : String(err) }), "error");
+                            toast(tp("common.error_with_message", { message: errorMessage(err) }), "error");
                         }
                     },
                 });
@@ -266,13 +267,13 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
                             await deleteTreatment(created.id);
                             await load();
                         } catch (err) {
-                            toast(tp("common.error_with_message", { message: err instanceof Error ? err.message : String(err) }), "error");
+                            toast(tp("common.error_with_message", { message: errorMessage(err) }), "error");
                         }
                     },
                 });
             }
         } catch (e) {
-            toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
+            toast(tp("common.error_with_message", { message: errorMessage(e) }), "error");
             return;
         }
         if (patientId && payload.appointment_required) {
@@ -287,7 +288,7 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
                 } catch (err) {
                     toast(
                         tp("patient.detail.toast.followup_hint_failed", {
-                            message: err instanceof Error ? err.message : String(err),
+                            message: errorMessage(err),
                         }),
                         "error",
                     );
@@ -347,7 +348,7 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
                 await syncExaminationTeethToToothStatus(data.resultsJson);
             } catch (e) {
                 toast(
-                    tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }),
+                    tp("common.error_with_message", { message: errorMessage(e) }),
                     "warning",
                 );
             }
@@ -358,7 +359,7 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
                         await deleteExamination(created.id);
                         await load();
                     } catch (e) {
-                        toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
+                        toast(tp("common.error_with_message", { message: errorMessage(e) }), "error");
                     }
                 },
             });
@@ -366,7 +367,7 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
             setExaminationForm({ chief_complaint: "", results: "", diagnosis: "" });
             await load();
         } catch (e) {
-            toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
+            toast(tp("common.error_with_message", { message: errorMessage(e) }), "error");
         }
     };
 
@@ -414,7 +415,7 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
                 await syncExaminationTeethToToothStatus(payload.resultsJson);
             } catch (e) {
                 toast(
-                    tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }),
+                    tp("common.error_with_message", { message: errorMessage(e) }),
                     "warning",
                 );
             }
@@ -433,14 +434,14 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
                         });
                         await load();
                     } catch (e) {
-                        toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
+                        toast(tp("common.error_with_message", { message: errorMessage(e) }), "error");
                     }
                 },
             });
             setUnterEdit(null);
             await load();
         } catch (e) {
-            toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
+            toast(tp("common.error_with_message", { message: errorMessage(e) }), "error");
         }
     };
 
@@ -492,7 +493,7 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
                         });
                         await load();
                     } catch (e) {
-                        toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
+                        toast(tp("common.error_with_message", { message: errorMessage(e) }), "error");
                     }
                 },
             });
@@ -500,7 +501,7 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
             setAnamEditing(false);
             await load();
         } catch (e) {
-            toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
+            toast(tp("common.error_with_message", { message: errorMessage(e) }), "error");
         }
     };
 
@@ -512,7 +513,7 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
             setTreatmentDeleteId(null);
             await load();
         } catch (e) {
-            toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
+            toast(tp("common.error_with_message", { message: errorMessage(e) }), "error");
         }
     };
 
@@ -524,7 +525,7 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
             setUnterDeleteId(null);
             await load();
         } catch (e) {
-            toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
+            toast(tp("common.error_with_message", { message: errorMessage(e) }), "error");
         }
     };
 
@@ -538,7 +539,7 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
             setPatientDeleteOpen(false);
             navigate("/patients");
         } catch (e) {
-            toast(tp("common.error_with_message", { message: e instanceof Error ? e.message : String(e) }), "error");
+            toast(tp("common.error_with_message", { message: errorMessage(e) }), "error");
         } finally {
             setPatientDeleteBusy(false);
         }

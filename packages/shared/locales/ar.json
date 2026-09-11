@@ -1301,6 +1301,7 @@
   "login.totp_start_setup": "بدء الإعداد",
   "login.totp_verify_body": "أدخل الرمز المكوّن من 6 أرقام من تطبيق المصادقة.",
   "login.trust_line": "بيانات محلية مُشفَّرة · وصول حسب الدور · سجل تدقيق كامل",
+  "login.unauthorized": "البريد الإلكتروني أو كلمة المرور غير صحيحة.",
   "login.window_drag_aria": "تحريك النافذة",
   "logs.audit_chain": "سلسلة التدقيق",
   "logs.export": "تصدير السجلات",

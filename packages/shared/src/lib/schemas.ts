@@ -21,6 +21,7 @@ import {
     AppointmentStatusSchema,
     PaymentMethodSchema,
 } from "@/lib/schemas.enums.generated";
+import { formatIpcError } from "@/lib/ipc-errors";
 
 const isoDate = z
     .string()
@@ -349,7 +350,7 @@ export function zodErrorToMessage(err: unknown): string {
             })
             .join("; ");
     }
-    return err instanceof Error ? err.message : String(err);
+    return formatIpcError(err);
 }
 
 /**

@@ -1301,6 +1301,7 @@
   "login.totp_start_setup": "Démarrer la configuration",
   "login.totp_verify_body": "Saisissez le code à 6 chiffres de votre app authenticator.",
   "login.trust_line": "Données locales chiffrées · Accès par rôle · Piste d'audit complète",
+  "login.unauthorized": "E-mail ou mot de passe incorrect.",
   "login.window_drag_aria": "Déplacer la fenêtre",
   "logs.audit_chain": "Chaîne d'audit",
   "logs.export": "Exporter les journaux",

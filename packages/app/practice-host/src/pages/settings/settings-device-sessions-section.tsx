@@ -13,6 +13,7 @@ import { useLocale, useT, useTParams } from "@/lib/i18n";
 import { Button } from "@/views/components/ui/button";
 import { ConfirmDialog, Dialog } from "@/views/components/ui/dialog";
 import { useToastStore } from "@/views/components/ui/toast-store";
+import { errorMessage } from "@/lib/utils";
 
 /** Own device sessions — Settings → Security. */
 export function SettingsDeviceSessionsSection() {
@@ -52,7 +53,7 @@ export function SettingsDeviceSessionsSection() {
             toast(tp("settings.device_sessions.toast.revoked_others", { count: n }), "success");
             await refreshDeviceSessions();
         } catch (e) {
-            toast(tp("settings.device_sessions.toast.revoke_error", { message: e instanceof Error ? e.message : String(e) }), "error");
+            toast(tp("settings.device_sessions.toast.revoke_error", { message: errorMessage(e) }), "error");
         } finally {
             setRevokeOtherBusy(false);
         }
@@ -64,7 +65,7 @@ export function SettingsDeviceSessionsSection() {
             const report = await investigateMyDeviceSession(row.id);
             setInvestigation(report);
         } catch (e) {
-            toast(tp("settings.device_sessions.toast.investigate_error", { message: e instanceof Error ? e.message : String(e) }), "error");
+            toast(tp("settings.device_sessions.toast.investigate_error", { message: errorMessage(e) }), "error");
         } finally {
             setInvestigateBusyId(null);
         }
@@ -80,7 +81,7 @@ export function SettingsDeviceSessionsSection() {
                 setInvestigation((prev) => (prev ? { ...prev, session: updated } : prev));
             }
         } catch (e) {
-            toast(tp("settings.device_sessions.toast.trust_error", { message: e instanceof Error ? e.message : String(e) }), "error");
+            toast(tp("settings.device_sessions.toast.trust_error", { message: errorMessage(e) }), "error");
         } finally {
             setTrustBusyId(null);
         }
@@ -98,7 +99,7 @@ export function SettingsDeviceSessionsSection() {
             }
             await refreshDeviceSessions();
         } catch (e) {
-            toast(tp("settings.device_sessions.toast.revoke_error", { message: e instanceof Error ? e.message : String(e) }), "error");
+            toast(tp("settings.device_sessions.toast.revoke_error", { message: errorMessage(e) }), "error");
         } finally {
             setRevokeBusyId(null);
         }

@@ -1301,6 +1301,7 @@
   "login.totp_start_setup": "Start setup",
   "login.totp_verify_body": "Enter the 6-digit code from your authenticator app.",
   "login.trust_line": "Encrypted local data · Role-based access · Full audit trail",
+  "login.unauthorized": "Invalid email or password.",
   "login.window_drag_aria": "Move window",
   "logs.audit_chain": "Audit chain",
   "logs.export": "Export logs",

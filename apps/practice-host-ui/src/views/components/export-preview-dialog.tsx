@@ -8,6 +8,7 @@ import { parseDelimitedGrid, sortGridRows, stringifyDelimitedGrid } from "@/lib/
 import { printHtmlDocument } from "@/lib/print-html";
 import { saveOrDownloadBytes, saveOrDownloadText } from "@/lib/save-download";
 import { useToastStore } from "./ui/toast-store";
+import { errorMessage } from "@/lib/utils";
 
 function escapeHtml(s: string): string {
     return s
@@ -293,7 +294,7 @@ export function ExportPreviewDialog({ payload, onClose }: ExportPreviewDialogPro
                 if (ok) toast(t("common.file_saved"), "success");
             }
         } catch (e) {
-            toast(tp("export.preview.save_failed", { message: e instanceof Error ? e.message : String(e) }), "error");
+            toast(tp("export.preview.save_failed", { message: errorMessage(e) }), "error");
         } finally {
             setSaveBusy(false);
         }

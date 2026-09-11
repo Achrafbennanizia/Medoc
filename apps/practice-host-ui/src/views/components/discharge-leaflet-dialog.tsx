@@ -10,6 +10,7 @@ import { useToastStore } from "./ui/toast-store";
 import { getInvoicePracticeFromStorage } from "@/lib/invoice-service-item";
 import { checkPracticeDocumentReadiness } from "@/lib/practice-completeness";
 import { PracticeReadinessDialog } from "./practice-readiness-dialog";
+import { errorMessage } from "@/lib/utils";
 
 export type DischargeLeafletDialogProps = {
     open: boolean;
@@ -73,7 +74,7 @@ export function DischargeLeafletDialog({ open, onClose, patientId, patient }: Di
             });
             onClose();
         } catch (e) {
-            toast(tp("discharge.leaflet.pdf_failed", { message: e instanceof Error ? e.message : String(e) }), "error");
+            toast(tp("discharge.leaflet.pdf_failed", { message: errorMessage(e) }), "error");
         } finally {
             setBusy(false);
         }

@@ -647,7 +647,7 @@ export function AppLayout() {
             setBgReason("");
             setBgPatientId("");
         } catch (e) {
-            toast(`${t("common.error_prefix")} ${e instanceof Error ? e.message : String(e)}`);
+            toast(`${t("common.error_prefix")} ${errorMessage(e)}`);
         } finally {
             setBgBusy(false);
         }
@@ -723,7 +723,7 @@ export function AppLayout() {
                                         } catch {
                                             useToastStore.getState().add(
                                                 tp("app.layout.print_failed", {
-                                                    message: e instanceof Error ? e.message : String(e),
+                                                    message: errorMessage(e),
                                                 }),
                                                 "error",
                                             );

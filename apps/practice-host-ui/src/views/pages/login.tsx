@@ -4,6 +4,7 @@ import { login, postLoginPath } from "@/systems/practice-host/controllers/auth.c
 import { BREAK_GLASS_ENABLED } from "@/lib/mvp-security-config";
 import { CapsLockIcon, EyeIcon, EyeOffIcon, ICON_SIZE_LG, ICON_SIZE_SM, PinIcon } from "@/lib/icons";
 import { useT } from "@/lib/i18n";
+import { errorMessage } from "@/lib/utils";
 import { LocaleSwitcher } from "../components/locale-switcher";
 import { useDesktopChromeMode } from "../components/desktop-chrome";
 import { useMacWindowDrag } from "@/lib/mac-window-drag";
@@ -34,32 +35,50 @@ function persistRememberMe(remember: boolean, email: string) {
     }
 }
 
-function formatLoginError(err: unknown, rateLimitedMsg: string, failedMsg: string): string {
-    const raw =
-        typeof err === "string" ? err : err instanceof Error ? err.message : (() => {
-            try {
-                return JSON.stringify(err);
-            } catch {
-                return "";
-            }
-        })();
-    const lower = raw.toLowerCase();
+function formatLoginError(
+    err: unknown,
+    rateLimitedMsg: string,
+    unauthorizedMsg: string,
+    failedMsg: string,
+): string {
+    const raw = typeof err === "string" ? err : err instanceof Error ? err.message : "";
+    const rawLower = raw.toLowerCase();
+    if (rawLower.includes("error.app.rate_limited") || rawLower.includes("rate_limited")) {
+        return rateLimitedMsg;
+    }
+    if (
+        rawLower.includes("error.app.unauthorized") ||
+        raw.trim() === "Unauthorized" ||
+        rawLower === "unauthorized"
+    ) {
+        return unauthorizedMsg;
+    }
+
+    const localized = errorMessage(err).trim();
+    const lower = localized.toLowerCase();
     if (
         lower.includes("rate") ||
         lower.includes("429") ||
         lower.includes("throttle") ||
         lower.includes("to viele") ||
-        lower.includes("too many")
+        lower.includes("too many") ||
+        lower.includes("error.app.rate_limited")
     ) {
         return rateLimitedMsg;
     }
-    if (typeof err === "string") return err;
-    if (err instanceof Error) return err.message;
-    try {
-        return JSON.stringify(err);
-    } catch {
-        return failedMsg;
+    // Localized "Not authorized." / DE/FR/AR equivalents from error.app.unauthorized
+    if (
+        lower === "not authorized." ||
+        lower === "nicht autorisiert." ||
+        lower === "non autorisé." ||
+        localized === "غير مصرح."
+    ) {
+        return unauthorizedMsg;
     }
+    if (localized && localized !== "undefined" && localized !== "[object Object]") {
+        return localized;
+    }
+    return failedMsg;
 }
 
 export function LoginPage() {
@@ -98,7 +117,14 @@ export function LoginPage() {
             persistRememberMe(rememberMe, email);
             navigate(await postLoginPath(session));
         } catch (err) {
-            setError(formatLoginError(err, t("login.rate_limited"), t("login.failed")));
+            setError(
+                formatLoginError(
+                    err,
+                    t("login.rate_limited"),
+                    t("login.unauthorized"),
+                    t("login.failed"),
+                ),
+            );
         } finally {
             setLoading(false);
         }

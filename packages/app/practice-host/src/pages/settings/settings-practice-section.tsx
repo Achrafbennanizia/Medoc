@@ -348,7 +348,7 @@ export function SettingsPracticeSection({
             }
             toast(t("settings.practice.toast.logo_saved"), "success");
         } catch (err) {
-            toast(tp("settings.practice.toast.logo_failed", { message: err instanceof Error ? err.message : String(err) }), "error");
+            toast(tp("settings.practice.toast.logo_failed", { message: errorMessage(err) }), "error");
         } finally {
             setLogoBusy(false);
         }

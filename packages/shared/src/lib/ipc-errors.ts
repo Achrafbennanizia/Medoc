@@ -44,12 +44,19 @@ export function formatIpcError(err: unknown, locale?: Locale): string {
     const raw = ipcErrorRaw(err).trim();
     const loc = locale ?? useLocale.getState().locale;
 
-    if (ERROR_KEY_RE.test(raw)) {
-        const translated = translateLocale(loc, raw);
-        if (translated && translated !== raw) return translated;
+    // Prefer an embedded `error.*` token when wrappers surround the coded payload.
+    const codedCandidate = (() => {
+        if (ERROR_KEY_RE.test(raw) || parseCodedError(raw)) return raw;
+        const m = raw.match(/\berror\.[a-z0-9_.]+(?:\|[^\s|]+(?:=[^\s|]*)?)*\b/i);
+        return m?.[0] ?? raw;
+    })();
+
+    if (ERROR_KEY_RE.test(codedCandidate)) {
+        const translated = translateLocale(loc, codedCandidate);
+        if (translated && translated !== codedCandidate) return translated;
     }
 
-    const coded = parseCodedError(raw);
+    const coded = parseCodedError(codedCandidate);
     if (coded) {
         const params = resolveParamValues(loc, coded.params);
         const translated = translateLocaleParams(loc, coded.key, params);

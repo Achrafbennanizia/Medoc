@@ -8,6 +8,7 @@ import {
     saveLanClientConfig,
     type LanClientConfigV1,
 } from "@/systems/lan/lib/lan-client-config";
+import { formatIpcError } from "@/lib/ipc-errors";
 import type { PracticeSystemPort } from "../ports/practice-system.port";
 
 type TFn = (key: string) => string;
@@ -30,7 +31,7 @@ export function formatLanPracticeError(e: unknown, t: TFn, tp?: TParamsFn): stri
             ? tp("error.lan.http_error", { status: httpMatch[1]!, detail: httpMatch[2]!.slice(0, 200) })
             : msg;
     }
-    return msg;
+    return formatIpcError(e);
 }
 
 type HttpMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";

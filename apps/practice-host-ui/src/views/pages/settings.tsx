@@ -55,6 +55,7 @@ import { SettingsAboutSection } from "@/systems/practice-host/pages/settings/set
 import { SettingsLicenseSection } from "@/systems/practice-host/pages/settings/settings-license-section";
 import { SettingsIntegrationsSection } from "@/systems/practice-host/pages/settings/settings-integrations-section";
 import { StethoscopeIcon, UsersIcon, BellIcon, ShieldIcon, KeyRoundIcon, BoltIcon, DownloadIcon, SunIcon, SlidersHorizontalIcon, SettingsIcon, InfoIcon, ICON_SIZE_LG } from "@/lib/icons";
+import { errorMessage } from "@/lib/utils";
 
 const SETTINGS_BREADCRUMB_FALLBACK = "settings.breadcrumb_fallback";
 
@@ -224,7 +225,7 @@ export function SettingsPage() {
             setConfirmPw("");
             setPwDialogOpen(false);
         } catch (e) {
-            toast(tp("common.error_with_message", { message: (e as Error).message ?? String(e) }), "error");
+            toast(tp("common.error_with_message", { message: errorMessage(e) }), "error");
         } finally {
             setPwBusy(false);
         }
@@ -238,7 +239,7 @@ export function SettingsPage() {
             setLicenseStatus(st);
             toast(st.valid ? t("settings.license.valid") : tp("settings.license.invalid", { reason: st.reason ?? "—" }), st.valid ? "success" : "info");
         } catch (e) {
-            toast(tp("common.error_with_message", { message: (e as Error).message ?? String(e) }), "error");
+            toast(tp("common.error_with_message", { message: errorMessage(e) }), "error");
         } finally {
             setLicBusy(false);
         }
@@ -257,7 +258,7 @@ export function SettingsPage() {
                 toast(tp("settings.license.activate_failed", { reason: st.reason ?? "—" }), "error");
             }
         } catch (e) {
-            toast(tp("common.error_with_message", { message: (e as Error).message ?? String(e) }), "error");
+            toast(tp("common.error_with_message", { message: errorMessage(e) }), "error");
         } finally {
             setLicBusy(false);
         }
@@ -275,7 +276,7 @@ export function SettingsPage() {
             setClusterStatus(null);
             toast(t("settings.network_reset.restarting"), "info");
         } catch (e) {
-            toast(tp("common.error_with_message", { message: (e as Error).message ?? String(e) }), "error");
+            toast(tp("common.error_with_message", { message: errorMessage(e) }), "error");
         } finally {
             setLicBusy(false);
         }
@@ -287,7 +288,7 @@ export function SettingsPage() {
             setPrefsDirty(false);
             toast(t("settings.prefs.saved"), "success");
         } catch (e) {
-            toast(tp("settings.prefs.save_failed", { message: e instanceof Error ? e.message : String(e) }), "error");
+            toast(tp("settings.prefs.save_failed", { message: errorMessage(e) }), "error");
         }
     };
 
