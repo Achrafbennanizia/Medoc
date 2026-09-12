@@ -1,0 +1,810 @@
+/* Product-faithful mock chrome — tokens and class names from practice-host-ui. */
+.medoc-app {
+  --bg: #f3f4f6;
+  --fg: #0b0b0d;
+  --radius-card: 16px;
+  --radius-ctl: 10px;
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.04);
+  --main-padding: 20px;
+  --main-stack-gap: 20px;
+  --card-pad-x: 16px;
+  --text-on-accent: #ffffff;
+  width: 100%;
+  min-height: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  background: var(--bg);
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+  text-align: start;
+  color: var(--fg);
+  font-size: 14px;
+  letter-spacing: -0.005em;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+html[data-theme="dark"] .medoc-app {
+  --bg: #0b0f14;
+}
+
+.medoc-app .ui-icon {
+  flex-shrink: 0;
+  display: block;
+}
+
+.medoc-app .glass.app-sidebar {
+  background: var(--sidebar);
+  backdrop-filter: saturate(180%) blur(24px);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
+  border-inline-end: 1px solid var(--line);
+  padding: 18px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--fg-2);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.medoc-app .app-sidebar-brand-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px 12px;
+}
+
+.medoc-app .app-sidebar-brand-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--accent), color-mix(in oklab, var(--accent) 72%, #ffffff));
+  flex-shrink: 0;
+}
+
+.medoc-app .app-sidebar-brand-title {
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: -0.02em;
+  color: var(--fg);
+}
+
+.medoc-app .app-sidebar-brand-tag {
+  font-size: 11px;
+  color: var(--fg-3);
+}
+
+.medoc-app .app-sidebar-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.medoc-app .sb-group-label {
+  font-size: 11px;
+  color: var(--fg-4);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 14px 12px 6px;
+}
+
+.medoc-app .sb-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: var(--fg-2);
+  font-size: 13.5px;
+  font-weight: 500;
+  width: 100%;
+}
+
+.medoc-app .sb-item-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.medoc-app .sb-item.active {
+  background: color-mix(in oklab, var(--accent) 14%, transparent);
+  color: var(--accent-ink);
+}
+
+.medoc-app .sb-item .count {
+  margin-inline-start: auto;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(0, 0, 0, 0.05);
+  padding: 1px 7px;
+  border-radius: 999px;
+  color: var(--fg-2);
+}
+
+.medoc-app .sb-item.active .count {
+  background: var(--accent);
+  color: #fff;
+}
+
+.medoc-app .app-sidebar-footer {
+  margin-top: auto;
+  flex-shrink: 0;
+  padding-top: 6px;
+}
+
+.medoc-app .app-sidebar-user-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px;
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--accent-soft) 78%, var(--bg-elev));
+  border: 1px solid color-mix(in oklab, var(--accent) 22%, var(--line-strong));
+}
+
+.medoc-app .app-sidebar-user-card__name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.medoc-app .app-sidebar-user-card__meta {
+  font-size: 11px;
+  color: var(--fg-3);
+}
+
+.medoc-app .av {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.medoc-app .app-main-column {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg);
+}
+
+.medoc-app .topbar {
+  flex-shrink: 0;
+  backdrop-filter: saturate(180%) blur(18px);
+  -webkit-backdrop-filter: saturate(180%) blur(18px);
+  background: rgba(243, 244, 246, 0.72);
+  border-bottom: 1px solid var(--line);
+  padding: 14px var(--main-padding);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+html[data-theme="dark"] .medoc-app .topbar {
+  background: color-mix(in oklab, var(--bg) 72%, transparent);
+}
+
+.medoc-app .input.topbar-search-trigger {
+  flex: 1 1 240px;
+  min-width: 160px;
+  max-width: 420px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-ctl);
+  padding: 8px 12px;
+  color: var(--fg-3);
+  font: inherit;
+  font-size: 13px;
+  cursor: default;
+}
+
+html[data-theme="dark"] .medoc-app .input.topbar-search-trigger {
+  background: var(--bg-elev);
+}
+
+.medoc-app .topbar-search-label {
+  flex: 1;
+  text-align: start;
+}
+
+.medoc-app .ui-kbd-hint {
+  font-size: 11px;
+  color: var(--fg-4);
+}
+
+.medoc-app .topbar-actions {
+  margin-inline-start: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.medoc-app .tb-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 99px;
+  background: rgba(0, 0, 0, 0.045);
+  color: var(--fg-2);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.medoc-app .tb-chip.live {
+  background: var(--green-soft);
+  color: #146c2e;
+}
+
+.medoc-app .icon-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-ctl);
+  display: grid;
+  place-items: center;
+  color: var(--fg-2);
+  background: transparent;
+  border: none;
+}
+
+.medoc-app .app-main {
+  padding: var(--main-padding);
+  display: flex;
+  flex-direction: column;
+  gap: var(--main-stack-gap);
+  background: var(--bg);
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  flex: 1;
+}
+
+.medoc-app .workspace-page__head,
+.medoc-app .workspace-page__head-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.medoc-app .workspace-page__head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.medoc-app .page-title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+.medoc-app .page-sub {
+  margin: 4px 0 0;
+  font-size: 15px;
+  color: var(--fg-3);
+}
+
+.medoc-app .btn {
+  border-radius: var(--radius-ctl);
+  padding: 8px 14px;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+.medoc-app .btn-subtle {
+  background: #fff;
+  border: 1px solid var(--line);
+  color: var(--fg-2);
+}
+
+.medoc-app .card {
+  background: var(--bg-elev);
+  border-radius: 16px;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.medoc-app .card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.medoc-app .card-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.medoc-app .card-sub {
+  font-size: 12.5px;
+  color: var(--fg-3);
+  margin-top: 2px;
+}
+
+.medoc-app .dashboard-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.medoc-app .kpi {
+  padding: 14px 16px 12px;
+}
+
+.medoc-app .kpi-label {
+  color: var(--fg-3);
+  font-size: 12.5px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.medoc-app .kpi-ic {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+}
+
+.medoc-app .kpi-val {
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  margin-top: 4px;
+}
+
+.medoc-app .kpi-delta {
+  font-size: 12px;
+  color: var(--fg-3);
+  margin-top: 2px;
+}
+
+.medoc-app .dashboard-main-split {
+  display: grid;
+  grid-template-columns: 1fr;
+  flex: 1;
+  min-height: 0;
+}
+
+.medoc-app .dashboard-wire-head-link {
+  background: none;
+  border: none;
+  color: var(--accent-ink);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.medoc-app .dashboard-wire-row {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) minmax(108px, auto);
+  gap: 6px 10px;
+  align-items: center;
+  padding: 10px var(--card-pad-x);
+  border-bottom: 1px solid var(--line);
+}
+
+.medoc-app .dashboard-wire-row:last-child {
+  border-bottom: none;
+}
+
+.medoc-app .dashboard-wire-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--accent) 16%, var(--bg-elev));
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+}
+
+.medoc-app .dashboard-wire-avatar--muted {
+  background: color-mix(in oklab, var(--fg) 8%, var(--bg-elev));
+  color: var(--fg-2);
+}
+
+.medoc-app .dashboard-wire-name-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+}
+
+.medoc-app .dashboard-wire-name {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.medoc-app .dashboard-wire-tag {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--accent) 14%, var(--bg-elev));
+  color: var(--accent);
+  border: 1px solid color-mix(in oklab, var(--accent) 22%, var(--line));
+}
+
+.medoc-app .dashboard-wire-desc {
+  font-size: 11.5px;
+  color: var(--fg-2);
+  margin-top: 3px;
+}
+
+.medoc-app .dashboard-wire-row-aside {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.medoc-app .dashboard-wire-date {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-2);
+}
+
+.medoc-app .dashboard-wire-approve-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 11px;
+  border-radius: var(--radius-ctl);
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--accent);
+  color: var(--text-on-accent);
+  border: none;
+}
+
+.medoc-app .dash-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.medoc-app .medoc-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  background: color-mix(in oklab, var(--fg) 5%, var(--bg-elev));
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  width: max-content;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.medoc-app .medoc-tab {
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 9px;
+  color: var(--fg-3);
+  white-space: nowrap;
+}
+
+.medoc-app .medoc-tab.is-active {
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+
+/* Week calendar */
+.medoc-app .appointment-week-head-grid,
+.medoc-app .appointment-week-body-grid {
+  display: grid;
+  grid-template-columns: 3.2rem repeat(5, minmax(0, 1fr));
+}
+
+.medoc-app .appointment-week-dow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-height: 44px;
+  justify-content: center;
+}
+
+.medoc-app .appointment-week-dow.today {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  border-radius: 12px;
+}
+
+.medoc-app .appointment-week-dow-short {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+
+.medoc-app .appointment-week-dow.today .appointment-week-dow-short,
+.medoc-app .appointment-week-dow.today .appointment-week-dow-num {
+  color: var(--accent-ink);
+}
+
+.medoc-app .appointment-week-dow-num {
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.medoc-app .appointment-hour {
+  font-size: 11px;
+  color: var(--fg-4);
+  font-variant-numeric: tabular-nums;
+  padding-top: 4px;
+}
+
+.medoc-app .appointment-slot {
+  min-height: 52px;
+  border-top: 1px solid var(--line);
+  border-inline-start: 1px solid var(--line);
+  background: var(--bg-elev);
+  position: relative;
+}
+
+.medoc-app .appointment-slot.over {
+  background: var(--accent-soft);
+}
+
+.medoc-app .appointment-appt-block {
+  position: absolute;
+  inset: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-elev);
+  box-shadow: 0 1px 3px rgba(10, 12, 16, 0.06);
+  cursor: grab;
+  overflow: hidden;
+  display: flex;
+}
+
+.medoc-app .appointment-appt-block-stripe {
+  width: 3px;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+
+.medoc-app .appointment-appt-block-shell {
+  padding: 6px 8px;
+  min-width: 0;
+}
+
+.medoc-app .appointment-appt-block-time {
+  font-size: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.medoc-app .appointment-appt-block-name {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.medoc-app .appointment-appt-block-type {
+  font-size: 9px;
+  color: var(--fg-3);
+}
+
+/* Odontogram */
+.medoc-app .dental-mini-bar-inner {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface-1, var(--bg-elev));
+  padding: 10px 14px 12px;
+  width: max-content;
+  margin: 0 auto;
+}
+
+.medoc-app .dental-mini-title {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+  margin-bottom: 6px;
+}
+
+.medoc-app .dental-odontogram__chart {
+  display: grid;
+  grid-template-columns: max-content 2px max-content;
+  grid-template-rows: auto 2px auto;
+}
+
+.medoc-app .dental-odontogram__quad {
+  display: flex;
+  gap: 4px;
+  padding: 4px 8px;
+}
+.medoc-app .dental-odontogram__quad--ur {
+  grid-column: 1;
+  grid-row: 1;
+  justify-content: flex-end;
+}
+.medoc-app .dental-odontogram__quad--ul {
+  grid-column: 3;
+  grid-row: 1;
+}
+.medoc-app .dental-odontogram__quad--lr {
+  grid-column: 1;
+  grid-row: 3;
+  justify-content: flex-end;
+}
+.medoc-app .dental-odontogram__quad--ll {
+  grid-column: 3;
+  grid-row: 3;
+}
+
+.medoc-app .dental-odontogram__vline {
+  grid-column: 2;
+  grid-row: 1 / -1;
+  width: 2px;
+  background: var(--fg);
+  opacity: 0.82;
+}
+
+.medoc-app .dental-odontogram__hline {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  height: 2px;
+  background: var(--fg);
+  opacity: 0.82;
+}
+
+.medoc-app .dental-mini-tooth {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  min-width: 22px;
+  border: 1.5px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 6px;
+  color: var(--fg-3);
+  font-size: 8px;
+}
+
+.medoc-app .dental-mini-tooth .crown {
+  width: 14px;
+  height: 16px;
+  border-radius: 4px 4px 7px 7px;
+  border: 1.5px solid var(--dental-healthy-stroke);
+  background: var(--dental-healthy-fill);
+}
+
+.medoc-app .dental-mini-tooth.caries .crown {
+  background: var(--dental-caries-fill);
+  border-color: var(--dental-caries-stroke);
+}
+
+.medoc-app .dental-mini-tooth.filling .crown {
+  background: var(--dental-filling-fill);
+  border-color: var(--dental-filling-stroke);
+}
+
+.medoc-app .dental-mini-tooth.is-active {
+  background: color-mix(in oklab, var(--accent) 20%, transparent);
+  border-color: var(--accent);
+}
+
+.medoc-app .practice-task-inbox-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  text-align: start;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--bg-elev);
+  cursor: pointer;
+}
+
+.medoc-app .practice-task-inbox-row--selected {
+  border-color: color-mix(in oklab, var(--accent) 45%, var(--line));
+}
+
+.medoc-app .practice-task-inbox-row__title {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.medoc-app .practice-task-inbox-row__sub {
+  font-size: 12px;
+  color: var(--fg-3);
+  margin-top: 4px;
+}
+
+.medoc-app .finance-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.medoc-app .finance-kpi {
+  background: var(--bg-elev);
+  border-radius: 14px;
+  padding: 14px 16px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--line);
+}
+
+.medoc-app .finance-kpi--mint {
+  border-top: 3px solid #148b4c;
+}
+.medoc-app .finance-kpi--amber {
+  border-top: 3px solid #e69600;
+}
+.medoc-app .finance-kpi--blue {
+  border-top: 3px solid var(--blue);
+}
+
+.medoc-app .finance-kpi__label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--fg-3);
+}
+
+.medoc-app .finance-kpi__value {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin-top: 6px;
+}
+
+@media (max-width: 900px) {
+  .medoc-app {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .medoc-app .glass.app-sidebar {
+    display: none;
+  }
+  .medoc-app .dashboard-kpis,
+  .medoc-app .finance-kpi-row,
+  .medoc-app .dashboard-wire-row {
+    grid-template-columns: 1fr;
+  }
+  .medoc-app .dashboard-wire-row-aside {
+    align-items: flex-start;
+  }
+}

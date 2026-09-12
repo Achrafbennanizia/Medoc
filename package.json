@@ -11,7 +11,8 @@
         "packages/ui",
         "packages/app/practice-host",
         "packages/server/lan",
-        "packages/server/company"
+        "packages/server/company",
+        "website"
     ],
     "scripts": {
         "dev": "npm run dev -w medoc",
@@ -30,6 +31,7 @@
         "i18n:extract": "node scripts/extract-i18n-catalog.mjs",
         "tauri": "npm run tauri -w medoc-tauri-host --",
         "dev:lan-web": "npm run dev -w medoc-lan-web-client",
-        "build:lan-web": "npm run build -w medoc-lan-web-client"
+        "build:lan-web": "npm run build -w medoc-lan-web-client",
+        "dev:website": "npm run dev -w medoc-product-website"
     }
 }

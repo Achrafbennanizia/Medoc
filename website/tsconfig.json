@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "resolveJsonModule": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/lib/*": ["../packages/shared/src/lib/*"],
+      "@/models/*": ["../packages/shared/src/models/*"],
+      "@/views/components/ui/*": ["../packages/ui/src/*"],
+      "@medoc/ui": ["../packages/ui/src/index.ts"],
+      "@medoc/ui/*": ["../packages/ui/src/*"],
+      "#shared-locales/*": ["../packages/shared/locales/*"],
+      "@/*": ["../apps/practice-host-ui/src/*"]
+    }
+  },
+  "include": ["src"]
+}
