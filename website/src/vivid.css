@@ -73,7 +73,7 @@ body,
   font-family: var(--font-ui);
   background: var(--bg);
   color: var(--fg);
-  font-size: 34px;
+  font-size: 16px;
 }
 
 .site-bg {
@@ -110,7 +110,7 @@ html[data-theme="dark"] .site-bg {
   font-family: var(--font-display);
   font-weight: 800;
   letter-spacing: -0.04em;
-  font-size: 22px;
+  font-size: 20px;
 }
 
 .brand-mark {
@@ -127,11 +127,11 @@ html[data-theme="dark"] .site-bg {
 
 .btn {
   font-family: var(--font-ui);
-  font-size: 26px;
-  font-weight: 700;
-  padding: 18px 28px;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 10px 18px;
   border-radius: var(--radius-ctl);
-  min-height: 64px;
+  min-height: 44px;
 }
 
 .btn-accent {
@@ -159,8 +159,8 @@ html[data-theme="dark"] .btn-subtle {
 
 .kicker {
   font-family: var(--font-display);
-  font-size: 22px;
-  letter-spacing: 0.16em;
+  font-size: 12px;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: #06283a;
 }
@@ -177,9 +177,9 @@ html[data-theme="dark"] .btn-subtle {
 }
 
 .hero-band h1 {
-  font-size: clamp(40px, 6.4vw, 86px);
-  line-height: 0.95;
-  max-width: 16ch;
+  font-size: clamp(32px, 4.5vw, 48px);
+  line-height: 1.1;
+  max-width: 18ch;
 }
 
 .hero-band .hero-sub,
@@ -189,8 +189,8 @@ html[data-theme="dark"] .btn-subtle {
 .comp-item p,
 .mosaic-tile .mech,
 .footnote {
-  font-size: 34px;
-  line-height: 1.45;
+  font-size: 17px;
+  line-height: 1.5;
 }
 
 .hero-band {
@@ -551,37 +551,37 @@ html[data-theme="dark"] .btn-subtle {
 html,
 body,
 #root {
-  font-size: 34px;
+  font-size: 16px;
 }
 
 .site-nav .nav-links a,
 .nav-drawer a {
-  font-size: 24px;
+  font-size: 15px;
 }
 
 .brand {
-  font-size: 34px;
+  font-size: 20px;
 }
 
 .hero-band h1 {
-  font-size: clamp(64px, 8.5vw, 112px);
+  font-size: clamp(32px, 4.5vw, 48px);
 }
 
 .band-copy h2,
 .trio h3,
 .mosaic-tile h3,
 .comp-item h3 {
-  font-size: clamp(40px, 4.6vw, 64px);
+  font-size: clamp(24px, 2.8vw, 32px);
 }
 
 .fact-stack h3,
 .aspect-grid h3 {
-  font-size: 26px;
+  font-size: 17px;
 }
 
 .fact-stack p,
 .aspect-grid p {
-  font-size: 22px;
+  font-size: 15px;
   color: var(--fg-2);
 }
 
@@ -600,15 +600,15 @@ body,
 .json-pane,
 .backend-tabs button,
 .shot-card__caption {
-  font-size: 28px;
+  font-size: 15px;
 }
 
 .stamp-btn {
-  font-size: 32px;
+  font-size: 16px;
 }
 
 .stamp-btn small {
-  font-size: 24px;
+  font-size: 13px;
 }
 
 .shot-card {
