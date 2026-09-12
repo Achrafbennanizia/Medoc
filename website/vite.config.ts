@@ -35,6 +35,8 @@ ${next}`,
 }
 
 export default defineConfig({
+  // GitHub Pages: https://<user>.github.io/Medoc/ — local dev stays at /.
+  base: process.env.GITHUB_ACTIONS ? "/Medoc/" : "/",
   plugins: [react(), scopePracticeHostCss()],
   resolve: {
     alias: [
