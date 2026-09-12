@@ -18,31 +18,31 @@ function PageRail({ hash }: { hash: string }) {
   const fill = ((index + 1) / NAV.length) * 100;
   const prev = NAV[Math.max(0, index - 1)];
   const next = NAV[Math.min(NAV.length - 1, index + 1)];
-  const here = NAV[index] ?? NAV[0];
 
   return (
     <nav className="page-rail" aria-label="Jump between pages">
       <a className="page-rail__up" href={prev.href} title={`Back to ${prev.label}`}>
         ↑
       </a>
-      <p className="page-rail__now">{here.label}</p>
-      <div className="page-rail__progress" aria-hidden>
-        <div className="page-rail__fill" style={{ height: `${fill}%` }} />
+      <div className="page-rail__body">
+        <div className="page-rail__progress" aria-hidden>
+          <div className="page-rail__fill" style={{ height: `${fill}%` }} />
+        </div>
+        <ol className="page-rail__list">
+          {NAV.map((item, step) => (
+            <li key={item.href}>
+              <a
+                className={`page-rail__step${item.href === current ? " is-on" : ""}`}
+                href={item.href}
+                title={item.label}
+              >
+                <span className="page-rail__num">{step + 1}</span>
+                <span className="page-rail__tip">{item.label}</span>
+              </a>
+            </li>
+          ))}
+        </ol>
       </div>
-      <ol className="page-rail__list">
-        {NAV.map((item, step) => (
-          <li key={item.href}>
-            <a
-              className={`page-rail__step${item.href === current ? " is-on" : ""}`}
-              href={item.href}
-              title={item.label}
-            >
-              <span className="page-rail__num">{step + 1}</span>
-              <span className="page-rail__tip">{item.label}</span>
-            </a>
-          </li>
-        ))}
-      </ol>
       <a className="page-rail__up" href={next.href} title={`Go to ${next.label}`}>
         ↓
       </a>
