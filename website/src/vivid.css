@@ -832,16 +832,18 @@ html {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: color-mix(in oklab, var(--navy) 22%, transparent);
+  background: color-mix(in oklab, var(--navy) 38%, #ffffff);
   text-decoration: none;
   position: relative;
   flex: none;
+  box-shadow: none;
 }
 
 .page-rail__step:hover,
 .page-rail__step.is-on {
   background: var(--accent);
   transform: scale(1.35);
+  box-shadow: none;
 }
 
 .page-rail__tip {
@@ -904,10 +906,43 @@ html[data-theme="dark"] .hero-band h1 {
   color: #ffffff;
 }
 
+html[data-theme="dark"] .page-rail {
+  background: #0b1620;
+  border-right-color: rgba(232, 242, 248, 0.22);
+}
+
 html[data-theme="dark"] .page-rail__now,
-html[data-theme="dark"] .page-rail__up,
+html[data-theme="dark"] .page-rail__up {
+  color: #e8f2f8;
+}
+
+html[data-theme="dark"] .page-rail__up {
+  background: #1a2c3a;
+}
+
+html[data-theme="dark"] .page-rail__up:hover {
+  background: #7ec8e3;
+  color: #071018;
+}
+
+html[data-theme="dark"] .page-rail__progress {
+  background: rgba(232, 242, 248, 0.28);
+}
+
+html[data-theme="dark"] .page-rail__fill {
+  background: #7ec8e3;
+}
+
 html[data-theme="dark"] .page-rail__step {
-  color: var(--fg);
+  background: #8aa4b5;
+  color: transparent;
+  box-shadow: none;
+}
+
+html[data-theme="dark"] .page-rail__step:hover,
+html[data-theme="dark"] .page-rail__step.is-on {
+  background: #e8f2f8;
+  box-shadow: 0 0 0 2px #0b1620, 0 0 0 4px #7ec8e3;
 }
 
 .dot-accent {
@@ -929,11 +964,6 @@ html[data-theme="dark"] .site-nav {
 html[data-theme="dark"] .site-nav .brand,
 html[data-theme="dark"] .site-nav .btn-ghost {
   color: var(--fg);
-}
-
-html[data-theme="dark"] .page-rail {
-  background: var(--bg-elev);
-  border-right-color: var(--line);
 }
 
 .pill.green {
