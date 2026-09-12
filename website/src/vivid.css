@@ -171,15 +171,15 @@ html[data-theme="dark"] .btn-subtle {
 
 .hero-band h1,
 .band-copy h2 {
-  font-family: var(--font-display);
-  font-weight: 800;
-  letter-spacing: -0.05em;
+  font-family: var(--font-ui);
+  font-weight: 700;
+  letter-spacing: -0.03em;
 }
 
 .hero-band h1 {
-  font-size: clamp(32px, 4.5vw, 48px);
-  line-height: 1.1;
-  max-width: 18ch;
+  font-size: 1.75rem;
+  line-height: 1.2;
+  max-width: none;
 }
 
 .hero-band .hero-sub,
@@ -189,7 +189,7 @@ html[data-theme="dark"] .btn-subtle {
 .comp-item p,
 .mosaic-tile .mech,
 .footnote {
-  font-size: 17px;
+  font-size: 1rem;
   line-height: 1.5;
 }
 
@@ -564,14 +564,14 @@ body,
 }
 
 .hero-band h1 {
-  font-size: clamp(32px, 4.5vw, 48px);
+  font-size: 1.75rem;
 }
 
 .band-copy h2,
 .trio h3,
 .mosaic-tile h3,
 .comp-item h3 {
-  font-size: clamp(24px, 2.8vw, 32px);
+  font-size: 1.5rem;
 }
 
 .fact-stack h3,
