@@ -202,7 +202,7 @@ html[data-theme="dark"] .btn-subtle {
     "cta collage"
     "cue cue";
   gap: 20px 40px;
-  padding: clamp(36px, 6vh, 72px) var(--pad-x) 40px;
+  padding: 24px var(--pad-x) 32px;
   overflow: hidden;
 }
 
@@ -708,15 +708,21 @@ body,
 
 html {
   scroll-snap-type: y mandatory;
+  scroll-padding-top: var(--nav-h);
 }
 
 .hero-band,
 .band {
-  min-height: 100dvh;
-  max-height: 100dvh;
+  min-height: calc(100dvh - var(--nav-h));
+  max-height: calc(100dvh - var(--nav-h));
   overflow: auto;
   scroll-snap-align: start;
   scroll-snap-stop: always;
+  scroll-margin-top: var(--nav-h);
+}
+
+.band {
+  padding-top: calc(var(--nav-h) + 24px);
 }
 
 .page-rail {
@@ -941,5 +947,7 @@ html[data-theme="dark"] .band--ink .kicker {
   .hero-band,
   .band {
     max-height: none;
+    scroll-margin-top: var(--nav-h);
+    padding-top: calc(var(--nav-h) + 16px);
   }
 }
