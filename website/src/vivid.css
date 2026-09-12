@@ -85,6 +85,11 @@ html[data-theme="dark"] .site-bg {
 }
 
 .site-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 70;
   background: #ffffff;
   color: #0b2438;
   border-bottom: 1px solid color-mix(in oklab, #0b2438 18%, transparent);
@@ -202,8 +207,8 @@ html[data-theme="dark"] .btn-subtle {
     "cta collage"
     "cue cue";
   gap: 20px 40px;
-  padding: 24px var(--pad-x) 32px;
-  overflow: hidden;
+  padding: calc(var(--nav-h) + 16px) var(--pad-x) 24px;
+  overflow: auto;
 }
 
 .hero-copy {
@@ -708,21 +713,21 @@ body,
 
 html {
   scroll-snap-type: y mandatory;
-  scroll-padding-top: var(--nav-h);
+  scroll-padding-top: 0;
 }
 
 .hero-band,
 .band {
-  min-height: calc(100dvh - var(--nav-h));
-  max-height: calc(100dvh - var(--nav-h));
+  box-sizing: border-box;
+  height: 100dvh;
+  min-height: 100dvh;
+  max-height: 100dvh;
   overflow: auto;
   scroll-snap-align: start;
   scroll-snap-stop: always;
-  scroll-margin-top: var(--nav-h);
-}
-
-.band {
-  padding-top: calc(var(--nav-h) + 24px);
+  scroll-margin-top: 0;
+  padding-top: calc(var(--nav-h) + 20px);
+  border-bottom: 1px solid var(--line);
 }
 
 .page-rail {
@@ -979,8 +984,9 @@ html[data-theme="dark"] .band--ink .kicker {
   }
   .hero-band,
   .band {
+    height: auto;
+    min-height: 100dvh;
     max-height: none;
-    scroll-margin-top: var(--nav-h);
     padding-top: calc(var(--nav-h) + 16px);
   }
 }

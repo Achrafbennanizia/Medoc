@@ -224,7 +224,7 @@ export function App() {
           .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
         if (visible?.target.id) setHash(`#${visible.target.id}`);
       },
-      { threshold: 0.45 },
+      { rootMargin: "-20% 0px -45% 0px", threshold: [0.2, 0.4, 0.6] },
     );
     for (const node of nodes) observer.observe(node);
     return () => observer.disconnect();
