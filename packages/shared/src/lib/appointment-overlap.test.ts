@@ -30,7 +30,16 @@ describe("appointmentOverlapLaneInsets", () => {
     it("uses full width for a single lane", () => {
         expect(appointmentOverlapLaneInsets({ col: 0, colCount: 1 })).toEqual({
             insetInlineStart: "4px",
-            width: "calc(100% - 8px)",
+            width: "calc((100% - 8px) / 1)",
         });
+    });
+
+    it("shrinks laid-out width and adds right gutter for hover layoutScale", () => {
+        expect(appointmentOverlapLaneInsets({ col: 0, colCount: 1 }, 4, 2, 1.2)).toEqual({
+            insetInlineStart: "4px",
+            width: "calc((100% - 12px) / 1.2)",
+        });
+        const two = appointmentOverlapLaneInsets({ col: 1, colCount: 2 }, 4, 2, 1.2);
+        expect(two.width).toBe("calc((100% - 12px - 3px) / 2 / 1.2)");
     });
 });

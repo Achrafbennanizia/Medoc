@@ -74,22 +74,34 @@ export function assignAppointmentOverlapLanes(
     return out;
 }
 
-/** Inline start/width for an overlap lane inside a day column. */
+/** Inline start/width for an overlap lane inside a day column.
+ * @param layoutScale When &gt; 1 (calendar hover magnify), shrink laid-out width so
+ *   `transform: scale(layoutScale)` from the inline-start edge still fits — extra space
+ *   lands between lanes and on the inline-end (right in LTR) border.
+ */
 export function appointmentOverlapLaneInsets(
     lane: AppointmentOverlapLane,
     edgePx = APPOINTMENT_BLOCK_EDGE_PX,
     gapPx = APPOINTMENT_OVERLAP_LANE_GAP_PX,
+    layoutScale = 1,
 ): { insetInlineStart: string; width: string } {
     const { col, colCount } = lane;
+    const s = Math.max(1, Number(layoutScale) || 1);
+    // Extra end gutter so magnify never kisses the column’s right border.
+    const endExtraPx = s > 1 ? Math.ceil((s - 1) * 20) : 0;
+    const startEdge = edgePx;
+    const endEdge = edgePx + endExtraPx;
+    // Slightly wider gaps between overlap lanes when magnify is on.
+    const gap = s > 1 ? gapPx + Math.ceil((s - 1) * 4) : gapPx;
     if (colCount <= 1) {
         return {
-            insetInlineStart: `${edgePx}px`,
-            width: `calc(100% - ${edgePx * 2}px)`,
+            insetInlineStart: `${startEdge}px`,
+            width: `calc((100% - ${startEdge + endEdge}px) / ${s})`,
         };
     }
-    const inner = `100% - ${edgePx * 2}px - ${(colCount - 1) * gapPx}px`;
+    const inner = `100% - ${startEdge + endEdge}px - ${(colCount - 1) * gap}px`;
     return {
-        insetInlineStart: `calc(${edgePx}px + ${col} * ((${inner}) / ${colCount} + ${gapPx}px))`,
-        width: `calc((${inner}) / ${colCount})`,
+        insetInlineStart: `calc(${startEdge}px + ${col} * ((${inner}) / ${colCount} + ${gap}px))`,
+        width: `calc((${inner}) / ${colCount} / ${s})`,
     };
 }

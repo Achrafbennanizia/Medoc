@@ -1,6 +1,8 @@
 import {
     DEFAULT_CLIENT_SETTINGS,
     mergeClientSettingsPatch,
+    normalizeAppointmentCardHoverScale,
+    type AppointmentCardHoverScaleId,
     type ClientSettingsV1,
     type ColorSchemeId,
     type FontStackId,
@@ -59,6 +61,17 @@ export function SettingsAppearanceSection({
         { id: "compact" as const, label: t("settings.density.compact") },
         { id: "spacious" as const, label: t("settings.density.spacious") },
     ];
+
+    const hoverScale = normalizeAppointmentCardHoverScale(appearance.appointmentCardHoverScale);
+    const hoverScaleOptions: Array<{ id: AppointmentCardHoverScaleId; label: string }> = [
+        { id: "off", label: t("settings.appearance.card_hover.off") },
+        { id: "sm", label: t("settings.appearance.card_hover.sm") },
+        { id: "md", label: t("settings.appearance.card_hover.md") },
+        { id: "lg", label: t("settings.appearance.card_hover.lg") },
+        { id: "xl", label: t("settings.appearance.card_hover.xl") },
+        { id: "xxl", label: t("settings.appearance.card_hover.xxl") },
+    ];
+    const hoverScaleLabel = hoverScaleOptions.find((o) => o.id === hoverScale)?.label ?? hoverScale;
 
     return (
         <section className="settings-subcard settings-subcard--segment-safe">
@@ -181,6 +194,39 @@ export function SettingsAppearanceSection({
                                     return mergeClientSettingsPatch(c, { appearance: { ...a, density: opt.id } });
                                 });
                                 toast(tp("settings.appearance.toast.density", { label: opt.label }), "info");
+                            }}
+                        >
+                            {opt.label}
+                        </button>
+                    ))}
+                </div>
+            </div>
+            <div className="settings-row" style={{ flexDirection: "column", alignItems: "stretch", gap: 10 }}>
+                <div>
+                    <b>{t("settings.appearance.card_hover")}</b>
+                    <div className="card-sub">{tp("settings.appearance.card_hover.current", { label: hoverScaleLabel })}</div>
+                </div>
+                <div
+                    className="settings-density-seg"
+                    role="group"
+                    aria-label={t("settings.appearance.card_hover.aria")}
+                    style={{ width: "100%", justifyContent: "stretch" }}
+                >
+                    {hoverScaleOptions.map((opt) => (
+                        <button
+                            key={opt.id}
+                            type="button"
+                            className={`settings-density-seg__btn${hoverScale === opt.id ? " is-active" : ""}`}
+                            style={{ flex: 1 }}
+                            onClick={() => {
+                                if (hoverScale === opt.id) return;
+                                onPersistClient((c) => {
+                                    const a = c.appearance ?? DEFAULT_CLIENT_SETTINGS.appearance!;
+                                    return mergeClientSettingsPatch(c, {
+                                        appearance: { ...a, appointmentCardHoverScale: opt.id },
+                                    });
+                                });
+                                toast(tp("settings.appearance.toast.card_hover", { label: opt.label }), "info");
                             }}
                         >
                             {opt.label}

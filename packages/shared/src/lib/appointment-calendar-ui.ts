@@ -302,6 +302,7 @@ export {
     deriveAppointmentTimelineBounds,
     deriveWeekTimelineBounds,
     isAppointmentCalendarWorkingDay,
+    listOpenWorkIntervals,
     appointmentCalendarColumnCount,
     appointmentCalendarIsoWeekdayOffsets,
     appointmentCalendarWeekDays,

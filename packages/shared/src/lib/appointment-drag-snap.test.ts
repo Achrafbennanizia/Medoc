@@ -41,7 +41,7 @@ describe("appointment-drag-snap", () => {
         });
         expect(snap.dayAllowed).toBe(true);
         expect(snap.slotAllowed).toBe(true);
-        expect(snap.startMin).toBe(10 * 60);
+        expect(snap.startMin).toBe(10 * 60 + 5);
     });
 
     it("snaps away from lunch pause on weekdays", () => {
@@ -63,6 +63,48 @@ describe("appointment-drag-snap", () => {
         expect(snap.slotAllowed).toBe(true);
         expect(snap.startMin).not.toBe(12 * 60 + 15);
         expect(snap.startMin === 11 * 60 + 30 || snap.startMin === 13 * 60).toBe(true);
+    });
+
+    it("slides on a 5-minute grid even when practice slotMin is coarser", () => {
+        const base = readPracticeWorkHoursConfig();
+        const cfg: PracticeWorkHoursConfig = {
+            ...base,
+            slotMin: "45",
+            breakFrom: "12:30",
+            breakUntil: "13:30",
+        };
+        const snap = snapAppointmentDragPosition({
+            practiceCfg: cfg,
+            absences: [],
+            physicianId: "",
+            isoDate: "2026-07-13",
+            rawStartMin: 10 * 60 + 7,
+            durMin: 30,
+            timelineBounds: TIMELINE,
+        });
+        expect(snap.slotAllowed).toBe(true);
+        expect(snap.startMin).toBe(10 * 60 + 5);
+    });
+
+    it("can land exactly at break end (not the next coarse slot)", () => {
+        const base = readPracticeWorkHoursConfig();
+        const cfg: PracticeWorkHoursConfig = {
+            ...base,
+            slotMin: "45",
+            breakFrom: "12:30",
+            breakUntil: "13:30",
+        };
+        const snap = snapAppointmentDragPosition({
+            practiceCfg: cfg,
+            absences: [],
+            physicianId: "",
+            isoDate: "2026-07-13",
+            rawStartMin: 13 * 60 + 32,
+            durMin: 30,
+            timelineBounds: TIMELINE,
+        });
+        expect(snap.slotAllowed).toBe(true);
+        expect(snap.startMin).toBe(13 * 60 + 30);
     });
 
     it("rejects closed days", () => {

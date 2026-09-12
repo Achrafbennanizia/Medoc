@@ -17,6 +17,9 @@ export { normalizeFontStack } from "./font-stack-preset";
 
 export type DensityId = "compact" | "cozy" | "spacious";
 
+/** Hover magnify for appointment calendar cards. */
+export type AppointmentCardHoverScaleId = "off" | "sm" | "md" | "lg" | "xl" | "xxl";
+
 /** Default Appointment overview view (`/appointments`). */
 export type AppointmentCalendarView = "day" | "week" | "month";
 
@@ -39,6 +42,8 @@ export type ClientSettingsV1 = {
         showHeaderAvatar?: boolean;
         /** Visible keyboard hints (e.g. ⌘K in rail). */
         showKeyboardHints?: boolean;
+        /** Calendar appointment card hover magnify size (`html[data-appointment-card-hover]`). */
+        appointmentCardHoverScale?: AppointmentCardHoverScaleId;
     };
     /** Calendar, appointments, day-end closing */
     workflows?: {
@@ -94,6 +99,7 @@ export const DEFAULT_CLIENT_SETTINGS: ClientSettingsV1 = {
         accentPreset: "mint",
         showHeaderAvatar: true,
         showKeyboardHints: true,
+        appointmentCardHoverScale: "md",
     },
     workflows: {
         appointmentsDefaultView: "month",
@@ -153,6 +159,11 @@ export function normalizeAppointmentCalendarView(raw: unknown): AppointmentCalen
     return "month";
 }
 
+export function normalizeAppointmentCardHoverScale(raw: unknown): AppointmentCardHoverScaleId {
+    if (raw === "off" || raw === "sm" || raw === "md" || raw === "lg" || raw === "xl" || raw === "xxl") return raw;
+    return "md";
+}
+
 function normalizeFromStorage(j: Partial<ClientSettingsV1>): ClientSettingsV1 {
     const base = mergeClient(DEFAULT_CLIENT_SETTINGS, j);
     const cs = base.appearance?.colorScheme;
@@ -163,6 +174,10 @@ function normalizeFromStorage(j: Partial<ClientSettingsV1>): ClientSettingsV1 {
     const view = normalizeAppointmentCalendarView(j.workflows?.appointmentsDefaultView);
     if (out.workflows?.appointmentsDefaultView !== view) {
         out = mergeClient(out, { workflows: { ...out.workflows!, appointmentsDefaultView: view } });
+    }
+    const hover = normalizeAppointmentCardHoverScale(j.appearance?.appointmentCardHoverScale);
+    if (out.appearance?.appointmentCardHoverScale !== hover) {
+        out = mergeClient(out, { appearance: { ...out.appearance!, appointmentCardHoverScale: hover } });
     }
     return out;
 }
@@ -218,6 +233,8 @@ export function applyAppearanceFromSettings(s: ClientSettingsV1): void {
     let density = s.appearance?.density ?? "cozy";
     if (density !== "compact" && density !== "cozy" && density !== "spacious") density = "cozy";
     document.documentElement.dataset.density = density;
+    const hoverScale = normalizeAppointmentCardHoverScale(s.appearance?.appointmentCardHoverScale);
+    document.documentElement.dataset.appointmentCardHover = hoverScale;
     const av = s.appearance?.showHeaderAvatar !== false;
     document.documentElement.dataset.headerAvatar = av ? "true" : "false";
     const kbd = s.appearance?.showKeyboardHints !== false;

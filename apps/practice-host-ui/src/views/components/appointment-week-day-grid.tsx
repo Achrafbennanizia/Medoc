@@ -188,6 +188,40 @@ const AppointmentApptBlockView = memo(function AppointmentApptBlockView({
 
     const timeLiveClass = dragPreviewTime ? " appointment-appt-block-time--drag-live" : "";
 
+    const prepareDayHoverOrigin = (el: HTMLButtonElement) => {
+        if (!dayColumn) return;
+        el.classList.add("appointment-appt-block--hover-front");
+        // Horizontal: left origin + layoutScale reserves the right border.
+        // Vertical: prefer inward from top/bottom so height magnify stays in column.
+        const col = el.closest(".appointment-day-col") as HTMLElement | null;
+        if (!col) return;
+        const colRect = col.getBoundingClientRect();
+        const elRect = el.getBoundingClientRect();
+        const rawScale = Number.parseFloat(
+            getComputedStyle(document.documentElement).getPropertyValue("--appointment-card-hover-scale").trim(),
+        );
+        const scale = Number.isFinite(rawScale) && rawScale > 0 ? rawScale : 1.12;
+        const extraY = elRect.height * (scale - 1);
+        const pad = 6;
+        const distTop = elRect.top - colRect.top;
+        const distBottom = colRect.bottom - elRect.bottom;
+        let originY: "top" | "center" | "bottom" = "center";
+        if (distTop < extraY / 2 + pad && distBottom < extraY / 2 + pad) {
+            originY = distTop <= distBottom ? "top" : "bottom";
+        } else if (distTop < extraY / 2 + pad) {
+            originY = "top";
+        } else if (distBottom < extraY / 2 + pad) {
+            originY = "bottom";
+        }
+        el.style.transformOrigin = `left ${originY}`;
+    };
+
+    const clearDayHoverFront = (el: HTMLButtonElement) => {
+        if (!dayColumn) return;
+        el.classList.remove("appointment-appt-block--hover-front");
+        el.style.removeProperty("transform-origin");
+    };
+
     const dragHintInline = dragTargetDateHint ? (
         <>
             <span className="appointment-appt-block-micro-sep" aria-hidden>
@@ -243,6 +277,8 @@ const AppointmentApptBlockView = memo(function AppointmentApptBlockView({
                 .join(" ")}
             style={style}
             onClick={onClick}
+            onMouseEnter={(e) => prepareDayHoverOrigin(e.currentTarget)}
+            onMouseLeave={(e) => clearDayHoverFront(e.currentTarget)}
             onMouseDown={onMouseDown}
             onContextMenu={onContextMenu}
         >
@@ -311,6 +347,32 @@ function AppointmentTimeColumnBody({
         });
         return assignAppointmentOverlapLanes(spans);
     }, [dayList]);
+    /** Day view: track hover magnify so laid-out width reserves the right border. */
+    const [dayHoverLayoutScale, setDayHoverLayoutScale] = useState(1);
+    useLayoutEffect(() => {
+        if (!singleDay) {
+            setDayHoverLayoutScale(1);
+            return;
+        }
+        const read = () => {
+            const raw = Number.parseFloat(
+                getComputedStyle(document.documentElement).getPropertyValue("--appointment-card-hover-scale").trim(),
+            );
+            const next = Number.isFinite(raw) && raw > 1 ? raw : 1;
+            setDayHoverLayoutScale((prev) => (prev === next ? prev : next));
+        };
+        read();
+        const mo = new MutationObserver(read);
+        mo.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ["data-appointment-card-hover", "style", "class"],
+        });
+        window.addEventListener("storage", read);
+        return () => {
+            mo.disconnect();
+            window.removeEventListener("storage", read);
+        };
+    }, [singleDay]);
     const closedSpans = useMemo(
         () => deriveDayClosedSpans(practiceCfg, iso, timelineBounds),
         [practiceCfg, iso, timelineBounds],
@@ -387,7 +449,12 @@ function AppointmentTimeColumnBody({
                 // Height tracks duration on the timeline; leave a small gap before the next block.
                 const blockHeight = Math.max(dur * pxPerMin - APPOINTMENT_BLOCK_GAP_PX, 1);
                 const lane = overlapLanes.get(ap.id) ?? { col: 0, colCount: 1 };
-                const insets = appointmentOverlapLaneInsets(lane);
+                const insets = appointmentOverlapLaneInsets(
+                    lane,
+                    undefined,
+                    undefined,
+                    singleDay ? dayHoverLayoutScale : 1,
+                );
                 const targetDayHint =
                     singleDay && isDragThis && dragState && dragState.currentDate !== iso
                         ? `→ ${format(parseISO(dragState.currentDate), "EEE d. MMM", { locale: dateFnsLocale })}`

@@ -10,6 +10,7 @@ import {
     minutesToTime,
     timeToMinutes,
 } from "./appointment-availability";
+import { listOpenWorkIntervals } from "./appointment-calendar-layout";
 
 export type AppointmentSlotGrid = {
     /** All candidate start times for the selected day (practice + doctor hours). */
@@ -76,11 +77,8 @@ export function buildAppointmentSlotGrid(opts: {
     }
 
     const seen = new Set<string>();
-    for (const seg of day.segments ?? []) {
-        if (!seg.from || !seg.to || seg.from >= seg.to) continue;
-        const segStart = timeToMinutes(seg.from);
-        const segEnd = timeToMinutes(seg.to);
-        for (let m = segStart; m + durMin <= segEnd; m += step) {
+    for (const band of listOpenWorkIntervals(eff, opts.date)) {
+        for (let m = band.startMin; m + durMin <= band.endMin; m += step) {
             const hm = minutesToTime(m);
             if (seen.has(hm)) continue;
             seen.add(hm);

@@ -293,3 +293,53 @@ export function appointmentTimelineHourLabels(bounds: AppointmentTimelineBounds)
     }
     return hours;
 }
+
+function subtractInterval(
+    open: Array<{ startMin: number; endMin: number }>,
+    cutFrom: number,
+    cutTo: number,
+): Array<{ startMin: number; endMin: number }> {
+    if (cutTo <= cutFrom) return open;
+    const out: Array<{ startMin: number; endMin: number }> = [];
+    for (const o of open) {
+        if (cutTo <= o.startMin || cutFrom >= o.endMin) {
+            out.push(o);
+            continue;
+        }
+        if (cutFrom > o.startMin) out.push({ startMin: o.startMin, endMin: Math.min(o.endMin, cutFrom) });
+        if (cutTo < o.endMin) out.push({ startMin: Math.max(o.startMin, cutTo), endMin: o.endMin });
+    }
+    return out.filter((o) => o.endMin > o.startMin);
+}
+
+/**
+ * Bookable open intervals for a day (work segments minus lunch + custom closures).
+ * Drag/slot grids step within each interval so the first start after a break is the break end — not the next morning-aligned tick.
+ */
+export function listOpenWorkIntervals(
+    cfg: PracticeWorkHoursConfig,
+    isoDate: string,
+): Array<{ startMin: number; endMin: number }> {
+    const day = cfg.plan[dayKeyFromIsoDate(isoDate)];
+    if (!day?.active) return [];
+    if (cfg.closures.some((c) => c.date === isoDate && c.mode === "FULL_DAY")) return [];
+
+    let open: Array<{ startMin: number; endMin: number }> = [];
+    for (const seg of day.segments ?? []) {
+        if (!seg.from || !seg.to || seg.from >= seg.to) continue;
+        open.push({ startMin: timeToMinutes(seg.from), endMin: timeToMinutes(seg.to) });
+    }
+    open.sort((a, b) => a.startMin - b.startMin);
+
+    if (cfg.breakFrom && cfg.breakUntil && cfg.breakFrom < cfg.breakUntil) {
+        open = subtractInterval(open, timeToMinutes(cfg.breakFrom), timeToMinutes(cfg.breakUntil));
+    }
+    for (const rule of cfg.closures) {
+        if (rule.date !== isoDate || rule.mode !== "CUSTOM") continue;
+        for (const p of rule.periods ?? []) {
+            if (!p.from || !p.to || p.from >= p.to) continue;
+            open = subtractInterval(open, timeToMinutes(p.from), timeToMinutes(p.to));
+        }
+    }
+    return open;
+}

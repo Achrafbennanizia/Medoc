@@ -6,6 +6,7 @@ import {
     type PracticeWorkHoursConfig,
 } from "./practice-planning";
 import { isAppointmentSpanSchedulable, timeToMinutes } from "./appointment-availability";
+import { listOpenWorkIntervals } from "./appointment-calendar-layout";
 
 export type AppointmentDragSnapResult = {
     startMin: number;
@@ -33,22 +34,21 @@ export function deriveDayPackingBounds(
     return { startMin, endMin };
 }
 
+/** Live calendar drag snaps on a fine 5-minute grid (not the coarser create-slot step). */
+export const APPOINTMENT_DRAG_SNAP_STEP_MIN = 5;
+
 function listSchedulableStartMinutes(
     eff: PracticeWorkHoursConfig,
     absences: Absence[],
     isoDate: string,
     durMin: number,
 ): number[] {
-    const step = Math.max(5, Number(eff.slotMin) || 30);
-    const day = eff.plan[dayKeyFromIsoDate(isoDate)];
-    if (!day?.active) return [];
+    const step = APPOINTMENT_DRAG_SNAP_STEP_MIN;
     const out: number[] = [];
     const seen = new Set<number>();
-    for (const seg of day.segments ?? []) {
-        if (!seg.from || !seg.to || seg.from >= seg.to) continue;
-        const segStart = timeToMinutes(seg.from);
-        const segEnd = timeToMinutes(seg.to);
-        for (let m = segStart; m + durMin <= segEnd; m += step) {
+    // Step inside each open band (post-break band starts at break end — not the next morning tick).
+    for (const band of listOpenWorkIntervals(eff, isoDate)) {
+        for (let m = band.startMin; m + durMin <= band.endMin; m += step) {
             if (!isAppointmentSpanSchedulable(eff, absences, isoDate, m, m + durMin)) continue;
             if (seen.has(m)) continue;
             seen.add(m);
