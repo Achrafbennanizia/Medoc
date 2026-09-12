@@ -735,10 +735,24 @@ html {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 8px 4px 10px;
+  gap: 8px;
+  padding: 10px 6px 12px;
   background: #ffffff;
   border-right: 1px solid color-mix(in oklab, var(--navy) 12%, transparent);
+}
+
+.page-rail__now {
+  margin: 0;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #0b2438;
+  max-height: 88px;
+  overflow: hidden;
+  flex: 0 1 auto;
 }
 
 .page-rail__body {
@@ -747,28 +761,24 @@ html {
   width: 100%;
   display: flex;
   justify-content: center;
-  gap: 5px;
+  gap: 6px;
 }
 
-.page-rail__up,
-.page-rail__step {
+.page-rail__up {
   width: 22px;
   height: 22px;
   display: grid;
   place-items: center;
   border-radius: 6px;
   text-decoration: none;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   color: #0b2438;
   background: var(--bg);
-  position: relative;
   flex: none;
 }
 
-.page-rail__up:hover,
-.page-rail__step:hover,
-.page-rail__step.is-on {
+.page-rail__up:hover {
   background: var(--accent);
   color: #fff;
 }
@@ -800,7 +810,8 @@ html {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  justify-content: space-between;
   overflow: hidden;
 }
 
@@ -808,14 +819,24 @@ html {
   flex: 1 1 0;
   min-height: 0;
   display: flex;
+  align-items: center;
   justify-content: center;
 }
 
-.page-rail__list .page-rail__step {
-  width: 22px;
-  height: 100%;
-  max-height: 24px;
-  min-height: 14px;
+.page-rail__step {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--navy) 22%, transparent);
+  text-decoration: none;
+  position: relative;
+  flex: none;
+}
+
+.page-rail__step:hover,
+.page-rail__step.is-on {
+  background: var(--accent);
+  transform: scale(1.35);
 }
 
 .page-rail__tip {
