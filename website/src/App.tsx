@@ -6,7 +6,13 @@ import { ShotCarousel } from "./product/ShotCarousel";
 type Theme = "light" | "dark";
 
 function BrandMark() {
-  return <span className="brand-mark" aria-hidden />;
+  return (
+    <span className="brand-mark" aria-hidden>
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14 3l7 7-3 1-4 4-1 5-2-2 1-4-4-4-5-1 2-2 5 1 4-4z" />
+      </svg>
+    </span>
+  );
 }
 
 function PageRail({ hash }: { hash: string }) {

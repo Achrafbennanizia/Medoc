@@ -157,10 +157,13 @@ a {
 }
 
 .brand-mark {
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  background: var(--accent);
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, var(--accent), color-mix(in oklab, var(--accent) 72%, #ffffff));
+  display: grid;
+  place-items: center;
+  color: #fff;
 }
 
 .nav-links {

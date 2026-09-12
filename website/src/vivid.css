@@ -119,15 +119,19 @@ html[data-theme="dark"] .site-bg {
 }
 
 .brand-mark {
-  width: 22px;
-  height: 22px;
-  border-radius: 4px;
-  background:
-    linear-gradient(var(--accent), var(--accent)) 50% 50% / 6px 18px no-repeat,
-    linear-gradient(var(--accent), var(--accent)) 50% 50% / 18px 6px no-repeat,
-    #fff;
-  box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent) 35%, transparent);
-  border: 1px solid color-mix(in oklab, var(--accent) 40%, transparent);
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, var(--accent), color-mix(in oklab, var(--accent) 72%, #ffffff));
+  display: grid;
+  place-items: center;
+  color: #fff;
+  border: 0;
+  box-shadow: none;
+}
+
+.brand-mark svg {
+  display: block;
 }
 
 .btn {
