@@ -1,5 +1,37 @@
 # Phase handoff
 
+**Last phase label:** Workflow logging bridge (2026-09-25)
+
+### Verified (2026-09-25 — workflow logging channel + bridge)
+
+- Logging infrastructure extended in-place (`medoc-core`) with dedicated `workflow.log` channel (`target = medoc::workflow`).
+- New authenticated IPC command `log_workflow_step` added in `medoc-practice` with route normalization + sanitization.
+- Frontend bridge wired (`packages/app/practice-host`) and route-enter emit added in `AppLayout`.
+- New tests:
+  - Rust unit tests for route redaction + secret masking in workflow payload.
+  - TS controller tests for route normalization + best-effort bridge behavior.
+- Validation:
+  - `cargo clippy --workspace -- -D warnings` **PASS**
+  - `cargo fmt --check` **PASS**
+  - `cargo test -p medoc-practice --tests` **PASS**
+  - `npm test` **PASS** (62 files / 309 tests)
+  - `npm run build` **PASS**
+  - `cargo test --workspace --tests` **FAIL** on pre-existing `medoc-sync` test `reset_token_sign_verify_roundtrip` (same failure signature before and after this phase).
+
+### Remains unverified
+
+- Workflow events for `primary_action`, `success`, `cancel`, `error` across all critical workflows are **NOT IMPLEMENTED** in this slice.
+- Runtime proof of file rotation behavior and no-PII leakage in emitted `workflow.log` lines is **NOT OBSERVED** (unit-level sanitization is covered).
+- Root cause of failing `medoc-sync` test `cluster::services::cluster_reset_service::tests::reset_token_sign_verify_roundtrip` remains unresolved.
+
+### Required next
+
+1. Wire `primary_action` / `success` / `cancel` / `error` emits on high-value flows (login, patient detail save, appointment save, billing actions, modal confirm/cancel).
+2. Add integration check that writes sample workflow events and asserts redaction + route normalization in persisted `workflow.log`.
+3. Triage and fix (or quarantine with owner decision) the pre-existing `medoc-sync` signature test failure blocking full green `cargo test --workspace --tests`.
+
+---
+
 **Last phase label:** Payment fulfills open booking (2026-09-05)
 
 ### Verified (2026-09-05 — payment → billing list)

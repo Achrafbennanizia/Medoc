@@ -1,6 +1,22 @@
 # Validation ledger
 
-**Last updated:** 2026-09-05 (payment assignment open rows)
+**Last updated:** 2026-09-25 (workflow logging channel + route-enter bridge)
+
+## Workflow logging channel + route-enter bridge (2026-09-25)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Rust full tests (workspace) | `MEDOC_VENDOR_PUBKEY=… cargo test --workspace --tests` | **FAIL (pre-existing)** — `medoc-sync` test `cluster::services::cluster_reset_service::tests::reset_token_sign_verify_roundtrip` returns `Validation("Invalid signature")` before and after this change set |
+| Rust lint (workspace) | `MEDOC_VENDOR_PUBKEY=… cargo clippy --workspace -- -D warnings` | **PASS** |
+| Rust fmt | `cargo fmt --check` | **PASS** |
+| Rust targeted tests | `MEDOC_VENDOR_PUBKEY=… cargo test -p medoc-practice --tests` | **PASS** — includes new `commands::system::logging` sanitization tests (11/11) |
+| Frontend tests | `npm test` | **PASS** — 62 files / 309 tests (includes new `logging.controller.test.ts`) |
+| Frontend build | `npm run build` | **PASS** |
+
+**Environment remediation performed this run (required for reproducible checks):**
+
+- Rust toolchain upgraded from 1.83 to stable 1.98 (`rustup toolchain install stable`, `rustup override set stable`).
+- System dependencies installed for SQLCipher + Tauri/WRY builds (`libssl-dev`, `libgtk-3-dev`, `libsoup-3.0-dev`, `libwebkit2gtk-4.1-dev`).
 
 ## Payment assignment / open booking (2026-09-05)
 

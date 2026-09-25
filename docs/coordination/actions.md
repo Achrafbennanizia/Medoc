@@ -1,13 +1,26 @@
 # Action ledger
 
-**Last updated:** 2026-09-05 (payment fulfills open booking)
+**Last updated:** 2026-09-25 (workflow logging bridge)
+
+## Done (2026-09-25 — workflow logging bridge)
+
+- Added dedicated `workflow.log` channel in shared tracing logging infrastructure.
+- Added authenticated `log_workflow_step` IPC command with route normalization + sanitizer pass.
+- Added frontend route-enter bridge (`AppLayout` → controller → Tauri IPC).
+- Added Rust + TS tests covering workflow route redaction and bridge behavior.
+
+## Now
+
+- Expand workflow telemetry beyond `route_enter` to `primary_action` / `success` / `cancel` / `error` on critical flows.
+- Add integration-level assertion for persisted `workflow.log` redaction/rotation.
+- Resolve or triage pre-existing `medoc-sync` failing test `reset_token_sign_verify_roundtrip` that blocks full workspace green.
 
 ## Done (2026-09-05 — payment → billing)
 
 - Payment create fills the 0 € open booking in place; closes BILLING tasks on `PAID`.
 - Tests: `payment_repo_tests` (incl. fulfill + close).
 
-## Now
+## Now (prior)
 
 - Confirm in the running app: pay an open booking → one billed row, no leftover fulfill task.
 
