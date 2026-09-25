@@ -1,6 +1,17 @@
 import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
 
 export type LogLevel = "ERROR" | "WARN" | "INFO" | "DEBUG" | "TRACE";
+export type WorkflowLogStep = "route_enter" | "primary_action" | "success" | "cancel" | "error";
+export type WorkflowLogStatus = "start" | "success" | "cancel" | "error";
+
+export type WorkflowLogPayload = {
+    route: string;
+    step: WorkflowLogStep;
+    action: string;
+    status: WorkflowLogStatus;
+    message?: string;
+    error?: string;
+};
 
 export async function getLogLevel(): Promise<LogLevel> {
     return practiceSystem.invoke<LogLevel>("get_log_level");
@@ -21,6 +32,10 @@ export async function verifyAuditChain(): Promise<string | null> {
 
 export async function getLogDir(): Promise<string> {
     return practiceSystem.invoke<string>("log_dir");
+}
+
+export async function logWorkflowEvent(payload: WorkflowLogPayload): Promise<void> {
+    return practiceSystem.invoke<void>("log_workflow_event", { payload });
 }
 
 /** Example log file path for display (`app.log` in the log directory). */

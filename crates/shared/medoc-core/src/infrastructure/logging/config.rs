@@ -57,17 +57,21 @@ impl LoggingConfig {
         }
     }
 
+    fn is_dedicated_channel_target(target: &str) -> bool {
+        target.starts_with("medoc::security")
+            || target.starts_with("medoc::system")
+            || target.starts_with("medoc::device")
+            || target.starts_with("medoc::migration")
+            || target.starts_with("medoc::perf")
+            || target.starts_with("medoc::workflow")
+    }
+
     /// Whether a log event should be written to the JSON `app.log` channel.
     /// Re-evaluated on every event so `set_log_level` takes effect immediately
     /// (the file layer uses `FilterFn`, not a one-shot `EnvFilter`).
     pub fn app_json_accepts(&self, meta: &Metadata<'_>) -> bool {
         let t = meta.target();
-        if t.starts_with("medoc::security")
-            || t.starts_with("medoc::system")
-            || t.starts_with("medoc::device")
-            || t.starts_with("medoc::migration")
-            || t.starts_with("medoc::perf")
-        {
+        if Self::is_dedicated_channel_target(t) {
             return false;
         }
         Self::level_accepts(self.level(), *meta.level())
@@ -92,7 +96,7 @@ impl LoggingConfig {
     pub fn app_filter(&self) -> EnvFilter {
         let lvl = self.level().as_filter();
         EnvFilter::new(format!(
-            "{lvl},medoc::security=off,medoc::system=off,medoc::device=off,medoc::migration=off,medoc::perf=off"
+            "{lvl},medoc::security=off,medoc::system=off,medoc::device=off,medoc::migration=off,medoc::perf=off,medoc::workflow=off"
         ))
     }
 }

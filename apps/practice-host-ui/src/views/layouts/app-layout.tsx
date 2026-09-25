@@ -31,6 +31,7 @@ import { OnboardingCoachmark } from "../components/onboarding-coachmark";
 import { ONBOARDING_COACHMARK_ENABLED } from "@/lib/v1-ui-flags";
 import { NotificationsPopover } from "../components/notifications-popover";
 import { checkForUpdates, openNativePrintDialog } from "@/systems/practice-host/controllers/system.controller";
+import { logWorkflowEvent } from "@/systems/practice-host/controllers/logging.controller";
 import { useDismissibleLayer } from "../components/ui/use-dismissible-layer";
 import { UserAccountMenuDropdown } from "../components/user-account-menu";
 import { SyncStatusBadge } from "../components/sync-status-badge";
@@ -241,12 +242,36 @@ export function AppLayout() {
         }
     }, [session?.role]);
 
+    const emitWorkflow = useCallback(
+        (payload: {
+            step: "route_enter" | "primary_action" | "success" | "cancel" | "error";
+            action: string;
+            status: "start" | "success" | "cancel" | "error";
+            message?: string;
+            error?: string;
+        }) => {
+            void logWorkflowEvent({
+                route: location.pathname || "/",
+                ...payload,
+            }).catch(() => {});
+        },
+        [location.pathname],
+    );
+
     const handleMacWindowDrag = useMacWindowDrag(desktopChrome === "mac-overlay");
 
     useEffect(() => {
         void refreshInAppUnread();
         void refreshNavBadges();
     }, [refreshInAppUnread, refreshNavBadges, location.pathname]);
+
+    useEffect(() => {
+        emitWorkflow({
+            step: "route_enter",
+            action: "navigate",
+            status: "success",
+        });
+    }, [emitWorkflow, location.pathname]);
 
     useEffect(() => {
         const id = window.setInterval(() => {
@@ -580,7 +605,14 @@ export function AppLayout() {
         await logout();
         navigate("/login");
     };
-    const requestLogout = () => setLogoutConfirmOpen(true);
+    const requestLogout = () => {
+        emitWorkflow({
+            step: "primary_action",
+            action: "logout_request",
+            status: "start",
+        });
+        setLogoutConfirmOpen(true);
+    };
 
     const sidebarAccountMenu = (
         <>
@@ -635,18 +667,40 @@ export function AppLayout() {
 
     const submitBreakGlass = async () => {
         if (bgReason.trim().length < 10) {
+            emitWorkflow({
+                step: "error",
+                action: "break_glass_submit",
+                status: "error",
+                error: "validation_failed",
+            });
             toast(t("app.layout.break_glass.toast_reason_min"));
             return;
         }
+        emitWorkflow({
+            step: "primary_action",
+            action: "break_glass_submit",
+            status: "start",
+        });
         setBgBusy(true);
         try {
             await breakGlassActivate(bgReason.trim(), bgPatientId || undefined);
+            emitWorkflow({
+                step: "success",
+                action: "break_glass_submit",
+                status: "success",
+            });
             toast(t("app.layout.break_glass.toast_activated"));
             window.dispatchEvent(new Event("medoc-break-glass-refresh"));
             setBreakOpen(false);
             setBgReason("");
             setBgPatientId("");
         } catch (e) {
+            emitWorkflow({
+                step: "error",
+                action: "break_glass_submit",
+                status: "error",
+                error: "request_failed",
+            });
             toast(`${t("common.error_prefix")} ${errorMessage(e)}`);
         } finally {
             setBgBusy(false);
@@ -1166,11 +1220,30 @@ export function AppLayout() {
             {BREAK_GLASS_ENABLED ? (
             <Dialog
                 open={breakOpen}
-                onClose={() => setBreakOpen(false)}
+                onClose={() => {
+                    emitWorkflow({
+                        step: "cancel",
+                        action: "break_glass_dialog",
+                        status: "cancel",
+                    });
+                    setBreakOpen(false);
+                }}
                 title={t("app.layout.break_glass.title")}
                 footer={
                     <>
-                        <Button variant="ghost" onClick={() => setBreakOpen(false)}>{t("common.cancel")}</Button>
+                        <Button
+                            variant="ghost"
+                            onClick={() => {
+                                emitWorkflow({
+                                    step: "cancel",
+                                    action: "break_glass_dialog",
+                                    status: "cancel",
+                                });
+                                setBreakOpen(false);
+                            }}
+                        >
+                            {t("common.cancel")}
+                        </Button>
                         <Button onClick={() => void submitBreakGlass()} disabled={bgBusy} loading={bgBusy}>{t("common.confirm")}</Button>
                     </>
                 }
@@ -1196,10 +1269,37 @@ export function AppLayout() {
             ) : null}
             <ConfirmDialog
                 open={logoutConfirmOpen}
-                onClose={() => setLogoutConfirmOpen(false)}
-                onConfirm={async () => {
+                onClose={() => {
+                    emitWorkflow({
+                        step: "cancel",
+                        action: "logout_confirm",
+                        status: "cancel",
+                    });
                     setLogoutConfirmOpen(false);
-                    await handleLogout();
+                }}
+                onConfirm={async () => {
+                    emitWorkflow({
+                        step: "primary_action",
+                        action: "logout_confirm",
+                        status: "start",
+                    });
+                    setLogoutConfirmOpen(false);
+                    try {
+                        await handleLogout();
+                        emitWorkflow({
+                            step: "success",
+                            action: "logout_confirm",
+                            status: "success",
+                        });
+                    } catch {
+                        emitWorkflow({
+                            step: "error",
+                            action: "logout_confirm",
+                            status: "error",
+                            error: "request_failed",
+                        });
+                        toast(t("common.error_prefix"), "error");
+                    }
                 }}
                 title={t("app.layout.logout.title")}
                 message={t("app.layout.logout.message")}
