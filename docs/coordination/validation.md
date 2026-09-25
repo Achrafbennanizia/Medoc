@@ -1,6 +1,20 @@
 # Validation ledger
 
-**Last updated:** 2026-09-05 (payment assignment open rows)
+**Last updated:** 2026-09-25 (workflow logging channel + bridge)
+
+## Workflow logging channel + frontend bridge (2026-09-25)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Rust tests (full workspace) | `MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32 cargo test` | **PASS** (after updating invoke-registry test expectation 313→314) |
+| Rust clippy | `MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32 cargo clippy --workspace --all-targets -- -D warnings` | **PASS** |
+| Rust format | `cargo fmt --check` | **PASS** |
+| Frontend tests | `npm run test` | **PASS** — 62 files / 307 tests |
+| Frontend build | `npm run build` | **PASS** |
+| Scope tests — modified crates | `MEDOC_VENDOR_PUBKEY=... cargo test -p medoc-core -p medoc-practice` | **PASS** |
+| Scope tests — modified app crate | `MEDOC_VENDOR_PUBKEY=... cargo test -p medoc-practice --tests` | **PASS** |
+
+---
 
 ## Payment assignment / open booking (2026-09-05)
 

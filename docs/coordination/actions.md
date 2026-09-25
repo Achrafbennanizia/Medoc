@@ -1,6 +1,14 @@
 # Action ledger
 
-**Last updated:** 2026-09-05 (payment fulfills open booking)
+**Last updated:** 2026-09-25 (workflow logging channel + bridge)
+
+## Done (2026-09-25 — workflow logging channel + bridge)
+
+- Added dedicated `workflow.log` channel in existing tracing logging stack (`medoc-core`), with `medoc::workflow` filtering.
+- Added sanitized IPC bridge command `log_workflow_event` and registered it in invoke handler.
+- Added frontend workflow event emissions for route enter + logout + break-glass (`start/success/cancel/error` states).
+- Added tests for workflow sanitization and frontend controller wiring.
+- Validation pass captured in [`validation.md`](validation.md): cargo test/clippy/fmt + npm test/build.
 
 ## Done (2026-09-05 — payment → billing)
 

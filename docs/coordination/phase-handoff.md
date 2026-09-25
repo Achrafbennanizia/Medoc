@@ -1,5 +1,41 @@
 # Phase handoff
 
+**Last phase label:** Workflow logging channel + frontend bridge (2026-09-25)
+
+### Verified (2026-09-25 — workflow logging channel + bridge)
+
+- Existing tracing logging subsystem now includes dedicated `workflow.log` channel (`medoc::workflow`) without introducing a parallel logger.
+- New sanitized Tauri IPC bridge `log_workflow_event` is registered and available in invoke registry (expected command count updated to **314**).
+- Frontend emits structured workflow events for:
+  - route entry (`route_enter`)
+  - logout flow (`start` / `cancel` / `success` / `error`)
+  - break-glass dialog flow (`start` / `cancel` / `success` / `error`)
+- Validation gate for this run is green:
+  - `MEDOC_VENDOR_PUBKEY=... cargo test` **PASS**
+  - `MEDOC_VENDOR_PUBKEY=... cargo clippy --workspace --all-targets -- -D warnings` **PASS**
+  - `cargo fmt --check` **PASS**
+  - `npm run test` **PASS** (62 files / 307 tests)
+  - `npm run build` **PASS**
+
+### Remains unverified
+
+- Full Step-2 workflow state-machine inventory across every route/action is **NOT RUN** in this bounded run.
+- Playwright geometry/spacing audit and axe compliance sweep are **NOT RUN** in this bounded run.
+- Runtime inspection of produced `workflow.log` files in a live Tauri session is **NOT OBSERVED**.
+
+### Understanding delta
+
+- Prior state had no dedicated workflow channel or frontend bridge; this is now present and sanitized.
+- Current gap moved from infrastructure absence to breadth-of-coverage (all routes/components and browser-geometry/a11y audits still pending).
+
+### Required next
+
+1. Expand workflow emission coverage beyond global flows into page/component-level primary actions.
+2. Build Step-2 workflow map + non-terminable path detection from the new workflow logs.
+3. Add Playwright geometry/token-scale assertions and a11y rule audit (axe + keyboard/aria checks).
+
+---
+
 **Last phase label:** Payment fulfills open booking (2026-09-05)
 
 ### Verified (2026-09-05 — payment → billing list)

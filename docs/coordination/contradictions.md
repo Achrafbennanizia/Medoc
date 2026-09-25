@@ -1,6 +1,12 @@
 # Contradiction ledger
 
-**Last updated:** 2026-06-16
+**Last updated:** 2026-09-25
+
+## Workflow findings register (2026-09-25)
+
+| ID | Location | Finding | Evidence | Severity | Action |
+| -- | -------- | ------- | -------- | -------- | ------ |
+| WF-LOG-001 | `crates/shared/medoc-core/src/infrastructure/logging/mod.rs`, `crates/app/medoc-practice/src/commands/system/logging.rs`, `apps/practice-host-ui/src/views/layouts/app-layout.tsx` | Workflow channel and frontend→backend workflow bridge were missing; workflow transitions were not emitted into a dedicated sanitized file channel. | `rg "workflow.log|log_workflow_event|log_workflow\\!"` before change returned no matches in runtime code; after change these symbols exist in logging infra, IPC command, and UI call sites. | P1 | **Closed in this run:** added `workflow.log` channel, sanitized `log_workflow_event` IPC, and UI event emissions (route enter, logout, break-glass start/success/cancel/error). |
 
 ## Open contradictions
 
