@@ -49,6 +49,7 @@ import { workTimeGetPreference, workTimeSetPreference } from "@/systems/practice
 import { subscribeWorkTimeFocusMode, dispatchWorkTimeFocusMode } from "@/lib/work-time-focus-mode";
 import { subscribeAppMenu } from "@/lib/native-app-menu-bridge";
 import { countUnreadInAppNotifications } from "@/systems/practice-host/controllers/in-app-notification.controller";
+import { logWorkflowStep } from "@/systems/practice-host/controllers/logging.controller";
 import { useMacWindowDrag } from "@/lib/mac-window-drag";
 
 const MEDOC_UI_ZOOM_KEY = "medoc-ui-zoom";
@@ -247,6 +248,16 @@ export function AppLayout() {
         void refreshInAppUnread();
         void refreshNavBadges();
     }, [refreshInAppUnread, refreshNavBadges, location.pathname]);
+
+    useEffect(() => {
+        if (!session?.user_id) return;
+        void logWorkflowStep({
+            route: location.pathname,
+            step: "route_enter",
+            status: "success",
+            action: "navigation",
+        });
+    }, [location.pathname, session?.user_id]);
 
     useEffect(() => {
         const id = window.setInterval(() => {
