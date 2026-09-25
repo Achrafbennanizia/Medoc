@@ -1,6 +1,20 @@
 # Action ledger
 
-**Last updated:** 2026-09-05 (payment fulfills open booking)
+**Last updated:** 2026-09-25 (CI/CD pipeline migration)
+
+## Done (2026-09-25 — CI/CD tiers + release gate)
+
+- Added tiered workflows:
+  - `.github/workflows/verify.yml`
+  - `.github/workflows/autofix.yml`
+  - `.github/workflows/fix-proposal.yml`
+  - `.github/workflows/release.yml`
+- Converted `.github/workflows/ci.yml` into a manual compatibility shim (`ci-compat`).
+- Added CI script entrypoints in `package.json` + `apps/practice-host-ui/package.json` (`typecheck`, `lint:fix`, `format`, `test:a11y`).
+- Added accessibility runner `apps/practice-host-ui/scripts/run-axe-critical-check.mjs` (Playwright + axe-core critical gate).
+- Added fix-attempt helper `scripts/ci/fix-proposal-attempt.sh`.
+- Documented implementation in `docs/coordination/ci-cd-plan.md`.
+- Recorded validation in `docs/coordination/validation.md`.
 
 ## Done (2026-09-05 — payment → billing)
 
