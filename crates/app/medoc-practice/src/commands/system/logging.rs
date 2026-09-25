@@ -193,3 +193,39 @@ macro_rules! register_logging_commands {
         $crate::commands::logging_commands::log_workflow_step,
     };
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sanitize_workflow_route_redacts_dynamic_segments() {
+        let route = sanitize_workflow_route("/patients/seed-yr-pat-0120?tab=overview");
+        assert_eq!(route, "/patients/:id");
+        let uuid_route = sanitize_workflow_route(
+            "/administration/templates/editor/5f47f130-4cbf-4c0f-b4c1-5f8ff3b24782",
+        );
+        assert_eq!(uuid_route, "/administration/templates/editor/:id");
+    }
+
+    #[test]
+    fn sanitize_workflow_payload_masks_secrets() {
+        let payload = WorkflowStepPayload {
+            route: "/settings".into(),
+            step: "error".into(),
+            status: "error".into(),
+            action: Some("save_settings".into()),
+            detail: Some("password=hunter2 token=abcd1234".into()),
+        };
+        let sanitized = sanitize_workflow_payload(payload);
+        assert_eq!(sanitized.route, "/settings");
+        assert!(sanitized
+            .detail
+            .as_deref()
+            .is_some_and(|v| v.contains("password=***")));
+        assert!(sanitized
+            .detail
+            .as_deref()
+            .is_some_and(|v| !v.contains("hunter2")));
+    }
+}
