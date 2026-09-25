@@ -130,3 +130,42 @@ macro_rules! register_logging_commands {
         $crate::commands::logging_commands::log_workflow_event,
     };
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn workflow_payload_sanitizes_secret_like_values() {
+        let payload = WorkflowLogPayload {
+            route: "/patients".into(),
+            step: "error".into(),
+            action: "create_patient".into(),
+            status: "error".into(),
+            message: Some("password=hunter2".into()),
+            error: Some("token=abcdef".into()),
+        };
+
+        let cleaned = sanitize_workflow_payload(payload).expect("sanitized");
+        assert_eq!(cleaned.message.as_deref(), Some("password=***"));
+        assert_eq!(cleaned.error.as_deref(), Some("token=***"));
+    }
+
+    #[test]
+    fn workflow_payload_rejects_blank_required_values() {
+        let payload = WorkflowLogPayload {
+            route: " ".into(),
+            step: "route_enter".into(),
+            action: "navigate".into(),
+            status: "success".into(),
+            message: None,
+            error: None,
+        };
+
+        let err = sanitize_workflow_payload(payload).expect_err("route should be required");
+        match err {
+            AppError::Validation(msg) => assert!(msg.contains("route missing")),
+            other => panic!("unexpected error variant: {other:?}"),
+        }
+    }
+}

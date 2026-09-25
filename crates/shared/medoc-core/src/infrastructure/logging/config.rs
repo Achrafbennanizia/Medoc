@@ -102,3 +102,29 @@ impl LoggingConfig {
 }
 
 pub static LOGGING_CONFIG: LoggingConfig = LoggingConfig::new();
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dedicated_channel_detection_includes_workflow() {
+        assert!(LoggingConfig::is_dedicated_channel_target(
+            "medoc::workflow"
+        ));
+        assert!(LoggingConfig::is_dedicated_channel_target(
+            "medoc::workflow::route"
+        ));
+        assert!(LoggingConfig::is_dedicated_channel_target(
+            "medoc::security"
+        ));
+        assert!(!LoggingConfig::is_dedicated_channel_target("medoc::ui"));
+    }
+
+    #[test]
+    fn app_filter_disables_workflow_channel() {
+        let cfg = LoggingConfig::new();
+        let rendered = cfg.app_filter().to_string();
+        assert!(rendered.contains("medoc::workflow=off"));
+    }
+}
