@@ -63,6 +63,7 @@ impl LoggingConfig {
     pub fn app_json_accepts(&self, meta: &Metadata<'_>) -> bool {
         let t = meta.target();
         if t.starts_with("medoc::security")
+            || t.starts_with("medoc::workflow")
             || t.starts_with("medoc::system")
             || t.starts_with("medoc::device")
             || t.starts_with("medoc::migration")
@@ -92,7 +93,7 @@ impl LoggingConfig {
     pub fn app_filter(&self) -> EnvFilter {
         let lvl = self.level().as_filter();
         EnvFilter::new(format!(
-            "{lvl},medoc::security=off,medoc::system=off,medoc::device=off,medoc::migration=off,medoc::perf=off"
+            "{lvl},medoc::security=off,medoc::workflow=off,medoc::system=off,medoc::device=off,medoc::migration=off,medoc::perf=off"
         ))
     }
 }

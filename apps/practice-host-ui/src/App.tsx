@@ -1,6 +1,6 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { useT } from "@/lib/i18n";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "./models/store/auth-store";
 import { RoleRoute } from "./views/components/role-route";
 import { DbSetupGate } from "./views/components/db-setup-gate";
@@ -13,6 +13,7 @@ import { SessionGate } from "./views/components/session-gate";
 import { DesktopWindowFrame } from "./views/components/desktop-window-frame";
 import { AppLayout } from "./views/layouts/app-layout";
 import { PageLoading } from "@/views/components/ui/page-status";
+import { tauriInvoke } from "@/services/tauri.service";
 
 const LoginPage = lazy(async () => ({ default: (await import("./views/pages/login")).LoginPage }));
 const DashboardPage = lazy(async () => ({ default: (await import("./views/pages/dashboard")).DashboardPage }));
@@ -133,12 +134,37 @@ function RouteFallback() {
     );
 }
 
+function normalizeRouteForWorkflow(pathname: string): string {
+    return pathname
+        .replace(/[0-9a-f]{8}-[0-9a-f-]{27}/gi, ":id")
+        .replace(/\/\d{2,}(?=\/|$)/g, "/:id")
+        .replace(/\/[a-z0-9_-]{20,}(?=\/|$)/gi, "/:id");
+}
+
+function WorkflowRouteLogger() {
+    const location = useLocation();
+    useEffect(() => {
+        void tauriInvoke("log_workflow_event", {
+            event: {
+                workflow: "ui",
+                step: "route_enter",
+                status: "start",
+                route: normalizeRouteForWorkflow(location.pathname),
+            },
+        }).catch(() => {
+            // Best-effort in tests / browser previews without Tauri runtime.
+        });
+    }, [location.pathname]);
+    return null;
+}
+
 export default function App() {
     return (
         <DbSetupGate>
         <SessionGate>
         <DesktopWindowFrame>
         <BrowserRouter>
+        <WorkflowRouteLogger />
         <ClusterResetListener />
         <ClusterOnboardingGate>
             <Routes>

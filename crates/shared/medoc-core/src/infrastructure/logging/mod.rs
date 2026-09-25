@@ -1,7 +1,8 @@
 // Logging & Observability infrastructure (NFA-LOG-01..10)
 //
-// 7 log channels:
+// 8 log channels:
 //   - app.log        : structured application log (JSON)
+//   - workflow.log   : UI workflow bridge + route/action state transitions
 //   - security.log   : auth events, brute-force lockouts
 //   - system.log     : start/stop, config, migrations, updates
 //   - device.log     : DICOM/GDT/TWAIN/USB events
@@ -16,10 +17,12 @@ pub mod sanitizer;
 
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
+use std::{io, io::Write};
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::filter::FilterFn;
 use tracing_subscriber::fmt::format::FmtSpan;
+use tracing_subscriber::fmt::writer::MakeWriter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, Layer, Registry};
@@ -29,11 +32,77 @@ pub use config::{LogLevel, LoggingConfig, LOGGING_CONFIG};
 /// Hold the worker guards so the non-blocking appenders flush on shutdown.
 pub struct LogGuards {
     _app: WorkerGuard,
+    _workflow: WorkerGuard,
     _security: WorkerGuard,
     _system: WorkerGuard,
     _device: WorkerGuard,
     _migration: WorkerGuard,
     _perf: WorkerGuard,
+}
+
+#[derive(Clone)]
+struct SanitizingMakeWriter<W> {
+    inner: W,
+}
+
+impl<W> SanitizingMakeWriter<W> {
+    fn new(inner: W) -> Self {
+        Self { inner }
+    }
+}
+
+impl<'a, W> MakeWriter<'a> for SanitizingMakeWriter<W>
+where
+    W: MakeWriter<'a> + Clone,
+    W::Writer: Write,
+{
+    type Writer = SanitizingWriter<W::Writer>;
+
+    fn make_writer(&'a self) -> Self::Writer {
+        SanitizingWriter::new(self.inner.make_writer())
+    }
+}
+
+struct SanitizingWriter<W> {
+    inner: W,
+    pending: Vec<u8>,
+}
+
+impl<W> SanitizingWriter<W> {
+    fn new(inner: W) -> Self {
+        Self {
+            inner,
+            pending: Vec::new(),
+        }
+    }
+}
+
+impl<W: Write> Write for SanitizingWriter<W> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.pending.extend_from_slice(buf);
+        while let Some(pos) = self.pending.iter().position(|b| *b == b'\n') {
+            let mut line = self.pending.drain(..=pos).collect::<Vec<u8>>();
+            let had_newline = line.last().copied() == Some(b'\n');
+            if had_newline {
+                line.pop();
+            }
+            let sanitised = sanitizer::sanitize(&String::from_utf8_lossy(&line));
+            self.inner.write_all(sanitised.as_bytes())?;
+            if had_newline {
+                self.inner.write_all(b"\n")?;
+            }
+        }
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        if !self.pending.is_empty() {
+            let sanitised = sanitizer::sanitize(&String::from_utf8_lossy(&self.pending));
+            self.pending.clear();
+            self.inner.write_all(sanitised.as_bytes())?;
+        }
+        self.inner.flush()
+    }
 }
 
 static LOG_DIR: OnceLock<PathBuf> = OnceLock::new();
@@ -45,7 +114,7 @@ pub fn log_dir() -> Result<&'static Path, crate::error::AppError> {
         .ok_or_else(|| crate::error::AppError::Internal("Logging not initialized".into()))
 }
 
-/// Initialise the global tracing subscriber with 6 file layers.
+/// Initialise the global tracing subscriber with dedicated file layers.
 /// Must be called exactly once during application start-up.
 pub fn init(data_dir: &Path) -> Result<LogGuards, std::io::Error> {
     let logs = data_dir.join("logs");
@@ -54,6 +123,7 @@ pub fn init(data_dir: &Path) -> Result<LogGuards, std::io::Error> {
 
     // Each appender rotates daily; size-based pruning is enforced via a janitor.
     let app_appender = RollingFileAppender::new(Rotation::DAILY, &logs, "app.log");
+    let workflow_appender = RollingFileAppender::new(Rotation::DAILY, &logs, "workflow.log");
     let security_appender = RollingFileAppender::new(Rotation::DAILY, &logs, "security.log");
     let system_appender = RollingFileAppender::new(Rotation::DAILY, &logs, "system.log");
     let device_appender = RollingFileAppender::new(Rotation::DAILY, &logs, "device.log");
@@ -61,6 +131,7 @@ pub fn init(data_dir: &Path) -> Result<LogGuards, std::io::Error> {
     let perf_appender = RollingFileAppender::new(Rotation::DAILY, &logs, "perf.log");
 
     let (app_w, app_g) = tracing_appender::non_blocking(app_appender);
+    let (workflow_w, workflow_g) = tracing_appender::non_blocking(workflow_appender);
     let (sec_w, sec_g) = tracing_appender::non_blocking(security_appender);
     let (sys_w, sys_g) = tracing_appender::non_blocking(system_appender);
     let (dev_w, dev_g) = tracing_appender::non_blocking(device_appender);
@@ -87,22 +158,25 @@ pub fn init(data_dir: &Path) -> Result<LogGuards, std::io::Error> {
                 EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
             )
             .boxed(),
-        json(app_w)
+        json(SanitizingMakeWriter::new(app_w))
             .with_filter(FilterFn::new(|meta| LOGGING_CONFIG.app_json_accepts(meta)))
             .boxed(),
-        json(sec_w)
+        json(SanitizingMakeWriter::new(workflow_w))
+            .with_filter(EnvFilter::new("medoc::workflow=info"))
+            .boxed(),
+        json(SanitizingMakeWriter::new(sec_w))
             .with_filter(EnvFilter::new("medoc::security=info"))
             .boxed(),
-        json(sys_w)
+        json(SanitizingMakeWriter::new(sys_w))
             .with_filter(EnvFilter::new("medoc::system=info"))
             .boxed(),
-        json(dev_w)
+        json(SanitizingMakeWriter::new(dev_w))
             .with_filter(EnvFilter::new("medoc::device=info"))
             .boxed(),
-        json(mig_w)
+        json(SanitizingMakeWriter::new(mig_w))
             .with_filter(EnvFilter::new("medoc::migration=info"))
             .boxed(),
-        json(perf_w)
+        json(SanitizingMakeWriter::new(perf_w))
             .with_filter(EnvFilter::new("medoc::perf=info"))
             .boxed(),
     ];
@@ -111,6 +185,7 @@ pub fn init(data_dir: &Path) -> Result<LogGuards, std::io::Error> {
 
     Ok(LogGuards {
         _app: app_g,
+        _workflow: workflow_g,
         _security: sec_g,
         _system: sys_g,
         _device: dev_g,
@@ -133,6 +208,13 @@ macro_rules! log_security {
 macro_rules! log_system {
     ($lvl:ident, $($arg:tt)+) => {
         tracing::$lvl!(target: "medoc::system", $($arg)+)
+    };
+}
+
+#[macro_export]
+macro_rules! log_workflow {
+    ($lvl:ident, $($arg:tt)+) => {
+        tracing::$lvl!(target: "medoc::workflow", $($arg)+)
     };
 }
 

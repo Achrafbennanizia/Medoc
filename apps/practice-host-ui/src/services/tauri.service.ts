@@ -50,12 +50,98 @@ function expandDualCaseInvokeArgs(args: Record<string, unknown>): Record<string,
     return out;
 }
 
+const WORKFLOW_LOG_COMMAND = "log_workflow_event";
+const WORKFLOW_MAX_FIELD = 200;
+
+type WorkflowEvent = {
+    workflow: string;
+    step: string;
+    status?: string;
+    route?: string;
+    action?: string;
+    message?: string;
+};
+
+function clampWorkflowField(raw: string): string {
+    return raw.length > WORKFLOW_MAX_FIELD ? raw.slice(0, WORKFLOW_MAX_FIELD) : raw;
+}
+
+function normalizeRouteForWorkflow(pathname: string | undefined): string {
+    if (!pathname) return "/";
+    return pathname
+        .replace(/[0-9a-f]{8}-[0-9a-f-]{27}/gi, ":id")
+        .replace(/\/\d{2,}(?=\/|$)/g, "/:id")
+        .replace(/\/[a-z0-9_-]{20,}(?=\/|$)/gi, "/:id");
+}
+
+function currentWorkflowRoute(): string {
+    if (typeof window === "undefined") return "/";
+    return normalizeRouteForWorkflow(window.location.pathname);
+}
+
+function workflowErrorMessage(error: unknown): string {
+    if (error instanceof Error) return clampWorkflowField(error.message);
+    if (typeof error === "string") return clampWorkflowField(error);
+    try {
+        return clampWorkflowField(JSON.stringify(error));
+    } catch {
+        return "unknown_error";
+    }
+}
+
+async function emitWorkflowEvent(event: WorkflowEvent): Promise<void> {
+    try {
+        await invoke(WORKFLOW_LOG_COMMAND, {
+            event: {
+                workflow: clampWorkflowField(event.workflow),
+                step: clampWorkflowField(event.step),
+                status: event.status ? clampWorkflowField(event.status) : undefined,
+                route: event.route ? clampWorkflowField(event.route) : undefined,
+                action: event.action ? clampWorkflowField(event.action) : undefined,
+                message: event.message ? clampWorkflowField(event.message) : undefined,
+            },
+        });
+    } catch {
+        // Workflow logging is best-effort and must never block the primary action.
+    }
+}
+
 // All Tauri IPC goes through here (single place for invoke normalization).
 export async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-    if (args == null) {
-        return invoke<T>(cmd, {});
-    }
-    const cleaned = omitUndefinedValues(args);
+    const cleaned = args == null ? {} : omitUndefinedValues(args);
     const expanded = expandDualCaseInvokeArgs(cleaned);
-    return invoke<T>(cmd, expanded);
+    if (cmd === WORKFLOW_LOG_COMMAND) {
+        return invoke<T>(cmd, expanded);
+    }
+
+    const route = currentWorkflowRoute();
+    void emitWorkflowEvent({
+        workflow: "ipc",
+        step: "primary_action",
+        status: "start",
+        route,
+        action: cmd,
+    });
+
+    try {
+        const result = await invoke<T>(cmd, expanded);
+        void emitWorkflowEvent({
+            workflow: "ipc",
+            step: "primary_action",
+            status: "success",
+            route,
+            action: cmd,
+        });
+        return result;
+    } catch (error) {
+        void emitWorkflowEvent({
+            workflow: "ipc",
+            step: "primary_action",
+            status: "error",
+            route,
+            action: cmd,
+            message: workflowErrorMessage(error),
+        });
+        throw error;
+    }
 }
