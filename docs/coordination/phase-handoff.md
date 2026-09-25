@@ -1,6 +1,39 @@
 # Phase handoff
 
-**Last phase label:** Payment fulfills open booking (2026-09-05)
+**Last phase label:** CI/CD pipeline migration (2026-09-25)
+
+### Verified (2026-09-25 — verify/autofix/fix-proposal/release tiers)
+
+- Tiered workflows added and wired:
+  - Tier 1 `verify.yml` (push/PR + reusable `workflow_call`)
+  - Tier 2 `autofix.yml` (PR-only deterministic fixes + bot loop guard)
+  - Tier 3 `fix-proposal.yml` (manual or failed-main verify → draft PR proposal)
+  - Tier 4 `release.yml` (verify gate + protected `release` environment + signed bundles)
+- Legacy monolithic CI replaced by `ci-compat` manual shim in `.github/workflows/ci.yml`.
+- JS script entrypoints added for CI wiring: `typecheck`, `lint:fix`, `format`, `test:a11y`.
+- Accessibility gate implemented via Playwright + axe-core in `apps/practice-host-ui/scripts/run-axe-critical-check.mjs` (critical WCAG 2.1 AA).
+- Local validation evidence recorded in `docs/coordination/validation.md` (YAML parse, script syntax, typecheck, rust fmt, a11y pass).
+
+### Remains unverified
+
+- GitHub-hosted workflow execution across all matrix runners (Linux/macOS/Windows) — **NOT OBSERVED** in this session.
+- Tier 3 branch/PR behavior on a live failed `verify` run on `main` — **NOT OBSERVED**.
+- Protected `release` environment approval flow in repository settings — **NOT OBSERVED**.
+
+### Understanding delta
+
+- CI/CD moved from one large workflow toward explicit gates with scoped mutation permissions.
+- Accessibility verification is now executable in CI with critical-only failure policy instead of placeholder intent.
+- Release flow now depends on reusable verify gate and manual environment approval before signed bundles.
+
+### Required next
+
+1. Trigger `verify` and `autofix` on a test PR branch to confirm loop guard + deterministic commit behavior.
+2. Trigger `fix-proposal` once (manual dispatch) to verify draft PR creation and sensitive-scope labeling.
+3. Confirm `release` environment protections are enabled and approvers configured.
+4. Run a dry tag (`v*-rc`) in a non-production release lane to validate signed artifact upload path.
+
+---
 
 ### Verified (2026-09-05 — payment → billing list)
 

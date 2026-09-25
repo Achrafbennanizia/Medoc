@@ -1,5 +1,24 @@
 # Validation ledger
 
+**Last updated:** 2026-09-25 (CI/CD pipeline migration)
+
+## CI/CD pipeline migration (2026-09-25)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML syntax | `python3` + `yaml.safe_load` over `.github/workflows/{verify,autofix,fix-proposal,release,ci}.yml` | **PASS** |
+| A11y runner syntax | `node --check apps/practice-host-ui/scripts/run-axe-critical-check.mjs` | **PASS** |
+| Fix-proposal script syntax | `bash -n scripts/ci/fix-proposal-attempt.sh` | **PASS** |
+| JS dependencies | `npm ci` | **PASS** |
+| JS typecheck | `npm run typecheck` | **PASS** |
+| Rust format gate | `cargo fmt --all --check` | **PASS** |
+| A11y gate (first attempt) | `npm run test:a11y` | **FAIL** — Playwright Chromium executable missing (`npx playwright install` required) |
+| Browser provisioning | `npx playwright install --with-deps chromium` | **PASS** |
+| A11y gate (after fix) | `npm run test:a11y` | **PASS** — no critical WCAG 2.1 AA violations |
+| Final sweep | `python3(yaml parse) && node --check && bash -n && npm run typecheck && cargo fmt --all --check && npm run test:a11y` | **PASS** |
+
+---
+
 **Last updated:** 2026-09-05 (payment assignment open rows)
 
 ## Payment assignment / open booking (2026-09-05)

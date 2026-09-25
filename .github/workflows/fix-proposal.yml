@@ -1,0 +1,139 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Optional context for this proposal run"
+        required: false
+        type: string
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: fix-proposal-${{ github.event_name }}-${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  propose-fix:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion != 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+
+      - id: branch
+        run: echo "name=ci/fix-proposal-${GITHUB_RUN_ID}" >> "$GITHUB_OUTPUT"
+
+      - id: pm
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=npm ci" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+
+      - run: corepack enable
+      - run: ${{ steps.pm.outputs.install_cmd }}
+      - run: cargo install cargo-audit --locked || true
+
+      - name: Attempt substantive fix proposal
+        run: |
+          chmod +x scripts/ci/fix-proposal-attempt.sh
+          FIX_PROPOSAL_RESULT_DIR=.github/ci-fix-proposal scripts/ci/fix-proposal-attempt.sh
+
+      - id: prepare
+        name: Ensure proposal diff exists
+        run: |
+          mkdir -p docs/coordination/fix-proposals
+          proposal_file="docs/coordination/fix-proposals/proposal-${GITHUB_RUN_ID}.md"
+          cp .github/ci-fix-proposal/summary.md "${proposal_file}"
+          echo "proposal_file=${proposal_file}" >> "$GITHUB_OUTPUT"
+
+      - id: sensitive
+        name: Detect sensitive scope
+        run: |
+          changed_files="$(git diff --name-only)"
+          printf "%s\n" "${changed_files}" > .github/ci-fix-proposal/changed-files.txt
+          if printf "%s\n" "${changed_files}" | grep -Eiq '(^|/)(security|audit|crypto|rbac)(/|_|\\.)'; then
+            echo "needs_human_review=true" >> "$GITHUB_OUTPUT"
+            echo "labels=ci-fix-proposal,needs-human-review" >> "$GITHUB_OUTPUT"
+          else
+            echo "needs_human_review=false" >> "$GITHUB_OUTPUT"
+            echo "labels=ci-fix-proposal" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Compose draft PR body
+        env:
+          MANUAL_REASON: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.reason || '' }}
+          SOURCE_RUN_URL: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.html_url || 'N/A' }}
+        run: |
+          trigger="workflow_dispatch"
+          source_run_url="${SOURCE_RUN_URL}"
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            trigger="failed verify on main"
+          fi
+          {
+            echo "## Tier 3 fix proposal (draft)"
+            echo
+            echo "- Trigger: ${trigger}"
+            echo "- Source run: ${source_run_url}"
+            if [ -n "${MANUAL_REASON}" ]; then
+              echo "- Manual reason: ${MANUAL_REASON}"
+            fi
+            echo
+            echo "### Rationale"
+            echo "This branch contains an automated substantive fix attempt for failing tests, advisories, or type errors."
+            echo "It is intentionally opened as a draft for human review and merge gating."
+            echo
+            echo "### Failing-before / passing-after evidence"
+            cat .github/ci-fix-proposal/summary.md
+            echo
+            echo "### Changed files"
+            echo '```text'
+            cat .github/ci-fix-proposal/changed-files.txt
+            echo '```'
+          } > .github/ci-fix-proposal/pr-body.md
+
+      - name: Open draft pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: ${{ steps.branch.outputs.name }}
+          base: main
+          title: "ci: draft fix proposal (${{ github.run_id }})"
+          commit-message: "ci: draft fix proposal from workflow ${{ github.run_id }}"
+          body-path: .github/ci-fix-proposal/pr-body.md
+          labels: ${{ steps.sensitive.outputs.labels }}
+          draft: true
+
+      - name: Block for mandatory human review
+        if: steps.sensitive.outputs.needs_human_review == 'true'
+        run: |
+          echo "Sensitive scope detected (security/audit/crypto/RBAC)."
+          echo "Draft PR has been labeled needs-human-review and cannot be auto-merged."
+          exit 1
