@@ -1,6 +1,13 @@
 # Contradiction ledger
 
-**Last updated:** 2026-06-16
+**Last updated:** 2026-09-25
+
+## Workflow findings register (2026-09-25 run)
+
+| ID | Location | Finding | Evidence | Severity | Action |
+| -- | -------- | ------- | -------- | -------- | ------ |
+| WF-2026-09-25-01 | `crates/shared/medoc-sync/src/cluster/services/cluster_reset_service.rs` test `reset_token_sign_verify_roundtrip` | Full `cargo test` was **non-deterministic**: first run failed with `Validation("Invalid signature")`, second run passed unchanged. | `cargo test` run failed once (`/agent-tools/ab38dee0-3dd1-4cce-80c1-97e05be51911.txt`) then passed on rerun (`/agent-tools/5225df8a-df34-472e-af35-8e778cc9186b.txt`). | **P2** | Do not change crypto flow in automation run; schedule human-reviewed stabilization (test isolation / env key handling). |
+| WF-2026-09-25-02 | `packages/shared/src/lib/http-practice.adapter.test.ts` | Vitest prints unawaited `rejects` warning; currently pass, but marked as future Vitest 3 failure risk. | `npm run test` warning: “Promise returned by expect(...).rejects.toThrow(...) was not awaited” at `http-practice.adapter.test.ts:29`. | **P3** | Patch test to `await` the `rejects` assertion in a dedicated test-only follow-up. |
 
 ## Open contradictions
 

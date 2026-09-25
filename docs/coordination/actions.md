@@ -1,6 +1,24 @@
 # Action ledger
 
-**Last updated:** 2026-09-05 (payment fulfills open booking)
+**Last updated:** 2026-09-25 (workflow logging bridge + tests)
+
+## Done (2026-09-25 — workflow logging slice)
+
+- Extended existing tracing subsystem with dedicated `workflow.log` channel (daily rotation + retention bucket).
+- Added sanitized `log_workflow_event` Tauri command and registered it in central invoke handler.
+- Added frontend workflow bridge in `tauri.service.ts`:
+  - route enter (`route_enter`)
+  - primary action (`primary_action`)
+  - success (`success`)
+  - cancel/error classification on failures.
+- Added tests: Rust command sanitization tests + frontend `tauri.service.test.ts` (4 cases).
+- Validation sweep complete: `cargo test`, `cargo clippy -D warnings`, `cargo fmt --check`, `npm run test`, `npm run build`.
+
+## Now
+
+- Stabilize flaky `medoc-sync` reset-token test (`reset_token_sign_verify_roundtrip`) with human-reviewed crypto-safe isolation.
+- Run live workflow smoke to confirm actual `workflow.log` lines + rotation behavior under UI actions (**NOT OBSERVED** in this run).
+- Continue Step 2 mapping (route/action/state machine audit) and register non-terminable flows.
 
 ## Done (2026-09-05 — payment → billing)
 

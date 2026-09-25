@@ -1,6 +1,20 @@
 # Validation ledger
 
-**Last updated:** 2026-09-05 (payment assignment open rows)
+**Last updated:** 2026-09-25 (workflow log channel + sanitized bridge)
+
+## Workflow logging instrumentation sweep (2026-09-25)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Rust full suite (first pass) | `MEDOC_VENDOR_PUBKEY=… MEDOC_DB_KEY=… MEDOC_AUDIT_KEY=… cargo test` | **FAIL (flaky)** — one run failed at `medoc-sync` `reset_token_sign_verify_roundtrip` (`Invalid signature`) |
+| Rust full suite (re-run) | `MEDOC_VENDOR_PUBKEY=… MEDOC_DB_KEY=… MEDOC_AUDIT_KEY=… cargo test` | **PASS** — rerun green without code changes |
+| Clippy strict | `MEDOC_VENDOR_PUBKEY=… MEDOC_DB_KEY=… MEDOC_AUDIT_KEY=… cargo clippy --workspace --all-targets -- -D warnings` | **PASS** |
+| Rust format | `cargo fmt --check` | **PASS** |
+| Frontend tests | `npm run test` | **PASS** — 62 files / 309 tests (one existing warning in `http-practice.adapter.test.ts`) |
+| Frontend build | `npm run build` | **PASS** |
+| Focused Rust surface | `MEDOC_VENDOR_PUBKEY=… MEDOC_DB_KEY=… MEDOC_AUDIT_KEY=… cargo test -p medoc-practice` | **PASS** |
+| New workflow bridge unit test | `npm run test -w medoc -- --project node src/services/tauri.service.test.ts` | **PASS** — 4/4 |
+| Runtime log-file inspection (`workflow.log` content + rotation with live app actions) | — | **NOT OBSERVED** |
 
 ## Payment assignment / open booking (2026-09-05)
 

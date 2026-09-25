@@ -1,5 +1,42 @@
 # Phase handoff
 
+**Last phase label:** Workflow log channel + sanitized UI bridge (2026-09-25)
+
+### Verified (2026-09-25 — instrumentation slice)
+
+- Existing tracing logger was extended in-place (no parallel logger) with `workflow.log` channel.
+- Backend command `log_workflow_event` now sanitizes route/step/phase/outcome/details before file logging.
+- Frontend bridge now emits workflow lifecycle events for:
+  - route entry (`route_enter`)
+  - command dispatch (`primary_action`)
+  - completion (`success`)
+  - failure classification (`cancel` / `error`).
+- Validation gates run after edits:
+  - `cargo test` **PASS** on rerun (one flaky first-run failure logged)
+  - `cargo clippy --workspace --all-targets -- -D warnings` **PASS**
+  - `cargo fmt --check` **PASS**
+  - `npm run test` **PASS** (62 files / 309 tests)
+  - `npm run build` **PASS**
+
+### Remains unverified
+
+- Live runtime capture review of `workflow.log` entries under actual GUI usage — **NOT OBSERVED**.
+- Log rotation behavior specifically for `workflow.log` with aged files — **NOT OBSERVED**.
+- Full Step 2 state-machine map and non-terminable workflow detection — **NOT RUN**.
+
+### Understanding delta
+
+- Workflow telemetry can now be captured across route and IPC boundaries through one sanitized backend sink instead of ad-hoc frontend console traces.
+- Current quality risk shifted from missing telemetry plumbing to follow-up analysis quality (workflow completeness + flaky medoc-sync test).
+
+### Required next
+
+1. Run targeted live UI smoke and inspect `workflow.log` for route/action/success/cancel/error completeness.
+2. Investigate and stabilize flaky `medoc-sync` `reset_token_sign_verify_roundtrip` test with human review (security/crypto-adjacent).
+3. Execute Step 2 workflow state-machine audit and record non-terminable paths in `contradictions.md`.
+
+---
+
 **Last phase label:** Payment fulfills open booking (2026-09-05)
 
 ### Verified (2026-09-05 — payment → billing list)
