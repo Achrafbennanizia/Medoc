@@ -1,0 +1,107 @@
+name: autofix
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: autofix-${{ github.event.pull_request.head.ref }}
+  cancel-in-progress: true
+
+jobs:
+  autofix:
+    # Loop guard + same-repo guard (fork PRs do not get write tokens).
+    if: github.actor != 'github-actions[bot]' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - id: pm
+        name: Detect package manager from lockfile
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: |
+            package-lock.json
+            pnpm-lock.yaml
+            yarn.lock
+
+      - name: Enable Corepack for pnpm/yarn
+        run: corepack enable
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm)
+              pnpm install --frozen-lockfile
+              ;;
+            yarn)
+              yarn install --frozen-lockfile
+              ;;
+            npm)
+              npm ci
+              ;;
+            *)
+              echo "Unsupported package manager: ${{ steps.pm.outputs.pm }}"
+              exit 1
+              ;;
+          esac
+
+      - name: Deterministic Rust formatting
+        run: cargo fmt --all
+
+      - name: Deterministic lint autofix
+        run: |
+          set -euo pipefail
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm run lint -- --fix || true ;;
+            yarn) yarn run lint --fix || true ;;
+            npm) npm run lint -- --fix || true ;;
+          esac
+
+      - name: Deterministic format script (if present)
+        run: |
+          set -euo pipefail
+          if node -e "const fs=require('fs'); const pkg=JSON.parse(fs.readFileSync('package.json','utf8')); process.exit(pkg.scripts && pkg.scripts.format ? 0 : 1);"; then
+            case "${{ steps.pm.outputs.pm }}" in
+              pnpm) pnpm run format ;;
+              yarn) yarn run format ;;
+              npm) npm run format ;;
+            esac
+          else
+            echo "No root format script found; skipping format phase."
+          fi
+
+      - name: Commit and push deterministic fixes
+        run: |
+          set -euo pipefail
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "ci: apply deterministic autofixes"
+            git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
+          else
+            echo "No deterministic autofixes were necessary."
+          fi

@@ -1,6 +1,17 @@
 # Validation ledger
 
-**Last updated:** 2026-09-05 (payment assignment open rows)
+**Last updated:** 2026-09-25 (CI/CD tiered workflow migration)
+
+## CI/CD workflow migration (2026-09-25)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML syntax | `for f in .github/workflows/{verify,autofix,fix-proposal,release,ci}.yml; do npx --yes yaml valid < "$f"; done` | **PASS** |
+| Legacy path sweep (`app/src-tauri`, `app/`) | `if rg -q "app/src-tauri|\\bapp/" .github/workflows --glob "*.yml"; then exit 1; else echo none; fi` | **PASS** — no matches |
+| Patch hygiene | `git diff --check` | **PASS** |
+| Full GitHub Actions runner execution | — | **NOT RUN** (cannot execute hosted Actions jobs from local agent runtime) |
+
+---
 
 ## Payment assignment / open booking (2026-09-05)
 

@@ -1,0 +1,320 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: Why this fix proposal run was started
+        required: false
+        default: Manual fix proposal run
+      fix_command:
+        description: Optional custom fix command to run before proposing
+        required: false
+        default: ""
+  workflow_run:
+    workflows: [verify]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: fix-proposal-${{ github.event_name }}-${{ github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  propose:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'failure' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.ref }}
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - id: pm
+        name: Detect package manager from lockfile
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: |
+            package-lock.json
+            pnpm-lock.yaml
+            yarn.lock
+
+      - name: Enable Corepack for pnpm/yarn
+        run: corepack enable
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm)
+              pnpm install --frozen-lockfile
+              ;;
+            yarn)
+              yarn install --frozen-lockfile
+              ;;
+            npm)
+              npm ci
+              ;;
+            *)
+              echo "Unsupported package manager: ${{ steps.pm.outputs.pm }}"
+              exit 1
+              ;;
+          esac
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked || true
+
+      - id: before
+        name: Capture failing-before evidence
+        run: |
+          set +e
+
+          cargo test --workspace > ci-before-cargo-test.log 2>&1
+          cargo_test_exit=$?
+
+          cargo audit > ci-before-cargo-audit.log 2>&1
+          cargo_audit_exit=$?
+
+          if node -e "const fs=require('fs'); const pkg=JSON.parse(fs.readFileSync('package.json','utf8')); process.exit(pkg.scripts && pkg.scripts.typecheck ? 0 : 1);"; then
+            case "${{ steps.pm.outputs.pm }}" in
+              pnpm) pnpm run typecheck > ci-before-typecheck.log 2>&1 ;;
+              yarn) yarn run typecheck > ci-before-typecheck.log 2>&1 ;;
+              npm) npm run typecheck > ci-before-typecheck.log 2>&1 ;;
+            esac
+          else
+            case "${{ steps.pm.outputs.pm }}" in
+              pnpm) pnpm exec tsc --noEmit -p apps/practice-host-ui/tsconfig.json > ci-before-typecheck.log 2>&1 ;;
+              yarn) yarn exec tsc --noEmit -p apps/practice-host-ui/tsconfig.json > ci-before-typecheck.log 2>&1 ;;
+              npm) npm exec tsc --noEmit -p apps/practice-host-ui/tsconfig.json > ci-before-typecheck.log 2>&1 ;;
+            esac
+          fi
+          typecheck_exit=$?
+
+          echo "cargo_test_exit=$cargo_test_exit" >> "$GITHUB_OUTPUT"
+          echo "cargo_audit_exit=$cargo_audit_exit" >> "$GITHUB_OUTPUT"
+          echo "typecheck_exit=$typecheck_exit" >> "$GITHUB_OUTPUT"
+
+          exit 0
+
+      - name: Attempt non-deterministic fix
+        env:
+          FIX_COMMAND: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.fix_command || '' }}
+          CARGO_TEST_EXIT: ${{ steps.before.outputs.cargo_test_exit }}
+          CARGO_AUDIT_EXIT: ${{ steps.before.outputs.cargo_audit_exit }}
+          TYPECHECK_EXIT: ${{ steps.before.outputs.typecheck_exit }}
+        run: |
+          set +e
+
+          if [ -n "$FIX_COMMAND" ]; then
+            echo "Running custom fix command from workflow_dispatch input."
+            bash -lc "$FIX_COMMAND"
+            exit 0
+          fi
+
+          echo "No custom fix command provided; running default dependency-level attempts."
+
+          if [ "$CARGO_AUDIT_EXIT" != "0" ]; then
+            cargo update -w || true
+          fi
+
+          if [ "$TYPECHECK_EXIT" != "0" ]; then
+            case "${{ steps.pm.outputs.pm }}" in
+              pnpm)
+                pnpm update --lockfile-only || true
+                ;;
+              yarn)
+                yarn install --mode=update-lockfile || true
+                ;;
+              npm)
+                npm audit fix --package-lock-only || true
+                ;;
+            esac
+          fi
+
+          if [ "$CARGO_TEST_EXIT" != "0" ]; then
+            echo "Cargo tests failed before fix. No deterministic logic rewrite is attempted in this workflow."
+          fi
+
+          exit 0
+
+      - id: after
+        name: Capture passing-after evidence
+        run: |
+          set +e
+
+          cargo test --workspace > ci-after-cargo-test.log 2>&1
+          cargo_test_exit=$?
+
+          cargo audit > ci-after-cargo-audit.log 2>&1
+          cargo_audit_exit=$?
+
+          if node -e "const fs=require('fs'); const pkg=JSON.parse(fs.readFileSync('package.json','utf8')); process.exit(pkg.scripts && pkg.scripts.typecheck ? 0 : 1);"; then
+            case "${{ steps.pm.outputs.pm }}" in
+              pnpm) pnpm run typecheck > ci-after-typecheck.log 2>&1 ;;
+              yarn) yarn run typecheck > ci-after-typecheck.log 2>&1 ;;
+              npm) npm run typecheck > ci-after-typecheck.log 2>&1 ;;
+            esac
+          else
+            case "${{ steps.pm.outputs.pm }}" in
+              pnpm) pnpm exec tsc --noEmit -p apps/practice-host-ui/tsconfig.json > ci-after-typecheck.log 2>&1 ;;
+              yarn) yarn exec tsc --noEmit -p apps/practice-host-ui/tsconfig.json > ci-after-typecheck.log 2>&1 ;;
+              npm) npm exec tsc --noEmit -p apps/practice-host-ui/tsconfig.json > ci-after-typecheck.log 2>&1 ;;
+            esac
+          fi
+          typecheck_exit=$?
+
+          echo "cargo_test_exit=$cargo_test_exit" >> "$GITHUB_OUTPUT"
+          echo "cargo_audit_exit=$cargo_audit_exit" >> "$GITHUB_OUTPUT"
+          echo "typecheck_exit=$typecheck_exit" >> "$GITHUB_OUTPUT"
+
+          exit 0
+
+      - id: report
+        name: Build fix proposal report
+        env:
+          REASON: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.reason || 'Triggered from failing verify on main' }}
+        run: |
+          set -euo pipefail
+          mkdir -p .github/fix-proposals
+          REPORT_PATH=".github/fix-proposals/fix-proposal-${{ github.run_id }}.md"
+
+          {
+            echo "# CI Fix Proposal"
+            echo
+            echo "- Trigger: \`${{ github.event_name }}\`"
+            echo "- Reason: ${REASON}"
+            if [ "${{ github.event_name }}" = "workflow_run" ]; then
+              echo "- Source verify run: ${{ github.event.workflow_run.html_url }}"
+            fi
+            echo "- Source SHA: \`${{ github.sha }}\`"
+            echo
+            echo "## Failing-before / passing-after evidence"
+            echo
+            echo "| Check | Before exit | After exit |"
+            echo "|---|---:|---:|"
+            echo "| cargo test --workspace | ${{ steps.before.outputs.cargo_test_exit }} | ${{ steps.after.outputs.cargo_test_exit }} |"
+            echo "| cargo audit | ${{ steps.before.outputs.cargo_audit_exit }} | ${{ steps.after.outputs.cargo_audit_exit }} |"
+            echo "| JS typecheck | ${{ steps.before.outputs.typecheck_exit }} | ${{ steps.after.outputs.typecheck_exit }} |"
+            echo
+            echo "## Tail logs (before)"
+            echo
+            echo "### cargo test"
+            echo '```text'
+            tail -n 80 ci-before-cargo-test.log || true
+            echo '```'
+            echo
+            echo "### cargo audit"
+            echo '```text'
+            tail -n 80 ci-before-cargo-audit.log || true
+            echo '```'
+            echo
+            echo "### typecheck"
+            echo '```text'
+            tail -n 80 ci-before-typecheck.log || true
+            echo '```'
+            echo
+            echo "## Notes"
+            echo
+            echo "- This PR is draft-only and must be reviewed and merged by a human."
+            echo "- If sensitive paths are touched (security/audit/crypto/RBAC), this workflow adds \`needs-human-review\` and fails intentionally."
+          } > "$REPORT_PATH"
+
+          echo "path=$REPORT_PATH" >> "$GITHUB_OUTPUT"
+
+      - id: guard
+        name: Guard sensitive paths
+        run: |
+          set -euo pipefail
+
+          # Ignore the generated report file when deciding if source code changed.
+          CHANGED_NON_REPORT="$(git diff --name-only | grep -v '^.github/fix-proposals/' || true)"
+
+          if [ -n "$CHANGED_NON_REPORT" ]; then
+            echo "code_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "code_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if printf '%s\n' "$CHANGED_NON_REPORT" | rg -Eiq '(security|audit|crypto|rbac|auth|permission)'; then
+            echo "sensitive=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "sensitive=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - id: cpr
+        name: Open draft PR with proposal
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: "ci: draft fix proposal from failing verification"
+          title: "ci: draft fix proposal for failing verification"
+          body-path: ${{ steps.report.outputs.path }}
+          branch: ci/fix-proposal-${{ github.run_id }}
+          base: main
+          draft: true
+          delete-branch: true
+          signoff: false
+
+      - name: Add needs-human-review label for sensitive paths
+        if: steps.guard.outputs.sensitive == 'true' && steps.cpr.outputs.pull-request-number != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issue_number = Number("${{ steps.cpr.outputs.pull-request-number }}");
+
+            try {
+              await github.rest.issues.getLabel({
+                owner,
+                repo,
+                name: "needs-human-review",
+              });
+            } catch (error) {
+              if (error.status === 404) {
+                await github.rest.issues.createLabel({
+                  owner,
+                  repo,
+                  name: "needs-human-review",
+                  color: "B60205",
+                  description: "Sensitive changes require explicit human review.",
+                });
+              } else {
+                throw error;
+              }
+            }
+
+            await github.rest.issues.addLabels({
+              owner,
+              repo,
+              issue_number,
+              labels: ["needs-human-review"],
+            });
+
+      - name: Stop run after sensitive-path proposal
+        if: steps.guard.outputs.sensitive == 'true'
+        run: |
+          echo "Sensitive paths were touched. Proposal labeled needs-human-review; stopping for human review."
+          exit 1

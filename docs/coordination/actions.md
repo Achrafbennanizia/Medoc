@@ -1,6 +1,14 @@
 # Action ledger
 
-**Last updated:** 2026-09-05 (payment fulfills open booking)
+**Last updated:** 2026-09-25 (CI/CD tiered workflow migration)
+
+## Done (2026-09-25 — CI/CD tiered workflow migration)
+
+- Added `.github/workflows/verify.yml`, `.github/workflows/autofix.yml`, `.github/workflows/fix-proposal.yml`.
+- Reworked `.github/workflows/release.yml` to call tier-1 verify and gate signed bundles behind `environment: release`.
+- Converted `.github/workflows/ci.yml` to manual legacy dispatch shim (no duplicate push/PR gate).
+- Added coordination plan: `docs/coordination/ci-cd-plan.md`.
+- Logged evidence in `docs/coordination/validation.md` and `docs/coordination/phase-handoff.md`.
 
 ## Done (2026-09-05 — payment → billing)
 

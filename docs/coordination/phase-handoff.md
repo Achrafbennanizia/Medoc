@@ -1,5 +1,35 @@
 # Phase handoff
 
+**Last phase label:** CI/CD tiered workflow migration (2026-09-25)
+
+### Verified (2026-09-25 — verify/autofix/fix-proposal/release)
+
+- Added tiered workflows:
+  - `verify.yml` (immutable gate: fmt/clippy/test/audit + JS lint/typecheck/test/build + axe critical WCAG 2.1 AA)
+  - `autofix.yml` (PR-only deterministic fixes + bot loop guard)
+  - `fix-proposal.yml` (manual or red-main trigger, draft PR evidence, sensitive-path label/stop)
+  - `release.yml` (calls verify, then signed cross-platform bundles in protected `release` environment)
+- Converted `.github/workflows/ci.yml` into a manual legacy dispatch shim that reuses `verify.yml`.
+- Validation evidence captured in `docs/coordination/validation.md`:
+  - workflow YAML syntax checks PASS
+  - no retired `app/src-tauri` / `app/` path references in workflows
+  - `git diff --check` PASS
+
+### Remains unverified
+
+- Hosted GitHub Actions runtime behavior for all four tiers — **NOT RUN** (local agent cannot execute runner-side jobs).
+- Release environment protection/manual approval wiring in repository settings — **NOT OBSERVED**.
+- Tier 3 draft PR opening/labeling behavior against live failed-main event payload — **NOT OBSERVED**.
+
+### Required next
+
+1. Open the CI/CD migration PR and confirm `verify` is the required branch-protection check.
+2. Trigger `autofix` on a test PR with a formatting-only diff and verify single-pass loop guard behavior.
+3. Trigger `fix-proposal` via `workflow_dispatch` and confirm draft PR body + `needs-human-review` label flow.
+4. Confirm the `release` protected environment requires manual approval before signing/build upload.
+
+---
+
 **Last phase label:** Payment fulfills open booking (2026-09-05)
 
 ### Verified (2026-09-05 — payment → billing list)
