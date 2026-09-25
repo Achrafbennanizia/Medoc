@@ -2,6 +2,16 @@
 
 **Last updated:** 2026-09-05 (payment fulfills open booking)
 
+## Done (2026-09-25 — CI/CD tier migration)
+
+- Added tiered GitHub Actions workflows:
+  - `verify.yml` (tier 1, non-mutating verify)
+  - `autofix.yml` (tier 2, deterministic PR autofix with loop guard)
+  - `fix-proposal.yml` (tier 3, draft PR proposal flow with evidence)
+  - `release.yml` (tier 4, gated release with verify gate + protected environment)
+- Added coordination plan: `docs/coordination/ci-cd-plan.md`.
+- Moved `ci.yml` to a legacy manual dispatcher notice.
+
 ## Done (2026-09-05 — payment → billing)
 
 - Payment create fills the 0 € open booking in place; closes BILLING tasks on `PAID`.

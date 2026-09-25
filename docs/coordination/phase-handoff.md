@@ -1,6 +1,39 @@
 # Phase handoff
 
-**Last phase label:** Payment fulfills open booking (2026-09-05)
+**Last phase label:** Tiered CI/CD pipeline migration (2026-09-25)
+
+### Verified (2026-09-25 — CI/CD tiers and guards)
+
+- Added tiered workflows:
+  - `.github/workflows/verify.yml` (tier 1 verify, non-mutating, reusable by release gate)
+  - `.github/workflows/autofix.yml` (tier 2 PR-only deterministic autofix + loop guard)
+  - `.github/workflows/fix-proposal.yml` (tier 3 draft PR proposal flow with evidence)
+  - `.github/workflows/release.yml` (tier 4 gated release with protected environment)
+- Migrated `.github/workflows/ci.yml` to a legacy manual dispatcher notice so stale monolithic CI logic is no longer active.
+- Added canonical coordination doc: `docs/coordination/ci-cd-plan.md`.
+- Validation evidence recorded:
+  - `~/go/bin/actionlint .github/workflows/*.yml` **PASS**
+  - `git diff --check` **PASS**
+
+### Remains unverified
+
+- End-to-end runtime execution of the new GitHub Actions workflows on hosted runners — **NOT OBSERVED** in this session.
+- Protected `release` environment approval gate behavior in a live tag run — **NOT OBSERVED**.
+
+### Understanding delta
+
+- CI/CD is now explicitly split by responsibility (verify vs autofix vs fix-proposal vs release) instead of one large mutable pipeline.
+- Workspace path assumptions are now aligned to active repo topology (`apps/`, `crates/`, `packages/`), not retired `app/` conventions.
+
+### Required next
+
+1. Run a PR through `verify.yml` and `autofix.yml` to confirm expected pass/fail and loop-guard behavior.
+2. Trigger `fix-proposal.yml` once (manual dispatch) to validate draft PR body/evidence formatting in GitHub.
+3. Perform a tag or manual `release.yml` dry run in a protected `release` environment and verify signed artifact outputs.
+
+---
+
+**Prior phase label:** Payment fulfills open booking (2026-09-05)
 
 ### Verified (2026-09-05 — payment → billing list)
 

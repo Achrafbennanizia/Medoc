@@ -1,5 +1,17 @@
 # Validation ledger
 
+**Last updated:** 2026-09-25 (tiered CI/CD pipeline migration)
+
+## CI/CD tier migration (2026-09-25)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow static lint | `~/go/bin/actionlint .github/workflows/*.yml` | **PASS** |
+| Diff whitespace/integrity | `git diff --check` | **PASS** |
+| Full Rust/JS test matrix under new workflows | — | **NOT RUN** (validated workflow syntax and guardrail wiring only in this session) |
+
+---
+
 **Last updated:** 2026-09-05 (payment assignment open rows)
 
 ## Payment assignment / open booking (2026-09-05)
