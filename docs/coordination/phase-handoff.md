@@ -1,6 +1,38 @@
 # Phase handoff
 
-**Last phase label:** Payment fulfills open booking (2026-09-05)
+**Last phase label:** Workflow logging channel + sanitized UI bridge (2026-09-25)
+
+### Verified (2026-09-25 — instrumentation slice)
+
+- Added dedicated `workflow.log` tracing channel in existing logging subsystem (no parallel logger).
+- Added sanitizing writer wrapper across JSON file channels so persisted records pass through sanitizer before disk write.
+- Added backend IPC command `log_workflow_event` with field sanitization and structured workflow events.
+- Added frontend workflow bridge:
+  - route-enter events via `WorkflowRouteLogger` (`App.tsx`),
+  - primary-action `start|success|error` events around every shared `tauriInvoke` call.
+- Added focused bridge tests (`src/services/tauri.service.test.ts`) and updated invoke registration guard count to **314**.
+- Validation: `cargo fmt --check`, `cargo clippy ... -D warnings`, `cargo test`, `npm run test`, `npm run build` all **PASS** (with `MEDOC_VENDOR_PUBKEY` set for Rust build/test paths).
+
+### Remains unverified
+
+- Live runtime inspection of produced `workflow.log` under real user flows (manual/GUI) — **NOT OBSERVED**.
+- Exhaustive workflow lifecycle coverage for explicit `cancel` transitions (Escape/dialog dismiss on all pages) — **NOT VERIFIED** in this slice.
+- Step 2–5 broad audits (state-machine map, geometry spacing checks, axe sweep) — **NOT RUN** in this slice.
+
+### Understanding delta
+
+- Command-level workflow telemetry can now be captured centrally without touching each feature controller.
+- The logging stack previously sanitized exports but not all file writes; this run moved sanitization into the write path.
+
+### Required next
+
+1. Add explicit cancel/escape workflow events for high-risk dialogs (destructive flows first).
+2. Add Playwright geometry/token checks at 375/768/1259 and record findings in contradictions/validation.
+3. Run axe contrast/focus checks and register any violations by severity (P0–P3).
+
+---
+
+**Prior phase label:** Payment fulfills open booking (2026-09-05)
 
 ### Verified (2026-09-05 — payment → billing list)
 

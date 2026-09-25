@@ -1,6 +1,14 @@
 # Contradiction ledger
 
-**Last updated:** 2026-06-16
+**Last updated:** 2026-09-25
+
+## Quality findings register (2026-09-25 — workflow instrumentation slice)
+
+| ID | Location | Finding | Evidence | Severity | Action |
+| -- | -------- | ------- | -------- | -------- | ------ |
+| WF-001 | `crates/shared/medoc-core/src/infrastructure/logging/mod.rs` + `apps/practice-host-ui/src/services/tauri.service.ts` | Dedicated workflow channel and frontend→backend workflow bridge were missing; route/action lifecycle events were not captured in a separate log stream. | Before: no `workflow.log` layer and no `log_workflow_event` IPC command/bridge. After: workflow channel + bridge added (commit pending, tests below). | P1 | **Implemented** in this run (workflow file layer + bridge + tests). |
+| WF-002 | `crates/shared/medoc-core/src/infrastructure/logging/mod.rs` | File logging was not centrally sanitized at write time; sanitization existed mainly at export-time paths. | Added sanitizing writer wrapper for all JSON file layers. | P1 | **Implemented** in this run; follow-up should live-smoke for non-token PII patterns. |
+| WF-003 | `apps/practice-host-ui/src/App.tsx` | Route-enter workflow events were not emitted from the UI shell. | Added `WorkflowRouteLogger` bound to `location.pathname`. | P2 | **Implemented** in this run; expand to cancel/escape-specific UX transitions in next slice. |
 
 ## Open contradictions
 

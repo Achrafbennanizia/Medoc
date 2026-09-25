@@ -1,6 +1,23 @@
 # Action ledger
 
-**Last updated:** 2026-09-05 (payment fulfills open booking)
+**Last updated:** 2026-09-25 (workflow logging channel slice)
+
+## Done (2026-09-25 — workflow logging channel + bridge)
+
+- Added dedicated `workflow.log` channel in tracing subsystem.
+- Added sanitizer-at-write wrapper for JSON file log layers.
+- Added `log_workflow_event` IPC command and frontend bridge (`route_enter`, IPC `start|success|error`).
+- Added/updated tests: `tauri.service.test.ts`, invoke registration count guard.
+- Full post-change validation matrix passed (cargo fmt/clippy/test + npm test/build).
+
+## Now
+
+- Manual runtime smoke: verify `workflow.log` entries across login, route change, success/error action paths (**NOT OBSERVED** yet).
+- Extend workflow bridge to explicit `cancel` transitions for destructive dialogs + Escape dismiss flows.
+
+## Later
+
+- Geometry/token Playwright checks and axe WCAG sweep per quality-agent Steps 4–5.
 
 ## Done (2026-09-05 — payment → billing)
 

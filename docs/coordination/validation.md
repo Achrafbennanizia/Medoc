@@ -1,6 +1,25 @@
 # Validation ledger
 
-**Last updated:** 2026-09-05 (payment assignment open rows)
+**Last updated:** 2026-09-25 (workflow logging channel + bridge)
+
+## Workflow logging channel + bridge (2026-09-25)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Rust fmt | `cargo fmt --check` | **PASS** |
+| Rust clippy | `MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32 cargo clippy --workspace --all-targets -- -D warnings` | **PASS** |
+| Rust tests | `MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32 cargo test` | **PASS** |
+| Frontend tests | `npm run test` | **PASS** — 62 files / 308 tests |
+| Frontend build | `npm run build` | **PASS** |
+| Focused workflow bridge tests | `npm run test -w medoc -- src/services/tauri.service.test.ts` | **PASS** — 3/3 |
+| IPC registration guard | `MEDOC_VENDOR_PUBKEY=... cargo test -p medoc --test invoke_registration_tests` | **PASS** |
+
+### Notes
+
+- Environment blockers remediated before final validation:
+  - Rust toolchain upgraded (`rustup toolchain install stable`, default now 1.98.1) to support `edition2024` transitive crates.
+  - System deps installed (`libssl-dev`, `libgtk-3-dev`, `libwebkit2gtk-4.1-dev`) so workspace tests/clippy can compile Tauri/Linux targets.
+- `MEDOC_VENDOR_SEED` remains unset in CI-like local runs, so Rust emits the expected deterministic-dev warning.
 
 ## Payment assignment / open booking (2026-09-05)
 
