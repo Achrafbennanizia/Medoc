@@ -1,5 +1,21 @@
 # Validation ledger
 
+**Last updated:** 2026-09-25 (CI/CD tiered workflows)
+
+## CI/CD tiered workflows (2026-09-25)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML parse | `python3 - <<'PY' ... yaml.safe_load(...)` on `verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml`, `website.yml` | **PASS** |
+| a11y script syntax | `node --check apps/practice-host-ui/test-a11y.mjs` | **PASS** |
+| UI lint command | `npm run lint -w medoc` | **PASS** |
+| UI typecheck command | `npm run typecheck -w medoc` | **FAIL** — missing `i18next` / `react-i18next` module types in `apps/practice-host-ui` + `packages/shared` |
+| UI build command | `npm run build -w medoc` | **FAIL** — same `i18next` / `react-i18next` TypeScript errors as typecheck |
+| Rust format gate | `cargo fmt --all -- --check` | **PASS** |
+| Rust test command | `cargo test --workspace` | **FAIL** — local Cargo `1.83.0` cannot parse `clap_derive 4.6.4` (`edition2024` feature required) |
+
+---
+
 **Last updated:** 2026-09-05 (payment assignment open rows)
 
 ## Payment assignment / open booking (2026-09-05)

@@ -1,5 +1,30 @@
 # Action ledger
 
+**Last updated:** 2026-09-25 (CI/CD tiered pipeline migration)
+
+## Done (2026-09-25 — CI/CD tiers + guards)
+
+- Replaced monolithic CI entrypoint with tiered workflows:
+  - `verify.yml` (blocking verify, no mutation)
+  - `autofix.yml` (PR-only deterministic fixes + loop guard)
+  - `fix-proposal.yml` (draft PR proposals on red-main/manual dispatch)
+  - `release.yml` (verify gate + signed artifacts + protected release environment)
+- Retired `.github/workflows/ci.yml`.
+- Added coordination plan doc: `docs/coordination/ci-cd-plan.md`.
+- Added a11y checker script and package scripts in `apps/practice-host-ui` for typecheck/lint-fix/format/axe gate.
+
+## Now
+
+- Resolve current web typecheck/build blocker (`i18next` + `react-i18next` module/type resolution).
+- Resolve local Rust toolchain mismatch for `edition2024` dependencies used during `cargo test --workspace`.
+- Configure repository environment/variables for Tier-3 and Tier-4 operations (`release` environment reviewers, optional `CI_FIX_PROPOSAL_COMMAND` defaults).
+
+## Later
+
+- Add branch protection to require `verify / verify-ok`.
+
+---
+
 **Last updated:** 2026-09-05 (payment fulfills open booking)
 
 ## Done (2026-09-05 — payment → billing)

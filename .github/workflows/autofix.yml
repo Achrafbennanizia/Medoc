@@ -1,0 +1,113 @@
+name: autofix
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: autofix-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  autofix:
+    if: github.actor != 'github-actions[bot]' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Detect package manager
+        id: pm
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install JS dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          PM="${{ steps.pm.outputs.pm }}"
+          case "$PM" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+            *) echo "Unsupported package manager: $PM" >&2; exit 1 ;;
+          esac
+
+      - name: Apply deterministic Rust fixes
+        run: cargo fmt --all
+
+      - name: Apply deterministic JS fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          PM="${{ steps.pm.outputs.pm }}"
+          case "$PM" in
+            pnpm)
+              pnpm --filter medoc run lint:fix || true
+              pnpm --filter medoc run format || true
+              ;;
+            yarn)
+              yarn workspace medoc lint:fix || true
+              yarn workspace medoc format || true
+              ;;
+            npm)
+              npm run lint:fix -w medoc || true
+              npm run format -w medoc || true
+              ;;
+            *)
+              echo "Unsupported package manager: $PM" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Block compliance-sensitive path changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --name-only | rg -i '(^|/)(security|audit|crypto|rbac)(/|_|-|\\.)' >/dev/null; then
+            echo "Autofix touched compliance-sensitive paths; refusing to commit."
+            git diff --name-only
+            exit 1
+          fi
+
+      - name: Commit and push autofixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "ci: apply deterministic formatting and lint fixes"
+            git push origin "HEAD:${{ github.head_ref }}"
+          else
+            echo "No deterministic fixes to commit."
+          fi

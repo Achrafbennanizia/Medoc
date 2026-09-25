@@ -1,5 +1,42 @@
 # Phase handoff
 
+**Last phase label:** CI/CD tiered pipeline migration (2026-09-25)
+
+### Verified (2026-09-25 — verify/autofix/fix-proposal/release)
+
+- Added tiered workflows:
+  - `.github/workflows/verify.yml` (push/PR/workflow_call, blocking, zero mutation)
+  - `.github/workflows/autofix.yml` (PR-only deterministic fixes + bot loop guard)
+  - `.github/workflows/fix-proposal.yml` (manual + red-main trigger, draft PR output, sensitive-path labeling)
+  - `.github/workflows/release.yml` (tag/dispatch, re-uses verify gate, protected `release` environment, signed bundles only)
+- Retired legacy `.github/workflows/ci.yml` to remove stale monolithic entrypoint.
+- Added `docs/coordination/ci-cd-plan.md` documenting workspace detection, tiers, and guardrails.
+- Added `apps/practice-host-ui/test-a11y.mjs` (axe-core critical WCAG 2.1 AA gate) and wired scripts (`typecheck`, `lint:fix`, `format`, `test:a11y`) in `apps/practice-host-ui/package.json`.
+- Validation evidence captured in `docs/coordination/validation.md`:
+  - YAML parse + a11y script syntax + lint + rust fmt **PASS**
+  - UI typecheck/build currently **FAIL** (missing `i18next`/`react-i18next` type deps)
+  - `cargo test --workspace` currently **FAIL** on local toolchain mismatch (`edition2024` feature required by `clap_derive`)
+
+### Remains unverified
+
+- Live GitHub Actions execution of all four tiers after merge — **NOT OBSERVED**.
+- Tier-3 repository defaults `CI_FIX_PROPOSAL_COMMAND` / `CI_FIX_PROPOSAL_VERIFY_COMMAND` in repo settings — **NOT OBSERVED**.
+- Protected-environment approval enforcement for `release` environment — **NOT OBSERVED**.
+
+### Understanding delta
+
+- CI governance is now explicitly split between verification, deterministic autofix, human-reviewed fix proposals, and manual-gated release.
+- Compliance-sensitive automation boundaries (`security`/`audit`/`crypto`/`rbac`) are now encoded in Tier-2 and Tier-3 workflow logic rather than policy-only notes.
+
+### Required next
+
+1. Install/declare missing UI i18n type dependencies (`i18next`, `react-i18next`) or adjust TypeScript pathing so Tier-1 web gates pass.
+2. Pin/upgrade Rust toolchain in CI/local to a version that can parse `edition2024` dependencies, then re-run `cargo test --workspace`.
+3. Configure `release` environment reviewers and (optionally) Tier-3 default commands in repository settings.
+4. Run one PR through `autofix` + `verify`, then run a dry `workflow_dispatch` release to validate full gate behavior.
+
+---
+
 **Last phase label:** Payment fulfills open booking (2026-09-05)
 
 ### Verified (2026-09-05 — payment → billing list)

@@ -1,0 +1,251 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: "Branch or ref to patch"
+        required: false
+        default: "main"
+      fix_reason:
+        description: "Failure class (tests, advisory, typecheck, other)"
+        required: false
+        default: "other"
+      failing_command:
+        description: "Command that currently fails (used for before/after evidence)"
+        required: false
+      fix_command:
+        description: "Command that attempts the actual fix"
+        required: false
+      verify_command:
+        description: "Command that should pass after the fix"
+        required: false
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: fix-proposal-${{ github.event_name }}-${{ github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  propose:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'failure' &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Resolve proposal context
+        id: ctx
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            echo "checkout_ref=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+            echo "base_branch=main" >> "$GITHUB_OUTPUT"
+            echo "reason=verify-red-main" >> "$GITHUB_OUTPUT"
+            echo "before_source=workflow_run" >> "$GITHUB_OUTPUT"
+          else
+            BASE_REF="${{ github.event.inputs.base_ref }}"
+            if [ -z "$BASE_REF" ]; then
+              BASE_REF="main"
+            fi
+            REASON="${{ github.event.inputs.fix_reason }}"
+            if [ -z "$REASON" ]; then
+              REASON="manual-dispatch"
+            fi
+            echo "checkout_ref=$BASE_REF" >> "$GITHUB_OUTPUT"
+            echo "base_branch=$BASE_REF" >> "$GITHUB_OUTPUT"
+            echo "reason=$REASON" >> "$GITHUB_OUTPUT"
+            echo "before_source=manual" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.ctx.outputs.checkout_ref }}
+
+      - name: Prepare proposal metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .github/fix-proposals
+          echo "branch=ci/fix-proposal-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+
+      - name: Capture failing-before evidence
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FAILING_COMMAND: ${{ github.event.inputs.failing_command }}
+        shell: bash
+        run: |
+          set +e
+          if [ "${{ steps.ctx.outputs.before_source }}" = "workflow_run" ]; then
+            gh run view "${{ github.event.workflow_run.id }}" --log > .github/fix-proposals/before.log 2>&1
+            code=$?
+            echo "$code" > .github/fix-proposals/before.exit
+          elif [ -n "$FAILING_COMMAND" ]; then
+            bash -lc "$FAILING_COMMAND" > .github/fix-proposals/before.log 2>&1
+            code=$?
+            echo "$code" > .github/fix-proposals/before.exit
+          else
+            echo "No failing command provided; before evidence is not executable for this run." > .github/fix-proposals/before.log
+            echo "0" > .github/fix-proposals/before.exit
+          fi
+          exit 0
+
+      - name: Attempt fix command
+        id: fix
+        env:
+          DISPATCH_FIX_COMMAND: ${{ github.event.inputs.fix_command }}
+          DEFAULT_FIX_COMMAND: ${{ vars.CI_FIX_PROPOSAL_COMMAND }}
+        shell: bash
+        run: |
+          set +e
+          FIX_COMMAND="$DISPATCH_FIX_COMMAND"
+          if [ -z "$FIX_COMMAND" ]; then
+            FIX_COMMAND="$DEFAULT_FIX_COMMAND"
+          fi
+          if [ -z "$FIX_COMMAND" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "exit_code=0" >> "$GITHUB_OUTPUT"
+            echo "No fix command configured." > .github/fix-proposals/fix.log
+            exit 0
+          fi
+          printf '%s\n' "$FIX_COMMAND" > .github/fix-proposals/fix.command
+          bash -lc "$FIX_COMMAND" > .github/fix-proposals/fix.log 2>&1
+          code=$?
+          echo "configured=true" >> "$GITHUB_OUTPUT"
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Capture pass-after evidence
+        id: after
+        env:
+          FAILING_COMMAND: ${{ github.event.inputs.failing_command }}
+          DISPATCH_VERIFY_COMMAND: ${{ github.event.inputs.verify_command }}
+          DEFAULT_VERIFY_COMMAND: ${{ vars.CI_FIX_PROPOSAL_VERIFY_COMMAND }}
+        shell: bash
+        run: |
+          set +e
+          VERIFY_COMMAND="$DISPATCH_VERIFY_COMMAND"
+          if [ -z "$VERIFY_COMMAND" ]; then
+            VERIFY_COMMAND="$DEFAULT_VERIFY_COMMAND"
+          fi
+          if [ -z "$VERIFY_COMMAND" ]; then
+            VERIFY_COMMAND="$FAILING_COMMAND"
+          fi
+          if [ -z "$VERIFY_COMMAND" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "exit_code=0" >> "$GITHUB_OUTPUT"
+            echo "No verify command configured." > .github/fix-proposals/after.log
+            exit 0
+          fi
+          printf '%s\n' "$VERIFY_COMMAND" > .github/fix-proposals/after.command
+          bash -lc "$VERIFY_COMMAND" > .github/fix-proposals/after.log 2>&1
+          code=$?
+          echo "configured=true" >> "$GITHUB_OUTPUT"
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Evaluate sensitive-path guard
+        id: guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          git status --short > .github/fix-proposals/git-status.txt
+          git diff --name-only > .github/fix-proposals/changed-files.txt
+          if [ -s .github/fix-proposals/changed-files.txt ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          fi
+          if rg -n -i '(^|/)(security|audit|crypto|rbac)(/|_|-|\\.)' .github/fix-proposals/changed-files.txt >/dev/null; then
+            echo "sensitive=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "sensitive=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build proposal report
+        shell: bash
+        run: |
+          set -euo pipefail
+          BEFORE_EXIT="$(cat .github/fix-proposals/before.exit)"
+          {
+            echo "# CI fix proposal"
+            echo
+            echo "- Reason: \`${{ steps.ctx.outputs.reason }}\`"
+            echo "- Source ref: \`${{ steps.ctx.outputs.checkout_ref }}\`"
+            echo "- Base branch: \`${{ steps.ctx.outputs.base_branch }}\`"
+            echo "- Has code changes: \`${{ steps.guard.outputs.has_changes }}\`"
+            echo "- Sensitive paths touched (security/audit/crypto/RBAC): \`${{ steps.guard.outputs.sensitive }}\`"
+            echo
+            echo "## Evidence"
+            echo
+            echo "- before.log exit code: \`$BEFORE_EXIT\`"
+            echo "- fix command configured: \`${{ steps.fix.outputs.configured }}\`"
+            echo "- fix command exit code: \`${{ steps.fix.outputs.exit_code }}\`"
+            echo "- after command configured: \`${{ steps.after.outputs.configured }}\`"
+            echo "- after command exit code: \`${{ steps.after.outputs.exit_code }}\`"
+            echo
+            echo "## Artifacts in this branch"
+            echo
+            echo "- \`.github/fix-proposals/before.log\`"
+            echo "- \`.github/fix-proposals/fix.log\`"
+            echo "- \`.github/fix-proposals/after.log\`"
+            echo "- \`.github/fix-proposals/changed-files.txt\`"
+            echo
+            echo "## Guardrail note"
+            echo
+            echo "Any proposal touching security/audit/crypto/RBAC requires explicit human approval and is labeled \`needs-human-review\`."
+          } > .github/fix-proposals/proposal.md
+
+      - name: Resolve PR labels
+        id: labels
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.guard.outputs.sensitive }}" = "true" ]; then
+            echo "value=ci-fix-proposal,needs-human-review" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=ci-fix-proposal" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open draft fix proposal PR
+        id: cpr
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ steps.meta.outputs.branch }}
+          base: ${{ steps.ctx.outputs.base_branch }}
+          commit-message: "ci: draft fix proposal (${{ steps.ctx.outputs.reason }})"
+          title: "ci: draft fix proposal (${{ steps.ctx.outputs.reason }})"
+          body: |
+            ## Summary
+            - Automated fix proposal generated by `fix-proposal.yml`.
+            - This PR is always draft and never auto-merged.
+
+            ## Evidence
+            - Before-failure evidence and after-attempt evidence are committed under `.github/fix-proposals/`.
+            - Proposal report: `.github/fix-proposals/proposal.md`.
+
+            ## Guardrails
+            - Deterministic Tier-2 autofix is separate (`autofix.yml`).
+            - Sensitive paths (`security`/`audit`/`crypto`/`rbac`) are labeled `needs-human-review`.
+          draft: true
+          labels: ${{ steps.labels.outputs.value }}
+          signoff: false
+
+      - name: Stop after labeling sensitive proposals
+        if: steps.guard.outputs.sensitive == 'true' && steps.cpr.outputs.pull-request-number != ''
+        shell: bash
+        run: |
+          echo "Sensitive paths changed. PR labeled needs-human-review; stopping for human decision."
+          exit 1
