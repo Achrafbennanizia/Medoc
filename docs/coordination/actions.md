@@ -1,6 +1,23 @@
 # Action ledger
 
-**Last updated:** 2026-09-05 (payment fulfills open booking)
+**Last updated:** 2026-09-26 (workflow logging instrumentation slice)
+
+## Done (2026-09-26 — workflow logging instrumentation slice)
+
+- Added dedicated `workflow.log` channel + `log_workflow!` macro in shared logging infrastructure.
+- Added sanitized frontend→backend workflow bridge (`log_workflow_event`) with route id redaction.
+- Added automatic frontend workflow events for route enter and Tauri command success/error.
+- Added domain transition workflow events in `workflow_transitions.rs`.
+- Added tests for workflow logging transport/redaction and workflow retention behavior.
+- Stabilized pre-existing env-sensitive `medoc-sync` reset-token unit by serializing the test.
+
+## Now
+
+- Run full Step-2 workflow map + non-terminable-flow detection (all routes/actions) and append P0–P3 findings to contradictions + validation ledgers.
+
+## Later
+
+- Expand Step-3 component event coverage and Step-4 Playwright geometry/token assertions across breakpoints.
 
 ## Done (2026-09-05 — payment → billing)
 

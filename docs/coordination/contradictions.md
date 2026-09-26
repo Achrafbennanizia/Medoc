@@ -1,6 +1,6 @@
 # Contradiction ledger
 
-**Last updated:** 2026-06-16
+**Last updated:** 2026-09-26
 
 ## Open contradictions
 
@@ -10,6 +10,15 @@
 | C5 | Activation-token RBAC scope | Plan ("activation-token allowed_actions on /sync/push|pull only") | `verify_activation_for_path` also accepts `/sync/status` + `/pairing/peers` | **Documented divergence** — broader allow-list documented in `serverless-sync.md`; matches frontend usage. |
 | C6 | "Encrypt every microservice" | User request 2026-05-26 | Plan slice rejected literal interpretation as YAGNI; only license envelope + activation token are encrypted/signed | **Resolved by plan note** — see [`docs/architecture/licensing.md`](../architecture/licensing.md) "What was explicitly not built". |
 | C7 | "Period" in license payload | User request 2026-05-26 | User chose `perpetual_device`; v2 schema stores `activated_at` only, no `expires_at` | **Resolved** — perpetual model documented in `licensing.md`. |
+
+## Workflow findings register (2026-09-26 — logger-first slice)
+
+| ID | Location | Finding | Evidence | Severity | Action |
+| -- | -------- | ------- | -------- | -------- | ------ |
+| WF-LOG-001 | `crates/shared/medoc-core/src/infrastructure/logging/mod.rs`, `crates/app/medoc-practice/src/commands/system/logging.rs` | Desktop logging had no dedicated workflow channel and no explicit frontend→backend workflow event bridge. | Code inspection in this run found only `app/security/system/device/migration/perf` channels and no `log_workflow_event` command before edits. | P1 | **Fixed in this slice:** add `workflow.log`, `log_workflow!`, and `log_workflow_event` IPC command. |
+| WF-LOG-002 | `apps/practice-host-ui/src/services/tauri.service.ts`, `apps/practice-host-ui/src/views/components/workflow-route-observer.tsx` | Route telemetry can leak patient/task/order identifiers if raw paths are logged. | Dynamic routes include ids (`/patients/:id`, `/tickets/:id/edit`, `/purchase-orders/:id`) in `apps/practice-host-ui/src/App.tsx`. | P1 | **Fixed in this slice:** normalize/redact route segments before emitting workflow events. |
+| WF-VAL-001 | `crates/shared/medoc-sync/src/cluster/services/cluster_reset_service.rs` | `cargo test` was intermittently failing in `reset_token_sign_verify_roundtrip` due global env mutation under parallel tests. | Two consecutive full-suite failures in this run with `Invalid signature`; targeted rerun passed; parallel stability restored after serializing test. | P2 | **Fixed in this slice:** mark test `#[serial]` to isolate env-sensitive secret setup. |
+| WF-MAP-001 | UI-wide workflow map (`apps/practice-host-ui` routes/pages/components) | Full Step-2 state-machine audit for all routes/actions (non-terminable-flow scan) remains incomplete in this bounded run. | No complete route-by-route state-machine artifact produced in this slice. | P2 | Next run: execute full workflow-map + detection pass and append findings here with P0–P3 triage. |
 
 ## Resolved (recent)
 

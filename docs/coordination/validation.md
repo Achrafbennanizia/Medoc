@@ -1,5 +1,24 @@
 # Validation ledger
 
+**Last updated:** 2026-09-26 (workflow logging instrumentation slice)
+
+## Workflow logging instrumentation slice (2026-09-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Rust tests (full workspace) | `MEDOC_VENDOR_PUBKEY=… MEDOC_DB_KEY=… MEDOC_AUDIT_KEY=… MEDOC_PAIRING_MASTER_SECRET=… cargo test` | **PASS** after serializing `reset_token_sign_verify_roundtrip` (previous parallel run reproduced intermittent `Invalid signature` in `medoc-sync`; fixed by `#[serial]`). |
+| Rust clippy | `MEDOC_VENDOR_PUBKEY=… MEDOC_DB_KEY=… MEDOC_AUDIT_KEY=… MEDOC_PAIRING_MASTER_SECRET=… cargo clippy --workspace --all-targets -- -D warnings` | **PASS** |
+| Rust formatting | `cargo fmt --check` | **PASS** |
+| Frontend tests | `npm run test` | **PASS** — 62 files / 310 tests |
+| Frontend build | `npm run build` | **PASS** |
+
+### Notes
+
+- Environment prerequisites installed during this run to satisfy the required gates: Rust toolchain update to `1.98.1`, Rust components (`clippy`, `rustfmt`), system packages (`libssl-dev`, GTK/WebKit stack).
+- `npm run test` still prints an existing Vitest warning in `http-practice.adapter.test.ts` about an un-awaited `.rejects` assertion; suite remains green in Vitest 3.2.4.
+
+---
+
 **Last updated:** 2026-09-05 (payment assignment open rows)
 
 ## Payment assignment / open booking (2026-09-05)

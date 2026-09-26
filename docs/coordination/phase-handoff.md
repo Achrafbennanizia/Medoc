@@ -1,5 +1,44 @@
 # Phase handoff
 
+**Last phase label:** Workflow logging instrumentation slice (2026-09-26)
+
+### Verified (2026-09-26 — logger-first slice)
+
+- Extended existing tracing subsystem with a dedicated **`workflow.log`** channel and `log_workflow!` macro (`crates/shared/medoc-core/src/infrastructure/logging/mod.rs`, `config.rs`).
+- Added sanitized frontend→backend workflow bridge:
+  - new IPC command `log_workflow_event` with route redaction and sanitizer pass (`crates/app/medoc-practice/src/commands/system/logging.rs`);
+  - frontend emission for route-enter and Tauri command success/error (`apps/practice-host-ui/src/services/tauri.service.ts`, `workflow-route-observer.tsx`, `App.tsx`).
+- Added domain transition workflow events for status transitions in `workflow_transitions.rs`.
+- Added/updated tests:
+  - `apps/practice-host-ui/src/services/tauri.service.test.ts`
+  - `apps/practice-host/tests/retention_tests.rs`
+  - invoke registry count updates for added IPC command.
+- Stabilized an existing flaky workspace test by serializing `medoc-sync` env-sensitive key test (`cluster_reset_service.rs`).
+- Validation on final tree:
+  - `cargo test` **PASS**
+  - `cargo clippy --workspace --all-targets -- -D warnings` **PASS**
+  - `cargo fmt --check` **PASS**
+  - `npm run test` **PASS** (62 files / 310 tests)
+  - `npm run build` **PASS**
+
+### Remains unverified
+
+- Full Step-2 workflow map + non-terminable-flow detection across every route/action is **NOT RUN** in this bounded slice.
+- Playwright geometry/spacing audit and axe-focused UI compliance sweep are **NOT RUN** in this slice.
+
+### Understanding delta
+
+- Workflow observability now has a dedicated channel and sanitized bridge rather than piggybacking on generic app logs.
+- Parallel full-suite Rust tests had an env-race edge in `medoc-sync` reset-token verification; serializing that test restored deterministic workspace validation.
+
+### Required next
+
+1. Execute full Step-2 workflow map/state-machine detection across all routes and actions; append findings (P0–P3) into `docs/coordination/contradictions.md`.
+2. Implement Step-3 component event test expansion beyond the new logging bridge tests (click/input/submit/error/loading/empty/disabled/keyboard) and record coverage.
+3. Stand up Playwright geometry assertions against the spacing scale and append violations/screenshots to validation + contradictions ledgers.
+
+---
+
 **Last phase label:** Payment fulfills open booking (2026-09-05)
 
 ### Verified (2026-09-05 — payment → billing list)
