@@ -49,6 +49,7 @@ import { workTimeGetPreference, workTimeSetPreference } from "@/systems/practice
 import { subscribeWorkTimeFocusMode, dispatchWorkTimeFocusMode } from "@/lib/work-time-focus-mode";
 import { subscribeAppMenu } from "@/lib/native-app-menu-bridge";
 import { countUnreadInAppNotifications } from "@/systems/practice-host/controllers/in-app-notification.controller";
+import { logUiWorkflowRouteEnter } from "@/systems/practice-host/controllers/workflow-logging.controller";
 import { useMacWindowDrag } from "@/lib/mac-window-drag";
 
 const MEDOC_UI_ZOOM_KEY = "medoc-ui-zoom";
@@ -324,6 +325,10 @@ export function AppLayout() {
 
     useEffect(() => {
         setMobileNavOpen(false);
+    }, [location.pathname]);
+
+    useEffect(() => {
+        void logUiWorkflowRouteEnter(location.pathname);
     }, [location.pathname]);
 
     /** Native menubar: RBAC-aligned payload (desktop); warn-only on browser / IPC failure. */

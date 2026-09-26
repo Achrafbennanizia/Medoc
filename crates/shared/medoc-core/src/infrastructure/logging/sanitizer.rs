@@ -5,6 +5,7 @@
 
 use regex::Regex;
 use serde::Serialize;
+use serde_json::Value;
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
@@ -36,6 +37,20 @@ pub fn sanitize(input: &str) -> String {
     match jwt_re() {
         Some(re) => re.replace_all(&masked, "eyJ***").into_owned(),
         None => masked,
+    }
+}
+
+/// Recursively sanitise every string leaf in an arbitrary JSON payload.
+pub fn sanitize_json(value: &Value) -> Value {
+    match value {
+        Value::String(s) => Value::String(sanitize(s)),
+        Value::Array(items) => Value::Array(items.iter().map(sanitize_json).collect()),
+        Value::Object(map) => Value::Object(
+            map.iter()
+                .map(|(k, v)| (k.clone(), sanitize_json(v)))
+                .collect(),
+        ),
+        _ => value.clone(),
     }
 }
 
