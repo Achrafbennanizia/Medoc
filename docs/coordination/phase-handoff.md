@@ -1,6 +1,41 @@
 # Phase handoff
 
-**Last phase label:** Payment fulfills open booking (2026-09-05)
+**Last phase label:** Workflow logging channel + sanitized IPC bridge (2026-09-26)
+
+### Verified (2026-09-26 — workflow logging baseline)
+
+- Added dedicated `workflow.log` channel in the existing tracing subsystem (`medoc::workflow` target) with daily rotation alongside existing log channels.
+- Added backend command `log_workflow_event` that sanitizes every workflow field before writing a structured record.
+- Added frontend workflow bridge at the global Tauri transport (`tauri.service.ts`) to emit `primary_action` lifecycle events (`start` / `success` / `error`) for each IPC command.
+- Added route workflow logger (`route_enter` / `route_leave`) in app routing via `WorkflowRouteLogger`.
+- Added tests:
+  - `apps/practice-host-ui/src/services/tauri.service.test.ts` (5 tests, PASS)
+  - `crates/app/medoc-practice/src/commands/system/logging.rs` unit tests for workflow sanitization helpers.
+- Validation:
+  - `npm run test` **PASS** (62 files / 310 tests)
+  - `npm run build` **PASS**
+  - `cargo fmt --check` **PASS**
+  - `cargo clippy --workspace --all-targets -- -D warnings` **FAIL** (missing `openssl/crypto.h`)
+  - `cargo test --workspace` **FAIL** (same SQLCipher/OpenSSL blocker)
+
+### Remains unverified
+
+- End-to-end inspection of generated `workflow.log` on a live app run — **NOT OBSERVED**.
+- Full Rust validation gate in this environment — blocked by missing OpenSSL dev headers for SQLCipher.
+- Full Step 2–5 workflow mapping/component geometry/a11y sweep — **NOT RUN** in this bounded slice.
+
+### Understanding delta
+
+- Logging coverage moved from fragmented command-local traces to a centralized sanitized frontend→backend workflow bridge.
+- The environment is currently not capable of passing Rust compile/test gates without system OpenSSL headers.
+
+### Required next
+
+1. Provide OpenSSL development headers in this environment, then rerun `cargo clippy --workspace --all-targets -- -D warnings` and `cargo test --workspace`.
+2. Run a live UI session and verify `workflow.log` entries for route enter/leave and command lifecycle events.
+3. Continue Step 2 register work: enumerate page-level primary/cancel/error transitions and log gaps as findings.
+
+---
 
 ### Verified (2026-09-05 — payment → billing list)
 

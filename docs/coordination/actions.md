@@ -1,6 +1,19 @@
 # Action ledger
 
-**Last updated:** 2026-09-05 (payment fulfills open booking)
+**Last updated:** 2026-09-26 (workflow logging channel + bridge)
+
+## Done (2026-09-26 — workflow logging channel + bridge)
+
+- Added dedicated `workflow.log` channel in shared tracing (`medoc::workflow` target).
+- Added sanitized backend command `log_workflow_event` in existing logging command module.
+- Added frontend centralized workflow bridge (`tauri.service.ts`) for IPC lifecycle events and route enter/leave logger (`WorkflowRouteLogger`).
+- Added tests: `tauri.service.test.ts` (5 PASS) + Rust unit tests for workflow-event sanitization.
+
+## Now
+
+- Unblock Rust validation by providing OpenSSL development headers required by SQLCipher build (`openssl/crypto.h`).
+- Run live app smoke and verify route + action lifecycle entries in `workflow.log`.
+- Continue workflow register sweep for component-level `primary/success/cancel/error` coverage.
 
 ## Done (2026-09-05 — payment → billing)
 

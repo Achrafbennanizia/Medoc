@@ -1,6 +1,19 @@
 # Validation ledger
 
-**Last updated:** 2026-09-05 (payment assignment open rows)
+**Last updated:** 2026-09-26 (workflow logging bridge + channel)
+
+## Workflow logging bridge + channel (2026-09-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Rust format | `cargo fmt --check` | **PASS** |
+| Rust clippy | `cargo clippy --workspace --all-targets -- -D warnings` | **FAIL** — `libsqlite3-sys` SQLCipher compile error: `openssl/crypto.h` missing |
+| Rust tests | `cargo test --workspace` | **FAIL** — same SQLCipher/OpenSSL header blocker |
+| Frontend tests | `npm run test` | **PASS** — **62** files, **310** tests |
+| Frontend build | `npm run build` | **PASS** |
+| Environment remediation attempt | `apt-get update && apt-get install -y libssl-dev` | **FAIL** — permission denied on `/var/lib/apt/lists/partial` |
+
+---
 
 ## Payment assignment / open booking (2026-09-05)
 

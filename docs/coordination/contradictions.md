@@ -1,6 +1,6 @@
 # Contradiction ledger
 
-**Last updated:** 2026-06-16
+**Last updated:** 2026-09-26
 
 ## Open contradictions
 
@@ -10,6 +10,14 @@
 | C5 | Activation-token RBAC scope | Plan ("activation-token allowed_actions on /sync/push|pull only") | `verify_activation_for_path` also accepts `/sync/status` + `/pairing/peers` | **Documented divergence** — broader allow-list documented in `serverless-sync.md`; matches frontend usage. |
 | C6 | "Encrypt every microservice" | User request 2026-05-26 | Plan slice rejected literal interpretation as YAGNI; only license envelope + activation token are encrypted/signed | **Resolved by plan note** — see [`docs/architecture/licensing.md`](../architecture/licensing.md) "What was explicitly not built". |
 | C7 | "Period" in license payload | User request 2026-05-26 | User chose `perpetual_device`; v2 schema stores `activated_at` only, no `expires_at` | **Resolved** — perpetual model documented in `licensing.md`. |
+
+## Workflow findings register (2026-09-26)
+
+| ID | Location | Finding | Evidence | Severity (P0–P3) | Action |
+| -- | -------- | ------- | -------- | ---------------- | ------ |
+| WF-LOG-001 | `apps/practice-host-ui/src/services/tauri.service.ts`, `apps/practice-host-ui/src/views/components/workflow-route-logger.tsx` | Workflow bridge now emits route enter/leave and IPC lifecycle (`start/success/error`) to `log_workflow_event`; component-level explicit `cancel`/`primary` semantics are still not fully enumerated page-by-page. | Code inspection + new test `apps/practice-host-ui/src/services/tauri.service.test.ts` (5 PASS). | P2 | Extend page/component handlers with explicit `cancel` events in follow-up slices. |
+| WF-LOG-002 | `crates/shared/medoc-core/src/infrastructure/logging/mod.rs`, `crates/app/medoc-practice/src/commands/system/logging.rs` | Dedicated `workflow.log` channel and sanitized backend workflow command were missing before this run and are now implemented. | Commit `77102cc` adds `medoc::workflow` layer + `log_workflow_event`; tests in commit `584c858`. | P1 | Keep channel in retention/export flows and add end-to-end checks once Rust toolchain deps are unblocked. |
+| WF-VAL-001 | Rust workspace validation environment | Required Rust checks are blocked by missing OpenSSL headers for SQLCipher (`openssl/crypto.h` not found), so full Rust validation cannot complete in this environment. | `cargo clippy --workspace --all-targets -- -D warnings` and `cargo test --workspace` both fail at `libsqlite3-sys` build. | P1 | Install OpenSSL development headers (or provide CI image with SQLCipher prereqs) and re-run Rust validation gates. |
 
 ## Resolved (recent)
 
