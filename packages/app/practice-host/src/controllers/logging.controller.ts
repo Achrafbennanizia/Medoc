@@ -1,6 +1,22 @@
 import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
 
 export type LogLevel = "ERROR" | "WARN" | "INFO" | "DEBUG" | "TRACE";
+export type WorkflowLogPhase =
+    | "route_enter"
+    | "primary_action"
+    | "success"
+    | "cancel"
+    | "error";
+
+export type WorkflowLogEvent = {
+    workflow: string;
+    step: string;
+    phase: WorkflowLogPhase;
+    outcome?: string;
+    route?: string;
+    action?: string;
+    errorCode?: string;
+};
 
 export async function getLogLevel(): Promise<LogLevel> {
     return practiceSystem.invoke<LogLevel>("get_log_level");
@@ -21,6 +37,24 @@ export async function verifyAuditChain(): Promise<string | null> {
 
 export async function getLogDir(): Promise<string> {
     return practiceSystem.invoke<string>("log_dir");
+}
+
+export async function logWorkflowEvent(event: WorkflowLogEvent): Promise<void> {
+    try {
+        await practiceSystem.invoke<void>("log_workflow_event", {
+            event: {
+                workflow: event.workflow,
+                step: event.step,
+                phase: event.phase,
+                outcome: event.outcome,
+                route: event.route,
+                action: event.action,
+                errorCode: event.errorCode,
+            },
+        });
+    } catch {
+        // Best-effort observability path: never block UI workflows on telemetry.
+    }
 }
 
 /** Example log file path for display (`app.log` in the log directory). */

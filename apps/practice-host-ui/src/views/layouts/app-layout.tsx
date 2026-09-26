@@ -31,6 +31,7 @@ import { OnboardingCoachmark } from "../components/onboarding-coachmark";
 import { ONBOARDING_COACHMARK_ENABLED } from "@/lib/v1-ui-flags";
 import { NotificationsPopover } from "../components/notifications-popover";
 import { checkForUpdates, openNativePrintDialog } from "@/systems/practice-host/controllers/system.controller";
+import { logWorkflowEvent } from "@/systems/practice-host/controllers/logging.controller";
 import { useDismissibleLayer } from "../components/ui/use-dismissible-layer";
 import { UserAccountMenuDropdown } from "../components/user-account-menu";
 import { SyncStatusBadge } from "../components/sync-status-badge";
@@ -50,6 +51,7 @@ import { subscribeWorkTimeFocusMode, dispatchWorkTimeFocusMode } from "@/lib/wor
 import { subscribeAppMenu } from "@/lib/native-app-menu-bridge";
 import { countUnreadInAppNotifications } from "@/systems/practice-host/controllers/in-app-notification.controller";
 import { useMacWindowDrag } from "@/lib/mac-window-drag";
+import { normalizeWorkflowRoute } from "@/systems/practice-host/lib/workflow-log";
 
 const MEDOC_UI_ZOOM_KEY = "medoc-ui-zoom";
 const MEDOC_SIDEBAR_RAIL_PREF_KEY = "medoc-sidebar-rail-pref";
@@ -324,6 +326,17 @@ export function AppLayout() {
 
     useEffect(() => {
         setMobileNavOpen(false);
+    }, [location.pathname]);
+
+    useEffect(() => {
+        void logWorkflowEvent({
+            workflow: "ui.route",
+            step: "enter",
+            phase: "route_enter",
+            outcome: "started",
+            route: normalizeWorkflowRoute(location.pathname),
+            action: "route_enter",
+        });
     }, [location.pathname]);
 
     /** Native menubar: RBAC-aligned payload (desktop); warn-only on browser / IPC failure. */
