@@ -1,6 +1,18 @@
 # Validation ledger
 
-**Last updated:** 2026-09-05 (payment assignment open rows)
+**Last updated:** 2026-09-26 (CI/CD tier migration)
+
+## CI/CD pipeline tier migration (2026-09-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Async setup state | `if [ -f /tmp/cursor/async-install/install-user.status ] ...` | **PASS** — `no_async_install_files` |
+| actionlint install | `go install github.com/rhysd/actionlint/cmd/actionlint@latest` | **PASS** |
+| Workflow lint | `~/go/bin/actionlint -color` | **PASS** |
+| Diff integrity | `git diff --check` | **PASS** |
+| Runtime of new workflow tiers on GitHub-hosted runners | — | **NOT OBSERVED** |
+
+---
 
 ## Payment assignment / open booking (2026-09-05)
 

@@ -1,5 +1,41 @@
 # Phase handoff
 
+**Last phase label:** CI/CD tier migration (2026-09-26)
+
+### Verified (2026-09-26 — CI/CD tier migration)
+
+- Added tiered workflows:
+  - `verify.yml` (Tier 1 verify gate, non-mutating)
+  - `autofix.yml` (Tier 2 deterministic PR-branch autofix)
+  - `fix-proposal.yml` (Tier 3 draft PR proposal flow for substantive fixes)
+  - `release.yml` (Tier 4 verify-gated signed release build under protected environment)
+- Migrated `.github/workflows/ci.yml` to compatibility wrapper delegating to `verify.yml`.
+- Added `docs/coordination/ci-cd-plan.md` and updated coordination ledgers (`project-truth.md`, `actions.md`, `validation.md`, this handoff).
+- Validation evidence captured:
+  - async setup status: `no_async_install_files`
+  - `go install github.com/rhysd/actionlint/cmd/actionlint@latest` **PASS**
+  - `~/go/bin/actionlint -color` **PASS**
+  - `git diff --check` **PASS**
+
+### Remains unverified
+
+- First live execution of new workflows on GitHub-hosted runners — **NOT OBSERVED**.
+- Branch protection/ruleset mapping to the new verify checks — **NOT OBSERVED**.
+- Protected `release` environment approval flow + signing secret readiness — **NOT OBSERVED**.
+
+### Understanding delta
+
+- CI/CD is now explicitly tiered and guarded for zero-mutation verify/release paths while preserving deterministic PR autofix and human-gated substantive fixes.
+- Legacy CI behavior is preserved only as `ci.yml` compatibility entrypoint; operational policy now lives in `verify.yml` + companion tier workflows.
+
+### Required next
+
+1. Run this branch through PR CI and confirm all Tier 1 jobs execute as intended.
+2. Set/verify repository variable `CI_FIX_PROPOSAL_COMMAND` for Tier 3 auto-trigger usefulness.
+3. Confirm `release` protected environment approvals and Tauri signing secrets are present.
+
+---
+
 **Last phase label:** Payment fulfills open booking (2026-09-05)
 
 ### Verified (2026-09-05 — payment → billing list)
