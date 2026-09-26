@@ -1,6 +1,14 @@
 # Contradiction ledger
 
-**Last updated:** 2026-06-16
+**Last updated:** 2026-09-26
+
+## Workflow audit findings register (2026-09-26)
+
+| ID | Location | Finding | Evidence | Severity (P0–P3) | Action |
+| -- | -------- | ------- | -------- | ---------------- | ------ |
+| WF-LOG-001 | `crates/shared/medoc-core/src/infrastructure/logging/mod.rs` (pre-run state) | Workflow events did not have a dedicated log channel; route/action traces were not separable from generic app logs. | Pre-run file inspection showed only `app/security/system/device/migration/perf` channels and no `workflow` target. | P1 | **Resolved in this run** by adding `workflow.log` channel + `medoc::workflow` macro target and frontend bridge events. |
+| WF-LOG-002 | `crates/shared/medoc-sync/src/cluster/services/cluster_reset_service.rs:525` | Full Rust test gate previously showed a flaky signature verification failure (`Validation("Invalid signature")`) in `reset_token_sign_verify_roundtrip`. | Prior run: one failure + immediate isolated rerun pass (`cargo test -p medoc-sync … --exact`). Current run: `cargo test --workspace --tests` passed end-to-end (flake not reproduced). | P1 | Keep tracked as intermittent quality risk; **no autonomous crypto-path edits** in this run per guardrails. |
+| WF-LOG-003 | `apps/practice-host-ui/src/services/tauri.service.ts`, `packages/ui/src/dialog.tsx`, `apps/practice-host-ui/src/App.tsx` | Route/action/cancel telemetry is now wired, but live manual observation of rotation and redaction in a running GUI session is still missing. | This run validated via Rust/Vitest tests only; GUI workflow log inspection is **NOT OBSERVED**. | P2 | Next run: perform live workflow walkthrough and inspect on-disk `workflow.log` rotation + redaction behavior. |
 
 ## Open contradictions
 

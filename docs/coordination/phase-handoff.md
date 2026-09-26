@@ -1,5 +1,40 @@
 # Phase handoff
 
+**Last phase label:** Workflow logging instrumentation slice (2026-09-26)
+
+### Verified (2026-09-26 — workflow logging slice)
+
+- Live source layout for active app code is under `crates/`, `apps/`, and `packages/` (legacy `app/` is not the active implementation root for this change set).
+- Existing tracing subsystem was extended (not replaced): dedicated `workflow.log` channel and `log_workflow!` target in `crates/shared/medoc-core/src/infrastructure/logging/`.
+- Sanitized workflow telemetry path is wired end-to-end:
+  - frontend bridge emits route/action/success/error/cancel events (`apps/practice-host-ui/src/services/tauri.service.ts`, `apps/practice-host-ui/src/App.tsx`, `packages/ui/src/dialog.tsx`)
+  - backend command sanitizes payload fields before write (`crates/app/medoc-practice/src/commands/system/logging.rs`)
+  - invoke registry updated and guarded by tests (`crates/app/medoc-practice/src/commands/register.rs`, `apps/practice-host/tests/invoke_registration_tests.rs`, `crates/app/medoc-practice/tests/invoke_command_registry_tests.rs`)
+- Validation gate for this slice is green after satisfying env precondition:
+  - `cargo fmt --all -- --check` **PASS**
+  - `MEDOC_VENDOR_PUBKEY=… cargo clippy --workspace --all-targets -- -D warnings` **PASS**
+  - `MEDOC_VENDOR_PUBKEY=… cargo test --workspace --tests` **PASS**
+  - `npm run test` **PASS** (62 files / 310 tests)
+  - `npm run build` **PASS**
+
+### Remains unverified
+
+- Live GUI observation of workflow event coverage, on-disk `workflow.log` rotation behavior, and runtime PII redaction remains **NOT OBSERVED**.
+- Step 2+ audit objectives from the automation brief (full workflow state-machine map, Playwright geometry audit, axe/WCAG sweep, and P0–P3 fix PR chain) are **NOT RUN** in this slice.
+
+### Understanding delta
+
+- The repo now has a reusable sanitized workflow telemetry path that can drive Step 2 detection without introducing a parallel logger.
+- The previously observed flaky `medoc-sync` signature test is not reproducing in this run (full workspace tests passed), but remains tracked as a quality risk in contradictions.
+
+### Required next
+
+1. Run a live workflow walkthrough and inspect `workflow.log` files to confirm rotation and sanitization in real runtime conditions.
+2. Execute Step 2 read-only workflow/state-machine audit and append findings to `docs/coordination/contradictions.md` + `docs/coordination/validation.md`.
+3. Start Step 3 component/page interaction tests and Step 4 Playwright geometry/token-scale checks as separate commits/PRs.
+
+---
+
 **Last phase label:** Payment fulfills open booking (2026-09-05)
 
 ### Verified (2026-09-05 — payment → billing list)

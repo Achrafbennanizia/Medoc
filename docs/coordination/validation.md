@@ -1,5 +1,21 @@
 # Validation ledger
 
+**Last updated:** 2026-09-26 (workflow logging instrumentation slice)
+
+## Workflow logging instrumentation slice (2026-09-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Rust formatting | `cargo fmt --all -- --check` | **PASS** |
+| Rust clippy (precondition probe) | `cargo clippy --workspace --all-targets -- -D warnings` | **FAIL** — missing `MEDOC_VENDOR_PUBKEY` (environment precondition, not code regression) |
+| Rust clippy (with vendor key) | `MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32 cargo clippy --workspace --all-targets -- -D warnings` | **PASS** |
+| Rust tests | `MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32 cargo test --workspace --tests` | **PASS** |
+| Frontend tests | `npm run test` | **PASS** — 62 files / 310 tests |
+| Frontend build | `npm run build` | **PASS** — Vite warning only (chunk size / dynamic import note) |
+| Live workflow log rotation + sanitization | — | **NOT OBSERVED** (no live GUI session in this run) |
+
+---
+
 **Last updated:** 2026-09-05 (payment assignment open rows)
 
 ## Payment assignment / open booking (2026-09-05)

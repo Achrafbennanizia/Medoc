@@ -1,6 +1,18 @@
 # Action ledger
 
-**Last updated:** 2026-09-05 (payment fulfills open booking)
+**Last updated:** 2026-09-26 (workflow logging instrumentation slice)
+
+## Done (2026-09-26 — workflow logging instrumentation slice)
+
+- Extended existing tracing logging with a dedicated `workflow.log` channel and `log_workflow!` macro target.
+- Added sanitized frontend→backend workflow telemetry bridge (`route_enter`, `primary_action`, `success`, `cancel`, `error`) across invoke and dialog-close paths.
+- Added workflow sanitizer tests and frontend telemetry tests; updated invoke registry guards.
+- Full required validation gate completed for this slice (`cargo fmt`, `cargo clippy -D warnings`, `cargo test`, `npm run test`, `npm run build`).
+
+## Now
+
+- Live workflow walkthrough to verify runtime log rotation + sanitization behavior (**NOT OBSERVED**).
+- Step 2 read-only workflow map / non-terminable flow detection and register expansion.
 
 ## Done (2026-09-05 — payment → billing)
 
