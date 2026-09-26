@@ -10,3 +10,4 @@ pub mod menu;
 pub mod ops;
 pub mod report_pdf;
 pub mod subscription;
+pub mod workflow;

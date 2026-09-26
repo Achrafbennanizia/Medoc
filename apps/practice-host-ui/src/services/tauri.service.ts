@@ -1,5 +1,23 @@
 import { invoke } from "@tauri-apps/api/core";
 
+type WorkflowStage =
+    | "route_enter"
+    | "primary_action"
+    | "success"
+    | "cancel"
+    | "error";
+
+type WorkflowPayload = {
+    route: string;
+    action: string;
+    stage: WorkflowStage;
+    detail?: string;
+    correlationId?: string;
+};
+
+const WORKFLOW_LOG_COMMAND = "log_workflow_event";
+const CANCELLED_ERROR_RE = /(cancel(l(ed|ation)?)?|aborted|dismiss(ed)?)/i;
+
 /**
  * Tauri v2 resolves each command parameter from the invoke JSON using an explicit key.
  * `tauri_macros` defaults to **camelCase** keys derived from Rust identifiers (`patient_id` → `patientId`).
@@ -50,12 +68,103 @@ function expandDualCaseInvokeArgs(args: Record<string, unknown>): Record<string,
     return out;
 }
 
+function looksDynamicSegment(segment: string): boolean {
+    const isNumericId = /^\d{3,}$/.test(segment);
+    if (isNumericId) {
+        return true;
+    }
+    return /^[a-f\d-]{8,}$/i.test(segment);
+}
+
+function normalizeWorkflowRoute(route: string): string {
+    const pathOnly = route.split("?")[0] ?? "/";
+    const clean = pathOnly.trim().replace(/^\/+/, "");
+    if (!clean) {
+        return "/";
+    }
+    const parts = clean
+        .split("/")
+        .map((segment) => segment.trim())
+        .filter(Boolean)
+        .map((segment) => (looksDynamicSegment(segment) ? ":id" : segment.slice(0, 24)));
+    return parts.length > 0 ? `/${parts.join("/")}` : "/";
+}
+
+function currentPathname(): string {
+    if (typeof window === "undefined" || !window.location?.pathname) {
+        return "/";
+    }
+    return window.location.pathname;
+}
+
+function newCorrelationId(): string {
+    const uuid = globalThis.crypto?.randomUUID?.();
+    return uuid ?? `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+}
+
+async function emitWorkflow(payload: WorkflowPayload): Promise<void> {
+    const action = payload.action.trim().slice(0, 64) || "unknown_action";
+    const route = normalizeWorkflowRoute(payload.route);
+    const detail = payload.detail?.trim().slice(0, 160) || undefined;
+    const correlationId = payload.correlationId?.trim().slice(0, 64) || undefined;
+    try {
+        await invoke<void>(WORKFLOW_LOG_COMMAND, {
+            route,
+            action,
+            stage: payload.stage,
+            detail,
+            correlationId,
+        });
+    } catch {
+        // Best-effort telemetry must not break user actions.
+    }
+}
+
+export async function logWorkflowRouteEnter(route: string = currentPathname()): Promise<void> {
+    await emitWorkflow({
+        route,
+        action: "route_navigation",
+        stage: "route_enter",
+    });
+}
+
 // All Tauri IPC goes through here (single place for invoke normalization).
 export async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-    if (args == null) {
-        return invoke<T>(cmd, {});
+    if (cmd === WORKFLOW_LOG_COMMAND) {
+        return invoke<T>(cmd, args == null ? {} : omitUndefinedValues(args));
     }
-    const cleaned = omitUndefinedValues(args);
-    const expanded = expandDualCaseInvokeArgs(cleaned);
-    return invoke<T>(cmd, expanded);
+
+    const route = currentPathname();
+    const correlationId = newCorrelationId();
+    await emitWorkflow({
+        route,
+        action: cmd,
+        stage: "primary_action",
+        correlationId,
+    });
+
+    try {
+        const invokeArgs = args == null
+            ? {}
+            : expandDualCaseInvokeArgs(omitUndefinedValues(args));
+        const result = await invoke<T>(cmd, invokeArgs);
+        await emitWorkflow({
+            route,
+            action: cmd,
+            stage: "success",
+            correlationId,
+        });
+        return result;
+    } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        const cancelled = CANCELLED_ERROR_RE.test(msg);
+        await emitWorkflow({
+            route,
+            action: cmd,
+            stage: cancelled ? "cancel" : "error",
+            detail: cancelled ? "operation_cancelled" : "invoke_failed",
+            correlationId,
+        });
+        throw error;
+    }
 }

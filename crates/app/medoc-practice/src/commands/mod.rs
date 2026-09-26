@@ -138,6 +138,9 @@ pub mod ops_commands {
 pub mod logging_commands {
     pub use super::system::logging::*;
 }
+pub mod workflow_commands {
+    pub use super::system::workflow::*;
+}
 pub mod menu_commands {
     pub use super::system::menu::*;
 }
