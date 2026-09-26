@@ -179,3 +179,53 @@ macro_rules! register_logging_commands {
         $crate::commands::logging_commands::log_workflow_step,
     };
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn sanitize_workflow_event_masks_sensitive_text() {
+        let event = WorkflowLogEventInput {
+            workflow: "appointments".to_string(),
+            step: "save".to_string(),
+            phase: WorkflowPhase::Error,
+            route: Some("/patients".to_string()),
+            action: Some("create_patient".to_string()),
+            status: Some("FAILED".to_string()),
+            message: Some("password=hunter2".to_string()),
+            context: json!({
+                "token": "api_key=abc123",
+                "note": "license=dev-license"
+            }),
+        };
+
+        let sanitized = sanitize_workflow_event(event);
+        let message = sanitized.message.unwrap_or_default();
+        assert!(!message.contains("hunter2"));
+        assert!(message.contains("password=***"));
+        assert!(!sanitized.context_json.contains("abc123"));
+        assert!(!sanitized.context_json.contains("dev-license"));
+    }
+
+    #[test]
+    fn sanitize_workflow_event_trims_and_limits_fields() {
+        let long = "x".repeat(500);
+        let event = WorkflowLogEventInput {
+            workflow: format!("  {}  ", long),
+            step: "submit".to_string(),
+            phase: WorkflowPhase::PrimaryAction,
+            route: Some("   /finance/new   ".to_string()),
+            action: Some("create_payment".to_string()),
+            status: None,
+            message: None,
+            context: json!({ "ok": true }),
+        };
+
+        let sanitized = sanitize_workflow_event(event);
+        assert_eq!(sanitized.workflow.len(), WORKFLOW_FIELD_LIMIT);
+        assert_eq!(sanitized.route, Some("/finance/new".to_string()));
+        assert_eq!(sanitized.phase, WorkflowPhase::PrimaryAction);
+    }
+}

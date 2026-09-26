@@ -158,4 +158,22 @@ mod tests {
         let s = sanitize("Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.payload.sig");
         assert!(s.contains("eyJ***"));
     }
+
+    #[test]
+    fn sanitize_json_masks_nested_strings() {
+        let raw = serde_json::json!({
+            "route": "/patients",
+            "message": "password=hunter2",
+            "nested": {
+                "token": "api_key=abc123",
+                "list": ["ok", "license=dev-key"]
+            }
+        });
+        let sanitized = sanitize_json(&raw);
+        let encoded = serde_json::to_string(&sanitized).unwrap_or_default();
+        assert!(!encoded.contains("hunter2"));
+        assert!(!encoded.contains("abc123"));
+        assert!(!encoded.contains("dev-key"));
+        assert!(encoded.contains("password=***"));
+    }
 }
