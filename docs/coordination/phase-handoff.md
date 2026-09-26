@@ -1,6 +1,52 @@
 # Phase handoff
 
-**Last phase label:** Payment fulfills open booking (2026-09-05)
+**Last phase label:** Workflow logger + workflow map + UI compliance (2026-09-26)
+
+### Verified (2026-09-26)
+
+- Dedicated workflow telemetry path remains in place (`workflow.log`, sanitize + retention) and now has expanded verification coverage:
+  - Testing Library behavior matrix (components + login flows)
+  - Playwright geometry checks + breakpoint screenshots (375 / 768 / 1259)
+  - Playwright axe critical WCAG checks for `/ui-audit` and `/login`
+- Non-terminable gate risk mitigation implemented:
+  - `SessionGate`, `LicenseAndPairingGate`, `ClusterOnboardingGate`, `DbSetupGate` now wrap async checks with `withTimeout(...)` and keep retry/error branches.
+- UI rules compliance fixes shipped:
+  - Toast stack moved to **bottom-right**
+  - Error toast default reduced to **5s**
+  - Persistent action-required mode enabled (`persistent: true`)
+- Tailwind spacing policy guard added:
+  - `lint:tailwind-spacing` detects arbitrary spacing/size classes
+  - First violation fixed (`min-h-[72px]` → `min-h-20`)
+- Validation commands all green in this run:
+  - `cargo fmt --check`
+  - `MEDOC_VENDOR_PUBKEY=... cargo clippy --workspace --all-targets -- -D warnings`
+  - `MEDOC_VENDOR_PUBKEY=... cargo test --workspace --tests`
+  - `npm run lint`
+  - `npm run test`
+  - `npm run build`
+  - `npm run lint:tailwind-spacing -w medoc`
+  - `npm run test:playwright -w medoc -- e2e-playwright/ui-geometry.spec.ts e2e-playwright/ui-accessibility.spec.ts`
+
+### Remains unverified
+
+- Full workflow-event coverage for every client-only success/cancel branch is still partial (**WF-LOG-003**).
+- Live/manual UI walkthrough for the new audit path and workflow logs is **NOT OBSERVED** (automated checks only).
+
+### Understanding delta
+
+- The repository already had Playwright scaffolding; this slice converted it from LAN API smoke-only coverage to executable UI geometry/a11y compliance checks.
+- A real non-token spacing regression was found by static lint, proving the spacing policy needs continuous enforcement.
+- Gate-level timeout protection is required to avoid indefinite loading states when backend IPC hangs.
+
+### Required next
+
+1. Expand workflow-event instrumentation for non-IPC client-only success/cancel transitions (close WF-LOG-003).
+2. Clean up `http-practice.adapter.test.ts` non-awaited rejects warning (WF-TEST-001) before stricter Vitest enforcement.
+3. Run a manual smoke on `/ui-audit` + one end-to-end business flow with workflow log inspection (**NOT OBSERVED**).
+
+---
+
+**Previous phase label:** Payment fulfills open booking (2026-09-05)
 
 ### Verified (2026-09-05 — payment → billing list)
 
@@ -2419,6 +2465,35 @@ Design doc: [`docs/architecture/serverless-sync.md`](../architecture/serverless-
 
 - **G15 FA-LEIST-07:** `examination` billing columns; `ensure_open_booking_for_billable_untersuchung`; FE `UntersuchungBillingFields` + `payment-buchung` Soll for U-lines.
 - **Validation:** `cargo test --tests` **PASS**; `npm lint/test` **PASS** (130 vitest).
+
+## Wave 24 delta (2026-09-26) — Step 1 workflow logger slice
+
+### Verified
+
+- **Logging channel extension:** `workflow.log` added to existing tracing stack (`medoc-core`), including target filter `medoc::workflow=info`.
+- **Sanitizer path reuse:** file log writer now passes text payloads through existing `logging::sanitizer::sanitize` before disk writes.
+- **Retention:** `workflow*` files follow 180-day window in `retention.rs`; retention tests extended accordingly.
+- **IPC bridge:** new `record_workflow_event` Tauri command registered in global invoke handler (`EXPECTED_INVOKE_COMMAND_COUNT` 314).
+- **Frontend instrumentation:** central IPC wrapper emits `primary_action` / `success` / `error`; `AppLayout` emits `route_enter`; selected dialog dismissals emit `cancel`.
+- **Validation:** `cargo fmt --check`, `cargo clippy --workspace --all-targets -D warnings`, `cargo test --workspace --tests`, `npm run test`, `npm run build` all **PASS** (after local toolchain/dependency setup fixes).
+
+### Remains unverified
+
+- Full Step-2 workflow state-machine coverage for every UI flow is **NOT RUN** in this slice.
+- Client-only flows that never invoke IPC are only partially covered by explicit cancel/success workflow events (**NOT RUN** for full matrix).
+- Live manual UI observation for workflow logging at runtime is **NOT OBSERVED** in this slice (automated tests only).
+
+### Understanding delta
+
+- Existing logger architecture was sufficient for extension; no parallel logger required.
+- The safest low-friction bridge is central instrumentation in `tauri.service.ts` + a dedicated workflow IPC command, rather than per-controller manual logging.
+- Environment for Rust/Tauri checks required explicit local setup in this VM (new stable Rust toolchain, OpenSSL + GTK/WebKit headers) before validation could run.
+
+### Must happen next
+
+1. Enumerate full route/action workflow map and bind each path to expected `route_enter/primary/success/cancel/error` events (Step 2).
+2. Add targeted client-only flow instrumentation where no IPC call exists.
+3. Continue with component event tests and geometry/a11y audits as separate commits/PR slices.
 
 ## Continuity tokens
 

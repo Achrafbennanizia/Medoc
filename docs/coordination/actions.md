@@ -1,6 +1,15 @@
 # Action ledger
 
-**Last updated:** 2026-09-05 (payment fulfills open booking)
+**Last updated:** 2026-09-26 (workflow audit + UI compliance slice)
+
+## Done (2026-09-26 — workflow map + UI compliance slice)
+
+- Added non-terminable workflow guardrails: timeout wrappers in startup/onboarding/license/db gates.
+- Added Step-3 Testing Library interaction matrix tests (components + login page).
+- Added Step-4 geometry audit harness (`/ui-audit`) + Playwright spacing assertions at 375/768/1259 + screenshot capture.
+- Added static spacing policy lint (`lint:tailwind-spacing`) and fixed first violation (`min-h-[72px]` → `min-h-20`).
+- Added Step-5 accessibility checks: Playwright axe-core critical scan for `/ui-audit` and `/login`.
+- Updated toast policy to match UI rules (bottom-right placement, 5s error, persistent option for action-required).
 
 ## Done (2026-09-05 — payment → billing)
 
@@ -10,6 +19,8 @@
 ## Now
 
 - Confirm in the running app: pay an open booking → one billed row, no leftover fulfill task.
+- Expand workflow event coverage for non-IPC client-only success paths (WF-LOG-003).
+- Clean up WF-TEST-001 (`http-practice.adapter.test.ts` non-awaited rejects warning).
 
 ## Later
 
@@ -735,3 +746,21 @@ Vollständige Tabelle: [`docs/uml/10-master-feature-workflow-audit.md`](../uml/1
 | G5 | patient-detail shell &lt;1200 lines + overlays | 2026-05-21 |
 | G1–G4, G2 restore | Gap remediation batch 1 | 2026-05-21 |
 | D1–D20, P0 | See prior entries | 2026-04-19 … 2026-05-20 |
+
+## 2026-09-26 — Workflow logger step-1 bounded run
+
+### Now
+- Keep `workflow.log` channel and `record_workflow_event` IPC wiring stable while downstream workflow-map tests (Step 2) are added.
+
+### Next
+1. Expand workflow event coverage for pure client-only success/cancel states that do not call IPC (dialogs, in-memory toggles, local-only wizards).
+2. Build the Step-2 route/action state-machine register from emitted workflow logs + tests.
+3. Add Playwright-based geometry/a11y checks as a separate commit series (Step 4/5), reusing the new workflow telemetry for evidence.
+
+### Done
+- Added dedicated `workflow.log` channel to existing tracing infrastructure (no parallel logger).
+- Added sanitizer-wrapped writer path for file log channels and retained existing rotation model.
+- Added Tauri command `record_workflow_event` and registered it in centralized invoke handler.
+- Added frontend bridge service + central IPC instrumentation for `primary_action`, `success`, `error`.
+- Added route-enter + cancel workflow events in `AppLayout`.
+- Added/updated tests for workflow event bridge and `workflow.log` retention behavior.

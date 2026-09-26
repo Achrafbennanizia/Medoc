@@ -1,6 +1,26 @@
 # Validation ledger
 
-**Last updated:** 2026-09-05 (payment assignment open rows)
+**Last updated:** 2026-09-26 (workflow audit + UI compliance slice)
+
+## Workflow map + UI compliance slice (2026-09-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Rust fmt | `cargo fmt --check` | **PASS** |
+| Rust clippy | `MEDOC_VENDOR_PUBKEY=79c1662a... cargo clippy --workspace --all-targets -- -D warnings` | **PASS** |
+| Rust tests | `MEDOC_VENDOR_PUBKEY=79c1662a... cargo test --workspace --tests` | **PASS** (full workspace) |
+| Frontend lint | `npm run lint` | **PASS** |
+| Frontend tests | `npm run test` | **PASS** — 71 files / 332 tests |
+| Frontend build | `npm run build` | **PASS** |
+| Tailwind spacing policy (before fix) | `npm run lint:tailwind-spacing -w medoc` | **FAIL** — flagged `min-h-[72px]` in `treatment-chart-composer-panel.tsx` |
+| Tailwind spacing policy (after fix) | `npm run lint:tailwind-spacing -w medoc` | **PASS** |
+| Playwright geometry + snapshots | `npm run test:playwright -w medoc -- e2e-playwright/ui-geometry.spec.ts e2e-playwright/ui-accessibility.spec.ts` | **PASS** — 5/5 tests (375, 768, 1259 breakpoints; screenshots captured via `testInfo.outputPath`) |
+| Playwright browser bootstrap | `npx playwright install --with-deps chromium` | **PASS** |
+
+### Notes
+
+- One pre-existing warning remains in test output: `packages/shared/src/lib/http-practice.adapter.test.ts` has a non-awaited `expect(...).rejects` (currently warning-only, tracked as WF-TEST-001).
+- Rust workspace test intermittency previously seen in `medoc-sync::cluster_reset_service` did **NOT** reproduce in this run; full suite passed.
 
 ## Payment assignment / open booking (2026-09-05)
 
@@ -1907,3 +1927,22 @@ or file inspection that was performed.
 | ----- | ------- | ----------------- | ---- |
 | Migration idempotency | `cargo test --no-default-features --test db_migrations_tests` | `FOREIGN KEY constraint failed` on first run because `seed_demo_data` inserted `anamnesis_form`/`patient_chart` rows referencing `seed-pat-006/007/008` *before* those patients existed. **Fixed** in this session by reordering inserts in `connection.rs`. | 2026-04-25 |
 | DSGVO erasure | `cargo test --no-default-features --test dsgvo_erasure_tests` | `assert_eq! left=14 right=0` on global treatment count. The test asserted `SELECT COUNT(*) FROM treatment` was 0 after erasing one patient, but `seed_demo_data` legitimately seeds treatments for unrelated Akten. **Fixed** by scoping the assertion to `WHERE chart_id = 'akte-dsgvo-1'`. | 2026-04-25 |
+
+## Workflow logger step-1 slice (2026-09-26)
+
+| Check | Command | Result | Notes |
+| ----- | ------- | ------ | ----- |
+| Rust fmt | `cargo fmt --check` | **PASS** | after logger/channel edits |
+| Rust clippy | `MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32 cargo clippy --workspace --all-targets -- -D warnings` | **PASS** | `medoc-core` warns about missing `MEDOC_VENDOR_SEED` (dev seed), not a clippy failure |
+| Rust tests | `MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32 cargo test --workspace --tests` | **PASS** | includes new `record_workflow_event` sanitizer unit tests + retention assertions for `workflow.log` |
+| Frontend tests | `npm run test` | **PASS** | 63 files / 311 tests, includes new `workflow-event.service.test.ts` + `tauri.service.test.ts` |
+| Frontend build | `npm run build` | **PASS** | Vite build succeeded; chunk-size warnings unchanged |
+
+### Setup blockers observed and remediated in-run
+
+| Blocker | First failing command | Remediation | Status |
+| ------- | --------------------- | ----------- | ------ |
+| Cargo too old for lockfile ecosystem (`edition2024` parse failure) | `cargo clippy --workspace --all-targets -- -D warnings` | `rustup update stable` + `rustup default stable` | **Resolved** |
+| Node modules missing (`vitest: not found`) | `npm run test` | `npm ci` | **Resolved** |
+| SQLCipher/OpenSSL headers missing | `cargo clippy` / `cargo test` | `apt-get install libssl-dev` | **Resolved** |
+| GTK/WebKit dev headers missing for Tauri Linux targets | `cargo clippy` | `apt-get install libgtk-3-dev libwebkit2gtk-4.1-dev libsoup-3.0-dev` + `apt-get -f install` | **Resolved** |

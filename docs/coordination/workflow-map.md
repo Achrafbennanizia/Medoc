@@ -12,6 +12,16 @@
 | **Cancel** | Back, Escape, dialog dismiss, or explicit Abbrechen |
 | **Error** | Toast/inline error with next action; user can retry or leave |
 
+## 2026-09-26 audit update (Step 2)
+
+- Route inventory source was re-verified in `apps/practice-host-ui/src/App.tsx` (authenticated + onboarding + utility routes, including `/ui-audit`).
+- Non-terminable risk found and fixed for startup gates:
+  - `session-gate.tsx`
+  - `license-and-pairing-gate.tsx`
+  - `cluster-onboarding-gate.tsx`
+  - `db-setup-gate.tsx`
+- Mitigation: each gate now wraps async status checks with `withTimeout(...)` and keeps retry/error exits so a hung IPC call no longer implies an unbounded spinner.
+
 ## Pre-app gates (ordered)
 
 ```mermaid
