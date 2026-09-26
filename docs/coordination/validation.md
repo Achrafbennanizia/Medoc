@@ -1,5 +1,28 @@
 # Validation ledger
 
+**Last updated:** 2026-09-26 (CI/CD tiered pipeline wiring)
+
+## CI/CD tier migration (2026-09-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML parse | `python3 -c '...yaml.safe_load(.github/workflows/*.yml)...'` | **PASS** (`verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml`, `ci.yml`, `website.yml`) |
+| Helper script syntax | `bash -n .github/scripts/run-fix-proposal-check.sh && node --check scripts/ci-a11y-check.mjs` | **PASS** |
+| Web lint | `npm run lint -w medoc` | **PASS** |
+| Web typecheck | `npm run typecheck -w medoc` | **PASS** |
+| Rust format gate | `cargo fmt --all --check` | **PASS** |
+| Built-UI critical axe scan | `npm run build -w medoc && npx playwright install chromium && (preview + node scripts/ci-a11y-check.mjs http://127.0.0.1:4173)` | **PASS** — “No critical WCAG 2.1 AA violations found by axe-core.” |
+| Tier-3 helper (type error path) | `bash .github/scripts/run-fix-proposal-check.sh type_error npm` | **PASS** |
+| Tier-3 helper (test failure path) | `MEDOC_VENDOR_PUBKEY=... MEDOC_DB_KEY=... MEDOC_AUDIT_KEY=... bash .github/scripts/run-fix-proposal-check.sh test_failure npm` | **PASS** (Rust + Vitest) |
+| GitHub-hosted workflow execution | — | **NOT RUN** (local validation only; no Actions run observed in this session) |
+
+### Notes
+
+- Local prerequisites needed for full Rust/Tauri test path in this environment:
+  - `rustup update stable && rustup default stable` (edition-2024 crate support).
+  - `sudo apt-get install -y libssl-dev`.
+  - `sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev` plus `apt-get -f install` to resolve interrupted package configuration.
+
 **Last updated:** 2026-09-05 (payment assignment open rows)
 
 ## Payment assignment / open booking (2026-09-05)

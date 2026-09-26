@@ -1,0 +1,236 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      failure_kind:
+        description: "Targeted failure class to attempt (test_failure, security_advisory, type_error)."
+        required: true
+        default: test_failure
+        type: choice
+        options:
+          - test_failure
+          - security_advisory
+          - type_error
+      base_ref:
+        description: "Base branch/ref for the proposal branch."
+        required: false
+        default: main
+        type: string
+  workflow_run:
+    workflows: [verify]
+    branches: [main]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: fix-proposal-${{ github.event_name }}-${{ github.run_id }}
+  cancel-in-progress: true
+
+env:
+  MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+  MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: "1"
+
+jobs:
+  propose:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - id: context
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "source_ref=${{ inputs.base_ref }}" >> "$GITHUB_OUTPUT"
+            echo "base_ref=${{ inputs.base_ref }}" >> "$GITHUB_OUTPUT"
+            echo "failure_kind=${{ inputs.failure_kind }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "source_ref=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+            echo "base_ref=main" >> "$GITHUB_OUTPUT"
+            echo "failure_kind=unknown" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.context.outputs.source_ref }}
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - id: pm
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          elif [ -f package-lock.json ]; then
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=npm ci" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=npm install" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+      - run: corepack enable
+      - run: ${{ steps.pm.outputs.install_cmd }}
+      - name: Create proposal branch
+        id: branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch_name="ci/fix-proposal-${{ github.run_id }}-${{ github.run_attempt }}"
+          git checkout -b "$branch_name"
+          echo "name=$branch_name" >> "$GITHUB_OUTPUT"
+      - name: Capture failing-before evidence
+        id: before
+        shell: bash
+        run: |
+          set +e
+          bash .github/scripts/run-fix-proposal-check.sh "${{ steps.context.outputs.failure_kind }}" "${{ steps.pm.outputs.pm }}" > .github/fix-proposal-before.log 2>&1
+          exit_code=$?
+          set -e
+          echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
+      - name: Attempt scripted fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "${{ steps.context.outputs.failure_kind }}" in
+            security_advisory)
+              cargo update -w || true
+              if [ "${{ steps.pm.outputs.pm }}" = "npm" ]; then
+                npm audit fix --package-lock-only --omit=dev || true
+              fi
+              ;;
+            type_error)
+              case "${{ steps.pm.outputs.pm }}" in
+                pnpm) pnpm --filter medoc run lint:fix || true ;;
+                yarn) yarn workspace medoc run lint:fix || true ;;
+                npm) npm run lint:fix -w medoc || true ;;
+                *) echo "Unsupported package manager: ${{ steps.pm.outputs.pm }}" >&2; exit 1 ;;
+              esac
+              ;;
+            test_failure|unknown)
+              cargo fmt --all || true
+              case "${{ steps.pm.outputs.pm }}" in
+                pnpm) pnpm --filter medoc run lint:fix || true; pnpm --filter medoc run format || true ;;
+                yarn) yarn workspace medoc run lint:fix || true; yarn workspace medoc run format || true ;;
+                npm) npm run lint:fix -w medoc || true; npm run format -w medoc || true ;;
+                *) echo "Unsupported package manager: ${{ steps.pm.outputs.pm }}" >&2; exit 1 ;;
+              esac
+              ;;
+            *)
+              echo "Unsupported failure kind: ${{ steps.context.outputs.failure_kind }}" >&2
+              exit 1
+              ;;
+          esac
+      - name: Capture passing-after evidence
+        id: after
+        shell: bash
+        run: |
+          set +e
+          bash .github/scripts/run-fix-proposal-check.sh "${{ steps.context.outputs.failure_kind }}" "${{ steps.pm.outputs.pm }}" > .github/fix-proposal-after.log 2>&1
+          exit_code=$?
+          set -e
+          echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
+      - name: Compute diff metadata
+        id: diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "needs_human_review=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          changed_files="$(git diff --name-only)"
+          printf '%s\n' "$changed_files" > .github/fix-proposal-changed-files.txt
+          if printf '%s\n' "$changed_files" | grep -E -i '(^|/)(security|audit|crypto|rbac)(/|_|-|\.|$)'; then
+            echo "needs_human_review=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "needs_human_review=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Stop when no diff was produced
+        if: steps.diff.outputs.has_changes != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "No fix diff was produced by the proposal run."
+          exit 1
+      - name: Build draft PR body
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "## Automated CI fix proposal (draft)"
+            echo
+            echo "- Failure kind: \`${{ steps.context.outputs.failure_kind }}\`"
+            echo "- Base ref: \`${{ steps.context.outputs.base_ref }}\`"
+            echo "- Failing-before exit code: \`${{ steps.before.outputs.exit_code }}\`"
+            echo "- Passing-after exit code: \`${{ steps.after.outputs.exit_code }}\`"
+            echo
+            echo "### Rationale"
+            echo "This draft PR was created by the tier-3 fix proposal workflow after a failed verification signal."
+            echo
+            echo "### Changed files"
+            echo '```text'
+            cat .github/fix-proposal-changed-files.txt
+            echo '```'
+            echo
+            echo "### Failing-before evidence (tail)"
+            echo '```text'
+            tail -n 120 .github/fix-proposal-before.log || true
+            echo '```'
+            echo
+            echo "### Passing-after evidence (tail)"
+            echo '```text'
+            tail -n 120 .github/fix-proposal-after.log || true
+            echo '```'
+          } > .github/fix-proposal-pr-body.md
+      - name: Upload fix evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: fix-proposal-evidence-${{ github.run_id }}
+          path: |
+            .github/fix-proposal-before.log
+            .github/fix-proposal-after.log
+            .github/fix-proposal-changed-files.txt
+      - name: Open draft PR (default label set)
+        if: steps.diff.outputs.needs_human_review != 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: ${{ steps.branch.outputs.name }}
+          base: ${{ steps.context.outputs.base_ref }}
+          commit-message: "ci: tier-3 fix proposal"
+          title: "ci: fix proposal for ${{ steps.context.outputs.failure_kind }}"
+          body-path: .github/fix-proposal-pr-body.md
+          draft: true
+      - name: Open draft PR (sensitive paths touched)
+        if: steps.diff.outputs.needs_human_review == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: ${{ steps.branch.outputs.name }}
+          base: ${{ steps.context.outputs.base_ref }}
+          commit-message: "ci: tier-3 fix proposal (needs human review)"
+          title: "ci: fix proposal for ${{ steps.context.outputs.failure_kind }} (needs review)"
+          body-path: .github/fix-proposal-pr-body.md
+          draft: true
+          labels: needs-human-review
+      - name: Stop after labeling sensitive proposal
+        if: steps.diff.outputs.needs_human_review == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Sensitive paths changed. Draft PR labeled needs-human-review."
+          exit 1

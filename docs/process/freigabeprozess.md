@@ -21,7 +21,7 @@ Pre-Release-Tags: `-alpha.N`, `-beta.N`, `-rc.N`.
 ### 3.1 Entwicklung
 - Feature-Branches von `main`.
 - Pull-Request mit verpflichtendem Code-Review (≥1 Reviewer).
-- CI-Gate: `cargo fmt -- --check`, `cargo check`, `cargo test`, `cargo clippy -- -D warnings`, `cargo audit`, `npm audit --omit=dev`, `npm run lint`, `npm test`, `npm run build` (siehe `.github/workflows/ci.yml`).
+- CI-Gate: `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`, `cargo audit`, `npm run lint -w medoc`, `npm run typecheck -w medoc`, `npm run test -w medoc`, `npm run build -w medoc`, plus critical WCAG 2.1 AA axe scan on the built UI (siehe `.github/workflows/verify.yml`).
 
 ### 3.2 Stabilisierung (Release-Branch)
 - Branch `release/x.y.z` von `main`.
@@ -34,7 +34,7 @@ Pre-Release-Tags: `-alpha.N`, `-beta.N`, `-rc.N`.
 |-----------|----------|----------------|
 | Alle Unit-Tests grün | CI-Log | Engineering |
 | `cargo audit` ohne **high/critical** | CI-Log | Engineering |
-| `npm audit` ohne **high/critical** | CI-Log | Engineering |
+| JS-Dependency-Advisories triagiert (Tier-3 Proposal oder manuell) | Security-Review-Log | Engineering |
 | Audit-Chain-Verifikation grün (Test-DB) | Test-Protokoll | QA |
 | Backup + Restore manuell durchgespielt | Test-Protokoll | QA |
 | Risiko-Akte (ISO 14971) reviewt | Signoff | Risk Owner |

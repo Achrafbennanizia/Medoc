@@ -2,6 +2,16 @@
 
 **Last updated:** 2026-09-05 (payment fulfills open booking)
 
+## Done (2026-09-26 — CI/CD tier migration)
+
+- Added `verify.yml`, `autofix.yml`, `fix-proposal.yml`, and gated `release.yml`.
+- Added CI support scripts for tier-3 checks and axe critical scan.
+- Recorded local validation in `docs/coordination/validation.md`.
+
+## Now
+
+- Run the new workflows once on GitHub Actions (PR verify/autofix, manual fix-proposal, release dry run) to convert local evidence into hosted-run evidence.
+
 ## Done (2026-09-05 — payment → billing)
 
 - Payment create fills the 0 € open booking in place; closes BILLING tasks on `PAID`.

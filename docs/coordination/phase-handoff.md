@@ -1,5 +1,34 @@
 # Phase handoff
 
+**Last phase label:** CI/CD tiered pipeline migration (2026-09-26)
+
+### Verified (2026-09-26 — verify/autofix/fix-proposal/release)
+
+- Added tiered workflows under `.github/workflows/`:
+  - `verify.yml` (push + PR + workflow_call, zero-mutation checks, lockfile-based package-manager detection, critical-only axe scan).
+  - `autofix.yml` (PR-only deterministic fixes with loop guard and sensitive-path revert).
+  - `fix-proposal.yml` (manual/failed-main entrypoints, draft PR proposal flow with before/after evidence and sensitive-path labeling).
+  - `release.yml` (verify gate reuse, protected `release` environment, signed cross-platform bundles).
+- Added support scripts:
+  - `.github/scripts/run-fix-proposal-check.sh`
+  - `scripts/ci-a11y-check.mjs`
+- Added `apps/practice-host-ui` scripts for tier-2/3 usage: `lint:fix`, `format`, `typecheck`.
+- Added coordination design doc: `docs/coordination/ci-cd-plan.md`.
+- Validation evidence logged in `docs/coordination/validation.md` (local checks PASS; GitHub-hosted runs **NOT RUN**).
+
+### Remains unverified
+
+- End-to-end execution of new workflows on GitHub-hosted Actions runners (including permissions, branch protections, environment approval path) — **NOT OBSERVED**.
+- Tier-3 draft PR behavior from an actual failed `verify` run on `main` — **NOT OBSERVED**.
+
+### Required next
+
+1. Open a PR and confirm `verify.yml` + `autofix.yml` trigger behavior against real PR commits.
+2. Trigger `fix-proposal.yml` (manual input + simulated failed-main case) and verify draft PR body, evidence, and `needs-human-review` label path.
+3. Trigger `release.yml` on a disposable `v*` tag in a safe test context and validate protected `release` approval + signed artifact output.
+
+---
+
 **Last phase label:** Payment fulfills open booking (2026-09-05)
 
 ### Verified (2026-09-05 — payment → billing list)
