@@ -62,6 +62,8 @@ type WorkflowLogPayload = {
     detail?: string;
 };
 
+type WorkflowActionOutcome = "success" | "cancel" | "error";
+
 function normalizeWorkflowRoute(pathname: string): string {
     let route = pathname.split("?")[0] ?? "/";
     if (!route.startsWith("/")) {
@@ -94,12 +96,33 @@ async function emitWorkflowEvent(payload: WorkflowLogPayload): Promise<void> {
     }
 }
 
+function currentWorkflowRoute(): string | undefined {
+    if (typeof window === "undefined") {
+        return undefined;
+    }
+    return normalizeWorkflowRoute(window.location.pathname);
+}
+
 export async function logWorkflowRouteEnter(pathname: string): Promise<void> {
     await emitWorkflowEvent({
         step: "route_enter",
         route: normalizeWorkflowRoute(pathname),
         action: "navigation",
         outcome: "enter",
+    });
+}
+
+export async function logWorkflowUiEvent(
+    action: string,
+    outcome: WorkflowActionOutcome,
+    detail?: string,
+): Promise<void> {
+    await emitWorkflowEvent({
+        step: "primary_action",
+        action,
+        outcome,
+        route: currentWorkflowRoute(),
+        detail,
     });
 }
 

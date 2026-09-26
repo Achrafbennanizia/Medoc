@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useT } from "@/lib/i18n";
+import { logWorkflowUiEvent } from "@/services/tauri.service";
 
 interface DialogProps {
     open: boolean;
@@ -32,6 +33,10 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
     const onCloseRef = useRef(onClose);
     onCloseRef.current = onClose;
     const t = useT();
+    const dismissWithWorkflowLog = (detail: "escape" | "backdrop" | "close_button") => {
+        void logWorkflowUiEvent("dialog.dismiss", "cancel", detail);
+        onCloseRef.current();
+    };
 
     useEffect(() => {
         if (!open) return;
@@ -47,7 +52,7 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
             if (e.key === "Escape") {
                 e.preventDefault();
                 e.stopPropagation();
-                onCloseRef.current();
+                dismissWithWorkflowLog("escape");
                 return;
             }
             if (e.key !== "Tab") return;
@@ -123,7 +128,7 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
     const ariaLabel = !ariaLabelledBy && !titleTrimmed ? t("a11y.dialog_heading_fallback") : undefined;
 
     const layer = (
-        <div className="modal-backdrop" onClick={onClose} role="presentation">
+        <div className="modal-backdrop" onClick={() => dismissWithWorkflowLog("backdrop")} role="presentation">
             <div
                 ref={panelRef}
                 role="dialog"
@@ -137,7 +142,7 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
                 {isCentered ? (
                     <button
                         type="button"
-                        onClick={onClose}
+                        onClick={() => dismissWithWorkflowLog("close_button")}
                         aria-label={closeLabel}
                         className="icon-btn modal-close-corner"
                     >
@@ -157,7 +162,7 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
                             {headerExtra}
                             <button
                                 type="button"
-                                onClick={onClose}
+                                onClick={() => dismissWithWorkflowLog("close_button")}
                                 aria-label={closeLabel}
                                 className="icon-btn"
                             >
