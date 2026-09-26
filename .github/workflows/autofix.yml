@@ -1,0 +1,124 @@
+name: autofix
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: autofix-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  autofix:
+    if: github.actor != 'github-actions[bot]' && github.event.pull_request.head.repo.fork == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - id: pm
+        name: Detect package manager from lockfile
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+          elif [ -f package-lock.json ]; then
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::No supported lockfile found (pnpm-lock.yaml, yarn.lock, package-lock.json)"
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            yarn.lock
+            package-lock.json
+
+      - name: Install JS dependencies
+        env:
+          PM: ${{ steps.pm.outputs.pm }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+          case "$PM" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+            *) echo "::error::Unsupported package manager: $PM"; exit 1 ;;
+          esac
+
+      - name: Apply deterministic Rust/JS autofixes
+        env:
+          PM: ${{ steps.pm.outputs.pm }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          pm_run_in_dir() {
+            local dir="$1"
+            local script="$2"
+            case "$PM" in
+              pnpm) (cd "$dir" && pnpm run "$script") ;;
+              yarn) (cd "$dir" && yarn run "$script") ;;
+              npm) (cd "$dir" && npm run "$script") ;;
+              *) echo "::error::Unsupported package manager: $PM"; exit 1 ;;
+            esac
+          }
+
+          script_exists() {
+            local package_json="$1"
+            local script="$2"
+            node -e '
+              const fs = require("node:fs");
+              const pkg = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+              process.exit(pkg.scripts && pkg.scripts[process.argv[2]] ? 0 : 1);
+            ' "$package_json" "$script"
+          }
+
+          run_workspace_script_if_present() {
+            local script="$1"
+            while IFS= read -r package_json; do
+              if script_exists "$package_json" "$script"; then
+                dir="$(dirname "$package_json")"
+                echo "Running '$script' in ${dir}"
+                pm_run_in_dir "$dir" "$script"
+              fi
+            done < <(git ls-files "apps/**/package.json" "packages/**/package.json")
+          }
+
+          cargo fmt --all
+          run_workspace_script_if_present "lint:fix"
+          run_workspace_script_if_present "format"
+
+      - name: Commit fixes if anything changed
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "ci: apply automated formatting and lint fixes"
+            git push origin "HEAD:${HEAD_REF}"
+          else
+            echo "No autofix changes detected."
+          fi

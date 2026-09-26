@@ -1,0 +1,347 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: "Base branch for the proposal"
+        required: false
+        default: main
+      failure_scope:
+        description: "Primary failing scope (auto, rust-audit, js-audit, typecheck, tests)"
+        required: false
+        default: auto
+      failure_summary:
+        description: "Optional failure summary/context"
+        required: false
+        default: ""
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: fix-proposal-${{ github.event_name }}-${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  propose:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'failure' &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.base_ref || github.event.workflow_run.head_sha }}
+
+      - id: context
+        name: Derive fix-proposal context
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            echo "base_ref=${{ github.event.workflow_run.head_branch }}" >> "$GITHUB_OUTPUT"
+            echo "failure_scope=auto" >> "$GITHUB_OUTPUT"
+            echo "source_run_url=${{ github.event.workflow_run.html_url }}" >> "$GITHUB_OUTPUT"
+            {
+              echo "failure_summary<<'EOF'"
+              echo "verify failed on main at ${{ github.event.workflow_run.head_sha }}."
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          else
+            echo "base_ref=${{ inputs.base_ref }}" >> "$GITHUB_OUTPUT"
+            echo "failure_scope=${{ inputs.failure_scope }}" >> "$GITHUB_OUTPUT"
+            echo "source_run_url=manual-dispatch" >> "$GITHUB_OUTPUT"
+            {
+              echo "failure_summary<<'EOF'"
+              echo "${{ inputs.failure_summary }}"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+      - id: branch
+        name: Create proposal branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch="ci/fix-proposal-${{ github.run_id }}"
+          git switch -c "$branch"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - id: pm
+        name: Detect package manager from lockfile
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+          elif [ -f package-lock.json ]; then
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::No supported lockfile found (pnpm-lock.yaml, yarn.lock, package-lock.json)"
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            yarn.lock
+            package-lock.json
+
+      - name: Install JS dependencies
+        env:
+          PM: ${{ steps.pm.outputs.pm }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+          case "$PM" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+            *) echo "::error::Unsupported package manager: $PM"; exit 1 ;;
+          esac
+
+      - name: Attempt automated fixes on a new branch
+        env:
+          PM: ${{ steps.pm.outputs.pm }}
+          FAILURE_SCOPE: ${{ steps.context.outputs.failure_scope }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          pm_run_in_dir() {
+            local dir="$1"
+            local script="$2"
+            case "$PM" in
+              pnpm) (cd "$dir" && pnpm run "$script") ;;
+              yarn) (cd "$dir" && yarn run "$script") ;;
+              npm) (cd "$dir" && npm run "$script") ;;
+              *) echo "::error::Unsupported package manager: $PM"; exit 1 ;;
+            esac
+          }
+
+          script_exists() {
+            local package_json="$1"
+            local script="$2"
+            node -e '
+              const fs = require("node:fs");
+              const pkg = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+              process.exit(pkg.scripts && pkg.scripts[process.argv[2]] ? 0 : 1);
+            ' "$package_json" "$script"
+          }
+
+          run_workspace_script_if_present() {
+            local script="$1"
+            while IFS= read -r package_json; do
+              if script_exists "$package_json" "$script"; then
+                dir="$(dirname "$package_json")"
+                echo "Running '$script' in ${dir}"
+                pm_run_in_dir "$dir" "$script"
+              fi
+            done < <(git ls-files "apps/**/package.json" "packages/**/package.json")
+          }
+
+          cargo fmt --all || true
+          run_workspace_script_if_present "lint:fix" || true
+          run_workspace_script_if_present "format" || true
+
+          if [ "$FAILURE_SCOPE" = "auto" ] || [ "$FAILURE_SCOPE" = "rust-audit" ]; then
+            cargo update --workspace || true
+          fi
+
+          if [ "$FAILURE_SCOPE" = "auto" ] || [ "$FAILURE_SCOPE" = "js-audit" ]; then
+            case "$PM" in
+              pnpm) pnpm audit --fix || true ;;
+              yarn) echo "yarn audit --fix is not universally supported; skipping JS audit autofix for yarn." ;;
+              npm) npm audit fix --workspaces || true ;;
+            esac
+          fi
+
+      - id: after_verify
+        name: Re-run verify commands for after-evidence
+        env:
+          PM: ${{ steps.pm.outputs.pm }}
+          NODE_OPTIONS: --max-old-space-size=4096
+        shell: bash
+        run: |
+          set +e
+
+          pm_run_in_dir() {
+            local dir="$1"
+            local script="$2"
+            case "$PM" in
+              pnpm) (cd "$dir" && pnpm run "$script") ;;
+              yarn) (cd "$dir" && yarn run "$script") ;;
+              npm) (cd "$dir" && npm run "$script") ;;
+            esac
+          }
+
+          cargo test --workspace > /tmp/fix-proposal-cargo-test.log 2>&1
+          cargo_test_rc=$?
+
+          cargo audit > /tmp/fix-proposal-cargo-audit.log 2>&1
+          cargo_audit_rc=$?
+
+          pm_run_in_dir "apps/practice-host-ui" lint > /tmp/fix-proposal-js-lint.log 2>&1
+          js_lint_rc=$?
+
+          pm_run_in_dir "apps/practice-host-ui" typecheck > /tmp/fix-proposal-js-typecheck-medoc.log 2>&1
+          js_typecheck_medoc_rc=$?
+
+          pm_run_in_dir "apps/lan-web-client" typecheck > /tmp/fix-proposal-js-typecheck-lan.log 2>&1
+          js_typecheck_lan_rc=$?
+
+          bash ./scripts/ci-frontend-test.sh > /tmp/fix-proposal-js-test.log 2>&1
+          js_test_rc=$?
+
+          pm_run_in_dir "apps/practice-host-ui" build > /tmp/fix-proposal-js-build-medoc.log 2>&1
+          js_build_medoc_rc=$?
+
+          pm_run_in_dir "apps/lan-web-client" build > /tmp/fix-proposal-js-build-lan.log 2>&1
+          js_build_lan_rc=$?
+
+          echo "cargo_test_rc=$cargo_test_rc" >> "$GITHUB_OUTPUT"
+          echo "cargo_audit_rc=$cargo_audit_rc" >> "$GITHUB_OUTPUT"
+          echo "js_lint_rc=$js_lint_rc" >> "$GITHUB_OUTPUT"
+          echo "js_typecheck_medoc_rc=$js_typecheck_medoc_rc" >> "$GITHUB_OUTPUT"
+          echo "js_typecheck_lan_rc=$js_typecheck_lan_rc" >> "$GITHUB_OUTPUT"
+          echo "js_test_rc=$js_test_rc" >> "$GITHUB_OUTPUT"
+          echo "js_build_medoc_rc=$js_build_medoc_rc" >> "$GITHUB_OUTPUT"
+          echo "js_build_lan_rc=$js_build_lan_rc" >> "$GITHUB_OUTPUT"
+
+          overall_rc=0
+          for rc in \
+            "$cargo_test_rc" \
+            "$cargo_audit_rc" \
+            "$js_lint_rc" \
+            "$js_typecheck_medoc_rc" \
+            "$js_typecheck_lan_rc" \
+            "$js_test_rc" \
+            "$js_build_medoc_rc" \
+            "$js_build_lan_rc"
+          do
+            if [ "$rc" -ne 0 ]; then
+              overall_rc=1
+            fi
+          done
+          echo "overall_rc=$overall_rc" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - id: diff_guard
+        name: Check proposal diff and sensitive paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if git diff --name-only | grep -Eiq '(^|/)(security|audit|crypto|rbac)(/|_|\.|$)'; then
+            echo "touches_sensitive=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "touches_sensitive=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Stop when no proposal diff was produced
+        if: steps.diff_guard.outputs.has_changes != 'true'
+        shell: bash
+        run: |
+          echo "::error::No fix diff was produced; no draft PR can be opened."
+          exit 1
+
+      - name: Build proposal body
+        if: steps.diff_guard.outputs.has_changes == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          status_for() {
+            if [ "$1" = "0" ]; then
+              echo "PASS"
+            else
+              echo "FAIL ($1)"
+            fi
+          }
+
+          {
+            echo "## CI fix proposal"
+            echo
+            echo "This branch was generated by tier-3 fix-proposal automation."
+            echo
+            echo "### Failing-before evidence"
+            echo "- Trigger: \`${{ github.event_name }}\`"
+            echo "- Source verify run: ${{ steps.context.outputs.source_run_url }}"
+            echo "- Failure context: ${{ steps.context.outputs.failure_summary }}"
+            echo
+            echo "### Passing-after evidence (re-run on proposal branch)"
+            echo "| Check | Result |"
+            echo "|---|---|"
+            echo "| cargo test --workspace | $(status_for '${{ steps.after_verify.outputs.cargo_test_rc }}') |"
+            echo "| cargo audit | $(status_for '${{ steps.after_verify.outputs.cargo_audit_rc }}') |"
+            echo "| apps/practice-host-ui lint | $(status_for '${{ steps.after_verify.outputs.js_lint_rc }}') |"
+            echo "| apps/practice-host-ui typecheck | $(status_for '${{ steps.after_verify.outputs.js_typecheck_medoc_rc }}') |"
+            echo "| apps/lan-web-client typecheck | $(status_for '${{ steps.after_verify.outputs.js_typecheck_lan_rc }}') |"
+            echo "| frontend tests (scripts/ci-frontend-test.sh) | $(status_for '${{ steps.after_verify.outputs.js_test_rc }}') |"
+            echo "| apps/practice-host-ui build | $(status_for '${{ steps.after_verify.outputs.js_build_medoc_rc }}') |"
+            echo "| apps/lan-web-client build | $(status_for '${{ steps.after_verify.outputs.js_build_lan_rc }}') |"
+            echo
+            echo "### Changed files"
+            echo "\`\`\`text"
+            git diff --name-only
+            echo "\`\`\`"
+            echo
+            echo "### Rationale"
+            echo "- Deterministic formatting/linting plus dependency-level remediations were attempted."
+            echo "- Any remaining failures still require human follow-up on this draft."
+          } > /tmp/fix-proposal-body.md
+
+      - id: create_pr
+        if: steps.diff_guard.outputs.has_changes == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: ${{ steps.branch.outputs.branch }}
+          base: ${{ steps.context.outputs.base_ref }}
+          title: "ci: tier-3 fix proposal for failing verification"
+          commit-message: "ci: propose fix for failing verification"
+          body-path: /tmp/fix-proposal-body.md
+          draft: true
+          labels: |
+            ci-fix-proposal
+          delete-branch: false
+
+      - name: Add needs-human-review label when sensitive paths changed
+        if: steps.diff_guard.outputs.touches_sensitive == 'true' && steps.create_pr.outputs.pull-request-number != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number("${{ steps.create_pr.outputs.pull-request-number }}"),
+              labels: ["needs-human-review"]
+            });
+
+      - name: Stop automation when sensitive paths changed
+        if: steps.diff_guard.outputs.touches_sensitive == 'true'
+        shell: bash
+        run: |
+          echo "::error::Fix proposal touched security/audit/crypto/RBAC paths. Labeled needs-human-review and stopped."
+          exit 1
