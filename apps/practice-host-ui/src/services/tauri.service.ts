@@ -50,12 +50,80 @@ function expandDualCaseInvokeArgs(args: Record<string, unknown>): Record<string,
     return out;
 }
 
+const WORKFLOW_LOG_COMMAND = "log_workflow_step";
+
+type WorkflowStep = "primary_action" | "success" | "error";
+
+type WorkflowLogPayload = {
+    workflow: string;
+    route: string;
+    step: WorkflowStep;
+    action?: string;
+    outcome?: string;
+    detail?: string;
+};
+
+function currentRoute(): string {
+    if (typeof window === "undefined") return "unknown";
+    const path = window.location.pathname || "/";
+    const query = window.location.search || "";
+    return `${path}${query}`;
+}
+
+function workflowErrorDetail(err: unknown): string {
+    if (err instanceof Error && err.name) {
+        return `error:${err.name}`;
+    }
+    if (typeof err === "string" && err.trim().length > 0) {
+        return "error:string";
+    }
+    return "error:unknown";
+}
+
+function emitWorkflowStep(payload: WorkflowLogPayload): void {
+    void invoke(WORKFLOW_LOG_COMMAND, { entry: payload }).catch(() => {
+        // Logging channel is best-effort; never block the user flow.
+    });
+}
+
 // All Tauri IPC goes through here (single place for invoke normalization).
 export async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-    if (args == null) {
-        return invoke<T>(cmd, {});
+    const expanded =
+        args == null ? {} : expandDualCaseInvokeArgs(omitUndefinedValues(args));
+
+    if (cmd !== WORKFLOW_LOG_COMMAND) {
+        emitWorkflowStep({
+            workflow: "tauri_invoke",
+            route: currentRoute(),
+            step: "primary_action",
+            action: cmd,
+            outcome: "start",
+        });
     }
-    const cleaned = omitUndefinedValues(args);
-    const expanded = expandDualCaseInvokeArgs(cleaned);
-    return invoke<T>(cmd, expanded);
+
+    try {
+        const result = await invoke<T>(cmd, expanded);
+        if (cmd !== WORKFLOW_LOG_COMMAND) {
+            emitWorkflowStep({
+                workflow: "tauri_invoke",
+                route: currentRoute(),
+                step: "success",
+                action: cmd,
+                outcome: "ok",
+            });
+        }
+        return result;
+    } catch (error) {
+        if (cmd !== WORKFLOW_LOG_COMMAND) {
+            emitWorkflowStep({
+                workflow: "tauri_invoke",
+                route: currentRoute(),
+                step: "error",
+                action: cmd,
+                outcome: "failed",
+                detail: workflowErrorDetail(error),
+            });
+        }
+        throw error;
+    }
 }
