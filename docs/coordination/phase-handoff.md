@@ -1,5 +1,36 @@
 # Phase handoff
 
+**Last phase label:** CI/CD tiered pipeline migration (2026-09-26)
+
+### Verified (2026-09-26 — CI/CD tiers + guardrails)
+
+- Added tiered workflows:
+  - `verify.yml` (blocking, no-mutation)
+  - `autofix.yml` (PR-only deterministic fixes with bot-loop guard)
+  - `fix-proposal.yml` (new-branch draft PR proposals with before/after evidence)
+  - `release.yml` (verify-gated signed builds in protected `release` environment)
+- Migrated `.github/workflows/ci.yml` to a compatibility wrapper delegating to `verify.yml`.
+- Added coordination plan doc: `docs/coordination/ci-cd-plan.md`.
+- Validation: `~/go/bin/actionlint` **PASS** (no findings).
+
+### Remains unverified
+
+- Live GitHub Actions runtime behavior for all four tiers on real PR/tag traffic — **NOT OBSERVED**.
+- Protected environment approval behavior (`release`) and secret availability in the target repo — **NOT OBSERVED**.
+
+### Understanding delta
+
+- CI/CD enforcement moved from a monolithic `ci.yml` to a tiered verify/autofix/fix-proposal/release model aligned with current `apps/` + `crates/` + `packages/` workspace layout.
+- Tier 3 auto-trigger path on red `main` is wired, but meaningful fix attempts require repository variable `CI_FIX_PROPOSAL_COMMAND`.
+
+### Required next
+
+1. Mark `verify` as a required check in branch protection.
+2. Configure `release` environment reviewers/secrets (`TAURI_SIGNING_PRIVATE_KEY`, updater secrets).
+3. Set `CI_FIX_PROPOSAL_COMMAND` if automatic red-main fix proposals are desired; otherwise use manual dispatch inputs.
+
+---
+
 **Last phase label:** Payment fulfills open booking (2026-09-05)
 
 ### Verified (2026-09-05 — payment → billing list)

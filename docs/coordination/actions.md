@@ -1,6 +1,18 @@
 # Action ledger
 
-**Last updated:** 2026-09-05 (payment fulfills open booking)
+**Last updated:** 2026-09-26 (CI/CD tiered pipeline migration)
+
+## Done (2026-09-26 — CI/CD tiers and guardrails)
+
+- Added `verify.yml`, `autofix.yml`, `fix-proposal.yml`; migrated `release.yml` and converted `ci.yml` to compatibility wrapper.
+- Added `docs/coordination/ci-cd-plan.md` with tier map, triggers, and guardrails.
+- Validation: `actionlint` **PASS**.
+
+## Now
+
+- Apply/confirm branch protection and required checks for `verify`.
+- Configure protected `release` environment reviewers + signing/updater secrets.
+- Optionally set repository variable `CI_FIX_PROPOSAL_COMMAND` for red-main auto proposals.
 
 ## Done (2026-09-05 — payment → billing)
 

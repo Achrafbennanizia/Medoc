@@ -1,0 +1,380 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      failure_mode:
+        description: "Failure type to target."
+        required: true
+        default: custom
+        type: choice
+        options:
+          - test
+          - advisory
+          - typecheck
+          - custom
+      before_command:
+        description: "Command expected to fail before the fix."
+        required: false
+        type: string
+      fix_command:
+        description: "Command that applies the candidate fix on a new branch."
+        required: false
+        type: string
+      verify_command:
+        description: "Command expected to pass after the fix."
+        required: false
+        type: string
+      rationale:
+        description: "Human-readable rationale included in the draft PR."
+        required: false
+        type: string
+  workflow_run:
+    workflows: ["verify"]
+    branches: [main]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: fix-proposal-${{ github.event_name }}-${{ github.event.workflow_run.id || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+  MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: "1"
+
+jobs:
+  propose-fix:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+
+      - name: System deps for Tauri (Linux)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - id: pm
+        name: Detect package manager from lockfile
+        shell: bash
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "name=pnpm" >> "$GITHUB_OUTPUT"
+            echo "install=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "name=yarn" >> "$GITHUB_OUTPUT"
+            echo "install=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=npm" >> "$GITHUB_OUTPUT"
+            echo "install=npm ci" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.name }}
+
+      - run: corepack enable
+
+      - name: Install dependencies
+        run: ${{ steps.pm.outputs.install }}
+
+      - id: resolve
+        name: Resolve fix-proposal commands
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PM_NAME: ${{ steps.pm.outputs.name }}
+          INPUT_FAILURE_MODE: ${{ github.event.inputs.failure_mode || '' }}
+          INPUT_BEFORE_COMMAND: ${{ github.event.inputs.before_command || '' }}
+          INPUT_FIX_COMMAND: ${{ github.event.inputs.fix_command || '' }}
+          INPUT_VERIFY_COMMAND: ${{ github.event.inputs.verify_command || '' }}
+          INPUT_RATIONALE: ${{ github.event.inputs.rationale || '' }}
+          WORKFLOW_RUN_URL: ${{ github.event.workflow_run.html_url || '' }}
+          DEFAULT_AUTO_FIX_COMMAND: ${{ vars.CI_FIX_PROPOSAL_COMMAND || '' }}
+        run: |
+          set -euo pipefail
+
+          failure_mode="${INPUT_FAILURE_MODE:-custom}"
+          before_command="${INPUT_BEFORE_COMMAND}"
+          fix_command="${INPUT_FIX_COMMAND}"
+          verify_command="${INPUT_VERIFY_COMMAND}"
+          rationale="${INPUT_RATIONALE}"
+
+          case "$PM_NAME" in
+            pnpm)
+              js_lint='pnpm --filter medoc run lint'
+              js_typecheck='pnpm --filter medoc exec tsc --noEmit && pnpm --filter medoc-lan-web-client run typecheck'
+              js_test='pnpm --filter medoc run test'
+              js_build='pnpm --filter medoc run build && pnpm --filter medoc-lan-web-client run build'
+              ;;
+            yarn)
+              js_lint='yarn workspace medoc run lint'
+              js_typecheck='yarn workspace medoc run tsc --noEmit && yarn workspace medoc-lan-web-client run typecheck'
+              js_test='yarn workspace medoc run test'
+              js_build='yarn workspace medoc run build && yarn workspace medoc-lan-web-client run build'
+              ;;
+            *)
+              js_lint='npm run lint -w medoc'
+              js_typecheck='npm exec --workspace medoc -- tsc --noEmit && npm run typecheck -w medoc-lan-web-client'
+              js_test='npm run test -w medoc'
+              js_build='npm run build -w medoc && npm run build -w medoc-lan-web-client'
+              ;;
+          esac
+
+          if [ "$EVENT_NAME" = "workflow_run" ]; then
+            failure_mode="custom"
+            before_command="cargo test --workspace && cargo audit && ${js_lint} && ${js_typecheck} && ${js_test} && ${js_build}"
+            verify_command="$before_command"
+            fix_command="${DEFAULT_AUTO_FIX_COMMAND}"
+            rationale="Automated fix proposal from failing verify run: ${WORKFLOW_RUN_URL}"
+          fi
+
+          if [ -z "$before_command" ] || [ -z "$verify_command" ]; then
+            case "$failure_mode" in
+              test)
+                before_command="cargo test --workspace && ${js_test}"
+                verify_command="$before_command"
+                ;;
+              advisory)
+                before_command='cargo audit'
+                verify_command='cargo audit'
+                ;;
+              typecheck)
+                before_command="${js_typecheck}"
+                verify_command="$before_command"
+                ;;
+              *)
+                ;;
+            esac
+          fi
+
+          if [ -z "$rationale" ]; then
+            rationale="Automated CI fix proposal for ${failure_mode} failure."
+          fi
+
+          if [ -z "$before_command" ] || [ -z "$fix_command" ] || [ -z "$verify_command" ]; then
+            echo "before_command, fix_command, and verify_command are required."
+            echo "For auto-triggered main failures, set repository variable CI_FIX_PROPOSAL_COMMAND."
+            exit 1
+          fi
+
+          {
+            echo "failure_mode=$failure_mode"
+            echo "before_command<<EOF"
+            echo "$before_command"
+            echo "EOF"
+            echo "fix_command<<EOF"
+            echo "$fix_command"
+            echo "EOF"
+            echo "verify_command<<EOF"
+            echo "$verify_command"
+            echo "EOF"
+            echo "rationale<<EOF"
+            echo "$rationale"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - id: before
+        name: Capture failing-before evidence
+        shell: bash
+        env:
+          BEFORE_COMMAND: ${{ steps.resolve.outputs.before_command }}
+        run: |
+          set +e
+          bash -lc "$BEFORE_COMMAND" > "$RUNNER_TEMP/fix-before.log" 2>&1
+          status=$?
+          set -e
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+
+      - name: Apply candidate fix
+        shell: bash
+        env:
+          FIX_COMMAND: ${{ steps.resolve.outputs.fix_command }}
+        run: |
+          set -euo pipefail
+          bash -lc "$FIX_COMMAND" > "$RUNNER_TEMP/fix-apply.log" 2>&1
+
+      - id: after
+        name: Capture passing-after evidence
+        shell: bash
+        env:
+          VERIFY_COMMAND: ${{ steps.resolve.outputs.verify_command }}
+        run: |
+          set +e
+          bash -lc "$VERIFY_COMMAND" > "$RUNNER_TEMP/fix-after.log" 2>&1
+          status=$?
+          set -e
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          if [ "$status" -ne 0 ]; then
+            echo "Post-fix verification failed."
+            exit 1
+          fi
+
+      - id: changed
+        name: Collect changed files
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No code changes were produced by the fix command."
+            exit 1
+          fi
+          git diff --name-only > "$RUNNER_TEMP/fix-changed-files.txt"
+          {
+            echo "paths<<EOF"
+            cat "$RUNNER_TEMP/fix-changed-files.txt"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - id: sensitive
+        name: Flag security/audit/crypto/RBAC touches
+        shell: bash
+        run: |
+          set -euo pipefail
+          sensitive_regex='(^|/)(security|audit|crypto|rbac)(/|_|-|\\.)'
+          touched=false
+          sensitive_files=()
+          while IFS= read -r file; do
+            if [[ "$file" =~ $sensitive_regex ]]; then
+              touched=true
+              sensitive_files+=("$file")
+            fi
+          done < "$RUNNER_TEMP/fix-changed-files.txt"
+
+          echo "touched=$touched" >> "$GITHUB_OUTPUT"
+
+          if [ "$touched" = true ]; then
+            {
+              echo "files<<EOF"
+              printf '%s\n' "${sensitive_files[@]}"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+      - id: pr-body
+        name: Build PR body with evidence
+        shell: bash
+        env:
+          FAILURE_MODE: ${{ steps.resolve.outputs.failure_mode }}
+          RATIONALE: ${{ steps.resolve.outputs.rationale }}
+          BEFORE_COMMAND: ${{ steps.resolve.outputs.before_command }}
+          FIX_COMMAND: ${{ steps.resolve.outputs.fix_command }}
+          VERIFY_COMMAND: ${{ steps.resolve.outputs.verify_command }}
+          BEFORE_STATUS: ${{ steps.before.outputs.status }}
+          AFTER_STATUS: ${{ steps.after.outputs.status }}
+          SENSITIVE_TOUCHED: ${{ steps.sensitive.outputs.touched }}
+          SENSITIVE_FILES: ${{ steps.sensitive.outputs.files || '' }}
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          import os
+
+          def excerpt(path: str, limit: int = 8000) -> str:
+            data = Path(path).read_text(errors="replace")
+            if len(data) <= limit:
+              return data
+            return "...(truncated)...\n" + data[-limit:]
+
+          body_path = Path(os.environ["RUNNER_TEMP"]) / "fix-proposal-pr-body.md"
+          before_log = excerpt(Path(os.environ["RUNNER_TEMP"]) / "fix-before.log")
+          apply_log = excerpt(Path(os.environ["RUNNER_TEMP"]) / "fix-apply.log")
+          after_log = excerpt(Path(os.environ["RUNNER_TEMP"]) / "fix-after.log")
+          sensitive_note = ""
+          if os.environ.get("SENSITIVE_TOUCHED") == "true":
+            sensitive_note = (
+              "\n\n> ⚠️ This proposal touched security/audit/crypto/RBAC paths and was labeled "
+              "`needs-human-review`.\n\n"
+              "Affected paths:\n"
+              + "\n".join(f"- `{line}`" for line in os.environ.get("SENSITIVE_FILES", "").splitlines() if line)
+            )
+
+          body = f"""## CI Fix Proposal
+
+          **Failure mode:** `{os.environ['FAILURE_MODE']}`
+
+          **Rationale**
+          {os.environ['RATIONALE']}
+
+          **Before command (expected failing)**
+          ```bash
+          {os.environ['BEFORE_COMMAND']}
+          ```
+          Exit status: `{os.environ['BEFORE_STATUS']}`
+
+          **Fix command**
+          ```bash
+          {os.environ['FIX_COMMAND']}
+          ```
+
+          **After command (expected passing)**
+          ```bash
+          {os.environ['VERIFY_COMMAND']}
+          ```
+          Exit status: `{os.environ['AFTER_STATUS']}`
+          {sensitive_note}
+
+          ### Evidence — failing before
+          ```text
+          {before_log}
+          ```
+
+          ### Evidence — fix application
+          ```text
+          {apply_log}
+          ```
+
+          ### Evidence — passing after
+          ```text
+          {after_log}
+          ```
+          """
+          body_path.write_text(body)
+          print(f"path={body_path}")
+          PY
+          echo "path=$RUNNER_TEMP/fix-proposal-pr-body.md" >> "$GITHUB_OUTPUT"
+
+      - name: Upload fix evidence artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fix-proposal-evidence
+          path: |
+            ${{ runner.temp }}/fix-before.log
+            ${{ runner.temp }}/fix-apply.log
+            ${{ runner.temp }}/fix-after.log
+            ${{ runner.temp }}/fix-changed-files.txt
+
+      - id: cpr
+        name: Open draft PR
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: "ci: propose fix for ${{ steps.resolve.outputs.failure_mode }} failure"
+          branch: ci/fix-proposal-${{ github.run_id }}
+          delete-branch: false
+          title: "ci: fix proposal for ${{ steps.resolve.outputs.failure_mode }} failure"
+          body-path: ${{ steps.pr-body.outputs.path }}
+          draft: true
+          labels: ci-fix-proposal${{ steps.sensitive.outputs.touched == 'true' && ',needs-human-review' || '' }}
+
+      - name: Stop after labeling sensitive-scope proposal
+        if: steps.sensitive.outputs.touched == 'true'
+        shell: bash
+        run: |
+          echo "Sensitive paths were touched; draft PR is labeled needs-human-review."
+          echo "PR URL: ${{ steps.cpr.outputs.pull-request-url }}"
+          exit 1

@@ -1,0 +1,121 @@
+name: autofix
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: autofix-${{ github.event.pull_request.head.ref }}
+  cancel-in-progress: true
+
+jobs:
+  autofix:
+    if: github.actor != 'github-actions[bot]' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - id: pm
+        name: Detect package manager from lockfile
+        shell: bash
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "name=pnpm" >> "$GITHUB_OUTPUT"
+            echo "install=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "name=yarn" >> "$GITHUB_OUTPUT"
+            echo "install=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=npm" >> "$GITHUB_OUTPUT"
+            echo "install=npm ci" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.name }}
+
+      - run: corepack enable
+
+      - name: Install JS dependencies
+        run: ${{ steps.pm.outputs.install }}
+
+      - name: Apply deterministic autofixes only
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cargo fmt --all
+
+          case "${{ steps.pm.outputs.name }}" in
+            pnpm)
+              pnpm run lint:fix || true
+              pnpm --filter medoc exec eslint src --fix --max-warnings 0 --no-cache || true
+              pnpm run format || true
+              ;;
+            yarn)
+              yarn run lint:fix || true
+              yarn workspace medoc eslint src --fix --max-warnings 0 --no-cache || true
+              yarn run format || true
+              ;;
+            npm)
+              npm run lint:fix || true
+              npm run lint -w medoc -- --fix || true
+              npm run format || true
+              ;;
+          esac
+
+      - name: Block changes to security/audit/crypto/RBAC paths
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No autofix changes detected."
+            exit 0
+          fi
+
+          sensitive_regex='(^|/)(security|audit|crypto|rbac)(/|_|-|\\.)'
+          mapfile -t changed_files < <(git diff --name-only)
+          sensitive_files=()
+
+          for file in "${changed_files[@]}"; do
+            if [[ "$file" =~ $sensitive_regex ]]; then
+              sensitive_files+=("$file")
+            fi
+          done
+
+          if [ "${#sensitive_files[@]}" -gt 0 ]; then
+            echo "Autofix attempted to touch restricted files:"
+            printf ' - %s\n' "${sensitive_files[@]}"
+            git reset --hard HEAD
+            exit 1
+          fi
+
+      - name: Commit fixes to PR branch
+        shell: bash
+        env:
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No deterministic fixes to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "ci: apply deterministic formatting and lint fixes"
+          git push origin "HEAD:${PR_HEAD_REF}"

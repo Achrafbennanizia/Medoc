@@ -1,6 +1,16 @@
 # Validation ledger
 
-**Last updated:** 2026-09-05 (payment assignment open rows)
+**Last updated:** 2026-09-26 (CI/CD tiered workflow migration)
+
+## CI/CD tiered workflow migration (2026-09-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| actionlint | `~/go/bin/actionlint` | **PASS** — no workflow lint findings |
+| env async setup state | `if [ -f /tmp/cursor/async-install/install-user.status ]; then ...` | **PASS** — `no_async_install_files` |
+| Full repo Rust/JS test matrix | — | **NOT RUN** (this change set is workflow/docs only; syntax/lint validation was run) |
+
+---
 
 ## Payment assignment / open booking (2026-09-05)
 
