@@ -1,6 +1,7 @@
 //! Status transition rules (authoritative; commands must not embed ad-hoc match trees).
 use crate::domain::rbac::Role;
 use crate::error::AppError;
+use crate::log_workflow;
 
 fn status_transition_denied(current: &str, next: &str) -> AppError {
     AppError::validation_code_params(
@@ -13,11 +14,32 @@ fn allowed_transition(current: &str, next: &str, allowed: &[&str]) -> Result<(),
     let cur = current.trim().to_uppercase();
     let nxt = next.trim().to_uppercase();
     if cur == nxt {
+        log_workflow!(
+            info,
+            event = "DOMAIN_STATE_TRANSITION",
+            outcome = "NOOP",
+            current = %cur,
+            next = %nxt
+        );
         return Ok(());
     }
     if allowed.iter().any(|s| s.eq_ignore_ascii_case(&nxt)) {
+        log_workflow!(
+            info,
+            event = "DOMAIN_STATE_TRANSITION",
+            outcome = "ALLOWED",
+            current = %cur,
+            next = %nxt
+        );
         Ok(())
     } else {
+        log_workflow!(
+            warn,
+            event = "DOMAIN_STATE_TRANSITION",
+            outcome = "DENIED",
+            current = %cur,
+            next = %nxt
+        );
         Err(status_transition_denied(&cur, &nxt))
     }
 }

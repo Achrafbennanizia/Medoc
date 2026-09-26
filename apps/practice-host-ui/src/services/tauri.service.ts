@@ -1,5 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
+const WORKFLOW_LOG_COMMAND = "log_workflow_event";
+
 /**
  * Tauri v2 resolves each command parameter from the invoke JSON using an explicit key.
  * `tauri_macros` defaults to **camelCase** keys derived from Rust identifiers (`patient_id` → `patientId`).
@@ -50,12 +52,70 @@ function expandDualCaseInvokeArgs(args: Record<string, unknown>): Record<string,
     return out;
 }
 
+function monotonicNowMs(): number {
+    if (typeof performance !== "undefined" && typeof performance.now === "function") {
+        return performance.now();
+    }
+    return Date.now();
+}
+
+function normalizeErrorMessage(err: unknown): string {
+    if (err instanceof Error) return err.message;
+    if (typeof err === "string") return err;
+    return String(err);
+}
+
+async function emitWorkflowBridgeEvent(payload: {
+    workflow: string;
+    step: "primary_action" | "success" | "cancel" | "error";
+    outcome: "started" | "success" | "cancel" | "error";
+    command: string;
+    details?: Record<string, unknown>;
+    error?: string;
+}): Promise<void> {
+    try {
+        await invoke(WORKFLOW_LOG_COMMAND, { event: payload });
+    } catch {
+        // Best effort only: never fail core IPC because telemetry failed.
+    }
+}
+
 // All Tauri IPC goes through here (single place for invoke normalization).
 export async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-    if (args == null) {
-        return invoke<T>(cmd, {});
+    const expanded = args == null ? {} : expandDualCaseInvokeArgs(omitUndefinedValues(args));
+    if (cmd === WORKFLOW_LOG_COMMAND) {
+        return invoke<T>(cmd, expanded);
     }
-    const cleaned = omitUndefinedValues(args);
-    const expanded = expandDualCaseInvokeArgs(cleaned);
-    return invoke<T>(cmd, expanded);
+
+    const startedAt = monotonicNowMs();
+    void emitWorkflowBridgeEvent({
+        workflow: "frontend.tauri.invoke",
+        step: "primary_action",
+        outcome: "started",
+        command: cmd,
+    });
+    try {
+        const result = await invoke<T>(cmd, expanded);
+        void emitWorkflowBridgeEvent({
+            workflow: "frontend.tauri.invoke",
+            step: "success",
+            outcome: "success",
+            command: cmd,
+            details: { durationMs: Math.max(0, Math.round(monotonicNowMs() - startedAt)) },
+        });
+        return result;
+    } catch (err) {
+        const message = normalizeErrorMessage(err);
+        const cancelled =
+            message.toLowerCase().includes("cancel") || message.toLowerCase().includes("abort");
+        void emitWorkflowBridgeEvent({
+            workflow: "frontend.tauri.invoke",
+            step: cancelled ? "cancel" : "error",
+            outcome: cancelled ? "cancel" : "error",
+            command: cmd,
+            error: message,
+            details: { durationMs: Math.max(0, Math.round(monotonicNowMs() - startedAt)) },
+        });
+        throw err;
+    }
 }

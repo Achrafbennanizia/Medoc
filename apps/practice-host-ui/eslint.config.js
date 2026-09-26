@@ -34,6 +34,21 @@ export default tseslint.config(
                 "warn",
                 { allowConstantExport: true },
             ],
+            "no-restricted-syntax": [
+                "error",
+                {
+                    selector:
+                        "Literal[value=/\\b(?:p|px|py|pt|pr|pb|pl|m|mx|my|mt|mr|mb|ml|gap|space-x|space-y)-\\[[^\\]]+\\]/]",
+                    message:
+                        "Arbitrary Tailwind spacing values are disallowed; use spacing tokens from the Tailwind scale.",
+                },
+                {
+                    selector:
+                        "TemplateElement[value.raw=/\\b(?:p|px|py|pt|pr|pb|pl|m|mx|my|mt|mr|mb|ml|gap|space-x|space-y)-\\[[^\\]]+\\]/]",
+                    message:
+                        "Arbitrary Tailwind spacing values are disallowed; use spacing tokens from the Tailwind scale.",
+                },
+            ],
         },
     },
     {

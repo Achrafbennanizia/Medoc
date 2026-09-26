@@ -50,6 +50,7 @@ import { subscribeWorkTimeFocusMode, dispatchWorkTimeFocusMode } from "@/lib/wor
 import { subscribeAppMenu } from "@/lib/native-app-menu-bridge";
 import { countUnreadInAppNotifications } from "@/systems/practice-host/controllers/in-app-notification.controller";
 import { useMacWindowDrag } from "@/lib/mac-window-drag";
+import { logWorkflowRouteEnter } from "@/lib/workflow-log";
 
 const MEDOC_UI_ZOOM_KEY = "medoc-ui-zoom";
 const MEDOC_SIDEBAR_RAIL_PREF_KEY = "medoc-sidebar-rail-pref";
@@ -325,6 +326,10 @@ export function AppLayout() {
     useEffect(() => {
         setMobileNavOpen(false);
     }, [location.pathname]);
+
+    useEffect(() => {
+        logWorkflowRouteEnter(location.pathname, location.search);
+    }, [location.pathname, location.search]);
 
     /** Native menubar: RBAC-aligned payload (desktop); warn-only on browser / IPC failure. */
     useEffect(() => {
