@@ -1,6 +1,15 @@
 # Action ledger
 
-**Last updated:** 2026-09-05 (payment fulfills open booking)
+**Last updated:** 2026-09-26 (CI/CD tier migration)
+
+## Done (2026-09-26 — CI/CD tier migration)
+
+- Added Tier 1 `verify.yml` (non-mutating Rust/JS/a11y gates, package-manager detection, timeouts + concurrency cancellation).
+- Added Tier 2 `autofix.yml` (PR-only deterministic `cargo fmt`/`lint:fix`/`format`, bot loop guard, commit-back to PR head).
+- Added Tier 3 `fix-proposal.yml` (manual + failed-main verify trigger, new-branch draft PR with failing-before/passing-after evidence, restricted-path human-review stop).
+- Replaced Tier 4 `release.yml` with verify-gated, protected-environment, signed multi-OS release build + provenance attestation.
+- Converted `ci.yml` to a compatibility wrapper over `verify.yml`.
+- Added `docs/coordination/ci-cd-plan.md`; validation and handoff ledgers updated for continuity.
 
 ## Done (2026-09-05 — payment → billing)
 
