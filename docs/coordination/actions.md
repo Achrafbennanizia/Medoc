@@ -2,6 +2,12 @@
 
 **Last updated:** 2026-09-05 (payment fulfills open booking)
 
+## Done (2026-09-26 — CI/CD tier migration)
+
+- Added tiered workflows: `verify.yml`, `autofix.yml`, `fix-proposal.yml`, and release gate in `release.yml`.
+- Moved stale monolithic CI to manual wrapper (`ci.yml`) and documented workspace-aware lockfile detection.
+- Added `docs/coordination/ci-cd-plan.md` and wired coordination ledger updates for this rollout.
+
 ## Done (2026-09-05 — payment → billing)
 
 - Payment create fills the 0 € open booking in place; closes BILLING tasks on `PAID`.

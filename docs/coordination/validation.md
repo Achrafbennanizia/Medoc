@@ -1,5 +1,17 @@
 # Validation ledger
 
+**Last updated:** 2026-09-26 (CI/CD tier migration)
+
+## CI/CD tier migration (2026-09-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML parse | `python3 - <<'PY' ... yaml.safe_load(...)` across `.github/workflows/*.yml` | **PASS** — `autofix.yml`, `ci.yml`, `fix-proposal.yml`, `release.yml`, `verify.yml`, `website.yml` |
+| Diff whitespace gate | `git diff --check` | **PASS** — no whitespace errors |
+| Full app tests/builds | — | **NOT RUN** (change scope was workflow/docs wiring; no runtime code paths edited) |
+
+---
+
 **Last updated:** 2026-09-05 (payment assignment open rows)
 
 ## Payment assignment / open booking (2026-09-05)

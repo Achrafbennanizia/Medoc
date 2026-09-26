@@ -1,5 +1,36 @@
 # Phase handoff
 
+**Last phase label:** CI/CD tier migration (2026-09-26)
+
+### Verified (2026-09-26 — verify/autofix/fix-proposal/release)
+
+- Added tiered workflows:
+  - Tier 1 verify: `.github/workflows/verify.yml`
+  - Tier 2 autofix: `.github/workflows/autofix.yml`
+  - Tier 3 fix proposal: `.github/workflows/fix-proposal.yml`
+  - Tier 4 release gate/build: `.github/workflows/release.yml`
+- Legacy `.github/workflows/ci.yml` is now a manual wrapper calling `verify.yml`.
+- CI/CD plan documented at `docs/coordination/ci-cd-plan.md`.
+- Workflow YAML syntax checks passed (`python3` + `yaml.safe_load` across all workflow files).
+
+### Remains unverified
+
+- GitHub Actions runtime behavior for new workflows on actual PR/tag events — **NOT OBSERVED**.
+- Tier 3 agent-fix execution without manual input requires repository variable `MEDOC_FIX_AGENT_COMMAND` — **NOT OBSERVED**.
+
+### Understanding delta
+
+- CI/CD moved from one monolithic workflow to four guarded tiers with explicit mutation boundaries and release gating.
+- Package-manager detection is now lockfile-driven in verify/autofix/release/fix-proposal workflows.
+
+### Required next
+
+1. Run one PR smoke to validate tier interactions (`autofix` push-back + `verify` rerun + loop guard).
+2. Configure/confirm protected `release` environment approvers and signing secrets.
+3. Optionally set `MEDOC_FIX_AGENT_COMMAND` so Tier 3 can auto-attempt fixes on failed `main` verify runs.
+
+---
+
 **Last phase label:** Payment fulfills open booking (2026-09-05)
 
 ### Verified (2026-09-05 — payment → billing list)

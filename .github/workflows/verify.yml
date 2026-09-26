@@ -1,0 +1,175 @@
+name: verify
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Rust format check
+        run: cargo fmt --all --check
+
+      - name: Rust clippy (warnings denied)
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Rust test
+        run: cargo test --workspace
+
+      - name: Install cargo-audit
+        run: |
+          if ! command -v cargo-audit >/dev/null 2>&1; then
+            cargo install cargo-audit --locked
+          fi
+
+      - name: Rust dependency audit
+        run: cargo audit
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: pm
+        name: Detect package manager from lockfile
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "run_cmd=pnpm run" >> "$GITHUB_OUTPUT"
+            echo "exec_cmd=pnpm exec" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "run_cmd=yarn run" >> "$GITHUB_OUTPUT"
+            echo "exec_cmd=yarn exec" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=npm ci" >> "$GITHUB_OUTPUT"
+            echo "run_cmd=npm run" >> "$GITHUB_OUTPUT"
+            echo "exec_cmd=npx" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install web dependencies
+        run: ${{ steps.pm.outputs.install_cmd }}
+
+      - id: typecheck
+        name: Resolve typecheck command
+        run: |
+          TYPECHECK_SCRIPT="$(node -e "const fs=require('fs'); const pkg=JSON.parse(fs.readFileSync('package.json','utf8')); const scripts=pkg.scripts||{}; if (scripts.typecheck) { process.stdout.write('typecheck'); } else { process.stdout.write('__direct_tsc__'); }")"
+          echo "script=$TYPECHECK_SCRIPT" >> "$GITHUB_OUTPUT"
+
+      - name: Lint (no autofix in verify)
+        run: ${{ steps.pm.outputs.run_cmd }} lint
+
+      - name: Typecheck (script)
+        if: steps.typecheck.outputs.script != '__direct_tsc__'
+        run: ${{ steps.pm.outputs.run_cmd }} ${{ steps.typecheck.outputs.script }}
+
+      - name: Typecheck (tsc fallback)
+        if: steps.typecheck.outputs.script == '__direct_tsc__'
+        run: ${{ steps.pm.outputs.exec_cmd }} tsc --noEmit -p apps/practice-host-ui/tsconfig.json
+
+      - name: Unit tests
+        run: ${{ steps.pm.outputs.run_cmd }} test
+
+      - name: Build
+        run: ${{ steps.pm.outputs.run_cmd }} build
+
+  a11y:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: pm
+        name: Detect package manager from lockfile
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "run_cmd=pnpm run" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "run_cmd=yarn run" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=npm ci" >> "$GITHUB_OUTPUT"
+            echo "run_cmd=npm run" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install web dependencies
+        run: ${{ steps.pm.outputs.install_cmd }}
+
+      - name: Build web UI
+        run: ${{ steps.pm.outputs.run_cmd }} build
+
+      - name: Serve built UI
+        run: |
+          npx --yes serve@14 apps/practice-host-ui/dist -l 4173 > /tmp/medoc-a11y-serve.log 2>&1 &
+          echo $! > /tmp/medoc-a11y-serve.pid
+
+      - name: Wait for local server
+        run: |
+          for _ in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:4173 >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "A11y server failed to start"
+          cat /tmp/medoc-a11y-serve.log
+          exit 1
+
+      - name: Axe-core scan (fail on critical WCAG 2.1 AA violations)
+        run: |
+          npx --yes @axe-core/cli@4.10.2 http://127.0.0.1:4173 \
+            --tags wcag2a,wcag2aa,wcag21aa \
+            --save /tmp/axe-results.json || true
+
+          node -e "const fs=require('fs'); const reportPath='/tmp/axe-results.json'; if (!fs.existsSync(reportPath)) { console.error('axe report missing'); process.exit(1); } const report=JSON.parse(fs.readFileSync(reportPath,'utf8')); const violations=Array.isArray(report.violations)?report.violations:[]; const critical=violations.filter((v)=>v.impact==='critical' && (v.tags||[]).some((t)=>String(t).toLowerCase()==='wcag21aa')); if (critical.length>0) { console.error('Critical WCAG 2.1 AA violations found:'); for (const v of critical) { console.error('- '+v.id+': '+v.help); } process.exit(1); } console.log('No critical WCAG 2.1 AA violations detected.');"
+
+      - name: Stop local server
+        if: always()
+        run: |
+          if [ -f /tmp/medoc-a11y-serve.pid ]; then
+            kill "$(cat /tmp/medoc-a11y-serve.pid)" || true
+          fi
