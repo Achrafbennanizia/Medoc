@@ -19,7 +19,7 @@
 
 ### Remains unverified
 
-- Full Rust verify parity in this local environment is **NOT VERIFIED** due local Cargo parser limitation (`edition2024` dependency metadata in `clap_lex`); see validation ledger.
+- Full Rust verify parity in this local environment is **NOT VERIFIED** due local toolchain constraints (Cargo parser fails on `edition2024` dependency metadata in `clap_lex`, and `cargo-audit` currently needs `rustc 1.88+` while local is `1.83.0`); see validation ledger.
 - GitHub-hosted run behavior for `fix-proposal.yml` with real `workflow_dispatch` inputs is **NOT OBSERVED** in this session.
 
 ### Required next

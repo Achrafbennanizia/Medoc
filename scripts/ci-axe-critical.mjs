@@ -30,7 +30,7 @@ try {
             return window.axe.run(document, {
                 runOnly: {
                     type: "tag",
-                    values: ["wcag2aa"],
+                    values: ["wcag2a", "wcag2aa"],
                 },
             });
         });

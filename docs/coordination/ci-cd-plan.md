@@ -41,7 +41,7 @@
 ## Accessibility gate
 
 - `verify.yml` runs Playwright + `axe-core` against built UI via `scripts/ci-axe-critical.mjs`.
-- Scan runs with `wcag2aa` rules and fails **only** when critical-impact violations exist.
+- Scan runs with `wcag2a,wcag2aa` rules and fails **only** when critical-impact violations exist.
 - Report is emitted as JSON (`a11y-report.json`) for auditability.
 
 ## Release controls

@@ -12,6 +12,8 @@
 | A11y critical gate (local simulation) | start `npm run preview -w medoc ...` then `npm run test:a11y -w medoc` | **PASS** — no critical WCAG 2.1 AA violations on `/` |
 | Rust clippy gate | `cargo clippy --workspace --all-targets -- -D warnings` | **FAIL** — local Cargo `1.83.0` cannot parse `clap_lex 1.1.0` (`edition2024` feature required) |
 | Rust test gate | `cargo test --workspace` | **FAIL** — same local Cargo `edition2024` parser limitation |
+| cargo-audit install | `cargo install cargo-audit --locked` | **FAIL** — `cargo-audit 0.22.2` requires `rustc 1.88+`; local toolchain is `1.83.0` |
+| Rust audit gate | `cargo audit` | **NOT RUN** — `cargo-audit` command unavailable after install failure |
 | actionlint | `npx --yes actionlint` | **FAIL** — npm package has no runnable binary in this environment |
 
 ---
