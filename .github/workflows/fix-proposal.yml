@@ -1,0 +1,253 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_ref:
+        description: "Branch or SHA to check out before creating proposal branch"
+        required: false
+        default: "main"
+      base_branch:
+        description: "Base branch for the draft pull request"
+        required: false
+        default: "main"
+      failing_command:
+        description: "Command expected to fail before repair (evidence)"
+        required: false
+        default: "cargo test --workspace"
+      repair_command:
+        description: "Command that attempts a substantive fix on the proposal branch"
+        required: false
+        default: ""
+      rationale:
+        description: "Why this proposal is being generated"
+        required: false
+        default: ""
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: fix-proposal-${{ github.event_name }}-${{ github.event_name == 'workflow_run' && github.event.workflow_run.id || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  propose-fix:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - id: context
+        name: Resolve trigger context
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            echo "source_ref=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+            echo "base_branch=main" >> "$GITHUB_OUTPUT"
+            echo "failing_command=cargo test --workspace" >> "$GITHUB_OUTPUT"
+            echo "repair_command=npm audit fix --package-lock-only --omit=dev || true" >> "$GITHUB_OUTPUT"
+            echo "rationale=Automated proposal after verify failure on main: ${{ github.event.workflow_run.html_url }}" >> "$GITHUB_OUTPUT"
+          else
+            source_ref="${{ inputs.target_ref }}"
+            if [ -z "$source_ref" ]; then
+              source_ref="main"
+            fi
+
+            base_branch="${{ inputs.base_branch }}"
+            if [ -z "$base_branch" ]; then
+              base_branch="main"
+            fi
+
+            failing_command="${{ inputs.failing_command }}"
+            if [ -z "$failing_command" ]; then
+              failing_command="cargo test --workspace"
+            fi
+
+            repair_command="${{ inputs.repair_command }}"
+            rationale="${{ inputs.rationale }}"
+            if [ -z "$rationale" ]; then
+              rationale="Manual fix proposal dispatch"
+            fi
+
+            echo "source_ref=$source_ref" >> "$GITHUB_OUTPUT"
+            echo "base_branch=$base_branch" >> "$GITHUB_OUTPUT"
+            echo "failing_command=$failing_command" >> "$GITHUB_OUTPUT"
+            echo "repair_command=$repair_command" >> "$GITHUB_OUTPUT"
+            echo "rationale=$rationale" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.context.outputs.source_ref }}
+          fetch-depth: 0
+
+      - id: pm
+        name: Detect package manager from lockfile
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "install=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "install=yarn install --immutable" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "install=npm ci" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+      - run: corepack enable
+      - run: ${{ steps.pm.outputs.install }}
+
+      - id: branch
+        name: Create proposal branch
+        run: |
+          branch="ci/fix-proposal-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git checkout -b "$branch"
+          echo "name=$branch" >> "$GITHUB_OUTPUT"
+
+      - id: before
+        name: Capture failing-before evidence
+        env:
+          FAILING_COMMAND: ${{ steps.context.outputs.failing_command }}
+        run: |
+          mkdir -p .ci-evidence
+          {
+            echo "## Failing-before command"
+            echo "\`\`\`bash"
+            echo "$FAILING_COMMAND"
+            echo "\`\`\`"
+          } > .ci-evidence/evidence.md
+
+          set +e
+          bash -lc "$FAILING_COMMAND" > .ci-evidence/failing-before.log 2>&1
+          status=$?
+          set -e
+
+          echo "before_status=$status" >> "$GITHUB_OUTPUT"
+          echo "Failing-before exit code: $status" >> .ci-evidence/evidence.md
+
+      - id: repair
+        name: Attempt substantive repair
+        env:
+          REPAIR_COMMAND: ${{ steps.context.outputs.repair_command }}
+        run: |
+          if [ -n "$REPAIR_COMMAND" ]; then
+            {
+              echo ""
+              echo "## Repair command"
+              echo "\`\`\`bash"
+              echo "$REPAIR_COMMAND"
+              echo "\`\`\`"
+            } >> .ci-evidence/evidence.md
+            bash -lc "$REPAIR_COMMAND"
+          else
+            echo "No repair command provided; skipping repair attempt."
+            echo "No repair command provided." >> .ci-evidence/evidence.md
+          fi
+
+      - id: after
+        name: Capture passing-after evidence
+        env:
+          FAILING_COMMAND: ${{ steps.context.outputs.failing_command }}
+        run: |
+          set +e
+          bash -lc "$FAILING_COMMAND" > .ci-evidence/failing-after.log 2>&1
+          status=$?
+          set -e
+
+          echo "after_status=$status" >> "$GITHUB_OUTPUT"
+          echo "Passing-after exit code: $status" >> .ci-evidence/evidence.md
+
+      - id: changed
+        name: Detect and commit proposal diff
+        run: |
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "No code changes produced by repair attempt." >> .ci-evidence/evidence.md
+            exit 0
+          fi
+
+          git add -A
+          git commit -m "ci: fix proposal from ${GITHUB_SHA::7}"
+          git push origin "HEAD:${{ steps.branch.outputs.name }}"
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+
+      - id: restricted
+        if: steps.changed.outputs.has_changes == 'true'
+        name: Check restricted paths (security/audit/crypto/RBAC)
+        run: |
+          git show --name-only --pretty='' HEAD > .ci-evidence/changed-files.txt
+          if grep -Eqi '(security|audit|crypto|rbac)|(^|/)config/rbac\.ya?ml$' .ci-evidence/changed-files.txt; then
+            echo "requires_human_review=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "requires_human_review=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - id: pr
+        if: steps.changed.outputs.has_changes == 'true'
+        name: Open draft pull request
+        env:
+          RATIONALE: ${{ steps.context.outputs.rationale }}
+          BASE_BRANCH: ${{ steps.context.outputs.base_branch }}
+        run: |
+          short_sha="${GITHUB_SHA::7}"
+          cat > .ci-evidence/pr-body.md <<'EOF'
+          ## CI fix proposal
+
+          This draft PR was generated by the tier-3 fix-proposal workflow.
+
+          ### Rationale
+          RATIONALE_PLACEHOLDER
+
+          ### Evidence
+          - Failing-before exit code: BEFORE_STATUS_PLACEHOLDER
+          - Passing-after exit code: AFTER_STATUS_PLACEHOLDER
+          - Failing-before log: `.ci-evidence/failing-before.log`
+          - Passing-after log: `.ci-evidence/failing-after.log`
+
+          ### Notes
+          - This PR was opened as **draft** and requires human review.
+          - It is never auto-merged by automation.
+          EOF
+
+          sed -i "s|RATIONALE_PLACEHOLDER|${RATIONALE//|/\\|}|g" .ci-evidence/pr-body.md
+          sed -i "s|BEFORE_STATUS_PLACEHOLDER|${{ steps.before.outputs.before_status }}|g" .ci-evidence/pr-body.md
+          sed -i "s|AFTER_STATUS_PLACEHOLDER|${{ steps.after.outputs.after_status }}|g" .ci-evidence/pr-body.md
+
+          pr_url=$(gh pr create \
+            --draft \
+            --base "$BASE_BRANCH" \
+            --head "${{ steps.branch.outputs.name }}" \
+            --title "ci: fix proposal for ${short_sha}" \
+            --body-file .ci-evidence/pr-body.md)
+
+          echo "url=$pr_url" >> "$GITHUB_OUTPUT"
+
+      - name: Label and stop on restricted-path changes
+        if: steps.changed.outputs.has_changes == 'true' && steps.restricted.outputs.requires_human_review == 'true'
+        run: |
+          gh pr edit "${{ steps.pr.outputs.url }}" --add-label "needs-human-review"
+          echo "::error::Restricted security/audit/crypto/RBAC paths were touched. Label added; stopping for human review."
+          exit 1
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fix-proposal-evidence-${{ github.run_id }}
+          path: .ci-evidence/

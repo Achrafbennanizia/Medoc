@@ -1,5 +1,23 @@
 # Validation ledger
 
+**Last updated:** 2026-09-26 (CI/CD tier migration)
+
+## CI/CD tier migration (2026-09-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| a11y script syntax | `node --check scripts/ci-a11y-check.mjs` | **PASS** |
+| workspace install | `npm ci` | **PASS** |
+| medoc typecheck | `npm run typecheck -w medoc` | **PASS** |
+| LAN web typecheck | `npm run typecheck -w medoc-lan-web-client` | **PASS** *(after adding `#shared-locales/*` path mapping in `apps/lan-web-client/tsconfig.json`)* |
+| medoc lint | `npm run lint -w medoc` | **PASS** |
+| medoc build | `npm run build -w medoc` | **PASS** |
+| Playwright Chromium install | `npm exec -w medoc playwright install --with-deps chromium` | **PASS** |
+| axe-core critical check | `npm run test:a11y -w medoc` | **PASS** — no critical WCAG 2.1 A/AA violations |
+| workflow lint (`actionlint`) | `actionlint` | **NOT RUN** — tool not installed in this environment |
+
+---
+
 **Last updated:** 2026-09-05 (payment assignment open rows)
 
 ## Payment assignment / open booking (2026-09-05)

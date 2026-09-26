@@ -1,5 +1,44 @@
 # Phase handoff
 
+**Last phase label:** CI/CD tier migration (2026-09-26)
+
+### Verified (2026-09-26 — CI/CD tiers)
+
+- Added tiered workflows for verify/autofix/fix-proposal/release:
+  - `.github/workflows/verify.yml`
+  - `.github/workflows/autofix.yml`
+  - `.github/workflows/fix-proposal.yml`
+  - `.github/workflows/release.yml`
+- Migrated legacy CI entrypoint to manual compatibility shim: `.github/workflows/ci.yml`.
+- Added coordination plan: `docs/coordination/ci-cd-plan.md`.
+- Added built-UI axe-core check script (`scripts/ci-a11y-check.mjs`) and `medoc` scripts (`typecheck`, `lint:fix`, `format`, `test:a11y`).
+- Validation run:
+  - `npm ci` **PASS**
+  - `npm run typecheck -w medoc` **PASS**
+  - `npm run typecheck -w medoc-lan-web-client` **PASS** (after TS path alias fix)
+  - `npm run lint -w medoc` **PASS**
+  - `npm run build -w medoc` **PASS**
+  - `npm run test:a11y -w medoc` **PASS**
+
+### Remains unverified
+
+- End-to-end execution of the new workflows on GitHub Actions runners (PR/push/tag events) — **NOT OBSERVED** in this session.
+- Release environment approval policy wiring in repository settings — **NOT OBSERVED**.
+
+### Understanding delta
+
+- CI/CD is now split into explicit policy tiers: immutable verify gate, PR-only deterministic autofix, draft-only fix proposals for substantive changes, and protected signed release.
+- LAN web typecheck needed explicit `#shared-locales/*` path mapping to keep tier-1 typecheck green.
+
+### Required next
+
+1. Open a PR and confirm `verify.yml` (`rust`, `web`, `a11y`) runs and reports expected checks.
+2. Confirm branch protection requires tier-1 checks (and does not require legacy `ci.yml` names).
+3. Run a dry `workflow_dispatch` for `fix-proposal.yml` with explicit `failing_command` + `repair_command`.
+4. Validate release flow on a test tag under protected `release` environment approval.
+
+---
+
 **Last phase label:** Payment fulfills open booking (2026-09-05)
 
 ### Verified (2026-09-05 — payment → billing list)
