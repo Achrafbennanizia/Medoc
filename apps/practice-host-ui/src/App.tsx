@@ -1,6 +1,6 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { useT } from "@/lib/i18n";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "./models/store/auth-store";
 import { RoleRoute } from "./views/components/role-route";
 import { DbSetupGate } from "./views/components/db-setup-gate";
@@ -13,6 +13,7 @@ import { SessionGate } from "./views/components/session-gate";
 import { DesktopWindowFrame } from "./views/components/desktop-window-frame";
 import { AppLayout } from "./views/layouts/app-layout";
 import { PageLoading } from "@/views/components/ui/page-status";
+import { logWorkflowRouteEnter } from "./services/tauri.service";
 
 const LoginPage = lazy(async () => ({ default: (await import("./views/pages/login")).LoginPage }));
 const DashboardPage = lazy(async () => ({ default: (await import("./views/pages/dashboard")).DashboardPage }));
@@ -133,12 +134,24 @@ function RouteFallback() {
     );
 }
 
+function RouteWorkflowTracker() {
+    const location = useLocation();
+
+    useEffect(() => {
+        const route = `${location.pathname}${location.search}${location.hash}`;
+        logWorkflowRouteEnter(route);
+    }, [location.pathname, location.search, location.hash]);
+
+    return null;
+}
+
 export default function App() {
     return (
         <DbSetupGate>
         <SessionGate>
         <DesktopWindowFrame>
         <BrowserRouter>
+        <RouteWorkflowTracker />
         <ClusterResetListener />
         <ClusterOnboardingGate>
             <Routes>

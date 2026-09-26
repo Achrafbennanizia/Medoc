@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useT } from "@/lib/i18n";
+import { logWorkflowCancel } from "@/services/tauri.service";
 
 interface DialogProps {
     open: boolean;
@@ -47,6 +48,11 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
             if (e.key === "Escape") {
                 e.preventDefault();
                 e.stopPropagation();
+                const route =
+                    typeof window !== "undefined"
+                        ? `${window.location.pathname}${window.location.search}`
+                        : undefined;
+                logWorkflowCancel("dialog.escape", route);
                 onCloseRef.current();
                 return;
             }
@@ -107,6 +113,12 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
     if (!open) return null;
 
     const closeLabel = t("a11y.close_dialog");
+    const closeRoute =
+        typeof window !== "undefined" ? `${window.location.pathname}${window.location.search}` : undefined;
+    const closeWithTelemetry = (reason: "escape" | "backdrop" | "close_button") => {
+        logWorkflowCancel(`dialog.${reason}`, closeRoute);
+        onCloseRef.current();
+    };
     const titleTrimmed = title.trim();
     const showDefaultHeader = !isCentered && (titleTrimmed.length > 0 || headerExtra != null);
 
@@ -123,7 +135,7 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
     const ariaLabel = !ariaLabelledBy && !titleTrimmed ? t("a11y.dialog_heading_fallback") : undefined;
 
     const layer = (
-        <div className="modal-backdrop" onClick={onClose} role="presentation">
+        <div className="modal-backdrop" onClick={() => closeWithTelemetry("backdrop")} role="presentation">
             <div
                 ref={panelRef}
                 role="dialog"
@@ -137,7 +149,7 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
                 {isCentered ? (
                     <button
                         type="button"
-                        onClick={onClose}
+                        onClick={() => closeWithTelemetry("close_button")}
                         aria-label={closeLabel}
                         className="icon-btn modal-close-corner"
                     >
@@ -157,7 +169,7 @@ export function Dialog({ open, onClose, title, children, footer, headerExtra, cl
                             {headerExtra}
                             <button
                                 type="button"
-                                onClick={onClose}
+                                onClick={() => closeWithTelemetry("close_button")}
                                 aria-label={closeLabel}
                                 className="icon-btn"
                             >
@@ -215,7 +227,19 @@ export function IosConfirmActions({
     const cancel = cancelLabel ?? t("common.cancel");
     return (
         <div className="ios-confirm-actions" role="group" aria-label={t("a11y.dialog_actions")}>
-            <button type="button" className="ios-confirm-btn ios-confirm-btn--cancel" onClick={onCancel} disabled={busy}>
+            <button
+                type="button"
+                className="ios-confirm-btn ios-confirm-btn--cancel"
+                onClick={() => {
+                    const route =
+                        typeof window !== "undefined"
+                            ? `${window.location.pathname}${window.location.search}`
+                            : undefined;
+                    logWorkflowCancel("confirm_dialog.cancel", route);
+                    onCancel();
+                }}
+                disabled={busy}
+            >
                 {cancel}
             </button>
             <span className="ios-confirm-actions__vsep" aria-hidden="true" />

@@ -5,6 +5,7 @@
 
 use regex::Regex;
 use serde::Serialize;
+use serde_json::Value;
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
@@ -36,6 +37,76 @@ pub fn sanitize(input: &str) -> String {
     match jwt_re() {
         Some(re) => re.replace_all(&masked, "eyJ***").into_owned(),
         None => masked,
+    }
+}
+
+const WORKFLOW_TEXT_MAX_CHARS: usize = 240;
+const WORKFLOW_ARRAY_MAX_ITEMS: usize = 40;
+
+fn truncate_chars(input: &str, max_chars: usize) -> String {
+    if input.chars().count() <= max_chars {
+        return input.to_string();
+    }
+    let truncated: String = input.chars().take(max_chars).collect();
+    format!("{truncated}...")
+}
+
+fn workflow_sensitive_key(key: &str) -> bool {
+    let lowered = key.to_ascii_lowercase();
+    [
+        "patient",
+        "chart",
+        "diagnosis",
+        "finding",
+        "dob",
+        "birth",
+        "phone",
+        "email",
+        "address",
+        "insurance",
+        "kvnr",
+        "name",
+    ]
+    .iter()
+    .any(|needle| lowered.contains(needle))
+}
+
+/// Workflow logs are intentionally strict: all free-form text is sanitized and
+/// bounded, and sensitive patient-oriented fields are redacted by key name.
+pub fn sanitize_workflow_text(input: &str) -> String {
+    truncate_chars(&sanitize(input), WORKFLOW_TEXT_MAX_CHARS)
+}
+
+/// Recursively sanitize workflow metadata payloads before they are written to
+/// `workflow.log`.
+pub fn sanitize_workflow_value(value: &Value) -> Value {
+    match value {
+        Value::Null | Value::Bool(_) | Value::Number(_) => value.clone(),
+        Value::String(s) => Value::String(sanitize_workflow_text(s)),
+        Value::Array(items) => {
+            let mut sanitized = Vec::new();
+            for item in items.iter().take(WORKFLOW_ARRAY_MAX_ITEMS) {
+                sanitized.push(sanitize_workflow_value(item));
+            }
+            if items.len() > WORKFLOW_ARRAY_MAX_ITEMS {
+                sanitized.push(Value::String(format!(
+                    "...{} more items",
+                    items.len() - WORKFLOW_ARRAY_MAX_ITEMS
+                )));
+            }
+            Value::Array(sanitized)
+        }
+        Value::Object(map) => {
+            let mut out = serde_json::Map::with_capacity(map.len());
+            for (key, nested) in map {
+                if workflow_sensitive_key(key) {
+                    out.insert(key.clone(), Value::String("[REDACTED]".into()));
+                } else {
+                    out.insert(key.clone(), sanitize_workflow_value(nested));
+                }
+            }
+            Value::Object(out)
+        }
     }
 }
 
@@ -130,6 +201,7 @@ pub fn mask_token(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn masks_passwords() {
@@ -142,5 +214,28 @@ mod tests {
     fn masks_jwt() {
         let s = sanitize("Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.payload.sig");
         assert!(s.contains("eyJ***"));
+    }
+
+    #[test]
+    fn workflow_value_redacts_sensitive_fields() {
+        let input = json!({
+            "patientId": "pat-123",
+            "route": "/patients/42",
+            "nested": {
+                "dateOfBirth": "2000-01-01",
+                "action": "open_chart",
+            }
+        });
+        let sanitized = sanitize_workflow_value(&input);
+        assert_eq!(sanitized["patientId"], "[REDACTED]");
+        assert_eq!(sanitized["nested"]["dateOfBirth"], "[REDACTED]");
+        assert_eq!(sanitized["route"], "/patients/42");
+        assert_eq!(sanitized["nested"]["action"], "open_chart");
+    }
+
+    #[test]
+    fn workflow_text_masks_token_patterns() {
+        let text = sanitize_workflow_text("password=secret-value");
+        assert_eq!(text, "password=***");
     }
 }
