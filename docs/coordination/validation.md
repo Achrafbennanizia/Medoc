@@ -1,5 +1,21 @@
 # Validation ledger
 
+**Last updated:** 2026-09-26 (CI/CD tier migration)
+
+## CI/CD pipeline tier migration (2026-09-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML parse | `python3 - <<'PY' ... yaml.safe_load(.github/workflows/*.yml)` | **PASS** — 6 workflow files parsed |
+| a11y runner syntax | `node --check scripts/test-a11y.mjs` | **PASS** |
+| Workspace install (full graph) | `npm ci` | **PASS** |
+| Web production build | `npm run build -w medoc` | **PASS** — Vite build completed |
+| Playwright browser install | `npx playwright install --with-deps chromium` | **PASS** |
+| axe-core critical gate | `node scripts/test-a11y.mjs` | **PASS** — 1 violation total, 0 critical |
+| Intermediate failed attempt | `npm run build -w medoc` (after scoped install only) | **FAIL** — missing `i18next`/`react-i18next`; resolved by full `npm ci` |
+
+---
+
 **Last updated:** 2026-09-05 (payment assignment open rows)
 
 ## Payment assignment / open booking (2026-09-05)

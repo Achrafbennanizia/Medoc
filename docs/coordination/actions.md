@@ -1,6 +1,18 @@
 # Action ledger
 
-**Last updated:** 2026-09-05 (payment fulfills open booking)
+**Last updated:** 2026-09-26 (CI/CD tier migration)
+
+## Done (2026-09-26 — CI/CD tier migration)
+
+- Added tiered workflows: `verify.yml`, `autofix.yml`, `fix-proposal.yml`, updated `release.yml`; converted `ci.yml` to legacy wrapper.
+- Added axe-core based accessibility gate runner: `scripts/test-a11y.mjs`.
+- Added coordination plan doc: `docs/coordination/ci-cd-plan.md`.
+- Recorded command evidence in `validation.md` and updated `phase-handoff.md`.
+
+## Now
+
+- Open/observe one GitHub Actions run for each new tier to confirm hosted-runner behavior and check names.
+- Ensure repository label `needs-human-review` exists for Tier-3 sensitive-touch enforcement.
 
 ## Done (2026-09-05 — payment → billing)
 

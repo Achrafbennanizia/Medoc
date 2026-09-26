@@ -1,0 +1,321 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: "Base branch for the draft PR"
+        required: false
+        default: "main"
+        type: string
+      failure_context:
+        description: "Failure context (test/audit/typecheck summary)"
+        required: false
+        default: ""
+        type: string
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: fix-proposal-${{ github.event_name }}-${{ github.run_id }}
+  cancel-in-progress: true
+
+env:
+  MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+  MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: "1"
+
+jobs:
+  propose:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - id: ctx
+        name: Resolve trigger context
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            echo "base_ref=${{ github.event.workflow_run.head_branch }}" >> "$GITHUB_OUTPUT"
+            echo "base_sha=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+            echo "reason=verify run ${{ github.event.workflow_run.id }} failed on main" >> "$GITHUB_OUTPUT"
+          else
+            echo "base_ref=${{ inputs.base_ref || 'main' }}" >> "$GITHUB_OUTPUT"
+            echo "base_sha=${{ inputs.base_ref || 'main' }}" >> "$GITHUB_OUTPUT"
+            if [ -n "${{ inputs.failure_context }}" ]; then
+              echo "reason=${{ inputs.failure_context }}" >> "$GITHUB_OUTPUT"
+            else
+              echo "reason=manual dispatch" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+          echo "branch=ci/fix-proposal-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.ctx.outputs.base_sha }}
+          fetch-depth: 0
+
+      - name: Create proposal branch
+        run: git checkout -b "${{ steps.ctx.outputs.branch }}"
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+
+      - id: pm
+        name: Detect package manager from lockfile
+        shell: bash
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install JavaScript dependencies
+        shell: bash
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+            *) echo "Unsupported package manager" && exit 1 ;;
+          esac
+
+      - uses: taiki-e/install-action@cargo-audit
+
+      - name: Capture failing-before evidence
+        shell: bash
+        run: |
+          set -u
+          mkdir -p .ci/fix-proposal
+
+          run_pm() {
+            case "${{ steps.pm.outputs.pm }}" in
+              pnpm) pnpm "$@" ;;
+              yarn) yarn "$@" ;;
+              npm) npm "$@" ;;
+              *) echo "Unsupported package manager" && return 2 ;;
+            esac
+          }
+
+          run_typecheck() {
+            if node -e "const p=require('./package.json'); process.exit((p.scripts||{}).typecheck ? 0 : 1)"; then
+              run_pm run typecheck
+            else
+              ./node_modules/.bin/tsc --noEmit -p apps/practice-host-ui/tsconfig.json
+              if [ -f apps/lan-web-client/tsconfig.json ]; then
+                ./node_modules/.bin/tsc --noEmit -p apps/lan-web-client/tsconfig.json
+              fi
+            fi
+          }
+
+          set +e
+          cargo test --workspace > .ci/fix-proposal/before-cargo-test.log 2>&1
+          echo $? > .ci/fix-proposal/before-cargo-test.status
+
+          run_typecheck > .ci/fix-proposal/before-typecheck.log 2>&1
+          echo $? > .ci/fix-proposal/before-typecheck.status
+
+          cargo audit > .ci/fix-proposal/before-cargo-audit.log 2>&1
+          echo $? > .ci/fix-proposal/before-cargo-audit.status
+          set -e
+
+      - name: Attempt proposal fix
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          run_pm() {
+            case "${{ steps.pm.outputs.pm }}" in
+              pnpm) pnpm "$@" ;;
+              yarn) yarn "$@" ;;
+              npm) npm "$@" ;;
+              *) echo "Unsupported package manager" && return 2 ;;
+            esac
+          }
+
+          cargo update -w || true
+          cargo fmt --all || true
+
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm audit --fix || true ;;
+            yarn) yarn npm audit --all || true ;;
+            npm) npm audit fix || true ;;
+          esac
+
+          if node -e "const p=require('./package.json'); process.exit((p.scripts||{})['lint:fix'] ? 0 : 1)"; then
+            run_pm run lint:fix || true
+          elif [ -x ./node_modules/.bin/eslint ]; then
+            ./node_modules/.bin/eslint apps/practice-host-ui/src --fix --max-warnings 0 --no-cache || true
+          fi
+
+          if node -e "const p=require('./package.json'); process.exit((p.scripts||{}).format ? 0 : 1)"; then
+            run_pm run format || true
+          elif [ -x ./node_modules/.bin/prettier ]; then
+            ./node_modules/.bin/prettier --write "apps/practice-host-ui/src/**/*.{ts,tsx,js,jsx,json,css,md}" || true
+          fi
+
+      - name: Capture passing-after evidence
+        shell: bash
+        run: |
+          set -u
+          run_pm() {
+            case "${{ steps.pm.outputs.pm }}" in
+              pnpm) pnpm "$@" ;;
+              yarn) yarn "$@" ;;
+              npm) npm "$@" ;;
+              *) echo "Unsupported package manager" && return 2 ;;
+            esac
+          }
+
+          run_typecheck() {
+            if node -e "const p=require('./package.json'); process.exit((p.scripts||{}).typecheck ? 0 : 1)"; then
+              run_pm run typecheck
+            else
+              ./node_modules/.bin/tsc --noEmit -p apps/practice-host-ui/tsconfig.json
+              if [ -f apps/lan-web-client/tsconfig.json ]; then
+                ./node_modules/.bin/tsc --noEmit -p apps/lan-web-client/tsconfig.json
+              fi
+            fi
+          }
+
+          set +e
+          cargo test --workspace > .ci/fix-proposal/after-cargo-test.log 2>&1
+          echo $? > .ci/fix-proposal/after-cargo-test.status
+
+          run_typecheck > .ci/fix-proposal/after-typecheck.log 2>&1
+          echo $? > .ci/fix-proposal/after-typecheck.status
+
+          cargo audit > .ci/fix-proposal/after-cargo-audit.log 2>&1
+          echo $? > .ci/fix-proposal/after-cargo-audit.status
+          set -e
+
+      - id: commit
+        name: Commit proposal changes
+        shell: bash
+        run: |
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "No changes produced by proposal attempts."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "ci: draft fix proposal from failing verify"
+          git push origin "${{ steps.ctx.outputs.branch }}"
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+
+      - id: sensitive
+        if: steps.commit.outputs.has_changes == 'true'
+        name: Detect compliance-sensitive file touches
+        shell: bash
+        run: |
+          git show --name-only --pretty="" HEAD > .ci/fix-proposal/changed-files.txt
+          if grep -Eiq '(^|/)(security|audit|crypto|rbac)(/|_|\\.|-)' .ci/fix-proposal/changed-files.txt; then
+            echo "sensitive=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "sensitive=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Prepare draft PR body
+        if: steps.commit.outputs.has_changes == 'true'
+        shell: bash
+        run: |
+          status_label() {
+            if [ "$1" = "0" ]; then
+              echo "PASS"
+            else
+              echo "FAIL (exit $1)"
+            fi
+          }
+
+          BEFORE_TEST="$(cat .ci/fix-proposal/before-cargo-test.status)"
+          BEFORE_TYPECHECK="$(cat .ci/fix-proposal/before-typecheck.status)"
+          BEFORE_AUDIT="$(cat .ci/fix-proposal/before-cargo-audit.status)"
+          AFTER_TEST="$(cat .ci/fix-proposal/after-cargo-test.status)"
+          AFTER_TYPECHECK="$(cat .ci/fix-proposal/after-typecheck.status)"
+          AFTER_AUDIT="$(cat .ci/fix-proposal/after-cargo-audit.status)"
+
+          cat > .ci/fix-proposal/pr-body.md <<EOF
+          ## CI fix proposal (draft)
+
+          ### Trigger
+          - Base ref: \`${{ steps.ctx.outputs.base_ref }}\`
+          - Trigger reason: ${{ steps.ctx.outputs.reason }}
+
+          ### Failing-before evidence
+          - \`cargo test --workspace\`: $(status_label "$BEFORE_TEST")
+          - \`typecheck\`: $(status_label "$BEFORE_TYPECHECK")
+          - \`cargo audit\`: $(status_label "$BEFORE_AUDIT")
+
+          ### Passing-after evidence
+          - \`cargo test --workspace\`: $(status_label "$AFTER_TEST")
+          - \`typecheck\`: $(status_label "$AFTER_TYPECHECK")
+          - \`cargo audit\`: $(status_label "$AFTER_AUDIT")
+
+          ### Rationale
+          This draft PR contains an automated best-effort fix proposal from the failing verify state. No auto-merge is configured; human review is required before merge.
+          EOF
+
+      - id: create_pr
+        if: steps.commit.outputs.has_changes == 'true'
+        name: Open draft PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh pr create \
+            --draft \
+            --base "${{ steps.ctx.outputs.base_ref }}" \
+            --head "${{ steps.ctx.outputs.branch }}" \
+            --title "ci: draft fix proposal for failing verify" \
+            --body-file .ci/fix-proposal/pr-body.md
+          PR_URL="$(gh pr view "${{ steps.ctx.outputs.branch }}" --json url --jq '.url')"
+          echo "pr_url=$PR_URL" >> "$GITHUB_OUTPUT"
+          echo "Draft PR: $PR_URL"
+
+      - name: Add needs-human-review label for sensitive changes
+        if: steps.commit.outputs.has_changes == 'true' && steps.sensitive.outputs.sensitive == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh label create needs-human-review --color B60205 --description "Automation touched security/audit/crypto/RBAC paths." 2>/dev/null || true
+          gh pr edit "${{ steps.create_pr.outputs.pr_url }}" --add-label needs-human-review
+          echo "Sensitive area touched; label applied."
+
+      - name: Stop when sensitive areas were changed
+        if: steps.commit.outputs.has_changes == 'true' && steps.sensitive.outputs.sensitive == 'true'
+        run: |
+          echo "Sensitive paths changed (security/audit/crypto/RBAC). Manual review required."
+          exit 1
+
+      - name: Upload proposal evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fix-proposal-evidence
+          path: .ci/fix-proposal

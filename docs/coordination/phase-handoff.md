@@ -1,5 +1,27 @@
 # Phase handoff
 
+**Last phase label:** CI/CD tier migration (2026-09-26)
+
+### Verified (2026-09-26 — verify/autofix/fix-proposal/release split)
+
+- Tiered workflows added: `.github/workflows/{verify,autofix,fix-proposal,release}.yml`; legacy `ci.yml` converted to wrapper calling `verify`.
+- Verify gate now targets live monorepo workspaces and includes Rust checks, JS lint/typecheck/test/build, and an axe-core critical-only accessibility gate (`scripts/test-a11y.mjs`).
+- Release flow now gates through reusable verify and builds signed bundles behind protected `release` environment without source mutation.
+- Validation evidence recorded in `docs/coordination/validation.md` (YAML parse, build, Playwright install, axe run).
+
+### Remains unverified
+
+- End-to-end GitHub Actions runtime behavior on hosted runners (matrix timings, permission edge cases, label presence for `needs-human-review`) — **NOT OBSERVED**.
+- Branch protection/status-check wiring after replacing direct `ci.yml` execution with `verify.yml` + legacy wrapper — **NOT OBSERVED**.
+
+### Required next
+
+1. Open PR and run the new workflows once on GitHub to confirm pass/fail behavior and status-check names.
+2. Ensure `needs-human-review` label exists in the repository so Tier-3 sensitive-touch labeling cannot fail.
+3. If required by branch protection, switch required checks from legacy CI contexts to `verify` job contexts.
+
+---
+
 **Last phase label:** Payment fulfills open booking (2026-09-05)
 
 ### Verified (2026-09-05 — payment → billing list)
