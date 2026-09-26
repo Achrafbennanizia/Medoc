@@ -1,5 +1,36 @@
 # Phase handoff
 
+**Last phase label:** Workflow telemetry channel + bridge (2026-09-26)
+
+### Verified (2026-09-26 — logger-first instrumentation slice)
+
+- `medoc-core` logging now includes a dedicated `workflow.log` channel (`medoc::workflow`) with separate writer guard and app-log exclusion (`crates/shared/medoc-core/src/infrastructure/logging/{mod,config}.rs`).
+- New Tauri command `log_workflow_step` sanitizes route/action/message/context via existing sanitizer before writing workflow events (`crates/app/medoc-practice/src/commands/system/logging.rs`).
+- IPC registry updated to include `log_workflow_step`; invoke count updated from 313 → 314 (`crates/app/medoc-practice/src/commands/register.rs`, `apps/practice-host/tests/invoke_registration_tests.rs`).
+- Frontend workflow bridge wired:
+  - route-enter telemetry (`apps/practice-host-ui/src/views/layouts/app-layout.tsx`),
+  - service call lifecycle telemetry (`packages/app/practice-host/src/adapters/practice-transport.ts`),
+  - dialog cancel telemetry (`packages/ui/src/dialog.tsx`).
+- Full validation rerun: `cargo fmt --check`, `MEDOC_VENDOR_PUBKEY=… cargo clippy --workspace --all-targets -- -D warnings`, `MEDOC_VENDOR_PUBKEY=… cargo test --workspace --tests`, `npm run test` (62 files / 309 tests), `npm run build` — all **PASS**.
+
+### Remains unverified
+
+- Live desktop runtime smoke of `workflow.log` content and rotation with real UI click-through — **NOT OBSERVED**.
+- Manual PII spot-check of produced workflow logs on a running app profile — **NOT OBSERVED** (sanitization verified by unit tests only).
+
+### Understanding delta
+
+- Workflow telemetry is now unified in the existing tracing stack (no parallel logger): frontend events enter via one sanitized command path and land in a dedicated rotating file channel.
+- Node/Vitest runs now disable telemetry by default unless forced via `__MEDOC_WORKFLOW_TELEMETRY__`, preventing transport-side log calls from destabilizing legacy tests.
+
+### Required next
+
+1. Launch a live Tauri session and execute route/action/cancel/error paths; confirm corresponding entries in `workflow.log` and verify no patient identifiers leak.
+2. Add explicit workflow-state-machine audit cases (Step 2 register) using the new channel as evidence source.
+3. Extend component/page behavior tests to assert emitted workflow phases for critical flows beyond shared transport hooks.
+
+---
+
 **Last phase label:** Payment fulfills open booking (2026-09-05)
 
 ### Verified (2026-09-05 — payment → billing list)

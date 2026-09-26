@@ -1,6 +1,6 @@
 # Project truth ledger
 
-**Last updated:** 2026-06-06  
+**Last updated:** 2026-09-26  
 **Scope:** Canonical statements supported by repository evidence.
 
 ## Pro→main merge (2026-05-31 — 2026-06-01) — stable truth
@@ -26,6 +26,7 @@
 - **Company server demo:** Stub routes in `company_host/http.rs` return `"_demo": true`; UI banner in `settings-company-portal-section.tsx`.
 - **LAN API transport:** HTTPS only via self-signed `lan-tls.{crt,key}` under app data dir; SHA-256 fingerprint exposed in status + UDP beacon (`apps/practice-host/src/infrastructure/lan_server/tls.rs`, `lan_commands.rs`; HTTP stack in `crates/server/lan/medoc-lan/`).
 - **HTTP CORS:** LAN server uses explicit origin allowlist + 403 gate (`infrastructure/cors_policy.rs`); company server denies all browser `Origin` headers (`company_host/http.rs`).
+- **Workflow telemetry (2026-09-26):** structured workflow events now flow through existing tracing infrastructure into dedicated `workflow.log` via `log_workflow_step` (sanitized route/action/message/context) and frontend bridge hooks in `practice-transport` + `AppLayout` + shared dialog component.
 - **VVT export (runtime text):** Generated VVT lists SQLite WAL and SQLCipher usage (`apps/practice-host/src/infrastructure/vvt.rs`).
 - **Tauri security:** Content Security Policy set with separate **`devCsp`** for Vite (`localhost` / `127.0.0.1:1420` + websocket) and production **`csp`** without invalid `localhost:*` wildcards (`apps/practice-host/tauri.conf.json`).
 - **GOZ invoice PDF (Rust):** Multipage layout in `crates/shared/medoc-core/src/infrastructure/pdf.rs`; optional praxis fields on `Invoice`; integration tests in `crates/shared/medoc-core/tests/pdf_document_tests.rs`.

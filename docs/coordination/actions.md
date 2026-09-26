@@ -1,6 +1,23 @@
 # Action ledger
 
-**Last updated:** 2026-09-05 (payment fulfills open booking)
+**Last updated:** 2026-09-26 (workflow telemetry channel + bridge)
+
+## Done (2026-09-26 — workflow telemetry / logger-first slice)
+
+- Extended tracing logger with a dedicated `workflow.log` channel (`medoc::workflow`) in `medoc-core`.
+- Added sanitized IPC bridge command `log_workflow_step` and registered it in the global invoke handler.
+- Wired frontend workflow telemetry:
+  - route enter (`AppLayout`),
+  - service-call lifecycle (`primary_action` / `success` / `error`) in shared transport,
+  - dialog dismiss telemetry (`cancel` on Escape/backdrop/close).
+- Added test coverage:
+  - Rust sanitization tests for workflow event fields/context.
+  - Vitest adapter telemetry tests with explicit test-mode gating.
+- Validation rerun: `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace --tests`, `npm run test`, `npm run build` — all **PASS** after environment remediation.
+
+## Now
+
+- Manual smoke in a live Tauri session: verify `workflow.log` receives `route_enter`, `primary_action`, `success`, `cancel`, and `error` entries and confirm no patient PII appears in file output.
 
 ## Done (2026-09-05 — payment → billing)
 

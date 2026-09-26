@@ -1,6 +1,22 @@
 # Validation ledger
 
-**Last updated:** 2026-09-05 (payment assignment open rows)
+**Last updated:** 2026-09-26 (workflow telemetry channel + bridge)
+
+## Workflow telemetry channel + bridge (2026-09-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Rust fmt | `cargo fmt --check` | **PASS** |
+| Rust clippy (initial) | `cargo clippy --workspace --all-targets -- -D warnings` | **FAIL** — runner had Cargo 1.83 (edition2024 parse error), missing `openssl/crypto.h`, and missing `MEDOC_VENDOR_PUBKEY`; remediated by `rustup toolchain install stable`, apt deps (`libssl-dev`, GTK/WebKit stack), and exporting CI test pubkey. |
+| Rust clippy (final) | `MEDOC_VENDOR_PUBKEY=… cargo clippy --workspace --all-targets -- -D warnings` | **PASS** |
+| Rust tests (final) | `MEDOC_VENDOR_PUBKEY=… cargo test --workspace --tests` | **PASS** |
+| Frontend tests (initial) | `npm run test` | **FAIL** — `vitest: not found` before workspace install. |
+| Node install | `npm ci --workspaces --include-workspace-root --install-links` | **PASS** |
+| Frontend tests (mid) | `npm run test` | **FAIL** — `billing-release-flow.test.ts` consumed by new workflow IPC side-effects. |
+| Frontend tests (final) | `npm run test` | **PASS** — **62 files / 309 tests** (known pre-existing warning remains: un-awaited rejects in `http-practice.adapter.test.ts`). |
+| Frontend build | `npm run build` | **PASS** |
+
+---
 
 ## Payment assignment / open booking (2026-09-05)
 
