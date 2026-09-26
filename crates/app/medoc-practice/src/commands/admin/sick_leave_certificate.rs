@@ -60,6 +60,7 @@ fn cut_range_payload(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn sick_leave_certificate_save(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -146,6 +147,7 @@ async fn fetch_sick_leave(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn list_sick_leave_certificates(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -164,6 +166,7 @@ pub async fn list_sick_leave_certificates(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn end_sick_leave_certificate(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
