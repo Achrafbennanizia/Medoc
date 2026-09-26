@@ -50,6 +50,7 @@ import { subscribeWorkTimeFocusMode, dispatchWorkTimeFocusMode } from "@/lib/wor
 import { subscribeAppMenu } from "@/lib/native-app-menu-bridge";
 import { countUnreadInAppNotifications } from "@/systems/practice-host/controllers/in-app-notification.controller";
 import { useMacWindowDrag } from "@/lib/mac-window-drag";
+import { emitWorkflowEventBestEffort, normalizeWorkflowRoute } from "@/services/workflow-event.service";
 
 const MEDOC_UI_ZOOM_KEY = "medoc-ui-zoom";
 const MEDOC_SIDEBAR_RAIL_PREF_KEY = "medoc-sidebar-rail-pref";
@@ -324,6 +325,17 @@ export function AppLayout() {
 
     useEffect(() => {
         setMobileNavOpen(false);
+    }, [location.pathname]);
+
+    useEffect(() => {
+        const route = normalizeWorkflowRoute(location.pathname);
+        emitWorkflowEventBestEffort({
+            stage: "route_enter",
+            workflow: `route:${route}`,
+            route,
+            source: "frontend-router",
+            action: "enter",
+        });
     }, [location.pathname]);
 
     /** Native menubar: RBAC-aligned payload (desktop); warn-only on browser / IPC failure. */
@@ -1166,11 +1178,34 @@ export function AppLayout() {
             {BREAK_GLASS_ENABLED ? (
             <Dialog
                 open={breakOpen}
-                onClose={() => setBreakOpen(false)}
+                onClose={() => {
+                    setBreakOpen(false);
+                    emitWorkflowEventBestEffort({
+                        stage: "cancel",
+                        workflow: "break_glass.dialog",
+                        route: normalizeWorkflowRoute(location.pathname),
+                        source: "frontend-ui",
+                        action: "dismiss",
+                    });
+                }}
                 title={t("app.layout.break_glass.title")}
                 footer={
                     <>
-                        <Button variant="ghost" onClick={() => setBreakOpen(false)}>{t("common.cancel")}</Button>
+                        <Button
+                            variant="ghost"
+                            onClick={() => {
+                                setBreakOpen(false);
+                                emitWorkflowEventBestEffort({
+                                    stage: "cancel",
+                                    workflow: "break_glass.dialog",
+                                    route: normalizeWorkflowRoute(location.pathname),
+                                    source: "frontend-ui",
+                                    action: "dismiss",
+                                });
+                            }}
+                        >
+                            {t("common.cancel")}
+                        </Button>
                         <Button onClick={() => void submitBreakGlass()} disabled={bgBusy} loading={bgBusy}>{t("common.confirm")}</Button>
                     </>
                 }
@@ -1196,7 +1231,16 @@ export function AppLayout() {
             ) : null}
             <ConfirmDialog
                 open={logoutConfirmOpen}
-                onClose={() => setLogoutConfirmOpen(false)}
+                onClose={() => {
+                    setLogoutConfirmOpen(false);
+                    emitWorkflowEventBestEffort({
+                        stage: "cancel",
+                        workflow: "logout.confirm",
+                        route: normalizeWorkflowRoute(location.pathname),
+                        source: "frontend-ui",
+                        action: "dismiss",
+                    });
+                }}
                 onConfirm={async () => {
                     setLogoutConfirmOpen(false);
                     await handleLogout();
