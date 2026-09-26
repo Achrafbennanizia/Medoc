@@ -264,7 +264,7 @@ export function TreatmentChartComposerPanel({
                         disabled={treatmentFieldsLocked}
                         onChange={(e) => setTreatmentForm({ ...treatmentForm, notes: e.target.value })}
                         placeholder={t("treatment.composer.notes_ph")}
-                        className="min-h-[72px] mt-2"
+                        className="min-h-20 mt-2"
                     />
                 </details>
             </div>

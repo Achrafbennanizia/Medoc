@@ -1,5 +1,6 @@
 import { useT, useTParams } from "@/lib/i18n";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { withTimeout } from "@/lib/with-timeout";
 import {
     getDbSetupStatus,
     provisionDbPassphrase,
@@ -9,6 +10,8 @@ import {
 import { errorMessage } from "@/lib/utils";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+
+const DB_SETUP_STATUS_TIMEOUT_MS = 12_000;
 
 /**
  * Blocks the UI until the SQLCipher DB passphrase is provisioned or unlocked
@@ -24,7 +27,11 @@ export function DbSetupGate({ children }: { children: ReactNode }) {
     const [busy, setBusy] = useState(false);
 
     const refresh = useCallback(() => {
-        void getDbSetupStatus()
+        void withTimeout(
+            getDbSetupStatus(),
+            DB_SETUP_STATUS_TIMEOUT_MS,
+            "Database setup status",
+        )
             .then(setStatus)
             .catch((e: unknown) => {
                 setStatus({ needsPassphraseSetup: false, needsUnlock: false });

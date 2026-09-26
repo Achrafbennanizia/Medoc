@@ -1,9 +1,12 @@
 import { useEffect, type ReactNode } from "react";
 import { checkSession } from "@/systems/practice-host/controllers/auth.controller";
 import { mergeAutocompleteFromPracticeKvIntoLocal } from "@/lib/practice-search-prefs-sync";
+import { withTimeout } from "@/lib/with-timeout";
 import { usePracticeWorkHoursStore } from "@/models/store/practice-work-hours-store";
 import { useT } from "@/lib/i18n";
 import { useAuthStore } from "../../models/store/auth-store";
+
+const SESSION_GATE_TIMEOUT_MS = 15_000;
 
 /**
  * Runs once at startup so `get_session` hydrates Zustand before route guards run.
@@ -14,9 +17,13 @@ export function SessionGate({ children }: { children: ReactNode }) {
     const sessionChecked = useAuthStore((s) => s.sessionChecked);
 
     useEffect(() => {
-        void checkSession()
-            .then(() => mergeAutocompleteFromPracticeKvIntoLocal())
-            .then(() => usePracticeWorkHoursStore.getState().hydrate())
+        void withTimeout(
+            checkSession()
+                .then(() => mergeAutocompleteFromPracticeKvIntoLocal())
+                .then(() => usePracticeWorkHoursStore.getState().hydrate()),
+            SESSION_GATE_TIMEOUT_MS,
+            "Session bootstrap",
+        )
             .catch((e) => {
                 console.warn("SessionGate: checkSession failed", e);
             })

@@ -19,6 +19,7 @@ import { useT } from "@/lib/i18n";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 
 import { errorMessage } from "@/lib/utils";
+import { withTimeout } from "@/lib/with-timeout";
 import { syncGetStatus } from "@/systems/practice-host/controllers/sync.controller";
 import { currentLicenseStatus } from "@/systems/practice-host/controllers/system.controller";
 import { clusterGetStatus } from "@/systems/practice-host/controllers/cluster.controller";
@@ -26,6 +27,7 @@ import { LicenseActivatePage } from "@/systems/practice-host/pages/license-activ
 import { PairingScanPage } from "@/systems/lan/pages/pairing-scan";
 
 type Decision = "loading" | "ok" | "needs-license" | "needs-pairing" | "error";
+const LICENSE_GATE_TIMEOUT_MS = 12_000;
 
 export function LicenseAndPairingGate({ children }: { children: ReactNode }) {
     const t = useT();
@@ -35,7 +37,11 @@ export function LicenseAndPairingGate({ children }: { children: ReactNode }) {
     const evaluate = useCallback(async () => {
         try {
             setErrorDetail(null);
-            const snap = await syncGetStatus();
+            const snap = await withTimeout(
+                syncGetStatus(),
+                LICENSE_GATE_TIMEOUT_MS,
+                "Sync status check",
+            );
             const isReplica =
                 snap.deployment.mode === "serverless_peer" && snap.deployment.role === "REPLICA";
             if (isReplica) {
@@ -47,12 +53,20 @@ export function LicenseAndPairingGate({ children }: { children: ReactNode }) {
                 setDecision("ok");
                 return;
             }
-            const cluster = await clusterGetStatus().catch(() => null);
+            const cluster = await withTimeout(
+                clusterGetStatus(),
+                LICENSE_GATE_TIMEOUT_MS,
+                "Cluster status check",
+            ).catch(() => null);
             if (cluster?.provisioned && !cluster.isOwner) {
                 setDecision("ok");
                 return;
             }
-            const status = await currentLicenseStatus().catch(() => null);
+            const status = await withTimeout(
+                currentLicenseStatus(),
+                LICENSE_GATE_TIMEOUT_MS,
+                "License status check",
+            ).catch(() => null);
             if (!status?.valid) {
                 setDecision("needs-license");
                 return;

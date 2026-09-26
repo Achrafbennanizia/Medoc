@@ -15,7 +15,7 @@ export interface Toast {
 
 const DURATION: Record<ToastType, number> = {
     success: 3000,
-    error: 6000,
+    error: 5000,
     info: 4000,
     warning: 5000,
 };
@@ -28,7 +28,13 @@ interface ToastState {
     add: (
         message: string,
         type?: ToastType,
-        options?: { onUndo?: () => void | Promise<void>; undoLabel?: string; durationMs?: number },
+        options?: {
+            onUndo?: () => void | Promise<void>;
+            undoLabel?: string;
+            durationMs?: number;
+            /** Action-required notices can stay until dismissed. */
+            persistent?: boolean;
+        },
     ) => void;
     remove: (id: string) => void;
 }
@@ -39,7 +45,7 @@ export const useToastStore = create<ToastState>((set) => ({
     setToastStackPointerInside: (version) => set({ toastStackPointerInside: version }),
     add: (message, type = "success", options) => {
         const id = crypto.randomUUID();
-        const durationMs = options?.durationMs ?? DURATION[type];
+        const durationMs = options?.persistent ? 0 : (options?.durationMs ?? DURATION[type]);
         const toast: Toast = {
             id,
             message,

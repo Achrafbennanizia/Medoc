@@ -16,6 +16,7 @@ import { useClusterStore } from "@/models/store/cluster-store";
 import { useAuthStore } from "@/models/store/auth-store";
 import { useT } from "@/lib/i18n";
 import { errorMessage } from "@/lib/utils";
+import { withTimeout } from "@/lib/with-timeout";
 import { Button } from "@/views/components/ui/button";
 import { OnboardingShell } from "@/views/components/onboarding-shell";
 
@@ -24,6 +25,8 @@ type OnboardingPhase = {
     needsPracticeSetup: boolean;
     needsMemberAccount: boolean;
 };
+
+const ONBOARDING_GATE_TIMEOUT_MS = 12_000;
 
 function deviceSetupNeeded(
     status: NonNullable<ReturnType<typeof useClusterStore.getState>["status"]>,
@@ -42,13 +45,22 @@ export function ClusterOnboardingGate({ children }: { children: ReactNode }) {
     const loadError = useClusterStore((s) => s.loadError);
     const setLoadError = useClusterStore((s) => s.setLoadError);
     const [phase, setPhase] = useState<OnboardingPhase | null>(null);
+    const bypassAuditRoute = location.pathname === "/ui-audit";
 
     const refresh = useCallback(() => {
         setLoadError(null);
-        void clusterGetStatus()
+        void withTimeout(
+            clusterGetStatus(),
+            ONBOARDING_GATE_TIMEOUT_MS,
+            "Cluster onboarding status",
+        )
             .then(async (s) => {
                 setStatus(s);
-                const sub = await onboardingSubscriptionStatus();
+                const sub = await withTimeout(
+                    onboardingSubscriptionStatus(),
+                    ONBOARDING_GATE_TIMEOUT_MS,
+                    "Onboarding subscription status",
+                );
                 setPhase({
                     needsDeviceSetup: deviceSetupNeeded(s),
                     needsPracticeSetup: sub.needsPracticeSetup,
@@ -63,8 +75,13 @@ export function ClusterOnboardingGate({ children }: { children: ReactNode }) {
     }, [setLoadError, setStatus]);
 
     useEffect(() => {
+        if (bypassAuditRoute) return;
         refresh();
-    }, [refresh, status?.licensed, status?.provisioned, status?.isOwner, location.pathname]);
+    }, [refresh, status?.licensed, status?.provisioned, status?.isOwner, location.pathname, bypassAuditRoute]);
+
+    if (bypassAuditRoute) {
+        return <>{children}</>;
+    }
 
     if (status === null && loadError) {
         return (
