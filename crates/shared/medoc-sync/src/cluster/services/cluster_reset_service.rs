@@ -511,11 +511,34 @@ mod tests {
     use super::*;
     use medoc_core::infrastructure::database::connection::{run_migrations, test_memory_pool};
     use medoc_core::infrastructure::database::license_repo;
+    use serial_test::serial;
+
+    struct MasterSecretGuard {
+        previous: Option<String>,
+    }
+
+    impl MasterSecretGuard {
+        fn set(secret: &str) -> Self {
+            let previous = std::env::var("MEDOC_PAIRING_MASTER_SECRET").ok();
+            std::env::set_var("MEDOC_PAIRING_MASTER_SECRET", secret);
+            Self { previous }
+        }
+    }
+
+    impl Drop for MasterSecretGuard {
+        fn drop(&mut self) {
+            if let Some(previous) = self.previous.take() {
+                std::env::set_var("MEDOC_PAIRING_MASTER_SECRET", previous);
+            } else {
+                std::env::remove_var("MEDOC_PAIRING_MASTER_SECRET");
+            }
+        }
+    }
 
     #[test]
+    #[serial]
     fn reset_token_sign_verify_roundtrip() {
-        std::env::set_var(
-            "MEDOC_PAIRING_MASTER_SECRET",
+        let _master_secret = MasterSecretGuard::set(
             "8762be1a9a0963f36d98d47c0de6a73a0124b77d3268c170365824a6045d2fbf",
         );
         let token = mint_reset_token("cluster-abc", ClusterResetMode::NetworkOnly).expect("mint");

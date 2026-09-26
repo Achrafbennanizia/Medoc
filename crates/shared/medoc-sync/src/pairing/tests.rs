@@ -3,6 +3,7 @@ use ed25519_dalek::SigningKey;
 use medoc_core::error::AppError;
 use medoc_core::infrastructure::database::connection::{run_migrations, test_memory_pool};
 use rand::rngs::OsRng;
+use serial_test::serial;
 use sqlx::SqlitePool;
 
 use super::policy::slave_actions;
@@ -14,11 +15,31 @@ use super::types::{
 };
 use crate::master_keys;
 
+const TEST_MASTER_SECRET: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+struct MasterSecretGuard {
+    previous: Option<String>,
+}
+
+impl MasterSecretGuard {
+    fn set() -> Self {
+        let previous = std::env::var("MEDOC_PAIRING_MASTER_SECRET").ok();
+        std::env::set_var("MEDOC_PAIRING_MASTER_SECRET", TEST_MASTER_SECRET);
+        Self { previous }
+    }
+}
+
+impl Drop for MasterSecretGuard {
+    fn drop(&mut self) {
+        if let Some(previous) = self.previous.take() {
+            std::env::set_var("MEDOC_PAIRING_MASTER_SECRET", previous);
+        } else {
+            std::env::remove_var("MEDOC_PAIRING_MASTER_SECRET");
+        }
+    }
+}
+
 async fn fresh_pool() -> SqlitePool {
-    std::env::set_var(
-        "MEDOC_PAIRING_MASTER_SECRET",
-        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-    );
     let pool = test_memory_pool().await.expect("pool");
     run_migrations(&pool).await.expect("migrate");
     crate::schema::ensure_sync_tables(&pool)
@@ -56,7 +77,9 @@ async fn accept_with_pin(
 }
 
 #[tokio::test]
+#[serial]
 async fn submit_then_accept_round_trip_issues_token() {
+    let _master_secret = MasterSecretGuard::set();
     let pool = fresh_pool().await;
     let slave_sk = SigningKey::generate(&mut OsRng);
     let slave_pubkey_b64 = STANDARD_NO_PAD.encode(slave_sk.verifying_key().to_bytes());
@@ -113,7 +136,9 @@ async fn submit_then_accept_round_trip_issues_token() {
 }
 
 #[tokio::test]
+#[serial]
 async fn wrong_pin_rejected_before_accept() {
+    let _master_secret = MasterSecretGuard::set();
     let pool = fresh_pool().await;
     let req = submit_request(
         &pool,
@@ -162,7 +187,9 @@ async fn wrong_pin_rejected_before_accept() {
 }
 
 #[tokio::test]
+#[serial]
 async fn second_submit_replaces_pending_row() {
+    let _master_secret = MasterSecretGuard::set();
     let pool = fresh_pool().await;
     let req1 = submit_request(
         &pool,
@@ -194,7 +221,9 @@ async fn second_submit_replaces_pending_row() {
 }
 
 #[tokio::test]
+#[serial]
 async fn reject_keeps_no_token_and_no_permissions() {
+    let _master_secret = MasterSecretGuard::set();
     let pool = fresh_pool().await;
     let req = submit_request(
         &pool,
@@ -227,7 +256,9 @@ async fn reject_keeps_no_token_and_no_permissions() {
 }
 
 #[tokio::test]
+#[serial]
 async fn revoke_clears_permissions_and_marks_revoked() {
+    let _master_secret = MasterSecretGuard::set();
     let pool = fresh_pool().await;
     let req = submit_request(
         &pool,
@@ -250,7 +281,9 @@ async fn revoke_clears_permissions_and_marks_revoked() {
 }
 
 #[tokio::test]
+#[serial]
 async fn verify_token_rejects_wrong_master_pubkey() {
+    let _master_secret = MasterSecretGuard::set();
     let pool = fresh_pool().await;
     let req = submit_request(
         &pool,

@@ -113,6 +113,29 @@ fn base32_nopad(data: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
+
+    struct DeviceSecretGuard {
+        previous: Option<String>,
+    }
+
+    impl DeviceSecretGuard {
+        fn set(secret: &str) -> Self {
+            let previous = std::env::var("MEDOC_CLUSTER_DEVICE_SECRET").ok();
+            std::env::set_var("MEDOC_CLUSTER_DEVICE_SECRET", secret);
+            Self { previous }
+        }
+    }
+
+    impl Drop for DeviceSecretGuard {
+        fn drop(&mut self) {
+            if let Some(previous) = self.previous.take() {
+                std::env::set_var("MEDOC_CLUSTER_DEVICE_SECRET", previous);
+            } else {
+                std::env::remove_var("MEDOC_CLUSTER_DEVICE_SECRET");
+            }
+        }
+    }
 
     #[test]
     fn fingerprint_is_deterministic() {
@@ -124,13 +147,12 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn device_identity_from_env() {
-        std::env::set_var(
-            "MEDOC_CLUSTER_DEVICE_SECRET",
+        let _device_secret = DeviceSecretGuard::set(
             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
         );
         let id = DeviceIdentity::load_or_create().expect("identity");
         assert_eq!(id.pubkey_bytes.len(), 32);
-        std::env::remove_var("MEDOC_CLUSTER_DEVICE_SECRET");
     }
 }
