@@ -2424,3 +2424,32 @@ Design doc: [`docs/architecture/serverless-sync.md`](../architecture/serverless-
 
 - **Local Rust builds:** `export MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32`
 - **LAN TLS files:** `{app_data_dir}/lan-tls.crt`, `lan-tls.key`
+
+## Automation quality run delta (2026-09-26)
+
+### Verified
+
+- Workflow logging channel extension is wired through the existing tracing subsystem (`workflow.log` target and `log_workflow!` macro), and frontend invokes emit sanitized workflow events via `log_workflow_step`.
+- Command registration includes `log_workflow_step` and invoke-count guard is aligned to `314`.
+- Command tracing guard test exists and passes: `cargo test -p medoc-practice --test command_tracing_coverage_tests`.
+- Env-sensitive `medoc-sync` tests now serialize + restore env vars (`MEDOC_PAIRING_MASTER_SECRET`, `MEDOC_CLUSTER_DEVICE_SECRET`) and full workspace tests passed twice consecutively.
+- Full required matrix for this run passed on final tree: `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test --workspace --tests`, `npm run test`, `npm run build`.
+
+### Remains unverified
+
+- Playwright geometry audit assertions are still gated by `MEDOC_UI_GEOMETRY=1`; default run skipped all three responsive checks.
+- Live manual verification of UI workflow termination states (dialogs/spinners/dead-ends) remains **NOT OBSERVED** in this run.
+- axe-core / contrast automation for WCAG step is **NOT RUN** in this run.
+
+### Understanding delta
+
+- Prior intermittent `reset_token_sign_verify_roundtrip` signature failure appears to be env-race driven (validated by historical failures + current stabilization pass).
+- Workflow telemetry is now centralized through existing sanitizer/logging infrastructure rather than ad-hoc frontend console/event traces.
+- Validation debt surfaced: one Vitest warning (`rejects.toThrow` not awaited) is non-fatal today but likely future-failing.
+
+### Must happen next
+
+1. Execute geometry audit with `MEDOC_UI_GEOMETRY=1` in a browser-capable run and capture spacing/token violations in the register.
+2. Add/enable axe-core checks for critical WCAG rules and log findings in `contradictions.md`.
+3. Fix the unawaited `rejects.toThrow` warning in `packages/shared/src/lib/http-practice.adapter.test.ts` before Vitest behavior hardens.
+4. Continue workflow-map pass for non-terminable UI paths and record each issue with P0–P3 severity.

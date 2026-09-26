@@ -1907,3 +1907,28 @@ or file inspection that was performed.
 | ----- | ------- | ----------------- | ---- |
 | Migration idempotency | `cargo test --no-default-features --test db_migrations_tests` | `FOREIGN KEY constraint failed` on first run because `seed_demo_data` inserted `anamnesis_form`/`patient_chart` rows referencing `seed-pat-006/007/008` *before* those patients existed. **Fixed** in this session by reordering inserts in `connection.rs`. | 2026-04-25 |
 | DSGVO erasure | `cargo test --no-default-features --test dsgvo_erasure_tests` | `assert_eq! left=14 right=0` on global treatment count. The test asserted `SELECT COUNT(*) FROM treatment` was 0 after erasing one patient, but `seed_demo_data` legitimately seeds treatments for unrelated Akten. **Fixed** by scoping the assertion to `WHERE chart_id = 'akte-dsgvo-1'`. | 2026-04-25 |
+
+## Automation quality run — workflow logging + coverage + flake stabilization (2026-09-26)
+
+| Check | Command | Result | Notes |
+| ----- | ------- | ------ | ----- |
+| Rust format (first pass) | `cargo fmt --check` | **FAIL** | One formatting delta in `crates/shared/medoc-sync/src/pairing/tests.rs` (`TEST_MASTER_SECRET` line wrap). |
+| Rust format fix | `cargo fmt` | **PASS** | Applied formatter only. |
+| Rust format (recheck) | `cargo fmt --check` | **PASS** | Clean after formatter run. |
+| Rust lint | `MEDOC_VENDOR_PUBKEY=79c... cargo clippy --workspace --all-targets -- -D warnings` | **PASS** | Completed after test stabilization edits. |
+| Rust workspace tests (pass 1) | `MEDOC_VENDOR_PUBKEY=79c... cargo test --workspace --tests` | **PASS** | Output log: `/home/ubuntu/.cursor/projects/workspace/agent-tools/6365559d-88a0-43bf-99b4-1af3b1244971.txt`. |
+| Rust workspace tests (pass 2) | `MEDOC_VENDOR_PUBKEY=79c... cargo test --workspace --tests` | **PASS** | Output log: `/home/ubuntu/.cursor/projects/workspace/agent-tools/edba4975-1676-4f21-812f-ce9ebb72fea8.txt`. |
+| Targeted flake regressions | `cargo test -p medoc-sync ...reset_token_sign_verify_roundtrip -- --exact` and `...pairing::tests::submit_then_accept_round_trip_issues_token -- --exact` | **PASS** | Both env-sensitive tests pass with serialization + env guards. |
+| Command tracing guard | `cargo test -p medoc-practice --test command_tracing_coverage_tests` | **PASS** | `tauri_commands_are_tracing_instrumented` green on current tree. |
+| Frontend tests | `npm run test` | **PASS** | 62 files / 308 tests. Warning remains: unawaited `rejects.toThrow` in `http-practice.adapter.test.ts`. |
+| Frontend build | `npm run build` | **PASS** | Vite build succeeds; pre-existing chunk-size warning remains. |
+| Playwright geometry scaffold | `npm run test:playwright -w medoc -- e2e-playwright/geometry-spacing.spec.ts` | **PASS (skipped)** | 3 tests skipped unless `MEDOC_UI_GEOMETRY=1`. |
+
+### New/updated tests in this run
+
+- `crates/app/medoc-practice/tests/command_tracing_coverage_tests.rs`
+- `apps/practice-host-ui/src/services/tauri.service.test.ts`
+- `apps/practice-host-ui/e2e-playwright/geometry-spacing.spec.ts`
+- `crates/shared/medoc-sync/src/pairing/tests.rs` (serialization + env restore)
+- `crates/shared/medoc-sync/src/cluster/services/cluster_reset_service.rs` (serialization + env restore)
+- `crates/shared/medoc-sync/src/cluster/crypto/device_identity.rs` (serialization + env restore)

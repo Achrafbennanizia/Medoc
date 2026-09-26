@@ -735,3 +735,19 @@ Vollständige Tabelle: [`docs/uml/10-master-feature-workflow-audit.md`](../uml/1
 | G5 | patient-detail shell &lt;1200 lines + overlays | 2026-05-21 |
 | G1–G4, G2 restore | Gap remediation batch 1 | 2026-05-21 |
 | D1–D20, P0 | See prior entries | 2026-04-19 … 2026-05-20 |
+
+## Done (2026-09-26 — workflow logging + test hardening)
+
+- Extended existing tracing logger with a dedicated workflow channel and sanitized frontend→backend workflow bridge (`log_workflow_step`).
+- Added quality tests: Tauri command tracing coverage guard, workflow logging unit tests, and Playwright geometry scaffold at 375/768/1259 breakpoints.
+- Stabilized flaky `medoc-sync` env-sensitive tests by serializing and restoring env overrides.
+- Revalidated full stack (`cargo fmt --check`, `cargo clippy -D warnings`, `cargo test --workspace --tests`, `npm run test`, `npm run build`).
+
+## Now
+
+- Run Playwright geometry checks with `MEDOC_UI_GEOMETRY=1` in a browser-enabled validation lane (current default is skipped).
+- Add axe-core/contrast automation coverage for UI rules compliance.
+
+## Next
+
+- Resolve Vitest warning in `http-practice.adapter.test.ts` (unawaited `rejects.toThrow`) before runner behavior changes.
