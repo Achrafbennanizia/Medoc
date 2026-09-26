@@ -165,3 +165,64 @@ macro_rules! register_logging_commands {
         $crate::commands::logging_commands::log_workflow_event,
     };
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn workflow_event_requires_non_empty_step() {
+        let event = WorkflowLogEvent {
+            step: "   ".into(),
+            route: None,
+            action: None,
+            status: None,
+            command: None,
+            detail: None,
+            correlation_id: None,
+            arg_keys: vec![],
+        };
+        let err = sanitize_workflow_event(event).expect_err("empty step must fail");
+        assert!(matches!(err, AppError::Validation(_)));
+    }
+
+    #[test]
+    fn workflow_event_masks_secret_detail() {
+        let event = WorkflowLogEvent {
+            step: "primary_action".into(),
+            route: Some("/patients/42".into()),
+            action: Some("save".into()),
+            status: Some("error".into()),
+            command: Some("create_patient".into()),
+            detail: Some(
+                "password=hunter2 token=abc.def.ghi Authorization: Bearer eyJabc.def.ghi".into(),
+            ),
+            correlation_id: Some("corr-1".into()),
+            arg_keys: vec!["patient_id".into(), "password".into()],
+        };
+        let cleaned = sanitize_workflow_event(event).expect("sanitized");
+        let detail = cleaned.detail.expect("detail present");
+        assert!(detail.contains("password=***"));
+        assert!(detail.contains("token=***"));
+        assert!(detail.contains("eyJ***"));
+        assert!(!detail.contains("hunter2"));
+    }
+
+    #[test]
+    fn workflow_event_limits_arg_keys_and_field_lengths() {
+        let event = WorkflowLogEvent {
+            step: "x".repeat(300),
+            route: Some("r".repeat(300)),
+            action: None,
+            status: None,
+            command: None,
+            detail: None,
+            correlation_id: None,
+            arg_keys: (0..40).map(|i| format!("key-{i}")).collect(),
+        };
+        let cleaned = sanitize_workflow_event(event).expect("sanitized");
+        assert_eq!(cleaned.step.len(), WORKFLOW_TEXT_LIMIT);
+        assert_eq!(cleaned.route.expect("route").len(), WORKFLOW_TEXT_LIMIT);
+        assert_eq!(cleaned.arg_keys.len(), WORKFLOW_MAX_ARG_KEYS);
+    }
+}
