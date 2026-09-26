@@ -1,0 +1,111 @@
+name: autofix
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: autofix-${{ github.event.pull_request.head.ref }}
+  cancel-in-progress: true
+
+jobs:
+  autofix:
+    if: github.actor != 'github-actions[bot]' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - id: pm
+        name: Detect package manager from lockfile
+        shell: bash
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install JavaScript dependencies
+        shell: bash
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+            *) echo "Unsupported package manager" && exit 1 ;;
+          esac
+
+      - name: cargo fmt
+        run: cargo fmt --all
+
+      - name: Run lint:fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_pm() {
+            case "${{ steps.pm.outputs.pm }}" in
+              pnpm) pnpm "$@" ;;
+              yarn) yarn "$@" ;;
+              npm) npm "$@" ;;
+              *) echo "Unsupported package manager" && exit 1 ;;
+            esac
+          }
+
+          if node -e "const p=require('./package.json'); process.exit((p.scripts||{})['lint:fix'] ? 0 : 1)"; then
+            run_pm run lint:fix
+          else
+            ./node_modules/.bin/eslint apps/practice-host-ui/src --fix --max-warnings 0 --no-cache
+          fi
+
+      - name: Run formatter
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_pm() {
+            case "${{ steps.pm.outputs.pm }}" in
+              pnpm) pnpm "$@" ;;
+              yarn) yarn "$@" ;;
+              npm) npm "$@" ;;
+              *) echo "Unsupported package manager" && exit 1 ;;
+            esac
+          }
+
+          if node -e "const p=require('./package.json'); process.exit((p.scripts||{}).format ? 0 : 1)"; then
+            run_pm run format
+          elif [ -x ./node_modules/.bin/prettier ]; then
+            ./node_modules/.bin/prettier --write "apps/practice-host-ui/src/**/*.{ts,tsx,js,jsx,json,css,md}"
+          else
+            echo "No format script or prettier dependency; skipping formatter step."
+          fi
+
+      - name: Commit fixes if anything changed
+        shell: bash
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "ci: apply deterministic formatting and lint fixes"
+            git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
+          else
+            echo "No deterministic fixes required."
+          fi
