@@ -104,6 +104,7 @@ const PurchaseOrderDetailPage = lazy(async () => ({ default: (await import("./vi
 const FeedbackPage = lazy(async () => ({ default: (await import("./views/pages/feedback")).FeedbackPage }));
 const MigrationWizardPage = lazy(async () => ({ default: (await import("./views/pages/migration-wizard")).MigrationWizardPage }));
 const HelpPage = lazy(async () => ({ default: (await import("./views/pages/help")).HelpPage }));
+const UiAuditPage = lazy(async () => ({ default: (await import("./views/pages/ui-audit")).UiAuditPage }));
 const LicenseActivateOnboardingPage = lazy(async () => ({
     default: (await import("@/systems/practice-host/pages/onboarding/license-activate")).LicenseActivateOnboardingPage,
 }));
@@ -187,6 +188,14 @@ export default function App() {
                     element={(
                         <Suspense fallback={<RouteFallback />}>
                             <LoginPage />
+                        </Suspense>
+                    )}
+                />
+                <Route
+                    path="/ui-audit"
+                    element={(
+                        <Suspense fallback={<RouteFallback />}>
+                            <UiAuditPage />
                         </Suspense>
                     )}
                 />
