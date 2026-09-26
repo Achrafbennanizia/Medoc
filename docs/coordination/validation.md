@@ -1,6 +1,20 @@
 # Validation ledger
 
-**Last updated:** 2026-09-05 (payment assignment open rows)
+**Last updated:** 2026-09-26 (CI/CD pipeline tiers + workspace path migration)
+
+## CI/CD pipeline tiers + workspace migration (2026-09-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML parse | `python3 - <<'PY' ... yaml.safe_load('.github/workflows/*.yml')` | **PASS** — all workflow files parsed |
+| JS verify chain (lint/typecheck/test/build) | `npm run lint -w medoc && npm run typecheck -w medoc && npm run typecheck -w medoc-lan-web-client && npm run test -w medoc && npm run build -w medoc && npm run build -w medoc-lan-web-client` | **PASS** |
+| Rust fmt gate | `cargo fmt --all --check` | **PASS** |
+| A11y critical gate (local simulation) | start `npm run preview -w medoc ...` then `npm run test:a11y -w medoc` | **PASS** — no critical WCAG 2.1 AA violations on `/` |
+| Rust clippy gate | `cargo clippy --workspace --all-targets -- -D warnings` | **FAIL** — local Cargo `1.83.0` cannot parse `clap_lex 1.1.0` (`edition2024` feature required) |
+| Rust test gate | `cargo test --workspace` | **FAIL** — same local Cargo `edition2024` parser limitation |
+| actionlint | `npx --yes actionlint` | **FAIL** — npm package has no runnable binary in this environment |
+
+---
 
 ## Payment assignment / open booking (2026-09-05)
 
