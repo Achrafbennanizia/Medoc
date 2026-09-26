@@ -1,0 +1,218 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Why this proposal run is needed"
+        required: false
+        default: "manual fix proposal"
+      failing_command:
+        description: "Command expected to fail before the fix"
+        required: true
+        default: "cargo test --workspace"
+      fix_command:
+        description: "Command that attempts a substantive fix on a new branch"
+        required: true
+      passing_command:
+        description: "Command expected to pass after the fix"
+        required: true
+        default: "cargo test --workspace"
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: fix-proposal-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  propose:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - id: pm
+        shell: bash
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: |
+            package-lock.json
+            pnpm-lock.yaml
+            yarn.lock
+      - run: corepack enable
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --immutable ;;
+            npm) npm ci ;;
+            *) echo "Unsupported package manager"; exit 1 ;;
+          esac
+      - id: plan
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_REASON: ${{ github.event.inputs.reason }}
+          INPUT_FAILING_COMMAND: ${{ github.event.inputs.failing_command }}
+          INPUT_FIX_COMMAND: ${{ github.event.inputs.fix_command }}
+          INPUT_PASSING_COMMAND: ${{ github.event.inputs.passing_command }}
+          WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          reason="${INPUT_REASON:-manual fix proposal}"
+          failing="${INPUT_FAILING_COMMAND:-cargo test --workspace}"
+          passing="${INPUT_PASSING_COMMAND:-cargo test --workspace}"
+          fix="${INPUT_FIX_COMMAND:-}"
+
+          if [ "$EVENT_NAME" = "workflow_run" ]; then
+            reason="verify failed on main (run ${WORKFLOW_RUN_ID})"
+            if [ -z "$fix" ] && [ -x scripts/ci/fix-proposal-default.sh ]; then
+              fix="bash scripts/ci/fix-proposal-default.sh"
+            fi
+          fi
+
+          echo "reason=$reason" >> "$GITHUB_OUTPUT"
+          echo "failing=$failing" >> "$GITHUB_OUTPUT"
+          echo "passing=$passing" >> "$GITHUB_OUTPUT"
+          {
+            echo "fix<<EOF"
+            echo "$fix"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+      - name: Require configured fix command
+        if: steps.plan.outputs.fix == ''
+        run: |
+          echo "No fix_command configured. Re-run with workflow_dispatch and an explicit fix command."
+          exit 1
+      - id: attempt
+        shell: bash
+        env:
+          FAILING_COMMAND: ${{ steps.plan.outputs.failing }}
+          FIX_COMMAND: ${{ steps.plan.outputs.fix }}
+          PASSING_COMMAND: ${{ steps.plan.outputs.passing }}
+        run: |
+          set -euo pipefail
+          before_log="$RUNNER_TEMP/fix-before.log"
+          fix_log="$RUNNER_TEMP/fix-command.log"
+          after_log="$RUNNER_TEMP/fix-after.log"
+
+          set +e
+          bash -lc "$FAILING_COMMAND" >"$before_log" 2>&1
+          before_status=$?
+          bash -lc "$FIX_COMMAND" >"$fix_log" 2>&1
+          fix_status=$?
+          bash -lc "$PASSING_COMMAND" >"$after_log" 2>&1
+          after_status=$?
+          set -e
+
+          echo "before_status=$before_status" >> "$GITHUB_OUTPUT"
+          echo "fix_status=$fix_status" >> "$GITHUB_OUTPUT"
+          echo "after_status=$after_status" >> "$GITHUB_OUTPUT"
+          echo "before_log=$before_log" >> "$GITHUB_OUTPUT"
+          echo "fix_log=$fix_log" >> "$GITHUB_OUTPUT"
+          echo "after_log=$after_log" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fix-proposal-logs
+          path: |
+            ${{ steps.attempt.outputs.before_log }}
+            ${{ steps.attempt.outputs.fix_log }}
+            ${{ steps.attempt.outputs.after_log }}
+      - id: body
+        shell: bash
+        env:
+          REASON: ${{ steps.plan.outputs.reason }}
+          FAILING_COMMAND: ${{ steps.plan.outputs.failing }}
+          FIX_COMMAND: ${{ steps.plan.outputs.fix }}
+          PASSING_COMMAND: ${{ steps.plan.outputs.passing }}
+          BEFORE_STATUS: ${{ steps.attempt.outputs.before_status }}
+          FIX_STATUS: ${{ steps.attempt.outputs.fix_status }}
+          AFTER_STATUS: ${{ steps.attempt.outputs.after_status }}
+        run: |
+          set -euo pipefail
+          body_path="$RUNNER_TEMP/fix-proposal-body.md"
+          cat > "$body_path" <<EOF
+          ## CI fix proposal
+
+          - Reason: $REASON
+          - Failing before command: \`$FAILING_COMMAND\` (exit: **$BEFORE_STATUS**)
+          - Fix command: \`$FIX_COMMAND\` (exit: **$FIX_STATUS**)
+          - Passing after command: \`$PASSING_COMMAND\` (exit: **$AFTER_STATUS**)
+
+          Full logs are attached in the workflow artifact **fix-proposal-logs**.
+          EOF
+          echo "body_path=$body_path" >> "$GITHUB_OUTPUT"
+      - name: Require successful post-fix verification
+        if: steps.attempt.outputs.fix_status != '0' || steps.attempt.outputs.after_status != '0'
+        run: |
+          echo "Fix command or post-fix verification failed; no proposal PR will be opened."
+          exit 1
+      - name: Require substantive diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "Fix command produced no repository changes."
+            exit 1
+          fi
+      - id: protected
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed_files="$(git diff --name-only)"
+          hits="$(echo "$changed_files" | rg -i '(^|/)(security|audit|crypto|rbac)(/|_|\.|$)' || true)"
+          if [ -n "$hits" ]; then
+            echo "touches_protected=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "touches_protected=false" >> "$GITHUB_OUTPUT"
+          fi
+      - id: cpr
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: ci/fix-proposal-${{ github.run_id }}
+          base: main
+          commit-message: "ci: draft fix proposal"
+          title: "ci: draft fix proposal (${{ steps.plan.outputs.reason }})"
+          body-path: ${{ steps.body.outputs.body_path }}
+          draft: true
+          labels: |
+            ci-fix-proposal
+      - name: Label protected-code proposals
+        if: steps.cpr.outputs.pull-request-number != '' && steps.protected.outputs.touches_protected == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number("${{ steps.cpr.outputs.pull-request-number }}"),
+              labels: ["needs-human-review"],
+            });
+      - name: Stop protected-code proposals for human review
+        if: steps.protected.outputs.touches_protected == 'true'
+        run: |
+          echo "Fix touches security/audit/crypto/RBAC paths; labeled needs-human-review and stopped."
+          exit 1

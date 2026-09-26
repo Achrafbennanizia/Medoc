@@ -1,6 +1,16 @@
 # Action ledger
 
-**Last updated:** 2026-09-05 (payment fulfills open booking)
+**Last updated:** 2026-09-26 (CI/CD pipeline tiers + workspace path migration)
+
+## Done (2026-09-26 — CI/CD tiered workflows)
+
+- Added Tier 1 verify workflow (`.github/workflows/verify.yml`) with Rust, JS, and critical WCAG 2.1 AA a11y gates.
+- Added Tier 2 PR-only deterministic autofix workflow (`.github/workflows/autofix.yml`) with loop guard and protected-path blocking.
+- Added Tier 3 draft fix proposal workflow (`.github/workflows/fix-proposal.yml`) for substantive non-deterministic repairs.
+- Reworked Tier 4 release workflow (`.github/workflows/release.yml`) to re-run verify and build signed artifacts behind protected `release` environment approval.
+- Replaced legacy `ci.yml` trigger path with reusable forwarder to `verify.yml`.
+- Added coordination reference doc `docs/coordination/ci-cd-plan.md` and logged validation evidence in `docs/coordination/validation.md`.
+- Fixed LAN web client shared locale alias gaps discovered by the new JS workspace checks (`tsconfig.json`, `vite.config.ts`).
 
 ## Done (2026-09-05 — payment → billing)
 

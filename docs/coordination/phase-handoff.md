@@ -1,5 +1,35 @@
 # Phase handoff
 
+**Last phase label:** CI/CD pipeline tiers (verify/autofix/fix-proposal/release) (2026-09-26)
+
+### Verified (2026-09-26 — CI/CD pipeline tiers + path migration)
+
+- Added tiered workflows:
+  - Tier 1 verify: `.github/workflows/verify.yml`
+  - Tier 2 autofix: `.github/workflows/autofix.yml`
+  - Tier 3 fix proposal: `.github/workflows/fix-proposal.yml`
+  - Tier 4 gated release: `.github/workflows/release.yml`
+- Legacy `.github/workflows/ci.yml` is now a reusable forwarder to `verify.yml` (no duplicate push/PR trigger path).
+- Added coordination reference: `docs/coordination/ci-cd-plan.md`.
+- Added deterministic a11y check script: `scripts/ci-axe-critical.mjs` (Playwright + axe-core critical WCAG 2.1 AA).
+- JS workspace gaps found and fixed for LAN web client path aliases:
+  - `apps/lan-web-client/tsconfig.json` adds `#shared-locales/*`
+  - `apps/lan-web-client/vite.config.ts` adds `#shared-locales` alias
+- Validation evidence recorded in `docs/coordination/validation.md` (new 2026-09-26 section).
+
+### Remains unverified
+
+- Full Rust verify parity in this local environment is **NOT VERIFIED** due local Cargo parser limitation (`edition2024` dependency metadata in `clap_lex`); see validation ledger.
+- GitHub-hosted run behavior for `fix-proposal.yml` with real `workflow_dispatch` inputs is **NOT OBSERVED** in this session.
+
+### Required next
+
+1. Let CI run `verify.yml` in GitHub Actions to confirm Rust gates on hosted stable toolchain.
+2. Dry-run `fix-proposal.yml` via `workflow_dispatch` with a non-empty `fix_command` in a safe test scenario.
+3. Wire branch protection to Tier 1 `verify` status checks and protected `release` environment approvals.
+
+---
+
 **Last phase label:** Payment fulfills open booking (2026-09-05)
 
 ### Verified (2026-09-05 — payment → billing list)

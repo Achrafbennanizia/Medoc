@@ -20,6 +20,7 @@
             "@/systems/practice-host/*": ["../../packages/app/practice-host/src/*"],
             "@/systems/lan/*": ["../../packages/server/lan/src/*"],
             "@medoc/shared/*": ["../../packages/shared/src/*"],
+            "#shared-locales/*": ["../../packages/shared/locales/*"],
             "@medoc/ui/*": ["../../packages/ui/src/*"],
             "@medoc/system-practice/*": ["../../packages/app/practice-host/src/*"],
             "@medoc/system-lan/*": ["../../packages/server/lan/src/*"],
