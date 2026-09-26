@@ -1,6 +1,20 @@
 # Action ledger
 
-**Last updated:** 2026-09-05 (payment fulfills open booking)
+**Last updated:** 2026-09-26 (workflow logging instrumentation + tests)
+
+## Done (2026-09-26 — workflow logging instrumentation pass)
+
+- Added dedicated `workflow.log` channel in existing tracing subsystem (`medoc::workflow`).
+- Added sanitized backend IPC bridge `log_workflow_event` and wired frontend route-enter + invoke lifecycle telemetry.
+- Added domain transition event emission in central workflow transition service.
+- Added tests for workflow route/token normalization and workflow-log retention.
+- Validation completed (`cargo fmt`, `cargo clippy`, `npm test`, `npm build`), with `cargo test` parallel flake documented; serial `cargo test -- --test-threads=1` passed.
+
+## Now
+
+- Run live desktop smoke to confirm route/action events appear in `workflow.log` with no PII.
+- Stabilize `medoc-sync` parallel test flake (`reset_token_sign_verify_roundtrip`) so default `cargo test` is deterministic.
+- Continue Step 2 map/detection: enumerate workflows and log-backed non-terminable path findings into ledgers.
 
 ## Done (2026-09-05 — payment → billing)
 

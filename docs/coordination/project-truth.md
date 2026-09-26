@@ -1,6 +1,6 @@
 # Project truth ledger
 
-**Last updated:** 2026-06-06  
+**Last updated:** 2026-09-26  
 **Scope:** Canonical statements supported by repository evidence.
 
 ## Pro→main merge (2026-05-31 — 2026-06-01) — stable truth
@@ -18,6 +18,7 @@
 
 - **Desktop product identity:** Tauri app **MeDoc**, identifier `de.medoc.app`, version `0.1.0` (`apps/practice-host/tauri.conf.json`).
 - **Desktop stack:** React 19 + Vite 6 + TypeScript in `apps/practice-host-ui/`; Rust **edition 2021** Tauri binary `medoc` in `apps/practice-host/` with `sqlx` + SQLite via `crates/shared/medoc-core/` (`package.json`, `apps/practice-host/Cargo.toml`).
+- **Workflow telemetry channel (2026-09-26):** Tracing subsystem now writes dedicated `workflow.log` (`target = medoc::workflow`) alongside app/security/system/device/migration/perf. Frontend route-enter + invoke lifecycle events bridge through IPC `log_workflow_event`; transition checks in `workflow_transitions.rs` emit `DOMAIN_STATE_*` workflow events. (`crates/shared/medoc-core/src/infrastructure/logging/mod.rs`, `crates/app/medoc-practice/src/commands/system/logging.rs`, `packages/app/practice-host/src/adapters/practice-transport.ts`, `apps/practice-host-ui/src/views/layouts/app-layout.tsx`)
 - **Database (runtime):** SQLite file `medoc.db` via SQLCipher (`libsqlite3-sys` `bundled-sqlcipher`); `PRAGMA key` from keychain / `MEDOC_DB_KEY` / `db-key.wrap`; legacy plaintext DB migrated on first open (`crates/shared/medoc-core/src/infrastructure/database/connection.rs`, `sqlcipher.rs`, `db_key.rs`).
 - **Schema language (2026-08-19):** Canonical table names are English snake_case (`staff`, `appointment`, `service_item`, `purchase_order`). Installed DBs are upgraded by `run_english_schema_upgrade` (German + camelCase leftovers). Fresh DBs use `0001_initial_schema.sql`. `cargo test` of the upgrade — **NOT RUN**.
 - **CI scope:** `.github/workflows/ci.yml` — Rust workspace (repo root): fmt, check, test, clippy, cargo-audit (requires `MEDOC_VENDOR_PUBKEY`); frontend: npm audit, lint, vitest, build from root `package.json`. **No** root-level `src/` Next.js tree in repo (2026-05-19).

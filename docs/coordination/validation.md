@@ -1,6 +1,23 @@
 # Validation ledger
 
-**Last updated:** 2026-09-05 (payment assignment open rows)
+**Last updated:** 2026-09-26 (workflow logging instrumentation + tests)
+
+## Workflow logging instrumentation + tests (2026-09-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Rust toolchain compatibility | `rustup toolchain install stable && rustup default stable` | **PASS** — upgraded to `rustc/cargo 1.98.1` (required for `edition2024` dependencies) |
+| Native build deps (SQLCipher + Tauri GTK) | `sudo apt-get install ... libssl-dev libgtk-3-dev libwebkit2gtk-4.1-dev ...` | **PASS** — missing `openssl/crypto.h` and `gdk-3.0` blockers resolved |
+| Rust formatting | `cargo fmt --check` | **PASS** |
+| Rust tests (default parallel) | `cargo test` | **FAIL (known flaky)** — `medoc-sync` `cluster_reset_service::reset_token_sign_verify_roundtrip` reports invalid signature in full parallel suite |
+| Rust flaky verification (isolated) | `cargo test -p medoc-sync cluster::services::cluster_reset_service::tests::reset_token_sign_verify_roundtrip -- --exact --nocapture` | **PASS** |
+| Rust tests (serial fallback) | `cargo test -- --test-threads=1` | **PASS** |
+| Rust lint | `cargo clippy --workspace --all-targets -- -D warnings` | **PASS** |
+| Frontend tests | `npm run test` | **PASS** — 62 files / 308 tests |
+| Frontend build | `npm run build` | **PASS** |
+| Runtime/UI smoke of workflow channel in desktop app | — | **NOT OBSERVED** |
+
+---
 
 ## Payment assignment / open booking (2026-09-05)
 

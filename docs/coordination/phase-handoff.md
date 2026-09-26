@@ -1,5 +1,38 @@
 # Phase handoff
 
+**Last phase label:** Workflow logging channel + bridge instrumentation (2026-09-26)
+
+### Verified (2026-09-26 — Step 1 focus)
+
+- Existing tracing subsystem now includes a dedicated `workflow.log` channel (`medoc::workflow`) with the same rotation pipeline as existing channels.
+- New backend IPC `log_workflow_event` writes sanitized workflow events (token-normalized fields, no raw free-form payload pass-through).
+- Frontend now emits workflow events for:
+  - route enter (`ui.route`, `route_enter`) from `AppLayout`
+  - invoke lifecycle (`ui.invoke`, `primary_action/success/error`) from shared practice transport.
+- Domain transition service (`workflow_transitions.rs`) now emits structured allowed/denied/noop events to workflow channel.
+- Added tests:
+  - TS unit tests for route/token/error-code normalization (`workflow-log.test.ts`)
+  - Rust retention test coverage for `workflow.log` lifecycle.
+- Validation:
+  - `cargo fmt --check` **PASS**
+  - `cargo clippy --workspace --all-targets -- -D warnings` **PASS**
+  - `npm run test` **PASS** (62 files / 308 tests)
+  - `npm run build` **PASS**
+  - `cargo test` default parallel currently flaky in `medoc-sync` (`reset_token_sign_verify_roundtrip`), while isolated test and serial full suite (`--test-threads=1`) **PASS**.
+
+### Remains unverified
+
+- Live desktop/runtime verification that route/action workflow events land in `workflow.log` with expected cadence — **NOT OBSERVED**.
+- Step 2+ scope from the quality-agent brief (full workflow state-machine map, non-terminable flow detection, geometry/a11y Playwright audit) — **NOT RUN** in this bounded pass.
+
+### Required next
+
+1. Run an interactive desktop smoke and confirm `workflow.log` entries for route-enter + invoke success/error events.
+2. Investigate and stabilize the `medoc-sync` parallel test flake (`cluster_reset_service::reset_token_sign_verify_roundtrip`) so default `cargo test` is deterministic.
+3. Continue Step 2 workflow-map detection and register P0–P3 findings in ledgers.
+
+---
+
 **Last phase label:** Payment fulfills open booking (2026-09-05)
 
 ### Verified (2026-09-05 — payment → billing list)
