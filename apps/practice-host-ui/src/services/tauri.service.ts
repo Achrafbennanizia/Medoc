@@ -50,12 +50,88 @@ function expandDualCaseInvokeArgs(args: Record<string, unknown>): Record<string,
     return out;
 }
 
+const WORKFLOW_BRIDGE_CMD = "log_workflow_event";
+
+export type WorkflowPhase = "route_enter" | "primary_action" | "success" | "cancel" | "error";
+
+export type WorkflowEvent = {
+    phase: WorkflowPhase;
+    step: string;
+    route?: string;
+    command?: string;
+    detail?: string;
+};
+
+function activeRoute(): string | undefined {
+    if (typeof window === "undefined") {
+        return undefined;
+    }
+    return `${window.location.pathname}${window.location.search}`;
+}
+
+function errorDetail(error: unknown): string {
+    if (error instanceof Error) {
+        return error.message;
+    }
+    if (typeof error === "string") {
+        return error;
+    }
+    try {
+        return JSON.stringify(error);
+    } catch {
+        return "unknown error";
+    }
+}
+
+function isCancelLikeError(raw: string): boolean {
+    const lc = raw.toLowerCase();
+    return lc.includes("abort") || lc.includes("cancel");
+}
+
+async function emitWorkflowEvent(event: WorkflowEvent): Promise<void> {
+    const route = event.route ?? activeRoute();
+    const detail = event.detail == null ? undefined : event.detail.slice(0, 240);
+    try {
+        await invoke<void>(WORKFLOW_BRIDGE_CMD, { event: { ...event, route, detail } });
+    } catch {
+        // Never let telemetry break primary UI flows.
+    }
+}
+
+export async function logWorkflowEvent(event: WorkflowEvent): Promise<void> {
+    await emitWorkflowEvent(event);
+}
+
 // All Tauri IPC goes through here (single place for invoke normalization).
 export async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+    if (cmd === WORKFLOW_BRIDGE_CMD) {
+        return invoke<T>(cmd, args ?? {});
+    }
+
     if (args == null) {
-        return invoke<T>(cmd, {});
+        void emitWorkflowEvent({ phase: "primary_action", step: "tauri.invoke", command: cmd });
+        try {
+            const result = await invoke<T>(cmd, {});
+            void emitWorkflowEvent({ phase: "success", step: "tauri.invoke", command: cmd });
+            return result;
+        } catch (error) {
+            const detail = errorDetail(error);
+            const phase: WorkflowPhase = isCancelLikeError(detail) ? "cancel" : "error";
+            void emitWorkflowEvent({ phase, step: "tauri.invoke", command: cmd, detail });
+            throw error;
+        }
     }
     const cleaned = omitUndefinedValues(args);
     const expanded = expandDualCaseInvokeArgs(cleaned);
-    return invoke<T>(cmd, expanded);
+    void emitWorkflowEvent({ phase: "primary_action", step: "tauri.invoke", command: cmd });
+    try {
+        const result = await invoke<T>(cmd, expanded);
+        void emitWorkflowEvent({ phase: "success", step: "tauri.invoke", command: cmd });
+        return result;
+    } catch (error) {
+        const detail = errorDetail(error);
+        const phase: WorkflowPhase = isCancelLikeError(detail) ? "cancel" : "error";
+        void emitWorkflowEvent({ phase, step: "tauri.invoke", command: cmd, detail });
+        throw error;
+    }
 }

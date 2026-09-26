@@ -57,11 +57,13 @@ fn user_id(session: &SessionState) -> Result<String, AppError> {
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn cluster_status_cmd(pool: State<'_, SqlitePool>) -> Result<ClusterStatus, AppError> {
     cluster_status(&pool).await
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn license_activate(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -85,6 +87,7 @@ pub async fn license_activate(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn import_activation_manifest(
     app: AppHandle,
     pool: State<'_, SqlitePool>,
@@ -121,6 +124,7 @@ pub async fn import_activation_manifest(
 
 /// Native file picker for owner activation manifest (pre-login onboarding).
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn pick_activation_manifest_file() -> Result<Option<String>, AppError> {
     let path = rfd::FileDialog::new()
         .add_filter("JSON", &["json"])
@@ -131,6 +135,7 @@ pub async fn pick_activation_manifest_file() -> Result<Option<String>, AppError>
 
 /// Apply pending USB sidecar install plan (first boot after USB setup).
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn install_plan_consume_sidecar(
     pool: State<'_, SqlitePool>,
 ) -> Result<Option<ApplyInstallPlanResult>, AppError> {
@@ -139,6 +144,7 @@ pub async fn install_plan_consume_sidecar(
 
 /// Apply an explicit install plan (e.g. from onboarding UI).
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn install_plan_apply(
     pool: State<'_, SqlitePool>,
     plan: InstallPlan,
@@ -148,6 +154,7 @@ pub async fn install_plan_apply(
 
 /// Active provisioning window from USB install_plan (pairing / scan / open ports).
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn install_plan_provisioning_status(
     pool: State<'_, SqlitePool>,
 ) -> Result<Option<ProvisioningWindowState>, AppError> {
@@ -156,6 +163,7 @@ pub async fn install_plan_provisioning_status(
 
 /// Run discover/scan tasks while provisioning window is active (chain install helper).
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn install_plan_run_provisioning(
     pool: State<'_, SqlitePool>,
 ) -> Result<Option<String>, AppError> {
@@ -163,6 +171,7 @@ pub async fn install_plan_run_provisioning(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn cluster_discover_admins() -> Result<Vec<AdminEndpoint>, AppError> {
     scan_admins(Duration::from_secs(2))
 }
@@ -178,6 +187,7 @@ pub struct JoinRequestPayload {
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn cluster_send_join_request(
     pool: State<'_, SqlitePool>,
     payload: JoinRequestPayload,
@@ -226,6 +236,7 @@ pub struct SasSubmitPayload {
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn cluster_submit_sas(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -255,6 +266,7 @@ pub async fn cluster_submit_sas(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn cluster_sync_staff_directory(pool: State<'_, SqlitePool>) -> Result<u32, AppError> {
     sync_staff_from_stored_admin_endpoint(&pool).await
 }
@@ -341,6 +353,7 @@ async fn start_cluster_listener_task(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn cluster_start_listener(
     pool: State<'_, SqlitePool>,
     listener: State<'_, ClusterListenerControl>,
@@ -355,6 +368,7 @@ pub async fn cluster_start_listener(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn cluster_list_pending(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -376,6 +390,7 @@ pub struct AcceptRequestPayload {
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn cluster_accept_request(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -396,6 +411,7 @@ pub async fn cluster_accept_request(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn cluster_reclaim_device(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -417,6 +433,7 @@ fn pick_private_bind_addr() -> Result<IpAddr, AppError> {
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn cluster_reject_request(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -429,6 +446,7 @@ pub async fn cluster_reject_request(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn cluster_list_devices(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -439,6 +457,7 @@ pub async fn cluster_list_devices(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn cluster_revoke_device(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -451,6 +470,7 @@ pub async fn cluster_revoke_device(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn cluster_block_device(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -464,6 +484,7 @@ pub async fn cluster_block_device(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn cluster_unblock_device(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -494,6 +515,7 @@ pub fn spawn_member_cluster_watch_task(app: tauri::AppHandle, pool: SqlitePool) 
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn cluster_cluster_reset_preview(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,

@@ -44,6 +44,7 @@ pub async fn set_company_portal_config(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn company_portal_fetch_summary(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -54,6 +55,7 @@ pub async fn company_portal_fetch_summary(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn company_portal_fetch_integrations(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -64,6 +66,7 @@ pub async fn company_portal_fetch_integrations(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn company_portal_fetch_feature_flags(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -74,6 +77,7 @@ pub async fn company_portal_fetch_feature_flags(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn company_portal_billing_portal_url(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -84,6 +88,7 @@ pub async fn company_portal_billing_portal_url(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn company_portal_attach_payment(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -98,6 +103,7 @@ pub async fn company_portal_attach_payment(
 
 /// For `check_for_updates` — returns JSON shaped like `UpdateInfo`, or an error.
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn company_portal_fetch_update_manifest(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -112,6 +118,7 @@ pub async fn company_portal_fetch_update_manifest(
 
 /// Connectivity probe (no sensitive data in the failure path except HTTP status).
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn company_portal_ping(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -568,6 +575,7 @@ async fn assign_onboarding_admin_account(
 
 /// Pre-login onboarding: whether vendor-portal credentials were stored.
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn onboarding_subscription_status(
     pool: State<'_, SqlitePool>,
 ) -> Result<OnboardingSubscriptionStatus, AppError> {
@@ -608,6 +616,7 @@ pub async fn onboarding_subscription_status(
 
 /// Pre-login: skip practice subscription form and sign in with an existing account.
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn onboarding_skip_practice_setup(
     pool: State<'_, SqlitePool>,
 ) -> Result<OnboardingSkipResult, AppError> {
@@ -694,6 +703,7 @@ pub async fn register_onboarding_member_account(
 
 /// Pre-login: member chose to sign in with an existing account (skip account creation).
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn onboarding_use_existing_account(pool: State<'_, SqlitePool>) -> Result<(), AppError> {
     let vs = cluster_status(&pool).await?;
     if !vs.provisioned || vs.is_owner {

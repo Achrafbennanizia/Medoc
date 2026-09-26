@@ -373,6 +373,7 @@ fn summarize_days(sessions: &[WorkTimeSession]) -> Vec<WorkTimeDaySummary> {
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn work_time_reconcile_on_login(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -383,6 +384,7 @@ pub async fn work_time_reconcile_on_login(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn work_time_get_active_session(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -401,6 +403,7 @@ pub async fn work_time_get_active_session(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn work_time_start(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -433,6 +436,7 @@ pub async fn work_time_start(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn work_time_pause(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -473,6 +477,7 @@ pub async fn work_time_pause(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn work_time_resume(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -502,6 +507,7 @@ pub async fn work_time_resume(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn work_time_end(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -539,6 +545,7 @@ pub struct WorkTimeWeekQuery {
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn work_time_get_week_overview(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -577,6 +584,7 @@ pub async fn work_time_get_week_overview(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn work_time_get_team_overview(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -637,6 +645,7 @@ pub async fn work_time_get_team_overview(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn work_time_get_statistics(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -755,6 +764,7 @@ pub async fn work_time_get_statistics(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn work_time_get_preference(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -771,6 +781,7 @@ pub async fn work_time_get_preference(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn work_time_set_preference(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -830,6 +841,7 @@ pub struct WorkTimePracticePolicyPatch {
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn work_time_get_practice_policy(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -842,6 +854,7 @@ pub async fn work_time_get_practice_policy(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn work_time_set_practice_policy(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -861,6 +874,7 @@ pub async fn work_time_set_practice_policy(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn work_time_set_auto_record_on_login(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -871,6 +885,7 @@ pub async fn work_time_set_auto_record_on_login(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip_all)]
 pub async fn work_time_get_auto_record_on_login(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
