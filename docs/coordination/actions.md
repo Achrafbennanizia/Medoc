@@ -1,6 +1,20 @@
 # Action ledger
 
-**Last updated:** 2026-09-05 (payment fulfills open booking)
+**Last updated:** 2026-09-26 (workflow telemetry run)
+
+## Done (2026-09-26 — workflow telemetry)
+
+- Added `workflow.log` channel in shared tracing logger and dedicated `record_workflow_event` Tauri command with sanitizer pass-through.
+- Added frontend bridge instrumentation:
+  - route-enter events on navigation,
+  - command lifecycle events (`primary_action` / `success` / `error`) in `tauriInvoke`,
+  - dialog cancel events (`Escape`, backdrop, close, cancel button).
+- Added and passed workflow bridge unit tests (`tauri.service.test.ts`) and fixed async assertion warning in `http-practice.adapter.test.ts`.
+
+## Now
+
+- Extend backend-side `medoc::workflow` emission beyond the frontend bridge command into high-risk service/domain transitions (open contradiction `C10`).
+- Exercise live GUI workflow smoke with log tailing to verify end-to-end event completeness and rotation behavior (**NOT OBSERVED** in this run).
 
 ## Done (2026-09-05 — payment → billing)
 

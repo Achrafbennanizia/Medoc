@@ -1,5 +1,36 @@
 # Phase handoff
 
+**Last phase label:** Workflow telemetry channel + bridge (2026-09-26)
+
+### Verified (2026-09-26 — workflow telemetry channel + bridge)
+
+- Dedicated workflow file channel added to shared tracing logger: `workflow.log` (`medoc::workflow` target) with same non-blocking/rotation pipeline as existing channels.
+- Sanitized frontend→backend workflow bridge added (`record_workflow_event`) and registered in the Tauri invoke surface.
+- Frontend now emits workflow events for:
+  - route enter (`App.tsx` route logger),
+  - primary action / success / error (`tauriInvoke`),
+  - cancel events from shared dialog interactions (Escape/backdrop/close/cancel button).
+- Test coverage added for bridge behavior (`src/services/tauri.service.test.ts`), and Vitest warning cleanup landed for async rejection assertions.
+- Validation gates rerun:
+  - `cargo fmt --check` **PASS**
+  - `MEDOC_VENDOR_PUBKEY=... cargo clippy --workspace -- -D warnings` **PASS**
+  - `MEDOC_VENDOR_PUBKEY=... cargo test --workspace` **PASS**
+  - `npm run test` **PASS** (62 files / 309 tests)
+  - `npm run build` **PASS**
+
+### Remains unverified
+
+- End-to-end live UI workflow completeness against real user journeys and workflow log tails — **NOT OBSERVED**.
+- Full backend/domain transition coverage under `medoc::workflow` target is still partial (tracked as contradiction `C10`).
+
+### Required next
+
+1. Instrument high-risk backend service/domain transitions to emit `medoc::workflow` events directly (not only via frontend bridge).
+2. Run live GUI smoke with workflow log tailing to confirm route/action/success/cancel/error coverage and sanitized payload quality.
+3. Add targeted Playwright or component-level workflow assertions for critical flows (login, patient chart validation, billing actions).
+
+---
+
 **Last phase label:** Payment fulfills open booking (2026-09-05)
 
 ### Verified (2026-09-05 — payment → billing list)

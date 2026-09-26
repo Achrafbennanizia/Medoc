@@ -1,6 +1,6 @@
 # Contradiction ledger
 
-**Last updated:** 2026-06-16
+**Last updated:** 2026-09-26
 
 ## Open contradictions
 
@@ -10,6 +10,14 @@
 | C5 | Activation-token RBAC scope | Plan ("activation-token allowed_actions on /sync/push|pull only") | `verify_activation_for_path` also accepts `/sync/status` + `/pairing/peers` | **Documented divergence** — broader allow-list documented in `serverless-sync.md`; matches frontend usage. |
 | C6 | "Encrypt every microservice" | User request 2026-05-26 | Plan slice rejected literal interpretation as YAGNI; only license envelope + activation token are encrypted/signed | **Resolved by plan note** — see [`docs/architecture/licensing.md`](../architecture/licensing.md) "What was explicitly not built". |
 | C7 | "Period" in license payload | User request 2026-05-26 | User chose `perpetual_device`; v2 schema stores `activated_at` only, no `expires_at` | **Resolved** — perpetual model documented in `licensing.md`. |
+| C10 | Workflow telemetry scope | Run objective (all Tauri commands + service/domain transitions logged into dedicated workflow channel) | `log_workflow!` currently appears only in `commands/system/logging.rs` bridge command (`rg "medoc::workflow|log_workflow!" crates`) | **Open:** frontend bridge is in place, but backend domain transition coverage is partial. Next run should instrument high-risk service/domain transitions. |
+
+## Workflow quality finding register (2026-09-26)
+
+| ID | Location | Finding | Evidence | Severity | Action |
+| -- | -------- | ------- | -------- | -------- | ------ |
+| WF-LOG-001 | `crates/shared/medoc-core/src/infrastructure/logging/mod.rs`, `apps/practice-host-ui/src/services/tauri.service.ts` | Dedicated workflow log channel + sanitized frontend bridge were missing. | Pre-change code had only app/security/system/device/migration/perf channels and no workflow event command wiring. | P1 | **Fixed** in commits `19996e6` (workflow channel, bridge command, route/cancel hooks) + `e0671b5` (bridge tests). |
+| WF-TEST-002 | `packages/shared/src/lib/http-practice.adapter.test.ts` | Async rejection assertion was not awaited, producing Vitest v3 migration warning. | `npm run test` warned: “Promise returned by expect(...).rejects.toThrow(...) was not awaited.” | P3 | **Fixed** in commit `cb30031` by awaiting the rejection assertion. |
 
 ## Resolved (recent)
 

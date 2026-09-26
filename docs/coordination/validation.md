@@ -1,6 +1,25 @@
 # Validation ledger
 
-**Last updated:** 2026-09-05 (payment assignment open rows)
+**Last updated:** 2026-09-26 (workflow telemetry + bridge)
+
+## Workflow telemetry run (2026-09-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Rust fmt (baseline + post-change) | `cargo fmt --check` | **PASS** |
+| Rust clippy strict (baseline + post-change) | `MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32 cargo clippy --workspace -- -D warnings` | **PASS** |
+| Rust tests (post-change) | `MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32 cargo test --workspace` | **PASS** |
+| Frontend tests (post-change) | `npm run test` | **PASS** — 62 files / 309 tests |
+| Frontend build (post-change) | `npm run build` | **PASS** |
+| Baseline environment blockers | `cargo clippy --workspace -- -D warnings`; `cargo test --workspace`; `npm run test`; `npm run build` | **FAIL (before remediation)** — Cargo 1.83 could not parse `edition2024`; missing `vitest`/`tsc` before `npm ci`; resolved by `rustup toolchain install stable`, `npm ci`, GTK/WebKit/OpenSSL packages, and explicit `MEDOC_VENDOR_PUBKEY`. |
+
+### Workflow finding register (2026-09-26)
+
+| ID | Location | Finding | Evidence | Severity | Action |
+|----|----------|---------|----------|----------|--------|
+| WF-LOG-001 | Logging subsystem + frontend bridge | No dedicated workflow channel / bridge existed. | Read of `logging/mod.rs` showed only six file channels; no `record_workflow_event` command before this run. | P1 | Added `workflow.log`, `record_workflow_event`, route/cancel hooks, and command lifecycle workflow telemetry. |
+| WF-LOG-002 | Backend transition coverage | Workflow target coverage is still partial in Rust domain/service layer. | `rg "medoc::workflow|log_workflow!" crates` currently returns logging config + single bridge emitter. | P2 | Kept as open contradiction `C10`; next run should instrument high-risk service/domain transitions. |
+| WF-TEST-003 | `http-practice.adapter.test.ts` | Unawaited async rejection assertion warned under Vitest v3 compatibility mode. | `npm run test` warning before fix. | P3 | Fixed by awaiting rejection assertion (`cb30031`). |
 
 ## Payment assignment / open booking (2026-09-05)
 
