@@ -1,5 +1,43 @@
 # Phase handoff
 
+**Last phase label:** Workflow logging instrumentation + bridge (2026-09-26)
+
+### Verified (2026-09-26 — instrumentation slice)
+
+- Logging subsystem now provisions a dedicated `workflow.log` channel and `medoc::workflow` target (`crates/shared/medoc-core/src/infrastructure/logging/mod.rs`).
+- JSON tracing layers switched from `FmtSpan::NONE` to `FmtSpan::CLOSE`, so instrumented command spans emit structured close events.
+- Coverage probe reports `total_commands=314`, `missing=0` for `#[tauri::command]` without `#[tracing::instrument]` in `crates/app/medoc-practice/src/commands/**`.
+- New frontend bridge and route enter logger:
+  - `apps/practice-host-ui/src/services/tauri.service.ts` emits `primary_action` / `success` / `error|cancel` workflow events.
+  - `apps/practice-host-ui/src/views/components/workflow-route-logger.tsx` emits `route_enter`.
+  - Backend ingest command `log_workflow_event` sanitizes all fields before writing to `workflow.log`.
+- Validation:
+  - `cargo fmt --check` **PASS**
+  - `MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32 cargo clippy --workspace -- -D warnings` **PASS**
+  - `MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32 cargo test --workspace` **PASS**
+  - `npm run test` **PASS** (62 files / 310 tests)
+  - `npm run build` **PASS**
+  - focused test `src/services/tauri.service.test.ts` **PASS** (5)
+
+### Remains unverified
+
+- End-to-end UI workflow logs in a live Tauri session — **NOT OBSERVED** (unit-tested bridge only).
+- Steps 2–6 from the quality-agent mandate (workflow state-machine detection, component interaction matrix, Playwright geometry audit, axe/contrast sweep, and defect fixes) remain pending.
+
+### Understanding delta
+
+- The primary observability gap was not absence of a logger but missing command instrumentation coverage plus no dedicated workflow ingestion path.
+- This run closes command-level instrumentation coverage and introduces sanitized frontend workflow telemetry without creating a parallel logger stack.
+
+### Required next
+
+1. Execute a live Tauri smoke path and confirm `workflow.log` receives sanitized `route_enter`, `primary_action`, and terminal (`success`/`cancel`/`error`) events.
+2. Continue with Step 2 findings mapping (route/action state machines) and append defects to `contradictions.md` with P0–P3 severity.
+3. Add Playwright geometry/token assertions and axe checks (Steps 4–5), then fix top-priority defects in separate fix commits.
+4. Persist `MEDOC_VENDOR_PUBKEY` in the environment profile for future runs so Rust validation does not depend on ad-hoc command prefixes.
+
+---
+
 **Last phase label:** Payment fulfills open booking (2026-09-05)
 
 ### Verified (2026-09-05 — payment → billing list)

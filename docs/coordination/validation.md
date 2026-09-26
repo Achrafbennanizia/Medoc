@@ -1,5 +1,22 @@
 # Validation ledger
 
+**Last updated:** 2026-09-26 (workflow logging instrumentation)
+
+## Workflow logging instrumentation (2026-09-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| New workflow bridge tests | `npm run test -- --project node src/services/tauri.service.test.ts` | **PASS** — 5/5 |
+| Frontend regression suite | `npm run test` | **PASS** — 62 files, 310 tests |
+| Frontend build | `npm run build` | **PASS** — Vite production bundle built |
+| Rust fmt | `cargo fmt --check` | **PASS** |
+| Native deps bootstrap | `sudo apt-get install -y libgtk-3-dev libssl-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf` + `apt-get -f install` | **PASS** — GTK/OpenSSL/webkit headers installed |
+| Rust clippy | `MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32 cargo clippy --workspace -- -D warnings` | **PASS** |
+| Rust tests | `MEDOC_VENDOR_PUBKEY=79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32 cargo test --workspace` | **PASS** |
+| Command instrumentation coverage probe | `python3 scanner for #[tauri::command] + #[tracing::instrument]` | **PASS** — `total_commands=314`, `missing=0` |
+
+---
+
 **Last updated:** 2026-09-05 (payment assignment open rows)
 
 ## Payment assignment / open booking (2026-09-05)

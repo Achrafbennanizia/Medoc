@@ -1,6 +1,27 @@
 # Action ledger
 
-**Last updated:** 2026-09-05 (payment fulfills open booking)
+**Last updated:** 2026-09-26 (workflow logging instrumentation slice)
+
+## Done (2026-09-26 — workflow logging instrumentation)
+
+- Added dedicated `workflow.log` tracing channel (`medoc::workflow`) in shared logging infra.
+- Added sanitized frontend→backend workflow bridge:
+  - backend command `log_workflow_event`
+  - frontend bridge in `tauriInvoke` (`primary_action`, `success`, `error|cancel`)
+  - route-enter logger component for navigation events.
+- Raised Tauri command instrumentation coverage to 314/314 (`missing=0` in scanner).
+- Added unit tests `src/services/tauri.service.test.ts` (**PASS**, 5 tests).
+- Full frontend suite/build remained green (`npm run test`, `npm run build`).
+- Rust quality gates now pass after provisioning native deps and using CI pubkey env:
+  - `cargo fmt --check` **PASS**
+  - `MEDOC_VENDOR_PUBKEY=… cargo clippy --workspace -- -D warnings` **PASS**
+  - `MEDOC_VENDOR_PUBKEY=… cargo test --workspace` **PASS**
+
+## Now (workflow QA continuation)
+
+- Run a live Tauri smoke path and confirm sanitized entries in `workflow.log`.
+- Continue Step 2 state-machine findings and append P0–P3 entries in `contradictions.md`.
+- Add Playwright geometry/token checks and axe audits (Steps 4–5), then fix P0 findings in isolated commits.
 
 ## Done (2026-09-05 — payment → billing)
 
