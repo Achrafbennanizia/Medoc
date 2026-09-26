@@ -24,9 +24,11 @@ describe("HttpPracticeAdapter", () => {
         expect(() => new HttpPracticeAdapter(EMPTY_LAN_CLIENT_CONFIG)).toThrow(/base URL missing/);
     });
 
-    it("rejects unmapped IPC commands", () => {
+    it("rejects unmapped IPC commands", async () => {
         const adapter = new HttpPracticeAdapter(activeLanConfig);
-        expect(adapter.invoke("get_patient", { id: "x" })).rejects.toThrow(/not available on the API server/);
+        await expect(adapter.invoke("get_patient", { id: "x" })).rejects.toThrow(
+            /not available on the API server/,
+        );
     });
 
     it("login posts credentials and persists access_token (LAN client flow)", async () => {
