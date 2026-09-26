@@ -1,5 +1,44 @@
 # Phase handoff
 
+**Last phase label:** CI/CD pipeline tiers (2026-09-26)
+
+### Verified (2026-09-26 — verify/autofix/fix-proposal/release workflow split)
+
+- Added tiered workflows under `.github/workflows/`:
+  - `verify.yml` (push/PR/workflow_call; rust + web + a11y; zero mutation)
+  - `autofix.yml` (PR-only deterministic fixes with bot loop guard)
+  - `fix-proposal.yml` (manual or failed verify-on-main to draft PR proposal path)
+  - `release.yml` (tag/dispatch, verify gate, protected `release` environment, signed bundles)
+- Added supporting scripts:
+  - `.github/scripts/verify-local.sh` (local parity check helper for proposal evidence)
+  - `apps/practice-host-ui/scripts/test-a11y.mjs` (axe-core critical WCAG 2.1 A/AA gate)
+- Added medoc workspace scripts: `typecheck`, `lint:fix`, `format`, `test:a11y`; added dev dependency `axe-core`.
+- Added CI/CD coordination doc: `docs/coordination/ci-cd-plan.md`.
+- Validation evidence captured in `docs/coordination/validation.md`:
+  - workflow YAML parse **PASS**
+  - `npm ci` + medoc `typecheck/lint/build/test:a11y` **PASS**
+
+### Remains unverified
+
+- End-to-end GitHub Actions execution of new workflows on hosted runners — **NOT OBSERVED** in this session.
+- Tier-3 fix proposal behavior with a configured `MEDOC_FIX_PROPOSAL_COMMAND` and draft PR creation — **NOT RUN**.
+- Protected `release` environment approval policy wiring in repository settings — **NOT OBSERVED**.
+
+### Understanding delta
+
+- CI has been restructured into explicit tiers with hard separation between verification and mutation.
+- Deterministic PR autofix path is isolated from protected/release paths.
+- Substantive fix automation is now proposal-only and explicitly human-gated for sensitive code areas.
+
+### Required next
+
+1. Run a PR test to confirm `autofix.yml` pushes one deterministic bot commit and then stops.
+2. Trigger `verify.yml` + `release.yml` on a `v*` tag in a non-production dry run and confirm environment approval gate.
+3. Configure and smoke-test `MEDOC_FIX_PROPOSAL_COMMAND` for tier-3 draft PR generation.
+4. Update branch protection to require `verify` checks (not legacy aliases).
+
+---
+
 **Last phase label:** Payment fulfills open booking (2026-09-05)
 
 ### Verified (2026-09-05 — payment → billing list)

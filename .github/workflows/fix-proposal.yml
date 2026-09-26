@@ -1,0 +1,187 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: "Branch or commit to start from"
+        required: false
+        default: "main"
+      rationale:
+        description: "Why this proposal was requested"
+        required: false
+        default: ""
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: fix-proposal-${{ github.event_name }}-${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.event.inputs.base_ref }}
+  cancel-in-progress: true
+
+jobs:
+  propose:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure')
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.event.inputs.base_ref }}
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Capture failing-before evidence
+        id: before
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_run" ]]; then
+            echo "summary=Triggered from failed verify run: ${{ github.event.workflow_run.html_url }}" >> "$GITHUB_OUTPUT"
+            echo "exit_code=1" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          set +e
+          bash .github/scripts/verify-local.sh > /tmp/verify-before.log 2>&1
+          before_code=$?
+          set -e
+          echo "summary=Manual baseline verify exit code: ${before_code}" >> "$GITHUB_OUTPUT"
+          echo "exit_code=${before_code}" >> "$GITHUB_OUTPUT"
+
+      - name: Attempt non-deterministic fix via configured agent command
+        env:
+          FIX_PROPOSAL_COMMAND: ${{ vars.MEDOC_FIX_PROPOSAL_COMMAND }}
+        shell: bash
+        run: |
+          if [[ -z "${FIX_PROPOSAL_COMMAND}" ]]; then
+            echo "MEDOC_FIX_PROPOSAL_COMMAND is not configured."
+            echo "Set a repository variable with the command that performs fix attempts."
+            exit 1
+          fi
+          bash -lc "${FIX_PROPOSAL_COMMAND}"
+
+      - name: Capture passing-after evidence
+        id: after
+        shell: bash
+        continue-on-error: true
+        run: |
+          set +e
+          bash .github/scripts/verify-local.sh > /tmp/verify-after.log 2>&1
+          after_code=$?
+          set -e
+          echo "exit_code=${after_code}" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Evaluate changed files and sensitive paths
+        id: changes
+        shell: bash
+        run: |
+          if [[ -z "$(git status --porcelain)" ]]; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "touches_sensitive=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git diff --name-only > /tmp/fix-proposal-files.txt
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          if rg -n '(security|audit|crypto|rbac)' /tmp/fix-proposal-files.txt >/dev/null 2>&1; then
+            echo "touches_sensitive=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "touches_sensitive=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Stop when no fix diff was produced
+        if: steps.changes.outputs.has_changes != 'true'
+        shell: bash
+        run: |
+          echo "No fix changes were generated. Nothing to propose."
+          exit 0
+
+      - name: Write draft PR body
+        if: steps.changes.outputs.has_changes == 'true'
+        shell: bash
+        run: |
+          {
+            echo "## CI fix proposal"
+            echo
+            echo "This draft PR was created by tier-3 fix-proposal automation."
+            echo
+            if [[ -n "${{ github.event.inputs.rationale || '' }}" ]]; then
+              echo "### Rationale"
+              echo "${{ github.event.inputs.rationale || '' }}"
+              echo
+            fi
+            echo "### Failing-before evidence"
+            echo "- ${{ steps.before.outputs.summary }}"
+            if [[ -f /tmp/verify-before.log ]]; then
+              echo "- Local baseline log captured in workflow artifact."
+            fi
+            echo
+            echo "### Passing-after evidence"
+            echo "- \`bash .github/scripts/verify-local.sh\` exit code: \`${{ steps.after.outputs.exit_code }}\`"
+            echo "- Full post-fix log captured in workflow artifact."
+            echo
+            echo "### Changed files"
+            echo '```text'
+            cat /tmp/fix-proposal-files.txt
+            echo '```'
+            echo
+            echo "### Guardrails"
+            echo "- Draft only (never auto-merge)."
+            echo "- Human review required for all substantive fixes."
+          } > /tmp/fix-proposal-body.md
+
+      - name: Create draft PR
+        if: steps.changes.outputs.has_changes == 'true'
+        id: cpr
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: "ci: propose non-deterministic fix"
+          branch: ci/fix-proposal-${{ github.run_id }}
+          delete-branch: false
+          title: "ci: draft fix proposal (${{ github.run_id }})"
+          body-path: /tmp/fix-proposal-body.md
+          draft: true
+
+      - name: Upload fix evidence logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fix-proposal-evidence-${{ github.run_id }}
+          path: |
+            /tmp/verify-before.log
+            /tmp/verify-after.log
+          if-no-files-found: ignore
+
+      - name: Label sensitive diff
+        if: steps.changes.outputs.has_changes == 'true' && steps.changes.outputs.touches_sensitive == 'true' && steps.cpr.outputs.pull-request-number != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number("${{ steps.cpr.outputs.pull-request-number }}"),
+              labels: ["needs-human-review"]
+            });
+
+      - name: Stop automation on sensitive changes
+        if: steps.changes.outputs.has_changes == 'true' && steps.changes.outputs.touches_sensitive == 'true'
+        shell: bash
+        run: |
+          echo "Sensitive files detected (security/audit/crypto/RBAC)."
+          echo "Label 'needs-human-review' applied; stopping for manual review."
+          exit 1

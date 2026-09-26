@@ -1,5 +1,19 @@
 # Validation ledger
 
+**Last updated:** 2026-09-26 (CI/CD pipeline tiers)
+
+## CI/CD pipeline tiers (2026-09-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML parse | `python3 - <<'PY' ... yaml.safe_load('.github/workflows/*.yml')` | **PASS** — `autofix.yml`, `ci.yml`, `fix-proposal.yml`, `release.yml`, `verify.yml`, `website.yml` parsed |
+| Medoc verify scripts | `npm ci && npm run typecheck -w medoc && npm run lint -w medoc && npm run build -w medoc && npm run test:a11y -w medoc` | **PASS** — typecheck/lint/build succeed; axe-core check reports `0 critical` |
+| Medoc autofix scripts | `npm run lint:fix -w medoc && npm run format -w medoc` | **PASS** — deterministic lint/format commands execute cleanly |
+| Intermediate install path | `npm run typecheck -w medoc` (before `npm ci`) | **FAIL** — missing local `tsc`; resolved by reinstalling lockfile state with `npm ci` |
+| Full Rust verify suite in this session | `cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace && cargo audit` | **NOT RUN** (time-boxed; workflow wiring + JS command path validated) |
+
+---
+
 **Last updated:** 2026-09-05 (payment assignment open rows)
 
 ## Payment assignment / open booking (2026-09-05)

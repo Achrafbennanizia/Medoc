@@ -1,6 +1,14 @@
 # Action ledger
 
-**Last updated:** 2026-09-05 (payment fulfills open booking)
+**Last updated:** 2026-09-26 (CI/CD tier migration)
+
+## Done (2026-09-26 — CI/CD tier migration)
+
+- Added four-tier workflow split: `verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml`.
+- Added `apps/practice-host-ui` CI scripts (`typecheck`, `lint:fix`, `format`, `test:a11y`) and axe-core-based a11y gate script.
+- Added `.github/scripts/verify-local.sh` for tier-3 proposal evidence collection.
+- Added coordination plan: `docs/coordination/ci-cd-plan.md`.
+- Updated `docs/coordination/validation.md` and `docs/coordination/phase-handoff.md` with command evidence and next steps.
 
 ## Done (2026-09-05 — payment → billing)
 
