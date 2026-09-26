@@ -1,19 +1,29 @@
 # Action ledger
 
-**Last updated:** 2026-09-05 (payment fulfills open booking)
+**Last updated:** 2026-09-26 (CI/CD tier migration)
+
+## Done (2026-09-26 — CI/CD tiers + release gate)
+
+- Added `.github/workflows/verify.yml`, `.github/workflows/autofix.yml`, `.github/workflows/fix-proposal.yml`.
+- Replaced `release.yml` with verify-gated signed-build flow under protected `release` environment.
+- Demoted `ci.yml` to legacy manual/reusable forwarding entrypoint.
+- Added `docs/coordination/ci-cd-plan.md` and `scripts/ci-a11y-critical.mjs`.
+- Wired `apps/practice-host-ui` script `test:a11y`.
+
+## Now
+
+- Run one real PR through verify + autofix and confirm bot loop-guard behavior.
+- Trigger `fix-proposal.yml` once and confirm draft PR evidence + `needs-human-review` labeling on sensitive diff.
+- Dry-run release flow with a non-production `v*` tag and manual environment approval.
+
+## Later
+
+- Keep legacy `ci.yml` only while branch protections and required checks are migrated to `verify`.
 
 ## Done (2026-09-05 — payment → billing)
 
 - Payment create fills the 0 € open booking in place; closes BILLING tasks on `PAID`.
 - Tests: `payment_repo_tests` (incl. fulfill + close).
-
-## Now
-
-- Confirm in the running app: pay an open booking → one billed row, no leftover fulfill task.
-
-## Later
-
-- Deferred incomplete UI blinds (Analytics Export/Import, Finance Import, …): see [`todos-deferred-ui-blinds.md`](todos-deferred-ui-blinds.md).
 
 ## Done (2026-09-02 — white window)
 

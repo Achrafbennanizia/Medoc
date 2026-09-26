@@ -1,6 +1,20 @@
 # Validation ledger
 
-**Last updated:** 2026-09-05 (payment assignment open rows)
+**Last updated:** 2026-09-26 (CI/CD tier migration + a11y gate)
+
+## CI/CD tier migration + a11y gate (2026-09-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML parse | `python3 -c "import glob,yaml; [yaml.safe_load(open(p)) for p in glob.glob('.github/workflows/*.yml')]"` | **PASS** — all workflow files parse |
+| A11y script syntax | `node --check scripts/ci-a11y-critical.mjs` | **PASS** |
+| Medoc build (pre-`npm ci`) | `npm run build -w medoc` | **FAIL** — missing local workspace deps (`i18next`, `react-i18next`) after targeted install |
+| Restore lockfile install | `npm ci` | **PASS** |
+| Medoc build (post-`npm ci`) | `npm run build -w medoc` | **PASS** — Vite production build completed |
+| Critical WCAG 2.1 AA gate | `npm run test:a11y -w medoc` | **PASS** — “No critical WCAG 2.1 AA violations detected.” |
+| Live GitHub Actions execution | — | **NOT RUN** (workflow behavior in GitHub runner pending) |
+
+---
 
 ## Payment assignment / open booking (2026-09-05)
 

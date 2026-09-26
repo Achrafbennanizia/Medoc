@@ -1,5 +1,42 @@
 # Phase handoff
 
+**Last phase label:** CI/CD tier migration (verify/autofix/fix-proposal/release) (2026-09-26)
+
+### Verified (2026-09-26 — CI/CD tier migration)
+
+- Added tiered workflows:
+  - `verify.yml` (push/PR/workflow_call, zero-mutation Rust + JS + a11y gate),
+  - `autofix.yml` (`pull_request` only, deterministic fix commits + bot loop guard),
+  - `fix-proposal.yml` (manual or failed-main verify trigger; draft PR with before/after evidence and sensitive-path label),
+  - `release.yml` (tag/dispatch, re-verify gate + signed bundles under protected `release` environment).
+- Added `docs/coordination/ci-cd-plan.md` documenting guardrails and runtime behavior.
+- Added `scripts/ci-a11y-critical.mjs` and wired `apps/practice-host-ui` script `test:a11y`.
+- Validation:
+  - workflow YAML parse **PASS**,
+  - a11y script syntax **PASS**,
+  - `npm run build -w medoc` **PASS** after lockfile-consistent `npm ci`,
+  - `npm run test:a11y -w medoc` **PASS** (no critical WCAG 2.1 AA violations).
+
+### Remains unverified
+
+- End-to-end behavior of new GitHub workflows in hosted runners — **NOT RUN**.
+- Live draft-PR creation path of `fix-proposal.yml` from an actual failed `verify` run — **NOT OBSERVED**.
+- Protected `release` environment approval flow and signing-secret wiring — **NOT OBSERVED**.
+
+### Understanding delta
+
+- CI gating moved from monolithic `ci.yml` to tiered verify/autofix/fix-proposal/release workflows.
+- `ci.yml` is now a legacy manual/reusable forwarding entrypoint to `verify.yml`.
+- Accessibility gating now has an explicit axe-core critical-severity check against built UI artifacts.
+
+### Required next
+
+1. Run a real PR through `verify.yml` + `autofix.yml` to confirm branch permission and loop-guard behavior.
+2. Trigger `fix-proposal.yml` once (manual or failed main verify) and confirm draft PR body/evidence and `needs-human-review` labeling.
+3. Validate `release.yml` in a non-production tag trial with protected `release` environment approvals and signing secrets.
+
+---
+
 **Last phase label:** Payment fulfills open booking (2026-09-05)
 
 ### Verified (2026-09-05 — payment → billing list)

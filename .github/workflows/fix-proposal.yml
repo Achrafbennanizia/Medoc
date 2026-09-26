@@ -1,0 +1,278 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: "Base ref to propose fixes from"
+        required: false
+        default: "main"
+      failure_kind:
+        description: "Primary failure class to prioritize"
+        required: false
+        default: "auto"
+        type: choice
+        options:
+          - auto
+          - test
+          - advisory
+          - typecheck
+      rationale:
+        description: "Optional operator context"
+        required: false
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: fix-proposal-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+  MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: "1"
+
+jobs:
+  propose-fix:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || inputs.base_ref }}
+          fetch-depth: 0
+
+      - id: branch
+        run: |
+          BRANCH="ci/fix-proposal-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+      - id: failure
+        run: |
+          KIND="${{ github.event_name == 'workflow_dispatch' && inputs.failure_kind || 'auto' }}"
+          echo "kind=$KIND" >> "$GITHUB_OUTPUT"
+
+      - id: pm
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "cache=pnpm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "cache=yarn" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "cache=npm" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.cache }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - run: corepack enable
+
+      - name: Install JS dependencies
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+          esac
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked || true
+
+      - name: Collect baseline + attempt fixes + collect after-state
+        env:
+          PM: ${{ steps.pm.outputs.pm }}
+          FAILURE_KIND: ${{ steps.failure.outputs.kind }}
+          OPERATOR_RATIONALE: ${{ inputs.rationale }}
+          WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
+          WORKFLOW_RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          WORKFLOW_RUN_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          DISPATCH_BASE_REF: ${{ inputs.base_ref }}
+        run: |
+          set -euo pipefail
+
+          REPORT_DIR=".github/fix-proposals/run-${GITHUB_RUN_ID}"
+          mkdir -p "$REPORT_DIR"
+
+          case "$PM" in
+            pnpm)
+              TYPECHECK_CMD='pnpm --filter medoc exec tsc --noEmit -p tsconfig.json && pnpm --filter medoc-lan-web-client run typecheck'
+              JS_TEST_CMD='pnpm --filter medoc run test'
+              JS_LINT_FIX_CMD='pnpm -r run lint:fix --if-present || true; pnpm --filter medoc run lint -- --fix || true; pnpm -r run format --if-present || true'
+              JS_AUDIT_FIX_CMD='pnpm audit --fix || true'
+              ;;
+            yarn)
+              TYPECHECK_CMD='yarn workspace medoc tsc --noEmit -p tsconfig.json && yarn workspace medoc-lan-web-client typecheck'
+              JS_TEST_CMD='yarn workspace medoc test'
+              JS_LINT_FIX_CMD='yarn workspaces foreach -A run lint:fix || true; yarn workspace medoc lint --fix || true; yarn workspaces foreach -A run format || true'
+              JS_AUDIT_FIX_CMD='yarn audit --all || true'
+              ;;
+            npm)
+              TYPECHECK_CMD='npm exec -w medoc tsc -- --noEmit -p tsconfig.json && npm run typecheck -w medoc-lan-web-client'
+              JS_TEST_CMD='npm run test -w medoc'
+              JS_LINT_FIX_CMD='npm run lint:fix --workspaces --if-present || true; npm run lint -w medoc -- --fix || true; npm run format --workspaces --if-present || true'
+              JS_AUDIT_FIX_CMD='npm audit fix --package-lock-only || true'
+              ;;
+          esac
+
+          run_capture() {
+            local name="$1"
+            shift
+            set +e
+            bash -lc "$*" >"$REPORT_DIR/${name}.log" 2>&1
+            local status=$?
+            set -e
+            echo "$status" >"$REPORT_DIR/${name}.exit"
+          }
+
+          run_capture before_typecheck "$TYPECHECK_CMD"
+          run_capture before_cargo_test "cargo test --workspace"
+          run_capture before_js_test "$JS_TEST_CMD"
+          run_capture before_cargo_audit "cargo audit"
+
+          # Tier-3 attempt scope: allow substantive proposal attempts on a new branch.
+          case "$FAILURE_KIND" in
+            advisory|auto)
+              bash -lc "cargo update --workspace || true"
+              bash -lc "$JS_AUDIT_FIX_CMD"
+              ;;
+          esac
+          bash -lc "cargo fmt --all || true"
+          bash -lc "$JS_LINT_FIX_CMD"
+
+          run_capture after_typecheck "$TYPECHECK_CMD"
+          run_capture after_cargo_test "cargo test --workspace"
+          run_capture after_js_test "$JS_TEST_CMD"
+          run_capture after_cargo_audit "cargo audit"
+
+          BEFORE_RUN_URL="manual-dispatch"
+          if [ -n "${WORKFLOW_RUN_ID:-}" ]; then
+            BEFORE_RUN_URL="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${WORKFLOW_RUN_ID}"
+          fi
+
+          {
+            echo "# CI Fix Proposal Evidence"
+            echo
+            echo "- Failure kind: ${FAILURE_KIND}"
+            echo "- PM detected: ${PM}"
+            echo "- Source workflow run: ${BEFORE_RUN_URL}"
+            if [ -n "${WORKFLOW_RUN_HEAD_SHA:-}" ]; then
+              echo "- Source head SHA: ${WORKFLOW_RUN_HEAD_SHA}"
+            fi
+            if [ -n "${WORKFLOW_RUN_HEAD_BRANCH:-}" ]; then
+              echo "- Source head branch: ${WORKFLOW_RUN_HEAD_BRANCH}"
+            fi
+            if [ -n "${DISPATCH_BASE_REF:-}" ]; then
+              echo "- Dispatch base ref: ${DISPATCH_BASE_REF}"
+            fi
+            if [ -n "${OPERATOR_RATIONALE:-}" ]; then
+              echo "- Operator rationale: ${OPERATOR_RATIONALE}"
+            fi
+            echo
+            echo "## Exit codes (before → after)"
+            echo
+            echo "| Check | Before | After |"
+            echo "| --- | ---: | ---: |"
+            echo "| Typecheck | $(cat "$REPORT_DIR/before_typecheck.exit") | $(cat "$REPORT_DIR/after_typecheck.exit") |"
+            echo "| Cargo tests | $(cat "$REPORT_DIR/before_cargo_test.exit") | $(cat "$REPORT_DIR/after_cargo_test.exit") |"
+            echo "| JS tests | $(cat "$REPORT_DIR/before_js_test.exit") | $(cat "$REPORT_DIR/after_js_test.exit") |"
+            echo "| Cargo audit | $(cat "$REPORT_DIR/before_cargo_audit.exit") | $(cat "$REPORT_DIR/after_cargo_audit.exit") |"
+            echo
+            echo "## Notes"
+            echo
+            echo "- This branch is a draft proposal and must be reviewed by a human before merge."
+            echo "- If sensitive code paths were touched, a \`needs-human-review\` label is applied automatically."
+            echo "- Full command output is stored in this directory alongside this summary."
+          } >"$REPORT_DIR/summary.md"
+
+      - id: sensitive
+        run: |
+          set -euo pipefail
+          mapfile -t CHANGED < <(git diff --name-only)
+          NON_REPORT_CHANGES=()
+          for path in "${CHANGED[@]}"; do
+            case "$path" in
+              .github/fix-proposals/*) ;;
+              *) NON_REPORT_CHANGES+=("$path") ;;
+            esac
+          done
+
+          printf "%s\n" "${NON_REPORT_CHANGES[@]}" > /tmp/non-report-changes.txt
+          if grep -Eqi '(security|crypto|rbac|audit|auth|permission)|config/rbac\.ya?ml' /tmp/non-report-changes.txt; then
+            echo "sensitive=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "sensitive=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - id: cpr
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: ${{ steps.branch.outputs.branch }}
+          commit-message: "ci: draft fix proposal from verify failure"
+          title: "ci: draft fix proposal from verify failure (${{ steps.failure.outputs.kind }})"
+          body: |
+            ## CI fix proposal (draft)
+
+            This workflow created a **draft** fix proposal on a new branch after a verify failure or manual dispatch.
+
+            - Failure kind: `${{ steps.failure.outputs.kind }}`
+            - Evidence report: `.github/fix-proposals/run-${{ github.run_id }}/summary.md`
+            - Source run: `${{ github.event_name == 'workflow_run' && format('https://github.com/{0}/actions/runs/{1}', github.repository, github.event.workflow_run.id) || 'manual-dispatch' }}`
+            - Sensitive paths touched: `${{ steps.sensitive.outputs.sensitive }}`
+
+            Human review is required. This workflow never auto-merges.
+          draft: true
+
+      - name: Apply needs-human-review label for sensitive diffs
+        if: steps.cpr.outputs.pull-request-number != '' && steps.sensitive.outputs.sensitive == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const labelName = "needs-human-review";
+            const { owner, repo } = context.repo;
+            try {
+              await github.rest.issues.getLabel({ owner, repo, name: labelName });
+            } catch (error) {
+              if (error.status === 404) {
+                await github.rest.issues.createLabel({
+                  owner,
+                  repo,
+                  name: labelName,
+                  color: "B60205",
+                  description: "Sensitive CI fix proposal requires human review"
+                });
+              } else {
+                throw error;
+              }
+            }
+
+            await github.rest.issues.addLabels({
+              owner,
+              repo,
+              issue_number: Number("${{ steps.cpr.outputs.pull-request-number }}"),
+              labels: [labelName]
+            });
+
+      - name: Stop after sensitive-path labeling
+        if: steps.sensitive.outputs.sensitive == 'true'
+        run: echo "Sensitive paths touched; draft PR labeled needs-human-review and left for human decision."
