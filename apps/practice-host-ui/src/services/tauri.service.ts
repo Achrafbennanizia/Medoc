@@ -50,12 +50,85 @@ function expandDualCaseInvokeArgs(args: Record<string, unknown>): Record<string,
     return out;
 }
 
+const WORKFLOW_LOG_COMMAND = "log_workflow_event";
+
+type WorkflowLogPayload = {
+    step: "route_enter" | "primary_action";
+    route?: string;
+    action?: string;
+    outcome?: "enter" | "success" | "cancel" | "error";
+    command?: string;
+    durationMs?: number;
+    detail?: string;
+};
+
+function normalizeWorkflowRoute(pathname: string): string {
+    let route = pathname.split("?")[0] ?? "/";
+    if (!route.startsWith("/")) {
+        route = `/${route}`;
+    }
+    route = route.replace(/^\/patients\/[^/]+\/prescription\/new$/u, "/patients/:id/prescription/new");
+    route = route.replace(
+        /^\/patients\/[^/]+\/prescription\/(?!new$)[^/]+$/u,
+        "/patients/:id/prescription/:prescriptionId",
+    );
+    route = route.replace(/^\/patients\/[^/]+$/u, "/patients/:id");
+    route = route.replace(/^\/tickets\/[^/]+\/(edit|bearbeiten)$/u, "/tickets/:id/$1");
+    route = route.replace(/^\/purchase-orders\/[^/]+$/u, "/purchase-orders/:id");
+    route = route.replace(/^\/administration\/templates\/editor\/[^/]+$/u, "/administration/templates/editor/:id");
+    return route;
+}
+
+function classifyInvokeError(error: unknown): string {
+    if (error instanceof Error && error.name.trim().length > 0) {
+        return error.name;
+    }
+    return typeof error;
+}
+
+async function emitWorkflowEvent(payload: WorkflowLogPayload): Promise<void> {
+    try {
+        await invoke<void>(WORKFLOW_LOG_COMMAND, { payload });
+    } catch {
+        // Logging must never block product workflows.
+    }
+}
+
+export async function logWorkflowRouteEnter(pathname: string): Promise<void> {
+    await emitWorkflowEvent({
+        step: "route_enter",
+        route: normalizeWorkflowRoute(pathname),
+        action: "navigation",
+        outcome: "enter",
+    });
+}
+
 // All Tauri IPC goes through here (single place for invoke normalization).
 export async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-    if (args == null) {
-        return invoke<T>(cmd, {});
+    const payload = args == null ? {} : expandDualCaseInvokeArgs(omitUndefinedValues(args));
+    if (cmd === WORKFLOW_LOG_COMMAND) {
+        return invoke<T>(cmd, payload);
     }
-    const cleaned = omitUndefinedValues(args);
-    const expanded = expandDualCaseInvokeArgs(cleaned);
-    return invoke<T>(cmd, expanded);
+    const startedAt = Date.now();
+    try {
+        const result = await invoke<T>(cmd, payload);
+        await emitWorkflowEvent({
+            step: "primary_action",
+            command: cmd,
+            outcome: "success",
+            durationMs: Date.now() - startedAt,
+        });
+        return result;
+    } catch (error) {
+        await emitWorkflowEvent({
+            step: "primary_action",
+            command: cmd,
+            outcome: "error",
+            durationMs: Date.now() - startedAt,
+            detail: classifyInvokeError(error),
+        });
+        throw error;
+    }
 }
+
+export { normalizeWorkflowRoute };
