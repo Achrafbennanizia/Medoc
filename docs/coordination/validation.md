@@ -1,6 +1,22 @@
 # Validation ledger
 
-**Last updated:** 2026-09-05 (payment assignment open rows)
+**Last updated:** 2026-09-26 (workflow logging bridge + channel)
+
+## Workflow logging bridge + channel (2026-09-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Rust format | `cargo fmt --check` | **PASS** |
+| Rust lint | `MEDOC_VENDOR_PUBKEY=… cargo clippy --workspace --all-targets -- -D warnings` | **PASS** |
+| Rust tests (first run) | `MEDOC_VENDOR_PUBKEY=… cargo test --workspace --tests` | **FAIL** — intermittent `medoc-sync` test `reset_token_sign_verify_roundtrip` (`Invalid signature`) |
+| Rust tests (retry) | `MEDOC_VENDOR_PUBKEY=… cargo test --workspace --tests` | **PASS** — full suite green on immediate rerun |
+| Frontend tests (first run) | `npm run test` | **FAIL** — new `tauri.service.test.ts` mock hoisting issue |
+| Frontend tests (after fix) | `npm run test` | **PASS** — **62 files, 308 tests** |
+| Frontend build | `npm run build` | **PASS** |
+| Frontend lint (includes spacing-token guard) | `npm run lint` | **PASS** |
+| Route/command workflow runtime | — | **NOT OBSERVED** — no manual Tauri UI session in this run |
+
+---
 
 ## Payment assignment / open booking (2026-09-05)
 

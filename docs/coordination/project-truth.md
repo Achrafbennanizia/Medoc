@@ -1,6 +1,6 @@
 # Project truth ledger
 
-**Last updated:** 2026-06-06  
+**Last updated:** 2026-09-26  
 **Scope:** Canonical statements supported by repository evidence.
 
 ## Pro→main merge (2026-05-31 — 2026-06-01) — stable truth
@@ -28,6 +28,7 @@
 - **HTTP CORS:** LAN server uses explicit origin allowlist + 403 gate (`infrastructure/cors_policy.rs`); company server denies all browser `Origin` headers (`company_host/http.rs`).
 - **VVT export (runtime text):** Generated VVT lists SQLite WAL and SQLCipher usage (`apps/practice-host/src/infrastructure/vvt.rs`).
 - **Tauri security:** Content Security Policy set with separate **`devCsp`** for Vite (`localhost` / `127.0.0.1:1420` + websocket) and production **`csp`** without invalid `localhost:*` wildcards (`apps/practice-host/tauri.conf.json`).
+- **Workflow logging (2026-09-26):** Logging stack now includes dedicated `workflow.log` channel (`medoc::workflow`) and Tauri command `log_workflow_event` with sanitizer-backed payload scrubbing (`crates/shared/medoc-core/src/infrastructure/logging/`, `crates/app/medoc-practice/src/commands/system/logging.rs`).
 - **GOZ invoice PDF (Rust):** Multipage layout in `crates/shared/medoc-core/src/infrastructure/pdf.rs`; optional praxis fields on `Invoice`; integration tests in `crates/shared/medoc-core/tests/pdf_document_tests.rs`.
 - **Praxis document readiness (FE):** `packages/shared/src/lib/praxis-completeness.ts` gates PDF export per `DocumentKind`; `PraxisSetupWizard` on first incomplete billing data.
 - **AMVV prescription/certificate:** Extended columns via migrations in `connection.rs`; round-trip tests in `db_migrations_tests.rs`; edit UI in `prescription-edit.tsx`.

@@ -1,6 +1,21 @@
 # Action ledger
 
-**Last updated:** 2026-09-05 (payment fulfills open booking)
+**Last updated:** 2026-09-26 (workflow logging bridge + findings register)
+
+## Done (2026-09-26 — workflow logging instrumentation)
+
+- Extended existing tracing logger with `workflow.log` channel (no parallel logger).
+- Added sanitized frontend→backend workflow bridge command `log_workflow_event`.
+- Routed route-enter + command lifecycle telemetry through the bridge.
+- Added lint guard for arbitrary Tailwind spacing values.
+- Added tests for bridge behavior and sanitization.
+- Updated findings register in `contradictions.md` and command outcomes in `validation.md`.
+
+## Now (workflow hardening)
+
+- Run live Tauri smoke and verify `workflow.log` entries for route enter + action success/error.
+- Add explicit cancel-step logging in critical dialogs/buttons (not only error-text inference).
+- Investigate and deflake `medoc-sync` reset-token signature test.
 
 ## Done (2026-09-05 — payment → billing)
 

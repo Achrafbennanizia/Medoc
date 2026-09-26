@@ -1,5 +1,46 @@
 # Phase handoff
 
+**Last phase label:** Workflow logging bridge + channel (2026-09-26)
+
+### Verified (2026-09-26 — workflow instrumentation slice)
+
+- Extended existing tracing logging subsystem with a dedicated `workflow.log` channel (`medoc::workflow`) in `crates/shared/medoc-core/src/infrastructure/logging/mod.rs` and channel filtering in `config.rs`.
+- Added sanitized frontend→backend workflow bridge command `log_workflow_event` in `crates/app/medoc-practice/src/commands/system/logging.rs` and registered it in IPC (`commands/register.rs`, expected count now **314**).
+- Added domain transition telemetry at the shared transition gate (`crates/shared/medoc-core/src/domain/services/workflow_transitions.rs`).
+- Added frontend workflow emitters:
+  - route-enter logging in `apps/practice-host-ui/src/views/layouts/app-layout.tsx`
+  - command lifecycle logging (primary action / success / error / cancel) in `apps/practice-host-ui/src/services/tauri.service.ts`
+- Added regression tests for the new bridge behavior (`apps/practice-host-ui/src/services/tauri.service.test.ts`) and Rust sanitization helpers in logging command tests.
+- Added static lint guard for arbitrary Tailwind spacing values in `apps/practice-host-ui/eslint.config.js`.
+- Validation commands:
+  - `cargo fmt --check` **PASS**
+  - `cargo clippy --workspace --all-targets -- -D warnings` **PASS**
+  - `cargo test --workspace --tests` **PASS on retry** (first run hit known flake in `medoc-sync` reset-token test)
+  - `npm run test` **PASS** (62 files / 308 tests)
+  - `npm run build` **PASS**
+  - `npm run lint` **PASS**
+
+### Remains unverified
+
+- Runtime Tauri workflow traces in a live desktop UI session (`workflow.log`) — **NOT OBSERVED**.
+- End-to-end non-terminable workflow detection via real interaction paths (spinner timeout/cancel dead-ends) — **NOT OBSERVED** in this run.
+- Playwright geometry/snapshot audit at 375 / 768 / 1259 breakpoints — **NOT RUN** in this run.
+
+### Understanding delta
+
+- Existing logging architecture was extensible enough to add a workflow channel without introducing a parallel logger.
+- Centralized frontend invoke transport provides a practical low-touch hook for broad command lifecycle telemetry.
+- A persistent test flake remains in `medoc-sync` (`reset_token_sign_verify_roundtrip`), independent of this instrumentation change.
+
+### Required next
+
+1. Run a manual Tauri session and inspect `workflow.log` for route enter + action success/error records with sanitized payloads.
+2. Add explicit cancel-step emits on critical dialog/button cancels (currently inferred from error text).
+3. Implement Playwright geometry assertions + snapshot baselines for key pages/components.
+4. Deflake `medoc-sync` reset-token signature test (`cluster_reset_service`) and keep it green without retries.
+
+---
+
 **Last phase label:** Payment fulfills open booking (2026-09-05)
 
 ### Verified (2026-09-05 — payment → billing list)
