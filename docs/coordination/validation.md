@@ -1,6 +1,20 @@
 # Validation ledger
 
-**Last updated:** 2026-09-26 (workflow logging instrumentation slice)
+**Last updated:** 2026-09-26 (dialog cancel telemetry + component-event tests slice)
+
+## Dialog cancel telemetry + component-event tests slice (2026-09-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Failing-before proof (new dialog behavior test) | `npm run test -w medoc -- --project node src/views/components/ui/dialog.workflow.test.tsx` | **FAIL (expected pre-fix)** — test asserted `log_workflow_event` on Escape dismiss, observed **0 calls** before fix. |
+| Focused post-fix tests | `npm run test -w medoc -- --project node src/views/components/ui/dialog.workflow.test.tsx src/services/tauri.service.test.ts` | **PASS** — 7 tests (dialog Escape + close-button cancel telemetry + existing invoke/route tests). |
+| Rust formatting | `cargo fmt --check` | **PASS** |
+| Rust tests (full workspace) | `MEDOC_VENDOR_PUBKEY=… MEDOC_DB_KEY=… MEDOC_AUDIT_KEY=… MEDOC_PAIRING_MASTER_SECRET=… cargo test` | **PASS** |
+| Rust clippy | `MEDOC_VENDOR_PUBKEY=… MEDOC_DB_KEY=… MEDOC_AUDIT_KEY=… MEDOC_PAIRING_MASTER_SECRET=… cargo clippy --workspace --all-targets -- -D warnings` | **PASS** |
+| Frontend tests | `npm run test` | **PASS** — 64 files / 314 tests (includes new dialog workflow test). |
+| Frontend build | `npm run build` | **PASS** |
+
+---
 
 ## Workflow logging instrumentation slice (2026-09-26)
 

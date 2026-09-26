@@ -1,5 +1,39 @@
 # Phase handoff
 
+**Last phase label:** Dialog cancel telemetry + component-event tests slice (2026-09-26)
+
+### Verified (2026-09-26 — dialog cancel telemetry slice)
+
+- Identified and proved a workflow-detection gap: shared dialog dismiss actions closed UI state but emitted no workflow `cancel` event (failing-before test: `packages/ui/src/dialog.workflow.test.tsx` observed zero `log_workflow_event` calls on Escape).
+- Reused existing workflow bridge by extending frontend telemetry (`apps/practice-host-ui/src/services/tauri.service.ts`) with a UI-event helper that emits normalized-route workflow events.
+- Updated shared dialog primitive (`packages/ui/src/dialog.tsx`) so Escape, backdrop click, and close-button clicks log `action=dialog.dismiss`, `outcome=cancel`, and close the dialog.
+- Added behavior tests for keyboard and click dismissal telemetry (`packages/ui/src/dialog.workflow.test.tsx`) and reran existing workflow invoke tests (`apps/practice-host-ui/src/services/tauri.service.test.ts`).
+- Validation on final tree:
+  - `cargo fmt --check` **PASS**
+  - `MEDOC_* cargo test` **PASS**
+  - `MEDOC_* cargo clippy --workspace --all-targets -- -D warnings` **PASS**
+  - `npm run test` **PASS** (64 files / 314 tests)
+  - `npm run build` **PASS**
+
+### Remains unverified
+
+- Full Step-2 route/action state-machine map across all workflows is still incomplete.
+- Step-3 breadth target (all ui/ components + all pages across click/input/submit/error/loading/empty/disabled/Tab/Enter/Escape) is only partially covered (dialog primitive slice done).
+- Step-4 Playwright geometry spacing audit and Step-5 a11y/compliance sweep remain **NOT RUN**.
+
+### Understanding delta
+
+- Workflow observability now includes explicit **cancel** branch telemetry for shared dialog exits, improving traceability for non-terminable-flow detection.
+- Shared UI primitives in `packages/ui` are hard-linked into app paths, so test and fix updates propagate through both `packages/ui/src/*` and `apps/practice-host-ui/src/views/components/ui/*` references.
+
+### Required next
+
+1. Continue Step-2 mapping from route-level workflows to page-level action/state transitions and append remaining findings in `docs/coordination/contradictions.md`.
+2. Expand Step-3 behavioral tests from dialog primitives into high-risk pages/components (forms, drawers, loading/error branches, keyboard navigation).
+3. Stand up Step-4 Playwright spacing/token assertions at breakpoints (375/768/1259) and log violations in contradictions + validation ledgers.
+
+---
+
 **Last phase label:** Workflow logging instrumentation slice (2026-09-26)
 
 ### Verified (2026-09-26 — logger-first slice)

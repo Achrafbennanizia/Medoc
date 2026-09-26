@@ -1,6 +1,12 @@
 # Action ledger
 
-**Last updated:** 2026-09-26 (workflow logging instrumentation slice)
+**Last updated:** 2026-09-26 (dialog cancel telemetry + component-event test slice)
+
+## Done (2026-09-26 — dialog cancel telemetry + component-event tests)
+
+- Added cancel-branch workflow telemetry to shared dialog dismiss paths (Escape/backdrop/close button) via existing `log_workflow_event` bridge.
+- Added UI behavior tests for shared dialog keyboard/click dismissal paths with workflow-log assertions (`packages/ui/src/dialog.workflow.test.tsx`).
+- Revalidated full required gates (`cargo fmt --check`, `cargo test`, `cargo clippy -D warnings`, `npm run test`, `npm run build`) after the change.
 
 ## Done (2026-09-26 — workflow logging instrumentation slice)
 
@@ -13,7 +19,8 @@
 
 ## Now
 
-- Run full Step-2 workflow map + non-terminable-flow detection (all routes/actions) and append P0–P3 findings to contradictions + validation ledgers.
+- Continue Step-2 workflow map + non-terminable-flow detection (all routes/actions) and append P0–P3 findings to contradictions + validation ledgers.
+- Expand Step-3 behavior tests beyond shared dialog primitives into route pages and complex workflow components.
 
 ## Later
 
