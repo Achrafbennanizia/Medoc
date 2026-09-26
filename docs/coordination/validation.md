@@ -1,6 +1,17 @@
 # Validation ledger
 
-**Last updated:** 2026-09-05 (payment assignment open rows)
+**Last updated:** 2026-09-26 (CI/CD tier migration)
+
+## CI/CD tier migration (2026-09-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML parse | `python3 - <<'PY' ... yaml.safe_load(.github/workflows/*.yml)` | **PASS** — `verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml`, `ci.yml`, `website.yml` parsed |
+| Workflow semantic lint | `go run github.com/rhysd/actionlint/cmd/actionlint@latest` | **PASS** — after fixing inline `github.head_ref` usage in `autofix.yml` |
+| Updated package JSON parse | `python3 - <<'PY' ... json.load(apps/practice-host-ui/package.json)` | **PASS** |
+| Retired path scan in workflows | `rg -n "app/src-tauri|\\bapp/" .github/workflows docs/coordination/ci-cd-plan.md` | **PASS** — only doc note remains, no workflow references |
+| Full workflow execution on GitHub runners | — | **NOT RUN** (requires remote Actions run) |
+| Release environment manual approval gate | — | **NOT OBSERVED** |
 
 ## Payment assignment / open booking (2026-09-05)
 

@@ -1,5 +1,36 @@
 # Phase handoff
 
+**Last phase label:** CI/CD tier migration (2026-09-26)
+
+### Verified (2026-09-26 — CI/CD tier migration)
+
+- Added tiered workflows under `.github/workflows/`:
+  - `verify.yml` (push/PR/workflow_call; Rust + JS + a11y zero-mutation gate)
+  - `autofix.yml` (PR-only deterministic fixes, bot loop guard)
+  - `fix-proposal.yml` (manual or red-main trigger, new branch + draft PR evidence)
+  - `release.yml` (tag/dispatch, verify gate, protected `release` env, signed artifacts)
+- Migrated `.github/workflows/ci.yml` to manual legacy entrypoint that dispatches `verify.yml`.
+- Added coordination plan doc: `docs/coordination/ci-cd-plan.md`.
+- Validation evidence recorded in `docs/coordination/validation.md` (YAML parse + stale path scan).
+
+### Remains unverified
+
+- Full run behavior of new workflows on GitHub-hosted runners — **NOT RUN** in this local session.
+- Protected `release` environment approval flow and attestation publication — **NOT OBSERVED**.
+
+### Understanding delta
+
+- CI now separates immutable verification from deterministic PR autofix and from substantive fix proposals.
+- Release path now explicitly gates on verification and protected manual approval rather than mutating source during release.
+
+### Required next
+
+1. Run a PR through `verify` and `autofix` to confirm expected check names and loop-guard behavior.
+2. Trigger `fix-proposal` once (manual dispatch) to verify draft PR creation and evidence body shape.
+3. Trigger `release` in a dry run (`workflow_dispatch`) and confirm protected environment approval + signed artifact upload.
+
+---
+
 **Last phase label:** Payment fulfills open booking (2026-09-05)
 
 ### Verified (2026-09-05 — payment → billing list)

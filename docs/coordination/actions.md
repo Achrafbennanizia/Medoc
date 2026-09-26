@@ -1,13 +1,25 @@
 # Action ledger
 
-**Last updated:** 2026-09-05 (payment fulfills open booking)
+**Last updated:** 2026-09-26 (CI/CD tier migration)
+
+## Done (2026-09-26 — CI/CD tier migration)
+
+- Added tier-1 `verify.yml` (Rust fmt/clippy/test/audit + JS lint/typecheck/test/build + axe-core critical WCAG 2.1 AA gate).
+- Added tier-2 `autofix.yml` (`pull_request` only, deterministic fmt/lint fixes, loop guard on bot actor).
+- Added tier-3 `fix-proposal.yml` (manual or failed-main trigger, new branch, draft PR with before/after evidence, `needs-human-review` label on security/audit/crypto/RBAC path touches).
+- Reworked tier-4 `release.yml` to call tier-1 verify first, then signed cross-platform builds under protected `release` environment with provenance attestation.
+- Added `docs/coordination/ci-cd-plan.md`; migrated `.github/workflows/ci.yml` to manual legacy entrypoint that dispatches `verify.yml`.
+
+## Now
+
+- Run the next PR through the new tiered workflows and confirm branch-protection checks map to `verify` jobs (`rust`, `web`, `a11y`).
 
 ## Done (2026-09-05 — payment → billing)
 
 - Payment create fills the 0 € open booking in place; closes BILLING tasks on `PAID`.
 - Tests: `payment_repo_tests` (incl. fulfill + close).
 
-## Now
+## Now (prior)
 
 - Confirm in the running app: pay an open booking → one billed row, no leftover fulfill task.
 
