@@ -1,6 +1,20 @@
 # Action ledger
 
-**Last updated:** 2026-09-05 (payment fulfills open booking)
+**Last updated:** 2026-09-26 (workflow logging bridge)
+
+## Done (2026-09-26 — workflow logger extension)
+
+- Added dedicated `workflow.log` channel in existing tracing subsystem (no parallel logger).
+- Added backend `log_workflow_event` Tauri bridge + registration (`EXPECTED_INVOKE_COMMAND_COUNT` 314).
+- Added frontend route-enter + command lifecycle workflow emission in shared `tauriInvoke` path.
+- Added/validated failing-before/passing-after test: `src/services/tauri.service.test.ts`.
+- Full gate re-run after change: fmt, clippy, cargo test, npm test, npm build (**PASS**).
+
+## Now
+
+- Run manual UI smoke and inspect `workflow.log` for route/action/success/error traces (**NOT OBSERVED**).
+- Add explicit cancel instrumentation for pure-UI flows that do not call backend commands.
+- Clean up existing Vitest warning (`http-practice.adapter.test.ts` un-awaited rejects) before Vitest 3 migration.
 
 ## Done (2026-09-05 — payment → billing)
 

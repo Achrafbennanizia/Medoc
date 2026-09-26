@@ -1,6 +1,21 @@
 # Validation ledger
 
-**Last updated:** 2026-09-05 (payment assignment open rows)
+**Last updated:** 2026-09-26 (workflow logging bridge)
+
+## Workflow logging bridge + dedicated channel (2026-09-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Failing-before signal | `npm run test -w medoc -- src/services/tauri.service.test.ts` (before instrumentation) | **FAIL** — expected 3 invoke calls, got 1 (no workflow lifecycle emission) |
+| Passing-after signal | `npm run test -w medoc -- src/services/tauri.service.test.ts` (after instrumentation) | **PASS** — 1/1 |
+| Rust fmt gate | `cargo +stable fmt --check` | **PASS** |
+| Rust clippy gate | `MEDOC_VENDOR_PUBKEY=… cargo +stable clippy --workspace --all-targets -- -D warnings` | **PASS** |
+| Rust tests | `MEDOC_VENDOR_PUBKEY=… cargo +stable test` | **PASS** |
+| Frontend tests | `npm run test` | **PASS** — 62 files / 306 tests |
+| Frontend build | `npm run build` | **PASS** |
+| Residual warning | `npm run test` stderr | **Observed** — existing `http-practice.adapter.test.ts` un-awaited rejects warning (tracked as WF-2026-09-26-02) |
+
+---
 
 ## Payment assignment / open booking (2026-09-05)
 

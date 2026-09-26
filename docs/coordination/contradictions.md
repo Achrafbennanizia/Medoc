@@ -1,6 +1,6 @@
 # Contradiction ledger
 
-**Last updated:** 2026-06-16
+**Last updated:** 2026-09-26
 
 ## Open contradictions
 
@@ -10,6 +10,13 @@
 | C5 | Activation-token RBAC scope | Plan ("activation-token allowed_actions on /sync/push|pull only") | `verify_activation_for_path` also accepts `/sync/status` + `/pairing/peers` | **Documented divergence** — broader allow-list documented in `serverless-sync.md`; matches frontend usage. |
 | C6 | "Encrypt every microservice" | User request 2026-05-26 | Plan slice rejected literal interpretation as YAGNI; only license envelope + activation token are encrypted/signed | **Resolved by plan note** — see [`docs/architecture/licensing.md`](../architecture/licensing.md) "What was explicitly not built". |
 | C7 | "Period" in license payload | User request 2026-05-26 | User chose `perpetual_device`; v2 schema stores `activated_at` only, no `expires_at` | **Resolved** — perpetual model documented in `licensing.md`. |
+
+## Workflow findings register (2026-09-26)
+
+| ID | Location | Finding | Evidence | Severity (P0–P3) | Action |
+| -- | -------- | ------- | -------- | ---------------- | ------ |
+| WF-2026-09-26-01 | `apps/practice-host-ui/src/services/tauri.service.ts` | UI→backend workflow lifecycle events were not emitted around command invokes (`primary_action` / `success` / `cancel` / `error`). | `npm run test -w medoc -- src/services/tauri.service.test.ts` failed pre-change: `expected "spy" to be called 3 times, but got 1 times`. | P1 | **Fixed this run**: added `workflow.log` channel, `log_workflow_event` command bridge, and route/invoke workflow emission. |
+| WF-2026-09-26-02 | `packages/shared/src/lib/http-practice.adapter.test.ts:29` | Existing test warning: rejection assertion is not awaited (likely Vitest 3 break). | Full `npm run test` stderr warns `Promise returned by expect(...).rejects... was not awaited`. | P2 | Follow-up test hardening item; no runtime product regression observed in this run. |
 
 ## Resolved (recent)
 

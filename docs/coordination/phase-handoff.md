@@ -1,6 +1,35 @@
 # Phase handoff
 
-**Last phase label:** Payment fulfills open booking (2026-09-05)
+**Last phase label:** Workflow logging bridge (2026-09-26)
+
+### Verified (2026-09-26 — logger extension + UI workflow bridge)
+
+- Logging subsystem extended with dedicated `workflow.log` channel in existing tracing infrastructure (`crates/shared/medoc-core/src/infrastructure/logging/mod.rs` + `config.rs`).
+- New backend bridge command `log_workflow_event` registered in Tauri IPC (`crates/app/medoc-practice/src/commands/system/workflow.rs`, `commands/register.rs` now **314** commands).
+- Frontend route/command workflow emission wired at the shared invoke chokepoint (`apps/practice-host-ui/src/services/tauri.service.ts`) and route-enter hook in `App.tsx`.
+- Failing-before/passing-after proof recorded: `src/services/tauri.service.test.ts` failed pre-change, passed post-change.
+- Validation pass after changes: `cargo +stable fmt --check`, `MEDOC_VENDOR_PUBKEY=… cargo +stable clippy --workspace --all-targets -- -D warnings`, `MEDOC_VENDOR_PUBKEY=… cargo +stable test`, `npm run test`, `npm run build`.
+
+### Remains unverified
+
+- Manual inspection of generated `workflow.log` entries on a live UI session to confirm expected operator breadcrumbs — **NOT OBSERVED**.
+- Exhaustive page-level `cancel` semantic coverage (every dialog/button path) still depends on component-level event instrumentation beyond central invoke wrapper.
+- Full PII audit of historic pre-existing log emitters outside this bridge scope — **NOT RUN**.
+
+### Understanding delta
+
+- There is now a single, reusable workflow telemetry bridge that can be expanded without adding a parallel logger.
+- Existing observability gap is reduced for command-based workflows (route enter + invoke lifecycle), while non-command UI interactions remain a follow-up surface.
+
+### Required next
+
+1. Run a live UI smoke and inspect `workflow.log` for route/action/success/error sequences.
+2. Add component-level cancel hooks for workflows that do not call backend commands.
+3. Address existing Vitest warning in `http-practice.adapter.test.ts` (un-awaited rejects) before Vitest 3 migration.
+
+---
+
+**Previous phase label:** Payment fulfills open booking (2026-09-05)
 
 ### Verified (2026-09-05 — payment → billing list)
 
