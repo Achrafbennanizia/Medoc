@@ -511,8 +511,10 @@ mod tests {
     use super::*;
     use medoc_core::infrastructure::database::connection::{run_migrations, test_memory_pool};
     use medoc_core::infrastructure::database::license_repo;
+    use serial_test::serial;
 
     #[test]
+    #[serial]
     fn reset_token_sign_verify_roundtrip() {
         std::env::set_var(
             "MEDOC_PAIRING_MASTER_SECRET",
