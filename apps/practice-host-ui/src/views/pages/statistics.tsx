@@ -119,6 +119,13 @@ function cartesianMargin(rtl: boolean, opts?: { top?: number; bottom?: number })
     return rtl ? { top, right: 4, left: 8, bottom } : { top, right: 8, left: 0, bottom };
 }
 
+const XHTML_NS = { xmlns: "http://www.w3.org/1999/xhtml" } as unknown as { xmlns?: never };
+
+function numProp(v: unknown, fallback = 0): number {
+    const n = typeof v === "number" ? v : Number(v);
+    return Number.isFinite(n) ? n : fallback;
+}
+
 /** SVG <text> cannot render Arabic correctly under html[dir=rtl]. HTML ticks do. */
 function ChartAxisTick({
     x = 0,
@@ -152,7 +159,7 @@ function ChartAxisTick({
             <g transform={`translate(${x},${y})`}>
                 <foreignObject x={foX} y={-h / 2} width={w} height={h}>
                     <div
-                        xmlns="http://www.w3.org/1999/xhtml"
+                        {...XHTML_NS}
                         title={raw}
                         style={{
                             width: "100%",
@@ -178,7 +185,7 @@ function ChartAxisTick({
         <g transform={`translate(${x},${y})`}>
             <foreignObject x={-w / 2} y={2} width={w} height={32}>
                 <div
-                    xmlns="http://www.w3.org/1999/xhtml"
+                    {...XHTML_NS}
                     style={{
                         width: "100%",
                         textAlign: "center",
@@ -204,19 +211,23 @@ function ChartBarTopLabel({
     width = 0,
     value,
 }: {
-    x?: number;
-    y?: number;
-    width?: number;
-    value?: number;
+    x?: number | string;
+    y?: number | string;
+    width?: number | string;
+    value?: number | string;
 }) {
-    if (value == null || value <= 0) return null;
-    const raw = formatWorkMinutes(value, { compact: true });
+    const nx = numProp(x);
+    const ny = numProp(y);
+    const nw = numProp(width);
+    const nv = numProp(value, NaN);
+    if (!Number.isFinite(nv) || nv <= 0) return null;
+    const raw = formatWorkMinutes(nv, { compact: true });
     const w = Math.min(88, Math.max(56, raw.length * 7));
     const arabic = /[\u0600-\u06FF]/.test(raw);
     return (
-        <foreignObject x={x + width / 2 - w / 2} y={y - 18} width={w} height={16}>
+        <foreignObject x={nx + nw / 2 - w / 2} y={ny - 18} width={w} height={16}>
             <div
-                xmlns="http://www.w3.org/1999/xhtml"
+                {...XHTML_NS}
                 style={{
                     width: "100%",
                     textAlign: "center",

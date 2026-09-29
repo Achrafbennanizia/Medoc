@@ -139,7 +139,7 @@ export function PatientDetailExaminationTab({
                                                         {(u.category ?? "").trim()
                                                             ? `${treatmentCatalogCategoryLabel(t, u.category ?? "")} · `
                                                             : ""}
-                                                        {clinicalServiceLabel(u.service_name)}
+                                                        {clinicalServiceLabel(u.service_name ?? "")}
                                                         {u.total_cost != null && Number.isFinite(u.total_cost)
                                                             ? ` · ${u.total_cost.toFixed(2)} €`
                                                             : ""}
