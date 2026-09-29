@@ -1,5 +1,39 @@
 # Phase handoff
 
+**Last phase label:** CI/CD tier migration (2026-09-29)
+
+### Verified (2026-09-29 — verify/autofix/fix-proposal/release tiers)
+
+- Added tiered workflows under `.github/workflows/`:
+  - `verify.yml` (push/PR/workflow_call) with Rust + JS + axe-core a11y gates, concurrency cancellation, and job timeouts.
+  - `autofix.yml` (`pull_request` only) with loop guard, deterministic fixes, and restricted-path blocking.
+  - `fix-proposal.yml` (manual or failed verify on main) creating draft PR proposals with before/after evidence.
+  - `release.yml` (tag `v*` / dispatch) with reusable verify gate + manual `release` environment approval + signed artifacts.
+- Added coordination doc `docs/coordination/ci-cd-plan.md`.
+- Added CI command surface in root `package.json`: `typecheck`, `lint:fix`, `format`, `test:a11y`.
+- Added `scripts/test-a11y.mjs` (axe-core critical WCAG 2.1 AA scan against built UI).
+- Fixed LAN web TS config to support shared locale imports (`#shared-locales/*`, `resolveJsonModule`) so root typecheck passes.
+
+### Remains unverified
+
+- GitHub-hosted execution of new workflows end-to-end — **NOT OBSERVED**.
+- `npm run test:a11y` runtime in this agent — **NOT RUN** (Chromium download failed with `ENOSPC`).
+- Existing repository lint/fmt baseline is still red (`npm run lint`, `cargo fmt --all --check`) due pre-existing issues unrelated to this migration.
+
+### Understanding delta
+
+- CI/CD gate is now explicitly split by intent: verify-only, deterministic PR autofix, human-reviewed fix proposals, and approval-gated release.
+- Legacy `ci.yml` is now a manual dispatch shim to the new `verify.yml`.
+
+### Required next
+
+1. Run the new workflows in GitHub Actions and confirm branch protection points to `verify`.
+2. Resolve pre-existing lint/fmt findings so tier-1 verify is green on `main`.
+3. Ensure release environment secrets (`TAURI_SIGNING_PRIVATE_KEY` and optional password) and manual approvers are configured.
+4. Re-run `test:a11y` in an environment with enough disk for Playwright Chromium.
+
+---
+
 **Last phase label:** Payment fulfills open booking (2026-09-05)
 
 ### Verified (2026-09-05 — payment → billing list)

@@ -1,6 +1,17 @@
 # Validation ledger
 
-**Last updated:** 2026-09-05 (payment assignment open rows)
+**Last updated:** 2026-09-29 (CI/CD tier migration)
+
+## CI/CD tier migration (2026-09-29)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| a11y runner syntax | `node --check scripts/test-a11y.mjs` | **PASS** |
+| JS typecheck gate | `npm run typecheck` | **PASS** (after `apps/lan-web-client/tsconfig.json` alias + `resolveJsonModule` fix) |
+| JS lint gate | `npm run lint` | **FAIL** — pre-existing lint findings in `apps/practice-host-ui/src/views/components/dev-capture-poller.tsx` and `apps/practice-host-ui/src/views/pages/day-close.tsx` |
+| Rust fmt gate | `cargo fmt --all --check` | **FAIL** — pre-existing formatting drift in `crates/shared/medoc-core/src/discovery/lan_iface.rs` and `crates/shared/medoc-sync/src/net/discovery.rs` |
+| Playwright browser install for a11y runtime | `npx playwright install chromium` | **FAIL** — `ENOSPC` on CI agent disk (could not download Chromium) |
+| End-to-end `test:a11y` run | `npm run test:a11y` | **NOT RUN** (blocked by Chromium install failure / disk space) |
 
 ## Payment assignment / open booking (2026-09-05)
 

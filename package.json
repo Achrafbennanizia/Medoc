@@ -18,7 +18,11 @@
         "dev": "npm run dev -w medoc",
         "build": "npm run build -w medoc",
         "lint": "npm run lint -w medoc",
+        "lint:fix": "npm run lint -w medoc -- --fix",
+        "format": "npm run lint:fix",
+        "typecheck": "npx tsc --noEmit -p apps/practice-host-ui/tsconfig.json && npm run typecheck -w medoc-lan-web-client",
         "test": "npm run test -w medoc",
+        "test:a11y": "node scripts/test-a11y.mjs",
         "test:mvp-coverage": "npm run test:mvp-coverage -w medoc",
         "check": "npm run check -w medoc",
         "i18n:verify": "node scripts/i18n-verify-parity.mjs",
@@ -33,5 +37,8 @@
         "dev:lan-web": "npm run dev -w medoc-lan-web-client",
         "build:lan-web": "npm run build -w medoc-lan-web-client",
         "dev:website": "npm run dev -w medoc-product-website"
+    },
+    "devDependencies": {
+        "axe-core": "^4.13.0"
     }
 }
