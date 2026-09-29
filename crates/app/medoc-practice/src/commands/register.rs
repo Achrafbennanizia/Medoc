@@ -186,6 +186,7 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::service_item_commands::create_service_item,
             $crate::commands::service_item_commands::update_service_item,
             $crate::commands::service_item_commands::delete_service_item,
+            $crate::commands::logging_commands::log_workflow_event,
             $crate::commands::logging_commands::get_log_level,
             $crate::commands::logging_commands::set_log_level,
             $crate::commands::logging_commands::export_logs,
@@ -330,7 +331,7 @@ macro_rules! medoc_invoke_handler {
     };
 }
 
-pub const EXPECTED_INVOKE_COMMAND_COUNT: usize = 313;
+pub const EXPECTED_INVOKE_COMMAND_COUNT: usize = 314;
 
 /// Attach the consolidated IPC handler to the Tauri builder.
 ///

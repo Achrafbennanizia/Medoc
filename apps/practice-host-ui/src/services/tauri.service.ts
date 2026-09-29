@@ -1,4 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
+import {
+    emitWorkflowEvent,
+    isWorkflowLoggingCommand,
+} from "@/services/workflow-bridge";
 
 /**
  * Tauri v2 resolves each command parameter from the invoke JSON using an explicit key.
@@ -52,10 +56,42 @@ function expandDualCaseInvokeArgs(args: Record<string, unknown>): Record<string,
 
 // All Tauri IPC goes through here (single place for invoke normalization).
 export async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-    if (args == null) {
-        return invoke<T>(cmd, {});
+    const invokeArgs = args == null
+        ? {}
+        : expandDualCaseInvokeArgs(omitUndefinedValues(args));
+    const shouldLogWorkflow = !isWorkflowLoggingCommand(cmd);
+
+    if (shouldLogWorkflow) {
+        await emitWorkflowEvent({
+            workflow: "ui.ipc",
+            phase: "primary_action",
+            step: cmd,
+            context: {
+                argumentCount: Object.keys(invokeArgs).length,
+                argumentKeys: Object.keys(invokeArgs).slice(0, 24),
+            },
+        });
     }
-    const cleaned = omitUndefinedValues(args);
-    const expanded = expandDualCaseInvokeArgs(cleaned);
-    return invoke<T>(cmd, expanded);
+
+    try {
+        const result = await invoke<T>(cmd, invokeArgs);
+        if (shouldLogWorkflow) {
+            await emitWorkflowEvent({
+                workflow: "ui.ipc",
+                phase: "success",
+                step: cmd,
+            });
+        }
+        return result;
+    } catch (error) {
+        if (shouldLogWorkflow) {
+            await emitWorkflowEvent({
+                workflow: "ui.ipc",
+                phase: "error",
+                step: cmd,
+                detail: error instanceof Error ? error.message : String(error),
+            });
+        }
+        throw error;
+    }
 }

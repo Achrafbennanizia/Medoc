@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect } from "react";
 import { applyArabicNumeralsToDocument } from "@/lib/arabic-numerals";
 import { loadClientSettings } from "@/lib/client-settings";
 import { useLocale, useT } from "@/lib/i18n";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "./models/store/auth-store";
 import { RoleRoute } from "./views/components/role-route";
 import { DbSetupGate } from "./views/components/db-setup-gate";
@@ -16,6 +16,7 @@ import { DesktopWindowFrame } from "./views/components/desktop-window-frame";
 import { AppLayout } from "./views/layouts/app-layout";
 import { PageLoading } from "@/views/components/ui/page-status";
 import { DevCaptureNavBinder } from "./views/components/dev-capture-poller";
+import { emitWorkflowEvent, normalizeWorkflowRoute } from "@/services/workflow-bridge";
 
 const LoginPage = lazy(async () => ({ default: (await import("./views/pages/login")).LoginPage }));
 const DashboardPage = lazy(async () => ({ default: (await import("./views/pages/dashboard")).DashboardPage }));
@@ -136,6 +137,21 @@ function RouteFallback() {
     );
 }
 
+function WorkflowRouteLogger() {
+    const location = useLocation();
+    useEffect(() => {
+        const route = normalizeWorkflowRoute(location.pathname);
+        void emitWorkflowEvent({
+            workflow: "ui.navigation",
+            phase: "route_enter",
+            step: "route_enter",
+            route,
+            context: { hasSearch: location.search.length > 0 },
+        });
+    }, [location.pathname, location.search]);
+    return null;
+}
+
 function ArabicNumeralsSync() {
     const locale = useLocale((s) => s.locale);
     useEffect(() => {
@@ -147,6 +163,7 @@ function ArabicNumeralsSync() {
 export default function App() {
     return (
         <BrowserRouter>
+        <WorkflowRouteLogger />
         <ArabicNumeralsSync />
         {import.meta.env.DEV ? <DevCaptureNavBinder /> : null}
         <DbSetupGate>

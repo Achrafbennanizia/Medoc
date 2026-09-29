@@ -64,6 +64,7 @@ impl LoggingConfig {
         let t = meta.target();
         if t.starts_with("medoc::security")
             || t.starts_with("medoc::system")
+            || t.starts_with("medoc::workflow")
             || t.starts_with("medoc::device")
             || t.starts_with("medoc::migration")
             || t.starts_with("medoc::perf")
