@@ -164,7 +164,7 @@ const AppointmentApptBlockView = memo(function AppointmentApptBlockView({
     const weekView = !dayColumn;
     const painTeeth = extractToothacheFdisFromChiefComplaint(appointment.chief_complaint);
     const kindLabel = appointmentKindLabelFromAppointment(appointment);
-    const durLabel = `${durMin} min`;
+    const durLabel = tp("appointment.drawer.duration_min", { min: durMin });
     const toothLabel = painTeeth.length
         ? painTeeth.length === 1
             ? tp("dental.picker.one_tooth", { tooth: formatDentalToothLabel(painTeeth[0]!, t) })
@@ -191,8 +191,8 @@ const AppointmentApptBlockView = memo(function AppointmentApptBlockView({
     const prepareDayHoverOrigin = (el: HTMLButtonElement) => {
         if (!dayColumn) return;
         el.classList.add("appointment-appt-block--hover-front");
-        // Horizontal: left origin + layoutScale reserves the right border.
-        // Vertical: prefer inward from top/bottom so height magnify stays in column.
+        // Horizontal: inline-start origin; layoutScale reserves the inline-end gutter
+        // (right in LTR, left in RTL so Arabic magnify grows left).
         const col = el.closest(".appointment-day-col") as HTMLElement | null;
         if (!col) return;
         const colRect = col.getBoundingClientRect();
@@ -213,13 +213,13 @@ const AppointmentApptBlockView = memo(function AppointmentApptBlockView({
         } else if (distBottom < extraY / 2 + pad) {
             originY = "bottom";
         }
-        el.style.transformOrigin = `left ${originY}`;
+        el.style.setProperty("--appointment-hover-origin-y", originY);
     };
 
     const clearDayHoverFront = (el: HTMLButtonElement) => {
         if (!dayColumn) return;
         el.classList.remove("appointment-appt-block--hover-front");
-        el.style.removeProperty("transform-origin");
+        el.style.removeProperty("--appointment-hover-origin-y");
     };
 
     const dragHintInline = dragTargetDateHint ? (

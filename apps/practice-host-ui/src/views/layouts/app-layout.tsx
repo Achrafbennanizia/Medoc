@@ -30,6 +30,7 @@ import { AboutAppDialog, RoleSwitchDialog } from "../components/app-help-dialogs
 import { OnboardingCoachmark } from "../components/onboarding-coachmark";
 import { ONBOARDING_COACHMARK_ENABLED } from "@/lib/v1-ui-flags";
 import { NotificationsPopover } from "../components/notifications-popover";
+import { probeBackgroundServers } from "@/systems/practice-host/controllers/connectivity.controller";
 import { checkForUpdates, openNativePrintDialog } from "@/systems/practice-host/controllers/system.controller";
 import { useDismissibleLayer } from "../components/ui/use-dismissible-layer";
 import { UserAccountMenuDropdown } from "../components/user-account-menu";
@@ -510,10 +511,40 @@ export function AppLayout() {
     }, [breakOpen, toast, tp]);
 
     useEffect(() => {
-        const onOnline = () => setIsOnline(true);
-        const onOffline = () => setIsOnline(false);
-        window.addEventListener("online", onOnline);
-        window.addEventListener("offline", onOffline);
+        let cancelled = false;
+        let timer: number | null = null;
+        const schedule = (ms: number) => {
+            if (timer != null) window.clearTimeout(timer);
+            timer = window.setTimeout(() => {
+                void tick();
+            }, ms);
+        };
+        const tick = async () => {
+            const online = await probeBackgroundServers();
+            if (cancelled) return;
+            setIsOnline(online);
+            schedule(online ? 15_000 : 5_000);
+        };
+        const onBrowserNet = () => {
+            void tick();
+        };
+        const onVisible = () => {
+            if (document.visibilityState === "visible") void tick();
+        };
+        void tick();
+        window.addEventListener("online", onBrowserNet);
+        window.addEventListener("offline", onBrowserNet);
+        document.addEventListener("visibilitychange", onVisible);
+        return () => {
+            cancelled = true;
+            if (timer != null) window.clearTimeout(timer);
+            window.removeEventListener("online", onBrowserNet);
+            window.removeEventListener("offline", onBrowserNet);
+            document.removeEventListener("visibilitychange", onVisible);
+        };
+    }, []);
+
+    useEffect(() => {
         void checkForUpdates()
             .then((u) => {
                 setUpdateAvailable(Boolean(u.update_available));
@@ -523,10 +554,6 @@ export function AppLayout() {
                 setUpdateAvailable(false);
                 console.warn("Update check failed", e);
             });
-        return () => {
-            window.removeEventListener("online", onOnline);
-            window.removeEventListener("offline", onOffline);
-        };
     }, []);
 
     useDismissibleLayer({
@@ -820,7 +847,7 @@ export function AppLayout() {
             >
                 <button type="button" className="input focus-ring topbar-search-trigger" onClick={openCommandPalette}>
                     <SearchIcon size={ICON_SIZE_SM} aria-hidden />
-                    <span style={{ flex: 1, textAlign: "left", fontSize: 13, color: "var(--fg-3)" }}>{t("nav.search_short")}</span>
+                    <span style={{ flex: 1, textAlign: "start", fontSize: 13, color: "var(--fg-3)" }}>{t("nav.search_short")}</span>
                     <span className="ui-kbd-hint" style={{ fontSize: 11, color: "var(--fg-4)" }}>
                         ⌘K
                     </span>
@@ -837,7 +864,11 @@ export function AppLayout() {
                     </button>
                 ) : null}
                 <SyncStatusBadge />
-                <span className={`tb-chip ${isOnline ? "live" : ""}`}>
+                <span
+                    className={`tb-chip ${isOnline ? "live" : "offline"}`}
+                    role="status"
+                    title={isOnline ? t("app.layout.online_title") : t("app.layout.offline_title")}
+                >
                     <WifiIcon size={12} />
                     {isOnline ? t("app.layout.online") : t("app.layout.offline")}
                 </span>

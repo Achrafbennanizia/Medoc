@@ -536,7 +536,7 @@ export function AdministrationFinanceToolsPage() {
                 <Textarea
                     id="read-rec-addr"
                     label={t("page.administration_finance_tools.read_addr")}
-                    value={selectedEntry.invoice.recipient_address.join("\n")}
+                    value={(selectedEntry.invoice.recipient_address ?? []).join("\n")}
                     readOnly
                     tabIndex={-1}
                 />
@@ -549,7 +549,7 @@ export function AdministrationFinanceToolsPage() {
                     tabIndex={-1}
                 />
                 <p className="text-title" style={{ fontSize: 14, margin: 0 }}>{t("common.positions")}</p>
-                {selectedEntry.invoice.lines.map((line, i) => (
+                {(selectedEntry.invoice.lines ?? []).map((line, i) => (
                     <div key={i} className="card card-pad" style={{ background: "var(--surface-1)" }}>
                         <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: "var(--fg-2)", whiteSpace: "pre-wrap" }}>{line.description}</p>
                         <p style={{ margin: "8px 0 0", fontSize: 14, fontWeight: 600, color: "var(--fg-1)" }}>
@@ -634,11 +634,11 @@ export function AdministrationFinanceToolsPage() {
                             <table className="tbl products-tbl tbl-fluid" style={{ fontSize: 14, margin: 0 }}>
                                 <thead>
                                     <tr>
-                                        <th scope="col" style={{ textAlign: "left" }}>{t("page.administration_finance_tools.col.invoice")}</th>
-                                        <th scope="col" style={{ textAlign: "left" }}>{t("common.date")}</th>
-                                        <th scope="col" style={{ textAlign: "left" }}>{t("common.recipient")}</th>
+                                        <th scope="col" style={{ textAlign: "start" }}>{t("page.administration_finance_tools.col.invoice")}</th>
+                                        <th scope="col" style={{ textAlign: "start" }}>{t("common.date")}</th>
+                                        <th scope="col" style={{ textAlign: "start" }}>{t("common.recipient")}</th>
                                         <th scope="col" style={{ textAlign: "end" }}>{t("common.sum_gross")}</th>
-                                        <th scope="col" style={{ textAlign: "left" }}>{t("page.administration_finance_tools.col.created")}</th>
+                                        <th scope="col" style={{ textAlign: "start" }}>{t("page.administration_finance_tools.col.created")}</th>
                                     </tr>
                                 </thead>
                                 <tbody>

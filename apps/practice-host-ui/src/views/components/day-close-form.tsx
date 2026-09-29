@@ -11,7 +11,7 @@ import {
     sumIncomeDay,
 } from "@/lib/day-close";
 import type { Payment } from "@/models/types";
-import { useLocale, useT, useTParams } from "@/lib/i18n";
+import { bcp47ForLocale, useLocale, useT, useTParams } from "@/lib/i18n";
 import { Button } from "./ui/button";
 import { Input, Textarea } from "./ui/input";
 import { useToastStore } from "./ui/toast-store";
@@ -53,7 +53,7 @@ export function DayCloseForm({
     const t = useT();
     const tp = useTParams();
     const locale = useLocale((s) => s.locale);
-    const timeLocale = locale === "de" ? "de-DE" : locale === "fr" ? "fr-FR" : locale === "ar" ? "ar-SA" : "en-US";
+    const timeLocale = bcp47ForLocale(locale);
     const toast = useToastStore((s) => s.add);
     const [as_of_date, setAsOfDate] = useState(fixedAsOfDate ?? asOfDateDefault);
     const [countedRaw, setCountedRaw] = useState("");
@@ -280,8 +280,8 @@ export function DayCloseForm({
                         <table className="tbl" style={{ minWidth: 400, fontSize: 13, margin: 0 }}>
                             <thead>
                                 <tr>
-                                    <th style={{ textAlign: "left" }}>{t("common.time")}</th>
-                                    <th style={{ textAlign: "left" }}>{t("common.patient")}</th>
+                                    <th style={{ textAlign: "start" }}>{t("common.time")}</th>
+                                    <th style={{ textAlign: "start" }}>{t("common.patient")}</th>
                                     <th>{t("page.day_close.col.kind")}</th>
                                     <th>{t("common.status")}</th>
                                     <th style={{ textAlign: "end" }}>€</th>

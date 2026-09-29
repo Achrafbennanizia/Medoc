@@ -3,6 +3,8 @@ import { twMerge } from "tailwind-merge";
 
 import type { Product } from "@/models/types";
 import { formatIpcError } from "./ipc-errors";
+import { effectiveArabicNumeralMode, rewriteDigitsForMode } from "./arabic-numerals";
+import { loadClientSettings } from "./client-settings";
 import type { Locale } from "./i18n";
 import { bcp47ForLocale, useLocale } from "./i18n";
 
@@ -34,19 +36,31 @@ function resolveLocaleTag(locale?: Locale): string {
     return bcp47ForLocale(locale ?? useLocale.getState().locale);
 }
 
+function applyUiDigits(text: string, locale?: Locale): string {
+    const loc = locale ?? useLocale.getState().locale;
+    const mode = effectiveArabicNumeralMode(loc, loadClientSettings().appearance?.arabicNumeralMode);
+    return rewriteDigitsForMode(text, mode);
+}
+
 export function formatDate(dateStr: string, locale?: Locale): string {
-    return new Date(dateStr).toLocaleDateString(resolveLocaleTag(locale), {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-    });
+    return applyUiDigits(
+        new Date(dateStr).toLocaleDateString(resolveLocaleTag(locale), {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+        }),
+        locale,
+    );
 }
 
 export function formatCurrency(amount: number, locale?: Locale): string {
-    return new Intl.NumberFormat(resolveLocaleTag(locale), {
-        style: "currency",
-        currency: "EUR",
-    }).format(amount);
+    return applyUiDigits(
+        new Intl.NumberFormat(resolveLocaleTag(locale), {
+            style: "currency",
+            currency: "EUR",
+        }).format(amount),
+        locale,
+    );
 }
 
 /** How often the name appears — for ambiguity (same name, different category/price/ID). */
@@ -64,11 +78,14 @@ export function productSelectLabel(p: Product, nameDupCount: number): string {
 }
 
 export function formatDateTime(dateStr: string, locale?: Locale): string {
-    return new Date(dateStr).toLocaleString(resolveLocaleTag(locale), {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-    });
+    return applyUiDigits(
+        new Date(dateStr).toLocaleString(resolveLocaleTag(locale), {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+        }),
+        locale,
+    );
 }

@@ -10,6 +10,11 @@ import {
     readLegacyAccentFromStorage,
     type AccentId,
 } from "./accent-preset";
+import {
+    applyArabicNumeralsToDocument,
+    normalizeArabicNumeralMode,
+    type ArabicNumeralMode,
+} from "./arabic-numerals";
 import { normalizeFontStack, type FontStackId } from "./font-stack-preset";
 
 export type { FontStackId } from "./font-stack-preset";
@@ -25,6 +30,9 @@ export type AppointmentCalendarView = "day" | "week" | "month";
 
 /** Appearance: light / dark / system (system follows `prefers-color-scheme`). */
 export type ColorSchemeId = "light" | "dark" | "system";
+
+export type { ArabicNumeralMode } from "./arabic-numerals";
+export { normalizeArabicNumeralMode } from "./arabic-numerals";
 
 export type ClientSettingsV1 = {
     version: 1;
@@ -44,6 +52,11 @@ export type ClientSettingsV1 = {
         showKeyboardHints?: boolean;
         /** Calendar appointment card hover magnify size (`html[data-appointment-card-hover]`). */
         appointmentCardHoverScale?: AppointmentCardHoverScaleId;
+        /**
+         * Arabic UI only: Western digits (0-9) vs Eastern Arabic-Indic (٠-٩).
+         * Ignored when the interface language is not Arabic.
+         */
+        arabicNumeralMode?: ArabicNumeralMode;
     };
     /** Calendar, appointments, day-end closing */
     workflows?: {
@@ -100,6 +113,7 @@ export const DEFAULT_CLIENT_SETTINGS: ClientSettingsV1 = {
         showHeaderAvatar: true,
         showKeyboardHints: true,
         appointmentCardHoverScale: "md",
+        arabicNumeralMode: "western",
     },
     workflows: {
         appointmentsDefaultView: "month",
@@ -179,6 +193,10 @@ function normalizeFromStorage(j: Partial<ClientSettingsV1>): ClientSettingsV1 {
     if (out.appearance?.appointmentCardHoverScale !== hover) {
         out = mergeClient(out, { appearance: { ...out.appearance!, appointmentCardHoverScale: hover } });
     }
+    const numerals = normalizeArabicNumeralMode(j.appearance?.arabicNumeralMode);
+    if (out.appearance?.arabicNumeralMode !== numerals) {
+        out = mergeClient(out, { appearance: { ...out.appearance!, arabicNumeralMode: numerals } });
+    }
     return out;
 }
 
@@ -244,6 +262,7 @@ export function applyAppearanceFromSettings(s: ClientSettingsV1): void {
     mirrorAccentToLegacyStorage(accent);
     const fs = normalizeFontStack(s.appearance?.fontStack);
     document.documentElement.dataset.fontStack = fs;
+    applyArabicNumeralsToDocument(document.documentElement.lang || "en", s.appearance?.arabicNumeralMode);
 }
 
 export function hydrateAppearanceFromStorage(): void {

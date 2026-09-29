@@ -273,7 +273,7 @@ export function BalanceSheetNewPage() {
                                 <div style={{ overflowX: "auto", maxHeight: 360, border: "1px solid var(--line)", borderRadius: 8 }}>
                                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                                         <thead style={{ position: "sticky", top: 0, background: "var(--card)" }}>
-                                            <tr style={{ textAlign: "left", borderBottom: "1px solid var(--line)" }}>
+                                            <tr style={{ textAlign: "start", borderBottom: "1px solid var(--line)" }}>
                                                 <th style={{ padding: 8, width: 40 }}> </th>
                                                 <th style={{ padding: 8 }}>{t("common.patient_ref")}</th>
                                                 <th style={{ padding: 8 }}>{t("common.amount")}</th>
@@ -317,7 +317,7 @@ export function BalanceSheetNewPage() {
                                 <div style={{ overflowX: "auto", border: "1px solid var(--line)", borderRadius: 8 }}>
                                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                                         <thead>
-                                            <tr style={{ textAlign: "left", borderBottom: "1px solid var(--line)" }}>
+                                            <tr style={{ textAlign: "start", borderBottom: "1px solid var(--line)" }}>
                                                 <th style={{ padding: 8, width: 40 }}> </th>
                                                 <th style={{ padding: 8 }}>{t("common.contract")}</th>
                                                 <th style={{ padding: 8 }}>{t("common.type")}</th>
@@ -361,7 +361,7 @@ export function BalanceSheetNewPage() {
                                 <div style={{ overflowX: "auto", border: "1px solid var(--line)", borderRadius: 8 }}>
                                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                                         <thead>
-                                            <tr style={{ textAlign: "left", borderBottom: "1px solid var(--line)" }}>
+                                            <tr style={{ textAlign: "start", borderBottom: "1px solid var(--line)" }}>
                                                 <th style={{ padding: 8, width: 40 }}> </th>
                                                 <th style={{ padding: 8 }}>{t("common.product")}</th>
                                                 <th style={{ padding: 8 }}>{t("common.category")}</th>

@@ -330,7 +330,7 @@ export function PatientDetailPrescriptionTabPanel(props: PatientDetailPrescripti
                                                             <Button
                                                                 type="button"
                                                                 size="sm"
-                                                                variant="ghost"
+                                                                variant="danger"
                                                                 onClick={() => setPrescriptionLines((prev) => prev.filter((_, j) => j !== i))}
                                                             >
                                                                 {t("common.remove")}

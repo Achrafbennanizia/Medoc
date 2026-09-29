@@ -862,7 +862,7 @@ export function AppointmentCreatePage() {
                                                     <button
                                                         type="button"
                                                         onClick={() => navigate(`/patients?from=appointment-create&draft=${encodeURIComponent(draftId)}`)}
-                                                        style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", border: "none", background: "transparent", cursor: "pointer", fontSize: 13, color: "var(--fg-3)" }}
+                                                        style={{ display: "block", width: "100%", textAlign: "start", padding: "10px 12px", border: "none", background: "transparent", cursor: "pointer", fontSize: 13, color: "var(--fg-3)" }}
                                                     >
                                                         {t("appointment.create.patient_no_match")}
                                                     </button>
@@ -881,7 +881,7 @@ export function AppointmentCreatePage() {
                                                         style={{
                                                             display: "block",
                                                             width: "100%",
-                                                            textAlign: "left",
+                                                            textAlign: "start",
                                                             padding: "10px 12px",
                                                             border: "none",
                                                             borderBottom: "1px solid var(--line)",
@@ -897,7 +897,7 @@ export function AppointmentCreatePage() {
                                                 <button
                                                     type="button"
                                                     onClick={() => navigate(`/patients?from=appointment-create&draft=${encodeURIComponent(draftId)}`)}
-                                                    style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", border: "none", borderTop: "1px solid var(--line)", background: "var(--bg-elev)", cursor: "pointer", fontSize: 13, color: "var(--accent)" }}
+                                                    style={{ display: "block", width: "100%", textAlign: "start", padding: "10px 12px", border: "none", borderTop: "1px solid var(--line)", background: "var(--bg-elev)", cursor: "pointer", fontSize: 13, color: "var(--accent)" }}
                                                 >
                                                     {t("appointment.create.patient_search_records_more")}
                                                 </button>

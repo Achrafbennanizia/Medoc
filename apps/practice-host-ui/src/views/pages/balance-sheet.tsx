@@ -11,11 +11,13 @@ import {
 } from "@/systems/practice-host/controllers/payment.controller";
 import { listBalanceSheetSnapshots, deleteBalanceSheetSnapshot, type BalanceSheetSnapshot } from "@/systems/practice-host/controllers/balance-sheet-snapshot.controller";
 import type { BalanceSheet, Payment } from "../../models/types";
+import { paymentStatusDisplay } from "@/lib/finance-order-labels";
 import { errorMessage, formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { buildBalanceSheetReportBundle } from "@/lib/report-export";
 import { ReportExportToolbar } from "../components/report-export-toolbar";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { ConfirmDialog } from "../components/ui/dialog";
+import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { useToastStore } from "../components/ui/toast-store";
 import { Link } from "react-router-dom";
@@ -78,9 +80,9 @@ export function BalanceSheetPage() {
         try {
             await deleteBalanceSheetSnapshot(snapshotDeleteId);
             setSnapshots((list) => list.filter((s) => s.id !== snapshotDeleteId));
-            toast(t("balance-sheet.toast.snapshot_deleted"), "success");
+            toast(t("balanceSheet.toast.snapshot_deleted"), "success");
         } catch (e) {
-            toast(tp("balance-sheet.toast.delete_failed", { message: errorMessage(e) }), "error");
+            toast(tp("balanceSheet.toast.delete_failed", { message: errorMessage(e) }), "error");
         } finally {
             setSnapshotDeleteId(null);
         }
@@ -97,24 +99,24 @@ export function BalanceSheetPage() {
         return <PageLoadError message={loadError} onRetry={reload} />;
     }
     if (status !== "ready" || !balance_sheet) {
-        return <PageLoading label={t("balance-sheet.loading")} />;
+        return <PageLoading label={t("balanceSheet.loading")} />;
     }
 
     return (
         <div className="practice-workspace-page animate-fade-in">
             <AdministrationPageHeader
                 showBack={canBackAdministration}
-                title={t("balance-sheet.title")}
+                title={t("balanceSheet.title")}
                 actions={
                     <>
                         <ReportExportToolbar
-                            dialogTitle={t("balance-sheet.export_title")}
+                            dialogTitle={t("balanceSheet.export_title")}
                             buildBundle={buildExportBundle}
                             defaultFormat="pdf"
                             // TODO(later): restore Import — REPORT_IMPORT_UI_ENABLED + todos-deferred-ui-blinds.md
                             // showImport
                         />
-                        <Link to="/balance-sheet/new" className="btn btn-subtle">{t("balance-sheet.new_btn")}</Link>
+                        <Link to="/balance-sheet/new" className="btn btn-subtle">{t("balanceSheet.new_btn")}</Link>
                     </>
                 }
             />
@@ -127,25 +129,25 @@ export function BalanceSheetPage() {
                 }}
             >
                 <Card className="kpi">
-                    <CardHeader title={t("balance-sheet.kpi.income_paid")} />
+                    <CardHeader title={t("balanceSheet.kpi.income_paid")} />
                     <p className="kpi-val" style={{ color: "var(--accent-green)" }}>{formatCurrency(balance_sheet.income)}</p>
                 </Card>
                 <Card className="kpi">
-                    <CardHeader title={t("balance-sheet.kpi.pending")} />
+                    <CardHeader title={t("balanceSheet.kpi.pending")} />
                     <p className="kpi-val" style={{ color: "var(--accent-yellow)" }}>{formatCurrency(balance_sheet.outstanding)}</p>
                 </Card>
                 <Card className="kpi">
-                    <CardHeader title={t("balance-sheet.kpi.cancelled")} />
+                    <CardHeader title={t("balanceSheet.kpi.cancelled")} />
                     <p className="kpi-val" style={{ color: "var(--fg-3)" }}>{formatCurrency(balance_sheet.cancelled)}</p>
                 </Card>
             </div>
 
             <Card className="card-pad">
-                <CardHeader title={t("balance-sheet.monthly_title")} />
+                <CardHeader title={t("balanceSheet.monthly_title")} />
                 {byMonth.length === 0 ? (
-                    <p className="text-body text-on-surface-variant">{t("balance-sheet.no_payments_yet")}</p>
+                    <p className="text-body text-on-surface-variant">{t("balanceSheet.no_payments_yet")}</p>
                 ) : (
-                    <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 10 }} role="list" aria-label={t("balance-sheet.monthly_aria")}>
+                    <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 10 }} role="list" aria-label={t("balanceSheet.monthly_aria")}>
                         {byMonth.map(([month, version]) => (
                             <li key={month}>
                                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
@@ -166,10 +168,10 @@ export function BalanceSheetPage() {
             </Card>
 
             <Card className="card-pad">
-                <CardHeader title={t("balance-sheet.snapshots_title")} />
+                <CardHeader title={t("balanceSheet.snapshots_title")} />
                 {snapshots.length === 0 ? (
                     <p className="text-body text-on-surface-variant">
-                        {t("balance-sheet.snapshots_empty")}
+                        {t("balanceSheet.snapshots_empty")}
                     </p>
                 ) : (
                     <div className="tbl-scroll">
@@ -177,10 +179,10 @@ export function BalanceSheetPage() {
                         <thead>
                             <tr>
                                 <th>{t("common.created_at")}</th>
-                                <th>{t("balance-sheet.col.label")}</th>
-                                <th>{t("balance-sheet.col.income")}</th>
-                                <th>{t("balance-sheet.col.expenses")}</th>
-                                <th>{t("balance-sheet.col.balance")}</th>
+                                <th>{t("balanceSheet.col.label")}</th>
+                                <th>{t("balanceSheet.col.income")}</th>
+                                <th>{t("balanceSheet.col.expenses")}</th>
+                                <th>{t("balanceSheet.col.balance")}</th>
                                 <th aria-label={t("common.actions")} />
                             </tr>
                         </thead>
@@ -195,7 +197,7 @@ export function BalanceSheetPage() {
                                         {formatCurrency(s.balance_cents / 100)}
                                     </td>
                                     <td>
-                                        <Button size="sm" variant="ghost" onClick={() => setSnapshotDeleteId(s.id)}>
+                                        <Button size="sm" variant="danger" onClick={() => setSnapshotDeleteId(s.id)}>
                                             {t("common.delete")}
                                         </Button>
                                     </td>
@@ -211,16 +213,16 @@ export function BalanceSheetPage() {
                 open={!!snapshotDeleteId}
                 onClose={() => setSnapshotDeleteId(null)}
                 onConfirm={handleDeleteSnapshot}
-                title={t("balance-sheet.delete_title")}
-                message={t("balance-sheet.delete_message")}
+                title={t("balanceSheet.delete_title")}
+                message={t("balanceSheet.delete_message")}
                 confirmLabel={t("common.delete")}
                 danger
             />
 
             <Card className="card-pad">
-                <CardHeader title={t("balance-sheet.recent_payments")} />
+                <CardHeader title={t("balanceSheet.recent_payments")} />
                 {recentPayments.length === 0 ? (
-                    <p className="text-body text-on-surface-variant">{t("balance-sheet.no_payments")}</p>
+                    <p className="text-body text-on-surface-variant">{t("balanceSheet.no_payments")}</p>
                 ) : (
                     <div className="tbl-scroll">
                     <table className="tbl tbl-fluid">
@@ -230,13 +232,16 @@ export function BalanceSheetPage() {
                             </tr>
                         </thead>
                         <tbody>
-                            {recentPayments.map((z) => (
+                            {recentPayments.map((z) => {
+                                const st = paymentStatusDisplay(z.status, t);
+                                return (
                                 <tr key={z.id}>
                                     <td>{formatDate(z.created_at)}</td>
-                                    <td>{z.status}</td>
+                                    <td><Badge variant={st.variant}>{st.label}</Badge></td>
                                     <td>{formatCurrency(z.amount)}</td>
                                 </tr>
-                            ))}
+                                );
+                            })}
                         </tbody>
                     </table>
                     </div>

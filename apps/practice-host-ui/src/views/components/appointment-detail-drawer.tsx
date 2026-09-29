@@ -12,6 +12,7 @@ import {
     timeToMinutes,
 } from "@/lib/appointment-calendar-ui";
 import { parseAppointmentDurationMin } from "@/lib/appointment-domain";
+import { PhoneText } from "@/views/components/ui/phone-text";
 import {
     BoltIcon,
     CheckIcon,
@@ -157,7 +158,9 @@ export function AppointmentDetailDrawer({
                         </div>
                         <div className="ios-row">
                             <div className="appointment-drawer-eyebrow">{t("appointment.drawer.patient_phone")}</div>
-                            <div className="appointment-drawer-meta-val">{patientPhone ?? "—"}</div>
+                            <div className="appointment-drawer-meta-val">
+                                <PhoneText value={patientPhone} />
+                            </div>
                         </div>
                         <div className="ios-row">
                             <div className="appointment-drawer-eyebrow">{t("appointment.drawer.treatment_type")}</div>

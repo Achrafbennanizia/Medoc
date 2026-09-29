@@ -586,15 +586,12 @@ pub async fn create(pool: &SqlitePool, data: &CreatePayment) -> Result<Payment, 
     Ok(inserted)
 }
 
-fn open_booking_description(service_name: Option<&str>, total_cost: Option<f64>) -> String {
-    let name = service_name
+fn open_booking_description(service_name: Option<&str>, _total_cost: Option<f64>) -> String {
+    service_name
         .map(str::trim)
         .filter(|s| !s.is_empty())
-        .unwrap_or("Service");
-    match total_cost.filter(|g| g.is_finite() && *g > OPEN_BOOKING_TOLERANCE_EUR) {
-        Some(g) => format!("{name} — open billing ({g:.2} €)"),
-        None => format!("{name} — open billing"),
-    }
+        .unwrap_or("")
+        .to_string()
 }
 
 async fn refresh_zero_open_booking_from_clinical(
@@ -796,9 +793,7 @@ pub async fn ensure_placeholder_for_examination(
             amount: 0.0,
             payment_method: PaymentMethod::Invoice,
             service_item_id: None,
-            description: Some(
-                "Created automatically on insert: open billing (examination).".into(),
-            ),
+            description: None,
             treatment_id: None,
             examination_id: Some(examination_id.to_string()),
             amount_expected: None,

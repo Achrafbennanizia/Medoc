@@ -356,7 +356,7 @@ export function WorkDaysPage() {
                 <div style={{ overflowX: "auto" }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                         <thead>
-                            <tr style={{ textAlign: "left", borderBottom: "1px solid var(--line)" }}>
+                            <tr style={{ textAlign: "start", borderBottom: "1px solid var(--line)" }}>
                                 <th style={{ padding: "8px 6px" }}>{t("page.work_plan.label.from")}</th>
                                 <th style={{ padding: "8px 6px" }}>{t("page.work_plan.label.to")}</th>
                                 <th style={{ padding: "8px 6px" }}>{t("page.workDays.col.time")}</th>
@@ -381,7 +381,7 @@ export function WorkDaysPage() {
                                         <td style={{ padding: "8px 6px" }}>
                                             <div className="row" style={{ gap: 6 }}>
                                                 <button type="button" className="btn btn-ghost" aria-label={t("page.workDays.a11y.edit")} onClick={() => startEdit(r)}><EditIcon /></button>
-                                                <button type="button" className="btn btn-ghost" aria-label={t("page.workDays.a11y.delete")} onClick={() => setDeleteId(r.id)}><TrashIcon /></button>
+                                                <button type="button" className="btn btn-danger" aria-label={t("page.workDays.a11y.delete")} onClick={() => setDeleteId(r.id)}><TrashIcon /></button>
                                             </div>
                                         </td>
                                     ) : null}

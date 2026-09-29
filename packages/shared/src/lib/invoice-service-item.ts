@@ -13,6 +13,7 @@ import {
     PAYMENT_EUR_EPS,
 } from "@/lib/payment-booking";
 import { paymentLocalYmd } from "@/lib/day-close";
+import { isolateLtrPhone } from "@/lib/arabic-numerals";
 
 import { getAppKv, setAppKv } from "@/systems/practice-host/controllers/app-kv.controller";
 
@@ -155,7 +156,7 @@ export function buildInvoiceHeaderAddressLines(p: InvoicePractice, show: Practic
         if (t) lines.push(t);
     }
     const tel = (p.phone ?? "").trim();
-    if (tel) lines.push(`Tel. ${show.tel ? tel : maskPracticeExportToken(tel)}`);
+    if (tel) lines.push(`Tel. ${show.tel ? isolateLtrPhone(tel) : maskPracticeExportToken(tel)}`);
     const fax = (p.fax ?? "").trim();
     if (fax) lines.push(`Fax ${show.fax ? fax : maskPracticeExportToken(fax)}`);
     const em = (p.email ?? "").trim();

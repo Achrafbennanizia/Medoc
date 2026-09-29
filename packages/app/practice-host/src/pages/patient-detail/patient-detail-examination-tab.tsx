@@ -1,4 +1,5 @@
 import { treatmentCatalogCategoryLabel } from "@/lib/treatment-catalog-categories";
+import { clinicalServiceLabel } from "@/lib/clinical-service-label";
 import { useT, useTParams } from "@/lib/i18n";
 import type { TreatmentCatalogItem, PatientChart, Examination, DentalFinding } from "@/models/types";
 import { parseExaminationV1 } from "@/lib/examination";
@@ -138,7 +139,7 @@ export function PatientDetailExaminationTab({
                                                         {(u.category ?? "").trim()
                                                             ? `${treatmentCatalogCategoryLabel(t, u.category ?? "")} · `
                                                             : ""}
-                                                        {u.service_name}
+                                                        {clinicalServiceLabel(u.service_name)}
                                                         {u.total_cost != null && Number.isFinite(u.total_cost)
                                                             ? ` · ${u.total_cost.toFixed(2)} €`
                                                             : ""}

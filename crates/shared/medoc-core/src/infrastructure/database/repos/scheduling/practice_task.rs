@@ -210,11 +210,11 @@ pub async fn ensure_billing_task_for_clinical_line(
     if open.0 > 0 {
         return Ok(());
     }
-    let ln = service_name.unwrap_or("ServiceItem").trim();
+    let ln = service_name.unwrap_or("").trim();
     let title = if ln.is_empty() {
-        "Payment erfassen".to_string()
+        "Record payment".to_string()
     } else {
-        format!("Payment erfassen: {ln}")
+        format!("Record payment: {ln}")
     };
     let body = match total_cost.filter(|g| g.is_finite() && *g > 0.0) {
         Some(g) => format!("{title} ({:.2} €)", g),

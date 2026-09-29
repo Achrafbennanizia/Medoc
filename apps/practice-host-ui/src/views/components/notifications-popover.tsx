@@ -21,6 +21,7 @@ import {
 } from "@/systems/practice-host/controllers/practice-task.controller";
 import type { InAppNotification } from "@/models/types";
 import { useDateFnsLocale, useT } from "@/lib/i18n";
+import { displayPracticeTaskTitle } from "@/lib/finance-order-labels";
 import { useAuthStore } from "@/models/store/auth-store";
 
 type Tone = "orange" | "red" | "green" | "blue" | "grey";
@@ -131,7 +132,7 @@ function taskRows(
         .slice(0, 12)
         .map((task) => ({
             id: `task:${task.id}`,
-            title: task.title,
+            title: displayPracticeTaskTitle(task.title, t),
             sub:
                 task.status === "BACK"
                     ? t("app.notifications.task_returned")
@@ -252,17 +253,8 @@ export function NotificationsPopover({
         <div
             className="notifications-popover"
             style={{
-                position: "absolute",
-                right: 0,
-                top: "calc(100% + 8px)",
                 width: 380,
                 maxWidth: "min(380px, calc(100vw - 24px))",
-                background: "#fff",
-                border: "1px solid var(--line)",
-                borderRadius: 14,
-                boxShadow: "var(--shadow-lg)",
-                zIndex: 50,
-                overflow: "hidden",
             }}
         >
             <div className="row" style={{ padding: "12px 14px", borderBottom: "1px solid var(--line)", alignItems: "center", gap: 8 }}>
@@ -292,7 +284,7 @@ export function NotificationsPopover({
                                 className="ios-row"
                                 style={{
                                     width: "100%",
-                                    textAlign: "left",
+                                    textAlign: "start",
                                     font: "inherit",
                                     background: n.unread ? "rgba(14,160,126,0.04)" : "transparent",
                                     border: "none",

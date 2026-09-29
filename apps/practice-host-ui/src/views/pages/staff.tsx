@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { checkSession } from "@/systems/practice-host/controllers/auth.controller";
 import {
@@ -26,6 +26,7 @@ import { Button } from "../components/ui/button";
 import { Card, CardHeader } from "../components/ui/card";
 import { ConfirmDialog } from "../components/ui/dialog";
 import { Input, Select } from "../components/ui/input";
+import { PhoneText } from "../components/ui/phone-text";
 import { Badge } from "../components/ui/badge";
 import { EmptyState } from "../components/ui/empty-state";
 import { useToastStore } from "../components/ui/toast-store";
@@ -383,11 +384,11 @@ export function StaffPage() {
           })
         : t("page.staff.subtitle_default");
 
-    const readField = (label: string, value: string | null | boolean | undefined) => (
+    const readField = (label: string, value: ReactNode) => (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span className="kpi-label-mini">{label}</span>
             <span style={{ fontSize: 14, color: "var(--fg-2)", lineHeight: 1.4 }}>
-                {value === null || value === undefined || value === "" ? "—" : String(value)}
+                {value === null || value === undefined || value === "" ? "—" : value}
             </span>
         </div>
     );
@@ -538,6 +539,7 @@ export function StaffPage() {
                         />
                         <Input
                             id="pers-ed-tel"
+                            type="tel"
                             label={t("common.phone")}
                             value={editForm.phone}
                             onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))}
@@ -695,7 +697,7 @@ export function StaffPage() {
                                             <code>{row.action}</code> → <strong>{row.effect}</strong>{" "}
                                             <button
                                                 type="button"
-                                                className="btn btn-ghost btn-sm"
+                                                className="btn btn-danger btn-sm"
                                                 style={{ marginInlineStart: 8 }}
                                                 onClick={() => {
                                                     if (!selected) return;
@@ -858,7 +860,7 @@ export function StaffPage() {
                             {readField(t("common.role"), p.role)}
                             {readField(t("page.staff.label_activity_area"), p.activity_area ?? "—")}
                             {readField(t("page.staff.label_specialty"), p.specialty ?? "—")}
-                            {readField(t("common.phone"), p.phone ?? "—")}
+                            {readField(t("common.phone"), p.phone?.trim() ? <PhoneText value={p.phone} /> : "—")}
                             {readField(t("page.staff.avail_yes"), p.available ? t("common.yes") : t("common.no"))}
                             <div style={{ gridColumn: "1 / -1" }}>
                                 {readField(t("page.staff.label_created"), formatDate(p.created_at))}

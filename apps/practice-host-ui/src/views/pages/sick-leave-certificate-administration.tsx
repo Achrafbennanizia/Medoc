@@ -186,7 +186,7 @@ export function SickLeaveCertificateFormPage() {
                                     key={r.id}
                                     type="button"
                                     className={selectedId === r.id ? "btn btn-accent" : "btn btn-ghost"}
-                                    style={{ textAlign: "left", justifyContent: "flex-start" }}
+                                    style={{ textAlign: "start", justifyContent: "flex-start" }}
                                     onClick={() => setSelectedId(r.id)}
                                 >
                                     <div>

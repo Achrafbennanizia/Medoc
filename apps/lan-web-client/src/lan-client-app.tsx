@@ -14,6 +14,7 @@ import { useT, useTParams } from "@/lib/i18n";
 import type { Patient, Session, Appointment } from "@/models/types";
 import { Button } from "@/views/components/ui/button";
 import { Input } from "@/views/components/ui/input";
+import { PhoneText } from "@/views/components/ui/phone-text";
 
 type ActiveView = "patients" | "appointments" | "profil";
 
@@ -342,11 +343,11 @@ export function LanClientApp() {
                         <dt className="text-on-surface-variant">{t("lan.client.birth_date")}</dt>
                         <dd>{selectedPatient.date_of_birth}</dd>
                         <dt className="text-on-surface-variant">{t("lan.client.gender")}</dt>
-                        <dd>{selectedPatient.sex}</dd>
+                        <dd>{selectedPatient.sex === "MALE" ? t("patient.gender.MALE") : selectedPatient.sex === "FEMALE" ? t("patient.gender.FEMALE") : selectedPatient.sex === "DIVERSE" ? t("patient.gender.DIVERSE") : (selectedPatient.sex || "—")}</dd>
                         <dt className="text-on-surface-variant">{t("lan.client.insurance_no")}</dt>
                         <dd>{selectedPatient.insurance_number}</dd>
                         <dt className="text-on-surface-variant">{t("lan.client.phone")}</dt>
-                        <dd>{selectedPatient.phone ?? "—"}</dd>
+                        <dd>{selectedPatient.phone ? <PhoneText value={selectedPatient.phone} /> : "—"}</dd>
                         <dt className="text-on-surface-variant">{t("lan.client.email")}</dt>
                         <dd>{selectedPatient.email ?? "—"}</dd>
                         <dt className="text-on-surface-variant">{t("lan.client.address")}</dt>
@@ -395,7 +396,7 @@ export function LanClientApp() {
                         <dt className="text-on-surface-variant">{t("lan.client.specialty")}</dt>
                         <dd>{profile.specialty ?? "—"}</dd>
                         <dt className="text-on-surface-variant">{t("lan.client.phone")}</dt>
-                        <dd>{profile.phone ?? "—"}</dd>
+                        <dd>{profile.phone ? <PhoneText value={profile.phone} /> : "—"}</dd>
                     </dl>
                 </section>
             ) : null}

@@ -70,6 +70,25 @@ const DE_SPECIFIC =
 const OK_IDENTICAL =
     /^(MeDoc|Online|Offline|Status|Break-Glass|DATEV|DocCheck|TK-Direktabrechnung|BIC|HTML|PDF|CSV|JSON|OK|Routine|Kontrolle|Beratung|Bar|Karte|Avatar|Audit|Export|Import|Ticket|Team|Compliance|Migration|Scanner|Details|Version|Support|Desktop|Total|Email|E-Mail|Telefon|Name|Patient|Datum|Zeit|Typ|Note|Contact|Price|Amount|Quantity|Unit|Reference|Metadata|Filter|Search|Dashboard|Schedule|Overview|Cancel|Save|Edit|Delete|Close|Confirm|Add|Remove|Yes|No|All|Error|Warning|Success|Info|Loading|Active|Paused|Dringend|Bald|—|·|Termin|FA-[A-Z0-9-]+)$/i;
 
+const PLACEHOLDER = /\{[^{}]+\}/g;
+const HTML_ENTITY = /&(?:#\d+|#x[0-9a-fA-F]+|[a-zA-Z]+);/;
+for (const loc of ["de", "fr", "ar"]) {
+    for (const k of deKeys) {
+        const v = String(catalogs[loc][k] ?? "");
+        const ev = String(catalogs.en[k] ?? "");
+        const got = new Set(v.match(PLACEHOLDER) ?? []);
+        const want = new Set(ev.match(PLACEHOLDER) ?? []);
+        if (got.size !== want.size || [...want].some((p) => !got.has(p))) {
+            console.error(`[i18n] ${loc}.json placeholder names must match en.json: ${k}`);
+            failed = true;
+        }
+        if (/^Ph0$/i.test(v.trim()) || /__\s*PH\d/i.test(v) || HTML_ENTITY.test(v)) {
+            console.error(`[i18n] ${loc}.json placeholder/HTML artifact: ${k} => ${v.slice(0, 80)}`);
+            failed = true;
+        }
+    }
+}
+
 /** LAN host help documents live English routes (`/patients`, `/appointments?date=`). */
 
 for (const loc of ["en", "fr", "ar"]) {

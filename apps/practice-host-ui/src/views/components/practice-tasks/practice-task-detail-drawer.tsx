@@ -13,6 +13,8 @@ import {
 } from "@/systems/practice-host/controllers/practice-task.controller";
 import { errorMessage } from "@/lib/utils";
 import { useDateFnsLocale, useT } from "@/lib/i18n";
+import { displayPracticeTaskTitle } from "@/lib/finance-order-labels";
+import { clinicalServiceLabel } from "@/lib/clinical-service-label";
 import {
     BoltIcon,
     CheckIcon,
@@ -220,7 +222,7 @@ export function PracticeTaskDetailDrawer({
                     <div className="appointment-drawer-section">
                         <div className="appointment-drawer-eyebrow">{tx("page.practice_tickets.drawer_eyebrow")}</div>
                         <h2 id={titleId} className="appointment-drawer-title">
-                            {task.title}
+                            {displayPracticeTaskTitle(task.title, t)}
                         </h2>
                         <div className="appointment-drawer-sub">
                             {patientName} · {taskKindLabel(t, task.kind)}
@@ -294,7 +296,9 @@ export function PracticeTaskDetailDrawer({
                             <div className="ios-row">
                                 <div className="appointment-drawer-eyebrow">{t("page.practice_tickets.service_item_fallback")}</div>
                                 <div className="appointment-drawer-meta-val">
-                                    {task.service_name ?? t("page.practice_tickets.service_item_fallback")}
+                                    {task.service_name
+                                        ? clinicalServiceLabel(task.service_name)
+                                        : t("page.practice_tickets.service_item_fallback")}
                                     {task.total_cost != null ? ` · ${task.total_cost.toFixed(2)} €` : ""}
                                 </div>
                             </div>

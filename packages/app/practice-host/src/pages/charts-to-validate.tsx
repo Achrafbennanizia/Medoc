@@ -20,6 +20,19 @@ function chartStatusLabel(status: string, t: (key: string) => string): string {
     return label === key ? status : label;
 }
 
+function chartStatusBadgeVariant(status: string): "primary" | "warning" | "success" | "default" {
+    switch (status.trim().toUpperCase()) {
+        case "DRAFT":
+            return "warning";
+        case "IN_PROGRESS":
+            return "primary";
+        case "VALIDATED":
+            return "success";
+        default:
+            return "default";
+    }
+}
+
 export function ChartsToValidatePage() {
     const t = useT();
     const toast = useToastStore((s) => s.add);
@@ -98,7 +111,7 @@ export function ChartsToValidatePage() {
                                             </Link>
                                         </td>
                                         <td>
-                                            <Badge variant={r.chart_status === "DRAFT" ? "warning" : "default"}>
+                                            <Badge variant={chartStatusBadgeVariant(r.chart_status)}>
                                                 {chartStatusLabel(r.chart_status, t)}
                                             </Badge>
                                         </td>

@@ -10,14 +10,16 @@ import { initReactI18next } from "react-i18next";
 import { de as dateFnsDe } from "date-fns/locale/de";
 import { enUS as dateFnsEn } from "date-fns/locale/en-US";
 import { fr as dateFnsFr } from "date-fns/locale/fr";
-import { arSA as dateFnsAr } from "date-fns/locale/ar-SA";
 import type { Locale as DateFnsLocale } from "date-fns";
+import { dateFnsArGregorian } from "./date-fns-locale-ar";
 
 import deCatalog from "#shared-locales/de.json";
 import enCatalog from "#shared-locales/en.json";
 import frCatalog from "#shared-locales/fr.json";
 import arCatalog from "#shared-locales/ar.json";
 import type { AccentId } from "./accent-preset";
+import { applyArabicNumeralsToDocument, effectiveArabicNumeralMode, numberingSystemForLocale, rewriteDigitsForMode } from "./arabic-numerals";
+import { loadClientSettings } from "./client-settings";
 import type { FontStackId } from "./font-stack-preset";
 
 export type Locale = "de" | "en" | "fr" | "ar";
@@ -49,6 +51,7 @@ export function applyDocumentLocale(locale: Locale): void {
     } else {
         delete root.dataset.arabicFont;
     }
+    applyArabicNumeralsToDocument(locale, loadClientSettings().appearance?.arabicNumeralMode);
 }
 
 /** Apply persisted locale before React mounts (login, onboarding). */
@@ -143,17 +146,17 @@ export function isRtlLocale(locale: Locale): boolean {
     return locale === "ar";
 }
 
-/** BCP 47 tag for `Intl` / `toLocaleString` formatters. */
+/** BCP 47 tag for `Intl` / `toLocaleString` formatters. Always Gregorian (`ca-gregory`). */
 export function bcp47ForLocale(locale: Locale): string {
     switch (locale) {
         case "en":
-            return "en-US";
+            return "en-US-u-ca-gregory";
         case "fr":
-            return "fr-FR";
+            return "fr-FR-u-ca-gregory";
         case "ar":
-            return "ar-SA";
+            return `ar-EG-u-ca-gregory-nu-${numberingSystemForLocale("ar", loadClientSettings().appearance?.arabicNumeralMode)}`;
         default:
-            return "de-DE";
+            return "de-DE-u-ca-gregory";
     }
 }
 
@@ -169,7 +172,7 @@ export function dateFnsLocaleFor(locale: Locale): DateFnsLocale {
         case "fr":
             return dateFnsFr;
         case "ar":
-            return dateFnsAr;
+            return dateFnsArGregorian;
         default:
             return dateFnsDe;
     }
@@ -226,7 +229,12 @@ export function translateLocaleParams(
     key: string,
     params: Record<string, string | number>,
 ): string {
-    return interpolateParams(translateLocale(locale, key), params);
+    const text = interpolateParams(translateLocale(locale, key), params);
+    if (key.startsWith("settings.appearance.arabic_numerals")) return text;
+    return rewriteDigitsForMode(
+        text,
+        effectiveArabicNumeralMode(locale, loadClientSettings().appearance?.arabicNumeralMode),
+    );
 }
 
 export function t(key: string): string {

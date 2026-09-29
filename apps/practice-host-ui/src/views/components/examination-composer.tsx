@@ -269,7 +269,7 @@ export function ExaminationComposer({
                                     <button
                                         type="button"
                                         className="attachment-card__menu-item"
-                                        style={{ width: "100%", textAlign: "left", padding: "8px 10px", borderRadius: 8 }}
+                                        style={{ width: "100%", textAlign: "start", padding: "8px 10px", borderRadius: 8 }}
                                         onClick={() => setSelectedTooth(tooth)}
                                         disabled={locked}
                                     >

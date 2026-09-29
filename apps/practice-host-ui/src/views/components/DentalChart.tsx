@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useT, useTParams } from "@/lib/i18n";
+import { DentalOdontogramAxis } from "./dental-odontogram-axis";
 import type { DentalFinding } from "@/models/types";
 import {
     DENTAL_LOWER_L,
@@ -15,6 +15,7 @@ import {
     dentalToothType,
     formatDentalToothLabel,
 } from "@/lib/dental";
+import { useT, useTParams } from "@/lib/i18n";
 
 const UPPER_R = DENTAL_UPPER_R;
 const UPPER_L = DENTAL_UPPER_L;
@@ -100,7 +101,7 @@ export function DentalChart({
                     <path d={shape.crown} fill={state.fill} stroke={state.stroke} />
                     <path d={shape.root} fill={state.fill} stroke={state.stroke} />
                 </svg>
-                <span style={{ fontSize: 11, color: "var(--fg-3)" }}>{label}</span>
+                <span className="dental-tooth-label" style={{ fontSize: 11, color: "var(--fg-3)" }}>{label}</span>
             </button>
         );
     };
@@ -129,14 +130,10 @@ export function DentalChart({
                         : pickerHint ?? t("dental.chart.pick_hint")}
                 </p>
             )}
-            <div className="dental-odontogram dental-odontogram--chart">
-                <span className="dental-odontogram__axis dental-odontogram__axis--top" aria-hidden>
-                    {t("dental.axis.top")}
-                </span>
-                <div className="dental-odontogram__body">
-                    <span className="dental-odontogram__axis dental-odontogram__axis--start" aria-hidden>
-                        {t("dental.axis.right")}
-                    </span>
+            <div className="dental-odontogram dental-odontogram--chart" dir="ltr">
+                <DentalOdontogramAxis slot="start">{t("dental.axis.right")}</DentalOdontogramAxis>
+                <div className="dental-odontogram__center">
+                    <DentalOdontogramAxis slot="top">{t("dental.axis.top")}</DentalOdontogramAxis>
                     <div className="dental-odontogram__chart" role="group">
                         <div className="dental-odontogram__quad dental-odontogram__quad--ur dental-odontogram__quad--gap">
                             {UPPER_R.map(renderTooth)}
@@ -153,13 +150,9 @@ export function DentalChart({
                             {LOWER_L.map(renderTooth)}
                         </div>
                     </div>
-                    <span className="dental-odontogram__axis dental-odontogram__axis--end" aria-hidden>
-                        {t("dental.axis.left")}
-                    </span>
+                    <DentalOdontogramAxis slot="bottom">{t("dental.axis.bottom")}</DentalOdontogramAxis>
                 </div>
-                <span className="dental-odontogram__axis dental-odontogram__axis--bottom" aria-hidden>
-                    {t("dental.axis.bottom")}
-                </span>
+                <DentalOdontogramAxis slot="end">{t("dental.axis.left")}</DentalOdontogramAxis>
             </div>
             <div className="card card-pad" style={{ marginTop: 14, background: "rgba(0,0,0,0.015)" }}>
                 {mode === "picker"

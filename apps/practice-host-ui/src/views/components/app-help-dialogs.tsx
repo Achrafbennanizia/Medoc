@@ -12,7 +12,7 @@ export function AboutAppDialog({ open, onClose, appVersion = "0.1.0" }: AboutPro
     const t = useT();
     return (
         <Dialog open={open} onClose={onClose} title={t("app.help.about_title")}>
-            <div style={{ textAlign: "left" }}>
+            <div style={{ textAlign: "start" }}>
                 <p style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 600 }}>{t("app.help.about_product")}</p>
                 <p style={{ color: "var(--fg-3)", fontSize: 13.5, lineHeight: 1.55, margin: "0 0 16px" }}>
                     {t("app.help.about_description")}

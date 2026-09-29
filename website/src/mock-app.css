@@ -646,6 +646,7 @@ html[data-theme="dark"] .medoc-app .input.topbar-search-trigger {
   display: grid;
   grid-template-columns: max-content 2px max-content;
   grid-template-rows: auto 2px auto;
+  direction: ltr;
 }
 
 .medoc-app .dental-odontogram__quad {

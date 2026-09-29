@@ -14,6 +14,7 @@ import { Badge } from "@/views/components/ui/badge";
 import { Button } from "@/views/components/ui/button";
 import { DismissibleNotice } from "@/views/components/ui/dismissible-notice";
 import { Input, Select, Textarea } from "@/views/components/ui/input";
+import { PhoneText } from "@/views/components/ui/phone-text";
 import { useT, useTParams } from "@/lib/i18n";
 
 export type PatientMasterEditForm = {
@@ -63,6 +64,14 @@ export type PatientDetailShellHeaderProps = {
     onOpenAppointment: () => void;
     onGoTab: (tab: PatientDetailChartTab) => void;
 };
+
+function patientGenderLabel(sex: string | null | undefined, tr: (key: string) => string): string {
+    if (!sex) return "—";
+    if (sex === "MALE") return tr("patient.gender.MALE");
+    if (sex === "FEMALE") return tr("patient.gender.FEMALE");
+    if (sex === "DIVERSE") return tr("patient.gender.DIVERSE");
+    return sex;
+}
 
 function patientStatusLabel(status: PatientStatus, tr: (key: string) => string): string {
     switch (status) {
@@ -342,7 +351,9 @@ export function PatientDetailShellHeader({
                     </span>
                     <span className="patient-hero-contact" title={t("common.phone")}>
                         <PhoneIcon size={12} aria-hidden />
-                        <span className="patient-hero-contact__text">{patient.phone || "—"}</span>
+                        <span className="patient-hero-contact__text">
+                            <PhoneText value={patient.phone} />
+                        </span>
                     </span>
                     <span className="patient-hero-contact" title={t("patient.detail.header.contact.email_insurance")}>
                         <MailIcon size={12} aria-hidden />
@@ -357,7 +368,7 @@ export function PatientDetailShellHeader({
                         </span>
                     </span>
                     <span className="patient-hero-contact" title={t("patient.detail.header.contact.gender")}>
-                        <span className="patient-hero-contact__text">{patient.sex || "—"}</span>
+                        <span className="patient-hero-contact__text">{patientGenderLabel(patient.sex, t)}</span>
                     </span>
                     <span className="patient-hero-contact" title={t("patient.detail.header.contact.address")}>
                         <PinIcon size={12} aria-hidden />
@@ -443,6 +454,7 @@ export function PatientDetailShellHeader({
                     />
                     <Input
                         id="ed-tel"
+                        type="tel"
                         label={t("common.phone")}
                         value={editForm.phone}
                         onChange={(e) => onEditFormChange({ phone: e.target.value })}

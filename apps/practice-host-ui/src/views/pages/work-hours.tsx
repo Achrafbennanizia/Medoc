@@ -286,7 +286,7 @@ export function WorkHoursPage() {
 
             <div className="card card-pad">
                 <h2 className="text-title" style={{ marginTop: 0 }}>{tr("page.work_hours.clinician_section_title")}</h2>
-                <p className="page-sub" style={{ marginTop: 4, marginBottom: 14, maxWidth: 640 }}>
+                <p className="page-sub" style={{ marginTop: 4, marginBottom: 14 }}>
                     {tr("page.work_hours.clinician_section_hint")}
                 </p>
                 <div className="row" style={{ gap: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
@@ -393,7 +393,7 @@ export function WorkHoursPage() {
                                                         disabled={!row.active}
                                                     />
                                                     {row.segments.length > 1 ? (
-                                                        <Button type="button" size="sm" variant="ghost" onClick={() => removeSegment(d.key, idx)} disabled={!row.active}>
+                                                        <Button type="button" size="sm" variant="danger" onClick={() => removeSegment(d.key, idx)} disabled={!row.active}>
                                                             {tr("page.work_hours.remove_segment")}
                                                         </Button>
                                                     ) : null}

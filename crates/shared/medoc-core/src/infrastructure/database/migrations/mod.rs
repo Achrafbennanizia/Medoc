@@ -6,6 +6,7 @@ mod legacy_embedded;
 mod rust_only;
 mod seed;
 mod seed_practice;
+mod seed_workday;
 mod seed_year;
 mod sync_tables;
 

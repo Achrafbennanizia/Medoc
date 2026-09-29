@@ -5,6 +5,7 @@ import { parseRole, type Role } from "@/lib/rbac";
 import { useAuthStore } from "@/models/store/auth-store";
 import { Button } from "@/views/components/ui/button";
 import { Input } from "@/views/components/ui/input";
+import { PhoneText } from "@/views/components/ui/phone-text";
 import { useToastStore } from "@/views/components/ui/toast-store";
 import { useT, useTParams } from "@/lib/i18n";
 
@@ -282,7 +283,9 @@ export function SettingsAccountSection({ onOpenPasswordDialog, passwordChangedTi
             <div className="settings-row" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
                 <div style={{ flex: "1 1 200px", minWidth: 0 }}>
                     <b>{t("common.phone")}</b>
-                    <div className="settings-row-muted">{(ownProfile?.phone ?? "").trim() || "—"}</div>
+                    <div className="settings-row-muted">
+                        {(ownProfile?.phone ?? "").trim() ? <PhoneText value={ownProfile?.phone} /> : "—"}
+                    </div>
                 </div>
                 <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end", flex: "0 1 auto" }}>
                     {editKontoPhone ? (

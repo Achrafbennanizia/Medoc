@@ -211,7 +211,7 @@ pub async fn transition_practice_task(
             .is_some_and(|s| !s.is_empty());
         if !has_note && !has_payment {
             return Err(AppError::Validation(
-                "Short note or payment link required (FA-AUFG-04).".into(),
+                "Short note or payment link required.".into(),
             ));
         }
     }
@@ -219,7 +219,7 @@ pub async fn transition_practice_task(
         let reason = args.return_reason.as_deref().unwrap_or("").trim();
         if reason.is_empty() {
             return Err(AppError::Validation(
-                "Reason for return to reception is required (FA-AUFG-05).".into(),
+                "Reason for return to reception is required.".into(),
             ));
         }
     }

@@ -468,7 +468,7 @@ export function PrescriptionCreatePage() {
                                                     <td>{ln.dosage}</td>
                                                     <td>{ln.duration}</td>
                                                     <td>
-                                                        <Button type="button" size="sm" variant="ghost" onClick={() => removeLine(i)}>
+                                                        <Button type="button" size="sm" variant="danger" onClick={() => removeLine(i)}>
                                                             {t("common.remove")}
                                                         </Button>
                                                     </td>

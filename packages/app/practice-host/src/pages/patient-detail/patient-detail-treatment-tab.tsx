@@ -1,4 +1,5 @@
 import { treatmentCatalogCategoryLabel } from "@/lib/treatment-catalog-categories";
+import { clinicalServiceLabel } from "@/lib/clinical-service-label";
 import { useT, useTParams } from "@/lib/i18n";
 import { Fragment } from "react";
 import type { Treatment } from "@/models/types";

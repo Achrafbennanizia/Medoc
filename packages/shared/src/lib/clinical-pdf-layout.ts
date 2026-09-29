@@ -19,6 +19,7 @@ import { getInvoicePracticeFromStorage } from "@/lib/invoice-service-item";
 import { buildClinicalTemplateHeaderLines } from "@/lib/clinical-document-pdf";
 import { emptyDocumentTemplatePayloadV1, type PracticeFieldKey } from "@/lib/document-template-schema";
 import { loadPracticeHeaderPrivacy } from "@/lib/practice-header-privacy";
+import { isolateLtrPhone } from "@/lib/arabic-numerals";
 import { formatPaymentReferenceLine, paymentStatusDisplay, paymentMethodLabel } from "@/lib/payment-booking";
 import { resolveCatalogIdForTreatment } from "@/lib/patient-detail-utils";
 
@@ -89,7 +90,7 @@ function headerContactRightFromPractice(): string[] {
     const tel = (p.phone ?? "").trim();
     const fax = (p.fax ?? "").trim();
     const mail = (p.email ?? "").trim();
-    if (tel) out.push(`${docT("document.print.phone")}: ${tel}`);
+    if (tel) out.push(`${docT("document.print.phone")}: ${isolateLtrPhone(tel)}`);
     if (fax) out.push(`${docT("document.print.fax")}: ${fax}`);
     if (mail) out.push(`${docT("document.print.email")}: ${mail}`);
     return out;

@@ -5,6 +5,7 @@ import {
     type AppointmentCardHoverScaleId,
     type ClientSettingsV1,
     type ColorSchemeId,
+    type ArabicNumeralMode,
     type FontStackId,
 } from "@/lib/client-settings";
 import { ACCENT_LABELS, ACCENT_ORDER, accentColorCircle, type AccentId } from "@/lib/accent-preset";
@@ -72,6 +73,12 @@ export function SettingsAppearanceSection({
         { id: "xxl", label: t("settings.appearance.card_hover.xxl") },
     ];
     const hoverScaleLabel = hoverScaleOptions.find((o) => o.id === hoverScale)?.label ?? hoverScale;
+
+    const arabicNumeralMode: ArabicNumeralMode = appearance.arabicNumeralMode === "eastern" ? "eastern" : "western";
+    const arabicNumeralOptions: Array<{ id: ArabicNumeralMode; label: string }> = [
+        { id: "western", label: t("settings.appearance.arabic_numerals.western") },
+        { id: "eastern", label: t("settings.appearance.arabic_numerals.eastern") },
+    ];
 
     return (
         <section className="settings-subcard settings-subcard--segment-safe">
@@ -241,6 +248,43 @@ export function SettingsAppearanceSection({
                 </div>
                 <LocaleSwitcher locale={locale} onChange={onLocaleChange} />
             </div>
+            {locale === "ar" ? (
+                <div className="settings-row" style={{ flexDirection: "column", alignItems: "stretch", gap: 10 }}>
+                    <div>
+                        <b>{t("settings.appearance.arabic_numerals")}</b>
+                        <div className="card-sub">{t("settings.appearance.arabic_numerals.hint")}</div>
+                    </div>
+                    <div
+                        className="settings-density-seg"
+                        role="group"
+                        aria-label={t("settings.appearance.arabic_numerals.aria")}
+                        data-arabic-numerals-skip
+                        style={{ width: "100%", justifyContent: "stretch" }}
+                    >
+                        {arabicNumeralOptions.map((opt) => (
+                            <button
+                                key={opt.id}
+                                type="button"
+                                className={`settings-density-seg__btn${arabicNumeralMode === opt.id ? " is-active" : ""}`}
+                                style={{ flex: 1 }}
+                                aria-pressed={arabicNumeralMode === opt.id}
+                                onClick={() => {
+                                    if (arabicNumeralMode === opt.id) return;
+                                    onPersistClient((c) => {
+                                        const a = c.appearance ?? DEFAULT_CLIENT_SETTINGS.appearance!;
+                                        return mergeClientSettingsPatch(c, {
+                                            appearance: { ...a, arabicNumeralMode: opt.id },
+                                        });
+                                    });
+                                    toast(tp("settings.appearance.toast.arabic_numerals", { label: opt.label }), "info");
+                                }}
+                            >
+                                {opt.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            ) : null}
             <div className="settings-row settings-row--wrap settings-row--accent">
                 <div className="settings-row-clickable__label">
                     <b>{t("settings.appearance.accent")}</b>

@@ -277,7 +277,7 @@ export function OrderMasterAdministrationPage() {
                                 <li key={r.id} style={{ marginBottom: 6, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                                     <span>{r.name}</span>
                                     {canWrite ? (
-                                        <Button type="button" variant="ghost" size="sm" onClick={() => { setDeleteKind("lief"); setDeleteId(r.id); }} aria-label={t("common.remove")}>
+                                        <Button type="button" variant="danger" size="sm" onClick={() => { setDeleteKind("lief"); setDeleteId(r.id); }} aria-label={t("common.remove")}>
                                             <TrashIcon size={14} />
                                         </Button>
                                     ) : null}
@@ -312,7 +312,7 @@ export function OrderMasterAdministrationPage() {
                                 <li key={r.id} style={{ marginBottom: 6, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                                     <span>{r.name}</span>
                                     {canWrite ? (
-                                        <Button type="button" variant="ghost" size="sm" onClick={() => { setDeleteKind("contact"); setDeleteId(r.id); }} aria-label={t("common.remove")}>
+                                        <Button type="button" variant="danger" size="sm" onClick={() => { setDeleteKind("contact"); setDeleteId(r.id); }} aria-label={t("common.remove")}>
                                             <TrashIcon size={14} />
                                         </Button>
                                     ) : null}
@@ -448,7 +448,7 @@ export function OrderMasterAdministrationPage() {
                                             {canWrite ? (
                                                 <Button
                                                     type="button"
-                                                    variant="ghost"
+                                                    variant="danger"
                                                     size="sm"
                                                     onClick={() => { setDeleteKind("template"); setDeleteId(version.id); }}
                                                 >

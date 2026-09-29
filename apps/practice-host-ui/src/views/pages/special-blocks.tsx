@@ -225,7 +225,7 @@ export function SpecialBlockedTimesPage() {
                                     onChange={(e) => updatePeriod(idx, "to", e.target.value)}
                                 />
                                 {closurePeriods.length > 1 ? (
-                                    <Button type="button" size="sm" variant="ghost" onClick={() => removePeriod(idx)}>
+                                    <Button type="button" size="sm" variant="danger" onClick={() => removePeriod(idx)}>
                                         {t("common.remove")}
                                     </Button>
                                 ) : null}

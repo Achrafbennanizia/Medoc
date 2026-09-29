@@ -48,8 +48,16 @@ export const EyeOffIcon: FC<{ size?: number }> = ({ size = 14 }) => <IconBase si
 export const PinIcon: FC<{ size?: number }> = ({ size = 18 }) => <IconBase size={size}><path d="M14 3l7 7-3 1-4 4-1 5-2-2 1-4-4-4-5-1 2-2 5 1 4-4z" /></IconBase>;
 export const BellIcon: FC<{ size?: number }> = ({ size = 18 }) => <IconBase size={size}><path d="M15 18H9" /><path d="M18 16H6l1.5-2V10a4.5 4.5 0 019 0v4L18 16z" /></IconBase>;
 export const WifiIcon: FC<{ size?: number }> = ({ size = 12 }) => <IconBase size={size}><path d="M2 9a14 14 0 0120 0" /><path d="M5 12a9 9 0 0114 0" /><path d="M8.5 15.5a4 4 0 017 0" /><circle cx="12" cy="19" r="1" fill="currentColor" stroke="none" /></IconBase>;
-export const ChevronRightIcon: FC<{ size?: number }> = ({ size = 12 }) => <IconBase size={size}><path d="M9 6l6 6-6 6" /></IconBase>;
-export const ChevronLeftIcon: FC<{ size?: number }> = ({ size = 12 }) => <IconBase size={size}><path d="M15 6l-6 6 6 6" /></IconBase>;
+export const ChevronRightIcon: FC<{ size?: number }> = ({ size = 12 }) => (
+    <IconBase size={size} className="ui-icon-chevron-right" data-icon="chevron-right">
+        <path d="M9 6l6 6-6 6" />
+    </IconBase>
+);
+export const ChevronLeftIcon: FC<{ size?: number }> = ({ size = 12 }) => (
+    <IconBase size={size} className="ui-icon-chevron-left" data-icon="chevron-left">
+        <path d="M15 6l-6 6 6 6" />
+    </IconBase>
+);
 export const ChevronDownIcon: FC<{ size?: number }> = ({ size = 12 }) => <IconBase size={size}><path d="M6 9l6 6 6-6" /></IconBase>;
 export const MoreIcon: FC<{ size?: number }> = ({ size = 16 }) => <IconBase size={size}><circle cx="5" cy="12" r="1.5" fill="currentColor" stroke="none" /><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" /><circle cx="19" cy="12" r="1.5" fill="currentColor" stroke="none" /></IconBase>;
 export const PlusIcon: FC<{ size?: number }> = ({ size = 14 }) => <IconBase size={size}><path d="M12 5v14M5 12h14" /></IconBase>;
@@ -66,7 +74,7 @@ export const SparkleIcon: FC<{ size?: number }> = ({ size = 16 }) => <IconBase s
 export const ShieldCheckIcon: FC<{ size?: number }> = ({ size = 14 }) => <IconBase size={size}><path d="M12 3l7 3v6c0 4.5-3.2 7.8-7 9-3.8-1.2-7-4.5-7-9V6l7-3z" /><path d="M9 12l2 2 4-4" /></IconBase>;
 export const EditIcon: FC<{ size?: number }> = ({ size = 14 }) => <IconBase size={size}><path d="M4 20l4-.7 9-9-3.3-3.3-9 9L4 20z" /><path d="M13.7 7l3.3 3.3" /></IconBase>;
 export const TrashIcon: FC<{ size?: number }> = ({ size = 14 }) => (
-    <IconBase size={size}>
+    <IconBase size={size} className="ui-icon-trash">
         <path d="M4 7h16" />
         <path d="M10 11v6M14 11v6" />
         <path d="M6 7l1 14h10l1-14M9 7V4h6v3" />

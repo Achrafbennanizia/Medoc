@@ -165,8 +165,8 @@ async fn ensure_open_booking_for_billable_treatment_sets_release_and_outstanding
     assert_eq!(z.0, "OUTSTANDING");
     assert!(z.1 <= 0.005);
     assert!(
-        z.2.contains("Füllung") && z.2.contains("open billing"),
-        "description should include service + open billing: {}",
+        z.2.contains("Füllung") && !z.2.contains("open billing") && !z.2.contains("FA-LEIST"),
+        "description should be the service name without billing boilerplate: {}",
         z.2
     );
     let expected: Option<f64> =

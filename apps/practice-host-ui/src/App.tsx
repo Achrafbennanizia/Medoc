@@ -1,5 +1,7 @@
-import { lazy, Suspense } from "react";
-import { useT } from "@/lib/i18n";
+import { lazy, Suspense, useEffect } from "react";
+import { applyArabicNumeralsToDocument } from "@/lib/arabic-numerals";
+import { loadClientSettings } from "@/lib/client-settings";
+import { useLocale, useT } from "@/lib/i18n";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuthStore } from "./models/store/auth-store";
 import { RoleRoute } from "./views/components/role-route";
@@ -13,6 +15,7 @@ import { SessionGate } from "./views/components/session-gate";
 import { DesktopWindowFrame } from "./views/components/desktop-window-frame";
 import { AppLayout } from "./views/layouts/app-layout";
 import { PageLoading } from "@/views/components/ui/page-status";
+import { DevCaptureNavBinder } from "./views/components/dev-capture-poller";
 
 const LoginPage = lazy(async () => ({ default: (await import("./views/pages/login")).LoginPage }));
 const DashboardPage = lazy(async () => ({ default: (await import("./views/pages/dashboard")).DashboardPage }));
@@ -133,12 +136,22 @@ function RouteFallback() {
     );
 }
 
+function ArabicNumeralsSync() {
+    const locale = useLocale((s) => s.locale);
+    useEffect(() => {
+        applyArabicNumeralsToDocument(locale, loadClientSettings().appearance?.arabicNumeralMode);
+    }, [locale]);
+    return null;
+}
+
 export default function App() {
     return (
+        <BrowserRouter>
+        <ArabicNumeralsSync />
+        {import.meta.env.DEV ? <DevCaptureNavBinder /> : null}
         <DbSetupGate>
         <SessionGate>
         <DesktopWindowFrame>
-        <BrowserRouter>
         <ClusterResetListener />
         <ClusterOnboardingGate>
             <Routes>
@@ -365,9 +378,9 @@ export default function App() {
                 </Route>
             </Routes>
         </ClusterOnboardingGate>
-        </BrowserRouter>
         </DesktopWindowFrame>
         </SessionGate>
         </DbSetupGate>
+        </BrowserRouter>
     );
 }

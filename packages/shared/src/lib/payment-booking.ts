@@ -3,6 +3,7 @@
  */
 import type { Treatment, Examination, Payment } from "@/models/types";
 import { paymentStatusDisplay as paymentStatusDisplayI18N, paymentMethodLabel as paymentMethodLabelI18N } from "@/lib/finance-order-labels";
+import { clinicalServiceLabel } from "@/lib/clinical-service-label";
 
 type TFn = (key: string) => string;
 
@@ -468,7 +469,7 @@ export function formatPaymentReferenceLine(
     if (z.treatment_id) {
         const b = treatments.find((x) => x.id === z.treatment_id);
         const nr = b?.treatment_number?.trim() || "—";
-        const sub = b ? (b.service_name || b.description || b.kind || "").trim() : "";
+        const sub = b ? clinicalServiceLabel((b.service_name || b.description || b.kind || "").trim()) : "";
         const prefix = t && tp
             ? (nr === "—" ? t("payment.link.b_nr_missing") : tp("payment.link.b_nr", { nr }))
             : (nr === "—" ? "B-Nr. —" : `B-Nr. ${nr}`);

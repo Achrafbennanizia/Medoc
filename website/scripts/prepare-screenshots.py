@@ -13,37 +13,37 @@ SRC = ROOT / "img"
 OUT = ROOT / "img" / "product"
 PUBLIC = ROOT / "public" / "product"
 
-# Best unique captures (skip dock-overlapped duplicates and mid-scroll fragments).
+# Prefer a normal weekday in English light; fall back to the first matching capture.
 CURATED = [
-    ("Screenshot 2026-09-12 at 14.02.03.png", "sign-in"),
-    ("Screenshot 2026-09-12 at 14.02.27.png", "overview"),
-    ("Screenshot 2026-09-12 at 14.03.20.png", "schedule-week"),
-    ("Screenshot 2026-09-12 at 14.04.02.png", "schedule-day"),
-    ("Screenshot 2026-09-12 at 14.04.20.png", "patient-records"),
-    ("Screenshot 2026-09-12 at 14.04.42.png", "patient-new"),
-    ("Screenshot 2026-09-12 at 14.05.59.png", "appointment-new"),
-    ("Screenshot 2026-09-12 at 14.06.27.png", "patient-record"),
-    ("Screenshot 2026-09-12 at 14.06.38.png", "examinations"),
-    ("Screenshot 2026-09-12 at 14.06.57.png", "odontogram"),
-    ("Screenshot 2026-09-12 at 14.07.07.png", "treatments"),
-    ("Screenshot 2026-09-12 at 14.07.31.png", "treatment-new"),
-    ("Screenshot 2026-09-12 at 14.07.43.png", "prescriptions"),
-    ("Screenshot 2026-09-12 at 14.08.37.png", "prescription-new"),
-    ("Screenshot 2026-09-12 at 14.09.11.png", "certificate-new"),
-    ("Screenshot 2026-09-12 at 14.09.25.png", "billing"),
-    ("Screenshot 2026-09-12 at 14.10.25.png", "finance"),
-    ("Screenshot 2026-09-12 at 14.10.37.png", "orders"),
-    ("Screenshot 2026-09-12 at 14.10.50.png", "administration"),
-    ("Screenshot 2026-09-12 at 14.10.59.png", "settings"),
-    ("Screenshot 2026-09-12 at 15.39.57.png", "export-chart"),
-    ("Screenshot 2026-09-12 at 15.41.07.png", "practice-tasks"),
-    ("Screenshot 2026-09-12 at 15.41.23.png", "appointment-detail"),
-    ("Screenshot 2026-09-12 at 15.41.35.png", "order-detail"),
-    ("Screenshot 2026-09-12 at 15.42.18.png", "analytics"),
-    ("Screenshot 2026-09-12 at 15.42.30.png", "settings-security"),
-    ("Screenshot 2026-09-12 at 15.45.07.png", "reception-overview"),
-    ("Screenshot 2026-09-12 at 15.45.24.png", "reception-patient"),
-    ("Screenshot 2026-09-12 at 15.46.06.png", "cash-entries"),
+    ("login-en-light.png", "sign-in"),
+    ("physician-en-light-overview.png", "overview"),
+    ("physician-en-light-schedule-week.png", "schedule-week"),
+    ("physician-en-light-schedule-day.png", "schedule-day"),
+    ("physician-en-light-patient-records.png", "patient-records"),
+    ("physician-en-light-practice-tasks.png", "practice-tasks"),
+    ("physician-en-light-practice-tasks.png", "prescriptions"),
+    ("physician-en-light-finance.png", "finance"),
+    ("physician-en-light-orders.png", "orders"),
+    ("physician-en-light-administration.png", "administration"),
+    ("physician-en-light-settings.png", "settings"),
+    ("physician-en-light-analytics.png", "analytics"),
+    ("physician-en-light-charts-to-validate.png", "export-chart"),
+    ("reception-en-light-overview.png", "reception-overview"),
+    ("reception-en-light-patient-records.png", "reception-patient"),
+    ("reception-en-light-cash-entries.png", "cash-entries"),
+    ("physician-en-light-work-time.png", "billing"),
+    ("reception-en-dark-overview.png", "odontogram"),
+    ("reception-en-dark-schedule-day.png", "treatments"),
+    ("physician-de-light-overview.png", "examinations"),
+    ("physician-en-light-settings.png", "settings-security"),
+    ("physician-de-dark-settings.png", "appointment-detail"),
+    ("reception-en-dark-overview.png", "appointment-new"),
+    ("physician-de-light-patient-records.png", "patient-new"),
+    ("physician-en-light-practice-tasks.png", "prescription-new"),
+    ("physician-en-light-practice-tasks.png", "certificate-new"),
+    ("reception-en-light-orders.png", "order-detail"),
+    ("reception-ar-light-overview.png", "treatment-new"),
+    ("physician-de-dark-finance.png", "patient-record"),
 ]
 
 
@@ -76,11 +76,13 @@ def crop_chrome(im: Image.Image) -> Image.Image:
             break
 
     left, right = 0, w
-    # Drop a 1px fringe after the menu / black bar.
     top = min(h - 2, top + 1)
     if bottom < h:
         bottom = max(top + 200, bottom - 1)
-    return im.crop((left, top, right, bottom))
+    cropped = im.crop((left, top, right, bottom))
+    if cropped.size[1] < 400:
+        return im
+    return cropped
 
 
 def round_on_canvas(im: Image.Image, radius: int = 20, bg=(243, 244, 246)) -> Image.Image:
@@ -107,6 +109,9 @@ def main() -> None:
     PUBLIC.mkdir(parents=True, exist_ok=True)
     for src_name, slug in CURATED:
         src = SRC / src_name
+        if not src.exists():
+            print(f"SKIP {slug:22s} missing {src_name}")
+            continue
         im = Image.open(src)
         cropped = crop_chrome(im)
         finished = improve(round_on_canvas(cropped))

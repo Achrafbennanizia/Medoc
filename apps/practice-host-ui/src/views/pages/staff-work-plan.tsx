@@ -459,7 +459,7 @@ function WorkPlanComposeCard(props: {
                                             {composeEntryLine(e, t, tp, dayShort)}
                                         </span>
                                         {canWrite ? (
-                                            <button type="button" className="btn btn-ghost" style={{ padding: "2px 8px" }} onClick={() => onRemove(e.id)}>{t("page.work_plan.delete")}</button>
+                                            <button type="button" className="btn btn-danger" style={{ padding: "2px 8px" }} onClick={() => onRemove(e.id)}>{t("page.work_plan.delete")}</button>
                                         ) : null}
                                     </li>
                                 ))

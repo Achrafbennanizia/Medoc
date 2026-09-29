@@ -21,7 +21,7 @@ export function billingReleaseError(t: TParamsFn, entityLabel: string): string {
 
 /** @deprecated Use billingReleaseError(t, entityLabel) */
 export function billingReleaseErrorDe(entityLabel: string): string {
-    return `${entityLabel} is not yet released for billing (FA-LEIST-05).`;
+    return `${entityLabel} is not yet released for billing.`;
 }
 
 export function requireReleasedForBilling(

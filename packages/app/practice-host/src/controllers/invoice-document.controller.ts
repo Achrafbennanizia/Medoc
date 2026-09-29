@@ -22,27 +22,82 @@ export type InvoiceDocumentListRow = {
 
 const LEGACY_LS_KEY = "medoc-invoice-history-v1";
 
+function asStringArray(value: unknown): string[] {
+    if (Array.isArray(value)) {
+        return value.map((x) => (typeof x === "string" ? x : String(x ?? ""))).map((s) => s.trim()).filter(Boolean);
+    }
+    if (typeof value === "string") {
+        return value.split("\n").map((s) => s.trim()).filter(Boolean);
+    }
+    return [];
+}
+
+function asOptionalString(value: unknown): string | null {
+    return typeof value === "string" && value.trim() ? value : null;
+}
+
+/** Fill missing fields from older SQLite / localStorage invoice payloads. */
+export function normalizeInvoiceInput(
+    raw: unknown,
+    fallback: { number?: string; date?: string } = {},
+): InvoiceInput {
+    const o = raw != null && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+    const linesRaw = o.lines;
+    const lines = Array.isArray(linesRaw)
+        ? linesRaw
+              .filter((x): x is Record<string, unknown> => x != null && typeof x === "object")
+              .map((line) => ({
+                  description: typeof line.description === "string" ? line.description : "",
+                  amount_cents: typeof line.amount_cents === "number" && Number.isFinite(line.amount_cents) ? line.amount_cents : 0,
+              }))
+        : [];
+    return {
+        number: typeof o.number === "string" && o.number.trim() ? o.number : (fallback.number ?? ""),
+        date: typeof o.date === "string" && o.date.trim() ? o.date : (fallback.date ?? ""),
+        recipient_name: typeof o.recipient_name === "string" ? o.recipient_name : "",
+        recipient_address: asStringArray(o.recipient_address),
+        practice_name: typeof o.practice_name === "string" ? o.practice_name : "",
+        practice_address: asStringArray(o.practice_address),
+        lines,
+        note: asOptionalString(o.note),
+        clinician_name: asOptionalString(o.clinician_name),
+        clinician_zanr: asOptionalString(o.clinician_zanr),
+        practice_bsnr: asOptionalString(o.practice_bsnr),
+        bank_details: Array.isArray(o.bank_details) ? asStringArray(o.bank_details) : o.bank_details == null ? null : asStringArray(o.bank_details),
+        payment_terms_text: asOptionalString(o.payment_terms_text),
+        vat_notice: asOptionalString(o.vat_notice),
+        locale: asOptionalString(o.locale),
+        rtl: typeof o.rtl === "boolean" ? o.rtl : null,
+    };
+}
+
 function parseLegacy(raw: string | null): SavedInvoice[] {
     if (!raw) return [];
     try {
         const j = JSON.parse(raw) as unknown;
         if (!Array.isArray(j)) return [];
-        return j.filter(
-            (x): x is SavedInvoice =>
-                x != null
-                && typeof (x as SavedInvoice).id === "string"
-                && typeof (x as SavedInvoice).createdAt === "string"
-                && typeof (x as SavedInvoice).patientId === "string"
-                && (x as SavedInvoice).invoice != null
-                && typeof (x as SavedInvoice).invoice === "object",
-        );
+        const out: SavedInvoice[] = [];
+        for (const x of j) {
+            if (x == null || typeof x !== "object") continue;
+            const row = x as Partial<SavedInvoice>;
+            if (typeof row.id !== "string" || typeof row.createdAt !== "string" || typeof row.patientId !== "string") {
+                continue;
+            }
+            out.push({
+                id: row.id,
+                createdAt: row.createdAt,
+                patientId: row.patientId,
+                invoice: normalizeInvoiceInput(row.invoice),
+            });
+        }
+        return out;
     } catch {
         return [];
     }
 }
 
 export function sumInvoiceEur(inv: InvoiceInput): number {
-    const cents = inv.lines.reduce((s, l) => s + l.amount_cents, 0);
+    const cents = (inv.lines ?? []).reduce((s, l) => s + (l.amount_cents ?? 0), 0);
     return Math.round(cents) / 100;
 }
 
@@ -52,26 +107,20 @@ export async function listInvoiceDocuments(limit?: number): Promise<SavedInvoice
         limit: lim,
     });
     return rows.map((r) => {
-        let invoice: InvoiceInput;
+        let parsed: unknown = null;
         try {
-            invoice = JSON.parse(r.payload_json) as InvoiceInput;
+            parsed = JSON.parse(r.payload_json) as unknown;
         } catch {
-            invoice = {
-                number: r.document_number,
-                date: r.created_at.slice(0, 10),
-                recipient_name: "",
-                recipient_address: [],
-                practice_name: "",
-                practice_address: [],
-                lines: [],
-                note: null,
-            };
+            parsed = null;
         }
         return {
             id: r.id,
             createdAt: r.created_at,
             patientId: r.patient_id,
-            invoice,
+            invoice: normalizeInvoiceInput(parsed, {
+                number: r.document_number,
+                date: r.created_at.slice(0, 10),
+            }),
         };
     });
 }

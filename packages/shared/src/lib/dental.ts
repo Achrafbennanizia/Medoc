@@ -198,16 +198,27 @@ const QUAD_I18N: Record<DentalPatientQuadrant, string> = {
     lower_left: "dental.quad.lower_left",
 };
 
+const ARABIC_LETTER = /[\u0600-\u06FF]/;
+
 /**
  * Localized display name for a permanent FDI tooth (e.g. FR `HD1` for 11, EN `UR1`).
  * Storage / IPC stay FDI; this is UI-only.
+ *
+ * Arabic prefixes are two letters (ع/س + ي/ش). Without ZWNJ they ligature into
+ * real words (عي، عش). The digit is LTR-isolated so it stays attached in RTL.
  */
 export function formatDentalToothLabel(fdi: string | number, t: DentalLabelFn): string {
     const s = String(fdi).trim();
     const quad = fdiPatientQuadrant(s);
     const idx = fdiQuadrantIndex(s);
     if (!quad || idx == null) return s;
-    return `${t(QUAD_I18N[quad])}${idx}`;
+    const prefix = t(QUAD_I18N[quad]);
+    if (ARABIC_LETTER.test(prefix)) {
+        const marked = prefix.replace(/([\u0600-\u06FF])(?=[\u0600-\u06FF])/g, "$1\u200c");
+        // LTR isolate so ع‌ي then 5 stay in UR5 order inside an RTL page.
+        return `\u2066${marked}\u200E${idx}\u2069`;
+    }
+    return `${prefix}${idx}`;
 }
 
 /** Format many FDI tokens with the same localized scheme. */

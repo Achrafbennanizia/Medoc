@@ -16,7 +16,7 @@ import { downloadDayCloseReportPdf } from "@/lib/day-close-invoice-pdf";
 import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "@/models/store/auth-store";
 import type { Patient, Payment } from "@/models/types";
-import { useLocale, useT, useTParams } from "@/lib/i18n";
+import { bcp47ForLocale, useLocale, useT, useTParams } from "@/lib/i18n";
 import { DayCloseForm } from "../components/day-close-form";
 import { Button } from "../components/ui/button";
 import { Card, CardHeader } from "../components/ui/card";
@@ -51,7 +51,7 @@ export function DayClosePage() {
     const t = useT();
     const tp = useTParams();
     const locale = useLocale((s) => s.locale);
-    const timeLocale = locale === "de" ? "de-DE" : locale === "fr" ? "fr-FR" : locale === "ar" ? "ar-SA" : "en-US";
+    const timeLocale = bcp47ForLocale(locale);
     const toast = useToastStore((s) => s.add);
     const role = parseRole(useAuthStore((s) => s.session?.role));
     const canRead = role != null && allowed("finance.read", role);
@@ -285,8 +285,8 @@ export function DayClosePage() {
                                     <table className="tbl" style={{ minWidth: 400, fontSize: 13, margin: 0 }}>
                                         <thead>
                                             <tr>
-                                                <th style={{ textAlign: "left" }}>{t("common.time")}</th>
-                                                <th style={{ textAlign: "left" }}>{t("common.patient")}</th>
+                                                <th style={{ textAlign: "start" }}>{t("common.time")}</th>
+                                                <th style={{ textAlign: "start" }}>{t("common.patient")}</th>
                                                 <th>{t("page.day_close.col.kind")}</th>
                                                 <th>{t("common.status")}</th>
                                                 <th style={{ textAlign: "end" }}>€</th>
@@ -379,8 +379,8 @@ export function DayClosePage() {
                             <table className="tbl" style={{ minWidth: 400, fontSize: 14, margin: 0 }}>
                                 <thead>
                                     <tr>
-                                        <th style={{ textAlign: "left" }}>{t("page.day_close.col.as_of_date")}</th>
-                                        <th style={{ textAlign: "left" }}>{t("page.day_close.col.recorded")}</th>
+                                        <th style={{ textAlign: "start" }}>{t("page.day_close.col.as_of_date")}</th>
+                                        <th style={{ textAlign: "start" }}>{t("page.day_close.col.recorded")}</th>
                                         <th style={{ textAlign: "end" }}>{t("page.day_close.col.bar_system")}</th>
                                         <th>{t("page.day_close.col.bar_match")}</th>
                                         <th>{t("page.day_close.col.day_payments")}</th>

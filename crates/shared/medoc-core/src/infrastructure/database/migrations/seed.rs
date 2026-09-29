@@ -53,6 +53,8 @@ pub async fn run_post_migration_seed(pool: &SqlitePool) -> Result<(), AppError> 
         super::seed_year::run_demo_year_volume_if_needed(pool).await?;
         // Practice master data (Settings, admin hubs, planning, finance tools).
         super::seed_practice::run_demo_practice_seed_if_needed(pool).await?;
+        // Packed “today” book for a normal weekday (screenshots / live demo).
+        super::seed_workday::run_demo_workday_if_needed(pool).await?;
     }
     Ok(())
 }

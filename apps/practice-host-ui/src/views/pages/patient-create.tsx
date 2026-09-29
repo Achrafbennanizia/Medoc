@@ -316,7 +316,7 @@ export function PatientCreatePage() {
                                 { value: "DIVERSE", label: t("patient.gender.DIVERSE") },
                             ]}
                         />
-                        <Input id="phone" label={t("page.patient_create.field.phone")} value={form.phone} error={errors.phone} onChange={(e) => set("phone", e.target.value)} />
+                        <Input id="phone" type="tel" label={t("page.patient_create.field.phone")} value={form.phone} error={errors.phone} onChange={(e) => set("phone", e.target.value)} />
                         <Input id="email" type="email" label={t("common.email")} value={form.email} error={errors.email} onChange={(e) => set("email", e.target.value)} />
                     </div>
                     <Input id="address" label={t("page.patient_create.field.address")} value={form.address} onChange={(e) => set("address", e.target.value)} />

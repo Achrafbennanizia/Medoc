@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { format, parseISO } from "date-fns";
 import type { Locale as DateFnsLocale } from "date-fns";
 import { Link } from "react-router-dom";
@@ -41,7 +41,11 @@ import {
     type WorkTimeTeamMemberRow,
 } from "@/systems/practice-host/controllers/work-time.controller";
 import { formatStaffShortName, formatWorkMinutes } from "@/lib/work-time-ui";
-import { useT, useTParams, useDateFnsLocale, useIntlLocaleTag } from "@/lib/i18n";
+import { isRtlLocale, useLocale, useT, useTParams, useDateFnsLocale, useIntlLocaleTag } from "@/lib/i18n";
+import {
+    localizeChartRows,
+    type StatisticsChartLabelKind,
+} from "@/lib/statistics-chart-labels";
 
 type Period = "6m" | "12m";
 
@@ -92,6 +96,144 @@ const PALETTE = [
     "#5AC8FA", // light blue
 ];
 
+const CHART_TICK = "var(--fg-3)";
+const CHART_AXIS = "color-mix(in oklab, var(--fg) 18%, transparent)";
+const CHART_GRID = "color-mix(in oklab, var(--fg) 11%, transparent)";
+const CHART_CURSOR = "color-mix(in oklab, var(--fg) 7%, transparent)";
+const CHART_TOOLTIP_STYLE: CSSProperties = {
+    borderRadius: 10,
+    border: "1px solid var(--line)",
+    fontSize: 12,
+    background: "var(--bg-elev)",
+    color: "var(--fg)",
+    boxShadow: "var(--shadow-md)",
+};
+
+function useChartRtl(): boolean {
+    return isRtlLocale(useLocale((s) => s.locale));
+}
+
+function cartesianMargin(rtl: boolean, opts?: { top?: number; bottom?: number }) {
+    const top = opts?.top ?? 8;
+    const bottom = opts?.bottom ?? 12;
+    return rtl ? { top, right: 4, left: 8, bottom } : { top, right: 8, left: 0, bottom };
+}
+
+/** SVG <text> cannot render Arabic correctly under html[dir=rtl]. HTML ticks do. */
+function ChartAxisTick({
+    x = 0,
+    y = 0,
+    payload,
+    fill = CHART_TICK,
+    fontSize = 11,
+    axis = "x",
+    forceDir,
+    ySide = "left",
+    tickWidth,
+}: {
+    x?: number;
+    y?: number;
+    payload?: { value?: string | number };
+    fill?: string;
+    fontSize?: number;
+    axis?: "x" | "y";
+    forceDir?: "ltr" | "rtl";
+    ySide?: "left" | "right";
+    tickWidth?: number;
+}) {
+    const raw = String(payload?.value ?? "");
+    const arabic = /[\u0600-\u06FF]/.test(raw);
+    const dir = forceDir ?? (arabic ? "rtl" : "ltr");
+    if (axis === "y") {
+        const w = tickWidth ?? Math.min(96, Math.max(64, raw.length * 7));
+        const h = 20;
+        const foX = ySide === "right" ? 6 : -w - 6;
+        return (
+            <g transform={`translate(${x},${y})`}>
+                <foreignObject x={foX} y={-h / 2} width={w} height={h}>
+                    <div
+                        xmlns="http://www.w3.org/1999/xhtml"
+                        title={raw}
+                        style={{
+                            width: "100%",
+                            textAlign: ySide === "right" ? "start" : "end",
+                            fontSize,
+                            color: fill,
+                            lineHeight: "1.2",
+                            direction: dir,
+                            unicodeBidi: "isolate",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                        }}
+                    >
+                        {raw}
+                    </div>
+                </foreignObject>
+            </g>
+        );
+    }
+    const w = Math.min(108, Math.max(52, raw.length * 9));
+    return (
+        <g transform={`translate(${x},${y})`}>
+            <foreignObject x={-w / 2} y={2} width={w} height={32}>
+                <div
+                    xmlns="http://www.w3.org/1999/xhtml"
+                    style={{
+                        width: "100%",
+                        textAlign: "center",
+                        fontSize,
+                        color: fill,
+                        lineHeight: "1.25",
+                        direction: dir,
+                        unicodeBidi: "isolate",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                    }}
+                >
+                    {raw}
+                </div>
+            </foreignObject>
+        </g>
+    );
+}
+
+function ChartBarTopLabel({
+    x = 0,
+    y = 0,
+    width = 0,
+    value,
+}: {
+    x?: number;
+    y?: number;
+    width?: number;
+    value?: number;
+}) {
+    if (value == null || value <= 0) return null;
+    const raw = formatWorkMinutes(value, { compact: true });
+    const w = Math.min(88, Math.max(56, raw.length * 7));
+    const arabic = /[\u0600-\u06FF]/.test(raw);
+    return (
+        <foreignObject x={x + width / 2 - w / 2} y={y - 18} width={w} height={16}>
+            <div
+                xmlns="http://www.w3.org/1999/xhtml"
+                style={{
+                    width: "100%",
+                    textAlign: "center",
+                    fontSize: 10,
+                    fontWeight: 650,
+                    color: "var(--fg)",
+                    direction: arabic ? "rtl" : "ltr",
+                    unicodeBidi: "isolate",
+                    whiteSpace: "nowrap",
+                }}
+            >
+                {raw}
+            </div>
+        </foreignObject>
+    );
+}
+
 function formatMonth(month: string, locale: DateFnsLocale): string {
     const parts = month.split("-");
     if (parts.length !== 2) return month;
@@ -141,7 +283,9 @@ function ChartCard({ title, subtitle, height = 240, hasData, children, emptyHint
                 }}
             >
                 {hasData ? (
-                    <div style={{ flex: "1 1 auto", minWidth: 0, minHeight: height }}>{children}</div>
+                    <div dir="ltr" className="stats-chart-ltr" style={{ flex: "1 1 auto", minWidth: 0, minHeight: height }}>
+                        {children}
+                    </div>
                 ) : (
                     <div style={{ flex: 1, display: "grid", placeItems: "center", padding: "12px 0 8px" }}>
                         <div style={{ textAlign: "center", color: "var(--fg-3)", fontSize: 12.5 }}>
@@ -165,16 +309,36 @@ function MonthBar({ data, color = PALETTE[0], valueFormatter }: MonthBarProps) {
     const t = useT();
     const intlTag = useIntlLocaleTag();
     const dateLocale = useDateFnsLocale();
+    const rtl = useChartRtl();
     const formatted = data.map((d) => ({ ...d, monthLabel: formatMonth(d.month, dateLocale) }));
     return (
         <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={formatted} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
-                <XAxis dataKey="monthLabel" tick={{ fontSize: 11, fill: "#6E6E73" }} tickLine={false} axisLine={{ stroke: "rgba(0,0,0,0.08)" }} />
-                <YAxis tick={{ fontSize: 11, fill: "#6E6E73" }} tickLine={false} axisLine={false} allowDecimals={false} width={36} />
+            <BarChart data={formatted} margin={cartesianMargin(rtl)}>
+                <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} vertical={false} />
+                <XAxis
+                    dataKey="monthLabel"
+                    reversed={rtl}
+                    tick={(props) => <ChartAxisTick {...props} fill={CHART_TICK} />}
+                    tickLine={false}
+                    axisLine={{ stroke: CHART_AXIS }}
+                    height={36}
+                    interval={0}
+                />
+                <YAxis
+                    orientation={rtl ? "right" : "left"}
+                    tick={(props) => (
+                        <ChartAxisTick {...props} axis="y" fill={CHART_TICK} ySide={rtl ? "right" : "left"} />
+                    )}
+                    tickLine={false}
+                    axisLine={false}
+                    allowDecimals={false}
+                    width={36}
+                />
                 <Tooltip
-                    cursor={{ fill: "rgba(0,0,0,0.04)" }}
-                    contentStyle={{ borderRadius: 10, border: "1px solid var(--line)", fontSize: 12 }}
+                    cursor={{ fill: CHART_CURSOR }}
+                    contentStyle={CHART_TOOLTIP_STYLE}
+                    labelStyle={{ color: "var(--fg-2)" }}
+                    itemStyle={{ color: "var(--fg)" }}
                     formatter={(version: number) => [valueFormatter ? valueFormatter(version) : version.toLocaleString(intlTag), t("page.statistics.chart.value")]}
                 />
                 <Bar dataKey="value" fill={color} radius={[6, 6, 2, 2]} maxBarSize={42} />
@@ -187,15 +351,36 @@ function MonthLine({ data, color = PALETTE[1] }: { data: MonthBucket[]; color?: 
     const t = useT();
     const intlTag = useIntlLocaleTag();
     const dateLocale = useDateFnsLocale();
+    const rtl = useChartRtl();
     const formatted = data.map((d) => ({ ...d, monthLabel: formatMonth(d.month, dateLocale) }));
     return (
         <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={formatted} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
-                <XAxis dataKey="monthLabel" tick={{ fontSize: 11, fill: "#6E6E73" }} tickLine={false} axisLine={{ stroke: "rgba(0,0,0,0.08)" }} />
-                <YAxis tick={{ fontSize: 11, fill: "#6E6E73" }} tickLine={false} axisLine={false} allowDecimals={false} width={36} />
+            <LineChart data={formatted} margin={cartesianMargin(rtl)}>
+                <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} vertical={false} />
+                <XAxis
+                    dataKey="monthLabel"
+                    reversed={rtl}
+                    tick={(props) => <ChartAxisTick {...props} fill={CHART_TICK} />}
+                    tickLine={false}
+                    axisLine={{ stroke: CHART_AXIS }}
+                    height={36}
+                    interval={0}
+                />
+                <YAxis
+                    orientation={rtl ? "right" : "left"}
+                    tick={(props) => (
+                        <ChartAxisTick {...props} axis="y" fill={CHART_TICK} ySide={rtl ? "right" : "left"} />
+                    )}
+                    tickLine={false}
+                    axisLine={false}
+                    allowDecimals={false}
+                    width={36}
+                />
                 <Tooltip
-                    contentStyle={{ borderRadius: 10, border: "1px solid var(--line)", fontSize: 12 }}
+                    cursor={{ stroke: CHART_GRID }}
+                    contentStyle={CHART_TOOLTIP_STYLE}
+                    labelStyle={{ color: "var(--fg-2)" }}
+                    itemStyle={{ color: "var(--fg)" }}
                     formatter={(version: number) => [version.toLocaleString(intlTag), t("page.statistics.chart.value")]}
                 />
                 <Line type="monotone" dataKey="value" stroke={color} strokeWidth={2.4} dot={{ r: 3, fill: color }} activeDot={{ r: 5 }} />
@@ -204,21 +389,71 @@ function MonthLine({ data, color = PALETTE[1] }: { data: MonthBucket[]; color?: 
     );
 }
 
-function CategoryBar({ data, color = PALETTE[0], valueFormatter }: { data: LabelValue[]; color?: string; valueFormatter?: (version: number) => string }) {
+function categoryChartHeight(n: number): number {
+    return Math.min(560, Math.max(248, 40 + n * 34));
+}
+
+function CategoryBar({
+    data,
+    color = PALETTE[0],
+    valueFormatter,
+    labelKind,
+}: {
+    data: LabelValue[];
+    color?: string;
+    valueFormatter?: (version: number) => string;
+    labelKind: StatisticsChartLabelKind;
+}) {
     const t = useT();
     const intlTag = useIntlLocaleTag();
+    const rtl = useChartRtl();
+    const labeled = useMemo(() => localizeChartRows(data, t, labelKind), [data, t, labelKind]);
+    const yTickW = 168;
     return (
         <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#6E6E73" }} tickLine={false} axisLine={{ stroke: "rgba(0,0,0,0.08)" }} interval={0} angle={-15} dy={8} height={50} />
-                <YAxis tick={{ fontSize: 11, fill: "#6E6E73" }} tickLine={false} axisLine={false} allowDecimals={false} width={36} />
-                <Tooltip
-                    cursor={{ fill: "rgba(0,0,0,0.04)" }}
-                    contentStyle={{ borderRadius: 10, border: "1px solid var(--line)", fontSize: 12 }}
-                    formatter={(version: number) => [valueFormatter ? valueFormatter(version) : version.toLocaleString(intlTag), t("page.statistics.chart.value")]}
+            <BarChart
+                layout="vertical"
+                data={labeled}
+                margin={rtl ? { top: 8, right: 8, left: 16, bottom: 8 } : { top: 8, right: 16, left: 8, bottom: 8 }}
+            >
+                <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} horizontal={false} />
+                <XAxis
+                    type="number"
+                    reversed={rtl}
+                    tick={(props) => <ChartAxisTick {...props} fill={CHART_TICK} />}
+                    tickLine={false}
+                    axisLine={{ stroke: CHART_AXIS }}
+                    allowDecimals={false}
                 />
-                <Bar dataKey="value" fill={color} radius={[6, 6, 2, 2]} maxBarSize={48} />
+                <YAxis
+                    type="category"
+                    dataKey="label"
+                    orientation={rtl ? "right" : "left"}
+                    width={yTickW}
+                    tick={(props) => (
+                        <ChartAxisTick
+                            {...props}
+                            axis="y"
+                            fill={CHART_TICK}
+                            ySide={rtl ? "right" : "left"}
+                            tickWidth={yTickW - 12}
+                        />
+                    )}
+                    tickLine={false}
+                    axisLine={false}
+                    interval={0}
+                />
+                <Tooltip
+                    cursor={{ fill: CHART_CURSOR }}
+                    contentStyle={CHART_TOOLTIP_STYLE}
+                    labelStyle={{ color: "var(--fg-2)" }}
+                    itemStyle={{ color: "var(--fg)" }}
+                    formatter={(version: number) => [
+                        valueFormatter ? valueFormatter(version) : version.toLocaleString(intlTag),
+                        t("page.statistics.chart.value"),
+                    ]}
+                />
+                <Bar dataKey="value" fill={color} radius={rtl ? [6, 0, 0, 6] : [0, 6, 6, 0]} maxBarSize={22} />
             </BarChart>
         </ResponsiveContainer>
     );
@@ -259,6 +494,7 @@ function workTimeStatusLabel(status: string, t: (key: string) => string): string
 }
 
 function WorkTimePersonBar({ members }: { members: WorkTimeTeamMemberRow[] }) {
+    const rtl = useChartRtl();
     const chartData = useMemo<WorkTimeBarRow[]>(
         () =>
             [...members]
@@ -280,32 +516,38 @@ function WorkTimePersonBar({ members }: { members: WorkTimeTeamMemberRow[] }) {
 
     return (
         <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} margin={{ top: 20, right: 8, left: 0, bottom: 0 }} barCategoryGap="28%">
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
+            <BarChart data={chartData} margin={cartesianMargin(rtl, { top: 24, bottom: 8 })} barCategoryGap="22%">
+                <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} vertical={false} />
                 <XAxis
                     dataKey="shortName"
-                    tick={{ fontSize: 11, fill: "var(--fg-3)" }}
+                    reversed={rtl}
+                    tick={(props) => <ChartAxisTick {...props} fill={CHART_TICK} />}
                     tickLine={false}
-                    axisLine={{ stroke: "rgba(0,0,0,0.08)" }}
+                    axisLine={{ stroke: CHART_AXIS }}
                     interval={0}
+                    height={36}
                 />
                 <YAxis
-                    tick={{ fontSize: 10, fill: "var(--fg-3)" }}
+                    orientation={rtl ? "right" : "left"}
+                    tick={(props) => (
+                        <ChartAxisTick
+                            {...props}
+                            axis="y"
+                            fontSize={10}
+                            fill={CHART_TICK}
+                            ySide={rtl ? "right" : "left"}
+                        />
+                    )}
                     tickLine={false}
                     axisLine={false}
                     allowDecimals={false}
-                    width={48}
+                    width={80}
                     domain={[0, yMax]}
-                    tickFormatter={(version) => formatWorkMinutes(version)}
+                    tickFormatter={(version) => formatWorkMinutes(version, { compact: true })}
                 />
                 <Tooltip cursor={false} content={<WorkTimeBarTooltip />} />
                 <Bar dataKey="minutes" radius={[6, 6, 2, 2]} maxBarSize={barSize} minPointSize={3}>
-                    <LabelList
-                        dataKey="minutes"
-                        position="top"
-                        formatter={(version: number) => (version > 0 ? formatWorkMinutes(version) : "")}
-                        style={{ fontSize: 10, fontWeight: 650, fill: "var(--fg-2)" }}
-                    />
+                    <LabelList dataKey="minutes" content={(props) => <ChartBarTopLabel {...props} />} />
                     {chartData.map((entry, index) => (
                         <Cell
                             key={entry.staffId}
@@ -324,6 +566,7 @@ function WorkTimePersonBar({ members }: { members: WorkTimeTeamMemberRow[] }) {
 
 function WorkTimeDayBar({ days }: { days: WorkTimeDaySummary[] }) {
     const dateLocale = useDateFnsLocale();
+    const rtl = useChartRtl();
     const chartData = useMemo(
         () =>
             [...days]
@@ -342,27 +585,40 @@ function WorkTimeDayBar({ days }: { days: WorkTimeDaySummary[] }) {
 
     return (
         <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
+            <BarChart data={chartData} margin={cartesianMargin(rtl, { bottom: 8 })}>
+                <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} vertical={false} />
                 <XAxis
                     dataKey="shortLabel"
-                    tick={{ fontSize: 10, fill: "var(--fg-3)" }}
+                    reversed={rtl}
+                    tick={(props) => <ChartAxisTick {...props} fontSize={10} fill={CHART_TICK} />}
                     tickLine={false}
-                    axisLine={{ stroke: "rgba(0,0,0,0.08)" }}
+                    axisLine={{ stroke: CHART_AXIS }}
                     interval={0}
+                    height={36}
                 />
                 <YAxis
-                    tick={{ fontSize: 10, fill: "var(--fg-3)" }}
+                    orientation={rtl ? "right" : "left"}
+                    tick={(props) => (
+                        <ChartAxisTick
+                            {...props}
+                            axis="y"
+                            fontSize={10}
+                            fill={CHART_TICK}
+                            ySide={rtl ? "right" : "left"}
+                        />
+                    )}
                     tickLine={false}
                     axisLine={false}
                     allowDecimals={false}
-                    width={44}
+                    width={80}
                     domain={[0, yMax]}
-                    tickFormatter={(version) => formatWorkMinutes(version)}
+                    tickFormatter={(version) => formatWorkMinutes(version, { compact: true })}
                 />
                 <Tooltip
-                    cursor={{ fill: "rgba(0,0,0,0.04)" }}
-                    contentStyle={{ borderRadius: 10, border: "1px solid var(--line)", fontSize: 12 }}
+                    cursor={{ fill: CHART_CURSOR }}
+                    contentStyle={CHART_TOOLTIP_STYLE}
+                    labelStyle={{ color: "var(--fg-2)" }}
+                    itemStyle={{ color: "var(--fg)" }}
                     formatter={(version: number, _name, item) => {
                         const row = item?.payload as WorkTimeDaySummary | undefined;
                         const pause = row?.pauseMinutes ?? 0;
@@ -433,15 +689,21 @@ function WorkTimeTeamTable({ members }: { members: WorkTimeTeamMemberRow[] }) {
     );
 }
 
-function PiePanel({ data }: { data: LabelValue[] }) {
+function PiePanel({ data, labelKind }: { data: LabelValue[]; labelKind: StatisticsChartLabelKind }) {
     const t = useT();
     const intlTag = useIntlLocaleTag();
-    const filtered = data.filter((d) => d.value > 0);
+    const rtl = useChartRtl();
+    const filtered = useMemo(
+        () => localizeChartRows(data.filter((d) => d.value > 0), t, labelKind),
+        [data, t, labelKind],
+    );
     return (
         <ResponsiveContainer width="100%" height="100%">
             <PieChart>
                 <Tooltip
-                    contentStyle={{ borderRadius: 10, border: "1px solid var(--line)", fontSize: 12 }}
+                    contentStyle={CHART_TOOLTIP_STYLE}
+                    labelStyle={{ color: "var(--fg-2)" }}
+                    itemStyle={{ color: "var(--fg)" }}
                     formatter={(version: number, _n: string, item) => {
                         const total = filtered.reduce((s, d) => s + d.value, 0);
                         const pct = total > 0 ? Math.round((version / total) * 100) : 0;
@@ -450,9 +712,10 @@ function PiePanel({ data }: { data: LabelValue[] }) {
                 />
                 <Legend
                     verticalAlign="bottom"
+                    align={rtl ? "right" : "left"}
                     iconType="circle"
-                    wrapperStyle={{ fontSize: 12 }}
-                    formatter={(value) => <span style={{ color: "#3C3C43" }}>{value}</span>}
+                    wrapperStyle={{ fontSize: 12, color: "var(--fg-2)", direction: rtl ? "rtl" : "ltr" }}
+                    formatter={(value) => <span style={{ color: "var(--fg-2)" }}>{value}</span>}
                 />
                 <Pie
                     data={filtered}
@@ -461,7 +724,9 @@ function PiePanel({ data }: { data: LabelValue[] }) {
                     innerRadius={45}
                     outerRadius={70}
                     paddingAngle={2}
-                    stroke="#fff"
+                    startAngle={rtl ? 90 : 0}
+                    endAngle={rtl ? -270 : 360}
+                    stroke="var(--bg-elev)"
                     strokeWidth={2}
                 >
                     {filtered.map((_, idx) => (
@@ -536,23 +801,31 @@ function StatOverviewCard({ label, value, icon, accent, sub, trend = "neutral" }
 function RevenueDevelopmentChart({ data }: { data: MonthBucket[] }) {
     const t = useT();
     const dateLocale = useDateFnsLocale();
+    const rtl = useChartRtl();
     const formatted = data.map((d) => ({
         ...d,
         short: formatMonthShortOnly(d.month, dateLocale),
     }));
     const n = formatted.length;
     return (
+        <div dir="ltr" className="stats-chart-ltr">
         <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={formatted} margin={{ top: 16, right: 8, left: 0, bottom: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
+            <BarChart data={formatted} margin={cartesianMargin(rtl, { top: 16, bottom: 16 })}>
+                <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} vertical={false} />
                 <XAxis
                     dataKey="short"
-                    tick={{ fontSize: 11, fill: "var(--fg-3)" }}
+                    reversed={rtl}
+                    tick={(props) => <ChartAxisTick {...props} fill={CHART_TICK} />}
                     tickLine={false}
-                    axisLine={{ stroke: "rgba(0,0,0,0.08)" }}
+                    axisLine={{ stroke: CHART_AXIS }}
+                    height={36}
+                    interval={0}
                 />
                 <YAxis
-                    tick={{ fontSize: 11, fill: "var(--fg-3)" }}
+                    orientation={rtl ? "right" : "left"}
+                    tick={(props) => (
+                        <ChartAxisTick {...props} axis="y" fill={CHART_TICK} ySide={rtl ? "right" : "left"} />
+                    )}
                     tickLine={false}
                     axisLine={false}
                     width={44}
@@ -560,7 +833,9 @@ function RevenueDevelopmentChart({ data }: { data: MonthBucket[] }) {
                 />
                 <Tooltip
                     cursor={{ fill: "color-mix(in oklab, var(--accent) 9%, transparent)" }}
-                    contentStyle={{ borderRadius: 10, border: "1px solid var(--line)", fontSize: 12 }}
+                    contentStyle={CHART_TOOLTIP_STYLE}
+                    labelStyle={{ color: "var(--fg-2)" }}
+                    itemStyle={{ color: "var(--fg)" }}
                     formatter={(version: number) => [formatCurrency(version), t("page.statistics.chart.revenue")]}
                     labelFormatter={(label, payload) => {
                         const m = payload?.[0]?.payload?.month as string | undefined;
@@ -581,12 +856,16 @@ function RevenueDevelopmentChart({ data }: { data: MonthBucket[] }) {
                 </Bar>
             </BarChart>
         </ResponsiveContainer>
+        </div>
     );
 }
 
 function TreatmentMixPanel({ data }: { data: LabelValue[] }) {
     const t = useT();
-    const sorted = [...data].filter((d) => d.value > 0).sort((a, b) => b.value - a.value).slice(0, 6);
+    const sorted = [...localizeChartRows(data, t, "treatment_category")]
+        .filter((d) => d.value > 0)
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 6);
     const total = sorted.reduce((s, d) => s + d.value, 0);
     if (sorted.length === 0) {
         return (
@@ -629,9 +908,10 @@ function TreatmentMixPanel({ data }: { data: LabelValue[] }) {
                                 gridColumn: "1 / -1",
                                 height: 8,
                                 borderRadius: 6,
-                                background: "rgba(0,0,0,0.06)",
+                                background: "color-mix(in oklab, var(--fg) 10%, var(--bg))",
                                 overflow: "hidden",
                             }}
+                            className="statistics-mix-track"
                         >
                             <div
                                 style={{
@@ -1070,13 +1350,18 @@ export function StatisticsPage() {
                                 <MonthLine data={trimmedPatNew} color={PALETTE[1]} />
                             </ChartCard>
                             <ChartCard title={t("page.statistics.chart.age_groups")} hasData={stats.age_groups.length > 0}>
-                                <PiePanel data={stats.age_groups} />
+                                <PiePanel data={stats.age_groups} labelKind="age" />
                             </ChartCard>
                             <ChartCard title={t("page.statistics.chart.sex")} hasData={stats.sexes.length > 0}>
-                                <PiePanel data={stats.sexes} />
+                                <PiePanel data={stats.sexes} labelKind="sex" />
                             </ChartCard>
-                            <ChartCard title={t("page.statistics.chart.patients_status")} subtitle={t("page.statistics.chart.patients_status_sub")} hasData={stats.patient_status.length > 0}>
-                                <CategoryBar data={stats.patient_status} color={PALETTE[3]} />
+                            <ChartCard
+                                title={t("page.statistics.chart.patients_status")}
+                                subtitle={t("page.statistics.chart.patients_status_sub")}
+                                hasData={stats.patient_status.length > 0}
+                                height={categoryChartHeight(stats.patient_status.length)}
+                            >
+                                <CategoryBar data={stats.patient_status} color={PALETTE[3]} labelKind="patient_status" />
                             </ChartCard>
                         </div>
                     </section>
@@ -1091,8 +1376,9 @@ export function StatisticsPage() {
                                 title={t("page.statistics.chart.disease_patterns_top")}
                                 hasData={(stats.disease_patterns_top ?? []).length > 0}
                                 emptyHint={t("page.statistics.chart.disease_patterns_empty")}
+                                height={categoryChartHeight((stats.disease_patterns_top ?? []).length)}
                             >
-                                <CategoryBar data={stats.disease_patterns_top ?? []} color={PALETTE[4]} />
+                                <CategoryBar data={stats.disease_patterns_top ?? []} color={PALETTE[4]} labelKind="diagnosis" />
                             </ChartCard>
                             <ChartCard
                                 title={t("page.statistics.chart.disease_patterns_trend")}
@@ -1112,14 +1398,23 @@ export function StatisticsPage() {
                             <ChartCard title={t("page.statistics.chart.treatments_month")} hasData={trimmedTreatments.some((m) => m.value > 0)}>
                                 <MonthBar data={trimmedTreatments} color={PALETTE[0]} />
                             </ChartCard>
-                            <ChartCard title={t("page.statistics.chart.treatments_category")} hasData={stats.treatments_by_category.length > 0}>
-                                <CategoryBar data={stats.treatments_by_category} color={PALETTE[2]} />
+                            <ChartCard
+                                title={t("page.statistics.chart.treatments_category")}
+                                hasData={stats.treatments_by_category.length > 0}
+                                height={categoryChartHeight(stats.treatments_by_category.length)}
+                            >
+                                <CategoryBar data={stats.treatments_by_category} color={PALETTE[2]} labelKind="treatment_category" />
                             </ChartCard>
-                            <ChartCard title={t("page.statistics.chart.active_ingredient_top")} subtitle={t("page.statistics.chart.active_ingredient_top_sub")} hasData={stats.medications_top.length > 0}>
-                                <CategoryBar data={stats.medications_top} color={PALETTE[3]} />
+                            <ChartCard
+                                title={t("page.statistics.chart.active_ingredient_top")}
+                                subtitle={t("page.statistics.chart.active_ingredient_top_sub")}
+                                hasData={stats.medications_top.length > 0}
+                                height={categoryChartHeight(stats.medications_top.length)}
+                            >
+                                <CategoryBar data={stats.medications_top} color={PALETTE[3]} labelKind="service" />
                             </ChartCard>
                             <ChartCard title={t("page.statistics.chart.active_ingredient_vert")} hasData={stats.medications_top.length > 0}>
-                                <PiePanel data={stats.medications_top} />
+                                <PiePanel data={stats.medications_top} labelKind="service" />
                             </ChartCard>
                         </div>
                     </section>
@@ -1134,10 +1429,14 @@ export function StatisticsPage() {
                                 <MonthBar data={trimmedAppointments} color={PALETTE[1]} />
                             </ChartCard>
                             <ChartCard title={t("page.statistics.chart.appointment_status")} hasData={stats.appointment_status.length > 0}>
-                                <PiePanel data={stats.appointment_status} />
+                                <PiePanel data={stats.appointment_status} labelKind="appointment_status" />
                             </ChartCard>
-                            <ChartCard title={t("page.statistics.chart.appointment_kind")} hasData={stats.appointment_kind.length > 0}>
-                                <CategoryBar data={stats.appointment_kind} color={PALETTE[5]} />
+                            <ChartCard
+                                title={t("page.statistics.chart.appointment_kind")}
+                                hasData={stats.appointment_kind.length > 0}
+                                height={categoryChartHeight(stats.appointment_kind.length)}
+                            >
+                                <CategoryBar data={stats.appointment_kind} color={PALETTE[5]} labelKind="appointment_kind" />
                             </ChartCard>
                             <DismissibleNotice
                                 variant="info"
@@ -1159,13 +1458,13 @@ export function StatisticsPage() {
                                 <MonthBar data={trimmedIncome} color={PALETTE[4]} valueFormatter={(version) => formatCurrency(version)} />
                             </ChartCard>
                             <ChartCard title={t("page.statistics.chart.umsatz_payment_method")} hasData={stats.revenue_by_payment_method.length > 0}>
-                                <PiePanel data={stats.revenue_by_payment_method} />
+                                <PiePanel data={stats.revenue_by_payment_method} labelKind="payment" />
                             </ChartCard>
                             <ChartCard title={t("page.statistics.chart.purchase_orders_month")} hasData={trimmedOrders.some((m) => m.value > 0)}>
                                 <MonthBar data={trimmedOrders} color={PALETTE[2]} />
                             </ChartCard>
                             <ChartCard title={t("page.statistics.chart.purchase_orders_status")} hasData={stats.orders_by_status.length > 0}>
-                                <PiePanel data={stats.orders_by_status} />
+                                <PiePanel data={stats.orders_by_status} labelKind="order_status" />
                             </ChartCard>
                         </div>
                     </section>

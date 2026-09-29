@@ -1,8 +1,96 @@
 /// <reference types="vitest/config" />
 import { readFileSync } from "node:fs";
-import { defineConfig } from "vite";
+import type { IncomingMessage, ServerResponse } from "node:http";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
+
+/** In-memory command queue so screenshot scripts can drive the Tauri webview (same-origin). */
+function medocCaptureBridge(): Plugin {
+    let pending: Record<string, unknown> | null = null;
+    const acks = new Map<string, Record<string, unknown>>();
+    let lastHello = 0;
+
+    const readJson = (req: IncomingMessage): Promise<Record<string, unknown>> =>
+        new Promise((resolve) => {
+            const chunks: Buffer[] = [];
+            req.on("data", (c) => chunks.push(c as Buffer));
+            req.on("end", () => {
+                try {
+                    resolve(JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}") as Record<string, unknown>);
+                } catch {
+                    resolve({});
+                }
+            });
+        });
+
+    const json = (res: ServerResponse, code: number, body: unknown) => {
+        const raw = JSON.stringify(body);
+        res.statusCode = code;
+        res.setHeader("Content-Type", "application/json");
+        res.setHeader("Access-Control-Allow-Origin", "*");
+        res.end(raw);
+    };
+
+    return {
+        name: "medoc-capture-bridge",
+        configureServer(server) {
+            server.middlewares.use(async (req, res, next) => {
+                const url = req.url?.split("?")[0] ?? "";
+                if (!url.startsWith("/__medoc_capture")) return next();
+                res.setHeader("Access-Control-Allow-Origin", "*");
+                res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+                res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+                if (req.method === "OPTIONS") {
+                    res.statusCode = 204;
+                    res.end();
+                    return;
+                }
+                if (url === "/__medoc_capture/hello" && req.method === "POST") {
+                    lastHello = Date.now();
+                    json(res, 200, { ok: true, lastHello });
+                    return;
+                }
+                if (url === "/__medoc_capture/status" && req.method === "GET") {
+                    json(res, 200, { ok: true, lastHello, ageMs: lastHello ? Date.now() - lastHello : null });
+                    return;
+                }
+                if (url === "/__medoc_capture/enqueue" && req.method === "POST") {
+                    const body = await readJson(req);
+                    pending = body;
+                    json(res, 200, { ok: true });
+                    return;
+                }
+                if (url === "/__medoc_capture/cmd" && req.method === "GET") {
+                    const body = pending;
+                    pending = null;
+                    json(res, 200, body ?? {});
+                    return;
+                }
+                if (url === "/__medoc_capture/ack" && req.method === "POST") {
+                    const body = await readJson(req);
+                    const id = typeof body.id === "string" ? body.id : "";
+                    if (id) acks.set(id, body);
+                    json(res, 200, { ok: true });
+                    return;
+                }
+                if (url.startsWith("/__medoc_capture/result") && req.method === "GET") {
+                    const id = new URL(req.url ?? "", "http://127.0.0.1").searchParams.get("id") ?? "";
+                    const hit = acks.get(id);
+                    if (!hit) {
+                        res.statusCode = 204;
+                        res.end();
+                        return;
+                    }
+                    acks.delete(id);
+                    json(res, 200, hit);
+                    return;
+                }
+                json(res, 404, { ok: false });
+            });
+        },
+    };
+}
 
 const pkg = JSON.parse(readFileSync(path.join(__dirname, "package.json"), "utf-8")) as { version: string };
 
@@ -39,7 +127,7 @@ const medocAliases = [
 ];
 
 export default defineConfig(async () => ({
-    plugins: [react()],
+    plugins: [react(), medocCaptureBridge()],
     // Relative URLs so the Tauri webview can load JS/CSS from the embedded dist.
     base: "./",
     define: {

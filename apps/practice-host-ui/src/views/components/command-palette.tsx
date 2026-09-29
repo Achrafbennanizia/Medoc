@@ -138,7 +138,7 @@ export function CommandPalette({ open, onClose, commands, onNavigate }: Props) {
                                         className="command-palette-option"
                                         style={{
                                             width: "100%",
-                                            textAlign: "left",
+                                            textAlign: "start",
                                             display: "flex",
                                             alignItems: "center",
                                             gap: 10,

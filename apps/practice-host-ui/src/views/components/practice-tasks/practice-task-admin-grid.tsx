@@ -3,6 +3,7 @@ import type { KeyboardEvent } from "react";
 import { Link } from "react-router-dom";
 import type { Patient, Staff } from "@/models/types";
 import type { PracticeTask } from "@/systems/practice-host/controllers/practice-task.controller";
+import { displayPracticeTaskTitle } from "@/lib/finance-order-labels";
 import { formatDateTime } from "@/lib/utils";
 import { EditIcon } from "@/lib/icons";
 import { Button } from "../ui/button";
@@ -111,8 +112,14 @@ export function PracticeTaskAdminGrid({
                                 >
                                     <td className="tasks-td-updated">{formatDateTime(row.updated_at)}</td>
                                     <td className="tasks-td-title">
-                                        <span className="tasks-title">{row.title}</span>
-                                        {row.body ? <span className="tasks-body-sub">{row.body}</span> : null}
+                                        <span className="tasks-title" dir="auto">
+                                            {displayPracticeTaskTitle(row.title, t)}
+                                        </span>
+                                        {row.body ? (
+                                            <span className="tasks-body-sub" dir="auto">
+                                                {displayPracticeTaskTitle(row.body, t)}
+                                            </span>
+                                        ) : null}
                                         {compact ? (
                                             <span className="tasks-meta-sub">
                                                 {patLabel}

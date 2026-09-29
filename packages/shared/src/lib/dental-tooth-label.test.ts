@@ -53,4 +53,21 @@ describe("dental tooth orientation labels", () => {
         expect(formatDentalToothLabel(15, t)).toBe("UR5");
         expect(formatDentalToothList(["15", "22"], t)).toBe("UR5, UL2");
     });
+
+    it("keeps Arabic quadrant letters from ligating and keeps prefix-then-index order", () => {
+        const ar: Record<string, string> = {
+            "dental.quad.upper_right": "عي",
+            "dental.quad.upper_left": "عش",
+            "dental.quad.lower_right": "سي",
+            "dental.quad.lower_left": "سش",
+        };
+        const t = (k: string) => ar[k] ?? k;
+        const visible = (fdi: string) => formatDentalToothLabel(fdi, t).replace(/[\u200c\u200e\u2066\u2069]/g, "");
+        expect(visible("11")).toBe("عي1");
+        expect(visible("28")).toBe("عش8");
+        expect(visible("48")).toBe("سي8");
+        expect(formatDentalToothLabel("11", t)).toContain("\u200c");
+        expect(formatDentalToothLabel("11", t)).toMatch(/^\u2066/);
+        expect(formatDentalToothLabel("99", t)).toBe("99");
+    });
 });

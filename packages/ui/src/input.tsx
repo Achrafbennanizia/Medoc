@@ -50,6 +50,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
                     id={inputId}
                     className={["input-edit", error ? "ui-field-error" : "", className].filter(Boolean).join(" ")}
                     {...props}
+                    dir={props.dir ?? (props.type === "tel" ? "ltr" : undefined)}
+                    autoComplete={props.autoComplete ?? (props.type === "tel" ? "tel" : undefined)}
                     aria-invalid={error ? true : undefined}
                     aria-describedby={describedBy}
                 />
@@ -73,6 +75,40 @@ interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
     /** Render dropdown in a body portal (tables / overflow containers). */
     menuPortal?: boolean;
     menuClassName?: string;
+}
+
+function selectPortalMenuStyle(trigger: HTMLElement): CSSProperties {
+    const rect = trigger.getBoundingClientRect();
+    const viewportPad = 8;
+    const width = Math.min(Math.max(rect.width, 160), window.innerWidth - viewportPad * 2);
+    const top = rect.bottom + 6;
+    const rtl = document.documentElement.dir === "rtl";
+    if (rtl) {
+        const right = Math.max(viewportPad, window.innerWidth - rect.right);
+        return {
+            position: "fixed",
+            top,
+            right,
+            left: "auto",
+            width,
+            maxWidth: width,
+            zIndex: 10050,
+        };
+    }
+    let left = rect.left;
+    if (left + width > window.innerWidth - viewportPad) {
+        left = window.innerWidth - viewportPad - width;
+    }
+    left = Math.max(viewportPad, left);
+    return {
+        position: "fixed",
+        top,
+        left,
+        right: "auto",
+        width,
+        maxWidth: width,
+        zIndex: 10050,
+    };
 }
 
 function SelectMenu({
@@ -186,23 +222,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
             const update = () => {
                 const trigger = triggerRef.current;
                 if (!trigger) return;
-                const rect = trigger.getBoundingClientRect();
-                const viewportPad = 12;
-                const maxWidth = Math.min(224, window.innerWidth - viewportPad * 2);
-                const width = Math.max(rect.width, 160);
-                let left = rect.left;
-                if (left + width > window.innerWidth - viewportPad) {
-                    left = window.innerWidth - viewportPad - width;
-                }
-                left = Math.max(viewportPad, left);
-                setPortalMenuStyle({
-                    position: "fixed",
-                    top: rect.bottom + 6,
-                    left,
-                    width,
-                    maxWidth,
-                    zIndex: 10050,
-                });
+                setPortalMenuStyle(selectPortalMenuStyle(trigger));
             };
             update();
             window.addEventListener("resize", update);

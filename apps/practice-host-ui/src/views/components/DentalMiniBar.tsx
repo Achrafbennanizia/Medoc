@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Treatment, DentalFinding, Examination } from "@/models/types";
-import { useT, useTParams } from "@/lib/i18n";
+import { DentalOdontogramAxis } from "./dental-odontogram-axis";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import {
     DENTAL_LOWER_L,
@@ -19,6 +19,8 @@ import {
     formatDentalToothLabel,
 } from "@/lib/dental";
 import { examinationToothNotesForTooth } from "@/lib/examination";
+import { useT, useTParams } from "@/lib/i18n";
+import { clinicalServiceLabel } from "@/lib/clinical-service-label";
 
 type PopState = {
     fdi: string;
@@ -215,7 +217,7 @@ export function DentalMiniBar({
                     <ul className="tooth-popover-list">
                         {popTreatment.map((b) => (
                             <li key={b.id}>
-                                <strong>{b.service_name || b.kind}</strong>
+                                <strong>{clinicalServiceLabel(b.service_name || b.kind || "")}</strong>
                                 {b.category ? <span className="tooth-popover-sub">{b.category}</span> : null}
                                 <span className="tooth-popover-date">
                                     {b.treatment_date ? formatDate(b.treatment_date) : formatDateTime(b.created_at)}
@@ -232,15 +234,10 @@ export function DentalMiniBar({
         <div className="dental-mini-bar" onMouseLeave={scheduleClose}>
             <div className="dental-mini-bar-inner">
                 <span className="dental-mini-title">{t("dental.mini.title")}</span>
-                <div className="dental-odontogram">
-                    <span className="dental-odontogram__axis dental-odontogram__axis--top" aria-hidden>
-                        {t("dental.axis.top")}
-                    </span>
-                    <div className="dental-odontogram__body">
-                        {/* Patient right = viewer left (standard chart). */}
-                        <span className="dental-odontogram__axis dental-odontogram__axis--start" aria-hidden>
-                            {t("dental.axis.right")}
-                        </span>
+                <div className="dental-odontogram" dir="ltr">
+                    <DentalOdontogramAxis slot="start">{t("dental.axis.right")}</DentalOdontogramAxis>
+                    <div className="dental-odontogram__center">
+                        <DentalOdontogramAxis slot="top">{t("dental.axis.top")}</DentalOdontogramAxis>
                         <div className="dental-odontogram__chart" role="group" aria-label={t("dental.mini.title")}>
                             <div className="dental-odontogram__quad dental-odontogram__quad--ur">
                                 {DENTAL_UPPER_R.map(renderMini)}
@@ -257,13 +254,9 @@ export function DentalMiniBar({
                                 {DENTAL_LOWER_L.map(renderMini)}
                             </div>
                         </div>
-                        <span className="dental-odontogram__axis dental-odontogram__axis--end" aria-hidden>
-                            {t("dental.axis.left")}
-                        </span>
+                        <DentalOdontogramAxis slot="bottom">{t("dental.axis.bottom")}</DentalOdontogramAxis>
                     </div>
-                    <span className="dental-odontogram__axis dental-odontogram__axis--bottom" aria-hidden>
-                        {t("dental.axis.bottom")}
-                    </span>
+                    <DentalOdontogramAxis slot="end">{t("dental.axis.left")}</DentalOdontogramAxis>
                 </div>
             </div>
             {/* Popover is portaled to <body> so that ancestors with `transform`

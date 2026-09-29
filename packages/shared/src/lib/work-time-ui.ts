@@ -1,4 +1,5 @@
 import { getISODay, parseISO } from "date-fns";
+import { translateLocaleParams, useLocale } from "./i18n";
 import type { WeeklyWorkRule } from "./staff-work-plan";
 
 export type WorkTimeDaySummaryLite = {
@@ -14,11 +15,15 @@ export type WorkTimeSessionLite = {
     pauseMinutes?: number;
 };
 
-export function formatWorkMinutes(m: number): string {
+export function formatWorkMinutes(m: number, opts?: { compact?: boolean }): string {
     const abs = Math.max(0, Math.round(m));
     const h = Math.floor(abs / 60);
     const min = abs % 60;
-    return `${h}h ${min}m`;
+    const key = opts?.compact ? "common.duration.hours_minutes_short" : "common.duration.hours_minutes";
+    return translateLocaleParams(useLocale.getState().locale, key, {
+        h,
+        m: min,
+    });
 }
 
 /** Compact axis label: "Aya Müller" → "Aya M." (full name stays in tooltip). */

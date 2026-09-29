@@ -600,7 +600,7 @@ export function PrescriptionsPage() {
                                         {line.duration}
                                         {line.instructions ? ` · ${line.instructions}` : ""}
                                     </div>
-                                    <Button type="button" size="sm" variant="ghost" onClick={() => removeLine(idx)} disabled={creating}>
+                                    <Button type="button" size="sm" variant="danger" onClick={() => removeLine(idx)} disabled={creating}>
                                         {t("common.remove")}
                                     </Button>
                                 </li>

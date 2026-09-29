@@ -4,6 +4,7 @@
  */
 export { Button } from "./button";
 export { Input, Select, Textarea } from "./input";
+export { PhoneText } from "./phone-text";
 export { Dialog, ConfirmDialog, IosConfirmActions } from "./dialog";
 export { Card, CardHeader } from "./card";
 export { Badge } from "./badge";

@@ -80,7 +80,7 @@ export const PracticeSetupWizard: FC<Props> = ({ open, onClose }) => {
                 <div className="grid gap-3">
                     <Input label={t("practice.setup.practice_name")} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
                     <Textarea label={t("practice.setup.address")} rows={3} value={draft.addr} onChange={(e) => setDraft({ ...draft, addr: e.target.value })} />
-                    <Input label={t("practice.setup.phone")} value={draft.phone ?? ""} onChange={(e) => setDraft({ ...draft, phone: e.target.value })} />
+                    <Input type="tel" label={t("practice.setup.phone")} value={draft.phone ?? ""} onChange={(e) => setDraft({ ...draft, phone: e.target.value })} />
                     <Input label={t("practice.setup.email")} value={draft.email ?? ""} onChange={(e) => setDraft({ ...draft, email: e.target.value })} />
                 </div>
             ) : null}

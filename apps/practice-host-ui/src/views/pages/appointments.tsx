@@ -21,7 +21,7 @@ import {
     startOfWeek,
 } from "date-fns";
 import { listAppointmentsPaged, deleteAppointment, updateAppointment } from "@/systems/practice-host/controllers/appointment.controller";
-import { useDateFnsLocale, useT, useTParams, useLocale, isRtlLocale } from "@/lib/i18n";
+import { useDateFnsLocale, useT, useTParams } from "@/lib/i18n";
 import { listPatientsByIds } from "@/systems/practice-host/controllers/patient.controller";
 import { listPhysicians, type PhysicianSummary } from "@/systems/practice-host/controllers/staff.controller";
 import { LAZY_PAGE_SIZE, mergeUniqueById } from "@/lib/lazy-list";
@@ -140,8 +140,6 @@ const timeToMinutes = appointmentTimeToMinutes;
 export function AppointmentsPage() {
     const t = useT();
     const tp = useTParams();
-    const locale = useLocale((s) => s.locale);
-    const rtl = isRtlLocale(locale);
     const dateFnsLocale = useDateFnsLocale();
     const navigate = useNavigate();
     const location = useLocation();
@@ -180,7 +178,7 @@ export function AppointmentsPage() {
     const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);
     const filterPopoverWrapRef = useRef<HTMLDivElement | null>(null);
     const filterPopoverPanelRef = useRef<HTMLDivElement | null>(null);
-    const [filterPopoverFixed, setFilterPopoverFixed] = useState<null | { top: number; inlineStart: number; width: number }>(
+    const [filterPopoverFixed, setFilterPopoverFixed] = useState<null | { top: number; left: number; width: number }>(
         null,
     );
     // const [pauseConfirmOpen, setPauseConfirmOpen] = useState(false);
@@ -539,11 +537,9 @@ export function AppointmentsPage() {
             if (!anchor) return;
             const r = anchor.getBoundingClientRect();
             const width = Math.min(320, window.innerWidth * 0.94);
-            const inlineStart = rtl
-                ? Math.max(8, Math.min(r.left, window.innerWidth - width - 8))
-                : Math.max(8, Math.min(r.right - width, window.innerWidth - width - 8));
+            const left = Math.max(8, Math.min(r.right - width, window.innerWidth - width - 8));
             const top = r.bottom + 8;
-            setFilterPopoverFixed({ top, inlineStart, width });
+            setFilterPopoverFixed({ top, left, width });
         };
         update();
         window.addEventListener("resize", update);
@@ -552,7 +548,7 @@ export function AppointmentsPage() {
             window.removeEventListener("resize", update);
             document.removeEventListener("scroll", update, true);
         };
-    }, [filterPopoverOpen, rtl]);
+    }, [filterPopoverOpen]);
 
     useEffect(() => {
         if (!filterPopoverOpen) return undefined;
@@ -1326,7 +1322,7 @@ export function AppointmentsPage() {
                               aria-label={t("appointments.filter.aria")}
                               style={{
                                   top: filterPopoverFixed.top,
-                                  insetInlineStart: filterPopoverFixed.inlineStart,
+                                  left: filterPopoverFixed.left,
                                   width: filterPopoverFixed.width,
                               }}
                           >

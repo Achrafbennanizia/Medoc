@@ -19,6 +19,7 @@ import { buildPatientsMigrationCsv } from "@/lib/patient-csv";
 import { DataExportPickerDialog } from "../components/data-export-picker-dialog";
 import { ConfirmDialog, Dialog } from "../components/ui/dialog";
 import { Button } from "../components/ui/button";
+import { PhoneText } from "../components/ui/phone-text";
 import { WorkspacePageHeader } from "../components/administration-page-header";
 import { LAZY_PAGE_SIZE, mergeUniqueById } from "@/lib/lazy-list";
 
@@ -363,7 +364,7 @@ export function PatientsPage() {
                                 </div>
                                 <div style={{ fontSize: 13 }}>{formatDate(p.date_of_birth)}</div>
                                 <div className="col" style={{ fontSize: 12.5 }}>
-                                    <div>{p.phone || "—"}</div>
+                                    <div><PhoneText value={p.phone} /></div>
                                     <div style={{ color: "var(--fg-3)" }}>{p.email || "—"}</div>
                                 </div>
                                 <div className="row" style={{ gap: 6, flexWrap: "wrap", alignItems: "center" }}>
@@ -460,7 +461,11 @@ export function PatientsPage() {
                                                             window.location.href = `tel:${p.phone!.replace(/\s+/g, "")}`;
                                                         }}
                                                     >
-                                                        {tp("patient.menu.call", { phone: p.phone! })}
+                                                        {t("patient.menu.call").split("{phone}").flatMap((part, i) =>
+                                                            i === 0
+                                                                ? [part]
+                                                                : [<PhoneText key="phone" value={p.phone} empty="" />, part],
+                                                        )}
                                                     </button>
                                                 ) : null}
                                                 {!p.email?.trim() && !p.phone?.trim() ? (

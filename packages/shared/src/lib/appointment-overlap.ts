@@ -77,7 +77,7 @@ export function assignAppointmentOverlapLanes(
 /** Inline start/width for an overlap lane inside a day column.
  * @param layoutScale When &gt; 1 (calendar hover magnify), shrink laid-out width so
  *   `transform: scale(layoutScale)` from the inline-start edge still fits — extra space
- *   lands between lanes and on the inline-end (right in LTR) border.
+ *   lands between lanes and on the inline-end border (right in LTR, left in RTL).
  */
 export function appointmentOverlapLaneInsets(
     lane: AppointmentOverlapLane,
@@ -87,7 +87,7 @@ export function appointmentOverlapLaneInsets(
 ): { insetInlineStart: string; width: string } {
     const { col, colCount } = lane;
     const s = Math.max(1, Number(layoutScale) || 1);
-    // Extra end gutter so magnify never kisses the column’s right border.
+    // Extra end gutter so magnify never kisses the column’s inline-end border.
     const endExtraPx = s > 1 ? Math.ceil((s - 1) * 20) : 0;
     const startEdge = edgePx;
     const endEdge = edgePx + endExtraPx;

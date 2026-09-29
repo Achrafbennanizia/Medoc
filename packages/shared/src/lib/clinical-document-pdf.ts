@@ -15,6 +15,7 @@ import {
     type PracticeHeaderPrivacyV1,
 } from "@/lib/practice-header-privacy";
 import { translateLocale, useLocale } from "@/lib/i18n";
+import { isolateLtrPhone } from "@/lib/arabic-numerals";
 
 const HEADER_ORDER: PracticeFieldKey[] = [
     "name",
@@ -69,14 +70,14 @@ export function buildClinicalTemplateHeaderLines(
                 const t = (practice.phone ?? "").trim();
                 if (!t) break;
                 const tel = translateLocale(useLocale.getState().locale, "document.print.phone");
-                lines.push(`${tel} ${privacy.tel ? t : maskPracticeExportToken(t)}`);
+                lines.push(`${tel} ${privacy.tel ? isolateLtrPhone(t) : maskPracticeExportToken(t)}`);
                 break;
             }
             case "fax": {
                 const t = (practice.fax ?? "").trim();
                 if (!t) break;
                 const fax = translateLocale(useLocale.getState().locale, "document.print.fax");
-                lines.push(`${fax} ${privacy.fax ? t : maskPracticeExportToken(t)}`);
+                lines.push(`${fax} ${privacy.fax ? isolateLtrPhone(t) : maskPracticeExportToken(t)}`);
                 break;
             }
             case "web": {
@@ -165,7 +166,7 @@ export function buildClinicalTemplateHeaderLines(
             case "emergency_phone": {
                 const t = (practice.emergency_phone ?? "").trim();
                 if (!t) break;
-                lines.push(`Emergency: ${t}`);
+                lines.push(`Emergency: ${isolateLtrPhone(t)}`);
                 break;
             }
             default:

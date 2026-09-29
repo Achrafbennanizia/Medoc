@@ -336,7 +336,7 @@ export function TemplateEditorPanel(props: TemplateEditorPanelProps) {
                                             {it.medication} — {it.dosage || t("common.em_dash")}
                                         </span>
                                         {canWrite ? (
-                                            <button type="button" className="btn btn-ghost" onClick={() => setLineRemoveIdx(idx)}>
+                                            <button type="button" className="btn btn-danger" onClick={() => setLineRemoveIdx(idx)}>
                                                 {t("common.remove")}
                                             </button>
                                         ) : null}
