@@ -80,17 +80,28 @@ async fn save_config(pool: &SqlitePool, cfg: &LanServerConfigV1) -> Result<(), A
 }
 
 fn local_ipv4_urls(http_port: u16) -> Vec<String> {
-    let mut out = vec![format!("https://127.0.0.1:{http_port}")];
+    let mut out = Vec::new();
+    if let Some(bind) = medoc_core::discovery::pick_private_lan_ipv4_bind() {
+        out.push(format!("https://{}:{http_port}", bind.ip));
+    }
     for iface in if_addrs::get_if_addrs().unwrap_or_default() {
+        if medoc_core::discovery::is_ignored_lan_iface(&iface.name) {
+            continue;
+        }
         if let if_addrs::IfAddr::V4(v4) = iface.addr {
-            if v4.ip.is_loopback() {
+            if medoc_core::discovery::lan_ipv4_addr_score(v4.ip) < 0 {
                 continue;
             }
-            out.push(format!("https://{}:{http_port}", v4.ip));
+            let url = format!("https://{}:{http_port}", v4.ip);
+            if !out.contains(&url) {
+                out.push(url);
+            }
         }
     }
-    out.sort();
-    out.dedup();
+    let loopback = format!("https://127.0.0.1:{http_port}");
+    if !out.contains(&loopback) {
+        out.push(loopback);
+    }
     out
 }
 

@@ -21,7 +21,7 @@ fn discovery_targets(discovery_port: u16) -> Vec<SocketAddr> {
     let mut version = vec![SocketAddr::from((Ipv4Addr::BROADCAST, discovery_port))];
     for iface in if_addrs::get_if_addrs().unwrap_or_default() {
         if let IfAddr::V4(v4) = iface.addr {
-            if v4.ip.is_loopback() {
+            if v4.ip.is_loopback() || super::lan_iface::is_ignored_lan_iface(&iface.name) {
                 continue;
             }
             if let Some(bc) = v4.broadcast {

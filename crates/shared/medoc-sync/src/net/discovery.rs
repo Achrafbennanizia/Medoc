@@ -1,6 +1,7 @@
 //! L2/L4 mDNS discovery for `_medoc-cluster._tcp`.
 
 use std::collections::HashMap;
+use std::net::{IpAddr, Ipv4Addr};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -61,12 +62,7 @@ pub fn scan_admins(timeout: Duration) -> Result<Vec<AdminEndpoint>, AppError> {
     std::thread::spawn(move || {
         while let Ok(event) = receiver.recv() {
             if let ServiceEvent::ServiceResolved(info) = event {
-                let host = info
-                    .get_addresses()
-                    .iter()
-                    .next()
-                    .map(|a| a.to_string())
-                    .unwrap_or_default();
+                let host = pick_mdns_reachable_host(info.get_addresses().iter().copied());
                 let port = info.get_port();
                 let cluster_id = info
                     .get_properties()
@@ -90,6 +86,46 @@ pub fn scan_admins(timeout: Duration) -> Result<Vec<AdminEndpoint>, AppError> {
     Ok(list.clone())
 }
 
+fn pick_mdns_reachable_host(addrs: impl Iterator<Item = IpAddr>) -> String {
+    let mut v4: Vec<Ipv4Addr> = Vec::new();
+    let mut v6_addrs: Vec<IpAddr> = Vec::new();
+    for a in addrs {
+        match a {
+            IpAddr::V4(v) if medoc_core::discovery::lan_ipv4_addr_score(v) >= 0 => v4.push(v),
+            IpAddr::V6(ip6) if crate::net::is_private_lan_address(IpAddr::V6(ip6)) => {
+                v6_addrs.push(a);
+            }
+            _ => {}
+        }
+    }
+    v4.sort_by_key(|ip| std::cmp::Reverse(medoc_core::discovery::lan_ipv4_addr_score(*ip)));
+    if let Some(ip) = v4.first() {
+        return ip.to_string();
+    }
+    v6_addrs
+        .first()
+        .map(|a| a.to_string())
+        .unwrap_or_default()
+}
+
 fn map_mdns(e: impl std::fmt::Display) -> AppError {
     AppError::Internal(format!("mdns: {e}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mdns_prefers_rfc1918_v4_over_link_local_v6() {
+        let host = pick_mdns_reachable_host(
+            [
+                "fe80::1".parse().unwrap(),
+                "192.168.1.40".parse().unwrap(),
+                "172.17.0.2".parse().unwrap(),
+            ]
+            .into_iter(),
+        );
+        assert_eq!(host, "192.168.1.40");
+    }
 }

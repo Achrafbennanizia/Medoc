@@ -278,7 +278,13 @@ async fn start_cluster_listener_task(
         return Ok(());
     }
     listener.stop().await;
-    let addr = pick_private_bind_addr()?;
+    let bind = medoc_core::discovery::pick_private_lan_ipv4_bind().ok_or_else(|| {
+        AppError::Validation(
+            "No private LAN IPv4 for the practice network. Join the Wi-Fi (switch/AP) subnet, disable client isolation, and turn off unused VPNs."
+                .into(),
+        )
+    })?;
+    let addr = IpAddr::V4(bind.ip);
     let host = addr.to_string();
     let bound = match bind_cluster_listener(addr, DEFAULT_CLUSTER_PORT).await {
         Ok(l) => l,
@@ -296,6 +302,7 @@ async fn start_cluster_listener_task(
         .await?
         .cluster_id
         .unwrap_or_else(|| "cluster".into());
+    let iface_name = bind.iface_name.clone();
     let listener_task = tokio::spawn(async move {
         let _mdns = match MdnsResponder::advertise(&host, DEFAULT_CLUSTER_PORT, &cluster_id) {
             Ok(r) => Some(r),
@@ -311,6 +318,8 @@ async fn start_cluster_listener_task(
         tracing::info!(
             target: "medoc::cluster",
             event = "CLUSTER_LISTENER_START",
+            iface = %iface_name,
+            bind_ip = %addr,
             port = DEFAULT_CLUSTER_PORT
         );
         loop {
@@ -405,15 +414,6 @@ pub async fn cluster_reclaim_device(
     require(&session_state, "ops.system")?;
     require_admin_seat(&pool).await?;
     reclaim_stale_seat(&pool, &uid, &fingerprint).await
-}
-
-fn pick_private_bind_addr() -> Result<IpAddr, AppError> {
-    for iface in if_addrs::get_if_addrs().map_err(|e| AppError::Internal(e.to_string()))? {
-        if !iface.is_loopback() && medoc_sync::net::is_private_lan_address(iface.ip()) {
-            return Ok(iface.ip());
-        }
-    }
-    Ok("127.0.0.1".parse().expect("loopback parse"))
 }
 
 #[tauri::command]

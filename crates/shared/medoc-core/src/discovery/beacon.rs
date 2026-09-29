@@ -69,16 +69,9 @@ pub fn beacon_base_url(payload: &LanBeaconPayload, host: &str) -> String {
     format!("{scheme}://{host}:{}", payload.http_port)
 }
 
-/// First non-loopback IPv4 on this machine (for master beacons).
+/// First switched-LAN IPv4 (Wi-Fi preferred). Skips docker/VPN/loopback.
 pub fn primary_local_ipv4() -> Option<String> {
-    for iface in if_addrs::get_if_addrs().unwrap_or_default() {
-        if let if_addrs::IfAddr::V4(v4) = iface.addr {
-            if !v4.ip.is_loopback() {
-                return Some(v4.ip.to_string());
-            }
-        }
-    }
-    None
+    super::lan_iface::pick_private_lan_ipv4().map(|ip| ip.to_string())
 }
 
 #[cfg(test)]
