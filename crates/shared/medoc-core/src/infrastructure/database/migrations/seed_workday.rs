@@ -13,8 +13,18 @@ const PHYSICIAN_ID: &str = "seed-physician-001";
 
 /// Non-overlapping chair times (5 min buffer; lunch 12:00–13:00).
 const SLOTS: &[(&str, &str, u32, &str)] = &[
-    ("08:00", "FIRST_VISIT", 45, "New patient intake · full anamnesis"),
-    ("08:50", "EXAMINATION", 30, "Periodontal status · hygiene instruction"),
+    (
+        "08:00",
+        "FIRST_VISIT",
+        45,
+        "New patient intake · full anamnesis",
+    ),
+    (
+        "08:50",
+        "EXAMINATION",
+        30,
+        "Periodontal status · hygiene instruction",
+    ),
     ("09:25", "TREATMENT", 45, "Composite filling 16 occlusal"),
     ("10:15", "CHECKUP", 20, "Post-op review after extraction"),
     ("10:40", "CONSULTATION", 30, "Crown vs implant consult"),
@@ -22,9 +32,19 @@ const SLOTS: &[(&str, &str, u32, &str)] = &[
     ("13:00", "EXAMINATION", 30, "Recall + bitewing radiographs"),
     ("13:35", "TREATMENT", 50, "Crown prep 24 + temporary"),
     ("14:30", "CHECKUP", 20, "Whitening shade check"),
-    ("14:55", "FIRST_VISIT", 45, "Emergency walk-in · cracked cusp"),
+    (
+        "14:55",
+        "FIRST_VISIT",
+        45,
+        "Emergency walk-in · cracked cusp",
+    ),
     ("15:45", "TREATMENT", 40, "Replacement filling 46"),
-    ("16:30", "CONSULTATION", 25, "Aligner progress / next aligners"),
+    (
+        "16:30",
+        "CONSULTATION",
+        25,
+        "Aligner progress / next aligners",
+    ),
 ];
 
 const COMPLAINTS: &[&str] = &[
@@ -87,12 +107,10 @@ async fn seed_today_book(pool: &SqlitePool, today: &str) -> Result<(), AppError>
     .await
     .map_err(AppError::Database)?;
 
-    let patients: Vec<(String,)> = sqlx::query_as(
-        "SELECT id FROM patient ORDER BY id LIMIT 40",
-    )
-    .fetch_all(pool)
-    .await
-    .map_err(AppError::Database)?;
+    let patients: Vec<(String,)> = sqlx::query_as("SELECT id FROM patient ORDER BY id LIMIT 40")
+        .fetch_all(pool)
+        .await
+        .map_err(AppError::Database)?;
     if patients.is_empty() {
         tracing::warn!("demo workday: no patients — skip");
         return Ok(());

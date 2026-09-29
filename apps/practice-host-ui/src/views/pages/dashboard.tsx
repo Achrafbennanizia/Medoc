@@ -17,7 +17,6 @@ import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { ConfirmDialog } from "../components/ui/dialog";
 import { useToastStore } from "../components/ui/toast-store";
 import { EmptyState } from "../components/ui/empty-state";
-import { Button } from "../components/ui/button";
 import { appointmentIsEmergencyMarked } from "@/lib/appointment-domain";
 import { appointmentKindLabel } from "@/lib/appointment-calendar-ui";
 import { useLocale, useT, useTParams, useCollatorLocale, bcp47ForLocale } from "@/lib/i18n";
@@ -787,20 +786,16 @@ export function DashboardPage() {
                                     </p>
                                 ) : (
                                     upcomingAppointments.slice(0, 12).map((u) => (
-                                        <div key={u.appointment_id} className="dashboard-reminder-row">
+                                        <Link
+                                            key={u.appointment_id}
+                                            to={`/patients/${u.patient_id}`}
+                                            className="dashboard-reminder-row"
+                                            aria-label={`${t("dashboard.reminders.open_patient")}: ${u.patient_name}`}
+                                        >
                                             <div className="dashboard-reminder-row__patient">
                                                 <div className="schedule-day-name" dir="auto">
                                                     {u.patient_name}
                                                 </div>
-                                                <Button
-                                                    type="button"
-                                                    variant="primary"
-                                                    size="sm"
-                                                    className="dashboard-reminder-row__open"
-                                                    onClick={() => navigate(`/patients/${u.patient_id}`)}
-                                                >
-                                                    {t("dashboard.reminders.open_patient")}
-                                                </Button>
                                             </div>
                                             <div className="dashboard-reminder-row__when">
                                                 <div className="schedule-day-time-primary">
@@ -813,7 +808,7 @@ export function DashboardPage() {
                                                     {appointmentKindLabel(u.kind)}
                                                 </div>
                                             </div>
-                                        </div>
+                                        </Link>
                                     ))
                                 )}
                             </div>

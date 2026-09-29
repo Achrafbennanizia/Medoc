@@ -23,7 +23,7 @@ describe("N3 FA-LEIST-05 release → Payment (IPC contract)", () => {
                 payment_method: "CASH",
                 treatment_id: "beh-1",
             }),
-        ).rejects.toThrow(/FA-LEIST-05/);
+        ).rejects.toThrow(/not yet released for billing/);
         expect(tauriInvoke).toHaveBeenCalledWith("create_payment", expect.any(Object));
     });
 
