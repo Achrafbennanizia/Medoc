@@ -514,15 +514,19 @@ mod tests {
 
     #[test]
     fn reset_token_sign_verify_roundtrip() {
-        std::env::set_var(
-            "MEDOC_PAIRING_MASTER_SECRET",
-            "8762be1a9a0963f36d98d47c0de6a73a0124b77d3268c170365824a6045d2fbf",
-        );
-        let token = mint_reset_token("cluster-abc", ClusterResetMode::NetworkOnly).expect("mint");
-        let (json, sig) = sign_reset_token(&token).expect("sign");
-        let sk = master_keys::load_or_create().expect("key");
-        let pk = master_keys::pubkey_b64(&sk);
-        let parsed = verify_reset_token_with_pubkey(&json, &sig, &pk).expect("verify");
+        // Do not use MEDOC_PAIRING_MASTER_SECRET: other tests set/remove it in parallel.
+        let sk = ed25519_dalek::SigningKey::from_bytes(&[0x11u8; 32]);
+        let token = ClusterResetToken {
+            reset_id: "reset-test-1".into(),
+            cluster_id: "cluster-abc".into(),
+            mode: ClusterResetMode::NetworkOnly.as_str().to_string(),
+            issued_at: "2026-01-01T00:00:00Z".into(),
+            cluster_ca_pubkey_b64: master_keys::pubkey_b64(&sk),
+        };
+        let json = serde_json::to_string(&token).expect("json");
+        let sig = master_keys::sign(&sk, json.as_bytes());
+        let parsed = verify_reset_token_with_pubkey(&json, &sig, &token.cluster_ca_pubkey_b64)
+            .expect("verify");
         assert_eq!(parsed.cluster_id, "cluster-abc");
         assert_eq!(parsed.mode, "network_only");
     }
