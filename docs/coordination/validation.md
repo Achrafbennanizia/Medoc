@@ -1,6 +1,24 @@
 # Validation ledger
 
-**Last updated:** 2026-09-05 (payment assignment open rows)
+**Last updated:** 2026-09-29 (workflow logging instrumentation run)
+
+## Workflow logging instrumentation (2026-09-29)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Rust formatter | `cargo fmt --all --check` | **PASS** |
+| Rust lints (workspace) | `cargo clippy --workspace --all-targets -- -D warnings` | **FAIL** — build aborted with repeated `No space left on device (os error 28)` while compiling dependency graph |
+| Rust tests (workspace) | `cargo test --workspace` | **FAIL** — build aborted with `No space left on device (os error 28)` before tests could execute |
+| Frontend tests (full) | `npm run test` | **PASS** — 69 files, 337 tests |
+| Frontend build | `npm run build` | **PASS** — Vite production build completed |
+| Focused workflow bridge tests | `npm test -w medoc -- src/services/workflow-bridge.test.ts src/services/tauri.service.test.ts` | **PASS** — 2 files, 7 tests |
+
+**Environment notes (this run):**
+- Upgraded Rust toolchain to `rustc/cargo 1.98.1` to unblock `edition2024` dependency parsing.
+- Installed `rustfmt` + `clippy` components for validation commands.
+- Repeatedly cleared `/workspace/target` to recover disk space, but workspace-wide Rust compilation still exceeded VM storage budget.
+
+---
 
 ## Payment assignment / open booking (2026-09-05)
 

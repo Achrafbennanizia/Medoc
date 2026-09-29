@@ -9,15 +9,46 @@ fn status_transition_denied(current: &str, next: &str) -> AppError {
     )
 }
 
-fn allowed_transition(current: &str, next: &str, allowed: &[&str]) -> Result<(), AppError> {
+fn log_transition_allowed(machine: &str, current: &str, next: &str) {
+    crate::log_workflow!(
+        info,
+        event = "DOMAIN_STATE_TRANSITION",
+        machine = machine,
+        from = current,
+        to = next,
+        outcome = "allowed",
+    );
+}
+
+fn log_transition_blocked(machine: &str, current: &str, next: &str, reason: &str) {
+    crate::log_workflow!(
+        warn,
+        event = "DOMAIN_STATE_TRANSITION",
+        machine = machine,
+        from = current,
+        to = next,
+        outcome = "blocked",
+        reason = reason,
+    );
+}
+
+fn allowed_transition(
+    machine: &str,
+    current: &str,
+    next: &str,
+    allowed: &[&str],
+) -> Result<(), AppError> {
     let cur = current.trim().to_uppercase();
     let nxt = next.trim().to_uppercase();
     if cur == nxt {
+        log_transition_allowed(machine, &cur, &nxt);
         return Ok(());
     }
     if allowed.iter().any(|s| s.eq_ignore_ascii_case(&nxt)) {
+        log_transition_allowed(machine, &cur, &nxt);
         Ok(())
     } else {
+        log_transition_blocked(machine, &cur, &nxt, "not_allowed");
         Err(status_transition_denied(&cur, &nxt))
     }
 }
@@ -31,18 +62,31 @@ pub fn appointment_status_transition(current: &str, next: &str) -> Result<(), Ap
         "COMPLETED" | "CANCELLED" | "NO_SHOW" | "NICHTERSCHIENEN" => &[],
         _ => return Ok(()),
     };
-    allowed_transition(&cur, next, allowed)
+    allowed_transition("appointment_status", &cur, next, allowed)
 }
 
 /// FA-AKTE-14: reception/physician forward → queue (`IN_PROGRESS`).
 pub fn patient_chart_forward_review_transition(current: &str) -> Result<(), AppError> {
     let s = current.trim().to_uppercase();
     if s == "READONLY" {
+        log_transition_blocked(
+            "patient_chart_forward_review",
+            &s,
+            "IN_PROGRESS",
+            "chart_readonly",
+        );
         return Err(AppError::validation_code("error.workflow.chart_readonly"));
     }
     if s == "DRAFT" || s == "IN_PROGRESS" || s == "VALIDATED" {
+        log_transition_allowed("patient_chart_forward_review", &s, "IN_PROGRESS");
         return Ok(());
     }
+    log_transition_blocked(
+        "patient_chart_forward_review",
+        &s,
+        "IN_PROGRESS",
+        "invalid_source_status",
+    );
     Err(AppError::validation_code_params(
         "error.workflow.chart_status_invalid",
         &[("status", &s)],
@@ -53,13 +97,26 @@ pub fn patient_chart_forward_review_transition(current: &str) -> Result<(), AppE
 pub fn patient_chart_validate_transition(current: &str) -> Result<(), AppError> {
     let s = current.trim().to_uppercase();
     if s == "VALIDATED" || s == "READONLY" {
+        log_transition_blocked(
+            "patient_chart_validate",
+            &s,
+            "VALIDATED",
+            "already_validated",
+        );
         return Err(AppError::validation_code(
             "error.workflow.chart_already_validated",
         ));
     }
     if s == "DRAFT" || s == "IN_PROGRESS" {
+        log_transition_allowed("patient_chart_validate", &s, "VALIDATED");
         return Ok(());
     }
+    log_transition_blocked(
+        "patient_chart_validate",
+        &s,
+        "VALIDATED",
+        "invalid_source_status",
+    );
     Err(AppError::validation_code_params(
         "error.workflow.chart_status_invalid",
         &[("status", &s)],
@@ -80,7 +137,7 @@ pub fn practice_ticket_status_transition(current: &str, next: &str) -> Result<()
             ))
         }
     };
-    allowed_transition(&cur, next, allowed)
+    allowed_transition("practice_ticket_status", &cur, next, allowed)
 }
 
 const TASK_STATUSES: &[&str] = &["OPEN", "IN_PROGRESS", "DONE_RECEPTION", "VALIDATED", "BACK"];
@@ -94,17 +151,21 @@ pub fn practice_task_admin_status_transition(current: &str, next: &str) -> Resul
     let cur = current.trim().to_uppercase();
     let nxt = next.trim().to_uppercase();
     if cur == nxt {
+        log_transition_allowed("practice_task_admin_status", &cur, &nxt);
         return Ok(());
     }
     if cur == "VALIDATED" {
+        log_transition_blocked("practice_task_admin_status", &cur, &nxt, "task_closed");
         return Err(task_closed());
     }
     if !TASK_STATUSES.iter().any(|s| s.eq_ignore_ascii_case(&nxt)) {
+        log_transition_blocked("practice_task_admin_status", &cur, &nxt, "unknown_status");
         return Err(AppError::validation_code_params(
             "error.workflow.task_unknown_status",
             &[("status", &nxt)],
         ));
     }
+    log_transition_allowed("practice_task_admin_status", &cur, &nxt);
     Ok(())
 }
 
@@ -113,6 +174,7 @@ fn practice_task_fulfill_status_transition(current: &str, next: &str) -> Result<
     let cur = current.trim().to_uppercase();
     let nxt = next.trim().to_uppercase();
     if cur == "VALIDATED" {
+        log_transition_blocked("practice_task_fulfill_status", &cur, &nxt, "task_closed");
         return Err(task_closed());
     }
     let allowed: &[&str] = match cur.as_str() {
@@ -127,7 +189,7 @@ fn practice_task_fulfill_status_transition(current: &str, next: &str) -> Result<
             ))
         }
     };
-    allowed_transition(&cur, &nxt, allowed)
+    allowed_transition("practice_task_fulfill_status", &cur, &nxt, allowed)
 }
 
 /// FA-AUFG-06: practice task — assignee (REZ pool or named physician) vs. creator (validation).
@@ -151,6 +213,7 @@ pub fn practice_task_status_transition(
     let cur = current.trim().to_uppercase();
     let nxt = next.trim().to_uppercase();
     if cur == "VALIDATED" {
+        log_transition_blocked("practice_task_status", &cur, &nxt, "task_closed");
         return Err(task_closed());
     }
 
@@ -170,7 +233,7 @@ pub fn practice_task_status_transition(
 
     // Completed task: creator validates/returns — even if creator was also the assignee.
     if is_validator && cur == "DONE_RECEPTION" {
-        return allowed_transition(&cur, &nxt, &["VALIDATED", "BACK"]);
+        return allowed_transition("practice_task_status", &cur, &nxt, &["VALIDATED", "BACK"]);
     }
 
     if is_fulfiller {
@@ -179,6 +242,7 @@ pub fn practice_task_status_transition(
 
     if rbac_fulfill {
         if nxt != "IN_PROGRESS" && nxt != "DONE_RECEPTION" {
+            log_transition_blocked("practice_task_status", &cur, &nxt, "rbac_fulfill_scope");
             return Err(AppError::Unauthorized);
         }
         return practice_task_fulfill_status_transition(current, next);
@@ -186,13 +250,24 @@ pub fn practice_task_status_transition(
 
     if is_validator {
         return match cur.as_str() {
-            "DONE_RECEPTION" => allowed_transition(&cur, &nxt, &["VALIDATED", "BACK"]),
-            _ => Err(AppError::validation_code(
-                "error.workflow.task_validate_only_done",
-            )),
+            "DONE_RECEPTION" => {
+                allowed_transition("practice_task_status", &cur, &nxt, &["VALIDATED", "BACK"])
+            }
+            _ => {
+                log_transition_blocked(
+                    "practice_task_status",
+                    &cur,
+                    &nxt,
+                    "validator_requires_done_reception",
+                );
+                Err(AppError::validation_code(
+                    "error.workflow.task_validate_only_done",
+                ))
+            }
         };
     }
 
+    log_transition_blocked("practice_task_status", &cur, &nxt, "unauthorized");
     Err(AppError::Unauthorized)
 }
 
@@ -210,5 +285,5 @@ pub fn purchase_order_status_transition(current: &str, next: &str) -> Result<(),
             ))
         }
     };
-    allowed_transition(&cur, next, allowed)
+    allowed_transition("purchase_order_status", &cur, next, allowed)
 }

@@ -31,6 +31,7 @@ pub struct LogGuards {
     _app: WorkerGuard,
     _security: WorkerGuard,
     _system: WorkerGuard,
+    _workflow: WorkerGuard,
     _device: WorkerGuard,
     _migration: WorkerGuard,
     _perf: WorkerGuard,
@@ -56,6 +57,7 @@ pub fn init(data_dir: &Path) -> Result<LogGuards, std::io::Error> {
     let app_appender = RollingFileAppender::new(Rotation::DAILY, &logs, "app.log");
     let security_appender = RollingFileAppender::new(Rotation::DAILY, &logs, "security.log");
     let system_appender = RollingFileAppender::new(Rotation::DAILY, &logs, "system.log");
+    let workflow_appender = RollingFileAppender::new(Rotation::DAILY, &logs, "workflow.log");
     let device_appender = RollingFileAppender::new(Rotation::DAILY, &logs, "device.log");
     let migration_appender = RollingFileAppender::new(Rotation::DAILY, &logs, "migration.log");
     let perf_appender = RollingFileAppender::new(Rotation::DAILY, &logs, "perf.log");
@@ -63,6 +65,7 @@ pub fn init(data_dir: &Path) -> Result<LogGuards, std::io::Error> {
     let (app_w, app_g) = tracing_appender::non_blocking(app_appender);
     let (sec_w, sec_g) = tracing_appender::non_blocking(security_appender);
     let (sys_w, sys_g) = tracing_appender::non_blocking(system_appender);
+    let (workflow_w, workflow_g) = tracing_appender::non_blocking(workflow_appender);
     let (dev_w, dev_g) = tracing_appender::non_blocking(device_appender);
     let (mig_w, mig_g) = tracing_appender::non_blocking(migration_appender);
     let (perf_w, perf_g) = tracing_appender::non_blocking(perf_appender);
@@ -96,6 +99,9 @@ pub fn init(data_dir: &Path) -> Result<LogGuards, std::io::Error> {
         json(sys_w)
             .with_filter(EnvFilter::new("medoc::system=info"))
             .boxed(),
+        json(workflow_w)
+            .with_filter(EnvFilter::new("medoc::workflow=info"))
+            .boxed(),
         json(dev_w)
             .with_filter(EnvFilter::new("medoc::device=info"))
             .boxed(),
@@ -113,6 +119,7 @@ pub fn init(data_dir: &Path) -> Result<LogGuards, std::io::Error> {
         _app: app_g,
         _security: sec_g,
         _system: sys_g,
+        _workflow: workflow_g,
         _device: dev_g,
         _migration: mig_g,
         _perf: perf_g,
@@ -133,6 +140,13 @@ macro_rules! log_security {
 macro_rules! log_system {
     ($lvl:ident, $($arg:tt)+) => {
         tracing::$lvl!(target: "medoc::system", $($arg)+)
+    };
+}
+
+#[macro_export]
+macro_rules! log_workflow {
+    ($lvl:ident, $($arg:tt)+) => {
+        tracing::$lvl!(target: "medoc::workflow", $($arg)+)
     };
 }
 
