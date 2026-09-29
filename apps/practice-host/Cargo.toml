@@ -60,7 +60,7 @@ single-instance = "0.3"
 [dev-dependencies]
 filetime = "0.2.27"
 serde_yaml = "0.9"
-rustls = { version = "0.23", features = ["aws_lc_rs"] }
+rustls = { version = "0.23.45", features = ["aws_lc_rs"] }
 axum = "0.8"
 tower = "0.5"
 

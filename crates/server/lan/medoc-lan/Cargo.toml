@@ -15,7 +15,7 @@ medoc-sync = { path = "../../../shared/medoc-sync" }
 # HTTP / TLS stack
 axum = { version = "0.8", features = ["macros", "json"] }
 axum-server = { version = "0.7", features = ["tls-rustls"] }
-rustls = { version = "0.23", features = ["aws_lc_rs"] }
+rustls = { version = "0.23.45", features = ["aws_lc_rs"] }
 rustls-pemfile = "2"
 rcgen = "0.13"
 tower = { version = "0.5", features = ["util"] }
