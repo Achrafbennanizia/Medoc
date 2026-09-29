@@ -86,11 +86,23 @@ std::string read_passphrase_file(const std::string& path) {
 }
 
 std::string read_passphrase_env(const std::string& var) {
+#ifdef _WIN32
+  char* v = nullptr;
+  size_t len = 0;
+  if (_dupenv_s(&v, &len, var.c_str()) != 0 || v == nullptr || v[0] == '\0') {
+    std::free(v);
+    throw std::runtime_error("environment variable not set or empty: " + var);
+  }
+  std::string out(v);
+  std::free(v);
+  return out;
+#else
   const char* v = std::getenv(var.c_str());
   if (v == nullptr || v[0] == '\0') {
     throw std::runtime_error("environment variable not set or empty: " + var);
   }
   return std::string(v);
+#endif
 }
 
 void print_usage() {
