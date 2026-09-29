@@ -2,10 +2,13 @@
 /**
  * Inject GitHub Releases updater endpoint + pubkey into tauri.conf.json before CI/local release builds.
  *
+ * Never writes signing private keys or GitHub PATs into the config (those stay
+ * in the CI environment for artifact signing only).
+ *
  * Env:
  *   MEDOC_UPDATER_GITHUB_REPO or GITHUB_REPOSITORY  — owner/repo
- *   TAURI_UPDATER_PUBKEY or MEDOC_TAURI_UPDATER_PUBKEY — minisign public key (safe to commit)
- *   TAURI_SIGNING_PRIVATE_KEY — when set, enables updater.active
+ *   TAURI_UPDATER_PUBKEY or MEDOC_TAURI_UPDATER_PUBKEY — minisign public key (safe to ship)
+ *   TAURI_SIGNING_PRIVATE_KEY — when set, enables updater.active (not copied into JSON)
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -39,7 +42,16 @@ if (conf.bundle) {
     conf.bundle.createUpdaterArtifacts = signed;
 }
 
-writeFileSync(confPath, `${JSON.stringify(conf, null, 2)}\n`);
+const serialized = `${JSON.stringify(conf, null, 2)}\n`;
+if (
+    /BEGIN [A-Z ]*PRIVATE KEY/i.test(serialized) ||
+    /ghp_[A-Za-z0-9]+/.test(serialized) ||
+    /github_pat_[A-Za-z0-9_]+/.test(serialized)
+) {
+    throw new Error("refusing to write tauri.conf.json: looks like a secret was interpolated");
+}
+
+writeFileSync(confPath, serialized);
 console.log(
-    `[configure-tauri-updater] repo=${repo || "(unchanged)"} active=${conf.plugins.updater.active}`,
+    `[configure-tauri-updater] repo=${repo || "(unchanged)"} active=${conf.plugins.updater.active} artifacts=${Boolean(conf.bundle?.createUpdaterArtifacts)}`,
 );

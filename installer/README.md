@@ -60,14 +60,19 @@ Run **medoc-keygen** for owner license codes (`license.code`). Member devices ne
 
 | Secret | Purpose |
 |--------|---------|
-| `TAURI_SIGNING_PRIVATE_KEY` | Contents of the generated private key |
-| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Passphrase used when generating the key |
-| `TAURI_UPDATER_PUBKEY` | Public key string (safe to commit; also injected at build time) |
-| `MEDOC_UPDATER_GITHUB_PAT` | Fine-grained PAT with **Contents: read** on this repo — baked into release builds so clients can fetch private release assets |
+| `TAURI_SIGNING_PRIVATE_KEY` | Minisign private key — **CI only**, used to sign updater artifacts. Never written into `tauri.conf.json` or the app binary. |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Passphrase for that key — **CI only**. |
+| `TAURI_UPDATER_PUBKEY` | Matching public key — shipped in the app so clients can verify updates. |
 
-`GITHUB_TOKEN` is used only inside CI to **create** the release; it is never embedded in the app.
+Do **not** put a GitHub PAT in CI env for the desktop build. A compile-time `MEDOC_UPDATER_GITHUB_TOKEN` would be embedded in the binary and recoverable from the installer.
 
-Optional per-practice override: store a read-only PAT in app KV key `updates.github_token` (requires `ops.system`).
+`GITHUB_TOKEN` is used only inside CI to **create** the GitHub Release (`contents: write` on that job). Checkouts use `persist-credentials: false`.
+
+Private-repo clients: store a **fine-grained PAT** (this repo, **Contents: read** only) in app KV `updates.github_token` (`ops.system`). That token stays on the practice device, not in the shipped installer.
+
+Public GitHub Releases need no PAT.
+
+The desktop app checks `https://github.com/<owner>/<repo>/releases/latest/download/latest.json` and installs via **Settings → About → Install update**. Payloads are accepted only if they verify against `TAURI_UPDATER_PUBKEY`.
 
 ### CI/CD
 
@@ -82,6 +87,4 @@ On a version tag:
 1. Builds signed installers on Linux, macOS, and Windows
 2. Merges updater manifests into `latest.json`
 3. Publishes a GitHub Release with installers + `latest.json`
-
-The desktop app checks `https://github.com/<owner>/<repo>/releases/latest/download/latest.json` (with bearer auth for private repos) and installs via **Settings → About → Install update**.
 

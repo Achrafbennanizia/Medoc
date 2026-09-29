@@ -15,14 +15,12 @@ concurrency:
   group: release-${{ github.event.workflow_run.head_sha || github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 env:
   MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
   MEDOC_UPDATER_GITHUB_REPO: ${{ github.repository }}
-  # Long-lived read-only PAT for private release assets (NOT the ephemeral GITHUB_TOKEN).
-  MEDOC_UPDATER_GITHUB_TOKEN: ${{ secrets.MEDOC_UPDATER_GITHUB_PAT }}
-  TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-  TAURI_UPDATER_PUBKEY: ${{ secrets.TAURI_UPDATER_PUBKEY }}
   # workflow_run's github.sha is the workflow file on default branch, not the green CI commit.
   MEDOC_CHECKOUT_REF: ${{ github.event.workflow_run.head_sha || github.sha }}
 
@@ -45,6 +43,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.MEDOC_CHECKOUT_REF }}
+          persist-credentials: false
       - name: Install libsodium (Linux)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libsodium-dev cmake build-essential
@@ -79,6 +78,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.MEDOC_CHECKOUT_REF }}
+          persist-credentials: false
       - run: sudo apt-get update && sudo apt-get install -y libsodium-dev cmake build-essential
       - run: bash installer/build-keygen.sh
       - name: Generate and verify manifest
@@ -112,6 +112,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.MEDOC_CHECKOUT_REF }}
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
@@ -137,10 +138,19 @@ jobs:
         run: ./scripts/ci-windows-unwrap-workspace-node-modules.ps1
       - run: npm run build -w medoc
       - name: Configure Tauri updater (GitHub Releases endpoint)
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TAURI_UPDATER_PUBKEY: ${{ secrets.TAURI_UPDATER_PUBKEY }}
         run: node scripts/configure-tauri-updater.mjs
       # Same as CI smoke: UI package `src-tauri` is a symlink; cargo metadata
       # on Windows must run from medoc-tauri-host (apps/practice-host).
+      # Signing secrets are step-scoped so they are not present for npm ci/tsc.
       - name: Tauri bundle
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TAURI_UPDATER_PUBKEY: ${{ secrets.TAURI_UPDATER_PUBKEY }}
         run: npm run tauri -w medoc-tauri-host -- build --bundles ${{ matrix.bundles }}
       - name: Upload installer
         uses: actions/upload-artifact@v4
@@ -156,6 +166,9 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/download-artifact@v4
         with:
           path: release-artifacts

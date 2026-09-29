@@ -1,8 +1,9 @@
-//! GitHub Releases update manifest (private repo via PAT).
+//! GitHub Releases update manifest.
 //!
-//! CI publishes `latest.json` on each tagged release. The app reads the same
-//! artifact using an optional bearer token (`MEDOC_UPDATER_GITHUB_TOKEN` at
-//! build time, or `updates.github_token` in app_kv).
+//! CI publishes `latest.json` on each tagged release. The app never embeds a
+//! GitHub token at compile time. Private repos need a practice-stored
+//! Contents:read PAT in app KV (`updates.github_token`). Public release
+//! assets need no token.
 
 use crate::error::AppError;
 use crate::infrastructure::database::app_kv_repo;
@@ -31,14 +32,7 @@ pub fn configured_repo() -> Option<&'static str> {
     option_env!("MEDOC_UPDATER_GITHUB_REPO").filter(|s| !s.is_empty())
 }
 
-fn compile_time_token() -> Option<&'static str> {
-    option_env!("MEDOC_UPDATER_GITHUB_TOKEN").filter(|s| !s.is_empty())
-}
-
 pub async fn resolve_github_token(pool: &SqlitePool) -> Option<String> {
-    if let Some(t) = compile_time_token() {
-        return Some(t.to_string());
-    }
     app_kv_repo::get(pool, GITHUB_TOKEN_KV_KEY)
         .await
         .ok()
