@@ -71,7 +71,13 @@ Optional per-practice override: store a read-only PAT in app KV key `updates.git
 
 ### CI/CD
 
-Tag a release (`git tag v0.1.1 && git push origin v0.1.1`). Workflow `.github/workflows/release.yml`:
+Workflow `.github/workflows/release.yml` builds installers when:
+
+- **CI on `main` succeeds** (`workflow_run`) — artifacts only (`medoc-installer-windows-latest`, etc.). No GitHub Release. Windows installer jobs unwrap npm workspace `node_modules` junctions (same as CI) and run Tauri from `medoc-tauri-host`.
+- **Manual:** Actions → Release → Run workflow.
+- **Version tag** (`git tag version0.1.1 && git push origin version0.1.1`): also publishes a GitHub Release with `latest.json` for the in-app updater.
+
+On a version tag:
 
 1. Builds signed installers on Linux, macOS, and Windows
 2. Merges updater manifests into `latest.json`

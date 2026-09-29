@@ -10,21 +10,24 @@ source "${ROOT}/scripts/rust-env.sh"
 export MEDOC_VENDOR_PUBKEY="${MEDOC_VENDOR_PUBKEY:-79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32}"
 
 npm ci
+OS="$(uname -s)"
+if [[ "$OS" == MINGW* || "$OS" == MSYS* || "$OS" == CYGWIN* ]]; then
+  powershell.exe -NoProfile -File "${ROOT}/scripts/ci-windows-unwrap-workspace-node-modules.ps1"
+fi
 npm run build -w medoc
 node scripts/configure-tauri-updater.mjs
 # Local USB/dev builds have no updater private key. Skip updater .tar.gz signing
 # unless TAURI_SIGNING_PRIVATE_KEY is set (CI release).
 
-OS="$(uname -s)"
 case "$OS" in
   Linux)
-    npm run tauri build -w medoc -- --bundles deb,rpm,appimage
+    npm run tauri -w medoc-tauri-host -- build --bundles deb,rpm,appimage
     ;;
   Darwin)
-    npm run tauri build -w medoc -- --bundles dmg,app
+    npm run tauri -w medoc-tauri-host -- build --bundles dmg,app
     ;;
   MINGW*|MSYS*|CYGWIN*)
-    npm run tauri build -w medoc -- --bundles nsis,msi
+    npm run tauri -w medoc-tauri-host -- build --bundles nsis,msi
     ;;
   *)
     echo "Unsupported OS for installer build: $OS" >&2
