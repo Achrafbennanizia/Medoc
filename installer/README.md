@@ -1,7 +1,12 @@
 # MeDoc installers and offline keygen
 
+**This tree is not the main product CD.** GitHub Actions **Release** on this repo
+ships the **desktop app** only (`medoc` / `MeDoc.app`). NSIS/MSI/DMG, USB kits,
+and **medoc-keygen** belong in a **separate installer/ops system**. Scripts here
+remain for that product and for local ops builds.
+
 Admin (cluster owner) devices are provisioned with the **medoc-keygen** tool, distributed
-separately from the desktop app installers. Member devices use in-app pairing only.
+separately from the desktop app. Member devices use in-app pairing only.
 
 ## USB multi-installer kit
 
@@ -31,7 +36,7 @@ See [medoc-keygen/README.md](medoc-keygen/README.md).
 bash installer/build-app-installers.sh
 ```
 
-Requires `MEDOC_VENDOR_PUBKEY` and platform Tauri build dependencies (see CI).
+Requires `MEDOC_VENDOR_PUBKEY` and platform Tauri build dependencies (see root README).
 
 ## Admin onboarding flow
 
@@ -42,15 +47,21 @@ Requires `MEDOC_VENDOR_PUBKEY` and platform Tauri build dependencies (see CI).
 
 Run **medoc-keygen** for owner license codes (`license.code`). Member devices never need a vendor license.
 
-## CI
+## CI (this repo)
 
-`.github/workflows/release.yml` — keygen artifacts, interop smoke, per-OS Tauri bundles.
+`.github/workflows/ci.yml` — tests. `.github/workflows/release.yml` — **app binaries**
+(`medoc-app-*` artifacts), not installers or keygen.
 
 ## In-app updates (Tauri + GitHub Releases)
 
-`apps/practice-host/tauri.conf.json` → `plugins.updater` is configured by `scripts/configure-tauri-updater.mjs` before release builds.
+Updater signing, `latest.json`, and OS installer packages are owned by the
+**installer/ops** pipeline, not this repo’s Release workflow.
 
-### One-time setup
+`apps/practice-host/tauri.conf.json` → `plugins.updater` is configured by
+`scripts/configure-tauri-updater.mjs` in the **installer/ops** build, not in this
+repo’s app Release job.
+
+### One-time setup (installer/ops GitHub repo)
 
 1. Generate a Tauri updater key pair:
    ```bash
@@ -74,17 +85,12 @@ Public GitHub Releases need no PAT.
 
 The desktop app checks `https://github.com/<owner>/<repo>/releases/latest/download/latest.json` and installs via **Settings → About → Install update**. Payloads are accepted only if they verify against `TAURI_UPDATER_PUBKEY`.
 
-### CI/CD
+### CI/CD (installer product)
 
-Workflow `.github/workflows/release.yml` builds installers when:
+Build OS packages and keygen in the **separate installer system**, or locally:
 
-- **CI on `main` succeeds** (`workflow_run`) — artifacts only (`medoc-installer-windows-latest`, etc.). No GitHub Release. Windows installer jobs unwrap npm workspace `node_modules` junctions (same as CI) and run Tauri from `medoc-tauri-host`.
-- **Manual:** Actions → Release → Run workflow.
-- **Version tag** (`git tag version0.1.1 && git push origin version0.1.1`): also publishes a GitHub Release with `latest.json` for the in-app updater.
-
-On a version tag:
-
-1. Builds signed installers on Linux, macOS, and Windows
-2. Merges updater manifests into `latest.json`
-3. Publishes a GitHub Release with installers + `latest.json`
+```bash
+bash installer/build-keygen.sh
+bash installer/build-app-installers.sh
+```
 

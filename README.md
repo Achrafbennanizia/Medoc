@@ -504,7 +504,8 @@ cargo test --workspace --tests
 3. **Tauri smoke** — `npm run build -w medoc` then `tauri build --debug --no-bundle` via `medoc-tauri-host`
 4. **ci-ok** gate — all required jobs green
 
-Release / updater: `.github/workflows/release.yml`.
+Release (desktop **app**, not NSIS/MSI/keygen): `.github/workflows/release.yml`.
+Installer packages and `medoc-keygen` are a **separate ops product** (`installer/`).
 
 Validation ledger: [`docs/coordination/validation.md`](docs/coordination/validation.md).
 

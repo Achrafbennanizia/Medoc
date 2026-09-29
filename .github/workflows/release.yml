@@ -5,7 +5,7 @@ on:
   push:
     tags:
       - "version*"
-  # After CI on main succeeds: build installers. Does not publish a GitHub Release.
+  # After CI on main succeeds: ship the desktop app (not NSIS/MSI/keygen).
   workflow_run:
     workflows: ["CI"]
     types: [completed]
@@ -25,8 +25,8 @@ env:
   MEDOC_CHECKOUT_REF: ${{ github.event.workflow_run.head_sha || github.sha }}
 
 jobs:
-  build-keygen:
-    name: medoc-keygen (${{ matrix.os }})
+  build-app:
+    name: App (${{ matrix.os }})
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ${{ matrix.os }}
     strategy:
@@ -34,80 +34,11 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            artifact: medoc-keygen-linux-x86_64
+            tauri_args: --no-bundle
           - os: macos-latest
-            artifact: medoc-keygen-macos
+            tauri_args: --bundles app
           - os: windows-latest
-            artifact: medoc-keygen-windows-x86_64.exe
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ env.MEDOC_CHECKOUT_REF }}
-          persist-credentials: false
-      - name: Install libsodium (Linux)
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libsodium-dev cmake build-essential
-      - name: Install libsodium (macOS)
-        if: runner.os == 'macOS'
-        run: brew install libsodium cmake
-      - name: Build keygen (Unix)
-        if: runner.os != 'Windows'
-        run: bash installer/build-keygen.sh
-      - name: Build keygen (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          choco install cmake -y
-          vcpkg install libsodium:x64-windows
-          cmake -S installer/medoc-keygen -B installer/medoc-keygen/build -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
-          cmake --build installer/medoc-keygen/build --config Release
-          New-Item -ItemType Directory -Force -Path installer/dist | Out-Null
-          Copy-Item installer/medoc-keygen/build/Release/medoc-keygen.exe installer/dist/medoc-keygen-windows-x86_64.exe
-          Copy-Item installer/medoc-keygen/build/Release/medoc-keygen-verify.exe installer/dist/medoc-keygen-verify-windows-x86_64.exe
-      - name: Upload keygen artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact }}
-          path: installer/dist/*
-
-  activation-smoke:
-    name: Activation interop smoke
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
-    runs-on: ubuntu-latest
-    needs: [build-keygen]
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ env.MEDOC_CHECKOUT_REF }}
-          persist-credentials: false
-      - run: sudo apt-get update && sudo apt-get install -y libsodium-dev cmake build-essential
-      - run: bash installer/build-keygen.sh
-      - name: Generate and verify manifest
-        run: |
-          echo 'correct horse battery staple' > /tmp/pw.txt
-          ./installer/dist/medoc-keygen-linux-* --out /tmp/activation.json --passphrase-file /tmp/pw.txt
-          ./installer/dist/medoc-keygen-verify-linux-* /tmp/activation.json 'correct horse battery staple'
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: . -> target
-      - name: Rust activation unwrap test
-        run: MEDOC_VENDOR_PUBKEY=$MEDOC_VENDOR_PUBKEY cargo test -p medoc-sync activation::tests::unwrap_matches_cpp_keygen_when_available -- --nocapture
-
-  build-installer:
-    name: App installer (${{ matrix.os }})
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
-    runs-on: ${{ matrix.os }}
-    needs: [activation-smoke]
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            bundles: deb,rpm,appimage
-          - os: macos-latest
-            bundles: dmg,app
-          - os: windows-latest
-            bundles: nsis,msi
+            tauri_args: --no-bundle
     steps:
       - uses: actions/checkout@v4
         with:
@@ -137,32 +68,43 @@ jobs:
         shell: pwsh
         run: ./scripts/ci-windows-unwrap-workspace-node-modules.ps1
       - run: npm run build -w medoc
-      - name: Configure Tauri updater (GitHub Releases endpoint)
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          TAURI_UPDATER_PUBKEY: ${{ secrets.TAURI_UPDATER_PUBKEY }}
-        run: node scripts/configure-tauri-updater.mjs
-      # Same as CI smoke: UI package `src-tauri` is a symlink; cargo metadata
-      # on Windows must run from medoc-tauri-host (apps/practice-host).
-      # Signing secrets are step-scoped so they are not present for npm ci/tsc.
-      - name: Tauri bundle
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          TAURI_UPDATER_PUBKEY: ${{ secrets.TAURI_UPDATER_PUBKEY }}
-        run: npm run tauri -w medoc-tauri-host -- build --bundles ${{ matrix.bundles }}
-      - name: Upload installer
+      # Run from medoc-tauri-host (apps/practice-host), not -w medoc.
+      - name: Tauri app (no OS installer packages)
+        run: npm run tauri -w medoc-tauri-host -- build ${{ matrix.tauri_args }}
+      - name: Stage app payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist-app
+          macos_bundle="apps/practice-host/target/release/bundle/macos"
+          if [[ -d "$macos_bundle" ]]; then
+            cp -R "$macos_bundle"/. dist-app/
+          elif [[ -f apps/practice-host/target/release/medoc.exe ]]; then
+            cp apps/practice-host/target/release/medoc.exe dist-app/
+          elif [[ -f target/release/medoc.exe ]]; then
+            cp target/release/medoc.exe dist-app/
+          elif [[ -f apps/practice-host/target/release/medoc ]]; then
+            cp apps/practice-host/target/release/medoc dist-app/
+          elif [[ -f target/release/medoc ]]; then
+            cp target/release/medoc dist-app/
+          else
+            echo "No MeDoc app binary found under target/release" >&2
+            find apps/practice-host/target/release -maxdepth 3 -type f 2>/dev/null | head -50 || true
+            find target/release -maxdepth 2 -type f 2>/dev/null | head -20 || true
+            exit 1
+          fi
+          ls -la dist-app
+      - name: Upload app
         uses: actions/upload-artifact@v4
         with:
-          name: medoc-installer-${{ matrix.os }}
-          path: apps/practice-host/target/release/bundle/**/*
+          name: medoc-app-${{ matrix.os }}
+          path: dist-app/**
 
   publish-release:
-    name: Publish GitHub Release (updater manifest)
+    name: Publish GitHub Release
     if: startsWith(github.ref, 'refs/tags/version')
     runs-on: ubuntu-latest
-    needs: [build-installer]
+    needs: [build-app]
     permissions:
       contents: write
     steps:
@@ -172,15 +114,9 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: release-artifacts
-      - name: Merge updater latest.json
-        run: |
-          node scripts/merge-updater-latest.mjs release-artifacts > latest.json
-          cat latest.json
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            latest.json
-            release-artifacts/**/*
+          files: release-artifacts/**/*
           generate_release_notes: true
           fail_on_unmatched_files: false
