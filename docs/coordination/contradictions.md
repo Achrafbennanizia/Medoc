@@ -1,6 +1,6 @@
 # Contradiction ledger
 
-**Last updated:** 2026-06-16
+**Last updated:** 2026-09-29
 
 ## Open contradictions
 
@@ -10,6 +10,14 @@
 | C5 | Activation-token RBAC scope | Plan ("activation-token allowed_actions on /sync/push|pull only") | `verify_activation_for_path` also accepts `/sync/status` + `/pairing/peers` | **Documented divergence** — broader allow-list documented in `serverless-sync.md`; matches frontend usage. |
 | C6 | "Encrypt every microservice" | User request 2026-05-26 | Plan slice rejected literal interpretation as YAGNI; only license envelope + activation token are encrypted/signed | **Resolved by plan note** — see [`docs/architecture/licensing.md`](../architecture/licensing.md) "What was explicitly not built". |
 | C7 | "Period" in license payload | User request 2026-05-26 | User chose `perpetual_device`; v2 schema stores `activated_at` only, no `expires_at` | **Resolved** — perpetual model documented in `licensing.md`. |
+
+## Workflow findings register (2026-09-29)
+
+| ID | Location | Finding | Evidence | Severity | Action |
+| -- | -------- | ------- | -------- | -------- | ------ |
+| WF-LOG-001 | `crates/shared/medoc-core/src/infrastructure/logging/mod.rs`, `crates/app/medoc-practice/src/commands/system/logging.rs`, `apps/practice-host-ui/src/services/{workflow-bridge.ts,tauri.service.ts}`, `apps/practice-host-ui/src/App.tsx` | Dedicated workflow channel and UI→backend workflow bridge were missing, so route/action lifecycle signals were not persisted as structured workflow events. | Code inspection during this run found only `app/security/system/device/migration/perf` channels and no `log_workflow_event` IPC command; now added and routed through sanitizer. | P1 | **Resolved in code**: added `workflow.log`, sanitized `log_workflow_event`, route-enter emission, and IPC primary_action/success/error emission. |
+| WF-LOG-002 | `crates/shared/medoc-core/src/domain/services/workflow_transitions.rs` | Domain workflow transition checks did not emit explicit transition-allowed/blocked events. | Prior transition helpers returned `Result` without emitting workflow-targeted trace records; now transition helpers emit `DOMAIN_STATE_TRANSITION` events to `medoc::workflow`. | P1 | **Resolved in code**: centralized transition logging added for appointment/chart/ticket/task/purchase-order state machines. |
+| WF-VAL-001 | Validation environment (`cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`) | Required Rust workspace validation cannot complete in this Cloud VM due disk pressure while compiling heavy Rust/Tauri dependency graph (space exhaustion during build artifacts). | Command outputs in `validation.md` show repeated `No space left on device (os error 28)` failures during Rust compilation. | P2 | **Open**: rerun Rust checks on a roomier environment (or after aggressive cache policy) to close the gate. |
 
 ## Resolved (recent)
 

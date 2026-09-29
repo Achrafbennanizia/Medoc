@@ -1,6 +1,20 @@
 # Action ledger
 
-**Last updated:** 2026-09-05 (payment fulfills open booking)
+**Last updated:** 2026-09-29 (workflow logging instrumentation)
+
+## Done (2026-09-29 — workflow logging instrumentation)
+
+- Extended core tracing channels with dedicated `workflow.log` (`medoc::workflow`) on the existing rotation pipeline.
+- Added sanitized `log_workflow_event` IPC command and frontend workflow bridge (route enter + IPC primary_action/success/error).
+- Added domain transition workflow events in `workflow_transitions`.
+- Added focused frontend tests for workflow bridge + IPC instrumentation.
+- Full frontend validation green (`npm run test`, `npm run build`); Rust workspace checks remain blocked by VM disk limits.
+
+## Now (current)
+
+- Use the new workflow logs to execute STEP 2 state-machine detection and register non-terminable flows.
+- Run Rust validation on a roomier environment (or with stronger cache pruning) so `cargo clippy --workspace -D warnings` and `cargo test --workspace` can complete.
+- Start STEP 3 behavior tests for `packages/ui` components/pages using the same findings-driven register flow.
 
 ## Done (2026-09-05 — payment → billing)
 

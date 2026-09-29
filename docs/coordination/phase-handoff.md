@@ -1,5 +1,41 @@
 # Phase handoff
 
+**Last phase label:** Workflow logging instrumentation foundation (2026-09-29)
+
+### Verified (2026-09-29 — STEP 1 logger foundation)
+
+- Existing tracing subsystem was extended in place (no parallel logger) with a dedicated `workflow.log` channel in `crates/shared/medoc-core/src/infrastructure/logging/mod.rs`.
+- New sanitized frontend→backend bridge now emits structured workflow events through `log_workflow_event`:
+  - Backend command: `crates/app/medoc-practice/src/commands/system/logging.rs`
+  - Frontend bridge + invoke instrumentation: `apps/practice-host-ui/src/services/workflow-bridge.ts`, `apps/practice-host-ui/src/services/tauri.service.ts`
+  - Route-enter emission: `apps/practice-host-ui/src/App.tsx`
+- Domain transition state-machine checks now emit structured allow/deny events to workflow channel in `crates/shared/medoc-core/src/domain/services/workflow_transitions.rs`.
+- Frontend validation passed:
+  - `npm run test` → **PASS** (69 files / 337 tests)
+  - `npm run build` → **PASS**
+  - Focused new tests → **PASS** (`workflow-bridge.test.ts`, `tauri.service.test.ts`)
+
+### Remains unverified
+
+- Log-rotation behavior for the new `workflow.log` in a live multi-day runtime — **NOT OBSERVED**.
+- End-to-end proof that *every* workflow step type (especially explicit cancel branches) is emitted across all pages/components — **NOT OBSERVED**.
+- Required Rust workspace validation gate is still incomplete in this VM:
+  - `cargo clippy --workspace --all-targets -- -D warnings` → **FAIL** (`No space left on device`)
+  - `cargo test --workspace` → **FAIL** (`No space left on device`)
+
+### Understanding delta
+
+- Logging coverage is now centrally extensible via a single workflow IPC contract and workflow target (`medoc::workflow`), which reduces the need for per-page ad-hoc file logging.
+- The main blocker for full Rust validation in this environment is storage budget, not compiler-version capability (toolchain upgraded to 1.98.1 during this run).
+
+### Required next
+
+1. Execute STEP 2 workflow-map detection runs using the new workflow logs; register non-terminable flows in `contradictions.md`.
+2. Expand UI workflow instrumentation for explicit cancel/success/error branches where no IPC call occurs (dialog/button-only flows).
+3. Rerun Rust gate (`cargo clippy/test`) on an environment with enough free disk to compile the full workspace.
+
+---
+
 **Last phase label:** Payment fulfills open booking (2026-09-05)
 
 ### Verified (2026-09-05 — payment → billing list)
