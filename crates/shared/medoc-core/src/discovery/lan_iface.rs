@@ -146,7 +146,10 @@ mod tests {
 
     #[test]
     fn home_wifi_subnet_scores_highest() {
-        assert!(lan_ipv4_addr_score("192.168.1.20".parse().unwrap()) > lan_ipv4_addr_score("10.0.0.5".parse().unwrap()));
+        assert!(
+            lan_ipv4_addr_score("192.168.1.20".parse().unwrap())
+                > lan_ipv4_addr_score("10.0.0.5".parse().unwrap())
+        );
         assert!(
             lan_ipv4_addr_score("192.168.1.20".parse().unwrap())
                 > lan_ipv4_addr_score("172.17.0.1".parse().unwrap())

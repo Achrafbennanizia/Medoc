@@ -102,10 +102,7 @@ fn pick_mdns_reachable_host(addrs: impl Iterator<Item = IpAddr>) -> String {
     if let Some(ip) = v4.first() {
         return ip.to_string();
     }
-    v6_addrs
-        .first()
-        .map(|a| a.to_string())
-        .unwrap_or_default()
+    v6_addrs.first().map(|a| a.to_string()).unwrap_or_default()
 }
 
 fn map_mdns(e: impl std::fmt::Display) -> AppError {
