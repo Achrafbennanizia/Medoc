@@ -28,6 +28,12 @@ export type AppointmentCardHoverScaleId = "off" | "sm" | "md" | "lg" | "xl" | "x
 /** Default Appointment overview view (`/appointments`). */
 export type AppointmentCalendarView = "day" | "week" | "month";
 
+/** Whether new appointments need a separate confirm step. */
+export type AppointmentConfirmMode = "manual" | "auto";
+
+/** Whether new appointments need a separate confirm step. */
+export type AppointmentConfirmMode = "manual" | "auto";
+
 /** Appearance: light / dark / system (system follows `prefers-color-scheme`). */
 export type ColorSchemeId = "light" | "dark" | "system";
 
@@ -62,12 +68,17 @@ export type ClientSettingsV1 = {
     workflows?: {
         /** Open `/appointments` with this view */
         appointmentsDefaultView?: AppointmentCalendarView;
-        /** Preset duration in "New appointment" (minutes). */
+        /** Default duration in "New appointment" (minutes). */
         defaultAppointmentDurationMin?: number;
         /** Local time for one-time daily reminder (HH:mm, e.g. 18:00). */
         dayCloseReminderTime?: string;
         /** CAL2: pause/emergency toolbar in calendar (experimental). */
         calendarEmergencyToolbarEnabled?: boolean;
+        /**
+         * New appointments: `manual` → start as PLANNED (confirm in calendar);
+         * `auto` → start as CONFIRMED.
+         */
+        appointmentConfirmMode?: AppointmentConfirmMode;
     };
     /** Search */
     search?: {
@@ -120,6 +131,7 @@ export const DEFAULT_CLIENT_SETTINGS: ClientSettingsV1 = {
         defaultAppointmentDurationMin: 30,
         dayCloseReminderTime: "18:00",
         calendarEmergencyToolbarEnabled: false,
+        appointmentConfirmMode: "manual",
     },
     search: {
         patientIncludeInsuranceNumber: true,
@@ -173,6 +185,17 @@ export function normalizeAppointmentCalendarView(raw: unknown): AppointmentCalen
     return "month";
 }
 
+export function normalizeAppointmentConfirmMode(raw: unknown): AppointmentConfirmMode {
+    return raw === "auto" ? "auto" : "manual";
+}
+
+/** Status applied when creating an appointment (settings → Workflows). */
+export function defaultCreateAppointmentStatus(s?: ClientSettingsV1): "PLANNED" | "CONFIRMED" {
+    return normalizeAppointmentConfirmMode(s?.workflows?.appointmentConfirmMode) === "auto"
+        ? "CONFIRMED"
+        : "PLANNED";
+}
+
 export function normalizeAppointmentCardHoverScale(raw: unknown): AppointmentCardHoverScaleId {
     if (raw === "off" || raw === "sm" || raw === "md" || raw === "lg" || raw === "xl" || raw === "xxl") return raw;
     return "md";
@@ -188,6 +211,10 @@ function normalizeFromStorage(j: Partial<ClientSettingsV1>): ClientSettingsV1 {
     const view = normalizeAppointmentCalendarView(j.workflows?.appointmentsDefaultView);
     if (out.workflows?.appointmentsDefaultView !== view) {
         out = mergeClient(out, { workflows: { ...out.workflows!, appointmentsDefaultView: view } });
+    }
+    const confirmMode = normalizeAppointmentConfirmMode(j.workflows?.appointmentConfirmMode);
+    if (out.workflows?.appointmentConfirmMode !== confirmMode) {
+        out = mergeClient(out, { workflows: { ...out.workflows!, appointmentConfirmMode: confirmMode } });
     }
     const hover = normalizeAppointmentCardHoverScale(j.appearance?.appointmentCardHoverScale);
     if (out.appearance?.appointmentCardHoverScale !== hover) {

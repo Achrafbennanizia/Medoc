@@ -54,7 +54,10 @@ export const CreatePatientSchema = z.object({
     name: nonEmpty("Name is required").max(120),
     date_of_birth: isoDate,
     sex: SexSchema,
-    insurance_number: nonEmpty("Insurance number is required").max(40),
+    insurance_number: z
+        .string()
+        .max(40)
+        .transform((version) => version.trim()),
     phone: optionalText,
     email: z
         .union([z.string().email("Invalid email"), z.literal(""), z.null(), z.undefined()])

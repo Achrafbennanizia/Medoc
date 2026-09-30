@@ -133,9 +133,11 @@ export function PatientCreatePage() {
                 next.date_of_birth = t("page.patient_create.validation.birthdate_future");
             }
         }
-        if (!form.insurance_number.trim()) {
+        const selfPay = form.insuranceStatus === "SONSTIG";
+        const insuranceNumber = form.insurance_number.trim();
+        if (!selfPay && !insuranceNumber) {
             next.insurance_number = t("page.patient_create.validation.insurance_number_required");
-        } else if (!/^[A-Z0-9-]{5,20}$/i.test(form.insurance_number.trim())) {
+        } else if (insuranceNumber && !/^[A-Z0-9-]{5,20}$/i.test(insuranceNumber)) {
             next.insurance_number = t("page.patient_create.validation.insurance_number_format");
         }
         if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(form.email.trim())) {
@@ -338,7 +340,16 @@ export function PatientCreatePage() {
                         <Input id="health_insurance" label={t("page.patient_create.field.insurance_fund")} value={form.health_insurance} onChange={(e) => set("health_insurance", e.target.value)} />
                         <Input
                             id="vnr"
-                            label={t("page.patient_create.field.insurance_number")}
+                            label={
+                                form.insuranceStatus === "SONSTIG"
+                                    ? t("page.patient_create.field.insurance_number_optional")
+                                    : t("page.patient_create.field.insurance_number")
+                            }
+                            hint={
+                                form.insuranceStatus === "SONSTIG"
+                                    ? t("page.patient_create.field.insurance_number_optional_hint")
+                                    : undefined
+                            }
                             value={form.insurance_number}
                             error={errors.insurance_number}
                             onChange={(e) => set("insurance_number", e.target.value)}

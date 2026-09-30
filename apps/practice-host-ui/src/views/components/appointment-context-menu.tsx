@@ -1,6 +1,7 @@
 import { useT, isRtlLocale, useLocale } from "@/lib/i18n";
 import type { Appointment } from "@/models/types";
 import { appointmentKindLabelFromAppointment } from "@/lib/appointment-calendar-ui";
+import { APPOINTMENT_CALL_REMINDER_ENABLED } from "@/lib/v1-ui-flags";
 
 export type AppointmentContextMenuProps = {
     appointment: Appointment;
@@ -46,7 +47,9 @@ export function AppointmentContextMenu({
             <button type="button" className="menu-item" onClick={() => { onOpenDetails(); onClose(); }}>{t("appointment.context.open_details")}</button>
             <div className="menu-sep" />
             <button type="button" className="menu-item" onClick={() => { onEdit(); onClose(); }}>{t("appointment.context.edit")}</button>
-            <button type="button" className="menu-item" onClick={() => { onReminder(); onClose(); }}>{t("appointment.drawer.reminder")}</button>
+            {APPOINTMENT_CALL_REMINDER_ENABLED ? (
+                <button type="button" className="menu-item" onClick={() => { onReminder(); onClose(); }}>{t("appointment.drawer.reminder")}</button>
+            ) : null}
             <button type="button" className="menu-item danger" onClick={() => { onStornieren(); onClose(); }}>{t("appointment.drawer.cancel")}</button>
         </div>
     );

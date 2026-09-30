@@ -88,6 +88,14 @@ function patientStatusLabel(status: PatientStatus, tr: (key: string) => string):
     }
 }
 
+/** DB stand-in for self-pay patients with no insurance number (`SELF-` + 8 hex). */
+function displayInsuranceNumber(value: string | null | undefined): string | null {
+    const trimmed = (value ?? "").trim();
+    if (!trimmed) return null;
+    if (/^SELF-[0-9A-Fa-f]{8}$/.test(trimmed)) return null;
+    return trimmed;
+}
+
 export function PatientDetailShellHeader({
     patient,
     validationPendingTotal,
@@ -130,6 +138,7 @@ export function PatientDetailShellHeader({
 }: PatientDetailShellHeaderProps) {
     const t = useT();
     const tp = useTParams();
+    const insuranceDisplay = displayInsuranceNumber(patient.insurance_number);
 
     return (
         <>
@@ -359,10 +368,10 @@ export function PatientDetailShellHeader({
                         <MailIcon size={12} aria-hidden />
                         <span className="patient-hero-contact__text">
                             {patient.email || "—"}
-                            {patient.insurance_number ? (
+                            {insuranceDisplay ? (
                                 <>
                                     <span className="patient-hero-contact__sep"> · </span>
-                                    {t("patient.detail.header.insurance_prefix")} {patient.insurance_number}
+                                    {t("patient.detail.header.insurance_prefix")} {insuranceDisplay}
                                 </>
                             ) : null}
                         </span>

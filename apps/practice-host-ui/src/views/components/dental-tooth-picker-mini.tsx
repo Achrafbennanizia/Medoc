@@ -20,10 +20,12 @@ type DentalToothPickerMiniProps = {
     findings: DentalFinding[];
     /** Selected FDI numbers (e.g. `["14","16"]`). */
     selectedTeeth: string[];
-    /** Toggle selection for one tooth (multi-select). */
-    onToggleTooth: (fdi: string) => void;
+    /** Toggle selection for one tooth (multi-select). Ignored when `readOnly`. */
+    onToggleTooth?: (fdi: string) => void;
     /** Short reception hint (shown above chart). */
     hint?: string;
+    /** Highlight selected teeth without allowing edits (appointment drawer). */
+    readOnly?: boolean;
 };
 
 /**
@@ -35,6 +37,7 @@ export function DentalToothPickerMini({
     selectedTeeth,
     onToggleTooth,
     hint,
+    readOnly = false,
 }: DentalToothPickerMiniProps) {
     const t = useT();
     const tp = useTParams();
@@ -54,37 +57,54 @@ export function DentalToothPickerMini({
         const state = DENTAL_STATES[stateKey];
         const isSel = selectedSet.has(n);
         const label = formatDentalToothLabel(n, t);
-        return (
-            <button
-                key={n}
-                type="button"
-                className={`dental-mini-tooth-btn${isSel ? " dental-mini-tooth-btn--selected" : ""}`}
-                aria-label={tp("dental.tooth_aria", { tooth: label })}
-                aria-pressed={isSel}
-                onClick={() => onToggleTooth(n)}
-            >
+        const aria = tp("dental.tooth_aria", { tooth: label });
+        const svg = (
+            <>
                 <svg width="20" height="32" viewBox="0 0 20 34" aria-hidden className="dental-mini-tooth-svg">
                     <path
                         d={shape.crown}
                         fill={state.fill}
                         stroke={state.stroke}
-                        strokeWidth={isSel ? 1.35 : 0.85}
+                        strokeWidth={isSel ? 1.7 : 1.15}
                     />
                     <path
                         d={shape.root}
                         fill={state.fill}
                         stroke={state.stroke}
-                        strokeWidth={isSel ? 1.35 : 0.85}
+                        strokeWidth={isSel ? 1.7 : 1.15}
                     />
                 </svg>
                 <span className="dental-mini-tooth-num">{label}</span>
+            </>
+        );
+        if (readOnly) {
+            return (
+                <span
+                    key={n}
+                    className={`dental-mini-tooth-btn${isSel ? " dental-mini-tooth-btn--selected" : ""}`}
+                    aria-label={aria}
+                >
+                    {svg}
+                </span>
+            );
+        }
+        return (
+            <button
+                key={n}
+                type="button"
+                className={`dental-mini-tooth-btn${isSel ? " dental-mini-tooth-btn--selected" : ""}`}
+                aria-label={aria}
+                aria-pressed={isSel}
+                onClick={() => onToggleTooth?.(n)}
+            >
+                {svg}
             </button>
         );
     };
 
     return (
-        <div className="dental-tooth-picker-mini">
-            <p className="dental-tooth-picker-mini__hint">{hint ?? t("dental.picker.hint")}</p>
+        <div className={`dental-tooth-picker-mini${readOnly ? " dental-tooth-picker-mini--readonly" : ""}`}>
+            {readOnly ? null : <p className="dental-tooth-picker-mini__hint">{hint ?? t("dental.picker.hint")}</p>}
             {pickedLabel.length ? (
                 <p className="dental-tooth-picker-mini__picked">
                     {t("dental.picker.selected_label")}{" "}

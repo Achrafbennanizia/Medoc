@@ -98,12 +98,28 @@ pub async fn search(
     Ok(rows)
 }
 
+/// Unique stand-in when self-pay / other patients have no insurance number.
+/// The column is NOT NULL UNIQUE, so empty strings cannot be reused.
+fn insurance_number_for_insert(requested: &str, patient_id: &str) -> String {
+    let trimmed = requested.trim();
+    if !trimmed.is_empty() {
+        return trimmed.to_string();
+    }
+    let hex: String = patient_id
+        .chars()
+        .filter(|c| c.is_ascii_hexdigit())
+        .take(8)
+        .collect();
+    format!("SELF-{hex}")
+}
+
 pub async fn create(pool: &SqlitePool, data: &CreatePatient) -> Result<Patient, AppError> {
     let id = uuid::Uuid::new_v4().to_string();
     let sex = serde_json::to_string(&data.sex)
         .map_err(|e| AppError::Internal(format!("Serialize gender: {e}")))?
         .trim_matches('"')
         .to_uppercase();
+    let insurance_number = insurance_number_for_insert(&data.insurance_number, &id);
 
     sqlx::query(
         "INSERT INTO patient (id, name, date_of_birth, sex, insurance_number, phone, email, address)
@@ -113,7 +129,7 @@ pub async fn create(pool: &SqlitePool, data: &CreatePatient) -> Result<Patient, 
     .bind(&data.name)
     .bind(data.date_of_birth.to_string())
     .bind(&sex)
-    .bind(&data.insurance_number)
+    .bind(&insurance_number)
     .bind(&data.phone)
     .bind(&data.email)
     .bind(&data.address)
@@ -251,4 +267,23 @@ pub async fn delete(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
     )
     .await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod insurance_number_insert_tests {
+    use super::insurance_number_for_insert;
+
+    #[test]
+    fn keeps_provided_number() {
+        assert_eq!(
+            insurance_number_for_insert(" A123456789 ", "unused"),
+            "A123456789"
+        );
+    }
+
+    #[test]
+    fn synthesizes_unique_self_pay_placeholder() {
+        let vn = insurance_number_for_insert("", "a1b2c3d4-e5f6-7890-abcd-ef1234567890");
+        assert_eq!(vn, "SELF-a1b2c3d4");
+    }
 }

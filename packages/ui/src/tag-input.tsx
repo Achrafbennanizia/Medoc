@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from "react";
+import { useId, useMemo, useState, type CSSProperties } from "react";
 import { XIcon } from "@/lib/icons";
 import { useT, useTParams } from "@/lib/i18n";
 
@@ -38,42 +38,17 @@ export function TagInput({ label, value, onChange, placeholder, suggestions = []
             <label htmlFor={inputId} className="form-label">
                 {label}
             </label>
-            <div
-                className="tag-input-shell"
-                style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: 8,
-                    alignItems: "center",
-                    minHeight: 44,
-                    padding: "8px 10px",
-                    borderRadius: 10,
-                    border: error ? "1px solid var(--red)" : "1px solid var(--line-strong)",
-                    background: "#fff",
-                }}
-            >
+            <div className={`tag-input-shell${error ? " tag-input-shell--error" : ""}`}>
                 {value.map((tag, i) => (
                     <span
                         key={tag}
                         className="tag-chip"
-                        style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 6,
-                            padding: "4px 10px",
-                            borderRadius: 999,
-                            fontSize: 12.5,
-                            fontWeight: 600,
-                            color: "#111",
-                            background: `${DAY_COLORS[i % DAY_COLORS.length]}26`,
-                            border: `1px solid ${DAY_COLORS[i % DAY_COLORS.length]}55`,
-                        }}
+                        style={{ "--tag-chip-accent": DAY_COLORS[i % DAY_COLORS.length] } as CSSProperties}
                     >
                         {tag}
                         <button
                             type="button"
-                            className="icon-btn"
-                            style={{ width: 20, height: 20, color: "var(--fg-2)" }}
+                            className="icon-btn tag-chip-remove"
                             aria-label={tParams("a11y.remove_tag", { tag })}
                             onClick={() => onChange(value.filter((x) => x !== tag))}
                         >
@@ -92,7 +67,7 @@ export function TagInput({ label, value, onChange, placeholder, suggestions = []
                         }
                     }}
                     placeholder={value.length === 0 ? (placeholder ?? t("common.tag_input_placeholder")) : ""}
-                    style={{ flex: "1 1 120px", minWidth: 100, border: "none", outline: "none", fontSize: 14, background: "transparent" }}
+                    className="tag-input-field"
                 />
             </div>
             {sugFiltered.length > 0 ? (

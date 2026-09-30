@@ -35,6 +35,13 @@ export const MIGRATION_LIVE_DEVICE_ADAPTERS_ENABLED = false;
 export const CLUSTER_ADMIN_PANEL_V_1_ENABLED = false;
 
 /**
+ * Appointment side drawer + context menu: Call and Reminder.
+ * Today these only toast; restore when telephony / SMS-email reminders are wired.
+ * See `docs/coordination/todos-deferred-ui-blinds.md`.
+ */
+export const APPOINTMENT_CALL_REMINDER_ENABLED = false;
+
+/**
  * Patient Chart header — Task to reception, Request review, Discharge sheet.
  * Dialogs remain wired in `patient-detail.tsx`; re-enable when sell-ready polish is done.
  */

@@ -23,6 +23,12 @@ import {
     ShieldCheckIcon,
     XIcon,
 } from "@/lib/icons";
+import { APPOINTMENT_CALL_REMINDER_ENABLED } from "@/lib/v1-ui-flags";
+import {
+    extractToothacheFdisFromChiefComplaint,
+    splitChiefComplaintParts,
+} from "@/lib/dental";
+import { DentalToothPickerMini } from "./dental-tooth-picker-mini";
 
 function appointmentDrawerActiveStep(status: Appointment["status"]): number {
     if (status === "COMPLETED") return 3;
@@ -65,6 +71,8 @@ export function AppointmentDetailDrawer({
     const st = appointmentStateDisplay(appointment);
     const active = appointmentDrawerActiveStep(appointment.status);
     const duration = Math.max(5, parseAppointmentDurationMin(appointment.notes, APPOINTMENT_DEFAULT_DUR_MIN));
+    const complaintParts = splitChiefComplaintParts(appointment.chief_complaint);
+    const painTeeth = extractToothacheFdisFromChiefComplaint(appointment.chief_complaint);
 
     useEffect(() => {
         const prevOverflow = document.body.style.overflow;
@@ -167,6 +175,27 @@ export function AppointmentDetailDrawer({
                             <div className="appointment-drawer-meta-val">{appointmentKindLabelFromAppointment(appointment)}</div>
                         </div>
                     </div>
+                    <div className="appointment-drawer-section">
+                        <div className="appointment-drawer-eyebrow">{t("appointment.drawer.complaints")}</div>
+                        {complaintParts.length ? (
+                            <div className="appointment-drawer-chips">
+                                {complaintParts.map((part) => (
+                                    <span key={part} className="appointment-drawer-chip">
+                                        {part}
+                                    </span>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="appointment-drawer-meta-val">{t("appointment.drawer.complaints_empty")}</div>
+                        )}
+                    </div>
+                    <div className="appointment-drawer-section">
+                        <div className="appointment-drawer-eyebrow">{t("appointment.drawer.tooth_view")}</div>
+                        <DentalToothPickerMini findings={[]} selectedTeeth={painTeeth} readOnly />
+                        {painTeeth.length ? null : (
+                            <div className="appointment-drawer-meta-val">{t("appointment.drawer.tooth_view_empty")}</div>
+                        )}
+                    </div>
                     {appointment.notes?.trim() ? (
                         <div className="appointment-drawer-note">
                             <div className="appointment-drawer-note-title">{t("appointment.drawer.note")}</div>
@@ -174,14 +203,19 @@ export function AppointmentDetailDrawer({
                         </div>
                     ) : null}
                     <div className="appointment-drawer-actions row">
-                        <button type="button" className="btn btn-subtle" onClick={onPhone}>
-                            <PhoneIcon size={14} />
-                            {t("appointment.drawer.call")}
-                        </button>
-                        <button type="button" className="btn btn-subtle" onClick={onReminder}>
-                            <MailIcon size={14} />
-                            {t("appointment.drawer.reminder")}
-                        </button>
+                        {/* TODO(later): restore Call + Reminder — see docs/coordination/todos-deferred-ui-blinds.md */}
+                        {APPOINTMENT_CALL_REMINDER_ENABLED ? (
+                            <>
+                                <button type="button" className="btn btn-subtle" onClick={onPhone}>
+                                    <PhoneIcon size={14} />
+                                    {t("appointment.drawer.call")}
+                                </button>
+                                <button type="button" className="btn btn-subtle" onClick={onReminder}>
+                                    <MailIcon size={14} />
+                                    {t("appointment.drawer.reminder")}
+                                </button>
+                            </>
+                        ) : null}
                         <button type="button" className="btn btn-subtle" onClick={onEdit}>
                             <EditIcon size={14} />
                             {t("appointment.drawer.edit")}

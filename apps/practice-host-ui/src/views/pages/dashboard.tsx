@@ -2,13 +2,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { getDashboardStats, type DashboardStats } from "@/systems/practice-host/controllers/statistics.controller";
-import { listAppointments } from "@/systems/practice-host/controllers/appointment.controller";
+import { APPOINTMENTS_CHANGED_EVENT, listAppointments } from "@/systems/practice-host/controllers/appointment.controller";
 import { listPatients } from "@/systems/practice-host/controllers/patient.controller";
 import { listPurchaseOrders, updatePurchaseOrderStatus, type PurchaseOrder } from "@/systems/practice-host/controllers/purchase-order.controller";
-import { listChartValidation, rowsToValidationMaps, setChartSectionValidated } from "@/systems/practice-host/controllers/validation.controller";
-import { listChartNextAppointmentHintsPending } from "@/systems/practice-host/controllers/plan-next-appointment.controller";
-import { parsePlanNextFromHintJson, planNextHasContent, planNextReceptionTeaser } from "@/lib/plan-next-appointment";
-import { errorMessage, formatCurrency, formatDate } from "@/lib/utils";
+import {
+    listChartsToValidate,
+    validatePatientChart,
+    type ChartToValidateRow,
+} from "@/systems/practice-host/controllers/chart-workflow.controller";
+import { errorMessage, formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { useAuthStore } from "../../models/store/auth-store";
 import type { Patient, Appointment } from "../../models/types";
 import { allowed, parseRole, routeChildPathAllowed } from "@/lib/rbac";
@@ -19,17 +21,16 @@ import { useToastStore } from "../components/ui/toast-store";
 import { EmptyState } from "../components/ui/empty-state";
 import { appointmentIsEmergencyMarked } from "@/lib/appointment-domain";
 import { appointmentKindLabel } from "@/lib/appointment-calendar-ui";
-import { useLocale, useT, useTParams, useCollatorLocale, bcp47ForLocale } from "@/lib/i18n";
+import { useLocale, useT, useTParams, bcp47ForLocale } from "@/lib/i18n";
 import { loadClientSettings } from "@/lib/client-settings";
 import { listUpcomingAppointments, type UpcomingAppointment } from "@/systems/practice-host/controllers/integration.controller";
 import { kpiIconChrome } from "@/lib/kpi-icon-chrome";
 import { WorkspacePageHeader } from "../components/administration-page-header";
 import { DismissibleNotice } from "../components/ui/dismissible-notice";
 
-const PRUEF_PATIENT_CAP = 100;
 const DASHBOARD_PURCHASE_ORDERS_MAX = 10;
-const CHART_VALIDATION_BATCH = 20;
-const PLAN_NEXT_FREIGABEN_CAP = 25;
+const CHARTS_QUEUE_POLL_MS = 15_000;
+const UPCOMING_APPOINTMENTS_POLL_MS = 15_000;
 const INSIGHTS_DISMISSED_KEY = "medoc.dashboard.insights.dismissed";
 
 function readInsightsDismissed(): boolean {
@@ -75,14 +76,13 @@ export function DashboardPage() {
     const t = useT();
     const tp = useTParams();
     const locale = useLocale((s) => s.locale);
-    const sortLocale = useCollatorLocale();
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [statsError, setStatsError] = useState<string | null>(null);
     const [appointments, setAppointments] = useState<Appointment[]>([]);
     const [patients, setPatients] = useState<Patient[]>([]);
     const [purchase_orders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
-    const [pruefMasterPendingIds, setPruefMasterPendingIds] = useState<string[]>([]);
-    const [pruefScanLoading, setPruefScanLoading] = useState(false);
+    const [chartsToValidate, setChartsToValidate] = useState<ChartToValidateRow[]>([]);
+    const [chartsQueueLoading, setChartsQueueLoading] = useState(false);
     const [dismissedFreigabe, setDismissedFreigabe] = useState<Record<string, true>>({});
     const [approveBusyId, setApproveBusyId] = useState<string | null>(null);
     const [orderBusyId, setOrderBusyId] = useState<string | null>(null);
@@ -91,7 +91,6 @@ export function DashboardPage() {
     const [upcomingAppointments, setUpcomingAppointments] = useState<UpcomingAppointment[]>([]);
     const listsErrorToastSent = useRef(false);
     const [reloadToken, setReloadToken] = useState(0);
-    const [planNextPending, setPlanNextPending] = useState<{ patientId: string; hintJson: string }[]>([]);
     const [insightsDismissed, setInsightsDismissed] = useState(readInsightsDismissed);
     const reload = useCallback(() => setReloadToken((n) => n + 1), []);
     const session = useAuthStore((s) => s.session);
@@ -123,31 +122,40 @@ export function DashboardPage() {
         let cancelled = false;
         listsErrorToastSent.current = false;
         setListsError(null);
-        Promise.all([listAppointments(), listPatients(), listPurchaseOrders()])
-            .then(([appointmentsList, patientList, purchaseOrdersList]) => {
-                if (!cancelled) {
-                    setAppointments(appointmentsList);
-                    setPatients(patientList);
-                    setPurchaseOrders(purchaseOrdersList);
-                    setListsError(null);
-                }
-            })
-            .catch((e) => {
-                if (!cancelled) {
-                    const msg = errorMessage(e);
-                    console.error("[Dashboard] listAppointments/listPatients/listPurchaseOrders failed:", e);
-                    setAppointments([]);
-                    setPatients([]);
-                    setPurchaseOrders([]);
-                    setListsError(msg);
-                    if (!listsErrorToastSent.current) {
-                        listsErrorToastSent.current = true;
-                        toast(`${t("dashboard.lists_load_error")}: ${msg}`, "error");
+
+        const loadLists = (showError: boolean) =>
+            Promise.all([listAppointments(), listPatients(), listPurchaseOrders()])
+                .then(([appointmentsList, patientList, purchaseOrdersList]) => {
+                    if (!cancelled) {
+                        setAppointments(appointmentsList);
+                        setPatients(patientList);
+                        setPurchaseOrders(purchaseOrdersList);
+                        setListsError(null);
                     }
-                }
-            });
+                })
+                .catch((e) => {
+                    if (!cancelled) {
+                        const msg = errorMessage(e);
+                        console.error("[Dashboard] listAppointments/listPatients/listPurchaseOrders failed:", e);
+                        setAppointments([]);
+                        setPatients([]);
+                        setPurchaseOrders([]);
+                        setListsError(msg);
+                        if (showError && !listsErrorToastSent.current) {
+                            listsErrorToastSent.current = true;
+                            toast(`${t("dashboard.lists_load_error")}: ${msg}`, "error");
+                        }
+                    }
+                });
+
+        void loadLists(true);
+        const onAppointmentsChanged = () => {
+            void loadLists(false);
+        };
+        window.addEventListener(APPOINTMENTS_CHANGED_EVENT, onAppointmentsChanged);
         return () => {
             cancelled = true;
+            window.removeEventListener(APPOINTMENTS_CHANGED_EVENT, onAppointmentsChanged);
         };
     }, [reloadToken, t, toast]);
 
@@ -158,81 +166,88 @@ export function DashboardPage() {
             setUpcomingAppointments([]);
             return;
         }
-        void listUpcomingAppointments(24 * 60)
-            .then((rows) => {
+
+        const loadUpcoming = async (showError: boolean) => {
+            try {
+                const rows = await listUpcomingAppointments(24 * 60);
                 if (!cancelled) setUpcomingAppointments(rows);
-            })
-            .catch((e) => {
+            } catch (e) {
                 if (!cancelled) {
                     setUpcomingAppointments([]);
-                    toast(`${t("dashboard.reminders.toast_load_error")}: ${errorMessage(e)}`, "error");
+                    if (showError) {
+                        toast(`${t("dashboard.reminders.toast_load_error")}: ${errorMessage(e)}`, "error");
+                    }
                 }
-            });
-        return () => {
-            cancelled = true;
+            }
         };
-    }, [reloadToken, session?.role, toast, t]);
 
-    useEffect(() => {
-        let cancelled = false;
-        const r = parseRole(session?.role ?? undefined);
-        if (!r || !allowed("patient.read", r)) {
-            setPlanNextPending([]);
-            return;
-        }
-        void listChartNextAppointmentHintsPending()
-            .then((rows) => {
-                if (!cancelled) setPlanNextPending(rows);
-            })
-            .catch((e) => {
-                if (!cancelled) {
-                    setPlanNextPending([]);
-                    toast(`${t("dashboard.plan_next.toast_load_error")}: ${errorMessage(e)}`, "warning");
-                }
-            });
+        void loadUpcoming(true);
+        const interval = window.setInterval(() => {
+            void loadUpcoming(false);
+        }, UPCOMING_APPOINTMENTS_POLL_MS);
+        const onChanged = () => {
+            void loadUpcoming(false);
+        };
+        const onVisible = () => {
+            if (document.visibilityState === "visible") void loadUpcoming(false);
+        };
+        window.addEventListener(APPOINTMENTS_CHANGED_EVENT, onChanged);
+        window.addEventListener("focus", onChanged);
+        document.addEventListener("visibilitychange", onVisible);
         return () => {
             cancelled = true;
+            window.clearInterval(interval);
+            window.removeEventListener(APPOINTMENTS_CHANGED_EVENT, onChanged);
+            window.removeEventListener("focus", onChanged);
+            document.removeEventListener("visibilitychange", onVisible);
         };
     }, [reloadToken, session?.role, toast, t]);
 
     useEffect(() => {
         let cancelled = false;
         const role = parseRole(session?.role ?? undefined);
-        if (!role || !allowed("patient.read", role, session?.permission_overrides) || !allowed("patient.read_medical", role, session?.permission_overrides)) {
-            setPruefMasterPendingIds([]);
-            setPruefScanLoading(false);
-            return;
-        }
-        const slice = patients.slice(0, PRUEF_PATIENT_CAP);
-        if (slice.length === 0) {
-            setPruefMasterPendingIds([]);
-            setPruefScanLoading(false);
-            return;
-        }
-        setPruefScanLoading(true);
-        setPruefMasterPendingIds([]);
-        void (async () => {
-            const pending: string[] = [];
-            for (let i = 0; i < slice.length && !cancelled; i += CHART_VALIDATION_BATCH) {
-                const batch = slice.slice(i, i + CHART_VALIDATION_BATCH);
-                const results = await Promise.all(
-                    batch.map((p) => listChartValidation(p.id).then((rows) => ({ id: p.id, rows }))),
-                );
-                if (cancelled) return;
-                for (const { id, rows } of results) {
-                    const { sections } = rowsToValidationMaps(rows);
-                    if (!sections.master) pending.push(id);
+        const canQueue =
+            role != null &&
+            allowed("patient.read_medical", role, session?.permission_overrides);
+
+        const loadQueue = async (initial: boolean) => {
+            if (!canQueue) {
+                if (!cancelled) {
+                    setChartsToValidate([]);
+                    setChartsQueueLoading(false);
                 }
+                return;
             }
-            if (!cancelled) {
-                setPruefMasterPendingIds(pending);
-                setPruefScanLoading(false);
+            if (initial) setChartsQueueLoading(true);
+            try {
+                const rows = await listChartsToValidate();
+                if (!cancelled) setChartsToValidate(rows);
+            } catch {
+                if (!cancelled) setChartsToValidate([]);
+            } finally {
+                if (!cancelled && initial) setChartsQueueLoading(false);
             }
-        })();
+        };
+
+        void loadQueue(true);
+        const onRefresh = () => {
+            void loadQueue(false);
+        };
+        window.addEventListener("medoc-nav-badges-refresh", onRefresh);
+        const interval = window.setInterval(() => {
+            void loadQueue(false);
+        }, CHARTS_QUEUE_POLL_MS);
+        const onVisible = () => {
+            if (document.visibilityState === "visible") void loadQueue(false);
+        };
+        document.addEventListener("visibilitychange", onVisible);
         return () => {
             cancelled = true;
+            window.removeEventListener("medoc-nav-badges-refresh", onRefresh);
+            window.clearInterval(interval);
+            document.removeEventListener("visibilitychange", onVisible);
         };
-    }, [patients, session?.role, session?.permission_overrides, reloadToken]);
+    }, [session?.role, session?.permission_overrides, reloadToken]);
 
     /** DayClose-Erinnerung (lokal, client-settings): ein Toast pro Tag zur konfigurierten Minute. */
     useEffect(() => {
@@ -269,12 +284,6 @@ export function DashboardPage() {
         return appointments.filter((x) => x.date === todayIso && x.status === "PLANNED").length;
     }, [appointments, todayIso, role]);
 
-    const pruefMasterRows = useMemo(() => {
-        return [...pruefMasterPendingIds].sort((a, b) =>
-            (patientNameById.get(a) ?? "").localeCompare(patientNameById.get(b) ?? "", sortLocale, { sensitivity: "base" }),
-        );
-    }, [pruefMasterPendingIds, patientNameById, sortLocale]);
-
     const dashboardPurchaseOrders = useMemo(() => {
         return purchase_orders
             .filter((b) => b.status === "OPEN" || b.status === "IN_TRANSIT")
@@ -286,44 +295,18 @@ export function DashboardPage() {
             .slice(0, DASHBOARD_PURCHASE_ORDERS_MAX);
     }, [purchase_orders]);
 
-    const showPlannedFreigabe = role != null && allowed("appointment.read", role) && heutePlannedCount > 0;
-
-    const patientById = useMemo(() => new Map(patients.map((p) => [p.id, p])), [patients]);
-
-    const planNextFreigabeRows = useMemo(() => {
-        const known = new Set(patients.map((p) => p.id));
-        const out: { patientId: string; name: string; teaser: string }[] = [];
-        for (const row of planNextPending) {
-            if (!known.has(row.patientId)) continue;
-            const plan = parsePlanNextFromHintJson(row.hintJson);
-            if (!plan || !planNextHasContent(plan)) continue;
-            const teaser = planNextReceptionTeaser(plan);
-            out.push({
-                patientId: row.patientId,
-                name: patientNameById.get(row.patientId) ?? row.patientId,
-                teaser: teaser || t("dashboard.freigaben.plan_teaser_fallback"),
-            });
-            if (out.length >= PLAN_NEXT_FREIGABEN_CAP) break;
-        }
-        return out;
-    }, [planNextPending, patients, patientNameById, t]);
-
-    const filteredMasterRows = useMemo(
-        () => pruefMasterRows.filter((id) => !dismissedFreigabe[`master:${id}`]),
-        [pruefMasterRows, dismissedFreigabe],
-    );
-    const showPlannedRow = showPlannedFreigabe && !dismissedFreigabe["planned"];
-
-    const filteredPlanNextRows = useMemo(
-        () => planNextFreigabeRows.filter((r) => !dismissedFreigabe[`plan:${r.patientId}`]),
-        [planNextFreigabeRows, dismissedFreigabe],
-    );
-
-    const freigabenItemCount = filteredMasterRows.length + (showPlannedRow ? 1 : 0) + filteredPlanNextRows.length;
-    const freigabenLeer = !pruefScanLoading && freigabenItemCount === 0 && !listsError;
+    const showPlannedRow =
+        role != null &&
+        allowed("appointment.read", role) &&
+        !allowed("patient.read_medical", role, session?.permission_overrides) &&
+        heutePlannedCount > 0 &&
+        !dismissedFreigabe["planned"];
 
     const canPatientWrite = role != null && allowed("patient.write", role, session?.permission_overrides);
     const canViewClinical = role != null && allowed("patient.read_medical", role, session?.permission_overrides);
+    const canWriteMedical = role != null && allowed("patient.write_medical", role, session?.permission_overrides);
+    const freigabenItemCount = canViewClinical ? chartsToValidate.length : showPlannedRow ? 1 : 0;
+    const freigabenLeer = !chartsQueueLoading && freigabenItemCount === 0 && !listsError;
     const canReadPatients = role != null && allowed("patient.read", role, session?.permission_overrides);
     const canReadAppointments = role != null && allowed("appointment.read", role, session?.permission_overrides);
     const canReadFinance = role != null && allowed("finance.read", role, session?.permission_overrides);
@@ -350,24 +333,21 @@ export function DashboardPage() {
         setDismissedFreigabe((p) => ({ ...p, [key]: true }));
     }, []);
 
-    const handleApproveMaster = useCallback(
+    const handleApproveChart = useCallback(
         async (patientId: string) => {
-            if (!session?.user_id) {
-                toast(t("dashboard.freigaben.toast_no_session"), "error");
-                return;
-            }
             setApproveBusyId(patientId);
             try {
-                await setChartSectionValidated(patientId, "master", session.user_id);
-                setPruefMasterPendingIds((prev) => prev.filter((id) => id !== patientId));
-                toast(t("dashboard.freigaben.toast_approved"), "success");
+                await validatePatientChart(patientId);
+                setChartsToValidate((prev) => prev.filter((r) => r.patient_id !== patientId));
+                window.dispatchEvent(new Event("medoc-nav-badges-refresh"));
+                toast(t("page.charts_to_validate.validated_toast"), "success");
             } catch (e) {
                 toast(`${t("dashboard.freigaben.toast_approve_error")}: ${errorMessage(e)}`, "error");
             } finally {
                 setApproveBusyId(null);
             }
         },
-        [session, t, toast],
+        [t, toast],
     );
 
     const handleOrderZusagen = useCallback(
@@ -417,7 +397,7 @@ export function DashboardPage() {
     const localeTag = bcp47ForLocale(locale);
     const today = new Intl.DateTimeFormat(localeTag, { weekday: "long", day: "2-digit", month: "long", year: "numeric" }).format(new Date());
 
-    const freigabenSub = pruefScanLoading
+    const freigabenSub = chartsQueueLoading && chartsToValidate.length === 0
         ? t("dashboard.freigaben.scanning")
         : freigabenItemCount > 0
           ? t("dashboard.freigaben.sub_count").replace("{{count}}", String(freigabenItemCount))
@@ -511,15 +491,62 @@ export function DashboardPage() {
                                 <div className="card-sub">{freigabenSub}</div>
                             </div>
                             <div className="dashboard-wire-head-actions">
-                                <button type="button" className="dashboard-wire-head-link nav-link-forward" onClick={() => navigate("/patients")}>
+                                <button
+                                    type="button"
+                                    className="dashboard-wire-head-link nav-link-forward"
+                                    onClick={() => navigate(canViewClinical ? "/charts/to-validate" : "/appointments")}
+                                >
                                     {t("dashboard.freigaben.show_all")} <span className="nav-chevron" aria-hidden>›</span>
                                 </button>
                             </div>
                         </div>
                         <div className="dashboard-card-list" style={{ padding: 0 }}>
-                            {pruefScanLoading && freigabenItemCount === 0 ? (
-                                <div style={{ padding: "16px 20px", fontSize: 14, color: "var(--fg-3)" }}>{t("dashboard.freigaben.scanning")}</div>
+                            {chartsQueueLoading && chartsToValidate.length === 0 && canViewClinical ? (
+                                <div style={{ padding: "16px 20px", fontSize: 14, color: "var(--fg-3)" }}>{t("page.charts_to_validate.loading")}</div>
                             ) : null}
+                            {canViewClinical
+                                ? chartsToValidate.map((row) => {
+                                      const busy = approveBusyId === row.patient_id;
+                                      const statusKey = `enum.charts_status.${row.chart_status.trim().toLowerCase()}`;
+                                      const statusLabel = t(statusKey) === statusKey ? row.chart_status : t(statusKey);
+                                      return (
+                                          <div key={row.patient_id} className="dashboard-wire-row">
+                                              <div className="dashboard-wire-avatar" aria-hidden>
+                                                  {initialsFromName(row.patient_name)}
+                                              </div>
+                                              <div className="dashboard-wire-row-main">
+                                                  <div className="dashboard-wire-name-line">
+                                                      <span className="dashboard-wire-name">{row.patient_name}</span>
+                                                      <span className="dashboard-wire-tag">{statusLabel}</span>
+                                                  </div>
+                                                  <div className="dashboard-wire-desc">{t("dashboard.freigaben.desc_chart")}</div>
+                                              </div>
+                                              <div className="dashboard-wire-row-aside">
+                                                  <div className="dashboard-wire-date">{formatDateTime(row.updated_at)}</div>
+                                                  <div className="dashboard-wire-freigabe-actions">
+                                                      <Link
+                                                          to={`/patients/${row.patient_id}`}
+                                                          className="dashboard-wire-approve-btn"
+                                                      >
+                                                          {t("page.charts_to_validate.open_chart")}
+                                                      </Link>
+                                                      {canWriteMedical ? (
+                                                          <button
+                                                              type="button"
+                                                              className="dashboard-wire-approve-btn"
+                                                              disabled={busy}
+                                                              onClick={() => void handleApproveChart(row.patient_id)}
+                                                          >
+                                                              <CheckIcon size={15} />
+                                                              {busy ? "…" : t("page.charts_to_validate.validate")}
+                                                          </button>
+                                                      ) : null}
+                                                  </div>
+                                              </div>
+                                          </div>
+                                      );
+                                  })
+                                : null}
                             {showPlannedRow ? (
                                 <div className="dashboard-wire-row">
                                     <div className="dashboard-wire-avatar dashboard-wire-avatar--muted" aria-hidden>
@@ -557,113 +584,16 @@ export function DashboardPage() {
                                     </div>
                                 </div>
                             ) : null}
-                            {filteredPlanNextRows.map((row) => {
-                                const canTw = role != null && allowed("appointment.write", role);
-                                return (
-                                    <div key={`plan-${row.patientId}`} className="dashboard-wire-row">
-                                        <div className="dashboard-wire-avatar dashboard-wire-avatar--muted" aria-hidden>
-                                            <SparkleIcon size={18} />
-                                        </div>
-                                        <div className="dashboard-wire-row-main">
-                                            <div className="dashboard-wire-name-line">
-                                                <span className="dashboard-wire-name">{row.name}</span>
-                                                <span className="dashboard-wire-tag">{t("dashboard.freigaben.tag_plan")}</span>
-                                            </div>
-                                            <div className="dashboard-wire-desc">
-                                                {row.teaser}
-                                                {" · "}
-                                                <span style={{ color: "var(--fg-3)" }}>{t("dashboard.freigaben.desc_plan")}</span>
-                                            </div>
-                                        </div>
-                                        <div className="dashboard-wire-row-aside">
-                                            <div className="dashboard-wire-date">{formatDate(todayIso)}</div>
-                                            <div className="dashboard-wire-freigabe-actions">
-                                                <button
-                                                    type="button"
-                                                    className="dashboard-wire-icon-btn"
-                                                    title={t("dashboard.freigaben.dismiss")}
-                                                    aria-label={t("dashboard.freigaben.dismiss")}
-                                                    onClick={() => dismissFreigabe(`plan:${row.patientId}`)}
-                                                >
-                                                    <XIcon size={16} />
-                                                </button>
-                                                {canTw ? (
-                                                    <Link
-                                                        to={`/appointments/new?patient_id=${encodeURIComponent(row.patientId)}&apply_plan=1`}
-                                                        className="dashboard-wire-approve-btn"
-                                                    >
-                                                        {t("dashboard.freigaben.open_new_appointment")}
-                                                    </Link>
-                                                ) : (
-                                                    <Link
-                                                        to={`/patients/${encodeURIComponent(row.patientId)}`}
-                                                        className="dashboard-wire-approve-btn"
-                                                    >
-                                                        {t("dashboard.freigaben.open_patient")}
-                                                    </Link>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                            {filteredMasterRows.map((pid) => {
-                                const name = patientNameById.get(pid) ?? t("appointment.calendar.patient_fallback");
-                                const patient = patientById.get(pid);
-                                const dateStr = patient ? formatDate(patient.created_at.slice(0, 10)) : "—";
-                                const busy = approveBusyId === pid;
-                                return (
-                                    <div key={pid} className="dashboard-wire-row">
-                                        <div className="dashboard-wire-avatar" aria-hidden>
-                                            {initialsFromName(name)}
-                                        </div>
-                                        <div className="dashboard-wire-row-main">
-                                            <div className="dashboard-wire-name-line">
-                                                <span className="dashboard-wire-name">{name}</span>
-                                                <span className="dashboard-wire-tag">{t("dashboard.freigaben.tag_master")}</span>
-                                            </div>
-                                            <div className="dashboard-wire-desc">{t("dashboard.freigaben.desc_master")}</div>
-                                        </div>
-                                        <div className="dashboard-wire-row-aside">
-                                            <div className="dashboard-wire-date">{dateStr}</div>
-                                            <div className="dashboard-wire-freigabe-actions">
-                                                <button
-                                                    type="button"
-                                                    className="dashboard-wire-icon-btn"
-                                                    title={t("dashboard.freigaben.dismiss")}
-                                                    aria-label={t("dashboard.freigaben.dismiss")}
-                                                    disabled={busy}
-                                                    onClick={() => dismissFreigabe(`master:${pid}`)}
-                                                >
-                                                    <XIcon size={16} />
-                                                </button>
-                                                {canViewClinical && canPatientWrite ? (
-                                                    <button
-                                                        type="button"
-                                                        className="dashboard-wire-approve-btn"
-                                                        disabled={busy}
-                                                        onClick={() => void handleApproveMaster(pid)}
-                                                    >
-                                                        <CheckIcon size={15} />
-                                                        {t("dashboard.freigaben.approve")}
-                                                    </button>
-                                                ) : (
-                                                    <Link to={`/patients/${pid}#anam`} className="dashboard-wire-approve-btn">
-                                                        {t("dashboard.freigaben.open_patient")}
-                                                    </Link>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                            {patients.length > PRUEF_PATIENT_CAP && role != null && allowed("patient.read", role) ? (
-                                <p style={{ fontSize: 12, color: "var(--fg-3)", margin: "0 20px 12px", lineHeight: 1.45 }}>
-                                    {t("dashboard.freigaben.scan_cap_note").replace("{{cap}}", String(PRUEF_PATIENT_CAP))}
-                                </p>
-                            ) : null}
                             {freigabenLeer ? (
-                                <EmptyState icon="✅" title={t("dashboard.freigaben.empty_title")} description={t("dashboard.freigaben.empty_desc")} />
+                                <EmptyState
+                                    icon="✅"
+                                    title={canViewClinical ? t("page.charts_to_validate.empty_title") : t("dashboard.freigaben.empty_title")}
+                                    description={
+                                        canViewClinical
+                                            ? t("page.charts_to_validate.subtitle")
+                                            : t("dashboard.freigaben.empty_desc")
+                                    }
+                                />
                             ) : null}
                         </div>
                     </div>

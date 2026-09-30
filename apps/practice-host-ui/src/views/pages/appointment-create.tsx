@@ -9,7 +9,7 @@ import { listPhysicians, type PhysicianSummary } from "@/systems/practice-host/c
 import { listAbsences } from "@/systems/practice-host/controllers/practice.controller";
 import { useAuthStore } from "../../models/store/auth-store";
 import { errorMessage } from "@/lib/utils";
-import { loadClientSettings } from "@/lib/client-settings";
+import { defaultCreateAppointmentStatus, loadClientSettings } from "@/lib/client-settings";
 import { loadPracticePreferencesFromKv } from "@/lib/practice-preferences-storage";
 import {
     isCalendarDaySelectable,
@@ -183,7 +183,9 @@ export function AppointmentCreatePage() {
         const n = loadClientSettings().workflows?.defaultAppointmentDurationMin;
         return typeof n === "number" && Number.isFinite(n) && n > 0 ? String(n) : "";
     });
-    const [statusPreference, setStatusPreference] = useState("PLANNED");
+    const [statusPreference, setStatusPreference] = useState<string>(() =>
+        defaultCreateAppointmentStatus(loadClientSettings()),
+    );
     const [patientError, setPatientError] = useState("");
     const [patientDropdownOpen, setPatientDropdownOpen] = useState(false);
     /** Structured plan from the patient record (plan-next-appointment workflow). */

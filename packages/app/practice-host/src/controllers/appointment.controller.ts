@@ -24,6 +24,13 @@ export async function getAppointment(id: string): Promise<Appointment> {
     return practiceSystem.invoke<Appointment>("get_appointment", { id });
 }
 
+export const APPOINTMENTS_CHANGED_EVENT = "medoc-appointments-changed";
+
+export function notifyAppointmentsChanged(): void {
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(new Event(APPOINTMENTS_CHANGED_EVENT));
+}
+
 export async function createAppointment(data: {
     date: string;
     time: string;
@@ -35,14 +42,19 @@ export async function createAppointment(data: {
     chief_complaint?: string | null;
 }): Promise<Appointment> {
     const safe = parseOrThrow(CreateAppointmentSchema, data);
-    return practiceSystem.invoke<Appointment>("create_appointment", { data: safe });
+    const row = await practiceSystem.invoke<Appointment>("create_appointment", { data: safe });
+    notifyAppointmentsChanged();
+    return row;
 }
 
 export async function updateAppointment(id: string, data: Record<string, unknown>): Promise<Appointment> {
     const safe = parseOrThrow(UpdateAppointmentSchema, data);
-    return practiceSystem.invoke<Appointment>("update_appointment", { id, data: safe });
+    const row = await practiceSystem.invoke<Appointment>("update_appointment", { id, data: safe });
+    notifyAppointmentsChanged();
+    return row;
 }
 
 export async function deleteAppointment(id: string): Promise<void> {
-    return practiceSystem.invoke("delete_appointment", { id });
+    await practiceSystem.invoke("delete_appointment", { id });
+    notifyAppointmentsChanged();
 }

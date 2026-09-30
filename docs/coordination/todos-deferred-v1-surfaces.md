@@ -32,6 +32,10 @@
 
 1. `VERBUND_ADMIN_PANEL_V1_ENABLED = true` when Geräteverbund wire ships (v1.1)
 
+### Appointment Call / Reminder
+
+1. `APPOINTMENT_CALL_REMINDER_ENABLED = true` — wire real telephony / reminder send (see [`todos-deferred-ui-blinds.md`](todos-deferred-ui-blinds.md))
+
 ### Patient Akte header (record)
 
 1. `PATIENT_AKTE_WORKFLOW_HEADER_BUTTONS_ENABLED = true` in [`v1-ui-flags.ts`](../../packages/shared/src/lib/v1-ui-flags.ts)

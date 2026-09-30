@@ -39,6 +39,16 @@ describe("CreatePatientSchema", () => {
         });
         expect(out.email).toBeNull();
     });
+
+    it("accepts an empty insurance number (self-pay)", () => {
+        const out = CreatePatientSchema.parse({
+            name: "Self Pay",
+            date_of_birth: "1980-06-15",
+            sex: "MALE",
+            insurance_number: "  ",
+        });
+        expect(out.insurance_number).toBe("");
+    });
 });
 
 describe("CreateAppointmentSchema", () => {

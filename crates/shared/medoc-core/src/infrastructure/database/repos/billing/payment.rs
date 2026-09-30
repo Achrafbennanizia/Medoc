@@ -49,11 +49,12 @@ fn compute_payment_status(amount: f64, erwartet: Option<f64>) -> &'static str {
 }
 
 async fn refresh_payment_status(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
-    let row: Option<(Option<f64>, f64)> =
-        sqlx::query_as("SELECT CAST(amount_expected AS REAL), CAST(amount AS REAL) FROM payment WHERE id = ?1")
-            .bind(id)
-            .fetch_optional(pool)
-            .await?;
+    let row: Option<(Option<f64>, f64)> = sqlx::query_as(
+        "SELECT CAST(amount_expected AS REAL), CAST(amount AS REAL) FROM payment WHERE id = ?1",
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await?;
     let Some((erw, b)) = row else {
         return Ok(());
     };
@@ -423,9 +424,9 @@ pub async fn create(pool: &SqlitePool, data: &CreatePayment) -> Result<Payment, 
     } else if let Some(ref lid) = data.service_item_id {
         let row: Option<(f64,)> =
             sqlx::query_as("SELECT CAST(price AS REAL) FROM service_item WHERE id = ?1")
-            .bind(lid)
-            .fetch_optional(pool)
-            .await?;
+                .bind(lid)
+                .fetch_optional(pool)
+                .await?;
         row.map(|r| r.0).unwrap_or(data.amount)
     } else {
         data.amount
@@ -973,10 +974,11 @@ pub async fn update_status(pool: &SqlitePool, id: &str, status: &str) -> Result<
 }
 
 pub async fn get_balance_sheet(pool: &SqlitePool) -> Result<BalanceSheet, AppError> {
-    let income: (f64,) =
-        sqlx::query_as("SELECT CAST(COALESCE(SUM(amount), 0) AS REAL) FROM payment WHERE status = 'PAID'")
-            .fetch_one(pool)
-            .await?;
+    let income: (f64,) = sqlx::query_as(
+        "SELECT CAST(COALESCE(SUM(amount), 0) AS REAL) FROM payment WHERE status = 'PAID'",
+    )
+    .fetch_one(pool)
+    .await?;
 
     let outstanding: (f64,) = sqlx::query_as(
         "SELECT CAST(COALESCE(SUM(amount), 0) AS REAL) FROM payment WHERE status IN ('OUTSTANDING', 'PARTIALLY_PAID')",
@@ -984,10 +986,11 @@ pub async fn get_balance_sheet(pool: &SqlitePool) -> Result<BalanceSheet, AppErr
     .fetch_one(pool)
     .await?;
 
-    let cancelled: (f64,) =
-        sqlx::query_as("SELECT CAST(COALESCE(SUM(amount), 0) AS REAL) FROM payment WHERE status = 'CANCELLED'")
-            .fetch_one(pool)
-            .await?;
+    let cancelled: (f64,) = sqlx::query_as(
+        "SELECT CAST(COALESCE(SUM(amount), 0) AS REAL) FROM payment WHERE status = 'CANCELLED'",
+    )
+    .fetch_one(pool)
+    .await?;
 
     let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM payment")
         .fetch_one(pool)

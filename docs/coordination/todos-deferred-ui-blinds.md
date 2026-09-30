@@ -2,7 +2,7 @@
 
 **Purpose:** Catalog of **UI options we intentionally hid or commented out** because they are incomplete or need more effort. Use this list when polishing a page later — do **not** treat these as bugs.
 
-**Last updated:** 2026-09-04
+**Last updated:** 2026-09-30
 
 **Related deferred trackers (larger scopes):**
 
@@ -20,6 +20,22 @@
 
 1. When skipping an incomplete control: **comment it out** (or gate with a flag), add a `TODO(later)` pointing here, and **add a row** below.
 2. When restoring: follow the re-enable steps, remove/update the row, update [`actions.md`](actions.md) if needed.
+
+---
+
+## Appointment drawer — Call / Reminder — OFF
+
+**Flag:** `APPOINTMENT_CALL_REMINDER_ENABLED = false` in [`packages/shared/src/lib/v1-ui-flags.ts`](../../packages/shared/src/lib/v1-ui-flags.ts)
+
+**Gate:** [`appointment-detail-drawer.tsx`](../../apps/practice-host-ui/src/views/components/appointment-detail-drawer.tsx) action buttons; [`appointment-context-menu.tsx`](../../apps/practice-host-ui/src/views/components/appointment-context-menu.tsx) Reminder item.
+
+**Why deferred:** Call and Reminder only show a toast (no telephony, no SMS/email send). Hide until those are wired.
+
+### Re-enable checklist
+
+1. Set `APPOINTMENT_CALL_REMINDER_ENABLED = true`.
+2. Replace toast handlers in `appointments.tsx` (`onPhone`, `onReminder`) with real call / reminder send.
+3. QA: drawer Call with/without phone; Reminder from drawer and context menu.
 
 ---
 
@@ -72,4 +88,5 @@
 ```text
 TODO(later): restore … — see docs/coordination/todos-deferred-ui-blinds.md
 REPORT_IMPORT_UI_ENABLED
+APPOINTMENT_CALL_REMINDER_ENABLED
 ```

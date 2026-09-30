@@ -6,12 +6,25 @@
 // would require the `tauri-plugin-notification` crate — enabling it later
 // only means swapping the `dispatch` body.
 
-use chrono::{Duration, NaiveDateTime, Utc};
+use chrono::{Duration, Local, NaiveDateTime};
 use serde::Serialize;
 use sqlx::SqlitePool;
 
 use crate::error::AppError;
 use crate::log_system;
+
+fn parse_appointment_local(date: &str, time: &str) -> Option<NaiveDateTime> {
+    let date = date.trim();
+    let time = time.trim();
+    let with_seconds = format!("{date} {time}");
+    NaiveDateTime::parse_from_str(&with_seconds, "%Y-%m-%d %H:%M:%S")
+        .ok()
+        .or_else(|| NaiveDateTime::parse_from_str(&with_seconds, "%Y-%m-%d %H:%M").ok())
+        .or_else(|| {
+            let hm: String = time.chars().take(5).collect();
+            NaiveDateTime::parse_from_str(&format!("{date} {hm}"), "%Y-%m-%d %H:%M").ok()
+        })
+}
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct AppointmentReminder {
@@ -29,11 +42,10 @@ pub async fn upcoming(
     pool: &SqlitePool,
     lead_minutes: i64,
 ) -> Result<Vec<AppointmentReminder>, AppError> {
-    let now = Utc::now().naive_utc();
+    // Appointment date/time are practice-local (same as calendar), not UTC.
+    let now = Local::now().naive_local();
     let until = now + Duration::minutes(lead_minutes);
 
-    // Filter in SQL on the date portion to keep the scan small; remaining
-    // time-of-day comparison happens in Rust to handle any timezone quirks.
     let rows: Vec<(String, String, String, String, String, String, String)> = sqlx::query_as(
         "SELECT t.id, t.patient_id, p.name, t.physician_id, t.date, t.time, t.kind \
          FROM appointment t \
@@ -49,8 +61,7 @@ pub async fn upcoming(
 
     let mut out = Vec::new();
     for (id, pid, pname, aid, date, time, kind) in rows {
-        let stamp = format!("{date} {time}");
-        if let Ok(dt) = NaiveDateTime::parse_from_str(&stamp, "%Y-%m-%d %H:%M") {
+        if let Some(dt) = parse_appointment_local(&date, &time) {
             let delta = dt.signed_duration_since(now).num_minutes();
             if delta >= 0 && delta <= lead_minutes {
                 out.push(AppointmentReminder {

@@ -509,6 +509,31 @@ export function SettingsWorkflowsSection({
                     )}
                 </div>
                 ) : null}
+
+                <div className="settings-row" style={{ marginTop: 10 }}>
+                    <div>
+                        <b>{t("settings.workflows.appointment_confirm")}</b>
+                        <div className="card-sub">
+                            {wf.appointmentConfirmMode === "auto"
+                                ? t("settings.workflows.appointment_confirm_auto")
+                                : t("settings.workflows.appointment_confirm_manual")}
+                        </div>
+                    </div>
+                    <input
+                        type="checkbox"
+                        checked={wf.appointmentConfirmMode === "auto"}
+                        onChange={() =>
+                            onPersistClient((c) => {
+                                const w = c.workflows ?? DEFAULT_CLIENT_SETTINGS.workflows!;
+                                const next = w.appointmentConfirmMode === "auto" ? "manual" : "auto";
+                                return mergeClientSettingsPatch(c, {
+                                    workflows: { ...w, appointmentConfirmMode: next },
+                                });
+                            })
+                        }
+                        aria-label={t("settings.workflows.appointment_confirm")}
+                    />
+                </div>
             </div>
         </section>
     );

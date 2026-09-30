@@ -107,7 +107,8 @@ async fn fetch_bytes(
 }
 
 fn parse_latest_json(bytes: &[u8]) -> Result<LatestJson, AppError> {
-    serde_json::from_slice(bytes).map_err(|e| AppError::Internal(format!("Invalid latest.json: {e}")))
+    serde_json::from_slice(bytes)
+        .map_err(|e| AppError::Internal(format!("Invalid latest.json: {e}")))
 }
 
 async fn fetch_latest_json(
@@ -182,7 +183,9 @@ mod tests {
         assert!(is_absent_release(reqwest::StatusCode::GONE));
         assert!(!is_absent_release(reqwest::StatusCode::UNAUTHORIZED));
         assert!(!is_absent_release(reqwest::StatusCode::FORBIDDEN));
-        assert!(!is_absent_release(reqwest::StatusCode::INTERNAL_SERVER_ERROR));
+        assert!(!is_absent_release(
+            reqwest::StatusCode::INTERNAL_SERVER_ERROR
+        ));
     }
 
     #[test]

@@ -41,21 +41,42 @@ export function ChartsToValidatePage() {
     const [err, setErr] = useState<string | null>(null);
     const [busyId, setBusyId] = useState<string | null>(null);
 
-    const load = useCallback(async () => {
-        setLoading(true);
-        setErr(null);
+    const load = useCallback(async (opts?: { silent?: boolean }) => {
+        if (!opts?.silent) {
+            setLoading(true);
+            setErr(null);
+        }
         try {
             setRows(await listChartsToValidate());
+            if (opts?.silent) setErr(null);
         } catch (e) {
-            setErr(errorMessage(e));
-            setRows([]);
+            if (!opts?.silent) {
+                setErr(errorMessage(e));
+                setRows([]);
+            }
         } finally {
-            setLoading(false);
+            if (!opts?.silent) setLoading(false);
         }
     }, []);
 
     useEffect(() => {
         void load();
+        const onRefresh = () => {
+            void load({ silent: true });
+        };
+        window.addEventListener("medoc-nav-badges-refresh", onRefresh);
+        const interval = window.setInterval(() => {
+            void load({ silent: true });
+        }, 15_000);
+        const onVisible = () => {
+            if (document.visibilityState === "visible") void load({ silent: true });
+        };
+        document.addEventListener("visibilitychange", onVisible);
+        return () => {
+            window.removeEventListener("medoc-nav-badges-refresh", onRefresh);
+            window.clearInterval(interval);
+            document.removeEventListener("visibilitychange", onVisible);
+        };
     }, [load]);
 
     const onValidate = async (patientId: string) => {
