@@ -4,6 +4,10 @@
 //! GitHub token at compile time. Private repos need a practice-stored
 //! Contents:read PAT in app KV (`updates.github_token`). Public release
 //! assets need no token.
+//!
+//! Missing releases (HTTP 404) are treated as “no update channel”, not a
+//! hard failure — private repos hide as 404 without a token, and tagged
+//! app uploads may not include `latest.json`.
 
 use crate::error::AppError;
 use crate::infrastructure::database::app_kv_repo;
@@ -26,6 +30,11 @@ pub struct GithubUpdateCheck {
     pub latest_version: String,
     pub update_available: bool,
     pub release_notes: String,
+}
+
+enum FetchBody {
+    Bytes(Vec<u8>),
+    Missing,
 }
 
 pub fn configured_repo() -> Option<&'static str> {
@@ -62,11 +71,15 @@ fn github_client(token: Option<&str>) -> Result<reqwest::Client, AppError> {
         .map_err(|e| AppError::Internal(e.to_string()))
 }
 
+fn is_absent_release(status: reqwest::StatusCode) -> bool {
+    status == reqwest::StatusCode::NOT_FOUND || status == reqwest::StatusCode::GONE
+}
+
 async fn fetch_bytes(
     url: &str,
     client: &reqwest::Client,
     octet_stream: bool,
-) -> Result<Vec<u8>, AppError> {
+) -> Result<FetchBody, AppError> {
     let mut req = client.get(url);
     if octet_stream {
         req = req.header(reqwest::header::ACCEPT, "application/octet-stream");
@@ -77,51 +90,61 @@ async fn fetch_bytes(
         .send()
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
-    if !res.status().is_success() {
+    let status = res.status();
+    if is_absent_release(status) {
+        return Ok(FetchBody::Missing);
+    }
+    if !status.is_success() {
         return Err(AppError::Internal(format!(
-            "GitHub update fetch failed (HTTP {})",
-            res.status()
+            "GitHub update fetch failed (HTTP {status})"
         )));
     }
     let bytes = res
         .bytes()
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
-    Ok(bytes.to_vec())
+    Ok(FetchBody::Bytes(bytes.to_vec()))
 }
 
-async fn fetch_latest_json(repo: &str, token: Option<&str>) -> Result<LatestJson, AppError> {
+fn parse_latest_json(bytes: &[u8]) -> Result<LatestJson, AppError> {
+    serde_json::from_slice(bytes).map_err(|e| AppError::Internal(format!("Invalid latest.json: {e}")))
+}
+
+async fn fetch_latest_json(
+    repo: &str,
+    token: Option<&str>,
+) -> Result<Option<LatestJson>, AppError> {
     let client = github_client(token)?;
     let direct = format!("https://github.com/{repo}/releases/latest/download/latest.json");
-    match fetch_bytes(&direct, &client, true).await {
-        Ok(bytes) => {
-            return serde_json::from_slice(&bytes)
-                .map_err(|e| AppError::Internal(format!("Invalid latest.json: {e}")));
-        }
-        Err(_) if token.is_some() => {}
-        Err(e) => return Err(e),
+    match fetch_bytes(&direct, &client, true).await? {
+        FetchBody::Bytes(bytes) => return parse_latest_json(&bytes).map(Some),
+        FetchBody::Missing => {}
     }
 
-    // Private repos: resolve latest.json via GitHub REST API asset URLs.
+    // Private repos (or missing public asset): GitHub REST latest release.
     let api_url = format!("https://api.github.com/repos/{repo}/releases/latest");
-    let meta_bytes = fetch_bytes(&api_url, &client, false).await?;
+    let meta_bytes = match fetch_bytes(&api_url, &client, false).await? {
+        FetchBody::Bytes(bytes) => bytes,
+        FetchBody::Missing => return Ok(None),
+    };
     let meta: serde_json::Value = serde_json::from_slice(&meta_bytes)
         .map_err(|e| AppError::Internal(format!("Invalid release metadata: {e}")))?;
-    let assets = meta
-        .get("assets")
-        .and_then(|version| version.as_array())
-        .ok_or_else(|| AppError::Internal("Release has no assets".into()))?;
-    let asset = assets
+    let Some(assets) = meta.get("assets").and_then(|version| version.as_array()) else {
+        return Ok(None);
+    };
+    let Some(asset) = assets
         .iter()
         .find(|a| a.get("name").and_then(|n| n.as_str()) == Some("latest.json"))
-        .ok_or_else(|| AppError::Internal("Release has no latest.json asset".into()))?;
-    let asset_url = asset
-        .get("url")
-        .and_then(|u| u.as_str())
-        .ok_or_else(|| AppError::Internal("latest.json asset has no url".into()))?;
-    let bytes = fetch_bytes(asset_url, &client, true).await?;
-    serde_json::from_slice(&bytes)
-        .map_err(|e| AppError::Internal(format!("Invalid latest.json: {e}")))
+    else {
+        return Ok(None);
+    };
+    let Some(asset_url) = asset.get("url").and_then(|u| u.as_str()) else {
+        return Ok(None);
+    };
+    match fetch_bytes(asset_url, &client, true).await? {
+        FetchBody::Bytes(bytes) => parse_latest_json(&bytes).map(Some),
+        FetchBody::Missing => Ok(None),
+    }
 }
 
 pub async fn check_github_updates(
@@ -131,7 +154,9 @@ pub async fn check_github_updates(
         return Ok(None);
     };
     let token = resolve_github_token(pool).await;
-    let manifest = fetch_latest_json(repo, token.as_deref()).await?;
+    let Some(manifest) = fetch_latest_json(repo, token.as_deref()).await? else {
+        return Ok(None);
+    };
     let current = update::current_version().to_string();
     let update_available = update::version_newer(&manifest.version, &current);
     Ok(Some(GithubUpdateCheck {
@@ -149,5 +174,21 @@ mod tests {
     #[test]
     fn configured_repo_reads_compile_time_env() {
         let _ = configured_repo();
+    }
+
+    #[test]
+    fn absent_release_is_404_or_410() {
+        assert!(is_absent_release(reqwest::StatusCode::NOT_FOUND));
+        assert!(is_absent_release(reqwest::StatusCode::GONE));
+        assert!(!is_absent_release(reqwest::StatusCode::UNAUTHORIZED));
+        assert!(!is_absent_release(reqwest::StatusCode::FORBIDDEN));
+        assert!(!is_absent_release(reqwest::StatusCode::INTERNAL_SERVER_ERROR));
+    }
+
+    #[test]
+    fn parse_latest_json_reads_version_and_notes() {
+        let parsed = parse_latest_json(br#"{"version":"1.2.3","notes":"hello"}"#).unwrap();
+        assert_eq!(parsed.version, "1.2.3");
+        assert_eq!(parsed.notes, "hello");
     }
 }

@@ -145,7 +145,7 @@ async fn clinical_line_already_fully_paid(
     };
     let paid: f64 = if let Some(bid) = treatment_id {
         sqlx::query_scalar(
-            "SELECT COALESCE(SUM(amount), 0) FROM payment
+            "SELECT CAST(COALESCE(SUM(amount), 0) AS REAL) FROM payment
              WHERE treatment_id = ?1
                AND TRIM(UPPER(COALESCE(status, ''))) = 'PAID'",
         )
@@ -155,7 +155,7 @@ async fn clinical_line_already_fully_paid(
         .unwrap_or(0.0)
     } else if let Some(uid) = examination_id {
         sqlx::query_scalar(
-            "SELECT COALESCE(SUM(amount), 0) FROM payment
+            "SELECT CAST(COALESCE(SUM(amount), 0) AS REAL) FROM payment
              WHERE examination_id = ?1
                AND TRIM(UPPER(COALESCE(status, ''))) = 'PAID'",
         )

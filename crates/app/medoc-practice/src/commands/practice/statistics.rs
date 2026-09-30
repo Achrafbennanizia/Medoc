@@ -47,7 +47,7 @@ pub async fn get_dashboard_stats(
     let revenue_month = if allowed("finance.read") {
         let month_start = chrono::Local::now().format("%Y-%m-01").to_string();
         let row: (f64,) = sqlx::query_as(
-            "SELECT COALESCE(SUM(amount), 0.0) FROM payment WHERE status = 'PAID' AND created_at >= ?1",
+            "SELECT CAST(COALESCE(SUM(amount), 0) AS REAL) FROM payment WHERE status = 'PAID' AND created_at >= ?1",
         )
         .bind(&month_start)
         .fetch_one(pool.inner())
@@ -443,7 +443,7 @@ pub async fn get_statistics_overview(
     // -------- Finance --------
     if allowed("finance.read") {
         let income_mon: Vec<(String, f64)> = sqlx::query_as(
-            "SELECT strftime('%Y-%m', created_at) AS m, COALESCE(SUM(amount),0.0) AS s
+            "SELECT strftime('%Y-%m', created_at) AS m, CAST(COALESCE(SUM(amount), 0) AS REAL) AS s
              FROM payment
              WHERE status = 'PAID' AND created_at >= ?1
              GROUP BY m
@@ -455,7 +455,7 @@ pub async fn get_statistics_overview(
         out.income_per_month = align_months(income_mon, &months_12);
 
         let payment_kind: Vec<(String, f64)> = sqlx::query_as(
-            "SELECT payment_method, COALESCE(SUM(amount),0.0)
+            "SELECT payment_method, CAST(COALESCE(SUM(amount), 0) AS REAL)
              FROM payment
              WHERE status = 'PAID'
              GROUP BY payment_method
@@ -479,7 +479,7 @@ pub async fn get_statistics_overview(
 
         let month_start = chrono::Local::now().format("%Y-%m-01").to_string();
         let row: (f64,) = sqlx::query_as(
-            "SELECT COALESCE(SUM(amount),0.0) FROM payment WHERE status='PAID' AND created_at >= ?1",
+            "SELECT CAST(COALESCE(SUM(amount), 0) AS REAL) FROM payment WHERE status='PAID' AND created_at >= ?1",
         )
         .bind(&month_start)
         .fetch_one(pool.inner())

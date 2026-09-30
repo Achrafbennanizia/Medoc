@@ -228,20 +228,20 @@ fn scan_windows() -> Vec<DetectedPhotoViewerApp> {
         p.push("gimp-3.exe");
         p
     });
-    add("Google Chrome", {
-        let mut p = PathBuf::from(r"C:\Program Files\Google\Chrome\Application\chrome.exe");
-        p
-    });
+    add(
+        "Google Chrome",
+        PathBuf::from(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
+    );
     add("Mozilla Firefox", {
         let mut p = PathBuf::from(&pf);
         p.push("Mozilla Firefox");
         p.push("firefox.exe");
         p
     });
-    add("Microsoft Edge", {
-        let mut p = PathBuf::from(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe");
-        p
-    });
+    add(
+        "Microsoft Edge",
+        PathBuf::from(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
+    );
     add("Adobe Photoshop 2025", {
         let mut p = PathBuf::from(&pf);
         p.push("Adobe");

@@ -8,7 +8,7 @@ use crate::commands::auth_commands::SessionState;
 use crate::error::AppError;
 use crate::infrastructure::database::audit_repo;
 use crate::infrastructure::logging::{self, LogLevel, LOGGING_CONFIG};
-use crate::log_system;
+use crate::{log_system, log_workflow};
 
 #[tauri::command]
 #[tracing::instrument(level = "debug", skip(session_state))]
@@ -46,7 +46,13 @@ pub async fn verify_audit_chain(
     session_state: State<'_, SessionState>,
 ) -> Result<Option<String>, AppError> {
     rbac::require(&session_state, "ops.logs")?;
-    audit_repo::verify_chain(&pool).await
+    let broken = audit_repo::verify_chain(&pool).await?;
+    log_workflow!(
+        info,
+        event = "AUDIT_CHAIN_VERIFY",
+        broken = broken.is_some()
+    );
+    Ok(broken)
 }
 
 #[tauri::command]

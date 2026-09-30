@@ -50,7 +50,7 @@ fn compute_payment_status(amount: f64, erwartet: Option<f64>) -> &'static str {
 
 async fn refresh_payment_status(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
     let row: Option<(Option<f64>, f64)> =
-        sqlx::query_as("SELECT amount_expected, amount FROM payment WHERE id = ?1")
+        sqlx::query_as("SELECT CAST(amount_expected AS REAL), CAST(amount AS REAL) FROM payment WHERE id = ?1")
             .bind(id)
             .fetch_optional(pool)
             .await?;
@@ -243,28 +243,28 @@ pub struct PaymentFinanceKpis {
 pub async fn finance_kpis(pool: &SqlitePool) -> Result<PaymentFinanceKpis, AppError> {
     let row: (f64, f64, f64, f64, i64, f64) = sqlx::query_as(
         "SELECT
-            COALESCE(SUM(CASE
+            CAST(COALESCE(SUM(CASE
                 WHEN strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now', 'localtime')
                  AND TRIM(UPPER(COALESCE(status,''))) IN ('PAID','PARTIALLY_PAID')
-                THEN amount ELSE 0 END), 0),
-            COALESCE(SUM(CASE
+                THEN amount ELSE 0 END), 0) AS REAL),
+            CAST(COALESCE(SUM(CASE
                 WHEN strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now', 'localtime', '-1 month')
                  AND TRIM(UPPER(COALESCE(status,''))) IN ('PAID','PARTIALLY_PAID')
-                THEN amount ELSE 0 END), 0),
-            COALESCE(SUM(CASE
+                THEN amount ELSE 0 END), 0) AS REAL),
+            CAST(COALESCE(SUM(CASE
                 WHEN strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now', 'localtime')
                  AND TRIM(UPPER(COALESCE(status,''))) = 'CANCELLED'
-                THEN amount ELSE 0 END), 0),
-            COALESCE(SUM(CASE
+                THEN amount ELSE 0 END), 0) AS REAL),
+            CAST(COALESCE(SUM(CASE
                 WHEN strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now', 'localtime', '-1 month')
                  AND TRIM(UPPER(COALESCE(status,''))) = 'CANCELLED'
-                THEN amount ELSE 0 END), 0),
+                THEN amount ELSE 0 END), 0) AS REAL),
             COALESCE(SUM(CASE
                 WHEN TRIM(UPPER(COALESCE(status,''))) IN ('OUTSTANDING','PARTIALLY_PAID')
                 THEN 1 ELSE 0 END), 0),
-            COALESCE(SUM(CASE
+            CAST(COALESCE(SUM(CASE
                 WHEN TRIM(UPPER(COALESCE(status,''))) IN ('OUTSTANDING','PARTIALLY_PAID')
-                THEN amount ELSE 0 END), 0)
+                THEN amount ELSE 0 END), 0) AS REAL)
          FROM payment",
     )
     .fetch_one(pool)
@@ -297,9 +297,9 @@ pub async fn monthly_breakdown(
     let rows: Vec<(String, f64, f64, f64)> = sqlx::query_as(
         "SELECT
             strftime('%Y-%m', created_at) AS ym,
-            COALESCE(SUM(CASE WHEN TRIM(UPPER(COALESCE(status,''))) = 'PAID' THEN amount ELSE 0 END), 0),
-            COALESCE(SUM(CASE WHEN TRIM(UPPER(COALESCE(status,''))) IN ('OUTSTANDING','PARTIALLY_PAID') THEN amount ELSE 0 END), 0),
-            COALESCE(SUM(CASE WHEN TRIM(UPPER(COALESCE(status,''))) = 'CANCELLED' THEN amount ELSE 0 END), 0)
+            CAST(COALESCE(SUM(CASE WHEN TRIM(UPPER(COALESCE(status,''))) = 'PAID' THEN amount ELSE 0 END), 0) AS REAL),
+            CAST(COALESCE(SUM(CASE WHEN TRIM(UPPER(COALESCE(status,''))) IN ('OUTSTANDING','PARTIALLY_PAID') THEN amount ELSE 0 END), 0) AS REAL),
+            CAST(COALESCE(SUM(CASE WHEN TRIM(UPPER(COALESCE(status,''))) = 'CANCELLED' THEN amount ELSE 0 END), 0) AS REAL)
          FROM payment
          WHERE date(created_at) >= date('now', 'localtime', '-' || ?1 || ' months')
          GROUP BY ym
@@ -421,7 +421,8 @@ pub async fn create(pool: &SqlitePool, data: &CreatePayment) -> Result<Payment, 
             "error.payment.amount_must_be_positive",
         ));
     } else if let Some(ref lid) = data.service_item_id {
-        let row: Option<(f64,)> = sqlx::query_as("SELECT price FROM service_item WHERE id = ?1")
+        let row: Option<(f64,)> =
+            sqlx::query_as("SELECT CAST(price AS REAL) FROM service_item WHERE id = ?1")
             .bind(lid)
             .fetch_optional(pool)
             .await?;
@@ -443,7 +444,7 @@ pub async fn create(pool: &SqlitePool, data: &CreatePayment) -> Result<Payment, 
         if let Some((g_opt,)) = row {
             if let Some(g) = g_opt.filter(|g| g.is_finite() && *g > 0.0) {
                 let sum_paid: f64 = sqlx::query_scalar(
-                    "SELECT COALESCE(SUM(amount), 0) FROM payment
+                    "SELECT CAST(COALESCE(SUM(amount), 0) AS REAL) FROM payment
                      WHERE treatment_id = ?1 AND patient_id = ?2
                      AND (status IS NULL OR TRIM(UPPER(status)) != 'CANCELLED')",
                 )
@@ -482,7 +483,7 @@ pub async fn create(pool: &SqlitePool, data: &CreatePayment) -> Result<Payment, 
         if let Some((g_opt,)) = row {
             if let Some(g) = g_opt.filter(|g| g.is_finite() && *g > 0.0) {
                 let sum_paid: f64 = sqlx::query_scalar(
-                    "SELECT COALESCE(SUM(amount), 0) FROM payment
+                    "SELECT CAST(COALESCE(SUM(amount), 0) AS REAL) FROM payment
                      WHERE examination_id = ?1 AND patient_id = ?2
                      AND (status IS NULL OR TRIM(UPPER(status)) != 'CANCELLED')",
                 )
@@ -841,7 +842,7 @@ pub async fn update_fields(pool: &SqlitePool, data: &UpdatePayment) -> Result<Pa
         if let Some((g_opt,)) = row {
             if let Some(g) = g_opt.filter(|g| g.is_finite() && *g > 0.0) {
                 let sum_others: f64 = sqlx::query_scalar(
-                    "SELECT COALESCE(SUM(amount), 0) FROM payment
+                    "SELECT CAST(COALESCE(SUM(amount), 0) AS REAL) FROM payment
                      WHERE treatment_id = ?1 AND patient_id = ?2 AND id != ?3
                      AND (status IS NULL OR TRIM(UPPER(status)) != 'CANCELLED')",
                 )
@@ -875,7 +876,7 @@ pub async fn update_fields(pool: &SqlitePool, data: &UpdatePayment) -> Result<Pa
         if let Some((g_opt,)) = row {
             if let Some(g) = g_opt.filter(|g| g.is_finite() && *g > 0.0) {
                 let sum_others: f64 = sqlx::query_scalar(
-                    "SELECT COALESCE(SUM(amount), 0) FROM payment
+                    "SELECT CAST(COALESCE(SUM(amount), 0) AS REAL) FROM payment
                      WHERE examination_id = ?1 AND patient_id = ?2 AND id != ?3
                      AND (status IS NULL OR TRIM(UPPER(status)) != 'CANCELLED')",
                 )
@@ -973,18 +974,18 @@ pub async fn update_status(pool: &SqlitePool, id: &str, status: &str) -> Result<
 
 pub async fn get_balance_sheet(pool: &SqlitePool) -> Result<BalanceSheet, AppError> {
     let income: (f64,) =
-        sqlx::query_as("SELECT COALESCE(SUM(amount), 0.0) FROM payment WHERE status = 'PAID'")
+        sqlx::query_as("SELECT CAST(COALESCE(SUM(amount), 0) AS REAL) FROM payment WHERE status = 'PAID'")
             .fetch_one(pool)
             .await?;
 
     let outstanding: (f64,) = sqlx::query_as(
-        "SELECT COALESCE(SUM(amount), 0.0) FROM payment WHERE status IN ('OUTSTANDING', 'PARTIALLY_PAID')",
+        "SELECT CAST(COALESCE(SUM(amount), 0) AS REAL) FROM payment WHERE status IN ('OUTSTANDING', 'PARTIALLY_PAID')",
     )
     .fetch_one(pool)
     .await?;
 
     let cancelled: (f64,) =
-        sqlx::query_as("SELECT COALESCE(SUM(amount), 0.0) FROM payment WHERE status = 'CANCELLED'")
+        sqlx::query_as("SELECT CAST(COALESCE(SUM(amount), 0) AS REAL) FROM payment WHERE status = 'CANCELLED'")
             .fetch_one(pool)
             .await?;
 

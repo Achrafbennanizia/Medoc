@@ -94,7 +94,7 @@ pub fn init(data_dir: &Path) -> Result<LogGuards, std::io::Error> {
             .with_filter(EnvFilter::new("medoc::security=info"))
             .boxed(),
         json(sys_w)
-            .with_filter(EnvFilter::new("medoc::system=info"))
+            .with_filter(EnvFilter::new("medoc::system=info,medoc::workflow=info"))
             .boxed(),
         json(dev_w)
             .with_filter(EnvFilter::new("medoc::device=info"))
@@ -133,6 +133,13 @@ macro_rules! log_security {
 macro_rules! log_system {
     ($lvl:ident, $($arg:tt)+) => {
         tracing::$lvl!(target: "medoc::system", $($arg)+)
+    };
+}
+
+#[macro_export]
+macro_rules! log_workflow {
+    ($lvl:ident, $($arg:tt)+) => {
+        tracing::$lvl!(target: "medoc::workflow", $($arg)+)
     };
 }
 
