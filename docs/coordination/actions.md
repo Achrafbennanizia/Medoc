@@ -1,6 +1,16 @@
 # Action ledger
 
-**Last updated:** 2026-09-05 (payment fulfills open booking)
+**Last updated:** 2026-09-29 (CI/CD tier migration)
+
+## Done (2026-09-29 — CI/CD tier migration)
+
+- Added tiered CI/CD workflows:
+  - Tier 1 verify (`verify.yml`) — non-mutating Rust/JS/a11y gate
+  - Tier 2 autofix (`autofix.yml`) — PR-only deterministic fixes + loop guard
+  - Tier 3 fix proposal (`fix-proposal.yml`) — draft PR with before/after evidence
+  - Tier 4 release (`release.yml`) — verify gate + manual approval + signed artifacts
+- Added root CI scripts for `typecheck`, `lint:fix`, `format`, `test:a11y`.
+- Documented plan in `docs/coordination/ci-cd-plan.md`; legacy `ci.yml` now delegates to verify via manual dispatch.
 
 ## Done (2026-09-05 — payment → billing)
 

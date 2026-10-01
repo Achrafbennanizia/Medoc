@@ -1,0 +1,236 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Why this fix proposal is requested"
+        required: false
+        type: string
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: fix-proposal-${{ github.event.workflow_run.head_sha || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  propose:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CHECKOUT_REF: ${{ github.event.workflow_run.head_sha || github.sha }}
+      REQUEST_REASON: ${{ github.event.inputs.reason || 'Automated attempt triggered from failed verify on main.' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CHECKOUT_REF }}
+          fetch-depth: 0
+
+      - id: pm
+        name: Detect package manager
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=npm ci" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - run: corepack enable
+
+      - name: Install dependencies
+        run: ${{ steps.pm.outputs.install_cmd }}
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: Capture failing-before evidence
+        shell: bash
+        run: |
+          set +e
+          mkdir -p .github/fix-proposal
+          : > .github/fix-proposal/before.log
+          : > .github/fix-proposal/before-summary.md
+
+          run_check() {
+            local label="$1"
+            shift
+            echo "#### ${label}" >> .github/fix-proposal/before-summary.md
+            if "$@" >> .github/fix-proposal/before.log 2>&1; then
+              echo "- PASS" >> .github/fix-proposal/before-summary.md
+            else
+              echo "- FAIL" >> .github/fix-proposal/before-summary.md
+            fi
+            echo "" >> .github/fix-proposal/before-summary.md
+          }
+
+          run_check "cargo test --workspace" cargo test --workspace
+          run_check "cargo audit" cargo audit
+          run_check "${{ steps.pm.outputs.pm }} run typecheck" ${{ steps.pm.outputs.pm }} run typecheck
+
+      - name: Attempt substantive fix proposal
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo fmt --all
+          cargo clippy --workspace --all-targets --fix --allow-dirty --allow-staged -- -D warnings || true
+
+          run_if_present() {
+            local script_name="$1"
+            if node -e "const p=require('./package.json'); process.exit((p.scripts && p.scripts['${script_name}']) ? 0 : 1)"; then
+              if [ "${{ steps.pm.outputs.pm }}" = "npm" ]; then
+                npm run "$script_name" --if-present
+              else
+                ${{ steps.pm.outputs.pm }} run "$script_name"
+              fi
+            else
+              echo "Skipping '$script_name' (script not present)."
+            fi
+          }
+
+          run_if_present "lint:fix"
+          run_if_present "format"
+
+          # Non-deterministic proposal space: dependency security refresh.
+          cargo update -w || true
+          if [ "${{ steps.pm.outputs.pm }}" = "npm" ] && [ -f package-lock.json ]; then
+            npm audit fix --package-lock-only || true
+          fi
+
+      - name: Capture passing-after evidence
+        shell: bash
+        run: |
+          set +e
+          : > .github/fix-proposal/after.log
+          : > .github/fix-proposal/after-summary.md
+
+          run_check() {
+            local label="$1"
+            shift
+            echo "#### ${label}" >> .github/fix-proposal/after-summary.md
+            if "$@" >> .github/fix-proposal/after.log 2>&1; then
+              echo "- PASS" >> .github/fix-proposal/after-summary.md
+            else
+              echo "- FAIL" >> .github/fix-proposal/after-summary.md
+            fi
+            echo "" >> .github/fix-proposal/after-summary.md
+          }
+
+          run_check "cargo test --workspace" cargo test --workspace
+          run_check "cargo audit" cargo audit
+          run_check "${{ steps.pm.outputs.pm }} run typecheck" ${{ steps.pm.outputs.pm }} run typecheck
+
+      - name: Generate draft PR body
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "## CI fix proposal"
+            echo
+            echo "- Trigger reason: ${REQUEST_REASON}"
+            echo "- Source ref: \`${CHECKOUT_REF}\`"
+            echo "- Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo
+            echo "### Failing-before evidence"
+            cat .github/fix-proposal/before-summary.md
+            echo
+            echo "### Passing-after evidence"
+            cat .github/fix-proposal/after-summary.md
+            echo
+            echo "### Notes"
+            echo "- This PR is intentionally opened as **DRAFT**."
+            echo "- No auto-merge is enabled; human review is required."
+          } > .github/fix-proposal/pr-body.md
+
+      - id: changes
+        name: Check whether proposal changed files
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - id: sensitive
+        name: Detect sensitive-path edits
+        if: steps.changes.outputs.has_changes == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sensitive="$(git diff --name-only | rg -i '(security|audit|crypto|rbac)' || true)"
+          if [ -n "$sensitive" ]; then
+            echo "contains_sensitive=true" >> "$GITHUB_OUTPUT"
+            printf '%s\n' "$sensitive" > .github/fix-proposal/sensitive-paths.txt
+          else
+            echo "contains_sensitive=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - id: cpr
+        name: Open draft PR for proposal
+        if: steps.changes.outputs.has_changes == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: ci/fix-proposal-${{ github.run_id }}-${{ github.run_attempt }}
+          base: main
+          title: "ci: draft fix proposal for failing verification"
+          body-path: .github/fix-proposal/pr-body.md
+          commit-message: "ci: draft fix proposal with before/after evidence"
+          draft: true
+          delete-branch: false
+
+      - name: Label sensitive proposal for mandatory human review
+        if: steps.cpr.outputs.pull-request-number != '' && steps.sensitive.outputs.contains_sensitive == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = Number("${{ steps.cpr.outputs.pull-request-number }}");
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              labels: ["needs-human-review"],
+            });
+
+      - name: Stop when proposal touched sensitive paths
+        if: steps.cpr.outputs.pull-request-number != '' && steps.sensitive.outputs.contains_sensitive == 'true'
+        run: |
+          echo "Sensitive paths were modified. Draft PR labeled needs-human-review; stopping for human decision."
+          exit 1
+
+      - name: Upload fix-proposal evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: fix-proposal-evidence-${{ github.run_id }}
+          path: .github/fix-proposal/

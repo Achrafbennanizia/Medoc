@@ -1,122 +1,108 @@
-name: Release
+name: release
 
 on:
-  workflow_dispatch:
   push:
     tags:
-      - "version*"
-  # After CI on main succeeds: ship the desktop app (not NSIS/MSI/keygen).
-  workflow_run:
-    workflows: ["CI"]
-    types: [completed]
-    branches: [main]
+      - "v*"
+  workflow_dispatch:
 
 concurrency:
-  group: release-${{ github.event.workflow_run.head_sha || github.ref }}
+  group: release-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
 
-env:
-  MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
-  MEDOC_UPDATER_GITHUB_REPO: ${{ github.repository }}
-  # workflow_run's github.sha is the workflow file on default branch, not the green CI commit.
-  MEDOC_CHECKOUT_REF: ${{ github.event.workflow_run.head_sha || github.sha }}
-
 jobs:
-  build-app:
-    name: App (${{ matrix.os }})
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+  gate:
+    uses: ./.github/workflows/verify.yml
+
+  approval:
+    name: Manual release approval
+    needs: gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: release
+    steps:
+      - run: echo "Release approval granted."
+
+  build:
+    name: Signed build (${{ matrix.os }})
+    needs: approval
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            tauri_args: --no-bundle
-          - os: macos-latest
-            tauri_args: --bundles app
-          - os: windows-latest
-            tauri_args: --no-bundle
+        os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ env.MEDOC_CHECKOUT_REF }}
-          persist-credentials: false
+          fetch-depth: 0
+
+      - id: pm
+        name: Detect package manager
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "tauri_build_cmd=pnpm --filter medoc-tauri-host run tauri -- build" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+            echo "tauri_build_cmd=yarn workspace medoc-tauri-host tauri build" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=npm ci" >> "$GITHUB_OUTPUT"
+            echo "tauri_build_cmd=npm run tauri -w medoc-tauri-host -- build" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: npm
-          cache-dependency-path: package-lock.json
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+
       - uses: dtolnay/rust-toolchain@stable
+
       - name: Linux Tauri deps
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev
+
       - name: Install OpenSSL (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: ./scripts/ci-windows-install-openssl.ps1
+
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: . -> target
-      - run: npm ci
-      - name: Unwrap Windows workspace node_modules links
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: ./scripts/ci-windows-unwrap-workspace-node-modules.ps1
-      - run: npm run build -w medoc
-      # Run from medoc-tauri-host (apps/practice-host), not -w medoc.
-      - name: Tauri app (no OS installer packages)
-        run: npm run tauri -w medoc-tauri-host -- build ${{ matrix.tauri_args }}
-      - name: Stage app payload
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p dist-app
-          macos_bundle="apps/practice-host/target/release/bundle/macos"
-          if [[ -d "$macos_bundle" ]]; then
-            cp -R "$macos_bundle"/. dist-app/
-          elif [[ -f apps/practice-host/target/release/medoc.exe ]]; then
-            cp apps/practice-host/target/release/medoc.exe dist-app/
-          elif [[ -f target/release/medoc.exe ]]; then
-            cp target/release/medoc.exe dist-app/
-          elif [[ -f apps/practice-host/target/release/medoc ]]; then
-            cp apps/practice-host/target/release/medoc dist-app/
-          elif [[ -f target/release/medoc ]]; then
-            cp target/release/medoc dist-app/
-          else
-            echo "No MeDoc app binary found under target/release" >&2
-            find apps/practice-host/target/release -maxdepth 3 -type f 2>/dev/null | head -50 || true
-            find target/release -maxdepth 2 -type f 2>/dev/null | head -20 || true
-            exit 1
-          fi
-          ls -la dist-app
-      - name: Upload app
+
+      - run: corepack enable
+
+      - name: Install dependencies
+        run: ${{ steps.pm.outputs.install_cmd }}
+
+      - name: Verify tests on release commit (no mutation)
+        run: cargo test --workspace
+
+      - name: Build signed bundle
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: ${{ steps.pm.outputs.tauri_build_cmd }}
+
+      - name: Upload signed artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: medoc-app-${{ matrix.os }}
-          path: dist-app/**
-
-  publish-release:
-    name: Publish GitHub Release
-    if: startsWith(github.ref, 'refs/tags/version')
-    runs-on: ubuntu-latest
-    needs: [build-app]
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/download-artifact@v4
-        with:
-          path: release-artifacts
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: release-artifacts/**/*
-          generate_release_notes: true
-          fail_on_unmatched_files: false
+          name: medoc-${{ matrix.os }}
+          path: |
+            apps/practice-host/target/release/bundle/**
+          if-no-files-found: error
