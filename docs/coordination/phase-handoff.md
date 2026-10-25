@@ -1,5 +1,41 @@
 # Phase handoff
 
+**Last phase label:** Workflow logging channel + UI bridge (2026-10-25)
+
+### Verified (2026-10-25 — logger-first slice)
+
+- Added a dedicated `workflow.log` tracing channel in the shared logging subsystem (`medoc-core`), separated from `system.log`.
+- Added sanitized `log_workflow_event` IPC command and registered it in the central invoke handler (`EXPECTED_INVOKE_COMMAND_COUNT` 313 → 314).
+- Added frontend workflow bridge:
+  - `tauriInvoke` now emits `primary_action` and `success` / `cancel` / `error` events.
+  - Router-level `route_enter` events are emitted via `WorkflowRouteLogger` in `App.tsx`.
+- Added Vitest coverage for the bridge (`src/services/tauri.service.test.ts`, 4 tests).
+- Fixed frontend build blocker by removing duplicate `AppointmentConfirmMode` declaration.
+- Validation:
+  - `cargo +stable fmt --check` **PASS**
+  - `npm run test` **PASS** (68 files / 335 tests)
+  - `npm run build` **PASS**
+  - `cargo +stable clippy ...` / `cargo +stable test --workspace` **FAIL (ENV)** — missing `openssl/crypto.h` while compiling SQLCipher dependency.
+
+### Remains unverified
+
+- Live file-level proof that workflow events are written to `workflow.log` under a running Tauri app — **NOT OBSERVED**.
+- Step 2 full workflow state-machine audit, Step 3 broad component-event matrix, Step 4 Playwright geometry checks, and Step 5 full a11y/rules sweep remain **NOT RUN** in this slice.
+
+### Understanding delta
+
+- Workflow logging existed only as a target merged into `system.log`; now it is physically separated and reachable from the frontend via a sanitized bridge.
+- The current VM image cannot complete Rust validation gates due missing OpenSSL development headers required by SQLCipher (`libsqlite3-sys` compile path).
+
+### Required next
+
+1. Run app-level smoke to confirm `workflow.log` receives `route_enter`, `primary_action`, `success`, `cancel`, and `error` events end-to-end.
+2. Continue Step 2 workflow mapping from logs into register entries (id/location/evidence/severity/action).
+3. Add Playwright geometry + spacing token assertions and axe checks per Step 4/5.
+4. Remediate VM dependency gap (`openssl/crypto.h`) and re-run full Rust gates (`clippy`, `test`).
+
+---
+
 **Last phase label:** Payment fulfills open booking (2026-09-05)
 
 ### Verified (2026-09-05 — payment → billing list)
