@@ -1,6 +1,37 @@
 # Phase handoff
 
-**Last phase label:** CI/CD tiered pipeline wiring (2026-10-25)
+**Last phase label:** CI/CD tiered pipeline follow-up (2026-10-25)
+
+### Verified (2026-10-25 — tiered CI/CD follow-up on current branch)
+
+- Reused prior tiered-pipeline implementation commit on this branch via cherry-pick (`1be1f26` → local `e77d6ac`).
+- Verified workflow YAML parsing for all `.github/workflows/*.yml` files (**PASS**).
+- Verified Rust formatting guard command remains clean (**PASS**).
+- Verified `npm ci` install path (**PASS**).
+- Verified frontend lint still fails on pre-existing issues in:
+  - `apps/practice-host-ui/src/views/components/dev-capture-poller.tsx`
+  - `apps/practice-host-ui/src/views/pages/day-close.tsx`
+- Added explicit compliance-sensitive mutation block in `autofix.yml` (`security|audit|crypto|rbac` paths fail job before push).
+- Harmonized compliance matcher in `fix-proposal.yml` to use the same protected-path pattern with `rg`.
+
+### Remains unverified
+
+- End-to-end behavior on GitHub runners (verify/autofix/fix-proposal/release) — **NOT OBSERVED**.
+- Runtime availability of repo label `needs-human-review` — **NOT OBSERVED**.
+- Protected `release` environment approval flow on a real `v*` tag — **NOT OBSERVED**.
+
+### Understanding delta
+
+- The current branch now carries the same tiered CI/CD structure as the prior implementation branch, with an additional explicit autofix compliance-path block.
+- Guardrail coverage is now consistent for mutation tiers: autofix blocks protected domains before push; fix-proposal labels/stops when protected domains are touched.
+
+### Required next
+
+1. Push branch and observe first GitHub Actions runs for `verify`, `autofix`, `fix-proposal`, and `release`.
+2. Ensure the repository label `needs-human-review` exists (or create it) so compliance labeling is effective.
+3. Configure/verify protected `release` environment reviewers and test a `v*` tag dry run.
+
+---
 
 ### Verified (2026-10-25 — verify/autofix/fix-proposal/release)
 

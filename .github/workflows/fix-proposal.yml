@@ -199,7 +199,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if git diff --name-only "origin/${{ steps.target.outputs.base }}...HEAD" | grep -Eiq '(^|/)(security|audit|crypto|rbac)(/|\\.|$)'; then
+          if git diff --name-only "origin/${{ steps.target.outputs.base }}...HEAD" | rg -i '(^|/)(security|audit|crypto|rbac)(/|\\.|_|-|$)' >/dev/null; then
             gh pr edit "${{ steps.pr.outputs.url }}" --add-label "needs-human-review" || true
             echo "Compliance-sensitive files touched. Draft PR labeled and workflow stopped for human review."
             exit 1

@@ -52,6 +52,7 @@ Guardrails:
 - Never runs on `push` to protected branches.
 - Never runs on release paths.
 - No logic-changing remediation in this tier.
+- If deterministic tools touch `security|audit|crypto|rbac` paths, the job fails and does not push.
 
 ## Tier 3 — `fix-proposal.yml` (substantive fixes via draft PR)
 

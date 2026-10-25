@@ -1,6 +1,23 @@
 # Validation ledger
 
-**Last updated:** 2026-10-25 (CI/CD tiered pipeline wiring)
+**Last updated:** 2026-10-25 (CI/CD tiered pipeline wiring follow-up)
+
+## CI/CD tiered pipeline wiring follow-up (2026-10-25)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Reused prior implementation on current branch | `git fetch origin 1be1f263995ca52eb52a3ce31362d64f1ba19b84 && git cherry-pick 1be1f263995ca52eb52a3ce31362d64f1ba19b84` | **PASS** |
+| Workflow YAML syntax | `python3 -c "import glob,yaml; [yaml.safe_load(open(p)) for p in glob.glob('.github/workflows/*.yml')]; print('workflow-yaml-ok')"` | **PASS** |
+| Rust formatting guard | `MEDOC_VENDOR_PUBKEY=… MEDOC_DB_KEY=… MEDOC_AUDIT_KEY=… cargo fmt --all -- --check` | **PASS** |
+| Dependency install | `npm ci` | **PASS** |
+| Frontend lint baseline | `npm run lint -w medoc` | **FAIL** — pre-existing lint violations in `apps/practice-host-ui/src/views/components/dev-capture-poller.tsx` and `apps/practice-host-ui/src/views/pages/day-close.tsx` |
+| Remote workflow runtime behavior | — | **NOT RUN** (requires GitHub Actions execution after push) |
+
+**Notes**
+- Added explicit compliance guard in `.github/workflows/autofix.yml`: deterministic fixes are blocked if changed files match `security|audit|crypto|rbac`.
+- Updated `.github/workflows/fix-proposal.yml` compliance path matcher to use `rg` with the same protected pattern.
+
+---
 
 ## CI/CD tiered pipeline wiring (2026-10-25)
 

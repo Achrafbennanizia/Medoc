@@ -79,6 +79,21 @@ jobs:
             echo "No root format script configured; skipping formatter step."
           fi
 
+      - name: Block compliance-sensitive path mutations
+        run: |
+          set -euo pipefail
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No changes to inspect."
+            exit 0
+          fi
+
+          sensitive_changes="$(git diff --name-only | rg -i '(^|/)(security|audit|crypto|rbac)(/|\\.|_|-|$)' || true)"
+          if [ -n "$sensitive_changes" ]; then
+            echo "Autofix generated prohibited changes in compliance-sensitive paths:"
+            echo "$sensitive_changes"
+            exit 1
+          fi
+
       - name: Commit and push fixes when changed
         run: |
           if [ -n "$(git status --porcelain)" ]; then

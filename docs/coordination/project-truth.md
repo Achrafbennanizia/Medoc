@@ -20,7 +20,7 @@
 - **Desktop stack:** React 19 + Vite 6 + TypeScript in `apps/practice-host-ui/`; Rust **edition 2021** Tauri binary `medoc` in `apps/practice-host/` with `sqlx` + SQLite via `crates/shared/medoc-core/` (`package.json`, `apps/practice-host/Cargo.toml`).
 - **Database (runtime):** SQLite file `medoc.db` via SQLCipher (`libsqlite3-sys` `bundled-sqlcipher`); `PRAGMA key` from keychain / `MEDOC_DB_KEY` / `db-key.wrap`; legacy plaintext DB migrated on first open (`crates/shared/medoc-core/src/infrastructure/database/connection.rs`, `sqlcipher.rs`, `db_key.rs`).
 - **Schema language (2026-08-19):** Canonical table names are English snake_case (`staff`, `appointment`, `service_item`, `purchase_order`). Installed DBs are upgraded by `run_english_schema_upgrade` (German + camelCase leftovers). Fresh DBs use `0001_initial_schema.sql`. `cargo test` of the upgrade — **NOT RUN**.
-- **CI scope (2026-10-25):** tiered workflows — `verify.yml` (blocking verify + axe gate, no mutation), `autofix.yml` (deterministic PR-branch fixes only), `fix-proposal.yml` (draft PR proposals), `release.yml` (tag/dispatch verify gate + signed artifacts in protected `release` environment). `ci.yml` is compatibility wrapper. Rust/JS workspaces are repo-root manifests (`Cargo.toml`, `package.json`), not legacy `app/` paths.
+- **CI scope (2026-10-25):** tiered workflows — `verify.yml` (blocking verify + axe gate, no mutation), `autofix.yml` (deterministic PR-branch fixes only, plus protected-path block for `security|audit|crypto|rbac`), `fix-proposal.yml` (draft PR proposals with `needs-human-review` label/stop for protected paths), `release.yml` (tag/dispatch verify gate + signed artifacts in protected `release` environment). `ci.yml` is compatibility wrapper. Rust/JS workspaces are repo-root manifests (`Cargo.toml`, `package.json`), not legacy `app/` paths.
 - **Vendor Ed25519 pubkey:** Compile-time via `apps/practice-host/build.rs` → `OUT_DIR/pubkey.rs`; used by `license.rs` and `update.rs` (`apps/practice-host/src/infrastructure/crypto/sig.rs`).
 - **Update signatures:** `update::evaluate` rejects unsigned/tampered manifests with `UpdateStatus::Error { message: "Signatur ungültig" }`.
 - **Company server demo:** Stub routes in `company_host/http.rs` return `"_demo": true`; UI banner in `settings-company-portal-section.tsx`.
@@ -78,7 +78,7 @@
 | Tauri + versions | `package.json`, `apps/practice-host/Cargo.toml`, `apps/practice-host/tauri.conf.json` | 2026-06-06 |
 | SQLite SQLCipher connector | `crates/shared/medoc-core/src/infrastructure/database/connection.rs` | 2026-06-06 |
 | Frontend routes | `apps/practice-host-ui/src/App.tsx` | 2026-06-06 |
-| CI commands | `.github/workflows/ci.yml` | 2026-06-06 |
+| CI commands | `.github/workflows/{verify,autofix,fix-proposal,release}.yml` + `.github/workflows/ci.yml` wrapper | 2026-10-25 |
 | Build + tests pass | Terminal: `npm run build`, `cargo test --workspace --tests` | 2026-06-06 |
 | Vendor pubkey build | `apps/practice-host/build.rs`, `docs/operations/vendor-key-rotation.md` | 2026-06-06 |
 | Update signature tests | `apps/practice-host/tests/update_signature_tests.rs` | 2026-06-06 |
