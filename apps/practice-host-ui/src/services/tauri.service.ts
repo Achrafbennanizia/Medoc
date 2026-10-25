@@ -50,12 +50,88 @@ function expandDualCaseInvokeArgs(args: Record<string, unknown>): Record<string,
     return out;
 }
 
+type WorkflowEventPayload = {
+    phase: string;
+    route?: string;
+    action?: string;
+    status?: string;
+    detail?: string;
+    durationMs?: number;
+};
+
+const WORKFLOW_LOG_COMMAND = "log_workflow_event";
+const SECRET_PAIR_RE = /(password|token|secret|api[_-]?key|license)\s*[:=]\s*\S+/gi;
+const JWT_RE = /eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g;
+
+function nowMs(): number {
+    if (typeof performance !== "undefined" && typeof performance.now === "function") {
+        return performance.now();
+    }
+    return Date.now();
+}
+
+function isTauriDesktopRuntime(): boolean {
+    if (typeof window === "undefined") return false;
+    return "__TAURI_INTERNALS__" in window;
+}
+
+function sanitizeDetail(raw: unknown): string | undefined {
+    if (raw == null) return undefined;
+    const text = String(raw).trim();
+    if (!text) return undefined;
+    const scrubbedSecrets = text.replace(
+        SECRET_PAIR_RE,
+        (_all, key: string) => `${String(key).toLowerCase()}=***`,
+    );
+    const scrubbedJwt = scrubbedSecrets.replace(JWT_RE, "eyJ***");
+    return scrubbedJwt.slice(0, 512);
+}
+
+async function emitWorkflowEvent(payload: WorkflowEventPayload): Promise<void> {
+    if (!isTauriDesktopRuntime()) return;
+    try {
+        await invoke<void>(WORKFLOW_LOG_COMMAND, { event: payload });
+    } catch {
+        // Best-effort logging; never block UI actions on telemetry failures.
+    }
+}
+
 // All Tauri IPC goes through here (single place for invoke normalization).
 export async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-    if (args == null) {
-        return invoke<T>(cmd, {});
+    const startedAt = nowMs();
+    if (cmd !== WORKFLOW_LOG_COMMAND) {
+        void emitWorkflowEvent({
+            phase: "primary_action",
+            action: cmd,
+            status: "start",
+        });
     }
-    const cleaned = omitUndefinedValues(args);
-    const expanded = expandDualCaseInvokeArgs(cleaned);
-    return invoke<T>(cmd, expanded);
+    const payload = (() => {
+        if (args == null) return {};
+        const cleaned = omitUndefinedValues(args);
+        return expandDualCaseInvokeArgs(cleaned);
+    })();
+    try {
+        const result = await invoke<T>(cmd, payload);
+        if (cmd !== WORKFLOW_LOG_COMMAND) {
+            void emitWorkflowEvent({
+                phase: "primary_action",
+                action: cmd,
+                status: "success",
+                durationMs: Math.max(0, Math.round(nowMs() - startedAt)),
+            });
+        }
+        return result;
+    } catch (error) {
+        if (cmd !== WORKFLOW_LOG_COMMAND) {
+            void emitWorkflowEvent({
+                phase: "primary_action",
+                action: cmd,
+                status: "error",
+                detail: sanitizeDetail(error),
+                durationMs: Math.max(0, Math.round(nowMs() - startedAt)),
+            });
+        }
+        throw error;
+    }
 }

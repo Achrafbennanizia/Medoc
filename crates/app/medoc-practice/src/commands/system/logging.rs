@@ -1,5 +1,6 @@
 // Logging-related Tauri commands (NFA-LOG-09, NFA-LOG-10)
 
+use serde::Deserialize;
 use sqlx::SqlitePool;
 use tauri::State;
 
@@ -9,6 +10,28 @@ use crate::error::AppError;
 use crate::infrastructure::database::audit_repo;
 use crate::infrastructure::logging::{self, LogLevel, LOGGING_CONFIG};
 use crate::{log_system, log_workflow};
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkflowEventArgs {
+    pub phase: String,
+    #[serde(default)]
+    pub route: Option<String>,
+    #[serde(default)]
+    pub action: Option<String>,
+    #[serde(default)]
+    pub status: Option<String>,
+    #[serde(default)]
+    pub detail: Option<String>,
+    #[serde(default)]
+    pub duration_ms: Option<u64>,
+}
+
+fn sanitize_workflow_field(raw: Option<&str>, max_chars: usize) -> Option<String> {
+    let value = raw.map(str::trim).filter(|s| !s.is_empty())?;
+    let redacted = crate::infrastructure::logging::sanitizer::sanitize(value);
+    Some(redacted.chars().take(max_chars).collect())
+}
 
 #[tauri::command]
 #[tracing::instrument(level = "debug", skip(session_state))]
@@ -62,6 +85,29 @@ pub fn log_dir(session_state: State<'_, SessionState>) -> Result<String, AppErro
     Ok(logging::log_dir()?.display().to_string())
 }
 
+#[tauri::command]
+#[tracing::instrument(level = "debug", skip(event))]
+pub fn log_workflow_event(event: WorkflowEventArgs) -> Result<(), AppError> {
+    let phase = sanitize_workflow_field(Some(&event.phase), 48).unwrap_or_else(|| "unknown".into());
+    let route = sanitize_workflow_field(event.route.as_deref(), 256);
+    let action = sanitize_workflow_field(event.action.as_deref(), 128);
+    let status = sanitize_workflow_field(event.status.as_deref(), 48);
+    let detail = sanitize_workflow_field(event.detail.as_deref(), 512);
+    let duration_ms = event.duration_ms.unwrap_or_default();
+
+    log_workflow!(
+        info,
+        event = "UI_WORKFLOW",
+        phase = %phase,
+        route = ?route,
+        action = ?action,
+        status = ?status,
+        detail = ?detail,
+        duration_ms
+    );
+    Ok(())
+}
+
 /// IPC commands for [`crate::commands::register`].
 #[macro_export]
 macro_rules! register_logging_commands {
@@ -71,5 +117,6 @@ macro_rules! register_logging_commands {
         $crate::commands::logging_commands::export_logs,
         $crate::commands::logging_commands::verify_audit_chain,
         $crate::commands::logging_commands::log_dir,
+        $crate::commands::logging_commands::log_workflow_event,
     };
 }
