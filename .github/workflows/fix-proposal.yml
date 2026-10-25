@@ -1,0 +1,210 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Short reason for running fix proposal"
+        required: false
+        default: "manual-dispatch"
+      fix_command:
+        description: "Optional command that applies a substantive fix before proposal creation"
+        required: false
+        default: ""
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: fix-proposal-${{ github.event.workflow_run.head_sha || github.sha }}
+  cancel-in-progress: true
+
+env:
+  MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+  MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: "1"
+
+jobs:
+  propose:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Resolve target ref
+        id: target
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            echo "ref=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+            echo "base=${{ github.event.workflow_run.head_branch }}" >> "$GITHUB_OUTPUT"
+            echo "reason=verify-failed-on-main" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+            echo "base=main" >> "$GITHUB_OUTPUT"
+            echo "reason=${{ github.event.inputs.reason || 'manual-dispatch' }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.target.outputs.ref }}
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Detect package manager
+        id: pm
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+            *) echo "Unsupported package manager: ${{ steps.pm.outputs.pm }}" >&2; exit 1 ;;
+          esac
+
+      - name: Create proposal branch
+        id: branch
+        run: |
+          short_sha="$(git rev-parse --short HEAD)"
+          branch="ci/fix-proposal-$(date -u +%Y%m%d%H%M%S)-${short_sha}"
+          git checkout -b "$branch"
+          echo "name=$branch" >> "$GITHUB_OUTPUT"
+
+      - name: Capture failing-before baseline
+        run: |
+          set +e
+          cargo test --workspace > before-rust.log 2>&1
+          echo "rust_exit=$?" >> "$GITHUB_ENV"
+
+          npx tsc --noEmit -p apps/practice-host-ui/tsconfig.json > before-typecheck.log 2>&1
+          echo "typecheck_exit=$?" >> "$GITHUB_ENV"
+          set -e
+
+      - name: Attempt substantive fix
+        run: |
+          set +e
+          if [ -n "${{ github.event.inputs.fix_command || '' }}" ]; then
+            echo "Running supplied fix command..."
+            bash -lc "${{ github.event.inputs.fix_command }}"
+          else
+            echo "No fix command supplied; trying conservative dependency remediation."
+            cargo update -w
+            if [ "${{ steps.pm.outputs.pm }}" = "npm" ]; then
+              npm audit fix --package-lock-only --omit=dev
+            elif [ "${{ steps.pm.outputs.pm }}" = "pnpm" ]; then
+              pnpm audit --fix --prod
+            elif [ "${{ steps.pm.outputs.pm }}" = "yarn" ]; then
+              yarn npm audit --all --recursive
+            fi
+          fi
+          echo "fix_exit=$?" >> "$GITHUB_ENV"
+          set -e
+
+      - name: Capture passing-after evidence
+        run: |
+          set +e
+          cargo test --workspace > after-rust.log 2>&1
+          echo "after_rust_exit=$?" >> "$GITHUB_ENV"
+
+          npx tsc --noEmit -p apps/practice-host-ui/tsconfig.json > after-typecheck.log 2>&1
+          echo "after_typecheck_exit=$?" >> "$GITHUB_ENV"
+          set -e
+
+      - name: Prepare PR body evidence
+        id: body
+        run: |
+          mkdir -p /tmp/fix-proposal
+          {
+            echo "## Fix proposal summary"
+            echo
+            echo "- Reason: \`${{ steps.target.outputs.reason }}\`"
+            echo "- Trigger ref: \`${{ steps.target.outputs.ref }}\`"
+            echo "- Base branch: \`${{ steps.target.outputs.base }}\`"
+            echo "- Attempted fix command: \`${{ github.event.inputs.fix_command || 'default-conservative-remediation' }}\`"
+            echo
+            echo "## Failing-before / passing-after evidence"
+            echo
+            echo "| Check | Before | After |"
+            echo "|---|---:|---:|"
+            echo "| cargo test --workspace | \`${rust_exit}\` | \`${after_rust_exit}\` |"
+            echo "| tsc practice-host-ui | \`${typecheck_exit}\` | \`${after_typecheck_exit}\` |"
+            echo
+            echo "## Notes"
+            echo
+            echo "- This PR is opened as **draft** and must be reviewed and merged by a human."
+            echo "- If security/audit/crypto/RBAC paths are touched, the workflow adds \`needs-human-review\` and stops."
+          } > /tmp/fix-proposal/body.md
+          echo "file=/tmp/fix-proposal/body.md" >> "$GITHUB_OUTPUT"
+
+      - name: Commit candidate changes
+        id: commit
+        run: |
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "ci: draft fix proposal (${{ steps.target.outputs.reason }})"
+          git push --set-upstream origin "${{ steps.branch.outputs.name }}"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Open draft PR
+        if: steps.commit.outputs.changed == 'true'
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pr_url="$(gh pr create \
+            --draft \
+            --base "${{ steps.target.outputs.base }}" \
+            --head "${{ steps.branch.outputs.name }}" \
+            --title "ci: fix proposal for ${{ steps.target.outputs.reason }}" \
+            --body-file "${{ steps.body.outputs.file }}")"
+          echo "url=$pr_url" >> "$GITHUB_OUTPUT"
+
+      - name: Guard compliance-sensitive paths
+        if: steps.commit.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if git diff --name-only "origin/${{ steps.target.outputs.base }}...HEAD" | grep -Eiq '(^|/)(security|audit|crypto|rbac)(/|\\.|$)'; then
+            gh pr edit "${{ steps.pr.outputs.url }}" --add-label "needs-human-review" || true
+            echo "Compliance-sensitive files touched. Draft PR labeled and workflow stopped for human review."
+            exit 1
+          fi
+
+      - name: No-op when no changes were produced
+        if: steps.commit.outputs.changed != 'true'
+        run: echo "No proposal PR opened because the fix attempt produced no diff."

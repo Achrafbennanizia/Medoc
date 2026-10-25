@@ -1,6 +1,38 @@
 # Phase handoff
 
-**Last phase label:** Payment fulfills open booking (2026-09-05)
+**Last phase label:** CI/CD tiered pipeline wiring (2026-10-25)
+
+### Verified (2026-10-25 — verify/autofix/fix-proposal/release)
+
+- Added tiered CI/CD workflows:
+  - `.github/workflows/verify.yml` (push/PR/workflow_call, zero-mutation checks)
+  - `.github/workflows/autofix.yml` (PR-only deterministic fixes + bot loop guard)
+  - `.github/workflows/fix-proposal.yml` (manual or failed-main trigger, draft PR flow)
+  - `.github/workflows/release.yml` (tag/dispatch gate + protected `release` env)
+- Migrated legacy `ci.yml` into compatibility wrapper (`workflow_dispatch` + `workflow_call`) that delegates to `verify.yml`.
+- Added coordination plan doc: `docs/coordination/ci-cd-plan.md`.
+- Recorded validation evidence in `docs/coordination/validation.md` (2026-10-25 section).
+- Local checks: workflow YAML parse **PASS**; `cargo fmt --all -- --check` **PASS**; frontend lint currently **FAIL** with pre-existing violations in `dev-capture-poller.tsx` and `day-close.tsx`.
+
+### Remains unverified
+
+- End-to-end behavior on GitHub runners (verify/autofix/fix-proposal/release) — **NOT OBSERVED** in this local session.
+- Runtime availability of `needs-human-review` label in the repo — **NOT OBSERVED**.
+- Release environment manual-approval gate execution on a real tag — **NOT OBSERVED**.
+
+### Understanding delta
+
+- The active pipeline now reflects the real `apps/*`, `crates/*`, and `packages/*` workspaces instead of relying on a monolithic CI definition.
+- Verification and mutation concerns are explicitly separated into independent workflows with policy guardrails.
+- Release now reuses the verify gate and enforces protected-environment approval before signed builds.
+
+### Required next
+
+1. Push branch and run the new workflows in GitHub Actions to confirm green syntax/runtime behavior.
+2. Ensure label `needs-human-review` exists in the repository settings.
+3. Protect `release` environment with required reviewers and confirm tag `v*` path signs artifacts.
+
+---
 
 ### Verified (2026-09-05 — payment → billing list)
 
