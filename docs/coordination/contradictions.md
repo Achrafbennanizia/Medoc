@@ -1,6 +1,6 @@
 # Contradiction ledger
 
-**Last updated:** 2026-06-16
+**Last updated:** 2026-10-25
 
 ## Open contradictions
 
@@ -10,6 +10,7 @@
 | C5 | Activation-token RBAC scope | Plan ("activation-token allowed_actions on /sync/push|pull only") | `verify_activation_for_path` also accepts `/sync/status` + `/pairing/peers` | **Documented divergence** — broader allow-list documented in `serverless-sync.md`; matches frontend usage. |
 | C6 | "Encrypt every microservice" | User request 2026-05-26 | Plan slice rejected literal interpretation as YAGNI; only license envelope + activation token are encrypted/signed | **Resolved by plan note** — see [`docs/architecture/licensing.md`](../architecture/licensing.md) "What was explicitly not built". |
 | C7 | "Period" in license payload | User request 2026-05-26 | User chose `perpetual_device`; v2 schema stores `activated_at` only, no `expires_at` | **Resolved** — perpetual model documented in `licensing.md`. |
+| C10 | Rust toolchain floor for CI parity | Workspace lock includes crates requiring edition2024 parsing (`rand_pcg 0.10.2`) | Local runner uses `cargo 1.83.0` and fails `cargo clippy` before linting code | Local validation may be misleading until runner/toolchain is bumped; confirm GitHub `stable` execution and document minimum supported toolchain. |
 
 ## Resolved (recent)
 

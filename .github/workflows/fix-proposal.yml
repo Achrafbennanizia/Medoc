@@ -1,0 +1,247 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: "Git ref to start from"
+        required: false
+        default: "main"
+      reason:
+        description: "Why this proposal run was requested"
+        required: false
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: fix-proposal-${{ github.event.workflow_run.head_sha || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  propose-fix:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Resolve target context
+        id: target
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            printf 'ref=%s\n' "${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+            printf 'before_url=%s\n' "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}" >> "$GITHUB_OUTPUT"
+            printf 'reason=%s\n' "verify workflow failed on main" >> "$GITHUB_OUTPUT"
+          else
+            reason="${{ inputs.reason }}"
+            if [ -z "$reason" ]; then
+              reason="manual workflow_dispatch"
+            fi
+            printf 'ref=%s\n' "${{ inputs.base_ref }}" >> "$GITHUB_OUTPUT"
+            printf 'before_url=%s\n' "manual workflow_dispatch" >> "$GITHUB_OUTPUT"
+            printf 'reason=%s\n' "$reason" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.target.outputs.ref }}
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - id: pm
+        name: Detect package manager
+        shell: bash
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+
+      - name: Install workspace dependencies
+        shell: bash
+        run: |
+          corepack enable
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --immutable ;;
+            npm) npm ci ;;
+            *) echo "Unsupported package manager: ${{ steps.pm.outputs.pm }}" >&2; exit 1 ;;
+          esac
+
+      - name: Create proposal branch
+        id: branch
+        shell: bash
+        run: |
+          branch_name="ci/fix-proposal-$(date -u +%Y%m%d-%H%M%S)-${GITHUB_RUN_ID}"
+          git checkout -b "$branch_name"
+          echo "name=$branch_name" >> "$GITHUB_OUTPUT"
+
+      - name: Capture failing-before snapshot
+        id: before
+        shell: bash
+        run: |
+          set +e
+          cargo test --workspace > before.log 2>&1
+          rust_status=$?
+          cargo install cargo-audit --locked >> before.log 2>&1
+          cargo audit >> before.log 2>&1
+          audit_status=$?
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm run typecheck && pnpm run test ;;
+            yarn) yarn run typecheck && yarn run test ;;
+            npm) npm run typecheck && npm run test ;;
+          esac >> before.log 2>&1
+          js_status=$?
+          set -e
+
+          if [ "$rust_status" -eq 0 ] && [ "$audit_status" -eq 0 ] && [ "$js_status" -eq 0 ]; then
+            overall=0
+          else
+            overall=1
+          fi
+          echo "status=$overall" >> "$GITHUB_OUTPUT"
+
+      - name: Attempt fix with configured agent command
+        env:
+          CI_FIX_PROPOSAL_COMMAND: ${{ secrets.CI_FIX_PROPOSAL_COMMAND }}
+        shell: bash
+        run: |
+          if [ -z "${CI_FIX_PROPOSAL_COMMAND:-}" ]; then
+            echo "CI_FIX_PROPOSAL_COMMAND secret is not configured."
+            echo "Configure that secret with the agent command that should attempt non-deterministic fixes."
+            exit 1
+          fi
+          bash -lc "$CI_FIX_PROPOSAL_COMMAND"
+
+      - name: Check whether any code changes were produced
+        id: changed
+        shell: bash
+        run: |
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "value=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Fail when no fix diff was produced
+        if: steps.changed.outputs.value != 'true'
+        run: |
+          echo "No diff produced by the fix-proposal agent command."
+          exit 1
+
+      - name: Classify sensitive path touches
+        id: sensitive
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed_files="$(git diff --name-only)"
+          restricted_pattern='(^|/)(security|audit|crypto|rbac)(/|$)'
+          if echo "$changed_files" | grep -Eiq "$restricted_pattern"; then
+            echo "value=true" >> "$GITHUB_OUTPUT"
+            echo "labels=needs-human-review" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=false" >> "$GITHUB_OUTPUT"
+            echo "labels=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Capture passing-after snapshot
+        id: after
+        if: steps.sensitive.outputs.value != 'true'
+        shell: bash
+        run: |
+          set +e
+          cargo test --workspace > after.log 2>&1
+          rust_status=$?
+          cargo install cargo-audit --locked >> after.log 2>&1
+          cargo audit >> after.log 2>&1
+          audit_status=$?
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm run typecheck && pnpm run test ;;
+            yarn) yarn run typecheck && yarn run test ;;
+            npm) npm run typecheck && npm run test ;;
+          esac >> after.log 2>&1
+          js_status=$?
+          set -e
+
+          if [ "$rust_status" -eq 0 ] && [ "$audit_status" -eq 0 ] && [ "$js_status" -eq 0 ]; then
+            overall=0
+          else
+            overall=1
+          fi
+          echo "status=$overall" >> "$GITHUB_OUTPUT"
+
+      - name: Fail if post-fix validation is still red
+        if: steps.sensitive.outputs.value != 'true' && steps.after.outputs.status != '0'
+        run: |
+          echo "Post-fix validation is still failing; no proposal PR opened."
+          exit 1
+
+      - name: Compose draft PR body
+        shell: bash
+        run: |
+          changed_files="$(git diff --name-only)"
+          {
+            echo "## Summary"
+            echo "- Automated fix proposal generated from: \`${{ steps.target.outputs.ref }}\`"
+            echo "- Trigger reason: ${{ steps.target.outputs.reason }}"
+            echo
+            echo "## Evidence"
+            echo "- Before source: ${{ steps.target.outputs.before_url }}"
+            echo "- Before snapshot status (0=pass,1=fail): ${{ steps.before.outputs.status }}"
+            if [ "${{ steps.sensitive.outputs.value }}" = "true" ]; then
+              echo "- Sensitive paths touched: yes"
+              echo "- After snapshot: skipped by guardrail"
+            else
+              echo "- Sensitive paths touched: no"
+              echo "- After snapshot status (0=pass,1=fail): ${{ steps.after.outputs.status }}"
+            fi
+            echo
+            echo "## Changed files"
+            echo '```'
+            echo "$changed_files"
+            echo '```'
+            echo
+            echo "## Guardrails"
+            echo "- Draft PR only."
+            echo "- Never auto-merged."
+            echo "- If security/audit/crypto/RBAC paths are touched, label \`needs-human-review\` is applied."
+          } > .github/fix-proposal-body.md
+
+      - name: Open draft pull request
+        id: cpr
+        if: steps.changed.outputs.value == 'true' && (steps.sensitive.outputs.value == 'true' || steps.after.outputs.status == '0')
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: ${{ steps.branch.outputs.name }}
+          base: ${{ github.event.repository.default_branch }}
+          commit-message: "ci: draft fix proposal from failing verify pipeline"
+          title: "ci: draft fix proposal for verify failure"
+          body-path: .github/fix-proposal-body.md
+          draft: true
+          labels: ${{ steps.sensitive.outputs.labels }}
+          delete-branch: false
+
+      - name: Stop automation for sensitive proposals
+        if: steps.sensitive.outputs.value == 'true'
+        run: |
+          echo "Sensitive paths detected. Draft PR labeled needs-human-review and automation stopped."
+          exit 1

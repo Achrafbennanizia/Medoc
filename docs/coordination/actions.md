@@ -1,13 +1,27 @@
 # Action ledger
 
-**Last updated:** 2026-09-05 (payment fulfills open booking)
+**Last updated:** 2026-10-25 (CI/CD tiered pipeline migration)
+
+## Done (2026-10-25 — CI/CD tiers + guardrails)
+
+- Added tiered workflows: `verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml`.
+- Converted `ci.yml` to a manual legacy dispatcher that delegates to `verify.yml` (avoids duplicate push/PR pipelines).
+- Added CI-facing scripts for web checks/autofix/a11y (`typecheck`, `lint:fix`, `format`, `test:a11y`) and `scripts/test-a11y.mjs`.
+- Added coordination doc: `docs/coordination/ci-cd-plan.md`.
+- Logged local validation results in `docs/coordination/validation.md` (YAML/script checks PASS; current frontend lint/type/build still red on pre-existing issues).
+
+## Now
+
+- Run `verify.yml` once on GitHub to confirm runtime behavior and cache/setup behavior on hosted runners.
+- Fix frontend blockers (`AppointmentConfirmMode` duplicate identifier and `day-close.tsx` lint error) so Tier 1 can pass.
+- Configure `CI_FIX_PROPOSAL_COMMAND` and release signing secrets before enabling Tier 3/Tier 4 in production.
 
 ## Done (2026-09-05 — payment → billing)
 
 - Payment create fills the 0 € open booking in place; closes BILLING tasks on `PAID`.
 - Tests: `payment_repo_tests` (incl. fulfill + close).
 
-## Now
+## Now (prior)
 
 - Confirm in the running app: pay an open booking → one billed row, no leftover fulfill task.
 
