@@ -13,8 +13,21 @@ use crate::error::AppError;
 fn token_re() -> Option<&'static Regex> {
     static R: OnceLock<Option<Regex>> = OnceLock::new();
     R.get_or_init(|| {
-        Regex::new(r"(?i)(password|password|token|secret|api[_-]?key|license|license)\s*[:=]\s*\S+")
-            .ok()
+        Regex::new(
+            r#"(?i)(^|\s)(password|token|secret|api[_-]?key|license|patient(?:_id|Id)?|patientName|firstName|first_name|lastName|last_name|email|phone|kvnr|insurance(?:_number|Number)|address)\s*[:=]\s*\S+"#,
+        )
+        .ok()
+    })
+    .as_ref()
+}
+
+fn json_secret_re() -> Option<&'static Regex> {
+    static R: OnceLock<Option<Regex>> = OnceLock::new();
+    R.get_or_init(|| {
+        Regex::new(
+            r#"(?i)("(?:password|token|secret|api[_-]?key|license|patient(?:_id|Id)?|patientName|firstName|first_name|lastName|last_name|email|phone|kvnr|insurance(?:_number|Number)|address)"\s*:\s*)"[^"]*""#,
+        )
+        .ok()
     })
     .as_ref()
 }
@@ -29,14 +42,23 @@ fn jwt_re() -> Option<&'static Regex> {
 /// regexes fail to compile (impossible at runtime for hard-coded literals,
 /// but never panic) the input is returned unchanged.
 pub fn sanitize(input: &str) -> String {
-    let masked = match token_re() {
-        Some(re) => re.replace_all(input, "$1=***").into_owned(),
+    let masked_json = match json_secret_re() {
+        Some(re) => re.replace_all(input, r#"$1"***""#).into_owned(),
         None => input.to_string(),
+    };
+    let masked = match token_re() {
+        Some(re) => re.replace_all(&masked_json, "$1$2=***").into_owned(),
+        None => masked_json,
     };
     match jwt_re() {
         Some(re) => re.replace_all(&masked, "eyJ***").into_owned(),
         None => masked,
     }
+}
+
+/// UTF-8-safe sanitizer entry point for sink writers.
+pub fn sanitize_bytes(input: &[u8]) -> String {
+    sanitize(&String::from_utf8_lossy(input))
 }
 
 #[derive(Debug, Serialize)]
@@ -142,5 +164,20 @@ mod tests {
     fn masks_jwt() {
         let s = sanitize("Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.payload.sig");
         assert!(s.contains("eyJ***"));
+    }
+
+    #[test]
+    fn masks_json_sensitive_fields() {
+        let s = sanitize(r#"{"patient_id":"p-123","email":"a@b.de","event":"UI"}"#);
+        assert!(s.contains(r#""patient_id":"***""#));
+        assert!(s.contains(r#""email":"***""#));
+        assert!(s.contains(r#""event":"UI""#));
+    }
+
+    #[test]
+    fn sanitize_bytes_delegates_to_string_sanitizer() {
+        let s = sanitize_bytes(br#"token=abcdef"#);
+        assert!(s.contains("token=***"));
+        assert!(!s.contains("abcdef"));
     }
 }
