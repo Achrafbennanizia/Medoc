@@ -21,6 +21,7 @@ fn retention_for(filename: &str) -> Option<Duration> {
     } else if filename.starts_with("device")
         || filename.starts_with("migration")
         || filename.starts_with("perf")
+        || filename.starts_with("workflow")
         || filename.starts_with("system")
     {
         Some(Duration::from_secs(180 * 24 * 3600))
@@ -89,4 +90,16 @@ pub fn enforce(log_dir: &PathBuf) -> Result<RetentionReport, AppError> {
         kept = report.kept,
     );
     Ok(report)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::retention_for;
+    use std::time::Duration;
+
+    #[test]
+    fn workflow_log_uses_long_retention_window() {
+        let expected = Some(Duration::from_secs(180 * 24 * 3600));
+        assert_eq!(retention_for("workflow.log"), expected);
+    }
 }

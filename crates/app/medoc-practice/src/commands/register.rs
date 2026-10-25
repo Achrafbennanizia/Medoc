@@ -186,6 +186,7 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::service_item_commands::create_service_item,
             $crate::commands::service_item_commands::update_service_item,
             $crate::commands::service_item_commands::delete_service_item,
+            $crate::commands::logging_commands::log_workflow_event,
             $crate::commands::logging_commands::get_log_level,
             $crate::commands::logging_commands::set_log_level,
             $crate::commands::logging_commands::export_logs,
@@ -330,11 +331,23 @@ macro_rules! medoc_invoke_handler {
     };
 }
 
-pub const EXPECTED_INVOKE_COMMAND_COUNT: usize = 313;
+pub const EXPECTED_INVOKE_COMMAND_COUNT: usize = 314;
 
 /// Attach the consolidated IPC handler to the Tauri builder.
 ///
 /// Concrete `Wry` runtime required so commands taking `AppHandle` type-check (see `chart_attachment_commands`).
 pub fn register_invoke_handler(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
-    builder.invoke_handler(crate::medoc_invoke_handler!())
+    let handler: fn(tauri::ipc::Invoke<tauri::Wry>) -> bool = crate::medoc_invoke_handler!();
+    builder.invoke_handler(move |invoke: tauri::ipc::Invoke<tauri::Wry>| {
+        // Global trace so every invoke reaches the dedicated workflow log
+        // even when a specific command does not emit its own event.
+        let command = invoke.message.command().to_string();
+        crate::log_workflow!(
+            info,
+            event = "IPC_COMMAND_RECEIVED",
+            phase = "primary_action",
+            action = %command
+        );
+        handler(invoke)
+    })
 }

@@ -37,6 +37,7 @@ const CRITICAL_COMMANDS: &[&str] = &[
     "cluster_status_cmd",
     "license_activate",
     "import_activation_manifest",
+    "log_workflow_event",
     "cluster_cluster_reset_preview",
     "cluster_execute_cluster_reset",
     "work_time_get_week_overview",

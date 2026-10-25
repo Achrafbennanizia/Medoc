@@ -22,3 +22,12 @@
 | C8 | Replica merge conflict policy: LWW by `updated_at`; member push merged on master first; admin pull uses `admin_pull`. | `merge.rs`, `engine/run.rs`, `medoc-lan` sync HTTP | 2026-06-29 |
 | C9 | Installed DBs vs rewritten English `0001`: mitigated by `run_english_schema_upgrade` on every open. Live DB **NOT OBSERVED**. | `english_schema_upgrade.rs`, `connection.rs` | 2026-08-19 |
 
+## Workflow findings register (2026-10-25)
+
+| ID | Location | Finding | Evidence | Severity | Action |
+| -- | -------- | ------- | -------- | -------- | ------ |
+| WF-2026-10-25-01 | `packages/shared/src/lib/client-settings.ts` | TypeScript build was non-terminable at compile stage due duplicate `AppointmentConfirmMode` declaration. | `npm run build` failed with `TS2300 Duplicate identifier 'AppointmentConfirmMode'`; fixed in same file by removing duplicate export; build rerun **PASS**. | P1 | **Resolved in this run**; keep build check in validation gate. |
+| WF-2026-10-25-02 | `apps/practice-host-ui/src/views/components/treatment-chart-composer-panel.tsx` | Spacing scale bypass via arbitrary Tailwind value (`min-h-[72px]`). | `npm run lint:tailwind-spacing -w medoc` flagged `min-h-[72px]`; replaced with scale token class `min-h-18`; lint rerun **PASS**. | P2 | **Resolved in this run**; keep lint in CI/checklist. |
+| WF-2026-10-25-03 | Cross-cutting workflow audit scope | Full non-terminable-flow audit (all routes/actions/roles) remains incomplete in automated coverage. | Route discovery and smoke checks were run, but no exhaustive state-machine assertions yet for every route/action pair. | P2 | Add per-route state-machine test matrix (route enter/action/success/cancel/error + timeout branches) in follow-up slice. |
+| WF-2026-10-25-04 | UI rules (a11y + toasts + keyboard) | Comprehensive WCAG/toast contract verification for every page is still partial. | This run added workflow bridge + geometry harness; no full axe sweep across all routes in this slice. | P2 | Add dedicated axe + keyboard + toast conformance suite and record violations in this register. |
+

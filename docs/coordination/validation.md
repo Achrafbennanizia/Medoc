@@ -1,5 +1,22 @@
 # Validation ledger
 
+**Last updated:** 2026-10-25 (workflow logging bridge + geometry harness)
+
+## Workflow logging bridge + geometry harness (2026-10-25)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Environment bootstrap | `npm ci`; `rustup toolchain install stable && rustup default stable`; `sudo apt-get install ... libssl-dev libgtk-3-dev libwebkit2gtk-4.1-dev ...` | **PASS** |
+| Rust format | `cargo fmt --check` | **PASS** |
+| Rust lint | `MEDOC_VENDOR_PUBKEY=79c1662a... cargo clippy --workspace --all-targets -- -D warnings` | **PASS** |
+| Rust tests | `MEDOC_VENDOR_PUBKEY=79c1662a... cargo test` | **PASS** |
+| Frontend unit/integration tests | `npm run test` | **PASS** — **69 files / 337 tests** |
+| Frontend build | `npm run build` | **PASS** |
+| Tailwind arbitrary spacing lint | `npm run lint:tailwind-spacing -w medoc` | **PASS** (no arbitrary spacing/size utilities) |
+| Playwright geometry harness | `npm run test:playwright -w medoc -- login-geometry-spacing.spec.ts` | **PASS** — 3 breakpoint tests (375 / 768 / 1259) |
+
+---
+
 **Last updated:** 2026-09-05 (payment assignment open rows)
 
 ## Payment assignment / open booking (2026-09-05)
