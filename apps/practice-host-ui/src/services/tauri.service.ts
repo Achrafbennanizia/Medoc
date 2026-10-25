@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { emitWorkflowError, emitWorkflowPrimaryAction, emitWorkflowSuccess } from "@/lib/workflow-logger";
 
 /**
  * Tauri v2 resolves each command parameter from the invoke JSON using an explicit key.
@@ -50,12 +51,38 @@ function expandDualCaseInvokeArgs(args: Record<string, unknown>): Record<string,
     return out;
 }
 
+const WORKFLOW_LOG_COMMAND = "record_workflow_event";
+
+function nowMs(): number {
+    if (typeof performance !== "undefined" && typeof performance.now === "function") {
+        return performance.now();
+    }
+    return Date.now();
+}
+
+function createCorrelationId(): string {
+    if (typeof globalThis.crypto?.randomUUID === "function") {
+        return globalThis.crypto.randomUUID();
+    }
+    return `wf-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 // All Tauri IPC goes through here (single place for invoke normalization).
 export async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-    if (args == null) {
-        return invoke<T>(cmd, {});
-    }
-    const cleaned = omitUndefinedValues(args);
+    const cleaned = omitUndefinedValues(args ?? {});
     const expanded = expandDualCaseInvokeArgs(cleaned);
-    return invoke<T>(cmd, expanded);
+    if (cmd === WORKFLOW_LOG_COMMAND) {
+        return invoke<T>(cmd, expanded);
+    }
+    const correlationId = createCorrelationId();
+    const startedAt = nowMs();
+    emitWorkflowPrimaryAction(cmd, correlationId);
+    try {
+        const result = await invoke<T>(cmd, expanded);
+        emitWorkflowSuccess(cmd, correlationId, nowMs() - startedAt);
+        return result;
+    } catch (error) {
+        emitWorkflowError(cmd, correlationId, nowMs() - startedAt);
+        throw error;
+    }
 }
