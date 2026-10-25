@@ -1,6 +1,19 @@
 # Action ledger
 
-**Last updated:** 2026-09-05 (payment fulfills open booking)
+**Last updated:** 2026-10-25 (CI/CD tiered pipeline)
+
+## Done (2026-10-25 — CI/CD tiered pipeline)
+
+- Added tiered GitHub Actions workflows: `verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml`.
+- Migrated `.github/workflows/ci.yml` to a compatibility wrapper that delegates to `verify.yml`.
+- Added policy doc `docs/coordination/ci-cd-plan.md`.
+- Logged verification evidence in `docs/coordination/validation.md` and handoff state in `docs/coordination/phase-handoff.md`.
+
+## Now
+
+- Run the new workflows on GitHub (verify/autofix/fix-proposal/release) and capture first-run outcomes.
+- Confirm `needs-human-review` label exists for fix-proposal compliance guard.
+- Confirm protected `release` environment reviewer gate is active.
 
 ## Done (2026-09-05 — payment → billing)
 
