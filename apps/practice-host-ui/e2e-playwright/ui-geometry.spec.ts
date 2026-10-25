@@ -60,7 +60,12 @@ test.describe("UI geometry + spacing scale", () => {
                 </html>
             `);
             await page.waitForFunction(
-                () => getComputedStyle(document.querySelector(".login-submit") as HTMLElement).paddingTop !== "0px",
+                () => {
+                    const loginKind = document.querySelector(".login-kind") as HTMLElement | null;
+                    if (!loginKind) return false;
+                    const left = getComputedStyle(loginKind).paddingLeft;
+                    return left === "56px" || left === "24px";
+                },
             );
             await expect(page.locator(".login-form")).toBeVisible();
 

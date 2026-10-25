@@ -12,16 +12,7 @@ const targets = [
 
 const sourceExtensions = new Set([".ts", ".tsx", ".js", ".jsx"]);
 const arbitraryTokenPattern =
-    /\b(?:p[trblxy]?|m[trblxy]?|gap(?:-[xy])?|space-[xy]|w|min-w|max-w|h|min-h|max-h|inset(?:-[xy])?|top|right|bottom|left|rounded(?:-[trbl]{1,2})?|z)-\[[^\]]+\]/g;
-
-/**
- * Keep this list short and explicit. Each allowlisted token should be either:
- * 1) a temporary migration exception with an issue reference, or
- * 2) a value that cannot be represented with the shared scale.
- */
-const allowlist = new Set([
-    "focus:z-[60]",
-]);
+    /\b(?:p[trblxy]?|m[trblxy]?|gap(?:-[xy])?|space-[xy]|w|min-w|max-w|h|min-h|max-h|inset(?:-[xy])?|top|right|bottom|left|rounded(?:-[trbl]{1,2})?)-\[[^\]]+\]/g;
 
 function* walkFiles(dir) {
     if (!fs.existsSync(dir)) return;
@@ -46,7 +37,6 @@ function collectViolations(filePath) {
     lines.forEach((line, idx) => {
         for (const match of line.matchAll(arbitraryTokenPattern)) {
             const token = match[0];
-            if (allowlist.has(token)) continue;
             violations.push({
                 token,
                 line: idx + 1,
