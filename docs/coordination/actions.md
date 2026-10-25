@@ -1,19 +1,27 @@
 # Action ledger
 
-**Last updated:** 2026-09-05 (payment fulfills open booking)
+**Last updated:** 2026-10-25 (tiered CI/CD pipeline rollout)
 
-## Done (2026-09-05 — payment → billing)
+## Done (2026-10-25 — CI/CD tiers + guardrails)
 
-- Payment create fills the 0 € open booking in place; closes BILLING tasks on `PAID`.
-- Tests: `payment_repo_tests` (incl. fulfill + close).
+- Added tiered workflows:
+  - `.github/workflows/verify.yml` (blocking, zero-mutation checks)
+  - `.github/workflows/autofix.yml` (PR-only deterministic fixes + loop guard)
+  - `.github/workflows/fix-proposal.yml` (manual/red-main draft PR proposals on new branch)
+  - `.github/workflows/release.yml` (verify-gated signed release on protected environment)
+- Migrated `.github/workflows/ci.yml` to a manual legacy dispatcher that delegates to `verify.yml`.
+- Added CI scripts needed by tiers: root/package scripts + `scripts/test-a11y.mjs` + `apps/practice-host-ui` script hooks.
+- Added coordination plan doc: `docs/coordination/ci-cd-plan.md`.
 
 ## Now
 
-- Confirm in the running app: pay an open booking → one billed row, no leftover fulfill task.
+- Observe first GitHub Actions runs of `verify`/`autofix`/`release` on the PR to confirm hosted behavior (**NOT OBSERVED** from local run).
+- Configure `CI_FIX_PROPOSAL_COMMAND` and release signing secrets (`TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`) in repository settings.
 
 ## Later
 
-- Deferred incomplete UI blinds (Analytics Export/Import, Finance Import, …): see [`todos-deferred-ui-blinds.md`](todos-deferred-ui-blinds.md).
+- Decide whether to retire `ci.yml` entirely after branch protections migrate to `verify`.
+- Expand a11y coverage beyond root route (route list scan) once deterministic fixture navigation is available.
 
 ## Done (2026-09-02 — white window)
 

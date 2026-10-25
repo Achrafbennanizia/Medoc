@@ -1,5 +1,46 @@
 # Phase handoff
 
+**Last phase label:** Tiered CI/CD pipeline rollout (2026-10-25)
+
+### Verified (2026-10-25 — verify/autofix/fix-proposal/release wiring)
+
+- Added tiered workflows under `.github/workflows/`:
+  - `verify.yml` (push/PR/workflow_call, zero-mutation gates, timeouts, concurrency cancel)
+  - `autofix.yml` (PR-only deterministic fixes, loop guard, compliance-sensitive path block)
+  - `fix-proposal.yml` (workflow_dispatch + failed-main verify trigger, new branch + draft PR only, sensitive-path `needs-human-review` handling)
+  - `release.yml` (tag/dispatch, verify gate, protected `release` environment, signed artifact build)
+- Migrated `.github/workflows/ci.yml` to a manual legacy dispatcher that delegates to `verify.yml`.
+- Added JS script coverage for CI tiers:
+  - Root `package.json`: `lint:fix`, `format`, `typecheck`, `test:a11y`
+  - `apps/practice-host-ui/package.json`: `lint:fix`, `format`, `typecheck`, `test:a11y`
+  - New runner `scripts/test-a11y.mjs` (axe-core critical WCAG 2.1 A/AA scan over built UI).
+- Added coordination plan doc: `docs/coordination/ci-cd-plan.md`.
+- Local validations:
+  - `workflow-yaml-ok`, `node --check scripts/test-a11y.mjs`, `cargo fmt --all --check`, `npm run test` **PASS**.
+
+### Remains unverified
+
+- Hosted GitHub Actions behavior for new workflows (`verify`, `autofix`, `fix-proposal`, `release`) — **NOT OBSERVED** until PR CI executes.
+- Release environment manual approval and signing secret wiring in hosted release runs — **NOT OBSERVED**.
+- Fix-proposal runtime command secret (`CI_FIX_PROPOSAL_COMMAND`) configuration in repo settings — **NOT OBSERVED**.
+
+### Understanding delta
+
+- CI moved from a monolithic `ci.yml` pipeline to a four-tier model with explicit verify/autofix/fix-proposal/release separation.
+- Existing local quality blockers remain outside this pipeline wiring change:
+  - pre-existing TS duplicate identifier errors (`AppointmentConfirmMode`)
+  - pre-existing lint error (`day-close.tsx` memoization rule)
+  - local Rust toolchain too old for newest crates (`edition2024` / rustc 1.88 requirements).
+
+### Required next
+
+1. Run the new PR checks in GitHub and confirm hosted workflow behavior end-to-end.
+2. Configure `CI_FIX_PROPOSAL_COMMAND`, `TAURI_SIGNING_PRIVATE_KEY`, and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` secrets.
+3. Resolve pre-existing TS/lint failures so `verify.yml` web + a11y jobs can go fully green.
+4. Update local/CI Rust toolchain baseline to satisfy `cargo-audit` and `edition2024` dependency parsing constraints.
+
+---
+
 **Last phase label:** Payment fulfills open booking (2026-09-05)
 
 ### Verified (2026-09-05 — payment → billing list)

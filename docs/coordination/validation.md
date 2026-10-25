@@ -1,5 +1,27 @@
 # Validation ledger
 
+**Last updated:** 2026-10-25 (tiered CI/CD pipeline rollout)
+
+## Tiered CI/CD pipeline rollout (2026-10-25)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML parse | `python3 - <<'PY' ... yaml.safe_load(...)` over `.github/workflows/{verify,autofix,fix-proposal,release,ci}.yml` | **PASS** (`workflow-yaml-ok`) |
+| a11y runner syntax | `node --check scripts/test-a11y.mjs` | **PASS** |
+| Rust format gate | `cargo fmt --all --check` | **PASS** |
+| npm install parity | `npm ci` | **PASS** |
+| JS tests | `npm run test` | **PASS** — 67 files / 331 tests |
+| JS typecheck gate | `npm run typecheck` | **FAIL** — pre-existing duplicate `AppointmentConfirmMode` identifiers (`apps/practice-host-ui` + `packages/shared`) |
+| JS lint gate | `npm run lint` | **FAIL** — pre-existing lint error in `apps/practice-host-ui/src/views/pages/day-close.tsx` (`react-hooks/preserve-manual-memoization`) |
+| JS build gate | `npm run build` | **FAIL** — same pre-existing duplicate identifier as typecheck |
+| a11y runtime gate | `npm run test:a11y` | **FAIL** — `dist/index.html` missing because build currently fails before dist generation |
+| Rust clippy gate | `MEDOC_VENDOR_PUBKEY=... MEDOC_DB_KEY=... MEDOC_AUDIT_KEY=... cargo clippy --workspace --all-targets -- -D warnings` | **FAIL** — local Cargo `1.83.0` cannot parse `clap_lex 1.1.0` (`edition2024` required) |
+| Rust test gate | `MEDOC_VENDOR_PUBKEY=... MEDOC_DB_KEY=... MEDOC_AUDIT_KEY=... cargo test --workspace` | **FAIL** — same local Cargo `edition2024` parse limitation |
+| Cargo audit install | `cargo install cargo-audit --locked` | **FAIL** — `cargo-audit 0.22.2` requires rustc 1.88+ (local rustc 1.83.0) |
+| Cargo audit run | `cargo audit` | **FAIL** — command unavailable locally because install failed |
+
+---
+
 **Last updated:** 2026-09-05 (payment assignment open rows)
 
 ## Payment assignment / open booking (2026-09-05)
