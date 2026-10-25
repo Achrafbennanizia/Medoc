@@ -1,6 +1,40 @@
 # Phase handoff
 
-**Last phase label:** Payment fulfills open booking (2026-09-05)
+**Last phase label:** Workflow logging instrumentation slice (2026-10-25)
+
+### Verified (2026-10-25 — logging slice)
+
+- Existing tracing subsystem in `crates/shared/medoc-core/src/infrastructure/logging/` was extended (not replaced): dedicated `workflow.log` channel added with daily rotation and filter isolation from `system.log`/`app.log`.
+- New sanitized Tauri command `record_workflow_event` logs structured UI workflow steps to `medoc::workflow`.
+- Frontend bridge now emits workflow events for route entry (`App.tsx` observer) and invoke lifecycle (`tauri.service.ts`: primary_action/success/error) via `packages/shared/src/lib/workflow-logger.ts`.
+- Domain transition service now emits structured workflow transition decisions in `workflow_transitions.rs`.
+- Validation:
+  - `cargo +stable fmt --check` **PASS**
+  - `MEDOC_VENDOR_PUBKEY=79c1…3b32 cargo +stable clippy --workspace --all-targets -- -D warnings` **PASS**
+  - `MEDOC_VENDOR_PUBKEY=79c1…3b32 cargo +stable test --workspace` **PASS**
+  - `npm run test` **PASS** (69 files / 337 tests)
+  - `npm run build` **PASS** (duplicate `AppointmentConfirmMode` declaration removed).
+
+### Remains unverified
+
+- Live desktop run proving workflow file rotation and sanitized payload contents — **NOT OBSERVED**.
+- Full workflow map/state-machine audit (all routes/options/actions) — **NOT RUN** in this slice.
+- Playwright geometry/spacing audit and axe compliance sweep — **NOT RUN** in this slice.
+
+### Understanding delta
+
+- The central and lowest-risk instrumentation points are `tauri.service.ts` (all Tauri invokes) and `App.tsx` route observation; these provide broad coverage without touching security/RBAC code paths.
+- Workspace-level Rust validation depends on `MEDOC_VENDOR_PUBKEY` and Linux GUI native deps (GTK/WebKit headers) in this environment.
+- The pre-existing UI build blocker (`AppointmentConfirmMode` duplicate) is now resolved in `packages/shared/src/lib/client-settings.ts`.
+
+### Required next
+
+1. Run manual workflow smoke in desktop app and inspect `workflow.log*` for rotation + sanitized output (no patient PII).
+2. Continue Step 2–5 audit tasks (workflow state machines, component event matrix, Playwright geometry, a11y rules) and append findings register rows.
+
+---
+
+**Prior phase label:** Payment fulfills open booking (2026-09-05)
 
 ### Verified (2026-09-05 — payment → billing list)
 

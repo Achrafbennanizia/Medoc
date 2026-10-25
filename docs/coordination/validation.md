@@ -1,6 +1,20 @@
 # Validation ledger
 
-**Last updated:** 2026-09-05 (payment assignment open rows)
+**Last updated:** 2026-10-25 (workflow logging instrumentation slice)
+
+## Workflow logging instrumentation slice (2026-10-25)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Rust format | `cargo +stable fmt --check` | **PASS** |
+| Rust lint | `MEDOC_VENDOR_PUBKEY=79c1…3b32 cargo +stable clippy --workspace --all-targets -- -D warnings` | **PASS** |
+| Rust tests | `MEDOC_VENDOR_PUBKEY=79c1…3b32 cargo +stable test --workspace` | **PASS** |
+| Frontend tests | `npm run test` | **PASS** — 69 files / 337 tests |
+| Workflow unit tests (targeted) | `npm run test -- --project node src/lib/workflow-logger.test.ts src/services/tauri.service.test.ts` | **PASS** — 2 files / 6 tests |
+| Frontend build | `npm run build` | **PASS** (after removing duplicate `AppointmentConfirmMode` declaration) |
+| Runtime workflow log file + rotation + PII check | Manual desktop run | **NOT OBSERVED** |
+
+---
 
 ## Payment assignment / open booking (2026-09-05)
 

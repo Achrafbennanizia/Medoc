@@ -1,6 +1,15 @@
 # Contradiction ledger
 
-**Last updated:** 2026-06-16
+**Last updated:** 2026-10-25
+
+## Workflow findings register (2026-10-25)
+
+| ID | Location | Finding | Evidence | Severity | Action |
+| -- | -------- | ------- | -------- | -------- | ------ |
+| WF-001 | `crates/shared/medoc-core/src/infrastructure/logging/mod.rs` | Workflow events were multiplexed into `system.log`; there was no dedicated workflow channel file. | File read showed `medoc::workflow` in the `system.log` filter and no `workflow.log` appender before this run. | P1 | Added a dedicated `workflow.log` layer/guard and moved `medoc::workflow` events to it. |
+| WF-002 | `apps/practice-host-ui/src/services/tauri.service.ts`, `apps/practice-host-ui/src/App.tsx` | UI workflow steps (route entry + invoke lifecycle) were not centrally bridged to backend structured logs. | File read showed raw `invoke` calls and no route observer/workflow bridge before this run. | P1 | Added `record_workflow_event` Tauri command + frontend workflow emitter (`route_enter`, `primary_action`, `success`, `error`, `cancel`). |
+| WF-003 | `packages/shared/src/lib/client-settings.ts` | TypeScript build was broken by duplicate `AppointmentConfirmMode` identifier declaration. | Baseline `npm run build` failed with `TS2300 Duplicate identifier 'AppointmentConfirmMode'`; after removing duplicate declaration, build passes. | P1 | Resolved in this run with a minimal one-line type-definition fix. |
+| WF-004 | Runtime behavior (desktop app) | Workflow log rotation and PII absence were not verified in a live UI run. | **NOT OBSERVED**: no interactive app session executed in this run. | P2 | Manual smoke needed: exercise routes/actions, inspect `workflow.log*` rotation files, and validate no patient PII appears. |
 
 ## Open contradictions
 
