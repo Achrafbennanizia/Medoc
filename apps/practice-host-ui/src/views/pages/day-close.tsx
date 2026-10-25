@@ -107,7 +107,7 @@ export function DayClosePage() {
                 if (initial) setLoading(false);
             }
         },
-        [toast, tp],
+        [toast, tp, setSelected],
     );
 
     useEffect(() => {

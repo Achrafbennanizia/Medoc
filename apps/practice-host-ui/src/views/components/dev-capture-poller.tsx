@@ -107,6 +107,7 @@ type Cmd = {
 
 let loopStarted = false;
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function startDevCaptureLoop(): void {
     if (!import.meta.env.DEV || loopStarted || typeof window === "undefined") return;
     loopStarted = true;

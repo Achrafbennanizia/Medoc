@@ -1,5 +1,36 @@
 # Phase handoff
 
+**Last phase label:** CI/CD pipeline tiers + release guardrails (2026-10-25)
+
+### Verified (2026-10-25 — CI/CD migration)
+
+- Added four-tier CI/CD workflows under `.github/workflows/`: `verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml`.
+- Tier 1 now enforces verify-only checks (Rust fmt/clippy/test/audit, JS lint/typecheck/test/build, and axe-core accessibility gate).
+- Tier 2 runs deterministic auto-fixes only on PR heads (`cargo fmt`, `lint:fix`, `format`) with loop guard and no protected-branch mutation.
+- Tier 3 opens draft fix-proposal PRs from new branches with before/after evidence and sensitive-area guard (`needs-human-review` + stop).
+- Tier 4 release now reuses Tier 1 verification and builds signed artifacts only under protected `release` environment.
+- Added coordination design doc: `docs/coordination/ci-cd-plan.md`.
+- Added JS scripts + a11y test wiring (`test:a11y`, Playwright + axe-core), and fixed pre-existing lint/typecheck blockers so local JS verify path is green.
+- Local validation results captured in `docs/coordination/validation.md` (typecheck/lint/test/build/a11y PASS; Rust fmt PASS).
+
+### Remains unverified
+
+- New GitHub-hosted workflow runs are **NOT OBSERVED** in this session.
+- Rust clippy/test/audit under local toolchain are partially blocked: local Cargo `1.83.0` cannot parse `edition2024` dependency (`chacha20 0.10.2`), so full Rust verify on this host is **NOT RUN**.
+
+### Understanding delta
+
+- Legacy `ci.yml` is now a manual compatibility entrypoint (`ci-legacy-dispatch`) delegating to `verify.yml`; merge gate logic moved to `verify.yml`.
+- Accessibility verification is now an explicit first-class CI gate instead of implicit/manual checks.
+
+### Required next
+
+1. Trigger `verify` and `autofix` on a test PR to confirm live GitHub Actions behavior (including bot loop guard).
+2. Trigger `release` on a `v*` tag in a controlled branch to validate protected-environment approval and signed artifact output paths.
+3. Confirm runner Rust toolchain is current enough for `edition2024` crates in CI (or pin compatible dependency versions if needed).
+
+---
+
 **Last phase label:** Payment fulfills open booking (2026-09-05)
 
 ### Verified (2026-09-05 — payment → billing list)
