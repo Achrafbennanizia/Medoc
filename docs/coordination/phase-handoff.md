@@ -1,6 +1,42 @@
 # Phase handoff
 
-**Last phase label:** Payment fulfills open booking (2026-09-05)
+**Last phase label:** CI/CD tiered pipeline migration (2026-10-25)
+
+### Verified (2026-10-25 — CI/CD tiers + guardrails)
+
+- Added tiered workflows:
+  - Tier 1 verify: `.github/workflows/verify.yml`
+  - Tier 2 deterministic PR autofix: `.github/workflows/autofix.yml`
+  - Tier 3 draft fix proposals on new branches: `.github/workflows/fix-proposal.yml`
+  - Tier 4 gated release: `.github/workflows/release.yml`
+- Converted `.github/workflows/ci.yml` into a manual legacy dispatcher that delegates to `verify.yml` (no duplicate push/PR pipeline).
+- Added CI-aligned JS scripts:
+  - root `package.json`: `typecheck`, `lint:fix`, `format`, `test:a11y`
+  - `apps/practice-host-ui/package.json`: `typecheck`, `lint:fix`, `format`, `test:a11y`
+- Added `scripts/test-a11y.mjs`: serves built UI, runs axe-core in Playwright with WCAG 2.1 A/AA tags, fails on **critical** only.
+- Added coordination spec: `docs/coordination/ci-cd-plan.md`.
+- Validation evidence recorded in `docs/coordination/validation.md` (YAML parse + script syntax PASS; workspace lint/typecheck/build currently FAIL on pre-existing issues).
+
+### Remains unverified
+
+- New workflows running in GitHub Actions (runtime behavior) — **NOT OBSERVED** in this local session.
+- Tier 3 agent execution path depends on secret `CI_FIX_PROPOSAL_COMMAND` — **NOT OBSERVED**.
+- Release signing/provenance path requires release environment approvals and signing secrets — **NOT OBSERVED**.
+
+### Understanding delta
+
+- CI/CD is now explicitly split into verify/autofix/fix-proposal/release tiers with mutation boundaries.
+- Mainline local validation indicates pre-existing frontend blockers (`AppointmentConfirmMode` duplicate identifier, one lint error) that will make Tier 1 web checks fail until fixed.
+- Local Rust toolchain is `1.83.0`; `cargo clippy` failed here on `rand_pcg 0.10.2` (`edition2024` requirement). GitHub `stable` toolchain outcome still needs remote verification.
+
+### Required next
+
+1. Run `verify.yml` on GitHub for this branch to confirm runtime behavior across runners.
+2. Fix current frontend type/lint breakages so Tier 1 can pass.
+3. Configure `CI_FIX_PROPOSAL_COMMAND` secret before enabling Tier 3 automation.
+4. Confirm release environment protections + `TAURI_SIGNING_PRIVATE_KEY` secrets before first tagged release.
+
+---
 
 ### Verified (2026-09-05 — payment → billing list)
 

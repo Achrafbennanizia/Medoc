@@ -1,6 +1,21 @@
 # Validation ledger
 
-**Last updated:** 2026-09-05 (payment assignment open rows)
+**Last updated:** 2026-10-25 (CI/CD tiered workflow migration)
+
+## CI/CD tiered workflow migration (2026-10-25)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML parse | `python3 - <<'PY' ... yaml.safe_load(...)` on `.github/workflows/{verify,autofix,fix-proposal,release,ci}.yml` | **PASS** |
+| a11y script syntax | `node --check scripts/test-a11y.mjs` | **PASS** |
+| Workspace typecheck | `npm run typecheck` | **FAIL** — duplicate `AppointmentConfirmMode` identifier in `apps/practice-host-ui/src/lib/client-settings.ts` and `packages/shared/src/lib/client-settings.ts` |
+| Workspace lint | `npm run lint` | **FAIL** — `react-hooks/preserve-manual-memoization` error in `apps/practice-host-ui/src/views/pages/day-close.tsx` (+ one warning) |
+| Workspace build | `npm run build` | **FAIL** — same duplicate `AppointmentConfirmMode` TypeScript error as typecheck |
+| Rust fmt gate | `cargo fmt --all --check` | **PASS** |
+| Rust clippy gate | `cargo clippy --workspace --all-targets -- -D warnings` | **FAIL** in this runner (`cargo 1.83.0`) — cannot parse `rand_pcg 0.10.2` (`edition2024` required) |
+| a11y execution | `npm run test:a11y` | **NOT RUN** — web build currently fails before `dist/` generation |
+
+---
 
 ## Payment assignment / open booking (2026-09-05)
 
