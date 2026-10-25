@@ -1,5 +1,36 @@
 # Phase handoff
 
+**Last phase label:** Workflow logging bridge + geometry harness (2026-10-25)
+
+### Verified (2026-10-25 — logging + geometry harness)
+
+- Logging subsystem extended in-place (no parallel logger): dedicated `workflow.log` channel added under `crates/shared/medoc-core/src/infrastructure/logging/mod.rs` with existing rotation/retention pipeline.
+- Sanitized UI workflow bridge added: `log_workflow_event` command in `crates/app/medoc-practice/src/commands/system/logging.rs`; frontend emits `route_enter`, `primary_action`, `success`, `cancel`, `error` via `apps/practice-host-ui/src/lib/workflow-logger.ts` + `src/services/tauri.service.ts`.
+- Tauri invoke registry updated and guarded (`EXPECTED_INVOKE_COMMAND_COUNT = 314`) in both `crates/app/medoc-practice/tests/invoke_command_registry_tests.rs` and `apps/practice-host/tests/invoke_registration_tests.rs`.
+- Playwright geometry harness runs against Vite build preview (`apps/practice-host-ui/playwright.config.ts`) with breakpoint checks + screenshot capture in `e2e-playwright/login-geometry-spacing.spec.ts` (**PASS**, 3 tests).
+- Tailwind arbitrary spacing lint gate added (`apps/practice-host-ui/scripts/lint-tailwind-spacing.mjs`) and one violation fixed (`min-h-[72px]` → `min-h-18` in `treatment-chart-composer-panel.tsx`).
+- Full validation pass completed: `cargo fmt --check`, `MEDOC_VENDOR_PUBKEY=... cargo clippy --workspace --all-targets -- -D warnings`, `MEDOC_VENDOR_PUBKEY=... cargo test`, `npm run test`, `npm run build`, `npm run lint:tailwind-spacing -w medoc`, `npm run test:playwright -w medoc -- login-geometry-spacing.spec.ts`.
+
+### Remains unverified
+
+- Exhaustive non-terminable workflow audit across every route/action/role/state machine is **NOT RUN** in full.
+- Full WCAG/keyboard/toast contract sweep for every page is **NOT RUN** in full.
+- No live patient-data walkthrough was executed; logging PII protection is validated by sanitizer + route redaction tests, but live clinical-flow redaction remains **NOT OBSERVED**.
+
+### Understanding delta
+
+- Browser Playwright coverage for the practice-host UI requires a Tauri invoke stub during preview; this harness is now codified in the geometry spec init script.
+- Workflow observability can be instrumented centrally (frontend invoke bridge + backend command registry) without touching each individual page command handler.
+- Baseline environment in this VM needs explicit Rust/tooling bootstrap (`rustup stable`, GTK/WebKit/OpenSSL dev libs, Playwright browser install) before full validation is reproducible.
+
+### Required next
+
+1. Expand workflow map assertions from login harness to all routed pages, including explicit terminal/timeout/error branches.
+2. Add axe + keyboard (Tab/Enter/Escape) + toast duration assertions and register violations in `contradictions.md`.
+3. Promote Playwright spacing checks from single-page probe to shared component/page matrix.
+
+---
+
 **Last phase label:** Payment fulfills open booking (2026-09-05)
 
 ### Verified (2026-09-05 — payment → billing list)

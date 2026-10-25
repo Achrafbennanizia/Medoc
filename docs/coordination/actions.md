@@ -1,5 +1,28 @@
 # Action ledger
 
+**Last updated:** 2026-10-25 (workflow logging bridge + geometry harness)
+
+## Done (2026-10-25 — workflow instrumentation + quality harness)
+
+- Extended logging infrastructure with dedicated `workflow.log` channel (rotation + retention path preserved).
+- Added sanitized frontend→backend workflow bridge (`log_workflow_event`) and invoke lifecycle logging (`route_enter`, `primary_action`, `success`, `cancel`, `error`).
+- Added Playwright geometry/spacing harness on Vite build preview for breakpoints **375 / 768 / 1259** with screenshot capture.
+- Added static lint gate for arbitrary Tailwind spacing/size utilities; fixed one violation (`min-h-[72px]` → `min-h-18`).
+- Fixed baseline TS build blocker (duplicate `AppointmentConfirmMode` declaration).
+- Validation pass complete: `cargo fmt`, `cargo clippy -D warnings`, `cargo test`, `npm run test`, `npm run build`, `npm run lint:tailwind-spacing`, targeted Playwright.
+
+## Now
+
+- Expand workflow state-machine coverage from harness to all routes/actions/roles (non-terminable flow assertions).
+- Add full axe + keyboard/toast conformance sweep and record violations (P0–P3 register entries).
+- Promote Playwright geometry suite from login page to shared UI/component matrix.
+
+## Later
+
+- Wire geometry + spacing + a11y suites into CI once runtime/browser provisioning strategy is finalized.
+
+---
+
 **Last updated:** 2026-09-05 (payment fulfills open booking)
 
 ## Done (2026-09-05 — payment → billing)
