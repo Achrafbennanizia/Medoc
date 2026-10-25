@@ -1,6 +1,26 @@
 # Action ledger
 
-**Last updated:** 2026-09-05 (payment fulfills open booking)
+**Last updated:** 2026-10-25 (CI/CD tiered pipeline follow-up)
+
+## Done (2026-10-25 — CI/CD guardrail follow-up)
+
+- Cherry-picked prior tiered pipeline implementation onto current branch (`1be1f26` → `e77d6ac`) and revalidated workflow YAML/format/install baselines.
+- Added explicit compliance-sensitive path block to `.github/workflows/autofix.yml` so bot auto-fixes never push changes touching `security|audit|crypto|rbac`.
+- Aligned `.github/workflows/fix-proposal.yml` protected-path matcher with the same `rg` pattern.
+- Updated `docs/coordination/ci-cd-plan.md`, `validation.md`, and `phase-handoff.md` with this follow-up evidence.
+
+## Done (2026-10-25 — CI/CD tiered pipeline)
+
+- Added tiered GitHub Actions workflows: `verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml`.
+- Migrated `.github/workflows/ci.yml` to a compatibility wrapper that delegates to `verify.yml`.
+- Added policy doc `docs/coordination/ci-cd-plan.md`.
+- Logged verification evidence in `docs/coordination/validation.md` and handoff state in `docs/coordination/phase-handoff.md`.
+
+## Now
+
+- Run the new workflows on GitHub (verify/autofix/fix-proposal/release) and capture first-run outcomes.
+- Confirm `needs-human-review` label exists for fix-proposal compliance guard.
+- Confirm protected `release` environment reviewer gate is active.
 
 ## Done (2026-09-05 — payment → billing)
 

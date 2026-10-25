@@ -1,5 +1,40 @@
 # Validation ledger
 
+**Last updated:** 2026-10-25 (CI/CD tiered pipeline wiring follow-up)
+
+## CI/CD tiered pipeline wiring follow-up (2026-10-25)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Reused prior implementation on current branch | `git fetch origin 1be1f263995ca52eb52a3ce31362d64f1ba19b84 && git cherry-pick 1be1f263995ca52eb52a3ce31362d64f1ba19b84` | **PASS** |
+| Workflow YAML syntax | `python3 -c "import glob,yaml; [yaml.safe_load(open(p)) for p in glob.glob('.github/workflows/*.yml')]; print('workflow-yaml-ok')"` | **PASS** |
+| Rust formatting guard | `MEDOC_VENDOR_PUBKEY=… MEDOC_DB_KEY=… MEDOC_AUDIT_KEY=… cargo fmt --all -- --check` | **PASS** |
+| Dependency install | `npm ci` | **PASS** |
+| Frontend lint baseline | `npm run lint -w medoc` | **FAIL** — pre-existing lint violations in `apps/practice-host-ui/src/views/components/dev-capture-poller.tsx` and `apps/practice-host-ui/src/views/pages/day-close.tsx` |
+| Remote workflow runtime behavior | — | **NOT RUN** (requires GitHub Actions execution after push) |
+
+**Notes**
+- Added explicit compliance guard in `.github/workflows/autofix.yml`: deterministic fixes are blocked if changed files match `security|audit|crypto|rbac`.
+- Updated `.github/workflows/fix-proposal.yml` compliance path matcher to use `rg` with the same protected pattern.
+
+---
+
+## CI/CD tiered pipeline wiring (2026-10-25)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow inventory (pre-change) | `Glob /workspace/.github/workflows *.yml` | **PASS** — `ci.yml`, `release.yml`, `website.yml` |
+| Workspace truth (Rust) | `ReadFile /workspace/Cargo.toml` | **PASS** — root workspace members under `apps/*`, `crates/*` |
+| Workspace truth (JS) | `ReadFile /workspace/package.json` | **PASS** — npm workspaces under `apps/*`, `packages/*` |
+| Script availability scan | `rg "\"typecheck\"|\"lint:fix\"|\"format\"|\"test:a11y\"" **/package.json` | **PASS** — explicit gaps identified before workflow design |
+| New tiered workflow syntax | `python3 -c "import yaml,glob; [yaml.safe_load(open(p)) for p in glob.glob('.github/workflows/*.yml')]"` | **PASS** |
+| Dependency install for local JS checks | `npm ci` | **PASS** |
+| Rust formatting check after edits | `MEDOC_VENDOR_PUBKEY=… MEDOC_DB_KEY=… MEDOC_AUDIT_KEY=… cargo fmt --all -- --check` | **PASS** |
+| Frontend lint after edits | `npm run lint -w medoc` | **FAIL** — existing lint issues in `apps/practice-host-ui/src/views/components/dev-capture-poller.tsx` (`react-refresh/only-export-components`) and `apps/practice-host-ui/src/views/pages/day-close.tsx` (`react-hooks/preserve-manual-memoization`) |
+| Full CI execution in GitHub Actions | — | **NOT RUN** (requires remote runner execution post-push) |
+
+---
+
 **Last updated:** 2026-09-05 (payment assignment open rows)
 
 ## Payment assignment / open booking (2026-09-05)

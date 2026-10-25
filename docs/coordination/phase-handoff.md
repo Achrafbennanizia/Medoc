@@ -1,6 +1,69 @@
 # Phase handoff
 
-**Last phase label:** Payment fulfills open booking (2026-09-05)
+**Last phase label:** CI/CD tiered pipeline follow-up (2026-10-25)
+
+### Verified (2026-10-25 — tiered CI/CD follow-up on current branch)
+
+- Reused prior tiered-pipeline implementation commit on this branch via cherry-pick (`1be1f26` → local `e77d6ac`).
+- Verified workflow YAML parsing for all `.github/workflows/*.yml` files (**PASS**).
+- Verified Rust formatting guard command remains clean (**PASS**).
+- Verified `npm ci` install path (**PASS**).
+- Verified frontend lint still fails on pre-existing issues in:
+  - `apps/practice-host-ui/src/views/components/dev-capture-poller.tsx`
+  - `apps/practice-host-ui/src/views/pages/day-close.tsx`
+- Added explicit compliance-sensitive mutation block in `autofix.yml` (`security|audit|crypto|rbac` paths fail job before push).
+- Harmonized compliance matcher in `fix-proposal.yml` to use the same protected-path pattern with `rg`.
+
+### Remains unverified
+
+- End-to-end behavior on GitHub runners (verify/autofix/fix-proposal/release) — **NOT OBSERVED**.
+- Runtime availability of repo label `needs-human-review` — **NOT OBSERVED**.
+- Protected `release` environment approval flow on a real `v*` tag — **NOT OBSERVED**.
+
+### Understanding delta
+
+- The current branch now carries the same tiered CI/CD structure as the prior implementation branch, with an additional explicit autofix compliance-path block.
+- Guardrail coverage is now consistent for mutation tiers: autofix blocks protected domains before push; fix-proposal labels/stops when protected domains are touched.
+
+### Required next
+
+1. Push branch and observe first GitHub Actions runs for `verify`, `autofix`, `fix-proposal`, and `release`.
+2. Ensure the repository label `needs-human-review` exists (or create it) so compliance labeling is effective.
+3. Configure/verify protected `release` environment reviewers and test a `v*` tag dry run.
+
+---
+
+### Verified (2026-10-25 — verify/autofix/fix-proposal/release)
+
+- Added tiered CI/CD workflows:
+  - `.github/workflows/verify.yml` (push/PR/workflow_call, zero-mutation checks)
+  - `.github/workflows/autofix.yml` (PR-only deterministic fixes + bot loop guard)
+  - `.github/workflows/fix-proposal.yml` (manual or failed-main trigger, draft PR flow)
+  - `.github/workflows/release.yml` (tag/dispatch gate + protected `release` env)
+- Migrated legacy `ci.yml` into compatibility wrapper (`workflow_dispatch` + `workflow_call`) that delegates to `verify.yml`.
+- Added coordination plan doc: `docs/coordination/ci-cd-plan.md`.
+- Recorded validation evidence in `docs/coordination/validation.md` (2026-10-25 section).
+- Local checks: workflow YAML parse **PASS**; `cargo fmt --all -- --check` **PASS**; frontend lint currently **FAIL** with pre-existing violations in `dev-capture-poller.tsx` and `day-close.tsx`.
+
+### Remains unverified
+
+- End-to-end behavior on GitHub runners (verify/autofix/fix-proposal/release) — **NOT OBSERVED** in this local session.
+- Runtime availability of `needs-human-review` label in the repo — **NOT OBSERVED**.
+- Release environment manual-approval gate execution on a real tag — **NOT OBSERVED**.
+
+### Understanding delta
+
+- The active pipeline now reflects the real `apps/*`, `crates/*`, and `packages/*` workspaces instead of relying on a monolithic CI definition.
+- Verification and mutation concerns are explicitly separated into independent workflows with policy guardrails.
+- Release now reuses the verify gate and enforces protected-environment approval before signed builds.
+
+### Required next
+
+1. Push branch and run the new workflows in GitHub Actions to confirm green syntax/runtime behavior.
+2. Ensure label `needs-human-review` exists in the repository settings.
+3. Protect `release` environment with required reviewers and confirm tag `v*` path signs artifacts.
+
+---
 
 ### Verified (2026-09-05 — payment → billing list)
 
