@@ -1,6 +1,20 @@
 # Action ledger
 
-**Last updated:** 2026-09-05 (payment fulfills open booking)
+**Last updated:** 2026-10-25 (workflow logging bridge slice)
+
+## Done (2026-10-25 — logger-first workflow slice)
+
+- Dedicated `workflow.log` channel added in shared tracing subsystem.
+- Sanitized IPC bridge `log_workflow_event` added and registered.
+- Frontend now emits workflow events for route-enter and invoke lifecycle (`primary_action` / `success` / `cancel` / `error`).
+- Added bridge tests (`src/services/tauri.service.test.ts`, 4 tests); full frontend tests now **68 files / 335 tests PASS**.
+- Fixed `npm run build` blocker by removing duplicate `AppointmentConfirmMode` declaration.
+
+## Now
+
+- Run live Tauri smoke to verify `workflow.log` file content and sanitizer behavior with real route/action/error traffic (**NOT OBSERVED**).
+- Continue Step 2 workflow/state-machine mapping + register entries from log traces.
+- Environment remediation: install OpenSSL dev headers so `cargo +stable clippy/test` can compile SQLCipher paths.
 
 ## Done (2026-09-05 — payment → billing)
 

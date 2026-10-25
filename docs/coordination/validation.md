@@ -1,6 +1,28 @@
 # Validation ledger
 
-**Last updated:** 2026-09-05 (payment assignment open rows)
+**Last updated:** 2026-10-25 (workflow logging instrumentation + workflow bridge)
+
+## Workflow logging + route/action bridge (2026-10-25)
+
+### Findings register (Step 2 read-only evidence)
+
+| ID | Location | Finding | Evidence | Severity | Action |
+|-------|---------|--------|--------|--------|--------|
+| WF-LOG-001 | `crates/shared/medoc-core/src/infrastructure/logging/mod.rs` | `medoc::workflow` events were mixed into `system.log`; no dedicated workflow file channel. | Before fix filter: `EnvFilter::new("medoc::system=info,medoc::workflow=info")`. | P1 | Added dedicated `workflow.log` layer and guard; removed workflow target from `system.log` filter. |
+| WF-LOG-002 | `apps/practice-host-ui/src/services/tauri.service.ts` + `crates/app/medoc-practice/src/commands/system/logging.rs` | No frontend→backend workflow bridge for route enter / primary action / success / cancel / error events. | Before fix: no `log_workflow_event` IPC command; no workflow event emit in `tauriInvoke`. | P1 | Added sanitized `log_workflow_event` IPC and instrumented `tauriInvoke` + route logger in `App.tsx`. |
+| WF-BUILD-001 | `packages/shared/src/lib/client-settings.ts` | Duplicate `AppointmentConfirmMode` type alias broke `npm run build`. | TypeScript error `TS2300 Duplicate identifier 'AppointmentConfirmMode'`. | P1 | Removed duplicated alias declaration. |
+| WF-ENV-001 | Rust toolchain/runtime in VM | Required Rust validation commands are blocked by missing OpenSSL headers needed by SQLCipher build. | `cargo +stable clippy/test` fail at `libsqlite3-sys ... fatal error: 'openssl/crypto.h' file not found`. | P0 | Keep open in contradiction ledger `C10`; requires environment remediation. |
+
+### Validation runs
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Rust formatting | `cargo +stable fmt --check` | **PASS** |
+| Rust clippy gate | `cargo +stable clippy --workspace --all-targets -- -D warnings` | **FAIL (ENV)** — `openssl/crypto.h` missing while building `libsqlite3-sys` SQLCipher |
+| Rust test gate | `cargo +stable test --workspace` | **FAIL (ENV)** — same OpenSSL header blocker |
+| Frontend tests (after instrumentation + tests) | `npm run test` | **PASS** — 68 files / 335 tests |
+| Frontend build (before build fix) | `npm run build` | **FAIL** — duplicate `AppointmentConfirmMode` identifier |
+| Frontend build (after build fix) | `npm run build` | **PASS** |
 
 ## Payment assignment / open booking (2026-09-05)
 

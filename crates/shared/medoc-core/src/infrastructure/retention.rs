@@ -21,6 +21,7 @@ fn retention_for(filename: &str) -> Option<Duration> {
     } else if filename.starts_with("device")
         || filename.starts_with("migration")
         || filename.starts_with("perf")
+        || filename.starts_with("workflow")
         || filename.starts_with("system")
     {
         Some(Duration::from_secs(180 * 24 * 3600))

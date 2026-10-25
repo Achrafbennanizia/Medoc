@@ -1,5 +1,6 @@
 // Logging-related Tauri commands (NFA-LOG-09, NFA-LOG-10)
 
+use serde::Deserialize;
 use sqlx::SqlitePool;
 use tauri::State;
 
@@ -9,6 +10,54 @@ use crate::error::AppError;
 use crate::infrastructure::database::audit_repo;
 use crate::infrastructure::logging::{self, LogLevel, LOGGING_CONFIG};
 use crate::{log_system, log_workflow};
+
+const WORKFLOW_FIELD_LIMIT: usize = 512;
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WorkflowUiStep {
+    RouteEnter,
+    PrimaryAction,
+    Success,
+    Cancel,
+    Error,
+}
+
+impl WorkflowUiStep {
+    fn as_str(self) -> &'static str {
+        match self {
+            WorkflowUiStep::RouteEnter => "route_enter",
+            WorkflowUiStep::PrimaryAction => "primary_action",
+            WorkflowUiStep::Success => "success",
+            WorkflowUiStep::Cancel => "cancel",
+            WorkflowUiStep::Error => "error",
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkflowUiEvent {
+    pub step: WorkflowUiStep,
+    pub route: Option<String>,
+    pub action: Option<String>,
+    pub detail: Option<String>,
+    pub correlation_id: Option<String>,
+}
+
+fn sanitize_workflow_field(raw: Option<String>) -> Option<String> {
+    raw.and_then(|value| {
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            return None;
+        }
+        let mut sanitized = logging::sanitizer::sanitize(trimmed);
+        if sanitized.len() > WORKFLOW_FIELD_LIMIT {
+            sanitized.truncate(WORKFLOW_FIELD_LIMIT);
+        }
+        Some(sanitized)
+    })
+}
 
 #[tauri::command]
 #[tracing::instrument(level = "debug", skip(session_state))]
@@ -62,6 +111,34 @@ pub fn log_dir(session_state: State<'_, SessionState>) -> Result<String, AppErro
     Ok(logging::log_dir()?.display().to_string())
 }
 
+#[tauri::command]
+#[tracing::instrument(level = "debug", skip(session_state, event))]
+pub fn log_workflow_event(
+    session_state: State<'_, SessionState>,
+    event: WorkflowUiEvent,
+) -> Result<(), AppError> {
+    let route = sanitize_workflow_field(event.route);
+    let action = sanitize_workflow_field(event.action);
+    let detail = sanitize_workflow_field(event.detail);
+    let correlation_id = sanitize_workflow_field(event.correlation_id);
+    let user_id = session_state
+        .lock_session()
+        .as_ref()
+        .map(|(session, _)| session.user_id.clone());
+
+    log_workflow!(
+        info,
+        event = "UI_WORKFLOW_STEP",
+        step = event.step.as_str(),
+        route = ?route,
+        action = ?action,
+        detail = ?detail,
+        correlation_id = ?correlation_id,
+        user_id = ?user_id
+    );
+    Ok(())
+}
+
 /// IPC commands for [`crate::commands::register`].
 #[macro_export]
 macro_rules! register_logging_commands {
@@ -71,5 +148,6 @@ macro_rules! register_logging_commands {
         $crate::commands::logging_commands::export_logs,
         $crate::commands::logging_commands::verify_audit_chain,
         $crate::commands::logging_commands::log_dir,
+        $crate::commands::logging_commands::log_workflow_event,
     };
 }
