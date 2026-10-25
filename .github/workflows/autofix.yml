@@ -1,0 +1,120 @@
+name: autofix
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: autofix-${{ github.head_ref }}
+  cancel-in-progress: true
+
+env:
+  MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+  MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: "1"
+
+jobs:
+  autofix:
+    # Loop guard + do not attempt writes to forked PR branches.
+    if: github.actor != 'github-actions[bot]' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - id: pm
+        name: Detect package manager
+        shell: bash
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+
+      - name: Install workspace dependencies
+        shell: bash
+        run: |
+          corepack enable
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+            *) echo "Unsupported package manager: ${{ steps.pm.outputs.pm }}" >&2; exit 1 ;;
+          esac
+
+      - name: Apply deterministic Rust formatting
+        run: cargo fmt --all
+
+      - name: Apply deterministic JS lint/format fixes
+        shell: bash
+        run: |
+          set +e
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm)
+              pnpm run lint:fix
+              pnpm run format
+              ;;
+            yarn)
+              yarn run lint:fix
+              yarn run format
+              ;;
+            npm)
+              npm run lint:fix
+              npm run format
+              ;;
+          esac
+          # Deterministic best-effort only. verify.yml remains the blocking gate.
+          exit 0
+
+      - name: Block compliance-sensitive paths from auto commits
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed_files="$(git diff --name-only)"
+          if [ -z "$changed_files" ]; then
+            exit 0
+          fi
+
+          restricted_pattern='(^|/)(security|audit|crypto|rbac)(/|$)'
+          if echo "$changed_files" | grep -Eiq "$restricted_pattern"; then
+            echo "Autofix touched restricted compliance paths; refusing to push."
+            echo "$changed_files"
+            exit 1
+          fi
+
+      - name: Commit fixes if anything changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No deterministic autofixes to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "ci: apply automated formatting and lint fixes"
+          git push origin "HEAD:${{ github.head_ref }}"
