@@ -2,7 +2,11 @@ import { lazy, Suspense, useEffect } from "react";
 import { applyArabicNumeralsToDocument } from "@/lib/arabic-numerals";
 import { loadClientSettings } from "@/lib/client-settings";
 import { useLocale, useT } from "@/lib/i18n";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import {
+    logWorkflowEventFireAndForget,
+    workflowRouteFromLocation,
+} from "./lib/workflow-logger";
 import { useAuthStore } from "./models/store/auth-store";
 import { RoleRoute } from "./views/components/role-route";
 import { DbSetupGate } from "./views/components/db-setup-gate";
@@ -144,9 +148,22 @@ function ArabicNumeralsSync() {
     return null;
 }
 
+function WorkflowRouteTracker() {
+    const location = useLocation();
+    useEffect(() => {
+        logWorkflowEventFireAndForget({
+            phase: "route_enter",
+            route: workflowRouteFromLocation(location.pathname, location.search),
+            action: "route_change",
+        });
+    }, [location.pathname, location.search]);
+    return null;
+}
+
 export default function App() {
     return (
         <BrowserRouter>
+        <WorkflowRouteTracker />
         <ArabicNumeralsSync />
         {import.meta.env.DEV ? <DevCaptureNavBinder /> : null}
         <DbSetupGate>
