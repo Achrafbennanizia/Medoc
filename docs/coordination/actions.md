@@ -1,6 +1,21 @@
 # Action ledger
 
-**Last updated:** 2026-09-05 (payment fulfills open booking)
+**Last updated:** 2026-10-25 (workflow logging instrumentation slice)
+
+## Done (2026-10-25 — workflow logging slice)
+
+- Extended existing tracing subsystem with dedicated `workflow.log` channel (no parallel logger).
+- Added sanitized frontend→backend workflow bridge command `record_workflow_event` and wired route + invoke lifecycle (`route_enter`, `primary_action`, `success`, `error`, `cancel`).
+- Added coverage for new behavior:
+  - `packages/shared/src/lib/workflow-logger.test.ts`
+  - `apps/practice-host-ui/src/services/tauri.service.test.ts`
+  - `crates/app/medoc-practice/src/commands/system/logging.rs` helper tests
+  - invoke-count guard updated (`EXPECTED_INVOKE_COMMAND_COUNT = 314`).
+- Cleared pre-existing UI build blocker by removing duplicated `AppointmentConfirmMode` type declaration in `packages/shared/src/lib/client-settings.ts`.
+
+## Now
+
+- Manual desktop verification still pending (**NOT OBSERVED**): inspect `workflow.log` output, rotation files, and confirm no patient PII reaches file logs.
 
 ## Done (2026-09-05 — payment → billing)
 
