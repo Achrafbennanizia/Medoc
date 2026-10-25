@@ -1,0 +1,302 @@
+name: fix-proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: "Base branch to propose against"
+        required: false
+        default: "main"
+      failure_reason:
+        description: "Optional context about the failing verification"
+        required: false
+      agent_command:
+        description: "Optional command to run a fix agent (overrides repository secret)"
+        required: false
+  workflow_run:
+    workflows: ["verify"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: fix-proposal-${{ github.event.workflow_run.head_sha || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  propose-fix:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+      MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+      CARGO_TERM_COLOR: always
+      RUST_BACKTRACE: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: base
+        name: Resolve proposal base and branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            base_ref="main"
+            base_sha="${{ github.event.workflow_run.head_sha }}"
+          else
+            base_ref="${{ inputs.base_ref }}"
+            if [ -z "$base_ref" ]; then
+              base_ref="main"
+            fi
+            git fetch origin "$base_ref" --depth=1
+            base_sha="origin/$base_ref"
+          fi
+
+          branch="ci/fix-proposal-${{ github.run_id }}"
+          git checkout -B "$branch" "$base_sha"
+          echo "base_ref=$base_ref" >> "$GITHUB_OUTPUT"
+          echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libsoup-3.0-dev
+
+      - id: pm
+        name: Detect package manager
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=pnpm install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=yarn install --frozen-lockfile" >> "$GITHUB_OUTPUT"
+          elif [ -f package-lock.json ]; then
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "install_cmd=npm ci" >> "$GITHUB_OUTPUT"
+          else
+            echo "No supported lockfile found (pnpm-lock.yaml, yarn.lock, package-lock.json)." >&2
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            yarn.lock
+            package-lock.json
+
+      - run: corepack enable
+      - run: ${{ steps.pm.outputs.install_cmd }}
+      - run: cargo install cargo-audit --locked
+
+      - name: Capture failing-before evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .ci/fix-proposal
+
+          run_check() {
+            local label="$1"
+            local command="$2"
+            set +e
+            bash -lc "$command" > ".ci/fix-proposal/before-${label}.log" 2>&1
+            local exit_code=$?
+            set -e
+            echo "$exit_code" > ".ci/fix-proposal/before-${label}.exit"
+          }
+
+          run_check "cargo-test" "cargo test --workspace"
+          run_check "cargo-audit" "cargo audit"
+          run_check "typecheck" "${{ steps.pm.outputs.pm }} run typecheck"
+
+      - name: Attempt substantive fix
+        shell: bash
+        env:
+          INPUT_AGENT_COMMAND: ${{ inputs.agent_command }}
+          SECRET_AGENT_COMMAND: ${{ secrets.FIX_PROPOSAL_AGENT_COMMAND }}
+        run: |
+          set -euo pipefail
+          agent_command="${INPUT_AGENT_COMMAND:-}"
+          if [ -z "$agent_command" ]; then
+            agent_command="${SECRET_AGENT_COMMAND:-}"
+          fi
+
+          if [ -z "$agent_command" ]; then
+            echo "No fix agent command configured. Set workflow input agent_command or repository secret FIX_PROPOSAL_AGENT_COMMAND." >&2
+            exit 1
+          fi
+
+          bash -lc "$agent_command"
+
+      - name: Capture passing-after evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          run_check() {
+            local label="$1"
+            local command="$2"
+            set +e
+            bash -lc "$command" > ".ci/fix-proposal/after-${label}.log" 2>&1
+            local exit_code=$?
+            set -e
+            echo "$exit_code" > ".ci/fix-proposal/after-${label}.exit"
+          }
+
+          run_check "cargo-test" "cargo test --workspace"
+          run_check "cargo-audit" "cargo audit"
+          run_check "typecheck" "${{ steps.pm.outputs.pm }} run typecheck"
+
+      - id: changed
+        name: Check whether the agent produced changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build PR body with rationale and evidence
+        if: steps.changed.outputs.has_changes == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > .ci/fix-proposal/pr-body.md <<BODY
+          ## Summary
+          This draft PR was generated by the **fix-proposal** workflow after a verification failure.  
+          It includes a candidate fix for human review only (no auto-merge).
+
+          ## Rationale
+          - Trigger: `${{ github.event_name }}`
+          - Failure context: `${{ inputs.failure_reason || github.event.workflow_run.conclusion || 'not provided' }}`
+          - Base: `${{ steps.base.outputs.base_ref }} @ ${{ steps.base.outputs.base_sha }}`
+
+          ## Failing-before / Passing-after
+          | Check | Before exit code | After exit code |
+          | --- | ---: | ---: |
+          | cargo test --workspace | $(cat .ci/fix-proposal/before-cargo-test.exit) | $(cat .ci/fix-proposal/after-cargo-test.exit) |
+          | cargo audit | $(cat .ci/fix-proposal/before-cargo-audit.exit) | $(cat .ci/fix-proposal/after-cargo-audit.exit) |
+          | JS typecheck | $(cat .ci/fix-proposal/before-typecheck.exit) | $(cat .ci/fix-proposal/after-typecheck.exit) |
+
+          ## Logs (tail)
+          <details>
+          <summary>Before: cargo test</summary>
+
+          ```text
+          $(tail -n 80 .ci/fix-proposal/before-cargo-test.log)
+          ```
+          </details>
+
+          <details>
+          <summary>After: cargo test</summary>
+
+          ```text
+          $(tail -n 80 .ci/fix-proposal/after-cargo-test.log)
+          ```
+          </details>
+
+          <details>
+          <summary>Before: cargo audit</summary>
+
+          ```text
+          $(tail -n 80 .ci/fix-proposal/before-cargo-audit.log)
+          ```
+          </details>
+
+          <details>
+          <summary>After: cargo audit</summary>
+
+          ```text
+          $(tail -n 80 .ci/fix-proposal/after-cargo-audit.log)
+          ```
+          </details>
+
+          <details>
+          <summary>Before: typecheck</summary>
+
+          ```text
+          $(tail -n 80 .ci/fix-proposal/before-typecheck.log)
+          ```
+          </details>
+
+          <details>
+          <summary>After: typecheck</summary>
+
+          ```text
+          $(tail -n 80 .ci/fix-proposal/after-typecheck.log)
+          ```
+          </details>
+          BODY
+
+      - name: Commit and push proposal branch
+        if: steps.changed.outputs.has_changes == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "ci: fix proposal for failed verification"
+          git push origin "${{ steps.base.outputs.branch }}"
+
+      - id: pr
+        name: Open draft pull request
+        if: steps.changed.outputs.has_changes == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          pr_url="$(
+            gh pr create \
+              --draft \
+              --base "${{ steps.base.outputs.base_ref }}" \
+              --head "${{ steps.base.outputs.branch }}" \
+              --title "ci: fix proposal for failed verification" \
+              --body-file .ci/fix-proposal/pr-body.md
+          )"
+          echo "pr_url=$pr_url" >> "$GITHUB_OUTPUT"
+
+      - name: Enforce sensitive-area guardrail
+        if: steps.changed.outputs.has_changes == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          touched_sensitive="$(
+            git diff --name-only "${{ steps.base.outputs.base_sha }}" HEAD \
+              | grep -Ei '(^|/)(security|audit|crypto|rbac)(/|$)|(^|/).*(auth|permission|license)' \
+              || true
+          )"
+
+          if [ -n "$touched_sensitive" ]; then
+            gh label create needs-human-review --description "Automation touched sensitive areas and requires explicit human review." --color B60205 || true
+            gh pr edit "${{ steps.pr.outputs.pr_url }}" --add-label needs-human-review
+            echo "Sensitive files touched by the proposal:"
+            echo "$touched_sensitive"
+            exit 1
+          fi
+
+      - name: No-op when no fix changes were produced
+        if: steps.changed.outputs.has_changes != 'true'
+        run: echo "No changes were produced by the configured fix agent command; no proposal PR opened."

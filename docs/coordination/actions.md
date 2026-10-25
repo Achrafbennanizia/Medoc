@@ -1,6 +1,19 @@
 # Action ledger
 
-**Last updated:** 2026-09-05 (payment fulfills open booking)
+**Last updated:** 2026-10-25 (CI/CD pipeline migration)
+
+## Done (2026-10-25 — CI/CD tiers and release gate)
+
+- Added pipeline tiers: `verify.yml`, `autofix.yml`, `fix-proposal.yml`, `release.yml`.
+- Migrated legacy `.github/workflows/ci.yml` to manual compatibility dispatch that reuses `verify.yml`.
+- Added `docs/coordination/ci-cd-plan.md` with guardrails and trigger/mutation model.
+- Added JS workflow scripts (`typecheck`, `lint:fix`, `format`, `test:a11y`) and Playwright + axe-core a11y test.
+- Recorded validation outcomes in `docs/coordination/validation.md` and updated `phase-handoff.md`.
+
+## Now
+
+- Trigger live GitHub Actions runs for `verify`, `autofix`, and `release` to confirm hosted behavior (**NOT OBSERVED** in this session).
+- Confirm CI runner Rust version supports `edition2024` crates for clippy/test/audit path.
 
 ## Done (2026-09-05 — payment → billing)
 

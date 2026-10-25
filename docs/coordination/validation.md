@@ -1,6 +1,22 @@
 # Validation ledger
 
-**Last updated:** 2026-09-05 (payment assignment open rows)
+**Last updated:** 2026-10-25 (CI/CD pipeline migration)
+
+## CI/CD pipeline migration (2026-10-25)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| JS typecheck | `npm run typecheck` | **PASS** |
+| JS lint | `npm run lint` | **PASS** |
+| JS test | `npm run test` | **PASS** — 67 files / 331 tests |
+| JS build | `npm run build` | **PASS** |
+| Accessibility gate | `npx playwright install --with-deps chromium` + `npm run test:a11y` | **PASS** — Playwright + axe-core check green |
+| Rust format | `cargo fmt --all --check` | **PASS** |
+| Workflow YAML syntax | `python3` + `yaml.safe_load` over `.github/workflows/*` | **PASS** |
+| Rust clippy | `cargo clippy --workspace --all-targets -- -D warnings` | **FAIL** — local Cargo `1.83.0` cannot parse `chacha20 0.10.2` (`edition2024` feature required); CI runner result **NOT OBSERVED** |
+| Rust full verify (`cargo test`, `cargo audit`) | — | **NOT RUN** locally after clippy failure due toolchain incompatibility |
+
+---
 
 ## Payment assignment / open booking (2026-09-05)
 
