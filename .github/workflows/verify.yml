@@ -1,0 +1,225 @@
+name: verify
+
+on:
+  push:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+  MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: "1"
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: cargo fmt --check
+        run: cargo fmt --all -- --check
+
+      - name: cargo clippy -D warnings
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: cargo test --workspace
+        run: cargo test --workspace
+
+      - name: Install cargo-audit
+        run: |
+          if ! command -v cargo-audit >/dev/null 2>&1; then
+            cargo install cargo-audit --locked
+          fi
+
+      - name: cargo audit
+        run: cargo audit
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect package manager
+        id: pm
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+            *) echo "Unsupported package manager: ${{ steps.pm.outputs.pm }}" >&2; exit 1 ;;
+          esac
+
+      - name: Lint (no auto-fix)
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm --filter medoc run lint ;;
+            yarn) yarn workspace medoc run lint ;;
+            npm) npm run lint -w medoc ;;
+          esac
+
+      - name: Type-check JS workspace
+        run: |
+          npx tsc --noEmit -p apps/practice-host-ui/tsconfig.json
+          npx tsc --noEmit -p apps/lan-web-client/tsconfig.json
+
+      - name: Test
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm --filter medoc run test ;;
+            yarn) yarn workspace medoc run test ;;
+            npm) npm run test -w medoc ;;
+          esac
+
+      - name: Build
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm --filter medoc run build ;;
+            yarn) yarn workspace medoc run build ;;
+            npm) npm run build -w medoc ;;
+          esac
+
+  a11y:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect package manager
+        id: pm
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "pm=yarn" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+          else
+            echo "pm=npm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm) npm ci ;;
+            *) echo "Unsupported package manager: ${{ steps.pm.outputs.pm }}" >&2; exit 1 ;;
+          esac
+
+      - name: Build web UI
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm --filter medoc run build ;;
+            yarn) yarn workspace medoc run build ;;
+            npm) npm run build -w medoc ;;
+          esac
+
+      - name: Run axe-core (WCAG 2.1 A/AA) and gate on critical findings
+        run: |
+          set -euo pipefail
+
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm --filter medoc run preview -- --host 127.0.0.1 --port 4173 >/tmp/medoc-preview.log 2>&1 &
+              ;;
+            yarn) yarn workspace medoc run preview -- --host 127.0.0.1 --port 4173 >/tmp/medoc-preview.log 2>&1 &
+              ;;
+            npm) npm run preview -w medoc -- --host 127.0.0.1 --port 4173 >/tmp/medoc-preview.log 2>&1 &
+              ;;
+            *) echo "Unsupported package manager: ${{ steps.pm.outputs.pm }}" >&2; exit 1 ;;
+          esac
+
+          PREVIEW_PID=$!
+          trap 'kill "$PREVIEW_PID" 2>/dev/null || true' EXIT
+
+          for _ in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4173 >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:4173 >/dev/null
+
+          npx --yes browser-driver-manager install chrome
+          BROWSER_PATHS="$(npx --yes browser-driver-manager which)"
+          CHROMEDRIVER_PATH="$(echo "$BROWSER_PATHS" | awk -F'"' '/CHROMEDRIVER_TEST_PATH/{print $2}')"
+          CHROME_PATH="$(echo "$BROWSER_PATHS" | awk -F'"' '/CHROME_TEST_PATH/{print $2}')"
+
+          npx --yes @axe-core/cli \
+            http://127.0.0.1:4173 \
+            --tags wcag2a,wcag2aa \
+            --chromedriver-path "$CHROMEDRIVER_PATH" \
+            --chrome-path "$CHROME_PATH" \
+            --stdout > axe-results.json
+
+          node <<'NODE'
+          const fs = require("fs");
+          const results = JSON.parse(fs.readFileSync("axe-results.json", "utf8"));
+          const critical = [];
+          for (const page of results) {
+            for (const violation of page.violations || []) {
+              if (violation.impact === "critical") {
+                critical.push({
+                  url: page.url,
+                  id: violation.id,
+                  help: violation.help,
+                  nodes: (violation.nodes || []).length
+                });
+              }
+            }
+          }
+          if (critical.length > 0) {
+            console.error("Critical WCAG 2.1 A/AA axe findings detected:");
+            console.error(JSON.stringify(critical, null, 2));
+            process.exit(1);
+          }
+          console.log("No critical WCAG 2.1 A/AA axe findings detected.");
+          NODE
