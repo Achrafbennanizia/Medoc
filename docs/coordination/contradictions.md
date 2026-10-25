@@ -1,6 +1,6 @@
 # Contradiction ledger
 
-**Last updated:** 2026-06-16
+**Last updated:** 2026-10-25
 
 ## Open contradictions
 
@@ -21,4 +21,7 @@
 | C4 | Tauri CSP: production `csp` (no dev host wildcards); `devCsp` for Vite on port 1420 + IPC | `app/src-tauri/tauri.conf.json` | 2026-04-19 |
 | C8 | Replica merge conflict policy: LWW by `updated_at`; member push merged on master first; admin pull uses `admin_pull`. | `merge.rs`, `engine/run.rs`, `medoc-lan` sync HTTP | 2026-06-29 |
 | C9 | Installed DBs vs rewritten English `0001`: mitigated by `run_english_schema_upgrade` on every open. Live DB **NOT OBSERVED**. | `english_schema_upgrade.rs`, `connection.rs` | 2026-08-19 |
+| C10 | Workflow events required a dedicated channel, but code routed `medoc::workflow` into `system.log`. | `crates/shared/medoc-core/src/infrastructure/logging/mod.rs` (new `workflow.log` layer) | 2026-10-25 |
+| C11 | Required frontend workflow lifecycle telemetry was missing in shared IPC/route path. | `apps/practice-host-ui/src/services/tauri.service.ts`, `apps/practice-host-ui/src/views/components/workflow-route-logger.tsx` | 2026-10-25 |
+| C12 | Build gate expected green, but duplicate `AppointmentConfirmMode` type alias caused TS2300. | `packages/shared/src/lib/client-settings.ts` | 2026-10-25 |
 

@@ -1,5 +1,23 @@
 import { invoke } from "@tauri-apps/api/core";
 
+const WORKFLOW_EVENT_COMMAND = "log_frontend_workflow_event";
+
+export type WorkflowStage =
+    | "route_enter"
+    | "primary_action"
+    | "success"
+    | "cancel"
+    | "error";
+
+export type WorkflowEventPayload = {
+    stage: WorkflowStage;
+    workflow?: string;
+    route?: string;
+    action?: string;
+    outcome?: string;
+    detail?: string;
+};
+
 /**
  * Tauri v2 resolves each command parameter from the invoke JSON using an explicit key.
  * `tauri_macros` defaults to **camelCase** keys derived from Rust identifiers (`patient_id` → `patientId`).
@@ -17,6 +35,31 @@ function omitUndefinedValues(record: Record<string, unknown>): Record<string, un
         }
     }
     return o;
+}
+
+function summarizeArgKeys(args: Record<string, unknown>): string | undefined {
+    const keys = Object.keys(args);
+    if (keys.length === 0) {
+        return undefined;
+    }
+    const clipped = keys.slice(0, 8);
+    return keys.length > clipped.length
+        ? `arg_keys=${clipped.join(",")},...`
+        : `arg_keys=${clipped.join(",")}`;
+}
+
+function summarizeError(error: unknown): string {
+    const raw = error instanceof Error ? error.message : String(error);
+    return raw.length <= 160 ? raw : `${raw.slice(0, 157)}...`;
+}
+
+/** Best-effort UI workflow telemetry (never blocks/changes command success semantics). */
+export async function emitWorkflowEvent(event: WorkflowEventPayload): Promise<void> {
+    try {
+        await invoke(WORKFLOW_EVENT_COMMAND, { event });
+    } catch {
+        // Browser-mode tests and offline fallback can run without a Tauri IPC host.
+    }
 }
 
 /** `patient_id` → `patientId` (matches `heck::ToLowerCamelCase` / Tauri command IPC keys). */
@@ -52,10 +95,34 @@ function expandDualCaseInvokeArgs(args: Record<string, unknown>): Record<string,
 
 // All Tauri IPC goes through here (single place for invoke normalization).
 export async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-    if (args == null) {
-        return invoke<T>(cmd, {});
+    if (cmd === WORKFLOW_EVENT_COMMAND) {
+        return invoke<T>(cmd, args ?? {});
     }
-    const cleaned = omitUndefinedValues(args);
+    const cleaned = omitUndefinedValues(args ?? {});
     const expanded = expandDualCaseInvokeArgs(cleaned);
-    return invoke<T>(cmd, expanded);
+    await emitWorkflowEvent({
+        stage: "primary_action",
+        workflow: "ipc",
+        action: cmd,
+        detail: summarizeArgKeys(cleaned),
+    });
+    try {
+        const result = await invoke<T>(cmd, expanded);
+        await emitWorkflowEvent({
+            stage: "success",
+            workflow: "ipc",
+            action: cmd,
+            outcome: "ok",
+        });
+        return result;
+    } catch (error) {
+        await emitWorkflowEvent({
+            stage: "error",
+            workflow: "ipc",
+            action: cmd,
+            outcome: "error",
+            detail: summarizeError(error),
+        });
+        throw error;
+    }
 }

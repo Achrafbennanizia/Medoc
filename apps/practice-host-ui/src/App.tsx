@@ -13,6 +13,7 @@ import { ReplicaSyncBackground } from "./views/components/replica-sync-backgroun
 import { PracticeWorkHoursBackground } from "./views/components/practice-work-hours-background";
 import { SessionGate } from "./views/components/session-gate";
 import { DesktopWindowFrame } from "./views/components/desktop-window-frame";
+import { WorkflowRouteLogger } from "./views/components/workflow-route-logger";
 import { AppLayout } from "./views/layouts/app-layout";
 import { PageLoading } from "@/views/components/ui/page-status";
 import { DevCaptureNavBinder } from "./views/components/dev-capture-poller";
@@ -147,6 +148,7 @@ function ArabicNumeralsSync() {
 export default function App() {
     return (
         <BrowserRouter>
+        <WorkflowRouteLogger />
         <ArabicNumeralsSync />
         {import.meta.env.DEV ? <DevCaptureNavBinder /> : null}
         <DbSetupGate>

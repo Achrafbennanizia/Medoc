@@ -1,5 +1,28 @@
 # Validation ledger
 
+**Last updated:** 2026-10-25 (workflow logging bridge + build gate fix)
+
+## Workflow logging bridge + build gate fix (2026-10-25)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Rust format | `MEDOC_VENDOR_PUBKEY=79c1662a... cargo +stable fmt --check` | **PASS** |
+| Rust clippy | `MEDOC_VENDOR_PUBKEY=79c1662a... cargo +stable clippy --workspace --all-targets -- -D warnings` | **PASS** |
+| Rust tests | `MEDOC_VENDOR_PUBKEY=79c1662a... cargo +stable test --workspace --tests` | **PASS** |
+| Frontend tests | `npm run test` | **PASS** — 69 files / 335 tests |
+| Frontend build | `npm run build` | **PASS** (after duplicate `AppointmentConfirmMode` removal) |
+| New workflow bridge tests | `npm run test -w medoc -- src/services/tauri.service.test.ts src/views/components/workflow-route-logger.test.tsx` | **PASS** — 4 tests |
+| Intermediate Rust test attempt | `cargo +stable test -p medoc-core sanitizer::tests` (with zeroed pubkey) | **FAIL** — build-time key mismatch for signature tests; rerun with CI key fixed validation |
+
+### Findings register entries (this run)
+
+| ID | Location | Finding | Evidence | Severity | Action |
+|----|----------|---------|----------|----------|--------|
+| WF-LOG-001 | `crates/shared/medoc-core/src/infrastructure/logging/mod.rs` | `medoc::workflow` events shared `system.log`, not a dedicated workflow channel | Existing filter `medoc::system=info,medoc::workflow=info` in system layer | P1 | Added dedicated `workflow.log` appender/layer |
+| WF-LOG-002 | `apps/practice-host-ui/src/services/tauri.service.ts` | No centralized frontend→backend workflow event bridge for IPC lifecycle | No workflow telemetry calls in shared invoke path | P1 | Added centralized `primary_action/success/error` emission |
+| WF-LOG-003 | `apps/practice-host-ui/src/App.tsx` | Route-enter workflow events were not emitted by default | No route lifecycle logger mounted at router root | P2 | Added `WorkflowRouteLogger` component + tests |
+| BUILD-001 | `packages/shared/src/lib/client-settings.ts` | Duplicate `AppointmentConfirmMode` type broke TS build | `npm run build` TS2300 duplicate identifier | P1 | Removed duplicate alias declaration |
+
 **Last updated:** 2026-09-05 (payment assignment open rows)
 
 ## Payment assignment / open booking (2026-09-05)

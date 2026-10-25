@@ -31,9 +31,6 @@ export type AppointmentCalendarView = "day" | "week" | "month";
 /** Whether new appointments need a separate confirm step. */
 export type AppointmentConfirmMode = "manual" | "auto";
 
-/** Whether new appointments need a separate confirm step. */
-export type AppointmentConfirmMode = "manual" | "auto";
-
 /** Appearance: light / dark / system (system follows `prefers-color-scheme`). */
 export type ColorSchemeId = "light" | "dark" | "system";
 
