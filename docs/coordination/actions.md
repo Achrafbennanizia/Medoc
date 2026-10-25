@@ -1,5 +1,32 @@
 # Action ledger
 
+**Last updated:** 2026-10-25 (workflow logging bridge)
+
+## Done (2026-10-25 — workflow logging bridge + validation gates)
+
+- Added dedicated `workflow.log` channel in existing tracing subsystem (no parallel logger).
+- Routed log file writes through sanitizer on write path (`sanitize_bytes`) and expanded sensitive-key masking.
+- Added frontend→backend workflow bridge:
+  - IPC lifecycle telemetry (`primary_action` / `success` / `error`) from shared `tauriInvoke`.
+  - Route enter telemetry via `WorkflowRouteLogger`.
+  - Backend command `log_frontend_workflow_event` writes structured events on `medoc::workflow`.
+- Added tests:
+  - `src/services/tauri.service.test.ts`
+  - `src/views/components/workflow-route-logger.test.tsx`
+  - sanitizer unit coverage for JSON/bytes masking.
+- Fixed build blocker: removed duplicate `AppointmentConfirmMode` alias in shared client settings.
+- Revalidated gates:
+  - `cargo +stable fmt --check` PASS
+  - `cargo +stable clippy --workspace --all-targets -- -D warnings` PASS
+  - `cargo +stable test --workspace --tests` PASS
+  - `npm run test` PASS
+  - `npm run build` PASS
+
+## Now
+
+- Manual log inspection in a live Tauri session to confirm emitted workflow steps across high-risk flows (login, patient-create, billing, dialog cancel) — **NOT OBSERVED** in this run.
+- Step-4/Step-5 geometry + a11y browser audit remains pending for the next bounded pass.
+
 **Last updated:** 2026-09-05 (payment fulfills open booking)
 
 ## Done (2026-09-05 — payment → billing)

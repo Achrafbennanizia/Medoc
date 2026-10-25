@@ -1,5 +1,42 @@
 # Phase handoff
 
+**Last phase label:** Workflow logging bridge + build gate fix (2026-10-25)
+
+### Verified (2026-10-25 — workflow logging + validation)
+
+- Existing tracing subsystem now has a dedicated `workflow.log` sink (no parallel logger).
+- Log writers sanitize payloads before file writes (`sanitize_bytes`) and now mask additional patient/sensitive key patterns in JSON and key/value text.
+- Frontend workflow bridge is centralized:
+  - Shared IPC path emits `primary_action`, `success`, `error` events (`src/services/tauri.service.ts`).
+  - Router-level route-enter telemetry emits `route_enter` events (`WorkflowRouteLogger` mounted in `App.tsx`).
+- Backend receives workflow bridge events via `log_frontend_workflow_event` and logs structured entries on `medoc::workflow`.
+- Build gate regression found and fixed: duplicate `AppointmentConfirmMode` alias removed from shared client settings.
+- Validation rerun:
+  - `MEDOC_VENDOR_PUBKEY=79c1662a... cargo +stable fmt --check` **PASS**
+  - `MEDOC_VENDOR_PUBKEY=79c1662a... cargo +stable clippy --workspace --all-targets -- -D warnings` **PASS**
+  - `MEDOC_VENDOR_PUBKEY=79c1662a... cargo +stable test --workspace --tests` **PASS**
+  - `npm run test` **PASS** (69 files / 335 tests)
+  - `npm run build` **PASS**
+
+### Remains unverified
+
+- Live Tauri runtime observation of the new workflow events across end-to-end user flows — **NOT OBSERVED**.
+- Full Step-4 geometry and Step-5 accessibility/browser-policy audit from the quality run brief — **NOT RUN** this pass.
+
+### Understanding delta
+
+- Prior state relied on mixed `system.log` routing and lacked a centralized UI workflow telemetry seam.
+- Current state establishes one shared, test-covered instrumentation path for route + IPC lifecycle events, reducing per-page instrumentation drift risk.
+- Frontend build reliability now depends on the deduplicated `AppointmentConfirmMode` declaration in `client-settings.ts`.
+
+### Required next
+
+1. Run a manual Tauri smoke and confirm `workflow.log` records route + action lifecycle in real user sessions.
+2. Execute the pending browser geometry/spacing + a11y audits from the quality brief and append findings to `validation.md`.
+3. If any non-terminable flow appears in logs, add a dedicated failing test before applying fixes.
+
+---
+
 **Last phase label:** Payment fulfills open booking (2026-09-05)
 
 ### Verified (2026-09-05 — payment → billing list)
