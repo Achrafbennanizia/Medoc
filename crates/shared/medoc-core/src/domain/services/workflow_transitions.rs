@@ -2,6 +2,27 @@
 use crate::domain::rbac::Role;
 use crate::error::AppError;
 
+fn log_transition(flow: &str, current: &str, next: &str) {
+    tracing::info!(
+        target: "medoc::workflow",
+        event = "DOMAIN_STATE_TRANSITION",
+        flow,
+        from = current,
+        to = next
+    );
+}
+
+fn log_transition_rejected(flow: &str, current: &str, next: &str, reason: &str) {
+    tracing::warn!(
+        target: "medoc::workflow",
+        event = "DOMAIN_STATE_TRANSITION_REJECTED",
+        flow,
+        from = current,
+        to = next,
+        reason
+    );
+}
+
 fn status_transition_denied(current: &str, next: &str) -> AppError {
     AppError::validation_code_params(
         "error.workflow.status_transition",
@@ -9,15 +30,23 @@ fn status_transition_denied(current: &str, next: &str) -> AppError {
     )
 }
 
-fn allowed_transition(current: &str, next: &str, allowed: &[&str]) -> Result<(), AppError> {
+fn allowed_transition(
+    flow: &str,
+    current: &str,
+    next: &str,
+    allowed: &[&str],
+) -> Result<(), AppError> {
     let cur = current.trim().to_uppercase();
     let nxt = next.trim().to_uppercase();
     if cur == nxt {
+        log_transition(flow, &cur, &nxt);
         return Ok(());
     }
     if allowed.iter().any(|s| s.eq_ignore_ascii_case(&nxt)) {
+        log_transition(flow, &cur, &nxt);
         Ok(())
     } else {
+        log_transition_rejected(flow, &cur, &nxt, "not_in_allowed_set");
         Err(status_transition_denied(&cur, &nxt))
     }
 }
@@ -29,20 +58,36 @@ pub fn appointment_status_transition(current: &str, next: &str) -> Result<(), Ap
         "PLANNED" => &["CONFIRMED", "COMPLETED", "CANCELLED", "NO_SHOW"],
         "CONFIRMED" => &["COMPLETED", "CANCELLED", "NO_SHOW"],
         "COMPLETED" | "CANCELLED" | "NO_SHOW" | "NICHTERSCHIENEN" => &[],
-        _ => return Ok(()),
+        _ => {
+            log_transition("appointment_status", &cur, &cur);
+            return Ok(());
+        }
     };
-    allowed_transition(&cur, next, allowed)
+    allowed_transition("appointment_status", &cur, next, allowed)
 }
 
 /// FA-AKTE-14: reception/physician forward → queue (`IN_PROGRESS`).
 pub fn patient_chart_forward_review_transition(current: &str) -> Result<(), AppError> {
     let s = current.trim().to_uppercase();
     if s == "READONLY" {
+        log_transition_rejected(
+            "patient_chart_forward_review",
+            &s,
+            "IN_PROGRESS",
+            "readonly",
+        );
         return Err(AppError::validation_code("error.workflow.chart_readonly"));
     }
     if s == "DRAFT" || s == "IN_PROGRESS" || s == "VALIDATED" {
+        log_transition("patient_chart_forward_review", &s, "IN_PROGRESS");
         return Ok(());
     }
+    log_transition_rejected(
+        "patient_chart_forward_review",
+        &s,
+        "IN_PROGRESS",
+        "invalid_chart_status",
+    );
     Err(AppError::validation_code_params(
         "error.workflow.chart_status_invalid",
         &[("status", &s)],
@@ -53,13 +98,26 @@ pub fn patient_chart_forward_review_transition(current: &str) -> Result<(), AppE
 pub fn patient_chart_validate_transition(current: &str) -> Result<(), AppError> {
     let s = current.trim().to_uppercase();
     if s == "VALIDATED" || s == "READONLY" {
+        log_transition_rejected(
+            "patient_chart_validate",
+            &s,
+            "VALIDATED",
+            "already_validated",
+        );
         return Err(AppError::validation_code(
             "error.workflow.chart_already_validated",
         ));
     }
     if s == "DRAFT" || s == "IN_PROGRESS" {
+        log_transition("patient_chart_validate", &s, "VALIDATED");
         return Ok(());
     }
+    log_transition_rejected(
+        "patient_chart_validate",
+        &s,
+        "VALIDATED",
+        "invalid_chart_status",
+    );
     Err(AppError::validation_code_params(
         "error.workflow.chart_status_invalid",
         &[("status", &s)],
@@ -74,13 +132,14 @@ pub fn practice_ticket_status_transition(current: &str, next: &str) -> Result<()
         "IN_PROGRESS" => &["DONE", "OPEN"],
         "DONE" => &[],
         _ => {
+            log_transition_rejected("practice_ticket_status", &cur, next, "unknown_status");
             return Err(AppError::validation_code_params(
                 "error.workflow.ticket_unknown_status",
                 &[("status", &cur)],
-            ))
+            ));
         }
     };
-    allowed_transition(&cur, next, allowed)
+    allowed_transition("practice_ticket_status", &cur, next, allowed)
 }
 
 const TASK_STATUSES: &[&str] = &["OPEN", "IN_PROGRESS", "DONE_RECEPTION", "VALIDATED", "BACK"];
@@ -94,17 +153,21 @@ pub fn practice_task_admin_status_transition(current: &str, next: &str) -> Resul
     let cur = current.trim().to_uppercase();
     let nxt = next.trim().to_uppercase();
     if cur == nxt {
+        log_transition("practice_task_admin_status", &cur, &nxt);
         return Ok(());
     }
     if cur == "VALIDATED" {
+        log_transition_rejected("practice_task_admin_status", &cur, &nxt, "task_closed");
         return Err(task_closed());
     }
     if !TASK_STATUSES.iter().any(|s| s.eq_ignore_ascii_case(&nxt)) {
+        log_transition_rejected("practice_task_admin_status", &cur, &nxt, "unknown_status");
         return Err(AppError::validation_code_params(
             "error.workflow.task_unknown_status",
             &[("status", &nxt)],
         ));
     }
+    log_transition("practice_task_admin_status", &cur, &nxt);
     Ok(())
 }
 
@@ -113,6 +176,7 @@ fn practice_task_fulfill_status_transition(current: &str, next: &str) -> Result<
     let cur = current.trim().to_uppercase();
     let nxt = next.trim().to_uppercase();
     if cur == "VALIDATED" {
+        log_transition_rejected("practice_task_fulfill_status", &cur, &nxt, "task_closed");
         return Err(task_closed());
     }
     let allowed: &[&str] = match cur.as_str() {
@@ -121,13 +185,14 @@ fn practice_task_fulfill_status_transition(current: &str, next: &str) -> Result<
         "BACK" => &["OPEN", "IN_PROGRESS"],
         "DONE_RECEPTION" => &[],
         _ => {
+            log_transition_rejected("practice_task_fulfill_status", &cur, &nxt, "unknown_status");
             return Err(AppError::validation_code_params(
                 "error.workflow.task_unknown_status",
                 &[("status", &cur)],
-            ))
+            ));
         }
     };
-    allowed_transition(&cur, &nxt, allowed)
+    allowed_transition("practice_task_fulfill_status", &cur, &nxt, allowed)
 }
 
 /// FA-AUFG-06: practice task — assignee (REZ pool or named physician) vs. creator (validation).
@@ -145,12 +210,19 @@ pub fn practice_task_status_transition(
     rbac_admin: bool,
 ) -> Result<(), AppError> {
     if rbac_admin {
+        tracing::info!(
+            target: "medoc::workflow",
+            event = "DOMAIN_STATE_TRANSITION_PATH",
+            flow = "practice_task_status",
+            path = "admin"
+        );
         return practice_task_admin_status_transition(current, next);
     }
 
     let cur = current.trim().to_uppercase();
     let nxt = next.trim().to_uppercase();
     if cur == "VALIDATED" {
+        log_transition_rejected("practice_task_status", &cur, &nxt, "task_closed");
         return Err(task_closed());
     }
 
@@ -170,29 +242,65 @@ pub fn practice_task_status_transition(
 
     // Completed task: creator validates/returns — even if creator was also the assignee.
     if is_validator && cur == "DONE_RECEPTION" {
-        return allowed_transition(&cur, &nxt, &["VALIDATED", "BACK"]);
+        tracing::info!(
+            target: "medoc::workflow",
+            event = "DOMAIN_STATE_TRANSITION_PATH",
+            flow = "practice_task_status",
+            path = "creator_validation"
+        );
+        return allowed_transition("practice_task_status", &cur, &nxt, &["VALIDATED", "BACK"]);
     }
 
     if is_fulfiller {
+        tracing::info!(
+            target: "medoc::workflow",
+            event = "DOMAIN_STATE_TRANSITION_PATH",
+            flow = "practice_task_status",
+            path = "assignee_fulfill"
+        );
         return practice_task_fulfill_status_transition(current, next);
     }
 
     if rbac_fulfill {
         if nxt != "IN_PROGRESS" && nxt != "DONE_RECEPTION" {
+            log_transition_rejected("practice_task_status", &cur, &nxt, "rbac_fulfill_forbidden");
             return Err(AppError::Unauthorized);
         }
+        tracing::info!(
+            target: "medoc::workflow",
+            event = "DOMAIN_STATE_TRANSITION_PATH",
+            flow = "practice_task_status",
+            path = "rbac_fulfill_override"
+        );
         return practice_task_fulfill_status_transition(current, next);
     }
 
     if is_validator {
+        tracing::info!(
+            target: "medoc::workflow",
+            event = "DOMAIN_STATE_TRANSITION_PATH",
+            flow = "practice_task_status",
+            path = "creator_guard"
+        );
         return match cur.as_str() {
-            "DONE_RECEPTION" => allowed_transition(&cur, &nxt, &["VALIDATED", "BACK"]),
-            _ => Err(AppError::validation_code(
-                "error.workflow.task_validate_only_done",
-            )),
+            "DONE_RECEPTION" => {
+                allowed_transition("practice_task_status", &cur, &nxt, &["VALIDATED", "BACK"])
+            }
+            _ => {
+                log_transition_rejected(
+                    "practice_task_status",
+                    &cur,
+                    &nxt,
+                    "validator_requires_done_reception",
+                );
+                Err(AppError::validation_code(
+                    "error.workflow.task_validate_only_done",
+                ))
+            }
         };
     }
 
+    log_transition_rejected("practice_task_status", &cur, &nxt, "unauthorized");
     Err(AppError::Unauthorized)
 }
 
@@ -204,11 +312,12 @@ pub fn purchase_order_status_transition(current: &str, next: &str) -> Result<(),
         "IN_TRANSIT" => &["DELIVERED", "CANCELLED"],
         "DELIVERED" | "CANCELLED" => &[],
         _ => {
+            log_transition_rejected("purchase_order_status", &cur, next, "unknown_status");
             return Err(AppError::validation_code_params(
                 "error.workflow.purchase_order_unknown_status",
                 &[("status", &cur)],
-            ))
+            ));
         }
     };
-    allowed_transition(&cur, next, allowed)
+    allowed_transition("purchase_order_status", &cur, next, allowed)
 }

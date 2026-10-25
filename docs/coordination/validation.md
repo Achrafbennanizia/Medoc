@@ -1,6 +1,21 @@
 # Validation ledger
 
-**Last updated:** 2026-09-05 (payment assignment open rows)
+**Last updated:** 2026-10-25 (background quality workflow sweep)
+
+## Background quality workflow sweep (2026-10-25)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Rust format | `cargo fmt --check` | **PASS** |
+| Rust lint | `cargo clippy --workspace --all-targets -- -D warnings` | **FAIL** — blocked by Cargo 1.83.0 parsing transitive `toml_parser` manifest requiring `edition2024` |
+| Rust tests | `cargo test --workspace` | **FAIL** — same Cargo/toolchain blocker (`edition2024` required) |
+| Frontend unit/integration tests | `npm run test` | **PASS** — 71 files / 342 tests |
+| Frontend production build | `npm run build` | **PASS** |
+| Tailwind spacing token lint | `npm run lint:tailwind-scale -w medoc` | **PASS** |
+| Playwright geometry + snapshots | `npm run test:playwright -w medoc -- --grep "UI geometry"` | **PASS** — 3/3 (`375`, `768`, `1259`) |
+| Runtime workflow log + rotation live smoke | — | **NOT OBSERVED** (automation run remained command/test driven) |
+
+---
 
 ## Payment assignment / open booking (2026-09-05)
 

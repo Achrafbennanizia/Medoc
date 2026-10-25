@@ -1,6 +1,27 @@
 # Action ledger
 
-**Last updated:** 2026-09-05 (payment fulfills open booking)
+**Last updated:** 2026-10-25 (background quality workflow sweep)
+
+## Done (2026-10-25 — background quality workflow sweep)
+
+- Logging instrumentation landed in existing tracing stack (`workflow.log` channel + sanitized frontend→backend bridge + domain transition events) in commit `f3fa7a4`.
+- Workflow/component/geometry coverage expanded (`vitest` + Playwright spacing snapshots + Tailwind arbitrary-value lint) in commit `c1377dd`.
+- Fix wave addressed register findings:
+  - removed duplicate `AppointmentConfirmMode` alias breaking TypeScript build,
+  - aligned toast error auto-dismiss to 5000ms,
+  - replaced arbitrary Tailwind spacing token in treatment composer,
+  - narrowed spacing-lint matcher and stabilized geometry test wait condition.
+- Revalidation completed: `npm run test`, `npm run build`, `npm run lint:tailwind-scale -w medoc`, and Playwright geometry tests all **PASS**.
+- Rust `clippy` and workspace tests remain blocked by environment Cargo 1.83.0 vs transitive `edition2024` dependency; tracked in contradictions register `WF-2026-10-25-04`.
+
+## Now
+
+1. Upgrade the cloud-agent Rust/Cargo toolchain to an edition2024-capable release, then rerun `cargo clippy --workspace --all-targets -- -D warnings` and `cargo test --workspace`.
+2. Run a live Tauri smoke to verify `workflow.log` rotation behavior and sanitized payload output with real UI interactions (**NOT OBSERVED** in this automation pass).
+
+## Later
+
+- Continue P0/P1 register triage as new workflow/a11y/geometry findings appear; keep entries in `docs/coordination/contradictions.md`.
 
 ## Done (2026-09-05 — payment → billing)
 

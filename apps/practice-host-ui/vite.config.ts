@@ -163,6 +163,8 @@ export default defineConfig(async () => ({
                     exclude: [
                         "src/lib/**/*.test.ts",
                         "src/lib/**/*.test.tsx",
+                        "src/views/components/ui/**/*.test.ts",
+                        "src/views/components/ui/**/*.test.tsx",
                     ],
                 },
             },
