@@ -1,5 +1,46 @@
 # Phase handoff
 
+**Last phase label:** Background quality workflow sweep (2026-10-25)
+
+### Verified (2026-10-25 — instrumentation/tests/fixes)
+
+- Existing tracing subsystem extended (no parallel logger): `workflow.log` channel + sanitized workflow bridge command + domain workflow transition events (commit `f3fa7a4`).
+- UI/workflow audit coverage added:
+  - Vitest tests for Tauri workflow logging bridge and shared UI components.
+  - Playwright geometry snapshot checks at `375`, `768`, `1259`.
+  - Tailwind arbitrary-value lint script for spacing/size token bypass.
+  - Commit `c1377dd`.
+- Findings register captured in `docs/coordination/contradictions.md` (`WF-2026-10-25-01` … `WF-2026-10-25-06`).
+- Fix wave applied and revalidated:
+  - TypeScript duplicate alias build break fixed.
+  - Toast error timeout aligned to 5s rule.
+  - Arbitrary spacing class removed from treatment composer.
+  - Geometry test wait predicate stabilized; spacing-lint matcher narrowed to relevant classes.
+  - Frontend checks: `npm run test`, `npm run build`, `npm run lint:tailwind-scale -w medoc`, and Playwright geometry test grep **PASS**.
+- Rust checks:
+  - `cargo fmt --check` **PASS**
+  - `cargo clippy --workspace --all-targets -- -D warnings` **FAIL**
+  - `cargo test --workspace` **FAIL**
+  - Both failures due environment Cargo 1.83.0 failing on transitive `edition2024` manifest parse.
+
+### Remains unverified
+
+- Live runtime confirmation of workflow log file rotation and PII-safe payload content with real end-user flows — **NOT OBSERVED** this run.
+- Rust lint/test outcomes after toolchain update — **NOT RUN** (blocked by environment).
+
+### Understanding delta
+
+- The non-green Rust status in this phase is environmental rather than code-regression: a transitive dependency now requires `edition2024`, which Cargo 1.83.0 in the agent image cannot parse.
+- Geometry/spacing compliance checks are now reproducible in CI-style automation through Playwright + token linting, reducing reliance on manual spot checks.
+
+### Required next
+
+1. Upgrade this automation environment to a Cargo/Rust toolchain that supports `edition2024`.
+2. Rerun Rust quality gates (`cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`) and append results to `validation.md`.
+3. Execute a short live smoke for workflow logging (route enter/action success/error) and confirm rotation + sanitizer behavior in emitted `workflow.log`.
+
+---
+
 **Last phase label:** Payment fulfills open booking (2026-09-05)
 
 ### Verified (2026-09-05 — payment → billing list)
