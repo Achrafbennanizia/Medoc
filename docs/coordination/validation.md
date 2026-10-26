@@ -1,6 +1,19 @@
 # Validation ledger
 
-**Last updated:** 2026-09-05 (payment assignment open rows)
+**Last updated:** 2026-10-26 (workflow logger bridge)
+
+## Workflow logger bridge + sanitized UI telemetry (2026-10-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Rust format | `cargo fmt --check` | **PASS** |
+| Frontend targeted workflow tests | `npm run test -- --project node src/services/tauri.service.test.ts` | **PASS** — 3/3 |
+| Frontend suite | `npm run test` | **PASS** — 334 tests |
+| Frontend build | `npm run build` | **FAIL (pre-existing)** — duplicate `AppointmentConfirmMode` in `src/lib/client-settings.ts` and `packages/shared/src/lib/client-settings.ts` |
+| Rust tests | `cargo test --workspace` | **FAIL (environment/toolchain)** — Cargo 1.83 cannot parse `getrandom v0.4.2` (`feature edition2024 is required`) |
+| Rust clippy | `cargo clippy --workspace --all-targets -- -D warnings` | **FAIL (environment/toolchain)** — same `edition2024` parser failure |
+
+---
 
 ## Payment assignment / open booking (2026-09-05)
 
