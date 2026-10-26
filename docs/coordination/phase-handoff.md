@@ -1,5 +1,52 @@
 # Phase handoff
 
+**Last phase label:** CI/CD tiered pipeline wiring (2026-10-26)
+
+### Verified (2026-10-26 — verify/autofix/fix-proposal/release)
+
+- Added tiered workflows:
+  - `.github/workflows/verify.yml`
+  - `.github/workflows/autofix.yml`
+  - `.github/workflows/fix-proposal.yml`
+  - `.github/workflows/release.yml`
+- Migrated stale CI entrypoint: `.github/workflows/ci.yml` now delegates to `verify.yml` (compat shim).
+- Added CI/CD design doc: `docs/coordination/ci-cd-plan.md`.
+- Added accessibility gate runner: `scripts/axe-a11y-check.mjs`.
+- Added JS script hooks used by CI tiers:
+  - root `package.json`: `typecheck`, `lint:fix`, `format`, `test:a11y`
+  - `apps/practice-host-ui/package.json`: `typecheck`, `lint:fix`, `format`, `test:a11y`
+- Validation commands run:
+  - `python3 - <<'PY' ... yaml.safe_load(...)` **PASS**
+  - `node --check scripts/axe-a11y-check.mjs` **PASS**
+  - `cargo fmt --all --check` **PASS**
+  - `npm ci` **PASS**
+  - `npm run test` **PASS** (67 files / 331 tests)
+  - `npm run typecheck` **FAIL**
+  - `npm run build -w medoc` **FAIL**
+  - `npm run lint -w medoc` **FAIL**
+
+### Remains unverified
+
+- GitHub Actions runtime behavior for new workflows (`verify`, `autofix`, `fix-proposal`, `release`) — **NOT OBSERVED**.
+- Protected `release` environment approval gate and signing secret presence — **NOT OBSERVED**.
+- Accessibility gate execution (`npm run test:a11y`) on CI runner — **NOT RUN** in this session due build/typecheck failures.
+
+### Understanding delta
+
+- Pipeline ownership moved from a single broad `ci.yml` implementation to a four-tier contract:
+  verify-only gate, deterministic PR autofix, draft-only fix proposals, and protected release.
+- Workspace detection is now explicit in workflows and no longer assumes legacy `app/` pathing.
+- Current tree already fails lint/typecheck/build under strict verify commands; this is now recorded as an explicit gating risk instead of being implicit.
+
+### Required next
+
+1. Configure release signing secrets and protected `release` environment approvals.
+2. Set optional repository variable `MEDOC_FIX_PROPOSAL_COMMAND` to enable tier-3 automated fix attempts.
+3. Fix existing JS lint/typecheck/build failures so tier-1 verify can pass.
+4. Run the new workflows on a live PR/tag to confirm end-to-end behavior.
+
+---
+
 **Last phase label:** Payment fulfills open booking (2026-09-05)
 
 ### Verified (2026-09-05 — payment → billing list)

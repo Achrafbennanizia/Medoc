@@ -1,6 +1,23 @@
 # Action ledger
 
-**Last updated:** 2026-09-05 (payment fulfills open booking)
+**Last updated:** 2026-10-26 (CI/CD verify + autofix + gated release)
+
+## Done (2026-10-26 — CI/CD pipeline tiers)
+
+- Added `.github/workflows/verify.yml` as the canonical non-mutating gate (Rust fmt/clippy/test/audit + JS lint/typecheck/test/build + critical axe-core check).
+- Added `.github/workflows/autofix.yml` for deterministic PR-only fixes with loop guard.
+- Added `.github/workflows/fix-proposal.yml` for draft PR proposals on manual dispatch or failing `verify` on `main`, with sensitive-scope `needs-human-review` labeling.
+- Replaced `.github/workflows/release.yml` with a gated release flow that calls `verify`, then builds signed artifacts in protected `release` environment.
+- Converted `.github/workflows/ci.yml` to a compatibility shim that calls `verify`.
+- Added `docs/coordination/ci-cd-plan.md` and `scripts/axe-a11y-check.mjs`.
+
+## Now
+
+- Configure GitHub repository environment/secrets for release signing:
+  - `TAURI_SIGNING_PRIVATE_KEY`
+  - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (if needed)
+- Optional tier-3 command variable: `MEDOC_FIX_PROPOSAL_COMMAND`.
+- Resolve existing JS typecheck/lint/build failures currently detected by the new verify contract.
 
 ## Done (2026-09-05 — payment → billing)
 
