@@ -69,7 +69,7 @@ jobs:
           fi
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: ${{ steps.pm.outputs.pm }}
           cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
       - name: Enable corepack
