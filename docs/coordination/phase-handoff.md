@@ -1,5 +1,37 @@
 # Phase handoff
 
+**Last phase label:** Workflow logger bridge + sanitized UI telemetry (2026-10-26)
+
+### Verified (2026-10-26 — logger-first slice)
+
+- Existing tracing logger was extended (not replaced) with a dedicated `workflow.log` channel in `crates/shared/medoc-core/src/infrastructure/logging/mod.rs`.
+- New IPC command `log_workflow_event` is registered in `crates/app/medoc-practice/src/commands/system/logging.rs` + `commands/register.rs` and emits structured `UI_WORKFLOW_STEP` events through `log_workflow!`.
+- Workflow payload sanitization now redacts route IDs/query tails and token-like strings before logging (`sanitize_workflow_route`, `sanitize_workflow_value` tests added in `logging.rs`).
+- Frontend bridge now emits workflow events for `route_enter`, `primary_action`, `success`, and `error/cancel` via `apps/practice-host-ui/src/services/tauri.service.ts` and `views/layouts/app-layout.tsx`.
+- Validation in this run:
+  - `cargo fmt --check` **PASS**
+  - `npm run test -- --project node src/services/tauri.service.test.ts` **PASS** (3/3)
+  - `npm run test` **PASS** (334 tests)
+
+### Remains unverified
+
+- Full Step-2 state-machine audit over all UI workflows (55 route entries in `App.tsx`) — **NOT RUN**.
+- Full Rust validation (`cargo test`, `cargo clippy`) — **blocked** by Cargo 1.83 failing on `getrandom v0.4.2` (`edition2024` required).
+- `npm run build` remains failing on pre-existing duplicate `AppointmentConfirmMode` definitions in `client-settings.ts`.
+
+### Understanding delta
+
+- Workflow telemetry now has an explicit backend ingestion path and a dedicated log channel; previously workflow-target events were mixed into `system.log` and frontend had no generalized bridge.
+- We now have deterministic unit coverage for workflow IPC emission behavior in the central invoke layer.
+
+### Required next
+
+1. Upgrade Rust toolchain (cargo supporting `edition2024`) and rerun `cargo test --workspace` + `cargo clippy --workspace --all-targets -- -D warnings`.
+2. Resolve pre-existing TypeScript duplicate identifier issue in `client-settings.ts` to restore `npm run build`.
+3. Execute Step-2 and Step-4 broad workflow/geometry audits (Playwright + findings register expansion) now that workflow logging is in place.
+
+---
+
 **Last phase label:** Payment fulfills open booking (2026-09-05)
 
 ### Verified (2026-09-05 — payment → billing list)

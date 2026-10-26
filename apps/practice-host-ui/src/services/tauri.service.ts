@@ -1,5 +1,18 @@
 import { invoke } from "@tauri-apps/api/core";
 
+const WORKFLOW_LOG_COMMAND = "log_workflow_event";
+const WORKFLOW_ACTION_TAURI_INVOKE = "tauri_invoke";
+
+export type WorkflowStep = "route_enter" | "primary_action" | "success" | "cancel" | "error";
+
+export type WorkflowLogEvent = {
+    step: WorkflowStep;
+    route?: string;
+    action?: string;
+    command?: string;
+    message?: string;
+};
+
 /**
  * Tauri v2 resolves each command parameter from the invoke JSON using an explicit key.
  * `tauri_macros` defaults to **camelCase** keys derived from Rust identifiers (`patient_id` → `patientId`).
@@ -50,12 +63,73 @@ function expandDualCaseInvokeArgs(args: Record<string, unknown>): Record<string,
     return out;
 }
 
+function currentRouteForWorkflow(): string | undefined {
+    if (typeof window === "undefined") return undefined;
+    const path = window.location?.pathname ?? "";
+    const query = window.location?.search ?? "";
+    const route = `${path}${query}`;
+    return route.length > 0 ? route : undefined;
+}
+
+function classifyFailureStep(error: unknown): WorkflowStep {
+    const text = String(error ?? "").toLowerCase();
+    if (text.includes("cancel") || text.includes("aborted") || text.includes("abort")) {
+        return "cancel";
+    }
+    return "error";
+}
+
+async function emitWorkflowEvent(event: WorkflowLogEvent): Promise<void> {
+    try {
+        await invoke<void>(WORKFLOW_LOG_COMMAND, { event });
+    } catch {
+        // Best-effort telemetry: the main command path must not fail if logging IPC is unavailable.
+    }
+}
+
+function workflowBase(cmd: string): Omit<WorkflowLogEvent, "step"> {
+    return {
+        route: currentRouteForWorkflow(),
+        action: WORKFLOW_ACTION_TAURI_INVOKE,
+        command: cmd,
+    };
+}
+
+export async function logWorkflowRouteEnter(route?: string): Promise<void> {
+    await emitWorkflowEvent({
+        step: "route_enter",
+        route: route ?? currentRouteForWorkflow(),
+        action: "route_change",
+    });
+}
+
 // All Tauri IPC goes through here (single place for invoke normalization).
 export async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-    if (args == null) {
-        return invoke<T>(cmd, {});
+    const workflowEnabled = cmd !== WORKFLOW_LOG_COMMAND;
+    const workflow = workflowBase(cmd);
+    if (workflowEnabled) {
+        await emitWorkflowEvent({ ...workflow, step: "primary_action" });
     }
-    const cleaned = omitUndefinedValues(args);
-    const expanded = expandDualCaseInvokeArgs(cleaned);
-    return invoke<T>(cmd, expanded);
+    try {
+        let result: T;
+        if (args == null) {
+            result = await invoke<T>(cmd, {});
+        } else {
+            const cleaned = omitUndefinedValues(args);
+            const expanded = expandDualCaseInvokeArgs(cleaned);
+            result = await invoke<T>(cmd, expanded);
+        }
+        if (workflowEnabled) {
+            await emitWorkflowEvent({ ...workflow, step: "success" });
+        }
+        return result;
+    } catch (error) {
+        if (workflowEnabled) {
+            await emitWorkflowEvent({
+                ...workflow,
+                step: classifyFailureStep(error),
+            });
+        }
+        throw error;
+    }
 }

@@ -1,6 +1,22 @@
 # Action ledger
 
-**Last updated:** 2026-09-05 (payment fulfills open booking)
+**Last updated:** 2026-10-26 (workflow logger bridge)
+
+## Done (2026-10-26 — logger-first workflow telemetry)
+
+- Extended existing tracing logging subsystem with dedicated `workflow.log` channel (no parallel logger).
+- Added sanitized `log_workflow_event` IPC command and registered it in the global invoke handler (`EXPECTED_INVOKE_COMMAND_COUNT` now 314).
+- Wired frontend invoke bridge to emit `primary_action`, `success`, `cancel`/`error`; added route-enter emission in `AppLayout`.
+- Added unit coverage:
+  - `apps/practice-host-ui/src/services/tauri.service.test.ts` (3 tests)
+  - `crates/app/medoc-practice/src/commands/system/logging.rs` sanitization tests
+- Validation this run: `cargo fmt --check` PASS, `npm run test` PASS (334 tests), `npm run build` still failing on pre-existing duplicate identifier, Rust `test/clippy` blocked by cargo toolchain (`edition2024` parse error).
+
+## Now
+
+- Upgrade Cargo toolchain to support `edition2024` dependencies, then rerun full Rust validation gate.
+- Fix pre-existing duplicate `AppointmentConfirmMode` TypeScript declarations to restore `npm run build`.
+- Execute Step-2/Step-4 full workflow and geometry sweeps, then append new findings (P0-P3) to coordination ledgers.
 
 ## Done (2026-09-05 — payment → billing)
 
