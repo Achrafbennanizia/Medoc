@@ -187,3 +187,31 @@ macro_rules! register_logging_commands {
         $crate::commands::logging_commands::log_workflow_event,
     };
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{sanitize_workflow_route, sanitize_workflow_value};
+
+    #[test]
+    fn workflow_route_redacts_dynamic_segments_and_query() {
+        let route = sanitize_workflow_route(Some(
+            "/patients/5f7a7f00-5b95-463f-a85b-a73bb2a5602f?tab=clinical",
+        ));
+        assert_eq!(route.as_deref(), Some("/patients/:id"));
+    }
+
+    #[test]
+    fn workflow_route_keeps_static_segments() {
+        let route = sanitize_workflow_route(Some("/administration/finance-reports/day-close"));
+        assert_eq!(
+            route.as_deref(),
+            Some("/administration/finance-reports/day-close")
+        );
+    }
+
+    #[test]
+    fn workflow_value_masks_secret_patterns() {
+        let value = sanitize_workflow_value(Some("password=hunter2"), 96);
+        assert_eq!(value.as_deref(), Some("password=***"));
+    }
+}
