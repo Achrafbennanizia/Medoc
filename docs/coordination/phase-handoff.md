@@ -1,6 +1,32 @@
 # Phase handoff
 
-**Last phase label:** Payment fulfills open booking (2026-09-05)
+**Last phase label:** CI/CD tiered pipeline migration (2026-10-26)
+
+### Verified (2026-10-26 — CI/CD tier split + guardrails)
+
+- Added four-tier pipeline workflows in `.github/workflows/`: `verify.yml`, `autofix.yml`, `fix-proposal.yml`, updated `release.yml`; kept `ci.yml` as a manual legacy alias.
+- Added `docs/coordination/ci-cd-plan.md` with tier definitions, mutation boundaries, and release gating.
+- Added JS scripts required by tiers (`typecheck`, `lint:fix`, `format`, `test:a11y`) in root `package.json` and `apps/practice-host-ui/package.json`.
+- Added Playwright+axe critical accessibility check at `apps/practice-host-ui/e2e-playwright/a11y-critical.spec.ts` and preview-server wiring in `playwright.config.ts`.
+- Logged validation evidence in `docs/coordination/validation.md` (YAML parse **PASS**; root lint/typecheck/a11y currently **FAIL** due pre-existing codebase issues).
+
+### Remains unverified
+
+- End-to-end GitHub Actions run on this branch for `verify` / `autofix` / `fix-proposal` / `release` — **NOT OBSERVED** in this session.
+- Whether existing branch protection expects old CI check names after `ci.yml` migration to manual alias — **NOT OBSERVED**.
+
+### Understanding delta
+
+- CI/CD is now explicitly tiered: verify-only gates are separated from deterministic PR autofix and draft fix proposals, with release verification reused through `workflow_call`.
+- Existing frontend baseline errors (TypeScript + ESLint) will keep Tier-1 red until separately remediated; this was surfaced, not introduced, by the new gate wiring.
+
+### Required next
+
+1. Run the new workflows in GitHub Actions on this branch to confirm runtime behavior (especially `fix-proposal` draft-PR flow and `release` protected-environment approval path).
+2. Resolve existing frontend baseline errors so `verify.yml` can pass (`typecheck`, `lint`, then `test:a11y` build stage).
+3. Align branch protection required checks with the new tier names if any rule still points to retired CI check labels.
+
+---
 
 ### Verified (2026-09-05 — payment → billing list)
 

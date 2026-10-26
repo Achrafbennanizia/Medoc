@@ -1,6 +1,18 @@
 # Validation ledger
 
-**Last updated:** 2026-09-05 (payment assignment open rows)
+**Last updated:** 2026-10-26 (CI/CD tiered workflow migration)
+
+## CI/CD tiered workflow migration (2026-10-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Workflow YAML parse | `python3 - <<'PY' ... yaml.safe_load(...)` | **PASS** — `autofix.yml`, `ci.yml`, `fix-proposal.yml`, `release.yml`, `verify.yml`, `website.yml` parsed successfully |
+| Root typecheck | `npm run typecheck` | **FAIL** — pre-existing TypeScript errors (`Duplicate identifier 'AppointmentConfirmMode'`; missing `i18next`/`react-i18next` types) in `apps/practice-host-ui` and `packages/shared` |
+| Root lint | `npm run lint` | **FAIL** — pre-existing lint violations (`react-hooks/preserve-manual-memoization` error in `src/views/pages/day-close.tsx`; `react-refresh/only-export-components` warning in `src/views/components/dev-capture-poller.tsx`) |
+| Playwright browser bootstrap | `npx playwright install --with-deps chromium` | **PASS** |
+| A11y gate command | `npm run test:a11y -w medoc` | **FAIL** — command reaches build stage and is blocked by the same pre-existing TypeScript errors listed above |
+
+---
 
 ## Payment assignment / open booking (2026-09-05)
 
