@@ -1,6 +1,13 @@
 # Action ledger
 
-**Last updated:** 2026-09-05 (payment fulfills open booking)
+**Last updated:** 2026-10-26 (CI/CD tiered pipeline migration)
+
+## Done (2026-10-26 — CI/CD tiered pipeline migration)
+
+- Added tiered workflows: `.github/workflows/verify.yml`, `autofix.yml`, `fix-proposal.yml`, and updated `release.yml`; converted `ci.yml` to a manual legacy alias.
+- Added plan doc: `docs/coordination/ci-cd-plan.md`.
+- Added/updated scripts and a11y checks for tier commands (`typecheck`, `lint:fix`, `format`, `test:a11y`, Playwright+axe critical scan).
+- Recorded validation results in `docs/coordination/validation.md` (workflow YAML parse **PASS**; baseline frontend lint/typecheck failures remain).
 
 ## Done (2026-09-05 — payment → billing)
 
