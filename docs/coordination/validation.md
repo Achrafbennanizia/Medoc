@@ -1,6 +1,22 @@
 # Validation ledger
 
-**Last updated:** 2026-09-05 (payment assignment open rows)
+**Last updated:** 2026-10-26 (CI/CD pipeline wiring)
+
+## CI/CD workflow wiring (2026-10-26)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Rust formatting gate | `cargo fmt --all --check` | **PASS** |
+| Workflow YAML syntax | `python3 - <<'PY' ... yaml.safe_load(...)` | **PASS** |
+| A11y script syntax | `node --check scripts/axe-a11y-check.mjs` | **PASS** |
+| Workspace dependency install | `npm ci` | **PASS** |
+| App tests | `npm run test` | **PASS** — 67 files / 331 tests |
+| Root typecheck wrapper | `npm run typecheck` | **FAIL** — duplicate identifier `AppointmentConfirmMode` in `client-settings.ts` |
+| App build gate | `npm run build -w medoc` | **FAIL** — same TypeScript errors as typecheck |
+| App lint gate | `npm run lint -w medoc` | **FAIL** — `react-hooks/preserve-manual-memoization` error in `src/views/pages/day-close.tsx` plus one warning |
+| Accessibility gate command | `npm run test:a11y` | **NOT RUN** — blocked by failing build/typecheck preconditions |
+
+---
 
 ## Payment assignment / open booking (2026-09-05)
 
