@@ -19,6 +19,7 @@ function scopePracticeHostCss(): Plugin {
       if (!norm.endsWith("apps/practice-host-ui/src/index.css")) return;
       let next = code.replace(/@tailwind\s+[^;]+;/g, "");
       next = next.replace(/@import url\([^)]+\);\s*/g, "");
+      // Practice UI already ships 0. Guard the embed if that floor is raised again.
       next = next.replace(/--app-viewport-min-width:\s*1024px/g, "--app-viewport-min-width: 0px");
       next = next.replace(/--app-viewport-min-height:\s*800px/g, "--app-viewport-min-height: 0px");
       next = next.replace(/:root\b/g, ":host");

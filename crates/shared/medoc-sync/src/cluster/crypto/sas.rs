@@ -17,6 +17,12 @@ pub fn derive_sas_from_transcript(transcript: &[u8]) -> String {
     format!("{n:04}")
 }
 
+/// First 8 bytes of SHA-256 as hex (logs only — never the raw handshake).
+pub fn transcript_sha_prefix(transcript: &[u8]) -> String {
+    let digest = Sha256::digest(transcript);
+    digest.iter().take(8).map(|b| format!("{b:02x}")).collect()
+}
+
 /// Store only HMAC-SHA256 of `(session_id, sas)` — never the plain SAS.
 pub fn hash_sas(session_id: &str, sas: &str, key: &[u8]) -> Vec<u8> {
     let mut mac = HmacSha256::new_from_slice(key).expect("HMAC key");
@@ -28,15 +34,27 @@ pub fn hash_sas(session_id: &str, sas: &str, key: &[u8]) -> Vec<u8> {
 
 pub fn verify_sas(session_id: &str, sas: &str, expected_hash: &[u8], key: &[u8]) -> bool {
     let computed = hash_sas(session_id, sas, key);
+    if computed.len() != expected_hash.len() {
+        return false;
+    }
     computed.ct_eq(expected_hash).into()
 }
 
 pub fn normalise_sas_input(raw: &str) -> Option<String> {
-    let digits: String = raw.chars().filter(|c| c.is_ascii_digit()).collect();
+    let digits: String = raw.chars().filter_map(ascii_digit).collect();
     if digits.len() != SAS_LEN {
         return None;
     }
     Some(digits)
+}
+
+fn ascii_digit(c: char) -> Option<char> {
+    match c {
+        '0'..='9' => Some(c),
+        '\u{0660}'..='\u{0669}' => Some(char::from(b'0' + (u32::from(c) - 0x0660) as u8)),
+        '\u{06F0}'..='\u{06F9}' => Some(char::from(b'0' + (u32::from(c) - 0x06F0) as u8)),
+        _ => None,
+    }
 }
 
 pub fn validate_sas_match(
@@ -69,10 +87,24 @@ mod tests {
     }
 
     #[test]
+    fn transcript_sha_prefix_is_stable_hex() {
+        let p = transcript_sha_prefix(b"noise-xx");
+        assert_eq!(p.len(), 16);
+        assert!(p.chars().all(|c| c.is_ascii_hexdigit()));
+        assert_eq!(p, transcript_sha_prefix(b"noise-xx"));
+    }
+
+    #[test]
     fn sas_hash_roundtrip() {
         let key = b"test-hmac-key-32-bytes-long!!!!!";
         let hash = hash_sas("sess-1", "4829", key);
         assert!(verify_sas("sess-1", "4829", &hash, key));
         assert!(!verify_sas("sess-1", "0000", &hash, key));
+    }
+
+    #[test]
+    fn sas_input_accepts_eastern_arabic_digits() {
+        assert_eq!(normalise_sas_input("٤٨٢٩").as_deref(), Some("4829"));
+        assert_eq!(normalise_sas_input("۴۸۲۹").as_deref(), Some("4829"));
     }
 }

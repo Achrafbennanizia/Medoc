@@ -12,6 +12,7 @@ use sqlx::SqlitePool;
 use std::path::Path;
 
 use crate::error::AppError;
+use crate::infrastructure::database::patient_repo;
 use crate::infrastructure::database::{db_key, sqlcipher};
 use crate::infrastructure::{backup, logging::sanitizer};
 use crate::log_system;
@@ -129,99 +130,7 @@ pub async fn erase_patient_records(
         return Err(AppError::NotFound("Patient".into()));
     }
 
-    deleted += sqlx::query("DELETE FROM appointment WHERE patient_id = ?1")
-        .bind(patient_id)
-        .execute(&mut *tx)
-        .await?
-        .rows_affected();
-
-    deleted += sqlx::query("DELETE FROM anamnesis_form WHERE patient_id = ?1")
-        .bind(patient_id)
-        .execute(&mut *tx)
-        .await?
-        .rows_affected();
-
-    deleted += sqlx::query("DELETE FROM payment WHERE patient_id = ?1")
-        .bind(patient_id)
-        .execute(&mut *tx)
-        .await?
-        .rows_affected();
-
-    deleted += sqlx::query("DELETE FROM prescription WHERE patient_id = ?1")
-        .bind(patient_id)
-        .execute(&mut *tx)
-        .await?
-        .rows_affected();
-
-    deleted += sqlx::query("DELETE FROM certificate WHERE patient_id = ?1")
-        .bind(patient_id)
-        .execute(&mut *tx)
-        .await?
-        .rows_affected();
-
-    deleted += sqlx::query("DELETE FROM chart_validation WHERE patient_id = ?1")
-        .bind(patient_id)
-        .execute(&mut *tx)
-        .await?
-        .rows_affected();
-
-    deleted += sqlx::query("DELETE FROM chart_next_appointment_hint WHERE patient_id = ?1")
-        .bind(patient_id)
-        .execute(&mut *tx)
-        .await?
-        .rows_affected();
-
-    let in_app_needle = format!("%\"patient_id\":\"{patient_id}\"%");
-    deleted += sqlx::query("DELETE FROM in_app_notification WHERE payload_json LIKE ?1")
-        .bind(&in_app_needle)
-        .execute(&mut *tx)
-        .await?
-        .rows_affected();
-
-    deleted += sqlx::query("DELETE FROM invoice_document WHERE patient_id = ?1")
-        .bind(patient_id)
-        .execute(&mut *tx)
-        .await?
-        .rows_affected();
-
-    // Chart children: do not rely on ON DELETE CASCADE (SQLite FK may be off).
-    deleted += sqlx::query(
-        "DELETE FROM treatment WHERE chart_id IN (SELECT id FROM patient_chart WHERE patient_id = ?1)",
-    )
-    .bind(patient_id)
-    .execute(&mut *tx)
-    .await?
-    .rows_affected();
-
-    deleted += sqlx::query(
-        "DELETE FROM examination WHERE chart_id IN (SELECT id FROM patient_chart WHERE patient_id = ?1)",
-    )
-    .bind(patient_id)
-    .execute(&mut *tx)
-    .await?
-    .rows_affected();
-
-    deleted += sqlx::query(
-        "DELETE FROM dental_finding WHERE chart_id IN (SELECT id FROM patient_chart WHERE patient_id = ?1)",
-    )
-    .bind(patient_id)
-    .execute(&mut *tx)
-    .await?
-    .rows_affected();
-
-    deleted += sqlx::query(
-        "DELETE FROM chart_attachment WHERE chart_id IN (SELECT id FROM patient_chart WHERE patient_id = ?1)",
-    )
-    .bind(patient_id)
-    .execute(&mut *tx)
-    .await?
-    .rows_affected();
-
-    deleted += sqlx::query("DELETE FROM patient_chart WHERE patient_id = ?1")
-        .bind(patient_id)
-        .execute(&mut *tx)
-        .await?
-        .rows_affected();
+    deleted += patient_repo::delete_dependents(&mut tx, patient_id).await?;
 
     let pseudo_name = format!("Anonymisiert ({patient_id})");
     let pseudo_vnr = format!("ANON-{patient_id}");

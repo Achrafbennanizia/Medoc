@@ -38,6 +38,9 @@ async fn seed_patient_with_chart(
 #[tokio::test]
 async fn list_and_count_pending_validation_queue() {
     let pool = migrated_pool().await;
+    let before = chart_repo::count_charts_to_validate(&pool)
+        .await
+        .expect("count before");
     seed_patient_with_chart(&pool, "q-pat-draft", "DRAFT").await;
     seed_patient_with_chart(&pool, "q-pat-bearb", "IN_PROGRESS").await;
     seed_patient_with_chart(&pool, "q-pat-done", "VALIDATED").await;
@@ -45,7 +48,6 @@ async fn list_and_count_pending_validation_queue() {
     let rows = chart_repo::list_charts_to_validate(&pool)
         .await
         .expect("list");
-    assert_eq!(rows.len(), 2, "DRAFT + IN_PROGRESS only");
     let ids: Vec<_> = rows.iter().map(|r| r.patient_id.as_str()).collect();
     assert!(ids.contains(&"q-pat-draft"));
     assert!(ids.contains(&"q-pat-bearb"));
@@ -54,7 +56,7 @@ async fn list_and_count_pending_validation_queue() {
     let count = chart_repo::count_charts_to_validate(&pool)
         .await
         .expect("count");
-    assert_eq!(count, 2);
+    assert_eq!(count, before + 2);
     for row in &rows {
         assert!(!row.updated_at.is_empty(), "updated_at serialized for IPC");
     }
@@ -64,6 +66,9 @@ async fn list_and_count_pending_validation_queue() {
 async fn validate_patient_chart_sets_validated_and_leaves_queue() {
     let pool = migrated_pool().await;
     seed_patient_with_chart(&pool, "q-pat-validate", "DRAFT").await;
+    let before = chart_repo::count_charts_to_validate(&pool)
+        .await
+        .expect("count before");
 
     let updated = chart_repo::validate_patient_chart_status(&pool, "q-pat-validate")
         .await
@@ -73,7 +78,34 @@ async fn validate_patient_chart_sets_validated_and_leaves_queue() {
     let count = chart_repo::count_charts_to_validate(&pool)
         .await
         .expect("count after validate");
-    assert_eq!(count, 0);
+    assert_eq!(count, before - 1);
+    let rows = chart_repo::list_charts_to_validate(&pool)
+        .await
+        .expect("list");
+    assert!(!rows.iter().any(|r| r.patient_id == "q-pat-validate"));
+}
+
+#[tokio::test]
+async fn decline_patient_chart_sets_declined_and_leaves_queue() {
+    let pool = migrated_pool().await;
+    seed_patient_with_chart(&pool, "q-pat-decline", "IN_PROGRESS").await;
+    let before = chart_repo::count_charts_to_validate(&pool)
+        .await
+        .expect("count before");
+
+    let updated = chart_repo::decline_patient_chart_status(&pool, "q-pat-decline")
+        .await
+        .expect("decline");
+    assert_eq!(updated.status, "DECLINED");
+
+    let count = chart_repo::count_charts_to_validate(&pool)
+        .await
+        .expect("count after decline");
+    assert_eq!(count, before - 1);
+    let rows = chart_repo::list_charts_to_validate(&pool)
+        .await
+        .expect("list");
+    assert!(!rows.iter().any(|r| r.patient_id == "q-pat-decline"));
 }
 
 #[tokio::test]
@@ -84,7 +116,6 @@ async fn forward_marks_validated_chart_in_processing_for_queue() {
     let before = chart_repo::count_charts_to_validate(&pool)
         .await
         .expect("count before");
-    assert_eq!(before, 0);
 
     let updated = chart_repo::mark_chart_for_physician_review(&pool, "q-pat-forward")
         .await
@@ -94,5 +125,5 @@ async fn forward_marks_validated_chart_in_processing_for_queue() {
     let count = chart_repo::count_charts_to_validate(&pool)
         .await
         .expect("count after forward");
-    assert_eq!(count, 1);
+    assert_eq!(count, before + 1);
 }

@@ -232,7 +232,7 @@ export function PrescriptionEditPage() {
                             id="re-edit-kind"
                             label={t("page.prescriptions.field.prescription_kind")}
                             value={prescriptionType}
-                            options={PRESCRIPTION_KIND_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+                            options={PRESCRIPTION_KIND_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
                             onChange={(e) => setPrescriptionKind(e.target.value as PrescriptionLine["prescription_type"])}
                         />
                         <Input

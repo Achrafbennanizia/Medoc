@@ -159,7 +159,7 @@ export const WindowChromeRestoreIcon: FC<{ size?: number }> = ({ size = 12 }) =>
         <path d="M5 8h11v11H5V8z" />
     </IconBase>
 );
-/** Emergency / Notfall — from Lucide „ambulance“ inspiriert. License: `third_party/LICENSES.md` (ISC, Lucide). */
+/** Emergency — from Lucide “ambulance”. License: `third_party/LICENSES.md` (ISC, Lucide). */
 export const AmbulanceIcon: FC<IconProps> = ({ size = 20, ...props }) => (
     <IconBase size={size} {...props}>
         <path d="M10 10H6" />

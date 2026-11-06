@@ -52,18 +52,22 @@ export function dentalToothType(fdi: string): DentalToothShapeKey {
     return "molar";
 }
 
-/** Map stored Befund text / key to visual status. */
+/** Map stored finding text / key to visual status. */
 export function findingToStatusKey(finding: string | null | undefined): DentalStatusKey {
     if (!finding) return "healthy";
     const b = finding.trim().toLowerCase();
     if (b in DENTAL_STATES) return b as DentalStatusKey;
     if (b.includes("caries")) return "caries";
-    if (b.includes("füll") || b.includes("fuell")) return "filling";
+    if (b.includes("fill") || b.includes("sealant")) {
+        return "filling";
+    }
     if (b.includes("crown")) return "crown";
-    if (b.includes("root") || b.includes("frakt")) return "root";
-    if (b.includes("fehl") || b.includes("extrah")) return "missing";
+    if (b.includes("root") || b.includes("crack") || b.includes("pulp") || b.includes("fracture")) {
+        return "root";
+    }
+    if (b.includes("missing") || b.includes("extract")) return "missing";
     if (b.includes("implant")) return "implant";
-    if (b.includes("planned")) return "planned";
+    if (b.includes("planned") || b.includes("watch") || b.includes("pocket")) return "planned";
     return "healthy";
 }
 
@@ -86,8 +90,8 @@ export function treatmentsForTooth(treatments: Treatment[], fdi: string): Treatm
 }
 
 /**
- * Split stored Beschwerden text into tag fragments. Semicolons separate tags; commas
- * outside parentheses also separate (legacy), but commas inside German tooth-list parentheticals do not.
+ * Split stored chief-complaint text into tag fragments. Semicolons separate tags; commas
+ * outside parentheses also separate, but commas inside tooth-list parentheticals do not.
  */
 export function splitChiefComplaintParts(raw: string | null | undefined): string[] {
     const t = (raw ?? "").trim();

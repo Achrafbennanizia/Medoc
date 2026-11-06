@@ -29,6 +29,8 @@ export type PairingRequest = {
     decidedBy: string | null;
     awaitingPin?: boolean;
     transport?: string;
+    couplingCode?: string | null;
+    clusterSas?: boolean;
 };
 
 export type PairingMasterInfo = {

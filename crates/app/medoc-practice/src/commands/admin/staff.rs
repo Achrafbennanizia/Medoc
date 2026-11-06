@@ -170,6 +170,17 @@ pub async fn delete_staff(
     id: String,
 ) -> Result<(), AppError> {
     let session = rbac::require(&session_state, "staff.write")?;
+    tracing::info!(
+        target: "medoc::staff",
+        event = "STAFF_DELETE_IPC",
+        actor_id = %session.user_id,
+        staff_id = %id
+    );
+    if session.user_id == id {
+        return Err(AppError::Validation(
+            "You cannot remove the account you are signed in with.".into(),
+        ));
+    }
     staff_repo::delete(&pool, &id).await?;
     audit_repo::create(&pool, &session.user_id, "DELETE", "Staff", Some(&id), None)
         .await

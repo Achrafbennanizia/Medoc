@@ -1,16 +1,18 @@
 /**
- * Background replica sync — adaptive interval (5s when outbox pending, 30s idle).
+ * Background replica sync — same 500 ms cadence as the host loop.
+ * The first tick runs immediately.
  */
 
 import { useEffect, useRef } from "react";
 
 import { syncGetStatus, syncRunNow } from "@/systems/practice-host/controllers/sync.controller";
 import { errorMessage } from "@/lib/utils";
+import { useTParams } from "@/lib/i18n";
 import { useReplicaSyncStatusStore } from "@/models/store/replica-sync-status-store";
 import { useToastStore } from "@/views/components/ui/toast-store";
 
-const SYNC_INTERVAL_IDLE_MS = 30_000;
-const SYNC_INTERVAL_ACTIVE_MS = 5_000;
+const SYNC_INTERVAL_IDLE_MS = 500;
+const SYNC_INTERVAL_ACTIVE_MS = 500;
 const ERROR_TOAST_COOLDOWN_MS = 60_000;
 
 export function ReplicaSyncBackground() {
@@ -18,6 +20,7 @@ export function ReplicaSyncBackground() {
     const timerRef = useRef<number | null>(null);
     const lastErrorToastAt = useRef(0);
     const toast = useToastStore((s) => s.add);
+    const tp = useTParams();
     const setLastSyncError = useReplicaSyncStatusStore((s) => s.setLastError);
 
     useEffect(() => {
@@ -53,7 +56,14 @@ export function ReplicaSyncBackground() {
                 const isReplica =
                     snap.deployment.mode === "serverless_peer" &&
                     snap.deployment.role === "REPLICA";
-                if (!isReplica || !snap.deployment.activationToken) {
+                if (!isReplica) {
+                    schedule(nextDelay, tick);
+                    return;
+                }
+                if (
+                    !snap.deployment.activationToken?.trim() &&
+                    !snap.deployment.masterBaseUrl?.trim()
+                ) {
                     schedule(nextDelay, tick);
                     return;
                 }
@@ -67,7 +77,7 @@ export function ReplicaSyncBackground() {
                 const report = await syncRunNow();
                 if (report.error) {
                     setLastSyncError(report.error);
-                    maybeToastError(`Hintergrund-Sync: ${report.error}`);
+                    maybeToastError(tp("replica.sync.background_error", { error: report.error }));
                     nextDelay = SYNC_INTERVAL_ACTIVE_MS;
                 } else {
                     setLastSyncError(null);
@@ -75,7 +85,7 @@ export function ReplicaSyncBackground() {
             } catch (e) {
                 const msg = errorMessage(e);
                 setLastSyncError(msg);
-                maybeToastError(`Hintergrund-Sync: ${msg}`);
+                maybeToastError(tp("replica.sync.background_error", { error: msg }));
                 nextDelay = SYNC_INTERVAL_ACTIVE_MS;
             } finally {
                 running.current = false;
@@ -96,7 +106,7 @@ export function ReplicaSyncBackground() {
             }
             window.removeEventListener("online", onOnline);
         };
-    }, [toast, setLastSyncError]);
+    }, [toast, tp, setLastSyncError]);
 
     return null;
 }

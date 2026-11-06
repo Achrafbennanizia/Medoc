@@ -1,5 +1,5 @@
 /**
- * Shared logic for payment booking: Kundenleistungen (PatientChart) and Finance → Neue Payment.
+ * Shared logic for payment booking: patient-chart services and Finance → new payment.
  */
 import type { Treatment, Examination, Payment } from "@/models/types";
 import { paymentStatusDisplay as paymentStatusDisplayI18N, paymentMethodLabel as paymentMethodLabelI18N } from "@/lib/finance-order-labels";
@@ -179,7 +179,7 @@ function assignmentKeyExamination(id: string): string {
     return `examination:${id}`;
 }
 
-/** Parse assignment select values (`treatment:…` / `examination:…`; legacy `unter:…`). */
+/** Parse assignment select values (`treatment:…` / `examination:…`). */
 export function parsePaymentLinkValue(
     raw: string,
 ): { kind: "treatment" | "examination"; id: string } | null {
@@ -190,7 +190,7 @@ export function parsePaymentLinkValue(
     const id = version.slice(i + 1).trim();
     if (!id) return null;
     if (kindRaw === "treatment") return { kind: "treatment", id };
-    if (kindRaw === "examination" || kindRaw === "unter") return { kind: "examination", id };
+    if (kindRaw === "examination") return { kind: "examination", id };
     return null;
 }
 

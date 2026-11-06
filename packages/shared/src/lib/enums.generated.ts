@@ -6,7 +6,7 @@ export type AppointmentKind = (typeof APPOINTMENT_KIND_VALUES)[number];
 export const APPOINTMENT_STATUS_VALUES = ["PLANNED", "CONFIRMED", "COMPLETED", "NO_SHOW", "CANCELLED"] as const;
 export type AppointmentStatus = (typeof APPOINTMENT_STATUS_VALUES)[number];
 
-export const CHART_STATUS_VALUES = ["DRAFT", "IN_PROGRESS", "VALIDATED", "READONLY"] as const;
+export const CHART_STATUS_VALUES = ["DRAFT", "IN_PROGRESS", "VALIDATED", "DECLINED", "READONLY"] as const;
 export type ChartStatus = (typeof CHART_STATUS_VALUES)[number];
 
 export const FEEDBACK_CATEGORY_VALUES = ["feedback", "vigilance", "technical"] as const;

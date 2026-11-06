@@ -23,7 +23,12 @@ use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let instance = match single_instance::SingleInstance::new("de.medoc.app.practice-host") {
+    let instance_lock_name = std::env::var("MEDOC_INSTANCE")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| format!("de.medoc.app.practice-host.{s}"))
+        .unwrap_or_else(|| "de.medoc.app.practice-host".to_string());
+    let instance = match single_instance::SingleInstance::new(&instance_lock_name) {
         Ok(i) => i,
         Err(e) => {
             eprintln!("medoc instance lock: {e}");
@@ -271,6 +276,9 @@ pub fn run() {
                             auto_app.clone(),
                             auto_pool.clone(),
                         );
+                        commands::sync_commands::spawn_replica_offline_sync_loop(auto_pool.clone());
+                        commands::sync_commands::spawn_shared_change_sync_thread(auto_pool.clone());
+                        commands::sync_commands::spawn_shared_change_sync_thread(auto_pool.clone());
                     });
 
                     // NFA-SEC-05: daily automatic backup scheduler (24h interval).

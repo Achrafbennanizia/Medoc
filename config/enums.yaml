@@ -64,6 +64,7 @@ enums:
       - { rust: Draft, wire: DRAFT }
       - { rust: InProgress, wire: IN_PROGRESS }
       - { rust: Validated, wire: VALIDATED }
+      - { rust: Declined, wire: DECLINED }
       - { rust: Readonly, wire: READONLY }
 
   PaymentMethod:

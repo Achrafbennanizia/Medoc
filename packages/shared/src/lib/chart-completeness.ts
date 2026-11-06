@@ -11,7 +11,8 @@ export type ChartCompletenessTab = "anamnesis" | "examination" | "treatment";
 
 export type ChartCompletenessGap = {
     id: string;
-    label: string;
+    /** i18n key, e.g. `patient.detail.completeness.kvnr`. */
+    labelKey: string;
     /** Missing for fields visible only in hero (e.g. insurance number). */
     tab?: ChartCompletenessTab;
 };
@@ -62,19 +63,19 @@ export function computeChartCompleteness(args: ComputeChartCompletenessArgs): Ch
     const gaps: ChartCompletenessGap[] = [];
 
     if (!args.patientInsuranceNumber.trim()) {
-        gaps.push({ id: "kvnr", label: "Insurance number" });
+        gaps.push({ id: "kvnr", labelKey: "patient.detail.completeness.kvnr" });
     }
 
     if (args.includeClinicalGaps) {
         if (anamnesisLooksEmpty(args.anamnesisJson)) {
-            gaps.push({ id: "anamnesis", label: "Medical history", tab: "anamnesis" });
+            gaps.push({ id: "anamnesis", labelKey: "patient.detail.completeness.anamnesis", tab: "anamnesis" });
         }
         if (args.dentalFindingsCount === 0) {
-            gaps.push({ id: "zahn", label: "Dental findings", tab: "examination" });
+            gaps.push({ id: "zahn", labelKey: "patient.detail.completeness.zahn", tab: "examination" });
         }
         const expectExamination = args.patientStatus !== "NEW";
         if (expectExamination && args.examinationsCount === 0) {
-            gaps.push({ id: "examination", label: "Examination", tab: "examination" });
+            gaps.push({ id: "examination", labelKey: "patient.detail.completeness.examination", tab: "examination" });
         }
     }
 

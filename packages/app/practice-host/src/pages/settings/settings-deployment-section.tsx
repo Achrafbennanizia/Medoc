@@ -655,7 +655,7 @@ export function SettingsDeploymentSection({
             </div>
 
             {showPairingInbox && isMaster ? (
-                <div style={{ marginTop: 16, borderTop: "1px solid var(--line)", paddingTop: 4 }}>
+                <div className="pairing-inbox-slot">
                     <SettingsPairingInbox embedded />
                 </div>
             ) : null}

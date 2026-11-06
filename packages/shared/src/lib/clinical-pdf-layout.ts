@@ -120,8 +120,8 @@ function signatureLines(): string[] {
     if (!bh) return [];
     const out = [bh];
     if (professionalTitle) out.push(professionalTitle);
-    if (zanr || bsnr) out.push(`ZANR: ${zanr || "-"} / BSNR: ${bsnr || "-"}`);
-    out.push("(Stamp / signature)");
+    if (zanr || bsnr) out.push(docTp("document.print.zanr_bsnr", { zanr: zanr || "-", bsnr: bsnr || "-" }));
+    out.push(docT("document.print.stamp_signature"));
     return out;
 }
 
@@ -133,34 +133,39 @@ export function buildCertificatePdfLayout(a: Certificate, patient: Patient | nul
     const t1 = new Date(`${a.valid_until.slice(0, 10)}T12:00:00`);
     const days = Math.max(1, Math.round((t1.getTime() - t0.getTime()) / 86_400_000) + 1);
     const firstOrFollowUp =
-        (a.first_or_follow_up ?? "FIRST") === "FOLLOW_UP" ? "Follow-up certificate" : "Initial certificate";
+        (a.first_or_follow_up ?? "FIRST") === "FOLLOW_UP"
+            ? docT("document.print.certificate_followup")
+            : docT("document.print.certificate_first");
     const pname = patient?.name ?? a.patient_id;
-    const dob = patient ? formatDate(patient.date_of_birth) : "—";
-    const icd = (a.icd10_code ?? "").trim() || "—";
+    const dob = patient ? formatDate(patient.date_of_birth) : docT("common.em_dash");
+    const icd = (a.icd10_code ?? "").trim() || docT("common.em_dash");
 
     const intro = [
-        `This certifies that ${pname}${patient ? `, born on ${dob},` : ""} is under medical treatment.`,
+        docTp("document.print.certificate_body", {
+            name: pname,
+            dobPart: patient ? docTp("document.print.certificate_dob_part", { dob }) : "",
+        }),
     ];
 
     const labelValueRows: { label: string; value: string }[] = [
-        { label: "Type of certificate", value: `${a.kind} (${firstOrFollowUp})` },
+        { label: docT("document.print.type_of_certificate"), value: `${a.kind} (${firstOrFollowUp})` },
         {
-            label: "Validity period",
-            value: `${from} until ${until} (${days} calendar day${days === 1 ? "" : "s"})`,
+            label: docT("document.print.validity_period_label"),
+            value: `${from} – ${until} (${days})`,
         },
-        { label: "Diagnosis (ICD-10)", value: icd },
+        { label: docT("document.print.diagnosis_icd_label"), value: icd },
     ];
     if (a.kind.toLowerCase().includes("sick_leave") && (a.employer ?? "").trim()) {
-        labelValueRows.push({ label: "Employer", value: a.employer!.trim() });
+        labelValueRows.push({ label: docT("document.print.employer_label"), value: a.employer!.trim() });
     }
 
     const finding = a.body_text.split(/\r?\n/).map((s) => s.trimEnd()).filter((s) => s.length > 0);
     const findingText = finding.join("\n").trim();
     const labelRows = [...labelValueRows];
     if (findingText) {
-        labelRows.unshift({ label: "Findings / notes", value: findingText });
+        labelRows.unshift({ label: docT("document.print.findings_label"), value: findingText });
     }
-    labelRows.push({ label: "Place, date", value: "________________________________________" });
+    labelRows.push({ label: docT("document.print.place_date_label"), value: "________________________________________" });
 
     return withDocumentLocale({
         kind: "certificate",
@@ -179,8 +184,8 @@ export function buildCertificatePdfLayout(a: Certificate, patient: Patient | nul
         closingParagraphs: [],
         signatureLines: signatureLines(),
         footerMetaLines: [
-            { label: "Issue date", value: issued },
-            { label: "Certificate-Nr.", value: a.id.slice(0, 8).toUpperCase() },
+            { label: docT("document.print.issue_date_label"), value: issued },
+            { label: docT("document.print.certificate_nr_label"), value: a.id.slice(0, 8).toUpperCase() },
         ],
     });
 }
@@ -189,9 +194,9 @@ export function buildPrescriptionPdfLayout(r: Prescription, patient: Patient | n
     const kind = (r.prescription_type ?? "PRIVAT").trim() || "PRIVAT";
     const autIdem = r.aut_idem !== false;
     const left: string[] = [
-        `Name: ${patient?.name ?? "—"}`,
-        patient ? `Date of birth: ${formatDate(patient.date_of_birth)}` : "",
-        patient?.insurance_number ? `Ins. no.: ${patient.insurance_number}` : "",
+        docTp("document.print.name_line", { name: patient?.name ?? docT("common.em_dash") }),
+        patient ? `${docT("document.print.date_of_birth")}: ${formatDate(patient.date_of_birth)}` : "",
+        patient?.insurance_number ? docTp("document.print.ins_no_short", { number: patient.insurance_number }) : "",
     ].filter(Boolean);
     const right: string[] = [
         patient?.address?.trim() ? patient.address.trim().replace(/\n/g, ", ") : "",
@@ -201,25 +206,31 @@ export function buildPrescriptionPdfLayout(r: Prescription, patient: Patient | n
         kind: "prescription",
         practiceLines: practiceLinesForPdf(),
         metaLines: [
-            { label: "Prescription number", value: r.id.slice(0, 8).toUpperCase() },
-            { label: "Prescription date", value: formatPrescriptionDate(r.issued_at) },
-            { label: "Prescription type", value: kind },
+            { label: docT("document.print.prescription_number_label"), value: r.id.slice(0, 8).toUpperCase() },
+            { label: docT("document.print.prescription_date_label"), value: formatPrescriptionDate(r.issued_at) },
+            { label: docT("document.print.prescription_type_label"), value: kind },
         ],
         addressLines: [],
         documentTitle: docT("document.print.prescription_title").toUpperCase(),
-        documentSubtitle: `Prescription (${kind})`,
+        documentSubtitle: docTp("document.print.prescription_heading", { type: kind }),
         introParagraphs: [],
         twoColumn: {
             leftTitle: docT("document.print.patient"),
             leftLines: left,
-            rightTitle: "Address",
-            rightLines: right.length > 0 ? right : ["—"],
+            rightTitle: docT("document.print.address_label"),
+            rightLines: right.length > 0 ? right : [docT("common.em_dash")],
         },
         tables: [
             {
-                title: "Rx — prescribed medication",
+                title: docT("document.print.rx_table_title"),
                 columnLayout: "prescription",
-                headers: ["Medication", "Dosage", "Duration", "PZN", "Notes"],
+                headers: [
+                    docT("document.print.medication"),
+                    docT("document.print.dosage"),
+                    docT("document.print.duration"),
+                    docT("document.print.pzn_col"),
+                    docT("document.print.notes"),
+                ],
                 rows: [
                     [
                         r.medication,
@@ -233,7 +244,7 @@ export function buildPrescriptionPdfLayout(r: Prescription, patient: Patient | n
                         (r.dosage_form ?? "").trim() || "—",
                         (r.pack_size ?? "").trim() || "—",
                         r.quantity != null ? String(r.quantity) : "—",
-                        autIdem ? "aut idem" : "Substitution allowed",
+                        autIdem ? docT("document.print.aut_idem") : docT("document.print.substitution_allowed"),
                     ],
                 ],
             },
@@ -258,8 +269,8 @@ export function buildPrescriptionComboPdfLayout(items: Prescription[], patient: 
         kind: "prescription",
         practiceLines: practiceLinesForPdf(),
         metaLines: [
-            { label: "Date", value: formatPrescriptionDate(first.issued_at) },
-            { label: "Line items", value: String(items.length) },
+            { label: docT("document.print.date"), value: formatPrescriptionDate(first.issued_at) },
+            { label: docT("document.print.line_items"), value: String(items.length) },
         ],
         addressLines: [],
         documentTitle: docTp("document.print.combo_heading", { count: items.length }),
@@ -275,17 +286,23 @@ export function buildPrescriptionComboPdfLayout(items: Prescription[], patient: 
                           ? docTp("document.print.insurance_no", { number: patient.insurance_number })
                           : "",
                   ].filter(Boolean),
-                  rightTitle: docT("document.print.address").split(":")[0]!.trim(),
+                  rightTitle: docT("document.print.address_label"),
                   rightLines: patient.address?.trim()
                       ? [patient.address.trim().replace(/\n/g, ", ")]
-                      : ["—"],
+                      : [docT("common.em_dash")],
               }
             : null,
         tables: [
             {
                 title: "Rp.",
                 columnLayout: "prescription_combo",
-                headers: ["Pos.", "Medication", "Dosage", "Duration", "PZN"],
+                headers: [
+                    docT("document.print.item"),
+                    docT("document.print.medication"),
+                    docT("document.print.dosage"),
+                    docT("document.print.duration"),
+                    docT("document.print.pzn_col"),
+                ],
                 rows,
             },
         ],
@@ -391,8 +408,10 @@ export function buildReceiptPdfLayout(
 ): ClinicalPdfLayout {
     const reference = receiptServiceDescription(z, treatments, examinations);
     const practice = getInvoicePracticeFromStorage();
+    const loc = useLocale.getState().locale;
     const ust =
-        (practice.vat_exemption_notice ?? "").trim() || "VAT-exempt under § 4 No. 14 UStG";
+        (practice.vat_exemption_notice ?? "").trim() ||
+        translateLocale(loc, "settings.practice.vat_exemption_default");
 
     const payDate = formatClinicalDate(z.created_at);
     const prices = receiptPriceBreakdown(z, treatments, examinations, catalog, services);
@@ -402,8 +421,8 @@ export function buildReceiptPdfLayout(
         kind: "receipt",
         practiceLines: practiceLinesForPdf(),
         metaLines: [
-            { label: "Receipt-Nr.", value: receiptNumber },
-            { label: "Payment date", value: payDate },
+            { label: docT("document.print.receipt_nr_label"), value: receiptNumber },
+            { label: docT("document.print.payment_date"), value: payDate },
         ],
         addressLines: [
             patient.name,
@@ -416,13 +435,13 @@ export function buildReceiptPdfLayout(
                 : []),
         ],
         documentTitle: docT("document.print.receipt_heading"),
-        documentSubtitle: `for ${patient.name}`,
-        introParagraphs: [`Billed service items for ${payDate}`],
+        documentSubtitle: docTp("document.print.receipt_for", { name: patient.name }),
+        introParagraphs: [docTp("document.print.billed_items_for", { date: payDate })],
         labelValueRows: [
             { label: docT("document.print.patient"), value: patient.name },
-            { label: "Date of birth", value: formatClinicalDate(patient.date_of_birth) },
+            { label: docT("document.print.date_of_birth"), value: formatClinicalDate(patient.date_of_birth) },
             ...(patient.insurance_number
-                ? [{ label: "Insurance number", value: patient.insurance_number }]
+                ? [{ label: docT("document.print.insurance_number_label"), value: patient.insurance_number }]
                 : []),
         ],
         twoColumn: null,
@@ -430,7 +449,7 @@ export function buildReceiptPdfLayout(
             {
                 title: null,
                 columnLayout: "receipt",
-                headers: ["Date", "Item", "Description"],
+                headers: [docT("document.print.date"), docT("document.print.item"), docT("document.print.description")],
                 rows: [[payDate, receiptNumber, reference]],
             },
         ],
@@ -442,9 +461,14 @@ export function buildReceiptPdfLayout(
             { label: docT("document.print.total"), value: paid },
         ],
         closingParagraphs: [
-            `Payment method: ${paymentMethodLabel(z.payment_method, docT)} · Status: ${paymentStatusDisplay(z.status, docT).label}`,
+            docTp("document.print.payment_method_status", {
+                method: paymentMethodLabel(z.payment_method, docT),
+                status: paymentStatusDisplay(z.status, docT).label,
+            }),
             ust,
-            ...(z.payment_method === "CASH" || z.payment_method === "CARD" ? ["Amount received with thanks."] : []),
+            ...(z.payment_method === "CASH" || z.payment_method === "CARD"
+                ? [docT("document.print.amount_received")]
+                : []),
             // Description already used as table row when no B/U link — avoid duplicating.
             ...((z.description ?? "").trim() && (z.treatment_id || z.examination_id)
                 ? [(z.description ?? "").trim()]

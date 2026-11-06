@@ -12,8 +12,8 @@ use crate::master_keys;
 use crate::schema::ensure_sync_tables;
 
 use super::pin::{
-    generate_confirm_pin, hash_confirm_pin, normalise_pin_input, verify_confirm_pin,
-    CONFIRM_PIN_MAX_ATTEMPTS, CONFIRM_PIN_TTL_SECS,
+    generate_confirm_pin, generate_confirm_pin_from_transcript, hash_confirm_pin,
+    normalise_pin_input, verify_confirm_pin, CONFIRM_PIN_MAX_ATTEMPTS, CONFIRM_PIN_TTL_SECS,
 };
 use super::policy::{is_pairing_enabled, sanitise_actions};
 use super::types::{PairingDecideResult, PairingDecision, PairingRequest, PairingRequestSubmit};
@@ -45,6 +45,8 @@ pub async fn submit_request(
             .map_err(AppError::Database)?;
 
     let now = Utc::now().to_rfc3339();
+    let slave_label = submit.slave_label.trim().to_string();
+    let requester_ip = super::policy::canonical_ip_str(&submit.requester_ip);
 
     if let Some((existing_id, status)) = existing {
         if status == "ACCEPTED" {
@@ -70,8 +72,8 @@ pub async fn submit_request(
              WHERE id = ?6",
         )
         .bind(&submit.slave_pubkey)
-        .bind(&submit.slave_label)
-        .bind(&submit.requester_ip)
+        .bind(&slave_label)
+        .bind(&requester_ip)
         .bind(&submit.transport)
         .bind(&now)
         .bind(&existing_id)
@@ -93,8 +95,8 @@ pub async fn submit_request(
     .bind(&id)
     .bind(&submit.device_id)
     .bind(&submit.slave_pubkey)
-    .bind(&submit.slave_label)
-    .bind(&submit.requester_ip)
+    .bind(&slave_label)
+    .bind(&requester_ip)
     .bind(&submit.transport)
     .bind(&now)
     .execute(pool)
@@ -210,7 +212,9 @@ pub async fn decide(
         .map_err(|e| AppError::Internal(format!("actions json: {e}")))?;
 
     let signing_key = master_keys::load_or_create()?;
-    let pin = generate_confirm_pin();
+    // Same 4 digits as cluster `expected_sas` when a Noise transcript is stored.
+    // A random PIN here is a different code and the replica cannot activate with it.
+    let pin = confirm_pin_matching_handshake(pool, request_id).await?;
     let pin_hash = hash_confirm_pin(request_id, &pin, &signing_key.to_bytes());
     let expires_at = (Utc::now() + chrono::Duration::seconds(CONFIRM_PIN_TTL_SECS)).to_rfc3339();
 
@@ -241,6 +245,42 @@ pub async fn decide(
         request: row,
         confirm_pin: Some(pin),
     })
+}
+
+async fn confirm_pin_matching_handshake(
+    pool: &SqlitePool,
+    request_id: &str,
+) -> Result<String, AppError> {
+    use base64::engine::general_purpose::{STANDARD, STANDARD_NO_PAD, URL_SAFE, URL_SAFE_NO_PAD};
+    use base64::Engine;
+    let row: Option<(Option<String>, Option<String>)> = sqlx::query_as(
+        "SELECT handshake_transcript_b64, pairing_state FROM pairing_request WHERE id = ?1",
+    )
+    .bind(request_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(AppError::Database)?;
+    let Some((b64, pairing_state)) = row else {
+        return Ok(generate_confirm_pin());
+    };
+    if let Some(raw) = b64 {
+        let trimmed = raw.trim();
+        if !trimmed.is_empty() {
+            for engine in [&STANDARD, &STANDARD_NO_PAD, &URL_SAFE, &URL_SAFE_NO_PAD] {
+                if let Ok(bytes) = engine.decode(trimmed) {
+                    if !bytes.is_empty() {
+                        return Ok(generate_confirm_pin_from_transcript(&bytes));
+                    }
+                }
+            }
+        }
+    }
+    if row::is_cluster_sas_state(pairing_state.as_deref()) {
+        return Err(AppError::Validation(
+            "Cluster handshake missing; send a new join request from the replica.".into(),
+        ));
+    }
+    Ok(generate_confirm_pin())
 }
 
 /// Replica confirms the 4-digit PIN; master mints activation token on success.

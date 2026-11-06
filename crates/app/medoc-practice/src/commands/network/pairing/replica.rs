@@ -172,6 +172,7 @@ pub async fn pairing_persist_token(
     let snap = SyncEngine::status(&pool).await.map_err(into_tauri)?;
     let mut cfg = snap.deployment;
     cfg.activation_token = token.to_string();
+    cfg.unstable_mesh = false;
     SyncEngine::set_deployment(&pool, cfg)
         .await
         .map_err(into_tauri)?;

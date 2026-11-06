@@ -6,6 +6,13 @@ use medoc_core::infrastructure::secret_store;
 use sha2::{Digest, Sha256};
 const DEVICE_KEY_ACCOUNT: &str = "cluster-device-signing-key";
 
+fn cluster_device_key_account() -> String {
+    match std::env::var("MEDOC_INSTANCE") {
+        Ok(n) if !n.is_empty() && n != "1" => format!("{DEVICE_KEY_ACCOUNT}.{n}"),
+        _ => DEVICE_KEY_ACCOUNT.to_string(),
+    }
+}
+
 /// Loaded device identity (private key zeroized on drop).
 pub struct DeviceIdentity {
     signing_key: SigningKey,
@@ -18,7 +25,7 @@ impl DeviceIdentity {
         if let Ok(env) = std::env::var("MEDOC_CLUSTER_DEVICE_SECRET") {
             return Self::from_seed_hex(env.trim());
         }
-        let bytes = secret_store::load_or_create_bytes(DEVICE_KEY_ACCOUNT, None, 32)?;
+        let bytes = secret_store::load_or_create_bytes(&cluster_device_key_account(), None, 32)?;
         Self::from_seed_bytes(&bytes)
     }
 
@@ -27,7 +34,7 @@ impl DeviceIdentity {
         if let Ok(env) = std::env::var("MEDOC_CLUSTER_DEVICE_SECRET") {
             return Ok(Some(Self::from_seed_hex(env.trim())?));
         }
-        match secret_store::load_bytes_if_exists(DEVICE_KEY_ACCOUNT)? {
+        match secret_store::load_bytes_if_exists(&cluster_device_key_account())? {
             Some(bytes) => Ok(Some(Self::from_seed_bytes(&bytes)?)),
             None => Ok(None),
         }
@@ -35,7 +42,7 @@ impl DeviceIdentity {
 
     /// One-time import from owner activation manifest (32-byte ed25519 seed).
     pub fn import_seed(seed: [u8; 32]) -> Result<Self, AppError> {
-        secret_store::store_bytes_replace(DEVICE_KEY_ACCOUNT, &seed)?;
+        secret_store::store_bytes_replace(&cluster_device_key_account(), &seed)?;
         Self::from_seed_bytes(&seed)
     }
 

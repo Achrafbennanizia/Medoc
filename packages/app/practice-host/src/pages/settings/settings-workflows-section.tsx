@@ -10,8 +10,8 @@ import { parseRole } from "@/lib/rbac";
 import {
     DEFAULT_CLIENT_SETTINGS,
     mergeClientSettingsPatch,
+    normalizeAppointmentCalendarView,
     type ClientSettingsV1,
-    type AppointmentCalendarView,
 } from "@/lib/client-settings";
 import {
     CONFIRMATION_AREA_KEYS,
@@ -24,6 +24,7 @@ import { errorMessage } from "@/lib/utils";
 import { persistAutocompleteSuggestionsToPracticeKv } from "@/lib/practice-search-prefs-sync";
 import {
     CALENDAR_EMERGENCY_TOOLBAR_UI_ENABLED,
+    WORKFLOW_APPOINTMENT_REMINDER_NOSHOW_UI_ENABLED,
     WORKFLOW_CHART_CONFIRMATION_PREFS_UI_ENABLED,
     WORKFLOW_ONBOARDING_PREFS_UI_ENABLED,
 } from "@/lib/settings-ui-flags";
@@ -160,6 +161,9 @@ export function SettingsWorkflowsSection({
                             onPrefsDirty();
                         }}
                     />
+                    {/* TODO(later): restore reminder + no-show selects — see docs/coordination/todos-deferred-ui-blinds.md */}
+                    {WORKFLOW_APPOINTMENT_REMINDER_NOSHOW_UI_ENABLED ? (
+                        <>
                     <Select
                         label={t("settings.workflows.reminder_label")}
                         value={prefs.reminder}
@@ -187,6 +191,8 @@ export function SettingsWorkflowsSection({
                             onPrefsDirty();
                         }}
                     />
+                        </>
+                    ) : null}
                 </div>
                 <label className="row" style={{ gap: 10, alignItems: "flex-start", cursor: "pointer" }}>
                     <input
@@ -219,12 +225,15 @@ export function SettingsWorkflowsSection({
                 <div style={{ borderTop: "1px solid var(--line-strong)", paddingTop: 14 }}>
                     <Select
                         label={t("settings.workflows.default_calendar_view")}
-                        value={wf.appointmentsDefaultView ?? "month"}
+                        value={normalizeAppointmentCalendarView(wf.appointmentsDefaultView)}
                         onChange={(e) =>
                             onPersistClient((c) => {
                                 const w = c.workflows ?? DEFAULT_CLIENT_SETTINGS.workflows!;
                                 return mergeClientSettingsPatch(c, {
-                                    workflows: { ...w, appointmentsDefaultView: e.target.value as AppointmentCalendarView },
+                                    workflows: {
+                                        ...w,
+                                        appointmentsDefaultView: normalizeAppointmentCalendarView(e.target.value),
+                                    },
                                 });
                             })
                         }

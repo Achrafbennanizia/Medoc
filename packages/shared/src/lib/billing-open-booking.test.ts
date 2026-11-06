@@ -3,14 +3,14 @@ import { treatmentHasBillableServiceItem, isReleasedForBilling, examinationHasBi
 
 describe("FA-LEIST-06/07 billing-open-booking", () => {
     it("detects billable treatment", () => {
-        expect(treatmentHasBillableServiceItem("Füllung", null)).toBe(true);
+        expect(treatmentHasBillableServiceItem("Filling", null)).toBe(true);
         expect(treatmentHasBillableServiceItem(null, 50)).toBe(true);
         expect(treatmentHasBillableServiceItem("", null)).toBe(false);
         expect(treatmentHasBillableServiceItem("  ", 0)).toBe(false);
     });
 
     it("detects billable examination (FA-LEIST-07)", () => {
-        expect(examinationHasBillableServiceItem("Kontrolle", 30)).toBe(true);
+        expect(examinationHasBillableServiceItem("Checkup", 30)).toBe(true);
         expect(examinationHasBillableServiceItem(null, null)).toBe(false);
     });
 

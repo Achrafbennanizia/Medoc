@@ -3,11 +3,11 @@ import { formatCurrency } from "@/lib/utils";
 /** Billing period for the entered amount (the amount applies to this cadence). */
 export type ContractInterval = "DAY" | "WEEK" | "MONTH" | "YEAR";
 
-export const CONTRACT_INTERVAL_OPTIONS: { value: ContractInterval; label: string }[] = [
-    { value: "DAY", label: "per day" },
-    { value: "WEEK", label: "per week" },
-    { value: "MONTH", label: "per month" },
-    { value: "YEAR", label: "per year" },
+export const CONTRACT_INTERVAL_OPTIONS: { value: ContractInterval; labelKey: string }[] = [
+    { value: "DAY", labelKey: "page.administration.contracts.interval.DAY" },
+    { value: "WEEK", labelKey: "page.administration.contracts.interval.WEEK" },
+    { value: "MONTH", labelKey: "page.administration.contracts.interval.MONTH" },
+    { value: "YEAR", labelKey: "page.administration.contracts.interval.YEAR" },
 ];
 
 export type ContractItem = {

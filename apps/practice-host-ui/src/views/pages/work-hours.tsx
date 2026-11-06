@@ -94,6 +94,8 @@ export function WorkHoursPage() {
     const [defaultPhysicianId, setDefaultPhysicianId] = useState("");
     const [physicians, setPhysicians] = useState<PhysicianSummary[]>([]);
     const [editing, setEditing] = useState(false);
+    const remoteCfg = usePracticeWorkHoursStore((s) => s.config);
+    const remoteCfgAt = usePracticeWorkHoursStore((s) => s.lastFetchedAt);
     const [saving, setSaving] = useState(false);
 
     const applySliceToForm = useCallback((slice: ScheduleBaseline) => {
@@ -126,6 +128,15 @@ export function WorkHoursPage() {
             cancelled = true;
         };
     }, [applySliceToForm]);
+
+    useEffect(() => {
+        if (editing || remoteCfgAt == null) return;
+        setStoredCfg(remoteCfg);
+        const slice = sliceForProfile(remoteCfg, selectedProfile);
+        applySliceToForm(slice);
+        setHasOwnSavedProfile(slice.hasOwnSavedProfile);
+        setDefaultPhysicianId((remoteCfg.defaultPhysicianId ?? "").trim());
+    }, [applySliceToForm, editing, remoteCfg, remoteCfgAt, selectedProfile]);
 
     const activeDays = useMemo(() => DAY_ORDER.filter((k) => plan[k].active).length, [plan]);
 

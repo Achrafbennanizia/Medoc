@@ -92,7 +92,7 @@ pub async fn sync_pull(
     {
         return Err(StatusCode::FORBIDDEN);
     }
-    let entries = SyncEngine::collect_pull(&state.pool, &body.device_id, body.since_seq)
+    let entries = SyncEngine::collect_pull_for_replica(&state.pool, "", body.since_seq)
         .await
         .map_err(|_| StatusCode::BAD_REQUEST)?;
     if let Some(ref requester_id) = body.requester_id {
@@ -137,8 +137,15 @@ pub async fn verify_activation_for_path(
 ) -> Result<ActivationTokenPayload, Response> {
     let sk = master_keys::load_or_create()
         .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "master key").into_response())?;
-    let payload = pairing::verify_activation_token(token, &sk.verifying_key())
-        .map_err(|_| (StatusCode::UNAUTHORIZED, "activation token").into_response())?;
+    let payload = pairing::verify_activation_token(token, &sk.verifying_key()).map_err(|e| {
+        tracing::warn!(
+            target: "medoc::lan",
+            event = "LAN_MT2_REJECTED",
+            path = %path,
+            error = %e
+        );
+        (StatusCode::UNAUTHORIZED, "activation token").into_response()
+    })?;
     let action = action_for_path(path);
     if action.is_empty() {
         return Err((

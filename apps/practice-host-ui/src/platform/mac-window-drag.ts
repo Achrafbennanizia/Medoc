@@ -1,7 +1,7 @@
 import { useCallback, type MouseEvent } from "react";
 
 const MAC_DRAG_BLOCK =
-    "button, a, input, textarea, select, [contenteditable='true'], .input, .tb-chip, .topbar-actions, [role='menu'], .app-sidebar-brand-hit, .login-form, .login-form *";
+    "button, a, input, textarea, select, [contenteditable='true'], .input, .tb-chip, .topbar-actions, [role='menu'], .app-sidebar-brand-hit, .login-form, .login-form *, .onboarding-card, .onboarding-card *";
 
 /** macOS overlay title bar: WKWebView may ignore `-webkit-app-region`; `startDragging()` is the reliable path. */
 export function useMacWindowDrag(enabled: boolean) {

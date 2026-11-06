@@ -10,5 +10,5 @@
 mod run;
 mod types;
 
-pub use run::SyncEngine;
+pub use run::{SyncEngine, PULL_ROW_RETRY_LIMIT};
 pub use types::{MeshSyncReport, SyncPullResult, SyncPushResult, SyncRunReport};

@@ -4,9 +4,10 @@ use medoc_core::infrastructure::database::connection::{run_migrations, test_memo
 use medoc_sync::deployment::{DeploymentMode, DeviceRole, SyncDeploymentConfig};
 use medoc_sync::engine::SyncEngine;
 use medoc_sync::repo::{
-    append_outbox, ensure_local_device, list_entries_since, list_pending_outbox,
-    list_pending_outbox_for_peer, mark_applied, mark_outbox_delivered, mark_peer_delivery,
-    save_deployment, status_snapshot, sync_record_or_noop, was_applied, SYNCED_TABLES,
+    append_outbox, enqueue_full_snapshot, ensure_local_device, list_entries_since,
+    list_pending_outbox, list_pending_outbox_for_peer, mark_applied, mark_outbox_delivered,
+    mark_peer_delivery, save_deployment, set_observed_seq, status_snapshot, sync_record_or_noop,
+    was_applied, SYNCED_TABLES,
 };
 use medoc_sync::schema::ensure_sync_tables;
 use sqlx::SqlitePool;
@@ -31,6 +32,32 @@ async fn enable_serverless(pool: &SqlitePool, label: &str) {
     )
     .await
     .expect("deployment");
+}
+
+#[test]
+fn synced_tables_lists_parents_before_children() {
+    let pos = |name: &str| {
+        SYNCED_TABLES
+            .iter()
+            .position(|table| *table == name)
+            .unwrap_or_else(|| panic!("{name} missing"))
+    };
+    assert!(pos("staff") < pos("appointment"));
+    assert!(pos("staff") < pos("prescription"));
+    assert!(pos("staff") < pos("certificate"));
+    assert!(pos("staff") < pos("in_app_notification"));
+    assert!(pos("staff") < pos("practice_ticket"));
+    assert!(pos("staff") < pos("practice_task"));
+    assert!(pos("patient") < pos("patient_chart"));
+    assert!(pos("patient") < pos("appointment"));
+    assert!(pos("patient") < pos("anamnesis_form"));
+    assert!(pos("patient") < pos("payment"));
+    assert!(pos("patient") < pos("prescription"));
+    assert!(pos("patient") < pos("practice_ticket"));
+    assert!(pos("patient_chart") < pos("dental_finding"));
+    assert!(pos("patient_chart") < pos("examination"));
+    assert!(pos("patient_chart") < pos("treatment"));
+    assert!(pos("service_item") < pos("payment"));
 }
 
 #[tokio::test]
@@ -62,7 +89,7 @@ async fn sync_record_or_noop_skips_practice_desktop_mode() {
 async fn sync_record_or_noop_skips_non_allowlisted_table() {
     let pool = fresh_pool().await;
     enable_serverless(&pool, "hook-tester").await;
-    sync_record_or_noop(&pool, "staff", "u-1", "INSERT", "{}")
+    sync_record_or_noop(&pool, "license", "u-1", "INSERT", "{}")
         .await
         .expect("noop");
     let n: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM sync_outbox")
@@ -268,4 +295,54 @@ async fn touch_replica_seen_updates_peer_base_url() {
             .await
             .unwrap();
     assert!(seen.as_deref().is_some_and(|s| !s.is_empty()));
+}
+
+#[tokio::test]
+async fn enqueue_full_snapshot_queues_existing_patients() {
+    let pool = fresh_pool().await;
+    save_deployment(
+        &pool,
+        &SyncDeploymentConfig {
+            schema_version: 1,
+            mode: DeploymentMode::PracticeDesktop,
+            role: DeviceRole::Master,
+            device_label: "Main".into(),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("deploy");
+    sqlx::query(
+        "INSERT INTO patient (id, name, date_of_birth, sex, insurance_number)
+         VALUES ('snap-p1', 'Snapshot Patient', '1990-01-01', 'MALE', 'INS-SNAP-1')",
+    )
+    .execute(&pool)
+    .await
+    .expect("patient");
+    let n = enqueue_full_snapshot(&pool).await.expect("snapshot");
+    assert!(n >= 1);
+    let found: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM sync_outbox WHERE entity_id = 'snap-p1' AND entity_table = 'patient'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert!(found >= 1, "snapshot must include the live patient row");
+}
+
+#[tokio::test]
+async fn set_observed_seq_advances_cursor() {
+    let pool = fresh_pool().await;
+    set_observed_seq(&pool, "master-1", 3).await.expect("seq");
+    set_observed_seq(&pool, "master-1", 2)
+        .await
+        .expect("no rewind");
+    set_observed_seq(&pool, "master-1", 9)
+        .await
+        .expect("advance");
+    let seq: i64 = sqlx::query_scalar("SELECT seq FROM sync_vector WHERE device_id = 'master-1'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(seq, 9);
 }

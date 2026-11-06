@@ -1,4 +1,4 @@
-import { translateLocale, useLocale, bcp47ForLocale, type Locale } from "@/lib/i18n";
+import { translateLocale, translateLocaleParams, useLocale, bcp47ForLocale, type Locale } from "@/lib/i18n";
 import type { BalanceSheet, StatisticsOverview, Payment } from "@/models/types";
 import type { BalanceSheetSnapshot } from "@/systems/practice-host/controllers/balance-sheet-snapshot.controller";
 import type { PurchaseOrder } from "@/systems/practice-host/controllers/purchase-order.controller";
@@ -300,6 +300,8 @@ export function buildBalanceSheetReportBundle(
     byMonth: Array<[string, { income: number; outstanding: number; cancelled: number }]>,
     snapshots: BalanceSheetSnapshot[],
 ): ReportBundle {
+    const loc = useLocale.getState().locale;
+    const tr = (key: string) => translateLocale(loc, key);
     const dateStamp = new Date().toISOString().slice(0, 10);
     const monthRows = byMonth.map(([month, version]) => [
         month,
@@ -315,28 +317,28 @@ export function buildBalanceSheetReportBundle(
     ]);
 
     return {
-        docTitle: "Balance — income report",
-        exportTitle: "Export balance",
-        hint: "Income, outstanding, monthly trend and snapshots — PDF with practice letterhead.",
+        docTitle: tr("export.report.balance_doc_title"),
+        exportTitle: tr("export.report.balance_export_title"),
+        hint: tr("export.report.balance_hint"),
         suggestedBasename: `medoc-balanceSheet-${dateStamp}`,
         generatedAt: todayDe(),
         summary: [
-            { label: "Income (paid)", value: formatCurrency(balanceSheet.income) },
-            { label: "Outstanding", value: formatCurrency(balanceSheet.outstanding) },
-            { label: "Cancelled", value: formatCurrency(balanceSheet.cancelled) },
-            { label: "Payment count", value: String(balanceSheet.payment_count) },
+            { label: tr("export.report.income_paid"), value: formatCurrency(balanceSheet.income) },
+            { label: tr("export.report.outstanding"), value: formatCurrency(balanceSheet.outstanding) },
+            { label: tr("export.report.cancelled"), value: formatCurrency(balanceSheet.cancelled) },
+            { label: tr("export.report.payment_count"), value: String(balanceSheet.payment_count) },
         ],
         sections: [
             {
-                title: "Monthly trend (last 12 months)",
-                headers: ["Month", "Income", "Outstanding", "Cancelled"],
+                title: tr("export.report.monthly_trend"),
+                headers: [tr("export.report.month"), tr("export.report.income"), tr("export.report.outstanding"), tr("export.report.cancelled")],
                 rows: monthRows,
             },
             ...(snapRows.length > 0
                 ? [
                       {
-                          title: "Saved balance snapshots",
-                          headers: ["Label", "Income", "Expenses", "Balance"],
+                          title: tr("export.report.snapshots"),
+                          headers: [tr("export.report.label"), tr("export.report.income"), tr("export.report.expenses"), tr("export.report.balance")],
                           rows: snapRows,
                       },
                   ]
@@ -358,20 +360,25 @@ export interface FinanceKpiSnapshot {
     profitMtd: number;
 }
 
-function paymentMethodLabelFin(kind: string): string {
+function paymentMethodLabelFin(kind: string, tr: (key: string) => string): string {
     const map: Record<string, string> = {
-        CASH: "Cash",
-        CARD: "Card",
-        BANK_TRANSFER: "Bank transfer",
-        INVOICE: "Invoice",
+        CASH: "enum.payment_method.cash",
+        CARD: "enum.payment_method.card",
+        BANK_TRANSFER: "enum.payment_method.bank_transfer",
+        INVOICE: "enum.payment_method.invoice",
     };
-    return map[kind] ?? kind;
+    const key = map[kind];
+    return key ? tr(key) : kind;
 }
 
-function financeTransactionText(z: Payment): string {
-    const reference = z.treatment_id ? "Treatment" : z.examination_id ? "Examination" : "Direct payment";
+function financeTransactionText(z: Payment, tr: (key: string) => string): string {
+    const reference = z.treatment_id
+        ? tr("export.report.treatment")
+        : z.examination_id
+          ? tr("export.report.examination")
+          : tr("export.report.direct_payment");
     const note = (z.description ?? "").trim();
-    if (note) return reference === "Direct payment" ? note : `${reference} — ${note}`;
+    if (note) return reference === tr("export.report.direct_payment") ? note : `${reference} — ${note}`;
     return reference;
 }
 
@@ -382,16 +389,20 @@ export function buildFinanceReportBundle(
     kpi: FinanceKpiSnapshot,
     filterLabel: string,
 ): ReportBundle {
+    const loc = useLocale.getState().locale;
+    const tr = (key: string) => translateLocale(loc, key);
+    const tp = (key: string, params: Record<string, string | number>) => translateLocaleParams(loc, key, params);
+    const dash = tr("common.em_dash");
     const dateStamp = new Date().toISOString().slice(0, 10);
     const txRows = rows.map((r) => {
         if (r.kind === "payment") {
             const z = r.z;
             return [
                 formatDate(z.created_at),
-                "Payment",
-                financeTransactionText(z),
-                patientNames.get(z.patient_id) ?? "—",
-                paymentMethodLabelFin(z.payment_method),
+                tr("export.report.payment"),
+                financeTransactionText(z, tr),
+                patientNames.get(z.patient_id) ?? dash,
+                paymentMethodLabelFin(z.payment_method, tr),
                 z.status,
                 formatCurrency(z.amount),
             ];
@@ -399,32 +410,40 @@ export function buildFinanceReportBundle(
         const b = r.b;
         return [
             formatDate(b.created_at),
-            "Order",
-            `Order: ${b.item}`,
+            tr("export.report.order"),
+            tp("export.report.order_item", { item: b.item }),
             b.supplier,
-            "—",
+            dash,
             b.status,
-            b.total_amount != null && Number.isFinite(b.total_amount) ? formatCurrency(b.total_amount) : "—",
+            b.total_amount != null && Number.isFinite(b.total_amount) ? formatCurrency(b.total_amount) : dash,
         ];
     });
 
     return {
-        docTitle: "Finance — transaction report",
-        exportTitle: "Export finance",
-        hint: `${filterLabel} · PDF with practice letterhead or CSV/JSON/XML.`,
+        docTitle: tr("export.report.finance_doc_title"),
+        exportTitle: tr("export.report.finance_export_title"),
+        hint: tp("export.report.finance_hint", { filter: filterLabel }),
         suggestedBasename: `medoc-finance-${dateStamp}`,
         generatedAt: todayDe(),
         summary: [
-            { label: "Filter", value: filterLabel },
-            { label: "Income MTD", value: formatCurrency(kpi.incomeMtd) },
-            { label: "Cancellations MTD", value: formatCurrency(kpi.st) },
-            { label: "Profit MTD (net)", value: formatCurrency(kpi.profitMtd) },
-            { label: "Open items", value: `${kpi.openCount} (${formatCurrency(kpi.openSum)})` },
+            { label: tr("export.report.filter"), value: filterLabel },
+            { label: tr("export.report.income_mtd"), value: formatCurrency(kpi.incomeMtd) },
+            { label: tr("export.report.cancellations_mtd"), value: formatCurrency(kpi.st) },
+            { label: tr("export.report.profit_mtd"), value: formatCurrency(kpi.profitMtd) },
+            { label: tr("export.report.open_items"), value: `${kpi.openCount} (${formatCurrency(kpi.openSum)})` },
         ],
         sections: [
             {
-                title: "Transactions",
-                headers: ["Date", "Type", "Transaction", "Counterparty", "Payment method", "Status", "Amount"],
+                title: tr("export.report.transactions"),
+                headers: [
+                    tr("export.report.date"),
+                    tr("export.report.type"),
+                    tr("export.report.transaction"),
+                    tr("export.report.counterparty"),
+                    tr("export.report.payment_type"),
+                    tr("export.report.status"),
+                    tr("export.report.amount"),
+                ],
                 rows: txRows,
             },
         ],
@@ -438,33 +457,35 @@ export function buildComplianceReportBundle(
     kind: ComplianceReportKind,
     data: VVT | Dpia | LogRetentionReport,
 ): ReportBundle {
+    const loc = useLocale.getState().locale;
+    const tr = (key: string) => translateLocale(loc, key);
     const dateStamp = new Date().toISOString().slice(0, 10);
     if (kind === "vvt") {
         const version = data as VVT;
         const sections = version.activities.map((a) => ({
             title: a.name,
-            headers: ["Field", "Content"],
+            headers: [tr("export.report.field"), tr("export.report.content")],
             rows: [
-                ["Purpose", a.purpose],
-                ["Legal basis", a.legal_basis],
-                ["Data categories", a.data_categories.join("; ")],
-                ["Data subjects", a.data_subjects.join("; ")],
-                ["Recipients", a.recipients.join("; ")],
-                ["Retention", a.retention],
-                ["Technical measures", a.technical_measures.join("; ")],
-                ["Organisational measures", a.organisational_measures.join("; ")],
+                [tr("export.report.purpose"), a.purpose],
+                [tr("export.report.legal_basis"), a.legal_basis],
+                [tr("export.report.data_categories"), a.data_categories.join("; ")],
+                [tr("export.report.data_subjects"), a.data_subjects.join("; ")],
+                [tr("export.report.recipients"), a.recipients.join("; ")],
+                [tr("export.report.retention"), a.retention],
+                [tr("export.report.technical_measures"), a.technical_measures.join("; ")],
+                [tr("export.report.organisational_measures"), a.organisational_measures.join("; ")],
             ],
         }));
         return {
-            docTitle: "Record of processing activities (ROPA / VVT)",
-            exportTitle: "Export compliance report",
-            hint: "GDPR Art. 30 · PDF/CSV/JSON/XML — same renderer as finance reports.",
+            docTitle: tr("export.report.vvt_doc_title"),
+            exportTitle: tr("export.report.compliance_export_title"),
+            hint: tr("export.report.vvt_hint"),
             suggestedBasename: `medoc-vvt-${dateStamp}`,
             generatedAt: formatDateTime(version.generated_at),
             summary: [
-                { label: "Controller", value: version.controller },
-                { label: "System", value: version.system },
-                { label: "Version", value: version.system_version },
+                { label: tr("export.report.controller"), value: version.controller },
+                { label: tr("export.report.system"), value: version.system },
+                { label: tr("export.report.version"), value: version.system_version },
             ],
             sections,
         };
@@ -480,29 +501,36 @@ export function buildComplianceReportBundle(
             s.mitigations.join("; "),
         ]);
         return {
-            docTitle: "Data protection impact assessment (DPIA / DSFA)",
-            exportTitle: "Export compliance report",
-            hint: "GDPR Art. 35 · PDF/CSV/JSON/XML.",
+            docTitle: tr("export.report.dpia_doc_title"),
+            exportTitle: tr("export.report.compliance_export_title"),
+            hint: tr("export.report.dpia_hint"),
             suggestedBasename: `medoc-dpia-${dateStamp}`,
             generatedAt: formatDateTime(d.generated_at),
             summary: [
-                { label: "System", value: d.system },
-                { label: "Version", value: d.system_version },
+                { label: tr("export.report.system"), value: d.system },
+                { label: tr("export.report.version"), value: d.system_version },
             ],
             sections: [
                 {
-                    title: "Processing description",
-                    headers: ["Section", "Content"],
-                    rows: [["Overview", d.processing_overview]],
+                    title: tr("export.report.processing_description"),
+                    headers: [tr("export.report.section"), tr("export.report.content")],
+                    rows: [[tr("export.report.overview"), d.processing_overview]],
                 },
                 {
-                    title: "Necessity and proportionality",
-                    headers: ["Section", "Content"],
-                    rows: [["Assessment", d.necessity_proportionality]],
+                    title: tr("export.report.necessity"),
+                    headers: [tr("export.report.section"), tr("export.report.content")],
+                    rows: [[tr("export.report.assessment"), d.necessity_proportionality]],
                 },
                 {
-                    title: "Risk scenarios",
-                    headers: ["No.", "Threat", "Likelihood", "Impact", "Residual risk", "Measures"],
+                    title: tr("export.report.risk_scenarios"),
+                    headers: [
+                        tr("export.report.no"),
+                        tr("export.report.threat"),
+                        tr("export.report.likelihood"),
+                        tr("export.report.impact"),
+                        tr("export.report.residual_risk"),
+                        tr("export.report.measures"),
+                    ],
                     rows: scenarioRows,
                 },
             ],
@@ -510,23 +538,23 @@ export function buildComplianceReportBundle(
     }
     const r = data as LogRetentionReport;
     return {
-        docTitle: "Log retention — run report",
-        exportTitle: "Export compliance report",
-        hint: "Retention run · PDF/CSV/JSON/XML.",
+        docTitle: tr("export.report.retention_doc_title"),
+        exportTitle: tr("export.report.compliance_export_title"),
+        hint: tr("export.report.retention_hint"),
         suggestedBasename: `medoc-retention-${dateStamp}`,
         generatedAt: todayDe(),
         summary: [
-            { label: "Entries scanned", value: String(r.scanned) },
-            { label: "Kept", value: String(r.kept) },
-            { label: "Deleted", value: String(r.deleted.length) },
-            { label: "Errors", value: String(r.errors.length) },
+            { label: tr("export.report.entries_scanned"), value: String(r.scanned) },
+            { label: tr("export.report.kept"), value: String(r.kept) },
+            { label: tr("export.report.deleted"), value: String(r.deleted.length) },
+            { label: tr("export.report.errors"), value: String(r.errors.length) },
         ],
         sections: [
             ...(r.deleted.length > 0
                 ? [
                       {
-                          title: "Deleted references",
-                          headers: ["ID"],
+                          title: tr("export.report.deleted_refs"),
+                          headers: [tr("export.report.id")],
                           rows: r.deleted.map((id) => [id]),
                       },
                   ]
@@ -534,8 +562,8 @@ export function buildComplianceReportBundle(
             ...(r.errors.length > 0
                 ? [
                       {
-                          title: "Errors",
-                          headers: ["Message"],
+                          title: tr("export.report.errors"),
+                          headers: [tr("export.report.message")],
                           rows: r.errors.map((e) => [e]),
                       },
                   ]

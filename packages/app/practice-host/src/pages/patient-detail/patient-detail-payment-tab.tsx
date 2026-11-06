@@ -660,7 +660,7 @@ export function PatientDetailPaymentTab({
                                                     </ul>
                                                 ) : (
                                                     <p style={{ margin: 0, fontSize: 13, color: "var(--fg-3)" }}>
-                                                        {t("patient.detail.tab.payment.history_empty_unter")}
+                                                        {t("patient.detail.tab.payment.history_empty_examination")}
                                                     </p>
                                                 )}
                                             </div>
@@ -970,8 +970,8 @@ export function PatientDetailPaymentTab({
                                 );
                                 if (canFinanceWrite && paymentListenModus === "historie" && paymentEdit?.id === z.id) {
                                     return [
-                                        <tr key={`${z.id}__edit`} className="payment-historie-edit-row">
-                                            <td colSpan={6} className="payment-historie-edit-cell">
+                                        <tr key={`${z.id}__edit`} className="payment-history-edit-row">
+                                            <td colSpan={6} className="payment-history-edit-cell">
                                                 <ChartInlineEditPanelShell
                                                     id="ak-payment-edit-panel-row"
                                                     ariaLabel={t("patient.detail.tab.payment.edit_aria")}

@@ -18,6 +18,14 @@ pub struct JoinOutcome {
     pub handshake_transcript: Vec<u8>,
 }
 
+/// LAN credentials returned after SAS so the replica can call the master's HTTPS server.
+#[derive(Debug, Clone, Default)]
+pub struct SasConfirmOutcome {
+    pub activation_token: Option<String>,
+    pub master_pubkey: Option<String>,
+    pub master_device_id: Option<String>,
+}
+
 fn local_hostname() -> String {
     hostname::get()
         .ok()
@@ -53,7 +61,7 @@ pub async fn join_admin_endpoint(
     send_wire_message(&mut stream, &mut transport, &join_msg).await?;
 
     match recv_wire_message(&mut stream, &mut transport).await? {
-        WireMessage::JoinAccept { session_id } => Ok(JoinOutcome {
+        WireMessage::JoinAccept { session_id, .. } => Ok(JoinOutcome {
             session_id,
             fingerprint: identity.fingerprint.clone(),
             handshake_transcript: transcript,
@@ -72,6 +80,7 @@ pub async fn fetch_staff_directory(
     host: &str,
     port: u16,
     identity: &DeviceIdentity,
+    session_id: &str,
 ) -> Result<String, AppError> {
     let addr = format!("{host}:{port}");
     let mut stream = TcpStream::connect(&addr)
@@ -85,6 +94,7 @@ pub async fn fetch_staff_directory(
         &mut transport,
         &WireMessage::StaffDirectoryRequest {
             fingerprint: identity.fingerprint.clone(),
+            session_id: session_id.trim().to_string(),
         },
     )
     .await?;
@@ -96,6 +106,95 @@ pub async fn fetch_staff_directory(
         ))),
         other => Err(AppError::Internal(format!(
             "unexpected staff directory response: {other:?}"
+        ))),
+    }
+}
+
+/// Confirm the 4-digit SAS against the hash stored at admin Accept (new Noise session is transport only).
+pub async fn confirm_sas_on_admin(
+    host: &str,
+    port: u16,
+    session_id: &str,
+    digits: &str,
+) -> Result<SasConfirmOutcome, AppError> {
+    let addr = format!("{host}:{port}");
+    let mut stream = TcpStream::connect(&addr)
+        .await
+        .map_err(|e| AppError::Internal(format!("cluster SAS connect {addr}: {e}")))?;
+
+    let (mut transport, _transcript) = run_xx_initiator(&mut stream).await?;
+
+    send_wire_message(
+        &mut stream,
+        &mut transport,
+        &WireMessage::SasConfirm {
+            session_id: session_id.to_string(),
+            digits: digits.to_string(),
+        },
+    )
+    .await?;
+
+    match recv_wire_message(&mut stream, &mut transport).await? {
+        WireMessage::JoinAccept {
+            activation_token,
+            master_pubkey,
+            master_device_id,
+            ..
+        } => Ok(SasConfirmOutcome {
+            activation_token: activation_token.filter(|s| !s.trim().is_empty()),
+            master_pubkey: master_pubkey.filter(|s| !s.trim().is_empty()),
+            master_device_id: master_device_id.filter(|s| !s.trim().is_empty()),
+        }),
+        WireMessage::Error { code, message } => Err(AppError::Validation(format!(
+            "cluster SAS rejected ({code}): {message}"
+        ))),
+        other => Err(AppError::Internal(format!(
+            "unexpected cluster SAS response: {other:?}"
+        ))),
+    }
+}
+
+/// Re-fetch LAN activation token + master device id after SAS (or if SAS
+/// never stored them). Reuses the join session already on the master.
+pub async fn fetch_replica_auth(
+    host: &str,
+    port: u16,
+    identity: &DeviceIdentity,
+    session_id: &str,
+) -> Result<SasConfirmOutcome, AppError> {
+    let addr = format!("{host}:{port}");
+    let mut stream = TcpStream::connect(&addr)
+        .await
+        .map_err(|e| AppError::Internal(format!("cluster auth connect {addr}: {e}")))?;
+
+    let (mut transport, _transcript) = run_xx_initiator(&mut stream).await?;
+
+    send_wire_message(
+        &mut stream,
+        &mut transport,
+        &WireMessage::ReplicaAuthRequest {
+            fingerprint: identity.fingerprint.clone(),
+            session_id: session_id.trim().to_string(),
+        },
+    )
+    .await?;
+
+    match recv_wire_message(&mut stream, &mut transport).await? {
+        WireMessage::JoinAccept {
+            activation_token,
+            master_pubkey,
+            master_device_id,
+            ..
+        } => Ok(SasConfirmOutcome {
+            activation_token: activation_token.filter(|s| !s.trim().is_empty()),
+            master_pubkey: master_pubkey.filter(|s| !s.trim().is_empty()),
+            master_device_id: master_device_id.filter(|s| !s.trim().is_empty()),
+        }),
+        WireMessage::Error { code, message } => Err(AppError::Validation(format!(
+            "replica auth rejected ({code}): {message}"
+        ))),
+        other => Err(AppError::Internal(format!(
+            "unexpected replica auth response: {other:?}"
         ))),
     }
 }

@@ -27,6 +27,7 @@ pub const SYNCED_TABLES: &[&str] = &[
     "patient",
     "patient_chart",
     "appointment",
+    "absence",
     "treatment",
     "examination",
     "payment",
@@ -48,6 +49,21 @@ struct StoredDeployment {
     mode: String,
     #[serde(default)]
     device_label: String,
+}
+
+async fn replication_active(pool: &SqlitePool, mode: &str) -> Result<bool, AppError> {
+    if mode == "serverless_peer" {
+        return Ok(true);
+    }
+    let n: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM sync_device
+         WHERE is_local = 0
+           AND (role = 'REPLICA' OR seat_role = 'MEMBER')",
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap_or(0);
+    Ok(n > 0)
 }
 
 /// Append one outbox row for a successful local write, when running in
@@ -76,7 +92,7 @@ pub async fn record_or_noop(
             return Ok(());
         }
     };
-    if deployment.mode != "serverless_peer" {
+    if !replication_active(pool, &deployment.mode).await? {
         return Ok(());
     }
 
@@ -113,35 +129,49 @@ pub async fn record_or_noop(
 /// Bypasses `app_kv_repo::set` to avoid an async cycle: that helper now calls
 /// back into [`record_or_noop`] for non-internal keys, and the Rust compiler
 /// cannot prove the runtime guard (`is_internal_sync_key`) breaks the cycle.
+///
+/// Always inserts the `sync_device` parent. `sync_vector.device_id` references
+/// it; a license install can store `sync.device_id.v1` before that row exists,
+/// and the next outbox write then fails with SQLITE_CONSTRAINT_FOREIGNKEY (787).
 async fn ensure_local_device_id(pool: &SqlitePool, label: &str) -> Result<String, AppError> {
-    if let Some(existing) = app_kv_repo::get(pool, APP_KV_DEVICE_ID_KEY).await? {
-        if !existing.is_empty() {
-            return Ok(existing);
+    let id = match app_kv_repo::get(pool, APP_KV_DEVICE_ID_KEY).await? {
+        Some(existing) if !existing.is_empty() => existing,
+        _ => {
+            let id = Uuid::new_v4().to_string();
+            sqlx::query(
+                "INSERT INTO app_kv (key, value, updated_at) VALUES (?1, ?2, CURRENT_TIMESTAMP)
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP",
+            )
+            .bind(APP_KV_DEVICE_ID_KEY)
+            .bind(&id)
+            .execute(pool)
+            .await
+            .map_err(AppError::Database)?;
+            id
         }
-    }
-    let id = Uuid::new_v4().to_string();
-    sqlx::query(
-        "INSERT INTO app_kv (key, value, updated_at) VALUES (?1, ?2, CURRENT_TIMESTAMP)
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP",
-    )
-    .bind(APP_KV_DEVICE_ID_KEY)
-    .bind(&id)
-    .execute(pool)
-    .await
-    .map_err(AppError::Database)?;
+    };
     let display = if label.is_empty() {
         "This device"
     } else {
         label
     };
-    let _ = sqlx::query(
-        "INSERT OR IGNORE INTO sync_device (device_id, display_name, role, is_local)
-         VALUES (?1, ?2, 'MASTER', 1)",
+    sqlx::query(
+        "INSERT INTO sync_device (device_id, display_name, role, is_local)
+         VALUES (?1, ?2, 'MASTER', 1)
+         ON CONFLICT(device_id) DO UPDATE SET
+            display_name = excluded.display_name,
+            is_local = 1",
     )
     .bind(&id)
     .bind(display)
     .execute(pool)
-    .await;
+    .await
+    .map_err(AppError::Database)?;
+    sqlx::query("INSERT OR IGNORE INTO sync_vector (device_id, seq) VALUES (?1, 0)")
+        .bind(&id)
+        .execute(pool)
+        .await
+        .map_err(AppError::Database)?;
     Ok(id)
 }
 
@@ -167,6 +197,16 @@ mod tests {
             .unwrap()
     }
 
+    async fn insert_replica_peer(pool: &SqlitePool) {
+        sqlx::query(
+            "INSERT INTO sync_device (device_id, display_name, role, is_local)
+             VALUES ('peer-replica', 'Replica', 'REPLICA', 0)",
+        )
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+
     #[tokio::test]
     async fn noop_when_mode_is_practice_desktop() {
         let pool = test_memory_pool().await.unwrap();
@@ -178,6 +218,30 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn records_on_practice_desktop_when_a_replica_is_registered() {
+        let pool = test_memory_pool().await.unwrap();
+        run_migrations(&pool).await.unwrap();
+        app_kv_repo::set(
+            &pool,
+            APP_KV_DEPLOYMENT_KEY,
+            r#"{"schemaVersion":1,"mode":"practice_desktop","role":"MASTER","masterBaseUrl":"","masterCertSha256":"","masterAccessToken":"","deviceLabel":"Main"}"#,
+        )
+        .await
+        .unwrap();
+        insert_replica_peer(&pool).await;
+        record_or_noop(
+            &pool,
+            "appointment",
+            "a1",
+            "INSERT",
+            r#"{"id":"a1","date":"2026-10-01"}"#,
+        )
+        .await
+        .unwrap();
+        assert_eq!(count_outbox(&pool).await, 1);
+    }
+
+    #[tokio::test]
     async fn noop_when_table_not_allow_listed() {
         let pool = test_memory_pool().await.unwrap();
         run_migrations(&pool).await.unwrap();
@@ -186,6 +250,33 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(count_outbox(&pool).await, 0);
+    }
+
+    #[tokio::test]
+    async fn outbox_inserts_sync_device_when_only_the_kv_id_exists() {
+        let pool = test_memory_pool().await.unwrap();
+        run_migrations(&pool).await.unwrap();
+        sqlx::query("PRAGMA foreign_keys = ON")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO app_kv (key, value, updated_at) VALUES ('sync.device_id.v1', 'orphan-device', CURRENT_TIMESTAMP)",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        enable_serverless(&pool).await;
+        record_or_noop(&pool, "app_kv", "onboarding.setup_complete.v1", "UPDATE", "{}")
+            .await
+            .expect("outbox must create the sync_device parent before sync_vector");
+        let n: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM sync_device WHERE device_id = 'orphan-device'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(n, 1);
     }
 
     #[tokio::test]

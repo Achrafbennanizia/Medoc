@@ -7,11 +7,11 @@
 export const VALIDATION_SECTIONS = ["master", "anamnesis", "attachment", "payment"] as const;
 export type ValidationSection = (typeof VALIDATION_SECTIONS)[number];
 
-export const SECTION_LABEL: Record<ValidationSection, string> = {
-    master: "Master data",
-    anamnesis: "Medical history",
-    attachment: "Attachments",
-    payment: "Customer services & billing",
+export const SECTION_LABEL_KEY: Record<ValidationSection, string> = {
+    master: "patient.validation.section.master",
+    anamnesis: "patient.validation.section.anamnesis",
+    attachment: "patient.validation.section.attachment",
+    payment: "patient.validation.section.payment",
 };
 
 export interface ValidationRecord {
@@ -23,12 +23,11 @@ export interface ValidationRecord {
 export type ValidationState = Partial<Record<ValidationSection, ValidationRecord>>;
 
 export type ItemValidationKey =
-    | `unter:${string}`
-    | `bh:${string}`
+    | `examination:${string}`
+    | `treatment:${string}`
     | `payment:${string}`
-    | `anl:${string}`
-    | `rx:${string}`
-    | `examination:${string}`;
+    | `attachment:${string}`
+    | `rx:${string}`;
 
 /** Badge: master/anam sections + aggregated lists (attachment/payment) over missing item validations. */
 export function pendingSections(
@@ -39,7 +38,7 @@ export function pendingSections(
 }
 
 export function itemValidationKey(
-    kind: "examination" | "bh" | "payment" | "anl" | "rx",
+    kind: "examination" | "treatment" | "payment" | "attachment" | "rx",
     id: string,
 ): ItemValidationKey {
     return `${kind}:${id}`;

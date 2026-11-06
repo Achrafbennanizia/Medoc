@@ -2,6 +2,10 @@
 $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $PSScriptRoot
+node (Join-Path $root "scripts\check-css-custom-properties.mjs")
+if ($LASTEXITCODE -ne 0) {
+    throw "css custom property check failed with exit $LASTEXITCODE"
+}
 Set-Location (Join-Path $root "apps\practice-host-ui")
 
 if (-not $env:NODE_OPTIONS) {

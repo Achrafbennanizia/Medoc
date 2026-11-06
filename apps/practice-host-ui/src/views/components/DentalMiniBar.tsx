@@ -200,7 +200,7 @@ export function DentalMiniBar({
                                 {u.examinationNumber ? (
                                     <strong>{u.examinationNumber}</strong>
                                 ) : (
-                                    <strong>{t("patient.detail.subnav.tab.unter")}</strong>
+                                    <strong>{t("patient.detail.subnav.tab.examination")}</strong>
                                 )}
                                 <span className="tooth-popover-sub">{u.note}</span>
                                 <span className="tooth-popover-date">{formatDateTime(u.createdAt)}</span>

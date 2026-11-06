@@ -42,21 +42,26 @@ pub struct SyncStatusSnapshot {
 
 /// Allow-listed entity tables that flow through the outbox.
 ///
-/// Keep in sync with `merge::sanitize_table`.
+/// Order is parent-before-child. A full snapshot is queued in this order
+/// and applied with foreign keys on, so a child row emitted before its
+/// parent fails the FK check and is dropped. Keep in sync with
+/// `merge::sanitize_table`.
 pub const SYNCED_TABLES: &[&str] = &[
+    "staff",
     "patient",
+    "service_item",
+    "app_kv",
     "patient_chart",
     "appointment",
-    "treatment",
-    "examination",
-    "payment",
-    "app_kv",
-    "practice_task",
+    "absence",
     "anamnesis_form",
     "dental_finding",
+    "examination",
+    "treatment",
     "prescription",
     "certificate",
-    "service_item",
+    "payment",
     "in_app_notification",
     "practice_ticket",
+    "practice_task",
 ];

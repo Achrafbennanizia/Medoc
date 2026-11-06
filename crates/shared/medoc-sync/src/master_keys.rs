@@ -14,6 +14,8 @@
 //! override is the only escape hatch — there is no plaintext file
 //! fallback.
 
+use std::sync::Mutex;
+
 use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine};
 use ed25519_dalek::{Signer, SigningKey, Verifier, VerifyingKey};
 use medoc_core::error::AppError;
@@ -21,12 +23,30 @@ use medoc_core::infrastructure::secret_store;
 
 const SECRET_ACCOUNT: &str = "pairing-master-signing-key";
 
+fn master_key_account() -> String {
+    match std::env::var("MEDOC_INSTANCE") {
+        Ok(n) if !n.is_empty() && n != "1" => format!("{SECRET_ACCOUNT}.{n}"),
+        _ => SECRET_ACCOUNT.to_string(),
+    }
+}
+
+static CACHED_SEED: Mutex<Option<[u8; 32]>> = Mutex::new(None);
+
+fn signing_key_from_seed(seed: [u8; 32]) -> SigningKey {
+    SigningKey::from_bytes(&seed)
+}
+
 /// Load (or create) the master signing key. Private bytes stay in this process.
 pub fn load_or_create() -> Result<SigningKey, AppError> {
     if let Ok(env) = std::env::var("MEDOC_PAIRING_MASTER_SECRET") {
         return from_hex(env.trim());
     }
-    let bytes = secret_store::load_or_create_bytes(SECRET_ACCOUNT, None, 32)?;
+    if let Ok(guard) = CACHED_SEED.lock() {
+        if let Some(seed) = *guard {
+            return Ok(signing_key_from_seed(seed));
+        }
+    }
+    let bytes = secret_store::load_or_create_bytes(&master_key_account(), None, 32)?;
     if bytes.len() != 32 {
         return Err(AppError::Internal(format!(
             "Master signing key must be 32 bytes (got {})",
@@ -35,13 +55,19 @@ pub fn load_or_create() -> Result<SigningKey, AppError> {
     }
     let mut arr = [0u8; 32];
     arr.copy_from_slice(&bytes);
-    Ok(SigningKey::from_bytes(&arr))
+    if let Ok(mut guard) = CACHED_SEED.lock() {
+        *guard = Some(arr);
+    }
+    Ok(signing_key_from_seed(arr))
 }
 
 /// One-time import from owner activation manifest (32-byte ed25519 seed).
 pub fn import_seed(seed: [u8; 32]) -> Result<SigningKey, AppError> {
-    secret_store::store_bytes_replace(SECRET_ACCOUNT, &seed)?;
-    Ok(SigningKey::from_bytes(&seed))
+    secret_store::store_bytes_replace(&master_key_account(), &seed)?;
+    if let Ok(mut guard) = CACHED_SEED.lock() {
+        *guard = Some(seed);
+    }
+    Ok(signing_key_from_seed(seed))
 }
 
 fn from_hex(hex: &str) -> Result<SigningKey, AppError> {

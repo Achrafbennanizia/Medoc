@@ -9,8 +9,9 @@ import {
     bindPracticeWorkHoursStoreEvents,
     usePracticeWorkHoursStore,
 } from "@/models/store/practice-work-hours-store";
+import { mergeCalendarWorkflowsFromKv } from "@/lib/practice-calendar-workflows-sync";
 
-const REFRESH_INTERVAL_MS = 30_000;
+const REFRESH_INTERVAL_MS = 500;
 
 export function PracticeWorkHoursBackground() {
     const sessionChecked = useAuthStore((s) => s.sessionChecked);
@@ -29,6 +30,7 @@ export function PracticeWorkHoursBackground() {
         const refresh = () => {
             if (cancelled) return;
             void usePracticeWorkHoursStore.getState().refresh();
+            void mergeCalendarWorkflowsFromKv();
         };
 
         refresh();

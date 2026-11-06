@@ -1,7 +1,7 @@
 use crate::domain::entities::patient::{CreatePatient, UpdatePatient};
 use crate::domain::entities::Patient;
 use crate::error::AppError;
-use sqlx::SqlitePool;
+use sqlx::{Sqlite, SqlitePool, Transaction};
 
 pub async fn find_all(pool: &SqlitePool) -> Result<Vec<Patient>, AppError> {
     let rows = sqlx::query_as::<_, Patient>("SELECT * FROM patient ORDER BY name")
@@ -171,6 +171,14 @@ pub async fn create(pool: &SqlitePool, data: &CreatePatient) -> Result<Patient, 
         &format!("{{\"id\":\"{chart_id}\",\"patient_id\":\"{id}\"}}"),
     )
     .await?;
+    crate::infrastructure::database::sync_outbox::record_or_noop(
+        pool,
+        "anamnesis_form",
+        &anam_id,
+        "INSERT",
+        &format!("{{\"id\":\"{anam_id}\",\"patient_id\":\"{id}\"}}"),
+    )
+    .await?;
     Ok(inserted)
 }
 
@@ -253,11 +261,151 @@ pub async fn expire_new_status_after_completed_appointment(
     Ok(true)
 }
 
-pub async fn delete(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
+async fn exec_bound(
+    tx: &mut Transaction<'_, Sqlite>,
+    sql: &str,
+    patient_id: &str,
+) -> Result<u64, AppError> {
+    Ok(sqlx::query(sql)
+        .bind(patient_id)
+        .execute(&mut **tx)
+        .await?
+        .rows_affected())
+}
+
+/// Delete restrict/cascade children. SQLite may have `foreign_keys` off, so
+/// do not rely on `ON DELETE CASCADE` (same class as staff 787).
+pub async fn delete_dependents(
+    tx: &mut Transaction<'_, Sqlite>,
+    patient_id: &str,
+) -> Result<u64, AppError> {
+    let mut deleted: u64 = 0;
+    deleted += exec_bound(tx, "DELETE FROM appointment WHERE patient_id = ?1", patient_id).await?;
+    deleted += exec_bound(tx, "DELETE FROM anamnesis_form WHERE patient_id = ?1", patient_id).await?;
+    deleted += exec_bound(tx, "DELETE FROM payment WHERE patient_id = ?1", patient_id).await?;
+    deleted += exec_bound(tx, "DELETE FROM prescription WHERE patient_id = ?1", patient_id).await?;
+    deleted += exec_bound(tx, "DELETE FROM certificate WHERE patient_id = ?1", patient_id).await?;
+    deleted += exec_bound(
+        tx,
+        "DELETE FROM chart_validation WHERE patient_id = ?1",
+        patient_id,
+    )
+    .await?;
+    deleted += exec_bound(
+        tx,
+        "DELETE FROM chart_next_appointment_hint WHERE patient_id = ?1",
+        patient_id,
+    )
+    .await?;
+
+    let in_app_needle = format!("%\"patient_id\":\"{patient_id}\"%");
+    deleted += sqlx::query("DELETE FROM in_app_notification WHERE payload_json LIKE ?1")
+        .bind(&in_app_needle)
+        .execute(&mut **tx)
+        .await?
+        .rows_affected();
+
+    deleted += exec_bound(
+        tx,
+        "DELETE FROM invoice_document_audit WHERE document_id IN
+         (SELECT id FROM invoice_document WHERE patient_id = ?1)",
+        patient_id,
+    )
+    .await?;
+    deleted += exec_bound(
+        tx,
+        "DELETE FROM invoice_document WHERE patient_id = ?1",
+        patient_id,
+    )
+    .await?;
+    deleted += exec_bound(
+        tx,
+        "DELETE FROM practice_ticket WHERE patient_id = ?1",
+        patient_id,
+    )
+    .await?;
+
+    sqlx::query("UPDATE practice_task SET patient_id = NULL WHERE patient_id = ?1")
+        .bind(patient_id)
+        .execute(&mut **tx)
+        .await?;
+
+    deleted += exec_bound(
+        tx,
+        "DELETE FROM treatment WHERE chart_id IN (SELECT id FROM patient_chart WHERE patient_id = ?1)",
+        patient_id,
+    )
+    .await?;
+    deleted += exec_bound(
+        tx,
+        "DELETE FROM examination WHERE chart_id IN (SELECT id FROM patient_chart WHERE patient_id = ?1)",
+        patient_id,
+    )
+    .await?;
+    deleted += exec_bound(
+        tx,
+        "DELETE FROM dental_finding WHERE chart_id IN (SELECT id FROM patient_chart WHERE patient_id = ?1)",
+        patient_id,
+    )
+    .await?;
+    deleted += exec_bound(
+        tx,
+        "DELETE FROM chart_attachment WHERE chart_id IN (SELECT id FROM patient_chart WHERE patient_id = ?1)",
+        patient_id,
+    )
+    .await?;
+    deleted += exec_bound(
+        tx,
+        "DELETE FROM patient_chart WHERE patient_id = ?1",
+        patient_id,
+    )
+    .await?;
+    Ok(deleted)
+}
+
+/// Hard-delete the patient row after dependents. No outbox (sync apply path).
+pub async fn delete_row(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
+    tracing::info!(
+        target: "medoc::patient",
+        event = "PATIENT_DELETE_BEGIN",
+        patient_id = %id
+    );
+    let mut tx = pool.begin().await.map_err(AppError::Database)?;
+    let exists: Option<(String,)> = sqlx::query_as("SELECT id FROM patient WHERE id = ?1")
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await?;
+    if exists.is_none() {
+        tx.rollback().await.map_err(AppError::Database)?;
+        tracing::info!(
+            target: "medoc::patient",
+            event = "PATIENT_DELETE_MISSING",
+            patient_id = %id
+        );
+        return Ok(());
+    }
+    let n = delete_dependents(&mut tx, id).await?;
+    tracing::info!(
+        target: "medoc::patient",
+        event = "PATIENT_DELETE_DEPENDENTS",
+        patient_id = %id,
+        deleted_child_rows = n
+    );
     sqlx::query("DELETE FROM patient WHERE id = ?1")
         .bind(id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
+    tx.commit().await.map_err(AppError::Database)?;
+    tracing::info!(
+        target: "medoc::patient",
+        event = "PATIENT_DELETE_OK",
+        patient_id = %id
+    );
+    Ok(())
+}
+
+pub async fn delete(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
+    delete_row(pool, id).await?;
     crate::infrastructure::database::sync_outbox::record_or_noop(
         pool,
         "patient",

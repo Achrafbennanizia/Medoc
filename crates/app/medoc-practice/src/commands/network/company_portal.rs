@@ -20,6 +20,8 @@ use medoc_core::domain::enums::Role;
 use medoc_sync::cluster::services::{
     cluster_status, sync_staff_from_stored_admin_endpoint_required,
 };
+use medoc_sync::deployment::DeviceRole;
+use medoc_sync::engine::SyncEngine;
 
 #[tauri::command]
 #[tracing::instrument(level = "debug", skip(pool, session_state))]
@@ -368,6 +370,38 @@ pub async fn resolve_onboarding_license_key(
     Ok(trimmed.to_string())
 }
 
+/// `MASTER-…` is `serverless_peer` MASTER (LAN host + outbox). `REPLICA-…` / `SLAVE-…`
+/// is a client that must not bind a server and that queues local writes until the master is reachable.
+pub async fn apply_serverless_role_from_license_code(
+    pool: &SqlitePool,
+    license_key: &str,
+) -> Result<(), AppError> {
+    let upper = license_key.trim().to_ascii_uppercase();
+    let is_replica = upper.starts_with("REPLICA") || upper.starts_with("SLAVE");
+    let is_master = upper.starts_with("MASTER");
+    if !is_replica && !is_master {
+        return Ok(());
+    }
+    let snap = medoc_sync::engine::SyncEngine::status(pool).await?;
+    let mut cfg = snap.deployment;
+    if is_replica {
+        cfg.mode = medoc_sync::deployment::DeploymentMode::ServerlessPeer;
+        cfg.role = medoc_sync::deployment::DeviceRole::Replica;
+        cfg.unstable_mesh = false;
+        if cfg.device_label.trim().is_empty() {
+            cfg.device_label = "Replica".into();
+        }
+    } else {
+        cfg.mode = medoc_sync::deployment::DeploymentMode::ServerlessPeer;
+        cfg.role = medoc_sync::deployment::DeviceRole::Master;
+        cfg.unstable_mesh = false;
+        if cfg.device_label.trim().is_empty() {
+            cfg.device_label = "Master".into();
+        }
+    }
+    medoc_sync::engine::SyncEngine::set_deployment(pool, cfg).await
+}
+
 async fn persist_portal_config(
     pool: &SqlitePool,
     base: String,
@@ -584,9 +618,13 @@ pub async fn onboarding_subscription_status(
         list_existing_login_emails(&pool).await?
     };
     let vs = cluster_status(&pool).await?;
+    let replica_peer = SyncEngine::status(&pool)
+        .await
+        .ok()
+        .is_some_and(|s| s.deployment.role == DeviceRole::Replica);
     let needs_practice_setup = compute_needs_practice_setup(&pool, &vs).await?;
     let needs_member_account =
-        vs.provisioned && !vs.is_owner && !onboarding_setup_complete(&pool).await?;
+        vs.provisioned && !vs.is_owner && !onboarding_setup_complete(&pool).await? && !replica_peer;
     let can_skip_to_login = needs_practice_setup && vs.licensed && vs.is_owner && staff_count > 0;
     Ok(OnboardingSubscriptionStatus {
         registered: is_portal_configured(&cfg),

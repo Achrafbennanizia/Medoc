@@ -36,8 +36,17 @@ export function fontStackHintKey(id: FontStackId): string {
     return `settings.appearance.font.hint.${slug}`;
 }
 
+export function fontStackLabelKey(id: FontStackId): string {
+    const slug = id === "source-sans" ? "source_sans" : id;
+    return `settings.appearance.font.label.${slug}`;
+}
+
 export function accentHintKey(id: AccentId): string {
     return `settings.appearance.accent.hint.${id}`;
+}
+
+export function accentLabelKey(id: AccentId): string {
+    return `settings.appearance.accent.label.${id}`;
 }
 
 /** Sync `html` lang, text direction, and Arabic font hint for RTL layout. */
@@ -230,7 +239,13 @@ export function translateLocaleParams(
     params: Record<string, string | number>,
 ): string {
     const text = interpolateParams(translateLocale(locale, key), params);
-    if (key.startsWith("settings.appearance.arabic_numerals")) return text;
+    if (
+        key.startsWith("settings.appearance.arabic_numerals") ||
+        key === "settings.pairing.confirm_code" ||
+        key === "settings.pairing.confirm_pin_toast"
+    ) {
+        return text;
+    }
     return rewriteDigitsForMode(
         text,
         effectiveArabicNumeralMode(locale, loadClientSettings().appearance?.arabicNumeralMode),

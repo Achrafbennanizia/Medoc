@@ -13,7 +13,7 @@ type TagInputProps = {
     error?: string;
 };
 
-/** Multi-value chips + optional suggestions (wireframe „Beschwerden“). */
+/** Multi-value chips + optional suggestions (chief complaint). */
 export function TagInput({ label, value, onChange, placeholder, suggestions = [], error }: TagInputProps) {
     const t = useT();
     const tParams = useTParams();

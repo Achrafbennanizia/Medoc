@@ -10,12 +10,21 @@ use crate::net::fetch_staff_directory;
 
 const DIRECTORY_VERSION: u32 = 1;
 pub const CLUSTER_ADMIN_ENDPOINT_KV: &str = "cluster.join.admin_endpoint.v1";
+const CLUSTER_JOIN_LAN_AUTH_KV: &str = "cluster.join.lan_auth.v1";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct AdminEndpointKv {
     host: String,
     port: u16,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct JoinLanAuthKv {
+    pub(crate) activation_token: String,
+    pub(crate) master_pubkey: String,
+    pub(crate) master_device_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -238,6 +247,20 @@ async fn apply_staff_entry_update(
     Ok(result.rows_affected() > 0)
 }
 
+pub async fn load_join_admin_endpoint(
+    pool: &SqlitePool,
+) -> Result<Option<(String, u16)>, AppError> {
+    let Some(raw) = app_kv_repo::get(pool, CLUSTER_ADMIN_ENDPOINT_KV).await? else {
+        return Ok(None);
+    };
+    let endpoint: AdminEndpointKv = serde_json::from_str(&raw)
+        .map_err(|e| AppError::Validation(format!("admin endpoint kv: {e}")))?;
+    if endpoint.host.trim().is_empty() || endpoint.port == 0 {
+        return Ok(None);
+    }
+    Ok(Some((endpoint.host.trim().to_string(), endpoint.port)))
+}
+
 pub async fn store_join_admin_endpoint(
     pool: &SqlitePool,
     host: &str,
@@ -250,6 +273,52 @@ pub async fn store_join_admin_endpoint(
     let raw = serde_json::to_string(&payload)
         .map_err(|e| AppError::Internal(format!("admin endpoint json: {e}")))?;
     app_kv_repo::set(pool, CLUSTER_ADMIN_ENDPOINT_KV, &raw).await
+}
+
+pub async fn store_join_lan_auth(
+    pool: &SqlitePool,
+    activation_token: Option<&str>,
+    master_pubkey: Option<&str>,
+    master_device_id: Option<&str>,
+) -> Result<(), AppError> {
+    let token = activation_token.unwrap_or("").trim();
+    if token.is_empty() {
+        return Ok(());
+    }
+    let payload = JoinLanAuthKv {
+        activation_token: token.to_string(),
+        master_pubkey: master_pubkey.unwrap_or("").trim().to_string(),
+        master_device_id: master_device_id.unwrap_or("").trim().to_string(),
+    };
+    let raw = serde_json::to_string(&payload)
+        .map_err(|e| AppError::Internal(format!("join lan auth json: {e}")))?;
+    app_kv_repo::set(pool, CLUSTER_JOIN_LAN_AUTH_KV, &raw).await
+}
+
+pub(crate) async fn load_join_lan_auth(
+    pool: &SqlitePool,
+) -> Result<Option<JoinLanAuthKv>, AppError> {
+    let Some(raw) = app_kv_repo::get(pool, CLUSTER_JOIN_LAN_AUTH_KV).await? else {
+        return Ok(None);
+    };
+    let payload: JoinLanAuthKv = serde_json::from_str(&raw)
+        .map_err(|e| AppError::Validation(format!("join lan auth kv: {e}")))?;
+    if payload.activation_token.trim().is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(payload))
+}
+
+pub(crate) async fn load_join_session_id(pool: &SqlitePool) -> Result<String, AppError> {
+    let id: Option<String> = sqlx::query_scalar(
+        "SELECT id FROM pairing_request
+         WHERE TRIM(COALESCE(fingerprint, '')) != '' OR TRIM(device_id) != ''
+         ORDER BY requested_at DESC LIMIT 1",
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(AppError::Database)?;
+    Ok(id.unwrap_or_default())
 }
 
 /// Pull staff directory from the owner device saved during join.
@@ -287,7 +356,9 @@ async fn sync_staff_from_stored_admin_endpoint_inner(
         return Ok(0);
     }
     let identity = DeviceIdentity::load_or_create()?;
-    let directory_json = fetch_staff_directory(&endpoint.host, endpoint.port, &identity).await?;
+    let session_id = load_join_session_id(pool).await?;
+    let directory_json =
+        fetch_staff_directory(&endpoint.host, endpoint.port, &identity, &session_id).await?;
     let imported = import_staff_directory_json(pool, &directory_json).await?;
     if require_import && imported == 0 {
         return Err(AppError::Validation(
@@ -309,7 +380,9 @@ pub async fn fetch_provisioning_settings_json(pool: &SqlitePool) -> Result<Strin
         return Ok("{}".to_string());
     }
     let identity = DeviceIdentity::load_or_create()?;
-    let staff_json = fetch_staff_directory(&endpoint.host, endpoint.port, &identity).await?;
+    let session_id = load_join_session_id(pool).await?;
+    let staff_json =
+        fetch_staff_directory(&endpoint.host, endpoint.port, &identity, &session_id).await?;
     if staff_json.trim().is_empty() {
         return Ok("{}".to_string());
     }
@@ -326,6 +399,9 @@ mod tests {
     async fn staff_directory_roundtrip() {
         let pool = test_memory_pool().await.expect("pool");
         run_migrations(&pool).await.expect("migrate");
+        medoc_core::mvp_security::drop_staff_quota_db_triggers(&pool)
+            .await
+            .expect("drop quota");
         let hash = hash_password("password123").expect("hash");
         sqlx::query(
             "INSERT INTO staff (id, name, email, password_hash, role) VALUES ('u-rez', 'Front', 'a@practice.de', ?1, 'RECEPTION')",

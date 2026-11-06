@@ -1,6 +1,6 @@
 //! Master-side pairing IPC (inbox, decide, revoke).
 
-use medoc_sync::cluster::services::list_pending_requests;
+use medoc_sync::cluster::services::{accept_join_request, list_pending_requests};
 use medoc_sync::master_keys;
 use medoc_sync::pairing::{self as pairing, PairingDecideResult, PairingDecision, PairingRequest};
 use sqlx::SqlitePool;
@@ -23,6 +23,9 @@ pub async fn pairing_list_pending(
     let mut pending = pairing::list_pending(&pool).await.map_err(into_tauri)?;
     if let Ok(cluster) = list_pending_requests(&pool).await {
         for version in cluster {
+            if pending.iter().any(|row| row.id == version.id) {
+                continue;
+            }
             pending.push(PairingRequest {
                 id: version.id,
                 device_id: version.fingerprint.clone(),
@@ -40,6 +43,8 @@ pub async fn pairing_list_pending(
                 decided_by: None,
                 awaiting_pin: false,
                 transport: "cluster".into(),
+                cluster_sas: true,
+                coupling_code: None,
             });
         }
     }
@@ -68,6 +73,43 @@ pub async fn pairing_decide(
         .await
         .map_err(into_tauri)?;
     let master_device_id = master_local_device_id(&pool).await.map_err(into_tauri)?;
+    if payload.accept {
+        let pairing_state: Option<String> = sqlx::query_scalar(
+            "SELECT pairing_state FROM pairing_request WHERE id = ?1",
+        )
+        .bind(&payload.request_id)
+        .fetch_optional(pool.inner())
+        .await
+        .map_err(medoc_core::error::AppError::Database)
+        .map_err(into_tauri)?
+        .flatten();
+        if matches!(
+            pairing_state.as_deref(),
+            Some("JOIN_REQUESTED" | "AWAITING_SAS" | "SAS_CONFIRMED" | "PROVISIONED" | "ABORTED")
+        ) {
+            let sas = accept_join_request(
+                pool.inner(),
+                &session.user_id,
+                &payload.request_id,
+                &[],
+                None,
+            )
+            .await
+            .map_err(into_tauri)?;
+            let request = pairing::list_all(pool.inner())
+                .await
+                .map_err(into_tauri)?
+                .into_iter()
+                .find(|row| row.id == payload.request_id)
+                .ok_or_else(|| {
+                    TauriAppError::Internal("pairing request missing after cluster accept".into())
+                })?;
+            return Ok(PairingDecideResult {
+                request,
+                confirm_pin: Some(sas.digits),
+            });
+        }
+    }
     pairing::decide(
         &pool,
         &master_device_id,

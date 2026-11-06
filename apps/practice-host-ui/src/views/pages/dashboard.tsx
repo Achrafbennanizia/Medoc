@@ -1,13 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { getDashboardStats, type DashboardStats } from "@/systems/practice-host/controllers/statistics.controller";
-import { APPOINTMENTS_CHANGED_EVENT, listAppointments } from "@/systems/practice-host/controllers/appointment.controller";
+import { APPOINTMENTS_CHANGED_EVENT, listAppointmentsByDate } from "@/systems/practice-host/controllers/appointment.controller";
 import { listPatients } from "@/systems/practice-host/controllers/patient.controller";
 import { listPurchaseOrders, updatePurchaseOrderStatus, type PurchaseOrder } from "@/systems/practice-host/controllers/purchase-order.controller";
 import {
     listChartsToValidate,
     validatePatientChart,
+    declinePatientChart,
     type ChartToValidateRow,
 } from "@/systems/practice-host/controllers/chart-workflow.controller";
 import { errorMessage, formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
@@ -15,6 +16,7 @@ import { useAuthStore } from "../../models/store/auth-store";
 import type { Patient, Appointment } from "../../models/types";
 import { allowed, parseRole, routeChildPathAllowed } from "@/lib/rbac";
 import { CheckIcon, FilterIcon, NAV_ICONS, PackageIcon, PlusIcon, SparkleIcon, XIcon } from "@/lib/icons";
+import { CHART_QUEUE_DECLINE_ENABLED } from "@/lib/v1-ui-flags";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { ConfirmDialog } from "../components/ui/dialog";
 import { useToastStore } from "../components/ui/toast-store";
@@ -27,6 +29,7 @@ import { listUpcomingAppointments, type UpcomingAppointment } from "@/systems/pr
 import { kpiIconChrome } from "@/lib/kpi-icon-chrome";
 import { WorkspacePageHeader } from "../components/administration-page-header";
 import { DismissibleNotice } from "../components/ui/dismissible-notice";
+import { PAGE_REFRESH_EVENT } from "../layouts/page-refresh";
 
 const DASHBOARD_PURCHASE_ORDERS_MAX = 10;
 const CHARTS_QUEUE_POLL_MS = 15_000;
@@ -106,15 +109,21 @@ export function DashboardPage() {
         let cancelled = false;
         setStatsError(null);
         setStats(null);
-        getDashboardStats()
-            .then((s) => {
-                if (!cancelled) setStats(s);
-            })
-            .catch((e) => {
-                if (!cancelled) setStatsError(errorMessage(e));
-            });
+        const loadStats = () => {
+            getDashboardStats()
+                .then((s) => {
+                    if (!cancelled) setStats(s);
+                })
+                .catch((e) => {
+                    if (!cancelled) setStatsError(errorMessage(e));
+                });
+        };
+        loadStats();
+        const onRefresh = () => loadStats();
+        window.addEventListener(PAGE_REFRESH_EVENT, onRefresh);
         return () => {
             cancelled = true;
+            window.removeEventListener(PAGE_REFRESH_EVENT, onRefresh);
         };
     }, [reloadToken]);
 
@@ -123,8 +132,9 @@ export function DashboardPage() {
         listsErrorToastSent.current = false;
         setListsError(null);
 
-        const loadLists = (showError: boolean) =>
-            Promise.all([listAppointments(), listPatients(), listPurchaseOrders()])
+        const loadLists = (showError: boolean) => {
+            const day = format(new Date(), "yyyy-MM-dd");
+            return Promise.all([listAppointmentsByDate(day), listPatients(), listPurchaseOrders()])
                 .then(([appointmentsList, patientList, purchaseOrdersList]) => {
                     if (!cancelled) {
                         setAppointments(appointmentsList);
@@ -136,7 +146,7 @@ export function DashboardPage() {
                 .catch((e) => {
                     if (!cancelled) {
                         const msg = errorMessage(e);
-                        console.error("[Dashboard] listAppointments/listPatients/listPurchaseOrders failed:", e);
+                        console.error("[Dashboard] listAppointmentsByDate/listPatients/listPurchaseOrders failed:", e);
                         setAppointments([]);
                         setPatients([]);
                         setPurchaseOrders([]);
@@ -147,15 +157,18 @@ export function DashboardPage() {
                         }
                     }
                 });
+        };
 
         void loadLists(true);
         const onAppointmentsChanged = () => {
             void loadLists(false);
         };
         window.addEventListener(APPOINTMENTS_CHANGED_EVENT, onAppointmentsChanged);
+        window.addEventListener(PAGE_REFRESH_EVENT, onAppointmentsChanged);
         return () => {
             cancelled = true;
             window.removeEventListener(APPOINTMENTS_CHANGED_EVENT, onAppointmentsChanged);
+            window.removeEventListener(PAGE_REFRESH_EVENT, onAppointmentsChanged);
         };
     }, [reloadToken, t, toast]);
 
@@ -192,12 +205,14 @@ export function DashboardPage() {
             if (document.visibilityState === "visible") void loadUpcoming(false);
         };
         window.addEventListener(APPOINTMENTS_CHANGED_EVENT, onChanged);
+        window.addEventListener(PAGE_REFRESH_EVENT, onChanged);
         window.addEventListener("focus", onChanged);
         document.addEventListener("visibilitychange", onVisible);
         return () => {
             cancelled = true;
             window.clearInterval(interval);
             window.removeEventListener(APPOINTMENTS_CHANGED_EVENT, onChanged);
+            window.removeEventListener(PAGE_REFRESH_EVENT, onChanged);
             window.removeEventListener("focus", onChanged);
             document.removeEventListener("visibilitychange", onVisible);
         };
@@ -234,6 +249,7 @@ export function DashboardPage() {
             void loadQueue(false);
         };
         window.addEventListener("medoc-nav-badges-refresh", onRefresh);
+        window.addEventListener(PAGE_REFRESH_EVENT, onRefresh);
         const interval = window.setInterval(() => {
             void loadQueue(false);
         }, CHARTS_QUEUE_POLL_MS);
@@ -244,6 +260,7 @@ export function DashboardPage() {
         return () => {
             cancelled = true;
             window.removeEventListener("medoc-nav-badges-refresh", onRefresh);
+            window.removeEventListener(PAGE_REFRESH_EVENT, onRefresh);
             window.clearInterval(interval);
             document.removeEventListener("visibilitychange", onVisible);
         };
@@ -341,6 +358,23 @@ export function DashboardPage() {
                 setChartsToValidate((prev) => prev.filter((r) => r.patient_id !== patientId));
                 window.dispatchEvent(new Event("medoc-nav-badges-refresh"));
                 toast(t("page.charts_to_validate.validated_toast"), "success");
+            } catch (e) {
+                toast(`${t("dashboard.freigaben.toast_approve_error")}: ${errorMessage(e)}`, "error");
+            } finally {
+                setApproveBusyId(null);
+            }
+        },
+        [t, toast],
+    );
+
+    const handleDeclineChart = useCallback(
+        async (patientId: string) => {
+            setApproveBusyId(patientId);
+            try {
+                await declinePatientChart(patientId);
+                setChartsToValidate((prev) => prev.filter((r) => r.patient_id !== patientId));
+                window.dispatchEvent(new Event("medoc-nav-badges-refresh"));
+                toast(t("page.charts_to_validate.declined_toast"), "success");
             } catch (e) {
                 toast(`${t("dashboard.freigaben.toast_approve_error")}: ${errorMessage(e)}`, "error");
             } finally {
@@ -509,8 +543,25 @@ export function DashboardPage() {
                                       const busy = approveBusyId === row.patient_id;
                                       const statusKey = `enum.charts_status.${row.chart_status.trim().toLowerCase()}`;
                                       const statusLabel = t(statusKey) === statusKey ? row.chart_status : t(statusKey);
+                                      const openPatient = () => navigate(`/patients/${row.patient_id}`);
+                                      const stopRowNav = (e: MouseEvent) => {
+                                          e.stopPropagation();
+                                      };
+                                      const onRowKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+                                          if (e.key === "Enter" || e.key === " ") {
+                                              e.preventDefault();
+                                              openPatient();
+                                          }
+                                      };
                                       return (
-                                          <div key={row.patient_id} className="dashboard-wire-row">
+                                          <div
+                                              key={row.patient_id}
+                                              className="dashboard-wire-row dashboard-wire-row--nav"
+                                              role="link"
+                                              tabIndex={0}
+                                              onClick={openPatient}
+                                              onKeyDown={onRowKeyDown}
+                                          >
                                               <div className="dashboard-wire-avatar" aria-hidden>
                                                   {initialsFromName(row.patient_name)}
                                               </div>
@@ -519,27 +570,43 @@ export function DashboardPage() {
                                                       <span className="dashboard-wire-name">{row.patient_name}</span>
                                                       <span className="dashboard-wire-tag">{statusLabel}</span>
                                                   </div>
-                                                  <div className="dashboard-wire-desc">{t("dashboard.freigaben.desc_chart")}</div>
+                                                  <div className="dashboard-wire-desc">{formatDateTime(row.updated_at)}</div>
                                               </div>
-                                              <div className="dashboard-wire-row-aside">
-                                                  <div className="dashboard-wire-date">{formatDateTime(row.updated_at)}</div>
+                                              <div className="dashboard-wire-row-aside" onClick={stopRowNav} onKeyDown={(e) => e.stopPropagation()}>
                                                   <div className="dashboard-wire-freigabe-actions">
-                                                      <Link
-                                                          to={`/patients/${row.patient_id}`}
-                                                          className="dashboard-wire-approve-btn"
-                                                      >
-                                                          {t("page.charts_to_validate.open_chart")}
-                                                      </Link>
                                                       {canWriteMedical ? (
-                                                          <button
-                                                              type="button"
-                                                              className="dashboard-wire-approve-btn"
-                                                              disabled={busy}
-                                                              onClick={() => void handleApproveChart(row.patient_id)}
-                                                          >
-                                                              <CheckIcon size={15} />
-                                                              {busy ? "…" : t("page.charts_to_validate.validate")}
-                                                          </button>
+                                                          <>
+                                                              <button
+                                                                  type="button"
+                                                                  className="dashboard-wire-approve-btn"
+                                                                  disabled={busy}
+                                                                  onClick={() => void handleApproveChart(row.patient_id)}
+                                                              >
+                                                                  <CheckIcon size={15} />
+                                                                  {busy ? "…" : t("page.charts_to_validate.validate")}
+                                                              </button>
+                                                              {/* TODO(later): restore Decline — see docs/coordination/todos-deferred-ui-blinds.md */}
+                                                              {CHART_QUEUE_DECLINE_ENABLED ? (
+                                                              <button
+                                                                  type="button"
+                                                                  className="dashboard-wire-btn-secondary"
+                                                                  disabled={busy}
+                                                                  onClick={() => void handleDeclineChart(row.patient_id)}
+                                                              >
+                                                                  {busy ? "…" : t("page.charts_to_validate.decline")}
+                                                              </button>
+                                                              ) : null}
+                                                              <button
+                                                                  type="button"
+                                                                  className="dashboard-wire-icon-btn"
+                                                                  disabled={busy}
+                                                                  title={t("page.charts_to_validate.remove_from_list")}
+                                                                  aria-label={t("page.charts_to_validate.remove_from_list")}
+                                                                  onClick={() => void handleDeclineChart(row.patient_id)}
+                                                              >
+                                                                  <XIcon size={16} />
+                                                              </button>
+                                                          </>
                                                       ) : null}
                                                   </div>
                                               </div>

@@ -270,3 +270,89 @@ async fn verify_token_rejects_wrong_master_pubkey() {
         .expect_err("must fail for wrong pubkey");
     assert!(matches!(err, AppError::Validation(_)));
 }
+
+#[tokio::test]
+async fn accept_pin_matches_handshake_transcript_sas() {
+    use crate::cluster::crypto::derive_sas_from_transcript;
+    use base64::{engine::general_purpose::STANDARD, Engine};
+
+    let pool = fresh_pool().await;
+    let transcript = b"noise-xx-handshake-transcript-bytes";
+    let expected = derive_sas_from_transcript(transcript);
+    let req = submit_request(
+        &pool,
+        PairingRequestSubmit {
+            device_id: "slave-sas".into(),
+            slave_pubkey: "AAAA".into(),
+            slave_label: "Replica".into(),
+            requester_ip: "192.168.1.30".into(),
+            transport: "lan".into(),
+        },
+    )
+    .await
+    .expect("submit");
+    sqlx::query("UPDATE pairing_request SET handshake_transcript_b64 = ?1 WHERE id = ?2")
+        .bind(STANDARD.encode(transcript))
+        .bind(&req.id)
+        .execute(&pool)
+        .await
+        .expect("store transcript");
+
+    let decided = decide(
+        &pool,
+        "master-1",
+        &req.id,
+        PairingDecision {
+            accept: true,
+            allowed_actions: vec!["sync.push".into()],
+            decided_by: "admin".into(),
+        },
+        DEFAULT_REPLICA_HTTP_PORT,
+    )
+    .await
+    .expect("decide");
+    assert_eq!(decided.confirm_pin.as_deref(), Some(expected.as_str()));
+}
+
+#[tokio::test]
+async fn accept_pin_matches_url_safe_handshake_b64() {
+    use crate::cluster::crypto::derive_sas_from_transcript;
+    use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+
+    let pool = fresh_pool().await;
+    let transcript = b"noise-xx-url-safe-transcript-bytes!!";
+    let expected = derive_sas_from_transcript(transcript);
+    let req = submit_request(
+        &pool,
+        PairingRequestSubmit {
+            device_id: "slave-sas-b64".into(),
+            slave_pubkey: "AAAA".into(),
+            slave_label: "Replica".into(),
+            requester_ip: "192.168.1.30".into(),
+            transport: "lan".into(),
+        },
+    )
+    .await
+    .expect("submit");
+    sqlx::query("UPDATE pairing_request SET handshake_transcript_b64 = ?1 WHERE id = ?2")
+        .bind(URL_SAFE_NO_PAD.encode(transcript))
+        .bind(&req.id)
+        .execute(&pool)
+        .await
+        .expect("store transcript");
+
+    let decided = decide(
+        &pool,
+        "master-1",
+        &req.id,
+        PairingDecision {
+            accept: true,
+            allowed_actions: vec!["sync.push".into()],
+            decided_by: "admin".into(),
+        },
+        DEFAULT_REPLICA_HTTP_PORT,
+    )
+    .await
+    .expect("decide");
+    assert_eq!(decided.confirm_pin.as_deref(), Some(expected.as_str()));
+}

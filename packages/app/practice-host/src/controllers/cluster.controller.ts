@@ -22,6 +22,39 @@ export type PairingHandle = {
     fingerprint: string;
 };
 
+/** Rust returns `{ handle: { sessionId, fingerprint }, handshakeTranscriptB64 }`. */
+export function pairingHandleFromJoinPayload(value: unknown): PairingHandle {
+    if (!value || typeof value !== "object") {
+        throw new Error("Pairing handle missing");
+    }
+    const rec = value as Record<string, unknown>;
+    const nested = rec.handle;
+    if (nested && typeof nested === "object") {
+        const inner = nested as Record<string, unknown>;
+        if (typeof inner.sessionId === "string" && inner.sessionId.length > 0) {
+            return {
+                sessionId: inner.sessionId,
+                fingerprint: typeof inner.fingerprint === "string" ? inner.fingerprint : "",
+            };
+        }
+    }
+    if (typeof rec.sessionId === "string" && rec.sessionId.length > 0) {
+        return {
+            sessionId: rec.sessionId,
+            fingerprint: typeof rec.fingerprint === "string" ? rec.fingerprint : "",
+        };
+    }
+    throw new Error("Pairing handle missing sessionId");
+}
+
+function handshakeTranscriptFromJoinPayload(value: unknown): string {
+    if (!value || typeof value !== "object") {
+        return "";
+    }
+    const rec = value as Record<string, unknown>;
+    return typeof rec.handshakeTranscriptB64 === "string" ? rec.handshakeTranscriptB64 : "";
+}
+
 export type PendingRequest = {
     id: string;
     fingerprint: string;
@@ -143,7 +176,7 @@ export async function clusterSendJoinRequest(
     requestedRole: "ADMIN" | "MEMBER",
     admin: JoinAdminTarget,
 ): Promise<JoinRequestResult> {
-    return tauriInvoke("cluster_send_join_request", {
+    const raw = await tauriInvoke<unknown>("cluster_send_join_request", {
         payload: {
             requestedRole,
             adminHost: admin.host,
@@ -151,6 +184,11 @@ export async function clusterSendJoinRequest(
             handshakeTranscriptB64: "",
         },
     });
+    const handle = pairingHandleFromJoinPayload(raw);
+    return {
+        ...handle,
+        handshakeTranscriptB64: handshakeTranscriptFromJoinPayload(raw),
+    };
 }
 
 export async function clusterSubmitSas(
@@ -158,8 +196,17 @@ export async function clusterSubmitSas(
     digits: string,
     handshakeTranscriptB64: string,
 ): Promise<{ success: boolean; alreadyProvisioned: boolean }> {
+    const resolved = pairingHandleFromJoinPayload(handle);
     return tauriInvoke("cluster_submit_sas", {
-        payload: { handle, digits, handshakeTranscriptB64 },
+        payload: {
+            handle: {
+                sessionId: resolved.sessionId,
+                fingerprint: resolved.fingerprint,
+            },
+            digits,
+            // SAS is derived from the transcript stored at join, not this round-trip.
+            handshakeTranscriptB64: handshakeTranscriptB64 || "",
+        },
     });
 }
 
@@ -175,13 +222,36 @@ export async function clusterAcceptRequest(
     id: string,
     replaceFingerprint?: string,
 ): Promise<{ digits: string }> {
-    return tauriInvoke("cluster_accept_request", {
+    const raw = await tauriInvoke<unknown>("cluster_accept_request", {
         payload: {
             id,
             handshakeTranscriptB64: "",
             replaceFingerprint: replaceFingerprint ?? null,
         },
     });
+    const digits = sasDigitsFromPayload(raw);
+    if (!digits) {
+        throw new Error("SAS digits missing from accept response");
+    }
+    return { digits };
+}
+
+function sasDigitsFromPayload(value: unknown): string | null {
+    if (typeof value === "string") {
+        const d = value.replace(/\D/g, "");
+        return d.length === 4 ? d : null;
+    }
+    if (!value || typeof value !== "object") {
+        return null;
+    }
+    const rec = value as Record<string, unknown>;
+    for (const key of ["digits", "Digits"]) {
+        const v = rec[key];
+        if (typeof v === "string" && v.replace(/\D/g, "").length === 4) {
+            return v.replace(/\D/g, "").slice(0, 4);
+        }
+    }
+    return null;
 }
 
 export async function clusterReclaimDevice(fingerprint: string): Promise<void> {

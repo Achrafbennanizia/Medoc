@@ -386,7 +386,7 @@ export function AppointmentCreatePage() {
                 setChiefComplaintTags(bTags);
                 setToothacheTeeth(bTeeth);
                 const notesRaw = t.notes ?? "";
-                const durationMatch = /(?:Duration|Dauer):\s*(\d+)\s*min/.exec(notesRaw);
+                const durationMatch = /Duration:\s*(\d+)\s*min/i.exec(notesRaw);
                 if (durationMatch && durationMatch[1]) {
                     setDurationMin(durationMatch[1]);
                 } else {
@@ -395,7 +395,7 @@ export function AppointmentCreatePage() {
                 const cleanedNotes = notesRaw
                     .split("·")
                     .map((s) => s.trim())
-                    .filter((s) => s.length > 0 && !/^(?:Duration|Dauer):/i.test(s) && !/^(?:Priority|Priorität):/i.test(s))
+                    .filter((s) => s.length > 0 && !/^Duration:/i.test(s) && !/^Priority:/i.test(s))
                     .join(" · ");
                 setNotes(cleanedNotes);
                 setStatusPreference(t.status === "CONFIRMED" ? "CONFIRMED" : "PLANNED");

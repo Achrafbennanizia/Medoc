@@ -30,6 +30,12 @@ pub struct PairingRequest {
     /// How the request was initiated (`lan` | `bluetooth`).
     #[serde(default = "default_transport")]
     pub transport: String,
+    /// Cluster Noise-XX join (same 4-digit code as Device cluster SAS).
+    #[serde(default)]
+    pub cluster_sas: bool,
+    /// 4-digit coupling code while the request is pending (transcript SAS). Not stored after accept token mint.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub coupling_code: Option<String>,
 }
 
 fn default_transport() -> String {

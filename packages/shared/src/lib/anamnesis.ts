@@ -14,33 +14,10 @@ export type AnamnesisV1 = {
     allergies?: Record<string, string>;
 };
 
-export const ANAMNESIS_SECTION_LABELS: Record<string, string> = {
-    insuranceStatus: "Insurance status",
-    health_insurance: "Health insurer",
-    chronic: "Chronic conditions",
-    previousDiagnoses: "Previous diagnoses",
-    surgeries: "Surgeries",
-    hospital: "Hospital stays",
-    mental: "Mental health history",
-    regular: "Regular medication",
-    dosing: "Dosing schedule",
-    self: "Self-medication / supplements",
-    missed: "Missed doses",
-    sideEffects: "Side effects",
-    medications: "Drug allergies",
-    foods: "Food allergies",
-    other: "Other allergies",
-    material: "Material intolerances",
-    vaccineReactions: "Vaccine reactions",
-};
-
 export function anamnesisLabelFor(key: string, t?: (key: string) => string): string {
-    if (t) {
-        const i18nKey = `anamnesis.field.${key}`;
-        const translated = t(i18nKey);
-        if (translated !== i18nKey) return translated;
-    }
-    return ANAMNESIS_SECTION_LABELS[key] ?? key.replace(/_/g, " ");
+    const i18nKey = `anamnesis.field.${key}`;
+    if (t) return t(i18nKey);
+    return i18nKey;
 }
 
 /** Merges quick-capture fields into stored JSON before save. */

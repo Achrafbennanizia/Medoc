@@ -24,6 +24,7 @@ import {
     loadClientSettings,
     saveClientSettings,
     applyAppearanceFromSettings,
+    isNetworkHiddenInSettings,
     normalizeColorScheme,
     normalizeFontStack,
     resolveAppearanceTheme,
@@ -99,6 +100,15 @@ export function SettingsPage() {
     const [pwAgeTick, setPwAgeTick] = useState(0);
 
     const [client, setClient] = useState<ClientSettingsV1>(() => loadClientSettings());
+    useEffect(() => {
+        const onWorkflows = () => {
+            const next = loadClientSettings();
+            setClient(next);
+            applyAppearanceFromSettings(next);
+        };
+        window.addEventListener("medoc-calendar-workflows-changed", onWorkflows);
+        return () => window.removeEventListener("medoc-calendar-workflows-changed", onWorkflows);
+    }, []);
     const [prefs, setPrefs] = useState<PracticePreferences>(() => ({ ...DEFAULT_PRACTICE_PREFERENCES }));
     const [prefsDirty, setPrefsDirty] = useState(false);
 
@@ -481,7 +491,11 @@ export function SettingsPage() {
                     ) : null}
 
                     {canSettingsSection(activeSection) && activeSection === "system" ? (
-                        <SettingsSystemSection canOpsSystem={canLanHost} />
+                        <SettingsSystemSection
+                            canOpsSystem={canLanHost}
+                            hideNetwork={isNetworkHiddenInSettings(client)}
+                            onPersistClient={persistClientSilent}
+                        />
                     ) : null}
 
                     {canSettingsSection(activeSection) && activeSection === "about" ? (

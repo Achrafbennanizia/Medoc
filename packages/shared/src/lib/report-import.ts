@@ -7,6 +7,7 @@ import {
     type ReportSummaryRow,
 } from "@/lib/report-export";
 import { openExportPreview } from "@/models/store/export-preview-store";
+import { translateLocale, useLocale } from "@/lib/i18n";
 
 function isSummaryRow(version: unknown): version is ReportSummaryRow {
     return (
@@ -39,16 +40,16 @@ export function parseReportBundleJson(text: string): ReportBundle {
         sections?: unknown[];
     };
     if (j.version !== 1) {
-        throw new Error("Unknown report version (expected: 1).");
+        throw new Error(translateLocale(useLocale.getState().locale, "export.report.import_bad_version"));
     }
-    if (!j.docTitle?.trim()) throw new Error("docTitle missing.");
+    if (!j.docTitle?.trim()) throw new Error(translateLocale(useLocale.getState().locale, "export.report.import_missing_title"));
     const summary = (j.summary ?? []).filter(isSummaryRow);
     const sections = (j.sections ?? []).filter(isSection);
     const base = j.docTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40);
     return {
         docTitle: j.docTitle,
-        exportTitle: "Importierter Bericht",
-        hint: "Aus JSON importiert — erneut exportieren oder drucken.",
+        exportTitle: translateLocale(useLocale.getState().locale, "export.report.import_title"),
+        hint: translateLocale(useLocale.getState().locale, "export.report.import_hint_json"),
         suggestedBasename: `medoc-import-${base || "report"}`,
         generatedAt: j.generatedAt ?? new Date().toLocaleDateString("de-DE"),
         summary,
@@ -67,11 +68,11 @@ export function parseReportBundleXml(text: string): ReportBundle {
 function parseReportBundleXmlDom(text: string): ReportBundle {
     const doc = new DOMParser().parseFromString(text, "application/xml");
     const err = doc.querySelector("parsererror");
-    if (err) throw new Error("Invalid XML.");
+    if (err) throw new Error(translateLocale(useLocale.getState().locale, "export.report.import_invalid_xml"));
     const root = doc.documentElement;
-    if (root.tagName !== "medocReport") throw new Error("No medocReport root element.");
+    if (root.tagName !== "medocReport") throw new Error(translateLocale(useLocale.getState().locale, "export.report.import_bad_root"));
     const docTitle = root.getAttribute("title")?.trim();
-    if (!docTitle) throw new Error("title attribute missing.");
+    if (!docTitle) throw new Error(translateLocale(useLocale.getState().locale, "export.report.import_missing_title_attr"));
     const generatedAt = root.getAttribute("generatedAt")?.trim() ?? new Date().toLocaleDateString("de-DE");
 
     const summary: ReportSummaryRow[] = [];
@@ -106,7 +107,7 @@ function xmlUnescape(s: string): string {
 /** Node/vitest fallback — sufficient for our deterministic export format. */
 function parseReportBundleXmlRegex(text: string): ReportBundle {
     const rootMatch = text.match(/<medocReport[^>]*title="([^"]*)"[^>]*generatedAt="([^"]*)"/);
-    if (!rootMatch) throw new Error("No medocReport root element.");
+    if (!rootMatch) throw new Error(translateLocale(useLocale.getState().locale, "export.report.import_bad_root"));
     const docTitle = xmlUnescape(rootMatch[1] ?? "");
     const generatedAt = xmlUnescape(rootMatch[2] ?? new Date().toLocaleDateString("de-DE"));
     const summary: ReportSummaryRow[] = [];
@@ -135,8 +136,8 @@ function finalizeImportedBundle(
     const base = docTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40);
     return {
         docTitle,
-        exportTitle: "Importierter Bericht",
-        hint: "Importiert — erneut exportieren oder drucken.",
+        exportTitle: translateLocale(useLocale.getState().locale, "export.report.import_title"),
+        hint: translateLocale(useLocale.getState().locale, "export.report.import_hint"),
         suggestedBasename: `medoc-import-${base || "report"}`,
         generatedAt,
         summary,
@@ -149,7 +150,7 @@ export async function parseReportFile(file: File): Promise<ReportBundle> {
     const name = file.name.toLowerCase();
     if (name.endsWith(".xml")) return parseReportBundleXml(text);
     if (name.endsWith(".json")) return parseReportBundleJson(text);
-    throw new Error("Only .json or .xml (MeDoc report) are supported.");
+    throw new Error(translateLocale(useLocale.getState().locale, "export.report.import_unsupported"));
 }
 
 /** Import → preview (JSON display) or direct re-export. */

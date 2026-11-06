@@ -14,6 +14,7 @@ import { Button } from "../components/ui/button";
 import { Input, Select } from "../components/ui/input";
 import { useToastStore } from "../components/ui/toast-store";
 import { AdministrationPageHeader } from "../components/administration-page-header";
+import { WORKFLOW_APPOINTMENT_REMINDER_NOSHOW_UI_ENABLED } from "@/lib/settings-ui-flags";
 import { useT, useTParams } from "@/lib/i18n";
 
 function MonthCalColorField({
@@ -154,6 +155,9 @@ export function PracticePreferencesPage() {
                         value={prefs.emergencyBuffer}
                         onChange={(e) => setPrefs((p) => ({ ...p, emergencyBuffer: e.target.value }))}
                     />
+                    {/* TODO(later): restore reminder + no-show selects — see docs/coordination/todos-deferred-ui-blinds.md */}
+                    {WORKFLOW_APPOINTMENT_REMINDER_NOSHOW_UI_ENABLED ? (
+                        <>
                     <Select
                         label={t("page.practice_preferences.reminder.label")}
                         value={prefs.reminder}
@@ -175,6 +179,8 @@ export function PracticePreferencesPage() {
                         ]}
                         onChange={(e) => setPrefs((p) => ({ ...p, noShow: e.target.value }))}
                     />
+                        </>
+                    ) : null}
                 </div>
             </div>
 

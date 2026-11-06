@@ -1,9 +1,68 @@
 //! Pairing policy helpers (URLs, feature toggle, action sanitisation).
 
+use std::net::IpAddr;
+
 use medoc_core::error::AppError;
 use sqlx::SqlitePool;
 
 use super::types::{APP_KV_PAIRING_ENABLED, DEFAULT_ALLOWED_ACTIONS};
+
+/// IPv4 form of a socket address. Mapped IPv6 (`::ffff:192.168.1.5`) becomes `192.168.1.5`.
+/// Unspecified addresses (`0.0.0.0`, `::`) are treated as unknown.
+pub fn canonical_peer_ip(ip: IpAddr) -> String {
+    let ip = match ip {
+        IpAddr::V6(v6) => v6
+            .to_ipv4_mapped()
+            .map(IpAddr::V4)
+            .unwrap_or(IpAddr::V6(v6)),
+        other => other,
+    };
+    if ip.is_unspecified() {
+        String::new()
+    } else {
+        ip.to_string()
+    }
+}
+
+/// Normalize an IP string already stored or received from a client.
+pub fn canonical_ip_str(raw: &str) -> String {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    match trimmed.parse::<IpAddr>() {
+        Ok(ip) => canonical_peer_ip(ip),
+        Err(_) => trimmed.to_string(),
+    }
+}
+
+/// Addresses that are not the replica's LAN address.
+fn unusable_requester_ip(ip: &str) -> bool {
+    ip == "::1"
+        || ip.starts_with("127.")
+        || ip.starts_with("fe80:")
+        || ip.starts_with("169.254.")
+}
+
+/// Prefer the address the master saw on the socket. If that is loopback or link-local,
+/// use the LAN address the replica advertised in the join.
+pub fn choose_requester_ip(peer: Option<&str>, advertised: &str) -> String {
+    let peer = peer.map(canonical_ip_str).filter(|ip| !ip.is_empty());
+    let advertised = {
+        let ip = canonical_ip_str(advertised);
+        if ip.is_empty() {
+            None
+        } else {
+            Some(ip)
+        }
+    };
+    match (peer, advertised) {
+        (Some(peer), Some(advertised)) if unusable_requester_ip(&peer) => advertised,
+        (Some(peer), _) => peer,
+        (None, Some(advertised)) => advertised,
+        (None, None) => String::new(),
+    }
+}
 
 /// Build HTTPS base URL for a replica from its LAN IP (mesh + peer discovery).
 pub fn peer_base_url_from_ip(ip: &str, http_port: u16) -> Option<String> {
@@ -67,4 +126,34 @@ pub(crate) fn sanitise_actions(input: &[String]) -> Vec<String> {
     out.sort();
     out.dedup();
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use std::net::IpAddr;
+
+    use super::{canonical_ip_str, canonical_peer_ip};
+
+    #[test]
+    fn mapped_ipv6_displays_as_ipv4() {
+        let ip: IpAddr = "::ffff:192.168.1.20".parse().unwrap();
+        assert_eq!(canonical_peer_ip(ip), "192.168.1.20");
+        assert_eq!(canonical_ip_str("  ::ffff:10.0.0.8 "), "10.0.0.8");
+        assert_eq!(canonical_ip_str("0.0.0.0"), "");
+        assert_eq!(canonical_ip_str("::"), "");
+        assert_eq!(canonical_ip_str("192.168.0.4"), "192.168.0.4");
+    }
+
+    #[test]
+    fn requester_ip_prefers_advertised_lan_over_loopback() {
+        assert_eq!(
+            super::choose_requester_ip(Some("127.0.0.1"), "192.168.1.42"),
+            "192.168.1.42"
+        );
+        assert_eq!(
+            super::choose_requester_ip(Some("10.0.0.8"), "192.168.1.42"),
+            "10.0.0.8"
+        );
+        assert_eq!(super::choose_requester_ip(None, "::ffff:10.1.1.5"), "10.1.1.5");
+    }
 }

@@ -8,14 +8,13 @@ import {
     type ArabicNumeralMode,
     type FontStackId,
 } from "@/lib/client-settings";
-import { ACCENT_LABELS, ACCENT_ORDER, accentColorCircle, type AccentId } from "@/lib/accent-preset";
+import { ACCENT_ORDER, accentColorCircle, type AccentId } from "@/lib/accent-preset";
 import {
-    FONT_STACK_LABELS,
     FONT_STACK_ORDER,
     FONT_STACK_PREVIEW_FAMILY,
 } from "@/lib/font-stack-preset";
 import type { Locale } from "@/lib/i18n";
-import { accentHintKey, fontStackHintKey, useT, useTParams } from "@/lib/i18n";
+import { accentHintKey, accentLabelKey, fontStackHintKey, fontStackLabelKey, useT, useTParams } from "@/lib/i18n";
 import { LocaleSwitcher } from "@/views/components/locale-switcher";
 import { DARK_SIDEBAR_SETTINGS_ENABLED } from "@/lib/settings-ui-flags";
 import { SettingsSwitch } from "@/views/components/settings-switch";
@@ -171,10 +170,10 @@ export function SettingsAppearanceSection({
                                     const a = c.appearance ?? DEFAULT_CLIENT_SETTINGS.appearance!;
                                     return mergeClientSettingsPatch(c, { appearance: { ...a, fontStack: id } });
                                 });
-                                toast(tp("settings.appearance.toast.font", { label: FONT_STACK_LABELS[id] }), "success");
+                                toast(tp("settings.appearance.toast.font", { label: t(fontStackLabelKey(id)) }), "success");
                             }}
                         >
-                            <span className="settings-font-seg__label">{FONT_STACK_LABELS[id]}</span>
+                            <span className="settings-font-seg__label">{t(fontStackLabelKey(id))}</span>
                             <span className="settings-font-seg__sample" aria-hidden>
                                 {t("settings.appearance.font.sample")}
                             </span>
@@ -289,7 +288,7 @@ export function SettingsAppearanceSection({
                 <div className="settings-row-clickable__label">
                     <b>{t("settings.appearance.accent")}</b>
                     <div className="settings-row-muted">
-                        {tp("settings.appearance.accent.hint", { label: ACCENT_LABELS[accentPresetId] })}
+                        {tp("settings.appearance.accent.hint", { label: t(accentLabelKey(accentPresetId)) })}
                         {" · "}
                         {t(accentHintKey(accentPresetId))}
                     </div>
@@ -301,7 +300,7 @@ export function SettingsAppearanceSection({
                             type="button"
                             role="radio"
                             aria-checked={accentPresetId === id}
-                            aria-label={`${ACCENT_LABELS[id]}: ${t(accentHintKey(id))}`}
+                            aria-label={`${t(accentLabelKey(id))}: ${t(accentHintKey(id))}`}
                             title={t(accentHintKey(id))}
                             className={`settings-accent-inline__swatch${accentPresetId === id ? " is-selected" : ""}`}
                             style={{ background: accentColorCircle(id) }}
@@ -311,7 +310,7 @@ export function SettingsAppearanceSection({
                                     const a = c.appearance ?? DEFAULT_CLIENT_SETTINGS.appearance!;
                                     return mergeClientSettingsPatch(c, { appearance: { ...a, accentPreset: id } });
                                 });
-                                toast(tp("settings.appearance.toast.accent", { label: ACCENT_LABELS[id] }), "success");
+                                toast(tp("settings.appearance.toast.accent", { label: t(accentLabelKey(id)) }), "success");
                             }}
                         />
                     ))}

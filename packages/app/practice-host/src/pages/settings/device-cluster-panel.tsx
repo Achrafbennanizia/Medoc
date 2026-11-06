@@ -195,8 +195,9 @@ export function DeviceClusterPanel({ embedded }: { embedded?: boolean }) {
                             {t("settings.device_cluster.reject")}
                         </Button>
                         {sasById[req.id] ? (
-                            <p>
-                                <strong>{t("settings.device_cluster.code_label")}</strong> {sasById[req.id]}
+                            <p data-arabic-numerals-skip="" dir="ltr">
+                                <strong>{t("settings.device_cluster.code_label")}</strong>{" "}
+                                {sasById[req.id]}
                             </p>
                         ) : null}
                     </li>

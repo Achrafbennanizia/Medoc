@@ -1,4 +1,5 @@
 use medoc_core::error::AppError;
+use medoc_core::infrastructure::database::patient_repo;
 use sqlx::SqlitePool;
 
 use crate::repo::{mark_applied, was_applied, OutboxEntry};
@@ -63,6 +64,17 @@ pub async fn apply_remote_entry_phased(
 
     if applied {
         mark_applied(pool, &entry.device_id, entry.seq).await?;
+        if let Err(e) =
+            crate::watch::note_remote_applied(pool, &entry.entity_table, &entry.entity_id).await
+        {
+            tracing::warn!(
+                target: "medoc::sync",
+                event = "SHARED_SYNC_SEEN_FAILED",
+                table = %entry.entity_table,
+                id = %entry.entity_id,
+                error = %e
+            );
+        }
     }
     Ok(applied)
 }
@@ -181,13 +193,23 @@ async fn load_local_updated_at(
         return Ok(raw.and_then(|s| parse_ts_str(&s)));
     }
     let safe = sanitize_table(table)?;
-    let raw: Option<String> = sqlx::query_scalar(&format!(
+    let raw: Result<Option<String>, sqlx::Error> = sqlx::query_scalar(&format!(
         "SELECT CAST(updated_at AS TEXT) FROM {safe} WHERE id = ?1"
     ))
     .bind(id)
     .fetch_optional(pool)
-    .await
-    .map_err(AppError::Database)?;
+    .await;
+    let raw = match raw {
+        Ok(v) => v,
+        Err(e) if e.to_string().contains("no such column: updated_at") => sqlx::query_scalar(
+            &format!("SELECT CAST(created_at AS TEXT) FROM {safe} WHERE id = ?1"),
+        )
+        .bind(id)
+        .fetch_optional(pool)
+        .await
+        .map_err(AppError::Database)?,
+        Err(e) => return Err(AppError::Database(e)),
+    };
     Ok(raw.and_then(|s| parse_ts_str(&s)))
 }
 
@@ -209,12 +231,14 @@ fn parse_ts_str(s: &str) -> Option<chrono::DateTime<chrono::FixedOffset>> {
     if let Ok(ts) = chrono::DateTime::parse_from_rfc3339(&format!("{normalised}Z")) {
         return Some(ts);
     }
+    // chrono's `NaiveDateTime` JSON is `YYYY-MM-DDTHH:MM:SS[.fff]` with no offset.
+    let with_space = trimmed.replacen('T', " ", 1);
     if let Ok(naive) = chrono::NaiveDateTime::parse_from_str(trimmed, "%Y-%m-%d %H:%M:%S") {
         let utc: chrono::DateTime<chrono::Utc> =
             chrono::TimeZone::from_utc_datetime(&chrono::Utc, &naive);
         return Some(utc.fixed_offset());
     }
-    if let Ok(naive) = chrono::NaiveDateTime::parse_from_str(trimmed, "%Y-%m-%d %H:%M:%S%.f") {
+    if let Ok(naive) = chrono::NaiveDateTime::parse_from_str(&with_space, "%Y-%m-%d %H:%M:%S%.f") {
         let utc: chrono::DateTime<chrono::Utc> =
             chrono::TimeZone::from_utc_datetime(&chrono::Utc, &naive);
         return Some(utc.fixed_offset());
@@ -229,19 +253,38 @@ async fn apply_app_kv(
 ) -> Result<(), AppError> {
     let value = obj
         .get("value")
-        .map(json_to_sql_literal)
-        .transpose()?
+        .and_then(json_to_sql_value)
         .unwrap_or_default();
     let row_key = obj
         .get("key")
         .and_then(|version| version.as_str())
         .unwrap_or(key);
-    sqlx::query("INSERT OR REPLACE INTO app_kv (key, value) VALUES (?1, ?2)")
+    let updated_at = obj
+        .get("updated_at")
+        .and_then(|version| version.as_str())
+        .filter(|s| !s.trim().is_empty());
+    if let Some(ts) = updated_at {
+        sqlx::query(
+            "INSERT INTO app_kv (key, value, updated_at) VALUES (?1, ?2, ?3)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+        )
+        .bind(row_key)
+        .bind(value)
+        .bind(ts)
+        .execute(pool)
+        .await
+        .map_err(AppError::Database)?;
+    } else {
+        sqlx::query(
+            "INSERT INTO app_kv (key, value, updated_at) VALUES (?1, ?2, CURRENT_TIMESTAMP)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP",
+        )
         .bind(row_key)
         .bind(value)
         .execute(pool)
         .await
         .map_err(AppError::Database)?;
+    }
     Ok(())
 }
 
@@ -249,6 +292,43 @@ async fn apply_delete(pool: &SqlitePool, entry: &OutboxEntry) -> Result<bool, Ap
     let table = sanitize_table(&entry.entity_table)?;
     if table == "app_kv" {
         sqlx::query("DELETE FROM app_kv WHERE key = ?1")
+            .bind(&entry.entity_id)
+            .execute(pool)
+            .await
+            .map_err(AppError::Database)?;
+        return Ok(true);
+    }
+    if table == "patient" {
+        patient_repo::delete_row(pool, &entry.entity_id).await?;
+        return Ok(true);
+    }
+    if table == "patient_chart" {
+        for sql in [
+            "DELETE FROM treatment WHERE chart_id = ?1",
+            "DELETE FROM examination WHERE chart_id = ?1",
+            "DELETE FROM dental_finding WHERE chart_id = ?1",
+            "DELETE FROM chart_attachment WHERE chart_id = ?1",
+        ] {
+            sqlx::query(sql)
+                .bind(&entry.entity_id)
+                .execute(pool)
+                .await
+                .map_err(AppError::Database)?;
+        }
+        sqlx::query("DELETE FROM patient_chart WHERE id = ?1")
+            .bind(&entry.entity_id)
+            .execute(pool)
+            .await
+            .map_err(AppError::Database)?;
+        return Ok(true);
+    }
+    if table == "service_item" {
+        sqlx::query("UPDATE payment SET service_item_id = NULL WHERE service_item_id = ?1")
+            .bind(&entry.entity_id)
+            .execute(pool)
+            .await
+            .map_err(AppError::Database)?;
+        sqlx::query("DELETE FROM service_item WHERE id = ?1")
             .bind(&entry.entity_id)
             .execute(pool)
             .await
@@ -263,6 +343,17 @@ async fn apply_delete(pool: &SqlitePool, entry: &OutboxEntry) -> Result<bool, Ap
     Ok(true)
 }
 
+async fn table_column_names(pool: &SqlitePool, table: &str) -> Result<Vec<String>, AppError> {
+    sqlx::query_scalar(&format!("SELECT name FROM pragma_table_info('{table}')"))
+        .fetch_all(pool)
+        .await
+        .map_err(AppError::Database)
+}
+
+fn keep_known_column(known: &[String], name: &str) -> bool {
+    known.iter().any(|c| c == name)
+}
+
 async fn insert_from_json(
     pool: &SqlitePool,
     table: &str,
@@ -270,14 +361,15 @@ async fn insert_from_json(
     obj: &serde_json::Map<String, serde_json::Value>,
 ) -> Result<(), AppError> {
     let table = sanitize_table(table)?;
+    let known = table_column_names(pool, table).await?;
     let mut cols = vec!["id".to_string()];
-    let mut binds: Vec<String> = vec![id.to_string()];
+    let mut binds: Vec<Option<String>> = vec![Some(id.to_string())];
     for (k, version) in obj {
-        if k == "id" {
+        if k == "id" || !keep_known_column(&known, k) {
             continue;
         }
         cols.push(k.clone());
-        binds.push(json_to_sql_literal(version)?);
+        binds.push(json_to_sql_value(version));
     }
     let placeholders: Vec<String> = (1..=binds.len()).map(|i| format!("?{i}")).collect();
     let sql = format!(
@@ -300,15 +392,16 @@ async fn update_from_json(
     obj: &serde_json::Map<String, serde_json::Value>,
 ) -> Result<(), AppError> {
     let table = sanitize_table(table)?;
+    let known = table_column_names(pool, table).await?;
     let mut sets = Vec::new();
-    let mut binds = Vec::new();
+    let mut binds: Vec<Option<String>> = Vec::new();
     let mut idx = 1;
     for (k, version) in obj {
-        if k == "id" {
+        if k == "id" || !keep_known_column(&known, k) {
             continue;
         }
         sets.push(format!("{k} = ?{idx}"));
-        binds.push(json_to_sql_literal(version)?);
+        binds.push(json_to_sql_value(version));
         idx += 1;
     }
     if sets.is_empty() {
@@ -326,9 +419,11 @@ async fn update_from_json(
 
 fn sanitize_table(table: &str) -> Result<&str, AppError> {
     const ALLOWED: &[&str] = &[
+        "staff",
         "patient",
         "patient_chart",
         "appointment",
+        "absence",
         "treatment",
         "examination",
         "payment",
@@ -351,13 +446,16 @@ fn sanitize_table(table: &str) -> Result<&str, AppError> {
     }
 }
 
-fn json_to_sql_literal(version: &serde_json::Value) -> Result<String, AppError> {
+/// `None` binds as SQL NULL. An empty string is a real value and must not
+/// stand in for JSON null: foreign keys reject `''`, and `IS NULL` filters
+/// (unread notifications) stop matching.
+fn json_to_sql_value(version: &serde_json::Value) -> Option<String> {
     match version {
-        serde_json::Value::Null => Ok(String::new()),
-        serde_json::Value::Bool(b) => Ok(if *b { "1".into() } else { "0".into() }),
-        serde_json::Value::Number(n) => Ok(n.to_string()),
-        serde_json::Value::String(s) => Ok(s.clone()),
-        other => Ok(other.to_string()),
+        serde_json::Value::Null => None,
+        serde_json::Value::Bool(b) => Some(if *b { "1" } else { "0" }.into()),
+        serde_json::Value::Number(n) => Some(n.to_string()),
+        serde_json::Value::String(s) => Some(s.clone()),
+        other => Some(other.to_string()),
     }
 }
 
@@ -367,8 +465,10 @@ mod tests {
 
     #[test]
     fn allow_list_rejects_unknown_tables() {
-        assert!(sanitize_table("staff").is_err());
+        assert!(sanitize_table("staff").is_ok());
+        assert!(sanitize_table("license").is_err());
         assert!(sanitize_table("patient").is_ok());
+        assert!(sanitize_table("absence").is_ok());
     }
 
     #[test]

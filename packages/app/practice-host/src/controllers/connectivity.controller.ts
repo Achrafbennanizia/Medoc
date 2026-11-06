@@ -7,7 +7,7 @@
  */
 import { isLanClientActive, loadLanClientConfig } from "@/systems/lan/lib/lan-client-config";
 import { practiceSystem } from "../adapters/practice-transport";
-import { syncGetStatus } from "./sync.controller";
+import { syncGetStatus, syncProbeMaster } from "./sync.controller";
 
 const PING_TIMEOUT_MS = 4_000;
 
@@ -53,8 +53,8 @@ export async function probeBackgroundServers(): Promise<boolean> {
         const master = snap.deployment.masterBaseUrl?.trim() ?? "";
         const replica =
             snap.deployment.mode === "serverless_peer" && snap.deployment.role === "REPLICA" && master.length > 0;
-        if (replica && !(await httpReachable(master))) {
-            return false;
+        if (replica) {
+            return syncProbeMaster();
         }
     } catch {
         /* LAN HTTP adapter has no sync_get_status; local/LAN probe already ran. */

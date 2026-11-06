@@ -49,3 +49,7 @@ export async function syncSetDeployment(deployment: SyncDeploymentConfigV1): Pro
 export async function syncRunNow(): Promise<SyncRunReport> {
     return practiceSystem.invoke<SyncRunReport>("sync_run_now");
 }
+
+export async function syncProbeMaster(): Promise<boolean> {
+    return practiceSystem.invoke<boolean>("sync_probe_master");
+}

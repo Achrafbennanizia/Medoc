@@ -26,7 +26,7 @@ describe("parseAppointmentDurationMin", () => {
         expect(parseAppointmentDurationMin("Duration: 45 min")).toBe(45);
     });
 
-    it("reads leftover Dauer wire", () => {
-        expect(parseAppointmentDurationMin("Dauer: 30 min", 20)).toBe(30);
+    it("ignores non-English duration wire", () => {
+        expect(parseAppointmentDurationMin("Dauer: 30 min", 20)).toBe(20);
     });
 });

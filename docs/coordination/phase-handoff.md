@@ -1,6 +1,67 @@
 # Phase handoff
 
-**Last phase label:** Payment fulfills open booking (2026-09-05)
+**Last phase label:** Shared calendar sync after SAS (2026-10-01)
+
+### Verified (2026-10-01 — replica ↔ master data)
+
+- Master outbox records writes when a replica device is registered (including `practice_desktop`).
+- First replica pull (`since_seq = 0`) queues a full snapshot; replica catch-up loops until a page < 500.
+- Replica sync loop is **5s**; pull cursor advances via `set_observed_seq`.
+- Tests: `enqueue_full_snapshot` **PASS** (3.78s); `set_observed_seq` **PASS**; desktop noop + replica-peer record **PASS**.
+
+### Remains unverified
+
+- Live two-window calendar match after SAS — **NOT OBSERVED**.
+
+### Understanding delta
+
+- Different calendars were expected: desktop master never wrote `sync_outbox`, and replica never received a bootstrap dump of existing rows.
+
+### Required next
+
+1. Rebuild both instances, confirm SAS, wait for initial pull; calendars should match, then 5s deltas.
+
+---
+
+### Verified (2026-10-01 — replica LAN after SAS)
+
+### Verified (2026-10-01 — replica LAN after SAS)
+
+- After SAS, master allows staff directory by join `session_id` / fingerprint (no license `SELECT 1` gate).
+- Master mints `mt2.` activation token on SAS confirm; replica stores it for HTTPS sync to port 8787.
+- Loopback: `cluster_net_loopback` 10/10; `roundtrip_join_accept_with_lan_credentials` **PASS**.
+
+### Remains unverified
+
+- Live two-instance handshake: staff import + `run_replica_sync` against master’s 8787 — **NOT OBSERVED**.
+
+### Understanding delta
+
+- Replica “connection to the server” failed because staff fetch was `STAFF_DENIED` and SAS join never issued the LAN activation token `pick_bearer` needs.
+
+### Required next
+
+1. Rebuild master + replica (`MEDOC_INSTANCE=2`) and pair again; confirm staff copy and replica sync.
+
+---
+
+### Verified (2026-09-30 — same-class SQLITE 787)
+
+- Bare `DELETE FROM patient` failed with FK 787 when appointments/payments existed (`REFERENCES patient(id)` without CASCADE).
+- `patient_repo::delete` now deletes dependents in a transaction, then the patient row. GDPR `erase_patient_records` uses the same helper (still anonymizes the stub).
+- Sync merge DELETE of `patient`, `patient_chart`, and `service_item` detaches children / nulls `payment.service_item_id` first.
+- Staff delete now removes pause segments and work-time preferences before sessions.
+- Cluster reset deletes `sync_vector` before `sync_device`.
+
+### Remains unverified
+
+- Click-through delete patient / delete user in the running app — **NOT OBSERVED**.
+
+### Required next
+
+1. Rebuild practice-host and confirm patient delete no longer returns SQLITE 787.
+
+---
 
 ### Verified (2026-09-05 — payment → billing list)
 

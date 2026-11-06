@@ -23,13 +23,13 @@ describe("receiptPriceBreakdown", () => {
             {
                 id: "b-1",
                 chart_id: "c-1",
-                kind: "Füllung",
-                description: "Füllung",
+                kind: "Filling",
+                description: "Filling",
                 teeth: null,
                 material: null,
                 notes: null,
                 created_at: "2026-06-01T00:00:00.000Z",
-                service_name: "Füllung",
+                service_name: "Filling",
                 total_cost: 80,
             },
         ];
@@ -37,7 +37,7 @@ describe("receiptPriceBreakdown", () => {
             {
                 id: "cat-1",
                 category: "Konservierend",
-                name: "Füllung",
+                name: "Filling",
                 default_cost: 95,
                 sort_order: 1,
                 active: 1,
@@ -54,7 +54,7 @@ describe("receiptPriceBreakdown", () => {
         const services: ServiceItem[] = [
             {
                 id: "si-1",
-                name: "Kontrolle",
+                name: "Checkup",
                 description: null,
                 category: "Prophylaxe",
                 price: 49,
@@ -71,7 +71,7 @@ describe("receiptPriceBreakdown", () => {
                 results: null,
                 diagnosis: null,
                 created_at: "2026-06-01T00:00:00.000Z",
-                service_name: "Kontrolle",
+                service_name: "Checkup",
                 total_cost: 45,
             },
         ];

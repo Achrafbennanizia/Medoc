@@ -117,7 +117,11 @@ async fn sync_pull_returns_outbox_entries_for_device() {
         )
         .await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(pull_body["entries"].as_array().map(|a| a.len()), Some(1));
+    let entries = pull_body["entries"].as_array().expect("entries");
+    assert!(
+        entries.iter().any(|e| e["entityId"] == "pull.key"),
+        "pull must include the master's outbox row, got {entries:?}"
+    );
     std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
 }
 

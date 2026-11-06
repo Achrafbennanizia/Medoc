@@ -61,6 +61,10 @@ See also [`gap-deferrals-v0.1.md`](gap-deferrals-v0.1.md) for GAP-08/09/12 skips
 | Bestätigung bei kritischen Aktionen (Akte) | **Hidden (settings UI)** | `WORKFLOW_AKTE_CONFIRMATION_PREFS_UI_ENABLED`; runtime modal confirms via `akte-confirm-presentation.tsx` (default modal) |
 | Migration GDT/DICOM/Scanner steps | **Hidden** | `MIGRATION_LIVE_DEVICE_ADAPTERS_ENABLED` |
 | Geräteverbund admin panel | **Hidden** | `VERBUND_ADMIN_PANEL_V1_ENABLED` (v1.1) |
+| Calendar appointment sidebar: Call + Reminder (email) | **Hidden** | `APPOINTMENT_CALL_REMINDER_ENABLED` — see [`todos-deferred-ui-blinds.md`](todos-deferred-ui-blinds.md) |
+| Patient list ⋯ menu: Email + Call | **Hidden** | `PATIENT_LIST_CALL_EMAIL_ENABLED` — see [`todos-deferred-ui-blinds.md`](todos-deferred-ui-blinds.md) |
+| Chart validation queue: Decline | **Hidden** | `CHART_QUEUE_DECLINE_ENABLED` — dashboard Pending approvals + Records to validate |
+| Workflows: reminder lead time + no-show policy | **Hidden** | `WORKFLOW_APPOINTMENT_REMINDER_NOSHOW_UI_ENABLED` |
 | KIM / process_payment / DICOM C-STORE | **No UI** | stubs only — see [`todos-deferred-v1-surfaces.md`](todos-deferred-v1-surfaces.md) |
 
 Re-enable checklist: [`todos-deferred-v1-surfaces.md`](todos-deferred-v1-surfaces.md) · program: [`v1-completion-program.md`](v1-completion-program.md)

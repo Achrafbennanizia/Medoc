@@ -1,6 +1,28 @@
 # Validation ledger
 
-**Last updated:** 2026-09-05 (payment assignment open rows)
+**Last updated:** 2026-10-01 (replica LAN after SAS)
+
+## Replica → master after SAS (2026-10-01)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| cluster_net_loopback | `cargo test -p medoc-sync --test cluster_net_loopback -- --test-threads=1` | **PASS** (10), including `staff_directory_and_lan_token_after_sas` |
+| JoinAccept CBOR | `cargo test -p medoc-sync roundtrip_join_accept_with_lan_credentials --lib` | **PASS** (1) |
+| Two-instance live SAS → staff + HTTPS sync | — | **NOT OBSERVED** |
+
+---
+
+## Patient / merge FK deletes (2026-09-30)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| patient_delete_fk_tests | `cargo test -p medoc-core --test patient_delete_fk_tests` | **PASS** (2) |
+| staff_delete_fk_tests | `cargo test -p medoc-core --test staff_delete_fk_tests` | **PASS** (3) |
+| sync_outbox_hooks_tests | `cargo test -p medoc-core --test sync_outbox_hooks_tests` | **PASS** (9) |
+| merge_apply_tests | `cargo test -p medoc-sync --test merge_apply_tests` | **PASS** (24) |
+| Live UI delete patient / user | — | **NOT OBSERVED** |
+
+---
 
 ## Payment assignment / open booking (2026-09-05)
 

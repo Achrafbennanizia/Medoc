@@ -50,3 +50,10 @@ export const WORKFLOW_ONBOARDING_PREFS_UI_ENABLED = false;
 
 /** Settings → Workflows: modal vs inline tuning for patient-record delete/edit confirms. */
 export const WORKFLOW_CHART_CONFIRMATION_PREFS_UI_ENABLED = false;
+
+/**
+ * Settings → Workflows (and practice preferences): reminder lead time + no-show policy.
+ * Stored in app_kv but not wired to SMS/email, fees, or booking blocks.
+ * See `docs/coordination/todos-deferred-ui-blinds.md`.
+ */
+export const WORKFLOW_APPOINTMENT_REMINDER_NOSHOW_UI_ENABLED = false;

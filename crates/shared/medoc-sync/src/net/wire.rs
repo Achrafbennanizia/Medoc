@@ -23,8 +23,15 @@ pub enum WireMessage {
     },
     JoinAccept {
         session_id: String,
+        #[serde(default)]
+        activation_token: Option<String>,
+        #[serde(default)]
+        master_pubkey: Option<String>,
+        #[serde(default)]
+        master_device_id: Option<String>,
     },
     SasConfirm {
+        session_id: String,
         digits: String,
     },
     Provision {
@@ -51,9 +58,16 @@ pub enum WireMessage {
     },
     StaffDirectoryRequest {
         fingerprint: String,
+        #[serde(default)]
+        session_id: String,
     },
     StaffDirectoryResponse {
         directory_json: String,
+    },
+    ReplicaAuthRequest {
+        fingerprint: String,
+        #[serde(default)]
+        session_id: String,
     },
     ClusterStatusRequest {
         fingerprint: String,
@@ -153,6 +167,41 @@ mod tests {
             app_version: "0.1".into(),
             ip: "192.168.0.2".into(),
             requested_role: SeatRoleWire::Member,
+        };
+        let frame = encode_frame(&msg).expect("encode");
+        let decoded = decode_frame(&frame).expect("decode");
+        assert_eq!(decoded, msg);
+    }
+
+    #[test]
+    fn roundtrip_sas_confirm() {
+        let msg = WireMessage::SasConfirm {
+            session_id: "sess".into(),
+            digits: "4829".into(),
+        };
+        let frame = encode_frame(&msg).expect("encode");
+        let decoded = decode_frame(&frame).expect("decode");
+        assert_eq!(decoded, msg);
+    }
+
+    #[test]
+    fn roundtrip_join_accept_with_lan_credentials() {
+        let msg = WireMessage::JoinAccept {
+            session_id: "sess".into(),
+            activation_token: Some("mt2.token".into()),
+            master_pubkey: Some("pk".into()),
+            master_device_id: Some("master".into()),
+        };
+        let frame = encode_frame(&msg).expect("encode");
+        let decoded = decode_frame(&frame).expect("decode");
+        assert_eq!(decoded, msg);
+    }
+
+    #[test]
+    fn roundtrip_replica_auth_request() {
+        let msg = WireMessage::ReplicaAuthRequest {
+            fingerprint: "fp".into(),
+            session_id: "sess".into(),
         };
         let frame = encode_frame(&msg).expect("encode");
         let decoded = decode_frame(&frame).expect("decode");

@@ -7,19 +7,6 @@ export type FontStackId = "inter" | "system" | "source-sans";
 
 export const FONT_STACK_ORDER: FontStackId[] = ["inter", "system", "source-sans"];
 
-export const FONT_STACK_LABELS: Record<FontStackId, string> = {
-    inter: "Inter",
-    system: "System",
-    "source-sans": "Source Sans",
-};
-
-/** Short description under the setting. */
-export const FONT_STACK_HINTS: Record<FontStackId, string> = {
-    inter: "Modern & compact — MeDoc default",
-    system: "Native system UI font",
-    "source-sans": "Calm & readable — slightly more line spacing",
-};
-
 /** For preview in segment buttons (not for global `body`). */
 export const FONT_STACK_PREVIEW_FAMILY: Record<FontStackId, string> = {
     inter: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",

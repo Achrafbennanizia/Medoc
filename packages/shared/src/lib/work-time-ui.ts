@@ -26,7 +26,7 @@ export function formatWorkMinutes(m: number, opts?: { compact?: boolean }): stri
     });
 }
 
-/** Compact axis label: "Aya Müller" → "Aya M." (full name stays in tooltip). */
+/** Compact axis label: "Ada West" → "Ada W." (full name stays in tooltip). */
 export function formatStaffShortName(name: string): string {
     const parts = name.trim().split(/\s+/).filter(Boolean);
     if (parts.length === 0) return name;

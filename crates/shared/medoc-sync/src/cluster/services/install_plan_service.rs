@@ -6,10 +6,9 @@ use chrono::{Duration, Utc};
 use medoc_core::error::AppError;
 use medoc_core::infrastructure::database::app_kv_repo;
 use medoc_core::infrastructure::install_plan::{
-    DiscoverMode, InstallComponent, InstallPlan, InstallRole, InstallTopology,
-    PendingInstallPlanSidecar, PlanActivationMode, ProvisioningWindowState,
-    APP_KV_INSTALL_PLAN_PENDING, APP_KV_INSTALL_PLAN_PROVISIONING, FLAG_LAN_CLIENT_ONLY,
-    FLAG_OPEN_PORTS_WINDOW, FLAG_SCAN_LAN,
+    DiscoverMode, InstallComponent, InstallPlan, InstallRole, PendingInstallPlanSidecar,
+    PlanActivationMode, ProvisioningWindowState, APP_KV_INSTALL_PLAN_PENDING,
+    APP_KV_INSTALL_PLAN_PROVISIONING, FLAG_LAN_CLIENT_ONLY, FLAG_OPEN_PORTS_WINDOW, FLAG_SCAN_LAN,
 };
 use medoc_core::infrastructure::license::LicenseV2;
 use medoc_core::infrastructure::usb_vault;
@@ -32,10 +31,7 @@ pub struct ApplyInstallPlanResult {
 
 pub fn plan_to_deployment(plan: &InstallPlan) -> SyncDeploymentConfig {
     let (mode, role) = match plan.role {
-        InstallRole::Master => match plan.topology {
-            InstallTopology::Colocated => (DeploymentMode::PracticeDesktop, DeviceRole::Master),
-            _ => (DeploymentMode::ServerlessPeer, DeviceRole::Master),
-        },
+        InstallRole::Master => (DeploymentMode::ServerlessPeer, DeviceRole::Master),
         InstallRole::Replica => (DeploymentMode::ServerlessPeer, DeviceRole::Replica),
         InstallRole::ServerHost => (DeploymentMode::PracticeDesktop, DeviceRole::Master),
         InstallRole::LanClient => (DeploymentMode::LanClient, DeviceRole::Replica),
@@ -291,6 +287,15 @@ mod tests {
         assert_eq!(cfg.role, DeviceRole::Master);
         assert_eq!(cfg.mode, DeploymentMode::ServerlessPeer);
         assert_eq!(cfg.device_label, "Main PC");
+    }
+
+    #[test]
+    fn colocated_master_plan_still_serverless_peer() {
+        let mut plan = InstallPlan::new_master("Colocated PC");
+        plan.topology = medoc_core::infrastructure::install_plan::InstallTopology::Colocated;
+        let cfg = plan_to_deployment(&plan);
+        assert_eq!(cfg.role, DeviceRole::Master);
+        assert_eq!(cfg.mode, DeploymentMode::ServerlessPeer);
     }
 
     #[test]

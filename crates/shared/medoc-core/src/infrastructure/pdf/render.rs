@@ -667,7 +667,7 @@ fn emit_chart_block(
     }
 
     if !wrote_any {
-        pb.text(M_LEFT, 10, false, "(keine Einträge)");
+        pb.text(M_LEFT, 10, false, "(no entries)");
         pb.advance(12);
     }
 

@@ -1,7 +1,9 @@
-import { appointmentIsEmergencyMarked, type AppointmentKindNotes } from "@/lib/appointment-domain";
-import { minutesToTime } from "@/lib/appointment-availability";
+import { appointmentIsEmergencyMarked, parseAppointmentDurationMin, type AppointmentKindNotes } from "@/lib/appointment-domain";
+import { isAppointmentSpanSchedulable, minutesToTime } from "@/lib/appointment-availability";
+import { listOpenWorkIntervals } from "@/lib/appointment-calendar-layout";
 import { t } from "@/lib/i18n";
-import type { Appointment } from "@/models/types";
+import type { Absence, Appointment } from "@/models/types";
+import { resolveBookingWorkHoursForPhysician, type PracticeWorkHoursConfig } from "@/lib/practice-planning";
 import type { PhysicianSummary } from "@/systems/practice-host/controllers/staff.controller";
 
 export type AppointmentBadgeVariant = "primary" | "success" | "default" | "error" | "warning";
@@ -216,6 +218,7 @@ export function computePackedUpdatesAfterMove(
     slotDur: number,
     gapAfterMin: number,
     dayBounds?: { startMin: number; endMin: number },
+    schedule?: { practiceCfg: PracticeWorkHoursConfig; absences: Absence[] },
 ): { updates: { id: string; data: Record<string, unknown> }[]; error?: string } {
     const dayStartMin = dayBounds?.startMin ?? APPOINTMENT_DAY_START_MIN;
     const dayEndMin = dayBounds?.endMin ?? APPOINTMENT_DAY_END_MIN;
@@ -224,24 +227,59 @@ export function computePackedUpdatesAfterMove(
 
     const physicianId = moving.physician_id;
     const step = 5;
-    let start = Math.round(desiredStartMin / step) * step;
-    start = Math.max(dayStartMin, Math.min(start, dayEndMin - slotDur));
+    const gap = Math.max(0, Math.floor(Number(gapAfterMin) || 0));
+    const eff = schedule
+        ? resolveBookingWorkHoursForPhysician(schedule.practiceCfg, physicianId)
+        : null;
 
-    type Bl = { id: string; start: number };
+    const align = (min: number) => {
+        let s = Math.ceil(min / step) * step;
+        if (s < min) s += step;
+        return s;
+    };
+
+    /** First start at or after `minStart` that stays inside open hours for `dur`. */
+    const placeAtOrAfter = (minStart: number, dur: number): number | null => {
+        const aligned = align(Math.max(dayStartMin, minStart));
+        if (!eff || !schedule) {
+            if (aligned + dur > dayEndMin) return null;
+            return aligned;
+        }
+        const bands = listOpenWorkIntervals(eff, targetDate);
+        for (const band of bands) {
+            let t = align(Math.max(aligned, band.startMin));
+            for (; t + dur <= band.endMin; t += step) {
+                if (t < minStart) continue;
+                if (isAppointmentSpanSchedulable(eff, schedule.absences, targetDate, t, t + dur)) return t;
+            }
+        }
+        return null;
+    };
+
+    const movingDur = Math.max(5, slotDur);
+    const placed = placeAtOrAfter(desiredStartMin, movingDur);
+    if (placed == null) {
+        return { updates: [], error: t("appointment.calendar.move_no_space") };
+    }
+
+    type Bl = { id: string; start: number; dur: number };
     const blocks: Bl[] = all
         .filter(
-            (t) =>
-                t.date === targetDate &&
-                t.physician_id === physicianId &&
-                appointmentCountsAsPlanned(t) &&
-                t.id !== movingId,
+            (row) =>
+                row.date === targetDate &&
+                row.physician_id === physicianId &&
+                appointmentCountsAsPlanned(row) &&
+                row.id !== movingId,
         )
-        .map((t) => ({ id: t.id, start: appointmentTimeToMinutes(t.time) }));
+        .map((row) => ({
+            id: row.id,
+            start: appointmentTimeToMinutes(row.time),
+            dur: Math.max(5, parseAppointmentDurationMin(row.notes, APPOINTMENT_DEFAULT_DUR_MIN)),
+        }));
 
-    blocks.push({ id: movingId, start });
+    blocks.push({ id: movingId, start: placed, dur: movingDur });
 
-    const gap = Math.max(0, Math.floor(Number(gapAfterMin) || 0));
-    const endOf = (s: number) => s + slotDur + gap;
+    const endOf = (block: Bl) => block.start + block.dur + gap;
 
     let guard = 0;
     let changed = true;
@@ -249,19 +287,21 @@ export function computePackedUpdatesAfterMove(
         changed = false;
         blocks.sort((a, b) => a.start - b.start);
         for (let i = 0; i < blocks.length - 1; i++) {
-            const endI = endOf(blocks[i]!.start);
-            if (endI > blocks[i + 1]!.start) {
-                let ns = endI;
-                ns = Math.ceil(ns / step) * step;
-                if (ns < endI) ns += step;
-                blocks[i + 1]!.start = ns;
+            const endI = endOf(blocks[i]!);
+            const next = blocks[i + 1]!;
+            if (endI > next.start) {
+                const ns = placeAtOrAfter(endI, next.dur);
+                if (ns == null || ns <= next.start) {
+                    return { updates: [], error: t("appointment.calendar.move_no_space") };
+                }
+                next.start = ns;
                 changed = true;
             }
         }
     }
 
     for (const b of blocks) {
-        if (b.start + slotDur > dayEndMin) {
+        if (b.start + b.dur > dayEndMin) {
             return {
                 updates: [],
                 error: t("appointment.calendar.move_no_space"),

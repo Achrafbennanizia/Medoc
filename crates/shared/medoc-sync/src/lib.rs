@@ -15,6 +15,7 @@ pub mod pairing;
 pub mod ports;
 pub mod repo;
 pub mod schema;
+pub mod watch;
 
 pub use deployment::{DeploymentMode, DeviceRole, SyncDeploymentConfig};
 pub use engine::{SyncEngine, SyncPullResult, SyncPushResult, SyncRunReport};

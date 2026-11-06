@@ -1,4 +1,5 @@
 import type { Absence, Appointment } from "../models/types";
+import { parseAppointmentDurationMin } from "./appointment-domain";
 import type { PracticeWorkHoursConfig } from "./practice-planning";
 import {
     isAppointmentSpanBlockedByPracticeConfig,
@@ -106,7 +107,8 @@ export function validateAppointmentSchedulingUpdates(
         const date = (typeof u.data.date === "string" ? u.data.date : undefined) ?? appointment.date;
         const timeRaw = (typeof u.data.time === "string" ? u.data.time : undefined) ?? appointment.time;
         const startMin = timeToMinutes(timeRaw);
-        const endMin = startMin + slotDurMin;
+        const durMin = Math.max(5, parseAppointmentDurationMin(appointment.notes, slotDurMin));
+        const endMin = startMin + durMin;
         const physicianId =
             (typeof u.data.physician_id === "string" && u.data.physician_id.trim() ? u.data.physician_id.trim() : undefined)
             ?? appointment.physician_id;
@@ -145,13 +147,7 @@ export function hasPhysicianSlotConflict(
 
 export function isAppointmentConflictErrorMessage(msg: string): boolean {
     const m = msg.toLowerCase();
-    // English (current IPC) + legacy German phrases from older builds.
-    return (
-        m.includes("appointment conflict") ||
-        m.includes("already has an appointment") ||
-        m.includes("terminkonflikt") ||
-        m.includes("bereits einen appointment")
-    );
+    return m.includes("appointment conflict") || m.includes("already has an appointment");
 }
 
 /**

@@ -78,7 +78,6 @@ export function AdministrationTocPage({ title, subtitle, links, rbacFiltered = f
                                             role="link"
                                             className={`administration-toc-row-link${useIcons ? " administration-toc-row-link--icons" : ""}`}
                                             aria-label={label}
-                                            title={t("common.open")}
                                             onKeyDown={onLinkKeyDown}
                                         >
                                             {useIcons ? (

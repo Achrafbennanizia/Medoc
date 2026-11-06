@@ -59,10 +59,7 @@ const PATIENT_STATUS_KEY: Record<string, string> = {
 const SEX_KEY: Record<string, string> = {
     female: "patient.gender.FEMALE",
     male: "patient.gender.MALE",
-    männlich: "patient.gender.MALE",
-    maennlich: "patient.gender.MALE",
     diverse: "patient.gender.DIVERSE",
-    divers: "patient.gender.DIVERSE",
 };
 
 const AGE_KEY: Record<string, string> = {
@@ -76,6 +73,7 @@ const AGE_KEY: Record<string, string> = {
     "60–74": "page.statistics.chart.age_band.60_74",
     "60-74": "page.statistics.chart.age_band.60_74",
     "75+": "page.statistics.chart.age_band.75_plus",
+    unknown: "page.statistics.chart.age_band.unknown",
 };
 
 const TREATMENT_CATEGORY_KEY: Record<string, string> = {

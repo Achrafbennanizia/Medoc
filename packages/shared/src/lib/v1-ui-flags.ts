@@ -42,7 +42,21 @@ export const CLUSTER_ADMIN_PANEL_V_1_ENABLED = false;
 export const APPOINTMENT_CALL_REMINDER_ENABLED = false;
 
 /**
+ * Patient list overflow menu: Email and Call (`mailto:` / `tel:`).
+ * Hide until outbound email and telephony are product-ready.
+ * See `docs/coordination/todos-deferred-ui-blinds.md`.
+ */
+export const PATIENT_LIST_CALL_EMAIL_ENABLED = false;
+
+/**
  * Patient Chart header — Task to reception, Request review, Discharge sheet.
  * Dialogs remain wired in `patient-detail.tsx`; re-enable when sell-ready polish is done.
  */
 export const PATIENT_CHART_WORKFLOW_HEADER_BUTTONS_ENABLED = false;
+
+/**
+ * Dashboard Pending approvals + Records to validate: Decline button.
+ * Validate and remove-from-list (X) stay. Re-enable via
+ * `docs/coordination/todos-deferred-ui-blinds.md`.
+ */
+export const CHART_QUEUE_DECLINE_ENABLED = false;

@@ -111,6 +111,26 @@ pub async fn create(pool: &SqlitePool, data: &CreateAppointment) -> Result<Appoi
         .trim_matches('"')
         .to_uppercase();
 
+    let patient_ok: Option<i64> =
+        sqlx::query_scalar("SELECT 1 FROM patient WHERE id = ?1")
+            .bind(&data.patient_id)
+            .fetch_optional(pool)
+            .await?;
+    if patient_ok.is_none() {
+        return Err(AppError::Validation("Patient not found".into()));
+    }
+    let physician_ok: Option<i64> = sqlx::query_scalar(
+        "SELECT 1 FROM staff WHERE id = ?1 AND UPPER(role) = 'PHYSICIAN'",
+    )
+    .bind(&data.physician_id)
+    .fetch_optional(pool)
+    .await?;
+    if physician_ok.is_none() {
+        return Err(AppError::Validation(
+            "Clinician not found on this device. Sign in with a local staff account, or wait until accounts have synced from the main device.".into(),
+        ));
+    }
+
     sqlx::query(
         "INSERT INTO appointment (id, date, time, kind, patient_id, physician_id, notes, chief_complaint)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",

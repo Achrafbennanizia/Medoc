@@ -8,14 +8,12 @@ import { FormSection } from "../components/ui/form-section";
 import { Input, Select } from "../components/ui/input";
 import { useToastStore } from "../components/ui/toast-store";
 import { parseEuroInput } from "@/lib/day-close";
-import { errorMessage } from "@/lib/utils";
+import { errorMessage, formatCurrency } from "@/lib/utils";
 import {
     CONTRACT_INTERVAL_OPTIONS,
     type ContractInterval,
     type ContractItem,
-    formatMonthlyEquivalentText,
-    formatContractTerm,
-    formatContractAmountLine,
+    amountEquivalentPerMonth,
     todayYmd,
     contractActiveToday,
 } from "@/lib/contract-domain";
@@ -329,10 +327,35 @@ export function AdministrationContractsPage() {
 
     const asOfDate = useMemo(() => todayYmd(), []);
 
+    const formatTerm = (version: ContractItem): string => {
+        if (version.unlimited) return t("page.administration.contracts.fmt.unlimited");
+        if (version.periodFrom && version.periodUntil) {
+            return `${version.periodFrom} – ${version.periodUntil}`;
+        }
+        if (version.periodFrom) {
+            return tp("page.administration.contracts.fmt.from", { date: version.periodFrom });
+        }
+        if (version.periodUntil) {
+            return tp("page.administration.contracts.fmt.until", { date: version.periodUntil });
+        }
+        return t("common.em_dash");
+    };
+
+    const formatAmountLine = (amount: number, interval: ContractInterval): string => {
+        if (amount <= 0) return t("page.administration.contracts.fmt.variable");
+        return `${formatCurrency(amount)} / ${t(`page.administration.contracts.interval_short.${interval}`)}`;
+    };
+
+    const formatMonthlyRef = (version: ContractItem): string => {
+        if (version.amount <= 0) return t("common.em_dash");
+        const m = amountEquivalentPerMonth(version.amount, version.interval);
+        return tp("page.administration.contracts.fmt.monthly_ref", { amount: formatCurrency(m) });
+    };
+
     const readField = (label: string, value: string) => (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span className="kpi-label-mini">{label}</span>
-            <span style={{ fontSize: 14, color: "var(--fg-2)" }}>{value || "—"}</span>
+            <span style={{ fontSize: 14, color: "var(--fg-2)" }}>{value || t("common.em_dash")}</span>
         </div>
     );
 
@@ -371,7 +394,10 @@ export function AdministrationContractsPage() {
                         label={t("page.administration.contracts.field.interval")}
                         value={form.interval}
                         onChange={(e) => setForm((p) => ({ ...p, interval: e.target.value as ContractInterval }))}
-                        options={CONTRACT_INTERVAL_OPTIONS}
+                        options={CONTRACT_INTERVAL_OPTIONS.map((o) => ({
+                            value: o.value,
+                            label: t(o.labelKey),
+                        }))}
                     />
                 </div>
                 <p className="page-sub" style={{ margin: 0, fontSize: 12, lineHeight: 1.45 }}>
@@ -495,13 +521,13 @@ export function AdministrationContractsPage() {
                     />
                     <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: 12 }}>
                         {readField(t("page.administration.contracts.read.partner"), version.partner)}
-                        {readField(t("page.administration.contracts.read.amount_interval"), formatContractAmountLine(version.amount, version.interval))}
-                        {readField(t("page.administration.contracts.read.runtime"), formatContractTerm(version))}
+                        {readField(t("page.administration.contracts.read.amount_interval"), formatAmountLine(version.amount, version.interval))}
+                        {readField(t("page.administration.contracts.read.runtime"), formatTerm(version))}
                         <div className="row" style={{ gap: 8, alignItems: "center" }}>
                             <span className="page-sub" style={{ fontSize: 12, margin: 0 }}>{t("page.administration.contracts.detail.status_today")}</span>
                             {active ? <Badge variant="success">{t("page.administration.contracts.badge.active")}</Badge> : <Badge variant="warning">{t("page.administration.contracts.badge.inactive")}</Badge>}
                         </div>
-                        {readField(t("page.administration.contracts.detail.reference"), formatMonthlyEquivalentText(version))}
+                        {readField(t("page.administration.contracts.detail.reference"), formatMonthlyRef(version))}
                         <FormSection title={t("page.administration.contracts.doc.section")}>
                             <p className="page-sub" style={{ margin: 0, fontSize: 12, lineHeight: 1.45 }}>
                                 {t("page.administration.contracts.doc.hint")}
@@ -584,7 +610,7 @@ export function AdministrationContractsPage() {
                 <div className="products-workspace">
                     <div className="products-workspace__list">
                         <div className="card products-table-card tbl-data-card tbl-scroll">
-                            <table className="tbl products-tbl tbl-fluid">
+                            <table className="tbl contracts-tbl">
                                 <thead>
                                     <tr>
                                         <th scope="col" style={{ width: 40 }} aria-hidden> </th>
@@ -621,14 +647,14 @@ export function AdministrationContractsPage() {
                                                         <div style={{ color: "var(--fg-3)", fontSize: 12, marginTop: 2 }}>{version.partner}</div>
                                                     </td>
                                                     <td style={{ textAlign: "end", fontWeight: 700, whiteSpace: "nowrap" }}>
-                                                        {formatContractAmountLine(version.amount, version.interval)}
+                                                        {formatAmountLine(version.amount, version.interval)}
                                                     </td>
-                                                    <td style={{ fontSize: 13, color: "var(--fg-2)" }}>{formatContractTerm(version)}</td>
+                                                    <td style={{ fontSize: 13, color: "var(--fg-2)" }}>{formatTerm(version)}</td>
                                                     <td>
                                                         {active ? <Badge variant="success">{t("page.administration.contracts.badge.active")}</Badge> : <Badge variant="warning">{t("page.administration.contracts.badge.outside")}</Badge>}
                                                     </td>
                                                     <td style={{ textAlign: "end", fontSize: 12, color: "var(--fg-3)" }}>
-                                                        {formatMonthlyEquivalentText(version)}
+                                                        {formatMonthlyRef(version)}
                                                     </td>
                                                 </tr>
                                             );

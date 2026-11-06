@@ -5,57 +5,26 @@
 
 export type IntegrationCapability = {
     id: string;
-    label: string;
-    /** When false, UI must not imply live connector behaviour. */
     available: boolean;
-    /** User-facing reason when unavailable (English source; i18n keys PROPOSED). */
-    reasonDe: string;
 };
 
 export const LOCAL_INTEGRATION_CAPABILITIES: IntegrationCapability[] = [
-    {
-        id: "eprescription",
-        label: "E-prescription (Gematik / TI)",
-        available: false,
-        reasonDe: "TI connector and HBA binding are not production-ready in this version — local validation only.",
-    },
-    {
-        id: "kim",
-        label: "KIM / TK direct billing",
-        available: false,
-        reasonDe: "Secure messaging (KIM) is not connected yet.",
-    },
-    {
-        id: "card_payment",
-        label: "Card payment (terminal)",
-        available: false,
-        reasonDe: "Payment terminal provider returns stub references (no live acquiring).",
-    },
-    {
-        id: "sepa_payment",
-        label: "SEPA direct debit",
-        available: false,
-        reasonDe: "SEPA collection is implemented as a stub — status “pending” without bank feedback.",
-    },
-    {
-        id: "dicom",
-        label: "DICOM / PACS",
-        available: false,
-        reasonDe: "C-STORE and PACS forwarding are available only as a migration stub.",
-    },
-    {
-        id: "gdt",
-        label: "GDT devices",
-        available: false,
-        reasonDe: "GDT import parses files for verification — no live device bus.",
-    },
-    {
-        id: "scanner",
-        label: "TWAIN scanner",
-        available: false,
-        reasonDe: "Scanner folder import without TWAIN driver binding in the production build.",
-    },
+    { id: "eprescription", available: false },
+    { id: "kim", available: false },
+    { id: "card_payment", available: false },
+    { id: "sepa_payment", available: false },
+    { id: "dicom", available: false },
+    { id: "gdt", available: false },
+    { id: "scanner", available: false },
 ];
+
+export function integrationCapabilityLabelKey(id: string): string {
+    return `settings.integrations.cap.${id}.label`;
+}
+
+export function integrationCapabilityReasonKey(id: string): string {
+    return `settings.integrations.cap.${id}.reason`;
+}
 
 export function localCapability(id: string): IntegrationCapability | undefined {
     return LOCAL_INTEGRATION_CAPABILITIES.find((c) => c.id === id);

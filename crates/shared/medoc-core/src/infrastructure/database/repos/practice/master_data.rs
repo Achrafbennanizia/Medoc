@@ -84,7 +84,9 @@ pub async fn create_absence(pool: &SqlitePool, data: &CreateAbsence) -> Result<A
     )
     .execute(pool)
     .await?;
-    find_absence_by_id(pool, &id).await
+    let inserted = find_absence_by_id(pool, &id).await?;
+    record_absence(pool, &inserted, "INSERT").await?;
+    Ok(inserted)
 }
 
 pub async fn find_absence_by_id(pool: &SqlitePool, id: &str) -> Result<Absence, AppError> {
@@ -174,7 +176,9 @@ pub async fn update_absence(
     .bind(id)
     .execute(pool)
     .await?;
-    find_absence_by_id(pool, id).await
+    let updated = find_absence_by_id(pool, id).await?;
+    record_absence(pool, &updated, "UPDATE").await?;
+    Ok(updated)
 }
 
 pub async fn delete_absence(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
@@ -185,7 +189,21 @@ pub async fn delete_absence(pool: &SqlitePool, id: &str) -> Result<(), AppError>
     if r.rows_affected() == 0 {
         return Err(AppError::NotFound("Absence".into()));
     }
+    crate::infrastructure::database::sync_outbox::record_or_noop(
+        pool,
+        "absence",
+        id,
+        "DELETE",
+        &format!("{{\"id\":{}}}", serde_json::to_string(id).unwrap_or_else(|_| "\"\"".into())),
+    )
+    .await?;
     Ok(())
+}
+
+async fn record_absence(pool: &SqlitePool, row: &Absence, op: &str) -> Result<(), AppError> {
+    let body = serde_json::to_string(row).unwrap_or_else(|_| format!("{{\"id\":\"{}\"}}", row.id));
+    crate::infrastructure::database::sync_outbox::record_or_noop(pool, "absence", &row.id, op, &body)
+        .await
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

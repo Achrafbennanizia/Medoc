@@ -16,6 +16,7 @@ import { paymentLocalYmd } from "@/lib/day-close";
 import { isolateLtrPhone } from "@/lib/arabic-numerals";
 
 import { getAppKv, setAppKv } from "@/systems/practice-host/controllers/app-kv.controller";
+import { t } from "@/lib/i18n";
 
 const LS_INVOICE_PRACTICE = "medoc-invoice-practice-v1";
 const INVOICE_PRACTICE_KV_KEY = "invoice.practice.v1" as const;
@@ -59,13 +60,18 @@ export type InvoicePractice = {
     emergency_phone?: string;
 };
 
-const DEFAULT_VAT_NOTICE = "VAT-exempt under § 4 No. 14 UStG";
+function defaultVatNotice(): string {
+    return t("settings.practice.vat_exemption_default");
+}
+
+function emptyInvoicePractice(): InvoicePractice {
+    return { ...DEFAULTS, vat_exemption_notice: defaultVatNotice() };
+}
 
 const DEFAULTS: InvoicePractice = {
     name: "Dental practice",
     addr: "Sample Street 1\n12345 City",
     payment_terms_days: 14,
-    vat_exemption_notice: DEFAULT_VAT_NOTICE,
 };
 
 const INVOICE_PRACTICE_OPTIONAL_STRING_KEYS = [
@@ -124,7 +130,7 @@ export function parseInvoicePracticeJson(j: InvoicePracticeJson): InvoicePractic
         out.payment_terms_days = DEFAULTS.payment_terms_days;
     }
     if (!out.vat_exemption_notice?.trim()) {
-        out.vat_exemption_notice = DEFAULT_VAT_NOTICE;
+        out.vat_exemption_notice = defaultVatNotice();
     }
     return out;
 }
@@ -260,11 +266,11 @@ function readInvoicePracticeLocalStorage(): string | null {
 export function getInvoicePracticeFromStorage(): InvoicePractice {
     try {
         const raw = readInvoicePracticeLocalStorage();
-        if (!raw) return { ...DEFAULTS };
+        if (!raw) return emptyInvoicePractice();
         const j = JSON.parse(raw) as InvoicePracticeJson;
         return parseInvoicePracticeJson(j);
     } catch {
-        return { ...DEFAULTS };
+        return emptyInvoicePractice();
     }
 }
 
@@ -332,7 +338,6 @@ function parseServiceItemLink(
     | null {
     if (version.startsWith("treatment:")) return { kind: "treatment", id: version.slice("treatment:".length) };
     if (version.startsWith("examination:")) return { kind: "examination", id: version.slice("examination:".length) };
-    if (version.startsWith("unter:")) return { kind: "examination", id: version.slice("unter:".length) };
     return null;
 }
 

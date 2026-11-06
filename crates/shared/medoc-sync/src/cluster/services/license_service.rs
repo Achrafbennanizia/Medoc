@@ -291,31 +291,30 @@ pub async fn cluster_status(pool: &SqlitePool) -> Result<ClusterStatus, AppError
         DeviceIdentity::try_load().ok().flatten()
     };
     let fp = identity.as_ref().map(|i| i.fingerprint.clone());
-    let provisioned = if let Some(ref f) = fp {
+    let mut provisioned = if let Some(ref f) = fp {
         super::provisioning_service::is_local_provisioned(pool, f).await?
     } else {
         false
     };
 
     let mut needs_reprovision = false;
-    let (cluster_id, seat_usage, is_owner) = if let Some(ref l) = license {
+    let (cluster_id, seat_usage, mut is_owner) = if let Some(ref l) = license {
         let usage = repos.seat_usage(&l.cluster_id).await?;
-        let mut is_owner = if let Some(ref f) = fp {
-            let device = repos.find_by_fingerprint(f).await?;
-            if let Some(ref g) = device {
-                needs_reprovision = !g.identity_complete();
-            }
-            device
-                .map(|g| {
-                    g.identity_complete()
-                        && g.seat_role == SeatRole::Admin
-                        && g.status == DeviceStatus::Active
-                })
-                .unwrap_or(false)
+        let fp_device = if let Some(ref f) = fp {
+            repos.find_by_fingerprint(f).await?
+        } else {
+            None
+        };
+        let mut is_owner = if let Some(ref g) = fp_device {
+            needs_reprovision = !g.identity_complete();
+            g.identity_complete()
+                && g.seat_role == SeatRole::Admin
+                && g.status == DeviceStatus::Active
         } else {
             false
         };
-        if !is_owner {
+        // Device-id fallback is only for rows that have no fingerprint identity yet.
+        if fp_device.is_none() {
             if let Ok(device_id) = license_repo::ensure_device_id(pool).await {
                 if let Some(g) =
                     crate::cluster::repo::find_by_device_id(pool, &device_id, &l.cluster_id).await?
@@ -331,6 +330,18 @@ pub async fn cluster_status(pool: &SqlitePool) -> Result<ClusterStatus, AppError
     } else {
         (None, None, false)
     };
+
+    if let Ok(snap) = crate::engine::SyncEngine::status(pool).await {
+        if snap.deployment.role == crate::deployment::DeviceRole::Replica {
+            is_owner = false;
+            if !provisioned {
+                provisioned = !snap.deployment.master_base_url.trim().is_empty()
+                    || super::staff_directory::load_join_admin_endpoint(pool)
+                        .await?
+                        .is_some();
+            }
+        }
+    }
 
     Ok(ClusterStatus {
         licensed,
@@ -595,5 +606,164 @@ mod tests {
             ..imported_owner.clone()
         };
         assert!(!needs_cluster_onboarding(&member_provisioned));
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn sas_replica_activation_demotes_owner_and_skips_onboarding() {
+        std::env::set_var("MEDOC_CLUSTER_DEVICE_SECRET", TEST_DEVICE_SECRET);
+        std::env::set_var("MEDOC_PAIRING_MASTER_SECRET", TEST_MASTER_SECRET);
+
+        let pool = fresh_pool().await;
+        let cluster_id = uuid::Uuid::new_v4().to_string();
+        let identity = DeviceIdentity::load_or_create().expect("identity");
+        let repos = SqliteClusterRepos { pool: &pool };
+        let master_before = master_keys::load_or_create().expect("master").to_bytes();
+        repos
+            .save(&License {
+                cluster_id: cluster_id.clone(),
+                license_ref: String::new(),
+                signing_key_enc: master_before.to_vec(),
+                max_total: 2,
+                max_admin: 1,
+                max_member: 1,
+                activated_at: Utc::now(),
+            })
+            .await
+            .expect("license");
+        let device_id = license_repo::ensure_device_id(&pool)
+            .await
+            .expect("device id");
+        repos
+            .upsert(&Device {
+                fingerprint: identity.fingerprint.clone(),
+                cluster_id,
+                device_id,
+                pubkey: identity.pubkey_bytes.to_vec(),
+                hostname: None,
+                os: Some("test".into()),
+                last_ip: None,
+                seat_role: SeatRole::Admin,
+                status: DeviceStatus::Active,
+                seat_cert: None,
+                last_seen: Some(Utc::now()),
+                created_at: Utc::now(),
+            })
+            .await
+            .expect("device");
+        mark_provisioned(&pool, &identity.fingerprint)
+            .await
+            .expect("provisioned");
+        crate::cluster::services::store_join_admin_endpoint(&pool, "192.168.1.10", 49300)
+            .await
+            .expect("admin endpoint");
+
+        let before = cluster_status(&pool).await.expect("before");
+        assert!(before.is_owner);
+        assert!(before.provisioned);
+        assert!(needs_cluster_onboarding(&before));
+
+        crate::cluster::services::activate_replica_after_sas_confirm(&pool)
+            .await
+            .expect("replica activate");
+
+        let after = cluster_status(&pool).await.expect("after");
+        assert!(!after.is_owner);
+        assert!(after.provisioned);
+        assert!(!needs_cluster_onboarding(&after));
+        let snap = crate::engine::SyncEngine::status(&pool)
+            .await
+            .expect("deployment");
+        assert_eq!(snap.deployment.role, crate::deployment::DeviceRole::Replica);
+        assert_eq!(snap.deployment.master_base_url, "https://192.168.1.10:8787");
+        let setup = medoc_core::infrastructure::database::app_kv_repo::get(
+            &pool,
+            "onboarding.setup_complete.v1",
+        )
+        .await
+        .expect("kv");
+        assert_eq!(setup.as_deref(), Some("1"));
+
+        std::env::remove_var("MEDOC_CLUSTER_DEVICE_SECRET");
+        std::env::remove_var("MEDOC_PAIRING_MASTER_SECRET");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn replica_role_clears_owner_even_with_leftover_admin_device_id_row() {
+        std::env::set_var("MEDOC_CLUSTER_DEVICE_SECRET", TEST_DEVICE_SECRET);
+        std::env::set_var("MEDOC_PAIRING_MASTER_SECRET", TEST_MASTER_SECRET);
+
+        let pool = fresh_pool().await;
+        let cluster_id = uuid::Uuid::new_v4().to_string();
+        let identity = DeviceIdentity::load_or_create().expect("identity");
+        let repos = SqliteClusterRepos { pool: &pool };
+        repos
+            .save(&License {
+                cluster_id: cluster_id.clone(),
+                license_ref: String::new(),
+                signing_key_enc: master_keys::load_or_create()
+                    .expect("master")
+                    .to_bytes()
+                    .to_vec(),
+                max_total: 2,
+                max_admin: 1,
+                max_member: 1,
+                activated_at: Utc::now(),
+            })
+            .await
+            .expect("license");
+        repos
+            .upsert(&Device {
+                fingerprint: "leftover-admin-fp".into(),
+                cluster_id: cluster_id.clone(),
+                device_id: license_repo::ensure_device_id(&pool)
+                    .await
+                    .expect("device id"),
+                pubkey: vec![3u8; 32],
+                hostname: None,
+                os: Some("test".into()),
+                last_ip: None,
+                seat_role: SeatRole::Admin,
+                status: DeviceStatus::Active,
+                seat_cert: None,
+                last_seen: Some(Utc::now()),
+                created_at: Utc::now(),
+            })
+            .await
+            .expect("leftover admin");
+        repos
+            .upsert(&Device {
+                fingerprint: identity.fingerprint.clone(),
+                cluster_id,
+                device_id: identity.fingerprint.clone(),
+                pubkey: identity.pubkey_bytes.to_vec(),
+                hostname: None,
+                os: Some("test".into()),
+                last_ip: None,
+                seat_role: SeatRole::Member,
+                status: DeviceStatus::Active,
+                seat_cert: None,
+                last_seen: Some(Utc::now()),
+                created_at: Utc::now(),
+            })
+            .await
+            .expect("member");
+        mark_provisioned(&pool, &identity.fingerprint)
+            .await
+            .expect("provisioned");
+        crate::cluster::services::store_join_admin_endpoint(&pool, "192.168.1.10", 49300)
+            .await
+            .expect("admin endpoint");
+        crate::cluster::services::activate_replica_after_sas_confirm(&pool)
+            .await
+            .expect("replica activate");
+
+        let after = cluster_status(&pool).await.expect("after");
+        assert!(!after.is_owner);
+        assert!(after.provisioned);
+
+        std::env::remove_var("MEDOC_CLUSTER_DEVICE_SECRET");
+        std::env::remove_var("MEDOC_PAIRING_MASTER_SECRET");
     }
 }

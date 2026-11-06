@@ -65,37 +65,36 @@ export interface DocumentTemplatePayloadV1 {
     dateFormat: DateFormatId;
 }
 
-export const EXPORT_TABLE_COLUMN_OPTIONS: { id: ExportTableColumnId; label: string }[] = [
-    { id: "pos", label: "Item no." },
-    { id: "date", label: "Date" },
-    { id: "service_item", label: "Service" },
-    { id: "bNr", label: "Invoice no." },
-    { id: "quantity", label: "Quantity" },
-    { id: "unit_price", label: "Unit price" },
-    { id: "total", label: "Total" },
-    { id: "vat", label: "VAT" },
+export const EXPORT_TABLE_COLUMN_OPTIONS: { id: ExportTableColumnId }[] = [
+    { id: "pos" },
+    { id: "date" },
+    { id: "service_item" },
+    { id: "bNr" },
+    { id: "quantity" },
+    { id: "unit_price" },
+    { id: "total" },
+    { id: "vat" },
 ];
 
-/** English fallback labels — UI should prefer `practiceFieldLabel(t, id)` from `document-template-i18n`. */
-export const PRACTICE_FIELD_OPTIONS: { id: PracticeFieldKey; label: string }[] = [
-    { id: "name", label: "Name" },
-    { id: "address", label: "Address" },
-    { id: "phone", label: "Phone" },
-    { id: "fax", label: "Fax" },
-    { id: "web", label: "Web" },
-    { id: "email", label: "Email" },
-    { id: "kv", label: "Health insurance no." },
-    { id: "tax", label: "Tax no." },
-    { id: "hours", label: "Opening hours" },
-    { id: "clinician", label: "Treating clinician" },
-    { id: "zanr", label: "Dental license no." },
-    { id: "bsnr", label: "Practice site no." },
-    { id: "bank", label: "Bank details" },
-    { id: "chamber", label: "Chamber" },
-    { id: "kzv", label: "Regional dental association" },
-    { id: "payment_terms", label: "Payment terms" },
-    { id: "vat_notice", label: "VAT notice" },
-    { id: "emergency_phone", label: "Emergency phone" },
+export const PRACTICE_FIELD_OPTIONS: { id: PracticeFieldKey }[] = [
+    { id: "name" },
+    { id: "address" },
+    { id: "phone" },
+    { id: "fax" },
+    { id: "web" },
+    { id: "email" },
+    { id: "kv" },
+    { id: "tax" },
+    { id: "hours" },
+    { id: "clinician" },
+    { id: "zanr" },
+    { id: "bsnr" },
+    { id: "bank" },
+    { id: "chamber" },
+    { id: "kzv" },
+    { id: "payment_terms" },
+    { id: "vat_notice" },
+    { id: "emergency_phone" },
 ];
 
 export function emptyDocumentTemplatePayloadV1(): DocumentTemplatePayloadV1 {
@@ -141,8 +140,6 @@ export type BuiltinTemplateId = "plain" | "practice_logo" | "official";
 
 export interface BuiltinTemplateMeta {
     id: BuiltinTemplateId;
-    name: string;
-    description: string;
     payload: DocumentTemplatePayloadV1;
 }
 
@@ -161,14 +158,10 @@ export const BUILTIN_TEMPLATES_BY_KIND: Record<DocumentKind, BuiltinTemplateMeta
     receipt: [
         {
             id: "plain",
-            name: "Plain standard",
-            description: "Minimal, black and white",
-            payload: payloadVariant(base, { footer: "Payment received.", density: "compact" }),
+            payload: payloadVariant(base, { footer: "", density: "compact" }),
         },
         {
             id: "practice_logo",
-            name: "Practice with logo",
-            description: "Header with logo + address",
             payload: payloadVariant(base, {
                 header: { ...base.header, showLogo: true, fieldsToShow: ["name", "address", "phone", "email", "kv"] },
                 density: "normal",
@@ -176,11 +169,9 @@ export const BUILTIN_TEMPLATES_BY_KIND: Record<DocumentKind, BuiltinTemplateMeta
         },
         {
             id: "official",
-            name: "Formal / official",
-            description: "Formal, GoBD-oriented",
             payload: payloadVariant(base, {
                 signature: { show: true, labelKind: "both" },
-                footer: "GoBD-compliant receipt printout — signature/stamp required.",
+                footer: "",
                 density: "spacious",
             }),
         },

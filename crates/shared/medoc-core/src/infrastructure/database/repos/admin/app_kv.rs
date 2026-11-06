@@ -26,11 +26,17 @@ pub async fn set(pool: &SqlitePool, key: &str, value: &str) -> Result<(), AppErr
     .execute(pool)
     .await?;
     if !is_internal_sync_key(key) {
-        let payload = format!(
-            "{{\"key\":{},\"value\":{}}}",
-            serde_json_string(key),
-            serde_json_string(value)
-        );
+        let updated_at: String = sqlx::query_scalar("SELECT updated_at FROM app_kv WHERE key = ?1")
+            .bind(key)
+            .fetch_optional(pool)
+            .await?
+            .unwrap_or_default();
+        let payload = serde_json::json!({
+            "key": key,
+            "value": value,
+            "updated_at": updated_at,
+        })
+        .to_string();
         // Upserts are mapped to UPDATE for the outbox to satisfy the
         // `op IN ('INSERT','UPDATE','DELETE')` CHECK on `sync_outbox`.
         crate::infrastructure::database::sync_outbox::record_or_noop(
@@ -60,7 +66,11 @@ pub async fn delete(pool: &SqlitePool, key: &str) -> Result<(), AppError> {
 /// outbox: replicating them between peers would clobber per-device identity
 /// and create recursive writes (see [`sync_outbox::record_or_noop`]).
 fn is_internal_sync_key(key: &str) -> bool {
-    key.starts_with("sync.") || key.starts_with("license.") || key.starts_with("pairing.")
+    key.starts_with("sync.")
+        || key.starts_with("license.")
+        || key.starts_with("pairing.")
+        || key.starts_with("onboarding.")
+        || key.starts_with("cluster.")
 }
 
 fn serde_json_string(s: &str) -> String {

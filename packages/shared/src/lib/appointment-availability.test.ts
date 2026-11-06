@@ -33,9 +33,8 @@ describe("appointment-availability (N4)", () => {
         expect(
             isAppointmentConflictErrorMessage("Physician already has an appointment on 2026-05-21 at 10:00"),
         ).toBe(true);
-        // Legacy German IPC phrases still recognized.
-        expect(isAppointmentConflictErrorMessage("Terminkonflikt")).toBe(true);
-        expect(isAppointmentConflictErrorMessage("Physician hat bereits einen Appointment am 2026-05-21 um 10:00")).toBe(true);
+        expect(isAppointmentConflictErrorMessage("Terminkonflikt")).toBe(false);
+        expect(isAppointmentConflictErrorMessage("Physician hat bereits einen Appointment am 2026-05-21 um 10:00")).toBe(false);
         expect(isAppointmentConflictErrorMessage("Netzwerkfehler")).toBe(false);
     });
 

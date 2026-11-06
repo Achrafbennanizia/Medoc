@@ -32,9 +32,21 @@
 
 1. `VERBUND_ADMIN_PANEL_V1_ENABLED = true` when Geräteverbund wire ships (v1.1)
 
-### Appointment Call / Reminder
+### Appointment calendar — Call / Reminder (email)
 
-1. `APPOINTMENT_CALL_REMINDER_ENABLED = true` — wire real telephony / reminder send (see [`todos-deferred-ui-blinds.md`](todos-deferred-ui-blinds.md))
+1. `APPOINTMENT_CALL_REMINDER_ENABLED = true` — restore **Call** and **Reminder** on the appointment side drawer (and Reminder on the calendar context menu). Wire telephony + email/SMS (see [`todos-deferred-ui-blinds.md`](todos-deferred-ui-blinds.md)).
+
+### Patient list — Email / Call
+
+1. `PATIENT_LIST_CALL_EMAIL_ENABLED = true` — restore **Email** and **Call** on the patient records **⋯** menu. Wire outbound mail and telephony (see [`todos-deferred-ui-blinds.md`](todos-deferred-ui-blinds.md)).
+
+### Chart validation queue — Decline
+
+1. `CHART_QUEUE_DECLINE_ENABLED = true` — restore **Decline** on dashboard Pending approvals and Records to validate (see [`todos-deferred-ui-blinds.md`](todos-deferred-ui-blinds.md)).
+
+### Workflows — reminder lead time / no-show policy
+
+1. `WORKFLOW_APPOINTMENT_REMINDER_NOSHOW_UI_ENABLED = true` — see [`todos-deferred-ui-blinds.md`](todos-deferred-ui-blinds.md)
 
 ### Patient Akte header (record)
 

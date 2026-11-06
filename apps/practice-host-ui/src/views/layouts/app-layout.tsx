@@ -28,6 +28,7 @@ import { filterCommandsForRole } from "@/lib/command-palette-data";
 import { CommandPalette } from "../components/command-palette";
 import { AboutAppDialog, RoleSwitchDialog } from "../components/app-help-dialogs";
 import { OnboardingCoachmark } from "../components/onboarding-coachmark";
+import { PAGE_REFRESH_EVENT, PAGE_REFRESH_MS } from "./page-refresh";
 import { ONBOARDING_COACHMARK_ENABLED } from "@/lib/v1-ui-flags";
 import { NotificationsPopover } from "../components/notifications-popover";
 import { probeBackgroundServers } from "@/systems/practice-host/controllers/connectivity.controller";
@@ -455,6 +456,17 @@ export function AppLayout() {
             clearInterval(poll);
         };
     }, [clear, navigate]);
+
+    useEffect(() => {
+        const id = window.setInterval(() => {
+            const el = document.activeElement;
+            if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) return;
+            if (el instanceof HTMLElement && el.isContentEditable) return;
+            if (document.querySelector("[role='dialog'], dialog[open]")) return;
+            window.dispatchEvent(new Event(PAGE_REFRESH_EVENT));
+        }, PAGE_REFRESH_MS);
+        return () => window.clearInterval(id);
+    }, []);
 
     useEffect(() => {
         const onReq = () => setLogoutConfirmOpen(true);

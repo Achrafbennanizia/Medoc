@@ -38,7 +38,7 @@ function resolveParamValues(loc: Locale, params: Record<string, string>): Record
 
 /**
  * Map backend `AppError::ValidationCode("error.*")` (optional `|key=value` params) to localized UI text.
- * Falls back to the raw message for legacy German `Validation` strings.
+ * Uncoded messages are shown as received from the backend.
  */
 export function formatIpcError(err: unknown, locale?: Locale): string {
     const raw = ipcErrorRaw(err).trim();

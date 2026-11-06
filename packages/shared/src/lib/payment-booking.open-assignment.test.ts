@@ -9,10 +9,10 @@ const t = (k: string) => k;
 const tp = (k: string, p: Record<string, string | number>) => `${k}:${JSON.stringify(p)}`;
 
 describe("parsePaymentLinkValue", () => {
-    it("accepts treatment and examination keys and legacy unter", () => {
+    it("accepts treatment and examination keys", () => {
         expect(parsePaymentLinkValue("treatment:abc")).toEqual({ kind: "treatment", id: "abc" });
         expect(parsePaymentLinkValue("examination:u1")).toEqual({ kind: "examination", id: "u1" });
-        expect(parsePaymentLinkValue("unter:u1")).toEqual({ kind: "examination", id: "u1" });
+        expect(parsePaymentLinkValue("unter:u1")).toBeNull();
         expect(parsePaymentLinkValue("")).toBeNull();
     });
 });
@@ -23,26 +23,26 @@ describe("buildOpenPaymentLinkSelectOptions", () => {
             {
                 id: "b-open",
                 chart_id: "c1",
-                kind: "Füllung",
+                kind: "Filling",
                 description: null,
                 teeth: null,
                 material: null,
                 notes: null,
                 created_at: "2026-01-01T00:00:00Z",
-                service_name: "Füllung",
+                service_name: "Filling",
                 total_cost: 80,
                 treatment_number: "B-1",
             },
             {
                 id: "b-paid",
                 chart_id: "c1",
-                kind: "Krone",
+                kind: "Crown",
                 description: null,
                 teeth: null,
                 material: null,
                 notes: null,
                 created_at: "2026-01-01T00:00:00Z",
-                service_name: "Krone",
+                service_name: "Crown",
                 total_cost: 500,
                 treatment_number: "B-2",
             },
@@ -55,7 +55,7 @@ describe("buildOpenPaymentLinkSelectOptions", () => {
                 results: null,
                 diagnosis: "Check",
                 created_at: "2026-01-01T00:00:00Z",
-                service_name: "Kontrolle",
+                service_name: "Checkup",
                 total_cost: 49,
                 examination_number: "U-1",
             },

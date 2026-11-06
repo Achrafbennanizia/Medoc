@@ -45,7 +45,8 @@ pub async fn is_local_provisioned(pool: &SqlitePool, fingerprint: &str) -> Resul
     is_provisioned(pool, fingerprint).await
 }
 
-/// Apply provisioning payload once per device fingerprint.
+/// Apply provisioning payload. Staff/settings are applied even when the device
+/// was already marked provisioned so a retry can finish login accounts.
 pub async fn apply_provisioning(
     pool: &SqlitePool,
     fingerprint: &str,
@@ -53,20 +54,14 @@ pub async fn apply_provisioning(
     settings_json: String,
     wrapped_secrets: Vec<u8>,
 ) -> Result<ProvisionResult, AppError> {
-    if is_provisioned(pool, fingerprint).await? {
-        return Ok(ProvisionResult {
-            success: false,
-            already_provisioned: true,
-            settings_json: String::new(),
-            seat_certificate: String::new(),
-            wrapped_secrets: Vec::new(),
-        });
-    }
-    mark_provisioned(pool, fingerprint).await?;
+    let already = is_provisioned(pool, fingerprint).await?;
     apply_provisioning_settings(pool, &settings_json).await?;
+    if !already {
+        mark_provisioned(pool, fingerprint).await?;
+    }
     Ok(ProvisionResult {
         success: true,
-        already_provisioned: false,
+        already_provisioned: already,
         settings_json,
         seat_certificate,
         wrapped_secrets,

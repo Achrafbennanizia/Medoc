@@ -37,7 +37,7 @@ const z: Payment = {
     amount: 120,
     payment_method: "CASH",
     status: "PAID",
-    description: "Kontrolle",
+    description: "Checkup",
     created_at: "2026-06-02T10:00:00.000Z",
     treatment_id: "b-1",
     service_item_id: null,

@@ -3,7 +3,7 @@
  * TODO(deferred-security): Re-enable — see `docs/coordination/todos-deferred-security-features.md`.
  */
 
-/** Break-Glass (Notfallzugriff) — disabled for MVP. */
+/** Break-glass emergency access — disabled for MVP. */
 export const BREAK_GLASS_ENABLED = false;
 
 /** TOTP two-factor authentication — disabled and unwired for MVP. */

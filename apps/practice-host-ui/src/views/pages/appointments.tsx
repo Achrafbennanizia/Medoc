@@ -22,6 +22,7 @@ import {
 } from "date-fns";
 import { listAppointmentsPaged, deleteAppointment, updateAppointment } from "@/systems/practice-host/controllers/appointment.controller";
 import { useDateFnsLocale, useT, useTParams } from "@/lib/i18n";
+import { usePageRefresh } from "../layouts/page-refresh";
 import { listPatientsByIds } from "@/systems/practice-host/controllers/patient.controller";
 import { listPhysicians, type PhysicianSummary } from "@/systems/practice-host/controllers/staff.controller";
 import { LAZY_PAGE_SIZE, mergeUniqueById } from "@/lib/lazy-list";
@@ -35,8 +36,10 @@ import {
     DEFAULT_CLIENT_SETTINGS,
     loadClientSettings,
     mergeClientSettingsPatch,
+    readAppointmentsDefaultView,
     saveClientSettings,
 } from "@/lib/client-settings";
+import { CALENDAR_WORKFLOWS_CHANGED_EVENT } from "@/lib/practice-calendar-workflows-sync";
 import {
     DEFAULT_MONTH_CAL_PATIENT_LOAD,
     loadPracticePreferencesFromKv,
@@ -153,6 +156,8 @@ export function AppointmentsPage() {
     const [appointmentBufferMin, setAppointmentBufferMin] = useState(0);
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
+    const loadSeq = useRef(0);
+    const silentLoadInflight = useRef(false);
     const [monthCalPatientLoad, setMonthCalPatientLoad] = useState<MonthCalendarPatientLoadPrefs>(() => ({
         ...DEFAULT_MONTH_CAL_PATIENT_LOAD,
     }));
@@ -160,13 +165,8 @@ export function AppointmentsPage() {
     // const emergencyTitleId = useId();
     const appointmentFilterKindSelectId = useId();
     const appointmentFilterStatusSelectId = useId();
-    const [view, setView] = useState<"day" | "week" | "month">(() => {
-        const version = loadClientSettings().workflows?.appointmentsDefaultView;
-        if (version === "day" || version === "week" || version === "month") return version;
-        const d = DEFAULT_CLIENT_SETTINGS.workflows?.appointmentsDefaultView;
-        if (d === "day" || d === "week" || d === "month") return d;
-        return "month";
-    });
+    const [view, setView] = useState<"day" | "week" | "month">(() => readAppointmentsDefaultView());
+    const [calendarWorkflowsRev, setCalendarWorkflowsRev] = useState(0);
     const [deleteId, setDeleteId] = useState<string | null>(null);
     const [weekOffset, setWeekOffset] = useState(0);
     const [dayOffset, setDayOffset] = useState(0);
@@ -264,9 +264,15 @@ export function AppointmentsPage() {
         [t],
     );
 
-    const load = useCallback(async () => {
-        setLoading(true);
-        setLoadError(null);
+    const load = useCallback(async (opts?: { silent?: boolean }) => {
+        const silent = opts?.silent === true;
+        if (silent && silentLoadInflight.current) return;
+        const seq = silent ? loadSeq.current : ++loadSeq.current;
+        if (silent) silentLoadInflight.current = true;
+        if (!silent) {
+            setLoading(true);
+            setLoadError(null);
+        }
         try {
             // Full practice year (± look-ahead) — paged so density stays manageable.
             const today = new Date();
@@ -294,6 +300,7 @@ export function AppointmentsPage() {
                 patientIds.length ? listPatientsByIds(patientIds) : Promise.resolve([]),
                 listPhysicians(),
             ]);
+            if (loadSeq.current !== seq) return;
             setAppointments(appts);
             setPatients(p);
             setPhysicians(a);
@@ -314,17 +321,32 @@ export function AppointmentsPage() {
                 setAppointmentBufferMin(0);
             }
         } catch (e) {
+            if (loadSeq.current !== seq || silent) return;
             setLoadError(errorMessage(e));
             setAppointments([]);
             setPatients([]);
             setPhysicians([]);
             setAbsences([]);
         } finally {
-            setLoading(false);
+            if (silent) silentLoadInflight.current = false;
+            if (!silent && loadSeq.current === seq) setLoading(false);
         }
     }, []);
 
     useEffect(() => { void load(); }, [load]);
+
+    usePageRefresh(() => {
+        void load({ silent: true });
+    });
+
+    useEffect(() => {
+        const onWorkflows = () => {
+            setView(readAppointmentsDefaultView());
+            setCalendarWorkflowsRev((n) => n + 1);
+        };
+        window.addEventListener(CALENDAR_WORKFLOWS_CHANGED_EVENT, onWorkflows);
+        return () => window.removeEventListener(CALENDAR_WORKFLOWS_CHANGED_EVENT, onWorkflows);
+    }, []);
 
     useEffect(() => {
         setPracticePlanCfg(storePracticeCfg);
@@ -360,9 +382,14 @@ export function AppointmentsPage() {
                 .catch(() => setPracticePlanCfg(readPracticeWorkHoursConfig()));
         };
         window.addEventListener(PRACTICE_WORK_HOURS_CHANGED_EVENT, onCfgChanged);
+        const poll = window.setInterval(() => {
+            refreshMonthCalPrefs();
+            void listAbsences().then(setAbsences).catch(() => {});
+        }, 500);
         return () => {
             document.removeEventListener("visibilitychange", onVis);
             window.removeEventListener(PRACTICE_WORK_HOURS_CHANGED_EVENT, onCfgChanged);
+            window.clearInterval(poll);
         };
     }, [location.pathname, toast, tp]);
 
@@ -712,6 +739,7 @@ export function AppointmentsPage() {
                 slotDur,
                 appointmentBufferMin,
                 dayBounds,
+                { practiceCfg: practicePlanCfg, absences },
             );
             if (error) {
                 toast(error);
@@ -1269,6 +1297,7 @@ export function AppointmentsPage() {
                         </div>
                         <div className="schedule-quick-actions">
                             {CALENDAR_EMERGENCY_TOOLBAR_UI_ENABLED
+                            && calendarWorkflowsRev >= 0
                             && !loadClientSettings().workflows?.calendarEmergencyToolbarEnabled ? (
                                 <DismissibleNotice
                                     className="app-notice--toolbar appointment-cal-banner"

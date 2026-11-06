@@ -52,9 +52,9 @@ export const DOSAGE_FORM_OPTIONS = [
 export const PACK_SIZE_OPTIONS = ["N1", "N2", "N3", "Other"] as const;
 
 export const PRESCRIPTION_KIND_OPTIONS = [
-    { value: "PRIVAT", label: "Private" },
-    { value: "KASSE", label: "Statutory" },
-    { value: "BTM", label: "BtM" },
+    { value: "PRIVAT", labelKey: "prescription.kind.PRIVAT" },
+    { value: "KASSE", labelKey: "prescription.kind.KASSE" },
+    { value: "BTM", labelKey: "prescription.kind.BTM" },
 ] as const;
 
 /** Common dental ICD-10 codes (selection). */

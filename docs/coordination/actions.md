@@ -1,15 +1,39 @@
 # Action ledger
 
-**Last updated:** 2026-09-05 (payment fulfills open booking)
+**Last updated:** 2026-10-01 (shared calendar sync)
 
-## Done (2026-09-05 — payment → billing)
+## Done (2026-10-01 — replica ↔ master packages)
 
-- Payment create fills the 0 € open booking in place; closes BILLING tasks on `PAID`.
-- Tests: `payment_repo_tests` (incl. fulfill + close).
+- Full snapshot on first replica pull / after SAS; 5s replica push+pull; master outbox when a replica is joined.
+
+## Now
+
+- Rebuild both windows, SAS again, confirm calendars match.
+
+## Done (2026-10-01 — replica LAN after SAS)
+
+## Done (2026-10-01 — replica connection to master)
+
+- Staff directory allow no longer requires a `SELECT 1 FROM license` gate; match join `session_id`, fingerprint, or `device_id`.
+- SAS confirm mints the existing `mt2.` activation token and returns it on `JoinAccept`.
+- Replica persists token + master pubkey and binds local `sync.device_id.v1` to the cluster fingerprint so HTTPS push/pull can authenticate.
+
+## Now
+
+- Rebuild both practice-host instances and confirm SAS → staff copy + replica sync to `https://master:8787`.
+
+## Done (2026-09-30 — same-class SQLITE 787)
+
+- `patient_repo::delete` now removes restrict-FK children before `DELETE FROM patient`.
+- GDPR erase reuses `delete_dependents`.
+- Staff delete also removes `work_time_pause_segment` / `work_time_preference` before sessions.
+- Sync merge applies patient/chart/`service_item` deletes without relying on CASCADE.
+- Cluster reset deletes `sync_vector` before `sync_device`.
 
 ## Now
 
 - Confirm in the running app: pay an open booking → one billed row, no leftover fulfill task.
+
 
 ## Later
 

@@ -1432,6 +1432,7 @@ function Block({ b, minD, daySpan, lo, dnd, canWrite, onDel, onDragStart, onDrag
     b: StaffWorkBlock; minD: number; daySpan: number; lo?: { lane: number; lanes: number }; dnd: string | null; canWrite: boolean; onDel: () => void;
     onDragStart: (e: React.DragEvent) => void; onDragEnd: () => void; hue: number;
 }) {
+    const t = useT();
     const w = lo && lo.lanes > 1 ? 100 / lo.lanes : 100;
     const left = lo ? (lo.lane * 100) / lo.lanes : 0;
     const st: CSSProperties = {
@@ -1444,13 +1445,32 @@ function Block({ b, minD, daySpan, lo, dnd, canWrite, onDel, onDragStart, onDrag
         background: `hsla(${hue}, 50%, 48%, 0.2)`,
     };
     return (
-        <button
-            type="button" draggable={canWrite} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragOver={canWrite ? (e) => e.preventDefault() : undefined}
-            className="workPlan-block" style={st}
+        <div
+            draggable={canWrite}
+            onDragStart={onDragStart}
+            onDragEnd={onDragEnd}
+            onDragOver={canWrite ? (e) => e.preventDefault() : undefined}
+            className="workPlan-block"
+            style={st}
         >
-            {minToLabel(b.startMin)} – {minToLabel(b.endMin)} · {b.title}
-            {canWrite ? <span className="workPlan-block__del" onClick={(e) => { e.stopPropagation(); onDel(); }}>×</span> : null}
-        </button>
+            <span>
+                {minToLabel(b.startMin)} – {minToLabel(b.endMin)} · {b.title}
+            </span>
+            {canWrite ? (
+                <button
+                    type="button"
+                    className="workPlan-block__del"
+                    aria-label={`${t("page.work_plan.delete")}: ${b.title}`}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onDel();
+                    }}
+                >
+                    ×
+                </button>
+            ) : null}
+        </div>
     );
 }
 

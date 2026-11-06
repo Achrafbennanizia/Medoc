@@ -7,21 +7,14 @@ import type { Payment } from "@/models/types";
 
 type ChartTabDef = { id: PatientDetailChartTab; labelKey: string; needsClinical?: boolean };
 
-/** DOM ids for tabs/panels — keep short legacy ids used by panel `aria-labelledby`. */
+/** DOM ids for tabs/panels (`aria-labelledby`). */
 function chartTabDomId(tab: PatientDetailChartTab): string {
-    switch (tab) {
-        case "anamnesis":
-            return "anam";
-        case "examination":
-            return "unter";
-        default:
-            return tab;
-    }
+    return tab;
 }
 
 const CHART_TABS: ChartTabDef[] = [
-    { id: "anamnesis", labelKey: "patient.detail.subnav.tab.anam", needsClinical: true },
-    { id: "examination", labelKey: "patient.detail.subnav.tab.unter", needsClinical: true },
+    { id: "anamnesis", labelKey: "patient.detail.subnav.tab.anamnesis", needsClinical: true },
+    { id: "examination", labelKey: "patient.detail.subnav.tab.examination", needsClinical: true },
     { id: "treatment", labelKey: "patient.detail.subnav.tab.treatment", needsClinical: true },
     { id: "prescription", labelKey: "patient.detail.subnav.tab.prescription" },
     { id: "attachment", labelKey: "patient.detail.subnav.tab.attachment" },
@@ -54,7 +47,7 @@ export function PatientDetailChartSubnav({
     onSelectTab,
 }: PatientDetailChartSubnavProps) {
     const t = useT();
-    const anlPending = attachments.filter((a) => !itemValidation[itemValidationKey("anl", a.id)]).length;
+    const attachmentPending = attachments.filter((a) => !itemValidation[itemValidationKey("attachment", a.id)]).length;
     const paymentPending = payments.filter((z) => !itemValidation[itemValidationKey("payment", z.id)]).length;
 
     const visibleSections = CHART_TAB_SECTIONS.map((section) => ({
@@ -93,8 +86,8 @@ export function PatientDetailChartSubnav({
                                 else badge = { tone: "ok", text: "✓" };
                             } else if (tab.id === "attachment") {
                                 if (attachments.length === 0) badge = null;
-                                else if (anlPending === 0) badge = { tone: "ok", text: "✓" };
-                                else badge = { tone: "warn", text: anlPending > 1 ? String(anlPending) : "!" };
+                                else if (attachmentPending === 0) badge = { tone: "ok", text: "✓" };
+                                else badge = { tone: "warn", text: attachmentPending > 1 ? String(attachmentPending) : "!" };
                             } else if (tab.id === "payment") {
                                 if (payments.length === 0) badge = null;
                                 else if (paymentPending === 0) badge = { tone: "ok", text: "✓" };

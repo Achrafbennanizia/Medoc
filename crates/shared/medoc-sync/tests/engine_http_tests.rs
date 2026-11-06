@@ -868,3 +868,173 @@ async fn run_mesh_sync_peers_http_error() {
     let err = SyncEngine::run_mesh_sync(&pool).await.expect_err("500");
     assert!(err.to_string().contains("500"));
 }
+
+#[tokio::test]
+async fn replica_push_is_visible_to_a_later_replica_pull() {
+    use medoc_sync::merge::{apply_remote_entry, ConflictPolicy};
+    use medoc_sync::repo::OutboxEntry;
+
+    let master = fresh_pool().await;
+    save_deployment(
+        &master,
+        &SyncDeploymentConfig {
+            schema_version: 1,
+            mode: DeploymentMode::ServerlessPeer,
+            role: DeviceRole::Master,
+            device_label: "Master".into(),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("master deployment");
+    let local = ensure_local_device(&master, "Master")
+        .await
+        .expect("master id");
+    let anchor = append_outbox(
+        &master,
+        &local,
+        "app_kv",
+        "relay.anchor",
+        "INSERT",
+        r#"{"key":"relay.anchor","value":"1"}"#,
+    )
+    .await
+    .expect("anchor");
+
+    let patient_id = "00000000-0000-0000-0000-00000000ab01";
+    let payload = serde_json::json!({
+        "id": patient_id,
+        "name": "From Replica A",
+        "date_of_birth": "1990-05-05",
+        "sex": "FEMALE",
+        "insurance_number": "INS-RELAY-A",
+        "phone": null,
+        "email": null,
+        "address": null,
+        "status": "ACTIVE",
+        "created_at": "2099-01-01 00:00:00",
+        "updated_at": "2099-06-01T00:00:00Z",
+    });
+    let entry = OutboxEntry {
+        id: "replica-a-1".into(),
+        device_id: "replica-a".into(),
+        seq: 1,
+        entity_table: "patient".into(),
+        entity_id: patient_id.into(),
+        op: "INSERT".into(),
+        payload_json: payload.to_string(),
+        created_at: "2099-06-01T00:00:00Z".into(),
+    };
+    let pushed = SyncEngine::ingest_push(&master, "replica-a", std::slice::from_ref(&entry))
+        .await
+        .expect("push");
+    assert_eq!(pushed.accepted, 1);
+
+    let pulled = SyncEngine::collect_pull_for_replica(&master, "replica-b", anchor.seq)
+        .await
+        .expect("pull");
+    let relayed = pulled
+        .iter()
+        .find(|e| e.entity_id == patient_id)
+        .expect("replica B must receive replica A's patient");
+    assert_eq!(relayed.device_id, local);
+
+    let replica_b = fresh_pool().await;
+    let replica_b_id = ensure_local_device(&replica_b, "Replica B")
+        .await
+        .expect("replica b");
+    apply_remote_entry(
+        &replica_b,
+        &replica_b_id,
+        false,
+        ConflictPolicy::LastWriteWins,
+        relayed,
+    )
+    .await
+    .expect("apply on B");
+    let name: String = sqlx::query_scalar("SELECT name FROM patient WHERE id = ?1")
+        .bind(patient_id)
+        .fetch_one(&replica_b)
+        .await
+        .expect("patient on B");
+    assert_eq!(name, "From Replica A");
+    let phone: Option<String> = sqlx::query_scalar("SELECT phone FROM patient WHERE id = ?1")
+        .bind(patient_id)
+        .fetch_one(&replica_b)
+        .await
+        .unwrap();
+    assert!(phone.is_none());
+}
+
+#[tokio::test]
+async fn pull_cursor_stops_before_a_failing_row_until_retry_limit() {
+    use medoc_sync::engine::PULL_ROW_RETRY_LIMIT;
+
+    let pool = fresh_pool().await;
+    let server = MockServer::start().await;
+    save_replica(&pool, &server.uri(), "tok-cursor", "cursor-test").await;
+    let _device = ensure_local_device(&pool, "cursor-test").await.unwrap();
+    sqlx::query(
+        "INSERT INTO sync_device (device_id, display_name, role, is_local)
+         VALUES ('master-device', 'Master', 'MASTER', 0)",
+    )
+    .execute(&pool)
+    .await
+    .expect("master row");
+
+    let bad = serde_json::json!({
+        "id": "bad-1",
+        "deviceId": "master-device",
+        "seq": 1,
+        "entityTable": "patient",
+        "entityId": "missing-patient",
+        "op": "NOPE",
+        "payloadJson": "{}",
+        "createdAt": "2099-01-01T00:00:00Z"
+    });
+    let good = serde_json::json!({
+        "id": "good-1",
+        "deviceId": "master-device",
+        "seq": 2,
+        "entityTable": "app_kv",
+        "entityId": "cursor.key",
+        "op": "INSERT",
+        "payloadJson": r#"{"key":"cursor.key","value":"kept"}"#,
+        "createdAt": "2099-01-01T00:00:00Z"
+    });
+    Mock::given(method("POST"))
+        .and(path("/api/v1/sync/pull"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "entries": [bad, good]
+        })))
+        .mount(&server)
+        .await;
+
+    async fn master_seq(pool: &sqlx::SqlitePool) -> Option<i64> {
+        sqlx::query_scalar("SELECT seq FROM sync_vector WHERE device_id = 'master-device'")
+            .fetch_optional(pool)
+            .await
+            .expect("seq")
+    }
+
+    let first = SyncEngine::pull_from_master(&pool)
+        .await
+        .expect("first pull");
+    assert_eq!(
+        first.applied, 1,
+        "the row after the failure is still applied"
+    );
+    assert!(master_seq(&pool).await.is_none());
+    let val: String = sqlx::query_scalar("SELECT value FROM app_kv WHERE key = 'cursor.key'")
+        .fetch_one(&pool)
+        .await
+        .expect("app_kv applied behind the hole");
+    assert_eq!(val, "kept");
+
+    for _ in 1..PULL_ROW_RETRY_LIMIT - 1 {
+        SyncEngine::pull_from_master(&pool).await.expect("retry");
+        assert!(master_seq(&pool).await.is_none());
+    }
+    SyncEngine::pull_from_master(&pool).await.expect("give up");
+    assert_eq!(master_seq(&pool).await, Some(2));
+}

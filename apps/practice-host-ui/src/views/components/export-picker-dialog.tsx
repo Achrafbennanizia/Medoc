@@ -43,7 +43,7 @@ import {
     type DocumentKind,
     type DocumentTemplatePayloadV1,
 } from "@/lib/document-template-schema";
-import { documentKindLabel } from "@/lib/document-template-i18n";
+import { builtinTemplateFooter, builtinTemplateName, documentKindLabel } from "@/lib/document-template-i18n";
 import { PDF_LAYOUT_TEMPLATE_PICKER_ENABLED } from "@/lib/v1-ui-flags";
 import { parseDelimitedGrid, stripBom } from "@/lib/export-delimited";
 import type { ClinicalDocumentExportBundle } from "@/lib/document-print-html";
@@ -333,7 +333,10 @@ function ChartExportPickerInner({
     const templateOptions = useMemo(() => {
         const o: { value: string; label: string }[] = [
             { value: "__default__", label: t("export.picker.template_default") },
-            ...builtins.map((b) => ({ value: `builtin:${b.id}`, label: tp("export.picker.template_builtin", { name: b.name }) })),
+            ...builtins.map((b) => ({
+                value: `builtin:${b.id}`,
+                label: tp("export.picker.template_builtin", { name: builtinTemplateName(t, b.id) }),
+            })),
             ...userTpl.map((r) => ({ value: r.id, label: r.isDefault ? tp("export.picker.template_standard", { name: r.name }) : r.name })),
         ];
         return o;
@@ -569,11 +572,21 @@ function HtmlDocumentExportPickerInner({
         if (tplChoice.startsWith("builtin:")) {
             const id = migrateBuiltinTemplateId(tplChoice.slice("builtin:".length));
             const b = builtins.find((x) => x.id === id);
-            if (b) return { payload: structuredClone(b.payload), displayName: b.name };
+            if (b) {
+                const payload = structuredClone(b.payload);
+                const footer = builtinTemplateFooter(t, b.id);
+                if (footer) payload.footer = footer;
+                return { payload, displayName: builtinTemplateName(t, b.id) };
+            }
         }
         if (tplChoice === "__default__") {
             const b = builtins[0];
-            if (b) return { payload: structuredClone(b.payload), displayName: b.name };
+            if (b) {
+                const payload = structuredClone(b.payload);
+                const footer = builtinTemplateFooter(t, b.id);
+                if (footer) payload.footer = footer;
+                return { payload, displayName: builtinTemplateName(t, b.id) };
+            }
             return { payload: emptyDocumentTemplatePayloadV1(), displayName: t("export.picker.template_default") };
         }
         const row = userTpl.find((r) => r.id === tplChoice);
@@ -582,9 +595,15 @@ function HtmlDocumentExportPickerInner({
             return { payload, displayName: row.name };
         }
         const b = builtins[0];
+        if (b) {
+            const payload = structuredClone(b.payload);
+            const footer = builtinTemplateFooter(t, b.id);
+            if (footer) payload.footer = footer;
+            return { payload, displayName: builtinTemplateName(t, b.id) };
+        }
         return {
-            payload: b ? structuredClone(b.payload) : emptyDocumentTemplatePayloadV1(),
-            displayName: b?.name ?? t("export.picker.template_default"),
+            payload: emptyDocumentTemplatePayloadV1(),
+            displayName: t("export.picker.template_default"),
         };
     }, [tplChoice, builtins, userTpl, t]);
 
@@ -701,7 +720,10 @@ function HtmlDocumentExportPickerInner({
     const templateOptions = useMemo(() => {
         const o: { value: string; label: string }[] = [
             { value: "__default__", label: t("export.picker.template_default") },
-            ...builtins.map((b) => ({ value: `builtin:${b.id}`, label: tp("export.picker.template_builtin", { name: b.name }) })),
+            ...builtins.map((b) => ({
+                value: `builtin:${b.id}`,
+                label: tp("export.picker.template_builtin", { name: builtinTemplateName(t, b.id) }),
+            })),
             ...userTpl.map((r) => ({ value: r.id, label: r.isDefault ? tp("export.picker.template_standard", { name: r.name }) : r.name })),
         ];
         return o;

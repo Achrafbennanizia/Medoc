@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ariaForLabel, pickLabel, type LabelKey } from "@/lib/abbreviations";
+import { useT } from "@/lib/i18n";
 
 const CONTAINER_SHORT_PX = 200;
 
@@ -11,10 +12,11 @@ export type ResponsiveLabelProps = {
 };
 
 /**
- * Picks full vs short label from {@link LABELS} using the **element** width (ResizeObserver),
+ * Picks full vs short label from i18n `abbrev.*` using the **element** width (ResizeObserver),
  * not the viewport. Accessible name uses the curated `aria` string (full meaning).
  */
 export function ResponsiveLabel({ labelKey, className, as = "span", htmlFor }: ResponsiveLabelProps) {
+    const t = useT();
     const ref = useRef<HTMLSpanElement>(null);
     const [short, setShort] = useState(false);
 
@@ -29,8 +31,8 @@ export function ResponsiveLabel({ labelKey, className, as = "span", htmlFor }: R
         return () => ro.disconnect();
     }, []);
 
-    const text = pickLabel(labelKey, short ? "short" : "full");
-    const aria = ariaForLabel(labelKey);
+    const text = pickLabel(t, labelKey, short ? "short" : "full");
+    const aria = ariaForLabel(t, labelKey);
 
     if (as === "label") {
         return (

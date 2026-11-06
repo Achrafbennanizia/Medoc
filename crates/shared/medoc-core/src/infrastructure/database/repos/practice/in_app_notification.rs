@@ -22,6 +22,15 @@ pub async fn insert(
     body: &str,
     payload_json: Option<&str>,
 ) -> Result<(), AppError> {
+    let staff_ok: Option<i64> = sqlx::query_scalar("SELECT 1 FROM staff WHERE id = ?1")
+        .bind(user_id)
+        .fetch_optional(pool)
+        .await?;
+    if staff_ok.is_none() {
+        return Err(AppError::Validation(
+            "Notification user is not a staff account on this device.".into(),
+        ));
+    }
     let id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
         "INSERT INTO in_app_notification (id, user_id, kind, title, body, payload_json)
@@ -103,6 +112,19 @@ pub async fn mark_read(
             .execute(pool)
             .await?
             .rows_affected();
+    if n > 0 {
+        let payload = format!(
+            "{{\"id\":\"{notification_id}\",\"user_id\":\"{user_id}\",\"read_at\":\"{now}\"}}"
+        );
+        crate::infrastructure::database::sync_outbox::record_or_noop(
+            pool,
+            "in_app_notification",
+            notification_id,
+            "UPDATE",
+            &payload,
+        )
+        .await?;
+    }
     Ok(n)
 }
 

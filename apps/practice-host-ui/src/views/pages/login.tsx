@@ -215,7 +215,7 @@ export function LoginPage() {
                         </div>
                     )}
                     <label htmlFor="email" className="form-label">{t("auth.email")}</label>
-                    <input id="email" className="input-edit" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@practice.de" required autoComplete="username" style={{ marginBottom: 12 }} />
+                    <input id="email" className="input-edit" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t("login.email_placeholder")} required autoComplete="username" style={{ marginBottom: 12 }} />
                     <div className="row" style={{ justifyContent: "space-between", marginBottom: 6 }}>
                         <label htmlFor="password" className="form-label form-label--mb-0">{t("auth.password")}</label>
                         <button

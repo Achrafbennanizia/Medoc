@@ -398,7 +398,7 @@ export function PrescriptionCreatePage() {
                                     id="rc-kind"
                                     label={t("page.prescriptions.field.prescription_kind")}
                                     value={draft.prescription_type}
-                                    options={PRESCRIPTION_KIND_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+                                    options={PRESCRIPTION_KIND_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
                                     onChange={(e) =>
                                         setDraft({
                                             ...draft,

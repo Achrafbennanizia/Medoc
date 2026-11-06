@@ -66,7 +66,7 @@ export type PatientDetailShellHeaderProps = {
 };
 
 function patientGenderLabel(sex: string | null | undefined, tr: (key: string) => string): string {
-    if (!sex) return "—";
+    if (!sex) return tr("common.em_dash");
     if (sex === "MALE") return tr("patient.gender.MALE");
     if (sex === "FEMALE") return tr("patient.gender.FEMALE");
     if (sex === "DIVERSE") return tr("patient.gender.DIVERSE");
@@ -287,11 +287,11 @@ export function PatientDetailShellHeader({
                                         className="btn btn-subtle btn-sm"
                                         onClick={() => onGoTab(g.tab as PatientDetailChartTab)}
                                     >
-                                        {g.label}
+                                        {t(g.labelKey)}
                                     </button>
                                 ) : (
                                     <span key={g.id} className="btn btn-subtle btn-sm" style={{ cursor: "default", opacity: 0.85 }}>
-                                        {g.label}
+                                        {t(g.labelKey)}
                                     </span>
                                 ),
                             )}

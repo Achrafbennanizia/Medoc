@@ -160,12 +160,47 @@ pub fn lan_server_status(
     })
 }
 
+/// Second desktop instance (`MEDOC_INSTANCE`) or explicit skip: never bind HTTP/UDP.
+pub fn lan_server_listen_disabled() -> bool {
+    matches!(std::env::var("MEDOC_SKIP_LAN").as_deref(), Ok("1"))
+        || std::env::var("MEDOC_INSTANCE")
+            .map(|v| !v.trim().is_empty())
+            .unwrap_or(false)
+}
+
+async fn is_replica_device(pool: &SqlitePool) -> bool {
+    match SyncEngine::status(pool).await {
+        Ok(s) => s.deployment.role == medoc_sync::deployment::DeviceRole::Replica,
+        Err(_) => false,
+    }
+}
+
+/// Why this process must not bind LAN/cluster listen sockets.
+pub async fn lan_listen_block_reason(pool: &SqlitePool) -> Option<&'static str> {
+    if lan_server_listen_disabled() {
+        return Some("instance");
+    }
+    if is_replica_device(pool).await {
+        return Some("replica");
+    }
+    None
+}
+
 /// Starts HTTP + UDP discovery using `app_kv` LAN settings (no RBAC — internal / auto-start).
 pub async fn start_lan_embedded(
     app: &AppHandle,
     pool: SqlitePool,
     control: &LanServerControl,
 ) -> Result<LanServerStatusPayload, AppError> {
+    if let Some(reason) = lan_listen_block_reason(&pool).await {
+        let msg = match reason {
+            "replica" => {
+                "Replica devices do not run a LAN server. They save locally and sync to the master."
+            }
+            _ => "LAN listen is disabled on this instance (replica / secondary process).",
+        };
+        return Err(AppError::Validation(msg.into()));
+    }
     {
         let g = control.0.lock().unwrap_or_else(|e| e.into_inner());
         if g.runtime.is_some() {
@@ -285,6 +320,10 @@ pub async fn lan_server_start(
 
 /// Called once after DB init: start LAN with the desktop app.
 pub async fn auto_start_if_enabled(app: AppHandle, pool: SqlitePool) {
+    if lan_listen_block_reason(&pool).await.is_some() {
+        tracing::info!(target: "medoc::lan", event = "LAN_AUTO_START_SKIP");
+        return;
+    }
     let mut cfg = match load_or_default_config(&pool).await {
         Ok(c) => c,
         Err(e) => {
@@ -312,11 +351,11 @@ pub async fn auto_start_if_enabled(app: AppHandle, pool: SqlitePool) {
     }
 }
 
-/// Start embedded LAN on serverless replicas so mesh peers can push sync data.
+/// Replicas stay clients of the master: never bind HTTP/UDP (avoids a second server).
 pub async fn auto_start_replica_sync_lan(
-    app: &AppHandle,
+    _app: &AppHandle,
     pool: SqlitePool,
-    control: &LanServerControl,
+    _control: &LanServerControl,
 ) {
     let snap = match SyncEngine::status(&pool).await {
         Ok(s) => s,
@@ -330,38 +369,7 @@ pub async fn auto_start_replica_sync_lan(
     {
         return;
     }
-    if snap.deployment.activation_token.is_empty() {
-        return;
-    }
-    {
-        let g = control.0.lock().unwrap_or_else(|e| e.into_inner());
-        if g.runtime.is_some() {
-            return;
-        }
-    }
-    let mut cfg = match load_or_default_config(&pool).await {
-        Ok(c) => c,
-        Err(e) => {
-            tracing::warn!(target: "medoc::lan", event = "REPLICA_LAN_CFG", error = %e);
-            return;
-        }
-    };
-    if cfg.instance_label == "MeDoc Practice" {
-        cfg.instance_label = format!(
-            "MeDoc Replica ({})",
-            &snap.local_device_id[..snap.local_device_id.len().min(8)]
-        );
-    }
-    let _ = cfg;
-    match start_lan_embedded(app, pool, control).await {
-        Ok(_) => tracing::info!(target: "medoc::lan", event = "REPLICA_LAN_STARTED"),
-        Err(e) if matches!(e, AppError::Conflict(_)) => {
-            tracing::info!(target: "medoc::lan", event = "REPLICA_LAN_ALREADY", error = %e);
-        }
-        Err(e) => {
-            tracing::warn!(target: "medoc::lan", event = "REPLICA_LAN_START_FAIL", error = %e)
-        }
-    }
+    tracing::info!(target: "medoc::lan", event = "REPLICA_CLIENT_ONLY_NO_LAN");
 }
 
 #[tauri::command]

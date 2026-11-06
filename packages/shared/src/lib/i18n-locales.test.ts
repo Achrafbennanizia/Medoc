@@ -83,6 +83,12 @@ describe("i18n locale parity", () => {
         expect(translateLocaleParams("ar", "appointment.drawer.duration_min", { min: 45 })).toBe("45 د.");
     });
 
+    it("pairing confirmation code keeps western digits in Arabic", () => {
+        const shown = translateLocaleParams("ar", "settings.pairing.confirm_code", { pin: "0482" });
+        expect(shown).toContain("0482");
+        expect(shown).not.toMatch(/[٠-٩۰-۹]/);
+    });
+
     it("RTL locale helper marks Arabic", () => {
         expect(isRtlLocale("ar")).toBe(true);
         expect(isRtlLocale("de")).toBe(false);

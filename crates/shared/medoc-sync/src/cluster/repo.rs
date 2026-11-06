@@ -377,14 +377,21 @@ pub async fn create_pairing_session(
     session: &PairingSession,
 ) -> Result<(), AppError> {
     ensure(pool).await?;
+    let label = session
+        .hostname
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("");
     sqlx::query(
         "INSERT INTO pairing_request (
             id, device_id, slave_pubkey, slave_label, requester_ip, status,
             pairing_state, sas_hash, requested_role, expires_at, fingerprint, hostname, requested_at
-         ) VALUES (?1, ?2, '', '', '', 'PENDING', ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+         ) VALUES (?1, ?2, '', ?3, '', 'PENDING', ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
     )
     .bind(&session.id)
     .bind(&session.fingerprint)
+    .bind(label)
     .bind(session.state.as_str())
     .bind(&session.sas_hash)
     .bind(session.requested_role.as_str())
@@ -398,6 +405,85 @@ pub async fn create_pairing_session(
     Ok(())
 }
 
+/// Fill a blank device name from the join hostname, and store the peer address.
+pub async fn record_join_endpoint(
+    pool: &SqlitePool,
+    device_id: &str,
+    hostname: Option<&str>,
+    peer_ip: Option<&str>,
+) -> Result<(), AppError> {
+    ensure(pool).await?;
+    let host = hostname.map(str::trim).filter(|value| !value.is_empty());
+    let ip = peer_ip
+        .map(crate::pairing::canonical_ip_str)
+        .filter(|value| !value.is_empty());
+    sqlx::query(
+        "UPDATE pairing_request SET
+            hostname = CASE WHEN ?1 IS NOT NULL THEN ?1 ELSE hostname END,
+            slave_label = CASE
+                WHEN (
+                    TRIM(COALESCE(slave_label, '')) = ''
+                    OR slave_label = device_id
+                    OR slave_label = COALESCE(fingerprint, '')
+                ) AND ?1 IS NOT NULL THEN ?1
+                ELSE slave_label
+            END,
+            requester_ip = CASE WHEN ?2 IS NOT NULL THEN ?2 ELSE requester_ip END
+         WHERE device_id = ?3 OR fingerprint = ?3",
+    )
+    .bind(host)
+    .bind(ip.as_deref())
+    .bind(device_id)
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?;
+    Ok(())
+}
+
+pub async fn store_slave_pubkey(
+    pool: &SqlitePool,
+    session_id: &str,
+    pubkey: &[u8],
+) -> Result<(), AppError> {
+    use base64::{engine::general_purpose::STANDARD, Engine};
+    ensure(pool).await?;
+    if pubkey.is_empty() {
+        return Ok(());
+    }
+    let encoded = STANDARD.encode(pubkey);
+    sqlx::query(
+        "UPDATE pairing_request SET slave_pubkey = ?1
+         WHERE id = ?2 OR device_id = ?2 OR fingerprint = ?2",
+    )
+        .bind(encoded)
+        .bind(session_id)
+        .execute(pool)
+        .await
+        .map_err(AppError::Database)?;
+    Ok(())
+}
+
+pub async fn load_slave_pubkey(pool: &SqlitePool, session_id: &str) -> Result<Vec<u8>, AppError> {
+    use base64::{engine::general_purpose::STANDARD, Engine};
+    ensure(pool).await?;
+    let row: Option<(String,)> =
+        sqlx::query_as("SELECT slave_pubkey FROM pairing_request WHERE id = ?1")
+            .bind(session_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(AppError::Database)?;
+    let Some((raw,)) = row else {
+        return Ok(Vec::new());
+    };
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Ok(Vec::new());
+    }
+    STANDARD
+        .decode(trimmed)
+        .map_err(|e| AppError::Internal(format!("slave_pubkey decode: {e}")))
+}
+
 pub async fn store_handshake_transcript(
     pool: &SqlitePool,
     session_id: &str,
@@ -409,12 +495,17 @@ pub async fn store_handshake_transcript(
         return Ok(());
     }
     let b64 = STANDARD.encode(transcript);
-    sqlx::query("UPDATE pairing_request SET handshake_transcript_b64 = ?1 WHERE id = ?2")
+    let res = sqlx::query("UPDATE pairing_request SET handshake_transcript_b64 = ?1 WHERE id = ?2")
         .bind(b64)
         .bind(session_id)
         .execute(pool)
         .await
         .map_err(AppError::Database)?;
+    if res.rows_affected() == 0 {
+        return Err(AppError::Internal(format!(
+            "handshake transcript not stored: pairing session {session_id} missing"
+        )));
+    }
     Ok(())
 }
 
@@ -439,6 +530,9 @@ pub async fn load_handshake_transcript(
     }
     STANDARD
         .decode(trimmed)
+        .or_else(|_| base64::engine::general_purpose::STANDARD_NO_PAD.decode(trimmed))
+        .or_else(|_| base64::engine::general_purpose::URL_SAFE.decode(trimmed))
+        .or_else(|_| base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(trimmed))
         .map(Some)
         .map_err(|e| AppError::Internal(format!("handshake_transcript_b64 decode: {e}")))
 }

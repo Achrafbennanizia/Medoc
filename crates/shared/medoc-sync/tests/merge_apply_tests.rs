@@ -65,6 +65,74 @@ async fn apply_delete_removes_patient_row() {
 }
 
 #[tokio::test]
+async fn apply_delete_patient_with_appointment_does_not_fk_fail() {
+    let pool = fresh_pool().await;
+    let id = "00000000-0000-0000-0000-0000000000aa";
+    seed_patient(&pool, id, "Has Apt", "2099-01-01 00:00:00").await;
+    sqlx::query(
+        "INSERT INTO appointment (id, date, time, kind, status, patient_id, physician_id)
+         VALUES ('apt-fk-1', '2099-01-02', '09:00', 'CHECKUP', 'PLANNED', ?1, 'seed-physician-001')",
+    )
+    .bind(id)
+    .execute(&pool)
+    .await
+    .expect("appointment");
+    let e = entry("remote", 9, "patient", id, "DELETE", r#"{"id":"x"}"#);
+    apply_remote_entry(&pool, LOCAL_MASTER, true, ConflictPolicy::LastWriteWins, &e)
+        .await
+        .expect("patient delete with appointment");
+    let n: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM patient WHERE id = ?1")
+        .bind(id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(n, 0);
+}
+
+#[tokio::test]
+async fn apply_delete_patient_chart_with_treatments_does_not_fk_fail() {
+    let pool = fresh_pool().await;
+    let e = entry(
+        "remote",
+        11,
+        "patient_chart",
+        "seed-chart-001",
+        "DELETE",
+        r#"{"id":"x"}"#,
+    );
+    apply_remote_entry(&pool, LOCAL_MASTER, true, ConflictPolicy::LastWriteWins, &e)
+        .await
+        .expect("chart delete");
+    let n: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM patient_chart WHERE id = 'seed-chart-001'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(n, 0);
+}
+
+#[tokio::test]
+async fn apply_delete_service_item_with_payment_ref_does_not_fk_fail() {
+    let pool = fresh_pool().await;
+    let e = entry(
+        "remote",
+        12,
+        "service_item",
+        "seed-lei-002",
+        "DELETE",
+        r#"{"id":"x"}"#,
+    );
+    apply_remote_entry(&pool, LOCAL_MASTER, true, ConflictPolicy::LastWriteWins, &e)
+        .await
+        .expect("service_item delete");
+    let n: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM service_item WHERE id = 'seed-lei-002'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(n, 0);
+}
+
+#[tokio::test]
 async fn apply_delete_app_kv_key() {
     let pool = fresh_pool().await;
     sqlx::query("INSERT INTO app_kv (key, value) VALUES ('del.me', 'x')")
@@ -204,7 +272,7 @@ async fn apply_sqlite_timestamp_format_in_payload() {
 #[tokio::test]
 async fn apply_rejects_disallowed_table() {
     let pool = fresh_pool().await;
-    let e = entry("remote", 9, "staff", "p1", "INSERT", r#"{"id":"p1"}"#);
+    let e = entry("remote", 9, "license", "p1", "INSERT", r#"{"id":"p1"}"#);
     let err = apply_remote_entry(&pool, LOCAL_MASTER, true, ConflictPolicy::LastWriteWins, &e)
         .await
         .expect_err("bad table");
@@ -467,4 +535,130 @@ async fn apply_json_number_and_bool_in_payload() {
             .await
             .unwrap()
     );
+}
+
+#[tokio::test]
+async fn apply_payment_without_updated_at_column() {
+    let pool = fresh_pool().await;
+    let patient_id = "00000000-0000-0000-0000-0000000000ab";
+    seed_patient(&pool, patient_id, "Payer", "2099-01-01 00:00:00").await;
+    let pay_id = "pay-no-updated-at";
+    sqlx::query(
+        "INSERT INTO payment (id, patient_id, amount, payment_method, status, created_at)
+         VALUES (?1, ?2, 10.0, 'CASH', 'PAID', '2099-01-01 00:00:00')",
+    )
+    .bind(pay_id)
+    .bind(patient_id)
+    .execute(&pool)
+    .await
+    .expect("seed payment");
+    let payload = format!(
+        r#"{{"id":"{pay_id}","patient_id":"{patient_id}","amount":12.5,"payment_method":"CASH","status":"PAID","created_at":"2099-02-01 00:00:00","updated_at":"2099-02-01T00:00:00Z"}}"#
+    );
+    let e = entry("master", 21, "payment", pay_id, "UPDATE", &payload);
+    assert!(apply_remote_entry_phased(
+        &pool,
+        LOCAL_REPLICA,
+        false,
+        true,
+        ConflictPolicy::LastWriteWins,
+        &e
+    )
+    .await
+    .unwrap());
+    let amount: f64 = sqlx::query_scalar("SELECT amount FROM payment WHERE id = ?1")
+        .bind(pay_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert!((amount - 12.5).abs() < f64::EPSILON);
+}
+
+#[tokio::test]
+async fn json_null_stays_sql_null() {
+    let pool = fresh_pool().await;
+    let staff_id = "seed-physician-001";
+    let patient_id = "00000000-0000-0000-0000-0000000000cc";
+    let patient_payload = format!(
+        r#"{{"id":"{patient_id}","name":"Nullable","date_of_birth":"1991-01-01","sex":"FEMALE",
+            "insurance_number":"V-NULL","phone":null,"email":null,"address":null,
+            "status":"ACTIVE","created_at":"2099-01-01 00:00:00","updated_at":"2099-01-01T00:00:00Z"}}"#
+    );
+    let patient = entry(
+        "remote",
+        30,
+        "patient",
+        patient_id,
+        "INSERT",
+        &patient_payload,
+    );
+    apply_remote_entry(
+        &pool,
+        LOCAL_MASTER,
+        true,
+        ConflictPolicy::LastWriteWins,
+        &patient,
+    )
+    .await
+    .expect("patient insert with nulls");
+    let phone: Option<String> = sqlx::query_scalar("SELECT phone FROM patient WHERE id = ?1")
+        .bind(patient_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert!(phone.is_none(), "JSON null must bind as SQL NULL, not ''");
+
+    let pay_id = "pay-null-service";
+    let pay_payload = format!(
+        r#"{{"id":"{pay_id}","patient_id":"{patient_id}","amount":5.0,"payment_method":"CASH",
+            "status":"PAID","service_item_id":null,"description":null,"created_at":"2099-01-01 00:00:00"}}"#
+    );
+    let payment = entry("remote", 31, "payment", pay_id, "INSERT", &pay_payload);
+    apply_remote_entry(
+        &pool,
+        LOCAL_MASTER,
+        true,
+        ConflictPolicy::LastWriteWins,
+        &payment,
+    )
+    .await
+    .expect("payment with null service_item_id must satisfy the foreign key");
+    let service_item_id: Option<String> =
+        sqlx::query_scalar("SELECT service_item_id FROM payment WHERE id = ?1")
+            .bind(pay_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert!(service_item_id.is_none());
+
+    let note_id = "note-unread";
+    let note_payload = format!(
+        r#"{{"id":"{note_id}","user_id":"{staff_id}","kind":"INFO","title":"Unread","body":"Body",
+            "payload_json":null,"read_at":null,"created_at":"2099-01-01 00:00:00"}}"#
+    );
+    let note = entry(
+        "remote",
+        32,
+        "in_app_notification",
+        note_id,
+        "INSERT",
+        &note_payload,
+    );
+    apply_remote_entry(
+        &pool,
+        LOCAL_MASTER,
+        true,
+        ConflictPolicy::LastWriteWins,
+        &note,
+    )
+    .await
+    .expect("notification");
+    let unread: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM in_app_notification WHERE id = ?1 AND read_at IS NULL",
+    )
+    .bind(note_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(unread, 1, "unread filter must still match a null read_at");
 }

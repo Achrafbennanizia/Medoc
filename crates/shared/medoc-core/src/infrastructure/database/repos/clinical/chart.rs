@@ -45,6 +45,34 @@ pub async fn find_chart_by_patient(
     Ok(row)
 }
 
+/// Create a blank chart when the patient exists but has no `patient_chart` row
+/// (year-seed gaps, replica apply skips, or older imports). Without this the
+/// UI hides the odontogram and refuses clinical writes.
+pub async fn ensure_chart_for_patient(
+    pool: &SqlitePool,
+    patient_id: &str,
+) -> Result<PatientChart, AppError> {
+    if let Some(row) = find_chart_by_patient(pool, patient_id).await? {
+        return Ok(row);
+    }
+    let exists: Option<i64> = sqlx::query_scalar("SELECT 1 FROM patient WHERE id = ?1")
+        .bind(patient_id)
+        .fetch_optional(pool)
+        .await?;
+    if exists.is_none() {
+        return Err(AppError::NotFound("Patient".into()));
+    }
+    let chart_id = uuid::Uuid::new_v4().to_string();
+    sqlx::query("INSERT INTO patient_chart (id, patient_id) VALUES (?1, ?2)")
+        .bind(&chart_id)
+        .bind(patient_id)
+        .execute(pool)
+        .await?;
+    find_chart_by_patient(pool, patient_id)
+        .await?
+        .ok_or_else(|| AppError::Internal("Chart insert failed".into()))
+}
+
 // --- DentalFinding ---
 
 pub async fn find_dental_findings(
@@ -634,6 +662,41 @@ pub async fn validate_patient_chart_status(
     let updated = find_chart_by_patient(pool, patient_id)
         .await?
         .ok_or_else(|| AppError::Internal("Chart not readable after validation".into()))?;
+    let body = serde_json::to_string(&updated)
+        .unwrap_or_else(|_| format!("{{\"id\":\"{}\"}}", updated.id));
+    crate::infrastructure::database::sync_outbox::record_or_noop(
+        pool,
+        "patient_chart",
+        &updated.id,
+        "UPDATE",
+        &body,
+    )
+    .await?;
+    Ok(updated)
+}
+
+/// Set record status to DECLINED (from DRAFT / IN_PROGRESS). Leaves the validation queue.
+pub async fn decline_patient_chart_status(
+    pool: &SqlitePool,
+    patient_id: &str,
+) -> Result<PatientChart, AppError> {
+    let cur = find_chart_by_patient(pool, patient_id)
+        .await?
+        .ok_or(AppError::NotFound("PatientChart".into()))?;
+    crate::domain::services::workflow_transitions::patient_chart_decline_transition(&cur.status)?;
+    if cur.status.eq_ignore_ascii_case("DECLINED") {
+        return Ok(cur);
+    }
+    sqlx::query(
+        "UPDATE patient_chart SET status = 'DECLINED', updated_at = CURRENT_TIMESTAMP
+         WHERE patient_id = ?1",
+    )
+    .bind(patient_id)
+    .execute(pool)
+    .await?;
+    let updated = find_chart_by_patient(pool, patient_id)
+        .await?
+        .ok_or_else(|| AppError::Internal("Chart not readable after decline".into()))?;
     let body = serde_json::to_string(&updated)
         .unwrap_or_else(|_| format!("{{\"id\":\"{}\"}}", updated.id));
     crate::infrastructure::database::sync_outbox::record_or_noop(

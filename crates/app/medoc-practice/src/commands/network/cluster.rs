@@ -1,6 +1,6 @@
 //! Practice-network (Cluster) Tauri IPC commands.
 
-use std::net::IpAddr;
+use std::net::{IpAddr, Ipv4Addr};
 use std::time::Duration;
 
 use medoc_core::infrastructure::install_plan::{InstallPlan, ProvisioningWindowState};
@@ -76,6 +76,11 @@ pub async fn license_activate(
     .await?;
     let status = activate_cluster_license(&pool, &uid, &resolved).await?;
     if status.licensed {
+        let _ = crate::commands::company_portal_commands::apply_serverless_role_from_license_code(
+            &pool,
+            &license_key,
+        )
+        .await;
         crate::commands::company_portal_commands::reset_onboarding_after_owner_license_activation(
             &pool,
         )
@@ -162,9 +167,20 @@ pub async fn install_plan_run_provisioning(
     run_provisioning_tasks(&pool).await
 }
 
+fn decode_handshake_transcript_b64(s: &str) -> Result<Vec<u8>, AppError> {
+    let t = s.trim();
+    if t.is_empty() {
+        return Ok(Vec::new());
+    }
+    base64::Engine::decode(&base64::engine::general_purpose::STANDARD, t)
+        .map_err(|e| AppError::Validation(format!("handshake transcript base64: {e}")))
+}
+
 #[tauri::command]
 pub async fn cluster_discover_admins() -> Result<Vec<AdminEndpoint>, AppError> {
-    scan_admins(Duration::from_secs(2))
+    tokio::task::spawn_blocking(|| scan_admins(Duration::from_secs(3)))
+        .await
+        .map_err(|e| AppError::Internal(format!("discover join: {e}")))?
 }
 
 #[derive(Debug, Deserialize)]
@@ -232,15 +248,7 @@ pub async fn cluster_submit_sas(
     payload: SasSubmitPayload,
 ) -> Result<ProvisionResult, AppError> {
     let uid = user_id(&session_state).unwrap_or_else(|_| "joiner".into());
-    let transcript = if payload.handshake_transcript_b64.is_empty() {
-        vec![]
-    } else {
-        base64::Engine::decode(
-            &base64::engine::general_purpose::STANDARD,
-            payload.handshake_transcript_b64.trim(),
-        )
-        .map_err(|e| AppError::Validation(format!("handshake transcript base64: {e}")))?
-    };
+    let transcript = decode_handshake_transcript_b64(&payload.handshake_transcript_b64)?;
     let result = submit_sas(&pool, &uid, &payload.handle, &payload.digits, &transcript).await?;
     if result.success {
         if let Err(e) = sync_staff_from_stored_admin_endpoint(&pool).await {
@@ -261,6 +269,22 @@ pub async fn cluster_sync_staff_directory(pool: State<'_, SqlitePool>) -> Result
 
 /// Spawn TCP+mDNS receive port with the desktop app (pairing / mesh).
 pub async fn auto_start_cluster_if_ready(pool: &SqlitePool, listener: &ClusterListenerControl) {
+    if crate::commands::lan_commands::lan_server_listen_disabled() {
+        tracing::info!(
+            target: "medoc::cluster",
+            event = "CLUSTER_LISTENER_SKIP_INSTANCE"
+        );
+        return;
+    }
+    if let Ok(snap) = medoc_sync::engine::SyncEngine::status(pool).await {
+        if snap.deployment.role == medoc_sync::deployment::DeviceRole::Replica {
+            tracing::info!(
+                target: "medoc::cluster",
+                event = "CLUSTER_LISTENER_SKIP_REPLICA"
+            );
+            return;
+        }
+    }
     if let Err(e) = start_cluster_listener_task(pool.clone(), listener).await {
         tracing::warn!(
             target: "medoc::cluster",
@@ -278,14 +302,16 @@ async fn start_cluster_listener_task(
         return Ok(());
     }
     listener.stop().await;
-    let bind = medoc_core::discovery::pick_private_lan_ipv4_bind().ok_or_else(|| {
-        AppError::Validation(
-            "No private LAN IPv4 for the practice network. Join the Wi-Fi (switch/AP) subnet, disable client isolation, and turn off unused VPNs."
-                .into(),
-        )
-    })?;
-    let addr = IpAddr::V4(bind.ip);
-    let host = addr.to_string();
+    let (addr, iface_name) = match medoc_core::discovery::pick_private_lan_ipv4_bind() {
+        Some(bind) => (IpAddr::V4(bind.ip), bind.iface_name),
+        None => {
+            tracing::info!(
+                target: "medoc::cluster",
+                event = "CLUSTER_LISTENER_LOOPBACK_FALLBACK"
+            );
+            (IpAddr::V4(Ipv4Addr::LOCALHOST), "lo".into())
+        }
+    };
     let bound = match bind_cluster_listener(addr, DEFAULT_CLUSTER_PORT).await {
         Ok(l) => l,
         Err(e) if matches!(e, AppError::Conflict(_)) => {
@@ -302,7 +328,7 @@ async fn start_cluster_listener_task(
         .await?
         .cluster_id
         .unwrap_or_else(|| "cluster".into());
-    let iface_name = bind.iface_name.clone();
+    let host = addr.to_string();
     let listener_task = tokio::spawn(async move {
         let _mdns = match MdnsResponder::advertise(&host, DEFAULT_CLUSTER_PORT, &cluster_id) {
             Ok(r) => Some(r),
@@ -393,12 +419,12 @@ pub async fn cluster_accept_request(
     let uid = user_id(&session_state)?;
     require(&session_state, "ops.system")?;
     require_admin_seat(&pool).await?;
-    let transcript = payload.handshake_transcript_b64.as_bytes();
+    let transcript = decode_handshake_transcript_b64(&payload.handshake_transcript_b64)?;
     accept_join_request(
         &pool,
         &uid,
         &payload.id,
-        transcript,
+        &transcript,
         payload.replace_fingerprint.as_deref(),
     )
     .await

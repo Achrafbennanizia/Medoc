@@ -290,6 +290,10 @@ async fn wipe_network_tables(pool: &SqlitePool) -> Result<(), AppError> {
         .execute(pool)
         .await
         .map_err(AppError::Database)?;
+    sqlx::query("DELETE FROM sync_vector")
+        .execute(pool)
+        .await
+        .map_err(AppError::Database)?;
     sqlx::query("DELETE FROM sync_device")
         .execute(pool)
         .await
@@ -338,6 +342,12 @@ async fn wipe_network_kv(pool: &SqlitePool) -> Result<(), AppError> {
 fn wipe_device_keychain() -> Result<(), AppError> {
     secret_store::delete_account(KEYCHAIN_DEVICE)?;
     secret_store::delete_account(KEYCHAIN_MASTER)?;
+    if let Ok(n) = std::env::var("MEDOC_INSTANCE") {
+        if !n.is_empty() && n != "1" {
+            let _ = secret_store::delete_account(&format!("{KEYCHAIN_MASTER}.{n}"));
+            let _ = secret_store::delete_account(&format!("{KEYCHAIN_DEVICE}.{n}"));
+        }
+    }
     Ok(())
 }
 

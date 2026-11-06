@@ -4,7 +4,7 @@ import {
     mergeClientSettingsPatch,
     type ClientSettingsV1,
 } from "@/lib/client-settings";
-import { LOCAL_INTEGRATION_CAPABILITIES } from "@/lib/integration-capabilities";
+import { LOCAL_INTEGRATION_CAPABILITIES, integrationCapabilityLabelKey, integrationCapabilityReasonKey } from "@/lib/integration-capabilities";
 import { portalIntegrationPill } from "@/lib/settings-format";
 import { SettingsSwitch } from "@/views/components/settings-switch";
 
@@ -47,7 +47,7 @@ export function SettingsIntegrationsSection({
             <ul style={{ margin: "0 0 16px", paddingLeft: 20, fontSize: 12.5, color: "var(--fg-3)" }}>
                 {LOCAL_INTEGRATION_CAPABILITIES.map((c) => (
                     <li key={c.id}>
-                        <b>{c.label}</b> — {c.reasonDe}
+                        <b>{t(integrationCapabilityLabelKey(c.id))}</b> — {t(integrationCapabilityReasonKey(c.id))}
                     </li>
                 ))}
             </ul>
@@ -55,7 +55,7 @@ export function SettingsIntegrationsSection({
                 <div>
                     <b>{t("settings.integrations.eprescription")}</b>
                     <div className="card-sub">
-                        {ep?.detail ?? LOCAL_INTEGRATION_CAPABILITIES.find((x) => x.id === "eprescription")?.reasonDe}
+                        {ep?.detail ?? t(integrationCapabilityReasonKey("eprescription"))}
                     </div>
                 </div>
                 <span className={epP.className}>{epP.label}</span>

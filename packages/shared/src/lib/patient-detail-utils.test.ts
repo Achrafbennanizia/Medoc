@@ -27,8 +27,8 @@ function item(
 describe("resolveDefaultExaminationCatalogItem", () => {
     it("picks lowest sort_order in Checkup category", () => {
         const catalog = [
-            item("b", EXAMINATION_CATALOG_CATEGORY, "Parodontalstatus", 20, 79),
-            item("a", EXAMINATION_CATALOG_CATEGORY, "Recall / Kontrolle", 10, 49),
+            item("b", EXAMINATION_CATALOG_CATEGORY, "Periodontal status", 20, 79),
+            item("a", EXAMINATION_CATALOG_CATEGORY, "Recall / checkup", 10, 49),
             item("c", "Surgery", "Extraction", 5, 120),
         ];
         const resolved = resolveDefaultExaminationCatalogItem(catalog);

@@ -67,19 +67,24 @@ pub(super) async fn finalize_accept(
 
     let peer_base_url = peer_base_url_from_ip(&request.requester_ip, replica_http_port);
     sqlx::query(
-        "INSERT INTO sync_device (device_id, display_name, role, is_local, peer_base_url, last_seen_at)
-         VALUES (?1, ?2, 'REPLICA', 0, ?3, ?4)
+        "INSERT INTO sync_device (device_id, display_name, role, is_local, peer_base_url, last_seen_at,
+            fingerprint, device_status, seat_role)
+         VALUES (?1, ?2, 'REPLICA', 0, ?3, ?4, ?5, 'ACTIVE', 'MEMBER')
          ON CONFLICT(device_id) DO UPDATE SET
              display_name = excluded.display_name,
              role = 'REPLICA',
              is_local = 0,
              peer_base_url = COALESCE(excluded.peer_base_url, sync_device.peer_base_url),
-             last_seen_at = excluded.last_seen_at",
+             last_seen_at = excluded.last_seen_at,
+             fingerprint = COALESCE(excluded.fingerprint, sync_device.fingerprint),
+             device_status = 'ACTIVE',
+             seat_role = COALESCE(sync_device.seat_role, 'MEMBER')",
     )
     .bind(&request.device_id)
     .bind(&request.slave_label)
     .bind(&peer_base_url)
     .bind(&now)
+    .bind(&request.device_id)
     .execute(pool)
     .await
     .map_err(AppError::Database)?;

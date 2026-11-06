@@ -67,6 +67,30 @@ pub async fn ensure_sync_tables(pool: &SqlitePool) -> Result<(), AppError> {
     .map_err(AppError::Database)?;
 
     sqlx::query(
+        "CREATE TABLE IF NOT EXISTS sync_pull_failure (
+            source_device_id TEXT NOT NULL,
+            source_seq INTEGER NOT NULL,
+            attempts INTEGER NOT NULL,
+            PRIMARY KEY (source_device_id, source_seq)
+        )",
+    )
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?;
+
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS sync_watch_seen (
+            entity_table TEXT NOT NULL,
+            entity_id TEXT NOT NULL,
+            stamp TEXT NOT NULL,
+            PRIMARY KEY (entity_table, entity_id)
+        )",
+    )
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?;
+
+    sqlx::query(
         "CREATE TABLE IF NOT EXISTS sync_peer_vector (
             source_device_id TEXT NOT NULL,
             target_device_id TEXT NOT NULL,

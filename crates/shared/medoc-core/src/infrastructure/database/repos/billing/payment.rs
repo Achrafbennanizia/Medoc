@@ -328,7 +328,11 @@ pub async fn find_by_patient_id(
     patient_id: &str,
 ) -> Result<Vec<Payment>, AppError> {
     let rows = sqlx::query_as::<_, Payment>(
-        "SELECT * FROM payment WHERE patient_id = ?1 ORDER BY created_at DESC",
+        "SELECT id, patient_id, CAST(amount AS REAL) AS amount, payment_method, status,
+                service_item_id, description, treatment_id, examination_id,
+                CAST(amount_expected AS REAL) AS amount_expected,
+                COALESCE(cash_verified, 0) AS cash_verified, created_at
+         FROM payment WHERE patient_id = ?1 ORDER BY created_at DESC",
     )
     .bind(patient_id)
     .fetch_all(pool)

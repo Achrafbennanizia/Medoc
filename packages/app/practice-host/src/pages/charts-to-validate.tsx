@@ -1,18 +1,23 @@
-import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useCallback, useEffect, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { useNavigate } from "react-router-dom";
 import {
     listChartsToValidate,
     validatePatientChart,
+    declinePatientChart,
     type ChartToValidateRow,
 } from "@/systems/practice-host/controllers/chart-workflow.controller";
 import { errorMessage, formatDateTime } from "@/lib/utils";
+import { allowed, parseRole } from "@/lib/rbac";
+import { useAuthStore } from "@/models/store/auth-store";
 import { useT } from "@/lib/i18n";
+import { CHART_QUEUE_DECLINE_ENABLED } from "@/lib/v1-ui-flags";
 import { Badge } from "@/views/components/ui/badge";
 import { Button } from "@/views/components/ui/button";
 import { EmptyState } from "@/views/components/ui/empty-state";
 import { PageLoadError, PageLoading } from "@/views/components/ui/page-status";
 import { useToastStore } from "@/views/components/ui/toast-store";
 import { WorkspacePageHeader } from "@/views/components/administration-page-header";
+import { XIcon } from "@/lib/icons";
 
 function chartStatusLabel(status: string, t: (key: string) => string): string {
     const key = `enum.charts_status.${status.trim().toLowerCase()}`;
@@ -35,7 +40,11 @@ function chartStatusBadgeVariant(status: string): "primary" | "warning" | "succe
 
 export function ChartsToValidatePage() {
     const t = useT();
+    const navigate = useNavigate();
     const toast = useToastStore((s) => s.add);
+    const session = useAuthStore((s) => s.session);
+    const role = parseRole(session?.role);
+    const canWriteMedical = role != null && allowed("patient.write_medical", role, session?.permission_overrides);
     const [rows, setRows] = useState<ChartToValidateRow[]>([]);
     const [loading, setLoading] = useState(true);
     const [err, setErr] = useState<string | null>(null);
@@ -93,6 +102,20 @@ export function ChartsToValidatePage() {
         }
     };
 
+    const onDecline = async (patientId: string) => {
+        setBusyId(patientId);
+        try {
+            await declinePatientChart(patientId);
+            toast(t("page.charts_to_validate.declined_toast"), "success");
+            window.dispatchEvent(new Event("medoc-nav-badges-refresh"));
+            await load();
+        } catch (e) {
+            toast(errorMessage(e), "error");
+        } finally {
+            setBusyId(null);
+        }
+    };
+
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
             <WorkspacePageHeader
@@ -114,50 +137,94 @@ export function ChartsToValidatePage() {
             ) : (
                 <div className="card tbl-data-card" style={{ display: "flex", flexDirection: "column", gap: 0 }}>
                     <div className="tbl-scroll">
-                        <table className="tbl tbl-fluid">
+                        <table className="tbl tbl-fluid tbl-charts-queue">
+                            <colgroup>
+                                <col className="charts-queue-col-patient" />
+                                <col className="charts-queue-col-status" />
+                                <col className="charts-queue-col-updated" />
+                                <col className="charts-queue-col-action" />
+                            </colgroup>
                             <thead>
                                 <tr>
-                                    <th>{t("page.charts_to_validate.col_patient")}</th>
-                                    <th>{t("page.charts_to_validate.col_status")}</th>
-                                    <th>{t("page.charts_to_validate.col_updated")}</th>
-                                    <th>{t("page.charts_to_validate.col_actions")}</th>
+                                    <th scope="col">{t("page.charts_to_validate.col_patient")}</th>
+                                    <th scope="col" className="charts-queue-th-status">{t("page.charts_to_validate.col_status")}</th>
+                                    <th scope="col" className="charts-queue-th-updated">{t("page.charts_to_validate.col_updated")}</th>
+                                    <th scope="col" className="charts-queue-th-action">{t("page.charts_to_validate.col_actions")}</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {rows.map((r) => (
-                                    <tr key={r.patient_id}>
-                                        <td>
-                                            <Link to={`/patients/${r.patient_id}`} className="link">
-                                                {r.patient_name}
-                                            </Link>
+                                {rows.map((r) => {
+                                    const busy = busyId === r.patient_id;
+                                    const openPatient = () => navigate(`/patients/${r.patient_id}`);
+                                    const stopRowNav = (e: MouseEvent) => {
+                                        e.stopPropagation();
+                                    };
+                                    const onRowKeyDown = (e: KeyboardEvent<HTMLTableRowElement>) => {
+                                        if (e.key === "Enter" || e.key === " ") {
+                                            e.preventDefault();
+                                            openPatient();
+                                        }
+                                    };
+                                    return (
+                                    <tr
+                                        key={r.patient_id}
+                                        className="charts-queue-row"
+                                        tabIndex={0}
+                                        onClick={openPatient}
+                                        onKeyDown={onRowKeyDown}
+                                    >
+                                        <td className="charts-queue-td-patient">
+                                            <span className="link">{r.patient_name}</span>
                                         </td>
-                                        <td>
+                                        <td className="charts-queue-td-status">
                                             <Badge variant={chartStatusBadgeVariant(r.chart_status)}>
                                                 {chartStatusLabel(r.chart_status, t)}
                                             </Badge>
                                         </td>
-                                        <td>{formatDateTime(r.updated_at)}</td>
-                                        <td>
-                                            <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
-                                                <Link
-                                                    to={`/patients/${r.patient_id}`}
-                                                    className="btn btn-subtle"
-                                                    style={{ padding: "5px 10px", fontSize: 12 }}
-                                                >
-                                                    {t("page.charts_to_validate.open_chart")}
-                                                </Link>
+                                        <td className="charts-queue-td-updated">{formatDateTime(r.updated_at)}</td>
+                                        <td
+                                            className="charts-queue-td-action"
+                                            onClick={stopRowNav}
+                                            onKeyDown={(e) => e.stopPropagation()}
+                                        >
+                                            {canWriteMedical ? (
+                                            <div className="charts-queue-actions">
                                                 <Button
                                                     size="sm"
                                                     variant="primary"
-                                                    disabled={busyId === r.patient_id}
+                                                    disabled={busy}
                                                     onClick={() => void onValidate(r.patient_id)}
                                                 >
-                                                    {busyId === r.patient_id ? "…" : t("page.charts_to_validate.validate")}
+                                                    {busy ? "…" : t("page.charts_to_validate.validate")}
+                                                </Button>
+                                                {/* TODO(later): restore Decline — see docs/coordination/todos-deferred-ui-blinds.md */}
+                                                {CHART_QUEUE_DECLINE_ENABLED ? (
+                                                <Button
+                                                    size="sm"
+                                                    variant="secondary"
+                                                    disabled={busy}
+                                                    onClick={() => void onDecline(r.patient_id)}
+                                                >
+                                                    {busy ? "…" : t("page.charts_to_validate.decline")}
+                                                </Button>
+                                                ) : null}
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    className="charts-queue-remove-btn"
+                                                    disabled={busy}
+                                                    title={t("page.charts_to_validate.remove_from_list")}
+                                                    aria-label={t("page.charts_to_validate.remove_from_list")}
+                                                    onClick={() => void onDecline(r.patient_id)}
+                                                >
+                                                    <XIcon size={16} />
                                                 </Button>
                                             </div>
+                                            ) : null}
                                         </td>
                                     </tr>
-                                ))}
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>

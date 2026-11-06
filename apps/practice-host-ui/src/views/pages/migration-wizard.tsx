@@ -289,7 +289,7 @@ function DeviceFilePanel() {
                         <>
                             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 12 }}>
                                 <Input id="scan-archive" label={t("migration.device.archive_root")} value={attachRoot} onChange={(e) => setAttachRoot(e.target.value)} placeholder="/Users/…/charts" />
-                                <Input id="scan-pid" label={t("migration.device.patient_id")} value={attachPatient} onChange={(e) => setAttachPatient(e.target.value)} placeholder="seed-pat-001" />
+                                <Input id="scan-pid" label={t("migration.device.patient_id")} value={attachPatient} onChange={(e) => setAttachPatient(e.target.value)} placeholder={t("migration.device.patient_id_placeholder")} />
                             </div>
                             <ul style={{ listStyle: "none", padding: 0, marginTop: 12 }}>
                                 {docs.map((d) => (

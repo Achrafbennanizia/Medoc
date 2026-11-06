@@ -28,12 +28,15 @@ function formatAddrOneLine(addr: string): string {
 }
 
 /** Rasterize any browser-decodable image to PNG so Rust PDF export can embed it. */
-async function rasterizeLogoToPngBase64(file: File): Promise<{ mime: string; data: string }> {
+async function rasterizeLogoToPngBase64(
+    file: File,
+    tr: (key: string) => string,
+): Promise<{ mime: string; data: string }> {
     let bitmap: ImageBitmap;
     try {
         bitmap = await createImageBitmap(file);
     } catch {
-        throw new Error("Unsupported image format (use PNG, JPEG, or WebP)");
+        throw new Error(tr("settings.practice.logo.unsupported_format"));
     }
     try {
         const maxEdge = 1024;
@@ -44,7 +47,7 @@ async function rasterizeLogoToPngBase64(file: File): Promise<{ mime: string; dat
         canvas.width = w;
         canvas.height = h;
         const ctx = canvas.getContext("2d", { willReadFrequently: true });
-        if (!ctx) throw new Error("Could not prepare logo canvas");
+        if (!ctx) throw new Error(tr("settings.practice.logo.canvas_failed"));
         ctx.clearRect(0, 0, w, h);
         ctx.drawImage(bitmap, 0, 0, w, h);
         stripLogoBackdropInPlace(ctx, w, h);
@@ -61,7 +64,7 @@ async function rasterizeLogoToPngBase64(file: File): Promise<{ mime: string; dat
         ctx.putImageData(flat, 0, 0);
         const dataUrl = canvas.toDataURL("image/png");
         const data = dataUrl.split(",")[1] ?? "";
-        if (!data) throw new Error("Could not encode logo");
+        if (!data) throw new Error(tr("settings.practice.logo.encode_failed"));
         return { mime: "image/png", data };
     } finally {
         bitmap.close();
@@ -310,7 +313,7 @@ export function SettingsPracticeSection({
             ...practice,
             payment_terms_days: Number.isFinite(zt) && zt > 0 ? Math.round(zt) : 14,
             vat_exemption_notice:
-                (practice.vat_exemption_notice ?? "").trim() || "VAT-exempt under § 4 No. 14 UStG",
+                (practice.vat_exemption_notice ?? "").trim() || t("settings.practice.vat_exemption_default"),
         };
         setPractice(next);
         saveInvoicePracticeToStorage(next);
@@ -332,7 +335,7 @@ export function SettingsPracticeSection({
         }
         setLogoBusy(true);
         try {
-            const { mime, data } = await rasterizeLogoToPngBase64(f);
+            const { mime, data } = await rasterizeLogoToPngBase64(f, t);
             // ~750 KB base64 ≈ raw PNG under common practice-logo sizes after rasterize.
             if (data.length > 1_000_000) {
                 toast(t("settings.practice.toast.file_too_large"), "error");

@@ -108,6 +108,23 @@ async fn already_applied(pool: &SqlitePool) -> Result<bool, AppError> {
     kv_present(pool, YEAR_SEED_KV_KEY).await
 }
 
+/// Year demo used `11 + (n % 37)` which produced non-FDI numbers (19, 20, 29…).
+/// Those never paint on the odontogram, so remap onto quadrants 1–4 / teeth 1–8.
+async fn remap_invalid_demo_tooth_numbers(pool: &SqlitePool) -> Result<(), AppError> {
+    sqlx::query(
+        "UPDATE dental_finding
+         SET tooth_number =
+           (1 + (ABS(tooth_number) % 4)) * 10
+           + (1 + ((ABS(tooth_number) / 4) % 8))
+         WHERE (tooth_number / 10) NOT BETWEEN 1 AND 4
+            OR (tooth_number % 10) NOT BETWEEN 1 AND 8",
+    )
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?;
+    Ok(())
+}
+
 async fn mark_applied(pool: &SqlitePool) -> Result<(), AppError> {
     sqlx::query(
         "INSERT INTO app_kv (key, value, updated_at) VALUES (?1, '1', CURRENT_TIMESTAMP)
@@ -400,6 +417,7 @@ pub async fn run_demo_year_volume_if_needed(pool: &SqlitePool) -> Result<(), App
         return Ok(());
     }
     if already_applied(pool).await? {
+        remap_invalid_demo_tooth_numbers(pool).await?;
         return Ok(());
     }
     // Existing year_v3–v6 DBs: refresh calendar only (keep clinical/billing volume).
@@ -410,12 +428,14 @@ pub async fn run_demo_year_volume_if_needed(pool: &SqlitePool) -> Result<(), App
     if prior {
         tracing::info!("demo year seed v7: refreshing calendar appointments (non-overlapping)");
         refresh_year_calendar_appointments(pool, Scale::full()).await?;
+        remap_invalid_demo_tooth_numbers(pool).await?;
         mark_applied(pool).await?;
         tracing::info!("demo year seed v7: calendar refresh done");
         return Ok(());
     }
     tracing::info!("demo year seed v7: generating full practice volume");
     seed_year_volume(pool, Scale::full()).await?;
+    remap_invalid_demo_tooth_numbers(pool).await?;
     mark_applied(pool).await?;
     tracing::info!("demo year seed v7: done");
     Ok(())
@@ -773,7 +793,11 @@ async fn seed_year_volume(pool: &SqlitePool, scale: Scale) -> Result<(), AppErro
             .map_err(AppError::Database)?;
         }
 
-        // Multiple dental findings for a dense tooth-status look
+        // Multiple dental findings for a dense tooth-status look (valid FDI only).
+        const FDI: [i64; 32] = [
+            18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28, 48, 47, 46, 45, 44,
+            43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38,
+        ];
         let finding_count = 1 + (mix(i + 40) % 4);
         for f in 0..finding_count {
             let n = mix(i * 17 + f);
@@ -784,7 +808,7 @@ async fn seed_year_volume(pool: &SqlitePool, scale: Scale) -> Result<(), AppErro
             )
             .bind(format!("seed-yr-zb-{i:04}-{f}"))
             .bind(&cid)
-            .bind(11 + (n % 37) as i64)
+            .bind(FDI[(n as usize) % FDI.len()])
             .bind(*pick(
                 n,
                 &[

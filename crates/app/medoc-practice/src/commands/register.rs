@@ -147,6 +147,7 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::sync_commands::sync_get_status,
             $crate::commands::sync_commands::sync_set_deployment,
             $crate::commands::sync_commands::sync_run_now,
+            $crate::commands::sync_commands::sync_probe_master,
             $crate::commands::sync_commands::sync_record_change,
             $crate::commands::network::pairing::master::pairing_list_pending,
             $crate::commands::network::pairing::master::pairing_list_all,

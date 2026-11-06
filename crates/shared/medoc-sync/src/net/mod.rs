@@ -16,7 +16,10 @@ pub use bind_guard::{assert_private_bind, is_private_lan_address};
 pub use channel::{recv_wire_message, send_wire_message};
 pub use discovery::{scan_admins, AdminEndpoint, MdnsResponder};
 pub use handshake::{run_xx_initiator, run_xx_responder};
-pub use join_client::{fetch_staff_directory, join_admin_endpoint, JoinOutcome};
+pub use join_client::{
+    confirm_sas_on_admin, fetch_replica_auth, fetch_staff_directory, join_admin_endpoint,
+    JoinOutcome, SasConfirmOutcome,
+};
 pub use join_handler::{
     handle_cluster_connection, handle_join_connection, spawn_cluster_connection_handler,
 };

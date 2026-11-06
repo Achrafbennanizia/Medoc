@@ -1,36 +1,37 @@
-export type LabelPair = { full: string; short: string; aria: string };
+export type LabelPairMode = "full" | "short";
 
 /**
  * Curated short forms for cramped UI (toolbars, table headers). Never use raw ellipsis truncation
  * for these concepts — use `pickLabel` + {@link ResponsiveLabel}.
  *
- * English source strings; wire DE/AR/FR via i18n when consumers pass a locale (PROPOSED).
+ * Copy lives in `packages/shared/locales/*.json` under `abbrev.<key>.{full,short,aria}`.
  */
-export const LABELS = {
-    order_number: { full: "Order number", short: "Ord. no.", aria: "Order number" },
-    treatment_number: { full: "Treatment number", short: "T-no.", aria: "Treatment number" },
-    examination_number: { full: "Examination number", short: "E-no.", aria: "Examination number" },
-    session_number: { full: "Session number", short: "Sess.", aria: "Session number" },
-    payment_method_bank_transfer: { full: "Bank transfer", short: "Xfer", aria: "Bank transfer" },
-    payment_method_invoice: { full: "Invoice", short: "Inv.", aria: "Invoice" },
-    payment_method_cash: { full: "Cash", short: "Cash", aria: "Cash payment" },
-    payment_method_card: { full: "Card", short: "Card", aria: "Card payment" },
-    service_item: { full: "Service", short: "Svc.", aria: "Service" },
-    patient_chart: { full: "Patient record", short: "Record", aria: "Patient record" },
-    date_of_birth: { full: "Date of birth", short: "DOB", aria: "Date of birth" },
-    contact: { full: "Contact", short: "Cont.", aria: "Contact" },
-    availability: { full: "Availability", short: "Avail.", aria: "Availability" },
-    tax_number: { full: "Tax number", short: "Tax no.", aria: "Tax number" },
-    kv_number: { full: "Health insurance number", short: "KV no.", aria: "Statutory health insurance number" },
-} as const satisfies Record<string, LabelPair>;
+export const LABEL_KEYS = [
+    "order_number",
+    "treatment_number",
+    "examination_number",
+    "session_number",
+    "payment_method_bank_transfer",
+    "payment_method_invoice",
+    "payment_method_cash",
+    "payment_method_card",
+    "service_item",
+    "patient_chart",
+    "date_of_birth",
+    "contact",
+    "availability",
+    "tax_number",
+    "kv_number",
+] as const;
 
-export type LabelKey = keyof typeof LABELS;
+export type LabelKey = (typeof LABEL_KEYS)[number];
 
-export function pickLabel(key: LabelKey, mode: "full" | "short"): string {
-    const row = LABELS[key];
-    return mode === "short" ? row.short : row.full;
+type TFn = (key: string) => string;
+
+export function pickLabel(t: TFn, key: LabelKey, mode: LabelPairMode): string {
+    return t(`abbrev.${key}.${mode}`);
 }
 
-export function ariaForLabel(key: LabelKey): string {
-    return LABELS[key].aria;
+export function ariaForLabel(t: TFn, key: LabelKey): string {
+    return t(`abbrev.${key}.aria`);
 }

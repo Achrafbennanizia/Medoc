@@ -273,10 +273,274 @@ pub async fn update_with_quota(
 }
 
 pub async fn delete(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
+    tracing::info!(
+        target: "medoc::staff",
+        event = "STAFF_DELETE_BEGIN",
+        staff_id = %id
+    );
+    let existing = find_by_id(pool, id)
+        .await?
+        .ok_or(AppError::NotFound("Staff".into()))?;
+    tracing::info!(
+        target: "medoc::staff",
+        event = "STAFF_DELETE_TARGET",
+        staff_id = %id,
+        role = %existing.role,
+        email = %existing.email
+    );
+
+    let refs = staff_delete_ref_counts(pool, id).await?;
+    tracing::info!(
+        target: "medoc::staff",
+        event = "STAFF_DELETE_FK_COUNTS",
+        staff_id = %id,
+        appointments = refs.appointments,
+        prescriptions = refs.prescriptions,
+        certificates = refs.certificates,
+        work_time_sessions = refs.work_time_sessions,
+        sick_leave = refs.sick_leave,
+        work_plan = refs.work_plan,
+        practice_tickets = refs.practice_tickets,
+        practice_tasks = refs.practice_tasks,
+        notifications = refs.notifications
+    );
+
+    let clinical = refs.appointments + refs.prescriptions + refs.certificates;
+    if clinical > 0 {
+        let other = replacement_physician_id(pool, id).await?;
+        if other.is_none() {
+            tracing::warn!(
+                target: "medoc::staff",
+                event = "STAFF_DELETE_BLOCKED_LAST_PHYSICIAN",
+                staff_id = %id,
+                appointments = refs.appointments,
+                prescriptions = refs.prescriptions,
+                certificates = refs.certificates
+            );
+            return Err(AppError::Validation(
+                "This account still owns appointments or clinical documents. Assign another clinician first, then remove the account.".into(),
+            ));
+        }
+    }
+
+    detach_staff_operational_rows(pool, id).await?;
+    reassign_or_reject_clinical_ownership(pool, id, &refs).await?;
+    nullify_optional_staff_fks(pool, id).await?;
+
+    tracing::info!(
+        target: "medoc::staff",
+        event = "STAFF_DELETE_EXECUTE",
+        staff_id = %id
+    );
     sqlx::query("DELETE FROM staff WHERE id = ?1")
         .bind(id)
         .execute(pool)
         .await?;
+    tracing::info!(
+        target: "medoc::staff",
+        event = "STAFF_DELETE_OK",
+        staff_id = %id
+    );
+    Ok(())
+}
+
+struct StaffDeleteRefs {
+    appointments: i64,
+    prescriptions: i64,
+    certificates: i64,
+    work_time_sessions: i64,
+    sick_leave: i64,
+    work_plan: i64,
+    practice_tickets: i64,
+    practice_tasks: i64,
+    notifications: i64,
+}
+
+async fn count_sql(pool: &SqlitePool, sql: &str, id: &str) -> Result<i64, AppError> {
+    sqlx::query_scalar(sql)
+        .bind(id)
+        .fetch_one(pool)
+        .await
+        .map_err(AppError::Database)
+}
+
+async fn staff_delete_ref_counts(pool: &SqlitePool, id: &str) -> Result<StaffDeleteRefs, AppError> {
+    Ok(StaffDeleteRefs {
+        appointments: count_sql(pool, "SELECT COUNT(*) FROM appointment WHERE physician_id = ?1", id).await?,
+        prescriptions: count_sql(
+            pool,
+            "SELECT COUNT(*) FROM prescription WHERE physician_id = ?1 OR prescribing_physician_id = ?1",
+            id,
+        )
+        .await?,
+        certificates: count_sql(
+            pool,
+            "SELECT COUNT(*) FROM certificate WHERE physician_id = ?1 OR issuing_physician_id = ?1",
+            id,
+        )
+        .await?,
+        work_time_sessions: count_sql(
+            pool,
+            "SELECT COUNT(*) FROM work_time_session WHERE staff_id = ?1",
+            id,
+        )
+        .await?,
+        sick_leave: count_sql(
+            pool,
+            "SELECT COUNT(*) FROM sick_leave_certificate WHERE staff_id = ?1 OR created_by = ?1 OR ended_by = ?1",
+            id,
+        )
+        .await?,
+        work_plan: count_sql(
+            pool,
+            "SELECT COUNT(*) FROM work_plan_adjustment WHERE staff_id = ?1",
+            id,
+        )
+        .await?,
+        practice_tickets: count_sql(
+            pool,
+            "SELECT COUNT(*) FROM practice_ticket WHERE from_user_id = ?1 OR to_physician_id = ?1",
+            id,
+        )
+        .await?,
+        practice_tasks: count_sql(
+            pool,
+            "SELECT COUNT(*) FROM practice_task WHERE created_by = ?1 OR assignee_user_id = ?1",
+            id,
+        )
+        .await?,
+        notifications: count_sql(
+            pool,
+            "SELECT COUNT(*) FROM in_app_notification WHERE user_id = ?1",
+            id,
+        )
+        .await?,
+    })
+}
+
+async fn detach_staff_operational_rows(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
+    tracing::info!(
+        target: "medoc::staff",
+        event = "STAFF_DELETE_DETACH_OPERATIONAL",
+        staff_id = %id
+    );
+    sqlx::query(
+        "DELETE FROM work_time_pause_segment WHERE session_id IN
+         (SELECT id FROM work_time_session WHERE staff_id = ?1)",
+    )
+    .bind(id)
+    .execute(pool)
+    .await?;
+    sqlx::query("DELETE FROM work_time_preference WHERE staff_id = ?1")
+        .bind(id)
+        .execute(pool)
+        .await?;
+    sqlx::query("DELETE FROM work_time_session WHERE staff_id = ?1")
+        .bind(id)
+        .execute(pool)
+        .await?;
+    sqlx::query("DELETE FROM work_plan_adjustment WHERE staff_id = ?1")
+        .bind(id)
+        .execute(pool)
+        .await?;
+    sqlx::query(
+        "DELETE FROM sick_leave_certificate WHERE staff_id = ?1 OR created_by = ?1 OR ended_by = ?1",
+    )
+    .bind(id)
+    .execute(pool)
+    .await?;
+    sqlx::query("DELETE FROM device_session WHERE user_id = ?1")
+        .bind(id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+async fn replacement_physician_id(pool: &SqlitePool, except_id: &str) -> Result<Option<String>, AppError> {
+    sqlx::query_scalar(
+        "SELECT id FROM staff WHERE UPPER(role) = 'PHYSICIAN' AND id != ?1 ORDER BY id LIMIT 1",
+    )
+    .bind(except_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(AppError::Database)
+}
+
+async fn reassign_or_reject_clinical_ownership(
+    pool: &SqlitePool,
+    id: &str,
+    refs: &StaffDeleteRefs,
+) -> Result<(), AppError> {
+    let clinical = refs.appointments + refs.prescriptions + refs.certificates;
+    if clinical == 0 {
+        return Ok(());
+    }
+    let Some(other) = replacement_physician_id(pool, id).await? else {
+        tracing::warn!(
+            target: "medoc::staff",
+            event = "STAFF_DELETE_BLOCKED_LAST_PHYSICIAN",
+            staff_id = %id,
+            appointments = refs.appointments,
+            prescriptions = refs.prescriptions,
+            certificates = refs.certificates
+        );
+        return Err(AppError::Validation(
+            "This account still owns appointments or clinical documents. Assign another clinician first, then remove the account.".into(),
+        ));
+    };
+    tracing::info!(
+        target: "medoc::staff",
+        event = "STAFF_DELETE_REASSIGN_CLINICAL",
+        staff_id = %id,
+        replacement_physician_id = %other,
+        appointments = refs.appointments,
+        prescriptions = refs.prescriptions,
+        certificates = refs.certificates
+    );
+    sqlx::query("UPDATE appointment SET physician_id = ?1 WHERE physician_id = ?2")
+        .bind(&other)
+        .bind(id)
+        .execute(pool)
+        .await?;
+    sqlx::query("UPDATE prescription SET physician_id = ?1 WHERE physician_id = ?2")
+        .bind(&other)
+        .bind(id)
+        .execute(pool)
+        .await?;
+    sqlx::query("UPDATE certificate SET physician_id = ?1 WHERE physician_id = ?2")
+        .bind(&other)
+        .bind(id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+async fn nullify_optional_staff_fks(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
+    tracing::info!(
+        target: "medoc::staff",
+        event = "STAFF_DELETE_NULLIFY_OPTIONAL",
+        staff_id = %id
+    );
+    sqlx::query("UPDATE prescription SET prescribing_physician_id = NULL WHERE prescribing_physician_id = ?1")
+        .bind(id)
+        .execute(pool)
+        .await?;
+    sqlx::query("UPDATE certificate SET issuing_physician_id = NULL WHERE issuing_physician_id = ?1")
+        .bind(id)
+        .execute(pool)
+        .await?;
+    sqlx::query(
+        "UPDATE examination SET released_by_physician_id = NULL WHERE released_by_physician_id = ?1",
+    )
+    .bind(id)
+    .execute(pool)
+    .await?;
+    sqlx::query(
+        "UPDATE treatment SET released_by_physician_id = NULL WHERE released_by_physician_id = ?1",
+    )
+    .bind(id)
+    .execute(pool)
+    .await?;
     Ok(())
 }
 

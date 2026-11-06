@@ -8,6 +8,7 @@ vi.mock("../adapters/practice-transport", () => ({
 
 vi.mock("./sync.controller", () => ({
     syncGetStatus: vi.fn(),
+    syncProbeMaster: vi.fn(),
 }));
 
 vi.mock("@/systems/lan/lib/lan-client-config", () => ({
@@ -24,12 +25,13 @@ import { isLanClientActive, loadLanClientConfig } from "@/systems/lan/lib/lan-cl
 import { practiceSystem } from "../adapters/practice-transport";
 import { DEFAULT_SYNC_DEPLOYMENT } from "../lib/deployment-config";
 import { probeBackgroundServers } from "./connectivity.controller";
-import { syncGetStatus } from "./sync.controller";
+import { syncGetStatus, syncProbeMaster } from "./sync.controller";
 
 describe("probeBackgroundServers", () => {
     beforeEach(() => {
         vi.mocked(practiceSystem.invoke).mockReset();
         vi.mocked(syncGetStatus).mockReset();
+        vi.mocked(syncProbeMaster).mockReset();
         vi.mocked(isLanClientActive).mockReturnValue(false);
         vi.mocked(loadLanClientConfig).mockReturnValue({
             schemaVersion: 1,
@@ -86,7 +88,7 @@ describe("probeBackgroundServers", () => {
         await expect(probeBackgroundServers()).resolves.toBe(false);
     });
 
-    it("probes replica master URL", async () => {
+    it("probes replica master URL via native HTTPS", async () => {
         vi.mocked(practiceSystem.invoke).mockResolvedValueOnce(null);
         vi.mocked(syncGetStatus).mockResolvedValueOnce({
             localDeviceId: "dev-1",
@@ -101,10 +103,27 @@ describe("probeBackgroundServers", () => {
             peers: [],
             vectors: {},
         });
-        vi.stubGlobal(
-            "fetch",
-            vi.fn(async (url: string) => ({ ok: String(url).includes("master.local") && String(url).endsWith("/health") })),
-        );
+        vi.mocked(syncProbeMaster).mockResolvedValueOnce(true);
         await expect(probeBackgroundServers()).resolves.toBe(true);
+        expect(syncProbeMaster).toHaveBeenCalled();
+    });
+
+    it("is offline when replica cannot reach the master", async () => {
+        vi.mocked(practiceSystem.invoke).mockResolvedValueOnce(null);
+        vi.mocked(syncGetStatus).mockResolvedValueOnce({
+            localDeviceId: "dev-1",
+            deployment: {
+                ...DEFAULT_SYNC_DEPLOYMENT,
+                mode: "serverless_peer",
+                role: "REPLICA",
+                masterBaseUrl: "https://master.local:8787",
+            },
+            localSeq: 0,
+            pendingOutbox: 0,
+            peers: [],
+            vectors: {},
+        });
+        vi.mocked(syncProbeMaster).mockResolvedValueOnce(false);
+        await expect(probeBackgroundServers()).resolves.toBe(false);
     });
 });

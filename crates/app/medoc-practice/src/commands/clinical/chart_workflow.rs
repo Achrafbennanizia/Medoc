@@ -87,6 +87,28 @@ pub async fn validate_patient_chart(
 }
 
 #[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
+pub async fn decline_patient_chart(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    id: String,
+) -> Result<crate::domain::entities::PatientChart, AppError> {
+    let session = rbac::require(&session_state, "patient.write_medical")?;
+    let chart = chart_repo::decline_patient_chart_status(&pool, &id).await?;
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "DECLINE_CHART",
+        "PatientChart",
+        Some(&id),
+        None,
+    )
+    .await
+    .ok();
+    Ok(chart)
+}
+
+#[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state, args))]
 pub async fn forward_chart_to_physicians(
     pool: State<'_, SqlitePool>,
@@ -315,6 +337,7 @@ macro_rules! register_chart_workflow_commands {
         $crate::commands::chart_workflow_commands::list_charts_to_validate,
         $crate::commands::chart_workflow_commands::count_charts_to_validate,
         $crate::commands::chart_workflow_commands::validate_patient_chart,
+        $crate::commands::chart_workflow_commands::decline_patient_chart,
         $crate::commands::chart_workflow_commands::forward_chart_to_physicians,
         $crate::commands::chart_workflow_commands::create_practice_ticket,
         $crate::commands::chart_workflow_commands::list_practice_tickets_for_me,

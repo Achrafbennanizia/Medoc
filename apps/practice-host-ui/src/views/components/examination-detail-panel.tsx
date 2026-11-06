@@ -38,7 +38,7 @@ export function ExaminationDetailPanel({ examination }: { examination: Examinati
                         </div>
                     </div>
                 ) : (
-                    <p className="examination-detail-sheet__empty">{t("patient.detail.tab.unter.no_structured_data")}</p>
+                    <p className="examination-detail-sheet__empty">{t("patient.detail.tab.examination.no_structured_data")}</p>
                 )}
             </div>
         );
@@ -73,17 +73,17 @@ export function ExaminationDetailPanel({ examination }: { examination: Examinati
                         textTransform: "uppercase",
                     }}
                 >
-                    {t("patient.detail.tab.unter.summary_title")}
+                    {t("patient.detail.tab.examination.summary_title")}
                 </div>
                 <div style={{ fontWeight: 700, fontSize: 15, marginTop: 6 }}>{diagnosis || emDash}</div>
                 {plan ? (
                     <p style={{ margin: "10px 0 0", fontSize: 13, lineHeight: 1.45, whiteSpace: "pre-line" }}>
-                        <strong>{t("patient.detail.tab.unter.plan_prefix")}</strong> {plan}
+                        <strong>{t("patient.detail.tab.examination.plan_prefix")}</strong> {plan}
                     </p>
                 ) : null}
                 {generalNote ? (
                     <p style={{ margin: "10px 0 0", fontSize: 13, lineHeight: 1.45, whiteSpace: "pre-line" }}>
-                        <strong>{t("patient.detail.tab.unter.general_note_prefix")}</strong> {generalNote}
+                        <strong>{t("patient.detail.tab.examination.general_note_prefix")}</strong> {generalNote}
                     </p>
                 ) : null}
             </div>
@@ -96,12 +96,12 @@ export function ExaminationDetailPanel({ examination }: { examination: Examinati
                     }}
                 >
                     <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: 6 }}>
-                        {t("patient.detail.tab.unter.chief_complaint")}
+                        {t("patient.detail.tab.examination.chief_complaint")}
                     </div>
                     <p style={{ margin: 0, whiteSpace: "pre-line" }}>{detail.chiefComplaint || emDash}</p>
                     {detail.painVas ? (
                         <div style={{ marginTop: 8, color: "var(--fg-3)" }}>
-                            {tp("patient.detail.tab.unter.vas_line", {
+                            {tp("patient.detail.tab.examination.vas_line", {
                                 vas: detail.painVas,
                                 location: detail.painLocation || emDash,
                             })}
@@ -110,16 +110,16 @@ export function ExaminationDetailPanel({ examination }: { examination: Examinati
                 </div>
                 <div style={{ padding: 14, borderBottom: "1px solid var(--line)" }}>
                     <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: 6 }}>
-                        {t("patient.detail.tab.unter.extraoral")}
+                        {t("patient.detail.tab.examination.extraoral")}
                     </div>
                     <p style={{ margin: "4px 0" }}>
-                        {t("patient.detail.tab.unter.extraoral.tmj")} {detail.extraoral.tmj || emDash}
+                        {t("patient.detail.tab.examination.extraoral.tmj")} {detail.extraoral.tmj || emDash}
                     </p>
                     <p style={{ margin: "4px 0" }}>
-                        {t("patient.detail.tab.unter.extraoral.lymph")} {detail.extraoral.lymphNodes || emDash}
+                        {t("patient.detail.tab.examination.extraoral.lymph")} {detail.extraoral.lymphNodes || emDash}
                     </p>
                     <p style={{ margin: "4px 0" }}>
-                        {t("patient.detail.tab.unter.extraoral.asymmetry")} {detail.extraoral.asymmetry || emDash}
+                        {t("patient.detail.tab.examination.extraoral.asymmetry")} {detail.extraoral.asymmetry || emDash}
                     </p>
                 </div>
                 <div
@@ -130,28 +130,28 @@ export function ExaminationDetailPanel({ examination }: { examination: Examinati
                     }}
                 >
                     <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: 6 }}>
-                        {t("patient.detail.tab.unter.intraoral")}
+                        {t("patient.detail.tab.examination.intraoral")}
                     </div>
                     <p style={{ margin: "4px 0" }}>
-                        {t("patient.detail.tab.unter.intraoral.mucosa")} {detail.intraoral.mucosa || emDash}
+                        {t("patient.detail.tab.examination.intraoral.mucosa")} {detail.intraoral.mucosa || emDash}
                     </p>
                     <p style={{ margin: "4px 0" }}>
-                        {t("patient.detail.tab.unter.intraoral.tongue")} {detail.intraoral.tongue || emDash}
+                        {t("patient.detail.tab.examination.intraoral.tongue")} {detail.intraoral.tongue || emDash}
                     </p>
                     <p style={{ margin: "4px 0" }}>
-                        {t("patient.detail.tab.unter.intraoral.gingiva")} {detail.intraoral.gingiva || emDash}
+                        {t("patient.detail.tab.examination.intraoral.gingiva")} {detail.intraoral.gingiva || emDash}
                     </p>
                 </div>
                 <div style={{ padding: 14, borderBottom: "1px solid var(--line)" }}>
                     <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: 6 }}>
-                        {t("patient.detail.tab.unter.periodontal")}
+                        {t("patient.detail.tab.examination.periodontal")}
                     </div>
                     <p style={{ margin: "4px 0" }}>
-                        {t("patient.detail.tab.unter.periodontal.psi")}{" "}
+                        {t("patient.detail.tab.examination.periodontal.psi")}{" "}
                         {Object.values(detail.psi).filter(Boolean).join(" / ") || emDash}
                     </p>
                     <p style={{ margin: "4px 0" }}>
-                        {tp("patient.detail.tab.unter.periodontal.metrics", {
+                        {tp("patient.detail.tab.examination.periodontal.metrics", {
                             bop: detail.bopPercent || emDash,
                             pi: detail.plaqueIndex || emDash,
                             mh: detail.hygieneScore || emDash,
@@ -160,19 +160,19 @@ export function ExaminationDetailPanel({ examination }: { examination: Examinati
                 </div>
                 <div style={{ padding: 14, borderRight: "1px solid var(--line)" }}>
                     <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: 6 }}>
-                        {t("patient.detail.tab.unter.function")}
+                        {t("patient.detail.tab.examination.function")}
                     </div>
                     <p style={{ margin: "4px 0" }}>
-                        {t("patient.detail.tab.unter.function.cmd")} {detail.function.cmd || emDash}
+                        {t("patient.detail.tab.examination.function.cmd")} {detail.function.cmd || emDash}
                     </p>
                     <p style={{ margin: "4px 0" }}>
-                        {t("patient.detail.tab.unter.function.bruxism")} {detail.function.bruxism || emDash}
+                        {t("patient.detail.tab.examination.function.bruxism")} {detail.function.bruxism || emDash}
                     </p>
                     <p style={{ margin: "4px 0", whiteSpace: "pre-line" }}>{detail.function.notes || ""}</p>
                 </div>
                 <div style={{ padding: 14, borderRight: "1px solid var(--line)" }}>
                     <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: 6 }}>
-                        {t("patient.detail.tab.unter.tooth_notes")}
+                        {t("patient.detail.tab.examination.tooth_notes")}
                     </div>
                     {toothEntries.length > 0 ? (
                         <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 6 }}>
@@ -189,10 +189,10 @@ export function ExaminationDetailPanel({ examination }: { examination: Examinati
                 </div>
                 <div style={{ padding: 14 }}>
                     <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: 6 }}>
-                        {t("patient.detail.tab.unter.imaging")}
+                        {t("patient.detail.tab.examination.imaging")}
                     </div>
                     <p style={{ margin: "4px 0" }}>
-                        {t("patient.detail.tab.unter.imaging.ordered")} {detail.imaging.ordered || emDash}
+                        {t("patient.detail.tab.examination.imaging.ordered")} {detail.imaging.ordered || emDash}
                     </p>
                     <p style={{ margin: "4px 0", whiteSpace: "pre-line" }}>{detail.imaging.findings || emDash}</p>
                 </div>

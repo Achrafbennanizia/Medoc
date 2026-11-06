@@ -24,6 +24,7 @@ import { currentLicenseStatus } from "@/systems/practice-host/controllers/system
 import { clusterGetStatus } from "@/systems/practice-host/controllers/cluster.controller";
 import { LicenseActivatePage } from "@/systems/practice-host/pages/license-activate";
 import { PairingScanPage } from "@/systems/lan/pages/pairing-scan";
+import { replicaIsActivated } from "@/lib/replica-activation-gate";
 
 type Decision = "loading" | "ok" | "needs-license" | "needs-pairing" | "error";
 
@@ -39,12 +40,21 @@ export function LicenseAndPairingGate({ children }: { children: ReactNode }) {
             const isReplica =
                 snap.deployment.mode === "serverless_peer" && snap.deployment.role === "REPLICA";
             if (isReplica) {
-                if (!snap.deployment.activationToken) {
-                    setDecision("needs-pairing");
+                const cluster = await clusterGetStatus().catch(() => null);
+                if (
+                    replicaIsActivated({
+                        mode: snap.deployment.mode,
+                        role: snap.deployment.role,
+                        activationToken: snap.deployment.activationToken,
+                        clusterProvisioned: cluster?.provisioned,
+                        clusterIsOwner: cluster?.isOwner,
+                        masterBaseUrl: snap.deployment.masterBaseUrl,
+                    })
+                ) {
+                    setDecision("ok");
                     return;
                 }
-                // Paired replicas authenticate via activation token — no vendor license.
-                setDecision("ok");
+                setDecision("needs-pairing");
                 return;
             }
             const cluster = await clusterGetStatus().catch(() => null);

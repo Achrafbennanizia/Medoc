@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Sequential Vitest projects with a single worker — keeps GHA RSS bounded.
 set -euo pipefail
-cd "$(dirname "$0")/../apps/practice-host-ui"
+root="$(cd "$(dirname "$0")/.." && pwd)"
+node "$root/scripts/check-css-custom-properties.mjs"
+cd "$root/apps/practice-host-ui"
 export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=4096}"
 for project in node mvp-unit; do
   echo "::group::vitest project=${project}"

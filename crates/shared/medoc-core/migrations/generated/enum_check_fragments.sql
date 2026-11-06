@@ -8,7 +8,7 @@
 -- CHECK (... IN ('PLANNED','CONFIRMED','COMPLETED','NO_SHOW','CANCELLED'))
 
 -- ChartStatus (patient_chart.status)
--- CHECK (... IN ('DRAFT','IN_PROGRESS','VALIDATED','READONLY'))
+-- CHECK (... IN ('DRAFT','IN_PROGRESS','VALIDATED','DECLINED','READONLY'))
 
 -- FeedbackCategory (feedback.category)
 -- CHECK (... IN ('feedback','vigilance','technical'))

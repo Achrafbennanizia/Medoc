@@ -1,4 +1,4 @@
-import { useLocale, bcp47ForLocale } from "@/lib/i18n";
+import { translateLocale, useLocale, bcp47ForLocale } from "@/lib/i18n";
 import { getPatient } from "@/systems/practice-host/controllers/patient.controller";
 import {
     getChart,
@@ -73,24 +73,22 @@ export type ChartExportSectionsState = {
 
 export const CHART_EXPORT_SECTION_META: {
     key: keyof ChartExportSectionsState;
-    /** @deprecated Use {@link chartExportSectionLabel} — kept for tests/fallback. */
-    label: string;
     needsMedical: boolean;
     needsDocuments?: boolean;
     needsFinance?: boolean;
     needsAuditRead?: boolean;
 }[] = [
-    { key: "patient", label: "Master data", needsMedical: false },
-    { key: "chartCore", label: "Patient record (status, diagnosis, findings)", needsMedical: true },
-    { key: "anamnesis", label: "Medical history", needsMedical: true },
-    { key: "treatments", label: "Treatments", needsMedical: true },
-    { key: "examinations", label: "Examinations", needsMedical: true },
-    { key: "dental_findings", label: "Dental findings", needsMedical: true },
-    { key: "prescriptions", label: "Prescriptions", needsMedical: false, needsDocuments: true },
-    { key: "certificate", label: "Certificates", needsMedical: false, needsDocuments: true },
-    { key: "attachments", label: "Attachments", needsMedical: false },
-    { key: "payments", label: "Payments", needsMedical: false, needsFinance: true },
-    { key: "audit", label: "Audit extract", needsMedical: false, needsAuditRead: true },
+    { key: "patient", needsMedical: false },
+    { key: "chartCore", needsMedical: true },
+    { key: "anamnesis", needsMedical: true },
+    { key: "treatments", needsMedical: true },
+    { key: "examinations", needsMedical: true },
+    { key: "dental_findings", needsMedical: true },
+    { key: "prescriptions", needsMedical: false, needsDocuments: true },
+    { key: "certificate", needsMedical: false, needsDocuments: true },
+    { key: "attachments", needsMedical: false },
+    { key: "payments", needsMedical: false, needsFinance: true },
+    { key: "audit", needsMedical: false, needsAuditRead: true },
 ];
 
 /** Localized label for export section checkbox (Chart export picker). */
@@ -275,7 +273,7 @@ function narrativeDivFromText(body: string): string {
 }
 
 /**
- * FHIR R4-konformes Umschlag-Muster: Bundle type=collection + Composition + Patient.
+ * FHIR R4 envelope: Bundle type=collection + Composition + Patient.
  * Informally matches HL7 document/collection pattern; not declared as validated IHE document.
  */
 export function buildFhirInteropBundle(
@@ -296,14 +294,17 @@ export function buildFhirInteropBundle(
         const data = medocDomainPayload[key];
         if (data === undefined) continue;
         const json = JSON.stringify(data, null, 2);
+        const title = chartExportSectionLabel(row.key, (key) =>
+            translateLocale(useLocale.getState().locale, key),
+        );
         sections.push({
-            title: row.label,
+            title,
             code: {
                 coding: [
                     {
                         system: "urn:medoc:export-section",
                         code: row.key,
-                        display: row.label,
+                        display: title,
                     },
                 ],
             },
@@ -329,14 +330,14 @@ export function buildFhirInteropBundle(
                     display: "Progress note",
                 },
             ],
-            text: "MeDoc Aktenauszug / Patient record extract",
+            text: translateLocale(useLocale.getState().locale, "export.chart.fhir_text"),
         },
         subject: patientIncluded
             ? { reference: patientRef, display: snap.patient.name }
             : undefined,
         date: snap.exportMeta.generatedAt,
         author: [{ display: `${snap.exportMeta.app} export` }],
-        title: "MeDoc — PatientChart (Auszug)",
+        title: translateLocale(useLocale.getState().locale, "export.chart.fhir_title"),
         confidentiality: {
             coding: [
                 {

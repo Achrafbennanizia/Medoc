@@ -339,63 +339,93 @@ export function PatientDetailPage() {
         setPayments([]);
         setAnamnesisJson("");
         setAnamnesisSign(false);
+        let chartRow: PatientChart | null = null;
         try {
-            const a = await getChart(id);
-            setChart(a);
-            void refreshAttachments(a.id);
-            const [rez, zPat, att, katRows] = await Promise.all([
-                canListPatientDocuments ? listPrescriptions(id) : Promise.resolve([] as Prescription[]),
-                listPaymentsForPatient(id),
-                canListPatientDocuments ? listCertificates(id) : Promise.resolve([] as Certificate[]),
-                listTreatmentCatalog().catch((e) => {
-                    toast(tp("patient.detail.toast.catalog_load_failed", { message: errorMessage(e) }), "warning");
-                    return [] as TreatmentCatalogItem[];
-                }),
-            ]);
-            setPrescriptions(rez);
-            setPayments(zPat);
-            setCertificates(att);
-            setCatalog(katRows);
-            if (canViewClinical) {
-                const [z, bh, u, am] = await Promise.all([
-                    listDentalFindings(a.id),
-                    listTreatments(a.id),
-                    listExaminations(a.id),
-                    getAnamnesisForm(id),
-                ]);
-                setFindings(z);
-                setTreatments(bh);
-                setExaminations(u);
-                if (am) {
-                    try {
-                        setAnamnesisJson(JSON.stringify(JSON.parse(am.answers), null, 2));
-                    } catch {
-                        setAnamnesisJson(am.answers);
-                    }
-                    setAnamnesisSign(am.signed);
-                } else {
-                    setAnamnesisJson(EMPTY_ANAMNESIS_V1_JSON);
-                    setAnamnesisSign(false);
-                }
-            } else if (canListTreatmentsForPayment) {
-                const [bh, u] = await Promise.all([listTreatments(a.id), listExaminations(a.id)]);
-                setTreatments(bh);
-                setExaminations(u);
-            }
+            chartRow = await getChart(id);
+            setChart(chartRow);
+            setChartLoadError(null);
+            void refreshAttachments(chartRow.id);
         } catch (e) {
             setChart(null);
-            setFindings([]);
-            setTreatments([]);
-            setExaminations([]);
-            setCatalog([]);
-            setAttachments([]);
             if (isPatientChartMissingError(e)) {
                 setChartLoadError(null);
             } else {
                 setChartLoadError(errorMessage(e));
             }
+            return;
         }
-    }, [id, canViewClinical, canListPatientDocuments, canListTreatmentsForPayment, refreshAttachments, toast]);
+        const sectionFail = (key: string, e: unknown) => {
+            toast(tp(key, { message: errorMessage(e) }), "warning");
+            return null;
+        };
+        const [rez, zPat, att, katRows] = await Promise.all([
+            canListPatientDocuments
+                ? listPrescriptions(id).catch((e) => {
+                      sectionFail("patient.detail.toast.prescription_load_failed", e);
+                      return [] as Prescription[];
+                  })
+                : Promise.resolve([] as Prescription[]),
+            listPaymentsForPatient(id).catch((e) => {
+                sectionFail("patient.detail.toast.payment_load_failed", e);
+                return [] as Payment[];
+            }),
+            canListPatientDocuments
+                ? listCertificates(id).catch((e) => {
+                      sectionFail("patient.detail.toast.certificate_load_failed", e);
+                      return [] as Certificate[];
+                  })
+                : Promise.resolve([] as Certificate[]),
+            listTreatmentCatalog().catch((e) => {
+                toast(tp("patient.detail.toast.catalog_load_failed", { message: errorMessage(e) }), "warning");
+                return [] as TreatmentCatalogItem[];
+            }),
+        ]);
+        setPrescriptions(rez);
+        setPayments(zPat);
+        setCertificates(att);
+        setCatalog(katRows);
+        if (canViewClinical) {
+            const [z, bh, u, am] = await Promise.all([
+                listDentalFindings(chartRow.id).catch((e) => {
+                    sectionFail("patient.detail.toast.dental_load_failed", e);
+                    return [] as DentalFinding[];
+                }),
+                listTreatments(chartRow.id).catch((e) => {
+                    sectionFail("patient.detail.toast.treatment_load_failed", e);
+                    return [] as Treatment[];
+                }),
+                listExaminations(chartRow.id).catch((e) => {
+                    sectionFail("patient.detail.toast.examination_load_failed", e);
+                    return [] as Examination[];
+                }),
+                getAnamnesisForm(id).catch((e) => {
+                    sectionFail("patient.detail.toast.anamnesis_load_failed", e);
+                    return null;
+                }),
+            ]);
+            setFindings(z);
+            setTreatments(bh);
+            setExaminations(u);
+            if (am) {
+                try {
+                    setAnamnesisJson(JSON.stringify(JSON.parse(am.answers), null, 2));
+                } catch {
+                    setAnamnesisJson(am.answers);
+                }
+                setAnamnesisSign(am.signed);
+            } else {
+                setAnamnesisJson(EMPTY_ANAMNESIS_V1_JSON);
+                setAnamnesisSign(false);
+            }
+        } else if (canListTreatmentsForPayment) {
+            const [bh, u] = await Promise.all([
+                listTreatments(chartRow.id).catch(() => [] as Treatment[]),
+                listExaminations(chartRow.id).catch(() => [] as Examination[]),
+            ]);
+            setTreatments(bh);
+            setExaminations(u);
+        }
+    }, [id, canViewClinical, canListPatientDocuments, canListTreatmentsForPayment, refreshAttachments, toast, tp]);
 
     useEffect(() => { load(); }, [load]);
 
@@ -624,10 +654,10 @@ export function PatientDetailPage() {
         attachment: attachments.length > 0,
         payment: payments.length > 0,
     } as const;
-    const anlPending = attachments.filter((a) => !itemValidation[itemValidationKey("anl", a.id)]).length;
+    const attachmentPending = attachments.filter((a) => !itemValidation[itemValidationKey("attachment", a.id)]).length;
     const paymentPending = payments.filter((z) => !itemValidation[itemValidationKey("payment", z.id)]).length;
     const validationPendingTotal = canViewClinical
-        ? ((!validation.master ? 1 : 0) + anlPending + paymentPending)
+        ? ((!validation.master ? 1 : 0) + attachmentPending + paymentPending)
         : 0;
 
 
@@ -966,10 +996,10 @@ export function PatientDetailPage() {
                               }
                             : undefined
                     }
-                    isValidated={(attachmentId) => Boolean(itemValidation[itemValidationKey("anl", attachmentId)])}
-                    onRequestValidate={(attachmentId, label) => void requestValidateItem(itemValidationKey("anl", attachmentId), label)}
+                    isValidated={(attachmentId) => Boolean(itemValidation[itemValidationKey("attachment", attachmentId)])}
+                    onRequestValidate={(attachmentId, label) => void requestValidateItem(itemValidationKey("attachment", attachmentId), label)}
                     onRevokeValidation={(attachmentId, shortLabel) =>
-                        void revokeItemValidationRow(itemValidationKey("anl", attachmentId), shortLabel)}
+                        void revokeItemValidationRow(itemValidationKey("attachment", attachmentId), shortLabel)}
                     formatAddedAt={formatDate}
                     onScannerClick={() => {
                         void (async () => {

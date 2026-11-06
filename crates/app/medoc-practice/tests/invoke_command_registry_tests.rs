@@ -20,6 +20,7 @@ const CRITICAL_COMMANDS: &[&str] = &[
     "list_charts_to_validate",
     "count_charts_to_validate",
     "validate_patient_chart",
+    "decline_patient_chart",
     "list_examinations",
     "create_examination",
     "update_examination",

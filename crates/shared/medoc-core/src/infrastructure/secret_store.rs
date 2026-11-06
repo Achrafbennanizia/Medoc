@@ -24,8 +24,12 @@ pub fn load_or_create_bytes(
     let entry = Entry::new(SERVICE, account)
         .map_err(|e| AppError::Internal(format!("Keyring entry {account}: {e}")))?;
 
-    if let Ok(encoded) = entry.get_password() {
-        return decode_stored_bytes(&encoded, account);
+    match entry.get_password() {
+        Ok(encoded) => return decode_stored_bytes(&encoded, account),
+        Err(keyring::Error::NoEntry) => {}
+        Err(e) => {
+            return Err(AppError::Internal(format!("Keyring read {account}: {e}")));
+        }
     }
 
     if let Some(path) = legacy_plaintext_path {

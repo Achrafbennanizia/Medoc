@@ -67,8 +67,7 @@ async fn patient_create_emits_one_outbox_row_per_table() {
 
     assert_eq!(outbox_count(&pool, "patient").await, 1);
     assert_eq!(outbox_count(&pool, "patient_chart").await, 1);
-    // `anamnesis_form` is Tier-1 allow-listed but patient create inserts inline without outbox hook.
-    assert_eq!(outbox_count(&pool, "anamnesis_form").await, 0);
+    assert_eq!(outbox_count(&pool, "anamnesis_form").await, 1);
     // `staff` is not on SYNCED_TABLES.
     assert_eq!(outbox_count(&pool, "staff").await, 0);
 

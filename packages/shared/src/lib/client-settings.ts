@@ -31,9 +31,6 @@ export type AppointmentCalendarView = "day" | "week" | "month";
 /** Whether new appointments need a separate confirm step. */
 export type AppointmentConfirmMode = "manual" | "auto";
 
-/** Whether new appointments need a separate confirm step. */
-export type AppointmentConfirmMode = "manual" | "auto";
-
 /** Appearance: light / dark / system (system follows `prefers-color-scheme`). */
 export type ColorSchemeId = "light" | "dark" | "system";
 
@@ -109,6 +106,11 @@ export type ClientSettingsV1 = {
     chart?: {
         openImagesWithApp?: string;
     };
+    /** Device-local UI blinds (not synced). */
+    ui?: {
+        /** Settings → System: hide cluster / pairing / LAN panels on this computer. */
+        hideNetworkInSettings?: boolean;
+    };
 };
 
 const KEY = "medoc-client-settings-v1";
@@ -153,6 +155,9 @@ export const DEFAULT_CLIENT_SETTINGS: ClientSettingsV1 = {
     chart: {
         openImagesWithApp: "",
     },
+    ui: {
+        hideNetworkInSettings: false,
+    },
 };
 
 function mergeClient(a: ClientSettingsV1, b: Partial<ClientSettingsV1>): ClientSettingsV1 {
@@ -165,12 +170,21 @@ function mergeClient(a: ClientSettingsV1, b: Partial<ClientSettingsV1>): ClientS
         chart: { ...a.chart!, ...b.chart },
         notifications: { ...a.notifications!, ...b.notifications },
         integrations: { ...a.integrations!, ...b.integrations },
+        ui: { ...a.ui, ...b.ui },
     };
 }
 
 /** Teil-Update relativ to einem geladenen Stand (z. B. React state). */
 export function mergeClientSettingsPatch(base: ClientSettingsV1, patch: Partial<ClientSettingsV1>): ClientSettingsV1 {
     return mergeClient(base, patch);
+}
+
+export function isNetworkHiddenInSettings(s: ClientSettingsV1): boolean {
+    return s.ui?.hideNetworkInSettings === true;
+}
+
+export function withNetworkHiddenInSettings(s: ClientSettingsV1, hidden: boolean): ClientSettingsV1 {
+    return mergeClient(s, { ui: { ...s.ui, hideNetworkInSettings: hidden } });
 }
 
 /** Migrates old storage (notifications, integrations, …) away — known keys only. */
@@ -183,6 +197,10 @@ export function normalizeAppointmentCalendarView(raw: unknown): AppointmentCalen
     if (raw === "week" || raw === "woche") return "week";
     if (raw === "month" || raw === "monat") return "month";
     return "month";
+}
+
+export function readAppointmentsDefaultView(s?: ClientSettingsV1): AppointmentCalendarView {
+    return normalizeAppointmentCalendarView((s ?? loadClientSettings()).workflows?.appointmentsDefaultView);
 }
 
 export function normalizeAppointmentConfirmMode(raw: unknown): AppointmentConfirmMode {
@@ -262,8 +280,17 @@ export function loadClientSettings(): ClientSettingsV1 {
     }
 }
 
+type ClientSettingsSaved = (next: ClientSettingsV1) => void;
+let afterClientSettingsSaved: ClientSettingsSaved | null = null;
+
+/** Registered once by the calendar-workflow sync so a local save can be published. */
+export function onClientSettingsSaved(listener: ClientSettingsSaved): void {
+    afterClientSettingsSaved = listener;
+}
+
 export function saveClientSettings(next: ClientSettingsV1): void {
     localStorage.setItem(KEY, JSON.stringify(next));
+    afterClientSettingsSaved?.(next);
 }
 
 /** Applies appearance, sidebar tone, density, accent, avatar & keyboard hints to `<html>`. */

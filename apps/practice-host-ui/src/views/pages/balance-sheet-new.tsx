@@ -33,9 +33,9 @@ type TFn = (key: string) => string;
 
 function buildDemoContracts(t: TFn): ContractDemo[] {
     return [
-        { id: "demo-v1", name: t("page.balance_sheet_new.demo.contract_v1_name"), kind: t("page.balance_sheet_new.demo.contract_v1_type"), cost: 2400, billing: "Monatlich", duration_from: "2024-01-01", duration_until: "2026-12-31", status: "ACTIVE" },
-        { id: "demo-v2", name: t("page.balance_sheet_new.demo.contract_v2_name"), kind: t("page.balance_sheet_new.demo.contract_v2_type"), cost: 890, billing: "Jährlich", duration_from: "2025-01-01", duration_until: "2025-12-31", status: "TERMINATED" },
-        { id: "demo-v3", name: t("page.balance_sheet_new.demo.contract_v3_name"), kind: t("page.balance_sheet_new.demo.contract_v3_type"), cost: 120, billing: "Monatlich", duration_from: "2026-01-01", duration_until: "2026-12-31", status: "ACTIVE" },
+        { id: "demo-v1", name: t("page.balance_sheet_new.demo.contract_v1_name"), kind: t("page.balance_sheet_new.demo.contract_v1_type"), cost: 2400, billing: t("page.balance_sheet_new.demo.billing_monthly"), duration_from: "2024-01-01", duration_until: "2026-12-31", status: "ACTIVE" },
+        { id: "demo-v2", name: t("page.balance_sheet_new.demo.contract_v2_name"), kind: t("page.balance_sheet_new.demo.contract_v2_type"), cost: 890, billing: t("page.balance_sheet_new.demo.billing_yearly"), duration_from: "2025-01-01", duration_until: "2025-12-31", status: "TERMINATED" },
+        { id: "demo-v3", name: t("page.balance_sheet_new.demo.contract_v3_name"), kind: t("page.balance_sheet_new.demo.contract_v3_type"), cost: 120, billing: t("page.balance_sheet_new.demo.billing_monthly"), duration_from: "2026-01-01", duration_until: "2026-12-31", status: "ACTIVE" },
     ];
 }
 

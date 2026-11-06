@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { FONT_STACK_LABELS, FONT_STACK_ORDER, normalizeFontStack } from "./font-stack-preset";
+import { FONT_STACK_ORDER, normalizeFontStack } from "./font-stack-preset";
+import { fontStackLabelKey, translateLocale } from "./i18n";
 
 describe("font-stack-preset", () => {
     it("exposes Inter, System, and Source Sans", () => {
         expect(FONT_STACK_ORDER).toEqual(["inter", "system", "source-sans"]);
-        expect(FONT_STACK_LABELS.inter).toBe("Inter");
-        expect(FONT_STACK_LABELS.system).toBe("System");
-        expect(FONT_STACK_LABELS["source-sans"]).toBe("Source Sans");
+        expect(translateLocale("en", fontStackLabelKey("inter"))).toBe("Inter");
+        expect(translateLocale("en", fontStackLabelKey("system"))).toBe("System");
+        expect(translateLocale("en", fontStackLabelKey("source-sans"))).toBe("Source Sans");
     });
 
     it("normalizeFontStack keeps known ids, maps legacy, falls back to inter", () => {

@@ -2,7 +2,16 @@ import type { DocumentKind, ExportTableColumnId, PracticeFieldKey } from "./docu
 
 type TFn = (key: string) => string;
 
-/** Localized document kind label for export/template UI. */
+/** Localized builtin template name. */
+export function builtinTemplateName(t: TFn, id: string): string {
+    return t(`document.template.builtin.${id}.name`);
+}
+
+export function builtinTemplateFooter(t: TFn, id: string): string {
+    const key = `document.template.builtin.${id}.footer`;
+    const version = t(key);
+    return version === key ? "" : version;
+}
 export function documentKindLabel(t: TFn, kind: DocumentKind): string {
     return t(`document.kind.${kind}`);
 }

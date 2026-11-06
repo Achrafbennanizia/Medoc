@@ -750,7 +750,12 @@ function PiePanel({ data, labelKind }: { data: LabelValue[]; labelKind: Statisti
 }
 
 function appointmentStatusMap(rows: LabelValue[]): Record<string, number> {
-    return Object.fromEntries(rows.map((r) => [r.label, r.value]));
+    const out: Record<string, number> = {};
+    for (const r of rows) {
+        const code = r.label.trim().toUpperCase().replace(/[\s-]+/g, "_");
+        out[code] = (out[code] ?? 0) + r.value;
+    }
+    return out;
 }
 
 function momPercent(cur: number, prev: number): number | null {
@@ -1005,9 +1010,9 @@ export function StatisticsPage() {
         const newPatients = trim(stats.new_patients_per_month, period);
         const appts = trim(stats.appointments_per_month, period);
         const st = appointmentStatusMap(stats.appointment_status);
-        const cancelled = st["Cancelled"] ?? 0;
+        const cancelled = st["CANCELLED"] ?? 0;
         const totalAppointments = stats.appointment_status.reduce((s, x) => s + x.value, 0);
-        const completed = st["Completed"] ?? st["Durchgeführt"] ?? 0;
+        const completed = st["COMPLETED"] ?? 0;
         const denomAct = Math.max(1, totalAppointments - cancelled);
         const occupancyPct = totalAppointments > 0 ? (100 * completed) / denomAct : null;
         const nIncome = income6.length;
@@ -1027,7 +1032,7 @@ export function StatisticsPage() {
         const tCur = nt > 0 ? appts[nt - 1]!.value : 0;
         const tPrev = nt > 1 ? appts[nt - 2]!.value : 0;
         const appointmentMom = momPercent(tCur, tPrev);
-        const noShow = st["No-show"] ?? st["Nicht erschienen"] ?? 0;
+        const noShow = st["NO_SHOW"] ?? 0;
         const loyaltyDenom = completed + noShow;
         const loyaltyPct = loyaltyDenom > 0 ? (100 * completed) / loyaltyDenom : null;
         const treatments = trim(stats.treatments_per_month, period);

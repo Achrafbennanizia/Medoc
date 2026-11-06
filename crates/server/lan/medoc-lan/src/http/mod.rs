@@ -157,8 +157,15 @@ async fn jwt_auth_middleware(
         req.extensions_mut().insert(payload);
         return Ok(next.run(req).await);
     }
-    let claims = jwt::verify_token(state.jwt_secret.as_ref(), raw)
-        .map_err(|_| unauthorized("Invalid token"))?;
+    let claims = jwt::verify_token(state.jwt_secret.as_ref(), raw).map_err(|_| {
+        tracing::warn!(
+            target: "medoc::lan",
+            event = "LAN_JWT_REJECTED",
+            path = %req.uri().path(),
+            token_prefix = %raw.chars().take(8).collect::<String>()
+        );
+        unauthorized("Invalid token")
+    })?;
     req.extensions_mut().insert(claims);
     Ok(next.run(req).await)
 }
@@ -241,7 +248,7 @@ pub fn build_router(state: LanHttpState) -> Router {
             StatusCode::REQUEST_TIMEOUT,
             Duration::from_secs(120),
         ))
-        .layer(RequestBodyLimitLayer::new(16 * 1024))
+        .layer(RequestBodyLimitLayer::new(16 * 1024 * 1024))
         .layer(cors_policy::lan_cors_layer(&allowed))
         .layer(middleware::from_fn_with_state(
             cors_gate,

@@ -28,19 +28,6 @@ export type ConfirmationPrefs = {
     areas: Partial<Record<ConfirmationAreaKey, AreaOverride>>;
 };
 
-export const CONFIRMATION_AREA_LABELS: Record<ConfirmationAreaKey, string> = {
-    patient_chart_patient_delete: "Delete patient record",
-    patient_chart_patient_edit: "Edit patient (record)",
-    patient_chart_prescription_delete: "Delete prescription (record)",
-    patient_chart_prescription_edit: "Edit prescription (record)",
-    patient_chart_certificate_delete: "Delete certificate (record)",
-    patient_chart_treatment_delete: "Delete treatment (record)",
-    patient_chart_examination_delete: "Delete examination (record)",
-    patient_chart_examination_edit: "Edit examination (record)",
-    patient_chart_payment_delete: "Delete payment (record)",
-    patient_chart_payment_edit: "Edit payment (record)",
-};
-
 export const DEFAULT_CONFIRMATION_PREFS: ConfirmationPrefs = {
     /** Dialog / Popout — user-requested default for delete & critical confirms. */
     defaultMode: "modal",

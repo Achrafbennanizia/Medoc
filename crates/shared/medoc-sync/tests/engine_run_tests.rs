@@ -128,6 +128,20 @@ async fn set_deployment_empty_label_uses_default_display_name() {
     .expect("set");
     let snap = SyncEngine::status(&pool).await.expect("status");
     assert!(snap.peers.iter().any(|p| p.display_name == "This device"));
+    let is_local: i64 = sqlx::query_scalar(
+        "SELECT is_local FROM sync_device WHERE display_name = 'This device' LIMIT 1",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("local row");
+    assert_eq!(is_local, 1);
+    let role: String = sqlx::query_scalar(
+        "SELECT role FROM sync_device WHERE display_name = 'This device' LIMIT 1",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("role");
+    assert_eq!(role, "REPLICA");
 }
 
 #[tokio::test]

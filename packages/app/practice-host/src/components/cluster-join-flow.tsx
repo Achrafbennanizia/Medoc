@@ -14,6 +14,7 @@ import { useClusterStore } from "@/models/store/cluster-store";
 import { Button } from "@/views/components/ui/button";
 import { errorMessage } from "@/lib/utils";
 import { useToastStore } from "@/views/components/ui/toast-store";
+import { rewriteDigitsForMode } from "@/lib/arabic-numerals";
 import { useT } from "@/lib/i18n";
 
 const DEFAULT_PORT = 49300;
@@ -70,16 +71,15 @@ export function ClusterJoinFlow({ onComplete, onBack, completeWithAccountSetup =
     }, [toast, t]);
 
     useEffect(() => {
-        void scan();
+        const timer = window.setTimeout(() => {
+            void scan();
+        }, 1800);
+        return () => window.clearTimeout(timer);
     }, [scan]);
 
     const finishSuccess = useCallback(async () => {
         setStatus(await clusterGetStatus());
-        if (completeWithAccountSetup) {
-            navigate("/onboarding/account", { replace: true });
-            return;
-        }
-        if (completeWithLogin) {
+        if (completeWithAccountSetup || completeWithLogin) {
             navigate("/login", { replace: true });
             return;
         }
@@ -239,7 +239,13 @@ export function ClusterJoinFlow({ onComplete, onBack, completeWithAccountSetup =
                             inputMode="numeric"
                             maxLength={4}
                             value={digits}
-                            onChange={(e) => setDigits(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                            onChange={(e) =>
+                                setDigits(
+                                    rewriteDigitsForMode(e.target.value, "western")
+                                        .replace(/\D/g, "")
+                                        .slice(0, 4),
+                                )
+                            }
                         />
                     </label>
                     <div className="onboarding-actions onboarding-actions--row">

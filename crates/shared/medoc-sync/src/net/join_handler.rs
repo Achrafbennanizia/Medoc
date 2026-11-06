@@ -9,6 +9,10 @@ use crate::cluster::services::cluster_reset_service::{
 };
 use crate::cluster::services::create_join_request;
 use crate::cluster::services::export_staff_directory_json;
+use crate::cluster::services::issue_replica_lan_auth;
+use crate::cluster::services::record_join_identity;
+use crate::cluster::services::store_join_device_pubkey;
+use crate::cluster::services::verify_inbound_sas;
 use crate::cluster::SeatRole;
 
 use super::channel::{recv_wire_message, send_wire_message};
@@ -75,7 +79,9 @@ async fn handle_cluster_connection_inner(
     match msg {
         WireMessage::JoinRequest {
             fingerprint,
+            pubkey,
             hostname,
+            ip,
             requested_role,
             ..
         } => {
@@ -86,7 +92,9 @@ async fn handle_cluster_connection_inner(
                 &transcript,
                 fingerprint,
                 hostname,
+                ip,
                 requested_role,
+                pubkey,
             )
             .await
         }
@@ -100,8 +108,22 @@ async fn handle_cluster_connection_inner(
             handle_inbound_cluster_reset(stream, &mut transport, pool, &token_json, &signature_b64)
                 .await
         }
-        WireMessage::StaffDirectoryRequest { fingerprint } => {
-            handle_staff_directory_request(stream, &mut transport, pool, &fingerprint).await
+        WireMessage::StaffDirectoryRequest {
+            fingerprint,
+            session_id,
+        } => {
+            handle_staff_directory_request(stream, &mut transport, pool, &fingerprint, &session_id)
+                .await
+        }
+        WireMessage::ReplicaAuthRequest {
+            fingerprint,
+            session_id,
+        } => {
+            handle_replica_auth_request(stream, &mut transport, pool, &fingerprint, &session_id)
+                .await
+        }
+        WireMessage::SasConfirm { session_id, digits } => {
+            handle_sas_confirm(stream, &mut transport, pool, &session_id, &digits).await
         }
         other => {
             send_wire_message(
@@ -125,25 +147,47 @@ async fn handle_join_request(
     transcript: &[u8],
     fingerprint: String,
     hostname: String,
+    advertised_ip: String,
     requested_role: SeatRoleWire,
+    pubkey: Vec<u8>,
 ) -> Result<(), AppError> {
     let role = match requested_role {
         SeatRoleWire::Admin => SeatRole::Admin,
         SeatRoleWire::Member => SeatRole::Member,
     };
 
+    let peer_ip = stream.peer_addr().ok().map(|addr| crate::pairing::canonical_peer_ip(addr.ip()));
+    let requester_ip = crate::pairing::choose_requester_ip(peer_ip.as_deref(), &advertised_ip);
+    let requester_ip = if requester_ip.is_empty() {
+        None
+    } else {
+        Some(requester_ip)
+    };
+    let hostname = {
+        let trimmed = hostname.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed)
+        }
+    };
     let handle = match create_join_request(
         pool,
         &fingerprint,
         role,
         transcript,
         None,
-        Some(hostname.as_str()),
+        hostname,
+        requester_ip.as_deref(),
     )
     .await
     {
         Ok(h) => h,
         Err(e) => {
+            let _ = record_join_identity(pool, &fingerprint, hostname, requester_ip.as_deref()).await;
+            if !pubkey.is_empty() {
+                let _ = store_join_device_pubkey(pool, &fingerprint, &pubkey).await;
+            }
             send_wire_message(
                 stream,
                 transport,
@@ -156,12 +200,24 @@ async fn handle_join_request(
             return Ok(());
         }
     };
+    if !pubkey.is_empty() {
+        if let Err(e) = store_join_device_pubkey(pool, &handle.session_id, &pubkey).await {
+            tracing::warn!(
+                target: "medoc::cluster",
+                event = "CLUSTER_JOIN_PUBKEY_STORE_FAILED",
+                error = %e
+            );
+        }
+    }
 
     send_wire_message(
         stream,
         transport,
         &WireMessage::JoinAccept {
             session_id: handle.session_id,
+            activation_token: None,
+            master_pubkey: None,
+            master_device_id: None,
         },
     )
     .await?;
@@ -171,6 +227,44 @@ async fn handle_join_request(
         event = "CLUSTER_JOIN_ACCEPTED",
         fingerprint = %fingerprint,
     );
+    Ok(())
+}
+
+async fn handle_sas_confirm(
+    stream: &mut TcpStream,
+    transport: &mut NoiseTransport,
+    pool: &SqlitePool,
+    session_id: &str,
+    digits: &str,
+) -> Result<(), AppError> {
+    match verify_inbound_sas(pool, session_id, digits).await {
+        Ok(()) => {
+            let (activation_token, master_pubkey, master_device_id) =
+                load_join_lan_credentials(pool, session_id).await;
+            send_wire_message(
+                stream,
+                transport,
+                &WireMessage::JoinAccept {
+                    session_id: session_id.to_string(),
+                    activation_token,
+                    master_pubkey,
+                    master_device_id,
+                },
+            )
+            .await?;
+        }
+        Err(e) => {
+            send_wire_message(
+                stream,
+                transport,
+                &WireMessage::Error {
+                    code: "SAS_MISMATCH".into(),
+                    message: e.to_string(),
+                },
+            )
+            .await?;
+        }
+    }
     Ok(())
 }
 
@@ -204,9 +298,16 @@ async fn handle_staff_directory_request(
     transport: &mut NoiseTransport,
     pool: &SqlitePool,
     fingerprint: &str,
+    session_id: &str,
 ) -> Result<(), AppError> {
-    let allowed = staff_directory_request_allowed(pool, fingerprint).await?;
+    let allowed = staff_directory_request_allowed(pool, fingerprint, session_id).await?;
     if !allowed {
+        tracing::warn!(
+            target: "medoc::cluster",
+            event = "STAFF_DENIED",
+            fingerprint = %fingerprint.trim(),
+            session_id = %session_id.trim()
+        );
         send_wire_message(
             stream,
             transport,
@@ -229,35 +330,133 @@ async fn handle_staff_directory_request(
     Ok(())
 }
 
+async fn handle_replica_auth_request(
+    stream: &mut TcpStream,
+    transport: &mut NoiseTransport,
+    pool: &SqlitePool,
+    fingerprint: &str,
+    session_id: &str,
+) -> Result<(), AppError> {
+    let allowed = staff_directory_request_allowed(pool, fingerprint, session_id).await?;
+    if !allowed {
+        tracing::warn!(
+            target: "medoc::cluster",
+            event = "REPLICA_AUTH_DENIED",
+            fingerprint = %fingerprint.trim(),
+            session_id = %session_id.trim()
+        );
+        send_wire_message(
+            stream,
+            transport,
+            &WireMessage::Error {
+                code: "STAFF_DENIED".into(),
+                message: "Device not authorised for replica auth.".into(),
+            },
+        )
+        .await?;
+        return Ok(());
+    }
+    match issue_replica_lan_auth(pool, fingerprint, session_id).await {
+        Ok(lan) => {
+            send_wire_message(
+                stream,
+                transport,
+                &WireMessage::JoinAccept {
+                    session_id: session_id.trim().to_string(),
+                    activation_token: lan.activation_token,
+                    master_pubkey: lan.master_pubkey,
+                    master_device_id: lan.master_device_id,
+                },
+            )
+            .await?;
+        }
+        Err(e) => {
+            tracing::warn!(
+                target: "medoc::cluster",
+                event = "REPLICA_AUTH_FAILED",
+                error = %e
+            );
+            send_wire_message(
+                stream,
+                transport,
+                &WireMessage::Error {
+                    code: "AUTH_FAILED".into(),
+                    message: e.to_string(),
+                },
+            )
+            .await?;
+        }
+    }
+    Ok(())
+}
+
 async fn staff_directory_request_allowed(
     pool: &SqlitePool,
     fingerprint: &str,
+    session_id: &str,
 ) -> Result<bool, AppError> {
-    let cluster: Option<(i64,)> = sqlx::query_as("SELECT 1 FROM license LIMIT 1")
-        .fetch_optional(pool)
-        .await
-        .map_err(AppError::Database)?;
-    if cluster.is_none() {
+    let fp = fingerprint.trim();
+    let sid = session_id.trim();
+    if fp.is_empty() && sid.is_empty() {
         return Ok(false);
     }
-    let device: Option<(i64,)> = sqlx::query_as(
-        "SELECT 1 FROM sync_device WHERE fingerprint = ?1 AND device_status = 'ACTIVE' LIMIT 1",
+    if !sid.is_empty() {
+        let by_session: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM pairing_request WHERE id = ?1")
+                .bind(sid)
+                .fetch_one(pool)
+                .await
+                .map_err(AppError::Database)?;
+        if by_session > 0 {
+            return Ok(true);
+        }
+    }
+    if fp.is_empty() {
+        return Ok(false);
+    }
+    let device: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM sync_device
+         WHERE TRIM(fingerprint) = ?1
+           AND device_status IN ('ACTIVE', 'PENDING')",
     )
-    .bind(fingerprint)
-    .fetch_optional(pool)
+    .bind(fp)
+    .fetch_one(pool)
     .await
     .map_err(AppError::Database)?;
-    if device.is_some() {
+    if device > 0 {
         return Ok(true);
     }
-    let session: Option<(i64,)> = sqlx::query_as(
-        "SELECT 1 FROM pairing_request WHERE fingerprint = ?1 OR device_id = ?1 LIMIT 1",
+    let session: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM pairing_request
+         WHERE TRIM(fingerprint) = ?1 OR TRIM(device_id) = ?1",
     )
-    .bind(fingerprint)
-    .fetch_optional(pool)
+    .bind(fp)
+    .fetch_one(pool)
     .await
     .map_err(AppError::Database)?;
-    Ok(session.is_some())
+    Ok(session > 0)
+}
+
+async fn load_join_lan_credentials(
+    pool: &SqlitePool,
+    session_id: &str,
+) -> (Option<String>, Option<String>, Option<String>) {
+    let token: Option<String> =
+        sqlx::query_scalar("SELECT activation_token FROM pairing_request WHERE id = ?1")
+            .bind(session_id)
+            .fetch_optional(pool)
+            .await
+            .ok()
+            .flatten()
+            .filter(|s: &String| !s.trim().is_empty());
+    let master_pubkey = crate::master_keys::load_or_create()
+        .ok()
+        .map(|sk| crate::master_keys::pubkey_b64(&sk));
+    let master_device_id = crate::repo::ensure_local_device(pool, "Main")
+        .await
+        .ok()
+        .filter(|s| !s.trim().is_empty());
+    (token, master_pubkey, master_device_id)
 }
 
 async fn handle_inbound_cluster_reset(

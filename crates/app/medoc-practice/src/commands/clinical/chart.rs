@@ -19,9 +19,7 @@ pub async fn get_chart(
     patient_id: String,
 ) -> Result<PatientChart, AppError> {
     let session = rbac::require(&session_state, "patient.read")?;
-    let mut a = chart_repo::find_chart_by_patient(&pool, &patient_id)
-        .await?
-        .ok_or(AppError::NotFound("PatientChart".into()))?;
+    let mut a = chart_repo::ensure_chart_for_patient(&pool, &patient_id).await?;
     let role = Role::parse(&session.role).ok_or(AppError::Unauthorized)?;
     // FA-PERS-07: honor per-user ALLOW/DENY (e.g. full chart read-only for reception).
     if !rbac::effective_allowed("patient.read_medical", role, &session.permission_overrides) {

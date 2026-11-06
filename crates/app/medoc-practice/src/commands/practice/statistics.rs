@@ -158,7 +158,7 @@ fn altersgruppe(date_of_birth: &str) -> &'static str {
     use chrono::{Datelike, Local, NaiveDate};
     let today = Local::now().date_naive();
     let Ok(geb) = NaiveDate::parse_from_str(date_of_birth, "%Y-%m-%d") else {
-        return "Unbekannt";
+        return "unknown";
     };
     let mut years = today.year() - geb.year();
     if (today.month(), today.day()) < (geb.month(), geb.day()) {
@@ -264,18 +264,7 @@ pub async fn get_statistics_overview(
             sqlx::query_as("SELECT sex, COUNT(*) FROM patient GROUP BY sex ORDER BY sex")
                 .fetch_all(pool.inner())
                 .await?;
-        out.sexes = group_label_value(gender)
-            .into_iter()
-            .map(|lv| LabelValue {
-                label: match lv.label.as_str() {
-                    "FEMALE" => "Female".to_string(),
-                    "MALE" => "Männlich".to_string(),
-                    "DIVERSE" => "Divers".to_string(),
-                    other => other.to_string(),
-                },
-                value: lv.value,
-            })
-            .collect();
+        out.sexes = group_label_value(gender);
 
         // Patient status (NEW / ACTIVE / VALIDATED / READONLY)
         let pstatus: Vec<(String, i64)> =
@@ -405,39 +394,13 @@ pub async fn get_statistics_overview(
         )
         .fetch_all(pool.inner())
         .await?;
-        out.appointment_status = group_label_value(appt_st)
-            .into_iter()
-            .map(|lv| LabelValue {
-                label: match lv.label.as_str() {
-                    "PLANNED" => "Planned".to_string(),
-                    "CONFIRMED" => "Confirmed".to_string(),
-                    "COMPLETED" => "Completed".to_string(),
-                    "NO_SHOW" => "No-show".to_string(),
-                    "CANCELLED" => "Cancelled".to_string(),
-                    other => other.to_string(),
-                },
-                value: lv.value,
-            })
-            .collect();
+        out.appointment_status = group_label_value(appt_st);
 
         let appt_kind: Vec<(String, i64)> =
             sqlx::query_as("SELECT kind, COUNT(*) FROM appointment GROUP BY kind ORDER BY kind")
                 .fetch_all(pool.inner())
                 .await?;
-        out.appointment_kind = group_label_value(appt_kind)
-            .into_iter()
-            .map(|lv| LabelValue {
-                label: match lv.label.as_str() {
-                    "FIRST_VISIT" => "FirstVisit".to_string(),
-                    "EXAMINATION" => "Examination".to_string(),
-                    "TREATMENT" => "Treatment".to_string(),
-                    "CHECKUP" => "Checkup".to_string(),
-                    "CONSULTATION" => "Consultation".to_string(),
-                    other => other.to_string(),
-                },
-                value: lv.value,
-            })
-            .collect();
+        out.appointment_kind = group_label_value(appt_kind);
     }
 
     // -------- Finance --------
@@ -465,16 +428,7 @@ pub async fn get_statistics_overview(
         .await?;
         out.revenue_by_payment_method = payment_kind
             .into_iter()
-            .map(|(label, value)| LabelValue {
-                label: match label.as_str() {
-                    "CASH" => "Cash".to_string(),
-                    "CARD" => "Card".to_string(),
-                    "BANK_TRANSFER" => "Bank transfer".to_string(),
-                    "INVOICE" => "Invoice".to_string(),
-                    other => other.to_string(),
-                },
-                value,
-            })
+            .map(|(label, value)| LabelValue { label, value })
             .collect();
 
         let month_start = chrono::Local::now().format("%Y-%m-01").to_string();
@@ -494,19 +448,7 @@ pub async fn get_statistics_overview(
         )
         .fetch_all(pool.inner())
         .await?;
-        out.orders_by_status = group_label_value(order_st)
-            .into_iter()
-            .map(|lv| LabelValue {
-                label: match lv.label.as_str() {
-                    "OPEN" => "Open".to_string(),
-                    "IN_TRANSIT" => "InTransit".to_string(),
-                    "DELIVERED" => "Delivered".to_string(),
-                    "CANCELLED" => "Cancelled".to_string(),
-                    other => other.to_string(),
-                },
-                value: lv.value,
-            })
-            .collect();
+        out.orders_by_status = group_label_value(order_st);
 
         let order_mon: Vec<(String, i64)> = sqlx::query_as(
             "SELECT strftime('%Y-%m', created_at) AS m, COUNT(*) AS c

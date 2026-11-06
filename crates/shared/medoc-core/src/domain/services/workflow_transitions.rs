@@ -40,7 +40,7 @@ pub fn patient_chart_forward_review_transition(current: &str) -> Result<(), AppE
     if s == "READONLY" {
         return Err(AppError::validation_code("error.workflow.chart_readonly"));
     }
-    if s == "DRAFT" || s == "IN_PROGRESS" || s == "VALIDATED" {
+    if s == "DRAFT" || s == "IN_PROGRESS" || s == "VALIDATED" || s == "DECLINED" {
         return Ok(());
     }
     Err(AppError::validation_code_params(
@@ -52,6 +52,26 @@ pub fn patient_chart_forward_review_transition(current: &str) -> Result<(), AppE
 /// FA-AKTE-15: validate PatientChart → `VALIDATED`.
 pub fn patient_chart_validate_transition(current: &str) -> Result<(), AppError> {
     let s = current.trim().to_uppercase();
+    if s == "VALIDATED" || s == "READONLY" {
+        return Err(AppError::validation_code(
+            "error.workflow.chart_already_validated",
+        ));
+    }
+    if s == "DRAFT" || s == "IN_PROGRESS" || s == "DECLINED" {
+        return Ok(());
+    }
+    Err(AppError::validation_code_params(
+        "error.workflow.chart_status_invalid",
+        &[("status", &s)],
+    ))
+}
+
+/// Pending-approval decline: PatientChart → `DECLINED` (leaves the validation queue).
+pub fn patient_chart_decline_transition(current: &str) -> Result<(), AppError> {
+    let s = current.trim().to_uppercase();
+    if s == "DECLINED" {
+        return Ok(());
+    }
     if s == "VALIDATED" || s == "READONLY" {
         return Err(AppError::validation_code(
             "error.workflow.chart_already_validated",

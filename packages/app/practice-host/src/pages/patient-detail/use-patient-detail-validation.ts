@@ -1,5 +1,5 @@
 import { useCallback, useEffect, type Dispatch, type SetStateAction } from "react";
-import { SECTION_LABEL as VAL_SECTION_LABEL, type ValidationRecord, type ValidationSection, type ValidationState } from "@/lib/chart-validation";
+import { SECTION_LABEL_KEY, type ValidationRecord, type ValidationSection, type ValidationState } from "@/lib/chart-validation";
 import {
     clearChartValidation,
     listChartValidation,
@@ -64,14 +64,14 @@ export function usePatientDetailValidation({
                     toast(t("patient.validation.master_marked"), "success");
                 } else {
                     await setChartSectionValidated(patientId, section, by);
-                    toast(tp("patient.validation.section_marked", { section: VAL_SECTION_LABEL[section] }), "success");
+                    toast(tp("patient.validation.section_marked", { section: t(SECTION_LABEL_KEY[section]) }), "success");
                 }
                 await refreshValidationFromBackend();
             } catch (e) {
                 toast(tp("patient.validation.error", { message: errorMessage(e) }), "error");
             }
         },
-        [patientId, sessionUserId, toast, refreshValidationFromBackend],
+        [patientId, sessionUserId, toast, refreshValidationFromBackend, t, tp],
     );
 
     const revokeSectionValidation = useCallback(
@@ -84,7 +84,7 @@ export function usePatientDetailValidation({
                     toast(t("patient.validation.master_revoked"), "info");
                 } else {
                     await clearChartValidation(patientId, section);
-                    toast(tp("patient.validation.section_revoked", { section: VAL_SECTION_LABEL[section] }), "info");
+                    toast(tp("patient.validation.section_revoked", { section: t(SECTION_LABEL_KEY[section]) }), "info");
                 }
                 await refreshValidationFromBackend();
             } catch (e) {
@@ -105,7 +105,7 @@ export function usePatientDetailValidation({
                 toast(tp("patient.validation.error", { message: errorMessage(e) }), "error");
             }
         },
-        [patientId, sessionUserId, toast, refreshValidationFromBackend],
+        [patientId, sessionUserId, toast, refreshValidationFromBackend, t, tp],
     );
 
     const revokeItemValidationRow = useCallback(

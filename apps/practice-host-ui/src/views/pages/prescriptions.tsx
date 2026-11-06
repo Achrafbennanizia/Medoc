@@ -636,7 +636,7 @@ export function PrescriptionsPage() {
                     {t("page.prescriptions.eprescription_hint")}
                 </p>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                    <Input id="er-kvnr" label={t("page.prescriptions.field.kvnr")} value={eRez.kvnr} onChange={(e) => setERez({ ...eRez, kvnr: e.target.value })} placeholder="A123456789" />
+                    <Input id="er-kvnr" label={t("page.prescriptions.field.kvnr")} value={eRez.kvnr} onChange={(e) => setERez({ ...eRez, kvnr: e.target.value })} placeholder={t("page.prescriptions.placeholder.kvnr")} />
                     <Input id="er-pzn" label={t("page.prescriptions.field.pzn")} value={eRez.pzn} onChange={(e) => setERez({ ...eRez, pzn: e.target.value })} placeholder="12345678" />
                     <Input id="er-lanr" label={t("page.prescriptions.field.lanr")} value={eRez.lanr} onChange={(e) => setERez({ ...eRez, lanr: e.target.value })} placeholder="123456789" />
                     <Input id="er-qty" label={t("common.quantity")} type="number" value={eRez.quantity} onChange={(e) => setERez({ ...eRez, quantity: e.target.value })} />

@@ -77,6 +77,30 @@ async fn sync_set_deployment_via_engine_registers_replica() {
 
 #[tokio::test]
 #[serial]
+async fn probe_master_reachable_is_false_when_master_port_is_closed() {
+    std::env::set_var("MEDOC_SKIP_MASTER_LICENSE", "1");
+    let pool = fresh_pool().await;
+    save_deployment(
+        &pool,
+        &SyncDeploymentConfig {
+            schema_version: 1,
+            mode: DeploymentMode::ServerlessPeer,
+            role: DeviceRole::Replica,
+            master_base_url: "https://127.0.0.1:1".into(),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("deploy");
+    let reachable = medoc_practice::commands::sync_commands::probe_master_reachable(&pool)
+        .await
+        .expect("probe");
+    assert!(!reachable);
+    std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
+}
+
+#[tokio::test]
+#[serial]
 async fn sync_record_change_noops_outside_serverless_peer() {
     let pool = fresh_pool().await;
     let snap = SyncEngine::status(&pool).await.expect("status");

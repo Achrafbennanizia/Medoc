@@ -15,12 +15,14 @@ import { useToastStore } from "../components/ui/toast-store";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { MoreIcon, PlusIcon, SearchIcon, UsersIcon, XIcon, ExportIcon } from "@/lib/icons";
 import { useDismissibleLayer } from "../components/ui/use-dismissible-layer";
+import { usePageRefresh } from "../layouts/page-refresh";
 import { buildPatientsMigrationCsv } from "@/lib/patient-csv";
 import { DataExportPickerDialog } from "../components/data-export-picker-dialog";
 import { ConfirmDialog, Dialog } from "../components/ui/dialog";
 import { Button } from "../components/ui/button";
 import { PhoneText } from "../components/ui/phone-text";
 import { WorkspacePageHeader } from "../components/administration-page-header";
+import { PATIENT_LIST_CALL_EMAIL_ENABLED } from "@/lib/v1-ui-flags";
 import { LAZY_PAGE_SIZE, mergeUniqueById } from "@/lib/lazy-list";
 
 const SEARCH_DEBOUNCE_MS = 250;
@@ -103,6 +105,7 @@ export function PatientsPage() {
     const listScrollRef = useRef<HTMLDivElement>(null);
     const loadMoreLock = useRef(false);
     const searchLoadTokenRef = useRef(0);
+    const silentLoadInflight = useRef(false);
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const toast = useToastStore((s) => s.add);
@@ -121,10 +124,15 @@ export function PatientsPage() {
         return () => window.clearTimeout(t);
     }, [search]);
 
-    const load = useCallback(async () => {
+    const load = useCallback(async (opts?: { silent?: boolean }) => {
+        const silent = opts?.silent === true;
+        if (silent && silentLoadInflight.current) return;
         const token = ++searchLoadTokenRef.current;
-        setLoading(true);
-        setLoadError(null);
+        if (silent) silentLoadInflight.current = true;
+        if (!silent) {
+            setLoading(true);
+            setLoadError(null);
+        }
         try {
             const q = debouncedSearch.trim();
             const [dataResp, ids] = await Promise.all([
@@ -146,18 +154,24 @@ export function PatientsPage() {
                 setAllPatientNames(names);
             }
         } catch (e) {
-            if (token !== searchLoadTokenRef.current) return;
+            if (token !== searchLoadTokenRef.current || silent) return;
             setLoadError(errorMessage(e));
             setPatients([]);
             setOpenPaymentPatientIds(new Set());
         } finally {
-            if (token === searchLoadTokenRef.current) setLoading(false);
+            if (silent) silentLoadInflight.current = false;
+            if (!silent && token === searchLoadTokenRef.current) setLoading(false);
         }
     }, [debouncedSearch]);
 
     useEffect(() => {
         void load();
     }, [load]);
+
+    usePageRefresh(() => {
+        if (patientPage > 1 || loadingMore) return;
+        void load({ silent: true });
+    });
 
     const patientsHaveMore = !debouncedSearch.trim() && patientPage * LAZY_PAGE_SIZE < patientTotal;
 
@@ -436,7 +450,7 @@ export function PatientsPage() {
                                                         {t("patient.menu.prescription")}
                                                     </button>
                                                 ) : null}
-                                                {p.email?.trim() ? (
+                                                {PATIENT_LIST_CALL_EMAIL_ENABLED && p.email?.trim() ? (
                                                     <button
                                                         type="button"
                                                         role="menuitem"
@@ -450,7 +464,7 @@ export function PatientsPage() {
                                                         {tp("patient.menu.email", { email: p.email! })}
                                                     </button>
                                                 ) : null}
-                                                {p.phone?.trim() ? (
+                                                {PATIENT_LIST_CALL_EMAIL_ENABLED && p.phone?.trim() ? (
                                                     <button
                                                         type="button"
                                                         role="menuitem"
@@ -468,7 +482,7 @@ export function PatientsPage() {
                                                         )}
                                                     </button>
                                                 ) : null}
-                                                {!p.email?.trim() && !p.phone?.trim() ? (
+                                                {PATIENT_LIST_CALL_EMAIL_ENABLED && !p.email?.trim() && !p.phone?.trim() ? (
                                                     <button
                                                         type="button"
                                                         role="menuitem"

@@ -4,27 +4,10 @@
 
 export type AccentId = "mint" | "ocean" | "plum" | "amber" | "rose";
 
-export const ACCENT_LABELS: Record<AccentId, string> = {
-    mint: "Mint",
-    ocean: "Ocean",
-    plum: "Plum",
-    amber: "Amber",
-    rose: "Rose",
-};
-
 /** Order in color picker (appearance). */
 export const ACCENT_ORDER: readonly AccentId[] = ["mint", "ocean", "plum", "amber", "rose"];
 
 const ACCENT_ID_SET = new Set<string>(ACCENT_ORDER as readonly string[]);
-
-/** Short description under name — UI only. */
-export const ACCENT_HINTS: Record<AccentId, string> = {
-    mint: "Calm, clinical",
-    ocean: "Classic blue",
-    plum: "High contrast",
-    amber: "Warm, attention",
-    rose: "Friendly, clear",
-};
 
 /** Legacy keys — migration in {@link loadClientSettings}. */
 export const LEGACY_ACCENT_STORAGE_KEY = "medoc-accent-preset";

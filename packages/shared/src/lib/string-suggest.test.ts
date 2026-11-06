@@ -14,11 +14,11 @@ describe("levenshtein", () => {
 
 describe("suggestSimilarTitles", () => {
     it("returns close titles within max distance", () => {
-        const titles = ["Appointmentübersicht", "Patientenakten", "Finance"];
-        expect(suggestSimilarTitles("appointmentübersict", titles, 2, 5)).toContain("Appointmentübersicht");
+        const titles = ["Appointment overview", "Patient records", "Finance"];
+        expect(suggestSimilarTitles("appointment overvew", titles, 2, 5)).toContain("Appointment overview");
     });
     it("returns empty when disabled (NFA-USE-10)", () => {
-        const titles = ["Appointmentübersicht", "Patientenakten"];
+        const titles = ["Appointment overview", "Patient records"];
         expect(suggestSimilarTitles("appointment", titles, 2, 5, { disabled: true })).toEqual([]);
     });
 });

@@ -1,6 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
-import { useT, useTParams } from "@/lib/i18n";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useLocale, useT, useTParams, type Locale } from "@/lib/i18n";
 
+import {
+    clusterAcceptRequest,
+    clusterRejectRequest,
+} from "@/systems/practice-host/controllers/cluster.controller";
 import {
     DEFAULT_ALLOWED_ACTIONS,
     OPTIONAL_READ_ACTIONS,
@@ -12,8 +16,9 @@ import {
     type PairingRequest,
 } from "@/systems/practice-host/controllers/pairing.controller";
 import { getAppKvRaw, setAppKvRaw } from "@/systems/practice-host/controllers/app-kv.controller";
+import { SettingsSwitch } from "@/views/components/settings-switch";
 import { Button } from "@/views/components/ui/button";
-import { errorMessage } from "@/lib/utils";
+import { errorMessage, formatDateTime } from "@/lib/utils";
 import { useToastStore } from "@/views/components/ui/toast-store";
 
 const PAIRING_ACTION_KEYS: Record<string, string> = {
@@ -33,25 +38,97 @@ const STATUS_LABEL_KEY: Record<PairingRequest["status"], string> = {
 };
 
 const PAIRING_ENABLED_KEY = "pairing.enabled.v1";
+const PREVIEW_COUNT = 2;
+
+type RowAction = "accept" | "reject" | "revoke";
+
+type CardTone = "pending" | "pin" | "accepted" | "rejected" | "revoked";
+
+const TONE_RANK: Record<CardTone, number> = {
+    pending: 0,
+    pin: 1,
+    accepted: 2,
+    rejected: 3,
+    revoked: 4,
+};
+
+const PILL_CLASS: Record<CardTone, string> = {
+    pending: "orange",
+    pin: "blue",
+    accepted: "green",
+    rejected: "red",
+    revoked: "grey",
+};
+
+function displayIp(raw: string): string {
+    const trimmed = raw.trim();
+    if (!trimmed) return "";
+    const mapped = trimmed.toLowerCase().startsWith("::ffff:") ? trimmed.slice("::ffff:".length) : trimmed;
+    if (mapped === "0.0.0.0" || mapped === "::" || mapped === "::0") return "";
+    return mapped;
+}
+
+function requestedLabel(value: string, locale: Locale): string | null {
+    if (!value) return null;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    return formatDateTime(value, locale);
+}
+
+function cardTone(row: PairingRequest, awaitingPin: boolean): CardTone {
+    if (awaitingPin) return "pin";
+    if (row.status === "PENDING") return "pending";
+    if (row.status === "ACCEPTED") return "accepted";
+    if (row.status === "REJECTED") return "rejected";
+    return "revoked";
+}
+
+function CopyIcon() {
+    return (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" strokeWidth="2" />
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+    );
+}
+
+function CheckIcon() {
+    return (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M5 12.5 9.5 17 19 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+    );
+}
 
 export function SettingsPairingInbox({ embedded = false }: { embedded?: boolean } = {}) {
     const t = useT();
     const tp = useTParams();
+    const locale = useLocale((s) => s.locale);
     const toast = useToastStore((s) => s.add);
     const [items, setItems] = useState<PairingRequest[]>([]);
     const [master, setMaster] = useState<PairingMasterInfo | null>(null);
-    const [loading, setLoading] = useState(false);
+    const [loaded, setLoaded] = useState(false);
+    const [loadError, setLoadError] = useState<string | null>(null);
+    const [refreshing, setRefreshing] = useState(false);
     const [pairingEnabled, setPairingEnabled] = useState(true);
     const [pairingToggleBusy, setPairingToggleBusy] = useState(false);
     const [actionByRow, setActionByRow] = useState<Record<string, Set<string>>>({});
-    const [busyId, setBusyId] = useState<string | null>(null);
+    const [busy, setBusy] = useState<{ id: string; action: RowAction } | null>(null);
     /** PIN shown once on master after accept — replica must enter it. */
     const [confirmPinByRow, setConfirmPinByRow] = useState<Record<string, string>>({});
+    const [copiedKey, setCopiedKey] = useState<string | null>(null);
+    const [listExpanded, setListExpanded] = useState(false);
+    const lastError = useRef<string | null>(null);
 
-    const rowLabel = (row: PairingRequest) => row.slaveLabel || row.deviceId;
+    const deviceName = (row: PairingRequest) => {
+        const label = row.slaveLabel.trim();
+        const id = row.deviceId.trim();
+        return label && label !== id ? label : "";
+    };
+    const rowLabel = (row: PairingRequest) => deviceName(row) || row.deviceId.trim();
 
-    const reload = useCallback(async () => {
-        setLoading(true);
+    const reload = useCallback(async (mode: "initial" | "manual" | "poll" = "manual") => {
+        if (mode !== "poll") setRefreshing(true);
         try {
             const [list, info, enabledRaw] = await Promise.all([
                 pairingListAll(),
@@ -74,18 +151,43 @@ export function SettingsPairingInbox({ embedded = false }: { embedded?: boolean 
                 }
                 return next;
             });
+            lastError.current = null;
+            setLoadError(null);
+            setLoaded(true);
         } catch (e) {
-            toast(tp("settings.pairing.inbox_error", { message: errorMessage(e) }), "error");
+            const message = errorMessage(e);
+            setLoadError(message);
+            if (mode !== "poll" || lastError.current !== message) {
+                lastError.current = message;
+                toast(tp("settings.pairing.inbox_error", { message }), "error");
+            }
+            setLoaded(true);
         } finally {
-            setLoading(false);
+            if (mode !== "poll") setRefreshing(false);
         }
     }, [toast, tp]);
 
     useEffect(() => {
-        void reload();
-        const id = setInterval(() => void reload(), 5000);
+        void reload("initial");
+        const id = setInterval(() => void reload("poll"), 5000);
         return () => clearInterval(id);
     }, [reload]);
+
+    useEffect(() => {
+        if (!copiedKey) return;
+        const id = window.setTimeout(() => setCopiedKey(null), 1600);
+        return () => window.clearTimeout(id);
+    }, [copiedKey]);
+
+    const copyValue = async (key: string, value: string) => {
+        try {
+            await navigator.clipboard.writeText(value);
+            setCopiedKey(key);
+            toast(t("common.copied"), "success");
+        } catch (e) {
+            toast(tp("common.copy_failed", { message: errorMessage(e) }), "error");
+        }
+    };
 
     const toggleAction = (rowId: string, action: string) => {
         setActionByRow((prev) => {
@@ -100,11 +202,26 @@ export function SettingsPairingInbox({ embedded = false }: { embedded?: boolean 
     };
 
     const decide = async (row: PairingRequest, accept: boolean) => {
-        setBusyId(row.id);
+        setBusy({ id: row.id, action: accept ? "accept" : "reject" });
         try {
+            const label = rowLabel(row);
+            if (row.clusterSas) {
+                if (accept) {
+                    const sas = await clusterAcceptRequest(row.id);
+                    setConfirmPinByRow((prev) => ({ ...prev, [row.id]: sas.digits }));
+                    toast(
+                        tp("settings.pairing.confirm_pin_toast", { label, pin: sas.digits }),
+                        "success",
+                    );
+                } else {
+                    await clusterRejectRequest(row.id);
+                    toast(tp("settings.pairing.decide_rejected", { label }), "success");
+                }
+                await reload("manual");
+                return;
+            }
             const actions = Array.from(actionByRow[row.id] ?? DEFAULT_ALLOWED_ACTIONS);
             const result = await pairingDecide(row.id, accept, actions);
-            const label = rowLabel(row);
             if (accept && result.confirmPin) {
                 setConfirmPinByRow((prev) => ({ ...prev, [row.id]: result.confirmPin! }));
                 toast(
@@ -119,26 +236,26 @@ export function SettingsPairingInbox({ embedded = false }: { embedded?: boolean 
                     "success",
                 );
             }
-            await reload();
+            await reload("manual");
         } catch (e) {
             toast(errorMessage(e), "error");
         } finally {
-            setBusyId(null);
+            setBusy(null);
         }
     };
 
     const revoke = async (row: PairingRequest) => {
         const label = rowLabel(row);
         if (!confirm(tp("settings.pairing.revoke_confirm", { label }))) return;
-        setBusyId(row.id);
+        setBusy({ id: row.id, action: "revoke" });
         try {
             await pairingRevoke(row.deviceId);
             toast(t("settings.pairing.revoked_toast"), "success");
-            await reload();
+            await reload("manual");
         } catch (e) {
             toast(errorMessage(e), "error");
         } finally {
-            setBusyId(null);
+            setBusy(null);
         }
     };
 
@@ -159,182 +276,289 @@ export function SettingsPairingInbox({ embedded = false }: { embedded?: boolean 
         }
     };
 
+    const pendingCount = items.filter((row) => row.status === "PENDING").length;
+    const ordered = [...items].sort((a, b) => {
+        const toneA = cardTone(a, a.status === "PENDING" && (Boolean(a.awaitingPin) || Boolean(confirmPinByRow[a.id])));
+        const toneB = cardTone(b, b.status === "PENDING" && (Boolean(b.awaitingPin) || Boolean(confirmPinByRow[b.id])));
+        if (TONE_RANK[toneA] !== TONE_RANK[toneB]) return TONE_RANK[toneA] - TONE_RANK[toneB];
+        return (b.requestedAt || "").localeCompare(a.requestedAt || "");
+    });
+    const visible = listExpanded ? ordered : ordered.slice(0, PREVIEW_COUNT);
+    const hiddenCount = Math.max(0, ordered.length - PREVIEW_COUNT);
+
+    const copyButton = (key: string, value: string, label = t("common.copy")) => (
+        <button
+            type="button"
+            className="pairing-inbox__icon-btn"
+            aria-label={copiedKey === key ? t("common.copied") : label}
+            onClick={() => void copyValue(key, value)}
+        >
+            {copiedKey === key ? <CheckIcon /> : <CopyIcon />}
+        </button>
+    );
+
     const heading = (
-        <>
-            <div className="card-title" id={embedded ? undefined : "pairing-inbox-heading"}>
-                {t("settings.pairing.inbox_title")}
+        <div className="pairing-inbox__heading">
+            <div className="pairing-inbox__title-row">
+                <div className="card-title pairing-inbox__title" id={embedded ? undefined : "pairing-inbox-heading"}>
+                    {t("settings.pairing.inbox_title")}
+                </div>
+                {pendingCount > 0 ? (
+                    <span className="pill orange pairing-inbox__count">
+                        <span className="dot" aria-hidden="true" />
+                        <span className="pairing-inbox__count-num">{pendingCount}</span>
+                        {t("settings.pairing.status_pending")}
+                    </span>
+                ) : null}
             </div>
-            <p className="card-sub">
-                <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <input
-                        type="checkbox"
-                        checked={pairingEnabled}
-                        disabled={pairingToggleBusy}
-                        onChange={() => void togglePairingEnabled()}
-                    />
-                    {t("settings.pairing.allow_checkbox")}
-                </label>
-            </p>
-            <p className="card-sub">{t("settings.pairing.intro")}</p>
-            {master ? (
-                <p className="card-sub" style={{ marginTop: 4 }}>
-                    <strong>{t("settings.pairing.master_device_id")}</strong> <code>{master.masterDeviceId}</code>
-                    <br />
-                    <strong>{t("settings.pairing.master_pubkey")}</strong>{" "}
-                    <code style={{ wordBreak: "break-all" }}>{master.masterPubkey}</code>
-                </p>
-            ) : (
-                <p className="card-sub" style={{ marginTop: 4 }}>
-                    {t("settings.pairing.master_keys_loading")}
-                </p>
-            )}
-        </>
+            <p className="card-sub pairing-inbox__intro">{t("settings.pairing.intro")}</p>
+        </div>
     );
 
     const body = (
         <>
-            {items.length === 0 ? (
-                <p className="card-sub" style={{ marginTop: 12 }}>
-                    {t("settings.pairing.empty")}
+            <div className={`pairing-inbox__toggle${pairingEnabled ? "" : " pairing-inbox__toggle--off"}`}>
+                <p className="pairing-inbox__toggle-label">{t("settings.pairing.allow_checkbox")}</p>
+                <SettingsSwitch
+                    ariaLabel={t("settings.pairing.allow_checkbox")}
+                    checked={pairingEnabled}
+                    disabled={pairingToggleBusy}
+                    onChange={() => void togglePairingEnabled()}
+                />
+            </div>
+
+            <div className="pairing-inbox__identity" aria-busy={master == null}>
+                {master ? (
+                    <>
+                        <div className="pairing-inbox__kv">
+                            <div className="pairing-inbox__k">{t("settings.pairing.master_device_id")}</div>
+                            <div className="pairing-inbox__v">
+                                <code className="pairing-inbox__mono" title={master.masterDeviceId}>
+                                    {master.masterDeviceId}
+                                </code>
+                                {copyButton("master-id", master.masterDeviceId)}
+                            </div>
+                        </div>
+                        <div className="pairing-inbox__kv">
+                            <div className="pairing-inbox__k">{t("settings.pairing.master_pubkey")}</div>
+                            <div className="pairing-inbox__v">
+                                <code className="pairing-inbox__mono pairing-inbox__mono--wrap" title={master.masterPubkey}>
+                                    {master.masterPubkey}
+                                </code>
+                                {copyButton("master-key", master.masterPubkey)}
+                            </div>
+                        </div>
+                    </>
+                ) : (
+                    <p className="card-sub">{t("settings.pairing.master_keys_loading")}</p>
+                )}
+            </div>
+
+            {!loaded ? (
+                <div className="pairing-inbox__skeleton" aria-busy="true" aria-live="polite">
+                    <span className="sr-only">{t("common.loading")}</span>
+                    <span />
+                    <span />
+                </div>
+            ) : ordered.length === 0 ? (
+                <p className="pairing-inbox__empty">
+                    {loadError
+                        ? tp("settings.pairing.inbox_error", { message: loadError })
+                        : t("settings.pairing.empty")}
                 </p>
             ) : (
-                <ul style={{ marginTop: 12, paddingLeft: 0, listStyle: "none" }}>
-                    {items.map((row) => {
+                <ul className="pairing-inbox__list">
+                    {visible.map((row) => {
                         const selectedActions = actionByRow[row.id] ?? new Set(DEFAULT_ALLOWED_ACTIONS);
                         const isPending = row.status === "PENDING";
-                        const isAwaitingPin = isPending && (row.awaitingPin || confirmPinByRow[row.id]);
+                        const isAwaitingPin = isPending && (Boolean(row.awaitingPin) || Boolean(confirmPinByRow[row.id]));
                         const isAccepted = row.status === "ACCEPTED";
-                        const displayedPin = confirmPinByRow[row.id];
+                        const displayedPin = row.couplingCode || confirmPinByRow[row.id] || undefined;
+                        const when = requestedLabel(row.requestedAt, locale);
+                        const rowBusy = busy?.id === row.id;
+                        const codeReady = isPending && Boolean(displayedPin) && !isAwaitingPin;
+                        const statusLabel = isAwaitingPin
+                            ? t("settings.pairing.pin_pending")
+                            : codeReady
+                              ? t("settings.pairing.status_confirm")
+                              : t(STATUS_LABEL_KEY[row.status]);
+                        const tone = cardTone(row, isAwaitingPin || codeReady);
+                        const name = deviceName(row);
                         return (
-                            <li
-                                key={row.id}
-                                style={{
-                                    border: "1px solid var(--border)",
-                                    borderRadius: 8,
-                                    padding: 12,
-                                    marginBottom: 8,
-                                }}
-                            >
-                                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                                    <div>
-                                        <strong>{row.slaveLabel || t("settings.pairing.unnamed")}</strong>
-                                        <div className="card-sub">
-                                            {t("settings.pairing.device_id")} <code>{row.deviceId}</code>
-                                        </div>
-                                        <div className="card-sub">
-                                            {t("settings.pairing.ip")} <code>{row.requesterIp || "—"}</code> · {t("settings.pairing.status")}{" "}
-                                            <strong>
-                                                {isAwaitingPin ? t("settings.pairing.pin_pending") : t(STATUS_LABEL_KEY[row.status])}
-                                            </strong>
-                                        </div>
-                                        {displayedPin ? (
-                                            <div
-                                                className="card-sub"
-                                                style={{
-                                                    marginTop: 8,
-                                                    padding: "8px 12px",
-                                                    borderRadius: 8,
-                                                    background: "var(--surface-accent)",
-                                                    fontSize: "1.25rem",
-                                                    letterSpacing: "0.35em",
-                                                    fontWeight: 700,
-                                                }}
-                                                aria-live="polite"
-                                            >
-                                                {tp("settings.pairing.confirm_code", { pin: displayedPin })}
+                            <li key={row.id} className={`pairing-inbox__card pairing-inbox__card--${tone}`}>
+                                <div className="pairing-inbox__card-head">
+                                    <div className="pairing-inbox__who">
+                                        <strong className="pairing-inbox__name">
+                                            {name || t("settings.pairing.unnamed")}
+                                        </strong>
+                                        {when ? (
+                                            <div className="pairing-inbox__when">
+                                                {tp("settings.pairing.requested", { when })}
                                             </div>
                                         ) : null}
-                                        <div className="card-sub" style={{ wordBreak: "break-all" }}>
-                                            {t("settings.pairing.pubkey")} <code>{row.slavePubkey.slice(0, 64)}…</code>
+                                    </div>
+                                    <span className={`pill ${PILL_CLASS[tone]}`}>
+                                        <span className="dot" aria-hidden="true" />
+                                        {statusLabel}
+                                    </span>
+                                </div>
+                                <div className="pairing-inbox__meta">
+                                    <div className="pairing-inbox__kv pairing-inbox__kv--inline">
+                                        <div className="pairing-inbox__k">{t("settings.pairing.device_id")}</div>
+                                        <div className="pairing-inbox__v">
+                                            <code className="pairing-inbox__mono pairing-inbox__mono--wrap">{row.deviceId}</code>
+                                            {copyButton(
+                                                `device-${row.id}`,
+                                                row.deviceId,
+                                                `${t("common.copy")} ${t("settings.pairing.device_id")}`,
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="pairing-inbox__kv pairing-inbox__kv--inline">
+                                        <div className="pairing-inbox__k">{t("settings.pairing.ip")}</div>
+                                        <div className="pairing-inbox__v">
+                                            <code className="pairing-inbox__mono pairing-inbox__mono--wrap">
+                                                {displayIp(row.requesterIp) || "—"}
+                                            </code>
+                                        </div>
+                                    </div>
+                                    <div className="pairing-inbox__kv pairing-inbox__kv--inline">
+                                        <div className="pairing-inbox__k">{t("settings.pairing.pubkey")}</div>
+                                        <div className="pairing-inbox__v">
+                                            <code className="pairing-inbox__mono pairing-inbox__mono--wrap">
+                                                {row.slavePubkey.trim() || "—"}
+                                            </code>
+                                            {row.slavePubkey.trim()
+                                                ? copyButton(
+                                                      `key-${row.id}`,
+                                                      row.slavePubkey,
+                                                      `${t("common.copy")} ${t("settings.pairing.pubkey")}`,
+                                                  )
+                                                : null}
                                         </div>
                                     </div>
                                 </div>
-                                {isPending && !isAwaitingPin ? (
-                                    <fieldset
-                                        style={{ marginTop: 8, border: "none", padding: 0 }}
-                                        aria-label={t("settings.pairing.allowed_actions_aria")}
+
+                                {displayedPin ? (
+                                    <div
+                                        className="pairing-inbox__pin"
+                                        aria-label={tp("settings.pairing.confirm_code", { pin: displayedPin })}
                                     >
-                                        <legend className="card-sub" style={{ padding: 0 }}>
-                                            {t("settings.pairing.allowed_actions")}
-                                        </legend>
+                                        <div className="pairing-inbox__pin-label">
+                                            {t("settings.pairing.confirm_code_label")}
+                                        </div>
                                         <div
-                                            style={{
-                                                display: "flex",
-                                                flexWrap: "wrap",
-                                                gap: 8,
-                                                marginTop: 4,
-                                            }}
+                                            className="pairing-inbox__pin-digits"
+                                            data-arabic-numerals-skip=""
+                                            dir="ltr"
+                                            aria-live="polite"
                                         >
-                                            {[...DEFAULT_ALLOWED_ACTIONS, ...OPTIONAL_READ_ACTIONS].map((action) => (
-                                                <label
-                                                    key={action}
-                                                    style={{ display: "flex", gap: 4, alignItems: "center" }}
-                                                >
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={selectedActions.has(action)}
-                                                        onChange={() => toggleAction(row.id, action)}
-                                                    />
-                                                    {PAIRING_ACTION_KEYS[action] ? t(PAIRING_ACTION_KEYS[action]) : action}
-                                                </label>
+                                            {displayedPin.split("").map((digit, index) => (
+                                                <span key={`${row.id}-${index}`}>{digit}</span>
                                             ))}
+                                        </div>
+                                    </div>
+                                ) : null}
+
+                                {isPending && !isAwaitingPin ? (
+                                    <fieldset className="pairing-inbox__actions" aria-label={t("settings.pairing.allowed_actions_aria")}>
+                                        <legend>{t("settings.pairing.allowed_actions")}</legend>
+                                        <div className="pairing-inbox__chips">
+                                            {[...DEFAULT_ALLOWED_ACTIONS, ...OPTIONAL_READ_ACTIONS].map((action) => {
+                                                const on = selectedActions.has(action);
+                                                return (
+                                                    <button
+                                                        key={action}
+                                                        type="button"
+                                                        role="checkbox"
+                                                        aria-checked={on}
+                                                        className={`pairing-inbox__chip${on ? " pairing-inbox__chip--on" : ""}`}
+                                                        onClick={() => toggleAction(row.id, action)}
+                                                    >
+                                                        {PAIRING_ACTION_KEYS[action] ? t(PAIRING_ACTION_KEYS[action]) : action}
+                                                    </button>
+                                                );
+                                            })}
                                         </div>
                                     </fieldset>
                                 ) : isAwaitingPin ? (
-                                    <p className="card-sub" style={{ marginTop: 8 }}>
-                                        {t("settings.pairing.pin_wait_hint")}
-                                    </p>
+                                    <p className="card-sub pairing-inbox__hint">{t("settings.pairing.pin_wait_hint")}</p>
                                 ) : null}
-                                <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
-                                    {isPending && !isAwaitingPin ? (
-                                        <>
-                                            <Button
-                                                type="button"
-                                                loading={busyId === row.id}
-                                                disabled={busyId === row.id || selectedActions.size === 0}
-                                                onClick={() => void decide(row, true)}
-                                            >
-                                                {t("settings.pairing.accept")}
-                                            </Button>
-                                            <Button
-                                                type="button"
-                                                variant="secondary"
-                                                loading={busyId === row.id}
-                                                disabled={busyId === row.id}
-                                                onClick={() => void decide(row, false)}
-                                            >
-                                                {t("settings.pairing.reject")}
-                                            </Button>
-                                        </>
-                                    ) : null}
-                                    {isAccepted ? (
+
+                                {isPending && !isAwaitingPin ? (
+                                    <div className="pairing-inbox__footer">
+                                        <Button
+                                            type="button"
+                                            loading={rowBusy && busy?.action === "accept"}
+                                            disabled={rowBusy || selectedActions.size === 0}
+                                            onClick={() => void decide(row, true)}
+                                        >
+                                            {t("settings.pairing.accept")}
+                                        </Button>
                                         <Button
                                             type="button"
                                             variant="secondary"
-                                            loading={busyId === row.id}
-                                            disabled={busyId === row.id}
+                                            loading={rowBusy && busy?.action === "reject"}
+                                            disabled={rowBusy}
+                                            onClick={() => void decide(row, false)}
+                                        >
+                                            {t("settings.pairing.reject")}
+                                        </Button>
+                                    </div>
+                                ) : null}
+                                {isAccepted ? (
+                                    <div className="pairing-inbox__footer">
+                                        <Button
+                                            type="button"
+                                            variant="danger"
+                                            loading={rowBusy && busy?.action === "revoke"}
+                                            disabled={rowBusy}
                                             onClick={() => void revoke(row)}
                                         >
                                             {t("settings.pairing.revoke")}
                                         </Button>
-                                    ) : null}
-                                </div>
+                                    </div>
+                                ) : null}
                             </li>
                         );
                     })}
                 </ul>
             )}
+            {hiddenCount > 0 ? (
+                <button
+                    type="button"
+                    className="pairing-inbox__more"
+                    aria-expanded={listExpanded}
+                    onClick={() => setListExpanded((open) => !open)}
+                >
+                    {listExpanded
+                        ? t("settings.pairing.show_less")
+                        : tp("settings.pairing.show_more", { count: hiddenCount })}
+                </button>
+            ) : null}
         </>
+    );
+
+    const refresh = (
+        <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="pairing-inbox__refresh"
+            loading={refreshing}
+            disabled={refreshing}
+            onClick={() => void reload("manual")}
+        >
+            {t("common.refresh")}
+        </Button>
     );
 
     if (embedded) {
         return (
-            <div className="settings-system-block">
+            <div className="settings-system-block pairing-inbox">
                 <div className="settings-system-block__head settings-system-block__head--row">
-                    <div style={{ flex: 1, minWidth: 0 }}>{heading}</div>
-                    <Button type="button" onClick={() => void reload()} disabled={loading}>
-                        {t("common.refresh")}
-                    </Button>
+                    {heading}
+                    {refresh}
                 </div>
                 <div className="settings-system-block__body">{body}</div>
             </div>
@@ -342,12 +566,10 @@ export function SettingsPairingInbox({ embedded = false }: { embedded?: boolean 
     }
 
     return (
-        <section className="card-pad" aria-labelledby="pairing-inbox-heading">
+        <section className="card-pad pairing-inbox" aria-labelledby="pairing-inbox-heading">
             <div className="card-head">
-                <div>{heading}</div>
-                <Button type="button" onClick={() => void reload()} disabled={loading}>
-                    {t("common.refresh")}
-                </Button>
+                {heading}
+                {refresh}
             </div>
             {body}
         </section>

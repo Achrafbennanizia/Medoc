@@ -31,6 +31,10 @@ export async function validatePatientChart(patientId: string): Promise<void> {
     await practiceSystem.invoke("validate_patient_chart", { id: patientId });
 }
 
+export async function declinePatientChart(patientId: string): Promise<void> {
+    await practiceSystem.invoke("decline_patient_chart", { id: patientId });
+}
+
 export async function forwardChartToPhysicians(args: {
     patientId: string;
     physicianIds: string[];

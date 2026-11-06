@@ -105,7 +105,15 @@ fn workflow_appointment_transitions() {
 #[test]
 fn workflow_patient_chart_validate() {
     assert!(workflow_transitions::patient_chart_validate_transition("DRAFT").is_ok());
+    assert!(workflow_transitions::patient_chart_validate_transition("DECLINED").is_ok());
     assert!(workflow_transitions::patient_chart_validate_transition("VALIDATED").is_err());
+}
+
+#[test]
+fn workflow_patient_chart_decline() {
+    assert!(workflow_transitions::patient_chart_decline_transition("DRAFT").is_ok());
+    assert!(workflow_transitions::patient_chart_decline_transition("IN_PROGRESS").is_ok());
+    assert!(workflow_transitions::patient_chart_decline_transition("VALIDATED").is_err());
 }
 
 #[test]

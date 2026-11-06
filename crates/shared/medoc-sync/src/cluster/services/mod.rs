@@ -15,10 +15,11 @@ pub use cluster_reset_service::{
     wipe_desktop_network_state, ClusterResetMode, ClusterResetPreview, ClusterResetReport,
 };
 pub use cluster_service::{
-    accept_join_request, block_device, create_join_request, list_devices, list_pending_requests,
-    mirror_join_session, reclaim_stale_seat, reject_join_request, revoke_device, submit_sas,
-    unblock_device, verify_peer_connection, DeviceView, JoinRequestResult, PairingHandle,
-    PendingRequest, SasCode,
+    accept_join_request, activate_replica_after_sas_confirm, block_device, create_join_request,
+    issue_replica_lan_auth, list_devices, list_pending_requests, mirror_join_session,
+    reclaim_stale_seat,     refresh_replica_lan_auth, reject_join_request, revoke_device, record_join_identity,
+    store_join_device_pubkey, submit_sas, unblock_device, verify_inbound_sas,
+    verify_peer_connection, DeviceView, JoinRequestResult, PairingHandle, PendingRequest, SasCode,
 };
 pub use install_plan_service::{
     apply_install_plan, apply_install_plan_from_license_v2, consume_default_sidecar_and_apply,
@@ -33,6 +34,6 @@ pub use license_service::{
 pub use provisioning_service::{apply_provisioning, is_local_provisioned, ProvisionResult};
 pub use staff_directory::{
     export_staff_directory_json, fetch_provisioning_settings_json, import_staff_directory_json,
-    store_join_admin_endpoint, sync_staff_from_stored_admin_endpoint,
-    sync_staff_from_stored_admin_endpoint_required,
+    load_join_admin_endpoint, store_join_admin_endpoint, store_join_lan_auth,
+    sync_staff_from_stored_admin_endpoint, sync_staff_from_stored_admin_endpoint_required,
 };
