@@ -81,8 +81,8 @@ function MainLicenseForm(props: { onActivated?: () => void; onBack: () => void }
     const reasonText = (reason: string) =>
         reason.startsWith("error.") ? errorMessage(reason) : reason;
 
-    const activate = async (raw?: string) => {
-        const value = (raw ?? token).trim();
+    const activate = async () => {
+        const value = token.trim();
         if (!value) {
             toast(t("license.activate.token_required"), "error");
             return;
