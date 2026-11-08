@@ -214,6 +214,11 @@ export async function clusterStartListener(): Promise<void> {
     return tauriInvoke("cluster_start_listener");
 }
 
+/** Close or reopen the practice listen port on this computer. */
+export async function setNetworkHidden(hidden: boolean): Promise<void> {
+    await tauriInvoke("network_set_hidden", { hidden });
+}
+
 export async function clusterListPending(): Promise<PendingRequest[]> {
     return tauriInvoke("cluster_list_pending");
 }

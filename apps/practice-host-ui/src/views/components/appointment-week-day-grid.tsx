@@ -459,7 +459,7 @@ function AppointmentTimeColumnBody({
                         : undefined;
                 return (
                     <AppointmentApptBlockView
-                        key={ap.id}
+                        key={`${ap.id}-${ap.date}-${ap.time}`}
                         appointment={ap}
                         patientName={patientNameById.get(ap.patient_id) ?? t("appointment.calendar.patient_fallback")}
                         doctorName={physicianNameById?.get(ap.physician_id)}

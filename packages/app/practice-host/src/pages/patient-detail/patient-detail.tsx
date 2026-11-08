@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { getPatient } from "@/systems/practice-host/controllers/patient.controller";
 import {
@@ -37,12 +37,30 @@ import { usePatientDetailValidation } from "./use-patient-detail-validation";
 import { usePatientDetailPaymentActions } from "./use-patient-detail-payment-actions";
 import { PatientDetailOverlays } from "./patient-detail-overlays";
 import type { PatientChartWorkflowMode } from "@/views/components/patient-chart-workflow-dialogs";
-import { PatientDetailAnamTab } from "./patient-detail-anamnesis-tab";
-import { PatientDetailAttachmentTab } from "./patient-detail-attachment-tab";
-import { PatientDetailTreatmentTab } from "./patient-detail-treatment-tab";
-import { PatientDetailExaminationTab } from "./patient-detail-examination-tab";
-import { PatientDetailPaymentTab } from "./patient-detail-payment-tab";
-import { PatientDetailPrescriptionTab, type PatientDetailPrescriptionTabHandle } from "./patient-detail-prescription-tab";
+import { type PatientDetailPrescriptionTabHandle } from "./patient-detail-prescription-tab";
+
+const PatientDetailAnamTab = lazy(async () => ({
+    default: (await import("./patient-detail-anamnesis-tab")).PatientDetailAnamTab,
+}));
+const PatientDetailAttachmentTab = lazy(async () => ({
+    default: (await import("./patient-detail-attachment-tab")).PatientDetailAttachmentTab,
+}));
+const PatientDetailTreatmentTab = lazy(async () => ({
+    default: (await import("./patient-detail-treatment-tab")).PatientDetailTreatmentTab,
+}));
+const PatientDetailExaminationTab = lazy(async () => ({
+    default: (await import("./patient-detail-examination-tab")).PatientDetailExaminationTab,
+}));
+const PatientDetailPaymentTab = lazy(async () => ({
+    default: (await import("./patient-detail-payment-tab")).PatientDetailPaymentTab,
+}));
+const PatientDetailPrescriptionTab = lazy(async () => ({
+    default: (await import("./patient-detail-prescription-tab")).PatientDetailPrescriptionTab,
+}));
+
+function PatientTabSlot({ children }: { children: ReactNode }) {
+    return <Suspense fallback={null}>{children}</Suspense>;
+}
 import type { HtmlExportDocumentKind } from "@/views/components/export-picker-dialog";
 import { itemValidationKey, type ValidationRecord, type ValidationState } from "@/lib/chart-validation";
 import { listPrescriptions, type Prescription } from "@/systems/practice-host/controllers/prescription.controller";
@@ -317,49 +335,15 @@ export function PatientDetailPage() {
         if (!id) return;
         setPatientLoadError(null);
         setChartLoadError(null);
-        try {
-            const p = await getPatient(id);
-            setPatient(p);
-            setEditForm({ name: p.name, phone: p.phone ?? "", email: p.email ?? "", address: p.address ?? "" });
-        } catch (e) {
-            setPatient(null);
-            setPatientLoadError(errorMessage(e));
-            setChart(null);
-            setFindings([]);
-            setTreatments([]);
-            setExaminations([]);
-            setCatalog([]);
-            return;
-        }
-        setFindings([]);
-        setTreatments([]);
-        setExaminations([]);
-        setCatalog([]);
-        setPrescriptions([]);
-        setCertificates([]);
-        setPayments([]);
-        setAnamnesisJson("");
-        setAnamnesisSign(false);
-        let chartRow: PatientChart | null = null;
-        try {
-            chartRow = await getChart(id);
-            setChart(chartRow);
-            setChartLoadError(null);
-            void refreshAttachments(chartRow.id);
-        } catch (e) {
-            setChart(null);
-            if (isPatientChartMissingError(e)) {
-                setChartLoadError(null);
-            } else {
-                setChartLoadError(errorMessage(e));
-            }
-            return;
-        }
         const sectionFail = (key: string, e: unknown) => {
             toast(tp(key, { message: errorMessage(e) }), "warning");
             return null;
         };
-        const [rez, zPat, att, katRows] = await Promise.all([
+        const patientTask = getPatient(id);
+        const chartTask = getChart(id)
+            .then((row) => ({ ok: true as const, row }))
+            .catch((e: unknown) => ({ ok: false as const, e }));
+        const docsTask = Promise.all([
             canListPatientDocuments
                 ? listPrescriptions(id).catch((e) => {
                       sectionFail("patient.detail.toast.prescription_load_failed", e);
@@ -381,10 +365,35 @@ export function PatientDetailPage() {
                 return [] as TreatmentCatalogItem[];
             }),
         ]);
+        let p;
+        try {
+            p = await patientTask;
+        } catch (e) {
+            setPatient(null);
+            setPatientLoadError(errorMessage(e));
+            setChart(null);
+            return;
+        }
+        setPatient(p);
+        setEditForm({ name: p.name, phone: p.phone ?? "", email: p.email ?? "", address: p.address ?? "" });
+        const [chartOutcome, [rez, zPat, att, katRows]] = await Promise.all([chartTask, docsTask]);
         setPrescriptions(rez);
         setPayments(zPat);
         setCertificates(att);
         setCatalog(katRows);
+        if (!chartOutcome.ok) {
+            setChart(null);
+            if (isPatientChartMissingError(chartOutcome.e)) {
+                setChartLoadError(null);
+            } else {
+                setChartLoadError(errorMessage(chartOutcome.e));
+            }
+            return;
+        }
+        const chartRow = chartOutcome.row;
+        setChart(chartRow);
+        setChartLoadError(null);
+        void refreshAttachments(chartRow.id);
         if (canViewClinical) {
             const [z, bh, u, am] = await Promise.all([
                 listDentalFindings(chartRow.id).catch((e) => {
@@ -729,6 +738,7 @@ export function PatientDetailPage() {
                     ) : null}
 
             {activeTab === "anamnesis" && canViewClinical ? (
+                <PatientTabSlot>
                 <PatientDetailAnamTab
                     validationMaster={validation.master}
                     anamEditing={anamEditing}
@@ -742,9 +752,11 @@ export function PatientDetailPage() {
                     onCancelEdit={cancelAnamnesisEdit}
                     onSave={runSaveAnamnesis}
                 />
+                </PatientTabSlot>
             ) : null}
 
             {activeTab === "examination" && canViewClinical ? (
+                <PatientTabSlot>
                 <PatientDetailExaminationTab
                     chart={chart}
                     findings={findings}
@@ -792,9 +804,11 @@ export function PatientDetailPage() {
                     onSaveEdit={runSaveExaminationEdit}
                     onCreateExamination={handleCreateExamination}
                 />
+                </PatientTabSlot>
             ) : null}
 
             {activeTab === "treatment" && canViewClinical ? (
+                <PatientTabSlot>
                 <PatientDetailTreatmentTab
                     treatmentComposerCommon={treatmentComposerCommon}
                     treatments={treatments}
@@ -885,9 +899,11 @@ export function PatientDetailPage() {
                     onCancelDeleteTreatment={() => setTreatmentDeleteId(null)}
                     onConfirmDeleteTreatment={handleDeleteTreatmentRow}
                 />
+                </PatientTabSlot>
             ) : null}
 
             {activeTab === "prescription" && id && session?.user_id && (
+                <PatientTabSlot>
                 <PatientDetailPrescriptionTab
                     ref={prescriptionTabRef}
                     patientId={id}
@@ -901,8 +917,10 @@ export function PatientDetailPage() {
                     onHtmlDocExport={setHtmlDocExport}
                     ensurePracticeForDocument={ensurePracticeForDocument}
                 />
+                </PatientTabSlot>
             )}
             {activeTab === "attachment" ? (
+                <PatientTabSlot>
                 <PatientDetailAttachmentTab
                     hasAttachments={hasSectionData.attachment}
                     attachments={attachments}
@@ -1017,6 +1035,7 @@ export function PatientDetailPage() {
                             : undefined
                     }
                 />
+                </PatientTabSlot>
             ) : null}
             {chart && scannerImportOpen ? (
                 <ChartScannerImportDialog
@@ -1044,6 +1063,7 @@ export function PatientDetailPage() {
                 />
             ) : null}
             {activeTab === "payment" && (
+                <PatientTabSlot>
                 <PatientDetailPaymentTab
                     patientId={id}
                     hasPaymentData={hasSectionData.payment}
@@ -1107,6 +1127,7 @@ export function PatientDetailPage() {
                     onRevokeItemValidation={revokeItemValidationRow}
                     toast={toast}
                 />
+                </PatientTabSlot>
             )}
                 </div>
             </div>

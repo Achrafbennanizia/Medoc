@@ -17,11 +17,13 @@ import { persistAutocompleteSuggestionsToPracticeKv } from "@/lib/practice-searc
 import { errorMessage } from "@/lib/utils";
 import { SettingsSwitch } from "@/views/components/settings-switch";
 import { useToastStore } from "@/views/components/ui/toast-store";
+import { useEffect } from "react";
 import { useT, useTParams } from "@/lib/i18n";
 import { SettingsCompanyPortalSection } from "@/systems/company-portal/pages/settings-company-portal-section";
 import { SettingsLanHostSection } from "@/systems/lan/pages/settings-lan-host";
 import { SettingsDeploymentSection } from "@/systems/practice-host/pages/settings/settings-deployment-section";
 import { SettingsPairingInbox } from "@/systems/practice-host/pages/settings/settings-pairing-inbox";
+import { setNetworkHidden } from "@/systems/practice-host/controllers/cluster.controller";
 import { DeviceClusterPanel } from "@/systems/practice-host/pages/settings/device-cluster-panel";
 import { SettingsNetworkResetSection } from "@/systems/practice-host/pages/settings/settings-network-reset-section";
 
@@ -146,6 +148,20 @@ export function SettingsSystemSection({
     searchPrefs,
 }: SettingsSystemSectionProps) {
     const t = useT();
+    const toast = useToastStore((s) => s.add);
+    const onHideNetwork = (next: boolean) => {
+        onPersistClient((c) => withNetworkHiddenInSettings(c, next));
+        void setNetworkHidden(next).catch((error: unknown) => {
+            if (next) {
+                onPersistClient((c) => withNetworkHiddenInSettings(c, false));
+            }
+            toast(errorMessage(error), "error");
+        });
+    };
+    useEffect(() => {
+        if (hideNetwork) return;
+        void setNetworkHidden(false).catch(() => undefined);
+    }, [hideNetwork]);
     const desktopSettings = (
         <PracticeDesktopSettings
             canOpsSystem={canOpsSystem}
@@ -166,7 +182,7 @@ export function SettingsSystemSection({
             <SettingsSwitch
                 ariaLabel={t("settings.system.hide_network_aria")}
                 checked={hideNetwork}
-                onChange={(next) => onPersistClient((c) => withNetworkHiddenInSettings(c, next))}
+                onChange={onHideNetwork}
             />
         </div>
     );
@@ -184,13 +200,12 @@ export function SettingsSystemSection({
                 {hideToggle}
                 {hideNetwork ? (
                     <p className="card-sub settings-system-network-hidden-hint">{t("settings.system.network_hidden_hint")}</p>
-                ) : (
-                    <div className="settings-system-stack settings-system-stack--flush">
-                        <DeviceClusterPanel embedded />
-                        <SettingsDeploymentSection embedded showPairingInbox={canOpsSystem} />
-                        <SettingsNetworkResetSection canOpsSystem={canOpsSystem} />
-                    </div>
-                )}
+                ) : null}
+                <div className="settings-system-stack settings-system-stack--flush">
+                    <DeviceClusterPanel embedded />
+                    <SettingsDeploymentSection embedded showPairingInbox={canOpsSystem} />
+                    <SettingsNetworkResetSection canOpsSystem={canOpsSystem} />
+                </div>
             </section>
             {desktopSettings}
             </>
@@ -209,20 +224,19 @@ export function SettingsSystemSection({
             {hideToggle}
             {hideNetwork ? (
                 <p className="card-sub settings-system-network-hidden-hint">{t("settings.system.network_hidden_hint")}</p>
-            ) : (
-                <div className="settings-system-stack">
-                    <SettingsDeploymentSection embedded />
-                    {canOpsSystem && SYSTEM_LAN_HOST_PANEL_ENABLED ? (
-                        <>
-                            <SettingsPairingInbox embedded />
-                            <SettingsLanHostSection embedded />
-                        </>
-                    ) : null}
-                    {canOpsSystem && SYSTEM_COMPANY_PORTAL_ENABLED ? (
-                        <SettingsCompanyPortalSection embedded />
-                    ) : null}
-                </div>
-            )}
+            ) : null}
+            <div className="settings-system-stack">
+                <SettingsDeploymentSection embedded />
+                {canOpsSystem && SYSTEM_LAN_HOST_PANEL_ENABLED ? (
+                    <>
+                        <SettingsPairingInbox embedded />
+                        <SettingsLanHostSection embedded />
+                    </>
+                ) : null}
+                {canOpsSystem && SYSTEM_COMPANY_PORTAL_ENABLED ? (
+                    <SettingsCompanyPortalSection embedded />
+                ) : null}
+            </div>
             {!SYSTEM_APPEARANCE_TOGGLES_ENABLED &&
             !SYSTEM_CHART_PHOTO_VIEWER_ENABLED &&
             !SYSTEM_DIAGNOSTICS_ENABLED &&

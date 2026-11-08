@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { readListSnapshot, writeListSnapshot } from "@/lib/list-snapshot";
+import { PAGE_REFRESH_MS } from "../layouts/page-refresh";
 import { format, parseISO } from "date-fns";
 import type { Locale as DateFnsLocale } from "date-fns";
 import { Link } from "react-router-dom";
@@ -952,7 +954,7 @@ export function StatisticsPage() {
     const intlTag = useIntlLocaleTag();
     const dateLocale = useDateFnsLocale();
     const [period, setPeriod] = useState<Period>("6m");
-    const [stats, setStats] = useState<StatisticsOverview | null>(null);
+    const [stats, setStats] = useState<StatisticsOverview | null>(() => readListSnapshot<StatisticsOverview>("statistics-overview") ?? null);
     const [loadError, setLoadError] = useState<string | null>(null);
     const [reloadToken, setReloadToken] = useState(0);
     const [activePanel, setActivePanel] = useState<string>(PANEL_IDS[0]!);
@@ -962,19 +964,25 @@ export function StatisticsPage() {
 
     useEffect(() => {
         let cancelled = false;
-        setLoadError(null);
-        setStats(null);
         getStatisticsOverview()
             .then((s) => {
-                if (!cancelled) setStats(s);
+                if (cancelled) return;
+                writeListSnapshot("statistics-overview", s);
+                setStats(s);
+                setLoadError(null);
             })
             .catch((e) => {
-                if (!cancelled) setLoadError(errorMessage(e));
+                if (!cancelled && !readListSnapshot("statistics-overview")) setLoadError(errorMessage(e));
             });
         return () => {
             cancelled = true;
         };
     }, [reloadToken]);
+
+    useEffect(() => {
+        const id = window.setInterval(() => setReloadToken((n) => n + 1), PAGE_REFRESH_MS);
+        return () => window.clearInterval(id);
+    }, []);
 
     useEffect(() => {
         if (activePanel !== "sec-workTime") return;

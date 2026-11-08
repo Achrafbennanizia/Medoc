@@ -328,6 +328,13 @@ pub async fn lan_server_start(
 
 /// Called once after DB init: start LAN with the desktop app.
 pub async fn auto_start_if_enabled(app: AppHandle, pool: SqlitePool) {
+    if medoc_sync::pairing::is_network_hidden(&pool)
+        .await
+        .unwrap_or(false)
+    {
+        tracing::info!(target: "medoc::lan", event = "LAN_AUTO_START_SKIP_HIDDEN");
+        return;
+    }
     if lan_listen_block_reason(&pool).await.is_some() {
         tracing::info!(target: "medoc::lan", event = "LAN_AUTO_START_SKIP");
         return;

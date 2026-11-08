@@ -99,8 +99,12 @@ pub async fn check_conflict(
     .await
 }
 
+/// Appointments page loads the first of (today − 11 months) through the last
+/// day of (today + 2 months). That span is 423–427 days; keep a little headroom.
+const MAX_APPOINTMENT_RANGE_DAYS: i64 = 450;
+
 /// F63: every appointment with `from <= date <= to` (local `yyyy-MM-dd`, as
-/// stored), no page limit. Calendar views ask for their visible range only.
+/// stored), no page limit. Callers must stay within `MAX_APPOINTMENT_RANGE_DAYS`.
 pub async fn find_in_range(
     pool: &SqlitePool,
     from: &str,
@@ -110,8 +114,10 @@ pub async fn find_in_range(
     let (Ok(f), Ok(t)) = (parse(from), parse(to)) else {
         return Err(AppError::Validation("Date must be in yyyy-MM-dd format".into()));
     };
-    if t < f || (t - f).num_days() > 400 {
-        return Err(AppError::Validation("Date range must be 0-400 days".into()));
+    if t < f || (t - f).num_days() > MAX_APPOINTMENT_RANGE_DAYS {
+        return Err(AppError::Validation(format!(
+            "Date range must be 0-{MAX_APPOINTMENT_RANGE_DAYS} days"
+        )));
     }
     Ok(sqlx::query_as::<_, Appointment>(
         "SELECT * FROM appointment WHERE date >= ?1 AND date <= ?2 ORDER BY date ASC, time ASC",

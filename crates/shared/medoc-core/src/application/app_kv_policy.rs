@@ -37,9 +37,10 @@ pub fn permission_for_app_kv_key(key: &str) -> Option<&'static str> {
         | "invoice.practice.v1"
         | "practice.calendar-workflows.v1" => Some("ops.system"),
         "lan.server.config.v1" | "practice.timezone.v1" => Some("ops.system"),
-        "pairing.enabled.v1" | "sync.deployment.v1" | "company.portal.config.v1" => {
-            Some("ops.system")
-        }
+        "pairing.enabled.v1"
+        | "network.hidden.v1"
+        | "sync.deployment.v1"
+        | "company.portal.config.v1" => Some("ops.system"),
         key if key.starts_with("onboarding.progress.v1.") => Some("dashboard.read"),
         _ => None,
     }
@@ -82,9 +83,18 @@ mod tests {
 
     #[test]
     fn work_plan_is_readable_by_everyone_and_writable_with_staff_write() {
-        assert_eq!(read_permission_for_app_kv_key("staff.work_plan.v1.seed-rez-001"), Some("dashboard.read"));
-        assert_eq!(permission_for_app_kv_key("staff.work_plan.v1.seed-rez-001"), Some("staff.write"));
-        assert_eq!(read_permission_for_app_kv_key("staff.work_plan.v1.bad id"), None);
+        assert_eq!(
+            read_permission_for_app_kv_key("staff.work_plan.v1.seed-rez-001"),
+            Some("dashboard.read")
+        );
+        assert_eq!(
+            permission_for_app_kv_key("staff.work_plan.v1.seed-rez-001"),
+            Some("staff.write")
+        );
+        assert_eq!(
+            read_permission_for_app_kv_key("staff.work_plan.v1.bad id"),
+            None
+        );
     }
 
     #[test]

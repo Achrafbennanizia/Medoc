@@ -131,6 +131,19 @@ async fn calendar_range_returns_all_appointments_in_range() {
 }
 
 #[tokio::test]
+async fn calendar_range_allows_practice_year_and_rejects_451_days() {
+    let pool = pool().await;
+    let from = NaiveDate::from_ymd_opt(2099, 1, 1).unwrap();
+    let ok = (from + chrono::Days::new(450)).format("%Y-%m-%d").to_string();
+    let over = (from + chrono::Days::new(451)).format("%Y-%m-%d").to_string();
+    assert!(appointment_repo::find_in_range(&pool, "2099-01-01", &ok).await.is_ok());
+    let err = appointment_repo::find_in_range(&pool, "2099-01-01", &over)
+        .await
+        .unwrap_err();
+    assert!(matches!(err, AppError::Validation(msg) if msg.contains("0-450")));
+}
+
+#[tokio::test]
 async fn move_appointments_is_all_or_nothing() {
     let pool = pool().await;
     let pid = patient(&pool, "move").await;

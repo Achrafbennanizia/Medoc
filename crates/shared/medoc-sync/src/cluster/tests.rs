@@ -165,6 +165,60 @@ fn seat_budget_from_basis_edition() {
 }
 
 #[tokio::test]
+async fn repeat_coupling_replaces_the_inbox_row() {
+    use super::services::create_join_request;
+    use crate::pairing;
+    use medoc_core::infrastructure::database::audit_repo::init_audit_hmac_key;
+
+    let audit_dir =
+        std::env::temp_dir().join(format!("medoc-coupling-inbox-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&audit_dir).expect("audit dir");
+    init_audit_hmac_key(&audit_dir).expect("audit key");
+
+    let pool = fresh_pool().await;
+    let first = create_join_request(
+        &pool,
+        "fp-coupling",
+        SeatRole::Member,
+        b"",
+        None,
+        Some("Reception"),
+        Some("10.1.1.8"),
+    )
+    .await
+    .expect("first coupling");
+    let second = create_join_request(
+        &pool,
+        "fp-coupling",
+        SeatRole::Member,
+        b"",
+        None,
+        Some("Reception"),
+        Some("10.1.1.9"),
+    )
+    .await
+    .expect("second coupling");
+    assert_ne!(first.session_id, second.session_id);
+
+    let rows = pairing::list_all(&pool).await.expect("inbox");
+    assert_eq!(
+        rows.len(),
+        1,
+        "older coupling request must not stay in the inbox"
+    );
+    assert_eq!(rows[0].id, second.session_id);
+    assert_eq!(rows[0].status, "PENDING");
+    assert_eq!(rows[0].requester_ip, "10.1.1.9");
+    assert!(rows[0].cluster_sas);
+
+    let pending = super::services::list_pending_requests(&pool)
+        .await
+        .expect("pending");
+    assert_eq!(pending.len(), 1);
+    assert_eq!(pending[0].id, second.session_id);
+}
+
+#[tokio::test]
 async fn provisioning_is_idempotent_guard() {
     let pool = fresh_pool().await;
     let fp = "fp-prov-test";

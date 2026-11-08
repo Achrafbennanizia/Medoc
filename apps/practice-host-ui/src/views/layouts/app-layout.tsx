@@ -464,6 +464,7 @@ export function AppLayout() {
 
     useEffect(() => {
         const id = window.setInterval(() => {
+            if (document.visibilityState === "hidden") return;
             const el = document.activeElement;
             if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) return;
             if (el instanceof HTMLElement && el.isContentEditable) return;

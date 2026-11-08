@@ -39,6 +39,8 @@ import type { HtmlExportDocumentKind } from "@/views/components/export-picker-di
 import { HtmlDocumentExportPickerDialog } from "@/views/components/export-picker-dialog";
 import { PracticeReadinessDialog } from "@/views/components/practice-readiness-dialog";
 import { LAZY_PAGE_SIZE, mergeUniqueById } from "@/lib/lazy-list";
+import { readListSnapshot, writeListSnapshot } from "@/lib/list-snapshot";
+import { usePageRefresh } from "../layouts/page-refresh";
 
 const PAYMENT_KIND_VALUES = ["CASH", "CARD", "BANK_TRANSFER", "INVOICE"] as const;
 
@@ -158,27 +160,36 @@ export function FinancePage() {
     const role = parseRole(useAuthStore((s) => s.session?.role));
     const canWritePayment = role != null && allowed("finance.write", role);
     const canUpdateOrderStatus = role != null && allowed("purchase_order.write", role);
-    const [payments, setPayments] = useState<Payment[]>([]);
-    const [paymentTotal, setPaymentTotal] = useState(0);
-    const [paymentPage, setPaymentPage] = useState(0);
+    const financeCache = readListSnapshot<{
+        payments: Payment[];
+        paymentTotal: number;
+        paymentPage: number;
+        orders: PurchaseOrder[];
+        kpi: PaymentFinanceKpis;
+    }>("finance");
+    const [payments, setPayments] = useState<Payment[]>(() => financeCache?.payments ?? []);
+    const [paymentTotal, setPaymentTotal] = useState(() => financeCache?.paymentTotal ?? 0);
+    const [paymentPage, setPaymentPage] = useState(() => financeCache?.paymentPage ?? 0);
     const [paymentsLoadingMore, setPaymentsLoadingMore] = useState(false);
-    const [purchase_orders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
+    const [purchase_orders, setPurchaseOrders] = useState<PurchaseOrder[]>(() => financeCache?.orders ?? []);
     const [patientMap, setPatientMap] = useState<Map<string, string>>(() => new Map());
     const [txTab, setTxTab] = useState<FinanceTxTab>("all");
     const [kindFilter, setKindFilter] = useState<"ALL" | PaymentMethod>("ALL");
     const [selectedTxKey, setSelectedTxKey] = useState<string | null>(null);
     const [statusUpdatingOrderId, setStatusUpdatingOrderId] = useState<string | null>(null);
-    const [listLoading, setListLoading] = useState(true);
+    const [listLoading, setListLoading] = useState(() => !financeCache);
     const [loadError, setLoadError] = useState<string | null>(null);
     const [kpiMtd, setKpiMtd] = useState(() =>
-        kpisFromServer({
-            incomeMtd: 0,
-            incomePrevMtd: 0,
-            cancelledMtd: 0,
-            cancelledPrevMtd: 0,
-            openCount: 0,
-            openSum: 0,
-        }),
+        kpisFromServer(
+            financeCache?.kpi ?? {
+                incomeMtd: 0,
+                incomePrevMtd: 0,
+                cancelledMtd: 0,
+                cancelledPrevMtd: 0,
+                openCount: 0,
+                openSum: 0,
+            },
+        ),
     );
     const [receiptBusyId, setReceiptBusyId] = useState<string | null>(null);
     const [practiceGuardKind, setPracticeGuardKind] = useState<DocumentKind | null>(null);
@@ -273,7 +284,14 @@ export function FinancePage() {
                 const [kpi, b] = await Promise.all([paymentFinanceKpis(), listPurchaseOrders()]);
                 setKpiMtd(kpisFromServer(kpi));
                 setPurchaseOrders(b);
-                await loadPaymentsPage(1, true);
+                const paymentsPage = await loadPaymentsPage(1, true);
+                writeListSnapshot("finance", {
+                    payments: paymentsPage.items,
+                    paymentTotal: paymentsPage.total,
+                    paymentPage: paymentsPage.page,
+                    orders: b,
+                    kpi,
+                });
             } catch (e) {
                 const msg = errorMessage(e);
                 if (isInitial) {
@@ -288,9 +306,15 @@ export function FinancePage() {
         [loadPaymentsPage, toast, tp, setPurchaseOrders],
     );
 
+    const financeHadCache = useRef(financeCache != null);
     useEffect(() => {
-        void load({ initial: true });
+        void load({ initial: !financeHadCache.current });
+        financeHadCache.current = false;
     }, [load]);
+
+    usePageRefresh(() => {
+        void load({ initial: false });
+    });
 
     useEffect(() => {
         if (!filtersReady.current) {

@@ -173,6 +173,7 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::network::cluster::cluster_submit_sas,
             $crate::commands::network::cluster::cluster_sync_staff_directory,
             $crate::commands::network::cluster::cluster_start_listener,
+            $crate::commands::network::cluster::network_set_hidden,
             $crate::commands::network::cluster::cluster_list_pending,
             $crate::commands::network::cluster::cluster_accept_request,
             $crate::commands::network::cluster::cluster_reject_request,

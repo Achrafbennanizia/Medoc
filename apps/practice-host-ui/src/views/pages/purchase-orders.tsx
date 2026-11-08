@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { readListSnapshot, writeListSnapshot } from "@/lib/list-snapshot";
+import { usePageRefresh } from "../layouts/page-refresh";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import { EmptyState } from "../components/ui/empty-state";
@@ -49,8 +51,8 @@ export function PurchaseOrdersPage() {
 
     const selectedId = searchParams.get("purchase_order");
 
-    const [rows, setRows] = useState<PurchaseOrder[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [rows, setRows] = useState<PurchaseOrder[]>(() => readListSnapshot<PurchaseOrder[]>("purchase-orders") ?? []);
+    const [loading, setLoading] = useState(() => !readListSnapshot<PurchaseOrder[]>("purchase-orders"));
     const [loadError, setLoadError] = useState<string | null>(null);
 
     const [search, setSearch] = useState("");
@@ -65,6 +67,7 @@ export function PurchaseOrdersPage() {
         try {
             const list = await listPurchaseOrders();
             setRows(list);
+            writeListSnapshot("purchase-orders", list);
             if (initial) setLoadError(null);
         } catch (e) {
             const msg = errorMessage(e);
@@ -75,9 +78,15 @@ export function PurchaseOrdersPage() {
         }
     }, [toast, tp]);
 
+    const ordersHadCache = useRef(readListSnapshot<PurchaseOrder[]>("purchase-orders") !== undefined);
     useEffect(() => {
-        void load({ initial: true });
+        void load({ initial: !ordersHadCache.current });
+        ordersHadCache.current = false;
     }, [load]);
+
+    usePageRefresh(() => {
+        void load({ initial: false });
+    });
 
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase();

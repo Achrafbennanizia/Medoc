@@ -331,6 +331,29 @@ pub async fn set_device_status(
     Ok(())
 }
 
+/// Address already belongs to an accepted replica or an active cluster device.
+pub async fn is_known_peer_ip(pool: &SqlitePool, ip: &str) -> Result<bool, AppError> {
+    ensure(pool).await?;
+    let ip = crate::pairing::canonical_ip_str(ip);
+    if ip.is_empty() {
+        return Ok(false);
+    }
+    let n: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM (
+            SELECT 1 AS hit FROM pairing_request
+             WHERE status = 'ACCEPTED' AND TRIM(requester_ip) = ?1
+            UNION ALL
+            SELECT 1 AS hit FROM sync_device
+             WHERE device_status = 'ACTIVE' AND TRIM(COALESCE(last_ip, '')) = ?1
+         )",
+    )
+    .bind(&ip)
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::Database)?;
+    Ok(n > 0)
+}
+
 pub async fn is_blocklisted(pool: &SqlitePool, fingerprint: &str) -> Result<bool, AppError> {
     ensure(pool).await?;
     let n: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM device_blocklist WHERE fingerprint = ?1")
@@ -383,25 +406,47 @@ pub async fn create_pairing_session(
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .unwrap_or("");
+    let mut tx = pool.begin().await.map_err(AppError::Database)?;
+    let fingerprint = session.fingerprint.trim();
+    if fingerprint.is_empty() {
+        sqlx::query("DELETE FROM pairing_request WHERE id = ?1")
+            .bind(&session.id)
+            .execute(&mut *tx)
+            .await
+            .map_err(AppError::Database)?;
+    } else {
+        // A repeat coupling from the same device must replace the previous inbox
+        // row. The device_id unique index would otherwise reject the insert, and
+        // the master inbox would keep the old request.
+        sqlx::query(
+            "DELETE FROM pairing_request WHERE id = ?1 OR device_id = ?2 OR fingerprint = ?2",
+        )
+        .bind(&session.id)
+        .bind(fingerprint)
+        .execute(&mut *tx)
+        .await
+        .map_err(AppError::Database)?;
+    }
     sqlx::query(
         "INSERT INTO pairing_request (
-            id, device_id, slave_pubkey, slave_label, requester_ip, status,
+            id, device_id, slave_pubkey, slave_label, requester_ip, transport, status,
             pairing_state, sas_hash, requested_role, expires_at, fingerprint, hostname, requested_at
-         ) VALUES (?1, ?2, '', ?3, '', 'PENDING', ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+         ) VALUES (?1, ?2, '', ?3, '', 'cluster', 'PENDING', ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
     )
     .bind(&session.id)
-    .bind(&session.fingerprint)
+    .bind(fingerprint)
     .bind(label)
     .bind(session.state.as_str())
     .bind(&session.sas_hash)
     .bind(session.requested_role.as_str())
     .bind(session.expires_at.to_rfc3339())
-    .bind(&session.fingerprint)
+    .bind(fingerprint)
     .bind(&session.hostname)
     .bind(session.created_at.to_rfc3339())
-    .execute(pool)
+    .execute(&mut *tx)
     .await
     .map_err(AppError::Database)?;
+    tx.commit().await.map_err(AppError::Database)?;
     Ok(())
 }
 
@@ -616,16 +661,8 @@ pub async fn load_pairing_session(
                 .and_then(SeatRole::parse)
                 .unwrap_or(SeatRole::Member),
             hostname: r.6,
-            expires_at: r
-                .5
-                .unwrap_or_default()
-                .parse()
-                .map_err(|e: chrono::ParseError| {
-                    AppError::Internal(format!("pairing.expires_at: {e}"))
-                })?,
-            created_at: r.7.parse().map_err(|e: chrono::ParseError| {
-                AppError::Internal(format!("pairing.created_at: {e}"))
-            })?,
+            expires_at: parse_sync_timestamp(r.5.as_deref().unwrap_or(""), "pairing.expires_at")?,
+            created_at: parse_sync_timestamp(&r.7, "pairing.created_at")?,
         })
     })
     .transpose()
@@ -698,16 +735,11 @@ pub async fn list_pending_pairing(
                     .and_then(SeatRole::parse)
                     .unwrap_or(SeatRole::Member),
                 hostname: r.6,
-                expires_at: r
-                    .5
-                    .unwrap_or_default()
-                    .parse()
-                    .map_err(|e: chrono::ParseError| {
-                        AppError::Internal(format!("pairing.expires_at: {e}"))
-                    })?,
-                created_at: r.7.parse().map_err(|e: chrono::ParseError| {
-                    AppError::Internal(format!("pairing.created_at: {e}"))
-                })?,
+                expires_at: parse_sync_timestamp(
+                    r.5.as_deref().unwrap_or(""),
+                    "pairing.expires_at",
+                )?,
+                created_at: parse_sync_timestamp(&r.7, "pairing.created_at")?,
             })
         })
         .collect()

@@ -15,12 +15,11 @@ pub use cluster_reset_service::{
     wipe_desktop_network_state, ClusterResetMode, ClusterResetPreview, ClusterResetReport,
 };
 pub use cluster_service::{
-    accept_join_request, activate_replica_after_sas_confirm, block_device, create_join_request,
-    issue_replica_lan_auth, list_devices, list_pending_requests, local_lan_http_port,
-    mirror_join_session, store_join_http_port,
-    reclaim_stale_seat, record_join_identity, refresh_replica_lan_auth, reject_join_request,
-    repair_replica_master_https_url,
-    revoke_device, store_join_device_pubkey, submit_sas, unblock_device, verify_inbound_sas,
+    accept_join_request, activate_replica_after_sas_confirm, admit_cluster_peer, block_device,
+    create_join_request, issue_replica_lan_auth, list_devices, list_pending_requests,
+    local_lan_http_port, mirror_join_session, reclaim_stale_seat, record_join_identity,
+    refresh_replica_lan_auth, reject_join_request, repair_replica_master_https_url, revoke_device,
+    store_join_device_pubkey, store_join_http_port, submit_sas, unblock_device, verify_inbound_sas,
     verify_peer_connection, DeviceView, JoinRequestResult, PairingHandle, PendingRequest, SasCode,
 };
 pub use install_plan_service::{

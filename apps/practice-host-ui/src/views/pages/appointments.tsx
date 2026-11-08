@@ -21,6 +21,13 @@ import {
     startOfWeek,
 } from "date-fns";
 import { listAppointmentsInRange, moveAppointments, createAppointment, deleteAppointment, updateAppointment } from "@/systems/practice-host/controllers/appointment.controller";
+import {
+    eachIsoDate,
+    mergeAppointmentsInSpan,
+    monthGridRangeForView,
+    practiceYearRange,
+    rangeIsCovered,
+} from "@/lib/appointment-visible-range";
 import { useDateFnsLocale, useT, useTParams } from "@/lib/i18n";
 import { usePageRefresh } from "../layouts/page-refresh";
 import { listPatientsByIds } from "@/systems/practice-host/controllers/patient.controller";
@@ -133,6 +140,10 @@ const APPT_DRAWER_OPEN_DELAY_MS = 320;
 
 const timeToMinutes = appointmentTimeToMinutes;
 
+function absenceStamp(rows: Absence[]): string {
+    return rows.map((row) => `${row.id}\0${row.from_day}\0${row.to_day}\0${row.from_time ?? ""}\0${row.to_time ?? ""}\0${row.kind}`).join("\n");
+}
+
 export function AppointmentsPage() {
     const t = useT();
     const tp = useTParams();
@@ -149,8 +160,6 @@ export function AppointmentsPage() {
     const [appointmentBufferMin, setAppointmentBufferMin] = useState(0);
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
-    const loadSeq = useRef(0);
-    const silentLoadInflight = useRef(false);
     const [monthCalPatientLoad, setMonthCalPatientLoad] = useState<MonthCalendarPatientLoadPrefs>(() => ({
         ...DEFAULT_MONTH_CAL_PATIENT_LOAD,
     }));
@@ -168,6 +177,7 @@ export function AppointmentsPage() {
     const [filterStatus, setFilterStatus] = useState("");
     const [filterPhysicianIds, setFilterPhysicianIds] = useState<string[]>([]);
     const [quickSearch, setQuickSearch] = useState("");
+    const [debouncedQuickSearch, setDebouncedQuickSearch] = useState("");
     const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);
     const filterPopoverWrapRef = useRef<HTMLDivElement | null>(null);
     const filterPopoverPanelRef = useRef<HTMLDivElement | null>(null);
@@ -257,63 +267,87 @@ export function AppointmentsPage() {
         [t],
     );
 
-    const load = useCallback(async (opts?: { silent?: boolean }) => {
-        const silent = opts?.silent === true;
-        if (silent && silentLoadInflight.current) return;
-        const seq = silent ? loadSeq.current : ++loadSeq.current;
-        if (silent) silentLoadInflight.current = true;
+    const coveredDaysRef = useRef(new Set<string>());
+    const knownPatientIdsRef = useRef(new Set<string>());
+    const physiciansLoadedRef = useRef(false);
+    const visibleRange = useMemo(
+        () => monthGridRangeForView(view, monthOffset, weekOffset, dayOffset),
+        [view, monthOffset, weekOffset, dayOffset],
+    );
+
+    const fetchSpan = useCallback(async (
+        from: string,
+        to: string,
+        opts?: { silent?: boolean; force?: boolean },
+    ) => {
+        const force = opts?.force === true;
+        if (!force && rangeIsCovered(coveredDaysRef.current, from, to)) return;
+        const silent = opts?.silent === true || appointmentsRef.current.length > 0;
         if (!silent) {
             setLoading(true);
             setLoadError(null);
         }
         try {
-            // Full practice year (± look-ahead) — paged so density stays manageable.
-            const today = new Date();
-            const from = new Date(today.getFullYear(), today.getMonth() - 11, 1);
-            const to = new Date(today.getFullYear(), today.getMonth() + 3, 0);
-            const ymd = (d: Date) =>
-                `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-            // F63: one range query; the old 100-page window silently dropped rows.
-            const appts = await listAppointmentsInRange(ymd(from), ymd(to));
-            const patientIds = [...new Set(appts.map((a) => a.patient_id).filter(Boolean))];
-            const [p, a] = await Promise.all([
-                patientIds.length ? listPatientsByIds(patientIds) : Promise.resolve([]),
-                listPhysicians(),
+            const appts = await listAppointmentsInRange(from, to);
+            const missingPatientIds = [...new Set(appts.map((row) => row.patient_id).filter(Boolean))]
+                .filter((id) => !knownPatientIdsRef.current.has(id));
+            const [patientRows, physicianRows] = await Promise.all([
+                missingPatientIds.length ? listPatientsByIds(missingPatientIds) : Promise.resolve([]),
+                physiciansLoadedRef.current ? Promise.resolve(null) : listPhysicians(),
             ]);
-            if (loadSeq.current !== seq) return;
-            setAppointments(appts);
-            setPatients(p);
-            setPhysicians(a);
-            try {
-                setAbsences(await listAbsences());
-            } catch {
-                setAbsences([]);
+            for (const day of eachIsoDate(from, to)) coveredDaysRef.current.add(day);
+            setAppointments((prev) => mergeAppointmentsInSpan(prev, appts, from, to));
+            if (patientRows.length > 0) {
+                for (const row of patientRows) knownPatientIdsRef.current.add(row.id);
+                setPatients((prev) => {
+                    const seen = new Set(prev.map((row) => row.id));
+                    return prev.concat(patientRows.filter((row) => !seen.has(row.id)));
+                });
             }
-            try {
-                setPracticePlanCfg(await loadPracticeWorkHoursConfig());
-            } catch {
-                setPracticePlanCfg(readPracticeWorkHoursConfig());
-            }
-            try {
-                const prefs = await loadPracticePreferencesFromKv();
-                setAppointmentBufferMin(Math.max(0, Number.parseInt(String(prefs.bufferMin ?? "0"), 10) || 0));
-            } catch {
-                setAppointmentBufferMin(0);
+            if (physicianRows) {
+                physiciansLoadedRef.current = true;
+                setPhysicians(physicianRows);
             }
         } catch (e) {
-            if (loadSeq.current !== seq || silent) return;
+            if (silent) return;
             setLoadError(errorMessage(e));
-            setAppointments([]);
-            setPatients([]);
-            setPhysicians([]);
-            setAbsences([]);
+            if (appointmentsRef.current.length === 0) {
+                setAppointments([]);
+                setPatients([]);
+                setPhysicians([]);
+            }
         } finally {
-            if (silent) silentLoadInflight.current = false;
-            if (!silent && loadSeq.current === seq) setLoading(false);
+            if (!silent) setLoading(false);
         }
     }, []);
 
-    useEffect(() => { void load(); }, [load]);
+    const load = useCallback(async (opts?: { silent?: boolean; force?: boolean }) => {
+        const force = opts?.force !== false;
+        await fetchSpan(visibleRange.from, visibleRange.to, {
+            silent: opts?.silent === true || (force && appointmentsRef.current.length > 0),
+            force,
+        });
+    }, [fetchSpan, visibleRange.from, visibleRange.to]);
+
+    useEffect(() => { void load({ force: false }); }, [load]);
+
+    useEffect(() => {
+        const q = quickSearch.trim();
+        if (q.length < 2) {
+            setDebouncedQuickSearch(q);
+            return;
+        }
+        const timer = window.setTimeout(() => setDebouncedQuickSearch(q), 200);
+        return () => window.clearTimeout(timer);
+    }, [quickSearch]);
+
+    useEffect(() => {
+        const q = debouncedQuickSearch.trim();
+        if (q.length < 2) return;
+        const year = practiceYearRange();
+        if (rangeIsCovered(coveredDaysRef.current, year.from, year.to)) return;
+        void fetchSpan(year.from, year.to, { silent: true, force: false });
+    }, [debouncedQuickSearch, fetchSpan]);
 
     usePageRefresh(() => {
         void load({ silent: true });
@@ -334,16 +368,21 @@ export function AppointmentsPage() {
     useEffect(() => {
         const refreshMonthCalPrefs = () => {
             void loadPracticePreferencesFromKv().then((p) => {
-                setMonthCalPatientLoad(p.monthCalendarPatientLoad);
-                setAppointmentBufferMin(Math.max(0, Number.parseInt(String(p.bufferMin ?? "0"), 10) || 0));
+                const nextBuf = Math.max(0, Number.parseInt(String(p.bufferMin ?? "0"), 10) || 0);
+                setMonthCalPatientLoad((prev) => (JSON.stringify(prev) === JSON.stringify(p.monthCalendarPatientLoad) ? prev : p.monthCalendarPatientLoad));
+                setAppointmentBufferMin((prev) => (prev === nextBuf ? prev : nextBuf));
             });
         };
         const refreshPracticePlan = () => {
             void loadPracticeWorkHoursConfig()
-                .then(setPracticePlanCfg)
+                .then((cfg) => {
+                    setPracticePlanCfg((prev) => (JSON.stringify(prev) === JSON.stringify(cfg) ? prev : cfg));
+                })
                 .catch((e) => toast(tp("appointments.page.toast_work_hours", { message: errorMessage(e) }), "warning"));
             void listAbsences()
-                .then(setAbsences)
+                .then((rows) => {
+                    setAbsences((prev) => (absenceStamp(prev) === absenceStamp(rows) ? prev : rows));
+                })
                 .catch(() => setAbsences([]));
         };
         refreshMonthCalPrefs();
@@ -361,14 +400,9 @@ export function AppointmentsPage() {
                 .catch(() => setPracticePlanCfg(readPracticeWorkHoursConfig()));
         };
         window.addEventListener(PRACTICE_WORK_HOURS_CHANGED_EVENT, onCfgChanged);
-        const poll = window.setInterval(() => {
-            refreshMonthCalPrefs();
-            void listAbsences().then(setAbsences).catch(() => {});
-        }, 500);
         return () => {
             document.removeEventListener("visibilitychange", onVis);
             window.removeEventListener(PRACTICE_WORK_HOURS_CHANGED_EVENT, onCfgChanged);
-            window.clearInterval(poll);
         };
     }, [location.pathname, toast, tp]);
 
@@ -454,14 +488,14 @@ export function AppointmentsPage() {
     );
 
     const displayAppointments = useMemo(() => {
-        const q = quickSearch.trim().toLowerCase();
+        const q = debouncedQuickSearch.trim().toLowerCase();
         if (!q) return baseFilteredAppointments;
         return baseFilteredAppointments.filter((t) => {
             const hay = `${patientNameById.get(t.patient_id) ?? ""} ${t.kind} ${t.status} ${t.date} ${t.time}`
                 .toLowerCase();
             return hay.includes(q);
         });
-    }, [baseFilteredAppointments, quickSearch, patientNameById]);
+    }, [baseFilteredAppointments, debouncedQuickSearch, patientNameById]);
 
     const selectedDayDate = useMemo(() => addDays(new Date(), dayOffset), [dayOffset]);
     const selectedDayIso = format(selectedDayDate, "yyyy-MM-dd");
@@ -545,7 +579,7 @@ export function AppointmentsPage() {
     }, [view, toast, goNewAppointment, selectedDayIso, t]);
 
     useEffect(() => {
-        const q = quickSearch.trim().toLowerCase();
+        const q = debouncedQuickSearch.trim().toLowerCase();
         if (q.length < 2) return;
         const match = baseFilteredAppointments.find((term) => {
             const name = (patientNameById.get(term.patient_id) ?? "").toLowerCase();
@@ -556,7 +590,7 @@ export function AppointmentsPage() {
         const d = parseISO(match.date);
         const off = differenceInCalendarDays(d, new Date());
         setDayOffset(off);
-    }, [quickSearch, baseFilteredAppointments, patientNameById]);
+    }, [debouncedQuickSearch, baseFilteredAppointments, patientNameById]);
 
     useLayoutEffect(() => {
         if (!filterPopoverOpen) {
@@ -573,11 +607,20 @@ export function AppointmentsPage() {
             setFilterPopoverFixed({ top, left, width });
         };
         update();
-        window.addEventListener("resize", update);
-        document.addEventListener("scroll", update, true);
+        let frame = 0;
+        const schedule = () => {
+            if (frame) return;
+            frame = window.requestAnimationFrame(() => {
+                frame = 0;
+                update();
+            });
+        };
+        window.addEventListener("resize", schedule);
+        document.addEventListener("scroll", schedule, true);
         return () => {
-            window.removeEventListener("resize", update);
-            document.removeEventListener("scroll", update, true);
+            window.removeEventListener("resize", schedule);
+            document.removeEventListener("scroll", schedule, true);
+            if (frame) window.cancelAnimationFrame(frame);
         };
     }, [filterPopoverOpen]);
 
@@ -766,6 +809,14 @@ export function AppointmentsPage() {
                 toast(schedErr, "error");
                 return;
             }
+            const placedAt = new Date().toISOString();
+            setAppointments((prev) => prev.map((row) => {
+                const update = updates.find((item) => item.id === row.id);
+                if (!update) return row;
+                const nextDate = typeof update.data.date === "string" ? update.data.date : row.date;
+                const nextTime = typeof update.data.time === "string" ? update.data.time : row.time;
+                return { ...row, date: nextDate, time: nextTime, updated_at: placedAt };
+            }));
             const moved = updates.find((u) => u.id === id);
             let snap: { iso: string; startMin: number } | undefined;
             if (moved?.data.time) {
@@ -814,6 +865,10 @@ export function AppointmentsPage() {
                 await load();
                 if (snap) setAppointmentDaySnapLabel(snap);
             } catch (e) {
+                setAppointments((prev) => prev.map((row) => {
+                    const old = rollback.find((item) => item.id === row.id);
+                    return old ? { ...row, date: old.date, time: old.time } : row;
+                }));
                 toast(errorMessage(e));
             }
         },
@@ -1244,7 +1299,8 @@ export function AppointmentsPage() {
 
     const patchAppointmentLocal = useCallback(
         (id: string, patch: Record<string, unknown>) => {
-            setAppointments((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } as TCalEvent : x)));
+            const stamped = { updated_at: new Date().toISOString(), ...patch };
+            setAppointments((prev) => prev.map((x) => (x.id === id ? { ...x, ...stamped } as TCalEvent : x)));
             setDrawerAppointment((dt) => (dt?.id === id ? { ...dt, ...patch } as TCalEvent : dt));
         },
         [],

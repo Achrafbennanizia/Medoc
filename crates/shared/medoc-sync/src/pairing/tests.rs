@@ -360,7 +360,6 @@ async fn accept_pin_matches_url_safe_handshake_b64() {
     assert_eq!(decided.confirm_pin.as_deref(), Some(expected.as_str()));
 }
 
-
 #[tokio::test]
 async fn public_view_drops_the_activation_token() {
     let pool = fresh_pool().await;
@@ -482,14 +481,12 @@ async fn foreign_fingerprint_does_not_match_the_noise_key() {
     )
     .await
     .expect("submit");
-    sqlx::query(
-        "UPDATE pairing_request SET status = 'ACCEPTED', fingerprint = ?1 WHERE id = ?2",
-    )
-    .bind(&identity.fingerprint)
-    .bind(&req.id)
-    .execute(&pool)
-    .await
-    .unwrap();
+    sqlx::query("UPDATE pairing_request SET status = 'ACCEPTED', fingerprint = ?1 WHERE id = ?2")
+        .bind(&identity.fingerprint)
+        .bind(&req.id)
+        .execute(&pool)
+        .await
+        .unwrap();
 
     let foreign = crate::cluster::services::issue_replica_lan_auth(&pool, "desk-1", &req.id)
         .await

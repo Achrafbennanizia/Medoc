@@ -4515,8 +4515,14 @@ html[data-theme="dark"] {
     align-items: center;
     gap: 8px;
     padding: 6px 8px 6px 4px;
+    min-width: 0;
   }
-  .toast-message { flex: 1; min-width: 0; line-height: 1.35; }
+  .toast-message {
+    flex: 1 1 auto;
+    min-width: 0;
+    line-height: 1.35;
+    overflow: hidden;
+  }
   .toast-dismiss {
     opacity: 0.72;
     flex-shrink: 0;
@@ -4538,13 +4544,18 @@ html[data-theme="dark"] {
     outline-offset: 2px;
   }
   .toast-undo {
-    flex-shrink: 0;
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-inline-start: auto;
     font-size: 12px;
-    font-weight: 600;
-    color: var(--accent);
-    padding: 4px 10px;
+    font-weight: 700;
+    white-space: nowrap;
+    color: var(--text-on-accent, #fff);
+    padding: 6px 12px;
     border-radius: var(--radius-pill);
-    background: var(--accent-soft);
+    background: var(--accent);
     line-height: 1.2;
   }
   .toast-undo:hover { filter: brightness(0.97); }
@@ -4589,12 +4600,12 @@ html[data-theme="dark"] {
   .toast-item.success .toast-dismiss:focus-visible,
   .toast-item.success .toast-undo:focus-visible { outline-color: var(--accent); }
   .toast-item.success .toast-undo {
-    color: var(--fg);
-    background: color-mix(in oklab, var(--fg) 8%, var(--bg-elev));
-    border: 1px solid var(--line);
+    color: var(--text-on-accent, #fff);
+    background: var(--accent);
+    border: none;
   }
   .toast-item.success .toast-undo:hover {
-    background: color-mix(in oklab, var(--fg) 14%, var(--bg-elev));
+    background: color-mix(in oklab, var(--accent) 86%, var(--fg));
     filter: none;
   }
   .toast-item.success .toast-progress-track {

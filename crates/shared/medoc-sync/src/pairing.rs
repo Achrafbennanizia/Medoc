@@ -27,8 +27,9 @@ pub use pin::{
     CONFIRM_PIN_MAX_ATTEMPTS, CONFIRM_PIN_TTL_SECS,
 };
 pub use policy::{
-    canonical_ip_str, canonical_peer_ip, choose_requester_ip, is_pairing_enabled,
-    peer_advertised_url, peer_base_url_from_ip, slave_actions,
+    admit_inbound_cluster, canonical_ip_str, canonical_peer_ip, choose_requester_ip,
+    is_network_hidden, is_pairing_enabled, peer_advertised_url, peer_base_url_from_ip,
+    slave_actions,
 };
 pub use port::{PairingPersistence, SqlitePairingStore};
 pub use token::{mint_activation_token, verify_activation_token};

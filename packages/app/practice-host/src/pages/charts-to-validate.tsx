@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { readListSnapshot, writeListSnapshot } from "@/lib/list-snapshot";
+import { usePageRefresh } from "@/views/layouts/page-refresh";
 import { useNavigate } from "react-router-dom";
 import {
     listChartsToValidate,
@@ -45,10 +47,11 @@ export function ChartsToValidatePage() {
     const session = useAuthStore((s) => s.session);
     const role = parseRole(session?.role);
     const canWriteMedical = role != null && allowed("patient.write_medical", role, session?.permission_overrides);
-    const [rows, setRows] = useState<ChartToValidateRow[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [rows, setRows] = useState<ChartToValidateRow[]>(() => readListSnapshot<ChartToValidateRow[]>("charts-to-validate") ?? []);
+    const [loading, setLoading] = useState(() => !readListSnapshot<ChartToValidateRow[]>("charts-to-validate"));
     const [err, setErr] = useState<string | null>(null);
     const [busyId, setBusyId] = useState<string | null>(null);
+    const hadRows = useRef(readListSnapshot<ChartToValidateRow[]>("charts-to-validate") !== undefined);
 
     const load = useCallback(async (opts?: { silent?: boolean }) => {
         if (!opts?.silent) {
@@ -56,7 +59,9 @@ export function ChartsToValidatePage() {
             setErr(null);
         }
         try {
-            setRows(await listChartsToValidate());
+            const next = await listChartsToValidate();
+            setRows(next);
+            writeListSnapshot("charts-to-validate", next);
             if (opts?.silent) setErr(null);
         } catch (e) {
             if (!opts?.silent) {
@@ -69,24 +74,25 @@ export function ChartsToValidatePage() {
     }, []);
 
     useEffect(() => {
-        void load();
+        void load({ silent: hadRows.current });
+        hadRows.current = true;
         const onRefresh = () => {
             void load({ silent: true });
         };
         window.addEventListener("medoc-nav-badges-refresh", onRefresh);
-        const interval = window.setInterval(() => {
-            void load({ silent: true });
-        }, 15_000);
         const onVisible = () => {
             if (document.visibilityState === "visible") void load({ silent: true });
         };
         document.addEventListener("visibilitychange", onVisible);
         return () => {
             window.removeEventListener("medoc-nav-badges-refresh", onRefresh);
-            window.clearInterval(interval);
             document.removeEventListener("visibilitychange", onVisible);
         };
     }, [load]);
+
+    usePageRefresh(() => {
+        void load({ silent: true });
+    });
 
     const onValidate = async (patientId: string) => {
         setBusyId(patientId);
@@ -94,7 +100,7 @@ export function ChartsToValidatePage() {
             await validatePatientChart(patientId);
             toast(t("page.charts_to_validate.validated_toast"), "success");
             window.dispatchEvent(new Event("medoc-nav-badges-refresh"));
-            await load();
+            await load({ silent: true });
         } catch (e) {
             toast(errorMessage(e), "error");
         } finally {
@@ -108,7 +114,7 @@ export function ChartsToValidatePage() {
             await declinePatientChart(patientId);
             toast(t("page.charts_to_validate.declined_toast"), "success");
             window.dispatchEvent(new Event("medoc-nav-badges-refresh"));
-            await load();
+            await load({ silent: true });
         } catch (e) {
             toast(errorMessage(e), "error");
         } finally {

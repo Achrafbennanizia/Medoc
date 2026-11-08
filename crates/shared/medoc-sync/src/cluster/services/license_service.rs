@@ -711,7 +711,9 @@ mod tests {
         crate::cluster::services::activate_replica_after_sas_confirm(&pool)
             .await
             .expect("re-activate");
-        let snap = crate::engine::SyncEngine::status(&pool).await.expect("deployment");
+        let snap = crate::engine::SyncEngine::status(&pool)
+            .await
+            .expect("deployment");
         assert_eq!(snap.deployment.master_base_url, "https://192.168.1.10:9443");
 
         std::env::remove_var("MEDOC_CLUSTER_DEVICE_SECRET");

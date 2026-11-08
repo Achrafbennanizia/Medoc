@@ -2,7 +2,9 @@
 
 use medoc_core::error::AppError;
 use sqlx::SqlitePool;
+use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
+use tokio::sync::watch;
 
 use crate::cluster::crypto::fingerprint_matches_pubkey;
 use crate::cluster::services::cluster_reset_service::{
@@ -22,13 +24,45 @@ use super::transport::NoiseTransport;
 use super::wire::{SeatRoleWire, WireMessage};
 
 /// Handle one inbound cluster connection on the admin or member device.
-pub async fn handle_cluster_connection(mut stream: TcpStream, pool: SqlitePool) {
-    if let Err(e) = handle_cluster_connection_inner(&mut stream, &pool).await {
-        tracing::warn!(
-            target: "medoc::cluster",
-            event = "CLUSTER_CONN_HANDLER_ERR",
-            error = %e
-        );
+pub async fn handle_cluster_connection(stream: TcpStream, pool: SqlitePool) {
+    let (_tx, cancel) = watch::channel(false);
+    handle_cluster_connection_until(stream, pool, cancel).await;
+}
+
+/// Same handler, but `cancel` becoming `true` closes the socket immediately.
+pub async fn handle_cluster_connection_until(
+    mut stream: TcpStream,
+    pool: SqlitePool,
+    cancel: watch::Receiver<bool>,
+) {
+    tokio::select! {
+        biased;
+        _ = connection_cancelled(cancel) => {
+            let _ = stream.shutdown().await;
+        }
+        result = handle_cluster_connection_inner(&mut stream, &pool) => {
+            if let Err(e) = result {
+                tracing::warn!(
+                    target: "medoc::cluster",
+                    event = "CLUSTER_CONN_HANDLER_ERR",
+                    error = %e
+                );
+            }
+        }
+    }
+}
+
+async fn connection_cancelled(mut cancel: watch::Receiver<bool>) {
+    if *cancel.borrow() {
+        return;
+    }
+    loop {
+        if cancel.changed().await.is_err() {
+            return;
+        }
+        if *cancel.borrow() {
+            return;
+        }
     }
 }
 
@@ -40,27 +74,26 @@ pub async fn handle_join_connection(stream: TcpStream, pool: SqlitePool) {
 const CLUSTER_CONN_STACK: usize = 8 * 1024 * 1024;
 
 /// Run inbound cluster TCP on a dedicated thread with a larger stack (Noise/snow).
+///
+/// The app runtime is multi-thread. Drive the handler on that runtime so the
+/// pairing insert and the inbox query share one SQLite pool. A private runtime
+/// can leave the write invisible and stall later inbox refreshes.
 pub fn spawn_cluster_connection_handler(stream: TcpStream, pool: SqlitePool) {
+    let (_tx, cancel) = watch::channel(false);
+    spawn_cluster_connection_handler_until(stream, pool, cancel);
+}
+
+/// Spawn a handler that closes its socket when `cancel` becomes true.
+pub fn spawn_cluster_connection_handler_until(
+    stream: TcpStream,
+    pool: SqlitePool,
+    cancel: watch::Receiver<bool>,
+) {
+    let parent = tokio::runtime::Handle::try_current().ok();
     if std::thread::Builder::new()
         .name("cluster-tcp".into())
         .stack_size(CLUSTER_CONN_STACK)
-        .spawn(move || {
-            let rt = match tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-            {
-                Ok(rt) => rt,
-                Err(e) => {
-                    tracing::warn!(
-                        target: "medoc::cluster",
-                        event = "CLUSTER_CONN_RUNTIME_ERR",
-                        error = %e
-                    );
-                    return;
-                }
-            };
-            rt.block_on(handle_cluster_connection(stream, pool));
-        })
+        .spawn(move || drive_cluster_connection(parent, stream, pool, cancel))
         .is_err()
     {
         tracing::warn!(
@@ -68,6 +101,35 @@ pub fn spawn_cluster_connection_handler(stream: TcpStream, pool: SqlitePool) {
             event = "CLUSTER_CONN_THREAD_SPAWN_FAILED"
         );
     }
+}
+
+fn drive_cluster_connection(
+    parent: Option<tokio::runtime::Handle>,
+    stream: TcpStream,
+    pool: SqlitePool,
+    cancel: watch::Receiver<bool>,
+) {
+    if let Some(handle) = parent.as_ref() {
+        if handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread {
+            handle.block_on(handle_cluster_connection_until(stream, pool, cancel));
+            return;
+        }
+    }
+    let rt = match tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+    {
+        Ok(rt) => rt,
+        Err(e) => {
+            tracing::warn!(
+                target: "medoc::cluster",
+                event = "CLUSTER_CONN_RUNTIME_ERR",
+                error = %e
+            );
+            return;
+        }
+    };
+    rt.block_on(handle_cluster_connection_until(stream, pool, cancel));
 }
 
 async fn handle_cluster_connection_inner(
@@ -157,6 +219,22 @@ async fn handle_join_request(
         SeatRoleWire::Member => SeatRole::Member,
     };
 
+    if !crate::pairing::is_pairing_enabled(pool)
+        .await
+        .unwrap_or(true)
+    {
+        send_wire_message(
+            stream,
+            transport,
+            &WireMessage::Error {
+                code: "NEW_REPLICAS_DISABLED".into(),
+                message: "New replica requests are closed. Already paired devices stay connected."
+                    .into(),
+            },
+        )
+        .await?;
+        return Ok(());
+    }
     if !fingerprint_matches_pubkey(&pubkey, fingerprint.trim()) {
         send_wire_message(
             stream,
@@ -465,7 +543,12 @@ async fn staff_directory_request_allowed(
 async fn load_join_lan_credentials(
     pool: &SqlitePool,
     session_id: &str,
-) -> (Option<String>, Option<String>, Option<String>, Option<String>) {
+) -> (
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+) {
     let token: Option<String> =
         sqlx::query_scalar("SELECT activation_token FROM pairing_request WHERE id = ?1")
             .bind(session_id)

@@ -386,23 +386,24 @@ async fn sync_staff_from_stored_admin_endpoint_inner(
     }
     let identity = DeviceIdentity::load_or_create()?;
     let session_id = load_join_session_id(pool).await?;
-    let directory_json = match fetch_staff_directory(&endpoint.host, endpoint.port, &identity, &session_id).await {
-        Ok(json) => json,
-        Err(e) if stored_admin_unreachable(&e) => {
-            if require_import {
-                return Err(AppError::Validation(
-                    "The main device is not reachable. Start it, then try again.".into(),
-                ));
+    let directory_json =
+        match fetch_staff_directory(&endpoint.host, endpoint.port, &identity, &session_id).await {
+            Ok(json) => json,
+            Err(e) if stored_admin_unreachable(&e) => {
+                if require_import {
+                    return Err(AppError::Validation(
+                        "The main device is not reachable. Start it, then try again.".into(),
+                    ));
+                }
+                tracing::debug!(
+                    target: "medoc::cluster",
+                    event = "STAFF_DIRECTORY_SYNC_SKIPPED",
+                    error = %e
+                );
+                return Ok(0);
             }
-            tracing::debug!(
-                target: "medoc::cluster",
-                event = "STAFF_DIRECTORY_SYNC_SKIPPED",
-                error = %e
-            );
-            return Ok(0);
-        }
-        Err(e) => return Err(e),
-    };
+            Err(e) => return Err(e),
+        };
     let imported = import_staff_directory_json(pool, &directory_json).await?;
     if require_import && imported == 0 {
         return Err(AppError::Validation(
@@ -487,12 +488,10 @@ mod tests {
         .to_string();
         let n = import_staff_directory_json(&pool, &json).await.unwrap();
         assert!(n >= 2);
-        let count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM staff WHERE id IN ('r1','r2')",
-        )
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM staff WHERE id IN ('r1','r2')")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
         assert_eq!(count, 2);
     }
 

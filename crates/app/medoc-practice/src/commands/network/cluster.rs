@@ -6,8 +6,7 @@ use std::time::Duration;
 use medoc_core::infrastructure::install_plan::{InstallPlan, ProvisioningWindowState};
 use medoc_sync::cluster::crypto::DeviceIdentity;
 use medoc_sync::cluster::services::{
-    accept_join_request, activate_cluster_license, apply_install_plan, block_device,
-    cluster_network_ready, cluster_status, consume_default_sidecar_and_apply,
+    accept_join_request, activate_cluster_license, apply_install_plan, block_device, cluster_network_ready, cluster_status, consume_default_sidecar_and_apply,
     get_provisioning_window, import_owner_activation, list_devices, list_pending_requests,
     mirror_join_session, reclaim_stale_seat, reject_join_request, require_owner_admin,
     revoke_device, run_provisioning_tasks, store_join_admin_endpoint, submit_sas,
@@ -17,21 +16,32 @@ use medoc_sync::cluster::services::{
 };
 use medoc_sync::cluster::SeatRole;
 use medoc_sync::net::{
-    bind_cluster_listener, join_admin_endpoint, scan_admins, spawn_cluster_connection_handler,
-    AdminEndpoint, MdnsResponder, DEFAULT_CLUSTER_PORT,
+    bind_cluster_listener, join_admin_endpoint, scan_admins,
+    spawn_cluster_connection_handler_until, AdminEndpoint, MdnsResponder, DEFAULT_CLUSTER_PORT,
 };
 use serde::Deserialize;
 use sqlx::SqlitePool;
 use tauri::{AppHandle, Manager, State};
-use tokio::sync::Mutex;
+use tokio::sync::{watch, Mutex};
 
 use crate::commands::auth_commands::SessionState;
 use crate::commands::rbac_state::require;
 use crate::error::AppError;
 
-#[derive(Default)]
 pub struct ClusterListenerControl {
     inner: Mutex<Option<tokio::task::JoinHandle<()>>>,
+    /// `true` closes sockets that are already accepted.
+    cancel_existing: watch::Sender<bool>,
+}
+
+impl Default for ClusterListenerControl {
+    fn default() -> Self {
+        let (cancel_existing, _) = watch::channel(false);
+        Self {
+            inner: Mutex::new(None),
+            cancel_existing,
+        }
+    }
 }
 
 impl ClusterListenerControl {
@@ -39,10 +49,17 @@ impl ClusterListenerControl {
         self.inner.lock().await.is_some()
     }
 
+    /// Drop the listen socket. Connections already accepted stay open.
     pub async fn stop(&self) {
         if let Some(handle) = self.inner.lock().await.take() {
             handle.abort();
         }
+    }
+
+    /// Drop the listen socket and close every connection already accepted.
+    pub async fn close_all(&self) {
+        let _ = self.cancel_existing.send(true);
+        self.stop().await;
     }
 }
 
@@ -83,11 +100,11 @@ pub async fn license_activate(
                 rebound,
             )
         {
-            let _ = crate::commands::company_portal_commands::apply_serverless_role_from_license_code(
-                &pool,
-                &code,
-            )
-            .await;
+            let _ =
+                crate::commands::company_portal_commands::apply_serverless_role_from_license_code(
+                    &pool, &code,
+                )
+                .await;
         }
         crate::commands::company_portal_commands::reset_onboarding_after_owner_license_activation(
             &pool,
@@ -277,6 +294,16 @@ pub async fn cluster_sync_staff_directory(pool: State<'_, SqlitePool>) -> Result
 
 /// Spawn TCP+mDNS receive port with the desktop app (pairing / mesh).
 pub async fn auto_start_cluster_if_ready(pool: &SqlitePool, listener: &ClusterListenerControl) {
+    if medoc_sync::pairing::is_network_hidden(pool)
+        .await
+        .unwrap_or(false)
+    {
+        tracing::info!(
+            target: "medoc::cluster",
+            event = "CLUSTER_LISTENER_SKIP_HIDDEN"
+        );
+        return;
+    }
     if crate::commands::lan_commands::lan_server_listen_disabled() {
         tracing::info!(
             target: "medoc::cluster",
@@ -309,6 +336,7 @@ async fn start_cluster_listener_task(
     if listener.is_running().await {
         return Ok(());
     }
+    let _ = listener.cancel_existing.send(false);
     listener.stop().await;
     let (addr, iface_name) = match medoc_core::discovery::pick_private_lan_ipv4_bind() {
         Some(bind) => (IpAddr::V4(bind.ip), bind.iface_name),
@@ -332,12 +360,14 @@ async fn start_cluster_listener_task(
         }
         Err(e) => return Err(e),
     };
+    let cancel = listener.cancel_existing.subscribe();
     let cluster_id = cluster_status(&pool)
         .await?
         .cluster_id
         .unwrap_or_else(|| "cluster".into());
     let host = addr.to_string();
     let listener_task = tokio::spawn(async move {
+        let cancel = cancel;
         let _mdns = match MdnsResponder::advertise(&host, DEFAULT_CLUSTER_PORT, &cluster_id) {
             Ok(r) => Some(r),
             Err(e) => {
@@ -365,7 +395,7 @@ async fn start_cluster_listener_task(
                         peer = %peer
                     );
                     let pool = pool.clone();
-                    spawn_cluster_connection_handler(stream, pool);
+                    spawn_cluster_connection_handler_until(stream, pool, cancel.clone());
                 }
                 Err(e) => {
                     tracing::warn!(
@@ -395,6 +425,54 @@ pub async fn cluster_start_listener(
         ));
     }
     start_cluster_listener_task(pool.inner().clone(), &listener).await
+}
+
+#[tauri::command]
+pub async fn network_set_hidden(
+    app: AppHandle,
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    listener: State<'_, ClusterListenerControl>,
+    hidden: bool,
+) -> Result<(), AppError> {
+    require(&session_state, "ops.system")?;
+    crate::infrastructure::database::app_kv_repo::set(
+        &pool,
+        medoc_sync::pairing::APP_KV_NETWORK_HIDDEN,
+        if hidden { "1" } else { "0" },
+    )
+    .await?;
+    if hidden {
+        listener.close_all().await;
+        if let Some(lan) = app.try_state::<crate::commands::lan_commands::LanServerControl>() {
+            crate::commands::lan_commands::stop_lan_listener(&lan).await;
+        }
+        tracing::info!(target: "medoc::cluster", event = "NETWORK_HIDDEN_PORT_CLOSED");
+        return Ok(());
+    }
+    if let Err(error) = start_cluster_listener_task(pool.inner().clone(), &listener).await {
+        tracing::warn!(
+            target: "medoc::cluster",
+            event = "NETWORK_UNHIDE_CLUSTER_SKIP",
+            error = %error
+        );
+    }
+    if let Some(lan) = app.try_state::<crate::commands::lan_commands::LanServerControl>() {
+        match crate::commands::lan_commands::start_lan_embedded(&app, pool.inner().clone(), &lan)
+            .await
+        {
+            Ok(_) => {}
+            Err(error) if matches!(error, AppError::Conflict(_)) => {}
+            Err(error) => {
+                tracing::warn!(
+                    target: "medoc::lan",
+                    event = "NETWORK_UNHIDE_LAN_SKIP",
+                    error = %error
+                );
+            }
+        }
+    }
+    Ok(())
 }
 
 #[tauri::command]

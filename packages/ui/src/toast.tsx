@@ -71,8 +71,13 @@ function ToastRow({
                 {toast.type === "warning" && <span className="toast-warning-dot" aria-hidden />}
                 <span className="toast-message">{toast.message}</span>
                 {toast.onUndo ? (
-                    <button type="button" className="toast-undo" onClick={() => finish(true)}>
-                        {toast.undoLabel}
+                    <button
+                        type="button"
+                        className="toast-undo"
+                        aria-label={toast.undoLabel || t("common.undo")}
+                        onClick={() => finish(true)}
+                    >
+                        {toast.undoLabel || t("common.undo")}
                     </button>
                 ) : null}
             </div>

@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 
 pub const ACTIVATION_TOKEN_PREFIX: &str = "mt2.";
 pub const APP_KV_PAIRING_ENABLED: &str = "pairing.enabled.v1";
+/// When set, this computer does not listen on the practice LAN address.
+pub const APP_KV_NETWORK_HIDDEN: &str = "network.hidden.v1";
 pub const DEFAULT_REPLICA_HTTP_PORT: u16 = 8787;
 
 /// Canonical default actions granted to a freshly accepted replica.

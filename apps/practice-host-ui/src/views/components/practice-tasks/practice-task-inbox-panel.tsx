@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { listPatients } from "@/systems/practice-host/controllers/patient.controller";
+import { listPatientsByIds } from "@/systems/practice-host/controllers/patient.controller";
+import { readListSnapshot, writeListSnapshot } from "@/lib/list-snapshot";
 import { loadTaskTeamDirectory } from "./load-task-team";
 import {
     countOpenPracticeTasksForMe,
@@ -32,10 +33,10 @@ export function PracticeTaskInboxPanel({ userId, isPhysician, isReception, activ
     const role = session?.role ? parseRole(session.role) : null;
     const canAdminStatus = role != null && allowed("task.status.admin", role, session?.permission_overrides);
     const canFulfillStatus = role != null && allowed("task.status.fulfill", role, session?.permission_overrides);
-    const [tasks, setTasks] = useState<PracticeTask[]>([]);
+    const [tasks, setTasks] = useState<PracticeTask[]>(() => readListSnapshot<PracticeTask[]>("practice-tasks-inbox") ?? []);
     const [patients, setPatients] = useState<Patient[]>([]);
     const [staff, setStaff] = useState<Staff[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(() => readListSnapshot<PracticeTask[]>("practice-tasks-inbox") === undefined);
     const [err, setErr] = useState<string | null>(null);
     const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -52,18 +53,19 @@ export function PracticeTaskInboxPanel({ userId, isPhysician, isReception, activ
     const load = useCallback(async () => {
         setErr(null);
         try {
-            const [tasksList, pats, team] = await Promise.all([
-                listPracticeTasksForMe(),
-                listPatients(),
+            const tasksList = await listPracticeTasksForMe();
+            const patientIds = [...new Set(tasksList.map((task) => task.patient_id).filter((id): id is string => Boolean(id)))];
+            const [pats, team] = await Promise.all([
+                patientIds.length > 0 ? listPatientsByIds(patientIds) : Promise.resolve([] as Patient[]),
                 loadTaskTeamDirectory(role, session?.permission_overrides),
             ]);
             setTasks(tasksList);
+            writeListSnapshot("practice-tasks-inbox", tasksList);
             setPatients(pats);
             setStaff(team);
             void countOpenPracticeTasksForMe().then((n) => dispatchNavBadgeRefresh(n));
         } catch (e) {
             setErr(errorMessage(e));
-            setTasks([]);
         } finally {
             setLoading(false);
         }
@@ -84,8 +86,8 @@ export function PracticeTaskInboxPanel({ userId, isPhysician, isReception, activ
         setTasks((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
     };
 
-    if (loading) return <PageLoading label={t("page.practice_tickets.loading")} />;
-    if (err) return <PageLoadError message={err} onRetry={() => void load()} />;
+    if (loading && tasks.length === 0) return <PageLoading label={t("page.practice_tickets.loading")} />;
+    if (err && tasks.length === 0) return <PageLoadError message={err} onRetry={() => void load()} />;
     if (tasks.length === 0) {
         return <EmptyState icon="📬" title={t("page.practice_tickets.empty_title")} />;
     }

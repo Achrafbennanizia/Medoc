@@ -21,8 +21,7 @@ use crate::deployment::{DeploymentMode, DeviceRole};
 use crate::engine::SyncEngine;
 use crate::master_keys;
 use crate::pairing::{
-    mint_activation_token, verify_activation_token, ActivationTokenPayload,
-    DEFAULT_ALLOWED_ACTIONS,
+    mint_activation_token, verify_activation_token, ActivationTokenPayload, DEFAULT_ALLOWED_ACTIONS,
 };
 
 use super::audit;
@@ -973,6 +972,24 @@ pub async fn verify_peer_connection(
         return Err(AppError::Forbidden);
     }
     Ok(())
+}
+
+/// Admit or drop a just-accepted cluster TCP connection.
+pub async fn admit_cluster_peer(pool: &SqlitePool, peer_ip: &str) -> bool {
+    let hidden = crate::pairing::is_network_hidden(pool)
+        .await
+        .unwrap_or(false);
+    let pairing_enabled = crate::pairing::is_pairing_enabled(pool)
+        .await
+        .unwrap_or(true);
+    let known_peer = if hidden || pairing_enabled {
+        false
+    } else {
+        super::super::repo::is_known_peer_ip(pool, peer_ip)
+            .await
+            .unwrap_or(false)
+    };
+    crate::pairing::admit_inbound_cluster(hidden, pairing_enabled, known_peer)
 }
 
 pub async fn list_pending_requests(pool: &SqlitePool) -> Result<Vec<PendingRequest>, AppError> {

@@ -119,6 +119,9 @@ export function clearAppointmentDragBlock(): void {
     if (el) {
         el.style.removeProperty("--appointment-drag-top");
         el.classList.remove("appointment-appt-block--drag-invalid");
+        el.querySelectorAll(".appointment-appt-block-time--drag-live").forEach((node) => {
+            node.classList.remove("appointment-appt-block-time--drag-live");
+        });
     }
     dragSession.blockEl = null;
 }

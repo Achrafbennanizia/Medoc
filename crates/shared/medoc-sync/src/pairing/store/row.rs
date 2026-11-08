@@ -2,7 +2,9 @@
 
 use super::super::types::PairingRequest;
 
-pub(crate) const PAIRING_SELECT: &str = "SELECT id, device_id, slave_pubkey, slave_label,
+pub(crate) const PAIRING_SELECT: &str = "SELECT id, device_id,
+            COALESCE(slave_pubkey, '') AS slave_pubkey,
+            COALESCE(slave_label, '') AS slave_label,
             COALESCE(
                 NULLIF(TRIM(requester_ip), ''),
                 (SELECT NULLIF(TRIM(last_ip), '') FROM sync_device
@@ -12,9 +14,14 @@ pub(crate) const PAIRING_SELECT: &str = "SELECT id, device_id, slave_pubkey, sla
                   LIMIT 1),
                 ''
             ) AS requester_ip,
-            status,
-            allowed_actions_json, activation_token, requested_at, decided_at, decided_by,
-            confirm_pin_hash, confirm_pin_expires_at, confirm_pin_attempts, transport,
+            COALESCE(status, 'PENDING') AS status,
+            COALESCE(allowed_actions_json, '[]') AS allowed_actions_json,
+            activation_token,
+            COALESCE(requested_at, '') AS requested_at,
+            decided_at, decided_by,
+            confirm_pin_hash, confirm_pin_expires_at,
+            COALESCE(confirm_pin_attempts, 0) AS confirm_pin_attempts,
+            COALESCE(transport, 'lan') AS transport,
             pairing_state, handshake_transcript_b64,
             COALESCE(
                 NULLIF(TRIM(hostname), ''),

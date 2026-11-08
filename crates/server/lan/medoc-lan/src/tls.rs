@@ -164,7 +164,7 @@ pub async fn serve_tls_router(
         while !sd.load(std::sync::atomic::Ordering::SeqCst) {
             tokio::time::sleep(std::time::Duration::from_millis(400)).await;
         }
-        graceful.graceful_shutdown(None);
+        graceful.graceful_shutdown(Some(std::time::Duration::from_millis(0)));
     });
 
     axum_server::bind_rustls(addr, config)

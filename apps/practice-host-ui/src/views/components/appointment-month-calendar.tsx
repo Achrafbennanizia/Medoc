@@ -58,10 +58,11 @@ export function AppointmentMonthCalendar({
         [columnCount],
     );
     const todayIso = format(new Date(), "yyyy-MM-dd");
-    const byDate = appointments.reduce<Record<string, Appointment[]>>((acc, t) => {
-        (acc[t.date] ||= []).push(t);
+    const countByDate = useMemo(() => {
+        const acc: Record<string, number> = {};
+        for (const row of appointments) acc[row.date] = (acc[row.date] ?? 0) + 1;
         return acc;
-    }, {});
+    }, [appointments]);
     return (
         <div className="card card-pad appointment-month-view appointment-month-view--workweek fade-up" style={gridStyle}>
             <div className="month-view-topbar">
@@ -78,9 +79,8 @@ export function AppointmentMonthCalendar({
                 {monthCells.map((date, idx) => {
                     const inMonth = date.getMonth() === m;
                     const iso = format(date, "yyyy-MM-dd");
-                    const events = [...(byDate[iso] ?? [])].sort((a, b) => a.time.localeCompare(b.time));
                     const isTodayCell = iso === todayIso;
-                    const appointmentCount = events.length;
+                    const appointmentCount = countByDate[iso] ?? 0;
                     const loadTier = appointmentCount > 0 ? monthCalPatientLoadTier(appointmentCount, patientLoadSettings) : null;
                     const loadHex =
                         loadTier != null ? monthCalPatientLoadAccentHex(loadTier, patientLoadSettings) : null;

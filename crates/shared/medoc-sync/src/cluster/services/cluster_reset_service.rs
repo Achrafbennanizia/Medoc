@@ -35,6 +35,7 @@ const NETWORK_KV_KEYS: &[&str] = &[
     "company.portal.config.v1",
     "sync.deployment.v1",
     "pairing.enabled.v1",
+    "network.hidden.v1",
     "migration.demo_seed.v1",
     KV_CLUSTER_CA_PUBKEY,
     KV_CLUSTER_RESET_PENDING,
@@ -556,9 +557,13 @@ mod tests {
         app_kv_repo::set(&pool, "sync.device_id.v1", "device-123")
             .await
             .unwrap();
-        app_kv_repo::set(&pool, "cluster.join.admin_endpoint.v1", "{\"host\":\"10.0.0.2\",\"port\":9443}")
-            .await
-            .unwrap();
+        app_kv_repo::set(
+            &pool,
+            "cluster.join.admin_endpoint.v1",
+            "{\"host\":\"10.0.0.2\",\"port\":9443}",
+        )
+        .await
+        .unwrap();
         app_kv_repo::set(&pool, "cluster.join.lan_auth.v1", "{\"token\":\"mt2.x\"}")
             .await
             .unwrap();
