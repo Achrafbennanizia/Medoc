@@ -1,7 +1,9 @@
 /**
  * Visibility of sensitive practice lines for preview, export and invoice PDF.
- * Stored in localStorage (like master data) — applies immediately to new prints/exports.
+ * Authoritative store is `practice.header_privacy.v1` in `app_kv`; localStorage is a cache.
  */
+import { getAppKv, setAppKv } from "@/systems/practice-host/controllers/app-kv.controller";
+
 
 export type PracticeHeaderPrivacyKey =
     | "tel"
@@ -35,6 +37,7 @@ export const DEFAULT_PRACTICE_HEADER_PRIVACY: PracticeHeaderPrivacyV1 = {
 };
 
 const LS_KEY = "medoc-practice-header-privacy-v1";
+const HEADER_PRIVACY_KV_KEY = "practice.header_privacy.v1" as const;
 
 /** Replaces plaintext with same-length placeholders (PDF / preview). */
 export function maskPracticeExportToken(raw: string): string {
@@ -70,5 +73,35 @@ export function savePracticeHeaderPrivacy(p: PracticeHeaderPrivacyV1): void {
         globalThis.localStorage.setItem(LS_KEY, JSON.stringify(p));
     } catch {
         /* ignore quota */
+    }
+    void persistPracticeHeaderPrivacy(p);
+}
+
+export async function persistPracticeHeaderPrivacy(p: PracticeHeaderPrivacyV1): Promise<void> {
+    await setAppKv(HEADER_PRIVACY_KV_KEY, JSON.stringify(p));
+    if (typeof globalThis.window !== "undefined" && globalThis.localStorage != null) {
+        try {
+            globalThis.localStorage.setItem(LS_KEY, JSON.stringify(p));
+        } catch {
+            /* ignore quota */
+        }
+    }
+}
+
+export async function hydratePracticeHeaderPrivacy(): Promise<PracticeHeaderPrivacyV1> {
+    try {
+        const raw = await getAppKv(HEADER_PRIVACY_KV_KEY);
+        if (raw?.trim()) {
+            const parsed = parsePracticeHeaderPrivacyJson(JSON.parse(raw) as Record<string, unknown>);
+            if (typeof globalThis.window !== "undefined" && globalThis.localStorage != null) {
+                globalThis.localStorage.setItem(LS_KEY, JSON.stringify(parsed));
+            }
+            return parsed;
+        }
+        const fromLs = loadPracticeHeaderPrivacy();
+        await persistPracticeHeaderPrivacy(fromLs);
+        return fromLs;
+    } catch {
+        return loadPracticeHeaderPrivacy();
     }
 }

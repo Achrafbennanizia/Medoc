@@ -42,12 +42,8 @@ pub(crate) async fn ensure_local_device_id(pool: &SqlitePool) -> Result<String, 
     medoc_sync::repo::ensure_local_device(pool, "").await
 }
 
-pub(crate) fn build_http_client() -> reqwest::Client {
-    reqwest::Client::builder()
-        .timeout(Duration::from_secs(30))
-        .danger_accept_invalid_certs(true)
-        .build()
-        .expect("reqwest client")
+pub(crate) fn build_http_client(cert_sha256: &str) -> Result<reqwest::Client, AppError> {
+    medoc_sync::tls_pin::pinned_http_client(cert_sha256, Duration::from_secs(30))
 }
 
 pub(crate) fn into_tauri(e: AppError) -> TauriAppError {

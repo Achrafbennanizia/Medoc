@@ -97,6 +97,7 @@ export function WorkHoursPage() {
     const remoteCfg = usePracticeWorkHoursStore((s) => s.config);
     const remoteCfgAt = usePracticeWorkHoursStore((s) => s.lastFetchedAt);
     const [saving, setSaving] = useState(false);
+    const [storedInvalid, setStoredInvalid] = useState(false);
 
     const applySliceToForm = useCallback((slice: ScheduleBaseline) => {
         setPlan(clonePlan(slice.plan));
@@ -107,16 +108,24 @@ export function WorkHoursPage() {
 
     useEffect(() => {
         let cancelled = false;
-        void loadPracticeWorkHoursConfig().then((parsed) => {
-            if (cancelled) return;
-            setStoredCfg(parsed);
-            setSelectedProfile(PRACTICE_PROFILE_KEY);
-            const s = sliceForProfile(parsed, PRACTICE_PROFILE_KEY);
-            applySliceToForm(s);
-            setHasOwnSavedProfile(s.hasOwnSavedProfile);
-            setDefaultPhysicianId((parsed.defaultPhysicianId ?? "").trim());
-            setEditing(false);
-        });
+        void loadPracticeWorkHoursConfig()
+            .then((parsed) => {
+                if (cancelled) return;
+                setStoredInvalid(false);
+                setStoredCfg(parsed);
+                setSelectedProfile(PRACTICE_PROFILE_KEY);
+                const s = sliceForProfile(parsed, PRACTICE_PROFILE_KEY);
+                applySliceToForm(s);
+                setHasOwnSavedProfile(s.hasOwnSavedProfile);
+                setDefaultPhysicianId((parsed.defaultPhysicianId ?? "").trim());
+                setEditing(false);
+            })
+            .catch((e) => {
+                if (cancelled) return;
+                if (e instanceof Error && e.message === "Stored work hours are invalid") {
+                    setStoredInvalid(true);
+                }
+            });
         void listPhysicians()
             .then((list) => {
                 if (!cancelled) setPhysicians(list);
@@ -216,7 +225,17 @@ export function WorkHoursPage() {
             setStoredCfg(nextCfg);
             setHasOwnSavedProfile(true);
             setEditing(false);
-            toast(tr("page.work_hours.toast_saved"));
+            toast(tr("page.work_hours.toast_saved"), "success", {
+                onUndo: async () => {
+                    try {
+                        await savePracticeWorkHoursConfig(prev);
+                        usePracticeWorkHoursStore.getState().setConfig(prev);
+                        setStoredCfg(prev);
+                    } catch (err) {
+                        toast(`${tr("page.work_hours.toast_save_failed")} ${errorMessage(err)}`, "error");
+                    }
+                },
+            });
         } catch (e) {
             toast(`${tr("page.work_hours.toast_save_failed")} ${errorMessage(e)}`, "error");
         } finally {
@@ -261,6 +280,11 @@ export function WorkHoursPage() {
 
     return (
         <div className="work_hours-page practice-workspace-page animate-fade-in">
+            {storedInvalid ? (
+                <p role="alert" style={{ color: "var(--danger, #b42318)", margin: "0 0 12px" }}>
+                    {tr("page.work_hours.stored_invalid")}
+                </p>
+            ) : null}
             <AdministrationPageHeader
                 title={tr("page.work_hours.title")}
                 subtitle={

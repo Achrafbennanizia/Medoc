@@ -36,6 +36,7 @@ base64 = "0.22"
 ed25519-dalek = { version = "2", features = ["rand_core"] }
 jsonwebtoken = "9"
 zip = { version = "2", default-features = false, features = ["deflate"] }
+csv = "1"
 btleplug = "0.11"
 
 [dev-dependencies]

@@ -1,6 +1,68 @@
 # Action ledger
 
-**Last updated:** 2026-10-01 (shared calendar sync)
+**Last updated:** 2026-11-08 (Part E F44/F52/F57 + `/sync/number`)
+
+## Now
+
+- Part E remainder: F59, F60, F63–F67, F70, F94, F97, F99, F122.
+- Parts F–K.
+
+## Done (2026-11-08 — replica number + F52/F57)
+
+- LAN POST `/api/v1/sync/number` with replica `sync.push` token.
+- F52 CSV import (crate, Latin-1, quoted `;`, NEW+chart+outbox, NULL insurance, name/DOB skip).
+- F57 paged search + `export_patients_csv` (IPC 319). F44 closed (appointments GET 404).
+
+## Done (2026-11-08 — workspace PASS)
+
+- `next_updated_at` on billing release and cash-verify so D8 ties do not drop the UPDATE.
+- `cargo test --workspace --offline --no-fail-fast -- --test-threads=1` **PASS**.
+
+## Done (2026-11-08 — workspace failures)
+
+- Removed repo-layer `UPDATE payment` from `ensure_payment_updated_at` (H2).
+- Mesh billing-release test applies the full pull like the other replica-B cases.
+
+## Done (2026-11-07 — leftover tests from pasted diff)
+
+- F144 appointment count scoped to `a-1`. `status_check_tests` 8 **PASS**. F119/F147 outbox 11 **PASS**. `sync_registry_tests` 4 **PASS**. `staff_delete_fk_tests` 3 **PASS**. IPC pairing 10 **PASS**. Invoke count 318 **PASS**. H2 guard 2 **PASS**.
+
+## Done (2026-11-07 — F9 F24 F32 F45–46 F52–53 F62 F74–76 F85 F89 F92 F119 F123 F126 F134 F143–147)
+
+- Cluster document numbers; hide scanner; work-plan hydrate/slice; recorded writes for work-time/sick-leave; composite chart_validation keys; GDPR outbox children; wrap v2; replica HTTPS from join HTTP port.
+
+## Done (2026-11-07 — Part D)
+
+- Row-hash digest, LAN routes, replica runner, `sync_reconcile_now`, Deployment UI.
+
+## Done (2026-11-07 — F34 F35 F68 F96 harness + F31 store)
+
+- Cash verify, staff reassign, hint delete, task comment reach replica B.
+- `sync_blob` table + LAN GET/PUT; wrong hash rejected.
+- Work hours KV validate; localStorage migrate-once on load.
+
+## Done (2026-11-07 — F15 F16 F17)
+
+- Release-for-billing records UPDATE in the same transaction.
+- `mark_all_read` records each id.
+- Paged push (500 / 12 MB / 10 pages) + `ENTRY_TOO_LARGE`.
+
+## Done (2026-11-07 — F14 start)
+
+- `updated_at` migration for existing synced tables; merge LWW D8; examination/payment stamps.
+
+## Done (2026-11-07 — 2FA off again)
+
+- `TOTP_2FA_ENABLED = false`. Password login ignores stored authenticator secrets. Re-enable checklist: [`todos-deferred-security-features.md`](todos-deferred-security-features.md).
+
+## Done (2026-11-07 — Part A remaining helpers)
+
+- H5 status enums + CHECK widen; H6 `number_sequence`; H8 sanitizing log writer.
+- F27 TOTP was required for physicians, then deferred the same day.
+
+---
+
+**Previous last updated:** 2026-10-01 (shared calendar sync)
 
 ## Done (2026-10-01 — replica ↔ master packages)
 
@@ -427,8 +489,9 @@ Active cost-priority delivery plan and test allow-list:
 
 ## Later
 
+- **Patient list — Show archived (re-enable):** Set `PATIENT_LIST_SHOW_ARCHIVED_ENABLED = true` in `packages/shared/src/lib/v1-ui-flags.ts`. Checklist [`todos-deferred-ui-blinds.md`](todos-deferred-ui-blinds.md).
 - **Break-Glass (re-enable):** Set `BREAK_GLASS_ENABLED = true` in `mvp_security.rs` + `mvp-security-config.ts` — checklist [`todos-deferred-security-features.md`](todos-deferred-security-features.md).
-- **2FA / TOTP (re-enable):** Set `TOTP_2FA_ENABLED = true` — same checklist; un-ignore `totp_tests.rs`.
+- **2FA / TOTP (re-enable, deferred 2026-11-07):** Set `TOTP_2FA_ENABLED = true` — checklist [`todos-deferred-security-features.md`](todos-deferred-security-features.md); un-ignore `totp_tests.rs` and restore the login-gate assertions.
 - **Staff limit (raise or license-wire):** Adjust `MAX_ARZT` / `MAX_REZEPTION` / `MAX_TOTAL_PERSONAL` in `mvp_security.rs` — currently **1 PHYSICIAN + 4 RECEPTION**.
 
 - **Einstellungen → Benachrichtigungen (re-enable):** Set `BENACHRICHTIGUNGEN_SETTINGS_ENABLED = true` in `packages/shared/src/lib/settings-ui-flags.ts` when company-portal push / notification microservices are deployed and `companyPortalFetchFeatureFlags` is production-ready. Panel: `settings-benachrichtigungen-section.tsx`; gate: `settingsSectionVisible("benachrichtigungen", …)`.

@@ -339,7 +339,6 @@ export type SettingsSectionId =
     | "integrations"
     | "migration"
     | "appearance"
-    | "workflows"
     | "system"
     | "about";
 
@@ -363,7 +362,6 @@ export const RECEPTION_SETTINGS_SECTIONS: ReadonlySet<SettingsSectionId> = new S
         "account",
         ...(NOTIFICATIONS_SETTINGS_ENABLED ? (["notifications"] as const) : []),
         "appearance",
-        "workflows",
         "about",
     ] satisfies readonly SettingsSectionId[],
 );

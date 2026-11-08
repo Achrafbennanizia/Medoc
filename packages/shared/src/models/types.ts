@@ -102,6 +102,8 @@ export interface Appointment {
     chief_complaint: string | null;
     patient_id: string;
     physician_id: string;
+    /** F65: slot length in minutes (30 when unknown). */
+    duration_minutes?: number;
     created_at: string;
     updated_at: string;
 }
@@ -304,7 +306,8 @@ export interface LabelValue {
 /** Aggregated breakdowns powering the rich statistics page. */
 export interface StatisticsOverview {
     // Patients
-    patients_total: number;
+    /** F106: null when the role may not see this section. */
+    patients_total: number | null;
     new_patients_per_month: MonthBucket[];
     patients_cumulative_per_month: MonthBucket[];
     age_groups: LabelValue[];
@@ -324,11 +327,11 @@ export interface StatisticsOverview {
     // Finance
     income_per_month: MonthBucket[];
     revenue_by_payment_method: LabelValue[];
-    income_current_month: number;
+    income_current_month: number | null;
     // Orders
     orders_by_status: LabelValue[];
     orders_per_month: MonthBucket[];
-    products_low: number;
+    products_low: number | null;
 }
 
 /** Practice absences / vacation blocks (`absence` table). */

@@ -15,6 +15,35 @@ export async function listPatientsPaged(params?: ListParams): Promise<ListRespon
     return practiceSystem.invoke<ListResponse<Patient>>("list_patients_paged", { params });
 }
 
+export async function exportPatientsCsv(params?: ListParams): Promise<string> {
+    return practiceSystem.invoke<string>("export_patients_csv", { params });
+}
+
+export type PatientFilterCounts = {
+    ALL: number;
+    IN_TREATMENT: number;
+    NEW_PATIENT: number;
+    INVOICE_OPEN: number;
+    CHART_OPEN: number;
+    CLOSED: number;
+};
+
+/** F57: tab counts over all patients (the list loads page by page). */
+export async function countPatientsByFilter(showArchived: boolean): Promise<PatientFilterCounts> {
+    return practiceSystem.invoke<PatientFilterCounts>("count_patients_by_filter", { showArchived });
+}
+
+/** F57: every patient, page by page (export must not stop at the loaded rows). */
+export async function listAllPatients(showArchived: boolean, pageSize = 500): Promise<Patient[]> {
+    const out: Patient[] = [];
+    for (let page = 1; page <= 1000; page += 1) {
+        const resp = await listPatientsPaged({ page, pageSize, filter: { showArchived } });
+        out.push(...resp.items);
+        if (resp.items.length === 0 || out.length >= resp.total) break;
+    }
+    return out;
+}
+
 export async function listPatientsByIds(ids: string[]): Promise<Patient[]> {
     if (ids.length === 0) return [];
     return practiceSystem.invoke<Patient[]>("list_patients_by_ids", { ids });
@@ -54,4 +83,8 @@ export async function updatePatient(id: string, data: Record<string, unknown>): 
 
 export async function deletePatient(id: string): Promise<void> {
     return practiceSystem.invoke("delete_patient", { id });
+}
+
+export async function restorePatient(id: string): Promise<void> {
+    return practiceSystem.invoke("restore_patient", { id });
 }

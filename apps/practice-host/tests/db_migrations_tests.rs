@@ -371,6 +371,14 @@ async fn english_upgrade_remaps_app_kv_and_template_json() {
     let pool = test_memory_pool().await.expect("encrypted memory pool");
     run_migrations(&pool).await.expect("baseline schema");
 
+    sqlx::query("DELETE FROM app_kv WHERE key IN ('praxis.preferences.v1','practice.preferences.v1','invoice.practice.v1')")
+        .execute(&pool)
+        .await
+        .expect("clear leftover app_kv");
+    sqlx::query("DELETE FROM app_kv WHERE key IN ('praxis.preferences.v1','practice.preferences.v1','invoice.practice.v1')")
+        .execute(&pool)
+        .await
+        .expect("clear leftover app_kv");
     sqlx::query(
         "INSERT INTO app_kv (key, value) VALUES
          ('praxis.preferences.v1', '{\"pufferMin\":\"7\",\"notfallPuffer\":\"9\"}'),

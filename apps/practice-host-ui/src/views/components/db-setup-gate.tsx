@@ -27,7 +27,7 @@ export function DbSetupGate({ children }: { children: ReactNode }) {
         void getDbSetupStatus()
             .then(setStatus)
             .catch((e: unknown) => {
-                setStatus({ needsPassphraseSetup: false, needsUnlock: false });
+                setStatus(null);
                 setError(tp("db.setup.status_load_failed", { message: errorMessage(e) }));
             });
     }, [tp]);
@@ -62,8 +62,13 @@ export function DbSetupGate({ children }: { children: ReactNode }) {
         return (
             <SetupShell>
                 <p className="text-body text-on-surface-variant animate-fade-in">
-                    {t("db.setup.preparing")}
+                    {error ?? t("db.setup.preparing")}
                 </p>
+                {error ? (
+                    <Button type="button" onClick={() => { setError(null); refresh(); }}>
+                        {t("common.retry")}
+                    </Button>
+                ) : null}
             </SetupShell>
         );
     }

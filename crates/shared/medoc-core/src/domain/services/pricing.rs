@@ -124,3 +124,13 @@ pub fn next_invoice_number(ymd: &str, reserved: &[&str]) -> String {
     }
     format!("RE-{prefix}-{}", rng.gen::<u32>())
 }
+
+/// F93: prices and default costs are amounts of money: finite and not negative.
+pub fn require_non_negative_amount(v: f64, field: &str) -> Result<(), crate::error::AppError> {
+    if !v.is_finite() || v < 0.0 {
+        return Err(crate::error::AppError::Validation(format!(
+            "{field} must be zero or more"
+        )));
+    }
+    Ok(())
+}

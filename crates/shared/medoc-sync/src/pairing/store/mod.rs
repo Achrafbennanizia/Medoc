@@ -402,3 +402,35 @@ pub async fn revoke(
         .map_err(AppError::Database)?;
     Ok(())
 }
+
+/// Revoke, block, and reclaim drop the live token and do not leave an ACCEPTED row to remint.
+pub async fn clear_device_activation(
+    pool: &SqlitePool,
+    device_or_fingerprint: &str,
+) -> Result<(), AppError> {
+    ensure_sync_tables(pool).await?;
+    let now = Utc::now().to_rfc3339();
+    sqlx::query(
+        "UPDATE pairing_request
+         SET status = 'REVOKED', activation_token = NULL, decided_at = ?2
+         WHERE status = 'ACCEPTED'
+           AND (device_id = ?1 OR IFNULL(fingerprint, '') = ?1)",
+    )
+    .bind(device_or_fingerprint)
+    .bind(&now)
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?;
+    sqlx::query(
+        "DELETE FROM slave_permission
+         WHERE device_id = ?1
+            OR device_id IN (
+                SELECT device_id FROM pairing_request WHERE IFNULL(fingerprint, '') = ?1
+            )",
+    )
+    .bind(device_or_fingerprint)
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?;
+    Ok(())
+}

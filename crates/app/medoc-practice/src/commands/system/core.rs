@@ -47,19 +47,36 @@ pub async fn activate_license(
     // Do not require `ops.system` — a broken audit chain would block first-time activation.
     rbac::require_authenticated(&session_state)?;
     let device_id = license_repo::ensure_device_id(&pool).await?;
-    let status = license::verify(&token, &device_id);
+    let resolved =
+        crate::commands::company_portal_commands::resolve_onboarding_license_key(&pool, &token)
+            .await?;
+    let mut status = license::verify(&resolved, &device_id);
     if !status.valid {
         log_system!(
             warn,
             event = "LICENSE_ACTIVATE_REJECTED",
             reason = status.reason.as_deref().unwrap_or(""),
         );
+        if let Some(code) = license::user_license_error_code(status.reason.as_deref().unwrap_or(""))
+        {
+            status.reason = Some(code.to_string());
+        }
         return Ok(status);
     }
     match status.format.as_deref() {
-        Some("v2") => license_repo::store_v2(&pool, token.trim()).await?,
-        Some("v1") => license_repo::store_v1(&pool, token.trim()).await?,
+        Some("v2") => license_repo::store_v2(&pool, resolved.trim()).await?,
+        Some("v1") => license_repo::store_v1(&pool, resolved.trim()).await?,
         _ => {}
+    }
+    let rebound = resolved.trim() != token.trim();
+    if let Some(code) =
+        crate::commands::company_portal_commands::deployment_code_for_pasted_license(&token, rebound)
+    {
+        let _ =
+            crate::commands::company_portal_commands::apply_serverless_role_from_license_code(
+                &pool, &code,
+            )
+            .await;
     }
     log_system!(
         info,

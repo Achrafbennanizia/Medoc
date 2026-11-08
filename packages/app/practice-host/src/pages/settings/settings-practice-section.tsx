@@ -10,13 +10,17 @@ import {
     syncInvoicePracticeToAppKv,
     type InvoicePractice,
 } from "@/lib/invoice-service-item";
+import { formatPracticeOpeningHours, readPracticeWorkHoursConfig, type PracticeDayKey } from "@/lib/practice-planning";
+import { usePracticeWorkHoursStore } from "@/models/store/practice-work-hours-store";
+import { bcp47ForLocale, useLocale } from "@/lib/i18n";
+import { timeZoneOptionLabel } from "@/lib/time-zone-label";
 import { errorMessage } from "@/lib/utils";
-import { ChevronRightIcon, UploadCircleIcon } from "@/lib/icons";
+import { UploadCircleIcon } from "@/lib/icons";
 import { Button } from "@/views/components/ui/button";
 import { DismissibleNotice } from "@/views/components/ui/dismissible-notice";
-import { Input } from "@/views/components/ui/input";
+import { Input, Select } from "@/views/components/ui/input";
 import { useToastStore } from "@/views/components/ui/toast-store";
-import { useT, useTParams } from "@/lib/i18n";
+import { translateLocale, useT, useTParams } from "@/lib/i18n";
 import { SettingsPracticeBillingSection } from "./settings-practice-billing";
 
 function formatAddrOneLine(addr: string): string {
@@ -123,14 +127,12 @@ function stripLogoBackdropInPlace(ctx: CanvasRenderingContext2D, w: number, h: n
 
 export type SettingsPracticeSectionProps = {
     sessionUserId: string | undefined;
-    onOpenWorkflows: () => void;
     /** Edit master data (invoice, logo, KV) — ops.system / practice management. */
     canEditPractice?: boolean;
 };
 
 export function SettingsPracticeSection({
     sessionUserId,
-    onOpenWorkflows,
     canEditPractice = true,
 }: SettingsPracticeSectionProps) {
     const toast = useToastStore((s) => s.add);
@@ -140,8 +142,6 @@ export function SettingsPracticeSection({
     const [draftPracticeName, setDraftPracticeName] = useState("");
     const [editPracticeAddr, setEditPracticeAddr] = useState(false);
     const [draftPracticeAddr, setDraftPracticeAddr] = useState("");
-    const [editPracticeOpeningHours, setEditPracticeOpeningHours] = useState(false);
-    const [draftPracticeOpeningHours, setDraftPracticeOpeningHours] = useState("");
     const [editPracticeKv, setEditPracticeKv] = useState(false);
     const [draftPracticeKv, setDraftPracticeKv] = useState("");
     const [editPracticeExtra, setEditPracticeExtra] = useState(false);
@@ -151,6 +151,29 @@ export function SettingsPracticeSection({
     const [logoBusy, setLogoBusy] = useState(false);
     const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
     const [practice, setPractice] = useState<InvoicePractice>(() => getInvoicePracticeFromStorage());
+    const [practiceReady, setPracticeReady] = useState(false);
+    const workHours = usePracticeWorkHoursStore((s) => s.config);
+    const locale = useLocale((s) => s.locale);
+    const openingHoursSummary = useMemo(() => {
+        const cfg = workHours ?? readPracticeWorkHoursConfig();
+        return formatPracticeOpeningHours(cfg, (key: PracticeDayKey) => translateLocale(locale, `page.workTime.day_short.${key}`));
+    }, [locale, workHours]);
+    const [timezone, setTimezone] = useState("Europe/Berlin");
+    const timeZones = useMemo(() => {
+        const intl = Intl as typeof Intl & { supportedValuesOf?: (key: string) => string[] };
+        try {
+            const zones = intl.supportedValuesOf?.("timeZone") ?? ["Europe/Berlin"];
+            return zones.includes("Europe/Berlin") ? zones : ["Europe/Berlin", ...zones];
+        } catch {
+            return ["Europe/Berlin"];
+        }
+    }, []);
+    const timeZoneOptions = useMemo(() => {
+        const tag = bcp47ForLocale(locale);
+        return timeZones
+            .map((zone) => ({ value: zone, label: timeZoneOptionLabel(zone, tag) }))
+            .sort((a, b) => a.label.localeCompare(b.label, locale));
+    }, [locale, timeZones]);
 
     useEffect(() => {
         let c = false;
@@ -178,22 +201,45 @@ export function SettingsPracticeSection({
     }, []);
 
     useEffect(() => {
+        let cancelled = false;
+        void (async () => {
+            try {
+                const raw = await getAppKv("practice.timezone.v1");
+                if (cancelled || !raw?.trim()) return;
+                setTimezone(raw.trim());
+            } catch {
+                /* missing */
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
         const editingPractice =
             editPracticeName ||
             editPracticeAddr ||
-            editPracticeOpeningHours ||
             editPracticeKv ||
             editPracticeExtra ||
             editPracticeBilling;
         if (!sessionUserId || editingPractice) return;
         let cancelled = false;
         void hydrateInvoicePracticeFromAppKv().then((fromKv) => {
-            if (cancelled || !fromKv) return;
-            setPractice(fromKv);
-            setDraftPracticeName(fromKv.name);
-            setDraftPracticeAddr(fromKv.addr);
-            setDraftPracticeOpeningHours(fromKv.opening_hours ?? "");
-            setDraftPracticeKv(fromKv.kv_number ?? "");
+            if (cancelled) return;
+            if (fromKv) {
+                setPractice(fromKv);
+                setDraftPracticeName(fromKv.name);
+                setDraftPracticeAddr(fromKv.addr);
+                setDraftPracticeKv(fromKv.kv_number ?? "");
+                setPracticeReady(true);
+                return;
+            }
+            try {
+                if (localStorage.getItem("medoc-invoice-practice-v1")?.trim()) setPracticeReady(true);
+            } catch {
+                /* private mode */
+            }
         });
         return () => {
             cancelled = true;
@@ -202,7 +248,6 @@ export function SettingsPracticeSection({
         sessionUserId,
         editPracticeName,
         editPracticeAddr,
-        editPracticeOpeningHours,
         editPracticeKv,
         editPracticeExtra,
         editPracticeBilling,
@@ -225,8 +270,14 @@ export function SettingsPracticeSection({
             toast(t("settings.practice.toast.name_required"), "error");
             return;
         }
+        const previous = practice.name;
         applyPracticePatch({ name });
-        toast(t("settings.practice.toast.name_saved"), "success");
+        toast(t("settings.practice.toast.name_saved"), "success", {
+            onUndo: () => {
+                applyPracticePatch({ name: previous });
+                setDraftPracticeName(previous);
+            },
+        });
         setEditPracticeName(false);
     }
 
@@ -236,16 +287,32 @@ export function SettingsPracticeSection({
             toast(t("settings.practice.toast.address_required"), "error");
             return;
         }
+        const previous = practice.addr;
         applyPracticePatch({ addr: draftPracticeAddr });
-        toast(t("settings.practice.toast.address_saved"), "success");
+        toast(t("settings.practice.toast.address_saved"), "success", {
+            onUndo: () => {
+                applyPracticePatch({ addr: previous });
+                setDraftPracticeAddr(previous);
+            },
+        });
         setEditPracticeAddr(false);
     }
 
-    function savePracticeOpeningHours() {
-        applyPracticePatch({ opening_hours: draftPracticeOpeningHours.trim() || undefined });
-        toast(t("settings.practice.toast.hours_saved"), "success");
-        setEditPracticeOpeningHours(false);
-    }
+    useEffect(() => {
+        if (!practiceReady || !openingHoursSummary) return;
+        if (editPracticeName || editPracticeAddr || editPracticeKv || editPracticeExtra || editPracticeBilling) return;
+        if ((practice.opening_hours ?? "").trim() === openingHoursSummary) return;
+        applyPracticePatch({ opening_hours: openingHoursSummary });
+    }, [
+        editPracticeAddr,
+        editPracticeBilling,
+        editPracticeExtra,
+        editPracticeKv,
+        editPracticeName,
+        openingHoursSummary,
+        practice.opening_hours,
+        practiceReady,
+    ]);
 
     function savePracticeKv() {
         const kv = draftPracticeKv.trim();
@@ -253,8 +320,14 @@ export function SettingsPracticeSection({
             toast(t("settings.practice.toast.kv_required"), "error");
             return;
         }
+        const previous = practice.kv_number;
         applyPracticePatch({ kv_number: kv });
-        toast(t("settings.practice.toast.kv_saved"), "success");
+        toast(t("settings.practice.toast.kv_saved"), "success", {
+            onUndo: () => {
+                applyPracticePatch({ kv_number: previous });
+                setDraftPracticeKv(previous ?? "");
+            },
+        });
         setEditPracticeKv(false);
     }
 
@@ -270,11 +343,23 @@ export function SettingsPracticeSection({
     }
 
     function savePracticeExtra() {
-        saveInvoicePracticeToStorage(practice);
-        void syncInvoicePracticeToAppKv(practice).catch((e) => {
+        const previous = practiceExtraSnapshot ? { ...practiceExtraSnapshot } : null;
+        const saved = practice;
+        saveInvoicePracticeToStorage(saved);
+        void syncInvoicePracticeToAppKv(saved).catch((e) => {
             toast(tp("settings.practice.toast.sync_failed", { message: errorMessage(e) }), "warning");
         });
-        toast(t("settings.practice.toast.contact_saved"), "success");
+        toast(t("settings.practice.toast.contact_saved"), "success", {
+            onUndo: previous
+                ? () => {
+                      setPractice(previous);
+                      saveInvoicePracticeToStorage(previous);
+                      void syncInvoicePracticeToAppKv(previous).catch((e) => {
+                          toast(tp("settings.practice.toast.sync_failed", { message: errorMessage(e) }), "warning");
+                      });
+                  }
+                : undefined,
+        });
         setEditPracticeExtra(false);
         setPracticeExtraSnapshot(null);
     }
@@ -308,6 +393,7 @@ export function SettingsPracticeSection({
             toast(t("settings.practice.toast.iban_invalid"), "error");
             return;
         }
+        const previous = practiceBillingSnapshot ? { ...practiceBillingSnapshot } : null;
         const zt = practice.payment_terms_days ?? 14;
         const next: InvoicePractice = {
             ...practice,
@@ -320,7 +406,17 @@ export function SettingsPracticeSection({
         void syncInvoicePracticeToAppKv(next).catch((e) => {
             toast(tp("settings.practice.toast.sync_failed", { message: errorMessage(e) }), "warning");
         });
-        toast(t("settings.practice.toast.billing_saved"), "success");
+        toast(t("settings.practice.toast.billing_saved"), "success", {
+            onUndo: previous
+                ? () => {
+                      setPractice(previous);
+                      saveInvoicePracticeToStorage(previous);
+                      void syncInvoicePracticeToAppKv(previous).catch((e) => {
+                          toast(tp("settings.practice.toast.sync_failed", { message: errorMessage(e) }), "warning");
+                      });
+                  }
+                : undefined,
+        });
         setEditPracticeBilling(false);
         setPracticeBillingSnapshot(null);
     }
@@ -377,6 +473,31 @@ export function SettingsPracticeSection({
                 subtitle={t("settings.practice.billing_notice_subtitle")}
             />
         ) : null}
+        <div className="settings-row" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
+            <div style={{ flex: "1 1 200px", minWidth: 0 }}>
+                <span className="settings-field-label">
+                    <b>{t("settings.practice.timezone_label")}</b>
+                </span>
+                <div className="settings-row-muted">{t("settings.practice.timezone_hint")}</div>
+            </div>
+            <Select
+                className="settings-timezone-select"
+                menuClassName="settings-timezone-menu"
+                menuFitContent
+                menuContainSelector=".settings-subcard"
+                value={timezone}
+                disabled={!canEditPractice}
+                aria-label={t("settings.practice.timezone_label")}
+                options={timeZoneOptions}
+                onChange={(e: ChangeEvent<HTMLSelectElement>) => {
+                    const next = e.target.value;
+                    setTimezone(next);
+                    void setAppKv("practice.timezone.v1", next).catch((err) =>
+                        toast(errorMessage(err), "error"),
+                    );
+                }}
+            />
+        </div>
         <div className="settings-row" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
             <div style={{ flex: "1 1 200px", minWidth: 0 }}>
                 <span className="settings-field-label">
@@ -475,42 +596,8 @@ export function SettingsPracticeSection({
         <div className="settings-row" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
             <div style={{ flex: "1 1 200px", minWidth: 0 }}>
                 <b>{t("settings.practice.hours_label")}</b>
-                <div className="settings-row-muted">{(practice.opening_hours ?? "").trim() || "—"}</div>
-            </div>
-            <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end", flex: "0 1 auto" }}>
-                {canEditPractice && editPracticeOpeningHours ? (
-                    <>
-                        <Input
-                            value={draftPracticeOpeningHours}
-                            onChange={(e) => setDraftPracticeOpeningHours(e.target.value)}
-                            aria-label={t("settings.practice.hours_label")}
-                            placeholder={t("settings.practice.hours_placeholder")}
-                            style={{ minWidth: 160, maxWidth: 320 }}
-                        />
-                        <Button type="button" onClick={() => void savePracticeOpeningHours()}>{t("common.save")}</Button>
-                        <Button
-                            type="button"
-                            variant="secondary"
-                            onClick={() => {
-                                setDraftPracticeOpeningHours(practice.opening_hours ?? "");
-                                setEditPracticeOpeningHours(false);
-                            }}
-                        >
-                            {t("common.cancel")}
-                        </Button>
-                    </>
-                ) : canEditPractice ? (
-                    <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => {
-                            setDraftPracticeOpeningHours(practice.opening_hours ?? "");
-                            setEditPracticeOpeningHours(true);
-                        }}
-                    >
-                        {t("common.edit")}
-                    </Button>
-                ) : null}
+                <div className="settings-row-muted" dir="ltr">{openingHoursSummary || "—"}</div>
+                <div className="card-sub">{t("settings.practice.hours_follows")}</div>
             </div>
         </div>
         {canEditPractice ? (
@@ -636,15 +723,6 @@ export function SettingsPracticeSection({
         />
         </>
         ) : null}
-        <button type="button" className="settings-row-clickable" onClick={() => onOpenWorkflows()}>
-            <div>
-                <b>{t("settings.practice.appointments_calendar")}</b>
-                <div className="settings-row-muted">{t("settings.practice.appointments_calendar_hint")}</div>
-            </div>
-            <span className="settings-chevron" aria-hidden>
-                <ChevronRightIcon size={18} />
-            </span>
-        </button>
     </section>
         </>
     );

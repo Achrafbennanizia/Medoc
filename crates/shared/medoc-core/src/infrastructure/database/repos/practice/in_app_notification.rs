@@ -33,8 +33,8 @@ pub async fn insert(
     }
     let id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
-        "INSERT INTO in_app_notification (id, user_id, kind, title, body, payload_json)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        "INSERT INTO in_app_notification (id, user_id, kind, title, body, payload_json, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
     )
     .bind(&id)
     .bind(user_id)
@@ -66,6 +66,34 @@ pub async fn insert(
         )
         .await?;
     }
+    Ok(())
+}
+
+/// F99: notification insert inside the caller's transaction (recorded).
+/// The recipient must already be a local staff account (checked by the caller).
+pub async fn insert_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    user_id: &str,
+    kind: &str,
+    title: &str,
+    body: &str,
+    payload_json: Option<&str>,
+) -> Result<(), AppError> {
+    let id = uuid::Uuid::new_v4().to_string();
+    sqlx::query(
+        "INSERT INTO in_app_notification (id, user_id, kind, title, body, payload_json, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
+    )
+    .bind(&id)
+    .bind(user_id)
+    .bind(kind)
+    .bind(title)
+    .bind(body)
+    .bind(payload_json)
+    .execute(&mut **tx)
+    .await?;
+    crate::infrastructure::database::recorded_write::record_in_tx(tx, "in_app_notification", &id, "INSERT")
+        .await?;
     Ok(())
 }
 
@@ -105,7 +133,10 @@ pub async fn mark_read(
 ) -> Result<u64, AppError> {
     let now = chrono::Utc::now().to_rfc3339();
     let n =
-        sqlx::query("UPDATE in_app_notification SET read_at = ?1 WHERE id = ?2 AND user_id = ?3")
+        sqlx::query(
+            "UPDATE in_app_notification SET read_at = ?1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+             WHERE id = ?2 AND user_id = ?3",
+        )
             .bind(&now)
             .bind(notification_id)
             .bind(user_id)
@@ -130,13 +161,27 @@ pub async fn mark_read(
 
 pub async fn mark_all_read(pool: &SqlitePool, user_id: &str) -> Result<u64, AppError> {
     let now = chrono::Utc::now().to_rfc3339();
-    let n = sqlx::query(
-        "UPDATE in_app_notification SET read_at = ?1 WHERE user_id = ?2 AND read_at IS NULL",
+    let mut tx = pool.begin().await?;
+    let ids: Vec<String> = sqlx::query_scalar(
+        "UPDATE in_app_notification
+         SET read_at = ?1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+         WHERE user_id = ?2 AND read_at IS NULL
+         RETURNING id",
     )
     .bind(&now)
     .bind(user_id)
-    .execute(pool)
-    .await?
-    .rows_affected();
+    .fetch_all(&mut *tx)
+    .await?;
+    for id in &ids {
+        crate::infrastructure::database::recorded_write::record_in_tx(
+            &mut tx,
+            "in_app_notification",
+            id,
+            "UPDATE",
+        )
+        .await?;
+    }
+    let n = ids.len() as u64;
+    tx.commit().await?;
     Ok(n)
 }

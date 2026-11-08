@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { getOwnProfile, updateOwnProfile, type OwnProfileDto } from "@/systems/practice-host/controllers/staff.controller";
+import { ClusterJoinFlow } from "@/systems/practice-host/components/cluster-join-flow";
+import { syncGetStatus, syncRunNow } from "@/systems/practice-host/controllers/sync.controller";
 import { errorMessage } from "@/lib/utils";
 import { parseRole, type Role } from "@/lib/rbac";
 import { useAuthStore } from "@/models/store/auth-store";
@@ -48,6 +50,7 @@ export function SettingsAccountSection({ onOpenPasswordDialog, passwordChangedTi
     const [accountSaveNameBusy, setAccountSaveNameBusy] = useState(false);
     const [accountSaveEmailBusy, setAccountSaveEmailBusy] = useState(false);
     const [accountSavePhoneBusy, setAccountSavePhoneBusy] = useState(false);
+    const [isReplica, setIsReplica] = useState(false);
 
     useEffect(() => {
         if (!session?.user_id) return;
@@ -76,6 +79,22 @@ export function SettingsAccountSection({ onOpenPasswordDialog, passwordChangedTi
         };
     }, [session?.user_id]);
 
+    useEffect(() => {
+        if (!session?.user_id) return;
+        let cancelled = false;
+        void syncGetStatus()
+            .then((snap) => {
+                if (cancelled) return;
+                setIsReplica(snap.deployment.role === "REPLICA");
+            })
+            .catch(() => {
+                if (!cancelled) setIsReplica(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [session?.user_id]);
+
     function applyOwnProfileToStores(profile: OwnProfileDto) {
         setOwnProfile(profile);
         const cur = useAuthStore.getState().session;
@@ -95,11 +114,22 @@ export function SettingsAccountSection({ onOpenPasswordDialog, passwordChangedTi
             toast(t("settings.account.name_required"), "error");
             return;
         }
+        const previous = ownProfile?.name ?? "";
         setAccountSaveNameBusy(true);
         try {
             const p = await updateOwnProfile({ name });
             applyOwnProfileToStores(p);
-            toast(t("settings.account.name_saved"), "success");
+            toast(t("settings.account.name_saved"), "success", {
+                onUndo: async () => {
+                    try {
+                        const restored = await updateOwnProfile({ name: previous });
+                        applyOwnProfileToStores(restored);
+                        setDraftKontoName(previous);
+                    } catch (err) {
+                        toast(tp("settings.prefs.save_failed", { message: errorMessage(err) }), "error");
+                    }
+                },
+            });
             setEditKontoName(false);
         } catch (e) {
             toast(tp("settings.prefs.save_failed", { message: errorMessage(e) }), "error");
@@ -114,11 +144,22 @@ export function SettingsAccountSection({ onOpenPasswordDialog, passwordChangedTi
             toast(t("settings.account.email_required"), "error");
             return;
         }
+        const previous = ownProfile?.email ?? "";
         setAccountSaveEmailBusy(true);
         try {
             const p = await updateOwnProfile({ email });
             applyOwnProfileToStores(p);
-            toast(t("settings.account.email_saved"), "success");
+            toast(t("settings.account.email_saved"), "success", {
+                onUndo: async () => {
+                    try {
+                        const restored = await updateOwnProfile({ email: previous });
+                        applyOwnProfileToStores(restored);
+                        setDraftKontoEmail(previous);
+                    } catch (err) {
+                        toast(tp("settings.prefs.save_failed", { message: errorMessage(err) }), "error");
+                    }
+                },
+            });
             setEditKontoEmail(false);
         } catch (e) {
             toast(tp("settings.prefs.save_failed", { message: errorMessage(e) }), "error");
@@ -128,11 +169,22 @@ export function SettingsAccountSection({ onOpenPasswordDialog, passwordChangedTi
     }
 
     async function saveKontoPhone() {
+        const previous = ownProfile?.phone ?? "";
         setAccountSavePhoneBusy(true);
         try {
             const p = await updateOwnProfile({ phone: draftKontoPhone.trim() });
             applyOwnProfileToStores(p);
-            toast(t("settings.account.phone_saved"), "success");
+            toast(t("settings.account.phone_saved"), "success", {
+                onUndo: async () => {
+                    try {
+                        const restored = await updateOwnProfile({ phone: previous });
+                        applyOwnProfileToStores(restored);
+                        setDraftKontoPhone(previous);
+                    } catch (err) {
+                        toast(tp("settings.prefs.save_failed", { message: errorMessage(err) }), "error");
+                    }
+                },
+            });
             setEditKontoPhone(false);
         } catch (e) {
             toast(tp("settings.prefs.save_failed", { message: errorMessage(e) }), "error");
@@ -350,6 +402,19 @@ export function SettingsAccountSection({ onOpenPasswordDialog, passwordChangedTi
                     {t("common.change")}
                 </Button>
             </div>
+            {isReplica ? (
+                <div className="settings-row" style={{ alignItems: "flex-start", flexDirection: "column", gap: 10 }}>
+                    <div>
+                        <b>{t("settings.account.reconnect_title")}</b>
+                        <div className="settings-row-muted">{t("settings.account.reconnect_hint")}</div>
+                    </div>
+                    <ClusterJoinFlow
+                        onComplete={() => {
+                            void syncRunNow().catch(() => undefined);
+                        }}
+                    />
+                </div>
+            ) : null}
             <div className="settings-row">
                 <div>
                     <b>{t("settings.account.logout_title")}</b>

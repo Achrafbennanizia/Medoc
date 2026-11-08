@@ -40,6 +40,7 @@ pub async fn create(
     let payload_str = serde_json::to_string(&data.payload)
         .map_err(|e| AppError::Internal(format!("Snapshot payload not serializable: {e}")))?;
     let id = uuid::Uuid::new_v4().to_string();
+    let mut tx = pool.begin().await?;
     sqlx::query(
         "INSERT INTO balance_sheet_snapshot
             (id, created_by, period, kind, label, income_cents, expenses_cents, balance_cents, payload)
@@ -54,16 +55,33 @@ pub async fn create(
     .bind(data.expenses_cents)
     .bind(balance)
     .bind(&payload_str)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
+    crate::infrastructure::database::recorded_write::record_in_tx(
+        &mut tx,
+        "balance_sheet_snapshot",
+        &id,
+        "INSERT",
+    )
+    .await?;
+    tx.commit().await?;
     get(pool, &id).await
 }
 
 pub async fn delete(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
+    let mut tx = pool.begin().await?;
+    crate::infrastructure::database::recorded_write::record_in_tx(
+        &mut tx,
+        "balance_sheet_snapshot",
+        id,
+        "DELETE",
+    )
+    .await?;
     let r = sqlx::query("DELETE FROM balance_sheet_snapshot WHERE id = ?1")
         .bind(id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
+    tx.commit().await?;
     if r.rows_affected() == 0 {
         return Err(AppError::NotFound("BalanceSheetSnapshot".into()));
     }

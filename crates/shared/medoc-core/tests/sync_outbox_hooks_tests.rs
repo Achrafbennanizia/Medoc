@@ -136,6 +136,8 @@ async fn appointment_lifecycle_emits_three_outbox_rows() {
         notes: None,
         chief_complaint: None,
         physician_id: "seed-physician-001".into(),
+        duration_minutes: None,
+        status: None,
     };
     let t = appointment_repo::create(&pool, &create)
         .await
@@ -152,6 +154,7 @@ async fn appointment_lifecycle_emits_three_outbox_rows() {
             notes: None,
             chief_complaint: None,
             physician_id: None,
+            duration_minutes: None,
         },
     )
     .await
@@ -319,4 +322,73 @@ async fn practice_ticket_insert_emits_one_outbox_row() {
     .expect("insert ticket");
 
     assert_eq!(outbox_count(&pool, "practice_ticket").await, 1);
+}
+
+/// F147: chart_validation has a composite key; writes must not fail when
+/// replication is on, and each row gets its own sync id.
+#[tokio::test]
+async fn chart_validation_rows_record_with_composite_key() {
+    let pool = fresh_pool().await;
+    enable_serverless(&pool).await;
+    let p = patient_repo::create(&pool, &sample_patient("cv"))
+        .await
+        .expect("create patient");
+    use medoc_core::infrastructure::database::repos::clinical::chart_validation as cv;
+    cv::upsert_row(&pool, &p.id, "anamnesis", "2026-11-07T10:00:00Z", None)
+        .await
+        .expect("upsert a");
+    cv::upsert_row(&pool, &p.id, "findings", "2026-11-07T10:00:00Z", None)
+        .await
+        .expect("upsert b");
+    let ids: Vec<String> = sqlx::query_scalar(
+        "SELECT entity_id FROM sync_outbox WHERE entity_table = 'chart_validation' ORDER BY entity_id",
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert_eq!(ids, vec![format!("{}|anamnesis", p.id), format!("{}|findings", p.id)]);
+    let payload: String = sqlx::query_scalar(
+        "SELECT payload_json FROM sync_outbox WHERE entity_table = 'chart_validation' LIMIT 1",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert!(payload.contains("section_or_item"));
+}
+
+/// F119: GDPR erasure must put the pseudonymised patient and every removed
+/// child row into the outbox so other devices erase too.
+#[tokio::test]
+async fn gdpr_erase_records_patient_and_children() {
+    let pool = fresh_pool().await;
+    enable_serverless(&pool).await;
+    let p = patient_repo::create(&pool, &sample_patient("erase"))
+        .await
+        .expect("create patient");
+    sqlx::query(
+        "INSERT INTO appointment (id, date, time, kind, status, patient_id, physician_id)
+         VALUES ('erase-apt', '2026-11-10', '09:00', 'CHECKUP', 'PLANNED', ?1, 'seed-physician-001')",
+    )
+    .bind(&p.id)
+    .execute(&pool)
+    .await
+    .unwrap();
+    medoc_core::infrastructure::gdpr::erase_patient_records(&pool, &p.id)
+        .await
+        .expect("erase");
+    let apt_deletes: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM sync_outbox WHERE entity_table = 'appointment' AND entity_id = 'erase-apt' AND op = 'DELETE'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(apt_deletes, 1);
+    let patient_updates: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM sync_outbox WHERE entity_table = 'patient' AND entity_id = ?1 AND op = 'UPDATE'",
+    )
+    .bind(&p.id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(patient_updates, 1);
 }

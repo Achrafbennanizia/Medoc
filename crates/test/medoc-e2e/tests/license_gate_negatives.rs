@@ -24,6 +24,23 @@ use tokio::sync::Mutex;
 /// env var (either setting or removing it). cargo-test runs tests in
 /// parallel by default, so we serialize them under a shared mutex to avoid
 /// flakes when one test removes the var while another expects it set.
+fn sync_status_device_token(device_id: &str) -> String {
+    let signing_key = medoc_sync::master_keys::load_or_create().expect("master key");
+    medoc_sync::pairing::mint_activation_token(
+        &signing_key,
+        &medoc_sync::pairing::ActivationTokenPayload {
+            version: 2,
+            device_id: device_id.to_string(),
+            slave_label: "replica".into(),
+            master_device_id: "master".into(),
+            allowed_actions: vec!["sync.status".into()],
+            issued_at: "2026-11-07T00:00:00Z".into(),
+            nonce: format!("n-{device_id}"),
+        },
+    )
+    .expect("mint")
+}
+
 fn env_guard() -> &'static Mutex<()> {
     static G: OnceLock<Mutex<()>> = OnceLock::new();
     G.get_or_init(|| Mutex::new(()))
@@ -205,10 +222,10 @@ async fn skip_enforcement_env_bypasses_gate_even_without_license() {
         .await
         .expect("device");
     let mut lan = LanHarness::from_pool(pool).await;
-    let jwt = lan.login_ops_jwt().await;
+    let token = sync_status_device_token("skip-license-device");
 
     let (status, _) = lan
-        .json("GET", "/api/v1/sync/status", None, Some(&jwt))
+        .json("GET", "/api/v1/sync/status", None, Some(&token))
         .await;
 
     std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
@@ -234,9 +251,9 @@ async fn replica_role_in_serverless_peer_does_not_require_master_license() {
     .expect("deployment kv");
 
     let mut lan = LanHarness::from_pool(pool).await;
-    let jwt = lan.login_ops_jwt().await;
+    let token = sync_status_device_token("replica-no-license-device");
     let (status, _) = lan
-        .json("GET", "/api/v1/sync/status", None, Some(&jwt))
+        .json("GET", "/api/v1/sync/status", None, Some(&token))
         .await;
     assert_eq!(
         status,

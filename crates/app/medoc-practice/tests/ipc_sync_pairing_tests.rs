@@ -14,6 +14,15 @@ use support::{fresh_pool, seed_master_license};
 
 #[test]
 #[serial]
+fn sync_reconcile_now_requires_ops_system_role() {
+    let role = Role::parse("PHYSICIAN").expect("physician");
+    assert!(effective_allowed("ops.system", role, &[]));
+    let role = Role::parse("RECEPTION").expect("reception");
+    assert!(!effective_allowed("ops.system", role, &[]));
+}
+
+#[test]
+#[serial]
 fn sync_set_deployment_requires_ops_system_role() {
     let role = Role::parse("PHYSICIAN").expect("physician");
     assert!(effective_allowed("ops.system", role, &[]));
@@ -101,7 +110,7 @@ async fn probe_master_reachable_is_false_when_master_port_is_closed() {
 
 #[tokio::test]
 #[serial]
-async fn sync_record_change_noops_outside_serverless_peer() {
+async fn fresh_pool_has_empty_outbox_outside_serverless_peer() {
     let pool = fresh_pool().await;
     let snap = SyncEngine::status(&pool).await.expect("status");
     assert_ne!(snap.deployment.mode, DeploymentMode::ServerlessPeer);

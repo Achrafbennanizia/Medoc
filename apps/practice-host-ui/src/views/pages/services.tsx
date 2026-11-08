@@ -187,7 +187,17 @@ export function ServicesPage() {
                 price: p.price,
                 description: p.description,
             });
-            toast(t("services.toast.created"), "success");
+            toast(t("services.toast.created"), "success", {
+                onUndo: async () => {
+                    try {
+                        await deleteServiceItem(created.id);
+                        setSelected((current) => (current?.id === created.id ? null : current));
+                        void load();
+                    } catch (err) {
+                        toast(errorMessage(err), "error");
+                    }
+                },
+            });
             setCreateForm(emptyForm());
             setCreating(false);
             setSelected(created);
@@ -203,10 +213,11 @@ export function ServicesPage() {
 
     const handleUpdate = async () => {
         if (!selected || !formValid(editForm) || !canWrite) return;
+        const previous = selected;
         setSaveBusy(true);
         try {
             const p = parseForm(editForm);
-            await updateServiceItem(selected.id, {
+            await updateServiceItem(previous.id, {
                 name: p.name,
                 category: p.category,
                 price: p.price,
@@ -214,7 +225,22 @@ export function ServicesPage() {
                 active: p.active,
             });
             setDetailEdit(false);
-            toast(t("services.toast.saved"), "success");
+            toast(t("services.toast.saved"), "success", {
+                onUndo: async () => {
+                    try {
+                        await updateServiceItem(previous.id, {
+                            name: previous.name,
+                            category: previous.category,
+                            price: previous.price,
+                            description: previous.description,
+                            active: previous.active,
+                        });
+                        void load();
+                    } catch (err) {
+                        toast(errorMessage(err), "error");
+                    }
+                },
+            });
             void load();
         } catch (e) {
             toast(errorMessage(e), "error");
@@ -226,9 +252,25 @@ export function ServicesPage() {
     const handleDelete = async () => {
         if (!deleteId) return;
         const id = deleteId;
+        const row = services.find((item) => item.id === id) ?? (selected?.id === id ? selected : null);
         try {
             await deleteServiceItem(id);
-            toast(t("services.toast.deleted"), "success");
+            toast(t("services.toast.deleted"), "success", {
+                onUndo: async () => {
+                    if (!row) return;
+                    try {
+                        await createServiceItem({
+                            name: row.name,
+                            category: row.category,
+                            price: row.price,
+                            description: row.description ?? undefined,
+                        });
+                        void load();
+                    } catch (err) {
+                        toast(errorMessage(err), "error");
+                    }
+                },
+            });
             setDeleteId(null);
             setSelected((s) => (s?.id === id ? null : s));
             setDetailEdit(false);

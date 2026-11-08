@@ -12,7 +12,7 @@ import {
 } from "@/systems/practice-host/controllers/cluster.controller";
 import { useClusterStore } from "@/models/store/cluster-store";
 import { Button } from "@/views/components/ui/button";
-import { errorMessage } from "@/lib/utils";
+import { errorMessage, masterDeviceUnreachable } from "@/lib/utils";
 import { useToastStore } from "@/views/components/ui/toast-store";
 import { rewriteDigitsForMode } from "@/lib/arabic-numerals";
 import { useT } from "@/lib/i18n";
@@ -95,7 +95,13 @@ export function ClusterJoinFlow({ onComplete, onBack, completeWithAccountSetup =
             setPhase("sas");
             toast(t("page.lan.cluster_join.toast.request_sent"), "info");
         } catch (e) {
-            toast(`${t("page.lan.cluster_join.toast.connect_failed")} ${errorMessage(e)}`, "error");
+            const raw = errorMessage(e);
+            toast(
+                masterDeviceUnreachable(raw)
+                    ? t("page.lan.cluster_join.toast.connect_failed")
+                    : `${t("page.lan.cluster_join.toast.connect_failed")} ${raw}`,
+                "error",
+            );
         } finally {
             setJoinBusy(false);
         }
@@ -126,7 +132,11 @@ export function ClusterJoinFlow({ onComplete, onBack, completeWithAccountSetup =
                 toast(t("page.lan.cluster_join.toast.sas_invalid"), "error");
             }
         } catch (e) {
-            toast(errorMessage(e), "error");
+            const raw = errorMessage(e);
+            toast(
+                masterDeviceUnreachable(raw) ? t("page.lan.cluster_join.toast.connect_failed") : raw,
+                "error",
+            );
         } finally {
             setJoinBusy(false);
         }

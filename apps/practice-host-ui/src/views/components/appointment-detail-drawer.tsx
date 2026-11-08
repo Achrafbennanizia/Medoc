@@ -30,8 +30,12 @@ import {
 } from "@/lib/dental";
 import { DentalToothPickerMini } from "./dental-tooth-picker-mini";
 
-function appointmentDrawerActiveStep(status: Appointment["status"]): number {
+/** F64: workflow steps map 1:1 onto `AppointmentStatus`; "Active" is `IN_PROGRESS`. */
+export const APPOINTMENT_DRAWER_STEPS: Appointment["status"][] = ["PLANNED", "CONFIRMED", "IN_PROGRESS", "COMPLETED"];
+
+export function appointmentDrawerActiveStep(status: Appointment["status"]): number {
     if (status === "COMPLETED") return 3;
+    if (status === "IN_PROGRESS") return 2;
     if (status === "CONFIRMED") return 1;
     if (status === "PLANNED") return 0;
     if (status === "CANCELLED" || status === "NO_SHOW") return -1;
@@ -148,8 +152,7 @@ export function AppointmentDetailDrawer({
                                         className={`appointment-workflow-node ${i <= active ? "on" : ""} ${i === active ? "current" : ""}`}
                                         title={label}
                                         onClick={() => {
-                                            const map: Appointment["status"][] = ["PLANNED", "CONFIRMED", "CONFIRMED", "COMPLETED"];
-                                            onStatusChange(appointment.id, map[i]!);
+                                            onStatusChange(appointment.id, APPOINTMENT_DRAWER_STEPS[i]!);
                                         }}
                                     >
                                         {i === 0 ? <CheckIcon size={14} /> : i === 1 ? <EyeIcon size={14} /> : i === 2 ? <BoltIcon size={14} /> : <ShieldCheckIcon size={14} />}

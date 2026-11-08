@@ -14,18 +14,28 @@ pub async fn run_rust_only_migrations(pool: &SqlitePool) -> Result<(), AppError>
     .await
     .map_err(AppError::Database)?;
     if product_id_col == 0 {
+        let mut fk = pool.acquire().await.map_err(AppError::Database)?;
         sqlx::query("PRAGMA foreign_keys = OFF")
-            .execute(pool)
+            .execute(&mut *fk)
             .await
             .map_err(AppError::Database)?;
         sqlx::query("DROP TABLE IF EXISTS supplier_pharma_template")
-            .execute(pool)
+            .execute(&mut *fk)
             .await
             .map_err(AppError::Database)?;
         sqlx::query("PRAGMA foreign_keys = ON")
-            .execute(pool)
+            .execute(&mut *fk)
             .await
             .map_err(AppError::Database)?;
+        let fk_bad: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM pragma_foreign_key_check")
+            .fetch_one(&mut *fk)
+            .await
+            .map_err(AppError::Database)?;
+        if fk_bad > 0 {
+            return Err(AppError::Internal(format!(
+                "foreign_key_check reported {fk_bad} violations after supplier template rebuild"
+            )));
+        }
         sqlx::query(
             "CREATE TABLE supplier_pharma_template (
             id TEXT PRIMARY KEY,
@@ -65,6 +75,16 @@ pub async fn run_rust_only_migrations(pool: &SqlitePool) -> Result<(), AppError>
         .bind(&hash2)
         .execute(pool)
         .await?;
+        if crate::mvp_security::TOTP_2FA_ENABLED {
+            let (secret, _) = crate::infrastructure::totp::generate_enrollment("ahmed@practice.de")?;
+            sqlx::query(
+                "UPDATE staff SET totp_secret = ?1, totp_enrolled_at = CURRENT_TIMESTAMP
+                 WHERE id = 'seed-physician-001'",
+            )
+            .bind(&secret)
+            .execute(pool)
+            .await?;
+        }
     }
 
     let ins = sqlx::query(
@@ -144,8 +164,9 @@ pub async fn run_rust_only_migrations(pool: &SqlitePool) -> Result<(), AppError>
     .await
     .map_err(AppError::Database)?;
     if task_patient_notnull > 0 {
+        let mut fk = pool.acquire().await.map_err(AppError::Database)?;
         sqlx::query("PRAGMA foreign_keys = OFF")
-            .execute(pool)
+            .execute(&mut *fk)
             .await
             .map_err(AppError::Database)?;
         sqlx::query(
@@ -171,43 +192,52 @@ pub async fn run_rust_only_migrations(pool: &SqlitePool) -> Result<(), AppError>
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             )",
         )
-        .execute(pool)
+        .execute(&mut *fk)
         .await
         .map_err(AppError::Database)?;
         sqlx::query("INSERT INTO practice_task_patient_optional SELECT * FROM practice_task")
-            .execute(pool)
+            .execute(&mut *fk)
             .await
             .map_err(AppError::Database)?;
         sqlx::query("DROP TABLE practice_task")
-            .execute(pool)
+            .execute(&mut *fk)
             .await
             .map_err(AppError::Database)?;
         sqlx::query("ALTER TABLE practice_task_patient_optional RENAME TO practice_task")
-            .execute(pool)
+            .execute(&mut *fk)
             .await
             .map_err(AppError::Database)?;
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_practice_task_reception ON practice_task(assignee_role, status, datetime(created_at) DESC)",
         )
-        .execute(pool)
+        .execute(&mut *fk)
         .await
         .map_err(AppError::Database)?;
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_practice_task_assignee ON practice_task(assignee_user_id, status, datetime(created_at) DESC)",
         )
-        .execute(pool)
+        .execute(&mut *fk)
         .await
         .map_err(AppError::Database)?;
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_practice_task_creator ON practice_task(created_by, status, datetime(updated_at) DESC)",
         )
-        .execute(pool)
+        .execute(&mut *fk)
         .await
         .map_err(AppError::Database)?;
         sqlx::query("PRAGMA foreign_keys = ON")
-            .execute(pool)
+            .execute(&mut *fk)
             .await
             .map_err(AppError::Database)?;
+        let fk_bad: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM pragma_foreign_key_check")
+            .fetch_one(&mut *fk)
+            .await
+            .map_err(AppError::Database)?;
+        if fk_bad > 0 {
+            return Err(AppError::Internal(format!(
+                "foreign_key_check reported {fk_bad} violations after practice_task rebuild"
+            )));
+        }
     }
 
     let comment_table: i64 = sqlx::query_scalar(
@@ -355,7 +385,188 @@ pub async fn run_rust_only_migrations(pool: &SqlitePool) -> Result<(), AppError>
     .execute(pool)
     .await
     .map_err(AppError::Database)?;
+    ensure_appointment_duration(pool).await?;
+    // F86: correction chain for issued prescriptions.
+    let _ = sqlx::query("ALTER TABLE prescription ADD COLUMN replaces_id TEXT").execute(pool).await;
     super::cluster_tables::ensure_cluster_tables(pool).await?;
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS sync_tombstone (
+  entity_table TEXT NOT NULL,
+  entity_id    TEXT NOT NULL,
+  deleted_at   TEXT NOT NULL,
+  device_id    TEXT NOT NULL,
+  PRIMARY KEY (entity_table, entity_id)
+)",
+    )
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?;
+    let _ = crate::infrastructure::database::recorded_write::purge_old_tombstones(pool).await?;
+    crate::infrastructure::database::number_sequence::ensure_table(pool).await?;
+    crate::infrastructure::database::number_sequence::ensure_unique_number_indexes(pool).await?;
+    ensure_updated_at_on_synced_tables(pool).await?;
+    // F144: existing installs keep the old status CHECK lists; widen them.
+    super::status_checks::widen_status_checks(pool).await?;
+    ensure_chart_attachment_sha256(pool).await?;
+    allow_null_patient_insurance(pool).await?;
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_patient_name ON patient(name)")
+        .execute(pool)
+        .await
+        .map_err(AppError::Database)?;
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS sync_blob (
+            sha256 TEXT PRIMARY KEY,
+            bytes BLOB NOT NULL
+        )",
+    )
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?;
 
     Ok(())
+}
+
+/// F65: appointment length. Backfills from a leading "<n> min" in notes.
+async fn ensure_appointment_duration(pool: &SqlitePool) -> Result<(), AppError> {
+    let has: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM pragma_table_info('appointment') WHERE name = 'duration_minutes'",
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::Database)?;
+    if has > 0 {
+        return Ok(());
+    }
+    sqlx::query("ALTER TABLE appointment ADD COLUMN duration_minutes INTEGER NOT NULL DEFAULT 30")
+        .execute(pool)
+        .await
+        .map_err(AppError::Database)?;
+    let rows: Vec<(String, String)> = sqlx::query_as(
+        "SELECT id, notes FROM appointment WHERE notes IS NOT NULL AND notes LIKE '%min%'",
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(AppError::Database)?;
+    let re = regex::Regex::new(r"(?i)(?:^\s*|duration:\s*)(\d{1,3})\s*min").expect("duration regex");
+    for (id, notes) in rows {
+        if let Some(m) = re
+            .captures(&notes)
+            .and_then(|c| c.get(1))
+            .and_then(|m| m.as_str().parse::<i64>().ok())
+            .filter(|m| (5..=720).contains(m))
+        {
+            // Local schema backfill on every device: not a user write, no outbox entry.
+            sqlx::query("UPDATE appointment SET duration_minutes = ?1 WHERE id = ?2")
+                .bind(m)
+                .bind(&id)
+                .execute(pool)
+                .await
+                .map_err(AppError::Database)?;
+        }
+    }
+    Ok(())
+}
+
+async fn ensure_updated_at_on_synced_tables(pool: &SqlitePool) -> Result<(), AppError> {
+    use crate::infrastructure::database::sync_registry::synced_tables;
+    for table in synced_tables() {
+        let exists: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?1",
+        )
+        .bind(table)
+        .fetch_one(pool)
+        .await
+        .map_err(AppError::Database)?;
+        if exists == 0 {
+            continue;
+        }
+        let n: i64 = sqlx::query_scalar(&format!(
+            "SELECT COUNT(*) FROM pragma_table_info('{table}') WHERE name = 'updated_at'"
+        ))
+        .fetch_one(pool)
+        .await
+        .map_err(AppError::Database)?;
+        if n == 0 {
+            sqlx::query(&format!("ALTER TABLE {table} ADD COLUMN updated_at TEXT"))
+                .execute(pool)
+                .await
+                .map_err(AppError::Database)?;
+        }
+        let has_created: i64 = sqlx::query_scalar(&format!(
+            "SELECT COUNT(*) FROM pragma_table_info('{table}') WHERE name = 'created_at'"
+        ))
+        .fetch_one(pool)
+        .await
+        .map_err(AppError::Database)?;
+        if has_created > 0 {
+            sqlx::query(&format!(
+                "UPDATE {table} SET updated_at = COALESCE(updated_at, CAST(created_at AS TEXT), strftime('%Y-%m-%dT%H:%M:%fZ','now')) WHERE updated_at IS NULL"
+            ))
+            .execute(pool)
+            .await
+            .map_err(AppError::Database)?;
+        } else {
+            sqlx::query(&format!(
+                "UPDATE {table} SET updated_at = COALESCE(updated_at, strftime('%Y-%m-%dT%H:%M:%fZ','now')) WHERE updated_at IS NULL"
+            ))
+            .execute(pool)
+            .await
+            .map_err(AppError::Database)?;
+        }
+    }
+    Ok(())
+}
+
+async fn ensure_chart_attachment_sha256(pool: &SqlitePool) -> Result<(), AppError> {
+    let exists: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'chart_attachment'",
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::Database)?;
+    if exists == 0 {
+        return Ok(());
+    }
+    let n: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM pragma_table_info('chart_attachment') WHERE name = 'sha256'",
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::Database)?;
+    if n == 0 {
+        sqlx::query("ALTER TABLE chart_attachment ADD COLUMN sha256 TEXT")
+            .execute(pool)
+            .await
+            .map_err(AppError::Database)?;
+    }
+    Ok(())
+}
+
+/// F52: missing insurance number is NULL (UNIQUE still holds for present values).
+async fn allow_null_patient_insurance(pool: &SqlitePool) -> Result<(), AppError> {
+    let notnull: Option<i64> = sqlx::query_scalar(
+        "SELECT \"notnull\" FROM pragma_table_info('patient') WHERE name = 'insurance_number'",
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(AppError::Database)?;
+    if notnull.unwrap_or(0) == 0 {
+        return Ok(());
+    }
+    let create_sql: Option<String> = sqlx::query_scalar(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'patient'",
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(AppError::Database)?;
+    let Some(create_sql) = create_sql else {
+        return Ok(());
+    };
+    let re = regex::Regex::new(r"(?i)(insurance_number\s+TEXT)\s+NOT NULL")
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+    if !re.is_match(&create_sql) {
+        return Ok(());
+    }
+    let new_sql = re.replace(&create_sql, "$1").into_owned();
+    super::status_checks::rebuild_table_from_sql(pool, "patient", &new_sql).await
 }

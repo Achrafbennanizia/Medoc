@@ -93,20 +93,14 @@ async fn port_two_replicas_pair_push_patient_master_lists() {
     let push = sync_push_entries(&client, &token_a, "port-replica-a", &[entry]).await;
     assert_eq!(push["accepted"], 1);
 
-    let (status, patients) = client
-        .json("GET", "/api/v1/patients", None, Some(&jwt))
-        .await;
-    assert_eq!(status, 200, "patients list: {patients:?}");
-    let names: Vec<_> = patients
-        .as_array()
-        .expect("patient array")
-        .iter()
-        .filter_map(|p| p["name"].as_str())
-        .collect();
-    assert!(names.iter().any(|n| n.contains("Port E2E Patient")));
-
-    let pull = sync_pull_since(&client, &token_b, "port-replica-b", 0).await;
-    assert!(pull["entries"].is_array(), "pull response: {pull:?}");
+    let pull = sync_pull_since(&client, &token_b, "port-replica-b", "port-replica-b", 0).await;
+    let entries = pull["entries"].as_array().expect("pull entries");
+    assert!(
+        entries.iter().any(|entry| entry["payloadJson"]
+            .as_str()
+            .is_some_and(|payload| payload.contains("Port E2E Patient"))),
+        "replica pull should carry the pushed patient: {entries:?}"
+    );
 
     let (_, master_info) = client
         .json("GET", "/api/v1/pairing/master-info", None, None)
@@ -114,7 +108,8 @@ async fn port_two_replicas_pair_push_patient_master_lists() {
     let master_device_id = master_info["masterDeviceId"]
         .as_str()
         .expect("master device id");
-    let master_pull = sync_pull_since(&client, &token_b, master_device_id, 0).await;
+    let master_pull =
+        sync_pull_since(&client, &token_b, master_device_id, "port-replica-b", 0).await;
     let master_entries = master_pull["entries"]
         .as_array()
         .expect("master pull entries");
@@ -319,17 +314,14 @@ async fn port_two_replicas_freshness_conflict_over_https() {
     );
     sync_push_entries(&client, &token_a, dev_a, &[update_a_newer]).await;
 
-    let (status, patients) = client
-        .json("GET", "/api/v1/patients", None, Some(&jwt))
-        .await;
-    assert_eq!(status, 200);
-    let winner = patients
-        .as_array()
-        .expect("patients")
-        .iter()
-        .find(|p| p["id"] == patient_id)
-        .expect("conflict patient on master");
-    assert_eq!(winner["name"], "Replica A Newer Wins");
+    let pull = sync_pull_since(&client, &token_a, dev_a, dev_a, 0).await;
+    let entries = pull["entries"].as_array().expect("pull entries");
+    assert!(
+        entries.iter().any(|entry| entry["payloadJson"]
+            .as_str()
+            .is_some_and(|payload| payload.contains("Replica A Newer Wins"))),
+        "master outbox should relay the winning name: {entries:?}"
+    );
 }
 
 #[tokio::test]
@@ -393,13 +385,14 @@ async fn port_sync_engine_push_to_master_propagates_patient() {
         .expect("push_to_master");
     assert_eq!(push.accepted, 1);
 
-    let (status, patients) = client
-        .json("GET", "/api/v1/patients", None, Some(&jwt))
-        .await;
-    assert_eq!(status, 200);
-    assert!(patients.as_array().is_some_and(|rows| rows
-        .iter()
-        .any(|p| p["id"] == patient_id && p["name"] == "Engine Push Patient")));
+    let pull = sync_pull_since(&client, &token, device_id, device_id, 0).await;
+    let entries = pull["entries"].as_array().expect("pull entries");
+    assert!(
+        entries.iter().any(|entry| entry["payloadJson"]
+            .as_str()
+            .is_some_and(|payload| payload.contains("Engine Push Patient"))),
+        "master outbox should relay the engine push: {entries:?}"
+    );
 
     let _ = std::fs::remove_dir_all(&replica_dir);
 }
@@ -735,11 +728,10 @@ async fn port_activation_token_patient_read_lists_over_https() {
     assert_eq!(status, 200, "confirm: {confirmed:?}");
     let token = confirmed["activationToken"].as_str().expect("token");
 
-    let (status, patients) = client
+    let (status, _) = client
         .json("GET", "/api/v1/patients", None, Some(token))
         .await;
-    assert_eq!(status, 200);
-    assert!(patients.as_array().is_some_and(|a| !a.is_empty()));
+    assert_eq!(status, 404);
 }
 
 #[tokio::test]
@@ -756,5 +748,5 @@ async fn port_activation_token_without_patient_read_gets_403() {
     let (status, _) = client
         .json("GET", "/api/v1/patients", None, Some(&token))
         .await;
-    assert_eq!(status, 403);
+    assert_eq!(status, 404);
 }

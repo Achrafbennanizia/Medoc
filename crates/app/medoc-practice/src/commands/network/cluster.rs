@@ -76,11 +76,19 @@ pub async fn license_activate(
     .await?;
     let status = activate_cluster_license(&pool, &uid, &resolved).await?;
     if status.licensed {
-        let _ = crate::commands::company_portal_commands::apply_serverless_role_from_license_code(
-            &pool,
-            &license_key,
-        )
-        .await;
+        let rebound = resolved.trim() != license_key.trim();
+        if let Some(code) =
+            crate::commands::company_portal_commands::deployment_code_for_pasted_license(
+                &license_key,
+                rebound,
+            )
+        {
+            let _ = crate::commands::company_portal_commands::apply_serverless_role_from_license_code(
+                &pool,
+                &code,
+            )
+            .await;
+        }
         crate::commands::company_portal_commands::reset_onboarding_after_owner_license_activation(
             &pool,
         )

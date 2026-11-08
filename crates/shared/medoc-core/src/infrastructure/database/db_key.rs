@@ -14,6 +14,17 @@ use zeroize::Zeroizing;
 use crate::error::AppError;
 const SERVICE: &str = "de.medoc.app";
 const KEYRING_ACCOUNT: &str = "sqlcipher-key";
+
+fn instance_suffix() -> String {
+    match std::env::var("MEDOC_INSTANCE") {
+        Ok(s) if !s.trim().is_empty() => format!("-{}", s.trim()),
+        _ => String::new(),
+    }
+}
+
+fn keyring_account() -> String {
+    format!("{KEYRING_ACCOUNT}{}", instance_suffix())
+}
 const SALT_FILE: &str = "db-key.salt";
 const WRAP_FILE: &str = "db-key.wrap";
 /// Fallback when the OS keychain is unavailable (adhoc USB builds, CI).
@@ -97,8 +108,8 @@ pub fn import_raw_key(key: &[u8; 32]) -> Result<(), AppError> {
 
 /// Apply manifest SQLCipher key during owner activation.
 ///
-/// When the app bootstrapped with an ephemeral keyring key (no `db-key.wrap`), replaces
-/// `medoc.db` with a fresh file under the manifest key. Caller must reopen via
+/// When the app bootstrapped with an ephemeral keyring key (no `db-key.wrap`), rekeys
+/// the existing `medoc.db` to the manifest key. Caller must reopen via
 /// [`crate::infrastructure::database::connection::reopen_app_pool`] when this returns `true`.
 pub async fn apply_activation_sqlcipher_key(
     pool: &SqlitePool,
@@ -142,11 +153,8 @@ pub async fn apply_activation_sqlcipher_key(
             let sidecar = PathBuf::from(format!("{}{suffix}", db_path.display()));
             let _ = std::fs::remove_file(sidecar);
         }
-        std::fs::remove_file(db_path).map_err(|e| {
-            AppError::Internal(format!(
-                "Could not replace medoc.db before activation import: {e}"
-            ))
-        })?;
+        crate::infrastructure::database::sqlcipher::rekey_database_file(db_path, &old_arr, new_key)
+            .await?;
     }
 
     keyring_store(new_key)?;
@@ -165,11 +173,23 @@ pub fn ensure_sqlcipher_key(
         return Ok(Zeroizing::new(normalize_32(k)));
     }
     if let Ok(k) = keyring_load() {
-        let _ = write_local_key_file(app_dir, &k);
         return Ok(Zeroizing::new(k));
     }
     if let Ok(k) = read_local_key_file(app_dir) {
-        let _ = keyring_store(&k);
+        // F45: move the legacy plaintext key into the keychain. Delete the file
+        // only once the keychain holds it, or the database becomes unreadable.
+        match keyring_store(&k).and_then(|_| keyring_load()) {
+            Ok(stored) if stored == k => {
+                let path = local_key_path(app_dir);
+                let _ = std::fs::write(&path, vec![0u8; 64]);
+                let _ = std::fs::remove_file(&path);
+            }
+            _ => tracing::warn!(
+                target: "medoc::security",
+                event = "SQLCIPHER_LOCAL_KEY_KEPT",
+                hint = "OS keychain unavailable; plaintext sqlcipher.key left in place"
+            ),
+        }
         return Ok(Zeroizing::new(k));
     }
     if wrap_path(app_dir).exists() {
@@ -184,8 +204,20 @@ pub fn ensure_sqlcipher_key(
     }
     let mut key = vec![0u8; 32];
     rand::thread_rng().fill_bytes(&mut key);
-    let _ = keyring_store(&key);
-    write_local_key_file(app_dir, &key)?;
+    // F45: a key that never reached durable storage is gone after restart and
+    // the freshly encrypted database with it (the old code ignored this error).
+    let in_keychain = keyring_store(&key)
+        .and_then(|_| keyring_load())
+        .map(|stored| stored == key)
+        .unwrap_or(false);
+    if !in_keychain {
+        write_local_key_file(app_dir, &key)?;
+        tracing::warn!(
+            target: "medoc::security",
+            event = "SQLCIPHER_KEY_FILE_FALLBACK",
+            hint = "OS keychain unavailable; key stored in sqlcipher.key (0600). Set a passphrase to remove it."
+        );
+    }
     Ok(Zeroizing::new(key))
 }
 
@@ -258,7 +290,7 @@ fn normalize_32(mut raw: Vec<u8>) -> Vec<u8> {
 }
 
 fn keyring_load() -> Result<Vec<u8>, AppError> {
-    let entry = Entry::new(SERVICE, KEYRING_ACCOUNT)
+    let entry = Entry::new(SERVICE, &keyring_account())
         .map_err(|e| AppError::Internal(format!("Keyring sqlcipher: {e}")))?;
     let encoded = entry
         .get_password()
@@ -270,7 +302,7 @@ fn keyring_load() -> Result<Vec<u8>, AppError> {
 }
 
 fn keyring_store(key: &[u8]) -> Result<(), AppError> {
-    let entry = Entry::new(SERVICE, KEYRING_ACCOUNT)
+    let entry = Entry::new(SERVICE, &keyring_account())
         .map_err(|e| AppError::Internal(format!("Keyring sqlcipher: {e}")))?;
     entry
         .set_password(&STANDARD.encode(key))
@@ -313,27 +345,46 @@ fn derive_key_from_passphrase(passphrase: &str, salt: &[u8]) -> Result<Vec<u8>, 
     Ok(out.to_vec())
 }
 
-/// Simple wrap: `nonce(12) || ciphertext` where ciphertext = xor-like via repeated HMAC stream.
-/// (Avoids extra AEAD crate; key never stored plaintext on disk.)
+const WRAP_V2_TAG: &str = "v2:";
+
+/// Key-encryption key, domain-separated from the passphrase-derived DB key so
+/// the wrap never XORs a key with itself.
+fn derive_wrap_key(passphrase: &str, salt: &[u8]) -> Result<Zeroizing<[u8; 32]>, AppError> {
+    let mut kek_salt = salt.to_vec();
+    kek_salt.extend_from_slice(b"medoc-db-key-wrap-v2");
+    let raw = derive_key_from_passphrase(passphrase, &kek_salt)?;
+    let mut out = Zeroizing::new([0u8; 32]);
+    out.copy_from_slice(&raw[..32]);
+    Ok(out)
+}
+
+/// F45: `db-key.wrap` = `v2:` + base64(nonce(24) || XChaCha20-Poly1305(key)).
+/// A wrong passphrase now fails authentication instead of yielding a bad key.
 fn write_wrap_file(app_dir: &Path, key: &[u8], passphrase: &str) -> Result<(), AppError> {
+    use chacha20poly1305::aead::{Aead, KeyInit};
+    use chacha20poly1305::{XChaCha20Poly1305, XNonce};
     let salt = load_or_create_salt(app_dir)?;
-    let wrap_key = derive_key_from_passphrase(passphrase, &salt)?;
-    let mut nonce = [0u8; 12];
+    let kek = derive_wrap_key(passphrase, &salt)?;
+    let cipher = XChaCha20Poly1305::new_from_slice(&kek[..])
+        .map_err(|e| AppError::Internal(format!("wrap cipher: {e}")))?;
+    let mut nonce = [0u8; 24];
     rand::thread_rng().fill_bytes(&mut nonce);
-    let mut payload = Vec::with_capacity(key.len());
-    for (i, b) in key.iter().enumerate() {
-        payload.push(b ^ wrap_key[i % 32]);
-    }
+    let ct = cipher
+        .encrypt(XNonce::from_slice(&nonce), key)
+        .map_err(|_| AppError::Internal("db-key.wrap encrypt".into()))?;
     let mut blob = nonce.to_vec();
-    blob.extend(payload);
+    blob.extend(ct);
     let path = wrap_path(app_dir);
-    std::fs::write(&path, STANDARD.encode(blob))
+    let tmp = path.with_extension("wrap.tmp");
+    std::fs::write(&tmp, format!("{WRAP_V2_TAG}{}", STANDARD.encode(blob)))
         .map_err(|e| AppError::Internal(format!("db-key.wrap write: {e}")))?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
+        let _ = std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o600));
     }
+    std::fs::rename(&tmp, &path)
+        .map_err(|e| AppError::Internal(format!("db-key.wrap rename: {e}")))?;
     Ok(())
 }
 
@@ -341,24 +392,99 @@ fn read_wrap_file(app_dir: &Path, passphrase: &str) -> Result<Vec<u8>, AppError>
     let path = wrap_path(app_dir);
     let encoded = std::fs::read_to_string(&path)
         .map_err(|e| AppError::Internal(format!("db-key.wrap read: {e}")))?;
+    let encoded = encoded.trim();
+    let salt = load_or_create_salt(app_dir)?;
+    if let Some(v2) = encoded.strip_prefix(WRAP_V2_TAG) {
+        use chacha20poly1305::aead::{Aead, KeyInit};
+        use chacha20poly1305::{XChaCha20Poly1305, XNonce};
+        let blob = STANDARD
+            .decode(v2)
+            .map_err(|e| AppError::Internal(format!("db-key.wrap decode: {e}")))?;
+        if blob.len() < 24 + 16 + 32 {
+            return Err(AppError::Internal("db-key.wrap invalid".into()));
+        }
+        let kek = derive_wrap_key(passphrase, &salt)?;
+        let cipher = XChaCha20Poly1305::new_from_slice(&kek[..])
+            .map_err(|e| AppError::Internal(format!("wrap cipher: {e}")))?;
+        let key = cipher
+            .decrypt(XNonce::from_slice(&blob[..24]), &blob[24..])
+            .map_err(|_| AppError::Validation("Wrong database passphrase.".into()))?;
+        return Ok(normalize_32(key));
+    }
+    // Legacy v1 file: payload = key XOR Argon2(passphrase, salt). Every v1 file
+    // was written by `provision_user_passphrase`, whose key IS that Argon2
+    // output, so decode it and upgrade the file to v2 in place.
     let blob = STANDARD
-        .decode(encoded.trim())
+        .decode(encoded)
         .map_err(|e| AppError::Internal(format!("db-key.wrap decode: {e}")))?;
     if blob.len() < 12 + 32 {
         return Err(AppError::Internal("db-key.wrap invalid".into()));
     }
-    let salt = load_or_create_salt(app_dir)?;
     let wrap_key = derive_key_from_passphrase(passphrase, &salt)?;
-    let nonce_len = 12;
-    let payload = &blob[nonce_len..];
+    let payload = &blob[12..];
     let mut key = Vec::with_capacity(payload.len());
     for (i, b) in payload.iter().enumerate() {
         key.push(b ^ wrap_key[i % 32]);
     }
-    Ok(normalize_32(key))
+    let key = normalize_32(key);
+    if let Err(e) = write_wrap_file(app_dir, &key, passphrase) {
+        tracing::warn!(target: "medoc::security", event = "DB_KEY_WRAP_UPGRADE_FAILED", error = %e);
+    }
+    Ok(key)
 }
 
 #[cfg(test)]
 pub fn test_key_material() -> Zeroizing<Vec<u8>> {
     test_pool_key_material().expect("test pool key")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::keyring_account;
+
+    #[test]
+    fn two_instances_use_different_keychain_accounts() {
+        let a = {
+            std::env::set_var("MEDOC_INSTANCE", "alpha");
+            keyring_account()
+        };
+        let b = {
+            std::env::set_var("MEDOC_INSTANCE", "beta");
+            keyring_account()
+        };
+        std::env::remove_var("MEDOC_INSTANCE");
+        assert_ne!(a, b);
+        assert!(a.contains("alpha"));
+        assert!(b.contains("beta"));
+    }
+
+    #[test]
+    fn wrap_round_trips_and_rejects_wrong_passphrase() {
+        let dir = std::env::temp_dir().join(format!("medoc-wrap-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let key = [7u8; 32];
+        super::write_wrap_file(&dir, &key, "correct horse battery").unwrap();
+        let raw = std::fs::read_to_string(super::wrap_path(&dir)).unwrap();
+        assert!(raw.starts_with(super::WRAP_V2_TAG));
+        assert_eq!(super::read_wrap_file(&dir, "correct horse battery").unwrap(), key.to_vec());
+        assert!(super::read_wrap_file(&dir, "wrong passphrase!!").is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn legacy_v1_wrap_still_unlocks_and_is_upgraded() {
+        use base64::Engine;
+        let dir = std::env::temp_dir().join(format!("medoc-wrap-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let salt = super::load_or_create_salt(&dir).unwrap();
+        let derived = super::derive_key_from_passphrase("legacy passphrase", &salt).unwrap();
+        let mut blob = vec![1u8; 12];
+        blob.extend(derived.iter().zip(derived.iter()).map(|(a, b)| a ^ b));
+        std::fs::write(super::wrap_path(&dir), base64::engine::general_purpose::STANDARD.encode(blob)).unwrap();
+        assert_eq!(super::read_wrap_file(&dir, "legacy passphrase").unwrap(), derived);
+        let raw = std::fs::read_to_string(super::wrap_path(&dir)).unwrap();
+        assert!(raw.starts_with(super::WRAP_V2_TAG));
+        assert_eq!(super::read_wrap_file(&dir, "legacy passphrase").unwrap(), derived);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

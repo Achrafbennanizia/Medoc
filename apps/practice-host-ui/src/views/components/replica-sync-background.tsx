@@ -6,19 +6,18 @@
 import { useEffect, useRef } from "react";
 
 import { syncGetStatus, syncRunNow } from "@/systems/practice-host/controllers/sync.controller";
-import { errorMessage } from "@/lib/utils";
+import { errorMessage, masterDeviceUnreachable } from "@/lib/utils";
 import { useTParams } from "@/lib/i18n";
 import { useReplicaSyncStatusStore } from "@/models/store/replica-sync-status-store";
 import { useToastStore } from "@/views/components/ui/toast-store";
 
 const SYNC_INTERVAL_IDLE_MS = 500;
 const SYNC_INTERVAL_ACTIVE_MS = 500;
-const ERROR_TOAST_COOLDOWN_MS = 60_000;
+const MASTER_DOWN_DELAY_MS = 15_000;
 
 export function ReplicaSyncBackground() {
     const running = useRef(false);
     const timerRef = useRef<number | null>(null);
-    const lastErrorToastAt = useRef(0);
     const toast = useToastStore((s) => s.add);
     const tp = useTParams();
     const setLastSyncError = useReplicaSyncStatusStore((s) => s.setLastError);
@@ -36,11 +35,6 @@ export function ReplicaSyncBackground() {
         };
 
         const maybeToastError = (message: string) => {
-            const now = Date.now();
-            if (now - lastErrorToastAt.current < ERROR_TOAST_COOLDOWN_MS) {
-                return;
-            }
-            lastErrorToastAt.current = now;
             toast(message, "warning");
         };
 
@@ -76,17 +70,27 @@ export function ReplicaSyncBackground() {
                 }
                 const report = await syncRunNow();
                 if (report.error) {
-                    setLastSyncError(report.error);
-                    maybeToastError(tp("replica.sync.background_error", { error: report.error }));
-                    nextDelay = SYNC_INTERVAL_ACTIVE_MS;
+                    if (masterDeviceUnreachable(report.error)) {
+                        setLastSyncError(null);
+                        nextDelay = MASTER_DOWN_DELAY_MS;
+                    } else {
+                        setLastSyncError(report.error);
+                        maybeToastError(tp("replica.sync.background_error", { error: report.error }));
+                        nextDelay = SYNC_INTERVAL_ACTIVE_MS;
+                    }
                 } else {
                     setLastSyncError(null);
                 }
             } catch (e) {
                 const msg = errorMessage(e);
-                setLastSyncError(msg);
-                maybeToastError(tp("replica.sync.background_error", { error: msg }));
-                nextDelay = SYNC_INTERVAL_ACTIVE_MS;
+                if (masterDeviceUnreachable(msg)) {
+                    setLastSyncError(null);
+                    nextDelay = MASTER_DOWN_DELAY_MS;
+                } else {
+                    setLastSyncError(msg);
+                    maybeToastError(tp("replica.sync.background_error", { error: msg }));
+                    nextDelay = SYNC_INTERVAL_ACTIVE_MS;
+                }
             } finally {
                 running.current = false;
                 if (!cancelled) {

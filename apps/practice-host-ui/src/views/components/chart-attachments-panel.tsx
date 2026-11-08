@@ -146,7 +146,8 @@ export type ChartAttachmentsPanelProps = {
     onRequestValidate: (attachmentId: string, label: string) => void;
     onRevokeValidation: (attachmentId: string, shortLabel: string) => void;
     formatAddedAt: (iso: string) => string;
-    onScannerClick: () => void;
+    /** F143: omitted while the scanner integration is unavailable; the button is then hidden. */
+    onScannerClick?: () => void;
 };
 
 export function ChartAttachmentsPanel({
@@ -263,9 +264,11 @@ export function ChartAttachmentsPanel({
                         >
                             <PlusIcon size={14} /> {t("chart.attachments.photo_camera")}
                         </Button>
-                        <Button type="button" size="sm" variant="secondary" disabled={!canManageAttachments} onClick={onScannerClick}>
-                            <BoltIcon size={14} /> {t("chart.attachments.scanner")}
-                        </Button>
+                        {onScannerClick ? (
+                            <Button type="button" size="sm" variant="secondary" disabled={!canManageAttachments} onClick={onScannerClick}>
+                                <BoltIcon size={14} /> {t("chart.attachments.scanner")}
+                            </Button>
+                        ) : null}
                     </div>
                 </div>
             </div>

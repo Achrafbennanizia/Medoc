@@ -4,6 +4,7 @@ use medoc_core::error::AppError;
 use sqlx::SqlitePool;
 use tokio::net::TcpStream;
 
+use crate::cluster::crypto::fingerprint_matches_pubkey;
 use crate::cluster::services::cluster_reset_service::{
     load_pending_reset, queue_verified_remote_reset,
 };
@@ -156,7 +157,22 @@ async fn handle_join_request(
         SeatRoleWire::Member => SeatRole::Member,
     };
 
-    let peer_ip = stream.peer_addr().ok().map(|addr| crate::pairing::canonical_peer_ip(addr.ip()));
+    if !fingerprint_matches_pubkey(&pubkey, fingerprint.trim()) {
+        send_wire_message(
+            stream,
+            transport,
+            &WireMessage::Error {
+                code: "JOIN_FAILED".into(),
+                message: "Fingerprint does not match the device key.".into(),
+            },
+        )
+        .await?;
+        return Ok(());
+    }
+    let peer_ip = stream
+        .peer_addr()
+        .ok()
+        .map(|addr| crate::pairing::canonical_peer_ip(addr.ip()));
     let requester_ip = crate::pairing::choose_requester_ip(peer_ip.as_deref(), &advertised_ip);
     let requester_ip = if requester_ip.is_empty() {
         None
@@ -184,7 +200,8 @@ async fn handle_join_request(
     {
         Ok(h) => h,
         Err(e) => {
-            let _ = record_join_identity(pool, &fingerprint, hostname, requester_ip.as_deref()).await;
+            let _ =
+                record_join_identity(pool, &fingerprint, hostname, requester_ip.as_deref()).await;
             if !pubkey.is_empty() {
                 let _ = store_join_device_pubkey(pool, &fingerprint, &pubkey).await;
             }
@@ -218,6 +235,8 @@ async fn handle_join_request(
             activation_token: None,
             master_pubkey: None,
             master_device_id: None,
+            master_cert_sha256: None,
+            master_http_port: None,
         },
     )
     .await?;
@@ -239,8 +258,9 @@ async fn handle_sas_confirm(
 ) -> Result<(), AppError> {
     match verify_inbound_sas(pool, session_id, digits).await {
         Ok(()) => {
-            let (activation_token, master_pubkey, master_device_id) =
+            let (activation_token, master_pubkey, master_device_id, master_cert_sha256) =
                 load_join_lan_credentials(pool, session_id).await;
+            let master_http_port = Some(crate::cluster::services::local_lan_http_port(pool).await);
             send_wire_message(
                 stream,
                 transport,
@@ -249,6 +269,8 @@ async fn handle_sas_confirm(
                     activation_token,
                     master_pubkey,
                     master_device_id,
+                    master_cert_sha256,
+                    master_http_port,
                 },
             )
             .await?;
@@ -366,6 +388,8 @@ async fn handle_replica_auth_request(
                     activation_token: lan.activation_token,
                     master_pubkey: lan.master_pubkey,
                     master_device_id: lan.master_device_id,
+                    master_cert_sha256: lan.master_cert_sha256,
+                    master_http_port: lan.master_http_port,
                 },
             )
             .await?;
@@ -428,7 +452,8 @@ async fn staff_directory_request_allowed(
     }
     let session: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM pairing_request
-         WHERE TRIM(fingerprint) = ?1 OR TRIM(device_id) = ?1",
+         WHERE status = 'ACCEPTED'
+           AND (TRIM(fingerprint) = ?1 OR TRIM(device_id) = ?1)",
     )
     .bind(fp)
     .fetch_one(pool)
@@ -440,7 +465,7 @@ async fn staff_directory_request_allowed(
 async fn load_join_lan_credentials(
     pool: &SqlitePool,
     session_id: &str,
-) -> (Option<String>, Option<String>, Option<String>) {
+) -> (Option<String>, Option<String>, Option<String>, Option<String>) {
     let token: Option<String> =
         sqlx::query_scalar("SELECT activation_token FROM pairing_request WHERE id = ?1")
             .bind(session_id)
@@ -456,7 +481,8 @@ async fn load_join_lan_credentials(
         .await
         .ok()
         .filter(|s| !s.trim().is_empty());
-    (token, master_pubkey, master_device_id)
+    let master_cert_sha256 = crate::tls_pin::load_local_pin(pool).await;
+    (token, master_pubkey, master_device_id, master_cert_sha256)
 }
 
 async fn handle_inbound_cluster_reset(

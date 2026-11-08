@@ -9,8 +9,16 @@ use sqlx::{Sqlite, SqlitePool};
 /// Break-Glass (Notfallzugriff) — disabled for MVP.
 pub const BREAK_GLASS_ENABLED: bool = false;
 
-/// TOTP two-factor authentication — disabled for MVP.
+/// TOTP two-factor authentication — off until the deferred security checklist.
 pub const TOTP_2FA_ENABLED: bool = false;
+
+/// D5 — scanner / GDT / DICOM stay off until the integrations are finished.
+pub const SCANNER_ENABLED: bool = false;
+pub const GDT_ENABLED: bool = false;
+pub const DICOM_ENABLED: bool = false;
+
+/// D6 — e-prescription UI and connector calls stay off.
+pub const EPRESCRIPTION_ENABLED: bool = false;
 
 /// Max PHYSICIAN accounts (admin slot).
 pub const MAX_PHYSICIAN: u32 = 1;

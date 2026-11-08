@@ -71,6 +71,7 @@ pub async fn create(
         .as_ref()
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty());
+    let mut tx = pool.begin().await?;
     sqlx::query(
         "INSERT INTO day_close_protocol
             (id, as_of_date, counted_eur, system_cash_eur, system_income_eur, variance_eur,
@@ -88,16 +89,33 @@ pub async fn create(
     .bind(data.cash_verified_count)
     .bind(data.all_payments_verified)
     .bind(note)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
+    crate::infrastructure::database::recorded_write::record_in_tx(
+        &mut tx,
+        "day_close_protocol",
+        &id,
+        "INSERT",
+    )
+    .await?;
+    tx.commit().await?;
     get(pool, &id).await
 }
 
 pub async fn delete_row(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
+    let mut tx = pool.begin().await?;
+    crate::infrastructure::database::recorded_write::record_in_tx(
+        &mut tx,
+        "day_close_protocol",
+        id,
+        "DELETE",
+    )
+    .await?;
     let r = sqlx::query("DELETE FROM day_close_protocol WHERE id = ?1")
         .bind(id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
+    tx.commit().await?;
     if r.rows_affected() == 0 {
         return Err(AppError::NotFound("DayCloseProtocol".into()));
     }

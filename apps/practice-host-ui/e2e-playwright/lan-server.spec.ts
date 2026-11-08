@@ -56,13 +56,5 @@ test.describe("LAN server public surface", () => {
         const meJson = await me.json();
         expect(meJson.email).toBe("ahmed@practice.de");
         expect(meJson.role).toBe("PHYSICIAN");
-
-        const patients = await request.get(`${lanUrl}/api/v1/patients`, {
-            headers: { Authorization: `Bearer ${token}` },
-            ignoreHTTPSErrors: true,
-        });
-        expect(patients.ok()).toBeTruthy();
-        const list = await patients.json();
-        expect(Array.isArray(list)).toBe(true);
     });
 });

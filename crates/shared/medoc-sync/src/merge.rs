@@ -7,13 +7,11 @@ use crate::repo::{mark_applied, was_applied, OutboxEntry};
 /// Conflict resolution when two devices edited the same row offline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConflictPolicy {
-    /// Newer `updated_at` wins. Equal timestamps break by lexicographic
-    /// `device_id` (higher wins). No master tie-break.
+    /// Newer `updated_at` wins. Equal timestamps: the main device wins.
+    /// Between two replicas (mesh) an equal timestamp keeps the local row.
     ///
-    /// When **either** side lacks a parsable `updated_at`:
-    /// - Master ingesting a member push, or replica ingesting an admin pull
-    ///   (`admin_pull` phase): accept inbound.
-    /// - Replica ingesting a mesh peer push: keep local when row exists.
+    /// Missing remote `updated_at`: accept only on admin pull (sender is main).
+    /// Missing local `updated_at` with a remote timestamp: apply remote.
     LastWriteWins,
 }
 
@@ -27,6 +25,28 @@ pub async fn apply_remote_entry(
     apply_remote_entry_phased(pool, local_device_id, local_is_master, false, policy, entry).await
 }
 
+/// Same as [`apply_remote_entry_phased`], but does not write `sync_applied`.
+/// The caller marks the row in the same transaction as the master relay.
+pub async fn apply_remote_entry_defer_mark(
+    pool: &SqlitePool,
+    local_device_id: &str,
+    local_is_master: bool,
+    admin_pull: bool,
+    policy: ConflictPolicy,
+    entry: &OutboxEntry,
+) -> Result<bool, AppError> {
+    apply_remote_entry_inner(
+        pool,
+        local_device_id,
+        local_is_master,
+        admin_pull,
+        policy,
+        entry,
+        false,
+    )
+    .await
+}
+
 /// `admin_pull`: replica applying master rows after push-then-pull — admin
 /// authoritative when timestamps are missing (product: merge member, then admin).
 pub async fn apply_remote_entry_phased(
@@ -36,6 +56,27 @@ pub async fn apply_remote_entry_phased(
     admin_pull: bool,
     policy: ConflictPolicy,
     entry: &OutboxEntry,
+) -> Result<bool, AppError> {
+    apply_remote_entry_inner(
+        pool,
+        local_device_id,
+        local_is_master,
+        admin_pull,
+        policy,
+        entry,
+        true,
+    )
+    .await
+}
+
+async fn apply_remote_entry_inner(
+    pool: &SqlitePool,
+    local_device_id: &str,
+    local_is_master: bool,
+    admin_pull: bool,
+    policy: ConflictPolicy,
+    entry: &OutboxEntry,
+    mark: bool,
 ) -> Result<bool, AppError> {
     if was_applied(pool, &entry.device_id, entry.seq).await? {
         return Ok(false);
@@ -50,6 +91,7 @@ pub async fn apply_remote_entry_phased(
                 admin_pull,
                 policy,
                 entry,
+                false,
             )
             .await?
         }
@@ -62,7 +104,7 @@ pub async fn apply_remote_entry_phased(
         }
     };
 
-    if applied {
+    if applied && mark {
         mark_applied(pool, &entry.device_id, entry.seq).await?;
         if let Err(e) =
             crate::watch::note_remote_applied(pool, &entry.entity_table, &entry.entity_id).await
@@ -79,6 +121,44 @@ pub async fn apply_remote_entry_phased(
     Ok(applied)
 }
 
+/// Apply a reconcile row from the main device, ignoring last-write-wins.
+pub async fn force_apply_payload(
+    pool: &SqlitePool,
+    table: &str,
+    entity_id: &str,
+    op: &str,
+    payload_json: &str,
+) -> Result<(), AppError> {
+    let entry = OutboxEntry {
+        id: format!("reconcile-{entity_id}"),
+        device_id: "reconcile".into(),
+        seq: 0,
+        entity_table: table.to_string(),
+        entity_id: entity_id.to_string(),
+        op: op.to_string(),
+        payload_json: payload_json.to_string(),
+        created_at: chrono::Utc::now().to_rfc3339(),
+    };
+    match op {
+        "DELETE" => {
+            apply_delete(pool, &entry).await?;
+        }
+        _ => {
+            apply_upsert(
+                pool,
+                "reconcile",
+                false,
+                true,
+                ConflictPolicy::LastWriteWins,
+                &entry,
+                true,
+            )
+            .await?;
+        }
+    }
+    Ok(())
+}
+
 async fn apply_upsert(
     pool: &SqlitePool,
     local_device_id: &str,
@@ -86,6 +166,7 @@ async fn apply_upsert(
     admin_pull: bool,
     policy: ConflictPolicy,
     entry: &OutboxEntry,
+    force: bool,
 ) -> Result<bool, AppError> {
     let payload: serde_json::Value = serde_json::from_str(&entry.payload_json)
         .map_err(|e| AppError::Validation(format!("sync payload json: {e}")))?;
@@ -103,14 +184,16 @@ async fn apply_upsert(
             .map_err(AppError::Database)?
     } else {
         let table = sanitize_table(&entry.entity_table)?;
-        sqlx::query_scalar(&format!("SELECT COUNT(*) FROM {table} WHERE id = ?1"))
+        // F146: tables keyed by something other than `id` (hint, preference).
+        let key = medoc_core::infrastructure::database::sync_registry::key_expr(table);
+        sqlx::query_scalar(&format!("SELECT COUNT(*) FROM {table} WHERE {key} = ?1"))
             .bind(&entry.entity_id)
             .fetch_one(pool)
             .await
             .map_err(AppError::Database)?
     };
 
-    if exists > 0 && policy == ConflictPolicy::LastWriteWins {
+    if !force && exists > 0 && policy == ConflictPolicy::LastWriteWins {
         let remote_ts = obj.get("updated_at").and_then(parse_ts);
         let local_ts = load_local_updated_at(pool, &entry.entity_table, &entry.entity_id).await?;
         match (local_ts, remote_ts) {
@@ -127,25 +210,25 @@ async fn apply_upsert(
                         remote = %remote,
                     );
                     return Ok(true);
-                } else if entry.device_id.as_str() <= local_device_id {
-                    // Timestamp tie → higher device_id wins (no master tie-break).
+                } else if !admin_pull {
                     tracing::debug!(
                         target: "medoc::sync",
-                        event = "SKIP_TIE_LOSER",
+                        event = "SKIP_TIE_MAIN_OR_LOCAL",
                         table = %entry.entity_table,
                         id = %entry.entity_id,
                         remote_device = %entry.device_id,
                         local_device = %local_device_id,
+                        local_is_master,
                     );
                     return Ok(true);
                 }
             }
-            _ => {
-                let accept_inbound = local_is_master || admin_pull;
-                if !accept_inbound {
+            (None, Some(_)) => {}
+            (_, None) => {
+                if !admin_pull {
                     tracing::debug!(
                         target: "medoc::sync",
-                        event = "SKIP_REPLICA_COLLISION",
+                        event = "SKIP_MISSING_REMOTE_UPDATED_AT",
                         table = %entry.entity_table,
                         id = %entry.entity_id,
                     );
@@ -182,34 +265,15 @@ async fn load_local_updated_at(
                 .map_err(AppError::Database)?;
         return Ok(raw.and_then(|s| parse_ts_str(&s)));
     }
-    if table == "in_app_notification" {
-        let raw: Option<String> = sqlx::query_scalar(
-            "SELECT CAST(created_at AS TEXT) FROM in_app_notification WHERE id = ?1",
-        )
-        .bind(id)
-        .fetch_optional(pool)
-        .await
-        .map_err(AppError::Database)?;
-        return Ok(raw.and_then(|s| parse_ts_str(&s)));
-    }
     let safe = sanitize_table(table)?;
-    let raw: Result<Option<String>, sqlx::Error> = sqlx::query_scalar(&format!(
-        "SELECT CAST(updated_at AS TEXT) FROM {safe} WHERE id = ?1"
+    let key = medoc_core::infrastructure::database::sync_registry::key_expr(safe);
+    let raw: Option<String> = sqlx::query_scalar(&format!(
+        "SELECT CAST(updated_at AS TEXT) FROM {safe} WHERE {key} = ?1"
     ))
     .bind(id)
     .fetch_optional(pool)
-    .await;
-    let raw = match raw {
-        Ok(v) => v,
-        Err(e) if e.to_string().contains("no such column: updated_at") => sqlx::query_scalar(
-            &format!("SELECT CAST(created_at AS TEXT) FROM {safe} WHERE id = ?1"),
-        )
-        .bind(id)
-        .fetch_optional(pool)
-        .await
-        .map_err(AppError::Database)?,
-        Err(e) => return Err(AppError::Database(e)),
-    };
+    .await
+    .map_err(AppError::Database)?;
     Ok(raw.and_then(|s| parse_ts_str(&s)))
 }
 
@@ -290,6 +354,21 @@ async fn apply_app_kv(
 
 async fn apply_delete(pool: &SqlitePool, entry: &OutboxEntry) -> Result<bool, AppError> {
     let table = sanitize_table(&entry.entity_table)?;
+    let deleted_at = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+    sqlx::query(
+        "INSERT INTO sync_tombstone (entity_table, entity_id, deleted_at, device_id)
+         VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT(entity_table, entity_id) DO UPDATE SET
+            deleted_at = excluded.deleted_at,
+            device_id = excluded.device_id",
+    )
+    .bind(table)
+    .bind(&entry.entity_id)
+    .bind(deleted_at)
+    .bind(&entry.device_id)
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?;
     if table == "app_kv" {
         sqlx::query("DELETE FROM app_kv WHERE key = ?1")
             .bind(&entry.entity_id)
@@ -335,7 +414,8 @@ async fn apply_delete(pool: &SqlitePool, entry: &OutboxEntry) -> Result<bool, Ap
             .map_err(AppError::Database)?;
         return Ok(true);
     }
-    sqlx::query(&format!("DELETE FROM {table} WHERE id = ?1"))
+    let key = medoc_core::infrastructure::database::sync_registry::key_expr(table);
+    sqlx::query(&format!("DELETE FROM {table} WHERE {key} = ?1"))
         .bind(&entry.entity_id)
         .execute(pool)
         .await
@@ -361,11 +441,25 @@ async fn insert_from_json(
     obj: &serde_json::Map<String, serde_json::Value>,
 ) -> Result<(), AppError> {
     let table = sanitize_table(table)?;
+    if table == "staff" {
+        return apply_staff_without_secrets(pool, id, obj).await;
+    }
     let known = table_column_names(pool, table).await?;
-    let mut cols = vec!["id".to_string()];
-    let mut binds: Vec<Option<String>> = vec![Some(id.to_string())];
+    // F146/F147: the key column is not always `id` (hint, preference) and
+    // `chart_validation` has a composite key carried in the payload itself.
+    let id_col = medoc_core::infrastructure::database::sync_registry::id_column(table);
+    let (mut cols, mut binds): (Vec<String>, Vec<Option<String>>) =
+        if medoc_core::infrastructure::database::sync_registry::key_is_column(table) {
+            (vec![id_col.to_string()], vec![Some(id.to_string())])
+        } else {
+            (Vec::new(), Vec::new())
+        };
     for (k, version) in obj {
-        if k == "id" || !keep_known_column(&known, k) {
+        if (k == "id" && known.iter().any(|c| c == "id") && id_col == "id")
+            || k == id_col
+            || !keep_known_column(&known, k)
+            || crate::repo::snapshot_denied_column(table, k)
+        {
             continue;
         }
         cols.push(k.clone());
@@ -385,6 +479,42 @@ async fn insert_from_json(
     Ok(())
 }
 
+/// A staff snapshot never carries `password_hash` or `totp_secret`. A new row
+/// gets a hash that cannot log in. An existing row is updated by the normal
+/// path, which also ignores those columns.
+async fn apply_staff_without_secrets(
+    pool: &SqlitePool,
+    id: &str,
+    obj: &serde_json::Map<String, serde_json::Value>,
+) -> Result<(), AppError> {
+    let known = table_column_names(pool, "staff").await?;
+    let mut cols = vec!["id".to_string(), "password_hash".to_string()];
+    let mut binds: Vec<Option<String>> = vec![Some(id.to_string()), Some("!".to_string())];
+    for (k, version) in obj {
+        if k == "id"
+            || k == "password_hash"
+            || crate::repo::snapshot_denied_column("staff", k)
+            || !keep_known_column(&known, k)
+        {
+            continue;
+        }
+        cols.push(k.clone());
+        binds.push(json_to_sql_value(version));
+    }
+    let placeholders: Vec<String> = (1..=binds.len()).map(|i| format!("?{i}")).collect();
+    let sql = format!(
+        "INSERT INTO staff ({}) VALUES ({})",
+        cols.join(", "),
+        placeholders.join(", ")
+    );
+    let mut q = sqlx::query(&sql);
+    for b in binds {
+        q = q.bind(b);
+    }
+    q.execute(pool).await.map_err(AppError::Database)?;
+    Ok(())
+}
+
 async fn update_from_json(
     pool: &SqlitePool,
     table: &str,
@@ -392,12 +522,17 @@ async fn update_from_json(
     obj: &serde_json::Map<String, serde_json::Value>,
 ) -> Result<(), AppError> {
     let table = sanitize_table(table)?;
+    let id_col = medoc_core::infrastructure::database::sync_registry::id_column(table);
     let known = table_column_names(pool, table).await?;
     let mut sets = Vec::new();
     let mut binds: Vec<Option<String>> = Vec::new();
     let mut idx = 1;
     for (k, version) in obj {
-        if k == "id" || !keep_known_column(&known, k) {
+        if k == "id"
+            || k == id_col
+            || !keep_known_column(&known, k)
+            || crate::repo::snapshot_denied_column(table, k)
+        {
             continue;
         }
         sets.push(format!("{k} = ?{idx}"));
@@ -407,7 +542,8 @@ async fn update_from_json(
     if sets.is_empty() {
         return Ok(());
     }
-    let sql = format!("UPDATE {table} SET {} WHERE id = ?{idx}", sets.join(", "));
+    let key = medoc_core::infrastructure::database::sync_registry::key_expr(table);
+    let sql = format!("UPDATE {table} SET {} WHERE {key} = ?{idx}", sets.join(", "));
     let mut q = sqlx::query(&sql);
     for b in binds {
         q = q.bind(b);
@@ -418,26 +554,7 @@ async fn update_from_json(
 }
 
 fn sanitize_table(table: &str) -> Result<&str, AppError> {
-    const ALLOWED: &[&str] = &[
-        "staff",
-        "patient",
-        "patient_chart",
-        "appointment",
-        "absence",
-        "treatment",
-        "examination",
-        "payment",
-        "app_kv",
-        "practice_task",
-        "anamnesis_form",
-        "dental_finding",
-        "prescription",
-        "certificate",
-        "service_item",
-        "in_app_notification",
-        "practice_ticket",
-    ];
-    if ALLOWED.contains(&table) {
+    if crate::repo::is_synced_table(table) {
         Ok(table)
     } else {
         Err(AppError::Validation(format!(
@@ -465,7 +582,7 @@ mod tests {
 
     #[test]
     fn allow_list_rejects_unknown_tables() {
-        assert!(sanitize_table("staff").is_ok());
+        assert!(sanitize_table("staff").is_err());
         assert!(sanitize_table("license").is_err());
         assert!(sanitize_table("patient").is_ok());
         assert!(sanitize_table("absence").is_ok());

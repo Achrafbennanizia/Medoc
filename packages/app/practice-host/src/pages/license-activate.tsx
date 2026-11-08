@@ -78,14 +78,18 @@ function MainLicenseForm(props: { onActivated?: () => void; onBack: () => void }
         void reload();
     }, [reload]);
 
-    const activate = async () => {
-        if (!token.trim()) {
+    const reasonText = (reason: string) =>
+        reason.startsWith("error.") ? errorMessage(reason) : reason;
+
+    const activate = async (raw?: string) => {
+        const value = (raw ?? token).trim();
+        if (!value) {
             toast(t("license.activate.token_required"), "error");
             return;
         }
         setBusy(true);
         try {
-            const result = await activateLicense(token.trim());
+            const result = await activateLicense(value);
             setStatus(result);
             if (result.valid) {
                 toast(t("license.activate.success"), "success");
@@ -93,7 +97,7 @@ function MainLicenseForm(props: { onActivated?: () => void; onBack: () => void }
                 clearLicenseDeviceRole();
                 props.onActivated?.();
             } else {
-                toast(tp("license.activate.invalid", { reason: result.reason ?? "?" }), "error");
+                toast(tp("license.activate.invalid", { reason: reasonText(result.reason ?? "?") }), "error");
             }
         } catch (e) {
             const msg = errorMessage(e);
@@ -166,10 +170,18 @@ function MainLicenseForm(props: { onActivated?: () => void; onBack: () => void }
             />
             {status?.reason ? (
                 <p className="card-sub" style={{ color: "var(--text-danger)" }}>
-                    {tp("license.activate.last_error", { reason: status.reason })}
+                    {tp("license.activate.last_error", { reason: reasonText(status.reason) })}
                 </p>
             ) : null}
+            {import.meta.env.DEV ? (
+                <p className="card-sub">{t("license.activate.dev_hint")}</p>
+            ) : null}
             <div className="row" style={{ marginTop: 12, gap: 8, flexWrap: "wrap" }}>
+                {import.meta.env.DEV ? (
+                    <Button type="button" variant="ghost" loading={busy} disabled={busy} onClick={() => void activate("MASTER-DEV-01")}>
+                        {t("license.activate.dev_activate_btn")}
+                    </Button>
+                ) : null}
                 <Button
                     type="button"
                     loading={busy}

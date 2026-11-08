@@ -3,7 +3,7 @@
 export const APPOINTMENT_KIND_VALUES = ["FIRST_VISIT", "EXAMINATION", "TREATMENT", "CHECKUP", "CONSULTATION"] as const;
 export type AppointmentKind = (typeof APPOINTMENT_KIND_VALUES)[number];
 
-export const APPOINTMENT_STATUS_VALUES = ["PLANNED", "CONFIRMED", "COMPLETED", "NO_SHOW", "CANCELLED"] as const;
+export const APPOINTMENT_STATUS_VALUES = ["PLANNED", "CONFIRMED", "IN_PROGRESS", "COMPLETED", "NO_SHOW", "CANCELLED"] as const;
 export type AppointmentStatus = (typeof APPOINTMENT_STATUS_VALUES)[number];
 
 export const CHART_STATUS_VALUES = ["DRAFT", "IN_PROGRESS", "VALIDATED", "DECLINED", "READONLY"] as const;
@@ -18,7 +18,7 @@ export type FeedbackStatus = (typeof FEEDBACK_STATUS_VALUES)[number];
 export const ORDER_STATUS_VALUES = ["OPEN", "IN_TRANSIT", "DELIVERED", "CANCELLED"] as const;
 export type OrderStatus = (typeof ORDER_STATUS_VALUES)[number];
 
-export const PATIENT_STATUS_VALUES = ["NEW", "ACTIVE", "VALIDATED", "READONLY"] as const;
+export const PATIENT_STATUS_VALUES = ["NEW", "ACTIVE", "VALIDATED", "READONLY", "ARCHIVED"] as const;
 export type PatientStatus = (typeof PATIENT_STATUS_VALUES)[number];
 
 export const PAYMENT_METHOD_VALUES = ["CASH", "CARD", "BANK_TRANSFER", "INVOICE"] as const;

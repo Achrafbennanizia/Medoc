@@ -4,10 +4,11 @@ use medoc_core::infrastructure::database::connection::{run_migrations, test_memo
 use medoc_sync::deployment::{DeploymentMode, DeviceRole, SyncDeploymentConfig};
 use medoc_sync::engine::SyncEngine;
 use medoc_sync::repo::{
+    load_row_payload_json,
     append_outbox, enqueue_full_snapshot, ensure_local_device, list_entries_since,
     list_pending_outbox, list_pending_outbox_for_peer, mark_applied, mark_outbox_delivered,
     mark_peer_delivery, save_deployment, set_observed_seq, status_snapshot, sync_record_or_noop,
-    was_applied, SYNCED_TABLES,
+    was_applied, is_synced_table, synced_tables,
 };
 use medoc_sync::schema::ensure_sync_tables;
 use sqlx::SqlitePool;
@@ -36,18 +37,13 @@ async fn enable_serverless(pool: &SqlitePool, label: &str) {
 
 #[test]
 fn synced_tables_lists_parents_before_children() {
+    let tables: Vec<_> = synced_tables().collect();
     let pos = |name: &str| {
-        SYNCED_TABLES
+        tables
             .iter()
             .position(|table| *table == name)
             .unwrap_or_else(|| panic!("{name} missing"))
     };
-    assert!(pos("staff") < pos("appointment"));
-    assert!(pos("staff") < pos("prescription"));
-    assert!(pos("staff") < pos("certificate"));
-    assert!(pos("staff") < pos("in_app_notification"));
-    assert!(pos("staff") < pos("practice_ticket"));
-    assert!(pos("staff") < pos("practice_task"));
     assert!(pos("patient") < pos("patient_chart"));
     assert!(pos("patient") < pos("appointment"));
     assert!(pos("patient") < pos("anamnesis_form"));
@@ -68,7 +64,7 @@ async fn synced_tables_includes_tier1_entities() {
         "anamnesis_form",
         "in_app_notification",
     ] {
-        assert!(SYNCED_TABLES.contains(&table), "{table}");
+        assert!(is_synced_table(table), "{table}");
     }
 }
 
@@ -115,6 +111,7 @@ async fn sync_record_or_noop_appends_for_serverless_peer() {
     let pending = list_pending_outbox(
         &pool,
         &ensure_local_device(&pool, "hook-replica").await.unwrap(),
+        500,
     )
     .await
     .expect("list");
@@ -146,11 +143,11 @@ async fn mark_outbox_delivered_clears_pending_count() {
     )
     .await
     .expect("append");
-    assert_eq!(list_pending_outbox(&pool, &device).await.unwrap().len(), 2);
+    assert_eq!(list_pending_outbox(&pool, &device, 500).await.unwrap().len(), 2);
     mark_outbox_delivered(&pool, &device, e1.seq)
         .await
         .expect("deliver");
-    assert_eq!(list_pending_outbox(&pool, &device).await.unwrap().len(), 1);
+    assert_eq!(list_pending_outbox(&pool, &device, 500).await.unwrap().len(), 1);
 }
 
 #[tokio::test]
@@ -331,6 +328,64 @@ async fn enqueue_full_snapshot_queues_existing_patients() {
 }
 
 #[tokio::test]
+async fn snapshot_and_load_row_use_non_id_keys() {
+    let pool = fresh_pool().await;
+    save_deployment(
+        &pool,
+        &SyncDeploymentConfig {
+            schema_version: 1,
+            mode: DeploymentMode::PracticeDesktop,
+            role: DeviceRole::Master,
+            device_label: "Main".into(),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("deploy");
+    sqlx::query(
+        "INSERT INTO patient (id, name, date_of_birth, sex, insurance_number, status)
+         VALUES ('hint-p', 'H', '1980-01-01', 'MALE', 'H-1', 'ACTIVE')",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO chart_next_appointment_hint (patient_id, hint_json)
+         VALUES ('hint-p', '{\"n\":1}')",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO chart_validation (patient_id, section_or_item, validated_at)
+         VALUES ('hint-p', 'anamnesis', '2099-01-01T00:00:00Z')",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    enqueue_full_snapshot(&pool).await.expect("snapshot");
+    let hint_n: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM sync_outbox WHERE entity_table = 'chart_next_appointment_hint' AND entity_id = 'hint-p'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(hint_n, 1);
+    let cv_n: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM sync_outbox WHERE entity_table = 'chart_validation' AND entity_id = 'hint-p|anamnesis'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(cv_n, 1);
+    let payload = load_row_payload_json(&pool, "chart_validation", "hint-p|anamnesis")
+        .await
+        .expect("load")
+        .expect("json");
+    assert!(payload.contains("anamnesis"));
+}
+
+#[tokio::test]
 async fn set_observed_seq_advances_cursor() {
     let pool = fresh_pool().await;
     set_observed_seq(&pool, "master-1", 3).await.expect("seq");
@@ -345,4 +400,39 @@ async fn set_observed_seq_advances_cursor() {
         .await
         .unwrap();
     assert_eq!(seq, 9);
+}
+
+#[tokio::test]
+async fn snapshot_omits_staff_secrets_and_portal_keys() {
+    let pool = fresh_pool().await;
+    medoc_core::mvp_security::drop_staff_quota_db_triggers(&pool)
+        .await
+        .expect("quota");
+    enable_serverless(&pool, "Main").await;
+    sqlx::query(
+        "INSERT INTO staff (id, name, email, password_hash, role, totp_secret)
+         VALUES ('s-secret', 'Ada', 'ada@practice.test', 'HASH-SENTINEL-P2', 'RECEPTION', 'TOTP-SENTINEL-P2')",
+    )
+    .execute(&pool)
+    .await
+    .expect("staff");
+    medoc_core::infrastructure::database::app_kv_repo::set(
+        &pool,
+        "company.portal.config.v1",
+        r#"{"apiKey":"PORTAL-SECRET-P2"}"#,
+    )
+    .await
+    .expect("portal");
+
+    assert!(
+        load_row_payload_json(&pool, "staff", "s-secret")
+            .await
+            .expect("payload")
+            .is_none(),
+        "staff is DeviceLocal and must not enter the outbox"
+    );
+    assert!(load_row_payload_json(&pool, "app_kv", "company.portal.config.v1")
+        .await
+        .expect("portal load")
+        .is_none());
 }

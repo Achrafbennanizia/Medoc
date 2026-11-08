@@ -12,6 +12,7 @@
 pub mod brute_force;
 pub mod config;
 pub mod export;
+pub mod redacting_writer;
 pub mod sanitizer;
 
 use std::path::{Path, PathBuf};
@@ -72,7 +73,7 @@ pub fn init(data_dir: &Path) -> Result<LogGuards, std::io::Error> {
             .json()
             .with_current_span(true)
             .with_span_events(FmtSpan::NONE)
-            .with_writer(writer)
+            .with_writer(redacting_writer::SanitizingMakeWriter(writer))
     };
 
     // Filter by `target` so each channel only catches its own messages.

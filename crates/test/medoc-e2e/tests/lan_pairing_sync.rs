@@ -157,7 +157,8 @@ async fn pairing_accept_issue_activation_token_and_sync() {
             "/api/v1/sync/pull",
             Some(&serde_json::json!({
                 "deviceId": device_id,
-                "sinceSeq": 0
+                "sinceSeq": 0,
+                "requesterId": device_id
             })),
             Some(token),
         )
@@ -236,7 +237,7 @@ async fn activation_token_cannot_access_patients() {
     let (status, _body) = lan
         .json("GET", "/api/v1/patients", None, Some(&token))
         .await;
-    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]

@@ -23,8 +23,10 @@ export function DesktopWindowFrame({ children }: { children: ReactNode }) {
     useEffect(() => {
         const title = t(WINDOW_TITLE_KEY);
         document.title = title;
-        void setDesktopWindowTitle(title);
-    }, [locale, t]);
+        if (mode !== "mac-overlay") {
+            void setDesktopWindowTitle(title);
+        }
+    }, [locale, t, mode]);
 
     useLayoutEffect(() => {
         const root = document.documentElement;

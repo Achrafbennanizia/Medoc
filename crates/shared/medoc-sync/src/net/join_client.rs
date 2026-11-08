@@ -24,6 +24,9 @@ pub struct SasConfirmOutcome {
     pub activation_token: Option<String>,
     pub master_pubkey: Option<String>,
     pub master_device_id: Option<String>,
+    pub master_cert_sha256: Option<String>,
+    /// Main device's LAN HTTPS port, when it sent one.
+    pub master_http_port: Option<u16>,
 }
 
 fn local_hostname() -> String {
@@ -139,11 +142,17 @@ pub async fn confirm_sas_on_admin(
             activation_token,
             master_pubkey,
             master_device_id,
+            master_cert_sha256,
+            master_http_port,
             ..
         } => Ok(SasConfirmOutcome {
             activation_token: activation_token.filter(|s| !s.trim().is_empty()),
             master_pubkey: master_pubkey.filter(|s| !s.trim().is_empty()),
             master_device_id: master_device_id.filter(|s| !s.trim().is_empty()),
+            master_cert_sha256: master_cert_sha256
+                .map(|pin| crate::tls_pin::normalize_sha256_pin(&pin))
+                .filter(|pin| crate::tls_pin::is_sha256_pin(pin)),
+            master_http_port: master_http_port.filter(|p| *p != 0),
         }),
         WireMessage::Error { code, message } => Err(AppError::Validation(format!(
             "cluster SAS rejected ({code}): {message}"
@@ -184,11 +193,17 @@ pub async fn fetch_replica_auth(
             activation_token,
             master_pubkey,
             master_device_id,
+            master_cert_sha256,
+            master_http_port,
             ..
         } => Ok(SasConfirmOutcome {
             activation_token: activation_token.filter(|s| !s.trim().is_empty()),
             master_pubkey: master_pubkey.filter(|s| !s.trim().is_empty()),
             master_device_id: master_device_id.filter(|s| !s.trim().is_empty()),
+            master_cert_sha256: master_cert_sha256
+                .map(|pin| crate::tls_pin::normalize_sha256_pin(&pin))
+                .filter(|pin| crate::tls_pin::is_sha256_pin(pin)),
+            master_http_port: master_http_port.filter(|p| *p != 0),
         }),
         WireMessage::Error { code, message } => Err(AppError::Validation(format!(
             "replica auth rejected ({code}): {message}"

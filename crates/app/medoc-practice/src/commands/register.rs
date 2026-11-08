@@ -40,6 +40,7 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::chart_workflow_commands::list_charts_to_validate,
             $crate::commands::chart_workflow_commands::count_charts_to_validate,
             $crate::commands::chart_workflow_commands::validate_patient_chart,
+            $crate::commands::chart_workflow_commands::decline_patient_chart,
             $crate::commands::chart_workflow_commands::forward_chart_to_physicians,
             $crate::commands::chart_workflow_commands::create_practice_ticket,
             $crate::commands::chart_workflow_commands::list_practice_tickets_for_me,
@@ -75,9 +76,8 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::auth_commands::investigate_my_device_session,
             $crate::commands::auth_commands::revoke_my_device_session,
             $crate::commands::auth_commands::set_my_device_session_trusted,
-            // TODO(deferred-security): 2FA IPC unwired — see todos-deferred-security-features.md
-            // $crate::commands::auth_commands::start_totp_enrollment_login,
-            // $crate::commands::auth_commands::confirm_totp_enrollment_login,
+            $crate::commands::auth_commands::start_totp_enrollment_login,
+            $crate::commands::auth_commands::confirm_totp_enrollment_login,
             $crate::commands::purchase_order_commands::list_purchase_orders,
             $crate::commands::purchase_order_commands::create_purchase_order,
             $crate::commands::purchase_order_commands::update_purchase_order_status,
@@ -147,8 +147,8 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::sync_commands::sync_get_status,
             $crate::commands::sync_commands::sync_set_deployment,
             $crate::commands::sync_commands::sync_run_now,
+            $crate::commands::sync_commands::sync_reconcile_now,
             $crate::commands::sync_commands::sync_probe_master,
-            $crate::commands::sync_commands::sync_record_change,
             $crate::commands::network::pairing::master::pairing_list_pending,
             $crate::commands::network::pairing::master::pairing_list_all,
             $crate::commands::network::pairing::master::pairing_decide,
@@ -205,12 +205,15 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::ops_commands::enforce_log_retention,
             $crate::commands::patient_commands::list_patients,
             $crate::commands::patient_commands::list_patients_paged,
+            $crate::commands::patient_commands::count_patients_by_filter,
             $crate::commands::patient_commands::list_patients_by_ids,
             $crate::commands::patient_commands::get_patient,
             $crate::commands::patient_commands::create_patient,
             $crate::commands::patient_commands::update_patient,
             $crate::commands::patient_commands::delete_patient,
+            $crate::commands::patient_commands::restore_patient,
             $crate::commands::patient_commands::search_patients,
+            $crate::commands::patient_commands::export_patients_csv,
             $crate::commands::staff_commands::list_staff,
             $crate::commands::staff_commands::list_physicians,
             $crate::commands::staff_commands::list_task_team_directory,
@@ -306,6 +309,8 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::day_close_protocol_commands::delete_day_close_protocol,
             $crate::commands::appointment_commands::list_appointments,
             $crate::commands::appointment_commands::list_appointments_paged,
+            $crate::commands::appointment_commands::list_appointments_in_range,
+            $crate::commands::appointment_commands::move_appointments,
             $crate::commands::appointment_commands::get_appointment,
             $crate::commands::appointment_commands::create_appointment,
             $crate::commands::appointment_commands::update_appointment,
@@ -331,7 +336,7 @@ macro_rules! medoc_invoke_handler {
     };
 }
 
-pub const EXPECTED_INVOKE_COMMAND_COUNT: usize = 313;
+pub const EXPECTED_INVOKE_COMMAND_COUNT: usize = 322;
 
 /// Attach the consolidated IPC handler to the Tauri builder.
 ///

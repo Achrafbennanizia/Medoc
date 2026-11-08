@@ -66,11 +66,7 @@ pub async fn delete(pool: &SqlitePool, key: &str) -> Result<(), AppError> {
 /// outbox: replicating them between peers would clobber per-device identity
 /// and create recursive writes (see [`sync_outbox::record_or_noop`]).
 fn is_internal_sync_key(key: &str) -> bool {
-    key.starts_with("sync.")
-        || key.starts_with("license.")
-        || key.starts_with("pairing.")
-        || key.starts_with("onboarding.")
-        || key.starts_with("cluster.")
+    crate::infrastructure::database::sync_registry::deny_app_kv_key(key)
 }
 
 fn serde_json_string(s: &str) -> String {

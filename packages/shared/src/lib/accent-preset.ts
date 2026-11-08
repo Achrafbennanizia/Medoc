@@ -29,9 +29,39 @@ export function normalizeAccentId(raw: unknown): AccentId {
     return ACCENT_ID_SET.has(s) ? (s as AccentId) : "mint";
 }
 
+function hexRgb(hex: string): [number, number, number] {
+    const h = hex.replace("#", "");
+    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+}
+
+function mixHex(a: string, b: string, weightA: number): string {
+    const pa = hexRgb(a);
+    const pb = hexRgb(b);
+    const channel = (i: number) => Math.round(pa[i]! * weightA + pb[i]! * (1 - weightA));
+    return `#${[channel(0), channel(1), channel(2)].map((n) => n.toString(16).padStart(2, "0")).join("")}`;
+}
+
+/** Logo tile stops. Light and dark use different mixes of the same accent. */
+export function accentMarkStops(id: AccentId, theme: "light" | "dark" = "light"): { from: string; to: string } {
+    const accent = PRESETS[normalizeAccentId(id)].accent;
+    if (theme === "dark") {
+        return {
+            from: mixHex(accent, "#f4f4f5", 0.78),
+            to: mixHex(accent, "#12161d", 0.55),
+        };
+    }
+    return {
+        from: accent,
+        to: mixHex(accent, "#ffffff", 0.72),
+    };
+}
+
 export function applyAccentPresetToDocument(id: AccentId, theme: "light" | "dark" = "light"): void {
     const version = PRESETS[normalizeAccentId(id)];
+    const mark = accentMarkStops(id, theme);
     document.documentElement.style.setProperty("--accent", version.accent);
+    document.documentElement.style.setProperty("--accent-mark-from", mark.from);
+    document.documentElement.style.setProperty("--accent-mark-to", mark.to);
     if (theme === "dark") {
         document.documentElement.style.setProperty("--accent-soft", `color-mix(in oklab, ${version.accent} 28%, #12161d)`);
         document.documentElement.style.setProperty("--accent-ink", `color-mix(in oklab, #f4f4f5 88%, ${version.accent})`);

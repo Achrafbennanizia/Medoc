@@ -18,10 +18,9 @@ pub async fn get_app_kv(
     session_state: State<'_, SessionState>,
     key: String,
 ) -> Result<Option<String>, AppError> {
-    if app_kv_policy::permission_for_app_kv_key(&key).is_none() {
-        return Err(AppError::Validation(format!("Unknown KV key: {key}")));
-    }
-    rbac::require_authenticated(&session_state)?;
+    let perm = app_kv_policy::read_permission_for_app_kv_key(&key)
+        .ok_or_else(|| AppError::Validation(format!("Unknown KV key: {key}")))?;
+    rbac::require(&session_state, perm)?;
     app_kv_repo::get(&pool, &key).await
 }
 
@@ -36,6 +35,7 @@ pub async fn set_app_kv(
     let perm = app_kv_policy::permission_for_app_kv_key(&key)
         .ok_or_else(|| AppError::Validation(format!("Unknown KV key: {key}")))?;
     rbac::require(&session_state, perm)?;
+    app_kv_policy::validate_app_kv_value(&key, &value)?;
     app_kv_repo::set(&pool, &key, &value).await
 }
 

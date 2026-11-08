@@ -6,8 +6,9 @@ use crate::infrastructure::database::{audit_repo, device_session_repo, staff_per
 use crate::infrastructure::logging::brute_force::{
     BruteForceTracker, BruteKey, CheckResult, DESKTOP_PEER_IP,
 };
-// TODO(deferred-security): 2FA unwired — see todos-deferred-security-features.md
-// use crate::infrastructure::totp::{self, TotpEnrollmentDto};
+use crate::application::mvp_security;
+use crate::infrastructure::database::staff_repo;
+use crate::infrastructure::totp::{self, TotpEnrollmentDto};
 use crate::log_security;
 use sqlx::SqlitePool;
 use std::sync::Mutex;
@@ -191,6 +192,7 @@ pub async fn login(
         role: session.role.clone(),
         permission_overrides: session.permission_overrides.clone(),
         device_session_id: Some(ds_id),
+        token_version: session.token_version,
     };
 
     *session_state.lock_session() = Some((result.clone(), Instant::now()));
@@ -397,9 +399,6 @@ pub async fn set_my_device_session_trusted(
     .await
 }
 
-/*
-// TODO(deferred-security): 2FA login enrollment IPC — re-enable with TOTP_2FA_ENABLED.
-
 /// Start TOTP enrollment before a session exists (PHYSICIAN first login).
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, password), fields(email = %redact_login_identifier(&email)))]
@@ -448,7 +447,6 @@ pub async fn confirm_totp_enrollment_login(
     staff_repo::confirm_totp_enrollment(&pool, &user.id).await?;
     Ok(())
 }
-*/
 
 /// IPC commands for [`crate::commands::register`].
 #[macro_export]
@@ -463,8 +461,7 @@ macro_rules! register_auth_commands {
         $crate::commands::auth_commands::investigate_my_device_session,
         $crate::commands::auth_commands::revoke_my_device_session,
         $crate::commands::auth_commands::set_my_device_session_trusted,
-        // TODO(deferred-security): 2FA IPC unwired
-        // $crate::commands::auth_commands::start_totp_enrollment_login,
-        // $crate::commands::auth_commands::confirm_totp_enrollment_login,
+        $crate::commands::auth_commands::start_totp_enrollment_login,
+        $crate::commands::auth_commands::confirm_totp_enrollment_login,
     };
 }

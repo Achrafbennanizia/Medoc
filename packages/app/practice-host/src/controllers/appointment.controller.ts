@@ -16,6 +16,20 @@ export async function listAppointmentsPaged(params?: ListParams): Promise<ListRe
     return practiceSystem.invoke<ListResponse<Appointment>>("list_appointments_paged", { params });
 }
 
+/** F63: every appointment with `fromDate <= date <= toDate` (yyyy-MM-dd), no paging. */
+export async function listAppointmentsInRange(fromDate: string, toDate: string): Promise<Appointment[]> {
+    return practiceSystem.invoke<Appointment[]>("list_appointments_in_range", { fromDate, toDate });
+}
+
+/** F70: move several appointments in one transaction (all or nothing). */
+export async function moveAppointments(
+    changes: { id: string; date: string; time: string }[],
+): Promise<Appointment[]> {
+    const rows = await practiceSystem.invoke<Appointment[]>("move_appointments", { changes });
+    notifyAppointmentsChanged();
+    return rows;
+}
+
 export async function listAppointmentsByDate(date: string): Promise<Appointment[]> {
     return practiceSystem.invoke<Appointment[]>("list_appointments_by_date", { date });
 }
@@ -40,6 +54,10 @@ export async function createAppointment(data: {
     /** Free text / duration / internal notes (Rust `CreateAppointment.notes`). */
     notes?: string | null;
     chief_complaint?: string | null;
+    /** F65: slot length in minutes (default 30 on the backend). */
+    duration_minutes?: number;
+    /** F67: initial status in the same create call. */
+    status?: "PLANNED" | "CONFIRMED";
 }): Promise<Appointment> {
     const safe = parseOrThrow(CreateAppointmentSchema, data);
     const row = await practiceSystem.invoke<Appointment>("create_appointment", { data: safe });

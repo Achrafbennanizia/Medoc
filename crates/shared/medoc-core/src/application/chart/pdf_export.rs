@@ -19,6 +19,35 @@ fn default_true() -> bool {
     true
 }
 
+/// Turns off chart sections the caller's role is not allowed to see.
+fn gate_chart_sections(
+    sec: &mut ChartExportSections,
+    role: Role,
+    overrides: &[crate::domain::rbac::PermissionOverride],
+) {
+    let medical = rbac::effective_allowed("patient.read_medical", role, overrides);
+    let finance = rbac::effective_allowed("finance.read", role, overrides);
+    let documents = rbac::effective_allowed("patient.read_documents", role, overrides);
+    let audit_ok = rbac::effective_allowed("audit.read", role, overrides);
+    if !medical {
+        sec.dental_findings = false;
+        sec.anamnesis = false;
+        sec.examinations = false;
+        sec.treatments = false;
+        sec.prescriptions = false;
+        sec.certificate = false;
+    }
+    if !finance {
+        sec.payments = false;
+    }
+    if !documents {
+        sec.attachments = false;
+    }
+    if !audit_ok {
+        sec.audit = false;
+    }
+}
+
 fn fmt_treatment_status(raw: &str) -> String {
     match raw.trim().to_uppercase().as_str() {
         "COMPLETED" => "Completed".into(),
@@ -193,27 +222,10 @@ pub async fn export_chart_pdf(
 
     let role = Role::parse(&session.role).ok_or(AppError::Unauthorized)?;
     let ov = &session.permission_overrides;
-    let medical = rbac::effective_allowed("patient.read_medical", role, ov);
-    let finance = rbac::effective_allowed("finance.read", role, ov);
-
     let patient_id = args.patient_id.clone();
     let mut sec = args.sections;
-    if !medical {
-        sec.dental_findings = false;
-        sec.anamnesis = false;
-        sec.examinations = false;
-        sec.treatments = false;
-        sec.prescriptions = false;
-        sec.certificate = false;
-    }
-    if !finance {
-        sec.payments = false;
-    }
-
-    let audit_ok = rbac::effective_allowed("audit.read", role, ov);
-    if !audit_ok {
-        sec.audit = false;
-    }
+    gate_chart_sections(&mut sec, role, ov);
+    let medical = rbac::effective_allowed("patient.read_medical", role, ov);
 
     let patient = patient_repo::find_by_id(pool, &patient_id)
         .await?
@@ -249,7 +261,10 @@ pub async fn export_chart_pdf(
             ("Name".into(), patient.name.clone()),
             ("Date of birth".into(), patient.date_of_birth.to_string()),
             ("Sex".into(), patient.sex.clone()),
-            ("Insurance number".into(), patient.insurance_number.clone()),
+            (
+                "Insurance number".into(),
+                patient.insurance_number.clone().unwrap_or_default(),
+            ),
             ("Patient status".into(), patient.status.clone()),
         ];
         if let Some(t) = &patient.phone {
@@ -593,7 +608,7 @@ pub async fn export_chart_pdf(
         }
     }
 
-    if sec.payments && finance {
+    if sec.payments {
         let rows_db = payment_repo::find_by_patient_id(pool, &patient_id).await?;
         let tbl = if rows_db.is_empty() {
             ChartPdfTable {
@@ -682,7 +697,7 @@ pub async fn export_chart_pdf(
         });
     }
 
-    if sec.audit && audit_ok {
+    if sec.audit {
         let rows_db = audit_repo::find_for_patient_entity(pool, &patient_id, 500).await?;
         let tbl = if rows_db.is_empty() {
             ChartPdfTable {
@@ -1034,6 +1049,28 @@ pub async fn export_discharge_leaflet_pdf(
     .await
     .ok();
     Ok(base64::engine::general_purpose::STANDARD.encode(&bytes))
+}
+
+#[cfg(test)]
+mod chart_section_gate_tests {
+    use super::{gate_chart_sections, ChartExportSections};
+    use crate::application::rbac::Role;
+    use crate::domain::rbac::PermissionOverride;
+
+    #[test]
+    fn denied_document_permission_hides_attachment_names() {
+        let mut sections = ChartExportSections::default();
+        gate_chart_sections(
+            &mut sections,
+            Role::Physician,
+            &[PermissionOverride {
+                action: "patient.read_documents".into(),
+                effect: "DENY".into(),
+            }],
+        );
+        assert!(!sections.attachments);
+        assert!(sections.patient);
+    }
 }
 
 #[cfg(test)]

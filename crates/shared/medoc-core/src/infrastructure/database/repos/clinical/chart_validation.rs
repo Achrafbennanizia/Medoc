@@ -32,6 +32,7 @@ pub async fn upsert_row(
     validated_at: &str,
     validated_by: Option<&str>,
 ) -> Result<(), AppError> {
+    let mut tx = pool.begin().await?;
     sqlx::query(
         "INSERT INTO chart_validation (patient_id, section_or_item, validated_at, validated_by)
          VALUES (?1, ?2, ?3, ?4)
@@ -43,8 +44,21 @@ pub async fn upsert_row(
     .bind(section_or_item)
     .bind(validated_at)
     .bind(validated_by)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
+    // F147: sync id is the composite key, not patient_id alone.
+    let key = crate::infrastructure::database::sync_registry::chart_validation_key(
+        patient_id,
+        section_or_item,
+    );
+    crate::infrastructure::database::recorded_write::record_in_tx(
+        &mut tx,
+        "chart_validation",
+        &key,
+        "UPDATE",
+    )
+    .await?;
+    tx.commit().await?;
     Ok(())
 }
 
@@ -53,11 +67,24 @@ pub async fn delete_row(
     patient_id: &str,
     section_or_item: &str,
 ) -> Result<(), AppError> {
+    let mut tx = pool.begin().await?;
+    let key = crate::infrastructure::database::sync_registry::chart_validation_key(
+        patient_id,
+        section_or_item,
+    );
+    crate::infrastructure::database::recorded_write::record_in_tx(
+        &mut tx,
+        "chart_validation",
+        &key,
+        "DELETE",
+    )
+    .await?;
     sqlx::query("DELETE FROM chart_validation WHERE patient_id = ?1 AND section_or_item = ?2")
         .bind(patient_id)
         .bind(section_or_item)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
+    tx.commit().await?;
     Ok(())
 }
 
@@ -67,20 +94,43 @@ pub async fn clear_for_patient(
     patient_id: &str,
     section_or_item: Option<&str>,
 ) -> Result<u64, AppError> {
+    let mut tx = pool.begin().await?;
+    let sections: Vec<String> = match section_or_item {
+        Some(s) => vec![s.to_string()],
+        None => sqlx::query_scalar(
+            "SELECT section_or_item FROM chart_validation WHERE patient_id = ?1",
+        )
+        .bind(patient_id)
+        .fetch_all(&mut *tx)
+        .await?,
+    };
+    for section in &sections {
+        let key = crate::infrastructure::database::sync_registry::chart_validation_key(
+            patient_id, section,
+        );
+        crate::infrastructure::database::recorded_write::record_in_tx(
+            &mut tx,
+            "chart_validation",
+            &key,
+            "DELETE",
+        )
+        .await?;
+    }
     let n = if let Some(s) = section_or_item {
         sqlx::query("DELETE FROM chart_validation WHERE patient_id = ?1 AND section_or_item = ?2")
             .bind(patient_id)
             .bind(s)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?
             .rows_affected()
     } else {
         sqlx::query("DELETE FROM chart_validation WHERE patient_id = ?1")
             .bind(patient_id)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?
             .rows_affected()
     };
+    tx.commit().await?;
     Ok(n)
 }
 

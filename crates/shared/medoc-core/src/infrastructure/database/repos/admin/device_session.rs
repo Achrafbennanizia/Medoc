@@ -326,6 +326,18 @@ pub async fn set_trusted(
     Ok(r.rows_affected() > 0)
 }
 
+pub async fn end_all_for_user(pool: &SqlitePool, user_id: &str) -> Result<u64, AppError> {
+    let r = sqlx::query(
+        "UPDATE device_session SET ended_at = datetime('now')
+         WHERE user_id = ?1 AND ended_at IS NULL",
+    )
+    .bind(user_id)
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?;
+    Ok(r.rows_affected())
+}
+
 pub async fn end_other_than(
     pool: &SqlitePool,
     user_id: &str,

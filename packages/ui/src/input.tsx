@@ -75,14 +75,79 @@ interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
     /** Render dropdown in a body portal (tables / overflow containers). */
     menuPortal?: boolean;
     menuClassName?: string;
+    /** Size the menu to the longest option instead of the trigger width. */
+    menuFitContent?: boolean;
+    /** Keep a fitted menu inside this ancestor (CSS selector). */
+    menuContainSelector?: string;
 }
 
-function selectPortalMenuStyle(trigger: HTMLElement): CSSProperties {
+const labelMeasureCanvas = typeof document === "undefined" ? null : document.createElement("canvas");
+
+function measureLongestLabel(labels: string[], sample: HTMLElement): number {
+    const cs = getComputedStyle(sample);
+    const ctx = labelMeasureCanvas?.getContext("2d");
+    if (!ctx) return sample.getBoundingClientRect().width;
+    ctx.font = `400 13.5px ${cs.fontFamily}`.trim();
+    let widest = 0;
+    for (const label of labels) {
+        widest = Math.max(widest, ctx.measureText(label).width);
+    }
+    return widest;
+}
+
+function selectPortalMenuStyle(
+    trigger: HTMLElement,
+    fitContent = false,
+    optionLabels: string[] = [],
+    contain: HTMLElement | null = null,
+): CSSProperties {
     const rect = trigger.getBoundingClientRect();
     const viewportPad = 8;
-    const width = Math.min(Math.max(rect.width, 160), window.innerWidth - viewportPad * 2);
-    const top = rect.bottom + 6;
+    const bounds = contain?.getBoundingClientRect();
+    const limitLeft = Math.max(viewportPad, bounds ? bounds.left + viewportPad : viewportPad);
+    const limitRight = Math.min(
+        window.innerWidth - viewportPad,
+        bounds ? bounds.right - viewportPad : window.innerWidth - viewportPad,
+    );
+    const limitTop = Math.max(viewportPad, bounds ? bounds.top + viewportPad : viewportPad);
+    const limitBottom = Math.min(
+        window.innerHeight - viewportPad,
+        bounds ? bounds.bottom - viewportPad : window.innerHeight - viewportPad,
+    );
+    const maxWidth = Math.max(120, limitRight - limitLeft);
     const rtl = document.documentElement.dir === "rtl";
+    if (fitContent) {
+        const textWidth = measureLongestLabel(optionLabels, trigger);
+        const width = Math.min(Math.max(Math.ceil(textWidth + 36), 120), maxWidth);
+        let left = rtl ? rect.left : rect.right - width;
+        if (left < limitLeft) left = limitLeft;
+        if (left + width > limitRight) left = Math.max(limitLeft, limitRight - width);
+        const gap = 6;
+        let top = rect.bottom + gap;
+        let maxHeight = Math.min(360, limitBottom - top);
+        if (maxHeight < 160) {
+            const above = rect.top - gap - limitTop;
+            if (above > maxHeight) {
+                maxHeight = Math.min(360, above);
+                top = Math.max(limitTop, rect.top - gap - maxHeight);
+            }
+        }
+        maxHeight = Math.max(120, maxHeight);
+        return {
+            position: "fixed",
+            top,
+            left,
+            right: "auto",
+            width,
+            minWidth: width,
+            maxWidth: width,
+            maxHeight,
+            boxSizing: "border-box",
+            zIndex: 10050,
+        };
+    }
+    const width = Math.min(Math.max(rect.width, 160), maxWidth);
+    const top = rect.bottom + 6;
     if (rtl) {
         const right = Math.max(viewportPad, window.innerWidth - rect.right);
         return {
@@ -163,6 +228,8 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
             options,
             menuPortal = true,
             menuClassName,
+            menuFitContent = false,
+            menuContainSelector,
             "aria-describedby": ariaDescribedBy,
             ...props
         },
@@ -222,7 +289,17 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
             const update = () => {
                 const trigger = triggerRef.current;
                 if (!trigger) return;
-                setPortalMenuStyle(selectPortalMenuStyle(trigger));
+                const contain = menuContainSelector
+                    ? trigger.closest(menuContainSelector)
+                    : null;
+                setPortalMenuStyle(
+                    selectPortalMenuStyle(
+                        trigger,
+                        menuFitContent,
+                        options.map((o) => o.label),
+                        contain instanceof HTMLElement ? contain : null,
+                    ),
+                );
             };
             update();
             window.addEventListener("resize", update);
@@ -231,7 +308,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
                 window.removeEventListener("resize", update);
                 window.removeEventListener("scroll", update, true);
             };
-        }, [open, menuPortal, options.length, selectedValue]);
+        }, [open, menuPortal, menuFitContent, menuContainSelector, options, selectedValue]);
 
         const dispatchSyntheticChange = (nextValue: string) => {
             const sel = innerSelectRef.current;

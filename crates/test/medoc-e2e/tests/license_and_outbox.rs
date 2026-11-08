@@ -103,7 +103,8 @@ async fn lan_practice_data_readable_with_jwt_not_activation_token() {
     let mut lan = LanHarness::new().await;
     let jwt = lan.login_ops_jwt().await;
 
-    let (status, patients) = lan.json("GET", "/api/v1/patients", None, Some(&jwt)).await;
-    assert_eq!(status, StatusCode::OK);
-    assert!(patients.is_array());
+    let (status, me) = lan.json("GET", "/api/v1/me", None, Some(&jwt)).await;
+    assert_eq!(status, StatusCode::OK, "own profile: {me:?}");
+    let (gone, _) = lan.json("GET", "/api/v1/patients", None, Some(&jwt)).await;
+    assert_eq!(gone, StatusCode::NOT_FOUND);
 }

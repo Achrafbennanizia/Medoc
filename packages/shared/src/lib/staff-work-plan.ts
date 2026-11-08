@@ -9,9 +9,12 @@ import type { PlanPreference } from "./work-plan-preferences";
 import { defaultLayerForScope } from "./work-plan-preferences";
 import type { WorkPlanComposeEntry } from "./work-plan-compose";
 import { parseComposeEntries } from "./work-plan-compose";
+import { getAppKv, setAppKv } from "@/systems/practice-host/controllers/app-kv.controller";
 
 const LS_KEY_V1 = "medoc-staff-work_plan-v1";
 const LS_KEY_V2 = "medoc-staff-work_plan-v2";
+const WORK_PLAN_KV_PREFIX = "staff.work_plan.v1." as const;
+const WORK_PLAN_SETTINGS_KV = "staff.work_plan.v1.settings" as const;
 
 export type WorkPlanView = "day" | "week" | "month";
 
@@ -255,6 +258,127 @@ export function loadWorkPlanStore(): WorkPlanStore {
 export function saveWorkPlanStore(s: WorkPlanStore): void {
     if (globalThis.localStorage == null) return;
     localStorage.setItem(LS_KEY_V2, JSON.stringify(s));
+}
+
+function staffIdsInStore(s: WorkPlanStore): string[] {
+    const ids = new Set<string>();
+    for (const b of s.blocks) ids.add(b.staffId);
+    for (const r of s.weeklyRules) ids.add(r.staffId);
+    for (const p of s.planPreferences) {
+        for (const id of p.staffIds) ids.add(id);
+    }
+    for (const e of s.composeEntries) ids.add(e.staffId);
+    return [...ids];
+}
+
+type WorkPlanSlice = Pick<WorkPlanStore, "blocks" | "weeklyRules" | "planPreferences" | "composeEntries">;
+
+function sliceFor(s: WorkPlanStore, staffId: string): WorkPlanSlice {
+    return {
+        blocks: s.blocks.filter((b) => b.staffId === staffId),
+        weeklyRules: s.weeklyRules.filter((r) => r.staffId === staffId),
+        planPreferences: s.planPreferences.filter((p) => p.staffIds.includes(staffId)),
+        composeEntries: s.composeEntries.filter((e) => e.staffId === staffId),
+    };
+}
+
+async function persistSettings(s: WorkPlanStore): Promise<void> {
+    await setAppKv(
+        WORK_PLAN_SETTINGS_KV,
+        JSON.stringify({
+            settings: s.settings,
+            presets: s.presets,
+            sharedPlanPreferences: s.planPreferences.filter((p) => p.staffIds.length === 0),
+        }),
+    );
+}
+
+/** Writes the whole store. Only call with a store hydrated for every staff member. */
+export async function persistWorkPlanStore(s: WorkPlanStore): Promise<void> {
+    await persistSettings(s);
+    for (const staffId of staffIdsInStore(s)) {
+        await setAppKv(`${WORK_PLAN_KV_PREFIX}${staffId}`, JSON.stringify(sliceFor(s, staffId)));
+    }
+    saveWorkPlanStore(s);
+}
+
+/**
+ * F123: writes one staff member's slice only. Use from flows that touched a
+ * single person (sick leave), so other people's plans are never overwritten
+ * with whatever this device happened to have cached.
+ */
+export async function persistWorkPlanSlice(s: WorkPlanStore, staffId: string): Promise<void> {
+    await setAppKv(`${WORK_PLAN_KV_PREFIX}${staffId}`, JSON.stringify(sliceFor(s, staffId)));
+}
+
+function dedupeById<T extends { id: string }>(items: T[]): T[] {
+    const seen = new Map<string, T>();
+    for (const it of items) seen.set(it.id, it);
+    return [...seen.values()];
+}
+
+/**
+ * Loads the synced work plan (app_kv) for `staffIds`. `cache: false` skips
+ * overwriting the full local cache, for callers that hydrate a subset.
+ */
+export async function hydrateWorkPlanStore(
+    staffIds: string[],
+    opts: { cache?: boolean } = {},
+): Promise<WorkPlanStore> {
+    const cache = opts.cache ?? true;
+    const fromLs = loadWorkPlanStore();
+    try {
+        const settingsRaw = await getAppKv(WORK_PLAN_SETTINGS_KV);
+        const slices = await Promise.all(
+            staffIds.map(async (id) => {
+                const raw = await getAppKv(`${WORK_PLAN_KV_PREFIX}${id}`);
+                if (!raw?.trim()) return null;
+                try {
+                    return JSON.parse(raw) as Partial<WorkPlanStore>;
+                } catch {
+                    return null;
+                }
+            }),
+        );
+        if (!settingsRaw?.trim() && slices.every((s) => s == null)) {
+            if (cache && (fromLs.blocks.length || fromLs.weeklyRules.length || fromLs.planPreferences.length)) {
+                await persistWorkPlanStore(fromLs);
+            }
+            return fromLs;
+        }
+        const settingsJson = settingsRaw?.trim()
+            ? (JSON.parse(settingsRaw) as {
+                  settings?: WorkPlanStore["settings"];
+                  presets?: WorkPlanStore["presets"];
+                  sharedPlanPreferences?: unknown[];
+              })
+            : {};
+        const merged: WorkPlanStore = {
+            blocks: [],
+            settings: settingsJson.settings ?? fromLs.settings,
+            presets: settingsJson.presets ?? fromLs.presets,
+            weeklyRules: [],
+            planPreferences: Array.isArray(settingsJson.sharedPlanPreferences)
+                ? settingsJson.sharedPlanPreferences.filter(isPlanPreference)
+                : [],
+            composeEntries: [],
+        };
+        for (const slice of slices) {
+            if (!slice) continue;
+            if (Array.isArray(slice.blocks)) merged.blocks.push(...slice.blocks.filter(isBlock));
+            if (Array.isArray(slice.weeklyRules)) merged.weeklyRules.push(...slice.weeklyRules);
+            if (Array.isArray(slice.planPreferences)) merged.planPreferences.push(...slice.planPreferences);
+            if (Array.isArray(slice.composeEntries)) {
+                merged.composeEntries.push(...parseComposeEntries(slice.composeEntries));
+            }
+        }
+        merged.planPreferences = dedupeById(merged.planPreferences);
+        merged.blocks = dedupeById(merged.blocks);
+        if (cache) saveWorkPlanStore(merged);
+        return merged;
+    } catch {
+        return fromLs;
+    }
 }
 
 export function loadWorkPlanBlocks(): StaffWorkBlock[] {

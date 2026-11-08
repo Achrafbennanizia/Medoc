@@ -419,6 +419,7 @@ async fn staff_delete_ref_counts(pool: &SqlitePool, id: &str) -> Result<StaffDel
 }
 
 async fn detach_staff_operational_rows(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
+    // sync: recorded by caller delete_staff
     tracing::info!(
         target: "medoc::staff",
         event = "STAFF_DELETE_DETACH_OPERATIONAL",
@@ -443,8 +444,31 @@ async fn detach_staff_operational_rows(pool: &SqlitePool, id: &str) -> Result<()
         .bind(id)
         .execute(pool)
         .await?;
+    sqlx::query("DELETE FROM sick_leave_certificate WHERE staff_id = ?1")
+        .bind(id)
+        .execute(pool)
+        .await?;
+    // A note written for someone else stays. Point the author columns at
+    // another account so this delete does not fail the foreign key.
+    let other: Option<String> =
+        sqlx::query_scalar("SELECT id FROM staff WHERE id != ?1 ORDER BY id LIMIT 1")
+            .bind(id)
+            .fetch_optional(pool)
+            .await
+            .map_err(AppError::Database)?;
+    if let Some(other) = other {
+        sqlx::query(
+            "UPDATE sick_leave_certificate SET created_by = ?1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+             WHERE created_by = ?2 AND staff_id != ?2",
+        )
+        .bind(&other)
+        .bind(id)
+        .execute(pool)
+        .await?;
+    }
     sqlx::query(
-        "DELETE FROM sick_leave_certificate WHERE staff_id = ?1 OR created_by = ?1 OR ended_by = ?1",
+        "UPDATE sick_leave_certificate SET ended_by = NULL, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+         WHERE ended_by = ?1 AND staff_id != ?1",
     )
     .bind(id)
     .execute(pool)
@@ -456,7 +480,10 @@ async fn detach_staff_operational_rows(pool: &SqlitePool, id: &str) -> Result<()
     Ok(())
 }
 
-async fn replacement_physician_id(pool: &SqlitePool, except_id: &str) -> Result<Option<String>, AppError> {
+async fn replacement_physician_id(
+    pool: &SqlitePool,
+    except_id: &str,
+) -> Result<Option<String>, AppError> {
     sqlx::query_scalar(
         "SELECT id FROM staff WHERE UPPER(role) = 'PHYSICIAN' AND id != ?1 ORDER BY id LIMIT 1",
     )
@@ -471,6 +498,7 @@ async fn reassign_or_reject_clinical_ownership(
     id: &str,
     refs: &StaffDeleteRefs,
 ) -> Result<(), AppError> {
+    // sync: recorded by caller delete_staff
     let clinical = refs.appointments + refs.prescriptions + refs.certificates;
     if clinical == 0 {
         return Ok(());
@@ -497,60 +525,139 @@ async fn reassign_or_reject_clinical_ownership(
         prescriptions = refs.prescriptions,
         certificates = refs.certificates
     );
-    sqlx::query("UPDATE appointment SET physician_id = ?1 WHERE physician_id = ?2")
-        .bind(&other)
-        .bind(id)
-        .execute(pool)
+    let mut tx = pool.begin().await?;
+    record_reassigned(
+        &mut tx,
+        "appointment",
+        "UPDATE appointment SET physician_id = ?1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE physician_id = ?2 RETURNING id",
+        &other,
+        id,
+    )
+    .await?;
+    record_reassigned(
+        &mut tx,
+        "prescription",
+        "UPDATE prescription SET physician_id = ?1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE physician_id = ?2 RETURNING id",
+        &other,
+        id,
+    )
+    .await?;
+    record_reassigned(
+        &mut tx,
+        "certificate",
+        "UPDATE certificate SET physician_id = ?1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE physician_id = ?2 RETURNING id",
+        &other,
+        id,
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(())
+}
+
+async fn record_reassigned(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    table: &str,
+    sql: &str,
+    other: &str,
+    old_id: &str,
+) -> Result<(), AppError> {
+    let ids: Vec<String> = sqlx::query_scalar(sql)
+        .bind(other)
+        .bind(old_id)
+        .fetch_all(&mut **tx)
         .await?;
-    sqlx::query("UPDATE prescription SET physician_id = ?1 WHERE physician_id = ?2")
-        .bind(&other)
-        .bind(id)
-        .execute(pool)
-        .await?;
-    sqlx::query("UPDATE certificate SET physician_id = ?1 WHERE physician_id = ?2")
-        .bind(&other)
-        .bind(id)
-        .execute(pool)
-        .await?;
+    for row_id in ids {
+        crate::infrastructure::database::recorded_write::record_in_tx(tx, table, &row_id, "UPDATE")
+            .await?;
+    }
     Ok(())
 }
 
 async fn nullify_optional_staff_fks(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
+    // sync: recorded by caller delete_staff
     tracing::info!(
         target: "medoc::staff",
         event = "STAFF_DELETE_NULLIFY_OPTIONAL",
         staff_id = %id
     );
-    sqlx::query("UPDATE prescription SET prescribing_physician_id = NULL WHERE prescribing_physician_id = ?1")
-        .bind(id)
-        .execute(pool)
-        .await?;
-    sqlx::query("UPDATE certificate SET issuing_physician_id = NULL WHERE issuing_physician_id = ?1")
-        .bind(id)
-        .execute(pool)
-        .await?;
-    sqlx::query(
-        "UPDATE examination SET released_by_physician_id = NULL WHERE released_by_physician_id = ?1",
+    let mut tx = pool.begin().await?;
+    record_returning(
+        &mut tx,
+        "prescription",
+        "UPDATE prescription SET prescribing_physician_id = NULL, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE prescribing_physician_id = ?1 RETURNING id",
+        id,
     )
-    .bind(id)
-    .execute(pool)
     .await?;
-    sqlx::query(
-        "UPDATE treatment SET released_by_physician_id = NULL WHERE released_by_physician_id = ?1",
+    record_returning(
+        &mut tx,
+        "certificate",
+        "UPDATE certificate SET issuing_physician_id = NULL, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE issuing_physician_id = ?1 RETURNING id",
+        id,
     )
+    .await?;
+    record_returning(
+        &mut tx,
+        "examination",
+        "UPDATE examination SET released_by_physician_id = NULL, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE released_by_physician_id = ?1 RETURNING id",
+        id,
+    )
+    .await?;
+    record_returning(
+        &mut tx,
+        "treatment",
+        "UPDATE treatment SET released_by_physician_id = NULL, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE released_by_physician_id = ?1 RETURNING id",
+        id,
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(())
+}
+
+async fn record_returning(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    table: &str,
+    sql: &str,
+    staff_id: &str,
+) -> Result<(), AppError> {
+    let ids: Vec<String> = sqlx::query_scalar(sql)
+        .bind(staff_id)
+        .fetch_all(&mut **tx)
+        .await?;
+    for row_id in ids {
+        crate::infrastructure::database::recorded_write::record_in_tx(tx, table, &row_id, "UPDATE")
+            .await?;
+    }
+    Ok(())
+}
+
+pub async fn update_password_hash(pool: &SqlitePool, id: &str, hash: &str) -> Result<(), AppError> {
+    sqlx::query("UPDATE staff SET password_hash = ?1, updated_at = CURRENT_TIMESTAMP WHERE id = ?2")
+        .bind(hash)
+        .bind(id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+/// Stores a new password and invalidates LAN tokens issued before the change.
+pub async fn replace_password(pool: &SqlitePool, id: &str, hash: &str) -> Result<(), AppError> {
+    sqlx::query(
+        "UPDATE staff SET password_hash = ?1, token_version = token_version + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?2",
+    )
+    .bind(hash)
     .bind(id)
     .execute(pool)
     .await?;
     Ok(())
 }
 
-pub async fn update_password_hash(pool: &SqlitePool, id: &str, hash: &str) -> Result<(), AppError> {
-    sqlx::query("UPDATE staff SET password_hash = ?1 WHERE id = ?2")
-        .bind(hash)
-        .bind(id)
-        .execute(pool)
-        .await?;
-    Ok(())
+pub async fn token_version(pool: &SqlitePool, id: &str) -> Result<i64, AppError> {
+    let version: Option<i64> =
+        sqlx::query_scalar("SELECT token_version FROM staff WHERE id = ?1")
+            .bind(id)
+            .fetch_optional(pool)
+            .await?;
+    version.ok_or(AppError::Unauthorized)
 }
 
 pub async fn set_totp_pending_secret(
@@ -597,5 +704,5 @@ pub fn totp_required_for_role(role: &str) -> bool {
     if !crate::mvp_security::TOTP_2FA_ENABLED {
         return false;
     }
-    role.eq_ignore_ascii_case("PHYSICIAN")
+    role.eq_ignore_ascii_case("PHYSICIAN") || role.eq_ignore_ascii_case("ADMIN")
 }

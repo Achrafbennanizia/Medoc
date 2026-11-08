@@ -15,6 +15,9 @@ pub struct LanClaims {
     pub sub: String,
     pub email: String,
     pub role: String,
+    /// Staff password generation. Older tokens fail once this moves on.
+    #[serde(default)]
+    pub token_version: i64,
     pub exp: i64,
 }
 
@@ -24,12 +27,23 @@ pub fn issue_token(
     email: &str,
     role: &str,
 ) -> Result<String, AppError> {
+    issue_token_versioned(secret, user_id, email, role, 0)
+}
+
+pub fn issue_token_versioned(
+    secret: &[u8],
+    user_id: &str,
+    email: &str,
+    role: &str,
+    token_version: i64,
+) -> Result<String, AppError> {
     let exp = Utc::now().timestamp() + TOKEN_TTL_SECS;
     let claims = LanClaims {
         iss: JWT_ISS.into(),
         sub: user_id.into(),
         email: email.into(),
         role: role.into(),
+        token_version,
         exp,
     };
     let mut header = Header::new(Algorithm::HS256);

@@ -28,6 +28,8 @@ async fn new_patient_stays_new_after_create_appointment() {
             physician_id: "seed-physician-001".into(),
             notes: None,
             chief_complaint: None,
+            duration_minutes: None,
+            status: None,
         },
     )
     .await
@@ -63,6 +65,8 @@ async fn new_patient_becomes_active_when_first_appointment_completed() {
             physician_id: "seed-physician-001".into(),
             notes: None,
             chief_complaint: None,
+            duration_minutes: None,
+            status: None,
         },
     )
     .await
@@ -79,6 +83,7 @@ async fn new_patient_becomes_active_when_first_appointment_completed() {
             notes: None,
             chief_complaint: None,
             physician_id: None,
+            duration_minutes: None,
         },
     )
     .await

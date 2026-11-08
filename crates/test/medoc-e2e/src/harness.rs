@@ -396,6 +396,54 @@ impl LanHarness {
         (status, value)
     }
 
+    pub async fn put_bytes(
+        &mut self,
+        path: &str,
+        bytes: Vec<u8>,
+        bearer: Option<&str>,
+    ) -> (u16, Vec<u8>) {
+        let mut builder = Request::builder().method("PUT").uri(path);
+        if let Some(token) = bearer {
+            builder = builder.header("Authorization", format!("Bearer {token}"));
+        }
+        let req = builder
+            .header("content-type", "application/octet-stream")
+            .body(Body::from(bytes))
+            .expect("put bytes");
+        let resp = self.call(req).await;
+        let status = resp.status().as_u16();
+        let body = resp
+            .into_body()
+            .collect()
+            .await
+            .expect("body collect")
+            .to_bytes()
+            .to_vec();
+        (status, body)
+    }
+
+    pub async fn get_bytes(
+        &mut self,
+        path: &str,
+        bearer: Option<&str>,
+    ) -> (u16, Vec<u8>) {
+        let mut builder = Request::builder().method("GET").uri(path);
+        if let Some(token) = bearer {
+            builder = builder.header("Authorization", format!("Bearer {token}"));
+        }
+        let req = builder.body(Body::empty()).expect("get bytes");
+        let resp = self.call(req).await;
+        let status = resp.status().as_u16();
+        let body = resp
+            .into_body()
+            .collect()
+            .await
+            .expect("body collect")
+            .to_bytes()
+            .to_vec();
+        (status, body)
+    }
+
     /// Accept a pending pairing request and confirm with the returned PIN (two-phase flow).
     pub async fn pairing_decide_accept_and_confirm(
         &mut self,
@@ -489,6 +537,142 @@ pub fn slave_signing_key(seed_byte: u8) -> SigningKey {
 
 pub fn slave_pubkey_b64(sk: &SigningKey) -> String {
     master_keys::pubkey_b64(sk)
+}
+
+/// Main device plus two replica databases, paired through the real LAN router.
+/// Later phases reuse this to prove a write on A is visible on B.
+pub struct SyncMesh {
+    pub main: LanHarness,
+    pub replica_a: SqlitePool,
+    pub replica_b: SqlitePool,
+    pub device_a: String,
+    pub device_b: String,
+    pub token_a: String,
+    pub token_b: String,
+}
+
+impl SyncMesh {
+    pub async fn connect() -> Self {
+        let mut main = LanHarness::new().await;
+        let jwt = main.login_ops_jwt().await;
+        let device_a = "mesh-replica-a".to_string();
+        let device_b = "mesh-replica-b".to_string();
+        let token_a = pair_mesh_replica(&mut main, &jwt, 11, &device_a).await;
+        let token_b = pair_mesh_replica(&mut main, &jwt, 12, &device_b).await;
+        let replica_a = fresh_replica_pool(&device_a).await;
+        let replica_b = fresh_replica_pool(&device_b).await;
+        enable_replica_outbox(&replica_a, "Replica A").await;
+        enable_replica_outbox(&replica_b, "Replica B").await;
+        Self {
+            main,
+            replica_a,
+            replica_b,
+            device_a,
+            device_b,
+            token_a,
+            token_b,
+        }
+    }
+
+    pub async fn master_device_id(&mut self) -> String {
+        let (_, snap) = self
+            .main
+            .json("GET", "/api/v1/sync/status", None, Some(&self.token_a))
+            .await;
+        snap["localDeviceId"]
+            .as_str()
+            .expect("local device id")
+            .to_string()
+    }
+
+    /// Push every undelivered outbox row from `from` to the main router.
+    pub async fn push_pending(
+        &mut self,
+        from: &SqlitePool,
+        device_id: &str,
+        token: &str,
+    ) -> serde_json::Value {
+        let entries = medoc_sync::repo::list_pending_outbox(from, device_id, 500)
+            .await
+            .expect("list pending outbox");
+        let (status, body) = self
+            .main
+            .json(
+                "POST",
+                "/api/v1/sync/push",
+                Some(&serde_json::json!({
+                    "fromDeviceId": device_id,
+                    "entries": entries,
+                })),
+                Some(token),
+            )
+            .await;
+        assert_eq!(status, StatusCode::OK, "mesh push: {body:?}");
+        body
+    }
+
+    pub async fn pull_entries(
+        &mut self,
+        requester_id: &str,
+        token: &str,
+    ) -> Vec<medoc_sync::repo::OutboxEntry> {
+        let master_id = self.master_device_id().await;
+        let (status, body) = self
+            .main
+            .json(
+                "POST",
+                "/api/v1/sync/pull",
+                Some(&serde_json::json!({
+                    "deviceId": master_id,
+                    "sinceSeq": 0,
+                    "requesterId": requester_id,
+                })),
+                Some(token),
+            )
+            .await;
+        assert_eq!(status, StatusCode::OK, "mesh pull: {body:?}");
+        serde_json::from_value(body["entries"].clone()).unwrap_or_else(|e| {
+            panic!("pull entries: {e}; body={body:?}");
+        })
+    }
+}
+
+fn mesh_connect(seed: u8) -> SocketAddr {
+    format!("192.168.1.{seed}:54321")
+        .parse()
+        .expect("connect addr")
+}
+
+async fn pair_mesh_replica(lan: &mut LanHarness, jwt: &str, seed: u8, device_id: &str) -> String {
+    let (status, submitted) = lan
+        .json_with_connect(
+            mesh_connect(seed),
+            "POST",
+            "/api/v1/pairing/request",
+            Some(&serde_json::json!({
+                "deviceId": device_id,
+                "slavePubkey": slave_pubkey_b64(&slave_signing_key(seed)),
+                "slaveLabel": format!("Replica-{seed}"),
+            })),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "mesh pair submit: {submitted:?}");
+    let request_id = submitted["id"].as_str().expect("pairing id").to_string();
+    lan.pairing_decide_accept_and_confirm(&request_id, jwt)
+        .await
+}
+
+async fn enable_replica_outbox(pool: &SqlitePool, label: &str) {
+    medoc_core::infrastructure::database::app_kv_repo::set(
+        pool,
+        "sync.deployment.v1",
+        &format!(
+            r#"{{"schemaVersion":1,"mode":"serverless_peer","role":"REPLICA","masterBaseUrl":"","masterCertSha256":"","masterAccessToken":"","deviceLabel":"{label}"}}"#
+        ),
+    )
+    .await
+    .expect("enable replica outbox");
 }
 
 pub async fn body_bytes(resp: Response<Body>) -> Bytes {

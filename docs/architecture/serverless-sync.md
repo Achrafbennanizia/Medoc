@@ -115,7 +115,6 @@ caller that persists; cargo unit tests use a deterministic dev seed.
 - `sync_get_status`
 - `sync_set_deployment`
 - `sync_run_now` — replica push + pull
-- `sync_record_change` — optional explicit outbox append
 - `pairing_list_pending`, `pairing_decide`, `pairing_revoke`, `pairing_master_info` — master inbox
 - `pairing_scan_lan`, `pairing_submit_request`, `pairing_check_status`,
   `pairing_persist_token` — replica scan/request flow

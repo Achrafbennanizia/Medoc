@@ -24,7 +24,8 @@ import { EmptyState } from "../components/ui/empty-state";
 import { appointmentIsEmergencyMarked } from "@/lib/appointment-domain";
 import { appointmentKindLabel } from "@/lib/appointment-calendar-ui";
 import { useLocale, useT, useTParams, bcp47ForLocale } from "@/lib/i18n";
-import { loadClientSettings } from "@/lib/client-settings";
+import { practiceClosingTimeHm } from "@/lib/practice-planning";
+import { usePracticeWorkHoursStore } from "@/models/store/practice-work-hours-store";
 import { listUpcomingAppointments, type UpcomingAppointment } from "@/systems/practice-host/controllers/integration.controller";
 import { kpiIconChrome } from "@/lib/kpi-icon-chrome";
 import { WorkspacePageHeader } from "../components/administration-page-header";
@@ -266,15 +267,15 @@ export function DashboardPage() {
         };
     }, [session?.role, session?.permission_overrides, reloadToken]);
 
-    /** DayClose-Erinnerung (lokal, client-settings): ein Toast pro Tag zur konfigurierten Minute. */
+    /** Day-close reminder at that day's closing time from Opening hours (once per day). */
     useEffect(() => {
-        const raw = (loadClientSettings().workflows?.dayCloseReminderTime ?? "18:00").trim();
-        const m = /^(\d{1,2}):(\d{2})$/.exec(raw);
-        if (!m) return;
-        const th = Number(m[1]);
-        const tmin = Number(m[2]);
-        if (!Number.isFinite(th) || !Number.isFinite(tmin) || th < 0 || th > 23 || tmin < 0 || tmin > 59) return;
         const check = () => {
+            const raw = practiceClosingTimeHm(usePracticeWorkHoursStore.getState().config, new Date());
+            const m = raw ? /^(\d{1,2}):(\d{2})$/.exec(raw) : null;
+            if (!m) return;
+            const th = Number(m[1]);
+            const tmin = Number(m[2]);
+            if (!Number.isFinite(th) || !Number.isFinite(tmin) || th < 0 || th > 23 || tmin < 0 || tmin > 59) return;
             const now = new Date();
             if (now.getHours() !== th || now.getMinutes() !== tmin) return;
             const d = now.toISOString().slice(0, 10);

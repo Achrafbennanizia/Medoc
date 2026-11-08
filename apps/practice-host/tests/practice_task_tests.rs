@@ -11,6 +11,10 @@ use medoc_lib::infrastructure::database::{in_app_notification_repo, practice_tas
 async fn migrated_pool() -> sqlx::SqlitePool {
     let pool = test_memory_pool().await.expect("pool");
     run_migrations(&pool).await.expect("migrations");
+    sqlx::query("DELETE FROM in_app_notification WHERE id LIKE 'seed-notif-%'")
+        .execute(&pool)
+        .await
+        .expect("clear demo inbox");
     pool
 }
 

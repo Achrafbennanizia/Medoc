@@ -110,7 +110,17 @@ pub async fn clear(
     State(state): State<LanHttpState>,
     Extension(claims): Extension<jwt::LanClaims>,
 ) -> Result<StatusCode, ApiError> {
-    require_authenticated(&claims)?;
+    medoc_core::application::authorize::authorize(
+        &state.pool,
+        &medoc_core::application::authorize::Caller {
+            user_id: claims.sub.clone(),
+            idle_for: None,
+            device_session_id: None,
+        },
+        "ops.system",
+        None,
+    )
+    .await?;
     license_repo::clear(&state.pool).await?;
     Ok(StatusCode::NO_CONTENT)
 }

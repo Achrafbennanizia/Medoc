@@ -7,12 +7,25 @@ use crate::domain::entities::staff::{CreateStaff, UpdateOwnProfile, UpdateStaff}
 use crate::domain::entities::{PhysicianSummary, Staff, TaskTeamMember};
 use crate::error::AppError;
 use crate::infrastructure::crypto;
-use crate::infrastructure::database::{audit_repo, staff_permission_repo, staff_repo};
+use crate::infrastructure::database::{audit_repo, device_session_repo, staff_permission_repo, staff_repo};
 use crate::infrastructure::logging::brute_force;
 // TODO(deferred-security): 2FA unwired — see todos-deferred-security-features.md
 // use crate::infrastructure::totp::{self, TotpEnrollmentDto};
+use medoc_sync::deployment::DeviceRole;
+use medoc_sync::engine::SyncEngine;
 use sqlx::SqlitePool;
 use tauri::State;
+
+const STAFF_MANAGED_ON_MAIN: &str = "Staff accounts are managed on the main device.";
+
+pub async fn reject_staff_writes_on_replica(pool: &SqlitePool) -> Result<(), AppError> {
+    match SyncEngine::status(pool).await {
+        Ok(snap) if snap.deployment.role == DeviceRole::Replica => {
+            Err(AppError::Validation(STAFF_MANAGED_ON_MAIN.into()))
+        }
+        _ => Ok(()),
+    }
+}
 
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state))]
@@ -67,6 +80,7 @@ pub async fn create_staff(
     data: CreateStaff,
 ) -> Result<Staff, AppError> {
     let session = rbac::require(&session_state, "staff.write")?;
+    reject_staff_writes_on_replica(&pool).await?;
     if staff_repo::find_by_email(&pool, &data.email)
         .await?
         .is_some()
@@ -140,6 +154,7 @@ pub async fn update_staff(
     data: UpdateStaff,
 ) -> Result<Staff, AppError> {
     let session = rbac::require(&session_state, "staff.write")?;
+    reject_staff_writes_on_replica(&pool).await?;
     let existing = staff_repo::find_by_id(&pool, &id)
         .await?
         .ok_or(AppError::NotFound("error.entity.staff".into()))?;
@@ -156,6 +171,11 @@ pub async fn update_staff(
     } else {
         staff_repo::update(&pool, &id, &data).await?
     };
+    if data.available == Some(false) {
+        staff_repo::replace_password(&pool, &id, &existing.password_hash).await.ok();
+        let _ = crate::infrastructure::database::device_session_repo::end_all_for_user(&pool, &id)
+            .await;
+    }
     audit_repo::create(&pool, &session.user_id, "UPDATE", "Staff", Some(&id), None)
         .await
         .ok();
@@ -170,6 +190,7 @@ pub async fn delete_staff(
     id: String,
 ) -> Result<(), AppError> {
     let session = rbac::require(&session_state, "staff.write")?;
+    reject_staff_writes_on_replica(&pool).await?;
     tracing::info!(
         target: "medoc::staff",
         event = "STAFF_DELETE_IPC",
@@ -203,6 +224,7 @@ pub async fn change_password(
         let (s, _) = guard.as_ref().ok_or(AppError::Unauthorized)?;
         s.clone()
     };
+    reject_staff_writes_on_replica(&pool).await?;
     crypto::validate_password_policy(&new_password)?;
     let me = staff_repo::find_by_id(&pool, &session.user_id)
         .await?
@@ -214,7 +236,16 @@ pub async fn change_password(
     }
     let hash =
         crypto::hash_password(&new_password).map_err(|e| AppError::Internal(e.to_string()))?;
-    staff_repo::update_password_hash(&pool, &session.user_id, &hash).await?;
+    staff_repo::replace_password(&pool, &session.user_id, &hash).await?;
+    if let Some(keep) = session
+        .device_session_id
+        .as_deref()
+        .filter(|id| !id.is_empty())
+    {
+        device_session_repo::end_other_than(&pool, &session.user_id, keep).await?;
+    } else {
+        device_session_repo::end_all_for_user(&pool, &session.user_id).await?;
+    }
     audit_repo::create(
         &pool,
         &session.user_id,
@@ -238,13 +269,27 @@ pub async fn set_staff_password_by_admin(
     new_password: String,
 ) -> Result<(), AppError> {
     let session = rbac::require(&session_state, "staff.write")?;
+    reject_staff_writes_on_replica(&pool).await?;
     crypto::validate_password_policy(&new_password)?;
     if staff_repo::find_by_id(&pool, &id).await?.is_none() {
         return Err(AppError::NotFound("error.entity.staff".into()));
     }
     let hash =
         crypto::hash_password(&new_password).map_err(|e| AppError::Internal(e.to_string()))?;
-    staff_repo::update_password_hash(&pool, &id, &hash).await?;
+    staff_repo::replace_password(&pool, &id, &hash).await?;
+    if session.user_id == id {
+        if let Some(keep) = session
+            .device_session_id
+            .as_deref()
+            .filter(|keep_id| !keep_id.is_empty())
+        {
+            device_session_repo::end_other_than(&pool, &id, keep).await?;
+        } else {
+            device_session_repo::end_all_for_user(&pool, &id).await?;
+        }
+    } else {
+        device_session_repo::end_all_for_user(&pool, &id).await?;
+    }
     audit_repo::create(
         &pool,
         &session.user_id,
@@ -280,6 +325,12 @@ pub async fn set_staff_permission_override(
     effect: String,
 ) -> Result<(), AppError> {
     let session = rbac::require(&session_state, "staff.write")?;
+    reject_staff_writes_on_replica(&pool).await?;
+    if !rbac::is_known_action(action.trim()) {
+        return Err(AppError::Validation(
+            "Unknown permission action.".into(),
+        ));
+    }
     staff_permission_repo::upsert(&pool, &staff_id, &action, &effect).await?;
     audit_repo::create(
         &pool,
@@ -351,6 +402,7 @@ pub async fn set_staff_full_chart_readonly(
     enabled: bool,
 ) -> Result<(), AppError> {
     let session = rbac::require(&session_state, "staff.write")?;
+    reject_staff_writes_on_replica(&pool).await?;
     staff_repo::find_by_id(&pool, &staff_id)
         .await?
         .ok_or(AppError::NotFound("error.entity.staff".into()))?;
@@ -391,6 +443,7 @@ pub async fn grant_staff_all_permissions(
     staff_id: String,
 ) -> Result<u64, AppError> {
     let session = rbac::require(&session_state, "staff.write")?;
+    reject_staff_writes_on_replica(&pool).await?;
     staff_repo::find_by_id(&pool, &staff_id)
         .await?
         .ok_or(AppError::NotFound("error.entity.staff".into()))?;

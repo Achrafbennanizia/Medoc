@@ -10,7 +10,7 @@ use crate::deployment::{
 };
 use crate::schema::ensure_sync_tables;
 
-use super::types::{OutboxEntry, SyncPeer, SyncStatusSnapshot, SYNCED_TABLES};
+use super::types::{is_synced_table, synced_tables, OutboxEntry, SyncPeer, SyncStatusSnapshot};
 
 pub async fn ensure_local_device(pool: &SqlitePool, label: &str) -> Result<String, AppError> {
     ensure_sync_tables(pool).await?;
@@ -21,7 +21,7 @@ pub async fn ensure_local_device(pool: &SqlitePool, label: &str) -> Result<Strin
     };
     let existing =
         medoc_core::infrastructure::database::app_kv_repo::get(pool, APP_KV_DEVICE_ID_KEY).await?;
-    if let Some(id) = existing.filter(|s| !s.is_empty()) {
+    if let Some(id) = existing.filter(|s| !s.trim().is_empty()) {
         let stored_role: Option<String> =
             sqlx::query_scalar("SELECT role FROM sync_device WHERE device_id = ?1")
                 .bind(&id)
@@ -35,7 +35,14 @@ pub async fn ensure_local_device(pool: &SqlitePool, label: &str) -> Result<Strin
         register_device_row(pool, &id, display_name, role, true, None, None).await?;
         return Ok(id);
     }
-    let id = Uuid::new_v4().to_string();
+    let legacy = medoc_core::infrastructure::database::app_kv_repo::get(
+        pool,
+        medoc_core::infrastructure::license_repo::KEY_DEVICE_ID,
+    )
+    .await?;
+    let id = legacy
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
     medoc_core::infrastructure::database::app_kv_repo::set(pool, APP_KV_DEVICE_ID_KEY, &id).await?;
     register_device_row(
         pool,
@@ -222,7 +229,7 @@ pub async fn sync_record_or_noop(
     op: &str,
     payload_json: &str,
 ) -> Result<(), AppError> {
-    if !SYNCED_TABLES.contains(&entity_table) {
+    if !is_synced_table(entity_table) {
         return Ok(());
     }
     let deployment = load_deployment(pool).await.unwrap_or_default();
@@ -295,14 +302,18 @@ pub async fn append_outbox(
 pub async fn list_pending_outbox(
     pool: &SqlitePool,
     device_id: &str,
+    limit: i64,
 ) -> Result<Vec<OutboxEntry>, AppError> {
     let rows = sqlx::query_as::<_, (String, String, i64, String, String, String, String, String)>(
         "SELECT id, device_id, seq, entity_table, entity_id, op, payload_json, created_at
          FROM sync_outbox
          WHERE device_id = ?1 AND delivered_at IS NULL
-         ORDER BY seq ASC",
+           AND (fail_reason IS NULL OR fail_reason = '')
+         ORDER BY seq ASC
+         LIMIT ?2",
     )
     .bind(device_id)
+    .bind(limit)
     .fetch_all(pool)
     .await
     .map_err(AppError::Database)?;
@@ -345,6 +356,20 @@ pub async fn mark_outbox_delivered(
     Ok(())
 }
 
+pub async fn mark_outbox_failed(
+    pool: &SqlitePool,
+    entry_id: &str,
+    reason: &str,
+) -> Result<(), AppError> {
+    sqlx::query("UPDATE sync_outbox SET fail_reason = ?1 WHERE id = ?2")
+        .bind(reason)
+        .bind(entry_id)
+        .execute(pool)
+        .await
+        .map_err(AppError::Database)?;
+    Ok(())
+}
+
 /// Outbox rows from `source_device_id` not yet pushed to `target_device_id` (mesh).
 pub async fn list_pending_outbox_for_peer(
     pool: &SqlitePool,
@@ -366,7 +391,8 @@ pub async fn list_pending_outbox_for_peer(
         "SELECT id, device_id, seq, entity_table, entity_id, op, payload_json, created_at
          FROM sync_outbox
          WHERE device_id = ?1 AND seq > ?2
-         ORDER BY seq ASC",
+           AND (fail_reason IS NULL OR fail_reason = '')
+         ORDER BY seq ASC"
     )
     .bind(source_device_id)
     .bind(since)
@@ -509,7 +535,7 @@ pub async fn enqueue_full_snapshot(pool: &SqlitePool) -> Result<u32, AppError> {
     let deployment = load_deployment(pool).await?;
     let local_id = ensure_local_device(pool, &deployment.device_label).await?;
     let mut queued = 0u32;
-    for table in SYNCED_TABLES {
+    for table in synced_tables() {
         queued += snapshot_table(pool, &local_id, table).await?;
     }
     tracing::info!(
@@ -529,8 +555,15 @@ async fn snapshot_table(pool: &SqlitePool, device_id: &str, table: &str) -> Resu
     if cols.is_empty() {
         return Ok(0);
     }
-    let id_col = if table == "app_kv" { "key" } else { "id" };
-    if !cols.iter().any(|c| c == id_col) {
+    // F146/F147: entity id is not always column `id` (hint, preference, chart_validation).
+    let key = medoc_core::infrastructure::database::sync_registry::key_expr(table);
+    if medoc_core::infrastructure::database::sync_registry::key_is_column(table) {
+        let id_col = medoc_core::infrastructure::database::sync_registry::id_column(table);
+        if !cols.iter().any(|c| c == id_col) {
+            return Ok(0);
+        }
+    } else if !(cols.iter().any(|c| c == "patient_id") && cols.iter().any(|c| c == "section_or_item"))
+    {
         return Ok(0);
     }
     let mut from_sql = table.to_string();
@@ -540,7 +573,8 @@ async fn snapshot_table(pool: &SqlitePool, device_id: &str, table: &str) -> Resu
                AND key NOT LIKE 'license.%'
                AND key NOT LIKE 'pairing.%'
                AND key NOT LIKE 'onboarding.%'
-               AND key NOT LIKE 'cluster.%'",
+               AND key NOT LIKE 'cluster.%'
+               AND key NOT LIKE 'company.portal.%'",
         );
     }
     let count: i64 = sqlx::query_scalar(&format!("SELECT COUNT(*) FROM {from_sql}"))
@@ -567,13 +601,12 @@ async fn snapshot_table(pool: &SqlitePool, device_id: &str, table: &str) -> Resu
     .await
     .map_err(AppError::Database)?;
     let seq_base = new_max - count;
-    let pairs: Vec<String> = cols.iter().map(|c| format!("'{c}', \"{c}\"")).collect();
-    let json_expr = format!("json_object({})", pairs.join(", "));
+    let json_expr = snapshot_pairs(table, &cols);
     let created_at = chrono::Utc::now().to_rfc3339();
     let insert_sql = format!(
         "INSERT INTO sync_outbox (id, device_id, seq, entity_table, entity_id, op, payload_json, created_at)
-         SELECT lower(hex(randomblob(16))), ?1, ?2 + ROW_NUMBER() OVER (ORDER BY \"{id_col}\"),
-                ?3, CAST(\"{id_col}\" AS TEXT), 'UPDATE', {json_expr}, ?4
+         SELECT lower(hex(randomblob(16))), ?1, ?2 + ROW_NUMBER() OVER (ORDER BY {key}),
+                ?3, CAST({key} AS TEXT), 'UPDATE', {json_expr}, ?4
          FROM {from_sql}"
     );
     sqlx::query(&insert_sql)
@@ -587,6 +620,14 @@ async fn snapshot_table(pool: &SqlitePool, device_id: &str, table: &str) -> Resu
     Ok(count as u32)
 }
 
+fn snapshot_pairs(table: &str, cols: &[String]) -> String {
+    medoc_core::infrastructure::database::recorded_write::json_object_sql(table, cols)
+}
+
+fn is_private_app_kv_key(key: &str) -> bool {
+    medoc_core::infrastructure::database::sync_registry::deny_app_kv_key(key)
+}
+
 /// JSON object for one live row, using the same `json_object` shape as a snapshot.
 /// `None` when the table is not synced or the row is gone.
 pub async fn load_row_payload_json(
@@ -594,21 +635,23 @@ pub async fn load_row_payload_json(
     table: &str,
     entity_id: &str,
 ) -> Result<Option<String>, AppError> {
-    if !SYNCED_TABLES.contains(&table) {
+    if !is_synced_table(table) {
         return Ok(None);
     }
-    let id_col = if table == "app_kv" { "key" } else { "id" };
+    let key = medoc_core::infrastructure::database::sync_registry::key_expr(table);
     let cols: Vec<String> =
         sqlx::query_scalar(&format!("SELECT name FROM pragma_table_info('{table}')"))
             .fetch_all(pool)
             .await
             .map_err(AppError::Database)?;
-    if cols.is_empty() || !cols.iter().any(|c| c == id_col) {
+    if cols.is_empty() {
         return Ok(None);
     }
-    let pairs: Vec<String> = cols.iter().map(|c| format!("'{c}', \"{c}\"")).collect();
-    let json_expr = format!("json_object({})", pairs.join(", "));
-    let sql = format!("SELECT {json_expr} FROM \"{table}\" WHERE \"{id_col}\" = ?1");
+    if table == "app_kv" && is_private_app_kv_key(entity_id) {
+        return Ok(None);
+    }
+    let json_expr = snapshot_pairs(table, &cols);
+    let sql = format!("SELECT {json_expr} FROM \"{table}\" WHERE {key} = ?1");
     let json: Option<String> = sqlx::query_scalar(&sql)
         .bind(entity_id)
         .fetch_optional(pool)

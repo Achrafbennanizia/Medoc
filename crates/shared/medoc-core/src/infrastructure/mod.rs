@@ -12,6 +12,7 @@ pub mod cors_policy;
 pub mod crypto;
 pub mod database;
 pub mod devices;
+pub mod fs_guard;
 pub mod dpia;
 pub mod gdpr;
 pub mod install_plan;

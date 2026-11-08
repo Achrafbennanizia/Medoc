@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { listPatients } from "@/systems/practice-host/controllers/patient.controller";
 import { loadTaskTeamDirectory } from "../components/practice-tasks/load-task-team";
@@ -52,6 +52,7 @@ export function PracticeTaskEditPage() {
     const [notFound, setNotFound] = useState(false);
     const [busy, setBusy] = useState(false);
     const [form, setForm] = useState<PracticeTaskTaskForm | null>(null);
+    const loadedFormRef = useRef<PracticeTaskTaskForm | null>(null);
 
     const load = useCallback(async () => {
         if (!id) {
@@ -72,7 +73,9 @@ export function PracticeTaskEditPage() {
                 setNotFound(true);
                 return;
             }
-            setForm(rowToForm(row));
+            const nextForm = rowToForm(row);
+            loadedFormRef.current = nextForm;
+            setForm(nextForm);
             setPatients(pats);
             setStaff(team.filter((m) => m.available !== false));
         } catch (e) {
@@ -91,18 +94,42 @@ export function PracticeTaskEditPage() {
             toast(t("common.title_required"), "error");
             return;
         }
+        const previous = loadedFormRef.current;
         setBusy(true);
         try {
-            await updatePracticeTaskAdmin({
-                id,
+            const saved = {
                 title: form.title.trim(),
                 body: form.body.trim() || null,
                 kind: form.kind,
                 status: form.status,
-                assigneeRole: form.assigneeMode === "reception" ? "RECEPTION" : null,
+                assigneeRole: (form.assigneeMode === "reception" ? "RECEPTION" : null) as "RECEPTION" | null,
                 assigneeUserId: form.assigneeMode === "user" ? form.assigneeUserId || null : null,
+            };
+            await updatePracticeTaskAdmin({ id, ...saved });
+            loadedFormRef.current = {
+                ...form,
+                title: saved.title,
+                body: saved.body ?? "",
+                assigneeUserId: saved.assigneeUserId ?? "",
+            };
+            toast(t("practice.tasks.toast.saved"), "success", {
+                onUndo: async () => {
+                    if (!previous) return;
+                    try {
+                        await updatePracticeTaskAdmin({
+                            id,
+                            title: previous.title.trim(),
+                            body: previous.body.trim() || null,
+                            kind: previous.kind,
+                            status: previous.status,
+                            assigneeRole: previous.assigneeMode === "reception" ? "RECEPTION" : null,
+                            assigneeUserId: previous.assigneeMode === "user" ? previous.assigneeUserId || null : null,
+                        });
+                    } catch (err) {
+                        toast(errorMessage(err), "error");
+                    }
+                },
             });
-            toast(t("practice.tasks.toast.saved"), "success");
             navigate(BACK_HREF);
         } catch (e) {
             toast(errorMessage(e), "error");

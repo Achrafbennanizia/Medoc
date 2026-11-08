@@ -38,6 +38,18 @@ pub fn allowed(action: &str, role: Role) -> bool {
     rbac_matrix_allowed(action, role)
 }
 
+/// True when `config/rbac.yaml` grants the action to at least one role.
+pub fn is_known_action(action: &str) -> bool {
+    [
+        Role::Physician,
+        Role::Reception,
+        Role::TaxAdvisor,
+        Role::PharmaConsultant,
+    ]
+    .into_iter()
+    .any(|role| allowed(action, role))
+}
+
 /// FA-PERS-07: Role matrix, overridden by explicit per-user ALLOW/DENY rows.
 pub fn effective_allowed(action: &str, role: Role, overrides: &[PermissionOverride]) -> bool {
     for o in overrides {
@@ -50,4 +62,15 @@ pub fn effective_allowed(action: &str, role: Role, overrides: &[PermissionOverri
         }
     }
     allowed(action, role)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_known_action;
+
+    #[test]
+    fn unknown_override_action_is_rejected() {
+        assert!(is_known_action("patient.read"));
+        assert!(!is_known_action("not.a.real.action"));
+    }
 }

@@ -13,10 +13,11 @@ pub async fn find_all(pool: &SqlitePool) -> Result<Vec<ServiceItem>, AppError> {
 }
 
 pub async fn create(pool: &SqlitePool, data: &CreateServiceItem) -> Result<ServiceItem, AppError> {
+    crate::domain::services::pricing::require_non_negative_amount(data.price, "Price")?;
     let id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
-        "INSERT INTO service_item (id, name, description, category, price)
-         VALUES (?1, ?2, ?3, ?4, ?5)",
+        "INSERT INTO service_item (id, name, description, category, price, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
     )
     .bind(&id)
     .bind(&data.name)
@@ -47,6 +48,9 @@ pub async fn update(
     id: &str,
     data: &UpdateServiceItem,
 ) -> Result<ServiceItem, AppError> {
+    if let Some(p) = data.price {
+        crate::domain::services::pricing::require_non_negative_amount(p, "Price")?;
+    }
     let existing = sqlx::query_as::<_, ServiceItem>("SELECT * FROM service_item WHERE id = ?1")
         .bind(id)
         .fetch_optional(pool)
@@ -55,7 +59,7 @@ pub async fn update(
 
     sqlx::query(
         "UPDATE service_item SET name = ?1, description = ?2, category = ?3, price = ?4,
-         active = ?5, updated_at = CURRENT_TIMESTAMP WHERE id = ?6",
+         active = ?5, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?6",
     )
     .bind(data.name.as_deref().unwrap_or(&existing.name))
     .bind(
@@ -88,7 +92,9 @@ pub async fn update(
 
 pub async fn delete(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
     // Soft delete
-    sqlx::query("UPDATE service_item SET active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?1")
+    sqlx::query(
+        "UPDATE service_item SET active = 0, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?1",
+    )
         .bind(id)
         .execute(pool)
         .await?;

@@ -13,7 +13,15 @@ use crate::error::AppError;
 fn token_re() -> Option<&'static Regex> {
     static R: OnceLock<Option<Regex>> = OnceLock::new();
     R.get_or_init(|| {
-        Regex::new(r"(?i)(password|password|token|secret|api[_-]?key|license|license)\s*[:=]\s*\S+")
+        Regex::new(r"(?i)(password|token|secret|api[_-]?key|license|iban)\s*[:=]\s*\S+").ok()
+    })
+    .as_ref()
+}
+
+fn json_secret_re() -> Option<&'static Regex> {
+    static R: OnceLock<Option<Regex>> = OnceLock::new();
+    R.get_or_init(|| {
+        Regex::new(r#"(?i)"(password|token|secret|api[_-]?key|license|iban)"\s*:\s*"[^"]*""#)
             .ok()
     })
     .as_ref()
@@ -25,18 +33,39 @@ fn jwt_re() -> Option<&'static Regex> {
         .as_ref()
 }
 
+fn email_re() -> Option<&'static Regex> {
+    static R: OnceLock<Option<Regex>> = OnceLock::new();
+    R.get_or_init(|| Regex::new(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}").ok())
+        .as_ref()
+}
+
+fn iban_re() -> Option<&'static Regex> {
+    static R: OnceLock<Option<Regex>> = OnceLock::new();
+    R.get_or_init(|| Regex::new(r"\b[A-Z]{2}[0-9]{2}[A-Z0-9]{10,30}\b").ok())
+        .as_ref()
+}
+
 /// Mask any obvious secret patterns inside a free-form string. If the static
 /// regexes fail to compile (impossible at runtime for hard-coded literals,
 /// but never panic) the input is returned unchanged.
 pub fn sanitize(input: &str) -> String {
-    let masked = match token_re() {
+    let mut out = match token_re() {
         Some(re) => re.replace_all(input, "$1=***").into_owned(),
         None => input.to_string(),
     };
-    match jwt_re() {
-        Some(re) => re.replace_all(&masked, "eyJ***").into_owned(),
-        None => masked,
+    if let Some(re) = json_secret_re() {
+        out = re.replace_all(&out, r#""$1":"***""#).into_owned();
     }
+    if let Some(re) = jwt_re() {
+        out = re.replace_all(&out, "eyJ***").into_owned();
+    }
+    if let Some(re) = email_re() {
+        out = re.replace_all(&out, "***@***").into_owned();
+    }
+    if let Some(re) = iban_re() {
+        out = re.replace_all(&out, "IBAN***").into_owned();
+    }
+    out
 }
 
 #[derive(Debug, Serialize)]
@@ -130,6 +159,7 @@ pub fn mask_token(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
 
     #[test]
     fn masks_passwords() {
@@ -142,5 +172,24 @@ mod tests {
     fn masks_jwt() {
         let s = sanitize("Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.payload.sig");
         assert!(s.contains("eyJ***"));
+    }
+
+    #[test]
+    fn json_password_and_email_are_redacted_on_write() {
+        let mut buf = Vec::new();
+        let line = r#"{"password":"hunter2","email":"ada@practice.de","iban":"DE89370400440532013000"}"#;
+        crate::infrastructure::logging::redacting_writer::SanitizingWriter { inner: &mut buf }
+            .write_all(line.as_bytes())
+            .unwrap();
+        let out = String::from_utf8(buf).unwrap();
+        assert!(!out.contains("hunter2"));
+        assert!(!out.contains("ada@practice.de"));
+        assert!(!out.contains("DE89370400440532013000"));
+        assert!(out.contains(r#""password":"***""#));
+        assert!(out.contains("***@***"));
+        assert!(
+            out.contains("IBAN***") || out.contains(r#""iban":"***""#),
+            "{out}"
+        );
     }
 }

@@ -46,12 +46,14 @@ pub fn export_to_writer<W: Write + Seek>(log_dir: &Path, mut writer: W) -> Resul
             }
         }
 
-        let mut buf = String::new();
+        let mut raw = Vec::new();
         File::open(&path)
-            .and_then(|mut f| f.read_to_string(&mut buf))
+            .and_then(|mut f| f.read_to_end(&mut raw))
             .map_err(|e| AppError::Internal(format!("Cannot read {file_name}: {e}")))?;
-
-        let sanitised = sanitizer::sanitize(&buf);
+        // F139: one file with invalid UTF-8 (a crash mid-write) used to fail the
+        // whole export. Decode lossily so it is kept, and still redact it.
+        let text = String::from_utf8_lossy(&raw);
+        let sanitised = sanitizer::sanitize(&text);
 
         zip.start_file(&file_name, opts)
             .map_err(|e| AppError::Internal(format!("ZIP error: {e}")))?;
@@ -77,4 +79,19 @@ pub fn export_to_vec(log_dir: &Path) -> Result<Vec<u8>, AppError> {
     let mut cursor = Cursor::new(Vec::new());
     export_to_writer(log_dir, &mut cursor)?;
     Ok(cursor.into_inner())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn export_with_binary_log_file_succeeds() {
+        let dir = std::env::temp_dir().join(format!("medoc-logexp-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("app.log.2026-11-08"), b"ok line\n").unwrap();
+        std::fs::write(dir.join("system.log.2026-11-08"), [0x66, 0x6f, 0xff, 0xfe, 0x0a]).unwrap();
+        let zip = super::export_to_vec(&dir).expect("export");
+        let ar = zip::ZipArchive::new(std::io::Cursor::new(zip)).unwrap();
+        assert_eq!(ar.len(), 2);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

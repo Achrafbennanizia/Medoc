@@ -42,6 +42,7 @@ enums:
     variants:
       - { rust: Planned, wire: PLANNED }
       - { rust: Confirmed, wire: CONFIRMED }
+      - { rust: InProgress, wire: IN_PROGRESS }
       - { rust: Completed, wire: COMPLETED }
       - { rust: NoShow, wire: NO_SHOW }
       - { rust: Cancelled, wire: CANCELLED }
@@ -55,6 +56,7 @@ enums:
       - { rust: Active, wire: ACTIVE }
       - { rust: Validated, wire: VALIDATED }
       - { rust: Readonly, wire: READONLY }
+      - { rust: Archived, wire: ARCHIVED }
 
   ChartStatus:
     ts_const: CHART_STATUS_VALUES

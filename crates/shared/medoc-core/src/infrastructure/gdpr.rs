@@ -130,7 +130,7 @@ pub async fn erase_patient_records(
         return Err(AppError::NotFound("Patient".into()));
     }
 
-    deleted += patient_repo::delete_dependents(&mut tx, patient_id).await?;
+    deleted += patient_repo::delete_dependents(&mut tx, patient_id, true).await?;
 
     let pseudo_name = format!("Anonymisiert ({patient_id})");
     let pseudo_vnr = format!("ANON-{patient_id}");
@@ -144,7 +144,8 @@ pub async fn erase_patient_records(
             phone = NULL,
             email = NULL,
             address = NULL,
-            status = 'READONLY'
+            status = 'READONLY',
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
          WHERE id = ?3",
     )
     .bind(&pseudo_name)
@@ -160,6 +161,9 @@ pub async fn erase_patient_records(
             "Patient was not updated after check".into(),
         ));
     }
+    // F119: the pseudonymised row must replace the original on every device.
+    crate::infrastructure::database::recorded_write::record_in_tx(&mut tx, "patient", patient_id, "UPDATE")
+        .await?;
 
     tx.commit().await?;
     Ok((deleted, chart_ids))

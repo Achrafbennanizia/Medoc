@@ -34,6 +34,7 @@ pub async fn upsert(
     if eff != "ALLOW" && eff != "DENY" {
         return Err(AppError::Validation("effect must be ALLOW or DENY.".into()));
     }
+    let mut tx = pool.begin().await?;
     sqlx::query(
         "INSERT INTO staff_permission_override (staff_id, action, effect) VALUES (?1, ?2, ?3)
          ON CONFLICT(staff_id, action) DO UPDATE SET effect = excluded.effect",
@@ -41,8 +42,16 @@ pub async fn upsert(
     .bind(staff_id)
     .bind(action)
     .bind(&eff)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
+    crate::infrastructure::database::recorded_write::record_in_tx(
+        &mut tx,
+        "staff_permission_override",
+        staff_id,
+        "UPDATE",
+    )
+    .await?;
+    tx.commit().await?;
     Ok(())
 }
 
@@ -51,13 +60,22 @@ pub async fn delete_override(
     staff_id: &str,
     action: &str,
 ) -> Result<(), AppError> {
+    let mut tx = pool.begin().await?;
+    crate::infrastructure::database::recorded_write::record_in_tx(
+        &mut tx,
+        "staff_permission_override",
+        staff_id,
+        "DELETE",
+    )
+    .await?;
     let n =
         sqlx::query("DELETE FROM staff_permission_override WHERE staff_id = ?1 AND action = ?2")
             .bind(staff_id)
             .bind(action.trim())
-            .execute(pool)
+            .execute(&mut *tx)
             .await?
             .rows_affected();
+    tx.commit().await?;
     if n == 0 {
         return Err(AppError::NotFound("Berechtigungs-Override".into()));
     }
@@ -65,10 +83,19 @@ pub async fn delete_override(
 }
 
 pub async fn delete_all_for_staff(pool: &SqlitePool, staff_id: &str) -> Result<u64, AppError> {
+    let mut tx = pool.begin().await?;
+    crate::infrastructure::database::recorded_write::record_in_tx(
+        &mut tx,
+        "staff_permission_override",
+        staff_id,
+        "DELETE",
+    )
+    .await?;
     let n = sqlx::query("DELETE FROM staff_permission_override WHERE staff_id = ?1")
         .bind(staff_id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?
         .rows_affected();
+    tx.commit().await?;
     Ok(n)
 }

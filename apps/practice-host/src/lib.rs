@@ -21,6 +21,13 @@ use infrastructure::logging::{self, brute_force::BruteForceTracker};
 use std::sync::Arc;
 use tauri::Manager;
 
+/// Dock label for this process. The window title stays empty.
+#[cfg(target_os = "macos")]
+fn set_macos_desktop_name(name: &str) {
+    // `CPSSetProcessName` aborts on some macOS builds for unsigned debug binaries; window title is enough for now.
+    tracing::debug!(target: "medoc::system", event = "MAC_DOCK_NAME_SKIP", name = %name);
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let instance_lock_name = std::env::var("MEDOC_INSTANCE")
@@ -106,6 +113,7 @@ pub fn run() {
                 }
             }
 
+            let mut replica_desktop_name: Option<&'static str> = None;
             match db_result {
                 Ok(pool) => {
                     #[cfg(debug_assertions)]
@@ -158,6 +166,10 @@ pub fn run() {
                             error = %e
                         ),
                     }
+
+                    replica_desktop_name = tauri::async_runtime::block_on(
+                        commands::sync_commands::replica_desktop_name(&pool),
+                    );
 
                     if let Some(brute) = app.try_state::<BruteForceState>() {
                         if let Err(e) =
@@ -226,6 +238,13 @@ pub fn run() {
                                     Ok(None) => verify_guard.set_ok(),
                                     Ok(Some(still_broken)) => {
                                         verify_guard.set_broken(still_broken.clone());
+                                        // F100: an acknowledgement given before the restart still applies.
+                                        if matches!(
+                                            application::audit_chain_guard::is_acked(&verify_pool, &still_broken).await,
+                                            Ok(true)
+                                        ) {
+                                            verify_guard.acknowledge();
+                                        }
                                         log_security!(error,
                                             event = "AUDIT_CHAIN_BROKEN",
                                             broken_at = %still_broken,
@@ -277,8 +296,25 @@ pub fn run() {
                             auto_pool.clone(),
                         );
                         commands::sync_commands::spawn_replica_offline_sync_loop(auto_pool.clone());
+                        // F150: started once (was twice: two threads pushing the same changes).
                         commands::sync_commands::spawn_shared_change_sync_thread(auto_pool.clone());
-                        commands::sync_commands::spawn_shared_change_sync_thread(auto_pool.clone());
+                        // F137: stored log level survives restarts.
+                        let lvl_pool = auto_pool.clone();
+                        tauri::async_runtime::spawn(async move {
+                            commands::logging_commands::restore_log_level(&lvl_pool).await;
+                        });
+                        // F122: close work-time sessions left open past their local day.
+                        let wt_pool = auto_pool.clone();
+                        tauri::async_runtime::spawn(async move {
+                            loop {
+                                if let Err(e) =
+                                    commands::work_time_commands::reconcile_all_stale_sessions(&wt_pool).await
+                                {
+                                    tracing::warn!(target: "medoc::system", event = "WORK_TIME_SWEEP_FAILED", error = %e);
+                                }
+                                tokio::time::sleep(std::time::Duration::from_secs(15 * 60)).await;
+                            }
+                        });
                     });
 
                     // NFA-SEC-05: daily automatic backup scheduler (24h interval).
@@ -339,6 +375,8 @@ pub fn run() {
                     } else {
                         tracing::info!(target: "medoc::system", event = "MAC_WINDOW_TRAFFIC_OVERLAY_OK");
                     }
+                    let dock_name = replica_desktop_name.unwrap_or("MeDoc");
+                    set_macos_desktop_name(dock_name);
                     let _ = w.show();
                     let _ = w.unminimize();
                     if let Err(e) = w.set_focus() {
@@ -352,6 +390,8 @@ pub fn run() {
                     tracing::warn!(target: "medoc::system", event = "MAC_WINDOW_MAIN_NOT_FOUND");
                 }
             }
+            #[cfg(not(target_os = "macos"))]
+            let _ = replica_desktop_name;
 
             Ok(())
         })

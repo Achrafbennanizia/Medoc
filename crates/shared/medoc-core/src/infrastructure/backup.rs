@@ -430,6 +430,18 @@ async fn replace_live_db_with_backup(db_path: &Path, backup_path: &Path) -> Resu
     )))
 }
 
+/// Open `path` with the practice key. A plaintext SQLite file still passes the
+/// header check. An encrypted file passes only when the key opens it.
+pub async fn validate_open(path: &Path, key: &[u8]) -> Result<bool, AppError> {
+    if crate::infrastructure::database::sqlcipher::opens_with_sqlcipher_key(path, key).await {
+        return Ok(true);
+    }
+    if crate::infrastructure::database::sqlcipher::is_plaintext_sqlite_file(path) {
+        return validate(path);
+    }
+    Ok(false)
+}
+
 /// Validate that a backup file looks like a SQLite database.
 pub fn validate(path: &Path) -> Result<bool, AppError> {
     use std::io::Read;

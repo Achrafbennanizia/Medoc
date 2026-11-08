@@ -151,7 +151,7 @@ export const SettingsPracticeBillingSection: FC<SettingsPracticeBillingProps> = 
                         <Input
                             id="px-vat-notice"
                             label={t("settings.practice.billing_vat_exempt")}
-                            value={practice.vat_exemption_notice ?? t("settings.practice.billing_vat_exempt_default")}
+                            value={practice.vat_exemption_notice ?? t("settings.practice.vat_exemption_default")}
                             onChange={(e: ChangeEvent<HTMLInputElement>) =>
                                 set({ vat_exemption_notice: e.target.value })
                             }

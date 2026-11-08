@@ -30,6 +30,20 @@ pub async fn create_purchase_order(
     data: CreatePurchaseOrder,
 ) -> Result<PurchaseOrder, AppError> {
     let session = rbac::require(&session_state, "purchase_order.write")?;
+    let mut data = data;
+    // F85: order numbers come from the cluster sequence (main device), not MAX+1.
+    if data.order_number.as_deref().map(str::trim).unwrap_or("").is_empty() {
+        let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+        data.order_number = Some(
+            medoc_sync::numbering::allocate_document_number(
+                pool.inner(),
+                "B",
+                &today,
+                medoc_core::infrastructure::database::number_sequence::NumberStyle::Monthly,
+            )
+            .await?,
+        );
+    }
     let b = purchase_order_repo::create(&pool, &data, &session.user_id).await?;
     audit_repo::create(
         &pool,

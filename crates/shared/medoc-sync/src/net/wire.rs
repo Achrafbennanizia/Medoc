@@ -29,6 +29,14 @@ pub enum WireMessage {
         master_pubkey: Option<String>,
         #[serde(default)]
         master_device_id: Option<String>,
+        /// SHA-256 of the main device's LAN certificate. Sent after SAS so the
+        /// replica can pin HTTPS sync.
+        #[serde(default)]
+        master_cert_sha256: Option<String>,
+        /// HTTPS port of the main device's LAN server (`lan.server.config.v1`
+        /// `httpPort`). Absent from older main devices; replicas then use 8787.
+        #[serde(default)]
+        master_http_port: Option<u16>,
     },
     SasConfirm {
         session_id: String,
@@ -191,6 +199,8 @@ mod tests {
             activation_token: Some("mt2.token".into()),
             master_pubkey: Some("pk".into()),
             master_device_id: Some("master".into()),
+            master_cert_sha256: Some("ab".repeat(32)),
+            master_http_port: Some(8787),
         };
         let frame = encode_frame(&msg).expect("encode");
         let decoded = decode_frame(&frame).expect("decode");

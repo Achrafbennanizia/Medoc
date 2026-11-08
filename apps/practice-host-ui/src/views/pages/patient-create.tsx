@@ -1,7 +1,7 @@
 import { useT, useTParams } from "@/lib/i18n";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { createPatient } from "@/systems/practice-host/controllers/patient.controller";
+import { createPatient, deletePatient } from "@/systems/practice-host/controllers/patient.controller";
 import { saveAnamnesisForm } from "@/systems/practice-host/controllers/chart.controller";
 import { useFormDirtyStore } from "../../models/store/form-dirty-store";
 import { errorMessage } from "@/lib/utils";
@@ -208,7 +208,16 @@ export function PatientCreatePage() {
             }
 
             setDirty(false);
-            toast(t("page.patient_create.toast.created"));
+            const createdId = patient.id;
+            toast(t("page.patient_create.toast.created"), "success", {
+                onUndo: async () => {
+                    try {
+                        await deletePatient(createdId);
+                    } catch (err) {
+                        toast(tp("common.error_with_message", { message: errorMessage(err) }), "error");
+                    }
+                },
+            });
             navigate("/patients");
         } catch (e) {
             toast(tp("page.patient_create.toast.error", { message: errorMessage(e) }));

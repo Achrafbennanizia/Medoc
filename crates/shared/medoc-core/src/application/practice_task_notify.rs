@@ -90,6 +90,87 @@ pub async fn notify_assignees_on_task_created(
     Ok(())
 }
 
+/// F99: create a task and its assignee notifications in one transaction.
+/// A recipient that is not a local staff account fails the whole create
+/// (before, the task was saved and the notification silently dropped).
+pub async fn create_task_and_notify(
+    pool: &SqlitePool,
+    data: &crate::domain::entities::practice_task::CreatePracticeTask,
+    creating_user_id: &str,
+) -> Result<PracticeTask, AppError> {
+    let recipients: Vec<String> = if let Some(uid) = data
+        .assignee_user_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        vec![uid.to_string()]
+    } else if data
+        .assignee_role
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|r| r.eq_ignore_ascii_case("RECEPTION"))
+    {
+        staff_repo::find_user_ids_by_role(pool, "RECEPTION").await?
+    } else {
+        Vec::new()
+    };
+    let recipients: Vec<String> = recipients
+        .into_iter()
+        .filter(|u| u.trim() != creating_user_id.trim())
+        .collect();
+    for uid in &recipients {
+        if staff_repo::find_by_id(pool, uid).await?.is_none() {
+            return Err(AppError::Validation(
+                "Notification user is not a staff account on this device.".into(),
+            ));
+        }
+    }
+    let pname = patient_name(pool, data.patient_id.as_deref()).await?;
+
+    let mut tx = pool.begin().await?;
+    let task = crate::infrastructure::database::practice_task_repo::insert_in_tx(
+        &mut tx,
+        data,
+        creating_user_id,
+    )
+    .await?;
+    if !recipients.is_empty() {
+        let title = if pname.is_empty() {
+            format!("New task: {}", task.title.trim())
+        } else {
+            format!("New task: {pname}")
+        };
+        let body = task
+            .body
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .unwrap_or(task.title.trim())
+            .to_string();
+        let pay = json!({
+            "taskId": task.id,
+            "patientId": task.patient_id,
+            "kind": task.kind,
+            "status": task.status,
+        })
+        .to_string();
+        for uid in &recipients {
+            in_app_notification_repo::insert_in_tx(
+                &mut tx,
+                uid,
+                "PRACTICE_TASK_ASSIGNED",
+                &title,
+                &body,
+                Some(&pay),
+            )
+            .await?;
+        }
+    }
+    tx.commit().await?;
+    Ok(task)
+}
+
 /// FA-AUFG-05 — Notify recipients (reception pool or target physician) on `BACK`.
 pub async fn notify_assignees_if_task_back(
     pool: &SqlitePool,

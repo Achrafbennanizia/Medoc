@@ -44,21 +44,6 @@ const LAN_COMMAND_ROUTES: Partial<
     get_own_profile: { method: "GET", path: "/api/v1/me" },
     login: { method: "POST", path: "/api/v1/auth/login" },
     logout: { method: "POST", path: "/api/v1/auth/login" }, // no-op over HTTP; session is JWT-only
-    list_patients: { method: "GET", path: "/api/v1/patients" },
-    list_appointments: {
-        method: "GET",
-        path: (args) => {
-            const date = args.date;
-            return date != null && String(date).length > 0
-                ? `/api/v1/appointments?date=${encodeURIComponent(String(date))}`
-                : "/api/v1/appointments";
-        },
-    },
-    list_appointments_by_date: {
-        method: "GET",
-        path: (args) =>
-            `/api/v1/appointments?date=${encodeURIComponent(String(args.date ?? ""))}`,
-    },
     get_app_kv: {
         method: "GET",
         path: (args) => `/api/v1/app-kv?key=${encodeURIComponent(String(args.key ?? ""))}`,

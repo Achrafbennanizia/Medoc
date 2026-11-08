@@ -15,7 +15,11 @@ pub mod repos;
 pub mod connection;
 pub mod db_key;
 pub mod sqlcipher;
+pub mod recorded_write;
+pub mod number_sequence;
 pub mod sync_outbox;
+pub mod sync_registry;
+pub mod sync_blob;
 
 // ---------------------------------------------------------------------------
 // Legacy flat repo shims (R5) — canonical code under `repos/{clinical,...}/`.

@@ -119,14 +119,13 @@ pub async fn create_practice_task(
         _ => return Err(AppError::Unauthorized),
     }
 
-    let a = practice_task_repo::insert(&pool, &payload, &session.user_id).await?;
-    crate::application::practice_task_notify::notify_assignees_on_task_created(
+    // F99: task and notifications commit together; a failed notification fails the create.
+    let a = crate::application::practice_task_notify::create_task_and_notify(
         &pool,
-        &a,
+        &payload,
         &session.user_id,
     )
-    .await
-    .ok();
+    .await?;
     audit_repo::create(
         &pool,
         &session.user_id,
@@ -336,14 +335,13 @@ pub async fn create_practice_task_admin(
         payload.assignee_role = Some("RECEPTION".into());
     }
 
-    let a = practice_task_repo::insert(&pool, &payload, &session.user_id).await?;
-    crate::application::practice_task_notify::notify_assignees_on_task_created(
+    // F99: task and notifications commit together; a failed notification fails the create.
+    let a = crate::application::practice_task_notify::create_task_and_notify(
         &pool,
-        &a,
+        &payload,
         &session.user_id,
     )
-    .await
-    .ok();
+    .await?;
     audit_repo::create(
         &pool,
         &session.user_id,

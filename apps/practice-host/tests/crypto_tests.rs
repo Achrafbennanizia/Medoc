@@ -50,6 +50,9 @@ async fn login_rehashes_legacy_bcrypt_to_argon2() {
 
     let pool = test_memory_pool().await.expect("pool");
     run_migrations(&pool).await.expect("migrations");
+    medoc_lib::application::mvp_security::drop_staff_quota_db_triggers(&pool)
+        .await
+        .ok();
 
     let legacy = bcrypt::hash("legacy-login-pw", 4).unwrap();
     sqlx::query(

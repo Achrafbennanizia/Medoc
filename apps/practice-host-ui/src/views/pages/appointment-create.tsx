@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, startOfWeek, endOfWeek } from "date-fns";
-import { createAppointment, getAppointment, listAppointments, updateAppointment } from "@/systems/practice-host/controllers/appointment.controller";
+import { createAppointment, deleteAppointment, getAppointment, listAppointments, updateAppointment } from "@/systems/practice-host/controllers/appointment.controller";
 import { useDateFnsLocale, useT, useTParams } from "@/lib/i18n";
 import { listPatients } from "@/systems/practice-host/controllers/patient.controller";
 import { getChart, listDentalFindings } from "@/systems/practice-host/controllers/chart.controller";
@@ -179,10 +179,9 @@ export function AppointmentCreatePage() {
     const [toothacheTeeth, setToothacheTeeth] = useState<string[]>([]);
     const [chartFindings, setChartFindings] = useState<DentalFinding[]>([]);
     const [notes, setNotes] = useState("");
-    const [durationMin, setDurationMin] = useState(() => {
-        const n = loadClientSettings().workflows?.defaultAppointmentDurationMin;
-        return typeof n === "number" && Number.isFinite(n) && n > 0 ? String(n) : "";
-    });
+    const [durationMin, setDurationMin] = useState("");
+    const durationLocked = useRef(isEdit);
+    const loadedAppointmentRef = useRef<Appointment | null>(null);
     const [statusPreference, setStatusPreference] = useState<string>(() =>
         defaultCreateAppointmentStatus(loadClientSettings()),
     );
@@ -287,7 +286,10 @@ export function AppointmentCreatePage() {
             setKind(normalizeKind(kindH));
         }
         const dm = doctorPlan.durationMin.trim();
-        if (dm && /^\d+$/.test(dm)) setDurationMin(dm);
+        if (dm && /^\d+$/.test(dm)) {
+            durationLocked.current = true;
+            setDurationMin(dm);
+        }
         const note = planNextAutofillNote(doctorPlan);
         if (note.trim()) setNotes(note.trim());
         setSearchParams((prev) => {
@@ -356,7 +358,10 @@ export function AppointmentCreatePage() {
                     setToothacheTeeth(sortFdiTeeth([d.toothacheTooth.trim()]));
                 }
                 if (d.notes) setNotes(d.notes);
-                if (d.durationMin) setDurationMin(d.durationMin);
+                if (d.durationMin) {
+                    durationLocked.current = true;
+                    setDurationMin(d.durationMin);
+                }
                 if (d.statusPreference) setStatusPreference(d.statusPreference);
             } catch {
                 /* ignore */
@@ -375,18 +380,20 @@ export function AppointmentCreatePage() {
         setEditLoaded(false);
         setEditError(null);
         void getAppointment(editId)
-            .then((t) => {
+            .then((row) => {
                 if (cancelled) return;
-                setDate(t.date);
-                setTime(t.time.length >= 5 ? t.time.slice(0, 5) : t.time);
-                setPatientId(t.patient_id);
-                setPhysicianId(t.physician_id);
-                setKind(normalizeKind(t.kind));
-                const { tags: bTags, teeth: bTeeth } = normalizeChiefComplaintTagsFromStored(t.chief_complaint ?? "");
+                loadedAppointmentRef.current = row;
+                setDate(row.date);
+                setTime(row.time.length >= 5 ? row.time.slice(0, 5) : row.time);
+                setPatientId(row.patient_id);
+                setPhysicianId(row.physician_id);
+                setKind(normalizeKind(row.kind));
+                const { tags: bTags, teeth: bTeeth } = normalizeChiefComplaintTagsFromStored(row.chief_complaint ?? "");
                 setChiefComplaintTags(bTags);
                 setToothacheTeeth(bTeeth);
-                const notesRaw = t.notes ?? "";
+                const notesRaw = row.notes ?? "";
                 const durationMatch = /Duration:\s*(\d+)\s*min/i.exec(notesRaw);
+                durationLocked.current = true;
                 if (durationMatch && durationMatch[1]) {
                     setDurationMin(durationMatch[1]);
                 } else {
@@ -398,7 +405,7 @@ export function AppointmentCreatePage() {
                     .filter((s) => s.length > 0 && !/^Duration:/i.test(s) && !/^Priority:/i.test(s))
                     .join(" · ");
                 setNotes(cleanedNotes);
-                setStatusPreference(t.status === "CONFIRMED" ? "CONFIRMED" : "PLANNED");
+                setStatusPreference(row.status === "CONFIRMED" ? "CONFIRMED" : "PLANNED");
                 setEditLoaded(true);
             })
             .catch((e: unknown) => {
@@ -535,11 +542,8 @@ export function AppointmentCreatePage() {
     }, [session, physicians, hasPhysicianParam, physicianInit, practiceCfg.defaultPhysicianId]);
 
     useEffect(() => {
-        setDurationMin((prev) => {
-            const n = Number(prev);
-            if (prev && Number.isFinite(n) && n >= 5) return prev;
-            return String(slotStep);
-        });
+        if (durationLocked.current) return;
+        setDurationMin(String(slotStep));
     }, [slotStep]);
 
     useEffect(() => {
@@ -640,17 +644,37 @@ export function AppointmentCreatePage() {
         try {
             const timeNorm = time.length === 5 ? `${time}:00` : time;
             if (isEdit && editId) {
+                const previous = loadedAppointmentRef.current;
+                // F149: `patient_id` is not updatable and made the strict schema reject every edit.
                 await updateAppointment(editId, {
-                    patient_id: patientId,
                     physician_id: physicianId,
                     date,
                     time: timeNorm,
                     kind: kindSend,
                     chief_complaint: chiefComplaintStr || null,
                     notes: notesPayload ?? null,
+                    duration_minutes: durMin,
                     status: statusPreference || "PLANNED",
                 });
-                toast(t("appointment.create.toast_updated"));
+                toast(t("appointment.create.toast_updated"), "success", {
+                    onUndo: async () => {
+                        if (!previous) return;
+                        try {
+                            await updateAppointment(editId, {
+                                patient_id: previous.patient_id,
+                                physician_id: previous.physician_id,
+                                date: previous.date,
+                                time: previous.time,
+                                kind: previous.kind,
+                                chief_complaint: previous.chief_complaint,
+                                notes: previous.notes,
+                                status: previous.status,
+                            });
+                        } catch (err) {
+                            toast(errorMessage(err), "error");
+                        }
+                    },
+                });
                 navigate("/appointments");
                 return;
             }
@@ -662,15 +686,23 @@ export function AppointmentCreatePage() {
                 kind: kindSend,
                 chief_complaint: chiefComplaintStr || null,
                 notes: notesPayload ?? null,
+                duration_minutes: durMin,
+                // F67: status in the create itself; a failure is a failed save, not silently dropped.
+                status: statusPreference === "CONFIRMED" ? "CONFIRMED" : "PLANNED",
             });
-            if (statusPreference && statusPreference !== "PLANNED") {
-                try {
-                    await updateAppointment(created.id, { status: statusPreference });
-                } catch {
-                    /* optional */
-                }
+            if (statusPreference && statusPreference !== "PLANNED" && statusPreference !== "CONFIRMED") {
+                await updateAppointment(created.id, { status: statusPreference });
             }
-            toast(t("appointment.create.toast_saved"));
+            const createdId = created.id;
+            toast(t("appointment.create.toast_saved"), "success", {
+                onUndo: async () => {
+                    try {
+                        await deleteAppointment(createdId);
+                    } catch (err) {
+                        toast(errorMessage(err), "error");
+                    }
+                },
+            });
             await clearAppointmentDraftFromBackend(draftId);
             stripLegacyAppointmentDraftLocalStorage(draftId);
             navigate("/appointments");
@@ -824,7 +856,7 @@ export function AppointmentCreatePage() {
                                         {t("appointment.create.time_hint")}
                                     </p>
                                 </div>
-                                <Select id="tc-duration" label={t("appointment.create.duration")} value={durationMin} onChange={(e) => setDurationMin(e.target.value)} options={durationOptions} />
+                                <Select id="tc-duration" label={t("appointment.create.duration")} value={durationMin} onChange={(e) => { durationLocked.current = true; setDurationMin(e.target.value); }} options={durationOptions} />
                             </div>
                         </div>
 

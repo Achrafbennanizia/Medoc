@@ -13,7 +13,7 @@ import type {
     TreatmentCatalogItem,
     ServiceItem,
 } from "@/models/types";
-import { translateLocale, translateLocaleParams, useLocale } from "@/lib/i18n";
+import { translateLocale, translateLocaleParams, translatePluralUnit, useLocale } from "@/lib/i18n";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import { getInvoicePracticeFromStorage } from "@/lib/invoice-service-item";
 import { buildClinicalTemplateHeaderLines } from "@/lib/clinical-document-pdf";
@@ -147,11 +147,12 @@ export function buildCertificatePdfLayout(a: Certificate, patient: Patient | nul
         }),
     ];
 
+    const dayUnit = translatePluralUnit(useLocale.getState().locale, "document.print.day_unit", days);
     const labelValueRows: { label: string; value: string }[] = [
         { label: docT("document.print.type_of_certificate"), value: `${a.kind} (${firstOrFollowUp})` },
         {
             label: docT("document.print.validity_period_label"),
-            value: `${from} – ${until} (${days})`,
+            value: `${from} – ${until} (${days} ${dayUnit})`,
         },
         { label: docT("document.print.diagnosis_icd_label"), value: icd },
     ];

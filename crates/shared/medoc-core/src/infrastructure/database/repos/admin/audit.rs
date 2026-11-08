@@ -170,21 +170,29 @@ pub async fn create(
     entity_id: Option<&str>,
     details: Option<&str>,
 ) -> Result<(), AppError> {
-    let id = uuid::Uuid::new_v4().to_string();
-
-    // Serialize chain tip read + insert (BEGIN IMMEDIATE) so concurrent writers
-    // cannot observe the same prev HMAC and fork the chain.
     let mut tx = pool
         .begin_with("BEGIN IMMEDIATE")
         .await
         .map_err(AppError::Database)?;
+    create_in_tx(&mut tx, user_id, action, entity, entity_id, details).await?;
+    tx.commit().await.map_err(AppError::Database)?;
+    Ok(())
+}
 
+pub async fn create_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    user_id: &str,
+    action: &str,
+    entity: &str,
+    entity_id: Option<&str>,
+    details: Option<&str>,
+) -> Result<(), AppError> {
+    let id = uuid::Uuid::new_v4().to_string();
     let prev_hash: Option<String> =
         sqlx::query_scalar("SELECT hmac FROM audit_log ORDER BY rowid DESC LIMIT 1")
-            .fetch_optional(&mut *tx)
+            .fetch_optional(&mut **tx)
             .await?;
     let prev = prev_hash.clone().unwrap_or_default();
-
     let payload = format!(
         "{}|{}|{}|{}|{}|{}|{}",
         id,
@@ -196,10 +204,8 @@ pub async fn create(
         prev
     );
     let hmac = crypto::audit_hmac(&audit_key()?, &payload).map_err(AppError::Internal)?;
-
     let (under_break_glass, break_glass_reason) =
         audit_break_glass::break_glass_meta_for_audit(user_id, entity, entity_id);
-
     sqlx::query(
         "INSERT INTO audit_log (id, user_id, action, entity, entity_id, details, prev_hash, hmac, under_break_glass, break_glass_reason)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
@@ -214,10 +220,8 @@ pub async fn create(
     .bind(&hmac)
     .bind(u8::from(under_break_glass))
     .bind(break_glass_reason.as_deref())
-    .execute(&mut *tx)
+    .execute(&mut **tx)
     .await?;
-
-    tx.commit().await.map_err(AppError::Database)?;
     Ok(())
 }
 
@@ -244,18 +248,46 @@ pub async fn purge_legacy_placeholder_audit_rows(pool: &SqlitePool) -> Result<u6
     Ok(result.rows_affected())
 }
 
-/// Deletes the broken row and all subsequent audit entries so verification can succeed again.
+/// Moves the broken row and every later entry into `audit_log_archive`.
 pub async fn truncate_audit_chain_from(
     pool: &SqlitePool,
     broken_id: &str,
 ) -> Result<u64, AppError> {
-    let result = sqlx::query(
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS audit_log_archive (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            action TEXT NOT NULL,
+            entity TEXT NOT NULL,
+            entity_id TEXT,
+            details TEXT,
+            prev_hash TEXT,
+            hmac TEXT NOT NULL,
+            under_break_glass INTEGER NOT NULL DEFAULT 0,
+            break_glass_reason TEXT,
+            created_at TEXT,
+            archived_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )",
+    )
+    .execute(pool)
+    .await?;
+    let moved = sqlx::query(
+        "INSERT OR IGNORE INTO audit_log_archive
+            (id, user_id, action, entity, entity_id, details, prev_hash, hmac, created_at)
+         SELECT id, user_id, action, entity, entity_id, details, prev_hash, hmac, created_at
+         FROM audit_log
+         WHERE rowid >= (SELECT rowid FROM audit_log WHERE id = ?1 LIMIT 1)",
+    )
+    .bind(broken_id)
+    .execute(pool)
+    .await?;
+    sqlx::query(
         "DELETE FROM audit_log WHERE rowid >= (SELECT rowid FROM audit_log WHERE id = ?1 LIMIT 1)",
     )
     .bind(broken_id)
     .execute(pool)
     .await?;
-    Ok(result.rows_affected())
+    Ok(moved.rows_affected())
 }
 
 /// Purges placeholders, then truncates from each broken row until the chain verifies.

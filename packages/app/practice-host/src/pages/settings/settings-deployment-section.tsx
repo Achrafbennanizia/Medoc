@@ -7,6 +7,7 @@ import {
 } from "@/systems/practice-host/lib/deployment-config";
 import {
     syncGetStatus,
+    syncReconcileNow,
     syncRunNow,
     syncSetDeployment,
     type SyncStatusSnapshot,
@@ -40,7 +41,7 @@ import {
 import { Button } from "@/views/components/ui/button";
 import { DismissibleNotice } from "@/views/components/ui/dismissible-notice";
 import { Input, Select } from "@/views/components/ui/input";
-import { errorMessage } from "@/lib/utils";
+import { errorMessage, masterDeviceUnreachable } from "@/lib/utils";
 import { useReplicaSyncStatusStore } from "@/models/store/replica-sync-status-store";
 import { useToastStore } from "@/views/components/ui/toast-store";
 import { useT, useTParams } from "@/lib/i18n";
@@ -76,6 +77,11 @@ const ROLE_OPTIONS = (t: (key: string) => string): { value: DeviceRole; label: s
     },
 ];
 
+function lanHostBlocked(message: string): boolean {
+    const lower = message.toLowerCase();
+    return lower.includes("lan listen is disabled") || lower.includes("do not run a lan server");
+}
+
 function Mono({ children }: { children: ReactNode }) {
     return (
         <code style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 12, wordBreak: "break-all" }}>
@@ -89,6 +95,7 @@ function ServerlessMasterLanCompact() {
     const t = useT();
     const tp = useTParams();
     const [status, setStatus] = useState<LanServerStatusPayload | null>(null);
+    const [hostBlocked, setHostBlocked] = useState(false);
     const [busy, setBusy] = useState(false);
 
     const refresh = useCallback(async () => {
@@ -111,7 +118,14 @@ function ServerlessMasterLanCompact() {
             setStatus(await lanServerStart());
             toast(t("settings.deployment.toast.https_started"), "success");
         } catch (e) {
-            toast(tp("settings.deployment.toast.start_error", { message: errorMessage(e) }), "error");
+            const raw = errorMessage(e);
+            if (lanHostBlocked(raw)) {
+                setHostBlocked(true);
+            } else if (masterDeviceUnreachable(raw)) {
+                toast(t("page.lan.cluster_join.toast.connect_failed"), "error");
+            } else {
+                toast(tp("settings.deployment.toast.start_error", { message: raw }), "error");
+            }
         } finally {
             setBusy(false);
         }
@@ -131,6 +145,7 @@ function ServerlessMasterLanCompact() {
     };
 
     const running = status?.running ?? false;
+    const hostingDisabled = hostBlocked || status?.hostingDisabled === true;
 
     return (
         <div className="settings-serverless-lan">
@@ -140,7 +155,9 @@ function ServerlessMasterLanCompact() {
                     <div className="card-sub">
                         {running
                             ? tp("settings.deployment.lan_running", { port: status?.httpPort ?? "—" })
-                            : t("settings.deployment.lan_stopped")}
+                            : hostingDisabled
+                              ? t("settings.deployment.lan_host_elsewhere")
+                              : t("settings.deployment.lan_stopped")}
                     </div>
                     {running && status?.suggestedBaseUrls?.length ? (
                         <ul style={{ margin: "8px 0 0", paddingLeft: 18, fontSize: 13, color: "var(--fg-2)" }}>
@@ -162,7 +179,7 @@ function ServerlessMasterLanCompact() {
                         <Button type="button" variant="secondary" size="sm" loading={busy} disabled={busy} onClick={() => void stop()}>
                             {t("settings.deployment.https_stop")}
                         </Button>
-                    ) : (
+                    ) : hostingDisabled ? null : (
                         <Button type="button" size="sm" loading={busy} disabled={busy} onClick={() => void start()}>
                             {t("settings.deployment.https_start")}
                         </Button>
@@ -204,6 +221,7 @@ export function SettingsDeploymentSection({
     const [masterInfo, setMasterInfo] = useState<PairingMasterInfo | null>(null);
     const [busy, setBusy] = useState(false);
     const [syncBusy, setSyncBusy] = useState(false);
+    const [reconcileBusy, setReconcileBusy] = useState(false);
     const lastSyncError = useReplicaSyncStatusStore((s) => s.lastError);
     const setLastSyncError = useReplicaSyncStatusStore((s) => s.setLastError);
 
@@ -315,7 +333,9 @@ export function SettingsDeploymentSection({
                 report.mesh && report.mesh.errors.length > 0
                     ? ` Mesh: ${report.mesh.errors.join("; ")}`
                     : "";
-            if (report.error) {
+            if (report.error && masterDeviceUnreachable(report.error)) {
+                setLastSyncError(null);
+            } else if (report.error) {
                 setLastSyncError(report.error);
                 toast(tp("settings.deployment.toast.sync_partial", { error: report.error, meshHint }), "warning");
             } else {
@@ -332,13 +352,36 @@ export function SettingsDeploymentSection({
             }
             await reload();
         } catch (e) {
-            toast(errorMessage(e), "error");
+            const raw = errorMessage(e);
+            if (masterDeviceUnreachable(raw)) {
+                setLastSyncError(null);
+            } else {
+                toast(raw, "error");
+            }
         } finally {
             setSyncBusy(false);
         }
     };
 
+    const runReconcile = async () => {
+        setReconcileBusy(true);
+        try {
+            const report = await syncReconcileNow();
+            if (report.error) {
+                toast(report.error, "warning");
+            } else {
+                toast(tp("settings.deployment.toast.reconcile_done", { applied: report.applied }), "success");
+            }
+            await reload();
+        } catch (e) {
+            toast(errorMessage(e), "error");
+        } finally {
+            setReconcileBusy(false);
+        }
+    };
+
     const isMaster = cfg.role === "MASTER";
+    const savedIsMaster = status?.deployment.role === "MASTER";
     const isReplica = cfg.role === "REPLICA";
     const isPaired = Boolean(cfg.activationToken?.trim());
     const modeOptions = MODE_OPTIONS(t);
@@ -489,7 +532,7 @@ export function SettingsDeploymentSection({
                 />
             </div>
 
-            {isMaster ? (
+            {isMaster && savedIsMaster ? (
                 <>
                     <ServerlessMasterLanCompact />
                     {masterInfo ? (
@@ -557,6 +600,18 @@ export function SettingsDeploymentSection({
                                     >
                                         {t("settings.deployment.sync_now")}
                                     </Button>
+                                    {canRepairAuditChain ? (
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            loading={reconcileBusy}
+                                            disabled={reconcileBusy}
+                                            onClick={() => void runReconcile()}
+                                        >
+                                            {t("settings.deployment.reconcile_now")}
+                                        </Button>
+                                    ) : null}
                                     <Button
                                         type="button"
                                         variant="ghost"
@@ -626,7 +681,7 @@ export function SettingsDeploymentSection({
                 </div>
             ) : null}
 
-            {isReplica && lastSyncError ? (
+            {isReplica && lastSyncError && !masterDeviceUnreachable(lastSyncError) ? (
                 <DismissibleNotice
                     variant="warning"
                     role="status"
@@ -650,6 +705,17 @@ export function SettingsDeploymentSection({
                         onClick={() => void runSync()}
                     >
                         {t("settings.deployment.sync_now")}
+                    </Button>
+                ) : null}
+                {isReplica && isPaired && canRepairAuditChain ? (
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        loading={reconcileBusy}
+                        disabled={reconcileBusy}
+                        onClick={() => void runReconcile()}
+                    >
+                        {t("settings.deployment.reconcile_now")}
                     </Button>
                 ) : null}
             </div>

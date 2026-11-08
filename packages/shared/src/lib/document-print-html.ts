@@ -1,4 +1,4 @@
-import { translateLocale, translateLocaleParams, useLocale, isRtlLocale } from "@/lib/i18n";
+import { translateLocale, translateLocaleParams, translatePluralUnit, useLocale, isRtlLocale } from "@/lib/i18n";
 import type { Certificate } from "@/systems/practice-host/controllers/certificate.controller";
 import type { Prescription } from "@/systems/practice-host/controllers/prescription.controller";
 import { escapeHtml, formatDate, formatCurrency } from "@/lib/utils";
@@ -210,7 +210,7 @@ function certificatePdfLines(a: Certificate, patient: Patient | null): string[] 
     const dob = patient ? formatDate(patient.date_of_birth) : "—";
     const icd = (a.icd10_code ?? "").trim() || "—";
     const dobPart = patient ? docTp("document.print.certificate_dob_part", { dob }) : "";
-    const plural = days === 1 ? "" : "s";
+    const unit = translatePluralUnit(useLocale.getState().locale, "document.print.day_unit", days);
     const lines: string[] = [
         ...practiceHeaderLinesForExport(),
         "",
@@ -219,7 +219,7 @@ function certificatePdfLines(a: Certificate, patient: Patient | null): string[] 
         "",
         docTp("document.print.certificate_body", { name: pname, dobPart }),
         "",
-        docTp("document.print.validity_period", { from: from, to: until, days, plural }),
+        docTp("document.print.validity_period", { from: from, to: until, days, unit }),
         docTp("document.print.issue_date", { date: issued }),
     ];
     if (a.kind.includes("SICK_LEAVE") && (a.employer ?? "").trim()) {

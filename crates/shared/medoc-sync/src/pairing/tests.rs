@@ -1,4 +1,7 @@
-use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine};
+use base64::{
+    engine::general_purpose::{STANDARD, STANDARD_NO_PAD},
+    Engine,
+};
 use ed25519_dalek::SigningKey;
 use medoc_core::error::AppError;
 use medoc_core::infrastructure::database::connection::{run_migrations, test_memory_pool};
@@ -355,4 +358,148 @@ async fn accept_pin_matches_url_safe_handshake_b64() {
     .await
     .expect("decide");
     assert_eq!(decided.confirm_pin.as_deref(), Some(expected.as_str()));
+}
+
+
+#[tokio::test]
+async fn public_view_drops_the_activation_token() {
+    let pool = fresh_pool().await;
+    let req = submit_request(
+        &pool,
+        PairingRequestSubmit {
+            device_id: "slave-public".into(),
+            slave_pubkey: "cHVi".into(),
+            slave_label: "Front".into(),
+            requester_ip: "10.0.0.8".into(),
+            transport: "lan".into(),
+        },
+    )
+    .await
+    .expect("submit");
+    sqlx::query(
+        "UPDATE pairing_request SET status = 'ACCEPTED', activation_token = 'mt2.secret' WHERE id = ?1",
+    )
+    .bind(&req.id)
+    .execute(&pool)
+    .await
+    .unwrap();
+    let stored = super::load_by_id(&pool, &req.id)
+        .await
+        .unwrap()
+        .expect("row");
+    assert_eq!(stored.activation_token.as_deref(), Some("mt2.secret"));
+    assert!(stored.redact_public_token().activation_token.is_none());
+}
+
+#[tokio::test]
+async fn revoked_device_is_not_reminted() {
+    let pool = fresh_pool().await;
+    let req = submit_request(
+        &pool,
+        PairingRequestSubmit {
+            device_id: "fp-revoked".into(),
+            slave_pubkey: "cHVi".into(),
+            slave_label: "Front".into(),
+            requester_ip: "10.0.0.9".into(),
+            transport: "lan".into(),
+        },
+    )
+    .await
+    .expect("submit");
+    sqlx::query(
+        "UPDATE pairing_request SET status = 'ACCEPTED', activation_token = 'mt2.live' WHERE id = ?1",
+    )
+    .bind(&req.id)
+    .execute(&pool)
+    .await
+    .unwrap();
+    super::clear_device_activation(&pool, "fp-revoked")
+        .await
+        .expect("clear");
+    let token: Option<String> =
+        sqlx::query_scalar("SELECT activation_token FROM pairing_request WHERE id = ?1")
+            .bind(&req.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert!(token.is_none());
+    let err = crate::cluster::services::issue_replica_lan_auth(&pool, "fp-revoked", &req.id)
+        .await
+        .expect_err("revoked");
+    assert!(matches!(err, AppError::Forbidden));
+}
+
+#[tokio::test]
+async fn pending_pairing_is_not_minted() {
+    let pool = fresh_pool().await;
+    let req = submit_request(
+        &pool,
+        PairingRequestSubmit {
+            device_id: "fp-pending".into(),
+            slave_pubkey: "cHVi".into(),
+            slave_label: "Front".into(),
+            requester_ip: "10.0.0.10".into(),
+            transport: "lan".into(),
+        },
+    )
+    .await
+    .expect("submit");
+    let err = crate::cluster::services::issue_replica_lan_auth(&pool, "fp-pending", &req.id)
+        .await
+        .expect_err("pending");
+    assert!(matches!(err, AppError::Forbidden));
+    let token: Option<String> =
+        sqlx::query_scalar("SELECT activation_token FROM pairing_request WHERE id = ?1")
+            .bind(&req.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert!(token.is_none());
+}
+
+#[tokio::test]
+async fn foreign_fingerprint_does_not_match_the_noise_key() {
+    let previous = std::env::var("MEDOC_CLUSTER_DEVICE_SECRET").ok();
+    std::env::set_var(
+        "MEDOC_CLUSTER_DEVICE_SECRET",
+        "1111111111111111111111111111111111111111111111111111111111111111",
+    );
+    let identity = crate::cluster::crypto::DeviceIdentity::load_or_create().expect("identity");
+    match previous {
+        Some(value) => std::env::set_var("MEDOC_CLUSTER_DEVICE_SECRET", value),
+        None => std::env::remove_var("MEDOC_CLUSTER_DEVICE_SECRET"),
+    }
+    let pool = fresh_pool().await;
+    let req = submit_request(
+        &pool,
+        PairingRequestSubmit {
+            device_id: "desk-1".into(),
+            slave_pubkey: STANDARD.encode(identity.pubkey_bytes),
+            slave_label: "Front".into(),
+            requester_ip: "10.0.0.11".into(),
+            transport: "lan".into(),
+        },
+    )
+    .await
+    .expect("submit");
+    sqlx::query(
+        "UPDATE pairing_request SET status = 'ACCEPTED', fingerprint = ?1 WHERE id = ?2",
+    )
+    .bind(&identity.fingerprint)
+    .bind(&req.id)
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let foreign = crate::cluster::services::issue_replica_lan_auth(&pool, "desk-1", &req.id)
+        .await
+        .expect_err("foreign fingerprint");
+    assert!(matches!(foreign, AppError::Forbidden));
+    let token: Option<String> =
+        sqlx::query_scalar("SELECT activation_token FROM pairing_request WHERE id = ?1")
+            .bind(&req.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert!(token.is_none());
 }

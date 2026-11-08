@@ -147,7 +147,17 @@ export function TreatmentCatalogPage() {
                 name: name.trim(),
                 default_cost: price != null && Number.isFinite(price) ? price : null,
             });
-            toast(t("page.treatment_catalog.toast.saved"));
+            toast(t("page.treatment_catalog.toast.saved"), "success", {
+                onUndo: async () => {
+                    try {
+                        await deleteTreatmentCatalogItem(created.id);
+                        setSelected((current) => (current?.id === created.id ? null : current));
+                        await reload();
+                    } catch (err) {
+                        toast(errorMessage(err), "error");
+                    }
+                },
+            });
             setName("");
             setCost("");
             setCreating(false);
@@ -167,16 +177,32 @@ export function TreatmentCatalogPage() {
             toast(t("page.treatment_catalog.toast.validation"), "error");
             return;
         }
+        const previous = selected;
         setEditBusy(true);
         try {
             const price = cost.trim() === "" ? null : Number(cost.replace(",", "."));
-            const updated = await updateTreatmentCatalogItem(selected.id, {
+            const updated = await updateTreatmentCatalogItem(previous.id, {
                 category: kat,
                 name: name.trim(),
                 default_cost: price != null && Number.isFinite(price) ? price : null,
-                sort_order: selected.sort_order,
+                sort_order: previous.sort_order,
             });
-            toast(t("page.treatment_catalog.toast.entry_saved"));
+            toast(t("page.treatment_catalog.toast.entry_saved"), "success", {
+                onUndo: async () => {
+                    try {
+                        const restored = await updateTreatmentCatalogItem(previous.id, {
+                            category: previous.category,
+                            name: previous.name,
+                            default_cost: previous.default_cost,
+                            sort_order: previous.sort_order,
+                        });
+                        setSelected(restored);
+                        await reload();
+                    } catch (err) {
+                        toast(errorMessage(err), "error");
+                    }
+                },
+            });
             setDetailEdit(false);
             setSelected(updated);
             await reload();
@@ -189,10 +215,26 @@ export function TreatmentCatalogPage() {
 
     const handleDelete = async () => {
         if (!deleteId || !canWrite) return;
+        const row = rows.find((item) => item.id === deleteId) ?? null;
         setBusy(true);
         try {
             await deleteTreatmentCatalogItem(deleteId);
-            toast(t("page.treatment_catalog.toast.deactivated"));
+            toast(t("page.treatment_catalog.toast.deactivated"), "success", {
+                onUndo: async () => {
+                    if (!row) return;
+                    try {
+                        await createTreatmentCatalogItem({
+                            category: row.category,
+                            name: row.name,
+                            default_cost: row.default_cost,
+                            sort_order: row.sort_order,
+                        });
+                        await reload();
+                    } catch (err) {
+                        toast(errorMessage(err), "error");
+                    }
+                },
+            });
             setSelected((s) => (s?.id === deleteId ? null : s));
             setDeleteId(null);
             setDetailEdit(false);

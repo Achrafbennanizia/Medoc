@@ -56,6 +56,43 @@ pub async fn insert(
     Ok(inserted)
 }
 
+/// F99: insert inside the caller's transaction (recorded), so follow-up writes
+/// such as assignee notifications commit or roll back together with the task.
+pub async fn insert_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    data: &CreatePracticeTask,
+    created_by: &str,
+) -> Result<PracticeTask, AppError> {
+    let id = uuid::Uuid::new_v4().to_string();
+    sqlx::query(
+        "INSERT INTO practice_task (
+            id, patient_id, kind, title, body, assignee_role, assignee_user_id, created_by,
+            treatment_id, examination_id, service_name, total_cost, status, updated_at
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 'OPEN',
+                   strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
+    )
+    .bind(&id)
+    .bind(&data.patient_id)
+    .bind(data.kind.trim().to_uppercase())
+    .bind(data.title.trim())
+    .bind(&data.body)
+    .bind(&data.assignee_role)
+    .bind(&data.assignee_user_id)
+    .bind(created_by)
+    .bind(&data.treatment_id)
+    .bind(&data.examination_id)
+    .bind(&data.service_name)
+    .bind(data.total_cost)
+    .execute(&mut **tx)
+    .await?;
+    crate::infrastructure::database::recorded_write::record_in_tx(tx, "practice_task", &id, "INSERT")
+        .await?;
+    Ok(sqlx::query_as::<_, PracticeTask>("SELECT * FROM practice_task WHERE id = ?1")
+        .bind(&id)
+        .fetch_one(&mut **tx)
+        .await?)
+}
+
 /// FA-AUFG-02 — automatic billing task after B/U + service.
 pub struct BillingTaskParams<'a> {
     pub patient_id: &'a str,
@@ -98,20 +135,22 @@ pub async fn close_billing_tasks_after_payment_paid(
     if treatment_id.is_none() && examination_id.is_none() {
         return Ok(());
     }
-    let ids: Vec<(String,)> = if let Some(bid) = treatment_id {
+    // F98: payment completes the billing task the way reception would
+    // (DONE_RECEPTION, through the workflow rule); the creator still validates.
+    let ids: Vec<(String, String)> = if let Some(bid) = treatment_id {
         sqlx::query_as(
-            "SELECT id FROM practice_task
+            "SELECT id, status FROM practice_task
              WHERE kind = 'BILLING' AND treatment_id = ?1
-               AND status NOT IN ('VALIDATED')",
+               AND status NOT IN ('VALIDATED', 'DONE_RECEPTION')",
         )
         .bind(bid)
         .fetch_all(pool)
         .await?
     } else if let Some(uid) = examination_id {
         sqlx::query_as(
-            "SELECT id FROM practice_task
+            "SELECT id, status FROM practice_task
              WHERE kind = 'BILLING' AND examination_id = ?1
-               AND status NOT IN ('VALIDATED')",
+               AND status NOT IN ('VALIDATED', 'DONE_RECEPTION')",
         )
         .bind(uid)
         .fetch_all(pool)
@@ -119,11 +158,15 @@ pub async fn close_billing_tasks_after_payment_paid(
     } else {
         Vec::new()
     };
-    for (id,) in ids {
+    for (id, current) in ids {
+        crate::domain::services::workflow_transitions::practice_task_admin_status_transition(
+            &current,
+            "DONE_RECEPTION",
+        )?;
         update_status(
             pool,
             &id,
-            "VALIDATED",
+            "DONE_RECEPTION",
             Some("Closed automatically after payment"),
             Some(payment_id),
             None,
@@ -387,54 +430,36 @@ pub async fn list_pending_validation(
     .map_err(Into::into)
 }
 
+/// F94: one COUNT over the union of the reception lists (pool, outgoing,
+/// pending validation), so a task in two lists is counted once.
 pub async fn count_open_for_reception(pool: &SqlitePool, user_id: &str) -> Result<i64, AppError> {
-    let pool_open: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM practice_task
-         WHERE assignee_role = 'RECEPTION'
-           AND status IN ('OPEN','IN_PROGRESS','BACK')",
-    )
-    .fetch_one(pool)
-    .await?;
-    let outgoing: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM practice_task
-         WHERE created_by = ?1
-           AND assignee_user_id IS NOT NULL
-           AND assignee_user_id != ''
-           AND status IN ('OPEN','IN_PROGRESS','BACK')",
+    let row: (i64,) = sqlx::query_as(
+        "SELECT COUNT(DISTINCT id) FROM practice_task
+         WHERE (assignee_role = 'RECEPTION' AND status IN ('OPEN','IN_PROGRESS','BACK'))
+            OR (created_by = ?1 AND assignee_user_id IS NOT NULL AND assignee_user_id != ''
+                AND status IN ('OPEN','IN_PROGRESS','BACK'))
+            OR (created_by = ?1 AND status = 'DONE_RECEPTION')",
     )
     .bind(user_id)
     .fetch_one(pool)
     .await?;
-    let validate: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM practice_task
-         WHERE created_by = ?1 AND status = 'DONE_RECEPTION'",
-    )
-    .bind(user_id)
-    .fetch_one(pool)
-    .await?;
-    Ok(pool_open.0 + outgoing.0 + validate.0)
+    Ok(row.0)
 }
 
+/// F94: one COUNT over the physician lists (assigned, pending validation).
 pub async fn count_open_for_physician(
     pool: &SqlitePool,
     physician_id: &str,
 ) -> Result<i64, AppError> {
-    let assigned: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM practice_task
-         WHERE assignee_user_id = ?1
-           AND status IN ('OPEN','IN_PROGRESS','BACK')",
+    let row: (i64,) = sqlx::query_as(
+        "SELECT COUNT(DISTINCT id) FROM practice_task
+         WHERE (assignee_user_id = ?1 AND status IN ('OPEN','IN_PROGRESS','BACK'))
+            OR (created_by = ?1 AND status = 'DONE_RECEPTION')",
     )
     .bind(physician_id)
     .fetch_one(pool)
     .await?;
-    let validate: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM practice_task
-         WHERE created_by = ?1 AND status = 'DONE_RECEPTION'",
-    )
-    .bind(physician_id)
-    .fetch_one(pool)
-    .await?;
-    Ok(assigned.0 + validate.0)
+    Ok(row.0)
 }
 
 pub async fn update_status(
@@ -451,7 +476,7 @@ pub async fn update_status(
             done_note = COALESCE(?2, done_note),
             payment_id = COALESCE(?3, payment_id),
             return_reason = COALESCE(?4, return_reason),
-            updated_at = CURRENT_TIMESTAMP
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
          WHERE id = ?5",
     )
     .bind(status)
@@ -555,7 +580,7 @@ pub async fn update_admin(
             assignee_role = ?4,
             assignee_user_id = ?5,
             status = ?6,
-            updated_at = CURRENT_TIMESTAMP
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
          WHERE id = ?7",
     )
     .bind(&title)
@@ -616,16 +641,25 @@ pub async fn insert_comment(
         return Err(AppError::Validation("Comment must not be empty.".into()));
     }
     let id = uuid::Uuid::new_v4().to_string();
+    let mut tx = pool.begin().await?;
     sqlx::query(
-        "INSERT INTO practice_task_comment (id, task_id, author_id, body)
-         VALUES (?1, ?2, ?3, ?4)",
+        "INSERT INTO practice_task_comment (id, task_id, author_id, body, updated_at)
+         VALUES (?1, ?2, ?3, ?4, strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
     )
     .bind(&id)
     .bind(task_id)
     .bind(author_id)
     .bind(text)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
+    crate::infrastructure::database::recorded_write::record_in_tx(
+        &mut tx,
+        "practice_task_comment",
+        &id,
+        "INSERT",
+    )
+    .await?;
+    tx.commit().await?;
     sqlx::query_as::<_, PracticeTaskComment>("SELECT * FROM practice_task_comment WHERE id = ?1")
         .bind(&id)
         .fetch_one(pool)

@@ -11,8 +11,13 @@ export type AppKvKey =
     | "export.formats.v1"
     | "practice.logo.v1"
     | "invoice.practice.v1"
+    | "practice.timezone.v1"
     /** LAN host configuration (same key as backend `APP_KV_KEY`). */
-    | "lan.server.config.v1";
+    | "lan.server.config.v1"
+    | "practice.header_privacy.v1"
+    /** Work plan: shared settings + one slice per staff id (`app_kv_policy.rs`). */
+    | "staff.work_plan.v1.settings"
+    | `staff.work_plan.v1.${string}`;
 
 export const getAppKv = (key: AppKvKey) =>
     practiceSystem.invoke<string | null>("get_app_kv", { key });

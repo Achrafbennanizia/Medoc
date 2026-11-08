@@ -455,11 +455,11 @@ pub async fn store_slave_pubkey(
         "UPDATE pairing_request SET slave_pubkey = ?1
          WHERE id = ?2 OR device_id = ?2 OR fingerprint = ?2",
     )
-        .bind(encoded)
-        .bind(session_id)
-        .execute(pool)
-        .await
-        .map_err(AppError::Database)?;
+    .bind(encoded)
+    .bind(session_id)
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?;
     Ok(())
 }
 

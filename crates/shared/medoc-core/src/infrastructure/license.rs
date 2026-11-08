@@ -327,6 +327,15 @@ pub(crate) fn derive_device_key(device_id: &str) -> [u8; 32] {
     out
 }
 
+/// Stable UI code for a license that cannot be opened on this computer.
+pub fn user_license_error_code(reason: &str) -> Option<&'static str> {
+    if reason.contains("Could not decrypt license") || reason.contains("bound to another device") {
+        Some("error.license.wrong_device")
+    } else {
+        None
+    }
+}
+
 fn invalid(reason: &str) -> LicenseStatus {
     LicenseStatus {
         valid: false,

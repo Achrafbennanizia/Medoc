@@ -39,9 +39,10 @@ impl IntoResponse for ApiError {
             AppError::Forbidden => StatusCode::FORBIDDEN,
             AppError::RateLimited(_) => StatusCode::TOO_MANY_REQUESTS,
             AppError::NotFound(_) => StatusCode::NOT_FOUND,
-            AppError::Conflict(_) => StatusCode::CONFLICT,
+            AppError::Conflict(_) | AppError::FeatureDisabled(_) => StatusCode::CONFLICT,
             AppError::Validation(_) | AppError::ValidationCode(_) => StatusCode::BAD_REQUEST,
-            AppError::TotpRequired | AppError::TotpEnrollmentRequired => StatusCode::UNAUTHORIZED,
+            AppError::TotpRequired => StatusCode::UNAUTHORIZED,
+            AppError::TotpEnrollmentRequired => StatusCode::FORBIDDEN,
             AppError::Database(_) | AppError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };
         let msg = self.0.to_string();
@@ -129,7 +130,7 @@ pub async fn submit(
         },
     )
     .await?;
-    Ok(Json(req))
+    Ok(Json(req.redact_public_token()))
 }
 
 pub async fn status(
@@ -139,7 +140,7 @@ pub async fn status(
     let row = pairing::load_by_id(&state.pool, &id)
         .await?
         .ok_or(AppError::NotFound("pairing_request".into()))?;
-    Ok(Json(row))
+    Ok(Json(row.redact_public_token()))
 }
 
 pub async fn master_info(State(state): State<LanHttpState>) -> Result<Json<MasterInfo>, ApiError> {

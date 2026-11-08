@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FC } from "react";
 import { useNavigate } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
+import { parseDbUtc } from "@/lib/day-close";
 import { useToastStore } from "./ui/toast-store";
 import {
     CheckIcon,
@@ -81,8 +82,7 @@ function iconForKind(kind: string): FC<{ size?: number }> {
 }
 
 function formatNotifTime(raw: string, dateFnsLocale: ReturnType<typeof useDateFnsLocale>): string {
-    const normalized = raw.includes("T") ? raw : `${raw.replace(" ", "T")}`;
-    const d = new Date(normalized);
+    const d = parseDbUtc(raw);
     if (Number.isNaN(d.getTime())) return raw;
     return formatDistanceToNow(d, { addSuffix: true, locale: dateFnsLocale });
 }

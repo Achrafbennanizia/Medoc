@@ -21,6 +21,8 @@ export type LanServerStatusPayload = {
     instanceLabel: string | null;
     suggestedBaseUrls: string[];
     tlsCertSha256: string | null;
+    /** This window must not bind the practice HTTPS server. */
+    hostingDisabled?: boolean;
 };
 
 export type LanDiscoveryHitDto = {

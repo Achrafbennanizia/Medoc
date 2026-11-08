@@ -5,7 +5,7 @@ import { filterReceptionCashQueue } from "@/lib/day-close";
 import { allowed, parseRole } from "@/lib/rbac";
 import { errorMessage, formatCurrency, formatDateTime } from "@/lib/utils";
 import { paymentMethodLabel } from "@/lib/finance-order-labels";
-import { useLocale, useT, useTParams } from "@/lib/i18n";
+import { translatePluralUnit, useLocale, useT, useTParams } from "@/lib/i18n";
 import { useAuthStore } from "../../models/store/auth-store";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -89,14 +89,7 @@ export function FinanceCashPage() {
 
     const todaySum = useMemo(() => todayOpen.reduce((s, z) => s + z.amount, 0), [todayOpen]);
 
-    const paymentPluralSuffix =
-        todayOpen.length === 1
-            ? ""
-            : locale === "de"
-              ? "en"
-              : locale === "fr"
-                ? "s"
-                : "s";
+    const paymentUnit = translatePluralUnit(locale, "page.finance_cash.payment_unit", todayOpen.length);
 
     if (loading) {
         return (
@@ -137,7 +130,7 @@ export function FinanceCashPage() {
                     <div className="finance-cash-page__kpi-meta">
                         {tp("page.finance_cash.kpi_meta", {
                             count: todayOpen.length,
-                            plural: paymentPluralSuffix,
+                            unit: paymentUnit,
                             date: today,
                         })}
                     </div>

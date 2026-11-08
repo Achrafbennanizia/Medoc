@@ -10,6 +10,8 @@ pub struct Examination {
     pub diagnosis: Option<String>,
     pub examination_number: Option<String>,
     pub created_at: NaiveDateTime,
+    #[serde(default)]
+    pub updated_at: Option<String>,
     /// FA-LEIST-07: billable service line (parity with `treatment`).
     pub category: Option<String>,
     pub service_name: Option<String>,
@@ -45,6 +47,8 @@ pub struct Treatment {
     pub material: Option<String>,
     pub notes: Option<String>,
     pub created_at: NaiveDateTime,
+    #[serde(default)]
+    pub updated_at: Option<String>,
     pub category: Option<String>,
     pub service_name: Option<String>,
     pub treatment_number: Option<String>,

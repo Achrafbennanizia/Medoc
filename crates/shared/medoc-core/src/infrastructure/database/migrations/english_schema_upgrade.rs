@@ -10,7 +10,7 @@
 //! Fresh databases created from `0001_initial_schema.sql` already use English
 //! snake_case names; this step is a no-op for them.
 
-use sqlx::sqlite::SqlitePool;
+use sqlx::sqlite::{SqliteConnection, SqlitePool};
 
 use crate::error::AppError;
 
@@ -393,87 +393,110 @@ pub async fn schema_already_present(pool: &SqlitePool) -> Result<bool, AppError>
 }
 
 pub async fn run_english_schema_upgrade(pool: &SqlitePool) -> Result<(), AppError> {
+    let mut conn = pool.acquire().await.map_err(AppError::Database)?;
     sqlx::query("PRAGMA foreign_keys = OFF")
-        .execute(pool)
+        .execute(&mut *conn)
         .await
         .map_err(AppError::Database)?;
 
-    for (old, new) in TABLE_RENAMES {
-        rename_table_if_needed(pool, old, new).await?;
-    }
-    for (table, old, new) in COLUMN_RENAMES {
-        rename_column_if_needed(pool, table, old, new).await?;
-    }
-
-    let tables: Vec<String> = sqlx::query_scalar(
-        "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
-    )
-    .fetch_all(pool)
-    .await
-    .map_err(AppError::Database)?;
-    for table in tables {
-        if table_ddl_has_german_check(pool, &table).await? {
-            rebuild_table_without_checks(pool, &table).await?;
+    let result = async {
+        for (old, new) in TABLE_RENAMES {
+            rename_table_if_needed(&mut conn, old, new).await?;
         }
-    }
+        for (table, old, new) in COLUMN_RENAMES {
+            rename_column_if_needed(&mut conn, table, old, new).await?;
+        }
 
-    apply_enum_updates(pool).await?;
-    apply_category_and_copy_updates(pool).await?;
-    apply_outbox_table_renames(pool).await?;
-    apply_stored_json_english_upgrade(pool).await?;
-    apply_appointment_text_english_upgrade(pool).await?;
+        let tables: Vec<String> = sqlx::query_scalar(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
+        )
+        .fetch_all(&mut *conn)
+        .await
+        .map_err(AppError::Database)?;
+        for table in tables {
+            if table_ddl_has_german_check(&mut conn, &table).await? {
+                rebuild_table_without_checks(&mut conn, &table).await?;
+            }
+        }
 
-    if table_exists(pool, "day_close_protocol").await? {
-        sqlx::query("DROP INDEX IF EXISTS idx_day_close_protocol_tag")
-            .execute(pool)
+        apply_enum_updates(&mut conn).await?;
+        apply_category_and_copy_updates(&mut conn).await?;
+        apply_outbox_table_renames(&mut conn).await?;
+        apply_stored_json_english_upgrade(&mut conn).await?;
+        apply_appointment_text_english_upgrade(&mut conn).await?;
+
+        if table_exists(&mut conn, "day_close_protocol").await? {
+            sqlx::query("DROP INDEX IF EXISTS idx_day_close_protocol_tag")
+                .execute(&mut *conn)
+                .await
+                .map_err(AppError::Database)?;
+            sqlx::query(
+                "CREATE INDEX IF NOT EXISTS idx_day_close_protocol_as_of_date ON day_close_protocol (as_of_date)",
+            )
+            .execute(&mut *conn)
             .await
             .map_err(AppError::Database)?;
-        sqlx::query(
-            "CREATE INDEX IF NOT EXISTS idx_day_close_protocol_as_of_date ON day_close_protocol (as_of_date)",
-        )
-        .execute(pool)
-        .await
-        .map_err(AppError::Database)?;
+        }
+        Ok::<(), AppError>(())
     }
+    .await;
 
-    sqlx::query("PRAGMA foreign_keys = ON")
-        .execute(pool)
+    let restored = sqlx::query("PRAGMA foreign_keys = ON")
+        .execute(&mut *conn)
+        .await;
+    result?;
+    restored.map_err(AppError::Database)?;
+    let violations: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM pragma_foreign_key_check")
+        .fetch_one(&mut *conn)
         .await
         .map_err(AppError::Database)?;
+    if violations > 0 {
+        return Err(AppError::Internal(format!(
+            "foreign_key_check reported {violations} violations after English schema upgrade"
+        )));
+    }
     Ok(())
 }
 
-async fn table_exists(pool: &SqlitePool, name: &str) -> Result<bool, AppError> {
+async fn table_exists(conn: &mut SqliteConnection, name: &str) -> Result<bool, AppError> {
     let n: i64 =
         sqlx::query_scalar("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?1")
             .bind(name)
-            .fetch_one(pool)
+            .fetch_one(&mut *conn)
             .await
             .map_err(AppError::Database)?;
     Ok(n > 0)
 }
 
-async fn column_exists(pool: &SqlitePool, table: &str, column: &str) -> Result<bool, AppError> {
-    if !table_exists(pool, table).await? {
+async fn column_exists(
+    conn: &mut SqliteConnection,
+    table: &str,
+    column: &str,
+) -> Result<bool, AppError> {
+    if !table_exists(conn, table).await? {
         return Ok(false);
     }
     let n: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM pragma_table_info(?1) WHERE name = ?2")
         .bind(table)
         .bind(column)
-        .fetch_one(pool)
+        .fetch_one(&mut *conn)
         .await
         .map_err(AppError::Database)?;
     Ok(n > 0)
 }
 
-async fn rename_table_if_needed(pool: &SqlitePool, old: &str, new: &str) -> Result<(), AppError> {
-    if old == new || !table_exists(pool, old).await? {
+async fn rename_table_if_needed(
+    conn: &mut SqliteConnection,
+    old: &str,
+    new: &str,
+) -> Result<(), AppError> {
+    if old == new || !table_exists(conn, old).await? {
         return Ok(());
     }
-    if !table_exists(pool, new).await? {
+    if !table_exists(conn, new).await? {
         let sql = format!("ALTER TABLE \"{old}\" RENAME TO \"{new}\"");
         sqlx::query(&sql)
-            .execute(pool)
+            .execute(&mut *conn)
             .await
             .map_err(AppError::Database)?;
         tracing::info!(
@@ -486,16 +509,16 @@ async fn rename_table_if_needed(pool: &SqlitePool, old: &str, new: &str) -> Resu
     }
 
     let new_count: i64 = sqlx::query_scalar(&format!("SELECT COUNT(*) FROM \"{new}\""))
-        .fetch_one(pool)
+        .fetch_one(&mut *conn)
         .await
         .map_err(AppError::Database)?;
     if new_count == 0 {
         sqlx::query(&format!("DROP TABLE \"{new}\""))
-            .execute(pool)
+            .execute(&mut *conn)
             .await
             .map_err(AppError::Database)?;
         sqlx::query(&format!("ALTER TABLE \"{old}\" RENAME TO \"{new}\""))
-            .execute(pool)
+            .execute(&mut *conn)
             .await
             .map_err(AppError::Database)?;
         tracing::info!(
@@ -507,8 +530,8 @@ async fn rename_table_if_needed(pool: &SqlitePool, old: &str, new: &str) -> Resu
         return Ok(());
     }
 
-    let old_cols = column_names(pool, old).await?;
-    let new_cols = column_names(pool, new).await?;
+    let old_cols = column_names(conn, old).await?;
+    let new_cols = column_names(conn, new).await?;
     let common: Vec<String> = old_cols
         .into_iter()
         .filter(|c| new_cols.iter().any(|n| n == c))
@@ -521,12 +544,12 @@ async fn rename_table_if_needed(pool: &SqlitePool, old: &str, new: &str) -> Resu
             .join(", ");
         let sql = format!("INSERT OR IGNORE INTO \"{new}\" ({list}) SELECT {list} FROM \"{old}\"");
         sqlx::query(&sql)
-            .execute(pool)
+            .execute(&mut *conn)
             .await
             .map_err(AppError::Database)?;
     }
     sqlx::query(&format!("DROP TABLE \"{old}\""))
-        .execute(pool)
+        .execute(&mut *conn)
         .await
         .map_err(AppError::Database)?;
     tracing::info!(
@@ -539,20 +562,20 @@ async fn rename_table_if_needed(pool: &SqlitePool, old: &str, new: &str) -> Resu
 }
 
 async fn rename_column_if_needed(
-    pool: &SqlitePool,
+    conn: &mut SqliteConnection,
     table: &str,
     old: &str,
     new: &str,
 ) -> Result<(), AppError> {
-    if old == new || !column_exists(pool, table, old).await? {
+    if old == new || !column_exists(conn, table, old).await? {
         return Ok(());
     }
-    if column_exists(pool, table, new).await? {
+    if column_exists(conn, table, new).await? {
         return Ok(());
     }
     let sql = format!("ALTER TABLE \"{table}\" RENAME COLUMN \"{old}\" TO \"{new}\"");
     sqlx::query(&sql)
-        .execute(pool)
+        .execute(&mut *conn)
         .await
         .map_err(AppError::Database)?;
     tracing::info!(
@@ -565,19 +588,22 @@ async fn rename_column_if_needed(
     Ok(())
 }
 
-async fn column_names(pool: &SqlitePool, table: &str) -> Result<Vec<String>, AppError> {
+async fn column_names(conn: &mut SqliteConnection, table: &str) -> Result<Vec<String>, AppError> {
     sqlx::query_scalar("SELECT name FROM pragma_table_info(?1)")
         .bind(table)
-        .fetch_all(pool)
+        .fetch_all(&mut *conn)
         .await
         .map_err(AppError::Database)
 }
 
-async fn table_ddl_has_german_check(pool: &SqlitePool, table: &str) -> Result<bool, AppError> {
+async fn table_ddl_has_german_check(
+    conn: &mut SqliteConnection,
+    table: &str,
+) -> Result<bool, AppError> {
     let sql: Option<String> =
         sqlx::query_scalar("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?1")
             .bind(table)
-            .fetch_optional(pool)
+            .fetch_optional(&mut *conn)
             .await
             .map_err(AppError::Database)?;
     Ok(sql
@@ -585,13 +611,16 @@ async fn table_ddl_has_german_check(pool: &SqlitePool, table: &str) -> Result<bo
         .is_some_and(|s| GERMAN_CHECK_TOKENS.iter().any(|tok| s.contains(tok))))
 }
 
-async fn rebuild_table_without_checks(pool: &SqlitePool, table: &str) -> Result<(), AppError> {
+async fn rebuild_table_without_checks(
+    conn: &mut SqliteConnection,
+    table: &str,
+) -> Result<(), AppError> {
     // pragma_table_info: name, notnull, dflt_value, pk (affinity is not required;
     // SQLite will coerce on insert from the copied rows).
     let cols: Vec<(String, i64, Option<String>, i64)> =
         sqlx::query_as("SELECT name, \"notnull\", dflt_value, pk FROM pragma_table_info(?1)")
             .bind(table)
-            .fetch_all(pool)
+            .fetch_all(&mut *conn)
             .await
             .map_err(AppError::Database)?;
     if cols.is_empty() {
@@ -602,7 +631,7 @@ async fn rebuild_table_without_checks(pool: &SqlitePool, table: &str) -> Result<
         "SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = ?1 AND sql IS NOT NULL",
     )
     .bind(table)
-    .fetch_all(pool)
+    .fetch_all(&mut *conn)
     .await
     .map_err(AppError::Database)?;
 
@@ -640,11 +669,11 @@ async fn rebuild_table_without_checks(pool: &SqlitePool, table: &str) -> Result<
     }
 
     sqlx::query(&format!("DROP TABLE IF EXISTS \"{tmp}\""))
-        .execute(pool)
+        .execute(&mut *conn)
         .await
         .map_err(AppError::Database)?;
     sqlx::query(&format!("CREATE TABLE \"{tmp}\" ({})", defs.join(", ")))
-        .execute(pool)
+        .execute(&mut *conn)
         .await
         .map_err(AppError::Database)?;
 
@@ -656,21 +685,21 @@ async fn rebuild_table_without_checks(pool: &SqlitePool, table: &str) -> Result<
     sqlx::query(&format!(
         "INSERT INTO \"{tmp}\" ({col_list}) SELECT {col_list} FROM \"{table}\""
     ))
-    .execute(pool)
+    .execute(&mut *conn)
     .await
     .map_err(AppError::Database)?;
 
     sqlx::query(&format!("DROP TABLE \"{table}\""))
-        .execute(pool)
+        .execute(&mut *conn)
         .await
         .map_err(AppError::Database)?;
     sqlx::query(&format!("ALTER TABLE \"{tmp}\" RENAME TO \"{table}\""))
-        .execute(pool)
+        .execute(&mut *conn)
         .await
         .map_err(AppError::Database)?;
 
     for idx in index_sqls {
-        if let Err(e) = sqlx::query(&idx).execute(pool).await {
+        if let Err(e) = sqlx::query(&idx).execute(&mut *conn).await {
             tracing::debug!(
                 target: "medoc::system",
                 event = "SCHEMA_INDEX_RECREATE_SKIP",
@@ -687,9 +716,9 @@ async fn rebuild_table_without_checks(pool: &SqlitePool, table: &str) -> Result<
     Ok(())
 }
 
-async fn apply_enum_updates(pool: &SqlitePool) -> Result<(), AppError> {
+async fn apply_enum_updates(conn: &mut SqliteConnection) -> Result<(), AppError> {
     for (table, column, pairs) in ENUM_UPDATES {
-        if !column_exists(pool, table, column).await? {
+        if !column_exists(conn, table, column).await? {
             continue;
         }
         let mut cases = String::new();
@@ -700,14 +729,14 @@ async fn apply_enum_updates(pool: &SqlitePool) -> Result<(), AppError> {
             "UPDATE \"{table}\" SET \"{column}\" = CASE \"{column}\"{cases} ELSE \"{column}\" END"
         );
         sqlx::query(&sql)
-            .execute(pool)
+            .execute(&mut *conn)
             .await
             .map_err(AppError::Database)?;
     }
     Ok(())
 }
 
-async fn apply_category_and_copy_updates(pool: &SqlitePool) -> Result<(), AppError> {
+async fn apply_category_and_copy_updates(conn: &mut SqliteConnection) -> Result<(), AppError> {
     let category_maps: &[(&str, &[(&str, &str)])] = &[
         (
             "service_item",
@@ -733,7 +762,7 @@ async fn apply_category_and_copy_updates(pool: &SqlitePool) -> Result<(), AppErr
         ),
     ];
     for (table, pairs) in category_maps {
-        if !column_exists(pool, table, "category").await? {
+        if !column_exists(conn, table, "category").await? {
             continue;
         }
         let mut cases = String::new();
@@ -743,29 +772,29 @@ async fn apply_category_and_copy_updates(pool: &SqlitePool) -> Result<(), AppErr
         let sql =
             format!("UPDATE \"{table}\" SET category = CASE category{cases} ELSE category END");
         sqlx::query(&sql)
-            .execute(pool)
+            .execute(&mut *conn)
             .await
             .map_err(AppError::Database)?;
     }
 
-    if column_exists(pool, "staff", "specialty").await? {
+    if column_exists(conn, "staff", "specialty").await? {
         sqlx::query("UPDATE staff SET specialty = 'Dentistry' WHERE specialty = 'Zahnmedizin'")
-            .execute(pool)
+            .execute(&mut *conn)
             .await
             .map_err(AppError::Database)?;
     }
     Ok(())
 }
 
-async fn apply_outbox_table_renames(pool: &SqlitePool) -> Result<(), AppError> {
-    if !table_exists(pool, "sync_outbox").await? {
+async fn apply_outbox_table_renames(conn: &mut SqliteConnection) -> Result<(), AppError> {
+    if !table_exists(conn, "sync_outbox").await? {
         return Ok(());
     }
     for (old, new) in OUTBOX_TABLE_RENAMES {
         sqlx::query("UPDATE sync_outbox SET entity_table = ?1 WHERE entity_table = ?2")
             .bind(new)
             .bind(old)
-            .execute(pool)
+            .execute(&mut *conn)
             .await
             .map_err(AppError::Database)?;
     }
@@ -928,27 +957,27 @@ fn upgrade_appointment_text(raw: &str) -> Option<String> {
     changed.then_some(out)
 }
 
-async fn apply_stored_json_english_upgrade(pool: &SqlitePool) -> Result<(), AppError> {
-    if table_exists(pool, "app_kv").await? {
+async fn apply_stored_json_english_upgrade(conn: &mut SqliteConnection) -> Result<(), AppError> {
+    if table_exists(conn, "app_kv").await? {
         for (old_key, new_key) in APP_KV_KEY_RENAMES {
             // Prefer existing English key; otherwise rename leftover key.
             let english_exists: i64 =
                 sqlx::query_scalar("SELECT COUNT(*) FROM app_kv WHERE key = ?1")
                     .bind(new_key)
-                    .fetch_one(pool)
+                    .fetch_one(&mut *conn)
                     .await
                     .map_err(AppError::Database)?;
             if english_exists == 0 {
                 sqlx::query("UPDATE app_kv SET key = ?1 WHERE key = ?2")
                     .bind(new_key)
                     .bind(old_key)
-                    .execute(pool)
+                    .execute(&mut *conn)
                     .await
                     .map_err(AppError::Database)?;
             } else {
                 sqlx::query("DELETE FROM app_kv WHERE key = ?1")
                     .bind(old_key)
-                    .execute(pool)
+                    .execute(&mut *conn)
                     .await
                     .map_err(AppError::Database)?;
             }
@@ -956,7 +985,7 @@ async fn apply_stored_json_english_upgrade(pool: &SqlitePool) -> Result<(), AppE
 
         let rows: Vec<(String, String)> =
             sqlx::query_as("SELECT key, value FROM app_kv WHERE value IS NOT NULL AND value != ''")
-                .fetch_all(pool)
+                .fetch_all(&mut *conn)
                 .await
                 .map_err(AppError::Database)?;
         for (key, value) in rows {
@@ -964,7 +993,7 @@ async fn apply_stored_json_english_upgrade(pool: &SqlitePool) -> Result<(), AppE
                 sqlx::query("UPDATE app_kv SET value = ?1 WHERE key = ?2")
                     .bind(&next)
                     .bind(&key)
-                    .execute(pool)
+                    .execute(&mut *conn)
                     .await
                     .map_err(AppError::Database)?;
                 tracing::info!(
@@ -976,13 +1005,13 @@ async fn apply_stored_json_english_upgrade(pool: &SqlitePool) -> Result<(), AppE
         }
     }
 
-    if table_exists(pool, "document_template").await?
-        && column_exists(pool, "document_template", "payload").await?
+    if table_exists(conn, "document_template").await?
+        && column_exists(conn, "document_template", "payload").await?
     {
         let rows: Vec<(String, String)> = sqlx::query_as(
             "SELECT id, payload FROM document_template WHERE payload IS NOT NULL AND payload != ''",
         )
-        .fetch_all(pool)
+        .fetch_all(&mut *conn)
         .await
         .map_err(AppError::Database)?;
         for (id, payload) in rows {
@@ -990,7 +1019,7 @@ async fn apply_stored_json_english_upgrade(pool: &SqlitePool) -> Result<(), AppE
                 sqlx::query("UPDATE document_template SET payload = ?1 WHERE id = ?2")
                     .bind(&next)
                     .bind(&id)
-                    .execute(pool)
+                    .execute(&mut *conn)
                     .await
                     .map_err(AppError::Database)?;
                 tracing::info!(
@@ -1002,13 +1031,13 @@ async fn apply_stored_json_english_upgrade(pool: &SqlitePool) -> Result<(), AppE
         }
     }
 
-    if table_exists(pool, "document_template_user").await?
-        && column_exists(pool, "document_template_user", "payload").await?
+    if table_exists(conn, "document_template_user").await?
+        && column_exists(conn, "document_template_user", "payload").await?
     {
         let rows: Vec<(String, String)> = sqlx::query_as(
             "SELECT id, payload FROM document_template_user WHERE payload IS NOT NULL AND payload != ''",
         )
-        .fetch_all(pool)
+        .fetch_all(&mut *conn)
         .await
         .map_err(AppError::Database)?;
         for (id, payload) in rows {
@@ -1016,7 +1045,7 @@ async fn apply_stored_json_english_upgrade(pool: &SqlitePool) -> Result<(), AppE
                 sqlx::query("UPDATE document_template_user SET payload = ?1 WHERE id = ?2")
                     .bind(&next)
                     .bind(&id)
-                    .execute(pool)
+                    .execute(&mut *conn)
                     .await
                     .map_err(AppError::Database)?;
                 tracing::info!(
@@ -1028,13 +1057,13 @@ async fn apply_stored_json_english_upgrade(pool: &SqlitePool) -> Result<(), AppE
         }
     }
 
-    if table_exists(pool, "chart_next_appointment_hint").await?
-        && column_exists(pool, "chart_next_appointment_hint", "hint_json").await?
+    if table_exists(conn, "chart_next_appointment_hint").await?
+        && column_exists(conn, "chart_next_appointment_hint", "hint_json").await?
     {
         let rows: Vec<(String, String)> = sqlx::query_as(
             "SELECT patient_id, hint_json FROM chart_next_appointment_hint WHERE hint_json IS NOT NULL AND hint_json != ''",
         )
-        .fetch_all(pool)
+        .fetch_all(&mut *conn)
         .await
         .map_err(AppError::Database)?;
         for (patient_id, hint_json) in rows {
@@ -1044,20 +1073,20 @@ async fn apply_stored_json_english_upgrade(pool: &SqlitePool) -> Result<(), AppE
                 )
                 .bind(&next)
                 .bind(&patient_id)
-                .execute(pool)
+                .execute(&mut *conn)
                 .await
                 .map_err(AppError::Database)?;
             }
         }
     }
 
-    if table_exists(pool, "anamnesis_form").await?
-        && column_exists(pool, "anamnesis_form", "answers").await?
+    if table_exists(conn, "anamnesis_form").await?
+        && column_exists(conn, "anamnesis_form", "answers").await?
     {
         let rows: Vec<(String, String)> = sqlx::query_as(
             "SELECT id, answers FROM anamnesis_form WHERE answers IS NOT NULL AND answers != ''",
         )
-        .fetch_all(pool)
+        .fetch_all(&mut *conn)
         .await
         .map_err(AppError::Database)?;
         for (id, answers) in rows {
@@ -1065,7 +1094,7 @@ async fn apply_stored_json_english_upgrade(pool: &SqlitePool) -> Result<(), AppE
                 sqlx::query("UPDATE anamnesis_form SET answers = ?1 WHERE id = ?2")
                     .bind(&next)
                     .bind(&id)
-                    .execute(pool)
+                    .execute(&mut *conn)
                     .await
                     .map_err(AppError::Database)?;
                 tracing::info!(
@@ -1080,15 +1109,17 @@ async fn apply_stored_json_english_upgrade(pool: &SqlitePool) -> Result<(), AppE
     Ok(())
 }
 
-async fn apply_appointment_text_english_upgrade(pool: &SqlitePool) -> Result<(), AppError> {
-    if !table_exists(pool, "appointment").await? {
+async fn apply_appointment_text_english_upgrade(
+    conn: &mut SqliteConnection,
+) -> Result<(), AppError> {
+    if !table_exists(conn, "appointment").await? {
         return Ok(());
     }
-    if column_exists(pool, "appointment", "notes").await? {
+    if column_exists(conn, "appointment", "notes").await? {
         let rows: Vec<(String, Option<String>)> = sqlx::query_as(
             "SELECT id, notes FROM appointment WHERE notes IS NOT NULL AND notes != ''",
         )
-        .fetch_all(pool)
+        .fetch_all(&mut *conn)
         .await
         .map_err(AppError::Database)?;
         for (id, notes) in rows {
@@ -1097,18 +1128,18 @@ async fn apply_appointment_text_english_upgrade(pool: &SqlitePool) -> Result<(),
                     sqlx::query("UPDATE appointment SET notes = ?1 WHERE id = ?2")
                         .bind(&next)
                         .bind(&id)
-                        .execute(pool)
+                        .execute(&mut *conn)
                         .await
                         .map_err(AppError::Database)?;
                 }
             }
         }
     }
-    if column_exists(pool, "appointment", "chief_complaint").await? {
+    if column_exists(conn, "appointment", "chief_complaint").await? {
         let rows: Vec<(String, Option<String>)> = sqlx::query_as(
             "SELECT id, chief_complaint FROM appointment WHERE chief_complaint IS NOT NULL AND chief_complaint != ''",
         )
-        .fetch_all(pool)
+        .fetch_all(&mut *conn)
         .await
         .map_err(AppError::Database)?;
         for (id, complaint) in rows {
@@ -1117,7 +1148,7 @@ async fn apply_appointment_text_english_upgrade(pool: &SqlitePool) -> Result<(),
                     sqlx::query("UPDATE appointment SET chief_complaint = ?1 WHERE id = ?2")
                         .bind(&next)
                         .bind(&id)
-                        .execute(pool)
+                        .execute(&mut *conn)
                         .await
                         .map_err(AppError::Database)?;
                 }

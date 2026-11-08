@@ -1,6 +1,6 @@
 //! Staff work-time sessions — distinct from practice opening hours (Sprechzeiten).
 
-use chrono::{Datelike, NaiveDate, TimeZone, Utc};
+use chrono::{Datelike, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use uuid::Uuid;
@@ -12,6 +12,38 @@ use crate::infrastructure::database::app_kv_repo;
 use tauri::State;
 
 const AUTO_RECORD_KV: &str = "work_time.auto_record_on_login.v1";
+
+/// F122: work-time days are practice-local days (`practice.timezone.v1`),
+/// not UTC days. Refreshed at the start of every command that buckets by day.
+static PRACTICE_TZ: std::sync::RwLock<Option<medoc_core::domain::practice_time::Tz>> =
+    std::sync::RwLock::new(None);
+
+async fn refresh_tz(pool: &SqlitePool) -> medoc_core::domain::practice_time::Tz {
+    let tz = medoc_core::domain::practice_time::practice_tz(pool).await;
+    if let Ok(mut g) = PRACTICE_TZ.write() {
+        *g = Some(tz);
+    }
+    tz
+}
+
+fn current_tz() -> medoc_core::domain::practice_time::Tz {
+    PRACTICE_TZ
+        .read()
+        .ok()
+        .and_then(|g| *g)
+        .unwrap_or(medoc_core::domain::practice_time::DEFAULT)
+}
+
+fn local_today() -> NaiveDate {
+    Utc::now().with_timezone(&current_tz()).date_naive()
+}
+
+/// UTC instant at which local day `d` starts, as an RFC 3339 string for SQL.
+fn local_day_start_utc(d: NaiveDate) -> String {
+    medoc_core::domain::practice_time::local_day_bounds_utc(d, current_tz())
+        .0
+        .to_rfc3339()
+}
 const AUTO_RECORD_LOGOUT_KV: &str = "work_time.auto_record_on_logout.v1";
 
 async fn practice_auto_record_on_login(pool: &SqlitePool) -> Result<bool, AppError> {
@@ -46,7 +78,7 @@ async fn sync_practice_auto_flags(
     for (pid,) in rows {
         let _ = get_or_create_preference(pool, &pid).await?;
         sqlx::query(
-            "UPDATE work_time_preference SET auto_record_on_login = ?1, auto_record_on_logout = ?2 WHERE staff_id = ?3",
+            "UPDATE work_time_preference SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'), auto_record_on_login = ?1, auto_record_on_logout = ?2 WHERE staff_id = ?3",
         )
         .bind(login_val as i32)
         .bind(logout_val as i32)
@@ -54,6 +86,7 @@ async fn sync_practice_auto_flags(
         .execute(pool)
         .await
         .map_err(AppError::Database)?;
+        medoc_core::infrastructure::database::recorded_write::record_row(pool, "work_time_preference", &pid, "UPDATE").await?;
     }
     Ok(())
 }
@@ -199,24 +232,26 @@ async fn close_open_pause_segment(pool: &SqlitePool, session_id: &str) -> Result
     let Some((seg_id, started_at)) = open else {
         return Ok(0);
     };
-    sqlx::query("UPDATE work_time_pause_segment SET ended_at = ?1 WHERE id = ?2")
+    sqlx::query("UPDATE work_time_pause_segment SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'), ended_at = ?1 WHERE id = ?2")
         .bind(&now)
         .bind(&seg_id)
         .execute(pool)
         .await
         .map_err(AppError::Database)?;
+    medoc_core::infrastructure::database::recorded_write::record_row(pool, "work_time_pause_segment", &seg_id, "UPDATE").await?;
     let mins = parse_rfc3339(&started_at)
         .and_then(|st| parse_rfc3339(&now).map(|en| (en - st).num_minutes()))
         .unwrap_or(0)
         .max(0);
     sqlx::query(
-        "UPDATE work_time_session SET pause_minutes = COALESCE(pause_minutes, 0) + ?1 WHERE id = ?2",
+        "UPDATE work_time_session SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'), pause_minutes = COALESCE(pause_minutes, 0) + ?1 WHERE id = ?2",
     )
     .bind(mins)
     .bind(session_id)
     .execute(pool)
     .await
     .map_err(AppError::Database)?;
+    medoc_core::infrastructure::database::recorded_write::record_row(pool, "work_time_session", &session_id, "UPDATE").await?;
     Ok(mins)
 }
 
@@ -253,6 +288,7 @@ pub async fn get_or_create_preference(
     .execute(pool)
     .await
     .map_err(AppError::Database)?;
+    medoc_core::infrastructure::database::recorded_write::record_row(pool, "work_time_preference", &staff_id, "INSERT").await?;
     Ok(WorkTimePreference {
         focus_mode: false,
         auto_record_on_login: auto_login,
@@ -271,7 +307,7 @@ pub async fn end_open_session_for_user(
     close_open_pause_segment(pool, &row.id).await?;
     let now = Utc::now().to_rfc3339();
     sqlx::query(
-        "UPDATE work_time_session SET status = 'ENDED', ended_at = ?1, pause_started_at = NULL, end_reason = ?2
+        "UPDATE work_time_session SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'), status = 'ENDED', ended_at = ?1, pause_started_at = NULL, end_reason = ?2
          WHERE id = ?3",
     )
     .bind(&now)
@@ -280,29 +316,30 @@ pub async fn end_open_session_for_user(
     .execute(pool)
     .await
     .map_err(AppError::Database)?;
+    medoc_core::infrastructure::database::recorded_write::record_row(pool, "work_time_session", &row.id, "UPDATE").await?;
     Ok(())
 }
 
 fn started_date(started_at: &str) -> Option<NaiveDate> {
     parse_rfc3339(started_at)
-        .map(|dt| dt.date_naive())
+        .map(|dt| dt.with_timezone(&current_tz()).date_naive())
         .or_else(|| {
             NaiveDate::parse_from_str(&started_at[..10.min(started_at.len())], "%Y-%m-%d").ok()
         })
 }
 
+/// F122: a session left open is closed one second before its local day ends.
 fn stale_close_ended_at(started_at: &str) -> String {
     let Some(day) = started_date(started_at) else {
         return Utc::now().to_rfc3339();
     };
-    let end_naive = day
-        .and_hms_opt(18, 0, 0)
-        .unwrap_or_else(|| day.and_hms_opt(23, 59, 59).unwrap());
-    Utc.from_utc_datetime(&end_naive).to_rfc3339()
+    let (_, end) = medoc_core::domain::practice_time::local_day_bounds_utc(day, current_tz());
+    (end - chrono::Duration::seconds(1)).to_rfc3339()
 }
 
 async fn reconcile_stale_sessions(pool: &SqlitePool, staff_id: &str) -> Result<u32, AppError> {
-    let today = Utc::now().date_naive();
+    refresh_tz(pool).await;
+    let today = local_today();
     let rows = sqlx::query_as::<_, WorkTimeSession>(
         "SELECT id, staff_id, started_at, ended_at, pause_started_at, status, auto_recorded, end_reason,
                 COALESCE(pause_minutes, 0) AS pause_minutes
@@ -326,7 +363,7 @@ async fn reconcile_stale_sessions(pool: &SqlitePool, staff_id: &str) -> Result<u
         let ended_at = stale_close_ended_at(&row.started_at);
         sqlx::query(
             "UPDATE work_time_session
-             SET status = 'ENDED', ended_at = ?1, pause_started_at = NULL, end_reason = 'unbeendet'
+             SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'), status = 'ENDED', ended_at = ?1, pause_started_at = NULL, end_reason = 'auto_closed'
              WHERE id = ?2",
         )
         .bind(&ended_at)
@@ -334,9 +371,25 @@ async fn reconcile_stale_sessions(pool: &SqlitePool, staff_id: &str) -> Result<u
         .execute(pool)
         .await
         .map_err(AppError::Database)?;
+        medoc_core::infrastructure::database::recorded_write::record_row(pool, "work_time_session", &row.id, "UPDATE").await?;
         closed += 1;
     }
     Ok(closed)
+}
+
+/// F122: sweep for every staff member, run at app start and every 15 minutes.
+pub async fn reconcile_all_stale_sessions(pool: &SqlitePool) -> Result<u32, AppError> {
+    let staff_ids: Vec<String> = sqlx::query_scalar(
+        "SELECT DISTINCT staff_id FROM work_time_session WHERE status IN ('RUNNING', 'PAUSED')",
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(AppError::Database)?;
+    let mut n = 0;
+    for id in staff_ids {
+        n += reconcile_stale_sessions(pool, &id).await?;
+    }
+    Ok(n)
 }
 
 fn week_start_from(query: Option<&str>) -> Result<NaiveDate, AppError> {
@@ -344,7 +397,7 @@ fn week_start_from(query: Option<&str>) -> Result<NaiveDate, AppError> {
         NaiveDate::parse_from_str(ws, "%Y-%m-%d")
             .map_err(|_| AppError::validation_code("error.work_time.week_start_format"))
     } else {
-        let today = Utc::now().date_naive();
+        let today = local_today();
         Ok(today - chrono::Duration::days(today.weekday().num_days_from_monday() as i64))
     }
 }
@@ -427,6 +480,7 @@ pub async fn work_time_start(
     .execute(pool.inner())
     .await
     .map_err(AppError::Database)?;
+    medoc_core::infrastructure::database::recorded_write::record_row(pool.inner(), "work_time_session", &id, "INSERT").await?;
     open_session(&pool, &session.user_id)
         .await?
         .ok_or_else(|| AppError::Internal("work_time_start".into()))
@@ -459,14 +513,16 @@ pub async fn work_time_pause(
     .execute(pool.inner())
     .await
     .map_err(AppError::Database)?;
+    medoc_core::infrastructure::database::recorded_write::record_row(pool.inner(), "work_time_pause_segment", &seg_id, "INSERT").await?;
     sqlx::query(
-        "UPDATE work_time_session SET status = 'PAUSED', pause_started_at = ?1 WHERE id = ?2",
+        "UPDATE work_time_session SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'), status = 'PAUSED', pause_started_at = ?1 WHERE id = ?2",
     )
     .bind(&now)
     .bind(&row.id)
     .execute(pool.inner())
     .await
     .map_err(AppError::Database)?;
+    medoc_core::infrastructure::database::recorded_write::record_row(pool.inner(), "work_time_session", &row.id, "UPDATE").await?;
     open_session(&pool, &session.user_id)
         .await?
         .ok_or_else(|| AppError::Internal("work_time_pause".into()))
@@ -490,12 +546,13 @@ pub async fn work_time_resume(
     }
     close_open_pause_segment(&pool, &row.id).await?;
     sqlx::query(
-        "UPDATE work_time_session SET status = 'RUNNING', pause_started_at = NULL WHERE id = ?1",
+        "UPDATE work_time_session SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'), status = 'RUNNING', pause_started_at = NULL WHERE id = ?1",
     )
     .bind(&row.id)
     .execute(pool.inner())
     .await
     .map_err(AppError::Database)?;
+    medoc_core::infrastructure::database::recorded_write::record_row(pool.inner(), "work_time_session", &row.id, "UPDATE").await?;
     open_session(&pool, &session.user_id)
         .await?
         .ok_or_else(|| AppError::Internal("work_time_resume".into()))
@@ -513,7 +570,7 @@ pub async fn work_time_end(
     close_open_pause_segment(&pool, &row.id).await?;
     let now = Utc::now().to_rfc3339();
     sqlx::query(
-        "UPDATE work_time_session SET status = 'ENDED', ended_at = ?1, pause_started_at = NULL, end_reason = 'manual'
+        "UPDATE work_time_session SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'), status = 'ENDED', ended_at = ?1, pause_started_at = NULL, end_reason = 'manual'
          WHERE id = ?2",
     )
     .bind(&now)
@@ -521,6 +578,7 @@ pub async fn work_time_end(
     .execute(pool.inner())
     .await
     .map_err(AppError::Database)?;
+    medoc_core::infrastructure::database::recorded_write::record_row(pool.inner(), "work_time_session", &row.id, "UPDATE").await?;
     sqlx::query_as::<_, WorkTimeSession>(
         "SELECT id, staff_id, started_at, ended_at, pause_started_at, status, auto_recorded, end_reason,
                 COALESCE(pause_minutes, 0) AS pause_minutes
@@ -545,18 +603,20 @@ pub async fn work_time_get_week_overview(
     query: WorkTimeWeekQuery,
 ) -> Result<WorkTimeWeekOverview, AppError> {
     let session = rbac::require(&session_state, "work_time.self")?;
+    refresh_tz(pool.inner()).await;
     let week_start = week_start_from(query.week_start.as_deref())?;
     let week_end = week_start + chrono::Duration::days(7);
+    // F122: local week bounds; julianday() so "…Z" and "…+00:00" compare correctly.
     let sessions = sqlx::query_as::<_, WorkTimeSession>(
         "SELECT id, staff_id, started_at, ended_at, pause_started_at, status, auto_recorded, end_reason,
                 COALESCE(pause_minutes, 0) AS pause_minutes
          FROM work_time_session
-         WHERE staff_id = ?1 AND started_at >= ?2 AND started_at < ?3
+         WHERE staff_id = ?1 AND julianday(started_at) >= julianday(?2) AND julianday(started_at) < julianday(?3)
          ORDER BY started_at ASC",
     )
     .bind(&session.user_id)
-    .bind(week_start.format("%Y-%m-%d").to_string())
-    .bind(week_end.format("%Y-%m-%d").to_string())
+    .bind(local_day_start_utc(week_start))
+    .bind(local_day_start_utc(week_end))
     .fetch_all(pool.inner())
     .await
     .map_err(AppError::Database)?;
@@ -583,9 +643,10 @@ pub async fn work_time_get_team_overview(
     query: WorkTimeWeekQuery,
 ) -> Result<WorkTimeTeamOverview, AppError> {
     rbac::require(&session_state, "work_time.team.read")?;
+    refresh_tz(pool.inner()).await;
     let week_start = week_start_from(query.week_start.as_deref())?;
     let week_end = week_start + chrono::Duration::days(7);
-    let today = Utc::now().date_naive().format("%Y-%m-%d").to_string();
+    let today = local_today();
 
     let staff: Vec<(String, String)> = sqlx::query_as(
         "SELECT id, name FROM staff WHERE UPPER(role) IN ('PHYSICIAN', 'RECEPTION') ORDER BY name",
@@ -598,10 +659,10 @@ pub async fn work_time_get_team_overview(
         "SELECT id, staff_id, started_at, ended_at, pause_started_at, status, auto_recorded, end_reason,
                 COALESCE(pause_minutes, 0) AS pause_minutes
          FROM work_time_session
-         WHERE started_at >= ?1 AND started_at < ?2",
+         WHERE julianday(started_at) >= julianday(?1) AND julianday(started_at) < julianday(?2)",
     )
-    .bind(week_start.format("%Y-%m-%d").to_string())
-    .bind(week_end.format("%Y-%m-%d").to_string())
+    .bind(local_day_start_utc(week_start))
+    .bind(local_day_start_utc(week_end))
     .fetch_all(pool.inner())
     .await
     .map_err(AppError::Database)?;
@@ -613,7 +674,7 @@ pub async fn work_time_get_team_overview(
         let week_minutes: i64 = mine.iter().map(|s| session_work_minutes(s, now).0).sum();
         let today_minutes: i64 = mine
             .iter()
-            .filter(|s| s.started_at.starts_with(&today))
+            .filter(|s| started_date(&s.started_at) == Some(today))
             .map(|s| session_work_minutes(s, now).0)
             .sum();
         let status = mine
@@ -644,7 +705,8 @@ pub async fn work_time_get_statistics(
     let session = rbac::require_authenticated(&session_state)?;
     let role = Role::parse(&session.role).ok_or(AppError::Forbidden)?;
     let team = effective_allowed("work_time.team.read", role, &session.permission_overrides);
-    let today = Utc::now().date_naive();
+    refresh_tz(pool.inner()).await;
+    let today = local_today();
     let week_start = today - chrono::Duration::days(today.weekday().num_days_from_monday() as i64);
     let month_start = NaiveDate::from_ymd_opt(today.year(), today.month(), 1).unwrap_or(today);
 
@@ -653,10 +715,10 @@ pub async fn work_time_get_statistics(
             "SELECT id, staff_id, started_at, ended_at, pause_started_at, status, auto_recorded, end_reason,
                     COALESCE(pause_minutes, 0) AS pause_minutes
              FROM work_time_session
-             WHERE started_at >= ?1
+             WHERE julianday(started_at) >= julianday(?1)
              ORDER BY started_at ASC",
         )
-        .bind(month_start.format("%Y-%m-%d").to_string())
+        .bind(local_day_start_utc(month_start))
         .fetch_all(pool.inner())
         .await
         .map_err(AppError::Database)?
@@ -665,11 +727,11 @@ pub async fn work_time_get_statistics(
             "SELECT id, staff_id, started_at, ended_at, pause_started_at, status, auto_recorded, end_reason,
                     COALESCE(pause_minutes, 0) AS pause_minutes
              FROM work_time_session
-             WHERE staff_id = ?1 AND started_at >= ?2
+             WHERE staff_id = ?1 AND julianday(started_at) >= julianday(?2)
              ORDER BY started_at ASC",
         )
         .bind(&session.user_id)
-        .bind(month_start.format("%Y-%m-%d").to_string())
+        .bind(local_day_start_utc(month_start))
         .fetch_all(pool.inner())
         .await
         .map_err(AppError::Database)?
@@ -706,7 +768,7 @@ pub async fn work_time_get_statistics(
         .fetch_all(pool.inner())
         .await
         .map_err(AppError::Database)?;
-        let today_str = Utc::now().date_naive().format("%Y-%m-%d").to_string();
+        let today_local = local_today();
         staff
             .into_iter()
             .map(|(pid, name)| {
@@ -718,7 +780,7 @@ pub async fn work_time_get_statistics(
                     .sum();
                 let today_minutes: i64 = mine
                     .iter()
-                    .filter(|s| s.started_at.starts_with(&today_str))
+                    .filter(|s| started_date(&s.started_at) == Some(today_local))
                     .map(|s| session_work_minutes(s, now).0)
                     .sum();
                 let status = mine
@@ -785,32 +847,35 @@ pub async fn work_time_set_preference(
     };
     let _ = get_or_create_preference(&pool, &pid).await?;
     if let Some(f) = patch.focus_mode {
-        sqlx::query("UPDATE work_time_preference SET focus_mode = ?1 WHERE staff_id = ?2")
+        sqlx::query("UPDATE work_time_preference SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'), focus_mode = ?1 WHERE staff_id = ?2")
             .bind(f as i32)
             .bind(&pid)
             .execute(pool.inner())
             .await
             .map_err(AppError::Database)?;
+        medoc_core::infrastructure::database::recorded_write::record_row(pool.inner(), "work_time_preference", &pid, "UPDATE").await?;
     }
     if let Some(l) = patch.auto_record_on_login {
         sqlx::query(
-            "UPDATE work_time_preference SET auto_record_on_login = ?1 WHERE staff_id = ?2",
+            "UPDATE work_time_preference SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'), auto_record_on_login = ?1 WHERE staff_id = ?2",
         )
         .bind(l as i32)
         .bind(&pid)
         .execute(pool.inner())
         .await
         .map_err(AppError::Database)?;
+        medoc_core::infrastructure::database::recorded_write::record_row(pool.inner(), "work_time_preference", &pid, "UPDATE").await?;
     }
     if let Some(o) = patch.auto_record_on_logout {
         sqlx::query(
-            "UPDATE work_time_preference SET auto_record_on_logout = ?1 WHERE staff_id = ?2",
+            "UPDATE work_time_preference SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'), auto_record_on_logout = ?1 WHERE staff_id = ?2",
         )
         .bind(o as i32)
         .bind(&pid)
         .execute(pool.inner())
         .await
         .map_err(AppError::Database)?;
+        medoc_core::infrastructure::database::recorded_write::record_row(pool.inner(), "work_time_preference", &pid, "UPDATE").await?;
     }
     get_or_create_preference(&pool, &pid).await
 }
@@ -905,7 +970,47 @@ mod tests {
     use super::*;
     use medoc_core::infrastructure::database::connection::{run_migrations, test_memory_pool};
 
+    /// F122: 23:30 UTC on 10 Jan is 00:30 on 11 Jan in Berlin. The shift belongs
+    /// to 11 Jan and is closed at 23:59:59 Berlin time that day (22:59:59Z).
+    #[tokio::test]
+    async fn open_shift_closes_at_local_midnight() {
+        let pool = test_memory_pool().await.expect("pool");
+        run_migrations(&pool).await.expect("migrate");
+        medoc_core::infrastructure::database::app_kv_repo::set(&pool, "practice.timezone.v1", "Europe/Berlin")
+            .await
+            .expect("tz");
+        let pid = "p-work-time-tz";
+        seed_staff(&pool, pid).await;
+        sqlx::query(
+            "INSERT INTO work_time_session (id, staff_id, started_at, status, auto_recorded, pause_minutes)
+             VALUES ('tz1', ?1, '2026-01-10T23:30:00+00:00', 'RUNNING', 1, 0)",
+        )
+        .bind(pid)
+        .execute(&pool)
+        .await
+        .expect("insert");
+        assert_eq!(reconcile_all_stale_sessions(&pool).await.expect("sweep"), 1);
+        let (ended, reason): (String, String) = sqlx::query_as(
+            "SELECT ended_at, end_reason FROM work_time_session WHERE id = 'tz1'",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("row");
+        let ended = chrono::DateTime::parse_from_rfc3339(&ended).expect("rfc3339");
+        assert_eq!(ended.with_timezone(&Utc).to_rfc3339(), "2026-01-11T22:59:59+00:00");
+        assert_eq!(reason, "auto_closed");
+        assert_eq!(
+            started_date("2026-01-10T23:30:00+00:00"),
+            NaiveDate::from_ymd_opt(2026, 1, 11),
+            "week buckets use the local day"
+        );
+        assert_eq!(local_day_start_utc(NaiveDate::from_ymd_opt(2026, 1, 12).unwrap()), "2026-01-11T23:00:00+00:00");
+    }
+
     async fn seed_staff(pool: &SqlitePool, id: &str) {
+        medoc_core::mvp_security::drop_staff_quota_db_triggers(pool)
+            .await
+            .ok();
         sqlx::query(
             "INSERT INTO staff (id, name, email, role, password_hash, available, created_at, updated_at)
              VALUES (?1, 'Test', ?2, 'RECEPTION', 'x', 1, datetime('now'), datetime('now'))",
@@ -921,6 +1026,9 @@ mod tests {
     async fn reconcile_closes_prior_day_open_session() {
         let pool = test_memory_pool().await.expect("pool");
         run_migrations(&pool).await.expect("migrate");
+        medoc_core::mvp_security::drop_staff_quota_db_triggers(&pool)
+            .await
+            .ok();
         let pid = "p-work-time-1";
         seed_staff(&pool, pid).await;
         let yesterday = (Utc::now().date_naive() - chrono::Duration::days(1))

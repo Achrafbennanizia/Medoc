@@ -25,9 +25,11 @@ import type {
     StaffWorkBlock,
 } from "@/lib/staff-work-plan";
 import {
+    hydrateWorkPlanStore,
     loadWorkPlanStore,
     minToLabel,
     newBlockId,
+    persistWorkPlanStore,
     saveWorkPlanStore,
     weekDaysMonFirst,
     weekStartMonday,
@@ -575,6 +577,7 @@ export function StaffWorkPlanPage() {
         setStore((prev) => {
             const n = u(prev);
             saveWorkPlanStore(n);
+            void persistWorkPlanStore(n);
             return n;
         });
     }, []);
@@ -583,8 +586,9 @@ export function StaffWorkPlanPage() {
         setLoading(true);
         setLoadError(null);
         try {
-            setStaff(await listStaff());
-            let nextStore = loadWorkPlanStore();
+            const staffList = await listStaff();
+            setStaff(staffList);
+            let nextStore = await hydrateWorkPlanStore(staffList.map((s) => s.id));
             try {
                 const adjustments = await listWorkPlanAdjustments({ activeOnly: true });
                 const serverEntries: WorkPlanComposeEntry[] = [];

@@ -105,24 +105,17 @@ async fn leftover_german_headers_are_rejected() {
 }
 
 #[tokio::test]
-async fn duplicate_insurance_number_is_skipped() {
+async fn duplicate_name_and_dob_is_skipped() {
     let pool = migrated_pool().await;
     let path = temp_csv(
         "name;date_of_birth;sex;insurance_number\n\
          First;1991-01-01;M;V-DUP-1\n\
-         Second;1992-02-02;W;V-DUP-1\n",
+         first;1991-01-01;W;V-DUP-2\n",
     );
     let report = import_patients(&pool, &path, false).await.expect("import");
     assert_eq!(report.imported, 1);
-    assert_eq!(report.skipped, 1);
+    assert_eq!(report.skipped_duplicates, 1);
     assert_eq!(report.failed, 0);
-
-    let name: (String,) =
-        sqlx::query_as("SELECT name FROM patient WHERE insurance_number = 'V-DUP-1'")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
-    assert_eq!(name.0, "First");
 }
 
 #[tokio::test]

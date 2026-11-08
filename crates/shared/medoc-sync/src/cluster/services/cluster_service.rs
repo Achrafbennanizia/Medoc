@@ -7,8 +7,8 @@ use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::cluster::crypto::{
-    derive_sas_from_transcript, hash_sas, mint_seat_certificate, normalise_sas_input,
-    transcript_sha_prefix, validate_sas_match, verify_sas, DeviceIdentity,
+    derive_sas_from_transcript, fingerprint_matches_pubkey, hash_sas, mint_seat_certificate,
+    normalise_sas_input, transcript_sha_prefix, validate_sas_match, verify_sas, DeviceIdentity,
 };
 use crate::cluster::entities::{Device, PairingSession};
 use crate::cluster::enums::{DeviceStatus, PairingStatus, SeatRole};
@@ -22,7 +22,7 @@ use crate::engine::SyncEngine;
 use crate::master_keys;
 use crate::pairing::{
     mint_activation_token, verify_activation_token, ActivationTokenPayload,
-    DEFAULT_ALLOWED_ACTIONS, DEFAULT_REPLICA_HTTP_PORT,
+    DEFAULT_ALLOWED_ACTIONS,
 };
 
 use super::audit;
@@ -33,6 +33,9 @@ use super::staff_directory::{
     store_join_lan_auth,
 };
 use crate::net::{confirm_sas_on_admin, fetch_replica_auth, SasConfirmOutcome};
+
+/// LAN HTTPS port on the master. Cluster pairing uses its own port and must not be stored as the sync URL.
+const REPLICA_MASTER_HTTPS_PORT: u16 = 8787;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -377,8 +380,10 @@ pub async fn submit_sas(
                     lan.activation_token.as_deref(),
                     lan.master_pubkey.as_deref(),
                     lan.master_device_id.as_deref(),
+                    lan.master_cert_sha256.as_deref(),
                 )
                 .await
+                .and(store_join_http_port(pool, lan.master_http_port).await)
                 {
                     tracing::warn!(
                         target: "medoc::cluster",
@@ -747,6 +752,21 @@ pub async fn issue_replica_lan_auth(
     if sid.is_empty() {
         return Err(AppError::Forbidden);
     }
+    let status: Option<String> =
+        sqlx::query_scalar("SELECT status FROM pairing_request WHERE id = ?1")
+            .bind(&sid)
+            .fetch_optional(pool)
+            .await
+            .map_err(AppError::Database)?;
+    if status.as_deref() != Some("ACCEPTED")
+        || repo::is_blocklisted(pool, fingerprint.trim()).await?
+    {
+        return Err(AppError::Forbidden);
+    }
+    let stored_key = repo::load_slave_pubkey(pool, &sid).await?;
+    if stored_key.len() == 32 && !fingerprint_matches_pubkey(&stored_key, fingerprint) {
+        return Err(AppError::Forbidden);
+    }
     let existing: String = sqlx::query_scalar(
         "SELECT COALESCE(activation_token, '') FROM pairing_request WHERE id = ?1",
     )
@@ -793,7 +813,42 @@ pub async fn issue_replica_lan_auth(
         activation_token: token,
         master_pubkey,
         master_device_id,
+        master_cert_sha256: crate::tls_pin::load_local_pin(pool).await,
+        master_http_port: Some(local_lan_http_port(pool).await),
     })
+}
+
+/// HTTPS port of this device's LAN server, from `lan.server.config.v1`.
+pub async fn local_lan_http_port(pool: &SqlitePool) -> u16 {
+    let raw = app_kv_repo::get(pool, "lan.server.config.v1")
+        .await
+        .ok()
+        .flatten();
+    raw.and_then(|r| serde_json::from_str::<serde_json::Value>(&r).ok())
+        .and_then(|v| v.get("httpPort").and_then(|p| p.as_u64()))
+        .and_then(|p| u16::try_from(p).ok())
+        .filter(|p| *p != 0)
+        .unwrap_or(REPLICA_MASTER_HTTPS_PORT)
+}
+
+const KV_JOIN_HTTP_PORT: &str = "cluster.join.http_port.v1";
+
+/// Replica: remember the main device's LAN HTTPS port from the join reply.
+pub async fn store_join_http_port(pool: &SqlitePool, port: Option<u16>) -> Result<(), AppError> {
+    if let Some(p) = port.filter(|p| *p != 0) {
+        app_kv_repo::set(pool, KV_JOIN_HTTP_PORT, &p.to_string()).await?;
+    }
+    Ok(())
+}
+
+async fn load_join_http_port(pool: &SqlitePool) -> u16 {
+    app_kv_repo::get(pool, KV_JOIN_HTTP_PORT)
+        .await
+        .ok()
+        .flatten()
+        .and_then(|v| v.trim().parse::<u16>().ok())
+        .filter(|p| *p != 0)
+        .unwrap_or(REPLICA_MASTER_HTTPS_PORT)
 }
 
 /// Replica: pull mt2 + master device id from the stored admin endpoint and
@@ -810,8 +865,10 @@ pub async fn refresh_replica_lan_auth(pool: &SqlitePool) -> Result<bool, AppErro
         lan.activation_token.as_deref(),
         lan.master_pubkey.as_deref(),
         lan.master_device_id.as_deref(),
+        lan.master_cert_sha256.as_deref(),
     )
     .await?;
+    store_join_http_port(pool, lan.master_http_port).await?;
     apply_replica_deployment_from_join(pool).await?;
     Ok(lan.activation_token.is_some())
 }
@@ -977,6 +1034,7 @@ pub async fn revoke_device(
     require_owner_admin(pool).await?;
     let repos = SqliteClusterRepos { pool };
     repos.set_status(fingerprint, DeviceStatus::Revoked).await?;
+    crate::pairing::clear_device_activation(pool, fingerprint).await?;
     audit::log_cluster(pool, user_id, "REVOKE", Some(fingerprint), None).await
 }
 
@@ -989,6 +1047,7 @@ pub async fn block_device(
     require_owner_admin(pool).await?;
     let repos = SqliteClusterRepos { pool };
     repos.block(fingerprint, reason).await?;
+    crate::pairing::clear_device_activation(pool, fingerprint).await?;
     audit::log_cluster(pool, user_id, "BLOCK", Some(fingerprint), Some(reason)).await
 }
 
@@ -1057,6 +1116,30 @@ async fn demote_local_cluster_seat_to_member(pool: &SqlitePool) -> Result<(), Ap
     Ok(())
 }
 
+/// If join stored the cluster port as the HTTPS address, point sync at the LAN server port.
+pub async fn repair_replica_master_https_url(pool: &SqlitePool) -> Result<bool, AppError> {
+    let Some((host, port)) = load_join_admin_endpoint(pool).await? else {
+        return Ok(false);
+    };
+    let http_port = load_join_http_port(pool).await;
+    if port == http_port {
+        return Ok(false);
+    }
+    let mut cfg = crate::repo::load_deployment(pool).await?;
+    if cfg.role != DeviceRole::Replica {
+        return Ok(false);
+    }
+    let current = cfg.master_base_url.trim().trim_end_matches('/');
+    let points_at_cluster_port = current.eq_ignore_ascii_case(&format!("https://{host}:{port}"))
+        || current.eq_ignore_ascii_case(&format!("http://{host}:{port}"));
+    if !points_at_cluster_port {
+        return Ok(false);
+    }
+    cfg.master_base_url = format!("https://{host}:{http_port}");
+    crate::repo::save_deployment(pool, &cfg).await?;
+    Ok(true)
+}
+
 async fn apply_replica_deployment_from_join(pool: &SqlitePool) -> Result<(), AppError> {
     let snap = SyncEngine::status(pool).await?;
     let mut cfg = snap.deployment;
@@ -1066,10 +1149,12 @@ async fn apply_replica_deployment_from_join(pool: &SqlitePool) -> Result<(), App
     if cfg.device_label.trim().is_empty() {
         cfg.device_label = "Replica".into();
     }
-    if cfg.master_base_url.trim().is_empty() {
-        if let Some((host, _)) = load_join_admin_endpoint(pool).await? {
-            cfg.master_base_url = format!("https://{host}:{DEFAULT_REPLICA_HTTP_PORT}");
-        }
+    if let Some((host, _cluster_port)) = load_join_admin_endpoint(pool).await? {
+        // Cluster pairing listens on the cluster port. HTTPS sync uses the main
+        // device's LAN server port, sent in the join reply (default 8787).
+        // Always rebuild the URL so a changed host or port is picked up.
+        let http_port = load_join_http_port(pool).await;
+        cfg.master_base_url = format!("https://{host}:{http_port}");
     }
     if let Ok(Some(auth)) = load_join_lan_auth(pool).await {
         cfg.activation_token = auth.activation_token;
@@ -1078,6 +1163,9 @@ async fn apply_replica_deployment_from_join(pool: &SqlitePool) -> Result<(), App
         }
         if !auth.master_device_id.trim().is_empty() {
             cfg.master_device_id = auth.master_device_id;
+        }
+        if crate::tls_pin::is_sha256_pin(&auth.master_cert_sha256) {
+            cfg.master_cert_sha256 = crate::tls_pin::normalize_sha256_pin(&auth.master_cert_sha256);
         }
     }
     SyncEngine::set_deployment(pool, cfg).await

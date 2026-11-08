@@ -70,6 +70,7 @@ import { getInvoicePracticeFromStorage } from "@/lib/invoice-service-item";
 import { checkPracticeDocumentReadiness } from "@/lib/practice-completeness";
 import type { DocumentKind } from "@/lib/document-template-schema";
 import { openSystemScanUtility } from "@/systems/practice-host/controllers/system.controller";
+import { localCapability } from "@/lib/integration-capabilities";
 import { buildOpenPaymentLinkSelectOptions } from "@/lib/payment-booking";
 import {
     isPatientChartMissingError,
@@ -1001,16 +1002,20 @@ export function PatientDetailPage() {
                     onRevokeValidation={(attachmentId, shortLabel) =>
                         void revokeItemValidationRow(itemValidationKey("attachment", attachmentId), shortLabel)}
                     formatAddedAt={formatDate}
-                    onScannerClick={() => {
-                        void (async () => {
-                            try {
-                                await openSystemScanUtility();
-                                setScannerImportOpen(true);
-                            } catch (e) {
-                                toast(tp("patient.detail.toast.scanner_failed", { message: errorMessage(e) }), "error");
-                            }
-                        })();
-                    }}
+                    onScannerClick={
+                        localCapability("scanner")?.available
+                            ? () => {
+                                  void (async () => {
+                                      try {
+                                          await openSystemScanUtility();
+                                          setScannerImportOpen(true);
+                                      } catch (e) {
+                                          toast(tp("patient.detail.toast.scanner_failed", { message: errorMessage(e) }), "error");
+                                      }
+                                  })();
+                              }
+                            : undefined
+                    }
                 />
             ) : null}
             {chart && scannerImportOpen ? (

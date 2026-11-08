@@ -2,6 +2,7 @@ pub mod app_kv_policy;
 pub mod appointment_hint_fulfillment;
 pub mod audit_chain_guard;
 pub mod auth_service;
+pub mod authorize;
 pub mod break_glass;
 pub mod chart;
 pub mod device_session_service;

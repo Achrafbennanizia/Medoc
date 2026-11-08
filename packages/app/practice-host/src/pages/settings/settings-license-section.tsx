@@ -267,7 +267,11 @@ export function SettingsLicenseSection({
                 <div className="settings-row">
                     <div>
                         <b>{t("settings.license.kbv_approval")}</b>
-                        <div className="settings-row-muted">{t("settings.license.kbv_until")}</div>
+                        <div className="settings-row-muted">
+                            {activeV1?.expiresAt
+                                ? formatDateShort(activeV1.expiresAt)
+                                : t("common.dash")}
+                        </div>
                     </div>
                     <span className="settings-pill-green">{t("settings.license.status_active")}</span>
                 </div>

@@ -6,9 +6,28 @@ use std::process::Command;
 use std::time::SystemTime;
 
 use medoc_core::error::AppError;
-use medoc_core::infrastructure::install_plan::InstallComponent;
+use medoc_core::infrastructure::install_plan::{
+    InstallComponent, InstallRole, REPLICA_DESKTOP_NAME,
+};
 use medoc_core::infrastructure::secret_store;
 use medoc_core::infrastructure::usb_vault::{self, PAYLOADS_DIR, USB_KIT_DIR};
+
+const MASTER_BUNDLE_NAME: &str = "MeDoc.app";
+const REPLICA_BUNDLE_NAME: &str = "Medoc_replica.app";
+
+fn bundle_file_name(role: InstallRole) -> &'static str {
+    match role {
+        InstallRole::Replica => REPLICA_BUNDLE_NAME,
+        _ => MASTER_BUNDLE_NAME,
+    }
+}
+
+fn raw_install_dir_name(role: InstallRole) -> &'static str {
+    match role {
+        InstallRole::Replica => REPLICA_DESKTOP_NAME,
+        _ => "MeDoc",
+    }
+}
 
 pub fn payloads_dir(root: &Path) -> PathBuf {
     root.join(USB_KIT_DIR).join(PAYLOADS_DIR)
@@ -25,27 +44,31 @@ pub fn find_payload(root: &Path, names: &[&str]) -> Option<PathBuf> {
     None
 }
 
-pub fn run_practice_installer(root: &Path, silent: bool) -> Result<PathBuf, AppError> {
-    let payload = find_payload(
-        root,
-        &[
-            "MeDoc.app",
-            "medoc-practice.app",
-            "medoc-practice.exe",
-            "medoc-practice.nsis",
-            "MeDoc_0.1.0_x64-setup.exe",
-            "medoc-practice-setup.exe",
-            "medoc",
-        ],
-    )
-    .ok_or_else(|| {
+pub fn run_practice_installer(
+    root: &Path,
+    silent: bool,
+    role: InstallRole,
+) -> Result<PathBuf, AppError> {
+    let preferred = bundle_file_name(role);
+    let names = [
+        preferred,
+        MASTER_BUNDLE_NAME,
+        REPLICA_BUNDLE_NAME,
+        "medoc-practice.app",
+        "medoc-practice.exe",
+        "medoc-practice.nsis",
+        "MeDoc_0.1.0_x64-setup.exe",
+        "medoc-practice-setup.exe",
+        "medoc",
+    ];
+    let payload = find_payload(root, &names).ok_or_else(|| {
         AppError::Validation(
             "practice installer payload missing in medoc-usb/payloads/ (build MeDoc.app first)"
                 .into(),
         )
     })?;
-    let installed = run_installer(&payload, silent)?;
-    Ok(installed.unwrap_or_else(|| installed_practice_target(&payload)))
+    let installed = run_installer(&payload, silent, role)?;
+    Ok(installed.unwrap_or_else(|| installed_practice_target(&payload, role)))
 }
 
 pub fn run_lan_server_install(root: &Path) -> Result<(), AppError> {
@@ -61,9 +84,9 @@ pub fn run_lan_server_install(root: &Path) -> Result<(), AppError> {
     Ok(())
 }
 
-fn run_installer(path: &Path, silent: bool) -> Result<Option<PathBuf>, AppError> {
+fn run_installer(path: &Path, silent: bool, role: InstallRole) -> Result<Option<PathBuf>, AppError> {
     if path.extension().and_then(|e| e.to_str()) == Some("app") {
-        let dest = install_macos_app_bundle(path)?;
+        let dest = install_macos_app_bundle(path, bundle_file_name(role))?;
         return Ok(Some(dest));
     }
 
@@ -78,7 +101,9 @@ fn run_installer(path: &Path, silent: bool) -> Result<Option<PathBuf>, AppError>
     {
         let dest = dirs::home_dir()
             .unwrap_or_else(|| PathBuf::from("."))
-            .join("Applications/MeDoc/medoc");
+            .join("Applications")
+            .join(raw_install_dir_name(role))
+            .join("medoc");
         if let Some(parent) = dest.parent() {
             fs::create_dir_all(parent)
                 .map_err(|e| AppError::Internal(format!("mkdir MeDoc: {e}")))?;
@@ -126,12 +151,13 @@ pub fn install_components(
     root: &Path,
     components: &[InstallComponent],
     silent: bool,
+    role: InstallRole,
 ) -> Result<Option<PathBuf>, AppError> {
     let mut practice_target = None;
     for c in components {
         match c {
             InstallComponent::PracticeApp | InstallComponent::WebClient => {
-                practice_target = Some(run_practice_installer(root, silent)?);
+                practice_target = Some(run_practice_installer(root, silent, role)?);
             }
             InstallComponent::LanServer => run_lan_server_install(root)?,
         }
@@ -171,6 +197,9 @@ fn ditto_copy(src: &Path, dst: &Path) -> Result<(), AppError> {
     }
     #[cfg(target_os = "macos")]
     {
+        if let Some(display) = bundle_display_name(dst) {
+            stamp_bundle_display_name(dst, display)?;
+        }
         sanitize_macos_app_bundle(dst);
         let _ = fs::remove_dir_all(dst.join("Contents/_CodeSignature"));
         prepare_macos_app_signature(dst)?;
@@ -225,12 +254,56 @@ fn sanitize_macos_app_bundle(app: &Path) {
         .status();
 }
 
+#[cfg(target_os = "macos")]
+fn bundle_display_name(app: &Path) -> Option<&'static str> {
+    match app.file_name().and_then(|n| n.to_str()) {
+        Some(REPLICA_BUNDLE_NAME) => Some(REPLICA_DESKTOP_NAME),
+        Some(MASTER_BUNDLE_NAME) => Some("MeDoc"),
+        _ => None,
+    }
+}
+
+/// Finder and Dock read CFBundleDisplayName. The executable inside stays `medoc`.
+#[cfg(target_os = "macos")]
+fn stamp_bundle_display_name(app: &Path, name: &str) -> Result<(), AppError> {
+    let plist = app.join("Contents/Info.plist");
+    if !plist.is_file() {
+        return Err(AppError::Validation(format!(
+            "Info.plist missing in {}",
+            app.display()
+        )));
+    }
+    let plist_s = plist.to_string_lossy().to_string();
+    for key in ["CFBundleName", "CFBundleDisplayName"] {
+        let set = format!("Set :{key} {name}");
+        let status = Command::new("/usr/libexec/PlistBuddy")
+            .args(["-c", &set, &plist_s])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .map_err(|e| AppError::Internal(format!("PlistBuddy: {e}")))?;
+        if status.success() {
+            continue;
+        }
+        let add = format!("Add :{key} string {name}");
+        let added = Command::new("/usr/libexec/PlistBuddy")
+            .args(["-c", &add, &plist_s])
+            .status()
+            .map_err(|e| AppError::Internal(format!("PlistBuddy: {e}")))?;
+        if !added.success() {
+            return Err(AppError::Internal(format!(
+                "could not set {key} to {name} on {}",
+                app.display()
+            )));
+        }
+    }
+    Ok(())
+}
+
 /// Copy the .app into the user Applications folder (always visible in Finder).
 /// Also try /Applications when writable so Spotlight/Launchpad pick it up.
-fn install_macos_app_bundle(src: &Path) -> Result<PathBuf, AppError> {
-    let name = src
-        .file_name()
-        .ok_or_else(|| AppError::Validation("practice .app payload has no name".into()))?;
+fn install_macos_app_bundle(src: &Path, dest_name: &str) -> Result<PathBuf, AppError> {
+    let name = std::ffi::OsStr::new(dest_name);
     let user_dest = macos_user_app_dest(name);
     ditto_copy(src, &user_dest)?;
     #[cfg(target_os = "macos")]
@@ -239,7 +312,7 @@ fn install_macos_app_bundle(src: &Path) -> Result<PathBuf, AppError> {
         &user_dest,
     );
 
-    let system = PathBuf::from("/Applications").join(name);
+    let system = PathBuf::from("/Applications").join(dest_name);
     if system_applications_writable() {
         let _ = ditto_copy(src, &system);
         #[cfg(target_os = "macos")]
@@ -249,13 +322,25 @@ fn install_macos_app_bundle(src: &Path) -> Result<PathBuf, AppError> {
 }
 
 pub fn installed_medoc_app_path() -> PathBuf {
-    let user = dirs::home_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("Applications/MeDoc.app");
-    if user.join("Contents/MacOS/medoc").is_file() {
-        return user;
+    let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
+    let mut candidates = Vec::new();
+    for name in [REPLICA_BUNDLE_NAME, MASTER_BUNDLE_NAME] {
+        candidates.push(home.join("Applications").join(name));
+        candidates.push(PathBuf::from("/Applications").join(name));
     }
-    PathBuf::from("/Applications/MeDoc.app")
+    let mut best: Option<(SystemTime, PathBuf)> = None;
+    for app in candidates {
+        let exe = app.join("Contents/MacOS/medoc");
+        if !exe.is_file() {
+            continue;
+        }
+        let mt = file_mtime(&exe).unwrap_or(SystemTime::UNIX_EPOCH);
+        if best.as_ref().map(|(t, _)| mt > *t).unwrap_or(true) {
+            best = Some((mt, app));
+        }
+    }
+    best.map(|(_, p)| p)
+        .unwrap_or_else(|| PathBuf::from("/Applications").join(MASTER_BUNDLE_NAME))
 }
 
 fn file_mtime(path: &Path) -> Option<SystemTime> {
@@ -332,6 +417,8 @@ fn collect_medoc_binaries(repo: &Path) -> Vec<PathBuf> {
         out.push(td.join("debug/medoc.exe"));
         out.push(td.join("release/bundle/macos/MeDoc.app/Contents/MacOS/medoc"));
         out.push(td.join("debug/bundle/macos/MeDoc.app/Contents/MacOS/medoc"));
+        out.push(td.join("release/bundle/macos/Medoc_replica.app/Contents/MacOS/medoc"));
+        out.push(td.join("debug/bundle/macos/Medoc_replica.app/Contents/MacOS/medoc"));
     }
     out
 }
@@ -341,6 +428,8 @@ fn collect_medoc_apps(repo: &Path) -> Vec<PathBuf> {
     for td in cargo_target_dirs(repo) {
         out.push(td.join("release/bundle/macos/MeDoc.app"));
         out.push(td.join("debug/bundle/macos/MeDoc.app"));
+        out.push(td.join("release/bundle/macos/Medoc_replica.app"));
+        out.push(td.join("debug/bundle/macos/Medoc_replica.app"));
     }
     out
 }
@@ -412,8 +501,10 @@ pub fn update_from_latest_build(kit_root: &Path) -> Result<String, AppError> {
         }
     }
 
-    let user_app = macos_user_app_dest(std::ffi::OsStr::new("MeDoc.app"));
-    let system_app = PathBuf::from("/Applications/MeDoc.app");
+    let user_app = macos_user_app_dest(std::ffi::OsStr::new(MASTER_BUNDLE_NAME));
+    let system_app = PathBuf::from("/Applications").join(MASTER_BUNDLE_NAME);
+    let replica_user = macos_user_app_dest(std::ffi::OsStr::new(REPLICA_BUNDLE_NAME));
+    let replica_system = PathBuf::from("/Applications").join(REPLICA_BUNDLE_NAME);
     let mut dest_apps: Vec<PathBuf> = Vec::new();
     if kit_app.join("Contents/MacOS").is_dir() || kit_app.join("Contents/MacOS/medoc").is_file() {
         dest_apps.push(kit_app.clone());
@@ -421,6 +512,12 @@ pub fn update_from_latest_build(kit_root: &Path) -> Result<String, AppError> {
     dest_apps.push(user_app);
     if system_app.exists() || system_applications_writable() {
         dest_apps.push(system_app);
+    }
+    if replica_user.exists() {
+        dest_apps.push(replica_user);
+    }
+    if replica_system.exists() {
+        dest_apps.push(replica_system);
     }
 
     let seed_app = if kit_app.join("Contents/MacOS/medoc").is_file() {
@@ -433,7 +530,12 @@ pub fn update_from_latest_build(kit_root: &Path) -> Result<String, AppError> {
         if dest.join("Contents/MacOS/medoc").is_file() {
             copy_unix_executable(&bin, &dest.join("Contents/MacOS/medoc"))?;
             #[cfg(target_os = "macos")]
-            prepare_macos_app_signature(&dest)?;
+            {
+                if let Some(display) = bundle_display_name(&dest) {
+                    stamp_bundle_display_name(&dest, display)?;
+                }
+                prepare_macos_app_signature(&dest)?;
+            }
             updated.push(format!("{}", dest.display()));
             continue;
         }
@@ -572,6 +674,8 @@ fn wipe_target_paths() -> Vec<PathBuf> {
     let mut paths = Vec::new();
     if let Some(home) = dirs::home_dir() {
         paths.push(home.join("Applications/MeDoc.app"));
+        paths.push(home.join("Applications/Medoc_replica.app"));
+        paths.push(home.join("Applications/Medoc_replica"));
         paths.push(home.join("Applications/Open MeDoc"));
         paths.push(home.join("Applications/Open MeDoc.command"));
         paths.push(home.join("Applications/Open MeDoc.app"));
@@ -593,6 +697,7 @@ fn wipe_target_paths() -> Vec<PathBuf> {
         }
     }
     paths.push(PathBuf::from("/Applications/MeDoc.app"));
+    paths.push(PathBuf::from("/Applications/Medoc_replica.app"));
     paths.push(PathBuf::from("/Applications/Open MeDoc"));
     paths.push(PathBuf::from("/Applications/Open MeDoc.command"));
     paths.push(PathBuf::from("/Applications/Open MeDoc.app"));
@@ -613,6 +718,7 @@ fn stop_running_medoc() {
         }
         for pat in [
             "MeDoc.app/Contents/MacOS/medoc",
+            "Medoc_replica.app/Contents/MacOS/medoc",
             "Applications/MeDoc/medoc-server",
             "Applications/MeDoc/medoc",
             "payloads/medoc-server",
@@ -655,13 +761,15 @@ fn kill_listeners_on_port(port: u16) {
     }
 }
 
-fn installed_practice_target(payload: &Path) -> PathBuf {
+fn installed_practice_target(payload: &Path, role: InstallRole) -> PathBuf {
     if payload.extension().and_then(|e| e.to_str()) == Some("app") {
-        return macos_user_app_dest(payload.file_name().unwrap_or_default());
+        return macos_user_app_dest(std::ffi::OsStr::new(bundle_file_name(role)));
     }
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join("Applications/MeDoc/medoc")
+        .join("Applications")
+        .join(raw_install_dir_name(role))
+        .join("medoc")
 }
 
 pub fn launch_practice_app(installed: &Path) -> Result<(), AppError> {
@@ -759,13 +867,22 @@ fn macos_spawn_medoc(app: &Path) -> Result<(), AppError> {
 
 #[cfg(target_os = "macos")]
 fn macos_medoc_running() -> bool {
-    Command::new("pgrep")
-        .args(["-f", "MeDoc.app/Contents/MacOS/medoc"])
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
+    for pat in [
+        "MeDoc.app/Contents/MacOS/medoc",
+        "Medoc_replica.app/Contents/MacOS/medoc",
+    ] {
+        let running = Command::new("pgrep")
+            .args(["-f", pat])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+        if running {
+            return true;
+        }
+    }
+    false
 }
 
 #[cfg(target_os = "macos")]

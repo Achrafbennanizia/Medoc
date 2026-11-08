@@ -38,6 +38,7 @@ import { PasswordPolicyHints } from "../components/password-policy-hints";
 import type { Role } from "@/models/types";
 import { ACTIVE_ROLE_WIRES } from "@/lib/deferred-roles";
 import { useT, useTParams , useCollatorLocale} from "@/lib/i18n";
+import { syncGetStatus } from "@/systems/practice-host/controllers/sync.controller";
 
 function initialsFromName(name: string) {
     return name
@@ -105,7 +106,11 @@ export function StaffPage() {
     const toast = useToastStore((s) => s.add);
     const session = useAuthStore((s) => s.session);
     const role = parseRole(session?.role);
-    const canWrite = role != null && allowed("staff.write", role, session?.permission_overrides);
+    const [replicaStaffReadOnly, setReplicaStaffReadOnly] = useState(false);
+    const canWrite =
+        role != null &&
+        allowed("staff.write", role, session?.permission_overrides) &&
+        !replicaStaffReadOnly;
 
     const load = useCallback(
         async (opts?: { initial?: boolean }) => {
@@ -136,6 +141,20 @@ export function StaffPage() {
     useEffect(() => {
         void load({ initial: true });
     }, [load]);
+
+    useEffect(() => {
+        let cancelled = false;
+        void syncGetStatus()
+            .then((snap) => {
+                if (!cancelled) setReplicaStaffReadOnly(snap.deployment.role === "REPLICA");
+            })
+            .catch(() => {
+                if (!cancelled) setReplicaStaffReadOnly(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     useEffect(() => {
         if (!selected?.id || !detailEdit || !canWrite) {
@@ -268,8 +287,18 @@ export function StaffPage() {
             return;
         }
         setEditBusy(true);
+        const previous = {
+            name: selected.name,
+            email: selected.email,
+            role: selected.role,
+            activity_area: selected.activity_area,
+            specialty: selected.specialty,
+            phone: selected.phone,
+            available: selected.available,
+        };
+        const staffId = selected.id;
         try {
-            const updated = await updateStaff(selected.id, {
+            const updated = await updateStaff(staffId, {
                 name: editForm.name.trim(),
                 email: editForm.email.trim(),
                 role: editForm.role,
@@ -278,7 +307,17 @@ export function StaffPage() {
                 phone: editForm.phone.trim() || null,
                 available: editForm.available,
             });
-            toast(t("page.staff.toast_saved"), "success");
+            toast(t("page.staff.toast_saved"), "success", {
+                onUndo: async () => {
+                    try {
+                        const restored = await updateStaff(staffId, previous);
+                        setSelected(restored);
+                        void load();
+                    } catch (err) {
+                        toast(`${t("common.error_prefix")} ${errorMessage(err)}`, "error");
+                    }
+                },
+            });
             setDetailEdit(false);
             setSelected(updated);
             void load();
@@ -317,7 +356,17 @@ export function StaffPage() {
                 password: createForm.password,
                 role: createForm.role,
             });
-            toast(t("page.staff.toast_created"), "success");
+            toast(t("page.staff.toast_created"), "success", {
+                onUndo: async () => {
+                    try {
+                        await deleteStaff(created.id);
+                        setSelected((current) => (current?.id === created.id ? null : current));
+                        void load();
+                    } catch (err) {
+                        toast(`${t("common.error_prefix")} ${errorMessage(err)}`, "error");
+                    }
+                },
+            });
             setCreating(false);
             setCreateForm({ name: "", email: "", password: "", role: "RECEPTION" });
             setSelected(created);
@@ -702,13 +751,32 @@ export function StaffPage() {
                                                 onClick={() => {
                                                     if (!selected) return;
                                                     void (async () => {
+                                                        const staffId = selected.id;
+                                                        const removed = row;
                                                         try {
-                                                            await deleteStaffPermissionOverride(selected.id, row.action);
-                                                            setPermOverrides((prev) => prev.filter((x) => x.action !== row.action));
-                                                            if (useAuthStore.getState().session?.user_id === selected.id) {
+                                                            await deleteStaffPermissionOverride(staffId, removed.action);
+                                                            setPermOverrides((prev) => prev.filter((x) => x.action !== removed.action));
+                                                            if (useAuthStore.getState().session?.user_id === staffId) {
                                                                 await checkSession();
                                                             }
-                                                            toast(t("page.staff.toast_perm_removed"), "success");
+                                                            toast(t("page.staff.toast_perm_removed"), "success", {
+                                                                onUndo: async () => {
+                                                                    try {
+                                                                        await setStaffPermissionOverride(staffId, removed.action, removed.effect);
+                                                                        setPermOverrides((prev) => {
+                                                                            const rest = prev.filter((x) => x.action !== removed.action);
+                                                                            return [...rest, removed].sort((x, y) =>
+                                                                                x.action.localeCompare(y.action),
+                                                                            );
+                                                                        });
+                                                                        if (useAuthStore.getState().session?.user_id === staffId) {
+                                                                            await checkSession();
+                                                                        }
+                                                                    } catch (err) {
+                                                                        toast(errorMessage(err), "error");
+                                                                    }
+                                                                },
+                                                            });
                                                         } catch (e) {
                                                             toast(errorMessage(e), "error");
                                                         }
@@ -758,8 +826,10 @@ export function StaffPage() {
                                             return;
                                         }
                                         void (async () => {
+                                            const staffId = selected.id;
+                                            const previous = permOverrides.find((row) => row.action === a);
                                             try {
-                                                await setStaffPermissionOverride(selected.id, a, newPermEffect);
+                                                await setStaffPermissionOverride(staffId, a, newPermEffect);
                                                 setPermOverrides((prev) => {
                                                     const rest = prev.filter((x) => x.action !== a);
                                                     return [...rest, { action: a, effect: newPermEffect }].sort((x, y) =>
@@ -767,10 +837,32 @@ export function StaffPage() {
                                                     );
                                                 });
                                                 setNewPermAction("");
-                                                if (useAuthStore.getState().session?.user_id === selected.id) {
+                                                if (useAuthStore.getState().session?.user_id === staffId) {
                                                     await checkSession();
                                                 }
-                                                toast(t("page.staff.toast_perm_saved"), "success");
+                                                toast(t("page.staff.toast_perm_saved"), "success", {
+                                                    onUndo: async () => {
+                                                        try {
+                                                            if (previous) {
+                                                                await setStaffPermissionOverride(staffId, a, previous.effect);
+                                                                setPermOverrides((prev) => {
+                                                                    const rest = prev.filter((x) => x.action !== a);
+                                                                    return [...rest, previous].sort((x, y) =>
+                                                                        x.action.localeCompare(y.action),
+                                                                    );
+                                                                });
+                                                            } else {
+                                                                await deleteStaffPermissionOverride(staffId, a);
+                                                                setPermOverrides((prev) => prev.filter((x) => x.action !== a));
+                                                            }
+                                                            if (useAuthStore.getState().session?.user_id === staffId) {
+                                                                await checkSession();
+                                                            }
+                                                        } catch (err) {
+                                                            toast(errorMessage(err), "error");
+                                                        }
+                                                    },
+                                                });
                                             } catch (e) {
                                                 toast(errorMessage(e), "error");
                                             }
@@ -904,6 +996,12 @@ export function StaffPage() {
                     </>
                 }
             />
+
+            {replicaStaffReadOnly ? (
+                <p role="status" style={{ color: "var(--fg-2)", fontSize: 14, margin: "0 0 12px" }}>
+                    {t("page.staff.replica_managed_banner")}
+                </p>
+            ) : null}
 
             {loading ? (
                 <PageLoading label={t("page.staff.loading")} />

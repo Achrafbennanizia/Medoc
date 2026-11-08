@@ -40,11 +40,12 @@ import { AuditChainBanner } from "../components/audit-chain-banner";
 import { BreakGlassBanner } from "../components/break-glass-banner";
 import { RouteOutletGuard } from "../components/route-outlet-guard";
 import { PageLoading } from "../components/ui/page-status";
-import { loadClientSettings } from "@/lib/client-settings";
+import { applyAppearanceFromSettings, loadClientSettings } from "@/lib/client-settings";
 import {
     hydrateInvoicePracticeFromAppKv,
     migrateInvoicePracticeLocalStorageToAppKv,
 } from "@/lib/invoice-service-item";
+import { hydratePracticeHeaderPrivacy } from "@/lib/practice-header-privacy";
 import { buildSyncNativeMenuPayload, MEDOC_PENDING_APPOINTMENT_MENU_KEY } from "@/lib/native-go-menu";
 import { syncNativeMenu } from "@/systems/practice-host/controllers/native-menu.controller";
 import { workTimeGetPreference, workTimeSetPreference } from "@/systems/practice-host/controllers/work-time.controller";
@@ -458,6 +459,10 @@ export function AppLayout() {
     }, [clear, navigate]);
 
     useEffect(() => {
+        applyAppearanceFromSettings(loadClientSettings());
+    }, []);
+
+    useEffect(() => {
         const id = window.setInterval(() => {
             const el = document.activeElement;
             if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) return;
@@ -481,6 +486,7 @@ export function AppLayout() {
             try {
                 await migrateInvoicePracticeLocalStorageToAppKv();
                 await hydrateInvoicePracticeFromAppKv();
+                await hydratePracticeHeaderPrivacy();
             } catch (e) {
                 toast(tp("app.layout.practice_sync_error", { message: errorMessage(e) }), "warning");
             }

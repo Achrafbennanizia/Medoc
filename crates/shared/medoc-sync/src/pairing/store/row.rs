@@ -2,8 +2,7 @@
 
 use super::super::types::PairingRequest;
 
-pub(crate) const PAIRING_SELECT: &str =
-    "SELECT id, device_id, slave_pubkey, slave_label,
+pub(crate) const PAIRING_SELECT: &str = "SELECT id, device_id, slave_pubkey, slave_label,
             COALESCE(
                 NULLIF(TRIM(requester_ip), ''),
                 (SELECT NULLIF(TRIM(last_ip), '') FROM sync_device
@@ -150,9 +149,6 @@ mod tests {
             display_device_label("FINGERPRINT", Some("Clinic-Mac"), "FINGERPRINT"),
             "Clinic-Mac"
         );
-        assert_eq!(
-            display_device_label("FINGERPRINT", None, "FINGERPRINT"),
-            ""
-        );
+        assert_eq!(display_device_label("FINGERPRINT", None, "FINGERPRINT"), "");
     }
 }

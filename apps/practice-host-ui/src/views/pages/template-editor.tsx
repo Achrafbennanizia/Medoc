@@ -234,10 +234,18 @@ export function TemplateEditorPanel(props: TemplateEditorPanelProps) {
             const payload = buildPayload();
             if (editingId !== null) {
                 await updateDocumentTemplate(editingId, { title: title.trim(), payload });
-                toast(t("template.editor.toast.saved"));
+                toast(t("template.editor.toast.saved"), "success");
             } else {
-                await createDocumentTemplate({ kind, title: title.trim(), payload });
-                toast(t("template.editor.toast.created"));
+                const created = await createDocumentTemplate({ kind, title: title.trim(), payload });
+                toast(t("template.editor.toast.created"), "success", {
+                    onUndo: async () => {
+                        try {
+                            await deleteDocumentTemplate(created.id);
+                        } catch (err) {
+                            toast(`${t("common.error_prefix")} ${errorMessage(err)}`, "error");
+                        }
+                    },
+                });
             }
             setBaselineSig(currentSig);
             setGlobalDirty(false);
@@ -254,9 +262,18 @@ export function TemplateEditorPanel(props: TemplateEditorPanelProps) {
 
     const removeTemplate = async () => {
         if (editingId === null) return;
+        const snapshot = { kind, title: title.trim(), payload: buildPayload() };
         try {
             await deleteDocumentTemplate(editingId);
-            toast(t("template.editor.toast.deleted"));
+            toast(t("template.editor.toast.deleted"), "success", {
+                onUndo: async () => {
+                    try {
+                        await createDocumentTemplate(snapshot);
+                    } catch (err) {
+                        toast(`${t("common.error_prefix")} ${errorMessage(err)}`, "error");
+                    }
+                },
+            });
             setDeleteOpen(false);
             setBaselineSig(null);
             setGlobalDirty(false);

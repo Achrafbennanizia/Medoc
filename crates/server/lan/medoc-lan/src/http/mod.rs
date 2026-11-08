@@ -15,7 +15,6 @@ use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use chrono::Local;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sqlx::SqlitePool;
@@ -28,13 +27,11 @@ use medoc_core::application::own_profile::{self, OwnProfileDto};
 use medoc_core::application::rbac::{self, Role};
 use medoc_core::company::{CompanyPortalPort, COMPANY_PORTAL};
 use medoc_core::domain::entities::staff::UpdateOwnProfile;
-use medoc_core::domain::entities::{Appointment, Patient};
 use medoc_core::error::AppError;
 use medoc_core::infrastructure::company_portal::load_company_portal_config;
 use medoc_core::infrastructure::cors_policy::{self, CorsGate};
-use medoc_core::infrastructure::database::{app_kv_repo, appointment_repo, patient_repo};
+use medoc_core::infrastructure::database::{app_kv_repo, staff_repo};
 use medoc_core::infrastructure::logging::brute_force::{BruteForceTracker, BruteKey, CheckResult};
-use medoc_sync::pairing::ActivationTokenPayload;
 
 use crate::discovery::LanBeaconPayload;
 use crate::jwt;
@@ -63,9 +60,10 @@ impl IntoResponse for ApiError {
             AppError::Forbidden => StatusCode::FORBIDDEN,
             AppError::RateLimited(_) => StatusCode::TOO_MANY_REQUESTS,
             AppError::NotFound(_) => StatusCode::NOT_FOUND,
-            AppError::Conflict(_) => StatusCode::CONFLICT,
+            AppError::Conflict(_) | AppError::FeatureDisabled(_) => StatusCode::CONFLICT,
             AppError::Validation(_) | AppError::ValidationCode(_) => StatusCode::BAD_REQUEST,
-            AppError::TotpRequired | AppError::TotpEnrollmentRequired => StatusCode::UNAUTHORIZED,
+            AppError::TotpRequired => StatusCode::UNAUTHORIZED,
+            AppError::TotpEnrollmentRequired => StatusCode::FORBIDDEN,
             AppError::Database(_) | AppError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };
         let msg = self.0.to_string();
@@ -87,11 +85,6 @@ pub struct LoginBody {
     pub password: String,
     #[serde(default)]
     pub totp_code: Option<String>,
-}
-
-#[derive(Deserialize)]
-pub struct AppointmentsQuery {
-    pub date: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -149,11 +142,29 @@ async fn jwt_auth_middleware(
         .strip_prefix("Bearer ")
         .ok_or_else(|| unauthorized("Bearer token required"))?
         .trim();
+    let path = req.uri().path().to_string();
+    let sync_channel = path.contains("/sync/") || path.ends_with("/pairing/peers");
+    if sync_channel && !raw.starts_with(medoc_sync::pairing::ACTIVATION_TOKEN_PREFIX) {
+        let reconcile = path.contains("/sync/digest")
+            || path.contains("/sync/row-hashes")
+            || path.contains("/sync/rows");
+        if reconcile {
+            return Err(unauthorized("staff jwt is not a device activation token"));
+        }
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({
+                "error": "sync routes accept only a paired device activation token",
+                "reason": "staff_jwt_rejected"
+            })),
+        )
+            .into_response());
+    }
     if raw.starts_with(medoc_sync::pairing::ACTIVATION_TOKEN_PREFIX) {
         // Activation-token path (Slice 4): replicas authenticate sync calls
         // with the Ed25519-signed token instead of the legacy JWT.
-        let path = req.uri().path().to_string();
-        let payload = self::sync::verify_activation_for_path(&state, raw, &path).await?;
+        let method = req.method().as_str().to_string();
+        let payload = self::sync::verify_activation_for_path(&state, raw, &path, &method).await?;
         req.extensions_mut().insert(payload);
         return Ok(next.run(req).await);
     }
@@ -166,6 +177,12 @@ async fn jwt_auth_middleware(
         );
         unauthorized("Invalid token")
     })?;
+    let current = staff_repo::token_version(&state.pool, &claims.sub)
+        .await
+        .map_err(|_| unauthorized("Invalid token"))?;
+    if claims.token_version != current {
+        return Err(unauthorized("Invalid token"));
+    }
     req.extensions_mut().insert(claims);
     Ok(next.run(req).await)
 }
@@ -201,8 +218,6 @@ pub fn build_router(state: LanHttpState) -> Router {
         .with_state(state.clone());
 
     let protected = Router::new()
-        .route("/patients", get(list_patients))
-        .route("/appointments", get(list_appointments))
         .route("/me", get(me_get).patch(me_patch))
         .route(
             "/app-kv",
@@ -220,7 +235,15 @@ pub fn build_router(state: LanHttpState) -> Router {
         )
         .route("/sync/push", post(self::sync::sync_push))
         .route("/sync/pull", post(self::sync::sync_pull))
+        .route("/sync/digest", post(self::sync::sync_digest))
+        .route("/sync/row-hashes", post(self::sync::sync_row_hashes))
+        .route("/sync/rows", post(self::sync::sync_rows))
         .route("/sync/status", get(self::sync::sync_status))
+        .route("/sync/number", post(self::sync::sync_number))
+        .route(
+            "/sync/blob/{sha256}",
+            get(self::sync::sync_blob_get).put(self::sync::sync_blob_put),
+        )
         .route("/pairing/pending", get(self::pairing::pending))
         .route("/pairing/all", get(self::pairing::list_all))
         .route("/pairing/decide/{id}", post(self::pairing::decide))
@@ -314,11 +337,15 @@ async fn login(
         .record_success(Some(&state.pool), &brute_key)
         .await;
 
-    let token = jwt::issue_token(
+    let token_version = staff_repo::token_version(&state.pool, &session.user_id)
+        .await
+        .map_err(|e| ApiError(e).into_response())?;
+    let token = jwt::issue_token_versioned(
         state.jwt_secret.as_ref(),
         &session.user_id,
         &session.email,
         &session.role,
+        token_version,
     )
     .map_err(|e| ApiError(e).into_response())?;
 
@@ -354,60 +381,18 @@ async fn me_patch(
     Ok(Json(OwnProfileDto::from(&updated)))
 }
 
-async fn list_patients(
-    State(state): State<LanHttpState>,
-    req: axum::extract::Request,
-) -> Result<Json<Vec<Patient>>, ApiError> {
-    if req.extensions().get::<ActivationTokenPayload>().is_some() {
-        let rows = patient_repo::find_all(&state.pool).await?;
-        return Ok(Json(rows));
-    }
-    let claims = req
-        .extensions()
-        .get::<jwt::LanClaims>()
-        .cloned()
-        .ok_or(AppError::Unauthorized)?;
-    let role = Role::parse(&claims.role).ok_or(AppError::Forbidden)?;
-    if !rbac::allowed("patient.read", role) {
-        return Err(AppError::Forbidden.into());
-    }
-    let rows = patient_repo::find_all(&state.pool).await?;
-    Ok(Json(rows))
-}
-
-async fn list_appointments(
-    State(state): State<LanHttpState>,
-    Query(q): Query<AppointmentsQuery>,
-    req: axum::extract::Request,
-) -> Result<Json<Vec<Appointment>>, ApiError> {
-    let date = q
-        .date
-        .unwrap_or_else(|| Local::now().format("%Y-%m-%d").to_string());
-    if req.extensions().get::<ActivationTokenPayload>().is_some() {
-        let rows = appointment_repo::find_by_date(&state.pool, &date).await?;
-        return Ok(Json(rows));
-    }
-    let claims = req
-        .extensions()
-        .get::<jwt::LanClaims>()
-        .cloned()
-        .ok_or(AppError::Unauthorized)?;
-    let role = Role::parse(&claims.role).ok_or(AppError::Forbidden)?;
-    if !rbac::allowed("appointment.read", role) {
-        return Err(AppError::Forbidden.into());
-    }
-    let rows = appointment_repo::find_by_date(&state.pool, &date).await?;
-    Ok(Json(rows))
-}
-
-/// Mirrors Tauri `get_app_kv` — any authenticated JWT may read whitelisted keys.
+/// Mirrors Tauri `get_app_kv` — the key's permission applies to reads as well as writes.
 async fn app_kv_get(
     State(state): State<LanHttpState>,
-    Extension(_claims): Extension<jwt::LanClaims>,
+    Extension(claims): Extension<jwt::LanClaims>,
     Query(q): Query<AppKvKeyQuery>,
 ) -> Result<Json<Option<String>>, ApiError> {
-    app_kv_policy::permission_for_app_kv_key(&q.key)
-        .ok_or_else(|| AppError::Validation(format!("Unbekannter KV-Key: {}", q.key)))?;
+    let perm = app_kv_policy::read_permission_for_app_kv_key(&q.key)
+        .ok_or_else(|| AppError::Validation(format!("Unknown KV key: {}", q.key)))?;
+    let role = Role::parse(&claims.role).ok_or(AppError::Forbidden)?;
+    if !rbac::allowed(perm, role) {
+        return Err(AppError::Forbidden.into());
+    }
     let row = app_kv_repo::get(&state.pool, &q.key).await?;
     Ok(Json(row))
 }
@@ -419,6 +404,7 @@ async fn app_kv_put(
     Json(body): Json<AppKvPutBody>,
 ) -> Result<StatusCode, ApiError> {
     require_app_kv_write(&claims, &body.key)?;
+    app_kv_policy::validate_app_kv_value(&body.key, &body.value)?;
     app_kv_repo::set(&state.pool, &body.key, &body.value).await?;
     Ok(StatusCode::NO_CONTENT)
 }

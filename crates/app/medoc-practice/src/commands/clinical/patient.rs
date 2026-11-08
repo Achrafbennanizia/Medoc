@@ -3,7 +3,7 @@ use crate::commands::auth_commands::SessionState;
 use crate::domain::entities::patient::{CreatePatient, UpdatePatient};
 use crate::domain::entities::Patient;
 use crate::error::AppError;
-use crate::infrastructure::database::{audit_repo, chart_attachment_repo, patient_repo};
+use crate::infrastructure::database::{audit_repo, patient_repo};
 use sqlx::SqlitePool;
 use tauri::{AppHandle, Manager, State};
 
@@ -30,6 +30,20 @@ pub async fn list_patients(
     Ok(rows)
 }
 
+/// F57: tab counts over all patients (the list itself loads page by page).
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
+pub async fn count_patients_by_filter(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    show_archived: Option<bool>,
+) -> Result<medoc_core::infrastructure::database::patient_repo::PatientFilterCounts, AppError> {
+    rbac::require(&session_state, "patient.read")?;
+    let with_invoices =
+        rbac::require_one_of(&session_state, crate::application::rbac::FINANCE_READ_OR_RECEPTION).is_ok();
+    patient_repo::filter_counts(&pool, show_archived.unwrap_or(false), with_invoices).await
+}
+
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state, params))]
 pub async fn list_patients_paged(
@@ -38,11 +52,21 @@ pub async fn list_patients_paged(
     params: Option<crate::commands::list_params::ListParams>,
 ) -> Result<crate::commands::list_params::ListResponse<Patient>, AppError> {
     let session = rbac::require(&session_state, "patient.read")?;
-    let p = params.unwrap_or_default();
+    let mut p = params.unwrap_or_default();
+    p.page_size = Some(p.limit().min(50));
     let limit = p.limit();
     let offset = p.offset();
-    let (items, total) =
-        patient_repo::find_paginated(&pool, limit, offset, p.search.as_deref()).await?;
+    let include_archived = p.filter_bool("showArchived").unwrap_or(false);
+    let status = p.filter_str("status");
+    let (items, total) = patient_repo::find_paginated(
+        &pool,
+        limit,
+        offset,
+        p.search.as_deref().or(p.filter_str("query")),
+        include_archived,
+        status,
+    )
+    .await?;
     audit_repo::create(
         &pool,
         &session.user_id,
@@ -125,28 +149,8 @@ pub async fn update_patient(
 ) -> Result<Patient, AppError> {
     let session = rbac::require(&session_state, "patient.write")?;
 
-    // FA-PAT-03: Status workflow NEW -> ACTIVE -> VALIDATED -> READONLY (forward only).
-    if let Some(new_status) = &data.status {
-        let current = patient_repo::find_by_id(&pool, &id)
-            .await?
-            .ok_or(AppError::NotFound("Patient".into()))?;
-        let new_str = serde_json::to_string(new_status)
-            .map(|s| s.trim_matches('"').to_string())
-            .unwrap_or_default();
-        let order = ["NEW", "ACTIVE", "VALIDATED", "READONLY"];
-        let cur_idx = order.iter().position(|s| *s == current.status.as_str());
-        let new_idx = order.iter().position(|s| *s == new_str.as_str());
-        match (cur_idx, new_idx) {
-            (Some(c), Some(n)) if n < c => {
-                return Err(AppError::Validation(format!(
-                    "Patient status transition {}→{} is not allowed",
-                    current.status, new_str
-                )));
-            }
-            _ => {}
-        }
-    }
-
+    // FA-PAT-03 / F62: allowed values and forward-only transitions are enforced
+    // by `PatientStatus::require_transition` inside `patient_repo::update`.
     let p = patient_repo::update(&pool, &id, &data).await?;
     audit_repo::create(
         &pool,
@@ -170,29 +174,42 @@ pub async fn delete_patient(
     id: String,
 ) -> Result<(), AppError> {
     let session = rbac::require(&session_state, "patient.write_medical")?;
-    let app_dir = app
+    let _app_dir = app
         .path()
         .app_data_dir()
         .map_err(|e| AppError::Internal(format!("App data directory: {e}")))?;
-    let chart_ids: Vec<(String,)> =
-        sqlx::query_as("SELECT id FROM patient_chart WHERE patient_id = ?1")
-            .bind(&id)
-            .fetch_all(&*pool)
-            .await?;
-    patient_repo::delete(&pool, &id).await?;
-    for (aid,) in chart_ids {
-        chart_attachment_repo::remove_storage_dir_best_effort(&app_dir, &aid);
-    }
+    patient_repo::archive(&pool, &id).await?;
+    let _ = app;
     audit_repo::create(
         &pool,
         &session.user_id,
-        "DELETE",
+        "ARCHIVE",
         "Patient",
         Some(&id),
-        None,
+        Some("ARCHIVED"),
     )
-    .await
-    .ok();
+    .await?;
+    Ok(())
+}
+
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
+pub async fn restore_patient(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    id: String,
+) -> Result<(), AppError> {
+    let session = rbac::require(&session_state, "ops.system")?;
+    patient_repo::restore_archived(&pool, &id).await?;
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "RESTORE",
+        "Patient",
+        Some(&id),
+        Some("ACTIVE"),
+    )
+    .await?;
     Ok(())
 }
 
@@ -222,17 +239,72 @@ pub async fn search_patients(
     Ok(rows)
 }
 
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, params))]
+pub async fn export_patients_csv(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    params: Option<crate::commands::list_params::ListParams>,
+) -> Result<String, AppError> {
+    rbac::require(&session_state, "patient.read")?;
+    let p = params.unwrap_or_default();
+    let include_archived = p.filter_bool("showArchived").unwrap_or(false);
+    let rows = patient_repo::find_all_matching(
+        &pool,
+        p.search.as_deref().or(p.filter_str("query")),
+        include_archived,
+        p.filter_str("status"),
+    )
+    .await?;
+    let mut wtr = csv::WriterBuilder::new()
+        .delimiter(b';')
+        .from_writer(Vec::new());
+    wtr.write_record([
+        "name",
+        "date_of_birth",
+        "sex",
+        "insurance_number",
+        "phone",
+        "email",
+        "address",
+        "status",
+        "id",
+    ])
+    .map_err(|e| AppError::Internal(e.to_string()))?;
+    for r in &rows {
+        wtr.write_record([
+            r.name.as_str(),
+            &r.date_of_birth.to_string(),
+            r.sex.as_str(),
+            r.insurance_number.as_deref().unwrap_or(""),
+            r.phone.as_deref().unwrap_or(""),
+            r.email.as_deref().unwrap_or(""),
+            r.address.as_deref().unwrap_or(""),
+            r.status.as_str(),
+            r.id.as_str(),
+        ])
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+    }
+    let bytes = wtr
+        .into_inner()
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+    String::from_utf8(bytes).map_err(|e| AppError::Internal(e.to_string()))
+}
+
 /// IPC commands for [`crate::commands::register`].
 #[macro_export]
 macro_rules! register_patient_commands {
     () => {
         $crate::commands::patient_commands::list_patients,
         $crate::commands::patient_commands::list_patients_paged,
+        $crate::commands::patient_commands::count_patients_by_filter,
         $crate::commands::patient_commands::list_patients_by_ids,
         $crate::commands::patient_commands::get_patient,
         $crate::commands::patient_commands::create_patient,
         $crate::commands::patient_commands::update_patient,
         $crate::commands::patient_commands::delete_patient,
+        $crate::commands::patient_commands::restore_patient,
         $crate::commands::patient_commands::search_patients,
+        $crate::commands::patient_commands::export_patients_csv,
     };
 }

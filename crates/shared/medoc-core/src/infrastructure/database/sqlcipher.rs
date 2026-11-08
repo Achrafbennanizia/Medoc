@@ -1,6 +1,7 @@
 //! SQLCipher connect helpers + plaintext → encrypted migration.
 
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions};
 use std::str::FromStr;
@@ -129,6 +130,7 @@ pub async fn migrate_plaintext_to_sqlcipher(db_path: &Path, key: &[u8]) -> Resul
         })?;
         let _ = std::fs::remove_file(&tmp);
     }
+    let _ = std::fs::remove_file(&backup);
     Ok(())
 }
 
@@ -143,6 +145,7 @@ pub async fn open_encrypted_pool(
     let options = SqliteConnectOptions::new()
         .filename(db_path)
         .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
+        .busy_timeout(Duration::from_secs(8))
         .create_if_missing(create_if_missing)
         .pragma("key", key_pragma);
 

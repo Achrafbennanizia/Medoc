@@ -795,8 +795,8 @@ async fn seed_year_volume(pool: &SqlitePool, scale: Scale) -> Result<(), AppErro
 
         // Multiple dental findings for a dense tooth-status look (valid FDI only).
         const FDI: [i64; 32] = [
-            18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28, 48, 47, 46, 45, 44,
-            43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38,
+            18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28, 48, 47, 46, 45, 44, 43,
+            42, 41, 31, 32, 33, 34, 35, 36, 37, 38,
         ];
         let finding_count = 1 + (mix(i + 40) % 4);
         for f in 0..finding_count {
@@ -1262,7 +1262,7 @@ async fn seed_year_volume(pool: &SqlitePool, scale: Scale) -> Result<(), AppErro
             for (staff, start_h, end_h) in staff_day {
                 let sid = format!("seed-yr-wt-{wt_n:05}");
                 wt_n += 1;
-                sqlx::query(
+                let wt_res = sqlx::query(
                     "INSERT OR IGNORE INTO work_time_session
                      (id, staff_id, started_at, ended_at, status, auto_recorded, pause_minutes)
                      VALUES (?1,?2,?3,?4,'ENDED',1,?5)",
@@ -1273,8 +1273,14 @@ async fn seed_year_volume(pool: &SqlitePool, scale: Scale) -> Result<(), AppErro
                 .bind(format!("{wt_day} {end_h:02}:{:02}:00", mix(wt_n + 3) % 40))
                 .bind(20i64 + (mix(wt_n) % 40) as i64)
                 .execute(&mut *tx)
-                .await
-                .map_err(AppError::Database)?;
+                .await;
+                match wt_res {
+                    Ok(_) => {}
+                    Err(sqlx::Error::Database(e)) if e.message().contains("no such table") => {
+                        break;
+                    }
+                    Err(e) => return Err(AppError::Database(e)),
+                }
             }
         }
         wt_day += Duration::days(1);

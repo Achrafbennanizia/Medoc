@@ -90,6 +90,14 @@ impl DeviceIdentity {
     }
 }
 
+/// True when `fingerprint` is the identity of this 32-byte device key.
+pub fn fingerprint_matches_pubkey(pubkey: &[u8], fingerprint: &str) -> bool {
+    let Ok(bytes) = <[u8; 32]>::try_from(pubkey) else {
+        return false;
+    };
+    fingerprint_from_pubkey(&bytes) == fingerprint.trim()
+}
+
 /// `base32(sha256(pubkey))` without padding (RFC 4648 alphabet).
 pub fn fingerprint_from_pubkey(pubkey: &[u8; 32]) -> String {
     let hash = Sha256::digest(pubkey);

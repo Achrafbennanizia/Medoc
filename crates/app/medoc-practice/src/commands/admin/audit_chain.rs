@@ -42,18 +42,30 @@ pub fn get_audit_chain_status(
 }
 
 #[tauri::command]
-#[tracing::instrument(level = "warn", skip(session_state, guard))]
-pub fn acknowledge_audit_chain_break(
+#[tracing::instrument(level = "warn", skip(pool, session_state, guard))]
+pub async fn acknowledge_audit_chain_break(
+    pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
     guard: State<'_, AuditChainGuardExt>,
 ) -> Result<(), AppError> {
     let session = rbac::require(&session_state, "ops.audit_chain_ack")?;
     let g = guard_ref(&guard);
-    if g.broken_at().is_none() {
+    let Some(broken) = g.broken_at() else {
         return Err(AppError::Validation(
             "Audit chain is intact — no acknowledgement needed".into(),
         ));
-    }
+    };
+    // F100: persist, and leave a trace in the audit log itself.
+    crate::application::audit_chain_guard::save_ack(&pool, &broken, &session.user_id).await?;
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "AUDIT_CHAIN_ACK",
+        "AuditLog",
+        Some(&broken),
+        None,
+    )
+    .await?;
     g.acknowledge();
     log_security!(error,
         event = "AUDIT_CHAIN_BREAK_ACKNOWLEDGED",

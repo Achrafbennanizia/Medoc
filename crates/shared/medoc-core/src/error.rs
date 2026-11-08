@@ -23,6 +23,10 @@ pub enum AppError {
     #[error("Conflict: {0}")]
     Conflict(String),
 
+    /// Integration or product surface is switched off (D5/D6).
+    #[error("Feature disabled: {0}")]
+    FeatureDisabled(String),
+
     #[error("Validation error: {0}")]
     Validation(String),
 
@@ -81,6 +85,9 @@ impl serde::Serialize for AppError {
                 format!("error.app.not_found|resource={resource}")
             }
             AppError::Conflict(detail) => format!("error.app.conflict|detail={detail}"),
+            AppError::FeatureDisabled(feature) => {
+                format!("FEATURE_DISABLED|feature={feature}")
+            }
             AppError::TotpRequired => "error.app.totp_required".into(),
             AppError::TotpEnrollmentRequired => "error.app.totp_enrollment_required".into(),
             _ => return serializer.serialize_str(&self.to_string()),

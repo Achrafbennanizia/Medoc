@@ -8,6 +8,30 @@ use medoc_sync::master_keys;
 use medoc_sync::repo::{
     append_outbox, ensure_local_device, list_pending_outbox, mark_applied, save_deployment,
 };
+
+async fn deploy(
+    pool: &sqlx::SqlitePool,
+    cfg: &SyncDeploymentConfig,
+) -> Result<(), medoc_core::error::AppError> {
+    let mut cfg = cfg.clone();
+    if cfg.master_cert_sha256.is_empty() {
+        cfg.master_cert_sha256 = "ab".repeat(32);
+    }
+    save_deployment(pool, &cfg).await
+}
+
+async fn seed_peer_tls_pin(pool: &sqlx::SqlitePool, device_id: &str) {
+    sqlx::query(
+        "INSERT INTO sync_device (device_id, display_name, role, is_local, peer_cert_sha256)
+         VALUES (?1, ?1, 'REPLICA', 0, ?2)
+         ON CONFLICT(device_id) DO UPDATE SET peer_cert_sha256 = excluded.peer_cert_sha256",
+    )
+    .bind(device_id)
+    .bind("ab".repeat(32))
+    .execute(pool)
+    .await
+    .expect("peer pin");
+}
 use medoc_sync::schema::ensure_sync_tables;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -20,7 +44,7 @@ async fn fresh_pool() -> sqlx::SqlitePool {
 }
 
 async fn save_replica(pool: &sqlx::SqlitePool, master_url: &str, token: &str, label: &str) {
-    save_deployment(
+    deploy(
         pool,
         &SyncDeploymentConfig {
             schema_version: 1,
@@ -28,6 +52,7 @@ async fn save_replica(pool: &sqlx::SqlitePool, master_url: &str, token: &str, la
             role: DeviceRole::Replica,
             master_base_url: master_url.into(),
             master_access_token: token.into(),
+            master_cert_sha256: "ab".repeat(32),
             device_label: label.into(),
             ..Default::default()
         },
@@ -83,7 +108,7 @@ async fn push_to_master_delivers_pending_and_clears_outbox() {
     let result = SyncEngine::push_to_master(&pool).await.expect("push ok");
     assert_eq!(result.accepted, 1);
     assert_eq!(result.last_seq, 1);
-    assert!(list_pending_outbox(&pool, &device)
+    assert!(list_pending_outbox(&pool, &device, 500)
         .await
         .unwrap()
         .is_empty());
@@ -136,7 +161,7 @@ async fn pull_from_master_applies_remote_app_kv() {
 #[tokio::test]
 async fn run_mesh_sync_off_flag_returns_message() {
     let pool = fresh_pool().await;
-    save_deployment(
+    deploy(
         &pool,
         &SyncDeploymentConfig {
             schema_version: 1,
@@ -159,7 +184,7 @@ async fn run_mesh_sync_off_flag_returns_message() {
 #[tokio::test]
 async fn pull_from_master_requires_bearer_token() {
     let pool = fresh_pool().await;
-    save_deployment(
+    deploy(
         &pool,
         &SyncDeploymentConfig {
             schema_version: 1,
@@ -222,7 +247,7 @@ async fn run_mesh_sync_fetches_signed_peer_list() {
         .mount(&server)
         .await;
 
-    save_deployment(
+    deploy(
         &pool,
         &SyncDeploymentConfig {
             schema_version: 1,
@@ -274,7 +299,7 @@ async fn run_mesh_sync_skips_peer_without_base_url() {
         .mount(&server)
         .await;
 
-    save_deployment(
+    deploy(
         &pool,
         &SyncDeploymentConfig {
             schema_version: 1,
@@ -302,7 +327,7 @@ async fn run_mesh_sync_skips_peer_without_base_url() {
 async fn push_to_master_prefers_activation_token_over_jwt() {
     let pool = fresh_pool().await;
     let server = MockServer::start().await;
-    save_deployment(
+    deploy(
         &pool,
         &SyncDeploymentConfig {
             schema_version: 1,
@@ -349,7 +374,7 @@ async fn push_to_master_prefers_activation_token_over_jwt() {
 #[tokio::test]
 async fn run_mesh_sync_missing_master_pubkey_fails() {
     let pool = fresh_pool().await;
-    save_deployment(
+    deploy(
         &pool,
         &SyncDeploymentConfig {
             schema_version: 1,
@@ -401,7 +426,7 @@ async fn push_to_master_http_error_surfaces_status() {
 async fn run_replica_sync_push_and_pull_success() {
     let pool = fresh_pool().await;
     let server = MockServer::start().await;
-    save_deployment(
+    deploy(
         &pool,
         &SyncDeploymentConfig {
             schema_version: 1,
@@ -488,7 +513,7 @@ async fn pull_from_master_counts_skipped_already_applied() {
         .mount(&server)
         .await;
 
-    save_deployment(
+    deploy(
         &pool,
         &SyncDeploymentConfig {
             schema_version: 1,
@@ -522,7 +547,7 @@ async fn pull_from_master_http_error_surfaces_status() {
         .mount(&server)
         .await;
 
-    save_deployment(
+    deploy(
         &pool,
         &SyncDeploymentConfig {
             schema_version: 1,
@@ -609,7 +634,7 @@ async fn run_mesh_sync_pushes_pending_outbox_to_peer() {
         .mount(&peer_server)
         .await;
 
-    save_deployment(
+    deploy(
         &pool,
         &SyncDeploymentConfig {
             schema_version: 1,
@@ -637,6 +662,7 @@ async fn run_mesh_sync_pushes_pending_outbox_to_peer() {
     )
     .await
     .expect("outbox");
+    seed_peer_tls_pin(&pool, "peer-target").await;
 
     let report = SyncEngine::run_mesh_sync(&pool).await.expect("mesh");
     assert_eq!(report.attempted, 1);
@@ -672,7 +698,7 @@ async fn run_mesh_sync_empty_peer_list_returns_zero_attempts() {
         .mount(&server)
         .await;
 
-    save_deployment(
+    deploy(
         &pool,
         &SyncDeploymentConfig {
             schema_version: 1,
@@ -737,7 +763,7 @@ async fn run_replica_sync_includes_mesh_when_enabled() {
         .mount(&server)
         .await;
 
-    save_deployment(
+    deploy(
         &pool,
         &SyncDeploymentConfig {
             schema_version: 1,
@@ -797,7 +823,7 @@ async fn run_mesh_sync_records_peer_push_failure() {
         .mount(&peer_server)
         .await;
 
-    save_deployment(
+    deploy(
         &pool,
         &SyncDeploymentConfig {
             schema_version: 1,
@@ -827,6 +853,7 @@ async fn run_mesh_sync_records_peer_push_failure() {
     )
     .await
     .expect("outbox");
+    seed_peer_tls_pin(&pool, "peer-fail").await;
 
     let report = SyncEngine::run_mesh_sync(&pool).await.expect("mesh");
     assert_eq!(report.attempted, 1);
@@ -847,7 +874,7 @@ async fn run_mesh_sync_peers_http_error() {
         .mount(&server)
         .await;
 
-    save_deployment(
+    deploy(
         &pool,
         &SyncDeploymentConfig {
             schema_version: 1,
@@ -875,7 +902,7 @@ async fn replica_push_is_visible_to_a_later_replica_pull() {
     use medoc_sync::repo::OutboxEntry;
 
     let master = fresh_pool().await;
-    save_deployment(
+    deploy(
         &master,
         &SyncDeploymentConfig {
             schema_version: 1,
@@ -1037,4 +1064,62 @@ async fn pull_cursor_stops_before_a_failing_row_until_retry_limit() {
     }
     SyncEngine::pull_from_master(&pool).await.expect("give up");
     assert_eq!(master_seq(&pool).await, Some(2));
+}
+
+#[tokio::test]
+async fn large_outbox_drains_in_pages() {
+    let pool = fresh_pool().await;
+    let server = MockServer::start().await;
+    save_replica(&pool, &server.uri(), "tok-pages", "page-test").await;
+    let device = ensure_local_device(&pool, "page-test").await.unwrap();
+    append_outbox(
+        &pool,
+        &device,
+        "app_kv",
+        "huge.key",
+        "INSERT",
+        &format!(r#"{{"key":"huge.key","value":"{}"}}"#, "x".repeat(13 * 1024 * 1024)),
+    )
+    .await
+    .expect("huge");
+    for i in 0..520 {
+        append_outbox(
+            &pool,
+            &device,
+            "app_kv",
+            &format!("page.key.{i}"),
+            "INSERT",
+            &format!(r#"{{"key":"page.key.{i}","value":"v"}}"#),
+        )
+        .await
+        .expect("row");
+    }
+    Mock::given(method("POST"))
+        .and(path("/api/v1/sync/push"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "accepted": 500,
+            "lastSeq": 1
+        })))
+        .mount(&server)
+        .await;
+    let result = SyncEngine::push_to_master(&pool).await.expect("push");
+    assert!(result.accepted >= 1);
+    let remaining = list_pending_outbox(&pool, &device, 10_000)
+        .await
+        .unwrap()
+        .len();
+    assert!(remaining < 520, "paged push should drain most rows, leftover {remaining}");
+    let failed: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM sync_outbox WHERE fail_reason = 'ENTRY_TOO_LARGE'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(failed, 1);
+    let requests = server.received_requests().await.unwrap();
+    assert!(
+        requests.len() >= 2,
+        "expected more than one page, got {}",
+        requests.len()
+    );
 }

@@ -1,5 +1,5 @@
 import type { Treatment, Examination, Payment } from "@/models/types";
-import { formatCurrency } from "@/lib/utils";
+import { errorMessage, formatCurrency } from "@/lib/utils";
 import {
     DEFAULT_PRACTICE_HEADER_PRIVACY,
     loadPracticeHeaderPrivacy,
@@ -277,11 +277,34 @@ export function getInvoicePracticeFromStorage(): InvoicePractice {
 /** Persists practice master data (invoices, PDFs, Settings). */
 export function saveInvoicePracticeToStorage(p: InvoicePractice): void {
     localStorage.setItem(LS_INVOICE_PRACTICE, JSON.stringify(invoicePracticeToBlob(p)));
+    void syncInvoicePracticeToAppKv(p);
+}
+
+function practiceDbBusy(error: unknown): boolean {
+    const lower = errorMessage(error).toLowerCase();
+    return (
+        lower.includes("database is locked") ||
+        lower.includes("database is busy") ||
+        lower.includes("(code: 5)") ||
+        lower.includes("(code: 6)")
+    );
 }
 
 /** Practice invoice header also in SQLite `app_kv` (practice-wide, LAN-syncable). */
 export async function syncInvoicePracticeToAppKv(p: InvoicePractice): Promise<void> {
-    await setAppKv(INVOICE_PRACTICE_KV_KEY, JSON.stringify(invoicePracticeToBlob(p)));
+    const body = JSON.stringify(invoicePracticeToBlob(p));
+    let last: unknown;
+    for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+            await setAppKv(INVOICE_PRACTICE_KV_KEY, body);
+            return;
+        } catch (error) {
+            last = error;
+            if (!practiceDbBusy(error) || attempt === 1) throw error;
+            await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+    }
+    throw last;
 }
 
 /**
@@ -302,9 +325,27 @@ export async function migrateInvoicePracticeLocalStorageToAppKv(): Promise<boole
     }
 }
 
+/**
+ * Writes the localized opening-hours line onto the practice record.
+ * Skips when no practice record exists yet, so a fresh install is not invented.
+ */
+export async function patchInvoicePracticeOpeningHours(openingHours: string): Promise<void> {
+    const trimmed = openingHours.trim();
+    if (!trimmed) return;
+    const fromKv = await hydrateInvoicePracticeFromAppKv();
+    const hasLocal = readInvoicePracticeLocalStorage()?.trim();
+    if (!fromKv && !hasLocal) return;
+    const base = fromKv ?? getInvoicePracticeFromStorage();
+    if ((base.opening_hours ?? "").trim() === trimmed) return;
+    const next = { ...base, opening_hours: trimmed };
+    saveInvoicePracticeToStorage(next);
+    await syncInvoicePracticeToAppKv(next);
+}
+
 /** Loads `invoice.practice.v1` from DB and mirrors to localStorage (desktop). */
 export async function hydrateInvoicePracticeFromAppKv(): Promise<InvoicePractice | null> {
     try {
+        await migrateInvoicePracticeLocalStorageToAppKv();
         const raw = await getAppKv(INVOICE_PRACTICE_KV_KEY);
         if (!raw) return null;
         const j = JSON.parse(raw) as InvoicePracticeJson;

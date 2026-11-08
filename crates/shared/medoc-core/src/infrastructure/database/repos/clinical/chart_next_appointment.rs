@@ -29,6 +29,7 @@ pub async fn set_json(
     patient_id: &str,
     hint_json: &str,
 ) -> Result<(), AppError> {
+    let mut tx = pool.begin().await?;
     sqlx::query(
         "INSERT INTO chart_next_appointment_hint (patient_id, hint_json, updated_at)
          VALUES (?1, ?2, CURRENT_TIMESTAMP)
@@ -38,17 +39,42 @@ pub async fn set_json(
     )
     .bind(patient_id)
     .bind(hint_json)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
+    crate::infrastructure::database::recorded_write::record_in_tx(
+        &mut tx,
+        "chart_next_appointment_hint",
+        patient_id,
+        "UPDATE",
+    )
+    .await?;
+    tx.commit().await?;
     Ok(())
 }
 
 pub async fn delete_for_patient(pool: &SqlitePool, patient_id: &str) -> Result<u64, AppError> {
+    let mut tx = pool.begin().await?;
+    let ids: Vec<String> = sqlx::query_scalar(
+        "SELECT patient_id FROM chart_next_appointment_hint WHERE patient_id = ?1",
+    )
+    .bind(patient_id)
+    .fetch_all(&mut *tx)
+    .await?;
     let n = sqlx::query("DELETE FROM chart_next_appointment_hint WHERE patient_id = ?1")
         .bind(patient_id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?
         .rows_affected();
+    for id in &ids {
+        crate::infrastructure::database::recorded_write::record_in_tx(
+            &mut tx,
+            "chart_next_appointment_hint",
+            id,
+            "DELETE",
+        )
+        .await?;
+    }
+    tx.commit().await?;
     Ok(n)
 }
 

@@ -1,13 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { login, postLoginPath } from "@/systems/practice-host/controllers/auth.controller";
 import { BREAK_GLASS_ENABLED } from "@/lib/mvp-security-config";
 import { CapsLockIcon, EyeIcon, EyeOffIcon, ICON_SIZE_LG, ICON_SIZE_SM, PinIcon } from "@/lib/icons";
-import { useT } from "@/lib/i18n";
+import { useT, useTParams } from "@/lib/i18n";
 import { errorMessage } from "@/lib/utils";
 import { LocaleSwitcher } from "../components/locale-switcher";
 import { useDesktopChromeMode } from "../components/desktop-chrome";
 import { useMacWindowDrag } from "@/lib/mac-window-drag";
+import { applyAppearanceFromSettings, loadClientSettings } from "@/lib/client-settings";
+import { formatLockoutCountdown, rateLimitSeconds } from "./login-lockout";
 
 const LS_REMEMBER_EMAIL = "medoc-login-remember-email";
 const LS_REMEMBER_FLAG = "medoc-login-remember-me";
@@ -83,9 +85,12 @@ function formatLoginError(
 
 export function LoginPage() {
     const t = useT();
+    const tp = useTParams();
     const [email, setEmail] = useState(readRememberedEmail);
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
+    const [lockoutUntil, setLockoutUntil] = useState<number | null>(null);
+    const [lockoutTick, setLockoutTick] = useState(0);
     const [loading, setLoading] = useState(false);
     const [rememberMe, setRememberMe] = useState(() => {
         try {
@@ -101,6 +106,24 @@ export function LoginPage() {
     const desktopChrome = useDesktopChromeMode();
     const isMacOverlay = desktopChrome === "mac-overlay";
     const handleMacWindowDrag = useMacWindowDrag(isMacOverlay);
+    useEffect(() => {
+        applyAppearanceFromSettings(loadClientSettings());
+    }, []);
+
+    useEffect(() => {
+        if (lockoutUntil == null) return;
+        const id = window.setInterval(() => setLockoutTick((n) => n + 1), 1000);
+        return () => window.clearInterval(id);
+    }, [lockoutUntil]);
+
+    const lockoutRemainingSec =
+        lockoutUntil == null ? 0 : Math.max(0, Math.ceil((lockoutUntil - Date.now()) / 1000));
+
+    useEffect(() => {
+        if (lockoutUntil == null || Date.now() < lockoutUntil) return;
+        setLockoutUntil(null);
+        setError("");
+    }, [lockoutUntil, lockoutTick]);
 
     const deviceOpts = {
         device_label: typeof window !== "undefined" ? `MeDoc · ${window.location.hostname || "app"}` : "MeDoc",
@@ -109,22 +132,31 @@ export function LoginPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (lockoutRemainingSec > 0) return;
         setError("");
         setHelperMsg("");
         setLoading(true);
         try {
             const session = await login(email, password, deviceOpts);
             persistRememberMe(rememberMe, email);
+            setLockoutUntil(null);
             navigate(await postLoginPath(session));
         } catch (err) {
-            setError(
-                formatLoginError(
-                    err,
-                    t("login.rate_limited"),
-                    t("login.unauthorized"),
-                    t("login.failed"),
-                ),
-            );
+            const waitSec = rateLimitSeconds(err);
+            if (waitSec != null) {
+                setLockoutUntil(Date.now() + waitSec * 1000);
+                setError(t("login.rate_limited"));
+            } else {
+                setLockoutUntil(null);
+                setError(
+                    formatLoginError(
+                        err,
+                        t("login.rate_limited"),
+                        t("login.unauthorized"),
+                        t("login.failed"),
+                    ),
+                );
+            }
         } finally {
             setLoading(false);
         }
@@ -211,7 +243,12 @@ export function LoginPage() {
                     </p>
                     {error && (
                         <div role="alert" style={{ background: "var(--red-soft)", color: "var(--red)", padding: "12px", borderRadius: 10, marginBottom: 16, fontSize: 13 }}>
-                            {error}
+                            <div>{error}</div>
+                            {lockoutRemainingSec > 0 ? (
+                                <div style={{ marginTop: 6, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
+                                    {tp("login.rate_limited_next", { time: formatLockoutCountdown(lockoutRemainingSec) })}
+                                </div>
+                            ) : null}
                         </div>
                     )}
                     <label htmlFor="email" className="form-label">{t("auth.email")}</label>
@@ -275,7 +312,7 @@ export function LoginPage() {
                         <div style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-3)", marginBottom: 8 }}>{t("login.language_label")}</div>
                         <LocaleSwitcher />
                     </div>
-                    <button type="submit" className="login-submit" disabled={loading}>
+                    <button type="submit" className="login-submit" disabled={loading || lockoutRemainingSec > 0}>
                         {loading ? (
                             <span
                                 className="animate-spin"

@@ -25,6 +25,9 @@ pub fn validate_eprescription(
     session_state: State<'_, SessionState>,
     rx: telematik::EPrescription,
 ) -> Result<(), AppError> {
+    if !medoc_core::mvp_security::EPRESCRIPTION_ENABLED {
+        return Err(AppError::FeatureDisabled("eprescription".into()));
+    }
     rbac::require(&session_state, "patient.write_medical")?;
     telematik::validate(&rx)
 }
@@ -35,6 +38,9 @@ pub fn submit_eprescription(
     session_state: State<'_, SessionState>,
     rx: telematik::EPrescription,
 ) -> Result<telematik::EPrescriptionToken, AppError> {
+    if !medoc_core::mvp_security::EPRESCRIPTION_ENABLED {
+        return Err(AppError::FeatureDisabled("eprescription".into()));
+    }
     rbac::require(&session_state, "patient.write_medical")?;
     telematik::submit_via_ti(&rx)
 }

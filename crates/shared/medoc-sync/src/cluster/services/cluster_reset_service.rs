@@ -40,7 +40,7 @@ const NETWORK_KV_KEYS: &[&str] = &[
     KV_CLUSTER_RESET_PENDING,
 ];
 
-const NETWORK_KV_PREFIXES: &[&str] = &["onboarding.progress.v1."];
+const NETWORK_KV_PREFIXES: &[&str] = &["onboarding.progress.v1.", "cluster.join."];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -556,6 +556,12 @@ mod tests {
         app_kv_repo::set(&pool, "sync.device_id.v1", "device-123")
             .await
             .unwrap();
+        app_kv_repo::set(&pool, "cluster.join.admin_endpoint.v1", "{\"host\":\"10.0.0.2\",\"port\":9443}")
+            .await
+            .unwrap();
+        app_kv_repo::set(&pool, "cluster.join.lan_auth.v1", "{\"token\":\"mt2.x\"}")
+            .await
+            .unwrap();
 
         wipe_network_kv(&pool).await.unwrap();
 
@@ -569,6 +575,14 @@ mod tests {
             .unwrap()
             .is_none());
         assert!(app_kv_repo::get(&pool, "sync.device_id.v1")
+            .await
+            .unwrap()
+            .is_none());
+        assert!(app_kv_repo::get(&pool, "cluster.join.admin_endpoint.v1")
+            .await
+            .unwrap()
+            .is_none());
+        assert!(app_kv_repo::get(&pool, "cluster.join.lan_auth.v1")
             .await
             .unwrap()
             .is_none());

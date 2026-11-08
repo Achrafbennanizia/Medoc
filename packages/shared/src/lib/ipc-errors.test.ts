@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatIpcError } from "./ipc-errors";
+import { formatIpcError, ipcErrorCode } from "./ipc-errors";
 
 describe("formatIpcError", () => {
     it("translates error.app.unauthorized in all locales", () => {
@@ -21,6 +21,11 @@ describe("formatIpcError", () => {
         expect(formatIpcError(new Error("error.app.forbidden"), "de")).toBe("Zugriff verweigert.");
         expect(formatIpcError(new Error("error.app.forbidden"), "fr")).toBe("Accès refusé.");
         expect(formatIpcError(new Error("error.app.forbidden"), "ar")).toBe("تم رفض الوصول.");
+    });
+
+    it("maps FeatureDisabled to FEATURE_DISABLED", () => {
+        expect(ipcErrorCode("FEATURE_DISABLED|feature=scanner")).toBe("FEATURE_DISABLED");
+        expect(ipcErrorCode("FEATURE_DISABLED")).toBe("FEATURE_DISABLED");
     });
 
     it("extracts coded keys from wrapped messages", () => {

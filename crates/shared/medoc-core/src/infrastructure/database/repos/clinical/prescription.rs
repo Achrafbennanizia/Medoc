@@ -9,7 +9,8 @@ pub async fn find_for_patient(
     patient_id: &str,
 ) -> Result<Vec<Prescription>, AppError> {
     let rows = sqlx::query_as::<_, Prescription>(
-        "SELECT * FROM prescription WHERE patient_id = ?1 ORDER BY issued_at DESC",
+        // F86: superseded versions stay in the table (history) but not in the list.
+        "SELECT * FROM prescription WHERE patient_id = ?1 AND status != 'REPLACED' ORDER BY issued_at DESC",
     )
     .bind(patient_id)
     .fetch_all(pool)
@@ -36,11 +37,14 @@ pub async fn create(
         .as_deref()
         .filter(|s| !s.trim().is_empty())
         .unwrap_or("PRIVAT");
+    // F87: issue date is the practice-local day, not SQLite's UTC date('now').
+    let issued_on = local_today(pool).await;
     sqlx::query(
         "INSERT INTO prescription (
             id, patient_id, physician_id, medication, active_ingredient, dosage, duration, instructions,
-            pzn, dosage_form, pack_size, quantity, aut_idem, prescription_type, icd10_code, prescribing_physician_id
-        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
+            pzn, dosage_form, pack_size, quantity, aut_idem, prescription_type, icd10_code, prescribing_physician_id,
+            issued_at
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
     )
     .bind(&id)
     .bind(&data.patient_id)
@@ -58,6 +62,7 @@ pub async fn create(
     .bind(prescription_type)
     .bind(&data.icd10_code)
     .bind(&data.prescribing_physician_id)
+    .bind(&issued_on)
     .execute(pool)
     .await?;
     let inserted = find_by_id(pool, &id)
@@ -91,6 +96,68 @@ pub async fn delete(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
     Ok(())
 }
 
+async fn local_today(pool: &SqlitePool) -> String {
+    let tz = crate::domain::practice_time::practice_tz(pool).await;
+    chrono::Utc::now().with_timezone(&tz).date_naive().format("%Y-%m-%d").to_string()
+}
+
+/// F86: insert the corrected version (`replaces_id` = old id) and mark the old
+/// row `REPLACED`, in one transaction. Returns the new version.
+async fn correct_issued(
+    pool: &SqlitePool,
+    ex: &Prescription,
+    data: &UpdatePrescription,
+    aut_idem: bool,
+    prescription_type: &str,
+) -> Result<Prescription, AppError> {
+    let new_id = Uuid::new_v4().to_string();
+    let issued_on = local_today(pool).await;
+    let mut tx = pool.begin().await?;
+    sqlx::query(
+        "INSERT INTO prescription (
+            id, patient_id, physician_id, medication, active_ingredient, dosage, duration, instructions,
+            pzn, dosage_form, pack_size, quantity, aut_idem, prescription_type, icd10_code, prescribing_physician_id,
+            issued_at, status, replaces_id, updated_at
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, 'ISSUED', ?18,
+                  strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
+    )
+    .bind(&new_id)
+    .bind(&ex.patient_id)
+    .bind(&ex.physician_id)
+    .bind(&data.medication)
+    .bind(&data.active_ingredient)
+    .bind(&data.dosage)
+    .bind(&data.duration)
+    .bind(&data.instructions)
+    .bind(&data.pzn)
+    .bind(&data.dosage_form)
+    .bind(&data.pack_size)
+    .bind(data.quantity)
+    .bind(aut_idem)
+    .bind(prescription_type)
+    .bind(&data.icd10_code)
+    .bind(&data.prescribing_physician_id)
+    .bind(&issued_on)
+    .bind(&ex.id)
+    .execute(&mut *tx)
+    .await?;
+    crate::infrastructure::database::recorded_write::record_in_tx(&mut tx, "prescription", &new_id, "INSERT")
+        .await?;
+    sqlx::query(
+        "UPDATE prescription SET status = 'REPLACED', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+         WHERE id = ?1 AND status = 'ISSUED'",
+    )
+    .bind(&ex.id)
+    .execute(&mut *tx)
+    .await?;
+    crate::infrastructure::database::recorded_write::record_in_tx(&mut tx, "prescription", &ex.id, "UPDATE")
+        .await?;
+    tx.commit().await?;
+    find_by_id(pool, &new_id)
+        .await?
+        .ok_or(AppError::Internal("Prescription correction failed".into()))
+}
+
 pub async fn update(
     pool: &SqlitePool,
     data: &UpdatePrescription,
@@ -105,11 +172,22 @@ pub async fn update(
         .or(ex.prescription_type.as_deref())
         .filter(|s| !s.trim().is_empty())
         .unwrap_or("PRIVAT");
+    match ex.status.as_str() {
+        "REPLACED" => {
+            return Err(AppError::Conflict(
+                "This prescription was already corrected; edit the newest version".into(),
+            ))
+        }
+        // F86: an issued prescription is a document; a correction is a new version.
+        "ISSUED" => return correct_issued(pool, &ex, data, aut_idem, prescription_type).await,
+        _ => {}
+    }
     sqlx::query(
         "UPDATE prescription SET
             medication = ?1, active_ingredient = ?2, dosage = ?3, duration = ?4, instructions = ?5,
             pzn = ?6, dosage_form = ?7, pack_size = ?8, quantity = ?9,
-            aut_idem = ?10, prescription_type = ?11, icd10_code = ?12, prescribing_physician_id = ?13
+            aut_idem = ?10, prescription_type = ?11, icd10_code = ?12, prescribing_physician_id = ?13,
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
          WHERE id = ?14",
     )
     .bind(&data.medication)

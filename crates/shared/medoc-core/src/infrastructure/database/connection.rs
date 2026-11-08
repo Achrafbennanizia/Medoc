@@ -47,6 +47,29 @@ fn remove_sqlite_sidecars(db_path: &Path) {
     let _ = std::fs::remove_file(Path::new(&format!("{}-shm", db_path.display())));
 }
 
+/// A wrong SQLCipher key reports "file is not a database". That file is still
+/// the practice database and must stay in place. Quarantine only a file whose
+/// contents are empty or plain text.
+fn file_is_not_a_database(db_path: &Path) -> bool {
+    use std::io::Read;
+    let mut head = [0u8; 16];
+    let Ok(mut file) = std::fs::File::open(db_path) else {
+        return false;
+    };
+    let Ok(n) = file.read(&mut head) else {
+        return false;
+    };
+    if n == 0 {
+        return true;
+    }
+    if head[..n.min(15)].starts_with(b"SQLite format 3") {
+        return false;
+    }
+    head[..n]
+        .iter()
+        .all(|b| b.is_ascii_graphic() || b.is_ascii_whitespace())
+}
+
 fn quarantine_db_file(db_path: &Path) {
     remove_sqlite_sidecars(db_path);
     if !db_path.exists() {
@@ -84,14 +107,27 @@ pub fn prepare_practice_db_before_launch(app_dir: &std::path::Path) -> Result<()
                 .build()
                 .map_err(|e| AppError::Internal(format!("tokio: {e}")))?;
             rt.block_on(async move {
-                let key = db_key::ensure_sqlcipher_key(&app_dir, true)?;
+                // F46: the database already exists. Never mint a new key for it:
+                // a fresh random key cannot open it, and the old code then
+                // quarantined the real data and started an empty store.
+                let key = match db_key::ensure_sqlcipher_key(&app_dir, false) {
+                    Ok(k) => k,
+                    Err(e) => {
+                        tracing::warn!(
+                            target: "medoc::system",
+                            event = "DB_KEY_MISSING_KEEP_FILE",
+                            error = %e,
+                        );
+                        return Ok(());
+                    }
+                };
                 match sqlcipher::open_encrypted_pool(&db_path_probe, key, false).await {
                     Ok(pool) => {
                         pool.close().await;
                         Ok(())
                     }
                     Err(err) if db_error_is_in_use(&err) => Ok(()),
-                    Err(err) => {
+                    Err(err) if file_is_not_a_database(&db_path_probe) => {
                         tracing::warn!(
                             target: "medoc::system",
                             event = "DB_UNREADABLE_QUARANTINE",
@@ -101,6 +137,7 @@ pub fn prepare_practice_db_before_launch(app_dir: &std::path::Path) -> Result<()
                         quarantine_db_file(&db_path_probe);
                         Ok(())
                     }
+                    Err(err) => Err(err),
                 }
             })
         })
@@ -136,7 +173,7 @@ pub async fn open_pool_with_migrations(app_dir: &std::path::Path) -> Result<Sqli
                     "MeDoc is already running (database in use). Open the existing window instead of starting a second copy.".into(),
                 ));
             }
-            Err(err) => {
+            Err(err) if file_is_not_a_database(&db_path) => {
                 tracing::warn!(
                     target: "medoc::system",
                     event = "DB_RECOVER_RECREATE",
@@ -149,6 +186,7 @@ pub async fn open_pool_with_migrations(app_dir: &std::path::Path) -> Result<Sqli
                 run_migrations(&pool).await?;
                 return Ok(pool);
             }
+            Err(err) => return Err(err),
         }
     }
 
@@ -217,4 +255,36 @@ pub async fn run_migrations(pool: &SqlitePool) -> Result<(), AppError> {
     // Install staff-quota triggers after bootstrap/seed inserts (demo seed must not trip 1-PHYSICIAN cap).
     crate::mvp_security::ensure_staff_quota_db_triggers(pool).await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod quarantine_tests {
+    use super::file_is_not_a_database;
+
+    fn scratch(name: &str, bytes: &[u8]) -> std::path::PathBuf {
+        let path = std::env::temp_dir().join(format!("medoc-quarantine-{name}"));
+        std::fs::write(&path, bytes).expect("write scratch file");
+        path
+    }
+
+    #[test]
+    fn plain_text_is_not_a_database() {
+        let path = scratch("text", b"this is not a database\n");
+        assert!(file_is_not_a_database(&path));
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn sqlite_header_is_kept() {
+        let path = scratch("sqlite", b"SQLite format 3\0");
+        assert!(!file_is_not_a_database(&path));
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn binary_page_is_kept() {
+        let path = scratch("cipher", &[0x00, 0x17, 0xff, 0x10, 0x80, 0x01]);
+        assert!(!file_is_not_a_database(&path));
+        let _ = std::fs::remove_file(path);
+    }
 }

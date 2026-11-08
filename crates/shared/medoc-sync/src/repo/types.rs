@@ -40,28 +40,11 @@ pub struct SyncStatusSnapshot {
     pub vectors: HashMap<String, i64>,
 }
 
-/// Allow-listed entity tables that flow through the outbox.
-///
-/// Order is parent-before-child. A full snapshot is queued in this order
-/// and applied with foreign keys on, so a child row emitted before its
-/// parent fails the FK check and is dropped. Keep in sync with
-/// `merge::sanitize_table`.
-pub const SYNCED_TABLES: &[&str] = &[
-    "staff",
-    "patient",
-    "service_item",
-    "app_kv",
-    "patient_chart",
-    "appointment",
-    "absence",
-    "anamnesis_form",
-    "dental_finding",
-    "examination",
-    "treatment",
-    "prescription",
-    "certificate",
-    "payment",
-    "in_app_notification",
-    "practice_ticket",
-    "practice_task",
-];
+pub use medoc_core::infrastructure::database::sync_registry::{
+    deny_column, is_synced_table, synced_tables,
+};
+
+/// Columns that must never appear in a snapshot or a relayed row.
+pub fn snapshot_denied_column(table: &str, column: &str) -> bool {
+    deny_column(table, column)
+}

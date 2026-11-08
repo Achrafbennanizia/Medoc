@@ -49,6 +49,8 @@ pub struct LanServerStatusPayload {
     pub suggested_base_urls: Vec<String>,
     /// SHA-256 fingerprint of the self-signed LAN certificate (pin on clients).
     pub tls_cert_sha256: Option<String>,
+    /// This process must not bind the practice server (replica or secondary window).
+    pub hosting_disabled: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -130,12 +132,14 @@ pub async fn lan_server_set_config(
 }
 
 #[tauri::command]
-#[tracing::instrument(level = "info", skip(control, session_state))]
-pub fn lan_server_status(
+#[tracing::instrument(level = "info", skip(pool, control, session_state))]
+pub async fn lan_server_status(
+    pool: State<'_, SqlitePool>,
     control: State<'_, LanServerControl>,
     session_state: State<'_, SessionState>,
 ) -> Result<LanServerStatusPayload, AppError> {
     rbac::require(&session_state, "ops.system")?;
+    let hosting_disabled = lan_listen_block_reason(&pool).await.is_some();
     let inner = control.0.lock().unwrap_or_else(|e| e.into_inner());
     let Some(rt) = inner.runtime.as_ref() else {
         return Ok(LanServerStatusPayload {
@@ -146,6 +150,7 @@ pub fn lan_server_status(
             instance_label: None,
             suggested_base_urls: vec![],
             tls_cert_sha256: None,
+            hosting_disabled,
         });
     };
     let urls = local_ipv4_urls(rt.cfg.http_port);
@@ -157,6 +162,7 @@ pub fn lan_server_status(
         instance_label: Some(rt.cfg.instance_label.clone()),
         suggested_base_urls: urls,
         tls_cert_sha256: Some(rt.tls_cert_sha256.clone()),
+        hosting_disabled,
     })
 }
 
@@ -218,6 +224,7 @@ pub async fn start_lan_embedded(
     let jwt_secret: Arc<[u8; 32]> = Arc::new(jwt_arr);
     let instance_id = secrets::ensure_instance_id(&app_dir)?;
     let tls_identity = tls::ensure_lan_tls_identity(&app_dir)?;
+    medoc_sync::tls_pin::remember_local_pin(&pool, &tls_identity.sha256_fingerprint).await?;
 
     let brute = Arc::new(BruteForceTracker::new());
     brute
@@ -303,6 +310,7 @@ pub async fn start_lan_embedded(
         instance_label: Some(cfg.instance_label.clone()),
         suggested_base_urls: local_ipv4_urls(cfg.http_port),
         tls_cert_sha256: Some(tls_identity.sha256_fingerprint),
+        hosting_disabled: false,
     })
 }
 
@@ -372,6 +380,21 @@ pub async fn auto_start_replica_sync_lan(
     tracing::info!(target: "medoc::lan", event = "REPLICA_CLIENT_ONLY_NO_LAN");
 }
 
+/// Stop the embedded LAN listener so a restore can replace `medoc.db`.
+pub async fn stop_lan_listener(control: &LanServerControl) {
+    let rt = {
+        let mut g = control.0.lock().unwrap_or_else(|e| e.into_inner());
+        g.runtime.take()
+    };
+    let Some(rt) = rt else {
+        return;
+    };
+    rt.shutdown.store(true, Ordering::SeqCst);
+    let _ = tokio::time::timeout(Duration::from_secs(6), rt.http_task).await;
+    let _ = tokio::time::timeout(Duration::from_secs(2), rt.udp_task).await;
+    tracing::info!(target: "medoc::lan", event = "LAN_SERVER_STOPPED");
+}
+
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(control, session_state))]
 pub async fn lan_server_stop(
@@ -379,21 +402,7 @@ pub async fn lan_server_stop(
     session_state: State<'_, SessionState>,
 ) -> Result<(), AppError> {
     rbac::require(&session_state, "ops.system")?;
-
-    let rt = {
-        let mut g = control.0.lock().unwrap_or_else(|e| e.into_inner());
-        g.runtime.take()
-    };
-
-    let Some(rt) = rt else {
-        return Ok(());
-    };
-
-    rt.shutdown.store(true, Ordering::SeqCst);
-    let _ = tokio::time::timeout(Duration::from_secs(6), rt.http_task).await;
-    let _ = tokio::time::timeout(Duration::from_secs(2), rt.udp_task).await;
-
-    tracing::info!(target: "medoc::lan", event = "LAN_SERVER_STOPPED");
+    stop_lan_listener(&control).await;
     Ok(())
 }
 

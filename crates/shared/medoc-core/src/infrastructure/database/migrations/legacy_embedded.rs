@@ -589,18 +589,28 @@ pub async fn run_legacy_embedded_migrations(pool: &SqlitePool) -> Result<(), App
     .await
     .map_err(AppError::Database)?;
     if product_id_col == 0 {
+        let mut fk = pool.acquire().await.map_err(AppError::Database)?;
         sqlx::query("PRAGMA foreign_keys = OFF")
-            .execute(pool)
+            .execute(&mut *fk)
             .await
             .map_err(AppError::Database)?;
         sqlx::query("DROP TABLE IF EXISTS supplier_pharma_template")
-            .execute(pool)
+            .execute(&mut *fk)
             .await
             .map_err(AppError::Database)?;
         sqlx::query("PRAGMA foreign_keys = ON")
-            .execute(pool)
+            .execute(&mut *fk)
             .await
             .map_err(AppError::Database)?;
+        let fk_bad: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM pragma_foreign_key_check")
+            .fetch_one(&mut *fk)
+            .await
+            .map_err(AppError::Database)?;
+        if fk_bad > 0 {
+            return Err(AppError::Internal(format!(
+                "foreign_key_check reported {fk_bad} violations after supplier template rebuild"
+            )));
+        }
         sqlx::query(
             "CREATE TABLE supplier_pharma_template (
             id TEXT PRIMARY KEY,
@@ -715,6 +725,10 @@ pub async fn run_legacy_embedded_migrations(pool: &SqlitePool) -> Result<(), App
             "ALTER TABLE payment ADD COLUMN cash_verified INTEGER NOT NULL DEFAULT 0",
             "cash_verified",
         ),
+        (
+            "ALTER TABLE payment ADD COLUMN updated_at TEXT",
+            "payment_updated_at",
+        ),
     ] {
         match sqlx::query(sql).execute(pool).await {
             Ok(_) => {}
@@ -749,6 +763,10 @@ pub async fn run_legacy_embedded_migrations(pool: &SqlitePool) -> Result<(), App
         (
             "ALTER TABLE staff ADD COLUMN totp_enrolled_at TEXT",
             "totp_enrolled_at",
+        ),
+        (
+            "ALTER TABLE staff ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0",
+            "token_version",
         ),
     ] {
         match sqlx::query(sql).execute(pool).await {
@@ -1112,7 +1130,85 @@ pub async fn run_legacy_embedded_migrations(pool: &SqlitePool) -> Result<(), App
     .execute(pool)
     .await?;
 
+    ensure_patient_columns_for_seed(pool).await?;
+    ensure_staff_columns_for_seed(pool).await?;
+    // Demo seed (and F144 tests that stop at the legacy schema) insert work-time
+    // rows; those tables are created in rust_only on a full upgrade.
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS work_time_session (
+            id TEXT PRIMARY KEY,
+            staff_id TEXT NOT NULL REFERENCES staff(id),
+            started_at TEXT NOT NULL,
+            ended_at TEXT,
+            pause_started_at TEXT,
+            status TEXT NOT NULL CHECK (status IN ('RUNNING','PAUSED','ENDED')),
+            auto_recorded INTEGER NOT NULL DEFAULT 0 CHECK (auto_recorded IN (0, 1)),
+            end_reason TEXT,
+            pause_minutes INTEGER NOT NULL DEFAULT 0
+        )",
+    )
+    .execute(pool)
+    .await?;
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS work_time_pause_segment (
+            id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL REFERENCES work_time_session(id) ON DELETE CASCADE,
+            started_at TEXT NOT NULL,
+            ended_at TEXT
+        )",
+    )
+    .execute(pool)
+    .await?;
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS work_time_preference (
+            staff_id TEXT PRIMARY KEY REFERENCES staff(id) ON DELETE CASCADE,
+            focus_mode INTEGER NOT NULL DEFAULT 0 CHECK (focus_mode IN (0, 1)),
+            auto_record_on_login INTEGER NOT NULL DEFAULT 0 CHECK (auto_record_on_login IN (0, 1)),
+            auto_record_on_logout INTEGER NOT NULL DEFAULT 0 CHECK (auto_record_on_logout IN (0, 1))
+        )",
+    )
+    .execute(pool)
+    .await?;
     seed::run_post_migration_seed(pool).await?;
 
+    Ok(())
+}
+
+async fn ensure_staff_columns_for_seed(pool: &SqlitePool) -> Result<(), AppError> {
+    for sql in [
+        "ALTER TABLE staff ADD COLUMN activity_area TEXT",
+        "ALTER TABLE staff ADD COLUMN specialty TEXT",
+        "ALTER TABLE staff ADD COLUMN phone TEXT",
+        "ALTER TABLE staff ADD COLUMN available INTEGER NOT NULL DEFAULT 1",
+        "ALTER TABLE staff ADD COLUMN totp_secret TEXT",
+        "ALTER TABLE staff ADD COLUMN totp_enrolled_at TEXT",
+        "ALTER TABLE staff ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE staff ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+        "ALTER TABLE staff ADD COLUMN updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+    ] {
+        let _ = sqlx::query(sql).execute(pool).await;
+    }
+    Ok(())
+}
+
+async fn ensure_patient_columns_for_seed(pool: &SqlitePool) -> Result<(), AppError> {
+    for sql in [
+        "ALTER TABLE patient ADD COLUMN insurance_number TEXT",
+        "ALTER TABLE patient ADD COLUMN phone TEXT",
+        "ALTER TABLE patient ADD COLUMN email TEXT",
+        "ALTER TABLE patient ADD COLUMN address TEXT",
+        "ALTER TABLE patient ADD COLUMN status TEXT NOT NULL DEFAULT 'NEW'",
+        "ALTER TABLE patient ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+        "ALTER TABLE patient ADD COLUMN updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+    ] {
+        let _ = sqlx::query(sql).execute(pool).await;
+    }
+    sqlx::query(
+        "UPDATE patient SET insurance_number = 'LEGACY-' || id
+         WHERE insurance_number IS NULL OR TRIM(insurance_number) = ''",
+    )
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?;
     Ok(())
 }

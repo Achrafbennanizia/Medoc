@@ -24,6 +24,8 @@ import type { FontStackId } from "./font-stack-preset";
 
 export type Locale = "de" | "en" | "fr" | "ar";
 
+export type PluralCategory = "zero" | "one" | "two" | "few" | "many" | "other";
+
 /** UI language picker order (English code, translated labels in catalogs). */
 export const SUPPORTED_LOCALES: readonly Locale[] = ["en", "de", "fr", "ar"];
 
@@ -79,6 +81,28 @@ const catalogs: Record<Locale, Record<string, string>> = {
     ar: arCatalog as Record<string, string>,
 };
 
+/** Arabic dual/few/other; other locales use one vs other. */
+export function pluralCategory(locale: Locale, n: number): PluralCategory {
+    const abs = Math.abs(Math.trunc(n));
+    if (locale === "ar") {
+        if (abs === 0) return "zero";
+        if (abs === 1) return "one";
+        if (abs === 2) return "two";
+        const mod100 = abs % 100;
+        if (mod100 >= 3 && mod100 <= 10) return "few";
+        if (mod100 >= 11 && mod100 <= 99) return "many";
+        return "other";
+    }
+    return abs === 1 ? "one" : "other";
+}
+
+/** Read `prefix.one` / `.two` / `.few` / `.other` from the flat catalog (not i18next nesting). */
+export function translatePluralUnit(locale: Locale, keyPrefix: string, n: number): string {
+    const cat = pluralCategory(locale, n);
+    const pack = catalogs[locale];
+    return pack[`${keyPrefix}.${cat}`] ?? pack[`${keyPrefix}.other`] ?? catalogs.en[`${keyPrefix}.other`] ?? "";
+}
+
 let i18nReady = false;
 
 function ensureI18n() {
@@ -92,7 +116,7 @@ function ensureI18n() {
         },
         lng: "en",
         fallbackLng: "en",
-        keySeparator: ".",
+        keySeparator: false,
         interpolation: { escapeValue: false },
         returnEmptyString: false,
     });

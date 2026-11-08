@@ -43,6 +43,7 @@ async fn physician_slot_conflict_detects_duplicate() {
         time,
         physician_id: physician,
         exclude_appointment_id: None,
+        duration_minutes: 30,
     };
     assert!(
         conflict::has_physician_slot_conflict(&pool, q)
@@ -56,6 +57,7 @@ async fn physician_slot_conflict_detects_duplicate() {
         time,
         physician_id: physician,
         exclude_appointment_id: Some("t-conflict-a"),
+        duration_minutes: 30,
     };
     assert!(
         !conflict::has_physician_slot_conflict(&pool, q2)

@@ -9,6 +9,18 @@ export function ipcErrorRaw(err: unknown): string {
     return String(err);
 }
 
+/** Stable machine code for IPC errors (`FEATURE_DISABLED`, `error.app.*`). */
+export function ipcErrorCode(err: unknown): string | null {
+    const raw = ipcErrorRaw(err).trim();
+    if (raw === "FEATURE_DISABLED" || raw.startsWith("FEATURE_DISABLED|")) {
+        return "FEATURE_DISABLED";
+    }
+    const coded = parseCodedError(raw);
+    if (coded) return coded.key;
+    if (ERROR_KEY_RE.test(raw)) return raw;
+    return null;
+}
+
 function parseCodedError(raw: string): { key: string; params: Record<string, string> } | null {
     const pipe = raw.indexOf("|");
     if (pipe <= 0) return null;

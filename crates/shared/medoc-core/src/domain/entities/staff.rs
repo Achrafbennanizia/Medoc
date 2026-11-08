@@ -32,6 +32,9 @@ pub struct Staff {
     #[serde(skip_serializing)]
     pub totp_secret: Option<String>,
     pub totp_enrolled_at: Option<NaiveDateTime>,
+    /// Incremented when the password changes so older LAN tokens stop working.
+    #[serde(default, skip_serializing)]
+    pub token_version: i64,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
 }

@@ -11,7 +11,7 @@ import {
 } from "@/systems/practice-host/controllers/day-close-protocol.controller";
 import { listPaymentsPaged } from "@/systems/practice-host/controllers/payment.controller";
 import { errorMessage, formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
-import { paymentLocalYmd } from "@/lib/day-close";
+import { parseDbUtc, paymentLocalYmd } from "@/lib/day-close";
 import { downloadDayCloseReportPdf } from "@/lib/day-close-invoice-pdf";
 import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "@/models/store/auth-store";
@@ -37,8 +37,7 @@ async function loadAllPaymentsPaged(): Promise<Payment[]> {
         all = mergeUniqueById(all, resp.items);
         if (resp.items.length === 0 || page * resp.pageSize >= total) break;
         page += 1;
-        // Safety: don't loop forever on pathological totals
-        if (page > 200) break;
+        // F78: no fixed page cap (it silently dropped older days); stop on an empty page.
     }
     return all;
 }
@@ -297,7 +296,7 @@ export function DayClosePage() {
                                             {paymentsAmAsOfDate.map((z) => (
                                                 <tr key={z.id}>
                                                     <td>
-                                                        {new Date(z.created_at.trim().replace(" ", "T")).toLocaleTimeString(timeLocale, {
+                                                        {parseDbUtc(z.created_at).toLocaleTimeString(timeLocale, {
                                                             hour: "2-digit",
                                                             minute: "2-digit",
                                                         })}

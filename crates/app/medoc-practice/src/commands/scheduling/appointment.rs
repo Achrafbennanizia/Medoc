@@ -50,6 +50,39 @@ pub async fn list_appointments_paged(
     })
 }
 
+/// F63: all appointments in the visible calendar range (local dates, inclusive).
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
+pub async fn list_appointments_in_range(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    from_date: String,
+    to_date: String,
+) -> Result<Vec<Appointment>, AppError> {
+    rbac::require(&session_state, "appointment.read")?;
+    appointment_repo::find_in_range(&pool, &from_date, &to_date).await
+}
+
+/// F70: drag-move of one or more appointments, all or nothing.
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, changes))]
+pub async fn move_appointments(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    changes: Vec<crate::domain::entities::appointment::AppointmentMove>,
+) -> Result<Vec<Appointment>, AppError> {
+    let session = rbac::require(&session_state, "appointment.write")?;
+    let moved = appointment_repo::move_many(&pool, &changes).await?;
+    for a in &moved {
+        if let Err(e) =
+            audit_repo::create(&pool, &session.user_id, "UPDATE", "Appointment", Some(&a.id), None).await
+        {
+            tracing::warn!(target: "medoc::security", event = "AUDIT_WRITE_FAILED", error = %e);
+        }
+    }
+    Ok(moved)
+}
+
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state))]
 pub async fn get_appointment(
@@ -168,6 +201,8 @@ macro_rules! register_appointment_commands {
     () => {
         $crate::commands::appointment_commands::list_appointments,
         $crate::commands::appointment_commands::list_appointments_paged,
+        $crate::commands::appointment_commands::list_appointments_in_range,
+        $crate::commands::appointment_commands::move_appointments,
         $crate::commands::appointment_commands::get_appointment,
         $crate::commands::appointment_commands::create_appointment,
         $crate::commands::appointment_commands::update_appointment,

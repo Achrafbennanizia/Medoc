@@ -3,6 +3,8 @@ import {
     localeCatalogKeys,
     translateLocale,
     translateLocaleParams,
+    translatePluralUnit,
+    pluralCategory,
     isRtlLocale,
     bcp47ForLocale,
     type Locale,
@@ -87,6 +89,44 @@ describe("i18n locale parity", () => {
         const shown = translateLocaleParams("ar", "settings.pairing.confirm_code", { pin: "0482" });
         expect(shown).toContain("0482");
         expect(shown).not.toMatch(/[٠-٩۰-۹]/);
+    });
+
+    it("plural units inflect calendar days and payments", () => {
+        expect(translatePluralUnit("en", "document.print.day_unit", 1)).toBe("calendar day");
+        expect(translatePluralUnit("en", "document.print.day_unit", 5)).toBe("calendar days");
+        expect(translatePluralUnit("de", "document.print.day_unit", 1)).toBe("Kalendertag");
+        expect(translatePluralUnit("de", "document.print.day_unit", 5)).toBe("Kalendertage");
+        expect(translatePluralUnit("fr", "document.print.day_unit", 1)).toBe("jour calendaire");
+        expect(translatePluralUnit("fr", "document.print.day_unit", 5)).toBe("jours calendaires");
+        expect(translatePluralUnit("ar", "document.print.day_unit", 1)).toBe("يوم");
+        expect(translatePluralUnit("ar", "document.print.day_unit", 2)).toBe("يومان");
+        expect(translatePluralUnit("ar", "document.print.day_unit", 5)).toBe("أيام");
+        expect(translatePluralUnit("ar", "document.print.day_unit", 11)).toBe("يوماً");
+        expect(translatePluralUnit("ar", "document.print.day_unit", 0)).toBe("يوم");
+        expect(pluralCategory("ar", 0)).toBe("zero");
+        expect(pluralCategory("ar", 11)).toBe("many");
+        expect(pluralCategory("ar", 100)).toBe("other");
+        expect(translatePluralUnit("de", "page.finance_cash.payment_unit", 2)).toBe("Zahlungen");
+        expect(translateLocaleParams("ar", "document.print.validity_period", {
+            from: "1",
+            to: "5",
+            days: 5,
+            unit: translatePluralUnit("ar", "document.print.day_unit", 5),
+        })).toContain("5 أيام");
+        expect(translateLocaleParams("de", "document.print.validity_period", {
+            from: "1",
+            to: "5",
+            days: 5,
+            unit: translatePluralUnit("de", "document.print.day_unit", 5),
+        })).toContain("5 Kalendertage");
+        expect(translateLocaleParams("ar", "document.print.validity_period", {
+            from: "1",
+            to: "5",
+            days: 5,
+            unit: translatePluralUnit("ar", "document.print.day_unit", 5),
+        })).not.toMatch(/s/);
+        expect(translatePluralUnit("ar", "page.finance_cash.payment_unit", 3)).toBe("دفعات");
+        expect(translatePluralUnit("ar", "page.finance_cash.payment_unit", 11)).toBe("دفعة");
     });
 
     it("RTL locale helper marks Arabic", () => {

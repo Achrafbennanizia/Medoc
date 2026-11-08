@@ -101,6 +101,7 @@ pub async fn create_payment(
     data: CreatePayment,
 ) -> Result<Payment, AppError> {
     let session = rbac::require(&session_state, "finance.write")?;
+    payment_repo::ensure_released_for_payment(&pool, &session.user_id, &data).await?;
     let z = payment_repo::create(&pool, &data).await?;
     audit_repo::create(
         &pool,

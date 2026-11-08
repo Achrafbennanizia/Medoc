@@ -7,9 +7,17 @@ import {
     SYSTEM_OPS_EXTRAS_ENABLED,
     SYSTEM_SERVERLESS_FOCUS_ENABLED,
 } from "@/lib/settings-ui-flags";
-import { withNetworkHiddenInSettings, type ClientSettingsV1 } from "@/lib/client-settings";
+import {
+    DEFAULT_CLIENT_SETTINGS,
+    mergeClientSettingsPatch,
+    withNetworkHiddenInSettings,
+    type ClientSettingsV1,
+} from "@/lib/client-settings";
+import { persistAutocompleteSuggestionsToPracticeKv } from "@/lib/practice-search-prefs-sync";
+import { errorMessage } from "@/lib/utils";
 import { SettingsSwitch } from "@/views/components/settings-switch";
-import { useT } from "@/lib/i18n";
+import { useToastStore } from "@/views/components/ui/toast-store";
+import { useT, useTParams } from "@/lib/i18n";
 import { SettingsCompanyPortalSection } from "@/systems/company-portal/pages/settings-company-portal-section";
 import { SettingsLanHostSection } from "@/systems/lan/pages/settings-lan-host";
 import { SettingsDeploymentSection } from "@/systems/practice-host/pages/settings/settings-deployment-section";
@@ -17,18 +25,137 @@ import { SettingsPairingInbox } from "@/systems/practice-host/pages/settings/set
 import { DeviceClusterPanel } from "@/systems/practice-host/pages/settings/device-cluster-panel";
 import { SettingsNetworkResetSection } from "@/systems/practice-host/pages/settings/settings-network-reset-section";
 
+type WorkflowPrefs = NonNullable<ClientSettingsV1["workflows"]>;
+type SearchPrefs = NonNullable<ClientSettingsV1["search"]>;
+
 export type SettingsSystemSectionProps = {
     canOpsSystem: boolean;
     hideNetwork: boolean;
     onPersistClient: (updater: (c: ClientSettingsV1) => ClientSettingsV1) => void;
+    calendarDragDropEnabled: boolean;
+    onCalendarDragDrop: (enabled: boolean) => void;
+    workflows: WorkflowPrefs;
+    searchPrefs: SearchPrefs;
 };
+
+function PracticeDesktopSettings({
+    canOpsSystem,
+    calendarDragDropEnabled,
+    onCalendarDragDrop,
+    workflows,
+    searchPrefs,
+    onPersistClient,
+}: Omit<SettingsSystemSectionProps, "hideNetwork">) {
+    const t = useT();
+    const tp = useTParams();
+    const toast = useToastStore((s) => s.add);
+    return (
+        <section className="settings-subcard settings-subcard--segment-safe settings-system-section">
+            <div className="card-head">
+                <div>
+                    <div className="card-title">{t("settings.workflows.appointment_rules_title")}</div>
+                </div>
+            </div>
+            {canOpsSystem ? (
+                <div className="settings-row settings-row--wrap">
+                    <div className="settings-row__label">
+                        <b>{t("settings.workflows.calendar_drag")}</b>
+                        <div className="card-sub">{t("settings.workflows.calendar_drag_hint")}</div>
+                    </div>
+                    <SettingsSwitch
+                        ariaLabel={t("settings.workflows.calendar_drag")}
+                        checked={calendarDragDropEnabled}
+                        onChange={onCalendarDragDrop}
+                    />
+                </div>
+            ) : null}
+            <div className="settings-row settings-row--wrap">
+                <div className="settings-row__label">
+                    <b>{t("settings.workflows.search_insurance_title")}</b>
+                    <div className="card-sub">{t("settings.workflows.search_insurance_hint")}</div>
+                </div>
+                <SettingsSwitch
+                    ariaLabel={t("settings.workflows.search_insurance_aria")}
+                    checked={searchPrefs.patientIncludeInsuranceNumber !== false}
+                    onChange={(next) =>
+                        onPersistClient((c) => {
+                            const s = c.search ?? DEFAULT_CLIENT_SETTINGS.search!;
+                            return mergeClientSettingsPatch(c, {
+                                search: { ...s, patientIncludeInsuranceNumber: next },
+                            });
+                        })
+                    }
+                />
+            </div>
+            {canOpsSystem ? (
+                <div className="settings-row settings-row--wrap">
+                    <div className="settings-row__label">
+                        <b>{t("settings.workflows.autocomplete_title")}</b>
+                        <div className="card-sub">{t("settings.workflows.autocomplete_hint")}</div>
+                    </div>
+                    <SettingsSwitch
+                        ariaLabel={t("settings.workflows.autocomplete_aria")}
+                        checked={searchPrefs.autocompleteSuggestionsEnabled !== false}
+                        onChange={(next) => {
+                            void persistAutocompleteSuggestionsToPracticeKv(next).catch((e) => {
+                                toast(tp("settings.workflows.autocomplete_save_failed", { error: errorMessage(e) }), "warning");
+                            });
+                            onPersistClient((c) => {
+                                const s = c.search ?? DEFAULT_CLIENT_SETTINGS.search!;
+                                return mergeClientSettingsPatch(c, {
+                                    search: { ...s, autocompleteSuggestionsEnabled: next },
+                                });
+                            });
+                        }}
+                    />
+                </div>
+            ) : null}
+            <div className="settings-row settings-row--wrap">
+                <div className="settings-row__label">
+                    <b>{t("settings.workflows.appointment_confirm")}</b>
+                    <div className="card-sub">
+                        {workflows.appointmentConfirmMode === "auto"
+                            ? t("settings.workflows.appointment_confirm_auto")
+                            : t("settings.workflows.appointment_confirm_manual")}
+                    </div>
+                </div>
+                <SettingsSwitch
+                    ariaLabel={t("settings.workflows.appointment_confirm")}
+                    checked={workflows.appointmentConfirmMode === "auto"}
+                    onChange={(next) =>
+                        onPersistClient((c) => {
+                            const w = c.workflows ?? DEFAULT_CLIENT_SETTINGS.workflows!;
+                            return mergeClientSettingsPatch(c, {
+                                workflows: { ...w, appointmentConfirmMode: next ? "auto" : "manual" },
+                            });
+                        })
+                    }
+                />
+            </div>
+        </section>
+    );
+}
 
 export function SettingsSystemSection({
     canOpsSystem,
     hideNetwork,
     onPersistClient,
+    calendarDragDropEnabled,
+    onCalendarDragDrop,
+    workflows,
+    searchPrefs,
 }: SettingsSystemSectionProps) {
     const t = useT();
+    const desktopSettings = (
+        <PracticeDesktopSettings
+            canOpsSystem={canOpsSystem}
+            calendarDragDropEnabled={calendarDragDropEnabled}
+            onCalendarDragDrop={onCalendarDragDrop}
+            workflows={workflows}
+            searchPrefs={searchPrefs}
+            onPersistClient={onPersistClient}
+        />
+    );
 
     const hideToggle = (
         <div className="settings-row settings-row--wrap settings-row--network-hide">
@@ -46,6 +173,7 @@ export function SettingsSystemSection({
 
     if (SYSTEM_SERVERLESS_FOCUS_ENABLED) {
         return (
+            <>
             <section className="settings-subcard settings-subcard--segment-safe settings-system-section">
                 <div className="card-head">
                     <div>
@@ -64,10 +192,13 @@ export function SettingsSystemSection({
                     </div>
                 )}
             </section>
+            {desktopSettings}
+            </>
         );
     }
 
     return (
+        <>
         <section className="settings-subcard settings-subcard--segment-safe settings-system-section">
             <div className="card-head">
                 <div>
@@ -101,5 +232,7 @@ export function SettingsSystemSection({
                 </p>
             ) : null}
         </section>
+        {desktopSettings}
+        </>
     );
 }

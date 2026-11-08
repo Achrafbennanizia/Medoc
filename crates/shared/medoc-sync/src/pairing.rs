@@ -91,6 +91,13 @@ pub async fn confirm_pin(
         .await
 }
 
+pub async fn clear_device_activation(
+    pool: &SqlitePool,
+    device_or_fingerprint: &str,
+) -> Result<(), AppError> {
+    store::clear_device_activation(pool, device_or_fingerprint).await
+}
+
 pub async fn revoke(
     pool: &SqlitePool,
     master_device_id: &str,

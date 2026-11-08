@@ -1171,20 +1171,22 @@ export function StatisticsPage() {
                     className="dashboard-kpis"
                     style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}
                 >
-                    <StatOverviewCard
-                        label={t("page.statistics.kpi.patients_total")}
-                        value={stats.patients_total.toLocaleString(intlTag)}
-                        icon="Users"
-                        accent="var(--accent)"
-                        sub={patientDeltaPct}
-                        trend={
-                            dash.patientMomPct != null && dash.patientMomPct > 0
-                                ? "positive"
-                                : dash.patientMomPct != null && dash.patientMomPct < 0
-                                    ? "negative"
-                                    : "neutral"
-                        }
-                    />
+                    {stats.patients_total != null && (
+                        <StatOverviewCard
+                            label={t("page.statistics.kpi.patients_total")}
+                            value={(stats.patients_total ?? 0).toLocaleString(intlTag)}
+                            icon="Users"
+                            accent="var(--accent)"
+                            sub={patientDeltaPct}
+                            trend={
+                                dash.patientMomPct != null && dash.patientMomPct > 0
+                                    ? "positive"
+                                    : dash.patientMomPct != null && dash.patientMomPct < 0
+                                        ? "negative"
+                                        : "neutral"
+                            }
+                        />
+                    )}
                     <StatOverviewCard
                         label={t("page.statistics.kpi.new_patients")}
                         value={Math.round(dash.newCur).toLocaleString(intlTag)}
@@ -1227,13 +1229,15 @@ export function StatisticsPage() {
                     />
                 </div>
 
-                <p className="page-sub" style={{ margin: 0, fontSize: 12.5 }}>
-                    {t("page.statistics.kpi.calendar_month")} <b>{formatCurrency(stats.income_current_month)}</b>
-                    {" "}
-                    <span style={{ color: "var(--fg-4)" }}>
-                        {t("page.statistics.kpi.calendar_month_hint")}
-                    </span>
-                </p>
+                {stats.income_current_month != null && (
+                    <p className="page-sub" style={{ margin: 0, fontSize: 12.5 }}>
+                        {t("page.statistics.kpi.calendar_month")} <b>{formatCurrency(stats.income_current_month ?? 0)}</b>
+                        {" "}
+                        <span style={{ color: "var(--fg-4)" }}>
+                            {t("page.statistics.kpi.calendar_month_hint")}
+                        </span>
+                    </p>
+                )}
 
                 <div className="statistics-overview-charts">
                     <Card>
@@ -1334,14 +1338,16 @@ export function StatisticsPage() {
                         sub={t("page.statistics.kpi.appointments_sum_sub")}
                         trend="neutral"
                     />
-                    <StatOverviewCard
-                        label={t("page.statistics.kpi.low_stock")}
-                        value={stats.products_low.toLocaleString(intlTag)}
-                        icon="Package"
-                        accent={stats.products_low > 0 ? "#FF3B30" : "#FF9500"}
-                        sub={stats.products_low > 0 ? t("page.statistics.kpi.low_stock_alert") : t("page.statistics.kpi.low_stock_ok")}
-                        trend={stats.products_low > 0 ? "negative" : "neutral"}
-                    />
+                    {stats.products_low != null && (
+                        <StatOverviewCard
+                            label={t("page.statistics.kpi.low_stock")}
+                            value={(stats.products_low ?? 0).toLocaleString(intlTag)}
+                            icon="Package"
+                            accent={(stats.products_low ?? 0) > 0 ? "#FF3B30" : "#FF9500"}
+                            sub={(stats.products_low ?? 0) > 0 ? t("page.statistics.kpi.low_stock_alert") : t("page.statistics.kpi.low_stock_ok")}
+                            trend={(stats.products_low ?? 0) > 0 ? "negative" : "neutral"}
+                        />
+                    )}
                     <StatOverviewCard
                         label={tp("page.statistics.kpi.treatments_sum", { period: periodLabel })}
                         value={trimmedTreatments.reduce((s, m) => s + m.value, 0).toLocaleString(intlTag)}

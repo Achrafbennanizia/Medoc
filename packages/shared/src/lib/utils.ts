@@ -32,6 +32,22 @@ export function errorMessage(e: unknown): string {
     return formatIpcError(e);
 }
 
+/** The main device did not accept a connection. Not a settings or HTTPS failure. */
+export function masterDeviceUnreachable(message: string): boolean {
+    const lower = message.toLowerCase();
+    return (
+        lower.includes("connection refused") ||
+        lower.includes("cluster connect") ||
+        lower.includes("cluster auth connect") ||
+        lower.includes("cluster sas connect") ||
+        lower.includes("master unreachable") ||
+        lower.includes("os error 61") ||
+        lower.includes("timed out") ||
+        lower.includes("network is unreachable") ||
+        lower.includes("no route to host")
+    );
+}
+
 function resolveLocaleTag(locale?: Locale): string {
     return bcp47ForLocale(locale ?? useLocale.getState().locale);
 }

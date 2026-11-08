@@ -118,11 +118,19 @@ pub async fn activate_cluster_license(
     let device_id = license_repo::ensure_device_id(pool).await?;
     let status = license::verify(&license_key, &device_id);
     if !status.valid {
-        return Err(AppError::Validation(
-            status
-                .reason
-                .unwrap_or_else(|| "License key is not valid for this PC.".into()),
-        ));
+        let reason = status
+            .reason
+            .unwrap_or_else(|| "License key is not valid for this PC.".into());
+        tracing::warn!(
+            target: "medoc::system",
+            event = "LICENSE_ACTIVATE_REJECTED",
+            reason = %reason,
+            "license rejected"
+        );
+        if let Some(code) = license::user_license_error_code(&reason) {
+            return Err(AppError::validation_code(code));
+        }
+        return Err(AppError::Validation(reason));
     }
     match status.format.as_deref() {
         Some("v2") => license_repo::store_v2(pool, &license_key).await?,
@@ -657,6 +665,16 @@ mod tests {
         crate::cluster::services::store_join_admin_endpoint(&pool, "192.168.1.10", 49300)
             .await
             .expect("admin endpoint");
+        let pin = "ab".repeat(32);
+        crate::cluster::services::store_join_lan_auth(
+            &pool,
+            Some("mt2.pending"),
+            Some("pk"),
+            Some("master-device"),
+            Some(&pin),
+        )
+        .await
+        .expect("lan auth");
 
         let before = cluster_status(&pool).await.expect("before");
         assert!(before.is_owner);
@@ -675,7 +693,9 @@ mod tests {
             .await
             .expect("deployment");
         assert_eq!(snap.deployment.role, crate::deployment::DeviceRole::Replica);
+        // No HTTP port stored from the join reply: default LAN port, never the cluster port.
         assert_eq!(snap.deployment.master_base_url, "https://192.168.1.10:8787");
+        assert_eq!(snap.deployment.master_cert_sha256, pin);
         let setup = medoc_core::infrastructure::database::app_kv_repo::get(
             &pool,
             "onboarding.setup_complete.v1",
@@ -683,6 +703,16 @@ mod tests {
         .await
         .expect("kv");
         assert_eq!(setup.as_deref(), Some("1"));
+
+        // F24: the main device's LAN port from the join reply wins over the default.
+        crate::cluster::services::store_join_http_port(&pool, Some(9443))
+            .await
+            .expect("store http port");
+        crate::cluster::services::activate_replica_after_sas_confirm(&pool)
+            .await
+            .expect("re-activate");
+        let snap = crate::engine::SyncEngine::status(&pool).await.expect("deployment");
+        assert_eq!(snap.deployment.master_base_url, "https://192.168.1.10:9443");
 
         std::env::remove_var("MEDOC_CLUSTER_DEVICE_SECRET");
         std::env::remove_var("MEDOC_PAIRING_MASTER_SECRET");

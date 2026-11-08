@@ -22,7 +22,7 @@ import { Button } from "@/views/components/ui/button";
 import { Input } from "@/views/components/ui/input";
 import { useToastStore } from "@/views/components/ui/toast-store";
 import { useT } from "@/lib/i18n";
-import { errorMessage, formatTpl } from "@/lib/utils";
+import { errorMessage, formatTpl, masterDeviceUnreachable } from "@/lib/utils";
 
 /** Inline switch matching Settings — duplicated minimally to avoid exporting private helper from settings.tsx */
 function Switch({
@@ -122,7 +122,17 @@ export function SettingsLanHostSection({ embedded = false }: { embedded?: boolea
             setStatus(s);
             toast(t("page.lan.host.toast.started"), "success");
         } catch (e) {
-            toast(formatTpl(t("page.lan.host.toast.start_err"), { error: errorMessage(e) }), "error");
+            const raw = errorMessage(e);
+            const lower = raw.toLowerCase();
+            if (lower.includes("lan listen is disabled") || lower.includes("do not run a lan server")) {
+                return;
+            }
+            toast(
+                masterDeviceUnreachable(raw)
+                    ? t("page.lan.cluster_join.toast.connect_failed")
+                    : formatTpl(t("page.lan.host.toast.start_err"), { error: raw }),
+                "error",
+            );
         } finally {
             setBusy(false);
         }

@@ -48,17 +48,20 @@ pub async fn clear(pool: &SqlitePool) -> Result<(), AppError> {
 pub async fn ensure_device_id(pool: &SqlitePool) -> Result<String, AppError> {
     if let Some(existing) = app_kv_repo::get(pool, "sync.device_id.v1")
         .await?
-        .filter(|s| !s.is_empty())
+        .filter(|s| !s.trim().is_empty())
     {
         return Ok(existing);
     }
-    if let Some(legacy) = app_kv_repo::get(pool, KEY_DEVICE_ID).await? {
-        if !legacy.is_empty() {
-            return Ok(legacy);
-        }
+    if let Some(legacy) = app_kv_repo::get(pool, KEY_DEVICE_ID)
+        .await?
+        .filter(|s| !s.trim().is_empty())
+    {
+        app_kv_repo::set(pool, "sync.device_id.v1", &legacy).await?;
+        return Ok(legacy);
     }
     let id = uuid::Uuid::new_v4().to_string();
     app_kv_repo::set(pool, KEY_DEVICE_ID, &id).await?;
+    app_kv_repo::set(pool, "sync.device_id.v1", &id).await?;
     Ok(id)
 }
 

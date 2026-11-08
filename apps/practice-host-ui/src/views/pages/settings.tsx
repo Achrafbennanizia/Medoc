@@ -47,7 +47,6 @@ import { Dialog } from "../components/ui/dialog";
 import { SettingsPracticeSection } from "@/systems/practice-host/pages/settings/settings-practice-section";
 import { SettingsNotificationsSection } from "@/systems/practice-host/pages/settings/settings-notifications-section";
 import { SettingsAppearanceSection } from "@/systems/practice-host/pages/settings/settings-appearance-section";
-import { SettingsWorkflowsSection } from "@/systems/practice-host/pages/settings/settings-workflows-section";
 import { SettingsAccountSection } from "@/systems/practice-host/pages/settings/settings-account-section";
 import { SettingsSecuritySection } from "@/systems/practice-host/pages/settings/settings-security-section";
 import { SettingsSystemSection } from "@/systems/practice-host/pages/settings/settings-system-section";
@@ -55,7 +54,7 @@ import { SettingsMigrationSection } from "@/systems/practice-host/pages/settings
 import { SettingsAboutSection } from "@/systems/practice-host/pages/settings/settings-about-section";
 import { SettingsLicenseSection } from "@/systems/practice-host/pages/settings/settings-license-section";
 import { SettingsIntegrationsSection } from "@/systems/practice-host/pages/settings/settings-integrations-section";
-import { StethoscopeIcon, UsersIcon, BellIcon, ShieldIcon, KeyRoundIcon, BoltIcon, DownloadIcon, SunIcon, SlidersHorizontalIcon, SettingsIcon, InfoIcon, ICON_SIZE_LG } from "@/lib/icons";
+import { StethoscopeIcon, UsersIcon, BellIcon, ShieldIcon, KeyRoundIcon, BoltIcon, DownloadIcon, SunIcon, SettingsIcon, InfoIcon, ICON_SIZE_LG } from "@/lib/icons";
 import { errorMessage } from "@/lib/utils";
 
 const SETTINGS_BREADCRUMB_FALLBACK = "settings.breadcrumb_fallback";
@@ -73,7 +72,6 @@ const TAB_QUERY: Record<SettingsSection, string> = {
     integrations: "integrations",
     migration: "migration",
     appearance: "appearance",
-    workflows: "workflows",
     system: "system",
     about: "about",
 };
@@ -110,7 +108,6 @@ export function SettingsPage() {
         return () => window.removeEventListener("medoc-calendar-workflows-changed", onWorkflows);
     }, []);
     const [prefs, setPrefs] = useState<PracticePreferences>(() => ({ ...DEFAULT_PRACTICE_PREFERENCES }));
-    const [prefsDirty, setPrefsDirty] = useState(false);
 
     const [oldPw, setOldPw] = useState("");
     const [newPw, setNewPw] = useState("");
@@ -137,7 +134,7 @@ export function SettingsPage() {
     useEffect(() => {
         const t = searchParams.get("tab");
         if (!t) return;
-        if (t === "export") {
+        if (t === "export" || t === "workflows") {
             setActiveSection("system");
             setSearchParams({ tab: TAB_QUERY.system }, { replace: true });
             return;
@@ -149,10 +146,7 @@ export function SettingsPage() {
     useEffect(() => {
         let cancelled = false;
         void hydratePracticePreferencesFromKv().then((version) => {
-            if (!cancelled) {
-                setPrefs(version);
-                setPrefsDirty(false);
-            }
+            if (!cancelled) setPrefs(version);
         });
         return () => {
             cancelled = true;
@@ -292,11 +286,23 @@ export function SettingsPage() {
         }
     }
 
-    const savePrefs = async () => {
+    const setCalendarDragDrop = async (enabled: boolean) => {
+        const previous = prefs.calendarDragDropEnabled;
+        const next = { ...prefs, calendarDragDropEnabled: enabled };
+        setPrefs(next);
         try {
-            await savePracticePreferences(prefs);
-            setPrefsDirty(false);
-            toast(t("settings.prefs.saved"), "success");
+            await savePracticePreferences(next);
+            toast(t("settings.prefs.saved"), "success", {
+                onUndo: async () => {
+                    const rolled = { ...next, calendarDragDropEnabled: previous };
+                    setPrefs(rolled);
+                    try {
+                        await savePracticePreferences(rolled);
+                    } catch (err) {
+                        toast(tp("settings.prefs.save_failed", { message: errorMessage(err) }), "error");
+                    }
+                },
+            });
         } catch (e) {
             toast(tp("settings.prefs.save_failed", { message: errorMessage(e) }), "error");
         }
@@ -322,7 +328,6 @@ export function SettingsPage() {
     ];
 
     const advancedNavAll: Array<{ id: SettingsSection; labelKey: string; icon: FC<{ size?: number }> }> = [
-        { id: "workflows", labelKey: "settings.nav.workflows", icon: SlidersHorizontalIcon },
         { id: "system", labelKey: "settings.nav.system", icon: SettingsIcon },
         { id: "about", labelKey: "settings.nav.about", icon: InfoIcon },
     ];
@@ -408,7 +413,6 @@ export function SettingsPage() {
                     {canSettingsSection(activeSection) && activeSection === "practice" ? (
                         <SettingsPracticeSection
                             sessionUserId={session?.user_id}
-                            onOpenWorkflows={() => setSection("workflows")}
                             canEditPractice={canOpsSystem}
                         />
                     ) : null}
@@ -476,25 +480,15 @@ export function SettingsPage() {
                         />
                     ) : null}
 
-                    {canSettingsSection(activeSection) && activeSection === "workflows" ? (
-                        <SettingsWorkflowsSection
-                            prefs={prefs}
-                            prefsDirty={prefsDirty}
-                            onPrefsChange={setPrefs}
-                            onPrefsDirty={() => setPrefsDirty(true)}
-                            onSavePrefs={savePrefs}
-                            workflows={wf}
-                            searchPrefs={searchPrefs}
-                            onPersistClient={persistClientSilent}
-                            role={session?.role}
-                        />
-                    ) : null}
-
                     {canSettingsSection(activeSection) && activeSection === "system" ? (
                         <SettingsSystemSection
                             canOpsSystem={canLanHost}
                             hideNetwork={isNetworkHiddenInSettings(client)}
                             onPersistClient={persistClientSilent}
+                            calendarDragDropEnabled={prefs.calendarDragDropEnabled}
+                            onCalendarDragDrop={(enabled) => void setCalendarDragDrop(enabled)}
+                            workflows={wf}
+                            searchPrefs={searchPrefs}
                         />
                     ) : null}
 

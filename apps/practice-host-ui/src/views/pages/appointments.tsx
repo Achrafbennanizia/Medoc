@@ -20,25 +20,18 @@ import {
     parseISO,
     startOfWeek,
 } from "date-fns";
-import { listAppointmentsPaged, deleteAppointment, updateAppointment } from "@/systems/practice-host/controllers/appointment.controller";
+import { listAppointmentsInRange, moveAppointments, createAppointment, deleteAppointment, updateAppointment } from "@/systems/practice-host/controllers/appointment.controller";
 import { useDateFnsLocale, useT, useTParams } from "@/lib/i18n";
 import { usePageRefresh } from "../layouts/page-refresh";
 import { listPatientsByIds } from "@/systems/practice-host/controllers/patient.controller";
 import { listPhysicians, type PhysicianSummary } from "@/systems/practice-host/controllers/staff.controller";
-import { LAZY_PAGE_SIZE, mergeUniqueById } from "@/lib/lazy-list";
 import { listAbsences } from "@/systems/practice-host/controllers/practice.controller";
 import { errorMessage } from "@/lib/utils";
 import { MEDOC_PENDING_APPOINTMENT_MENU_KEY } from "@/lib/native-go-menu";
 import { CALENDAR_EMERGENCY_TOOLBAR_UI_ENABLED } from "@/lib/settings-ui-flags";
 import { DismissibleNotice } from "../components/ui/dismissible-notice";
 import { appointmentIsEmergencyMarked, parseAppointmentDurationMin } from "@/lib/appointment-domain";
-import {
-    DEFAULT_CLIENT_SETTINGS,
-    loadClientSettings,
-    mergeClientSettingsPatch,
-    readAppointmentsDefaultView,
-    saveClientSettings,
-} from "@/lib/client-settings";
+import { loadClientSettings, readAppointmentsDefaultView } from "@/lib/client-settings";
 import { CALENDAR_WORKFLOWS_CHANGED_EVENT } from "@/lib/practice-calendar-workflows-sync";
 import {
     DEFAULT_MONTH_CAL_PATIENT_LOAD,
@@ -280,21 +273,8 @@ export function AppointmentsPage() {
             const to = new Date(today.getFullYear(), today.getMonth() + 3, 0);
             const ymd = (d: Date) =>
                 `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-            let page = 1;
-            let total = Infinity;
-            let appts: Awaited<ReturnType<typeof listAppointmentsPaged>>["items"] = [];
-            while (appts.length < total) {
-                const resp = await listAppointmentsPaged({
-                    page,
-                    pageSize: LAZY_PAGE_SIZE,
-                    filter: { dateFrom: ymd(from), dateTo: ymd(to) },
-                });
-                total = resp.total;
-                appts = mergeUniqueById(appts, resp.items);
-                if (resp.items.length === 0 || page * resp.pageSize >= total) break;
-                page += 1;
-                if (page > 100) break;
-            }
+            // F63: one range query; the old 100-page window silently dropped rows.
+            const appts = await listAppointmentsInRange(ymd(from), ymd(to));
             const patientIds = [...new Set(appts.map((a) => a.patient_id).filter(Boolean))];
             const [p, a] = await Promise.all([
                 patientIds.length ? listPatientsByIds(patientIds) : Promise.resolve([]),
@@ -341,7 +321,6 @@ export function AppointmentsPage() {
 
     useEffect(() => {
         const onWorkflows = () => {
-            setView(readAppointmentsDefaultView());
             setCalendarWorkflowsRev((n) => n + 1);
         };
         window.addEventListener(CALENDAR_WORKFLOWS_CHANGED_EVENT, onWorkflows);
@@ -393,32 +372,57 @@ export function AppointmentsPage() {
         };
     }, [location.pathname, toast, tp]);
 
-    useEffect(() => {
-        const cur = loadClientSettings();
-        const w = cur.workflows ?? DEFAULT_CLIENT_SETTINGS.workflows!;
-        if (w.appointmentsDefaultView === view) return;
-        saveClientSettings(mergeClientSettingsPatch(cur, { workflows: { ...w, appointmentsDefaultView: view } }));
-    }, [view]);
-
     const handleDelete = async () => {
         if (!deleteId) return;
         const id = deleteId;
+        const row = appointments.find((item) => item.id === id) ?? null;
         await deleteAppointment(id);
-        toast(t("appointments.page.toast_deleted"));
+        toast(t("appointments.page.toast_deleted"), "success", {
+            onUndo: async () => {
+                if (!row) return;
+                try {
+                    const restored = await createAppointment({
+                        date: row.date,
+                        time: row.time,
+                        kind: row.kind,
+                        patient_id: row.patient_id,
+                        physician_id: row.physician_id,
+                        notes: row.notes,
+                        chief_complaint: row.chief_complaint,
+                    });
+                    if (row.status !== "PLANNED") {
+                        await updateAppointment(restored.id, { status: row.status });
+                    }
+                    await load();
+                } catch (err) {
+                    toast(errorMessage(err), "error");
+                }
+            },
+        });
         setDeleteId(null);
         setDrawerAppointment((d) => (d?.id === id ? null : d));
         void load();
     };
 
     const handleStornieren = async (id: string) => {
+        const previousStatus = appointments.find((item) => item.id === id)?.status ?? "PLANNED";
         try {
             await updateAppointment(id, { status: "CANCELLED" });
-            toast(t("appointments.page.toast_storno"));
+            toast(t("appointments.page.toast_storno"), "success", {
+                onUndo: async () => {
+                    try {
+                        await updateAppointment(id, { status: previousStatus });
+                        await load();
+                    } catch (err) {
+                        toast(errorMessage(err), "error");
+                    }
+                },
+            });
             setDrawerAppointment((d) => (d?.id === id ? null : d));
             setCtxMenu(null);
             await load();
         } catch (e) {
-            toast(errorMessage(e));
+            toast(errorMessage(e), "error");
         }
     };
 
@@ -746,6 +750,10 @@ export function AppointmentsPage() {
                 return;
             }
             if (updates.length === 0) return;
+            const rollback = updates.flatMap((update) => {
+                const row = appointments.find((item) => item.id === update.id);
+                return row ? [{ id: row.id, date: row.date, time: row.time }] : [];
+            });
             const schedErr = validateAppointmentSchedulingUpdates(
                 appointments,
                 updates,
@@ -766,10 +774,43 @@ export function AppointmentsPage() {
                 snap = { iso: dstr, startMin: timeToMinutes(ustr) };
             }
             try {
-                for (const u of updates) {
-                    await updateAppointment(u.id, u.data);
+                // F70: pure date/time moves go through one all-or-nothing call.
+                const pureMoves = updates.every((u) =>
+                    Object.keys(u.data).every((k) => k === "date" || k === "time"),
+                );
+                if (pureMoves) {
+                    const byId = new Map(appointments.map((a) => [a.id, a]));
+                    await moveAppointments(
+                        updates.map((u) => {
+                            const cur = byId.get(u.id);
+                            return {
+                                id: u.id,
+                                date: (u.data.date as string | undefined) ?? cur?.date ?? date,
+                                time: (u.data.time as string | undefined) ?? cur?.time ?? "",
+                            };
+                        }),
+                    );
+                } else {
+                    for (const u of updates) {
+                        await updateAppointment(u.id, u.data);
+                    }
                 }
-                toast(updates.length > 1 ? tp("appointments.page.toast_moved_many", { count: updates.length }) : t("appointments.page.toast_moved"));
+                toast(
+                    updates.length > 1 ? tp("appointments.page.toast_moved_many", { count: updates.length }) : t("appointments.page.toast_moved"),
+                    "success",
+                    {
+                        onUndo: async () => {
+                            try {
+                                for (const prev of rollback) {
+                                    await updateAppointment(prev.id, { date: prev.date, time: prev.time });
+                                }
+                                await load();
+                            } catch (err) {
+                                toast(errorMessage(err), "error");
+                            }
+                        },
+                    },
+                );
                 await load();
                 if (snap) setAppointmentDaySnapLabel(snap);
             } catch (e) {
@@ -1211,16 +1252,28 @@ export function AppointmentsPage() {
 
     const onDrawerStatus = useCallback(
         async (id: string, status: TCalEvent["status"]) => {
+            const previousStatus = appointments.find((item) => item.id === id)?.status;
             try {
                 await updateAppointment(id, { status });
                 patchAppointmentLocal(id, { status });
-                toast(tp("appointments.page.toast_status", { status: status.replace(/_/g, " ") }));
+                toast(tp("appointments.page.toast_status", { status: status.replace(/_/g, " ") }), "success", {
+                    onUndo: previousStatus
+                        ? async () => {
+                              try {
+                                  await updateAppointment(id, { status: previousStatus });
+                                  await load();
+                              } catch (err) {
+                                  toast(errorMessage(err), "error");
+                              }
+                          }
+                        : undefined,
+                });
                 await load();
             } catch (e) {
-                toast(errorMessage(e));
+                toast(errorMessage(e), "error");
             }
         },
-        [load, toast, patchAppointmentLocal, tp],
+        [appointments, load, toast, patchAppointmentLocal, tp],
     );
 
     useEffect(() => {

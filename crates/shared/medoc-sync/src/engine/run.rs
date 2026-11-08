@@ -5,17 +5,21 @@ use serde::Deserialize;
 use sqlx::SqlitePool;
 
 use crate::deployment::{DeploymentMode, DeviceRole, SyncDeploymentConfig};
-use crate::merge::{apply_remote_entry, apply_remote_entry_phased, ConflictPolicy};
+use crate::merge::{apply_remote_entry_phased, ConflictPolicy};
 use crate::repo::{
     clear_pull_failure, enqueue_full_snapshot, ensure_local_device, list_entries_since,
     list_pending_outbox, list_pending_outbox_for_peer, load_deployment, load_row_payload_json,
-    mark_outbox_delivered, mark_peer_delivery, record_pull_failure, save_deployment,
+    mark_outbox_delivered, mark_outbox_failed, mark_peer_delivery, record_pull_failure,
+    save_deployment,
     set_observed_seq, status_snapshot, SyncStatusSnapshot,
 };
 
 /// Failed pull rows are retried on later cycles. After this many failures the
 /// cursor moves past the row so one bad entry cannot stall every newer change.
 pub const PULL_ROW_RETRY_LIMIT: i64 = 8;
+const PUSH_PAGE_LIMIT: i64 = 500;
+const PUSH_MAX_PAGES: usize = 10;
+const PUSH_MAX_BYTES: usize = 12 * 1024 * 1024;
 
 use super::types::{MeshSyncReport, SyncPullResult, SyncPushResult, SyncRunReport};
 
@@ -80,28 +84,23 @@ impl SyncEngine {
             if entry.device_id != from_device_id {
                 return Err(AppError::Validation("sync push device_id mismatch".into()));
             }
-            if apply_remote_entry(
+            if crate::merge::apply_remote_entry_defer_mark(
                 pool,
                 &local_id,
                 local_is_master,
+                false,
                 ConflictPolicy::LastWriteWins,
                 entry,
             )
             .await?
             {
+                let payload = if relay {
+                    Some(relay_payload(pool, entry).await?)
+                } else {
+                    None
+                };
+                mark_applied_with_relay(pool, &local_id, entry, payload.as_deref()).await?;
                 accepted += 1;
-                if relay {
-                    let payload = relay_payload(pool, entry).await?;
-                    crate::repo::append_outbox(
-                        pool,
-                        &local_id,
-                        &entry.entity_table,
-                        &entry.entity_id,
-                        &entry.op,
-                        &payload,
-                    )
-                    .await?;
-                }
             }
             last_seq = entry.seq;
         }
@@ -152,42 +151,75 @@ impl SyncEngine {
         }
         let bearer_token = pick_bearer(&deployment)?;
         let local_id = align_local_id_to_activation(pool, &deployment).await?;
-        let pending = list_pending_outbox(pool, &local_id).await?;
-        if pending.is_empty() {
-            return Ok(SyncPushResult {
-                accepted: 0,
-                last_seq: 0,
-            });
-        }
-        let last_seq = pending.last().map(|e| e.seq).unwrap_or(0);
-        let client = build_http_client(&deployment.master_cert_sha256)?;
+        let client = master_http_client(pool, &deployment).await?;
         let url = format!(
             "{}/api/v1/sync/push",
             deployment.master_base_url.trim_end_matches('/')
         );
-        let body = serde_json::json!({
-            "fromDeviceId": local_id,
-            "entries": pending,
-        });
-        let resp = client
-            .post(&url)
-            .bearer_auth(&bearer_token)
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| AppError::Internal(format!("sync push http: {e}")))?;
-        if !resp.status().is_success() {
-            return Err(AppError::Internal(format!(
-                "sync push http status {}",
-                resp.status()
-            )));
+        let mut accepted = 0u32;
+        let mut last_seq = 0i64;
+        for _ in 0..PUSH_MAX_PAGES {
+            let pending = list_pending_outbox(pool, &local_id, PUSH_PAGE_LIMIT).await?;
+            if pending.is_empty() {
+                break;
+            }
+            let mut page: Vec<crate::repo::OutboxEntry> = Vec::new();
+            for entry in pending {
+                let entry_bytes = serde_json::to_vec(&entry).unwrap_or_default();
+                if entry_bytes.len() > PUSH_MAX_BYTES {
+                    tracing::error!(
+                        target: "medoc::sync",
+                        event = "ENTRY_TOO_LARGE",
+                        id = %entry.id,
+                        seq = entry.seq,
+                        bytes = entry_bytes.len()
+                    );
+                    mark_outbox_failed(pool, &entry.id, "ENTRY_TOO_LARGE").await?;
+                    continue;
+                }
+                let candidate: Vec<&crate::repo::OutboxEntry> =
+                    page.iter().chain(std::iter::once(&entry)).collect();
+                let page_bytes = serde_json::to_vec(&candidate).unwrap_or_default().len();
+                if !page.is_empty() && page_bytes > PUSH_MAX_BYTES {
+                    break;
+                }
+                page.push(entry);
+            }
+            if page.is_empty() {
+                continue;
+            }
+            put_attachment_blobs(&client, &deployment.master_base_url, &bearer_token, pool, &page)
+                .await;
+            let page_last = page.last().map(|e| e.seq).unwrap_or(0);
+            let body = serde_json::json!({
+                "fromDeviceId": local_id,
+                "entries": page,
+            });
+            let resp = client
+                .post(&url)
+                .bearer_auth(&bearer_token)
+                .json(&body)
+                .send()
+                .await
+                .map_err(|e| AppError::Internal(format!("sync push http: {e}")))?;
+            if !resp.status().is_success() {
+                return Err(AppError::Internal(format!(
+                    "sync push http status {}",
+                    resp.status()
+                )));
+            }
+            let result: SyncPushResult = resp
+                .json()
+                .await
+                .map_err(|e| AppError::Internal(format!("sync push decode: {e}")))?;
+            mark_outbox_delivered(pool, &local_id, page_last).await?;
+            accepted = accepted.saturating_add(result.accepted);
+            last_seq = page_last;
         }
-        let result: SyncPushResult = resp
-            .json()
-            .await
-            .map_err(|e| AppError::Internal(format!("sync push decode: {e}")))?;
-        mark_outbox_delivered(pool, &local_id, last_seq).await?;
-        Ok(result)
+        Ok(SyncPushResult {
+            accepted,
+            last_seq,
+        })
     }
 
     /// Replica: pull master changes since last known vector.
@@ -214,7 +246,7 @@ impl SyncEngine {
         } else {
             vectors.get(&master_device_id).copied().unwrap_or(0)
         };
-        let client = build_http_client(&deployment.master_cert_sha256)?;
+        let client = master_http_client(pool, &deployment).await?;
         let url = format!(
             "{}/api/v1/sync/pull",
             deployment.master_base_url.trim_end_matches('/')
@@ -313,6 +345,14 @@ impl SyncEngine {
         if let Some((device_id, seq)) = cursor {
             set_observed_seq(pool, &device_id, seq).await?;
         }
+        fetch_attachment_blobs(
+            &client,
+            &deployment.master_base_url,
+            &bearer_token,
+            pool,
+            &pulled.entries,
+        )
+        .await;
         Ok(SyncPullResult { applied, skipped })
     }
 
@@ -335,7 +375,7 @@ impl SyncEngine {
             ));
         }
         let bearer_token = pick_bearer(&deployment)?;
-        let peers = fetch_peer_list(&deployment, &bearer_token).await?;
+        let peers = fetch_peer_list(pool, &deployment, &bearer_token).await?;
         let local_id = ensure_local_device(pool, &deployment.device_label).await?;
         let mut report = MeshSyncReport::default();
         if peers.is_empty() {
@@ -421,6 +461,19 @@ impl SyncEngine {
                     });
                 }
             }
+        }
+        let pulled = report
+            .pull
+            .as_ref()
+            .map(|p| p.applied.saturating_add(p.skipped))
+            .unwrap_or(0);
+        if let Err(e) = crate::reconcile::maybe_hourly(pool, pulled, report.error.as_deref()).await
+        {
+            tracing::warn!(
+                target: "medoc::sync",
+                event = "RECONCILE_HOURLY_FAILED",
+                error = %e
+            );
         }
         Ok(report)
     }
@@ -523,6 +576,19 @@ async fn align_local_id_to_activation(
     if authorized == local_id {
         return Ok(local_id);
     }
+    let fingerprint = crate::cluster::crypto::DeviceIdentity::try_load()
+        .ok()
+        .flatten()
+        .map(|identity| identity.fingerprint);
+    if fingerprint.as_deref() != Some(authorized.as_str()) {
+        tracing::warn!(
+            target: "medoc::sync",
+            event = "SYNC_DEVICE_ID_TOKEN_NOT_THIS_INSTALL",
+            local_id = %local_id,
+            token_device_id = %authorized
+        );
+        return Ok(local_id);
+    }
     tracing::warn!(
         target: "medoc::sync",
         event = "SYNC_DEVICE_ID_ALIGNED_TO_TOKEN",
@@ -581,17 +647,189 @@ async fn relay_payload(
     }
 }
 
-fn build_http_client(_cert_sha256: &str) -> Result<reqwest::Client, AppError> {
-    reqwest::Client::builder()
-        .timeout(Duration::from_secs(60))
-        .danger_accept_invalid_certs(true)
-        .build()
-        .map_err(|e| AppError::Internal(format!("sync http client: {e}")))
+const MISSING_BLOBS_KV: &str = "sync.missing_blobs.v1";
+
+fn payload_sha256(payload_json: &str) -> Option<String> {
+    let value: serde_json::Value = serde_json::from_str(payload_json).ok()?;
+    value
+        .get("sha256")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_ascii_lowercase())
+}
+
+async fn load_missing_blobs(pool: &SqlitePool) -> Vec<String> {
+    let raw = medoc_core::infrastructure::database::app_kv_repo::get(pool, MISSING_BLOBS_KV)
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "[]".into());
+    serde_json::from_str(&raw).unwrap_or_default()
+}
+
+async fn store_missing_blobs(pool: &SqlitePool, shas: &[String]) {
+    let _ = medoc_core::infrastructure::database::app_kv_repo::set(
+        pool,
+        MISSING_BLOBS_KV,
+        &serde_json::to_string(shas).unwrap_or_else(|_| "[]".into()),
+    )
+    .await;
+}
+
+async fn remember_missing_blob(pool: &SqlitePool, sha: &str) {
+    let mut list = load_missing_blobs(pool).await;
+    if !list.iter().any(|s| s == sha) {
+        list.push(sha.to_string());
+        store_missing_blobs(pool, &list).await;
+    }
+}
+
+async fn forget_missing_blob(pool: &SqlitePool, sha: &str) {
+    let list = load_missing_blobs(pool).await;
+    let next: Vec<String> = list.into_iter().filter(|s| s != sha).collect();
+    store_missing_blobs(pool, &next).await;
+}
+
+fn blob_url(base: &str, sha: &str) -> String {
+    format!("{}/api/v1/sync/blob/{sha}", base.trim_end_matches('/'))
+}
+
+async fn put_attachment_blobs(
+    client: &reqwest::Client,
+    base: &str,
+    token: &str,
+    pool: &SqlitePool,
+    page: &[crate::repo::OutboxEntry],
+) {
+    for entry in page {
+        if entry.entity_table != "chart_attachment" || entry.op == "DELETE" {
+            continue;
+        }
+        let Some(sha) = payload_sha256(&entry.payload_json) else {
+            continue;
+        };
+        let bytes = match medoc_core::infrastructure::database::sync_blob::get_bytes(pool, &sha).await
+        {
+            Ok(b) if !b.is_empty() => b,
+            _ => {
+                remember_missing_blob(pool, &sha).await;
+                continue;
+            }
+        };
+        match client
+            .put(blob_url(base, &sha))
+            .bearer_auth(token)
+            .body(bytes)
+            .send()
+            .await
+        {
+            Ok(resp) if resp.status().is_success() => forget_missing_blob(pool, &sha).await,
+            _ => remember_missing_blob(pool, &sha).await,
+        }
+    }
+}
+
+async fn fetch_attachment_blobs(
+    client: &reqwest::Client,
+    base: &str,
+    token: &str,
+    pool: &SqlitePool,
+    entries: &[crate::repo::OutboxEntry],
+) {
+    let mut shas: Vec<String> = entries
+        .iter()
+        .filter(|e| e.entity_table == "chart_attachment" && e.op != "DELETE")
+        .filter_map(|e| payload_sha256(&e.payload_json))
+        .collect();
+    shas.extend(load_missing_blobs(pool).await);
+    shas.sort();
+    shas.dedup();
+    for sha in shas {
+        if medoc_core::infrastructure::database::sync_blob::get_bytes(pool, &sha)
+            .await
+            .is_ok()
+        {
+            forget_missing_blob(pool, &sha).await;
+            continue;
+        }
+        let resp = match client
+            .get(blob_url(base, &sha))
+            .bearer_auth(token)
+            .send()
+            .await
+        {
+            Ok(r) => r,
+            Err(_) => {
+                remember_missing_blob(pool, &sha).await;
+                continue;
+            }
+        };
+        if !resp.status().is_success() {
+            remember_missing_blob(pool, &sha).await;
+            continue;
+        }
+        let Ok(bytes) = resp.bytes().await else {
+            remember_missing_blob(pool, &sha).await;
+            continue;
+        };
+        match medoc_core::infrastructure::database::sync_blob::put_verified(pool, &sha, &bytes)
+            .await
+        {
+            Ok(()) => forget_missing_blob(pool, &sha).await,
+            Err(_) => remember_missing_blob(pool, &sha).await,
+        }
+    }
+}
+
+fn build_http_client(cert_sha256: &str) -> Result<reqwest::Client, AppError> {
+    crate::tls_pin::pinned_http_client(cert_sha256, Duration::from_secs(60))
+}
+
+/// Deployment pin, or the fingerprint already stored on the device row.
+pub(crate) async fn master_http_client_for_reconcile(
+    pool: &SqlitePool,
+    deployment: &SyncDeploymentConfig,
+) -> Result<reqwest::Client, AppError> {
+    master_http_client(pool, deployment).await
+}
+
+async fn master_http_client(
+    pool: &SqlitePool,
+    deployment: &SyncDeploymentConfig,
+) -> Result<reqwest::Client, AppError> {
+    let pin = if crate::tls_pin::is_sha256_pin(&deployment.master_cert_sha256) {
+        crate::tls_pin::normalize_sha256_pin(&deployment.master_cert_sha256)
+    } else {
+        let stored: Option<String> = sqlx::query_scalar::<_, Option<String>>(
+            "SELECT peer_cert_sha256 FROM sync_device
+             WHERE peer_cert_sha256 IS NOT NULL AND length(trim(peer_cert_sha256)) > 0
+             ORDER BY is_local DESC
+             LIMIT 1",
+        )
+        .fetch_optional(pool)
+        .await
+        .map_err(AppError::Database)?
+        .flatten()
+        .filter(|value| crate::tls_pin::is_sha256_pin(value))
+        .map(|value| crate::tls_pin::normalize_sha256_pin(&value));
+        let Some(pin) = stored else {
+            return Err(AppError::Validation(
+                "sync TLS pin missing — refusing to accept an unpinned certificate".into(),
+            ));
+        };
+        let mut cfg = deployment.clone();
+        cfg.master_cert_sha256 = pin.clone();
+        save_deployment(pool, &cfg).await?;
+        pin
+    };
+    build_http_client(&pin)
 }
 
 /// Fetches the signed peer list from the master and verifies the Ed25519
 /// signature against the pinned `master_pubkey` from pairing.
 async fn fetch_peer_list(
+    pool: &SqlitePool,
     deployment: &SyncDeploymentConfig,
     bearer_token: &str,
 ) -> Result<Vec<MeshPeerInfo>, AppError> {
@@ -609,7 +847,7 @@ async fn fetch_peer_list(
         "{}/api/v1/pairing/peers",
         deployment.master_base_url.trim_end_matches('/')
     );
-    let client = build_http_client(&deployment.master_cert_sha256)?;
+    let client = master_http_client(pool, deployment).await?;
     let resp = client
         .get(&url)
         .bearer_auth(bearer_token)
@@ -659,7 +897,20 @@ async fn push_to_peer(
         });
     }
     let last_seq = pending.last().map(|e| e.seq).unwrap_or(0);
-    let client = build_http_client("")?;
+    let stored_pin: Option<Option<String>> = sqlx::query_scalar(
+        "SELECT peer_cert_sha256 FROM sync_device WHERE device_id = ?1",
+    )
+    .bind(target_device_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(AppError::Database)?;
+    let Some(pin) = stored_pin.flatten().filter(|value| !value.trim().is_empty()) else {
+        return Err(AppError::Validation(format!(
+            "peer {target_device_id} has no TLS pin"
+        )));
+    };
+    let client = build_http_client(&pin)?;
+    put_attachment_blobs(&client, peer_base_url, bearer_token, pool, pending).await;
     let url = format!("{}/api/v1/sync/push", peer_base_url.trim_end_matches('/'));
     let body = serde_json::json!({
         "fromDeviceId": local_id,
@@ -684,6 +935,55 @@ async fn push_to_peer(
         .map_err(|e| AppError::Internal(format!("peer push decode: {e}")))?;
     mark_peer_delivery(pool, local_id, target_device_id, last_seq).await?;
     Ok(result)
+}
+
+/// Relay outbox row and `sync_applied` commit together. A failed relay leaves
+/// the source sequence unmarked so the next push retries both.
+async fn mark_applied_with_relay(
+    pool: &SqlitePool,
+    local_id: &str,
+    entry: &crate::repo::OutboxEntry,
+    relay_payload: Option<&str>,
+) -> Result<(), AppError> {
+    let mut tx = pool.begin().await.map_err(AppError::Database)?;
+    if let Some(payload) = relay_payload {
+        let seq: i64 = sqlx::query_scalar(
+            "INSERT INTO sync_vector (device_id, seq) VALUES (?1, 1)
+             ON CONFLICT(device_id) DO UPDATE SET seq = seq + 1
+             RETURNING seq",
+        )
+        .bind(local_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(AppError::Database)?;
+        let id = uuid::Uuid::new_v4().to_string();
+        let created_at = chrono::Utc::now().to_rfc3339();
+        sqlx::query(
+            "INSERT INTO sync_outbox (id, device_id, seq, entity_table, entity_id, op, payload_json, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        )
+        .bind(&id)
+        .bind(local_id)
+        .bind(seq)
+        .bind(&entry.entity_table)
+        .bind(&entry.entity_id)
+        .bind(&entry.op)
+        .bind(payload)
+        .bind(&created_at)
+        .execute(&mut *tx)
+        .await
+        .map_err(AppError::Database)?;
+    }
+    sqlx::query(
+        "INSERT OR IGNORE INTO sync_applied (source_device_id, source_seq) VALUES (?1, ?2)",
+    )
+    .bind(&entry.device_id)
+    .bind(entry.seq)
+    .execute(&mut *tx)
+    .await
+    .map_err(AppError::Database)?;
+    tx.commit().await.map_err(AppError::Database)?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -1018,12 +1318,20 @@ mod tests {
         run_migrations(&pool).await.expect("migrate");
         ensure_sync_tables(&pool).await.expect("schema");
         let signing_key = SigningKey::generate(&mut OsRng);
-        let authorized = "authorized-replica";
-        let token = crate::pairing::mint_activation_token(
+        let previous_secret = std::env::var("MEDOC_CLUSTER_DEVICE_SECRET").ok();
+        std::env::set_var(
+            "MEDOC_CLUSTER_DEVICE_SECRET",
+            "1111111111111111111111111111111111111111111111111111111111111111",
+        );
+        let fingerprint = crate::cluster::crypto::DeviceIdentity::try_load()
+            .expect("identity")
+            .expect("loaded")
+            .fingerprint;
+        let foreign = crate::pairing::mint_activation_token(
             &signing_key,
             &crate::pairing::ActivationTokenPayload {
                 version: 2,
-                device_id: authorized.into(),
+                device_id: "not-this-install".into(),
                 slave_label: "Replica".into(),
                 master_device_id: "master".into(),
                 allowed_actions: vec!["sync.push".into()],
@@ -1050,24 +1358,42 @@ mod tests {
         )
         .await
         .expect("outbox");
-        let cfg = crate::deployment::SyncDeploymentConfig {
+        let mut cfg = crate::deployment::SyncDeploymentConfig {
             schema_version: 1,
             mode: crate::deployment::DeploymentMode::ServerlessPeer,
             role: crate::deployment::DeviceRole::Replica,
             device_label: "Replica".into(),
-            activation_token: token,
+            activation_token: foreign,
             master_pubkey: crate::master_keys::pubkey_b64(&signing_key),
             ..Default::default()
         };
+        let kept = align_local_id_to_activation(&pool, &cfg)
+            .await
+            .expect("foreign token");
+        assert_eq!(kept, "local-wrong");
+        let token = crate::pairing::mint_activation_token(
+            &signing_key,
+            &crate::pairing::ActivationTokenPayload {
+                version: 2,
+                device_id: fingerprint.clone(),
+                slave_label: "Replica".into(),
+                master_device_id: "master".into(),
+                allowed_actions: vec!["sync.push".into()],
+                issued_at: "2026-11-06T00:00:00Z".into(),
+                nonce: "n2".into(),
+            },
+        )
+        .expect("mint fingerprint token");
+        cfg.activation_token = token;
         let id = align_local_id_to_activation(&pool, &cfg)
             .await
             .expect("align");
-        assert_eq!(id, authorized);
-        let pending = crate::repo::list_pending_outbox(&pool, authorized)
+        assert_eq!(id, fingerprint);
+        let pending = crate::repo::list_pending_outbox(&pool, &fingerprint, 500)
             .await
             .expect("pending");
         assert_eq!(pending.len(), 1);
-        assert_eq!(pending[0].device_id, authorized);
+        assert_eq!(pending[0].device_id, fingerprint);
         let stored = medoc_core::infrastructure::database::app_kv_repo::get(
             &pool,
             crate::deployment::APP_KV_DEVICE_ID_KEY,
@@ -1075,7 +1401,12 @@ mod tests {
         .await
         .expect("read")
         .expect("device id");
-        assert_eq!(stored, authorized);
+        assert_eq!(stored, fingerprint);
+        if let Some(previous) = previous_secret {
+            std::env::set_var("MEDOC_CLUSTER_DEVICE_SECRET", previous);
+        } else {
+            std::env::remove_var("MEDOC_CLUSTER_DEVICE_SECRET");
+        }
         let wrong: i64 =
             sqlx::query_scalar("SELECT COUNT(*) FROM sync_outbox WHERE device_id = 'local-wrong'")
                 .fetch_one(&pool)

@@ -2,7 +2,7 @@
 
 **Purpose:** Catalog of **UI options we intentionally hid or commented out** because they are incomplete or need more effort. Use this list when polishing a page later — do **not** treat these as bugs.
 
-**Last updated:** 2026-10-01
+**Last updated:** 2026-11-07
 
 **Related deferred trackers (larger scopes):**
 
@@ -41,6 +41,23 @@
 1. Set `APPOINTMENT_CALL_REMINDER_ENABLED = true`.
 2. Replace toast handlers in `appointments.tsx` (`onPhone`, `onReminder`) with real call and email/SMS reminder send.
 3. QA: drawer Call with/without phone; Reminder from drawer and from calendar context menu.
+
+---
+
+## Patient list — Show archived — OFF
+
+**Flag:** `PATIENT_LIST_SHOW_ARCHIVED_ENABLED = false` in [`packages/shared/src/lib/v1-ui-flags.ts`](../../packages/shared/src/lib/v1-ui-flags.ts) (and [`apps/practice-host-ui/src/lib/v1-ui-flags.ts`](../../apps/practice-host-ui/src/lib/v1-ui-flags.ts))
+
+**Gate:** [`patients.tsx`](../../apps/practice-host-ui/src/views/pages/patients.tsx) status filter row — **Show archived** checkbox (`patient.filter.show_archived`).
+
+**Kept:** Patient list without archived rows. Backend `showArchived` filter stays available.
+
+**Why deferred:** Archived browse is not ready to ship on the patient list.
+
+### Re-enable checklist
+
+1. Set `PATIENT_LIST_SHOW_ARCHIVED_ENABLED = true`.
+2. QA: checkbox off hides archived patients; on includes them; search and status filters still match.
 
 ---
 
@@ -145,6 +162,7 @@
 | Calendar appointment sidebar — Call / Reminder (email) | `APPOINTMENT_CALL_REMINDER_ENABLED` — drawer + context menu |
 | Chart validation queue — Decline | `CHART_QUEUE_DECLINE_ENABLED` — dashboard + Records to validate |
 | Patient chart workflow header buttons | `PATIENT_CHART_WORKFLOW_HEADER_BUTTONS_ENABLED` — see v1 surfaces doc |
+| Patient list — Show archived | `PATIENT_LIST_SHOW_ARCHIVED_ENABLED` — status filter row |
 
 ### Code markers
 
@@ -154,4 +172,5 @@ REPORT_IMPORT_UI_ENABLED
 APPOINTMENT_CALL_REMINDER_ENABLED
 CHART_QUEUE_DECLINE_ENABLED
 WORKFLOW_APPOINTMENT_REMINDER_NOSHOW_UI_ENABLED
+PATIENT_LIST_SHOW_ARCHIVED_ENABLED
 ```

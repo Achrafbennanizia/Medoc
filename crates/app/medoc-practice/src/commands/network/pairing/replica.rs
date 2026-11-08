@@ -29,7 +29,7 @@ pub async fn pairing_submit_request(
     let slave_sk = master_keys::load_or_create().map_err(into_tauri)?;
     let slave_pubkey = master_keys::pubkey_b64(&slave_sk);
 
-    let client = build_http_client();
+    let client = build_http_client(&payload.master_cert_sha256).map_err(into_tauri)?;
     let base = payload.master_base_url.trim_end_matches('/').to_string();
 
     let info: serde_json::Value = client
@@ -113,7 +113,8 @@ pub async fn pairing_confirm_pin(
 ) -> Result<PairingRequest, TauriAppError> {
     let base = payload.master_base_url.trim_end_matches('/');
     let url = format!("{base}/api/v1/pairing/confirm/{}", payload.request_id);
-    let resp = build_http_client()
+    let resp = build_http_client(&payload.master_cert_sha256)
+        .map_err(into_tauri)?
         .post(&url)
         .json(&serde_json::json!({ "pin": payload.pin.trim() }))
         .send()
@@ -138,7 +139,8 @@ pub async fn pairing_check_status(
 ) -> Result<PairingRequest, TauriAppError> {
     let base = payload.master_base_url.trim_end_matches('/');
     let url = format!("{base}/api/v1/pairing/status/{}", payload.request_id);
-    let resp = build_http_client()
+    let resp = build_http_client(&payload.master_cert_sha256)
+        .map_err(into_tauri)?
         .get(&url)
         .send()
         .await

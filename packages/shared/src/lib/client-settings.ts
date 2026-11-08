@@ -10,6 +10,7 @@ import {
     readLegacyAccentFromStorage,
     type AccentId,
 } from "./accent-preset";
+import { applyBrandMark } from "./brand-mark";
 import {
     applyArabicNumeralsToDocument,
     normalizeArabicNumeralMode,
@@ -129,7 +130,7 @@ export const DEFAULT_CLIENT_SETTINGS: ClientSettingsV1 = {
         arabicNumeralMode: "western",
     },
     workflows: {
-        appointmentsDefaultView: "month",
+        appointmentsDefaultView: "week",
         defaultAppointmentDurationMin: 30,
         dayCloseReminderTime: "18:00",
         calendarEmergencyToolbarEnabled: false,
@@ -199,8 +200,9 @@ export function normalizeAppointmentCalendarView(raw: unknown): AppointmentCalen
     return "month";
 }
 
-export function readAppointmentsDefaultView(s?: ClientSettingsV1): AppointmentCalendarView {
-    return normalizeAppointmentCalendarView((s ?? loadClientSettings()).workflows?.appointmentsDefaultView);
+/** Appointments open on the practice week from Opening hours. The view is not a workflow setting. */
+export function readAppointmentsDefaultView(): AppointmentCalendarView {
+    return "week";
 }
 
 export function normalizeAppointmentConfirmMode(raw: unknown): AppointmentConfirmMode {
@@ -313,6 +315,7 @@ export function applyAppearanceFromSettings(s: ClientSettingsV1): void {
     document.documentElement.dataset.kbdHints = kbd ? "true" : "false";
     const accent = normalizeAccentId(s.appearance?.accentPreset);
     applyAccentPresetToDocument(accent, resolved);
+    applyBrandMark(accent, resolved);
     mirrorAccentToLegacyStorage(accent);
     const fs = normalizeFontStack(s.appearance?.fontStack);
     document.documentElement.dataset.fontStack = fs;

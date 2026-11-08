@@ -16,7 +16,7 @@ import {
     type WorkTimeActiveSession,
     type WorkTimeWeekOverview,
 } from "@/systems/practice-host/controllers/work-time.controller";
-import { loadWorkPlanStore, weekDaysMonFirst, weekStartMonday, ymd } from "@/lib/staff-work-plan";
+import { hydrateWorkPlanStore, loadWorkPlanStore, weekDaysMonFirst, weekStartMonday, ymd, type WorkPlanStore } from "@/lib/staff-work-plan";
 import { buildWeekBarDays, formatWorkMinutes, liveElapsedMinutes } from "@/lib/work-time-ui";
 import { errorMessage } from "@/lib/utils";
 import { useDateFnsLocale, useT, useTParams } from "@/lib/i18n";
@@ -43,7 +43,21 @@ export function WorkTimeTrackingPage() {
     const weekStart = useMemo(() => weekStartMonday(weekAnchor), [weekAnchor]);
     const weekStartYmd = useMemo(() => ymd(weekStart), [weekStart]);
     const weekDays = useMemo(() => weekDaysMonFirst(weekStart).map((d) => ymd(d)), [weekStart]);
-    const weeklyRules = loadWorkPlanStore().weeklyRules;
+    const [weeklyRules, setWeeklyRules] = useState<WorkPlanStore["weeklyRules"]>(
+        () => loadWorkPlanStore().weeklyRules,
+    );
+    useEffect(() => {
+        if (!staffId) return;
+        let cancelled = false;
+        void hydrateWorkPlanStore([staffId], { cache: false })
+            .then((s) => {
+                if (!cancelled) setWeeklyRules(s.weeklyRules);
+            })
+            .catch(() => undefined);
+        return () => {
+            cancelled = true;
+        };
+    }, [staffId]);
 
     const refresh = useCallback(async () => {
         try {

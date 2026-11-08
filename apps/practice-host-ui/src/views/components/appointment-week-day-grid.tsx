@@ -188,38 +188,40 @@ const AppointmentApptBlockView = memo(function AppointmentApptBlockView({
 
     const timeLiveClass = dragPreviewTime ? " appointment-appt-block-time--drag-live" : "";
 
-    const prepareDayHoverOrigin = (el: HTMLButtonElement) => {
-        if (!dayColumn) return;
+    const prepareHoverOrigin = (el: HTMLButtonElement) => {
         el.classList.add("appointment-appt-block--hover-front");
-        // Horizontal: inline-start origin; layoutScale reserves the inline-end gutter
-        // (right in LTR, left in RTL so Arabic magnify grows left).
-        const col = el.closest(".appointment-day-col") as HTMLElement | null;
-        if (!col) return;
-        const colRect = col.getBoundingClientRect();
+        const panel =
+            (el.closest(".appointment-week-body-grid") as HTMLElement | null) ??
+            (el.closest(".appointment-day-timeline-host") as HTMLElement | null) ??
+            (el.closest(".appointment-day-col") as HTMLElement | null);
+        if (!panel) return;
+        const bound = panel.getBoundingClientRect();
         const elRect = el.getBoundingClientRect();
+        const rtl = getComputedStyle(document.documentElement).direction === "rtl";
         const rawScale = Number.parseFloat(
             getComputedStyle(document.documentElement).getPropertyValue("--appointment-card-hover-scale").trim(),
         );
-        const scale = Number.isFinite(rawScale) && rawScale > 0 ? rawScale : 1.12;
-        const extraY = elRect.height * (scale - 1);
-        const pad = 6;
-        const distTop = elRect.top - colRect.top;
-        const distBottom = colRect.bottom - elRect.bottom;
-        let originY: "top" | "center" | "bottom" = "center";
-        if (distTop < extraY / 2 + pad && distBottom < extraY / 2 + pad) {
-            originY = distTop <= distBottom ? "top" : "bottom";
-        } else if (distTop < extraY / 2 + pad) {
-            originY = "top";
-        } else if (distBottom < extraY / 2 + pad) {
-            originY = "bottom";
+        const scale = Number.isFinite(rawScale) && rawScale > 1 ? rawScale : 1.12;
+        const extraX = Math.max(elRect.width * (scale - 1), 16);
+        const extraY = Math.max(elRect.height * (scale - 1), 12);
+        const distTop = elRect.top - bound.top;
+        const distLeft = elRect.left - bound.left;
+        const distRight = bound.right - elRect.right;
+        const originY: "top" | "bottom" = distTop <= extraY ? "top" : "bottom";
+        let originX: "left" | "right";
+        if (rtl) {
+            originX = distLeft <= extraX ? "left" : "right";
+        } else {
+            originX = distRight <= extraX ? "right" : "left";
         }
         el.style.setProperty("--appointment-hover-origin-y", originY);
+        el.style.setProperty("--appointment-hover-origin-x", originX);
     };
 
     const clearDayHoverFront = (el: HTMLButtonElement) => {
-        if (!dayColumn) return;
         el.classList.remove("appointment-appt-block--hover-front");
         el.style.removeProperty("--appointment-hover-origin-y");
+        el.style.removeProperty("--appointment-hover-origin-x");
     };
 
     const dragHintInline = dragTargetDateHint ? (
@@ -277,7 +279,7 @@ const AppointmentApptBlockView = memo(function AppointmentApptBlockView({
                 .join(" ")}
             style={style}
             onClick={onClick}
-            onMouseEnter={(e) => prepareDayHoverOrigin(e.currentTarget)}
+            onMouseEnter={(e) => prepareHoverOrigin(e.currentTarget)}
             onMouseLeave={(e) => clearDayHoverFront(e.currentTarget)}
             onMouseDown={onMouseDown}
             onContextMenu={onContextMenu}
@@ -350,10 +352,6 @@ function AppointmentTimeColumnBody({
     /** Day view: track hover magnify so laid-out width reserves the right border. */
     const [dayHoverLayoutScale, setDayHoverLayoutScale] = useState(1);
     useLayoutEffect(() => {
-        if (!singleDay) {
-            setDayHoverLayoutScale(1);
-            return;
-        }
         const read = () => {
             const raw = Number.parseFloat(
                 getComputedStyle(document.documentElement).getPropertyValue("--appointment-card-hover-scale").trim(),
@@ -372,7 +370,7 @@ function AppointmentTimeColumnBody({
             mo.disconnect();
             window.removeEventListener("storage", read);
         };
-    }, [singleDay]);
+    }, []);
     const closedSpans = useMemo(
         () => deriveDayClosedSpans(practiceCfg, iso, timelineBounds),
         [practiceCfg, iso, timelineBounds],

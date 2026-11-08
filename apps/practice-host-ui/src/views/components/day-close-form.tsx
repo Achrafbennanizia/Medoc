@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { listPayments, setPaymentsCashVerified } from "@/systems/practice-host/controllers/payment.controller";
+import { listPaymentsPaged, setPaymentsCashVerified } from "@/systems/practice-host/controllers/payment.controller";
 import type { CreateDayCloseProtocol } from "@/systems/practice-host/controllers/day-close-protocol.controller";
 import { errorMessage, formatCurrency } from "@/lib/utils";
 import {
     AMOUNT_TOL,
     amountsMatch,
     filterPaymentsForLocalDay,
+    parseDbUtc,
     parseEuroInput,
     sumCashDay,
     sumIncomeDay,
@@ -64,17 +65,25 @@ export function DayCloseForm({
     const [markBusy, setMarkBusy] = useState(false);
     const [dailyReportPdf, setDailyReportPdf] = useState(false);
 
+    const dayForLoad = fixedAsOfDate ?? as_of_date;
     const load = useCallback(async () => {
         setLoadStatus("loading");
         setLoadError(null);
         try {
-            setPayments(await listPayments());
+            // F78: only the chosen local day, every page (no cap, no full table load).
+            const all: Payment[] = [];
+            for (let page = 1; page <= 10_000; page += 1) {
+                const resp = await listPaymentsPaged({ page, pageSize: 500, filter: { dateOn: dayForLoad } });
+                all.push(...resp.items);
+                if (resp.items.length === 0 || all.length >= resp.total) break;
+            }
+            setPayments(all);
             setLoadStatus("idle");
         } catch (e) {
             setLoadError(errorMessage(e));
             setLoadStatus("error");
         }
-    }, []);
+    }, [dayForLoad]);
 
     useEffect(() => {
         void load();
@@ -292,7 +301,7 @@ export function DayCloseForm({
                                 {onDay.map((z) => (
                                     <tr key={z.id}>
                                         <td>
-                                            {new Date(z.created_at.trim().replace(" ", "T")).toLocaleTimeString(timeLocale, {
+                                            {parseDbUtc(z.created_at).toLocaleTimeString(timeLocale, {
                                                 hour: "2-digit",
                                                 minute: "2-digit",
                                             })}

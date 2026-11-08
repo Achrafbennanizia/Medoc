@@ -12,6 +12,25 @@ fn should_run_demo_seed() -> bool {
 
 const DEMO_SEED_KV_KEY: &str = "migration.demo_seed.v1";
 
+async fn column_exists(pool: &SqlitePool, table: &str, column: &str) -> Result<bool, AppError> {
+    let n: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM pragma_table_info(?1) WHERE name = ?2",
+    )
+    .bind(table)
+    .bind(column)
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::Database)?;
+    Ok(n > 0)
+}
+
+async fn demo_schema_ready(pool: &SqlitePool) -> Result<bool, AppError> {
+    Ok(column_exists(pool, "patient", "insurance_number").await?
+        && column_exists(pool, "staff", "activity_area").await?
+        && column_exists(pool, "service_item", "description").await?
+        && column_exists(pool, "appointment", "date").await?)
+}
+
 async fn demo_seed_already_applied(pool: &SqlitePool) -> Result<bool, AppError> {
     let row: Option<(String,)> = sqlx::query_as("SELECT value FROM app_kv WHERE key = ?1")
         .bind(DEMO_SEED_KV_KEY)
@@ -45,6 +64,14 @@ pub async fn run_post_migration_seed(pool: &SqlitePool) -> Result<(), AppError> 
     .await
     .map_err(AppError::Database)?;
     if should_run_demo_seed() {
+        if !demo_schema_ready(pool).await? {
+            tracing::warn!(
+                target: "medoc::system",
+                event = "DEMO_SEED_SKIPPED_SPARSE_SCHEMA",
+                hint = "English upgrade left core tables without seed columns"
+            );
+            return Ok(());
+        }
         if !demo_seed_already_applied(pool).await? {
             seed_demo_data(pool).await?;
             mark_demo_seed_applied(pool).await?;

@@ -210,9 +210,12 @@ export function buildStatisticsReportBundle(stats: StatisticsOverview, period: P
     const pl = periodLabel(period, loc);
     const dateStamp = new Date().toISOString().slice(0, 10);
     const detailRows: string[][] = [];
-    detailRows.push([tr("export.report.patients_total"), String(stats.patients_total)]);
-    detailRows.push([tr("export.report.products_low_stock"), String(stats.products_low)]);
-    detailRows.push([tr("export.report.income_current_month"), formatCurrency(stats.income_current_month, loc)]);
+    // F106: sections the role may not see are left out of the report.
+    if (stats.patients_total != null) detailRows.push([tr("export.report.patients_total"), String(stats.patients_total)]);
+    if (stats.products_low != null) detailRows.push([tr("export.report.products_low_stock"), String(stats.products_low)]);
+    if (stats.income_current_month != null) {
+        detailRows.push([tr("export.report.income_current_month"), formatCurrency(stats.income_current_month, loc)]);
+    }
     for (const m of stats.new_patients_per_month) {
         detailRows.push([`${tr("export.report.new_patients")} ${m.month}`, String(m.value)]);
     }
@@ -267,8 +270,11 @@ export function buildStatisticsReportBundle(stats: StatisticsOverview, period: P
         generatedAt: todayLocalized(loc),
         summary: [
             { label: tr("export.report.period"), value: pl },
-            { label: tr("export.report.income_current_month"), value: formatCurrency(stats.income_current_month, loc) },
-            { label: tr("export.report.patients_total"), value: String(stats.patients_total) },
+            {
+                label: tr("export.report.income_current_month"),
+                value: stats.income_current_month != null ? formatCurrency(stats.income_current_month, loc) : "—",
+            },
+            { label: tr("export.report.patients_total"), value: stats.patients_total != null ? String(stats.patients_total) : "—" },
         ],
         sections: [
             {
@@ -610,6 +616,8 @@ export function financeTransactionsToLegacyCsv(
     rows: FinanceTxRow[],
     patientNames: Map<string, string>,
 ): string {
+    // F151: the label helpers take the translator; the legacy CSV stays English.
+    const tr = (key: string) => translateLocale("en", key);
     const esc = (s: string) => (/[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
     const header = ["Date", "Type", "Transaction", "Counterparty", "Payment method", "Status", "Amount_EUR", "Note"];
     const lines = [header.map(esc).join(",")];
@@ -620,9 +628,9 @@ export function financeTransactionsToLegacyCsv(
                 [
                     formatDate(z.created_at),
                     "Payment",
-                    financeTransactionText(z),
+                    financeTransactionText(z, tr),
                     patientNames.get(z.patient_id) ?? "—",
-                    paymentMethodLabelFin(z.payment_method),
+                    paymentMethodLabelFin(z.payment_method, tr),
                     z.status,
                     z.amount.toFixed(2).replace(".", ","),
                     (z.description ?? "").replace(/\r?\n/g, " ").trim(),

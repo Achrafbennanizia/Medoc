@@ -11,4 +11,5 @@ mod run;
 mod types;
 
 pub use run::{SyncEngine, PULL_ROW_RETRY_LIMIT};
+pub(crate) use run::master_http_client_for_reconcile;
 pub use types::{MeshSyncReport, SyncPullResult, SyncPushResult, SyncRunReport};

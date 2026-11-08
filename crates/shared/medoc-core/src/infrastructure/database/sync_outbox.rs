@@ -18,29 +18,16 @@ use uuid::Uuid;
 
 use crate::error::AppError;
 use crate::infrastructure::database::app_kv_repo;
+use crate::infrastructure::database::recorded_write;
+use crate::infrastructure::database::sync_registry;
 
 const APP_KV_DEPLOYMENT_KEY: &str = "sync.deployment.v1";
 const APP_KV_DEVICE_ID_KEY: &str = "sync.device_id.v1";
 
 /// Allow-listed entity tables that flow through the outbox.
-pub const SYNCED_TABLES: &[&str] = &[
-    "patient",
-    "patient_chart",
-    "appointment",
-    "absence",
-    "treatment",
-    "examination",
-    "payment",
-    "app_kv",
-    "practice_task",
-    "anamnesis_form",
-    "dental_finding",
-    "prescription",
-    "certificate",
-    "service_item",
-    "in_app_notification",
-    "practice_ticket",
-];
+pub fn synced_tables() -> impl Iterator<Item = &'static str> {
+    sync_registry::synced_tables()
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -75,7 +62,19 @@ pub async fn record_or_noop(
     op: &str,
     payload_json: &str,
 ) -> Result<(), AppError> {
-    if !SYNCED_TABLES.contains(&entity_table) {
+    let _ = payload_json;
+    recorded_write::record_or_noop_in_own_tx(pool, entity_table, entity_id, op).await
+}
+
+#[allow(dead_code)]
+async fn _record_or_noop_legacy_guard(
+    pool: &SqlitePool,
+    entity_table: &str,
+    entity_id: &str,
+    op: &str,
+    payload_json: &str,
+) -> Result<(), AppError> {
+    if !sync_registry::is_synced_table(entity_table) {
         return Ok(());
     }
     let Some(raw) = app_kv_repo::get(pool, APP_KV_DEPLOYMENT_KEY).await? else {
@@ -267,9 +266,15 @@ mod tests {
         .await
         .unwrap();
         enable_serverless(&pool).await;
-        record_or_noop(&pool, "app_kv", "onboarding.setup_complete.v1", "UPDATE", "{}")
-            .await
-            .expect("outbox must create the sync_device parent before sync_vector");
+        record_or_noop(
+            &pool,
+            "app_kv",
+            "practice.timezone.v1",
+            "UPDATE",
+            "{}",
+        )
+        .await
+        .expect("outbox must create the sync_device parent before sync_vector");
         let n: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM sync_device WHERE device_id = 'orphan-device'",
         )

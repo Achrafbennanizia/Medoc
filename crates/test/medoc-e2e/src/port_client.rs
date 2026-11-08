@@ -238,6 +238,7 @@ pub async fn sync_pull_since(
     client: &PortE2eClient,
     activation_token: &str,
     device_id: &str,
+    requester_id: &str,
     since_seq: i64,
 ) -> Value {
     let (status, body) = client
@@ -247,6 +248,7 @@ pub async fn sync_pull_since(
             Some(&serde_json::json!({
                 "deviceId": device_id,
                 "sinceSeq": since_seq,
+                "requesterId": requester_id,
             })),
             Some(activation_token),
         )

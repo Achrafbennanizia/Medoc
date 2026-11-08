@@ -22,6 +22,10 @@ pub struct Prescription {
     pub prescription_type: Option<String>,
     pub icd10_code: Option<String>,
     pub prescribing_physician_id: Option<String>,
+    /// F86: the prescription this one corrects (`None` for an original).
+    #[sqlx(default)]
+    #[serde(default)]
+    pub replaces_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

@@ -161,7 +161,18 @@ export function ProductsPage() {
                     product_id: created.id,
                 });
             }
-            toast(t("products.toast.created"), "success");
+            const createdId = created.id;
+            toast(t("products.toast.created"), "success", {
+                onUndo: async () => {
+                    try {
+                        await deleteProduct(createdId);
+                        setSelected((current) => (current?.id === createdId ? null : current));
+                        void load();
+                    } catch (err) {
+                        toast(errorMessage(err), "error");
+                    }
+                },
+            });
             setCreateForm(emptyForm());
             setCreating(false);
             const returnTo = searchParams.get("returnTo");
@@ -192,13 +203,14 @@ export function ProductsPage() {
 
     const handleUpdate = async () => {
         if (!selected || !formValid(editForm, stockFormOpts) || !canWrite) return;
+        const previous = selected;
         setSaveBusy(true);
         try {
             const p = parseForm(editForm, {
                 ...stockFormOpts,
-                stockFallback: { stock: selected.stock, min_stock: selected.min_stock },
+                stockFallback: { stock: previous.stock, min_stock: previous.min_stock },
             });
-            const updated = await updateProduct(selected.id, {
+            const updated = await updateProduct(previous.id, {
                 name: p.name,
                 category: p.category,
                 price: p.price,
@@ -209,7 +221,25 @@ export function ProductsPage() {
             setProducts((list) => list.map((x) => (x.id === updated.id ? updated : x)));
             setSelected(updated);
             setDetailEdit(false);
-            toast(t("products.toast.saved"), "success");
+            toast(t("products.toast.saved"), "success", {
+                onUndo: async () => {
+                    try {
+                        const restored = await updateProduct(previous.id, {
+                            name: previous.name,
+                            category: previous.category,
+                            price: previous.price,
+                            stock: previous.stock,
+                            min_stock: previous.min_stock,
+                            description: previous.description,
+                        });
+                        setProducts((list) => list.map((x) => (x.id === restored.id ? restored : x)));
+                        setSelected(restored);
+                        setEditForm(toForm(restored));
+                    } catch (err) {
+                        toast(errorMessage(err), "error");
+                    }
+                },
+            });
         } catch (e) {
             toast(errorMessage(e), "error");
         } finally {
@@ -220,9 +250,27 @@ export function ProductsPage() {
     const handleDelete = async () => {
         if (!deleteId) return;
         const id = deleteId;
+        const row = products.find((item) => item.id === id) ?? (selected?.id === id ? selected : null);
         try {
             await deleteProduct(id);
-            toast(t("products.toast.deleted"), "success");
+            toast(t("products.toast.deleted"), "success", {
+                onUndo: async () => {
+                    if (!row) return;
+                    try {
+                        await createProduct({
+                            name: row.name,
+                            description: row.description ?? undefined,
+                            category: row.category,
+                            price: row.price,
+                            stock: row.stock,
+                            min_stock: row.min_stock,
+                        });
+                        void load();
+                    } catch (err) {
+                        toast(errorMessage(err), "error");
+                    }
+                },
+            });
             setDeleteId(null);
             setSelected((s) => (s?.id === id ? null : s));
             setDetailEdit(false);

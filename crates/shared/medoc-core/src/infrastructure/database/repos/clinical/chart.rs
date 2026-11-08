@@ -63,11 +63,23 @@ pub async fn ensure_chart_for_patient(
         return Err(AppError::NotFound("Patient".into()));
     }
     let chart_id = uuid::Uuid::new_v4().to_string();
-    sqlx::query("INSERT INTO patient_chart (id, patient_id) VALUES (?1, ?2)")
+    let mut tx = pool.begin().await?;
+    sqlx::query(
+        "INSERT INTO patient_chart (id, patient_id, updated_at)
+         VALUES (?1, ?2, strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
+    )
         .bind(&chart_id)
         .bind(patient_id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
+    crate::infrastructure::database::recorded_write::record_in_tx(
+        &mut tx,
+        "patient_chart",
+        &chart_id,
+        "INSERT",
+    )
+    .await?;
+    tx.commit().await?;
     find_chart_by_patient(pool, patient_id)
         .await?
         .ok_or_else(|| AppError::Internal("Chart insert failed".into()))
@@ -258,8 +270,8 @@ pub async fn create_examination(
         _ => next_examination_number(pool, &data.chart_id).await?,
     };
     sqlx::query(
-        "INSERT INTO examination (id, chart_id, chief_complaint, results, diagnosis, examination_number, category, service_name, total_cost)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        "INSERT INTO examination (id, chart_id, chief_complaint, results, diagnosis, examination_number, category, service_name, total_cost, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
     )
     .bind(&id)
     .bind(&data.chart_id)
@@ -337,8 +349,8 @@ pub async fn create_treatment(
         .map(|b| if b { 1i64 } else { 0i64 });
     sqlx::query(
         "INSERT INTO treatment (id, chart_id, kind, description, teeth, material, notes,
-         category, service_name, treatment_number, session_number, treatment_status, total_cost, appointment_required, treatment_date)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+         category, service_name, treatment_number, session_number, treatment_status, total_cost, appointment_required, treatment_date, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
     )
     .bind(&id)
     .bind(&data.chart_id)
@@ -403,7 +415,8 @@ pub async fn update_treatment(
     sqlx::query(
         "UPDATE treatment SET kind = ?1, description = ?2, teeth = ?3, material = ?4, notes = ?5,
          category = ?6, service_name = ?7, treatment_number = ?8, session_number = ?9,
-         treatment_status = ?10, total_cost = ?11, appointment_required = ?12, treatment_date = ?13
+         treatment_status = ?10, total_cost = ?11, appointment_required = ?12, treatment_date = ?13,
+         updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
          WHERE id = ?14",
     )
     .bind(&data.kind)
@@ -438,23 +451,48 @@ pub async fn update_treatment(
     Ok(updated)
 }
 
+/// F73: a line whose payment already holds money cannot be deleted (create a
+/// correction instead). Untouched bookings of the line are cancelled in the same
+/// transaction, so no open booking points at a deleted line.
 pub async fn delete_treatment(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
+    let mut tx = pool.begin().await?;
+    let linked: Vec<(String, f64, String)> = sqlx::query_as(
+        "SELECT id, CAST(amount AS REAL), TRIM(UPPER(COALESCE(status, ''))) FROM payment
+         WHERE treatment_id = ?1 AND TRIM(UPPER(COALESCE(status, ''))) != 'CANCELLED'",
+    )
+    .bind(id)
+    .fetch_all(&mut *tx)
+    .await?;
+    if linked
+        .iter()
+        .any(|(_, amount, status)| *amount > 0.005 || status != "OUTSTANDING")
+    {
+        return Err(AppError::Conflict(
+            "Payment already started for this line; create a correction instead".into(),
+        ));
+    }
+    for (pid, _, _) in &linked {
+        sqlx::query(
+            "UPDATE payment SET status = 'CANCELLED',
+             updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?1",
+        )
+        .bind(pid)
+        .execute(&mut *tx)
+        .await?;
+        crate::infrastructure::database::recorded_write::record_in_tx(&mut tx, "payment", pid, "UPDATE")
+            .await?;
+    }
+    crate::infrastructure::database::recorded_write::record_in_tx(&mut tx, "treatment", id, "DELETE")
+        .await?;
     let n = sqlx::query("DELETE FROM treatment WHERE id = ?1")
         .bind(id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?
         .rows_affected();
     if n == 0 {
         return Err(AppError::NotFound("Treatment".into()));
     }
-    crate::infrastructure::database::sync_outbox::record_or_noop(
-        pool,
-        "treatment",
-        id,
-        "DELETE",
-        &format!("{{\"id\":\"{id}\"}}"),
-    )
-    .await?;
+    tx.commit().await?;
     Ok(())
 }
 
@@ -478,7 +516,8 @@ pub async fn update_examination(
         .ok_or(AppError::NotFound("Examination".into()))?;
     sqlx::query(
         "UPDATE examination SET chief_complaint = ?1, results = ?2, diagnosis = ?3,
-         category = ?4, service_name = ?5, total_cost = ?6 WHERE id = ?7",
+         category = ?4, service_name = ?5, total_cost = ?6,
+         updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?7",
     )
     .bind(&data.chief_complaint)
     .bind(&data.results)
@@ -505,23 +544,48 @@ pub async fn update_examination(
     Ok(updated)
 }
 
+/// F73: a line whose payment already holds money cannot be deleted (create a
+/// correction instead). Untouched bookings of the line are cancelled in the same
+/// transaction, so no open booking points at a deleted line.
 pub async fn delete_examination(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
+    let mut tx = pool.begin().await?;
+    let linked: Vec<(String, f64, String)> = sqlx::query_as(
+        "SELECT id, CAST(amount AS REAL), TRIM(UPPER(COALESCE(status, ''))) FROM payment
+         WHERE examination_id = ?1 AND TRIM(UPPER(COALESCE(status, ''))) != 'CANCELLED'",
+    )
+    .bind(id)
+    .fetch_all(&mut *tx)
+    .await?;
+    if linked
+        .iter()
+        .any(|(_, amount, status)| *amount > 0.005 || status != "OUTSTANDING")
+    {
+        return Err(AppError::Conflict(
+            "Payment already started for this line; create a correction instead".into(),
+        ));
+    }
+    for (pid, _, _) in &linked {
+        sqlx::query(
+            "UPDATE payment SET status = 'CANCELLED',
+             updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?1",
+        )
+        .bind(pid)
+        .execute(&mut *tx)
+        .await?;
+        crate::infrastructure::database::recorded_write::record_in_tx(&mut tx, "payment", pid, "UPDATE")
+            .await?;
+    }
+    crate::infrastructure::database::recorded_write::record_in_tx(&mut tx, "examination", id, "DELETE")
+        .await?;
     let n = sqlx::query("DELETE FROM examination WHERE id = ?1")
         .bind(id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?
         .rows_affected();
     if n == 0 {
         return Err(AppError::NotFound("Examination".into()));
     }
-    crate::infrastructure::database::sync_outbox::record_or_noop(
-        pool,
-        "examination",
-        id,
-        "DELETE",
-        &format!("{{\"id\":\"{id}\"}}"),
-    )
-    .await?;
+    tx.commit().await?;
     Ok(())
 }
 
@@ -530,21 +594,47 @@ pub async fn release_examination_for_billing(
     examination_id: &str,
     physician_staff_id: &str,
 ) -> Result<Examination, AppError> {
+    let mut tx = pool.begin().await?;
+    release_examination_for_billing_in_tx(&mut tx, examination_id, physician_staff_id).await?;
+    tx.commit().await?;
+    find_examination_by_id(pool, examination_id)
+        .await?
+        .ok_or_else(|| AppError::Internal("Examination not readable after release".into()))
+}
+
+pub async fn release_examination_for_billing_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    examination_id: &str,
+    physician_staff_id: &str,
+) -> Result<(), AppError> {
+    let prev: Option<String> =
+        sqlx::query_scalar("SELECT CAST(updated_at AS TEXT) FROM examination WHERE id = ?1")
+            .bind(examination_id)
+            .fetch_optional(&mut **tx)
+            .await?;
+    let stamp = crate::infrastructure::database::recorded_write::next_updated_at(prev.as_deref());
     let n = sqlx::query(
-        "UPDATE examination SET released_by_physician_id = ?1, released_at = datetime('now')
-         WHERE id = ?2",
+        "UPDATE examination SET released_by_physician_id = ?1, released_at = datetime('now'),
+         updated_at = ?2
+         WHERE id = ?3",
     )
     .bind(physician_staff_id)
+    .bind(&stamp)
     .bind(examination_id)
-    .execute(pool)
+    .execute(&mut **tx)
     .await?
     .rows_affected();
     if n == 0 {
         return Err(AppError::NotFound("Examination".into()));
     }
-    find_examination_by_id(pool, examination_id)
-        .await?
-        .ok_or_else(|| AppError::Internal("Examination not readable after release".into()))
+    crate::infrastructure::database::recorded_write::record_in_tx(
+        tx,
+        "examination",
+        examination_id,
+        "UPDATE",
+    )
+    .await?;
+    Ok(())
 }
 
 pub async fn release_treatment_for_billing(
@@ -552,21 +642,47 @@ pub async fn release_treatment_for_billing(
     treatment_id: &str,
     physician_staff_id: &str,
 ) -> Result<Treatment, AppError> {
+    let mut tx = pool.begin().await?;
+    release_treatment_for_billing_in_tx(&mut tx, treatment_id, physician_staff_id).await?;
+    tx.commit().await?;
+    find_treatment_by_id(pool, treatment_id)
+        .await?
+        .ok_or_else(|| AppError::Internal("Treatment not readable after release".into()))
+}
+
+pub async fn release_treatment_for_billing_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    treatment_id: &str,
+    physician_staff_id: &str,
+) -> Result<(), AppError> {
+    let prev: Option<String> =
+        sqlx::query_scalar("SELECT CAST(updated_at AS TEXT) FROM treatment WHERE id = ?1")
+            .bind(treatment_id)
+            .fetch_optional(&mut **tx)
+            .await?;
+    let stamp = crate::infrastructure::database::recorded_write::next_updated_at(prev.as_deref());
     let n = sqlx::query(
-        "UPDATE treatment SET released_by_physician_id = ?1, released_at = datetime('now')
-         WHERE id = ?2",
+        "UPDATE treatment SET released_by_physician_id = ?1, released_at = datetime('now'),
+         updated_at = ?2
+         WHERE id = ?3",
     )
     .bind(physician_staff_id)
+    .bind(&stamp)
     .bind(treatment_id)
-    .execute(pool)
+    .execute(&mut **tx)
     .await?
     .rows_affected();
     if n == 0 {
         return Err(AppError::NotFound("Treatment".into()));
     }
-    find_treatment_by_id(pool, treatment_id)
-        .await?
-        .ok_or_else(|| AppError::Internal("Treatment not readable after release".into()))
+    crate::infrastructure::database::recorded_write::record_in_tx(
+        tx,
+        "treatment",
+        treatment_id,
+        "UPDATE",
+    )
+    .await?;
+    Ok(())
 }
 
 /// FA-AKTE-15: records with status DRAFT or IN_PROGRESS (physician validation pending).
@@ -598,7 +714,9 @@ pub async fn list_charts_to_validate(
 /// FA-AKTE-15: count for sidebar badge (same filter as [`list_charts_to_validate`]).
 pub async fn count_charts_to_validate(pool: &SqlitePool) -> Result<i64, AppError> {
     let row: (i64,) = sqlx::query_as(
+        // F94: same join as the list, so charts without a patient row are not counted.
         "SELECT COUNT(*) FROM patient_chart pa
+         INNER JOIN patient p ON p.id = pa.patient_id
          WHERE pa.status IN ('DRAFT', 'IN_PROGRESS')",
     )
     .fetch_one(pool)
@@ -621,7 +739,7 @@ pub async fn mark_chart_for_physician_review(
         return Ok(cur);
     }
     sqlx::query(
-        "UPDATE patient_chart SET status = 'IN_PROGRESS', updated_at = CURRENT_TIMESTAMP
+        "UPDATE patient_chart SET status = 'IN_PROGRESS', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
          WHERE patient_id = ?1",
     )
     .bind(patient_id)
@@ -653,7 +771,7 @@ pub async fn validate_patient_chart_status(
         .ok_or(AppError::NotFound("PatientChart".into()))?;
     crate::domain::services::workflow_transitions::patient_chart_validate_transition(&cur.status)?;
     sqlx::query(
-        "UPDATE patient_chart SET status = 'VALIDATED', updated_at = CURRENT_TIMESTAMP
+        "UPDATE patient_chart SET status = 'VALIDATED', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
          WHERE patient_id = ?1",
     )
     .bind(patient_id)
@@ -688,7 +806,7 @@ pub async fn decline_patient_chart_status(
         return Ok(cur);
     }
     sqlx::query(
-        "UPDATE patient_chart SET status = 'DECLINED', updated_at = CURRENT_TIMESTAMP
+        "UPDATE patient_chart SET status = 'DECLINED', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
          WHERE patient_id = ?1",
     )
     .bind(patient_id)

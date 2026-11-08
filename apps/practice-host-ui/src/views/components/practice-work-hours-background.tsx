@@ -10,12 +10,17 @@ import {
     usePracticeWorkHoursStore,
 } from "@/models/store/practice-work-hours-store";
 import { mergeCalendarWorkflowsFromKv } from "@/lib/practice-calendar-workflows-sync";
+import { formatPracticeOpeningHours, type PracticeDayKey } from "@/lib/practice-planning";
+import { patchInvoicePracticeOpeningHours } from "@/lib/invoice-service-item";
+import { translateLocale, useLocale } from "@/lib/i18n";
 
 const REFRESH_INTERVAL_MS = 500;
 
 export function PracticeWorkHoursBackground() {
     const sessionChecked = useAuthStore((s) => s.sessionChecked);
     const session = useAuthStore((s) => s.session);
+    const workHours = usePracticeWorkHoursStore((s) => s.config);
+    const locale = useLocale((s) => s.locale);
 
     useEffect(() => {
         if (!sessionChecked) return undefined;
@@ -49,6 +54,21 @@ export function PracticeWorkHoursBackground() {
             window.removeEventListener("online", onOnline);
         };
     }, [sessionChecked, session]);
+
+    useEffect(() => {
+        if (!sessionChecked || !session) return undefined;
+        const summary = formatPracticeOpeningHours(workHours, (key: PracticeDayKey) =>
+            translateLocale(locale, `page.workTime.day_short.${key}`),
+        );
+        if (!summary) return undefined;
+        let cancelled = false;
+        void patchInvoicePracticeOpeningHours(summary).catch(() => {
+            if (cancelled) return;
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [locale, session, sessionChecked, workHours]);
 
     return null;
 }

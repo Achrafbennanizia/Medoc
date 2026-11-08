@@ -32,6 +32,7 @@ async fn fresh_pool() -> sqlx::SqlitePool {
 }
 
 #[tokio::test]
+#[serial_test::serial]
 async fn cluster_listener_binds_private_loopback() {
     let addr: IpAddr = "127.0.0.1".parse().unwrap();
     let listener = bind_cluster_listener(addr, 0).await.expect("bind");
@@ -47,6 +48,7 @@ fn noise_xx_produces_shared_transcript() {
 }
 
 #[tokio::test]
+#[serial_test::serial]
 async fn xx_handshake_over_tcp_matches_transcript() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
@@ -63,6 +65,7 @@ async fn xx_handshake_over_tcp_matches_transcript() {
 }
 
 #[tokio::test]
+#[serial_test::serial]
 async fn join_request_accept_over_loopback() {
     std::env::set_var(
         "MEDOC_CLUSTER_DEVICE_SECRET",
@@ -117,6 +120,7 @@ async fn join_request_accept_over_loopback() {
 }
 
 #[tokio::test]
+#[serial_test::serial]
 async fn replica_sas_uses_stored_transcript_not_ipc_garbage() {
     std::env::set_var(
         "MEDOC_CLUSTER_DEVICE_SECRET",
@@ -194,6 +198,7 @@ async fn arm_admin_sas(pool: &sqlx::SqlitePool, session_id: &str, digits: &str) 
 }
 
 #[tokio::test]
+#[serial_test::serial]
 async fn sas_confirm_via_spawned_cluster_handler() {
     std::env::set_var(
         "MEDOC_CLUSTER_DEVICE_SECRET",
@@ -252,6 +257,7 @@ async fn sas_confirm_via_spawned_cluster_handler() {
 }
 
 #[tokio::test]
+#[serial_test::serial]
 async fn sas_confirm_works_when_license_exists_before_join() {
     std::env::set_var(
         "MEDOC_CLUSTER_DEVICE_SECRET",
@@ -286,6 +292,7 @@ async fn sas_confirm_works_when_license_exists_before_join() {
 }
 
 #[tokio::test]
+#[serial_test::serial]
 async fn sas_confirm_from_transcript_while_still_join_requested() {
     std::env::set_var(
         "MEDOC_CLUSTER_DEVICE_SECRET",
@@ -320,6 +327,7 @@ async fn sas_confirm_from_transcript_while_still_join_requested() {
 }
 
 #[tokio::test]
+#[serial_test::serial]
 async fn sas_confirm_uses_transcript_when_stored_hash_is_wrong() {
     std::env::set_var(
         "MEDOC_CLUSTER_DEVICE_SECRET",
@@ -363,6 +371,7 @@ async fn sas_confirm_uses_transcript_when_stored_hash_is_wrong() {
 }
 
 #[tokio::test]
+#[serial_test::serial]
 async fn staff_directory_and_lan_token_after_sas() {
     std::env::set_var(
         "MEDOC_CLUSTER_DEVICE_SECRET",

@@ -11,10 +11,13 @@ pub mod engine;
 pub mod master_keys;
 pub mod merge;
 pub mod net;
+pub mod numbering;
 pub mod pairing;
 pub mod ports;
+pub mod reconcile;
 pub mod repo;
 pub mod schema;
+pub mod tls_pin;
 pub mod watch;
 
 pub use deployment::{DeploymentMode, DeviceRole, SyncDeploymentConfig};

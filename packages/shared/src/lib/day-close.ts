@@ -1,10 +1,20 @@
 import type { Payment } from "@/models/types";
 
 /** Local date (YYYY-MM-DD) from `created_at` (SQLite-naive or ISO). */
-export function paymentLocalYmd(createdAt: string): string {
-    const t = createdAt.trim();
+/**
+ * F77: database timestamps (`YYYY-MM-DD HH:MM:SS`, SQLite CURRENT_TIMESTAMP)
+ * are UTC. Without a zone designator `new Date()` would read them as local
+ * time, which moves payments near midnight to the wrong day.
+ */
+export function parseDbUtc(raw: string): Date {
+    const t = raw.trim();
     const iso = t.includes("T") ? t : t.replace(" ", "T");
-    const d = new Date(iso);
+    const hasZone = /(Z|[+-]\d{2}:?\d{2})$/i.test(iso);
+    return new Date(hasZone ? iso : `${iso}Z`);
+}
+
+export function paymentLocalYmd(createdAt: string): string {
+    const d = parseDbUtc(createdAt);
     if (Number.isNaN(d.getTime())) {
         return "";
     }

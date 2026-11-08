@@ -8,6 +8,7 @@ use medoc_core::domain::enums::Sex;
 use medoc_core::infrastructure::database::patient_repo;
 use medoc_practice::commands::company_portal_commands::apply_serverless_role_from_license_code;
 use medoc_practice::commands::lan_commands::lan_listen_block_reason;
+use medoc_practice::commands::staff_commands::reject_staff_writes_on_replica;
 use medoc_sync::deployment::{DeploymentMode, DeviceRole};
 use medoc_sync::engine::SyncEngine;
 use serial_test::serial;
@@ -90,4 +91,17 @@ async fn replica_patient_create_increases_pending_outbox() {
         "outbox should grow, before={before} after={after}"
     );
     assert_eq!(patients, 1);
+}
+
+#[tokio::test]
+#[serial]
+async fn replica_cannot_create_staff() {
+    let pool = fresh_pool().await;
+    apply_serverless_role_from_license_code(&pool, "REPLICA-DEV-01")
+        .await
+        .expect("apply replica");
+    let err = reject_staff_writes_on_replica(&pool)
+        .await
+        .expect_err("replica staff write");
+    assert!(err.to_string().contains("Staff accounts are managed on the main device."));
 }

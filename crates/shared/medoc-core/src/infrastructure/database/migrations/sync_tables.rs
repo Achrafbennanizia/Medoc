@@ -54,6 +54,9 @@ pub(super) async fn ensure_sync_replication_tables(pool: &SqlitePool) -> Result<
     .execute(pool)
     .await
     .map_err(AppError::Database)?;
+    let _ = sqlx::query("ALTER TABLE sync_outbox ADD COLUMN fail_reason TEXT")
+        .execute(pool)
+        .await;
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS sync_applied (
             source_device_id TEXT NOT NULL,

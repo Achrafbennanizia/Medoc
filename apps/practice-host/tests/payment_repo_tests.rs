@@ -453,6 +453,66 @@ async fn create_fulfills_open_booking_in_place_and_closes_billing_task() {
         .await
         .expect("load")
         .expect("task");
-    assert_eq!(closed.status, "VALIDATED");
+    // F98: payment completes the billing task (DONE_RECEPTION); the creator validates it.
+    assert_eq!(closed.status, "DONE_RECEPTION");
     assert_eq!(closed.payment_id.as_deref(), Some(paid.id.as_str()));
+}
+
+#[tokio::test]
+async fn find_by_patient_id_returns_saved_payment() {
+    let pool = migrated_pool().await;
+    let (patient_id, beh_id) = seed_patient_treatment_100(&pool).await;
+    payment_repo::create(&pool, &create_payload(&patient_id, &beh_id, 10.0))
+        .await
+        .expect("create");
+    let rows = payment_repo::find_by_patient_id(&pool, &patient_id)
+        .await
+        .expect("list");
+    assert_eq!(rows.len(), 1);
+    assert!((rows[0].amount - 10.0).abs() < 1e-6);
+}
+
+#[tokio::test]
+async fn ensure_released_for_payment_unblocks_unreleased_treatment() {
+    let pool = migrated_pool().await;
+    let patient_id = "t-payment-pat-rel".to_string();
+    let chart_id = "t-payment-chart-rel".to_string();
+    let beh_id = "t-payment-bh-rel".to_string();
+    sqlx::query(
+        "INSERT INTO patient (id, name, date_of_birth, sex, insurance_number)
+         VALUES (?1, 'Release', '1990-01-01', 'MALE', 'V-REL')",
+    )
+    .bind(&patient_id)
+    .execute(&pool)
+    .await
+    .expect("patient");
+    sqlx::query("INSERT INTO patient_chart (id, patient_id, status) VALUES (?1, ?2, 'DRAFT')")
+        .bind(&chart_id)
+        .bind(&patient_id)
+        .execute(&pool)
+        .await
+        .expect("chart");
+    sqlx::query(
+        "INSERT INTO treatment (
+            id, chart_id, kind, description, category, service_name, treatment_number,
+            session_number, treatment_status, total_cost, appointment_required, treatment_date
+        ) VALUES (
+            ?1, ?2, 'Test', 'Test', 'Test', 'Test', 'T-REL',
+            1, 'COMPLETED', 40.0, 0, '2026-01-01'
+        )",
+    )
+    .bind(&beh_id)
+    .bind(&chart_id)
+    .execute(&pool)
+    .await
+    .expect("treatment");
+
+    let payload = create_payload(&patient_id, &beh_id, 40.0);
+    payment_repo::ensure_released_for_payment(&pool, "seed-physician-001", &payload)
+        .await
+        .expect("release");
+    let saved = payment_repo::create(&pool, &payload)
+        .await
+        .expect("payment after release");
+    assert!((saved.amount - 40.0).abs() < 1e-6);
 }

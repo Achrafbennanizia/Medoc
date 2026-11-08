@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
     DEFAULT_PRACTICE_PREFERENCES,
@@ -70,6 +70,7 @@ export function PracticePreferencesPage() {
     const toast = useToastStore((s) => s.add);
     const { canWritePracticePlanning } = useRbac();
     const [prefs, setPrefs] = useState<PracticePreferences>(DEFAULT_PRACTICE_PREFERENCES);
+    const savedPrefsRef = useRef<PracticePreferences>(DEFAULT_PRACTICE_PREFERENCES);
     const [hydrated, setHydrated] = useState(false);
 
     const colorCatalog = useMemo(
@@ -89,7 +90,10 @@ export function PracticePreferencesPage() {
 
     useEffect(() => {
         void loadPracticePreferencesFromKv()
-            .then((version) => setPrefs(version))
+            .then((version) => {
+                savedPrefsRef.current = version;
+                setPrefs(version);
+            })
             .catch(() => {
                 /* keep defaults */
             })
@@ -103,10 +107,23 @@ export function PracticePreferencesPage() {
                 ...prefs,
                 monthCalendarPatientLoad: normalizeMonthCalendarPatientLoad(prefs.monthCalendarPatientLoad),
             };
+            const previous = savedPrefsRef.current;
             await savePracticePreferences(normalized);
             const next = await loadPracticePreferencesFromKv();
+            savedPrefsRef.current = next;
             setPrefs(next);
-            toast(t("page.practice_preferences.toast.saved"));
+            toast(t("page.practice_preferences.toast.saved"), "success", {
+                onUndo: async () => {
+                    try {
+                        await savePracticePreferences(previous);
+                        const restored = await loadPracticePreferencesFromKv();
+                        savedPrefsRef.current = restored;
+                        setPrefs(restored);
+                    } catch (err) {
+                        toast(tp("common.save_failed", { message: errorMessage(err) }), "error");
+                    }
+                },
+            });
         } catch (e: unknown) {
             toast(tp("common.save_failed", { message: errorMessage(e) }), "error");
         }

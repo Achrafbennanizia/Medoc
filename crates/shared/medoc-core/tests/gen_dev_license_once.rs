@@ -2,9 +2,7 @@
 use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine};
 use chrono::{TimeZone, Utc};
 use ed25519_dalek::{Signer, SigningKey};
-use medoc_core::infrastructure::database::connection;
 use medoc_core::infrastructure::license::{encrypt_v2_for_device, LicenseV2, VENDOR_PUBKEY};
-use medoc_core::infrastructure::license_repo;
 
 const TEST_SIGNING_KEY_HEX: &str =
     "8762be1a9a0963f36d98d47c0de6a73a0124b77d3268c170365824a6045d2fbf";
@@ -24,22 +22,38 @@ fn sign_json(body: &str) -> String {
     format!("{}.{}", body, STANDARD_NO_PAD.encode(sig.to_bytes()))
 }
 
-fn device_id_from_env_or_file() -> Option<String> {
-    if let Ok(id) = std::env::var("MEDOC_DEVICE_ID") {
-        let t = id.trim();
-        if !t.is_empty() {
-            return Some(t.to_string());
-        }
-    }
-    let path =
-        dirs::home_dir()?.join("Library/Application Support/de.medoc.app/lan-instance-id.txt");
-    let raw = std::fs::read_to_string(path).ok()?;
-    let t = raw.trim();
+fn device_id_from_env() -> Option<String> {
+    let id = std::env::var("MEDOC_DEVICE_ID").ok()?;
+    let t = id.trim();
     if t.is_empty() {
         None
     } else {
         Some(t.to_string())
     }
+}
+
+/// License binding is `sync.device_id.v1`. `lan-instance-id.txt` is a different id and
+/// produces "Could not decrypt license (wrong device?)".
+async fn device_id_from_app_db(app_dir: &std::path::Path) -> Result<Option<String>, String> {
+    let db_path = app_dir.join("medoc.db");
+    if !db_path.exists() {
+        return Ok(None);
+    }
+    let key = medoc_core::infrastructure::database::db_key::ensure_sqlcipher_key(app_dir, false)
+        .map_err(|e| format!("key: {e}"))?;
+    let pool = medoc_core::infrastructure::database::sqlcipher::open_encrypted_pool(
+        &db_path, key, false,
+    )
+    .await
+    .map_err(|e| format!("open: {e}"))?;
+    let id: Option<String> = sqlx::query_scalar(
+        "SELECT value FROM app_kv WHERE key = 'sync.device_id.v1'",
+    )
+    .fetch_optional(&pool)
+    .await
+    .map_err(|e| format!("read: {e}"))?;
+    pool.close().await;
+    Ok(id.filter(|s| !s.trim().is_empty()))
 }
 
 fn build_tokens(device_id: &str) -> (String, String) {
@@ -75,18 +89,17 @@ fn build_tokens(device_id: &str) -> (String, String) {
 #[tokio::test]
 #[ignore = "manual dev helper: MEDOC_DEVICE_ID, lan-instance-id.txt, or local medoc.db"]
 async fn print_dev_licenses() {
-    let device_id = if let Some(id) = device_id_from_env_or_file() {
+    let app_dir = dirs::home_dir()
+        .expect("home")
+        .join("Library/Application Support/de.medoc.app");
+    let device_id = if let Some(id) = device_id_from_env() {
         id
     } else {
-        let app_dir = dirs::home_dir()
-            .expect("home")
-            .join("Library/Application Support/de.medoc.app");
-        let pool = connection::init_db_headless(&app_dir)
-            .await
-            .expect("open medoc.db (set MEDOC_DB_KEY like tools/dev-tauri.sh)");
-        license_repo::ensure_device_id(&pool)
-            .await
-            .expect("device id")
+        match device_id_from_app_db(&app_dir).await {
+            Ok(Some(id)) => id,
+            Ok(None) => panic!("medoc.db has no sync.device_id.v1 — not creating one"),
+            Err(e) => panic!("could not read license device id: {e}"),
+        }
     };
 
     let (v2_token, v1_token) = build_tokens(&device_id);

@@ -1,10 +1,7 @@
 use crate::error::AppError;
 use crate::infrastructure::crypto;
 use crate::infrastructure::database::staff_repo;
-// TODO(deferred-security): 2FA unwired
-// use crate::infrastructure::totp;
-// TODO(deferred-security): 2FA unwired
-// use crate::mvp_security;
+use crate::infrastructure::totp;
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
@@ -33,6 +30,8 @@ pub struct Session {
     pub permission_overrides: Vec<PermissionOverride>,
     #[serde(default)]
     pub device_session_id: Option<String>,
+    #[serde(default)]
+    pub token_version: i64,
 }
 
 pub async fn authenticate(pool: &SqlitePool, req: &LoginRequest) -> Result<Session, AppError> {
@@ -47,6 +46,12 @@ pub async fn authenticate(pool: &SqlitePool, req: &LoginRequest) -> Result<Sessi
     if !valid {
         return Err(AppError::Unauthorized);
     }
+    if !crate::domain::rbac::is_login_role_allowed(&user.role) {
+        return Err(AppError::Forbidden);
+    }
+    if !user.available {
+        return Err(AppError::Forbidden);
+    }
 
     if crypto::needs_rehash(&user.password_hash) {
         let new_hash =
@@ -54,23 +59,32 @@ pub async fn authenticate(pool: &SqlitePool, req: &LoginRequest) -> Result<Sessi
         staff_repo::update_password_hash(pool, &user.id, &new_hash).await?;
     }
 
-    // TODO(deferred-security): 2FA unwired — password-only login.
+    let permission_overrides =
+        crate::infrastructure::database::staff_permission_repo::list_for_staff(pool, &user.id)
+            .await?;
+    // Stored secrets stay in the database. While the flag is off they are not checked,
+    // so an account enrolled under the previous build can still sign in with a password.
+    if crate::mvp_security::TOTP_2FA_ENABLED
+        && (staff_repo::is_totp_enrolled(&user) || staff_repo::totp_required_for_role(&user.role))
+    {
+        if !staff_repo::is_totp_enrolled(&user) {
+            return Err(AppError::TotpEnrollmentRequired);
+        }
+        let secret = user.totp_secret.as_deref().unwrap_or("");
+        let code = req.totp_code.as_deref().map(str::trim).unwrap_or("");
+        if code.is_empty() || !totp::verify_code(secret, code)? {
+            return Err(AppError::TotpRequired);
+        }
+    }
     Ok(Session {
         user_id: user.id,
         name: user.name,
         email: user.email,
         role: user.role,
-        permission_overrides: Vec::new(),
+        permission_overrides,
         device_session_id: None,
+        token_version: user.token_version,
     })
-
-    /*
-    if !mvp_security::TOTP_2FA_ENABLED {
-        return Ok(Session { ... });
-    }
-    let enrolled = staff_repo::is_totp_enrolled(&user);
-    ...
-    */
 }
 
 /// Password check without issuing a session (enrollment bootstrap).

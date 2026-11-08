@@ -17,17 +17,32 @@ pub fn get_log_level(session_state: State<'_, SessionState>) -> Result<LogLevel,
     Ok(LOGGING_CONFIG.level())
 }
 
+/// F137: device-local app_kv key (`logging.` is never synced).
+pub const LOG_LEVEL_KV: &str = "logging.level.v1";
+
 #[tauri::command]
-#[tracing::instrument(level = "info", skip(session_state, level))]
-pub fn set_log_level(
+#[tracing::instrument(level = "info", skip(pool, session_state, level))]
+pub async fn set_log_level(
+    pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
     level: LogLevel,
 ) -> Result<(), AppError> {
     rbac::require(&session_state, "ops.logs")?;
     let prev = LOGGING_CONFIG.level();
     LOGGING_CONFIG.set_level(level);
+    let raw = serde_json::to_string(&level).map_err(|e| AppError::Internal(e.to_string()))?;
+    medoc_core::infrastructure::database::app_kv_repo::set(&pool, LOG_LEVEL_KV, &raw).await?;
     log_system!(info, event = "LOG_LEVEL_CHANGED", from = ?prev, to = ?level);
     Ok(())
+}
+
+/// F137: apply the stored level at startup (it used to reset on every restart).
+pub async fn restore_log_level(pool: &SqlitePool) {
+    if let Ok(Some(raw)) = medoc_core::infrastructure::database::app_kv_repo::get(pool, LOG_LEVEL_KV).await {
+        if let Ok(level) = serde_json::from_str::<LogLevel>(&raw) {
+            LOGGING_CONFIG.set_level(level);
+        }
+    }
 }
 
 #[tauri::command]

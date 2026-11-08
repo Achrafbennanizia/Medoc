@@ -74,15 +74,14 @@ pub async fn pairing_decide(
         .map_err(into_tauri)?;
     let master_device_id = master_local_device_id(&pool).await.map_err(into_tauri)?;
     if payload.accept {
-        let pairing_state: Option<String> = sqlx::query_scalar(
-            "SELECT pairing_state FROM pairing_request WHERE id = ?1",
-        )
-        .bind(&payload.request_id)
-        .fetch_optional(pool.inner())
-        .await
-        .map_err(medoc_core::error::AppError::Database)
-        .map_err(into_tauri)?
-        .flatten();
+        let pairing_state: Option<String> =
+            sqlx::query_scalar("SELECT pairing_state FROM pairing_request WHERE id = ?1")
+                .bind(&payload.request_id)
+                .fetch_optional(pool.inner())
+                .await
+                .map_err(medoc_core::error::AppError::Database)
+                .map_err(into_tauri)?
+                .flatten();
         if matches!(
             pairing_state.as_deref(),
             Some("JOIN_REQUESTED" | "AWAITING_SAS" | "SAS_CONFIRMED" | "PROVISIONED" | "ABORTED")

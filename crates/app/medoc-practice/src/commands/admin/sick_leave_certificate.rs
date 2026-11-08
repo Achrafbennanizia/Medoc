@@ -65,16 +65,20 @@ pub async fn sick_leave_certificate_save(
     session_state: State<'_, SessionState>,
     request: SickLeaveCertificateSaveRequest,
 ) -> Result<SickLeaveCertificateRecord, AppError> {
-    let session = rbac::require(&session_state, "administration.team.read")?;
+    // F125: writing a certificate changes a colleague's work plan; read access is not enough.
+    let session = rbac::require(&session_state, "staff.write")?;
     let doc = request.document_ref.trim();
     if doc.is_empty() {
         return Err(AppError::Validation("Document is required.".into()));
     }
-    NaiveDate::parse_from_str(&request.date_from, "%Y-%m-%d")
+    let from = NaiveDate::parse_from_str(&request.date_from, "%Y-%m-%d")
         .map_err(|_| AppError::Validation("date_from: YYYY-MM-DD".into()))?;
     if let Some(ref to) = request.date_to {
-        NaiveDate::parse_from_str(to, "%Y-%m-%d")
+        let to = NaiveDate::parse_from_str(to, "%Y-%m-%d")
             .map_err(|_| AppError::Validation("date_to: YYYY-MM-DD".into()))?;
+        if to < from {
+            return Err(AppError::Validation("date_to must not be before date_from".into()));
+        }
     }
 
     let target_staff = request
@@ -82,6 +86,14 @@ pub async fn sick_leave_certificate_save(
         .as_deref()
         .unwrap_or(&session.user_id)
         .to_string();
+    let known: Option<i64> = sqlx::query_scalar("SELECT 1 FROM staff WHERE id = ?1")
+        .bind(&target_staff)
+        .fetch_optional(pool.inner())
+        .await
+        .map_err(AppError::Database)?;
+    if known.is_none() {
+        return Err(AppError::NotFound("Staff".into()));
+    }
 
     let id = Uuid::new_v4().to_string();
     let now = Utc::now().to_rfc3339();
@@ -125,6 +137,9 @@ pub async fn sick_leave_certificate_save(
     .execute(&mut *tx)
     .await
     .map_err(AppError::Database)?;
+    // F145: both rows are shared; record them in the same transaction.
+    medoc_core::infrastructure::database::recorded_write::record_in_tx(&mut tx, "sick_leave_certificate", &id, "INSERT").await?;
+    medoc_core::infrastructure::database::recorded_write::record_in_tx(&mut tx, "work_plan_adjustment", &adj_id, "INSERT").await?;
     tx.commit().await.map_err(AppError::Database)?;
 
     fetch_sick_leave(&pool, &id).await
@@ -169,11 +184,12 @@ pub async fn end_sick_leave_certificate(
     session_state: State<'_, SessionState>,
     id: String,
 ) -> Result<SickLeaveCertificateRecord, AppError> {
-    let session = rbac::require(&session_state, "administration.team.read")?;
+    let session = rbac::require(&session_state, "staff.write")?;
     let now = Utc::now().to_rfc3339();
     sqlx::query(
         "UPDATE sick_leave_certificate
-         SET status = 'ENDED', ended_at = ?1, ended_by = ?2
+         SET status = 'ENDED', ended_at = ?1, ended_by = ?2,
+             updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
          WHERE id = ?3 AND status = 'ACTIVE'",
     )
     .bind(&now)
@@ -182,6 +198,7 @@ pub async fn end_sick_leave_certificate(
     .execute(pool.inner())
     .await
     .map_err(AppError::Database)?;
+    medoc_core::infrastructure::database::recorded_write::record_row(pool.inner(), "sick_leave_certificate", &id, "UPDATE").await?;
     deactivate_adjustments_for_source(&pool, "sick_leave_certificate", &id).await?;
     fetch_sick_leave(&pool, &id).await
 }

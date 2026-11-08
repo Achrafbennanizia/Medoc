@@ -3,7 +3,7 @@
 use base64::Engine;
 use serde::Deserialize;
 use sqlx::SqlitePool;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager, State};
 
 use crate::application::rbac;
@@ -211,7 +211,7 @@ pub async fn list_chart_attachments(
     session_state: State<'_, SessionState>,
     chart_id: String,
 ) -> Result<Vec<ChartAttachmentDto>, AppError> {
-    let session = rbac::require(&session_state, "patient.read")?;
+    let session = rbac::require(&session_state, "patient.read_documents")?;
     let app_dir = app_data_dir(&app)?;
     let rows = chart_attachment_repo::list_for_chart(&pool, &chart_id).await?;
     audit_repo::create(
@@ -272,9 +272,19 @@ pub async fn create_chart_attachment_from_path(
     session_state: State<'_, SessionState>,
     data: CreateChartAttachmentFromPathInput,
 ) -> Result<ChartAttachmentDto, AppError> {
+    if !medoc_core::mvp_security::SCANNER_ENABLED {
+        return Err(AppError::FeatureDisabled("scanner".into()));
+    }
     let session = rbac::require(&session_state, "patient.write_medical")?;
     let app_dir = app_data_dir(&app)?;
     let src = Path::new(data.src_path.trim());
+    let scan_root = crate::infrastructure::database::app_kv_repo::get(&pool, "scanner.folder.v1")
+        .await
+        .ok()
+        .flatten()
+        .map(PathBuf::from)
+        .unwrap_or_else(|| app_dir.join("scans"));
+    medoc_core::infrastructure::fs_guard::ensure_inside(&scan_root, src)?;
     if !src.is_file() {
         return Err(AppError::NotFound("Scanner-Datei".into()));
     }
@@ -396,7 +406,7 @@ pub async fn open_chart_attachment_externally(
     id: String,
     with_app: Option<String>,
 ) -> Result<(), AppError> {
-    let session = rbac::require(&session_state, "patient.read")?;
+    let session = rbac::require(&session_state, "patient.read_documents")?;
     let app_dir = app_data_dir(&app)?;
     let row = chart_attachment_repo::find_by_id(&pool, &id)
         .await?

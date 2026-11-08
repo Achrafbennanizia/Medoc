@@ -54,12 +54,18 @@ pub fn list_backups(session_state: State<'_, SessionState>) -> Result<Vec<Backup
 
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(session_state, path))]
-pub fn validate_backup(
+pub async fn validate_backup(
+    app: AppHandle,
     session_state: State<'_, SessionState>,
     path: String,
 ) -> Result<bool, AppError> {
     rbac::require(&session_state, "ops.backup")?;
-    backup::validate(&PathBuf::from(path))
+    let app_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| AppError::Internal(format!("App data directory: {e}")))?;
+    let key = crate::infrastructure::database::db_key::ensure_sqlcipher_key(&app_dir, false)?;
+    backup::validate_open(&PathBuf::from(path), &key).await
 }
 
 #[derive(Debug, Serialize)]
@@ -71,21 +77,33 @@ pub struct RestoreBackupResult {
 }
 
 #[tauri::command]
-#[tracing::instrument(level = "info", skip(app, pool, session_state, path))]
+#[tracing::instrument(level = "info", skip(app, session_state, path))]
 pub async fn restore_backup(
     app: AppHandle,
-    pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
     path: String,
 ) -> Result<RestoreBackupResult, AppError> {
     rbac::require(&session_state, "ops.backup")?;
+    if let Some(control) = app.try_state::<crate::commands::lan_commands::LanServerControl>() {
+        crate::commands::lan_commands::stop_lan_listener(&control).await;
+    }
     let app_dir = app
         .path()
         .app_data_dir()
         .map_err(|e| AppError::Internal(format!("App data directory: {e}")))?;
-    let report = backup::restore_from_backup(&pool, &app_dir, &PathBuf::from(path)).await?;
+    let report = {
+        let pool = app.state::<SqlitePool>();
+        backup::restore_from_backup(pool.inner(), &app_dir, &PathBuf::from(path)).await?
+    };
+    let reopened =
+        crate::infrastructure::database::connection::reopen_app_pool(&app_dir).await?;
+    // The command's State guard is already dropped. Swap the managed pool so
+    // the next command uses the restored file without restarting the process.
+    #[allow(deprecated)]
+    let _closed = app.unmanage::<SqlitePool>();
+    app.manage(reopened);
     Ok(RestoreBackupResult {
-        requires_app_restart: report.requires_app_restart,
+        requires_app_restart: false,
         restored_from: report.restored_from.display().to_string(),
         pre_restore_backup_created: report.pre_restore_backup_created,
     })
@@ -162,9 +180,8 @@ pub fn enforce_log_retention(
     session_state: State<'_, SessionState>,
 ) -> Result<retention::RetentionReport, AppError> {
     rbac::require(&session_state, "ops.system")?;
-    let log_dir = dirs::home_dir()
-        .map(|h| h.join("medoc-data").join("logs"))
-        .unwrap_or_else(|| PathBuf::from("./medoc-data/logs"));
+    // F53: the directory logging::init writes to (app data dir), not ~/medoc-data.
+    let log_dir = medoc_core::infrastructure::logging::log_dir()?.to_path_buf();
     retention::enforce(&log_dir)
 }
 

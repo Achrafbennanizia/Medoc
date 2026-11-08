@@ -1,6 +1,427 @@
 # Phase handoff
 
-**Last phase label:** Shared calendar sync after SAS (2026-10-01)
+**Last phase label:** Part E start — F44/F52/F57 + replica `/sync/number` (2026-11-08)
+
+### Verified
+
+- Replica POST `/api/v1/sync/number` with a `sync.push` activation token allocates unique daily numbers: `replica_sync_push_token_can_allocate_document_number` **PASS** (1).
+- F44: GET `/api/v1/appointments` is 404 in `docs/coordination/backend-http-route-matrix-results.md` (Closed, not applicable).
+- F52: CSV crate + quoted `;` + Windows-1252; `create_from_import` (NEW, chart, anamnesis, outbox); skip name+DOB; missing insurance NULL. Tests **PASS** (4) + `migration_import_tests` **PASS** (6).
+- F57: paged search on name/insurance/phone/email, cap 50, `idx_patient_name`, `export_patients_csv`. Tests **PASS** (2). Invoke count **319**.
+- Invoke registry **PASS** (2). `status_check_tests` **PASS** (8) after patient-table rebuild for nullable insurance.
+
+### Remains unverified
+
+- Full `cargo test --workspace`.
+- Parts E remainder: F59, F60, F63–F67, F70, F94, F97, F99, F122 (F62/F126 already in earlier batch).
+- Parts F–K. Browser patients page search/export. Two-process replica numbering (TLS).
+
+### Understanding delta
+
+- `patient.insurance_number` is `Option<String>` so CSV import can store NULL (UNIQUE still applies when set).
+- Patient list IPC `search` replaces the dedicated `search_patients` path on the patients page.
+
+### Required next
+
+1. F59/F69 double-option updates.
+2. F60, F63–F67, F70, F94, F97, F99, F122.
+3. Parts F–K.
+
+---
+
+**Previous last phase label:** workspace PASS (2026-11-08)
+
+### Verified
+
+- `cargo test --workspace --offline --no-fail-fast -- --test-threads=1` **PASS** (EXIT 0).
+- Mesh harness 20 **PASS**. Billing release / cash-verify LWW ties fixed by `next_updated_at`.
+
+### Remains unverified
+
+- Live replica POST `/api/v1/sync/number`. Parts E–K IDs not in this batch.
+
+### Understanding delta
+
+- Same-millisecond INSERT then UPDATE ties under D8; master keeps INSERT and relays an unreleased row. Release/cash-verify stamps are now strictly later.
+
+### Required next
+
+1. Parts E–K remaining IDs.
+
+---
+
+**Previous last phase label:** workspace suite + H2/mesh fixes (2026-11-08)
+
+---
+
+**Previous last phase label:** pasted-diff leftover tests (2026-11-07)
+
+### Verified
+
+- Pasted plan files are in tree (F9, F24, F32, F45–46, F52–53, F62, F74–76, F85, F89, F92, F119, F123, F126, F134, F143–147).
+- F144 `legacy_database_gets_widened_status_checks_and_keeps_rows` **PASS** (appointment count scoped to `id = 'a-1'` because demo seed fills `appointment`).
+- `status_check_tests` **PASS** (8): F62, F74, F75, F92, F144.
+- `sync_outbox_hooks_tests` **PASS** (11): F147 composite `chart_validation` ids; F119 GDPR erase outbox.
+- `sync_registry_tests` **PASS** (4). `staff_delete_fk_tests` **PASS** (3). `recorded_write_guard` **PASS** (2).
+- `invoke_command_registry_tests` **PASS** (2), count **318**. `ipc_sync_pairing_tests` **PASS** (10), including `fresh_pool_has_empty_outbox_outside_serverless_peer`.
+- Earlier this apply: merge F146/F147 **PASS**; vitest `staff-work-plan-sync` **PASS** (3); numbering, wrap v2, F24 port.
+
+### Remains unverified
+
+- `cargo test --workspace`. Live replica POST `/api/v1/sync/number`. Parts E–K IDs not in this batch.
+
+### Understanding delta
+
+- Demo seed in `cfg!(test)` makes global `COUNT(*)` on `appointment`/`payment` unusable in focused tests.
+
+### Required next
+
+1. `cargo test --workspace`.
+2. Parts E–K remaining IDs.
+
+---
+
+**Previous last phase label:** F9/F24/F32/F45–76/F85/F119/F123/F143–147 apply (2026-11-07)
+
+### Verified
+
+- IPC invoke count **318** (`sync_record_change` removed). `invoke_command_registry_tests` **PASS** (2).
+- Number styles Daily/Monthly + legacy floor: `number_sequence_tests` **PASS** (5).
+- H2 command-layer scan: `recorded_write_guard` **PASS** (2).
+- Replica HTTPS URL uses join `master_http_port` (default 8787, not 49300): license_service tests **PASS** (6), including F24 9443.
+- F45 wrap v2 XChaCha20-Poly1305 + v1 upgrade: `db_key` tests **PASS** (3).
+
+### Remains unverified
+
+- `cargo test --workspace`. Extra status/merge/vitest cases from the brief (now landed). Live replica number POST.
+
+### Understanding delta
+
+- Document numbers come from cluster `number_sequence` (DeviceLocal); replicas POST `/api/v1/sync/number`. Composite `chart_validation` keys (`patient_id|section`). GDPR erase records each child DELETE. Scanner button hidden when capability off. Work-plan slice persist per staff.
+
+### Required next
+
+1. `cargo test --workspace`.
+2. Add/run vitest work-plan sync + remaining merge/status tests from the pasted diff.
+3. Parts E–K IDs not in this batch.
+
+---
+
+**Previous last phase label:** Part D hourly reconcile (2026-11-07)
+
+### Verified
+
+- POST `/api/v1/sync/digest`, `/sync/row-hashes`, `/sync/rows` with action `sync.reconcile` (mt2). Staff JWT on digest is **401**.
+- Digest returns 256 buckets (`digest_returns_256_buckets_with_activation_token` **PASS**).
+- `hash_row_json` is key-order stable. IPC `sync_reconcile_now` (`ops.system`), invoke count **319**.
+- Replica hourly hook after a caught-up `run_replica_sync` (outbox empty, pull < 500, no error, 60 min kv).
+- Settings Deployment: Reconcile now. LAN http_sync **13 PASS**. IPC pairing/registry **PASS**.
+- `set_cash_verified_for_ids_reaches_replica_b` isolation **PASS** (1). Earlier batch **FAIL** looks flaky.
+
+### Remains unverified
+
+- Replica end-to-end digest catch-up against a live master (HTTP runner). 429 in-flight lock. Vitest F32 / locales. `cargo test --workspace`.
+
+### Understanding delta
+
+- Reconcile force-applies main rows (skip LWW). Outbox must be empty. `sync.repair.required.v1` blocks. Staff JWT on digest is 401; other `/sync/*` JWT stays 403.
+
+### Required next
+
+1. `cargo test --workspace`.
+2. Parts E–K remaining IDs.
+3. Mesh harness for digest overwrite if the brief still lists it.
+
+---
+
+---
+
+**Previous last phase label:** Part C F22/F34–F56 (2026-11-07)
+
+### Verified
+
+- Staff directory import: `two_receptionists_both_arrive` **PASS**, `tax_advisor_arrives` **PASS**. Export includes all roles, `token_version`, `available`. Missing directory rows set `available = 0`. First PHYSICIAN/RECEPTION fallback removed.
+- `replica_cannot_create_staff` **PASS**.
+- F15–F17 still **PASS** from prior phase.
+
+### Remains unverified
+
+- Harness `set_cash_verified_for_ids_reaches_replica_b` and sibling F34/F35/F68/F96 tests **NOT RUN**.
+- Full `cargo test --workspace`. F5 live pin. F31 blobs. F32 localStorage. H2 guard.
+
+### Understanding delta
+
+- Replica staff writes return `AppError::Validation` with the English sentence (unit `Forbidden` cannot carry a message).
+- `delete_patient` archives; `restore_patient` is a new IPC (`EXPECTED_INVOKE_COMMAND_COUNT` 318).
+
+### Required next
+
+1. Add harness `*_reaches_replica_b` for remaining outbox writes.
+2. F31 blob routes; F32 app_kv migration.
+3. `cargo test --workspace` after disk is stable.
+
+---
+
+**Previous last phase label:** 2FA deferred (2026-11-07)
+
+### Verified
+
+- `TOTP_2FA_ENABLED` is false. `authenticate` skips the authenticator branch while the flag is off.
+- `totp_login_tests` **PASS** (4), `mvp_security_gates_tests` **PASS** (10), `auth_session_audit_tests` **PASS** (1).
+
+### Remains unverified
+
+- Live login click on the master window. The master still fails `foreign_key_check` (967 violations) before the window opens. Replica process was left running from the earlier rebuild.
+
+### Understanding delta
+
+- F27 is no longer active. Stored `totp_secret` rows are kept and ignored until the deferred checklist turns the flag back on.
+
+### Required next
+
+1. Part B remainder: F11, desktop `authorize`, keychain, unlock, scanner hide, live TLS pin.
+2. `cargo test --workspace` before closing P2.
+
+---
+
+**Previous phase label:** Remediation Part A H5–H8 + F27 (2026-11-07)
+
+### Verified
+
+- H5: status CHECK inserts ARCHIVED / DECLINED / IN_PROGRESS **PASS** (`status_check_tests`).
+- H6: unique `allocate_number` **PASS**.
+- H8: JSON password/email redaction **PASS**.
+- F27: `unenrolled_physician_must_enroll` **PASS**. `lan_http_route_matrix_all_endpoints` **PASS**.
+- `medoc-core --lib` **PASS** (125).
+
+### Remains unverified
+
+- H2 `every_synced_write_is_recorded`. Replica `/sync/number` from a second process. `cargo test --workspace`. Frontend tests. Playwright. Parts C–K.
+
+### Required next
+
+1. Part B remainder: F11, desktop `authorize`, keychain, unlock, scanner hide, live TLS pin.
+2. `cargo test --workspace` before closing P2.
+
+---
+
+**Previous phase label:** Remediation P3 TOTP, sessions, export path (2026-11-07)
+
+### Verified (2026-11-07 — authenticator, password generation, export folder)
+
+- An enrolled physician without a current code is rejected. The same account with the current code signs in. `enrolled_physician_without_code_is_rejected` and `enrolled_physician_with_current_code_signs_in` **PASS**.
+- Replacing a password increments `staff.token_version` and ends every other device session. `password_change_bumps_the_token_and_ends_other_sessions` **PASS**. `lan_http_route_matrix_all_endpoints` **PASS** after the middleware started comparing that version.
+- Six failed logins from different addresses lock the account. `different_addresses_still_lock_the_account` **PASS**.
+- An export file whose folder is outside the configured root, or whose name contains `..`, is rejected. `export_rejects_a_folder_outside_the_configured_root` **PASS**.
+- The invoke registry counts 317 commands, including the two enrollment commands. `invoke_handlers_unique_and_match_documented_count` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`, frontend Vitest, and Playwright. **NOT RUN**.
+- Mandatory enrollment for every physician. `TOTP_2FA_ENABLED` is still false.
+- A reception click on the export folder was **NOT OBSERVED**.
+
+### Understanding delta
+
+- A hash upgrade of the same password does not move `token_version`. A real password replace does.
+- Lockout is counted twice: once for the address and once for the account.
+
+### Required next
+
+1. Finish P3: keychain unlock before the pool opens, the scanner path guard, and the setup screen when status fails.
+2. Run `cargo test --workspace` before calling P2 done.
+
+---
+
+**Previous phase label:** Remediation P3 IPC gates (2026-11-07)
+
+### Verified (2026-11-07 — IPC idle and sensitive reads)
+
+- A desktop session older than 30 minutes is cleared. `idle_session_is_cleared` and `fresh_session_stays` **PASS**.
+- `invoice.practice.v1`, `practice.logo.v1`, `export.path.v1`, and `practice.calendar-workflows.v1` require `ops.system` for read and write. `invoice_profile_requires_ops_system` **PASS**. `lan_http_route_matrix_all_endpoints` **PASS**.
+- A DENY on `patient.read_documents` removes attachment names from the chart PDF. `denied_document_permission_hides_attachment_names` **PASS**.
+- An override action outside `config/rbac.yaml` is rejected. `unknown_override_action_is_rejected` **PASS**.
+- Setup is complete only when the stored value is `1`. `setup_is_complete_only_when_the_value_is_one` **PASS**. A joined device cannot create another staff account after that flag is set.
+
+### Remains unverified
+
+- Full `cargo test --workspace`, frontend Vitest, and Playwright. **NOT RUN**.
+- TOTP, password-change session version, lockout per account, the keychain unlock screen, and the export path guard.
+
+### Understanding delta
+
+- `require()` expires idle sessions. It still trusts the role stored at login.
+
+### Required next
+
+1. Finish P3: TOTP for physicians and admins, end other sessions on password change, and the export path guard.
+2. Run `cargo test --workspace` before calling P2 done.
+
+---
+
+**Previous phase label:** Remediation P2 authorize() for LAN (2026-11-07)
+
+### Verified (2026-11-07 — shared authorize)
+
+- `authorize` rejects an idle clock and a device session last seen in 2000. Both return unauthorized. `idle_caller_is_unauthorized` and `stale_device_session_is_unauthorized` **PASS**.
+- An account with `available = 0` does not sign in. `unavailable_account_does_not_sign_in` **PASS**.
+- A DENY override blocks a physician. A `patient.read_medical` call writes one `audit_log` row, action `READ`, for that patient. `deny_override_blocks_a_physician_and_a_read_is_audited` **PASS**.
+- LAN `DELETE /license` and e-prescription validate/submit call `authorize`. `lan_http_route_matrix_all_endpoints` **PASS**. `reception_cannot_delete_the_license_or_submit_a_prescription` **PASS** for the seeded reception account `seed-rez-001`.
+
+### Remains unverified
+
+- Full `cargo test --workspace`, frontend Vitest, and Playwright. **NOT RUN**.
+- F11 has no row in the findings table.
+- Desktop IPC still calls `require()` and does not yet use `authorize()`.
+
+### Understanding delta
+
+- The role on the staff row is the one that is checked. A JWT role is not trusted on its own.
+- Login loads permission overrides into the session. A later `authorize` loads them again.
+
+### Required next
+
+1. P3: route IPC commands through `authorize()`, then TOTP, session version, and the path guard.
+2. Run `cargo test --workspace` before calling P2 done.
+
+---
+
+**Previous phase label:** Remediation P2 noise fingerprint and vendor portal (2026-11-07)
+
+### Verified (2026-11-07 — pairing mint and vendor URL)
+
+- A pending pairing row is not given an activation token. `pending_pairing_is_not_minted` **PASS**.
+- An accepted row whose device key does not match the claimed fingerprint is not minted. `foreign_fingerprint_does_not_match_the_noise_key` **PASS**. A join message with a mismatched key is rejected before the session is stored. `cargo test -p medoc-sync --test cluster_net_loopback -- --test-threads=1` **PASS** (10).
+- Vendor portal fetches send the API key only to `https` URLs, or to `http` on loopback. `vendor_url_accepts_https_and_loopback_http_only` **PASS**. Saving a portal URL uses the same check.
+- Desktop portal summary, integrations, feature flags, and the update manifest require `ops.system`. `cargo check -p medoc-practice` finished with no errors. A reception session was not clicked. **NOT OBSERVED**.
+- The desktop LAN adapter no longer maps patient or appointment lists. Vitest **NOT RUN**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`, frontend Vitest, and Playwright. **NOT RUN**.
+- F11 has no row in the findings table. **NOT STARTED**.
+- B1 `authorize()` (idle, availability, overrides, a READ audit row) is not the LAN check yet.
+
+### Understanding delta
+
+- Replica auth previously minted a token for any pairing row that was not revoked or rejected, including `PENDING`.
+- The join fingerprint is the hash of the 32-byte device key. A different string is refused.
+
+### Required next
+
+1. Decide F11 from the source notes. Do not invent a defect for it.
+2. B1 `authorize()` on the remaining LAN handlers, then P3 for IPC.
+3. Run `cargo test --workspace` before calling P2 done.
+
+---
+
+**Previous phase label:** Remediation P2 sync reasons, role gates, and browser client removal (2026-11-07)
+
+### Verified (2026-11-07 — sync 403 reasons, login role, license and prescription gates)
+
+- Sync push, pull, status, and activation-token checks return JSON `reason`. `cargo test -p medoc-lan --test http_sync_tests -- --test-threads=1` **PASS** (10), including `from_device_mismatch`, `master_license_required`, and `staff_jwt_rejected`.
+- The route matrix pull sends `requesterId` equal to the paired device. `lan_http_route_matrix_all_endpoints` **PASS** (33). A pull without that field was 403 `requester_mismatch`.
+- `TAX_ADVISOR` with a valid password gets `Forbidden`. `tax_advisor_password_does_not_open_a_session` **PASS**. Seeded physician login in the matrix is still 200.
+- `DELETE /api/v1/license` requires `ops.system`. E-prescription validate and submit require `patient.write_medical`. Reception is 403; physician clear is 204 and validate is 200.
+- `apps/lan-web-client` is removed. `GET /api/v1/patients` and `GET /api/v1/appointments` are 404. Related e2e files **PASS**: `serverful_lan_client_flows` (10), `activation_token_rbac` (4), `lan_pairing_sync` (7), `license_and_outbox` (3), `three_replica_conflict_matrix` (1).
+
+### Remains unverified
+
+- Full `cargo test --workspace`, frontend Vitest, and the Playwright job. **NOT RUN**.
+- F11, F38 Noise binding, F132, F135. **NOT STARTED** this pass.
+- Desktop LAN-client mode still routes `list_patients` through `HttpPracticeAdapter` to the removed path. **NOT CHANGED**.
+
+### Understanding delta
+
+- A missing patient or appointment route is 404 before the auth middleware, including for an activation token that used to be allowed to read those lists.
+- Staff JWT never reaches the license check on `/sync/*`. An unlicensed main device returns `master_license_required` only for an mt2 token.
+
+### Required next
+
+1. P2 remainder: F11, bind the Noise fingerprint on mint (F38), portal reads require `ops.system` (F132), portal URL is https-only (F135).
+2. Point the desktop LAN-client adapter off the removed patient and appointment routes, or stop offering that mode for chart reads.
+3. Run `cargo test --workspace` before calling P2 done.
+
+---
+
+**Previous phase label:** Remediation P2 pairing, snapshot secrets, and join URL (2026-11-07)
+
+### Verified (2026-11-07 — pairing token and snapshot secrets)
+
+- Staff snapshot JSON has no `password_hash` or `totp_secret`, and applying it does not replace the stored hash. `snapshot_omits_staff_secrets_and_portal_keys` **PASS**. `company.portal.*` is not loaded into a relay payload.
+- A revoked pairing row is not given a new token. `revoked_device_is_not_reminted` **PASS**. Revoke and block call `clear_device_activation`.
+- Submit and status responses drop `activationToken`. Confirm still returns it. `public_view_drops_the_activation_token` **PASS**.
+- Reset deletes `cluster.join.*`. `wipe_network_kv_clears_license_and_onboarding_keys` **PASS**.
+- Replica deployment uses the port stored at join. `sas_replica_activation_demotes_owner_and_skips_onboarding` **PASS** (`https://192.168.1.10:49300`).
+- A token device id is adopted only when it equals this install’s fingerprint. `align_moves_pending_outbox_onto_the_activation_token_device` **PASS**.
+
+### Required next
+
+1. P2 remainder: bare 403 reasons, `authorize()` on LAN login, licence, e-prescription, patients, and appointments, and dropping the browser client (D1 / F40).
+2. Full `cargo test --workspace` is still **NOT RUN**.
+
+---
+
+**Previous phase label:** Remediation P1 data-loss tests passed; P2 TLS pin started (2026-11-07)
+
+### Verified (2026-11-07 — P1 exit tests and the TLS pin)
+
+- `cargo test -p medoc-core --test p1_data_loss_tests -- --test-threads=1` **PASS** (8): wrong key, rekey, plaintext sibling deleted, backup open, failed English upgrade, in-process restore, staff sick-leave, audit archive.
+- Replica backoff is 500ms, then doubles, and stops at 30s. `backs_off_when_the_main_device_is_down` **PASS**.
+- Sync, master probe, and pairing HTTP clients call `pinned_http_client`. An empty pin returns an error. `tls_pin` tests **PASS** (2). A live mismatched handshake was **NOT RUN**.
+- A newly generated LAN certificate stores `127.0.0.1` as an IP SAN. `certificate_carries_loopback_as_an_ip_san` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`, frontend Vitest, and the Playwright job. **NOT RUN**.
+- The restore command was not driven inside a Tauri window. **NOT OBSERVED**.
+- P2 remainder: token stripping, revoke/block, snapshot column deny-list, `authorize()`, dropping the browser client.
+
+### Understanding delta
+
+- Deleting the author of someone else's sick note used to delete that note. The note now stays, and `created_by` moves to another staff row so the foreign key still holds.
+- Peer mesh push no longer accepts any certificate. It uses `sync_device.peer_cert_sha256` and skips the peer when that pin is missing.
+
+### Required next
+
+1. Finish P2: public pairing responses, revoke/block, snapshot deny-list, `authorize()` on LAN handlers, delete the browser client (D1).
+2. Run `cargo test --workspace` before calling a later phase done.
+
+---
+
+**Previous phase label:** Remediation P0 started, P1 and P2 partial (2026-11-06)
+
+### Verified (2026-11-06 — remediation P0 and first data/network fixes)
+
+- `decline_patient_chart` is in `medoc_invoke_handler!`. `EXPECTED_INVOKE_COMMAND_COUNT` is 315. `cargo test -p medoc-practice --test invoke_command_registry_tests` **PASS** (2).
+- `medoc-core` depends on `libsqlite3-sys` `bundled-sqlcipher`. `cargo test -p medoc-core --lib` compiled and the English schema upgrade tests **PASS** (6).
+- Pull assertion in `replica_pull_sees_master_local_writes` matches the current create contract (patient row plus id-only chart and anamnesis). **PASS**.
+- `SyncMesh` creates a patient on replica A and reads it on replica B through the LAN router. `cargo test -p medoc-e2e --test sync_mesh_harness` **PASS**.
+- Relay outbox insert and `sync_applied` commit in one transaction. `replica_push_is_visible_to_a_later_replica_pull` **PASS**.
+- Staff JWT on `POST /api/v1/sync/pull` is 403 `staff_jwt_rejected`. `sync_pull_rejects_staff_jwt` **PASS**. Paired mesh pull still **PASS**.
+- Playwright job is in `.github/workflows/ci.yml`. **NOT RUN** in this session.
+
+### Remains unverified
+
+- Full `cargo test --workspace`, frontend Vitest, and the Playwright job against a live `medoc-server`. **NOT RUN**.
+- Wrong-key quarantine, activation rekey, backup open, restore pool swap, and audit archive have code changes. Dedicated tests for those paths were **NOT RUN**.
+- P2 remainder (TLS pin, backoff, cert SANs, token stripping), P3–P10, and decisions D3–D7 behavior beyond the locked choices. **NOT STARTED** or only the sync-route JWT rejection is in.
+
+### Understanding delta
+
+- The invoke list was already 314 handlers while the constant said 313. Adding `decline_patient_chart` makes 315.
+- F49 is the migration `PRAGMA foreign_keys` running on the pool. The English upgrade and the two rebuild blocks now hold one connection.
+- A staff JWT no longer reaches `/sync/*` or `/pairing/peers`. Pull requires `requesterId` equal to the mt2 device id, and a stored pairing row must be `ACCEPTED` with the same token.
+
+### Required next
+
+1. Run `cargo test --workspace`, `scripts/ci-frontend-test.sh`, and the Playwright job.
+2. Finish P1 restore (stop LAN, install the reopened pool) and add the wrong-key / rekey / archive tests.
+3. Continue P2 from the sync guard: pinned TLS, backoff, and the B1 `authorize()` core.
+
+---
+
+**Previous phase label:** Shared calendar sync after SAS (2026-10-01)
 
 ### Verified (2026-10-01 — replica ↔ master data)
 

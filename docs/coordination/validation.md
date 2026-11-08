@@ -1,6 +1,107 @@
 # Validation ledger
 
-**Last updated:** 2026-10-01 (replica LAN after SAS)
+**Last updated:** 2026-11-08 (Part E F44/F52/F57 + `/sync/number`)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| replica number | `cargo test -p medoc-lan --test http_sync_tests -- replica_sync_push_token_can_allocate_document_number --exact` | **PASS** (1) |
+| F52 CSV | `cargo test -p medoc-core --test csv_import_tests` | **PASS** (4) |
+| F52 host | `cargo test -p medoc --test migration_import_tests` | **PASS** (6) |
+| F57 search/export | `cargo test -p medoc-core --test patient_search_export_tests` | **PASS** (2) |
+| status CHECK | `cargo test -p medoc-core --test status_check_tests` | **PASS** (8) |
+| invoke count 319 | `cargo test -p medoc-practice --test invoke_command_registry_tests` | **PASS** (2) |
+
+**Previous:** 2026-11-08 (F146/F147 snapshot keys)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| snapshot non-id keys | `cargo test -p medoc-sync --test repo_store_tests snapshot_and_load_row_use_non_id_keys --exact` | **PASS** (1) |
+| merge F146/F147 | `cargo test -p medoc-sync --test merge_apply_tests apply_` | **PASS** (27) |
+| F147 outbox | `chart_validation_rows_record_with_composite_key` | **PASS** (1) |
+| work-plan slice | `vitest run src/lib/staff-work-plan-sync.test.ts` | **PASS** (3) |
+
+**Previous:** 2026-11-08 (workspace PASS)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| workspace | `cargo test --workspace --offline --no-fail-fast -- --test-threads=1` | **PASS** EXIT 0 (~27.5 min) |
+| mesh harness | `cargo test -p medoc-e2e --test sync_mesh_harness --offline -- --test-threads=1` | **PASS** (20) |
+
+**Previous:** 2026-11-08 (workspace + two fixes)
+
+**Previous:** 2026-11-07 (pasted-diff leftover tests)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| status CHECK / payment / product | `cargo test -p medoc-core --test status_check_tests --offline -- --test-threads=1` | **PASS** (8) |
+| F119/F147 outbox | `cargo test -p medoc-core --test sync_outbox_hooks_tests` | **PASS** (11) |
+| sync registry | `cargo test -p medoc-core --test sync_registry_tests` | **PASS** (4) |
+| staff FK | `cargo test -p medoc-core --test staff_delete_fk_tests --test recorded_write_guard` | **PASS** (3 + 2) |
+| IPC + invoke count | `cargo test -p medoc-practice --test ipc_sync_pairing_tests --test invoke_command_registry_tests` | **PASS** (10 + 2), count **318**; first attempt **FAIL** (disk full), after deleting 9.3G sandbox `cargo-target` **PASS** |
+| workspace | `cargo test --workspace --offline --no-fail-fast -- --test-threads=1` | **FAIL** EXIT 101: `No space left on device` compiling `medoc-practice` (lib test). ~4.8Gi free at start. |
+
+**Previous:** 2026-11-07 (F9/F24/F45/F76 numbering + wrap)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| numbering | `cargo test -p medoc-core --test number_sequence_tests` | **PASS** (5) |
+| H2 | `cargo test -p medoc-core --test recorded_write_guard` | **PASS** (2) |
+| wrap v2 | `cargo test -p medoc-core --lib infrastructure::database::db_key` | **PASS** (3) |
+| replica URL | `cargo test -p medoc-sync --lib cluster::services::license_service` | **PASS** (6) |
+| IPC count | `cargo test -p medoc-practice --test invoke_command_registry_tests` | **PASS** (2), count **318** |
+| workspace | `cargo test --workspace` | **NOT RUN** |
+
+**Previous:** 2026-11-07 (Part D)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| reconcile unit | `cargo test -p medoc-sync --lib reconcile` | **PASS** (2) |
+| LAN digest | `cargo test -p medoc-lan --test http_sync_tests` | **PASS** (13), incl. `staff_jwt_on_digest_is_401` |
+| IPC | `cargo test -p medoc-practice --test invoke_command_registry_tests --test ipc_sync_pairing_tests` | **PASS** (2 + 10), count 319 |
+| cash verify isolation | `cargo test -p medoc-e2e --test sync_mesh_harness set_cash_verified_for_ids_reaches_replica_b --exact` | **PASS** (1); prior family-batch **FAIL** |
+| workspace | `cargo test --workspace` | **NOT RUN** |
+
+**Previous:** 2026-11-07 (F80/F109 families)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| family mesh | `cargo test -p medoc-e2e --test sync_mesh_harness reaches_replica_b` | 15 **PASS** in the batch; work_time + sick_leave **PASS** after staff reuse |
+| cash verify (batch) | same | **FAIL** (verified count 0); isolation later **PASS** |
+
+| Check | Command | Result |
+|-------|---------|--------|
+| H2 guard | `cargo test -p medoc-core --test recorded_write_guard` | **PASS** (1) |
+| later_edit | `cargo test -p medoc-e2e --test sync_mesh_harness later_edit_wins` | **PASS** (1) |
+| engine HTTP | `cargo test -p medoc-sync --test engine_http_tests` | 20 **PASS**; remaining 2 mesh peer tests **PASS** after peer pin seed |
+| attachment blob mesh | `cargo test -p medoc-e2e --test sync_mesh_harness attachment_file_reaches_replica_b` | **PASS** (1) |
+| workspace | `cargo test --workspace --offline --no-fail-fast` (`/tmp/medoc-ws-test3.log`) | **FAIL** EXIT 101 on prior tree. Re-run **NOT RUN**. |
+
+**Previous:** 2026-11-07 (F22 directory + archive)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| staff directory | `cargo test -p medoc-sync --lib two_receptionists_both_arrive` | **PASS** (1). `tax_advisor_arrives` **PASS** earlier in the same lib run. |
+| replica staff | `cargo test -p medoc-practice --test ipc_replica_client_tests replica_cannot` | **PASS** (1) |
+| invoke registry | `cargo test -p medoc-practice --test invoke_command_registry_tests` | **PASS** (2), count 318 |
+| workspace | `cargo test --workspace` | **NOT RUN** (disk was 100% full; incremental cache cleared) |
+
+**Previous:** 2026-11-07 (F15–F17)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| practice_task_tests | `cargo test -p medoc --test practice_task_tests` | **PASS** (8) |
+| license_gate_negatives | `cargo test -p medoc-e2e --test license_gate_negatives` | **PASS** (7) |
+| pull unknown device | `cargo test -p medoc-e2e --test multi_replica_roundtrip pull_with_unknown` | **PASS** (1) |
+| mesh_push_delivers | `cargo test -p medoc-e2e --test two_replica_mesh mesh_push_delivers` | **PASS** (1) |
+| F17 pages | `cargo test -p medoc-sync --test engine_http_tests large_outbox` | **PASS** (1) |
+| F15/F16 outbox | `cargo test -p medoc-e2e --test outbox_clinical_writes` | **PASS** (6) |
+| repo_store | `cargo test -p medoc-sync --test repo_store_tests` | **PASS** (15) |
+| F15 harness | `cargo test -p medoc-e2e --test sync_mesh_harness release_examination` | **PASS** (1) |
+| workspace | `cargo test --workspace --offline --no-fail-fast` | **NOT RUN** on this tree |
+
+---
+
+**Previous:** 2026-10-01 (replica LAN after SAS)
 
 ## Replica → master after SAS (2026-10-01)
 

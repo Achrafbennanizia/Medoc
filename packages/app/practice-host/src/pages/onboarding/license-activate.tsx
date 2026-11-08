@@ -18,8 +18,8 @@ export function LicenseActivateOnboardingPage() {
     const [code, setCode] = useState("");
     const [busy, setBusy] = useState(false);
 
-    const activate = async () => {
-        const trimmed = code.replace(/\s+/g, "").trim();
+    const activate = async (raw?: string) => {
+        const trimmed = (raw ?? code).replace(/\s+/g, "").trim();
         if (!trimmed) {
             toast(t("onboarding.license.paste_key"), "error");
             return;
@@ -77,6 +77,17 @@ export function LicenseActivateOnboardingPage() {
                     </p>
                 ) : null}
                 <div className="onboarding-actions">
+                    {import.meta.env.DEV ? (
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            disabled={busy}
+                            loading={busy}
+                            onClick={() => void activate("MASTER-DEV-01")}
+                        >
+                            {t("onboarding.license.dev_activate_btn")}
+                        </Button>
+                    ) : null}
                     <Button type="submit" disabled={busy} loading={busy}>
                         {t("onboarding.license.activate_btn")}
                     </Button>

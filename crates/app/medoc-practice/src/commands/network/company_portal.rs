@@ -11,7 +11,7 @@ use crate::commands::auth_commands::SessionState;
 use crate::error::AppError;
 use crate::infrastructure::company_portal::config::{
     default_onboarding_base_url, is_portal_configured, load_company_portal_config,
-    CompanyPortalConfig, COMPANY_PORTAL_KV_KEY,
+    require_vendor_base_url, CompanyPortalConfig, COMPANY_PORTAL_KV_KEY,
 };
 use crate::infrastructure::company_portal::register_practice_onboarding;
 use crate::infrastructure::database::app_kv_repo;
@@ -41,6 +41,10 @@ pub async fn set_company_portal_config(
     config: CompanyPortalConfig,
 ) -> Result<(), AppError> {
     rbac::require(&session_state, "ops.system")?;
+    let mut config = config;
+    if !config.base_url.trim().is_empty() {
+        config.base_url = require_vendor_base_url(&config.base_url)?;
+    }
     let raw = serde_json::to_string(&config).map_err(|e| AppError::Internal(e.to_string()))?;
     app_kv_repo::set(&pool, COMPANY_PORTAL_KV_KEY, &raw).await
 }
@@ -50,7 +54,7 @@ pub async fn company_portal_fetch_summary(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
 ) -> Result<Value, AppError> {
-    rbac::require_authenticated(&session_state)?;
+    rbac::require(&session_state, "ops.system")?;
     let cfg = load_company_portal_config(&pool).await;
     COMPANY_PORTAL.fetch_subscription_summary(&cfg).await
 }
@@ -60,7 +64,7 @@ pub async fn company_portal_fetch_integrations(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
 ) -> Result<Value, AppError> {
-    rbac::require_authenticated(&session_state)?;
+    rbac::require(&session_state, "ops.system")?;
     let cfg = load_company_portal_config(&pool).await;
     COMPANY_PORTAL.fetch_integration_statuses(&cfg).await
 }
@@ -70,7 +74,7 @@ pub async fn company_portal_fetch_feature_flags(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
 ) -> Result<Value, AppError> {
-    rbac::require_authenticated(&session_state)?;
+    rbac::require(&session_state, "ops.system")?;
     let cfg = load_company_portal_config(&pool).await;
     COMPANY_PORTAL.fetch_feature_flags(&cfg).await
 }
@@ -105,7 +109,7 @@ pub async fn company_portal_fetch_update_manifest(
     session_state: State<'_, SessionState>,
     current_version: String,
 ) -> Result<Value, AppError> {
-    rbac::require_authenticated(&session_state)?;
+    rbac::require(&session_state, "ops.system")?;
     let cfg = load_company_portal_config(&pool).await;
     COMPANY_PORTAL
         .fetch_update_manifest(&cfg, &current_version)
@@ -180,7 +184,11 @@ async fn onboarding_setup_complete(pool: &SqlitePool) -> Result<bool, AppError> 
         .fetch_optional(pool)
         .await
         .map_err(AppError::Database)?;
-    Ok(row.is_some())
+    Ok(row.is_some_and(|(value,)| setup_flag_is_complete(&value)))
+}
+
+fn setup_flag_is_complete(value: &str) -> bool {
+    value.trim() == "1"
 }
 
 async fn mark_onboarding_setup_complete(pool: &SqlitePool) -> Result<(), AppError> {
@@ -344,10 +352,37 @@ fn customer_id_from_code(code: &str) -> String {
     }
 }
 
+fn dev_seed_enabled() -> bool {
+    std::env::var("MEDOC_DEV_SEED").ok().as_deref() == Some("1")
+}
+
+/// Role code to apply after a successful paste. A foreign v2 rebound on a dev build
+/// becomes the main device. An explicit `MASTER-` / `REPLICA-` / `SLAVE-` prefix wins.
+pub fn deployment_code_for_pasted_license(original: &str, rebound: bool) -> Option<String> {
+    let trimmed = original.trim();
+    let upper = trimmed.to_ascii_uppercase();
+    if upper.starts_with("REPLICA") || upper.starts_with("SLAVE") || upper.starts_with("MASTER") {
+        return Some(trimmed.to_string());
+    }
+    if rebound {
+        Some("MASTER".to_string())
+    } else {
+        None
+    }
+}
+
 /// Resolve pasted input to a vendor license token (keygen fingerprint / dev code → minted v2).
 pub async fn resolve_onboarding_license_key(
     pool: &SqlitePool,
     license_key: &str,
+) -> Result<String, AppError> {
+    resolve_onboarding_license_key_with(pool, license_key, dev_seed_enabled()).await
+}
+
+pub async fn resolve_onboarding_license_key_with(
+    pool: &SqlitePool,
+    license_key: &str,
+    dev_seed: bool,
 ) -> Result<String, AppError> {
     let device_id = license_repo::ensure_device_id(pool).await?;
     let trimmed = license_key.trim();
@@ -360,10 +395,26 @@ pub async fn resolve_onboarding_license_key(
         return Ok(trimmed.to_string());
     }
 
-    let dev_seed = std::env::var("MEDOC_DEV_SEED").ok().as_deref() == Some("1");
-    if dev_seed && (looks_like_short_license_code(trimmed) || is_keygen_fingerprint(trimmed)) {
-        let customer_id = customer_id_from_code(trimmed);
-        let plan = plan_from_edition(trimmed);
+    let foreign_v2 = trimmed.starts_with("v2.");
+    if dev_seed && (looks_like_short_license_code(trimmed) || is_keygen_fingerprint(trimmed) || foreign_v2)
+    {
+        if foreign_v2 {
+            tracing::warn!(
+                target: "medoc::system",
+                event = "LICENSE_DEV_REBIND",
+                "pasted license does not open on this computer; issuing a license for this device"
+            );
+        }
+        let customer_id = if foreign_v2 {
+            "dev-local".to_string()
+        } else {
+            customer_id_from_code(trimmed)
+        };
+        let plan = if foreign_v2 {
+            "PRO"
+        } else {
+            plan_from_edition(trimmed)
+        };
         return mint_dev_v2_license_envelope(&device_id, &customer_id, plan);
     }
 
@@ -439,11 +490,10 @@ async fn register_portal_subscription(
     plan: &str,
     portal_base_url: Option<&str>,
 ) -> Result<(), AppError> {
-    let base = portal_base_url
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .map(str::to_string)
-        .unwrap_or_else(default_onboarding_base_url);
+    let base = match portal_base_url.map(str::trim).filter(|s| !s.is_empty()) {
+        Some(url) => require_vendor_base_url(url)?,
+        None => require_vendor_base_url(&default_onboarding_base_url())?,
+    };
     let body = json!({
         "display_name": display_name,
         "slug": slug,
@@ -588,7 +638,7 @@ async fn assign_onboarding_admin_account(
             },
         )
         .await?;
-        medoc_core::infrastructure::database::staff_repo::update_password_hash(
+        medoc_core::infrastructure::database::staff_repo::replace_password(
             pool, &seed_id, &hash,
         )
         .await?;
@@ -709,6 +759,11 @@ pub async fn register_onboarding_member_account(
     if !vs.provisioned || vs.is_owner {
         return Err(AppError::Validation(
             "New account only after joining an existing practice.".into(),
+        ));
+    }
+    if onboarding_setup_complete(&pool).await? {
+        return Err(AppError::Validation(
+            "Practice setup is already complete.".into(),
         ));
     }
     let name = request.name.trim();
@@ -850,6 +905,19 @@ pub async fn register_onboarding_subscription(
         admin_email: admin_email.to_string(),
         admin_account_created: needs_admin,
     })
+}
+
+#[cfg(test)]
+mod setup_flag_tests {
+    use super::setup_flag_is_complete;
+
+    #[test]
+    fn setup_is_complete_only_when_the_value_is_one() {
+        assert!(setup_flag_is_complete("1"));
+        assert!(setup_flag_is_complete(" 1 "));
+        assert!(!setup_flag_is_complete("true"));
+        assert!(!setup_flag_is_complete(""));
+    }
 }
 
 /// IPC commands for [`crate::commands::register`].

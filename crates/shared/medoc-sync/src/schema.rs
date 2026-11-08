@@ -47,6 +47,9 @@ pub async fn ensure_sync_tables(pool: &SqlitePool) -> Result<(), AppError> {
     .await
     .map_err(AppError::Database)?;
 
+    let _ = sqlx::query("ALTER TABLE sync_outbox ADD COLUMN fail_reason TEXT")
+        .execute(pool)
+        .await;
     sqlx::query(
         "CREATE INDEX IF NOT EXISTS idx_sync_outbox_pending ON sync_outbox(device_id, delivered_at)",
     )
