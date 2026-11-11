@@ -137,6 +137,37 @@ pub fn verify_reset_token_with_pubkey(
         .map_err(|e| AppError::Validation(format!("Reset token invalid: {e}")))
 }
 
+/// Keys this device trusts to sign a cluster reset: the pinned cluster CA,
+/// the master public key stored at pairing, and (master only) its own key.
+/// Never a key taken from the token itself.
+async fn trusted_reset_pubkeys(pool: &SqlitePool) -> Vec<String> {
+    let mut keys: Vec<String> = Vec::new();
+    fn push(keys: &mut Vec<String>, k: &str) {
+        let k = k.trim();
+        if !k.is_empty() && !keys.iter().any(|x| x == k) {
+            keys.push(k.to_string());
+        }
+    }
+    if let Ok(Some(pinned)) = read_pinned_cluster_ca_pubkey(pool).await {
+        push(&mut keys, &pinned);
+    }
+    if let Ok(dep) = crate::repo::load_deployment(pool).await {
+        push(&mut keys, &dep.master_pubkey);
+    }
+    if keys.is_empty() {
+        // Owner device before the CA was pinned: its own master key.
+        if let Ok(sk) = master_keys::load_or_create() {
+            push(&mut keys, &master_keys::pubkey_b64(&sk));
+        }
+    }
+    keys
+}
+
+/// Verify a cluster reset token. A valid token wipes local state, and it
+/// arrives over the unauthenticated cluster port, so it must be signed by a
+/// key this device already trusts. The token used to carry its own public
+/// key and was verified against *that* key, i.e. anyone on the LAN could
+/// self-sign a reset and wipe any device.
 pub async fn verify_reset_token(
     pool: &SqlitePool,
     token_json: &str,
@@ -144,16 +175,32 @@ pub async fn verify_reset_token(
 ) -> Result<ClusterResetToken, AppError> {
     let token: ClusterResetToken = serde_json::from_str(token_json)
         .map_err(|e| AppError::Validation(format!("Reset token invalid: {e}")))?;
-    if !token.cluster_ca_pubkey_b64.is_empty() {
-        verify_reset_token_with_pubkey(token_json, signature_b64, &token.cluster_ca_pubkey_b64)?;
-        return Ok(token);
+    let trusted = trusted_reset_pubkeys(pool).await;
+    if trusted.is_empty() {
+        return Err(AppError::Forbidden);
     }
-    let pinned = read_pinned_cluster_ca_pubkey(pool)
-        .await?
-        .unwrap_or_else(|| {
-            master_keys::pubkey_b64(&master_keys::load_or_create().expect("master signing key"))
-        });
-    verify_reset_token_with_pubkey(token_json, signature_b64, &pinned)?;
+    // An embedded key is informational; it must be one we already trust.
+    let embedded = token.cluster_ca_pubkey_b64.trim();
+    if !embedded.is_empty() && !trusted.iter().any(|k| k == embedded) {
+        return Err(AppError::Validation(
+            "Reset token signed by an unknown cluster key".into(),
+        ));
+    }
+    let verified = trusted
+        .iter()
+        .any(|k| verify_reset_token_with_pubkey(token_json, signature_b64, k).is_ok());
+    if !verified {
+        return Err(AppError::Validation("Reset token signature invalid".into()));
+    }
+    // A reset for another cluster (or a replayed token from a previous
+    // cluster) must not wipe this one.
+    if let Ok(Some(license)) = (SqliteClusterRepos { pool }).load().await {
+        if !license.cluster_id.trim().is_empty() && license.cluster_id != token.cluster_id {
+            return Err(AppError::Validation(
+                "Reset token is for a different cluster".into(),
+            ));
+        }
+    }
     Ok(token)
 }
 
@@ -341,6 +388,7 @@ async fn wipe_network_kv(pool: &SqlitePool) -> Result<(), AppError> {
 }
 
 fn wipe_device_keychain() -> Result<(), AppError> {
+    crate::cluster::crypto::forget_cached_device_identity();
     secret_store::delete_account(KEYCHAIN_DEVICE)?;
     secret_store::delete_account(KEYCHAIN_MASTER)?;
     if let Ok(n) = std::env::var("MEDOC_INSTANCE") {
@@ -591,5 +639,46 @@ mod tests {
             .await
             .unwrap()
             .is_none());
+    }
+
+    #[tokio::test]
+    async fn self_signed_reset_token_is_rejected() {
+        let pool = test_memory_pool().await.expect("pool");
+        run_migrations(&pool).await.expect("migrate");
+        crate::schema::ensure_sync_tables(&pool)
+            .await
+            .expect("schema");
+        let trusted = ed25519_dalek::SigningKey::from_bytes(&[0x21u8; 32]);
+        app_kv_repo::set(
+            &pool,
+            KV_CLUSTER_CA_PUBKEY,
+            &master_keys::pubkey_b64(&trusted),
+        )
+        .await
+        .unwrap();
+
+        let attacker = ed25519_dalek::SigningKey::from_bytes(&[0x42u8; 32]);
+        let token = ClusterResetToken {
+            reset_id: "evil".into(),
+            cluster_id: "cluster-abc".into(),
+            mode: ClusterResetMode::NetworkOnly.as_str().to_string(),
+            issued_at: "2026-01-01T00:00:00Z".into(),
+            cluster_ca_pubkey_b64: master_keys::pubkey_b64(&attacker),
+        };
+        let json = serde_json::to_string(&token).unwrap();
+        let sig = master_keys::sign(&attacker, json.as_bytes());
+        assert!(verify_reset_token(&pool, &json, &sig).await.is_err());
+        assert!(queue_verified_remote_reset(&pool, &json, &sig)
+            .await
+            .is_err());
+        assert!(load_pending_reset(&pool).await.unwrap().is_none());
+
+        let good = ClusterResetToken {
+            cluster_ca_pubkey_b64: master_keys::pubkey_b64(&trusted),
+            ..token
+        };
+        let json = serde_json::to_string(&good).unwrap();
+        let sig = master_keys::sign(&trusted, json.as_bytes());
+        assert!(verify_reset_token(&pool, &json, &sig).await.is_ok());
     }
 }

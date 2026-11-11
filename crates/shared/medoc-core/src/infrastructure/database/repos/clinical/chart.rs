@@ -827,3 +827,53 @@ pub async fn decline_patient_chart_status(
     .await?;
     Ok(updated)
 }
+
+/// Set the GOZ billing data of a treatment line (fee number, points, factor …).
+/// The factor/justification rules are checked again when the invoice is issued.
+pub async fn set_treatment_billing(
+    pool: &SqlitePool,
+    data: &crate::domain::entities::treatment::TreatmentBilling,
+) -> Result<Treatment, AppError> {
+    let schedule = data.fee_schedule.trim().to_lowercase();
+    if !["goz", "goae", "material", "lab", "other"].contains(&schedule.as_str()) {
+        return Err(AppError::validation_code("error.treatment.invalid_fee_schedule"));
+    }
+    if matches!(schedule.as_str(), "goz" | "goae") {
+        if data.goz_nr.as_deref().map(str::trim).unwrap_or("").is_empty() || data.points.is_none() {
+            return Err(AppError::validation_code("error.treatment.goz_nr_and_points_required"));
+        }
+        let f = data.factor.unwrap_or(0.0);
+        if !(1.0..=10.0).contains(&f) {
+            return Err(AppError::validation_code("error.treatment.factor_out_of_range"));
+        }
+        if f > 2.3 && data.factor_reason.as_deref().map(str::trim).unwrap_or("").is_empty() {
+            return Err(AppError::validation_code("error.treatment.factor_reason_required"));
+        }
+        if f > 3.5 && data.agreement_ref.as_deref().map(str::trim).unwrap_or("").is_empty() {
+            return Err(AppError::validation_code("error.treatment.agreement_required"));
+        }
+    }
+    let n = sqlx::query(
+        "UPDATE treatment SET fee_schedule = ?1, goz_nr = ?2, points = ?3, factor = ?4,
+                factor_reason = ?5, quantity = ?6, analog_of = ?7, agreement_ref = ?8
+          WHERE id = ?9",
+    )
+    .bind(&schedule)
+    .bind(data.goz_nr.as_deref().map(str::trim))
+    .bind(data.points)
+    .bind(data.factor)
+    .bind(data.factor_reason.as_deref().map(str::trim))
+    .bind(data.quantity.unwrap_or(1).max(1))
+    .bind(data.analog_of.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(data.agreement_ref.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(&data.treatment_id)
+    .execute(pool)
+    .await?
+    .rows_affected();
+    if n == 0 {
+        return Err(AppError::NotFound("Treatment".into()));
+    }
+    find_treatment_by_id(pool, &data.treatment_id)
+        .await?
+        .ok_or(AppError::NotFound("Treatment".into()))
+}

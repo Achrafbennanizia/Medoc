@@ -271,6 +271,7 @@ pub async fn append_outbox(
 
     let id = Uuid::new_v4().to_string();
     let created_at = Utc::now().to_rfc3339();
+    let payload_json = crate::hlc::stamp_payload(pool, entity_table, entity_id, payload_json).await?;
     sqlx::query(
         "INSERT INTO sync_outbox (id, device_id, seq, entity_table, entity_id, op, payload_json, created_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
@@ -281,7 +282,7 @@ pub async fn append_outbox(
     .bind(entity_table)
     .bind(entity_id)
     .bind(op)
-    .bind(payload_json)
+    .bind(&payload_json)
     .bind(&created_at)
     .execute(pool)
     .await
@@ -337,6 +338,84 @@ pub async fn list_pending_outbox(
         .collect())
 }
 
+/// Pending rows a joined device may send while the first snapshot is still
+/// copying. Practice settings (`app_kv`, absences) stay queued so this
+/// device's seed copy does not overwrite the main device.
+pub async fn list_pending_member_outbox(
+    pool: &SqlitePool,
+    device_id: &str,
+    limit: i64,
+) -> Result<Vec<OutboxEntry>, AppError> {
+    let tables = member_table_sql_list();
+    let sql = format!(
+        "SELECT id, device_id, seq, entity_table, entity_id, op, payload_json, created_at
+         FROM sync_outbox
+         WHERE device_id = ?1 AND delivered_at IS NULL
+           AND (fail_reason IS NULL OR fail_reason = '')
+           AND entity_table IN ({tables})
+         ORDER BY seq ASC
+         LIMIT ?2"
+    );
+    let rows = sqlx::query_as::<_, (String, String, i64, String, String, String, String, String)>(&sql)
+        .bind(device_id)
+        .bind(limit)
+        .fetch_all(pool)
+        .await
+        .map_err(AppError::Database)?;
+    Ok(rows
+        .into_iter()
+        .map(
+            |(id, device_id, seq, entity_table, entity_id, op, payload_json, created_at)| {
+                OutboxEntry {
+                    id,
+                    device_id,
+                    seq,
+                    entity_table,
+                    entity_id,
+                    op,
+                    payload_json,
+                    created_at,
+                }
+            },
+        )
+        .collect())
+}
+
+fn member_table_sql_list() -> String {
+    use medoc_core::infrastructure::database::sync_registry::{class_of, SyncClass};
+    synced_tables()
+        .filter(|table| {
+            matches!(
+                class_of(table),
+                Some(SyncClass::Shared | SyncClass::Numbered | SyncClass::Files)
+            )
+        })
+        .map(|table| format!("'{table}'"))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+pub async fn mark_outbox_ids_delivered(
+    pool: &SqlitePool,
+    ids: &[String],
+) -> Result<(), AppError> {
+    if ids.is_empty() {
+        return Ok(());
+    }
+    let now = Utc::now().to_rfc3339();
+    for id in ids {
+        sqlx::query(
+            "UPDATE sync_outbox SET delivered_at = ?1 WHERE id = ?2 AND delivered_at IS NULL",
+        )
+        .bind(&now)
+        .bind(id)
+        .execute(pool)
+        .await
+        .map_err(AppError::Database)?;
+    }
+    Ok(())
+}
+
 pub async fn mark_outbox_delivered(
     pool: &SqlitePool,
     device_id: &str,
@@ -345,7 +424,8 @@ pub async fn mark_outbox_delivered(
     let now = Utc::now().to_rfc3339();
     sqlx::query(
         "UPDATE sync_outbox SET delivered_at = ?1
-         WHERE device_id = ?2 AND seq <= ?3 AND delivered_at IS NULL",
+         WHERE device_id = ?2 AND seq <= ?3 AND delivered_at IS NULL
+           AND (fail_reason IS NULL OR fail_reason = '')",
     )
     .bind(&now)
     .bind(device_id)
@@ -392,7 +472,7 @@ pub async fn list_pending_outbox_for_peer(
          FROM sync_outbox
          WHERE device_id = ?1 AND seq > ?2
            AND (fail_reason IS NULL OR fail_reason = '')
-         ORDER BY seq ASC"
+         ORDER BY seq ASC",
     )
     .bind(source_device_id)
     .bind(since)
@@ -562,7 +642,8 @@ async fn snapshot_table(pool: &SqlitePool, device_id: &str, table: &str) -> Resu
         if !cols.iter().any(|c| c == id_col) {
             return Ok(0);
         }
-    } else if !(cols.iter().any(|c| c == "patient_id") && cols.iter().any(|c| c == "section_or_item"))
+    } else if !(cols.iter().any(|c| c == "patient_id")
+        && cols.iter().any(|c| c == "section_or_item"))
     {
         return Ok(0);
     }
@@ -689,6 +770,90 @@ pub async fn set_observed_seq(
     Ok(())
 }
 
+/// Keep a foreign-key miss so a later page can apply it after the parent arrives.
+/// Attempts stay put until the caller decides the snapshot is no longer moving.
+pub async fn save_deferred_pull(
+    pool: &SqlitePool,
+    entry: &OutboxEntry,
+) -> Result<(), AppError> {
+    ensure_sync_tables(pool).await?;
+    sqlx::query(
+        "INSERT INTO sync_pull_failure (
+            source_device_id, source_seq, attempts, payload_json, entity_table, entity_id, op,
+            entry_created_at, entry_id
+         ) VALUES (?1, ?2, 0, ?3, ?4, ?5, ?6, ?7, ?8)
+         ON CONFLICT(source_device_id, source_seq) DO UPDATE SET
+            payload_json = excluded.payload_json,
+            entity_table = excluded.entity_table,
+            entity_id = excluded.entity_id,
+            op = excluded.op,
+            entry_created_at = excluded.entry_created_at,
+            entry_id = excluded.entry_id",
+    )
+    .bind(&entry.device_id)
+    .bind(entry.seq)
+    .bind(&entry.payload_json)
+    .bind(&entry.entity_table)
+    .bind(&entry.entity_id)
+    .bind(&entry.op)
+    .bind(&entry.created_at)
+    .bind(&entry.id)
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?;
+    Ok(())
+}
+
+pub async fn list_deferred_pulls(pool: &SqlitePool) -> Result<Vec<OutboxEntry>, AppError> {
+    ensure_sync_tables(pool).await?;
+    let rows = sqlx::query_as::<_, (String, String, i64, String, String, String, String, String)>(
+        "SELECT entry_id, source_device_id, source_seq, entity_table, entity_id, op,
+                payload_json, entry_created_at
+         FROM sync_pull_failure
+         WHERE payload_json IS NOT NULL AND TRIM(payload_json) != ''
+         ORDER BY source_seq ASC",
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(AppError::Database)?;
+    Ok(rows
+        .into_iter()
+        .map(
+            |(id, device_id, seq, entity_table, entity_id, op, payload_json, created_at)| {
+                OutboxEntry {
+                    id,
+                    device_id,
+                    seq,
+                    entity_table,
+                    entity_id,
+                    op,
+                    payload_json,
+                    created_at,
+                }
+            },
+        )
+        .collect())
+}
+
+pub async fn bump_deferred_pull(
+    pool: &SqlitePool,
+    source_device_id: &str,
+    source_seq: i64,
+) -> Result<i64, AppError> {
+    ensure_sync_tables(pool).await?;
+    let attempts: i64 = sqlx::query_scalar(
+        "UPDATE sync_pull_failure SET attempts = attempts + 1
+         WHERE source_device_id = ?1 AND source_seq = ?2
+         RETURNING attempts",
+    )
+    .bind(source_device_id)
+    .bind(source_seq)
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::Database)?;
+    Ok(attempts)
+}
+
 /// How many times this pulled row has failed to apply. Starts at 1.
 pub async fn record_pull_failure(
     pool: &SqlitePool,
@@ -795,6 +960,7 @@ pub async fn status_snapshot(pool: &SqlitePool) -> Result<SyncStatusSnapshot, Ap
         pending_outbox,
         peers,
         vectors,
+        initial_copy: None,
     })
 }
 

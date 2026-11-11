@@ -17,7 +17,10 @@ fn validate_as_of_date(s: &str) -> Result<(), AppError> {
 pub async fn list(pool: &SqlitePool) -> Result<Vec<DayCloseProtocol>, AppError> {
     let rows = sqlx::query_as::<_, DayCloseProtocol>(
         "SELECT id, as_of_date, counted_eur, system_cash_eur, system_income_eur, variance_eur,
-                cash_matches, day_payment_count, cash_verified_count, all_payments_verified, note, recorded_at
+                cash_matches, day_payment_count, cash_verified_count, all_payments_verified, note, recorded_at,
+                status, period_from, opening_cents, cash_receipts_cents, cash_movements_cents, expected_cents,
+                counted_cents, variance_cents, card_cents, card_terminal_cents, transfer_cents, receipt_count,
+                closed_by_name, document_number, corrects_id
            FROM day_close_protocol
           ORDER BY recorded_at DESC, id DESC",
     )
@@ -29,7 +32,10 @@ pub async fn list(pool: &SqlitePool) -> Result<Vec<DayCloseProtocol>, AppError> 
 pub async fn get(pool: &SqlitePool, id: &str) -> Result<DayCloseProtocol, AppError> {
     sqlx::query_as::<_, DayCloseProtocol>(
         "SELECT id, as_of_date, counted_eur, system_cash_eur, system_income_eur, variance_eur,
-                cash_matches, day_payment_count, cash_verified_count, all_payments_verified, note, recorded_at
+                cash_matches, day_payment_count, cash_verified_count, all_payments_verified, note, recorded_at,
+                status, period_from, opening_cents, cash_receipts_cents, cash_movements_cents, expected_cents,
+                counted_cents, variance_cents, card_cents, card_terminal_cents, transfer_cents, receipt_count,
+                closed_by_name, document_number, corrects_id
            FROM day_close_protocol
           WHERE id = ?1",
     )

@@ -1,5 +1,18 @@
 import { tauriInvoke } from "@/services/tauri.service";
 
+/**
+ * What is being exported. Sent with every save so the backend can write the
+ * audit entry (kind, format, size, SHA-256) — files leaving the encrypted
+ * database must be traceable (§ 630f BGB, Art. 30/32 DSGVO).
+ */
+export type ExportContext = {
+    /** e.g. "chart", "receipt", "certificate", "patients_csv", "report:statistics" */
+    kind: string;
+    format: "pdf" | "csv" | "json" | "xml" | "zip" | "html";
+    entityId?: string | null;
+    documentNumber?: string | null;
+};
+
 /** True when running inside the Tauri desktop shell (not Vite dev in an external browser). */
 export function isTauriApp(): boolean {
     return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -35,6 +48,7 @@ export async function saveOrDownloadBytes(
     filename: string,
     bytes: Uint8Array,
     mime = "application/octet-stream",
+    context?: ExportContext,
 ): Promise<boolean> {
     if (!isTauriApp()) {
         const copy = new Uint8Array(bytes.byteLength);
@@ -45,12 +59,18 @@ export async function saveOrDownloadBytes(
     const path = await tauriInvoke<string | null>("save_export_file", {
         defaultFileName: filename,
         contentsBase64: uint8ToBase64(bytes),
+        context: context ?? null,
     });
     return path != null;
 }
 
-export async function saveOrDownloadText(filename: string, text: string, mime?: string): Promise<boolean> {
-    return saveOrDownloadBytes(filename, new TextEncoder().encode(text), mime ?? "text/plain;charset=utf-8");
+export async function saveOrDownloadText(
+    filename: string,
+    text: string,
+    mime?: string,
+    context?: ExportContext,
+): Promise<boolean> {
+    return saveOrDownloadBytes(filename, new TextEncoder().encode(text), mime ?? "text/plain;charset=utf-8", context);
 }
 
 /** `number[]` from Tauri byte responses (e.g. audit CSV). */
@@ -58,6 +78,7 @@ export async function saveOrDownloadNumberBytes(
     filename: string,
     bytes: number[],
     mime = "application/octet-stream",
+    context?: ExportContext,
 ): Promise<boolean> {
-    return saveOrDownloadBytes(filename, new Uint8Array(bytes), mime);
+    return saveOrDownloadBytes(filename, new Uint8Array(bytes), mime, context);
 }

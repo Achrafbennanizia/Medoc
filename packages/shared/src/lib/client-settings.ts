@@ -293,6 +293,9 @@ export function onClientSettingsSaved(listener: ClientSettingsSaved): void {
 export function saveClientSettings(next: ClientSettingsV1): void {
     localStorage.setItem(KEY, JSON.stringify(next));
     afterClientSettingsSaved?.(next);
+    if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("medoc-client-settings"));
+    }
 }
 
 /** Applies appearance, sidebar tone, density, accent, avatar & keyboard hints to `<html>`. */

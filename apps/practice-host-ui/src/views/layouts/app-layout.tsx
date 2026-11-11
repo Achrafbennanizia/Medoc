@@ -1,4 +1,4 @@
-import { Fragment, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../models/store/auth-store";
@@ -37,10 +37,13 @@ import { useDismissibleLayer } from "../components/ui/use-dismissible-layer";
 import { UserAccountMenuDropdown } from "../components/user-account-menu";
 import { SyncStatusBadge } from "../components/sync-status-badge";
 import { AuditChainBanner } from "../components/audit-chain-banner";
+import { InitialCopyBanner } from "../components/initial-copy-banner";
 import { BreakGlassBanner } from "../components/break-glass-banner";
 import { RouteOutletGuard } from "../components/route-outlet-guard";
 import { PageLoading } from "../components/ui/page-status";
-import { applyAppearanceFromSettings, loadClientSettings } from "@/lib/client-settings";
+import { applyAppearanceFromSettings, isNetworkHiddenInSettings, loadClientSettings } from "@/lib/client-settings";
+import { practiceCurrency, subscribePracticeCurrency } from "@/lib/practice-currency";
+import { setNetworkHidden } from "@/systems/practice-host/controllers/cluster.controller";
 import {
     hydrateInvoicePracticeFromAppKv,
     migrateInvoicePracticeLocalStorageToAppKv,
@@ -495,10 +498,22 @@ export function AppLayout() {
     }, [sessionUserId, toast, tp]);
 
     useEffect(() => {
-        if (!session) return;
-        const mins = loadClientSettings().security?.idleLogoutMinutes ?? 0;
-        if (mins <= 0) return;
-        const ms = mins * 60_000;
+        if (!sessionUserId) return;
+        if (!isNetworkHiddenInSettings(loadClientSettings())) return;
+        void setNetworkHidden(true).catch(() => undefined);
+    }, [sessionUserId]);
+
+    const practiceCurrencyCode = useSyncExternalStore(subscribePracticeCurrency, practiceCurrency, practiceCurrency);
+    const [idleMinutes, setIdleMinutes] = useState(() => loadClientSettings().security?.idleLogoutMinutes ?? 0);
+    useEffect(() => {
+        const sync = () => setIdleMinutes(loadClientSettings().security?.idleLogoutMinutes ?? 0);
+        window.addEventListener("medoc-client-settings", sync);
+        return () => window.removeEventListener("medoc-client-settings", sync);
+    }, []);
+
+    useEffect(() => {
+        if (!sessionUserId || idleMinutes <= 0) return;
+        const ms = idleMinutes * 60_000;
         let last = Date.now();
         const bump = () => {
             last = Date.now();
@@ -517,7 +532,7 @@ export function AppLayout() {
             events.forEach((e) => document.removeEventListener(e, bump));
             window.clearInterval(tick);
         };
-    }, [session, navigate]);
+    }, [sessionUserId, idleMinutes, navigate]);
 
     useEffect(() => {
         if (!breakOpen) return;
@@ -1000,6 +1015,7 @@ export function AppLayout() {
                 {t("a11y.skip_to_main")}
             </a>
 
+            <InitialCopyBanner />
             <AuditChainBanner
                 canAcknowledge={
                     !!session &&
@@ -1175,7 +1191,7 @@ export function AppLayout() {
                 >
                     <Suspense fallback={<PageLoading label={t("common.loading")} />}>
                         <RouteOutletGuard>
-                            <Outlet />
+                            <Outlet key={practiceCurrencyCode} />
                         </RouteOutletGuard>
                     </Suspense>
                 </main>

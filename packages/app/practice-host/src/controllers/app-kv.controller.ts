@@ -11,6 +11,8 @@ export type AppKvKey =
     | "export.formats.v1"
     | "practice.logo.v1"
     | "invoice.practice.v1"
+    /** Language of official documents (`de` default). Write: ops.system. */
+    | "documents.locale.v1"
     | "practice.timezone.v1"
     /** LAN host configuration (same key as backend `APP_KV_KEY`). */
     | "lan.server.config.v1"

@@ -97,16 +97,19 @@ pub async fn reserve_seat_atomic(
     max_member: u32,
 ) -> Result<(), AppError> {
     let mut tx = pool.begin().await.map_err(AppError::Database)?;
+    super::repo::release_revoked_pairing_seats(&mut *tx).await?;
 
-    let row: (i64, i64, i64) = sqlx::query_as(
+    let sql = format!(
         "SELECT
-            SUM(CASE WHEN seat_role = 'ADMIN' THEN 1 ELSE 0 END),
-            SUM(CASE WHEN seat_role = 'MEMBER' THEN 1 ELSE 0 END),
-            COUNT(*)
+            COALESCE(SUM(CASE WHEN seat_role = 'ADMIN' THEN 1 ELSE 0 END), 0),
+            COALESCE(SUM(CASE WHEN seat_role = 'MEMBER' THEN 1 ELSE 0 END), 0),
+            COALESCE(COUNT(*), 0)
          FROM sync_device
          WHERE cluster_id = ?1
-           AND device_status IN ('PENDING','ACTIVE')",
-    )
+           AND {}",
+        super::repo::OCCUPIED_SEAT_SQL
+    );
+    let row: (i64, i64, i64) = sqlx::query_as(&sql)
     .bind(cluster_id)
     .fetch_one(&mut *tx)
     .await

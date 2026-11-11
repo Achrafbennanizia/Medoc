@@ -13,11 +13,13 @@
 
 use std::net::SocketAddr;
 
-use axum::extract::{ConnectInfo, Extension, Path, State};
 use axum::body::Bytes;
+use axum::extract::{ConnectInfo, Extension, Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
+use medoc_core::infrastructure::database::app_kv_repo;
+use medoc_sync::deployment::APP_KV_DEVICE_ID_KEY;
 use medoc_sync::engine::SyncEngine;
 use medoc_sync::master_keys;
 use medoc_sync::pairing::{self, ActivationTokenPayload};
@@ -41,6 +43,8 @@ pub struct SyncPullBody {
     pub device_id: String,
     pub since_seq: i64,
     pub requester_id: Option<String>,
+    #[serde(default)]
+    pub live_since_seq: i64,
 }
 
 fn forbidden(reason: &'static str) -> Response {
@@ -65,31 +69,66 @@ pub async fn sync_push(
     {
         return Err(forbidden("master_license_required"));
     }
-    let token_check = req.extensions().get::<ActivationTokenPayload>().cloned();
+    // The middleware only lets activation tokens through on /sync/*; a push
+    // without one would skip the device binding below, so refuse it.
+    let Some(token_check) = req.extensions().get::<ActivationTokenPayload>().cloned() else {
+        return Err(forbidden("activation_token_required"));
+    };
     let body_bytes =
         match axum::body::to_bytes(std::mem::take(req.body_mut()), 16 * 1024 * 1024).await {
             Ok(b) => b,
-            Err(_) => return Err(StatusCode::BAD_REQUEST.into_response()),
+            Err(_) => {
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    Json(json!({"error": "sync_push_failed", "reason": "body"})),
+                )
+                    .into_response())
+            }
         };
     let body: SyncPushBody = match serde_json::from_slice(&body_bytes) {
         Ok(b) => b,
-        Err(_) => return Err(StatusCode::BAD_REQUEST.into_response()),
-    };
-    if let Some(payload) = token_check {
-        if payload.device_id != body.from_device_id {
-            return Err(forbidden("from_device_mismatch"));
+        Err(error) => {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(json!({
+                    "error": "sync_push_failed",
+                    "reason": error.to_string()
+                })),
+            )
+                .into_response())
         }
+    };
+    if token_check.device_id != body.from_device_id {
+        return Err(forbidden("from_device_mismatch"));
     }
     let result = SyncEngine::ingest_push(&state.pool, &body.from_device_id, &body.entries)
         .await
-        .map_err(|_| StatusCode::BAD_REQUEST.into_response())?;
-    let _ = repo::touch_replica_seen(
+        .map_err(|e| {
+            tracing::warn!(target: "medoc::lan", event = "LAN_SYNC_PUSH_FAILED", error = %e);
+            (
+                StatusCode::BAD_REQUEST,
+                Json(json!({
+                    "error": "sync_push_failed",
+                    "reason": e.to_string()
+                })),
+            )
+                .into_response()
+        })?;
+    if let Err(error) = repo::touch_replica_seen(
         &state.pool,
         &body.from_device_id,
         &addr.ip().to_string(),
         state.http_port,
     )
-    .await;
+    .await
+    {
+        tracing::warn!(
+            target: "medoc::lan",
+            event = "REPLICA_SEEN_FAILED",
+            device_id = %body.from_device_id,
+            error = %error
+        );
+    }
     Ok(Json(result))
 }
 
@@ -98,7 +137,7 @@ pub async fn sync_pull(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Extension(token): Extension<ActivationTokenPayload>,
     Json(body): Json<SyncPullBody>,
-) -> Result<Json<serde_json::Value>, Response> {
+) -> Result<Json<medoc_sync::engine::ReplicaPullPage>, Response> {
     if master_license::require_master_license(&state.pool)
         .await
         .is_err()
@@ -108,19 +147,33 @@ pub async fn sync_pull(
     if body.requester_id.as_deref() != Some(token.device_id.as_str()) {
         return Err(forbidden("requester_mismatch"));
     }
-    let entries = SyncEngine::collect_pull_for_replica(&state.pool, "", body.since_seq)
+    // The requester id is used to throttle full-snapshot requests per device.
+    let page = SyncEngine::collect_pull_for_replica(
+        &state.pool,
+        &token.device_id,
+        body.since_seq,
+        body.live_since_seq,
+    )
         .await
         .map_err(|_| StatusCode::BAD_REQUEST.into_response())?;
     if let Some(ref requester_id) = body.requester_id {
-        let _ = repo::touch_replica_seen(
+        if let Err(error) = repo::touch_replica_seen(
             &state.pool,
             requester_id,
             &addr.ip().to_string(),
             state.http_port,
         )
-        .await;
+        .await
+        {
+            tracing::warn!(
+                target: "medoc::lan",
+                event = "REPLICA_SEEN_FAILED",
+                device_id = %requester_id,
+                error = %error
+            );
+        }
     }
-    Ok(Json(serde_json::json!({ "entries": entries })))
+    Ok(Json(page))
 }
 
 pub async fn sync_status(
@@ -180,10 +233,25 @@ pub async fn verify_activation_for_path(
     //      on the master signature already verified above and the
     //      token's baked-in `allowed_actions`. This is the documented
     //      mesh contract (see `medoc-sync::engine::run_mesh_sync`).
-    if let Some(req) = pairing::load_by_device(&state.pool, &payload.device_id)
+    let row = pairing::load_by_device(&state.pool, &payload.device_id)
         .await
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "pairing lookup").into_response())?
-    {
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "pairing lookup").into_response())?;
+    if row.is_none() {
+        // Case 3 only applies to tokens another master issued. If this node
+        // issued the token (its device id is the token's master), a missing
+        // row means the pairing was removed (reset, re-pair): treat as
+        // revoked. Without this, a revoked device whose row was deleted kept
+        // full sync access forever (tokens carry no expiry).
+        let local_id = app_kv_repo::get(&state.pool, APP_KV_DEVICE_ID_KEY)
+            .await
+            .ok()
+            .flatten()
+            .unwrap_or_default();
+        if !local_id.trim().is_empty() && payload.master_device_id == local_id.trim() {
+            return Err(forbidden("pairing_unknown"));
+        }
+    }
+    if let Some(req) = row {
         if req.status != "ACCEPTED" {
             return Err(forbidden("pairing_not_accepted"));
         }
@@ -291,7 +359,13 @@ pub async fn sync_number(
     let style = medoc_core::infrastructure::database::number_sequence::NumberStyle::parse(
         body.style.as_deref(),
     )
-    .map_err(|e| (StatusCode::BAD_REQUEST, Json(json!({ "error": e.to_string() }))).into_response())?;
+    .map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response()
+    })?;
     let number = medoc_core::infrastructure::database::number_sequence::allocate_styled(
         &state.pool,
         &body.prefix,
@@ -399,7 +473,10 @@ mod sync_route_tests {
             action_for_path("/api/v1/sync/rows", "POST"),
             "sync.reconcile"
         );
-        assert_eq!(action_for_path("/api/v1/pairing/peers", "GET"), "pairing.peers");
+        assert_eq!(
+            action_for_path("/api/v1/pairing/peers", "GET"),
+            "pairing.peers"
+        );
         assert_eq!(
             action_for_path("/api/v1/sync/blob/ab", "PUT"),
             "sync.blob.put"

@@ -18,8 +18,8 @@ export function LicenseActivateOnboardingPage() {
     const [code, setCode] = useState("");
     const [busy, setBusy] = useState(false);
 
-    const activate = async () => {
-        const trimmed = code.replace(/\s+/g, "").trim();
+    const activate = async (raw?: string) => {
+        const trimmed = (raw ?? code).replace(/\s+/g, "").trim();
         if (!trimmed) {
             toast(t("onboarding.license.paste_key"), "error");
             return;

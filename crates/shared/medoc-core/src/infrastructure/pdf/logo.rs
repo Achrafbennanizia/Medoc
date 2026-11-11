@@ -11,6 +11,14 @@ use std::io::{Cursor, Write};
 
 use super::core::{M_LEFT, M_RIGHT};
 
+/// `showOnDocuments` in `practice.logo.v1`. Missing means the logo is printed.
+pub fn logo_visible_on_documents(raw: &str) -> bool {
+    serde_json::from_str::<serde_json::Value>(raw.trim())
+        .ok()
+        .and_then(|value| value.get("showOnDocuments").and_then(|flag| flag.as_bool()))
+        .unwrap_or(true)
+}
+
 /// Max logo box on the letterhead (points).
 pub const LOGO_MAX_HEIGHT: f64 = 48.0;
 pub const LOGO_MAX_WIDTH: f64 = 120.0;
@@ -232,6 +240,15 @@ mod tests {
         assert_eq!(logo.height_px, 16);
         assert!(logo.display_h <= LOGO_MAX_HEIGHT);
         assert!(logo.x_for_side(false) < logo.x_for_side(true));
+    }
+
+    #[test]
+    fn a_missing_flag_shows_the_logo_and_false_hides_it() {
+        assert!(logo_visible_on_documents(r#"{"mime":"image/png","data":"aa"}"#));
+        assert!(!logo_visible_on_documents(
+            r#"{"mime":"image/png","data":"aa","showOnDocuments":false}"#
+        ));
+        assert!(logo_visible_on_documents("not-json"));
     }
 
     #[test]

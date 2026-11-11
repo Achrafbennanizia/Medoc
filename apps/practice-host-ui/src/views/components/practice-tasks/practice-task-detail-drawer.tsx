@@ -11,7 +11,7 @@ import {
     transitionPracticeTask,
     updatePracticeTaskAdmin,
 } from "@/systems/practice-host/controllers/practice-task.controller";
-import { errorMessage } from "@/lib/utils";
+import { errorMessage, formatCurrency } from "@/lib/utils";
 import { useDateFnsLocale, useT } from "@/lib/i18n";
 import { displayPracticeTaskTitle } from "@/lib/finance-order-labels";
 import { clinicalServiceLabel } from "@/lib/clinical-service-label";
@@ -299,7 +299,7 @@ export function PracticeTaskDetailDrawer({
                                     {task.service_name
                                         ? clinicalServiceLabel(task.service_name)
                                         : t("page.practice_tickets.service_item_fallback")}
-                                    {task.total_cost != null ? ` · ${task.total_cost.toFixed(2)} €` : ""}
+                                    {task.total_cost != null ? ` · ${formatCurrency(task.total_cost)}` : ""}
                                 </div>
                             </div>
                         ) : null}

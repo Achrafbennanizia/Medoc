@@ -52,11 +52,7 @@ function resolveParamValues(loc: Locale, params: Record<string, string>): Record
  * Map backend `AppError::ValidationCode("error.*")` (optional `|key=value` params) to localized UI text.
  * Uncoded messages are shown as received from the backend.
  */
-export function formatIpcError(err: unknown, locale?: Locale): string {
-    const raw = ipcErrorRaw(err).trim();
-    const loc = locale ?? useLocale.getState().locale;
-
-    // Prefer an embedded `error.*` token when wrappers surround the coded payload.
+function formatIpcErrorLine(raw: string, loc: Locale): string {
     const codedCandidate = (() => {
         if (ERROR_KEY_RE.test(raw) || parseCodedError(raw)) return raw;
         const m = raw.match(/\berror\.[a-z0-9_.]+(?:\|[^\s|]+(?:=[^\s|]*)?)*\b/i);
@@ -76,6 +72,14 @@ export function formatIpcError(err: unknown, locale?: Locale): string {
     }
 
     return raw;
+}
+
+export function formatIpcError(err: unknown, locale?: Locale): string {
+    const raw = ipcErrorRaw(err).trim().replace(/^Validation error:\s*/i, "");
+    const loc = locale ?? useLocale.getState().locale;
+    const lines = raw.split(/\n+/).map((s) => s.trim()).filter(Boolean);
+    if (lines.length === 0) return raw;
+    return lines.map((line) => formatIpcErrorLine(line, loc)).join(" ");
 }
 
 /** Hook-friendly IPC error formatter bound to the active locale. */

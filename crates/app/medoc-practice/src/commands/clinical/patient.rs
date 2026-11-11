@@ -246,7 +246,9 @@ pub async fn export_patients_csv(
     session_state: State<'_, SessionState>,
     params: Option<crate::commands::list_params::ListParams>,
 ) -> Result<String, AppError> {
-    rbac::require(&session_state, "patient.read")?;
+    // Bulk PII export: migration/admin permission, not plain `patient.read`.
+    let session = rbac::require(&session_state, "ops.migration")?;
+    use medoc_core::application::documents::export_audit::csv_safe_cell as safe;
     let p = params.unwrap_or_default();
     let include_archived = p.filter_bool("showArchived").unwrap_or(false);
     let rows = patient_repo::find_all_matching(
@@ -273,22 +275,33 @@ pub async fn export_patients_csv(
     .map_err(|e| AppError::Internal(e.to_string()))?;
     for r in &rows {
         wtr.write_record([
-            r.name.as_str(),
-            &r.date_of_birth.to_string(),
-            r.sex.as_str(),
-            r.insurance_number.as_deref().unwrap_or(""),
-            r.phone.as_deref().unwrap_or(""),
-            r.email.as_deref().unwrap_or(""),
-            r.address.as_deref().unwrap_or(""),
-            r.status.as_str(),
-            r.id.as_str(),
+            safe(r.name.as_str()),
+            safe(&r.date_of_birth.to_string()),
+            safe(r.sex.as_str()),
+            safe(r.insurance_number.as_deref().unwrap_or("")),
+            safe(r.phone.as_deref().unwrap_or("")),
+            safe(r.email.as_deref().unwrap_or("")),
+            safe(r.address.as_deref().unwrap_or("")),
+            safe(r.status.as_str()),
+            safe(r.id.as_str()),
         ])
         .map_err(|e| AppError::Internal(e.to_string()))?;
     }
     let bytes = wtr
         .into_inner()
         .map_err(|e| AppError::Internal(e.to_string()))?;
-    String::from_utf8(bytes).map_err(|e| AppError::Internal(e.to_string()))
+    let csv = String::from_utf8(bytes).map_err(|e| AppError::Internal(e.to_string()))?;
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "EXPORT_CSV",
+        "Patient",
+        None,
+        Some(&format!("count={}", rows.len())),
+    )
+    .await?;
+    // BOM so spreadsheet apps detect UTF-8 (umlauts).
+    Ok(format!("\u{FEFF}{csv}"))
 }
 
 /// IPC commands for [`crate::commands::register`].

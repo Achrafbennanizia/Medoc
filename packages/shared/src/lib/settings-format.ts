@@ -1,11 +1,13 @@
 /** Small format helpers for Settings / portal sections (Phase 3.7 split). */
 import { t } from "@/lib/i18n";
+import { practiceCurrency } from "./practice-currency";
 
 export function formatEurFromCents(cents: unknown): string {
     const n = typeof cents === "number" ? cents : Number(cents);
     if (!Number.isFinite(n)) return t("common.em_dash");
+    const currency = practiceCurrency();
     try {
-        return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n / 100);
+        return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(n / 100);
     } catch {
         return t("common.em_dash");
     }

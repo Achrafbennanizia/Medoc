@@ -33,7 +33,7 @@ import { WorkspacePageHeader } from "../components/administration-page-header";
 import type { DocumentKind } from "@/lib/document-template-schema";
 import { checkPracticeDocumentReadiness } from "@/lib/practice-completeness";
 import { getInvoicePracticeFromStorage } from "@/lib/invoice-service-item";
-import { buildReceiptExportForPayment, RECEIPT_DOCUMENT_KIND } from "@/lib/receipt-export-flow";
+import { buildReceiptExportForPayment, canIssueReceipt, RECEIPT_DOCUMENT_KIND } from "@/lib/receipt-export-flow";
 import type { ClinicalDocumentExportBundle } from "@/lib/document-print-html";
 import type { HtmlExportDocumentKind } from "@/views/components/export-picker-dialog";
 import { HtmlDocumentExportPickerDialog } from "@/views/components/export-picker-dialog";
@@ -404,6 +404,11 @@ export function FinancePage() {
         const readiness = checkPracticeDocumentReadiness(getInvoicePracticeFromStorage(), RECEIPT_DOCUMENT_KIND);
         if (!readiness.ready) {
             setPracticeGuardKind(RECEIPT_DOCUMENT_KIND);
+            return;
+        }
+        // A Quittung confirms money received; an open payment gets an invoice instead.
+        if (!canIssueReceipt(z)) {
+            toast(t("page.finance.toast_receipt_unpaid"), "info");
             return;
         }
         setReceiptBusyId(z.id);

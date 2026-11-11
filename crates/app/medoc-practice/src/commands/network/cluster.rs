@@ -67,6 +67,32 @@ async fn require_admin_seat(pool: &SqlitePool) -> Result<(), AppError> {
     require_owner_admin(pool).await
 }
 
+/// Pre-login onboarding commands (license, install plan) run without a staff
+/// session on a fresh install. Once setup is complete they change the
+/// device's role / license, so a signed-in `ops.system` user is required —
+/// otherwise anyone at a logged-out practice PC could re-role the device.
+async fn require_ops_after_onboarding(
+    pool: &SqlitePool,
+    session_state: &State<'_, SessionState>,
+) -> Result<(), AppError> {
+    let done = medoc_core::infrastructure::database::app_kv_repo::get(
+        pool,
+        "onboarding.setup_complete.v1",
+    )
+    .await
+    .ok()
+    .flatten()
+    .map(|v| {
+        let v = v.trim().trim_matches('"');
+        !v.is_empty() && v != "0" && v != "false"
+    })
+    .unwrap_or(false);
+    if done {
+        require(session_state, "ops.system")?;
+    }
+    Ok(())
+}
+
 fn user_id(session: &SessionState) -> Result<String, AppError> {
     let guard = session.lock_session();
     let (sess, _) = guard.as_ref().ok_or(AppError::Unauthorized)?;
@@ -84,6 +110,7 @@ pub async fn license_activate(
     session_state: State<'_, SessionState>,
     license_key: String,
 ) -> Result<ClusterStatus, AppError> {
+    require_ops_after_onboarding(&pool, &session_state).await?;
     // Pre-login onboarding: no session yet — use bootstrap actor id.
     let uid = user_id(&session_state).unwrap_or_else(|_| "onboarding".into());
     let resolved = crate::commands::company_portal_commands::resolve_onboarding_license_key(
@@ -171,8 +198,10 @@ pub async fn install_plan_consume_sidecar(
 #[tauri::command]
 pub async fn install_plan_apply(
     pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
     plan: InstallPlan,
 ) -> Result<ApplyInstallPlanResult, AppError> {
+    require_ops_after_onboarding(&pool, &session_state).await?;
     apply_install_plan(&pool, &plan).await
 }
 

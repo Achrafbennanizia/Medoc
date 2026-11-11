@@ -5,9 +5,7 @@ use std::sync::{Mutex, OnceLock};
 
 use medoc_core::error::AppError;
 use medoc_core::infrastructure::database::recorded_write::json_object_sql;
-use medoc_core::infrastructure::database::sync_registry::{
-    deny_app_kv_key, synced_tables,
-};
+use medoc_core::infrastructure::database::sync_registry::{deny_app_kv_key, synced_tables};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
@@ -119,8 +117,7 @@ pub struct RowsBody {
 }
 
 pub fn hash_row_json(json: &str) -> String {
-    let parsed: serde_json::Value =
-        serde_json::from_str(json).unwrap_or(serde_json::Value::Null);
+    let parsed: serde_json::Value = serde_json::from_str(json).unwrap_or(serde_json::Value::Null);
     let canonical = serde_json::to_string(&sort_value(parsed)).unwrap_or_else(|_| json.to_string());
     sha256_hex(canonical.as_bytes())
 }
@@ -166,7 +163,11 @@ async fn table_exists(pool: &SqlitePool, table: &str) -> bool {
         > 0
 }
 
-async fn snapshot_row(pool: &SqlitePool, table: &str, id: &str) -> Result<Option<String>, AppError> {
+async fn snapshot_row(
+    pool: &SqlitePool,
+    table: &str,
+    id: &str,
+) -> Result<Option<String>, AppError> {
     if table == "app_kv" && deny_app_kv_key(id) {
         return Ok(None);
     }
@@ -263,17 +264,17 @@ async fn collect_row_hashes(
             });
         }
     }
-    let tombs: Vec<(String, String, String)> = sqlx::query_as(
-        "SELECT entity_table, entity_id, deleted_at FROM sync_tombstone",
-    )
-    .fetch_all(&mut **tx)
-    .await
-    .map_err(AppError::Database)?;
+    let tombs: Vec<(String, String, String)> =
+        sqlx::query_as("SELECT entity_table, entity_id, deleted_at FROM sync_tombstone")
+            .fetch_all(&mut **tx)
+            .await
+            .map_err(AppError::Database)?;
     for (table, id, deleted_at) in tombs {
         if buckets.is_some_and(|set| !set.contains(&id_bucket(&id))) {
             continue;
         }
-        let payload = serde_json::json!({ "tombstone": true, "deleted_at": deleted_at }).to_string();
+        let payload =
+            serde_json::json!({ "tombstone": true, "deleted_at": deleted_at }).to_string();
         out.push(RowHash {
             table,
             id,
@@ -363,7 +364,10 @@ pub async fn maybe_hourly(
     if deployment.role != DeviceRole::Replica {
         return Ok(None);
     }
-    if sync_error.is_some() || pulled >= 500 || !pending_empty(pool).await? || repair_required(pool).await
+    if sync_error.is_some()
+        || pulled >= 500
+        || !pending_empty(pool).await?
+        || repair_required(pool).await
     {
         return Ok(None);
     }
@@ -549,9 +553,10 @@ async fn post_json<T: serde::de::DeserializeOwned, B: Serialize>(
         .await
         .map_err(|e| AppError::Internal(format!("reconcile http: {e}")))?;
     if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
         return Err(AppError::Internal(format!(
-            "reconcile http status {}",
-            resp.status()
+            "reconcile http status {status}: {body}"
         )));
     }
     resp.json()

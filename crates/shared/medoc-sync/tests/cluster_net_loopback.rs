@@ -189,7 +189,14 @@ async fn save_admin_license(pool: &sqlx::SqlitePool) -> Vec<u8> {
 }
 
 async fn arm_admin_sas(pool: &sqlx::SqlitePool, session_id: &str, digits: &str) {
-    let signing_key = save_admin_license(pool).await;
+    save_admin_license(pool).await;
+    mark_admin_accepted(pool, session_id, digits).await;
+}
+
+/// What `accept_join_request` does on the admin: arm the SAS hash
+/// (AWAITING_SAS). License must already be saved (`save_admin_license`).
+async fn mark_admin_accepted(pool: &sqlx::SqlitePool, session_id: &str, digits: &str) {
+    let signing_key = vec![7u8; 32];
     let sas_hash = hash_sas(session_id, digits, &signing_key);
     SqliteClusterRepos { pool }
         .update_state(session_id, PairingStatus::AwaitingSas, Some(&sas_hash))
@@ -227,10 +234,10 @@ async fn sas_confirm_via_spawned_cluster_handler() {
     let digits = derive_sas_from_transcript(&outcome.handshake_transcript);
     arm_admin_sas(&admin_pool, &outcome.session_id, &digits).await;
 
-    confirm_sas_on_admin("127.0.0.1", port, &outcome.session_id, &digits)
+    confirm_sas_on_admin("127.0.0.1", port, &identity, &outcome.session_id, &digits)
         .await
         .expect("admin hash must accept the displayed SAS");
-    let bad = confirm_sas_on_admin("127.0.0.1", port, &outcome.session_id, "0000").await;
+    let bad = confirm_sas_on_admin("127.0.0.1", port, &identity, &outcome.session_id, "0000").await;
     assert!(bad.is_err(), "wrong digits must fail remote SAS");
 
     mirror_join_session(
@@ -258,7 +265,7 @@ async fn sas_confirm_via_spawned_cluster_handler() {
 
 #[tokio::test]
 #[serial_test::serial]
-async fn sas_confirm_works_when_license_exists_before_join() {
+async fn sas_confirm_rejected_without_admin_accept() {
     std::env::set_var(
         "MEDOC_CLUSTER_DEVICE_SECRET",
         "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
@@ -284,16 +291,36 @@ async fn sas_confirm_works_when_license_exists_before_join() {
         .await
         .expect("join");
     let digits = derive_sas_from_transcript(&outcome.handshake_transcript);
-    confirm_sas_on_admin("127.0.0.1", port, &outcome.session_id, &digits)
-        .await
-        .expect("join must arm SAS hash so confirm works without a separate Accept");
+    // The joiner can always derive the SAS from its own transcript. Before
+    // the admin accepted, that must not enrol it or hand out a token.
+    let res = confirm_sas_on_admin("127.0.0.1", port, &identity, &outcome.session_id, &digits).await;
+    assert!(res.is_err(), "SAS confirm must require the admin's Accept");
+    let status: Option<String> =
+        sqlx::query_scalar("SELECT status FROM pairing_request WHERE id = ?1")
+            .bind(&outcome.session_id)
+            .fetch_optional(&admin_pool)
+            .await
+            .expect("status");
+    assert_ne!(status.as_deref(), Some("ACCEPTED"));
+    let active: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM sync_device WHERE fingerprint = ?1 AND device_status = 'ACTIVE'",
+    )
+    .bind(&outcome.fingerprint)
+    .fetch_one(&admin_pool)
+    .await
+    .expect("count");
+    assert_eq!(active, 0, "joiner must not be enrolled without Accept");
+
+    // Staff directory is not available to an unaccepted joiner either.
+    let staff = fetch_staff_directory("127.0.0.1", port, &identity, &outcome.session_id).await;
+    assert!(staff.is_err(), "staff directory must require an accepted session");
 
     std::env::remove_var("MEDOC_CLUSTER_DEVICE_SECRET");
 }
 
 #[tokio::test]
 #[serial_test::serial]
-async fn sas_confirm_from_transcript_while_still_join_requested() {
+async fn sas_confirm_rejected_while_still_join_requested() {
     std::env::set_var(
         "MEDOC_CLUSTER_DEVICE_SECRET",
         "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
@@ -319,9 +346,8 @@ async fn sas_confirm_from_transcript_while_still_join_requested() {
         .expect("join");
     save_admin_license(&admin_pool).await;
     let digits = derive_sas_from_transcript(&outcome.handshake_transcript);
-    confirm_sas_on_admin("127.0.0.1", port, &outcome.session_id, &digits)
-        .await
-        .expect("JOIN_REQUESTED plus stored transcript must still accept the handshake SAS");
+    let res = confirm_sas_on_admin("127.0.0.1", port, &identity, &outcome.session_id, &digits).await;
+    assert!(res.is_err(), "JOIN_REQUESTED (not accepted) must not confirm");
 
     std::env::remove_var("MEDOC_CLUSTER_DEVICE_SECRET");
 }
@@ -363,7 +389,7 @@ async fn sas_confirm_uses_transcript_when_stored_hash_is_wrong() {
         )
         .await
         .expect("stale hash");
-    confirm_sas_on_admin("127.0.0.1", port, &outcome.session_id, &digits)
+    confirm_sas_on_admin("127.0.0.1", port, &identity, &outcome.session_id, &digits)
         .await
         .expect("displayed/handshake SAS must win over a stale HMAC");
 
@@ -403,7 +429,8 @@ async fn staff_directory_and_lan_token_after_sas() {
         .await
         .expect("join");
     let digits = derive_sas_from_transcript(&outcome.handshake_transcript);
-    let lan = confirm_sas_on_admin("127.0.0.1", port, &outcome.session_id, &digits)
+    mark_admin_accepted(&admin_pool, &outcome.session_id, &digits).await;
+    let lan = confirm_sas_on_admin("127.0.0.1", port, &identity, &outcome.session_id, &digits)
         .await
         .expect("sas");
     assert!(
@@ -424,4 +451,49 @@ async fn staff_directory_and_lan_token_after_sas() {
 
     std::env::remove_var("MEDOC_CLUSTER_DEVICE_SECRET");
     std::env::remove_var("MEDOC_PAIRING_MASTER_SECRET");
+}
+
+#[tokio::test]
+#[serial_test::serial]
+async fn sas_brute_force_is_locked_after_five_attempts() {
+    std::env::set_var(
+        "MEDOC_CLUSTER_DEVICE_SECRET",
+        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    );
+
+    let admin_pool = fresh_pool().await;
+    let addr: IpAddr = "127.0.0.1".parse().unwrap();
+    let listener = bind_cluster_listener(addr, 0).await.expect("bind");
+    let port = listener.local_addr().unwrap().port();
+    let pool_clone = admin_pool.clone();
+    tokio::spawn(async move {
+        loop {
+            match listener.accept().await {
+                Ok((stream, _)) => spawn_cluster_connection_handler(stream, pool_clone.clone()),
+                Err(_) => break,
+            }
+        }
+    });
+
+    let identity = DeviceIdentity::load_or_create().expect("identity");
+    let outcome = join_admin_endpoint("127.0.0.1", port, &identity, SeatRole::Member)
+        .await
+        .expect("join");
+    let digits = derive_sas_from_transcript(&outcome.handshake_transcript);
+    arm_admin_sas(&admin_pool, &outcome.session_id, &digits).await;
+
+    let wrong = if digits == "0000" { "1111" } else { "0000" };
+    for _ in 0..5 {
+        assert!(confirm_sas_on_admin("127.0.0.1", port, &identity, &outcome.session_id, wrong)
+            .await
+            .is_err());
+    }
+    assert!(
+        confirm_sas_on_admin("127.0.0.1", port, &identity, &outcome.session_id, &digits)
+            .await
+            .is_err(),
+        "after 5 wrong entries even the right SAS must be refused"
+    );
+
+    std::env::remove_var("MEDOC_CLUSTER_DEVICE_SECRET");
 }

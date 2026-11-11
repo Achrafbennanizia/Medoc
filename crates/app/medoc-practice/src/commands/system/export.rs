@@ -11,6 +11,25 @@ use crate::application::rbac::{self, effective_allowed, Role};
 use crate::commands::auth_commands::SessionState;
 use crate::error::AppError;
 use crate::infrastructure::database::app_kv_repo;
+use medoc_core::application::documents::export_audit::{log_export, ExportContext};
+
+/// Configured export folder from `export.path.v1`
+/// (`{"mode":"custom","customPath":"/abs/path"}` or `{"mode":"documents"}`).
+/// The value is JSON written by Settings — the previous code used the raw
+/// JSON string as a path, so saving into the folder always failed.
+pub fn configured_export_root(raw: &str) -> Option<PathBuf> {
+    let v: serde_json::Value = serde_json::from_str(raw.trim()).ok()?;
+    match v.get("mode").and_then(|m| m.as_str()) {
+        Some("custom") => v
+            .get("customPath")
+            .and_then(|p| p.as_str())
+            .map(str::trim)
+            .filter(|p| !p.is_empty())
+            .map(PathBuf::from),
+        Some("documents") => dirs::document_dir().map(|d| d.join("MeDoc")),
+        _ => None,
+    }
+}
 
 /// Resolved export file. `folder` must be absolute, contain no `..`, and stay inside `allowed_root`.
 pub fn export_file_path(
@@ -55,13 +74,15 @@ fn path_has_parent(path: &Path) -> bool {
 }
 
 #[tauri::command]
-#[tracing::instrument(level = "info", skip(session_state, contents_base64))]
-pub fn save_export_file(
+#[tracing::instrument(level = "info", skip(pool, session_state, contents_base64))]
+pub async fn save_export_file(
+    pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
     default_file_name: String,
     contents_base64: String,
+    context: Option<ExportContext>,
 ) -> Result<Option<String>, AppError> {
-    rbac::require_authenticated(&session_state)?;
+    let session = rbac::require_authenticated(&session_state)?;
     let raw = STANDARD
         .decode(contents_base64.trim())
         .map_err(|_| AppError::validation_code("error.export.invalid_base64"))?;
@@ -71,8 +92,11 @@ pub fn save_export_file(
     let Some(path) = path else {
         return Ok(None);
     };
-    std::fs::write(&path, raw).map_err(|e| AppError::Internal(format!("Write file: {e}")))?;
-    Ok(Some(path.to_string_lossy().into_owned()))
+    std::fs::write(&path, &raw).map_err(|e| AppError::Internal(format!("Write file: {e}")))?;
+    let dest = path.to_string_lossy().into_owned();
+    // Every file leaving the encrypted DB is audited (kind, size, SHA-256).
+    log_export(&pool, &session, &context.unwrap_or_default(), &dest, &raw).await?;
+    Ok(Some(dest))
 }
 
 /// Choose a folder for default exports (Settings → Export).
@@ -95,6 +119,7 @@ pub async fn save_export_bytes_to_folder(
     folder: String,
     file_name: String,
     contents_base64: String,
+    context: Option<ExportContext>,
 ) -> Result<String, AppError> {
     let session = rbac::require_authenticated(&session_state)?;
     let raw = STANDARD
@@ -114,26 +139,39 @@ pub async fn save_export_bytes_to_folder(
         let configured = app_kv_repo::get(&pool, "export.path.v1")
             .await?
             .unwrap_or_default();
-        let configured = configured.trim();
-        if configured.is_empty() {
+        let Some(root) = configured_export_root(&configured) else {
             return Err(AppError::validation_code(
                 "error.export.folder_outside_root",
             ));
-        }
-        PathBuf::from(configured)
+        };
+        std::fs::create_dir_all(&root)
+            .map_err(|e| AppError::Internal(format!("Create folder: {e}")))?;
+        root
     };
     if ops {
         std::fs::create_dir_all(&requested)
             .map_err(|e| AppError::Internal(format!("Create folder: {e}")))?;
     }
     let full = export_file_path(&allowed, &requested, &file_name)?;
-    std::fs::write(&full, raw).map_err(|e| AppError::Internal(format!("Write file: {e}")))?;
-    Ok(full.to_string_lossy().into_owned())
+    std::fs::write(&full, &raw).map_err(|e| AppError::Internal(format!("Write file: {e}")))?;
+    let dest = full.to_string_lossy().into_owned();
+    log_export(&pool, &session, &context.unwrap_or_default(), &dest, &raw).await?;
+    Ok(dest)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::export_file_path;
+    use super::{configured_export_root, export_file_path};
+
+    #[test]
+    fn export_root_is_parsed_from_settings_json() {
+        assert_eq!(
+            configured_export_root(r#"{"mode":"custom","customPath":"/srv/exports"}"#),
+            Some(std::path::PathBuf::from("/srv/exports"))
+        );
+        assert_eq!(configured_export_root(r#"{"mode":"custom","customPath":""}"#), None);
+        assert_eq!(configured_export_root("/raw/path/is/not/json"), None);
+    }
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
 

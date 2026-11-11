@@ -64,9 +64,9 @@ pub async fn export_audit_csv(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
 ) -> Result<Vec<u8>, AppError> {
-    rbac::require(&session_state, "audit.read")?;
+    let session = rbac::require(&session_state, "audit.read")?;
     let rows = audit_repo::find_all(&pool, i64::MAX).await?;
-    let mut out = String::new();
+    let mut out = String::from("\u{FEFF}");
     out.push_str("id,created_at,user_id,action,entity,entity_id,details,under_break_glass,break_glass_reason,hmac\n");
     let esc = csv_cell;
     for r in rows {
@@ -84,6 +84,15 @@ pub async fn export_audit_csv(
             esc(&r.hmac),
         ));
     }
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "EXPORT_CSV",
+        "AuditLog",
+        None,
+        Some("scope=all"),
+    )
+    .await?;
     Ok(out.into_bytes())
 }
 

@@ -98,6 +98,7 @@ pub async fn record_in_tx(
     .fetch_one(&mut **tx)
     .await
     .map_err(AppError::Database)?;
+    let payload = crate::infrastructure::database::hlc::stamp_in_tx(tx, table, id, &payload).await?;
     let outbox_id = Uuid::new_v4().to_string();
     let created_at = Utc::now().to_rfc3339();
     sqlx::query(

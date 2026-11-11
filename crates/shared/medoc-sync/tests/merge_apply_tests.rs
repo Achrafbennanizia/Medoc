@@ -305,6 +305,82 @@ async fn apply_fresher_remote_overwrites_local() {
 }
 
 #[tokio::test]
+async fn clock_two_minutes_ahead_overwrites_and_a_slow_clock_does_not() {
+    let pool = fresh_pool().await;
+    let ahead = "00000000-0000-0000-0000-000000000015";
+    seed_patient(&pool, ahead, "Local Noon", "2099-06-01 12:00:00").await;
+    let payload = format!(
+        r#"{{"id":"{ahead}","name":"Replica Two Minutes Fast","updated_at":"2099-06-01T12:02:00Z"}}"#
+    );
+    let e = entry("replica-fast", 15, "patient", ahead, "UPDATE", &payload);
+    apply_remote_entry(&pool, LOCAL_MASTER, true, ConflictPolicy::LastWriteWins, &e)
+        .await
+        .unwrap();
+    let name: String = sqlx::query_scalar("SELECT name FROM patient WHERE id = ?1")
+        .bind(ahead)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(name, "Replica Two Minutes Fast");
+
+    let payload = format!(
+        r#"{{"id":"{ahead}","name":"Replica Slow","updated_at":"2099-06-01T12:00:00Z"}}"#
+    );
+    let e = entry("replica-slow", 16, "patient", ahead, "UPDATE", &payload);
+    apply_remote_entry(&pool, LOCAL_MASTER, true, ConflictPolicy::LastWriteWins, &e)
+        .await
+        .unwrap();
+    let name: String = sqlx::query_scalar("SELECT name FROM patient WHERE id = ?1")
+        .bind(ahead)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(name, "Replica Two Minutes Fast");
+}
+
+#[tokio::test]
+async fn a_slow_wall_clock_wins_when_its_logical_stamp_is_newer() {
+    let pool = fresh_pool().await;
+    let id = "00000000-0000-0000-0000-000000000017";
+    seed_patient(&pool, id, "Master Noon", "2099-06-01 12:00:00").await;
+    sqlx::query(
+        "INSERT INTO sync_row_hlc (entity_table, entity_id, wall_ms, counter)
+         VALUES ('patient', ?1, 1700000000000, 2)",
+    )
+    .bind(id)
+    .execute(&pool)
+    .await
+    .unwrap();
+    let payload = format!(
+        r#"{{"id":"{id}","name":"Replica After Master","updated_at":"2099-06-01T11:00:00Z","syncHlc":"1700000000000:3"}}"#
+    );
+    let e = entry("replica-slow", 17, "patient", id, "UPDATE", &payload);
+    apply_remote_entry(&pool, LOCAL_MASTER, true, ConflictPolicy::LastWriteWins, &e)
+        .await
+        .unwrap();
+    let name: String = sqlx::query_scalar("SELECT name FROM patient WHERE id = ?1")
+        .bind(id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(name, "Replica After Master");
+
+    let behind = format!(
+        r#"{{"id":"{id}","name":"Replica Behind","updated_at":"2099-06-01T13:00:00Z","syncHlc":"1700000000000:1"}}"#
+    );
+    let e = entry("replica-behind", 18, "patient", id, "UPDATE", &behind);
+    apply_remote_entry(&pool, LOCAL_MASTER, true, ConflictPolicy::LastWriteWins, &e)
+        .await
+        .unwrap();
+    let name: String = sqlx::query_scalar("SELECT name FROM patient WHERE id = ?1")
+        .bind(id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(name, "Replica After Master");
+}
+
+#[tokio::test]
 async fn apply_main_keeps_row_on_timestamp_tie() {
     let pool = fresh_pool().await;
     let id = "00000000-0000-0000-0000-000000000006";
@@ -854,4 +930,182 @@ async fn apply_chart_validation_by_composite_key() {
         .await
         .unwrap();
     assert_eq!(left, vec!["findings".to_string()]);
+}
+
+/// A peer must not overwrite or delete device-local settings (sync config,
+/// device id, TLS pin …) and must not write a key other than the entity id.
+#[tokio::test]
+async fn apply_refuses_device_local_app_kv_keys() {
+    let pool = fresh_pool().await;
+    sqlx::query("INSERT INTO app_kv (key, value) VALUES ('sync.lan_tls_pin.v1', 'local-pin')")
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let overwrite = entry(
+        "remote",
+        41,
+        "app_kv",
+        "sync.lan_tls_pin.v1",
+        "UPDATE",
+        r#"{"key":"sync.lan_tls_pin.v1","value":"attacker-pin","updated_at":"2099-12-01T00:00:00Z"}"#,
+    );
+    apply_remote_entry(&pool, LOCAL_MASTER, true, ConflictPolicy::LastWriteWins, &overwrite)
+        .await
+        .unwrap();
+    let delete = entry("remote", 42, "app_kv", "sync.lan_tls_pin.v1", "DELETE", "{}");
+    apply_remote_entry(&pool, LOCAL_MASTER, true, ConflictPolicy::LastWriteWins, &delete)
+        .await
+        .unwrap();
+    let val: String = sqlx::query_scalar("SELECT value FROM app_kv WHERE key = 'sync.lan_tls_pin.v1'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(val, "local-pin");
+
+    // Entity id names a harmless key, payload names a protected one.
+    let smuggled = entry(
+        "remote",
+        43,
+        "app_kv",
+        "harmless.key",
+        "INSERT",
+        r#"{"key":"sync.deployment.v1","value":"x"}"#,
+    );
+    assert!(
+        apply_remote_entry(&pool, LOCAL_MASTER, true, ConflictPolicy::LastWriteWins, &smuggled)
+            .await
+            .is_err()
+    );
+    let n: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM app_kv WHERE key = 'sync.deployment.v1'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(n, 0);
+}
+
+#[tokio::test]
+async fn template_and_appointment_apply_before_their_parents() {
+    let pool = fresh_pool().await;
+    sqlx::query("PRAGMA foreign_keys = ON")
+        .execute(&pool)
+        .await
+        .unwrap();
+    let blocked = sqlx::query(
+        "INSERT INTO supplier_pharma_template (id, supplier_id, pharma_consultant_id, product_id)
+         VALUES ('direct', 'seed-sup-01', 'seed-pc-01', 'seed-prac-prod-01')",
+    )
+    .execute(&pool)
+    .await;
+    assert!(blocked.is_err(), "foreign keys are on for this connection");
+
+    let template = entry(
+        "remote",
+        1,
+        "supplier_pharma_template",
+        "seed-spt-01",
+        "INSERT",
+        r#"{"supplier_id":"seed-sup-01","pharma_consultant_id":"seed-pc-01","product_id":"seed-prac-prod-01","sort_order":10,"active":1}"#,
+    );
+    apply_remote_entry(
+        &pool,
+        LOCAL_REPLICA,
+        false,
+        ConflictPolicy::LastWriteWins,
+        &template,
+    )
+    .await
+    .expect("template is stored even though product is later in the copy");
+    let templates: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM supplier_pharma_template WHERE id = 'seed-spt-01'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(templates, 1);
+
+    let appointment = entry(
+        "remote",
+        2,
+        "appointment",
+        "seed-yr-apt-01405",
+        "INSERT",
+        r#"{"date":"2099-06-01","time":"09:00","kind":"CHECKUP","status":"PLANNED","patient_id":"patient-later","physician_id":"seed-physician-001"}"#,
+    );
+    apply_remote_entry(
+        &pool,
+        LOCAL_REPLICA,
+        false,
+        ConflictPolicy::LastWriteWins,
+        &appointment,
+    )
+    .await
+    .expect("appointment is stored even though the patient is later in the copy");
+    let appts: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM appointment WHERE id = 'seed-yr-apt-01405'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(appts, 1);
+
+    for _ in 0..4 {
+        let mut conn = pool.acquire().await.unwrap();
+        let on: i32 = sqlx::query_scalar("PRAGMA foreign_keys")
+            .fetch_one(&mut *conn)
+            .await
+            .unwrap();
+        assert_eq!(on, 1, "sync apply must not return a connection with foreign keys off");
+    }
+}
+
+#[tokio::test]
+async fn product_delete_applies_while_a_template_still_points_at_it() {
+    let pool = fresh_pool().await;
+    let mut conn = pool.acquire().await.unwrap();
+    sqlx::query("PRAGMA foreign_keys = OFF")
+        .execute(&mut *conn)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO product (id, name, category, price) VALUES ('seed-prod-007', 'Gel', 'MED', 1)",
+    )
+    .execute(&mut *conn)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO supplier_pharma_template (id, supplier_id, pharma_consultant_id, product_id)
+         VALUES ('seed-spt-01', 'seed-sup-01', 'seed-pc-01', 'seed-prod-007')",
+    )
+    .execute(&mut *conn)
+    .await
+    .unwrap();
+    sqlx::query("PRAGMA foreign_keys = ON")
+        .execute(&mut *conn)
+        .await
+        .unwrap();
+    drop(conn);
+
+    let deletion = entry("replica", 1, "product", "seed-prod-007", "DELETE", "{}");
+    apply_remote_entry(
+        &pool,
+        LOCAL_MASTER,
+        true,
+        ConflictPolicy::LastWriteWins,
+        &deletion,
+    )
+    .await
+    .expect("a product delete must not fail the push when a template still points at it");
+    let products: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM product WHERE id = 'seed-prod-007'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(products, 0);
+    let templates: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM supplier_pharma_template WHERE id = 'seed-spt-01'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(templates, 1);
 }

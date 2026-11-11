@@ -37,8 +37,8 @@ pub async fn submit_request(
         ));
     }
 
-    let existing: Option<(String, String)> =
-        sqlx::query_as("SELECT id, status FROM pairing_request WHERE device_id = ?1")
+    let existing: Option<(String, String, Option<String>)> =
+        sqlx::query_as("SELECT id, status, slave_pubkey FROM pairing_request WHERE device_id = ?1")
             .bind(&submit.device_id)
             .fetch_optional(pool)
             .await
@@ -48,11 +48,21 @@ pub async fn submit_request(
     let slave_label = submit.slave_label.trim().to_string();
     let requester_ip = super::policy::canonical_ip_str(&submit.requester_ip);
 
-    if let Some((existing_id, status)) = existing {
+    if let Some((existing_id, status, existing_key)) = existing {
         if status == "ACCEPTED" {
             return load_by_id(pool, &existing_id).await?.ok_or_else(|| {
                 AppError::Internal("pairing_request disappeared during read".into())
             });
+        }
+        // `device_id` is not secret. Overwriting the key of an open request
+        // let any LAN host swap in its own key just before the admin accepts
+        // (and inherit the token). A pending request can only be refreshed
+        // with the same key; other keys must wait until it is decided.
+        let same_key = existing_key.as_deref().map(str::trim) == Some(submit.slave_pubkey.trim());
+        if status == "PENDING" && !same_key {
+            return Err(AppError::Conflict(
+                "A pairing request for this device is already pending".into(),
+            ));
         }
         sqlx::query(
             "UPDATE pairing_request SET
@@ -339,14 +349,20 @@ pub async fn confirm_pin(
         }
     }
 
-    let attempts: i32 =
-        sqlx::query_scalar("SELECT confirm_pin_attempts FROM pairing_request WHERE id = ?1")
-            .bind(request_id)
-            .fetch_one(pool)
-            .await
-            .map_err(AppError::Database)?;
-
-    if attempts >= CONFIRM_PIN_MAX_ATTEMPTS {
+    // Consume one attempt atomically *before* checking the PIN. A separate
+    // read-then-increment let parallel requests all see `attempts = 0` and
+    // try every 4-digit PIN within the limit window.
+    let consumed = sqlx::query(
+        "UPDATE pairing_request SET confirm_pin_attempts = confirm_pin_attempts + 1
+         WHERE id = ?1 AND confirm_pin_attempts < ?2",
+    )
+    .bind(request_id)
+    .bind(CONFIRM_PIN_MAX_ATTEMPTS)
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?
+    .rows_affected();
+    if consumed == 0 {
         return Err(AppError::Validation(
             "Too many PIN attempts — submit a new pairing request".into(),
         ));
@@ -354,13 +370,6 @@ pub async fn confirm_pin(
 
     let signing_key = master_keys::load_or_create()?;
     if !verify_confirm_pin(request_id, &pin, &pin_hash, &signing_key.to_bytes()) {
-        sqlx::query(
-            "UPDATE pairing_request SET confirm_pin_attempts = confirm_pin_attempts + 1 WHERE id = ?1",
-        )
-        .bind(request_id)
-        .execute(pool)
-        .await
-        .map_err(AppError::Database)?;
         return Err(AppError::validation_code("error.pairing.code_wrong"));
     }
 
@@ -376,6 +385,11 @@ pub async fn confirm_pin(
 }
 
 /// Revoke a previously-accepted pairing.
+///
+/// `device_id` may be the replica device id, its fingerprint, or the
+/// pairing-request id. The accepted row, its permissions, and the live
+/// `sync_device` seat are all cleared. A miss is an error — a silent
+/// no-op left the device paired.
 pub async fn revoke(
     pool: &SqlitePool,
     master_device_id: &str,
@@ -383,23 +397,66 @@ pub async fn revoke(
     decided_by: &str,
 ) -> Result<(), AppError> {
     let _ = master_device_id;
+    ensure_sync_tables(pool).await?;
+    let key = device_id.trim();
+    if key.is_empty() {
+        return Err(AppError::validation_code("error.pairing.device_id_empty"));
+    }
     let now = Utc::now().to_rfc3339();
-    sqlx::query(
+    let updated = sqlx::query(
         "UPDATE pairing_request SET status = 'REVOKED', activation_token = NULL,
             decided_at = ?1, decided_by = ?2
-         WHERE device_id = ?3 AND status = 'ACCEPTED'",
+         WHERE status = 'ACCEPTED'
+           AND (
+                id = ?3
+                OR TRIM(device_id) = ?3
+                OR TRIM(IFNULL(fingerprint, '')) = ?3
+           )",
     )
     .bind(&now)
     .bind(decided_by)
-    .bind(device_id)
+    .bind(key)
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?
+    .rows_affected();
+    if updated == 0 {
+        return Err(AppError::validation_code("error.pairing.not_accepted"));
+    }
+    sqlx::query(
+        "DELETE FROM slave_permission
+         WHERE device_id = ?1
+            OR device_id IN (
+                SELECT device_id FROM pairing_request
+                 WHERE id = ?1 OR TRIM(device_id) = ?1 OR TRIM(IFNULL(fingerprint, '')) = ?1
+            )",
+    )
+    .bind(key)
     .execute(pool)
     .await
     .map_err(AppError::Database)?;
-    sqlx::query("DELETE FROM slave_permission WHERE device_id = ?1")
-        .bind(device_id)
-        .execute(pool)
-        .await
-        .map_err(AppError::Database)?;
+    // The seat stays usable while device_status is ACTIVE, even after the
+    // pairing row is revoked (staff directory and join both trust it).
+    sqlx::query(
+        "UPDATE sync_device SET device_status = 'REVOKED'
+         WHERE COALESCE(is_local, 0) = 0
+           AND (
+                device_id = ?1
+                OR TRIM(IFNULL(fingerprint, '')) = ?1
+                OR device_id IN (
+                    SELECT device_id FROM pairing_request
+                     WHERE id = ?1 OR TRIM(IFNULL(fingerprint, '')) = ?1
+                )
+                OR TRIM(IFNULL(fingerprint, '')) IN (
+                    SELECT device_id FROM pairing_request
+                     WHERE id = ?1 OR TRIM(IFNULL(fingerprint, '')) = ?1
+                )
+           )",
+    )
+    .bind(key)
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?;
     Ok(())
 }
 

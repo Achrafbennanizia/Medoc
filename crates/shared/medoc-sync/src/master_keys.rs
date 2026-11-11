@@ -17,7 +17,7 @@
 use std::sync::Mutex;
 
 use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine};
-use ed25519_dalek::{Signer, SigningKey, Verifier, VerifyingKey};
+use ed25519_dalek::{Signer, SigningKey, VerifyingKey};
 use medoc_core::error::AppError;
 use medoc_core::infrastructure::secret_store;
 
@@ -125,7 +125,9 @@ pub fn verify(pubkey: &VerifyingKey, body: &[u8], sig_b64: &str) -> Result<(), A
     let mut arr = [0u8; 64];
     arr.copy_from_slice(&sig_bytes);
     let sig = ed25519_dalek::Signature::from_bytes(&arr);
+    // Strict verification rejects malleable / small-order signatures, so a
+    // token has exactly one valid encoding (tokens are compared as strings).
     pubkey
-        .verify(body, &sig)
+        .verify_strict(body, &sig)
         .map_err(|_| AppError::Validation("Invalid signature".into()))
 }

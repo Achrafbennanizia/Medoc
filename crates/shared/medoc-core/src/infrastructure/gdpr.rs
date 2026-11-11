@@ -1,14 +1,17 @@
 // GDPR (DSGVO) compliance helpers (NFA-EU-01).
 //
-// - export_patient: collects all data linked to a patient and serialises it
-//   as a single JSON document (Art. 20 — right to data portability).
-// - erase_patient: pseudonymises staff identifiers and deletes related
-//   medical records (Art. 17 — right to erasure) while preserving the
-//   audit trail for legal retention (10 years per § 630f BGB).
+// - export_patient: collects **all data** linked to a patient (full rows, not
+//   ids), the access log and issued documents, as one JSON document
+//   (Art. 15 — right of access, Art. 20 — data portability).
+// - erase_patient: refuses while statutory retention applies (§ 630f BGB:
+//   10 years after treatment; § 147 AO: 10 years for invoices/payments —
+//   Art. 17 Abs. 3 lit. b DSGVO). After that it pseudonymises the patient
+//   and deletes related medical records, backups and log references.
 
 use serde::Serialize;
-use serde_json::{json, Value};
-use sqlx::SqlitePool;
+use serde_json::{json, Map, Value};
+use sqlx::sqlite::SqliteRow;
+use sqlx::{Column, Row, SqlitePool, TypeInfo, ValueRef};
 use std::path::Path;
 
 use crate::error::AppError;
@@ -54,12 +57,23 @@ pub async fn export_patient(pool: &SqlitePool, patient_id: &str) -> Result<Value
     let p = patient.ok_or(AppError::NotFound("Patient".into()))?;
 
     let related = collect_related(pool, patient_id).await?;
+    let access_log = crate::infrastructure::database::audit_repo::find_for_patient_entity(
+        pool, patient_id, 100_000,
+    )
+    .await?;
+    let issued_documents =
+        crate::infrastructure::database::issued_document_repo::list_for_patient(pool, patient_id)
+            .await
+            .unwrap_or_default();
 
     log_system!(info, event = "DSGVO_EXPORT", patient_id = %patient_id);
 
     Ok(json!({
         "exported_at": chrono::Utc::now().to_rfc3339(),
-        "schema_version": 2,
+        "schema_version": 3,
+        "legal_basis": "Art. 15 und Art. 20 DSGVO",
+        "access_log": access_log,
+        "issued_documents": issued_documents,
         "patient": {
             "id": p.0, "name": p.1, "date_of_birth": p.2, "sex": p.3,
             "insurance_number": p.4, "phone": p.5, "email": p.6,
@@ -76,6 +90,12 @@ pub async fn erase_patient(
     patient_id: &str,
     app_data_dir: &Path,
 ) -> Result<ErasureReport, AppError> {
+    if let Some(until) = retention_until(pool, patient_id).await? {
+        return Err(AppError::validation_code_params(
+            "error.gdpr.retention_active",
+            &[("until", until)],
+        ));
+    }
     let (deleted, chart_ids) = erase_patient_records(pool, patient_id).await?;
 
     for (aid,) in chart_ids {
@@ -208,92 +228,100 @@ async fn redact_patient_from_all_backups(
     Ok(redacted)
 }
 
+/// Statutory retention (§ 630f Abs. 3 BGB, § 147 AO): 10 years after the end
+/// of the year of the last treatment / payment / issued document.
+/// Returns the date (YYYY-12-31) until which erasure is blocked, if any.
+pub async fn retention_until(pool: &SqlitePool, patient_id: &str) -> Result<Option<String>, AppError> {
+    let last: Option<String> = sqlx::query_scalar(
+        "SELECT MAX(d) FROM (
+            SELECT MAX(CAST(t.created_at AS TEXT)) AS d FROM treatment t
+              JOIN patient_chart c ON c.id = t.chart_id WHERE c.patient_id = ?1
+            UNION ALL SELECT MAX(CAST(e.created_at AS TEXT)) FROM examination e
+              JOIN patient_chart c ON c.id = e.chart_id WHERE c.patient_id = ?1
+            UNION ALL SELECT MAX(CAST(created_at AS TEXT)) FROM payment WHERE patient_id = ?1
+            UNION ALL SELECT MAX(CAST(created_at AS TEXT)) FROM prescription WHERE patient_id = ?1
+            UNION ALL SELECT MAX(CAST(created_at AS TEXT)) FROM certificate WHERE patient_id = ?1
+            UNION ALL SELECT MAX(issued_at) FROM issued_document WHERE patient_id = ?1
+         )",
+    )
+    .bind(patient_id)
+    .fetch_one(pool)
+    .await
+    .unwrap_or(None);
+    let Some(last) = last.filter(|s| s.len() >= 4) else {
+        return Ok(None);
+    };
+    let year: i32 = last[..4].parse().unwrap_or(0);
+    let until_year = year + 10;
+    let now_year = chrono::Local::now().format("%Y").to_string().parse::<i32>().unwrap_or(0);
+    if now_year <= until_year {
+        Ok(Some(format!("{until_year}-12-31")))
+    } else {
+        Ok(None)
+    }
+}
+
+/// Converts any SQLite row into a JSON object (column → value).
+fn row_to_json(row: &SqliteRow) -> Value {
+    use base64::Engine;
+    let mut m = Map::new();
+    for col in row.columns() {
+        let i = col.ordinal();
+        let raw = match row.try_get_raw(i) {
+            Ok(r) => r,
+            Err(_) => continue,
+        };
+        let v = if raw.is_null() {
+            Value::Null
+        } else {
+            match raw.type_info().name() {
+                "INTEGER" | "INT" | "INT8" | "BIGINT" | "BOOLEAN" => {
+                    row.try_get::<i64, _>(i).map(Value::from).unwrap_or(Value::Null)
+                }
+                "REAL" | "FLOAT" | "DOUBLE" | "NUMERIC" => {
+                    row.try_get::<f64, _>(i).map(Value::from).unwrap_or(Value::Null)
+                }
+                "BLOB" => row
+                    .try_get::<Vec<u8>, _>(i)
+                    .map(|b| Value::String(base64::engine::general_purpose::STANDARD.encode(b)))
+                    .unwrap_or(Value::Null),
+                _ => row.try_get::<String, _>(i).map(Value::String).unwrap_or(Value::Null),
+            }
+        };
+        m.insert(col.name().to_string(), v);
+    }
+    Value::Object(m)
+}
+
+async fn rows(pool: &SqlitePool, sql: &str, patient_id: &str) -> Result<Value, AppError> {
+    let rows = sqlx::query(sql).bind(patient_id).fetch_all(pool).await?;
+    Ok(Value::Array(rows.iter().map(row_to_json).collect()))
+}
+
 async fn collect_related(pool: &SqlitePool, patient_id: &str) -> Result<Value, AppError> {
-    let appointments: Vec<(String,)> =
-        sqlx::query_as("SELECT 'row:' || id FROM appointment WHERE patient_id = ?1")
-            .bind(patient_id)
-            .fetch_all(pool)
-            .await?;
-
-    let treatments: Vec<(String,)> = sqlx::query_as(
-        "SELECT 'row:' || id FROM treatment WHERE chart_id IN
-         (SELECT id FROM patient_chart WHERE patient_id = ?1)",
-    )
-    .bind(patient_id)
-    .fetch_all(pool)
-    .await?;
-
-    let examinations: Vec<(String,)> = sqlx::query_as(
-        "SELECT 'row:' || id FROM examination WHERE chart_id IN
-         (SELECT id FROM patient_chart WHERE patient_id = ?1)",
-    )
-    .bind(patient_id)
-    .fetch_all(pool)
-    .await?;
-
-    let dental_findings: Vec<(String,)> = sqlx::query_as(
-        "SELECT 'row:' || id FROM dental_finding WHERE chart_id IN
-         (SELECT id FROM patient_chart WHERE patient_id = ?1)",
-    )
-    .bind(patient_id)
-    .fetch_all(pool)
-    .await?;
-
-    let anamnesis_form: Vec<(String,)> =
-        sqlx::query_as("SELECT 'row:' || id FROM anamnesis_form WHERE patient_id = ?1")
-            .bind(patient_id)
-            .fetch_all(pool)
-            .await?;
-
-    let payments: Vec<(String,)> =
-        sqlx::query_as("SELECT 'row:' || id FROM payment WHERE patient_id = ?1")
-            .bind(patient_id)
-            .fetch_all(pool)
-            .await?;
-
-    let patient_chart: Vec<(String,)> =
-        sqlx::query_as("SELECT 'row:' || id FROM patient_chart WHERE patient_id = ?1")
-            .bind(patient_id)
-            .fetch_all(pool)
-            .await?;
-
-    let prescriptions: Vec<(String,)> =
-        sqlx::query_as("SELECT 'row:' || id FROM prescription WHERE patient_id = ?1")
-            .bind(patient_id)
-            .fetch_all(pool)
-            .await?;
-
-    let certificates: Vec<(String,)> =
-        sqlx::query_as("SELECT 'row:' || id FROM certificate WHERE patient_id = ?1")
-            .bind(patient_id)
-            .fetch_all(pool)
-            .await?;
-
-    let chart_attachment: Vec<(String,)> = sqlx::query_as(
-        "SELECT 'row:' || id FROM chart_attachment WHERE chart_id IN
-         (SELECT id FROM patient_chart WHERE patient_id = ?1)",
-    )
-    .bind(patient_id)
-    .fetch_all(pool)
-    .await?;
-
-    let mut out = serde_json::Map::new();
-    for (key, rows) in [
-        ("appointments", appointments),
-        ("treatments", treatments),
-        ("examinations", examinations),
-        ("dentalFindings", dental_findings),
-        ("anamnesis_form", anamnesis_form),
-        ("payments", payments),
-        ("patient_chart", patient_chart),
-        ("prescriptions", prescriptions),
-        ("certificates", certificates),
-        ("chart_attachment", chart_attachment),
-    ] {
-        out.insert(
-            key.to_string(),
-            json!(rows.into_iter().map(|(s,)| s).collect::<Vec<_>>()),
-        );
+    const CHART: &str = "(SELECT id FROM patient_chart WHERE patient_id = ?1)";
+    let queries: Vec<(&str, String)> = vec![
+        ("patient_chart", "SELECT * FROM patient_chart WHERE patient_id = ?1".into()),
+        ("anamnesis_form", "SELECT * FROM anamnesis_form WHERE patient_id = ?1".into()),
+        ("dental_findings", format!("SELECT * FROM dental_finding WHERE chart_id IN {CHART}")),
+        ("examinations", format!("SELECT * FROM examination WHERE chart_id IN {CHART}")),
+        ("treatments", format!("SELECT * FROM treatment WHERE chart_id IN {CHART}")),
+        ("prescriptions", "SELECT * FROM prescription WHERE patient_id = ?1".into()),
+        ("certificates", "SELECT * FROM certificate WHERE patient_id = ?1".into()),
+        ("appointments", "SELECT * FROM appointment WHERE patient_id = ?1".into()),
+        ("payments", "SELECT * FROM payment WHERE patient_id = ?1".into()),
+        (
+            // Metadata only; the files themselves are added by the ZIP export.
+            "chart_attachments",
+            format!(
+                "SELECT id, chart_id, display_name, mime_type, size_bytes, created_at \
+                 FROM chart_attachment WHERE chart_id IN {CHART}"
+            ),
+        ),
+    ];
+    let mut out = Map::new();
+    for (key, sql) in queries {
+        out.insert(key.to_string(), rows(pool, &sql, patient_id).await?);
     }
     Ok(Value::Object(out))
 }

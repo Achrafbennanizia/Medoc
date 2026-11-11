@@ -76,6 +76,7 @@ export type PatientDetailPaymentTabProps = {
     itemValidation: Partial<Record<string, ValidationRecord>>;
     onPrintReceipt: (z: Payment) => void | Promise<void>;
     onPrintReceiptFromSummeRow: (row: PaymentAssignmentSummaryRow) => void;
+    onIssueInvoice: (kind: "treatment" | "examination", lineId: string) => void;
     onSubmitSavePaymentNew: () => void | Promise<void>;
     onSavePaymentEdit: () => void | Promise<void>;
     onDeletePayment: () => void | Promise<void>;
@@ -117,6 +118,7 @@ export function PatientDetailPaymentTab({
     itemValidation,
     onPrintReceipt: handlePrintReceipt,
     onPrintReceiptFromSummeRow: handlePrintReceiptFromSummeRow,
+    onIssueInvoice,
     onSubmitSavePaymentNew: submitSavePaymentNew,
     onSavePaymentEdit,
     onDeletePayment,
@@ -799,11 +801,32 @@ export function PatientDetailPaymentTab({
                                                 <PaymentRowActionsMenu
                                                     ariaLabel={t("common.actions")}
                                                     actions={[
-                                                        {
-                                                            id: "receipt",
-                                                            label: t("patient.detail.tab.payment.receipt"),
-                                                            onClick: () => handlePrintReceiptFromSummeRow(row),
-                                                        },
+                                                        ...((() => {
+                                                            const openForInvoice = row.offen != null
+                                                                ? row.offen > PAYMENT_EUR_EPS
+                                                                : row.status === "OUTSTANDING" || row.status === "PARTIALLY_PAID";
+                                                            const linked = row.kind === "treatment"
+                                                                ? treatments.some((b) => b.id === row.lineId)
+                                                                : examinations.some((u) => u.id === row.lineId);
+                                                            return openForInvoice && linked;
+                                                        })()
+                                                            ? [
+                                                                {
+                                                                    id: "invoice",
+                                                                    label: t("patient.detail.tab.payment.invoice"),
+                                                                    onClick: () => onIssueInvoice(row.kind, row.lineId),
+                                                                } satisfies PaymentRowAction,
+                                                            ]
+                                                            : []),
+                                                        ...(row.status === "PAID" || row.status === "PARTIALLY_PAID"
+                                                            ? [
+                                                                {
+                                                                    id: "receipt",
+                                                                    label: t("patient.detail.tab.payment.receipt"),
+                                                                    onClick: () => handlePrintReceiptFromSummeRow(row),
+                                                                } satisfies PaymentRowAction,
+                                                            ]
+                                                            : []),
                                                         ...(canFinanceWrite
                                                             && (row.offen == null || row.offen > PAYMENT_EUR_EPS)
                                                             ? [
@@ -899,13 +922,31 @@ export function PatientDetailPaymentTab({
                                                 const validated = Boolean(
                                                     itemValidation[itemValidationKey("payment", z.id)],
                                                 );
-                                                const actions: PaymentRowAction[] = [
-                                                    {
+                                                const actions: PaymentRowAction[] = [];
+                                                const invoiceKind = z.treatment_id
+                                                    ? "treatment"
+                                                    : z.examination_id
+                                                        ? "examination"
+                                                        : null;
+                                                const invoiceLineId = z.treatment_id ?? z.examination_id ?? "";
+                                                if (
+                                                    invoiceKind
+                                                    && invoiceLineId
+                                                    && (z.status === "OUTSTANDING" || z.status === "PARTIALLY_PAID")
+                                                ) {
+                                                    actions.push({
+                                                        id: "invoice",
+                                                        label: t("patient.detail.tab.payment.invoice"),
+                                                        onClick: () => onIssueInvoice(invoiceKind, invoiceLineId),
+                                                    });
+                                                }
+                                                if (z.status === "PAID" || z.status === "PARTIALLY_PAID") {
+                                                    actions.push({
                                                         id: "receipt",
                                                         label: t("patient.detail.tab.payment.receipt"),
                                                         onClick: () => handlePrintReceipt(z),
-                                                    },
-                                                ];
+                                                    });
+                                                }
                                                 if (canViewClinical) {
                                                     actions.push(
                                                         validated

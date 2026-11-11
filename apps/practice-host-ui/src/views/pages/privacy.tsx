@@ -15,6 +15,7 @@ import type { Patient } from "../../models/types";
 import { clearPatientScopedBrowserStorage } from "@/lib/patient-browser-storage";
 import { errorMessage, formatTpl } from "@/lib/utils";
 import { DataExportPickerDialog } from "../components/data-export-picker-dialog";
+import type { ExportContext } from "@/lib/save-download";
 import { useT, useTParams } from "@/lib/i18n";
 import { EmptyState } from "../components/ui/empty-state";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
@@ -80,6 +81,8 @@ export function PrivacyPage() {
             suggestedFilename: `dsgvo-export-${exportPatient.id}.json`,
             textBody: JSON.stringify(data, null, 2),
             mime: "application/json;charset=utf-8",
+            // Art. 15/20 GDPR handover: logged with hash so the practice can prove what was disclosed.
+            context: { kind: "gdpr_export", format: "json", entityId: exportPatient.id } satisfies ExportContext,
         };
     }, [exportPatient, tp, t]);
 

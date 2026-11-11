@@ -45,7 +45,14 @@ impl IntoResponse for ApiError {
             AppError::TotpEnrollmentRequired => StatusCode::FORBIDDEN,
             AppError::Database(_) | AppError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };
-        let msg = self.0.to_string();
+        // Database / internal errors can contain SQL, file paths or key
+        // material hints. Log them; send the LAN client a generic message.
+        let msg = if status == StatusCode::INTERNAL_SERVER_ERROR {
+            tracing::error!(target: "medoc::lan", event = "LAN_INTERNAL_ERROR", error = %self.0);
+            "internal error".to_string()
+        } else {
+            self.0.to_string()
+        };
         (status, Json(json!({ "error": msg }))).into_response()
     }
 }
@@ -244,6 +251,7 @@ pub async fn peers(
     let signing_key = master_keys::load_or_create()?;
     let payload = pairing::verify_activation_token(token, &signing_key.verifying_key())?;
     require_action(&payload, "pairing.peers")?;
+    let master_device_id_local = master_local_device_id(&state).await?;
     // Revocation gate: if THIS node knows `device_id` as a paired slave and
     // its status is REVOKED, reject. If no row exists at all, this is a
     // mesh-peer scenario (sibling replica fetching the peer list against
@@ -253,12 +261,19 @@ pub async fn peers(
         if req.status == "REVOKED" {
             return Err(AppError::Forbidden.into());
         }
+        if req.status != "ACCEPTED" || req.activation_token.as_deref() != Some(token) {
+            return Err(AppError::Forbidden.into());
+        }
         let live_actions = pairing::slave_actions(&state.pool, &payload.device_id).await?;
         if !live_actions.is_empty() && !live_actions.iter().any(|a| a == "pairing.peers") {
             return Err(AppError::Forbidden.into());
         }
+    } else if payload.master_device_id == master_device_id_local {
+        // We issued this token but no longer know the device (row deleted on
+        // reset/re-pair): treat as revoked, never as a mesh peer.
+        return Err(AppError::Forbidden.into());
     }
-    let master_device_id = master_local_device_id(&state).await?;
+    let master_device_id = master_device_id_local;
     let rows = pairing::list_all(&state.pool).await?;
     let mut peers_list: Vec<PairingPeerEntry> = Vec::new();
     for r in rows {

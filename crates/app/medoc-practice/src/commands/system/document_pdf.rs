@@ -1,4 +1,9 @@
-//! PDF preview for typed document templates (no raw HTML from the frontend).
+//! Template-editor preview for document templates.
+//!
+//! This path renders whatever the editor sends, so it is **never** an
+//! official document: it always carries the "ENTWURF" watermark and has no
+//! number. Real certificates / prescriptions / receipts are issued with
+//! `issue_clinical_document` (server-side numbering, registry, RBAC).
 
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use serde::Deserialize;
@@ -8,9 +13,12 @@ use tauri::State;
 use crate::application::rbac;
 use crate::commands::auth_commands::SessionState;
 use crate::error::AppError;
-use crate::infrastructure::database::app_kv_repo;
-use crate::infrastructure::pdf::{render_clinical_layout_with_logo, PdfLogo};
+use crate::infrastructure::pdf::{render_clinical_layout_with_logo, ClinicalPdfLayout};
 use crate::infrastructure::pdf_export::render_template_preview_pdf;
+use medoc_core::application::documents::issue::WATERMARK_PREVIEW;
+use medoc_core::application::documents::practice_profile::{
+    document_locale, logo_hidden_on_documents, practice_logo, PracticeProfile,
+};
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -23,7 +31,6 @@ pub struct PreviewDocumentPdfArgs {
     pub layout_json: Option<String>,
 }
 
-/// Production PDF content (same renderer as template preview); lines from structured data — no raw HTML.
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state, args))]
 pub async fn preview_document_pdf(
@@ -31,7 +38,7 @@ pub async fn preview_document_pdf(
     session_state: State<'_, SessionState>,
     args: PreviewDocumentPdfArgs,
 ) -> Result<String, AppError> {
-    rbac::require_authenticated(&session_state)?;
+    rbac::require(&session_state, "templates.read")?;
     let version: serde_json::Value = serde_json::from_str(&args.template_payload_json)
         .map_err(|e| AppError::Validation(format!("Template JSON: {e}")))?;
     let body_pt = version
@@ -47,30 +54,24 @@ pub async fn preview_document_pdf(
         .take(240)
         .collect::<String>();
 
-    let logo = match app_kv_repo::get(&pool, "practice.logo.v1").await {
-        Ok(Some(raw)) => match PdfLogo::from_kv_json(&raw) {
-            Some(logo) => Some(logo),
-            None => {
-                tracing::warn!(
-                    event = "PRACTICE_LOGO_DECODE_SKIPPED",
-                    bytes = raw.len(),
-                    "practice.logo.v1 present but not usable for PDF (placeholder or unsupported image)"
-                );
-                None
-            }
-        },
-        Ok(None) => None,
-        Err(e) => {
-            tracing::warn!(event = "PRACTICE_LOGO_KV_READ_FAILED", error = %e);
-            None
-        }
-    };
-
     let bytes = if let Some(json) = args.layout_json.as_deref().filter(|s| !s.trim().is_empty()) {
-        let layout: crate::infrastructure::pdf::ClinicalPdfLayout = serde_json::from_str(json)
+        let mut layout: ClinicalPdfLayout = serde_json::from_str(json)
             .map_err(|e| AppError::Validation(format!("PDF-Layout: {e}")))?;
+        // Practice identity from the database, as on the issued document.
+        let profile = PracticeProfile::load(&pool).await?;
+        let locale = document_locale(&pool).await;
+        layout.practice_lines = profile.letterhead_lines();
+        layout.footer_lines = profile.footer_lines(locale);
+        layout.locale = Some(locale.into());
+        layout.document_number = None;
+        layout.watermark = Some(WATERMARK_PREVIEW.into());
+        if logo_hidden_on_documents(&pool).await {
+            layout.logo_kv_json = None;
+        }
+        let logo = practice_logo(&pool).await;
         render_clinical_layout_with_logo(&layout, logo.as_ref())?
     } else {
+        // Already watermarked inside `render_plain_preview`.
         render_template_preview_pdf(
             &args.kind,
             &args.template_name,

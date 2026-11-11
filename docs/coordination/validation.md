@@ -1,6 +1,37 @@
 # Validation ledger
 
-**Last updated:** 2026-11-08 (Part E F44/F52/F57 + `/sync/number`)
+**Last updated:** 2026-11-10 (Arabic receipt font, practice-sync lock)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| PDF unit tests | `CARGO_TARGET_DIR=target-inst2 cargo test -p medoc-core --lib infrastructure::pdf --offline` | **PASS** (66) |
+| Arabic payload | `CARGO_TARGET_DIR=target-inst2 cargo test -p medoc-core --lib non_latin_payload --offline` | **PASS** (1) |
+| Desktop binary | `CARGO_TARGET_DIR=target-inst2 cargo build -p medoc --offline` | **PASS** (`dev`) |
+| TypeScript | `cd apps/practice-host-ui && npx tsc --noEmit` | **NOT RUN** |
+| Practice-sync lock at runtime | — | **NOT OBSERVED** |
+
+**Previous:** 2026-11-10 (patient PDF header, prescription wrap, PDF i18n)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| PDF unit tests | `CARGO_TARGET_DIR=target-inst2 cargo test -p medoc-core --lib infrastructure::pdf --offline` | **PASS** (62) |
+| Letterhead form | `CARGO_TARGET_DIR=target-inst2 cargo test -p medoc-core --lib letterhead_matches_official_form --offline` | **PASS** (1) |
+| Desktop binary | `CARGO_TARGET_DIR=target-inst2 cargo build -p medoc --offline` | **PASS** (`dev`) |
+| TypeScript | `cd apps/practice-host-ui && npx tsc --noEmit` | **NOT RUN** |
+
+**Previous:** 2026-11-10 (official documents patch)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| medoc-core lib | `MEDOC_VENDOR_PUBKEY=… cargo test -p medoc-core --offline --lib` | **PASS** (164) |
+| document registry | `cargo test -p medoc-core --offline --test document_registry_tests` | **PASS** (6) |
+| PDF samples | `cargo test -p medoc-core --offline --test official_pdf_samples` | **PASS** (1) |
+| IPC count 330 | `cargo test -p medoc-practice --offline --test invoke_command_registry_tests` | **PASS** (2) |
+| TypeScript | `cd apps/practice-host-ui && npx tsc --noEmit` | **PASS** |
+| Vitest | `cd apps/practice-host-ui && npx vitest run` | **PASS** (383) |
+| workspace | `cargo test --workspace` | **NOT RUN** |
+
+**Previous:** 2026-11-08 (Part E F44/F52/F57 + `/sync/number`)
 
 | Check | Command | Result |
 |-------|---------|--------|

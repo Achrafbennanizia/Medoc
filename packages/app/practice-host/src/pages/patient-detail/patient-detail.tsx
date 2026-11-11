@@ -1103,6 +1103,11 @@ export function PatientDetailPage() {
                     itemValidation={itemValidation}
                     onPrintReceipt={handlePrintReceipt}
                     onPrintReceiptFromSummeRow={handlePrintReceiptFromSummeRow}
+                    onIssueInvoice={(kind, lineId) => {
+                        if (!id) return;
+                        const q = new URLSearchParams({ patientId: id, link: `${kind}:${lineId}` });
+                        navigate(`/administration/finance-reports/invoice?${q.toString()}`);
+                    }}
                     onSubmitSavePaymentNew={submitSavePaymentNew}
                     onSavePaymentEdit={runSavePaymentEdit}
                     onDeletePayment={handleDeletePaymentRow}

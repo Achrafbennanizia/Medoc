@@ -8,6 +8,7 @@
 pub mod cluster;
 pub mod deployment;
 pub mod engine;
+pub mod hlc;
 pub mod master_keys;
 pub mod merge;
 pub mod net;
@@ -28,4 +29,4 @@ pub use pairing::{
     PairingRequestSubmit, ACTIVATION_TOKEN_PREFIX, DEFAULT_ALLOWED_ACTIONS,
 };
 pub use ports::{PairingPersistence, SqlitePairingStore, SqliteSyncStore, SyncReplicationStore};
-pub use repo::{OutboxEntry, SyncPeer, SyncStatusSnapshot};
+pub use repo::{InitialCopyStatus, OutboxEntry, SyncPeer, SyncStatusSnapshot};

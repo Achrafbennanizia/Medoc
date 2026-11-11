@@ -8,8 +8,8 @@ pub struct SeatBudget {
     pub max_member: u32,
 }
 
-/// Map Abo-Stufe → seat caps. Enterprise uses the spec default (10 / 3 / 7); Basis and
-/// Professional follow FA-LIC-02 device budgets from `systementwurf.md` §8.1.
+/// Map Abo-Stufe → seat caps. Enterprise is 10 / 3 / 7. Basis is 2 / 1 / 1.
+/// Professional is 5 device seats, all of which may be members (5 / 2 / 5).
 pub fn seat_budget_from_edition(edition: &str) -> SeatBudget {
     let e = edition.trim().to_uppercase();
     match e.as_str() {
@@ -21,7 +21,7 @@ pub fn seat_budget_from_edition(edition: &str) -> SeatBudget {
         "PRO" | "PROFESSIONAL" => SeatBudget {
             max_total: 5,
             max_admin: 2,
-            max_member: 3,
+            max_member: 5,
         },
         "ENTERPRISE" => SeatBudget {
             max_total: 10,
@@ -51,6 +51,8 @@ mod tests {
     fn pro_caps() {
         let b = seat_budget_from_edition("PRO");
         assert_eq!(b.max_total, 5);
+        assert_eq!(b.max_admin, 2);
+        assert_eq!(b.max_member, 5);
     }
 
     #[test]

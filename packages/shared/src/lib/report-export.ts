@@ -13,8 +13,10 @@ import {
 } from "@/lib/invoice-service-item";
 import { finishExportWithSettings } from "@/lib/export";
 import { renderReportPdf, type ReportPdfInput } from "@/systems/practice-host/controllers/report.controller";
+import { issueReportPdf, pdfBase64ToBytes, type IssuedPdf } from "@/systems/practice-host/controllers/document.controller";
+import type { ExportContext } from "@/lib/save-download";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
-import { parseDelimitedGrid } from "@/lib/export-delimited";
+import { csvCell, csvSafeCell, parseDelimitedGrid } from "@/lib/export-delimited";
 
 export type ReportExportFormat = "pdf" | "csv" | "json" | "xml";
 
@@ -38,16 +40,19 @@ export interface ReportBundle {
     generatedAt: string;
     summary: ReportSummaryRow[];
     sections: ReportSection[];
+    /** Server permission + numbering class. Defaults to "finance". */
+    reportKind?: ReportPdfInput["reportKind"];
 }
 
 function escapeCsvCell(version: string | number): string {
-    return `"${String(version).replace(/"/g, '""')}"`;
+    return `"${csvSafeCell(String(version)).replace(/"/g, '""')}"`;
 }
 
+/** Screen hint only: the server replaces practice name/address with its master data. */
 function practiceContext(): { practiceName: string; practiceAddress: string[] } {
     const practice = getInvoicePracticeFromStorage();
     return {
-        practiceName: practice.name?.trim() || "Dental practice",
+        practiceName: practice.name?.trim() || "",
         practiceAddress: buildInvoiceHeaderAddressLinesForExport(practice),
     };
 }
@@ -59,6 +64,7 @@ function toReportPdfInput(bundle: ReportBundle): ReportPdfInput {
         generatedAt: bundle.generatedAt,
         practiceName: ctx.practiceName,
         practiceAddress: ctx.practiceAddress,
+        reportKind: bundle.reportKind ?? "finance",
         summary: bundle.summary.map((r) => ({ label: r.label, value: r.value })),
         sections: bundle.sections.map((s) => ({
             title: s.title,
@@ -143,21 +149,42 @@ export function reportFilename(bundle: ReportBundle, format: ReportExportFormat)
     return `${base}.${ext}`;
 }
 
+/** Preview only (watermark "ENTWURF", no number, no audit entry). */
 export async function buildReportPdfBytes(bundle: ReportBundle): Promise<Uint8Array> {
     return renderReportPdf(toReportPdfInput(bundle));
+}
+
+/** Final report PDF: numbered (BE-YYYY-…), hashed and audited on the server. */
+export async function issueReportBundlePdf(bundle: ReportBundle): Promise<{ issued: IssuedPdf; bytes: Uint8Array }> {
+    const issued = await issueReportPdf(toReportPdfInput(bundle), { preview: false });
+    return { issued, bytes: pdfBase64ToBytes(issued.pdfBase64) };
+}
+
+export function reportExportContext(
+    bundle: ReportBundle,
+    format: ReportExportFormat,
+    documentNumber?: string | null,
+): ExportContext {
+    return {
+        kind: `report.${bundle.reportKind ?? "finance"}`,
+        format,
+        entityId: null,
+        documentNumber: documentNumber ?? null,
+    };
 }
 
 export async function exportReportBundle(bundle: ReportBundle, format: ReportExportFormat): Promise<void> {
     const filename = reportFilename(bundle, format);
     if (format === "pdf") {
-        const bytes = await buildReportPdfBytes(bundle);
+        const { issued, bytes } = await issueReportBundlePdf(bundle);
         await finishExportWithSettings({
             format: "pdf",
-            title: bundle.exportTitle,
+            title: `${bundle.exportTitle} ${issued.documentNumber ?? ""}`.trim(),
             hint: bundle.hint,
             suggestedFilename: filename,
             mime: "application/pdf",
             binaryBody: bytes,
+            context: reportExportContext(bundle, "pdf", issued.documentNumber),
         });
         return;
     }
@@ -169,6 +196,7 @@ export async function exportReportBundle(bundle: ReportBundle, format: ReportExp
             suggestedFilename: filename,
             mime: "text/csv;charset=utf-8",
             textBody: reportBundleToCsv(bundle),
+            context: reportExportContext(bundle, "csv"),
         });
         return;
     }
@@ -180,6 +208,7 @@ export async function exportReportBundle(bundle: ReportBundle, format: ReportExp
             suggestedFilename: filename,
             mime: "application/json;charset=utf-8",
             textBody: reportBundleToJson(bundle),
+            context: reportExportContext(bundle, "json"),
         });
         return;
     }
@@ -190,6 +219,7 @@ export async function exportReportBundle(bundle: ReportBundle, format: ReportExp
         suggestedFilename: filename,
         mime: "application/xml;charset=utf-8",
         textBody: reportBundleToXml(bundle),
+        context: reportExportContext(bundle, "xml"),
     });
 }
 
@@ -264,6 +294,7 @@ export function buildStatisticsReportBundle(stats: StatisticsOverview, period: P
 
     return {
         docTitle: tr("export.report.statistics_doc_title"),
+        reportKind: "statistics",
         exportTitle: tr("export.report.statistics_export_title"),
         hint: tr("export.report.statistics_hint").replace("{period}", pl),
         suggestedBasename: `medoc-statistics-${period}-${dateStamp}`,
@@ -324,6 +355,7 @@ export function buildBalanceSheetReportBundle(
 
     return {
         docTitle: tr("export.report.balance_doc_title"),
+        reportKind: "finance",
         exportTitle: tr("export.report.balance_export_title"),
         hint: tr("export.report.balance_hint"),
         suggestedBasename: `medoc-balanceSheet-${dateStamp}`,
@@ -427,6 +459,7 @@ export function buildFinanceReportBundle(
 
     return {
         docTitle: tr("export.report.finance_doc_title"),
+        reportKind: "finance",
         exportTitle: tr("export.report.finance_export_title"),
         hint: tp("export.report.finance_hint", { filter: filterLabel }),
         suggestedBasename: `medoc-finance-${dateStamp}`,
@@ -484,6 +517,7 @@ export function buildComplianceReportBundle(
         }));
         return {
             docTitle: tr("export.report.vvt_doc_title"),
+            reportKind: "compliance",
             exportTitle: tr("export.report.compliance_export_title"),
             hint: tr("export.report.vvt_hint"),
             suggestedBasename: `medoc-vvt-${dateStamp}`,
@@ -508,6 +542,7 @@ export function buildComplianceReportBundle(
         ]);
         return {
             docTitle: tr("export.report.dpia_doc_title"),
+            reportKind: "compliance",
             exportTitle: tr("export.report.compliance_export_title"),
             hint: tr("export.report.dpia_hint"),
             suggestedBasename: `medoc-dpia-${dateStamp}`,
@@ -545,6 +580,7 @@ export function buildComplianceReportBundle(
     const r = data as LogRetentionReport;
     return {
         docTitle: tr("export.report.retention_doc_title"),
+        reportKind: "compliance",
         exportTitle: tr("export.report.compliance_export_title"),
         hint: tr("export.report.retention_hint"),
         suggestedBasename: `medoc-retention-${dateStamp}`,
@@ -592,7 +628,8 @@ export function buildAuditReportBundleFromCsv(csvText: string, totalHint?: numbe
         r[2] ?? "",
     ]);
     return {
-        docTitle: "Audit log — full export",
+        docTitle: "Audit-Log (Gesamtexport)",
+        reportKind: "audit",
         exportTitle: "Export audit log",
         hint: "Full audit trail · PDF with practice letterhead or CSV/JSON/XML.",
         suggestedBasename: `medoc-audit-${dateStamp}`,
@@ -618,7 +655,7 @@ export function financeTransactionsToLegacyCsv(
 ): string {
     // F151: the label helpers take the translator; the legacy CSV stays English.
     const tr = (key: string) => translateLocale("en", key);
-    const esc = (s: string) => (/[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
+    const esc = (s: string) => csvCell(s, ",");
     const header = ["Date", "Type", "Transaction", "Counterparty", "Payment method", "Status", "Amount_EUR", "Note"];
     const lines = [header.map(esc).join(",")];
     for (const r of rows) {

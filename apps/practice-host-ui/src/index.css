@@ -4584,6 +4584,25 @@ html[data-theme="dark"] {
     animation: toast-progress-shrink var(--toast-dur, 3s) linear forwards;
   }
   .toast-stack.is-paused .toast-progress-bar { animation-play-state: paused; }
+  .toast-progress-bar.is-determinate {
+    animation: none;
+    transform: none;
+    width: var(--copy-pct, 0%);
+    opacity: 1;
+  }
+  .initial-copy-toast__title,
+  .initial-copy-toast__meta {
+    display: block;
+  }
+  .initial-copy-toast__meta {
+    margin-top: 2px;
+    font-size: 12px;
+    font-weight: 500;
+    opacity: 0.78;
+  }
+  body:has(.initial-copy-toast-host) .toast-stack:not(.initial-copy-toast-host) {
+    top: calc(max(12px, env(safe-area-inset-top, 0px)) + 84px);
+  }
   .toast-item.success {
     background: var(--bg-elev);
     color: var(--fg);
@@ -4625,6 +4644,7 @@ html[data-theme="dark"] {
   }
   @media (prefers-reduced-motion: reduce) {
     .toast-progress-bar { animation: none; opacity: 0.35; }
+    .toast-progress-bar.is-determinate { opacity: 1; }
   }
   .quick-grid-item.is-empty {
     color: var(--fg-4);
@@ -10517,6 +10537,7 @@ html[data-sidebar-tone="dark"] .app-sidebar-brand-hit:hover {
 @media print {
   body.day_close-printing .app-sidebar,
   body.day_close-printing .app-sidebar-backdrop,
+  body.day_close-printing .app-window-chrome,
   body.day_close-printing .topbar,
   body.day_close-printing .day_close-no-print,
   body.day_close-printing .day_close-protocol-list {
@@ -14125,30 +14146,30 @@ html[data-theme="dark"] .finance-amt--warn {
 }
 
 .work-time-week-bar__track {
-  display: flex;
-  align-items: flex-end;
-  gap: 2px;
+  position: relative;
   height: 72px;
   width: 100%;
   background: color-mix(in oklab, var(--fg-3) 8%, transparent);
   border-radius: 6px;
-  padding: 4px;
   box-sizing: border-box;
 }
 
 .work-time-week-bar__target,
-.work-time-week-bar__actual,
-.work-time-week-bar__open,
-.work-time-week-bar__pause {
-  height: 100%;
-  min-width: 4px;
+.work-time-week-bar__actual {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  bottom: 4px;
+  width: auto;
+  min-width: 0;
   border-radius: 3px;
-  transition: width 300ms ease;
+  transition: height 300ms ease;
 }
 
 .work-time-week-bar__target {
-  background: color-mix(in oklab, var(--fg-3) 35%, transparent);
-  opacity: 0.45;
+  background: transparent;
+  border-top: 2px solid color-mix(in oklab, var(--fg-3) 55%, transparent);
+  z-index: 1;
 }
 
 .work-time-week-bar__actual {

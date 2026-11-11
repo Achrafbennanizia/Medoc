@@ -154,6 +154,50 @@ async fn incomplete_identity_not_counted_in_seat_usage() {
         .expect("update");
     let usage = repos.seat_usage(&cluster_id).await.expect("usage");
     assert_eq!(usage.total_used, 0);
+    reserve_seat_atomic(&pool, &cluster_id, SeatRole::Member, 5, 2, 5)
+        .await
+        .expect("incomplete devices must not fill the cluster");
+}
+
+#[tokio::test]
+async fn revoked_certificate_frees_the_seat() {
+    let pool = fresh_pool().await;
+    let cluster_id = Uuid::new_v4().to_string();
+    let repos = SqliteClusterRepos { pool: &pool };
+    repos
+        .save(&sample_license(&cluster_id))
+        .await
+        .expect("license");
+    let mut device = sample_device(&cluster_id, "fp-revoked", SeatRole::Member, DeviceStatus::Active);
+    device.device_id = "fp-revoked".into();
+    device.seat_cert = Some(b"seat-cert".to_vec());
+    repos.upsert(&device).await.expect("upsert");
+    sqlx::query(
+        "INSERT INTO pairing_request (id, device_id, slave_pubkey, slave_label, status, fingerprint)
+         VALUES ('req-revoked', 'fp-revoked', '', 'Tablet', 'REVOKED', 'fp-revoked')",
+    )
+    .execute(&pool)
+    .await
+    .expect("pairing");
+
+    let usage = repos.seat_usage(&cluster_id).await.expect("usage");
+    assert_eq!(usage.total_used, 0);
+    let status: String = sqlx::query_scalar(
+        "SELECT device_status FROM sync_device WHERE device_id = 'fp-revoked'",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("status");
+    assert_eq!(status, "REVOKED");
+    let cert: Option<Vec<u8>> =
+        sqlx::query_scalar("SELECT seat_cert FROM sync_device WHERE device_id = 'fp-revoked'")
+            .fetch_one(&pool)
+            .await
+            .expect("cert");
+    assert!(cert.is_none());
+    reserve_seat_atomic(&pool, &cluster_id, SeatRole::Member, 5, 2, 5)
+        .await
+        .expect("revoked certificate must free the seat");
 }
 
 #[test]
@@ -216,6 +260,33 @@ async fn repeat_coupling_replaces_the_inbox_row() {
         .expect("pending");
     assert_eq!(pending.len(), 1);
     assert_eq!(pending[0].id, second.session_id);
+}
+
+#[tokio::test]
+async fn reject_pending_request_leaves_the_inbox() {
+    let pool = fresh_pool().await;
+    sqlx::query(
+        "INSERT INTO pairing_request (id, device_id, slave_pubkey, slave_label, status, pairing_state)
+         VALUES ('req-reject', 'fp-reject', '', 'Chair', 'PENDING', 'JOIN_REQUESTED')",
+    )
+    .execute(&pool)
+    .await
+    .expect("insert");
+    super::repo::reject_pairing_request(&pool, "req-reject", "admin")
+        .await
+        .expect("reject");
+    let row: (String, String) = sqlx::query_as(
+        "SELECT status, COALESCE(pairing_state, '') FROM pairing_request WHERE id = 'req-reject'",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("row");
+    assert_eq!(row.0, "REJECTED");
+    assert_eq!(row.1, "REJECTED");
+    let pending = super::services::list_pending_requests(&pool)
+        .await
+        .expect("pending");
+    assert!(pending.iter().all(|p| p.id != "req-reject"));
 }
 
 #[tokio::test]

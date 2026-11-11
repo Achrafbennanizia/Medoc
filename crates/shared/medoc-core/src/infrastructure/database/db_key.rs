@@ -148,16 +148,44 @@ pub async fn apply_activation_sqlcipher_key(
 
     pool.close().await;
 
-    if db_path.exists() {
-        for suffix in ["-wal", "-shm"] {
-            let sidecar = PathBuf::from(format!("{}{suffix}", db_path.display()));
-            let _ = std::fs::remove_file(sidecar);
-        }
+    // Do NOT delete `-wal` / `-shm` here. If any connection had not been
+    // checkpointed, the WAL holds committed transactions; deleting it lost
+    // them. `rekey_database_file` opens the file (which replays the WAL),
+    // switches it to rollback-journal mode and rekeys on one connection.
+    let rekeyed = db_path.exists();
+    if rekeyed {
         crate::infrastructure::database::sqlcipher::rekey_database_file(db_path, &old_arr, new_key)
             .await?;
     }
 
-    keyring_store(new_key)?;
+    // The database is now encrypted with `new_key`. If the keychain write
+    // fails, nobody holds that key: roll the file back to the old key.
+    if let Err(e) = keyring_store(new_key).and_then(|_| {
+        keyring_load().and_then(|stored| {
+            if stored.as_slice() == new_key.as_slice() {
+                Ok(())
+            } else {
+                Err(AppError::Internal("keychain did not keep the new key".into()))
+            }
+        })
+    }) {
+        if rekeyed {
+            if let Err(back) = crate::infrastructure::database::sqlcipher::rekey_database_file(
+                db_path, new_key, &old_arr,
+            )
+            .await
+            {
+                tracing::error!(
+                    target: "medoc::security",
+                    event = "SQLCIPHER_REKEY_ROLLBACK_FAILED",
+                    error = %back
+                );
+                // Last resort: keep the new key on disk (0600) rather than lose the DB.
+                let _ = write_local_key_file(app_dir, new_key);
+            }
+        }
+        return Err(e);
+    }
     Ok(true)
 }
 
@@ -238,18 +266,28 @@ fn write_local_key_file(app_dir: &Path, key: &[u8]) -> Result<(), AppError> {
     std::fs::create_dir_all(app_dir)
         .map_err(|e| AppError::Internal(format!("Could not create app data directory: {e}")))?;
     let path = local_key_path(app_dir);
-    std::fs::write(&path, STANDARD.encode(key))
-        .map_err(|e| AppError::Internal(format!("sqlcipher.key write: {e}")))?;
-    #[cfg(unix)]
+    // Create with mode 0600 directly: write-then-chmod left the database key
+    // readable by other local users (umask 022) for a moment.
+    let tmp = path.with_extension("key.tmp");
+    let _ = std::fs::remove_file(&tmp);
     {
-        use std::os::unix::fs::PermissionsExt;
-        let mut perms = std::fs::metadata(&path)
-            .map_err(|e| AppError::Internal(format!("sqlcipher.key meta: {e}")))?
-            .permissions();
-        perms.set_mode(0o600);
-        std::fs::set_permissions(&path, perms)
-            .map_err(|e| AppError::Internal(format!("sqlcipher.key chmod: {e}")))?;
+        use std::io::Write;
+        let mut opts = std::fs::OpenOptions::new();
+        opts.write(true).create_new(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            opts.mode(0o600);
+        }
+        let mut f = opts
+            .open(&tmp)
+            .map_err(|e| AppError::Internal(format!("sqlcipher.key write: {e}")))?;
+        f.write_all(STANDARD.encode(key).as_bytes())
+            .and_then(|_| f.sync_all())
+            .map_err(|e| AppError::Internal(format!("sqlcipher.key write: {e}")))?;
     }
+    std::fs::rename(&tmp, &path)
+        .map_err(|e| AppError::Internal(format!("sqlcipher.key rename: {e}")))?;
     Ok(())
 }
 

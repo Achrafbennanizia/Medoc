@@ -116,8 +116,19 @@ pub async fn dsgvo_export_patient(
     session_state: State<'_, SessionState>,
     patient_id: String,
 ) -> Result<Value, AppError> {
-    rbac::require(&session_state, "ops.dsgvo")?;
-    gdpr::export_patient(&pool, &patient_id).await
+    let session = rbac::require(&session_state, "ops.dsgvo")?;
+    let export = gdpr::export_patient(&pool, &patient_id).await?;
+    // Art. 15 disclosures are themselves processing → audit them.
+    crate::infrastructure::database::audit_repo::create(
+        &pool,
+        &session.user_id,
+        "DSGVO_EXPORT",
+        "Patient",
+        Some(&patient_id),
+        None,
+    )
+    .await?;
+    Ok(export)
 }
 
 #[tauri::command]

@@ -173,15 +173,7 @@ function MainLicenseForm(props: { onActivated?: () => void; onBack: () => void }
                     {tp("license.activate.last_error", { reason: reasonText(status.reason) })}
                 </p>
             ) : null}
-            {import.meta.env.DEV ? (
-                <p className="card-sub">{t("license.activate.dev_hint")}</p>
-            ) : null}
             <div className="row" style={{ marginTop: 12, gap: 8, flexWrap: "wrap" }}>
-                {import.meta.env.DEV ? (
-                    <Button type="button" variant="ghost" loading={busy} disabled={busy} onClick={() => void activate("MASTER-DEV-01")}>
-                        {t("license.activate.dev_activate_btn")}
-                    </Button>
-                ) : null}
                 <Button
                     type="button"
                     loading={busy}

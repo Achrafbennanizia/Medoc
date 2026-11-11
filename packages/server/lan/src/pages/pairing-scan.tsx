@@ -23,13 +23,14 @@ import { Input } from "@/views/components/ui/input";
 import { errorMessage, formatTpl } from "@/lib/utils";
 import { useToastStore } from "@/views/components/ui/toast-store";
 import { useT } from "@/lib/i18n";
+import { PAGE_REFRESH_EVENT } from "@/views/layouts/page-refresh";
 
 type Phase = "scan" | "request" | "waiting" | "pin" | "accepted" | "rejected";
 type Transport = "lan" | "bluetooth";
 
 const POLL_INTERVAL_MS = 2000;
 
-export function PairingScanPage() {
+export function PairingScanPage({ onPaired }: { onPaired?: () => void } = {}) {
     const toast = useToastStore((s) => s.add);
     const t = useT();
     const [phase, setPhase] = useState<Phase>("scan");
@@ -46,6 +47,16 @@ export function PairingScanPage() {
     const [pinInput, setPinInput] = useState("");
     const [pinBusy, setPinBusy] = useState(false);
     const pollRef = useRef<number | null>(null);
+    const enteredApp = useRef(false);
+
+    const enterApp = useCallback(() => {
+        if (enteredApp.current) return;
+        enteredApp.current = true;
+        onPaired?.();
+        window.dispatchEvent(new Event(PAGE_REFRESH_EVENT));
+        window.setTimeout(() => window.dispatchEvent(new Event(PAGE_REFRESH_EVENT)), 600);
+        if (!onPaired) window.location.reload();
+    }, [onPaired]);
 
     const transportLabel = transport === "bluetooth" ? "Bluetooth" : "LAN";
 
@@ -112,6 +123,7 @@ export function PairingScanPage() {
                             await pairingPersistToken(snap.activationToken);
                             setPhase("accepted");
                             toast(t("page.lan.pairing_scan.toast.accepted"), "success");
+                            enterApp();
                         } catch (e) {
                             toast(
                                 formatTpl(t("page.lan.pairing_scan.toast.save_token_err"), {
@@ -137,7 +149,7 @@ export function PairingScanPage() {
             void tick();
             pollRef.current = window.setInterval(() => void tick(), POLL_INTERVAL_MS);
         },
-        [toast, t],
+        [toast, t, enterApp],
     );
 
     const submitPin = async () => {
@@ -159,6 +171,7 @@ export function PairingScanPage() {
                 await pairingPersistToken(snap.activationToken);
                 setPhase("accepted");
                 toast(t("page.lan.pairing_scan.toast.complete"), "success");
+                enterApp();
             }
         } catch (e) {
             toast(
@@ -216,14 +229,7 @@ export function PairingScanPage() {
         return (
             <main className="card-pad" style={{ maxWidth: 640, margin: "32px auto" }}>
                 <h1 className="card-title">{t("page.lan.pairing_scan.title.accepted")}</h1>
-                <p>{t("page.lan.pairing_scan.body.accepted")}</p>
-                <p className="card-sub">
-                    {t("page.lan.pairing_scan.activation_token")}{" "}
-                    <code>{snapshot?.activationToken?.slice(0, 32)}…</code>
-                </p>
-                <Button type="button" onClick={() => window.location.reload()}>
-                    {t("page.lan.pairing_scan.reload")}
-                </Button>
+                <p role="status">{t("page.lan.pairing_scan.body.accepted")}</p>
             </main>
         );
     }

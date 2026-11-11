@@ -138,6 +138,33 @@ pub async fn list_examinations(
     )
 }
 
+/// GOZ billing data of a treatment line (fee number, points, factor, justification).
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, data))]
+pub async fn set_treatment_billing(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    data: crate::domain::entities::treatment::TreatmentBilling,
+) -> Result<Treatment, AppError> {
+    let session = rbac::require(&session_state, "patient.write_medical")?;
+    let t = chart_repo::set_treatment_billing(&pool, &data).await?;
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "UPDATE_BILLING",
+        "Treatment",
+        Some(&t.id),
+        Some(&format!(
+            "goz_nr={} factor={}",
+            t.goz_nr.as_deref().unwrap_or("-"),
+            t.factor.map(|f| f.to_string()).unwrap_or_else(|| "-".into())
+        )),
+    )
+    .await
+    .ok();
+    Ok(t)
+}
+
 /// FA-LEIST-05: Release treatment for billing (physician chart only).
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state))]
@@ -323,7 +350,7 @@ pub async fn export_chart_pdf(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
     args: crate::application::chart::pdf_export::ExportChartPdfArgs,
-) -> Result<String, AppError> {
+) -> Result<medoc_core::application::documents::issue::IssuedPdf, AppError> {
     let session = rbac::require(&session_state, "patient.read")?;
     crate::application::chart::pdf_export::export_chart_pdf(&pool, &session, args).await
 }
@@ -335,7 +362,7 @@ pub async fn export_discharge_leaflet_pdf(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
     args: crate::application::chart::pdf_export::ExportDischargeLeafletPdfArgs,
-) -> Result<String, AppError> {
+) -> Result<medoc_core::application::documents::issue::IssuedPdf, AppError> {
     let session = rbac::require(&session_state, "patient.read_medical")?;
     crate::application::chart::pdf_export::export_discharge_leaflet_pdf(&pool, &session, args).await
 }
@@ -356,6 +383,7 @@ macro_rules! register_chart_commands {
         $crate::commands::chart_commands::update_treatment,
         $crate::commands::chart_commands::delete_treatment,
         $crate::commands::chart_commands::release_treatment_for_billing,
+        $crate::commands::chart_commands::set_treatment_billing,
         $crate::commands::chart_commands::release_examination_for_billing,
         $crate::commands::chart_commands::update_examination,
         $crate::commands::chart_commands::delete_examination,

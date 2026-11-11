@@ -1,4 +1,5 @@
 import type { Treatment, Examination, Payment } from "@/models/types";
+import type { InvoiceLineInput } from "@/systems/practice-host/controllers/invoice.controller";
 import { errorMessage, formatCurrency } from "@/lib/utils";
 import {
     DEFAULT_PRACTICE_HEADER_PRIVACY,
@@ -6,17 +7,13 @@ import {
     maskPracticeExportToken,
     type PracticeHeaderPrivacyV1,
 } from "@/lib/practice-header-privacy";
-import {
-    roundMoney2,
-    sumPaymentsForTreatment,
-    sumPaymentsForExamination,
-    PAYMENT_EUR_EPS,
-} from "@/lib/payment-booking";
+import { roundMoney2 } from "@/lib/payment-booking";
 import { paymentLocalYmd } from "@/lib/day-close";
 import { isolateLtrPhone } from "@/lib/arabic-numerals";
 
 import { getAppKv, setAppKv } from "@/systems/practice-host/controllers/app-kv.controller";
 import { t } from "@/lib/i18n";
+import { normalizePracticeCurrency, publishPracticeCurrency } from "@/lib/practice-currency";
 
 const LS_INVOICE_PRACTICE = "medoc-invoice-practice-v1";
 const INVOICE_PRACTICE_KV_KEY = "invoice.practice.v1" as const;
@@ -34,6 +31,8 @@ export type InvoicePractice = {
     /** Practice website (shown in PDF without https:// if desired) */
     web?: string;
     tax_number?: string;
+    /** ISO 4217 code. Empty or unknown values display as EUR. */
+    currency?: string;
     vat_id?: string;
     /** e.g. "Dr. Jane Smith" */
     clinician_name?: string;
@@ -118,7 +117,7 @@ function jsonNum(j: InvoicePracticeJson, key: string): number | undefined {
 export function parseInvoicePracticeJson(j: InvoicePracticeJson): InvoicePractice {
     const name = jsonStr(j, "name") || DEFAULTS.name;
     const addr = jsonStr(j, "addr") || DEFAULTS.addr;
-    const out: InvoicePractice = { name, addr };
+    const out: InvoicePractice = { name, addr, currency: normalizePracticeCurrency(jsonStr(j, "currency")) };
     for (const key of INVOICE_PRACTICE_OPTIONAL_STRING_KEYS) {
         const version = jsonStr(j, key);
         if (version) (out as Record<string, string | number | undefined>)[key] = version;
@@ -139,6 +138,7 @@ function invoicePracticeToBlob(p: InvoicePractice): Record<string, string | numb
     const blob: Record<string, string | number> = {
         name: p.name.trim() || DEFAULTS.name,
         addr: p.addr.trim() || DEFAULTS.addr,
+        currency: normalizePracticeCurrency(p.currency),
     };
     for (const key of INVOICE_PRACTICE_OPTIONAL_STRING_KEYS) {
         const t = optStr(p[key]);
@@ -214,50 +214,16 @@ export function buildInvoiceHeaderAddressLinesForExport(p: InvoicePractice): str
     return buildInvoiceHeaderAddressLines(p, loadPracticeHeaderPrivacy());
 }
 
-export type InvoiceNumberOpts = {
-    /** Numbers already in local history / session — avoid collision. */
-    reserved?: ReadonlySet<string>;
-};
-
-function randomUint32(): number {
-    const b = new Uint8Array(4);
-    if (globalThis.crypto?.getRandomValues) {
-        globalThis.crypto.getRandomValues(b);
-    } else {
-        b[0] = Math.floor(Math.random() * 256);
-        b[1] = Math.floor(Math.random() * 256);
-        b[2] = Math.floor(Math.random() * 256);
-        b[3] = Math.floor(Math.random() * 256);
-    }
-    return b[0]! * 0x1_00_00_00 + b[1]! * 0x1_00_00 + b[2]! * 0x1_00 + b[3]!;
-}
-
 function moneyToInvoiceCents(bruto: number): number {
-    const eur = roundMoney2(bruto);
-    let cents = Math.round(eur * 100);
-    if (cents === 0 && eur > PAYMENT_EUR_EPS) cents = 1;
-    return cents;
+    // No rounding up to 1 ct: an invoice line must equal the computed fee.
+    return Math.round(roundMoney2(bruto) * 100);
 }
 
-/** Auto invoice number — RE-YYYYMMDD-RANDOM (short date fallback without date prefix). */
-export function nextInvoiceNumber(ymd: string, opts?: InvoiceNumberOpts): string {
-    const reserved = opts?.reserved;
-    const d = ymd.replace(/-/g, "").replace(/[^\d]/g, "");
-    if (d.length < 8) {
-        for (let i = 0; i < 48; i++) {
-            const num = `RE-${Date.now().toString(36).toUpperCase()}-${randomUint32().toString(36).toUpperCase()}`;
-            if (!reserved?.has(num)) return num;
-        }
-        return `RE-${Date.now()}-${randomUint32()}`;
-    }
-    const prefix = d.slice(0, 8);
-    for (let i = 0; i < 80; i++) {
-        const s = randomUint32().toString(36).toUpperCase().padStart(6, "0");
-        const num = `RE-${prefix}-${s}`;
-        if (!reserved?.has(num)) return num;
-    }
-    return `RE-${prefix}-${Date.now().toString(36).toUpperCase()}-${randomUint32().toString(36).toUpperCase()}`;
-}
+/*
+ * Client-side invoice/report numbers (random RE-/BR- suffixes) were removed:
+ * GoBD needs gap-free, unique numbers, which only the server can guarantee
+ * (`issue_invoice`, `issue_report_pdf`, MASTER device only).
+ */
 
 function readInvoicePracticeLocalStorage(): string | null {
     return localStorage.getItem(LS_INVOICE_PRACTICE);
@@ -277,6 +243,7 @@ export function getInvoicePracticeFromStorage(): InvoicePractice {
 /** Persists practice master data (invoices, PDFs, Settings). */
 export function saveInvoicePracticeToStorage(p: InvoicePractice): void {
     localStorage.setItem(LS_INVOICE_PRACTICE, JSON.stringify(invoicePracticeToBlob(p)));
+    publishPracticeCurrency();
     void syncInvoicePracticeToAppKv(p);
 }
 
@@ -294,14 +261,14 @@ function practiceDbBusy(error: unknown): boolean {
 export async function syncInvoicePracticeToAppKv(p: InvoicePractice): Promise<void> {
     const body = JSON.stringify(invoicePracticeToBlob(p));
     let last: unknown;
-    for (let attempt = 0; attempt < 2; attempt++) {
+    for (let attempt = 0; attempt < 6; attempt++) {
         try {
             await setAppKv(INVOICE_PRACTICE_KV_KEY, body);
             return;
         } catch (error) {
             last = error;
-            if (!practiceDbBusy(error) || attempt === 1) throw error;
-            await new Promise((resolve) => setTimeout(resolve, 500));
+            if (!practiceDbBusy(error) || attempt === 5) throw error;
+            await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
         }
     }
     throw last;
@@ -357,20 +324,6 @@ export async function hydrateInvoicePracticeFromAppKv(): Promise<InvoicePractice
     }
 }
 
-/** Daily report / PDF no. — longer random part than before (collisions rarer). */
-export function nextReportNumber(ymd: string, opts?: InvoiceNumberOpts): string {
-    const reserved = opts?.reserved;
-    const d = ymd.replace(/-/g, "").replace(/[^\d]/g, "");
-    const dayPart = d.slice(0, 8) || "--------";
-    for (let i = 0; i < 80; i++) {
-        const hi = randomUint32().toString(36).toUpperCase().padStart(6, "0");
-        const lo = randomUint32().toString(36).toUpperCase().padStart(6, "0");
-        const num = `BR-${dayPart}-${hi}${lo}`;
-        if (!reserved?.has(num)) return num;
-    }
-    return `BR-${dayPart}-${Date.now().toString(36).toUpperCase()}-${randomUint32().toString(36).toUpperCase()}`;
-}
-
 function parseServiceItemLink(
     version: string,
 ):
@@ -382,39 +335,80 @@ function parseServiceItemLink(
     return null;
 }
 
+/** GOZ 5,62421 Cent / GOÄ 5,82873 Cent per point — must match `pdf/goz.rs`. */
+const PUNKTWERT_E5: Record<"goz" | "goae", number> = { goz: 562_421, goae: 582_873 };
+
+/** Fee for one unit in cents: points × Punktwert × factor (half-up), as on the server. */
+export function gozUnitFeeCents(schedule: "goz" | "goae", points: number, factor: number): number {
+    const factorX100 = Math.round(factor * 100);
+    const raw = points * PUNKTWERT_E5[schedule] * factorX100;
+    const denom = 100_000 * 100;
+    return Math.floor((raw + denom / 2) / denom);
+}
+
+/**
+ * Invoice line for a treatment / examination. Treatments with GOZ billing data
+ * become fee lines (number, points, factor, date, tooth); everything else is
+ * an `other` line at its recorded cost. Returns `null` when no cost is
+ * recorded — the old 0,01 € placeholder produced invoices with fake amounts.
+ */
 export function lineFromServiceItemChoice(
     link: string,
-    patientId: string,
+    _patientId: string,
     treatments: Treatment[],
     examinations: Examination[],
-    payments: Payment[],
-): { description: string; amount_cents: number; note_line?: string } | null {
+    _payments: Payment[],
+): InvoiceLineInput | null {
     const p = parseServiceItemLink(link);
     if (!p) return null;
     if (p.kind === "treatment") {
         const b = treatments.find((x) => x.id === p.id);
         if (!b) return null;
-        const paidTotal = roundMoney2(sumPaymentsForTreatment(payments, patientId, p.id));
+        const serviceLabel = (b.service_name || b.description || b.kind || "Behandlung").trim();
+        const date = (b.treatment_date ?? b.created_at ?? "").slice(0, 10) || null;
+        const schedule = b.fee_schedule ?? null;
+        if ((schedule === "goz" || schedule === "goae") && b.goz_nr && b.points != null && b.factor != null) {
+            const qty = Math.max(1, b.quantity ?? 1);
+            return {
+                description: serviceLabel,
+                fee_schedule: schedule,
+                goz_nr: b.goz_nr,
+                points: b.points,
+                factor: b.factor,
+                quantity: qty,
+                amount_cents: gozUnitFeeCents(schedule, b.points, b.factor) * qty,
+                tooth_nr: (b.teeth ?? "").trim() || null,
+                treatment_date: date,
+                diagnosis_reason: b.factor_reason ?? null,
+                analog_of: b.analog_of ?? null,
+                agreement_ref: b.agreement_ref ?? null,
+                material: (b.material ?? "").trim() || null,
+                source_ref: `treatment:${b.id}`,
+            };
+        }
         const cost = b.total_cost != null && Number.isFinite(b.total_cost) ? roundMoney2(b.total_cost) : null;
-        const serviceLabel = (b.service_name || b.description || b.kind || "Treatment").trim();
-        const bn = (b.treatment_number ?? "").trim() || "—";
-        const desc = `B-Nr. ${bn} — ${serviceLabel}`;
-        const costLabel = cost != null ? formatCurrency(cost) : "—";
-        const detail = `Cost (due): ${costLabel} · Paid (in system): ${formatCurrency(paidTotal)}`;
-        const bruto = cost != null && cost > 0 ? cost : paidTotal > 0 ? paidTotal : 0.01;
-        const amount_cents = Math.max(1, moneyToInvoiceCents(bruto));
-        return { description: `${desc}\n${detail}`, amount_cents };
+        if (cost == null || cost <= 0) return null;
+        return {
+            description: serviceLabel,
+            fee_schedule: schedule === "material" || schedule === "lab" ? schedule : "other",
+            amount_cents: moneyToInvoiceCents(cost),
+            tooth_nr: (b.teeth ?? "").trim() || null,
+            treatment_date: date,
+            source_ref: `treatment:${b.id}`,
+        };
     }
     const u = examinations.find((x) => x.id === p.id);
     if (!u) return null;
-    const paidTotal = roundMoney2(sumPaymentsForExamination(payments, patientId, p.id));
-    const un = (u.examination_number ?? "").trim() || "—";
-    const serviceLabel = (u.diagnosis || u.results || u.chief_complaint || "Examination").trim().slice(0, 200);
-    const desc = `U-Nr. ${un} — ${serviceLabel}`;
-    const bruto = paidTotal > 0 ? paidTotal : 0.01;
-    const amount_cents = Math.max(1, moneyToInvoiceCents(bruto));
-    const detail = `Paid (in system): ${formatCurrency(paidTotal)}`;
-    return { description: `${desc}\n${detail}`, amount_cents };
+    const cost = u.total_cost != null && Number.isFinite(u.total_cost) ? roundMoney2(u.total_cost) : null;
+    if (cost == null || cost <= 0) return null;
+    const serviceLabel = (u.service_name || u.diagnosis || "Untersuchung").trim().slice(0, 200);
+    return {
+        description: serviceLabel,
+        fee_schedule: "other",
+        amount_cents: moneyToInvoiceCents(cost),
+        treatment_date: (u.created_at ?? "").slice(0, 10) || null,
+        source_ref: `examination:${u.id}`,
+    };
 }
 
 /**
@@ -468,11 +462,6 @@ export function buildDailyReportLines(
             out.push({ description: withDay, amount_cents: row.amount_cents });
         }
     }
-    if (out.length === 0) {
-        out.push({
-            description: `Daily report ${as_of_date} — no linked treatment/examination payments for this patient on the report date.`,
-            amount_cents: 1,
-        });
-    }
+    // No placeholder line: an empty day is reported as empty, never as 0,01 €.
     return out;
 }

@@ -1,5 +1,6 @@
 import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
 import type { ChartExportSectionsState } from "@/lib/chart-export";
+import type { IssuedPdf } from "@/systems/practice-host/controllers/document.controller";
 import type { ChartAttachmentRowDto } from "@/lib/chart-attachments";
 import {
     CreateTreatmentSchema,
@@ -48,23 +49,33 @@ export async function saveAnamnesisForm(data: {
     return practiceSystem.invoke<AnamnesisForm>("save_anamnesis_form", { data });
 }
 
-export async function exportChartPdf(patientId: string, sections?: ChartExportSectionsState): Promise<string> {
-    return practiceSystem.invoke<string>("export_chart_pdf", {
-        args: sections !== undefined ? { patientId, sections } : { patientId },
+/**
+ * Chart extract PDF. `preview: true` → watermarked, unnumbered, not registered.
+ * Otherwise the extract gets an AK number, its SHA-256 is stored and audited.
+ */
+export async function exportChartPdf(
+    patientId: string,
+    sections: ChartExportSectionsState | undefined,
+    preview: boolean,
+): Promise<IssuedPdf> {
+    return practiceSystem.invoke<IssuedPdf>("export_chart_pdf", {
+        args: sections !== undefined ? { patientId, sections, preview } : { patientId, preview },
     });
 }
 
-/** FA-DOK-08 — discharge leaflet / aftercare (PDF, base64). */
+/** FA-DOK-08 — discharge leaflet / aftercare (numbered unless `preview`). */
 export async function exportDischargeLeafletPdf(args: {
     patientId: string;
     additionalNotes?: string | null;
     referralNotes?: string | null;
-}): Promise<string> {
-    return practiceSystem.invoke<string>("export_discharge_leaflet_pdf", {
+    preview?: boolean;
+}): Promise<IssuedPdf> {
+    return practiceSystem.invoke<IssuedPdf>("export_discharge_leaflet_pdf", {
         args: {
             patientId: args.patientId,
             additionalNotes: args.additionalNotes ?? undefined,
             referralNotes: args.referralNotes ?? undefined,
+            preview: args.preview ?? false,
         },
     });
 }
@@ -210,4 +221,19 @@ export async function openChartAttachmentExternally(id: string, withApp?: string
 
 export async function duplicateChartAttachment(id: string): Promise<ChartAttachmentRowDto> {
     return practiceSystem.invoke<ChartAttachmentRowDto>("duplicate_chart_attachment", { id });
+}
+
+/** GOZ billing data of a treatment line (physician). Server validates factor rules. */
+export async function setTreatmentBilling(data: {
+    treatment_id: string;
+    fee_schedule: "goz" | "goae" | "material" | "lab" | "other";
+    goz_nr?: string | null;
+    points?: number | null;
+    factor?: number | null;
+    factor_reason?: string | null;
+    quantity?: number | null;
+    analog_of?: string | null;
+    agreement_ref?: string | null;
+}): Promise<Treatment> {
+    return practiceSystem.invoke<Treatment>("set_treatment_billing", { data });
 }

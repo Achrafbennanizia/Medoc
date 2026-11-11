@@ -22,12 +22,17 @@ export async function login(
     });
     useAuthStore.getState().setSession(session);
     try {
-        const { workTimeGetPreference, workTimeReconcileOnLogin, workTimeStart } =
+        const { workTimeGetActiveSession, workTimeGetPreference, workTimeReconcileOnLogin, workTimeResume, workTimeStart } =
             await import("@/systems/practice-host/controllers/work-time.controller");
         await workTimeReconcileOnLogin();
-        const pref = await workTimeGetPreference();
-        if (pref.autoRecordOnLogin) {
-            await workTimeStart(true);
+        const active = await workTimeGetActiveSession();
+        if (active?.session.staffId === session.user_id && active.session.status === "PAUSED") {
+            await workTimeResume();
+        } else if (!active) {
+            const pref = await workTimeGetPreference();
+            if (pref.autoRecordOnLogin) {
+                await workTimeStart(true);
+            }
         }
     } catch {
         /* auto-record optional */
@@ -37,11 +42,15 @@ export async function login(
 
 export async function logout(): Promise<void> {
     try {
-        const { workTimeGetPreference, workTimeEnd } =
+        const { workTimeGetActiveSession, workTimeGetPreference, workTimePause } =
             await import("@/systems/practice-host/controllers/work-time.controller");
         const pref = await workTimeGetPreference();
         if (pref.autoRecordOnLogout) {
-            await workTimeEnd();
+            const active = await workTimeGetActiveSession();
+            const mine = active?.session.staffId === useAuthStore.getState().session?.user_id;
+            if (mine && active?.session.status === "RUNNING") {
+                await workTimePause();
+            }
         }
     } catch {
         /* no open session */

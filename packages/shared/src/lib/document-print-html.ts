@@ -2,6 +2,7 @@ import { translateLocale, translateLocaleParams, translatePluralUnit, useLocale,
 import type { Certificate } from "@/systems/practice-host/controllers/certificate.controller";
 import type { Prescription } from "@/systems/practice-host/controllers/prescription.controller";
 import { escapeHtml, formatDate, formatCurrency } from "@/lib/utils";
+import { csvCell } from "@/lib/export-delimited";
 import type {
     Patient,
     Treatment,
@@ -19,6 +20,7 @@ import {
     paymentStatusDisplay,
     paymentMethodLabel,
 } from "@/lib/payment-booking";
+import type { ClinicalDocumentSource } from "@/systems/practice-host/controllers/document.controller";
 import {
     buildCertificatePdfLayout,
     buildReceiptPdfLayout,
@@ -40,9 +42,12 @@ function htmlLangDir(): { lang: string; dir: string } {
 const PRACTICE_LOGO_LS_KEY = "medoc-practice-logo-v1";
 
 /** Sync logo cache for HTML print (Settings also writes this when saving). */
-export function cachePracticeLogoForPrint(mime: string, dataBase64: string): void {
+export function cachePracticeLogoForPrint(mime: string, dataBase64: string, showOnDocuments = true): void {
     try {
-        localStorage.setItem(PRACTICE_LOGO_LS_KEY, JSON.stringify({ mime, data: dataBase64 }));
+        localStorage.setItem(
+            PRACTICE_LOGO_LS_KEY,
+            JSON.stringify({ mime, data: dataBase64, showOnDocuments }),
+        );
     } catch {
         /* ignore */
     }
@@ -52,7 +57,8 @@ function practiceLogoDataUrl(): string | null {
     try {
         const raw = localStorage.getItem(PRACTICE_LOGO_LS_KEY);
         if (!raw) return null;
-        const j = JSON.parse(raw) as { mime?: string; data?: string };
+        const j = JSON.parse(raw) as { mime?: string; data?: string; showOnDocuments?: boolean };
+        if (j.showOnDocuments === false) return null;
         if (!j.mime || !j.data) return null;
         return `data:${j.mime};base64,${j.data}`;
     } catch {
@@ -84,15 +90,8 @@ function prescriptionStatusLabel(status: string): string {
     return s || "—";
 }
 
-function csvCell(raw: string): string {
-    if (raw.includes(";") || raw.includes("\r") || raw.includes("\n") || raw.includes('"')) {
-        return `"${raw.replace(/"/g, '""')}"`;
-    }
-    return raw;
-}
-
 function csvRow(cells: string[]): string {
-    return cells.map(csvCell).join(";");
+    return cells.map((c) => csvCell(c, ";")).join(";");
 }
 
 const CLINICAL_HEADER_FIELDS: PracticeFieldKey[] = [
@@ -135,13 +134,16 @@ function clinicianSignatureBlock(): string[] {
     if (!bh) return [];
     const lines = ["", "____________________________", bh];
     if (professionalTitle) lines.push(professionalTitle);
-    if (zanr || bsnr) lines.push(`ZANR: ${zanr || "—"} · BSNR: ${bsnr || "—"}`);
+    if (zanr) lines.push(`ZANR: ${zanr}`);
+    if (bsnr) lines.push(`BSNR: ${bsnr}`);
     lines.push(docT("document.print.stamp"));
     return lines;
 }
 
 /** Data package for clinical document export (PDF/CSV/JSON/XML). */
 export type ClinicalDocumentExportBundle = {
+    /** Record the official PDF is issued for (server allocates number, stores hash). */
+    source: ClinicalDocumentSource;
     /** Lines for PDF renderer (`preview_document_pdf`). */
     pdfBodyLines: string[];
     /** Structured layout (Rust); preferred over `pdfBodyLines`. */
@@ -285,7 +287,14 @@ export function bundleCertificateExport(a: Certificate, patient: Patient | null)
         + `    <issued>${escapeHtml(formatDate(a.issued_at))}</issued>\n`
         + `    <body_text>${escapeHtml(a.body_text)}</body_text>\n`
         + `  </certificate>\n</certificateExport>\n`;
-    return { pdfBodyLines, pdfLayout, csvText, jsonText, xmlText };
+    return {
+        source: { kind: "certificate", sourceId: a.id, copyVariant: "patient" },
+        pdfBodyLines,
+        pdfLayout,
+        csvText,
+        jsonText,
+        xmlText,
+    };
 }
 
 function prescriptionPdfLinesSingle(r: Prescription, patient: Patient | null): string[] {
@@ -314,8 +323,6 @@ function prescriptionPdfLinesSingle(r: Prescription, patient: Patient | null): s
         docTp("document.print.form", { form: (r.dosage_form ?? "").trim() || "—" }),
         `${docT("document.print.dosage")}: ${r.dosage}`,
         docTp("document.print.duration_of_use", { duration: r.duration }),
-        docTp("document.print.pack_size", { size: (r.pack_size ?? "").trim() || "—" }),
-        r.quantity != null ? docTp("document.print.quantity", { qty: r.quantity }) : "",
         docTp("document.print.pzn", { pzn: (r.pzn ?? "").trim() || "—" }),
         autIdem ? docT("document.print.aut_idem") : docT("document.print.substitution_allowed"),
         "",
@@ -368,7 +375,7 @@ export function bundlePrescriptionExport(r: Prescription, patient: Patient | nul
         + `    <dosage>${escapeHtml(r.dosage)}</dosage>\n`
         + `    <duration>${escapeHtml(r.duration)}</duration>\n`
         + `  </prescription>\n</prescriptionExport>\n`;
-    return { pdfBodyLines, pdfLayout, csvText, jsonText, xmlText };
+    return { source: { kind: "prescription", sourceId: r.id }, pdfBodyLines, pdfLayout, csvText, jsonText, xmlText };
 }
 
 function prescriptionPdfLinesCombo(items: Prescription[], patient: Patient | null): string[] {
@@ -453,7 +460,14 @@ export function bundlePrescriptionsComboExport(items: Prescription[], patient: P
         `<?xml version="1.0" encoding="UTF-8"?>\n<prescriptionComboExport xmlns="urn:medoc:export:clinical-doc:1" count="${items.length}">\n`
         + `${items.map((r, i) => `  <item index="${i + 1}"><med>${escapeHtml(r.medication)}</med></item>`).join("\n")}\n`
         + `</prescriptionComboExport>\n`;
-    return { pdfBodyLines, pdfLayout, csvText, jsonText, xmlText };
+    return {
+        source: { kind: "prescription", sourceId: items.map((r) => r.id).sort().join(",") },
+        pdfBodyLines,
+        pdfLayout,
+        csvText,
+        jsonText,
+        xmlText,
+    };
 }
 
 function receiptPdfLines(
@@ -461,7 +475,6 @@ function receiptPdfLines(
     patient: Patient,
     treatments: Treatment[],
     examinations: Examination[],
-    receiptNumber: string,
     catalog: TreatmentCatalogItem[] = [],
     services: ServiceItem[] = [],
 ): string[] {
@@ -469,25 +482,6 @@ function receiptPdfLines(
     const practice = getInvoicePracticeFromStorage();
     const ust =
         (practice.vat_exemption_notice ?? "").trim() || docT("document.print.vat_exempt_default");
-    const bankLines: string[] = [];
-    const iban = (practice.bank_iban ?? "").trim();
-    if (iban) {
-        const bic = (practice.bank_bic ?? "").trim();
-        const bank = (practice.bank_name ?? "").trim();
-        bankLines.push(
-            docTp("document.print.bank_details", {
-                iban,
-                bicPart: bic ? ` BIC ${bic}` : "",
-                bankPart: bank ? ` · ${bank}` : "",
-            }),
-        );
-        const inh = (practice.account_holder ?? "").trim();
-        if (inh) bankLines.push(docTp("document.print.account_holder", { name: inh }));
-    }
-    const received =
-        z.payment_method === "CASH" || z.payment_method === "CARD"
-            ? docT("document.print.amount_received")
-            : "";
     const paymentDate = formatDate(z.created_at);
     const prices = receiptPriceBreakdown(z, treatments, examinations, catalog, services);
     const moneyOrDash = (n: number | null) =>
@@ -495,8 +489,7 @@ function receiptPdfLines(
     return [
         ...practiceHeaderLinesForExport(),
         "",
-        docT("document.print.receipt_heading"),
-        docTp("document.print.receipt_no", { number: receiptNumber }),
+        docT("document.print.receipt_title"),
         "",
         `${docT("document.print.patient")}: ${patient.name}`,
         docTp("document.print.dob_line", { dob: formatDate(patient.date_of_birth) }),
@@ -505,7 +498,6 @@ function receiptPdfLines(
             : "",
         "",
         `${docT("document.print.payment_date")}: ${paymentDate}`,
-        `${docT("document.print.standard_price")}: ${moneyOrDash(prices.standardPrice)}`,
         `${docT("document.print.price")}: ${moneyOrDash(prices.billedPrice)}`,
         `${docT("document.print.amount_paid")}: ${formatCurrency(prices.paidPrice)}`,
         `${docT("document.print.payment_method")}: ${paymentMethodLabel(z.payment_method, docT)}`,
@@ -516,40 +508,23 @@ function receiptPdfLines(
         `${docT("document.print.description")}: ${(z.description ?? "").trim() || "—"}`,
         "",
         ust,
-        received,
-        ...bankLines,
+        docT("document.print.amount_received"),
         "",
         ...clinicianSignatureBlock(),
     ].filter((line) => line !== "");
 }
 
+/** Receipt bundle. The receipt number is allocated by the server when issued. */
 export function bundleReceiptExport(
     z: Payment,
     patient: Patient,
     treatments: Treatment[],
     examinations: Examination[],
-    receiptNumber: string,
     catalog: TreatmentCatalogItem[] = [],
     services: ServiceItem[] = [],
 ): ClinicalDocumentExportBundle {
-    const pdfLayout = buildReceiptPdfLayout(
-        z,
-        patient,
-        treatments,
-        examinations,
-        receiptNumber,
-        catalog,
-        services,
-    );
-    const pdfBodyLines = receiptPdfLines(
-        z,
-        patient,
-        treatments,
-        examinations,
-        receiptNumber,
-        catalog,
-        services,
-    );
+    const pdfLayout = buildReceiptPdfLayout(z, patient, treatments, examinations, catalog, services);
+    const pdfBodyLines = receiptPdfLines(z, patient, treatments, examinations, catalog, services);
     const referenceLine = formatPaymentReferenceLine(z, treatments, examinations, docT, docTp);
     const prices = receiptPriceBreakdown(z, treatments, examinations, catalog, services);
     const csvText =
@@ -601,9 +576,13 @@ export function bundleReceiptExport(
         + `  <amountPaid>${escapeHtml(z.amount.toFixed(2))}</amountPaid>\n`
         + `  <assignment>${escapeHtml(referenceLine)}</assignment>\n`
         + `</receiptExport>\n`;
-    return { pdfBodyLines, pdfLayout, csvText, jsonText, xmlText };
+    return { source: { kind: "receipt", sourceId: z.id }, pdfBodyLines, pdfLayout, csvText, jsonText, xmlText };
 }
 
+/**
+ * @deprecated Prints a different document than the issued PDF (no number,
+ * no practice header). Print the PDF from `issue_clinical_document` instead.
+ */
 export function buildCertificatePrintHtml(a: Certificate, patient: Patient | null): string {
     const title = escapeHtml(`Certificate ${a.id}`);
     const kind = escapeHtml(a.kind);
@@ -640,6 +619,10 @@ function prescriptionSectionBlock(r: Prescription): string {
 }
 
 /** Single prescription — table layout (Chart / compact view). */
+/**
+ * @deprecated Prints a different document than the issued PDF (no number,
+ * no practice header). Print the PDF from `issue_clinical_document` instead.
+ */
 export function buildPrescriptionPrintHtml(r: Prescription, patient: Patient | null): string {
     const med = escapeHtml(r.medication);
     const wirk = escapeHtml((r.active_ingredient ?? "").trim() || "—");
@@ -681,6 +664,10 @@ export function buildPrescriptionPrintHtml(r: Prescription, patient: Patient | n
 }
 
 /** Multiple prescriptions on one printout (prescription overview). */
+/**
+ * @deprecated Prints a different document than the issued PDF (no number,
+ * no practice header). Print the PDF from `issue_clinical_document` instead.
+ */
 export function buildPrescriptionsComboPrintHtml(items: Prescription[], patient: Patient | null): string {
     if (items.length === 0) {
         return `<!doctype html><html lang="${htmlLangDir().lang}" dir="${htmlLangDir().dir}"><head><meta charset="utf-8"/><title>${escapeHtml(docT("document.print.prescription_title"))}</title></head><body>
@@ -712,6 +699,10 @@ export function buildPrescriptionsComboPrintHtml(items: Prescription[], patient:
             </body></html>`;
 }
 
+/**
+ * @deprecated Prints a different document than the issued PDF (no number,
+ * no practice header). Print the PDF from `issue_clinical_document` instead.
+ */
 export function buildReceiptPrintHtml(
     z: Payment,
     patient: Patient,

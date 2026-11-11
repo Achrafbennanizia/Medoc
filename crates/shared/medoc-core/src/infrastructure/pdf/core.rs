@@ -24,30 +24,73 @@ pub const PAGE_WIDTH: i32 = 595;
 /// A4 height in PDF points.
 pub const PAGE_HEIGHT: i32 = 842;
 
-/// Left content margin — DIN 5008: 25 mm = 71 pt; we use 50 pt for more
-/// table width, while remaining compatible with window envelopes.
-pub const M_LEFT: i32 = 50;
-/// Right content margin — symmetric.
-pub const M_RIGHT: i32 = 545;
+/// 1 mm in PDF points.
+pub const MM: f64 = 72.0 / 25.4;
+
+/// Converts "mm from the top edge" (how DIN 5008 is specified) to a PDF y.
+pub const fn y_from_top_mm(mm_x10: i32) -> i32 {
+    // mm_x10 = millimetres × 10 to keep this a const fn without floats.
+    PAGE_HEIGHT - (mm_x10 * 2835 / 10_000)
+}
+
+/// Left content margin — DIN 5008: 25 mm.
+pub const M_LEFT: i32 = 71;
+/// Right content margin — DIN 5008: at least 20 mm → 595 − 57.
+pub const M_RIGHT: i32 = 538;
 /// Top content start (PDF Y-axis: 0 at bottom, 842 at top).
 pub const M_TOP: i32 = 810;
-/// Bottom margin (content ends here; below only page number and optional footer).
-pub const M_BOTTOM: i32 = 60;
+/// Bottom of the content area. Below it: DIN footer (practice/bank/tax lines)
+/// and the page number.
+pub const M_BOTTOM: i32 = 80;
 
 /// Content width = M_RIGHT − M_LEFT.
 pub const CONTENT_WIDTH: i32 = M_RIGHT - M_LEFT;
 
-/// Y of the return-address line in the window envelope (DIN 5008 A: 50 mm from top).
-pub const SENDER_HINT_Y: i32 = 720;
-/// Y of the first address-field line (DIN 5008 A: ~55 mm).
-pub const ADDRESS_WINDOW_Y: i32 = 700;
-/// Height of the address field (DIN 5008 A: 45 mm = ~128 pt).
+// DIN 5008 **Form B** (letterhead 45 mm high, address field 45–90 mm from top).
+/// Lowest baseline the letterhead may use (45 mm from top).
+pub const LETTERHEAD_MIN_Y: i32 = y_from_top_mm(450);
+/// Return-address line (Rücksendeangabe, zone 45–50 mm).
+pub const SENDER_HINT_Y: i32 = y_from_top_mm(485);
+/// First line of the recipient address (Anschriftzone starts at 62.7 mm).
+pub const ADDRESS_WINDOW_Y: i32 = y_from_top_mm(662);
+/// Bottom of the address field (90 mm).
+pub const ADDRESS_WINDOW_BOTTOM_Y: i32 = y_from_top_mm(900);
+/// Height of the address field (45 mm).
 pub const ADDRESS_WINDOW_HEIGHT: i32 = 128;
+/// Information block (Infoblock) starts 125 mm from the left edge, 50 mm from top.
+pub const INFO_BLOCK_X: i32 = 354;
+pub const INFO_BLOCK_TOP_Y: i32 = y_from_top_mm(500);
+/// First content line after the address field (subject line, ~98.4 mm).
+pub const CONTENT_START_Y: i32 = y_from_top_mm(984);
+/// Fold marks (105 mm, 210 mm) and hole mark (148.5 mm), Form B.
+pub const FOLD_MARK_1_Y: i32 = y_from_top_mm(1050);
+pub const FOLD_MARK_2_Y: i32 = y_from_top_mm(2100);
+pub const HOLE_MARK_Y: i32 = y_from_top_mm(1485);
 
 /// Y where the page-number footer is rendered.
 pub const PAGE_NUMBER_Y: i32 = 30;
+/// Y of the first DIN footer line (grows upward, max 3 lines).
+pub const FOOTER_FIRST_Y: i32 = 42;
 /// Y where the signature footer area begins.
 pub const SIGNATURE_FOOTER_Y: i32 = 90;
+
+/// Document language for all official PDFs. The base-14 fonts cannot render
+/// Arabic; until fonts are embedded, an Arabic UI still produces German
+/// documents (the legal language of a German practice).
+/// `de` | `en` | `fr` | `ar`, or `None` when the caller did not name one.
+pub fn known_pdf_locale(requested: &str) -> Option<&'static str> {
+    match requested.trim().trim_matches('"') {
+        "de" => Some("de"),
+        "en" => Some("en"),
+        "fr" => Some("fr"),
+        "ar" => Some("ar"),
+        _ => None,
+    }
+}
+
+pub fn pdf_locale(requested: &str) -> &'static str {
+    known_pdf_locale(requested).unwrap_or("de")
+}
 
 // ---------------------------------------------------------------------------
 // Encoding
@@ -171,44 +214,71 @@ fn pdf_escape_winansi_bytes(bytes: &[u8]) -> String {
     out
 }
 
-/// Encode a text literal for the PDF content stream.
+/// True when every character of `s` can be drawn with the WinAnsi fonts.
+pub fn is_winansi_renderable(s: &str) -> bool {
+    s.chars().all(|c| winansi_byte(c).is_some() || c.is_whitespace())
+}
+
+/// Latin (Helvetica) or a character the embedded Noto Naskh font can draw.
+pub fn is_pdf_renderable(s: &str) -> bool {
+    s.chars().all(|c| {
+        c.is_whitespace() || winansi_byte(c).is_some() || super::unicode_font::has_glyph(c)
+    })
+}
+
+/// Encode a text literal for a **content stream** (Helvetica / WinAnsi).
 ///
-/// **Rule:** If **every** character is WinAnsi-mappable, write a literal
-/// `(…)`. If **at least one** character is not, write the **complete**
-/// string as UTF-16BE hex `<FEFF…>` (otherwise unmappable characters
-/// are lost or become `?`).
-///
-/// Note: Helvetica Type-1 fonts only support WinAnsi glyphs.
-/// Pure Unicode hex strings render as empty boxes in most viewers —
-/// but that is better than silent data loss.
+/// A simple Type-1 font reads every byte as one WinAnsi glyph, so the old
+/// UTF-16 hex fallback (`<FEFF…>`) printed `þÿ` followed by garbage.
+/// Unmappable characters are now replaced by `?` and the caller is expected
+/// to validate input with [`is_winansi_renderable`] for official documents.
+/// Real non-Latin support needs embedded fonts (see `CHANGES.md`, phase 2).
 pub fn text_operand(s: &str) -> String {
     let mut bytes = Vec::with_capacity(s.len());
     for ch in s.chars() {
         match winansi_byte(ch) {
             Some(b) => bytes.push(b),
-            None => {
-                // At least one character not mappable → entire string as
-                // UTF-16BE-Hex schreiben.
-                let mut hex = String::from("<FEFF");
-                for unit in s.encode_utf16() {
-                    let _ = write!(hex, "{:04X}", unit);
-                }
-                hex.push('>');
-                return hex;
-            }
+            None if ch.is_whitespace() => bytes.push(b' '),
+            None => bytes.push(b'?'),
         }
     }
     format!("({})", pdf_escape_winansi_bytes(&bytes))
 }
 
-/// Rough text width of a line in PDF points — for right/center alignment.
-///
-/// Helvetica average: ~0.50–0.55 × fontsize per character. We use 0.52
-/// and round. Umlauts count like ASCII letters (WinAnsi byte = 1).
+/// Encode a string for the document **Info dictionary** / metadata, where
+/// PDF allows UTF-16BE with BOM (unlike content streams).
+pub fn info_string_operand(s: &str) -> String {
+    if s.chars().all(|c| winansi_byte(c).is_some()) {
+        return text_operand(s);
+    }
+    let mut hex = String::from("<FEFF");
+    for unit in s.encode_utf16() {
+        let _ = write!(hex, "{:04X}", unit);
+    }
+    hex.push('>');
+    hex
+}
+
+/// Text width in PDF points from the Helvetica AFM metrics (regular weight).
 pub fn approx_text_width(s: &str, font_size: i32) -> i32 {
-    let cw = (font_size as f32 * 0.52).round() as i32;
-    let n = s.chars().count() as i32;
-    n * cw
+    text_width(s, font_size, false)
+}
+
+/// Text width in PDF points from the Helvetica / Helvetica-Bold AFM metrics.
+pub fn text_width(s: &str, font_size: i32, bold: bool) -> i32 {
+    if super::unicode_font::needs_unicode(s) {
+        super::unicode_font::width_pt(s, font_size).ceil() as i32
+    } else {
+        super::metrics::text_width_pt(s, font_size, bold).ceil() as i32
+    }
+}
+
+/// Continuation header drawn automatically after every page break.
+#[derive(Debug, Clone)]
+pub struct ContinuationHeader {
+    pub practice_name: String,
+    pub doc_title: String,
+    pub locale: &'static str,
 }
 
 // ---------------------------------------------------------------------------
@@ -234,6 +304,18 @@ pub struct PageBuilder {
     pub cur: String,
     pub y: i32,
     page_top: i32,
+    /// DIN 5008 footer lines (practice / tax / bank), repeated on every page.
+    pub footer_lines: Vec<String>,
+    /// Drawn after each automatic or manual page break.
+    pub continuation: Option<ContinuationHeader>,
+    /// Diagonal watermark on every page (e.g. "ENTWURF", "KOPIE").
+    pub watermark: Option<String>,
+    /// Draw fold and hole marks (letters with an address window).
+    pub letter_marks: bool,
+    /// Document language for fixed labels (see [`pdf_locale`]).
+    pub locale: &'static str,
+    /// Mirror the page so an Arabic document reads from the right.
+    pub rtl: bool,
 }
 
 impl Default for PageBuilder {
@@ -249,7 +331,33 @@ impl PageBuilder {
             cur: String::new(),
             y: M_TOP,
             page_top: M_TOP,
+            footer_lines: Vec::new(),
+            continuation: None,
+            watermark: None,
+            letter_marks: false,
+            locale: "de",
+            rtl: false,
         }
+    }
+
+    /// Arabic documents are laid out as the mirror of the Latin page.
+    fn reading_rtl(&self) -> bool {
+        self.rtl || self.locale == "ar"
+    }
+
+    /// Left edge after mirroring a run that starts at `x` in the Latin layout.
+    fn mirror_left(&self, x: i32, width: i32) -> i32 {
+        if !self.reading_rtl() {
+            return x;
+        }
+        M_LEFT + M_RIGHT - x - width
+    }
+
+    fn mirror_x(&self, x: i32) -> i32 {
+        if !self.reading_rtl() {
+            return x;
+        }
+        M_LEFT + M_RIGHT - x
     }
 
     /// Use a different top-of-page start (e.g. after letterhead).
@@ -259,13 +367,31 @@ impl PageBuilder {
         self
     }
 
-    /// Force a page break — the next write starts
-    /// at `y = self.page_top`.
+    /// Register the header that every continuation page starts with.
+    pub fn set_continuation(&mut self, practice_name: &str, doc_title: &str, locale: &str) {
+        self.continuation = Some(ContinuationHeader {
+            practice_name: practice_name.to_string(),
+            doc_title: doc_title.to_string(),
+            locale: pdf_locale(locale),
+        });
+    }
+
+    /// Force a page break — the next write starts at `y = self.page_top`,
+    /// below the continuation header when one is registered.
     pub fn break_page(&mut self) {
         if !self.cur.is_empty() {
             self.pages.push(std::mem::take(&mut self.cur));
         }
         self.y = self.page_top;
+        if let Some(c) = self.continuation.clone() {
+            let cont = super::i18n::t(c.locale, super::i18n::Phrase::Continued);
+            self.text(M_LEFT, 9, true, &c.practice_name);
+            self.text_right(M_RIGHT, 9, false, &format!("{} ({cont})", c.doc_title));
+            self.y -= 4;
+            let y = self.y;
+            self.hline_at(M_LEFT, y, M_RIGHT);
+            self.y -= 16;
+        }
     }
 
     /// Ensure at least `min_y_remaining` points remain — otherwise
@@ -284,6 +410,12 @@ impl PageBuilder {
     /// Write text. `bold = true` uses /F2 (Helvetica-Bold), otherwise /F1.
     /// **Cursor is NOT moved** — caller is responsible for `advance(line_height)`.
     pub fn text(&mut self, x: i32, size: i32, bold: bool, s: &str) {
+        let x = self.mirror_left(x, text_width(s, size, bold));
+        if super::unicode_font::needs_unicode(s) {
+            self.cur
+                .push_str(&super::unicode_font::positioned_ops(x, self.y, size, s));
+            return;
+        }
         let font = if bold { "F2" } else { "F1" };
         let op = text_operand(s);
         let _ = writeln!(
@@ -299,13 +431,32 @@ impl PageBuilder {
 
     /// Text right-aligned to right margin `x_right`.
     pub fn text_right(&mut self, x_right: i32, size: i32, bold: bool, s: &str) {
-        let w = approx_text_width(s, size);
+        let w = text_width(s, size, bold);
         let x = (x_right - w).max(M_LEFT);
         self.text(x, size, bold, s);
     }
 
+    /// Writes `text` wrapped to `max_pt` starting at `x`; returns lines written.
+    /// Breaks pages as needed (continuation header included).
+    pub fn wrapped(&mut self, x: i32, size: i32, bold: bool, text: &str, max_pt: i32) -> usize {
+        let lines = super::metrics::wrap_to_width(text, size, bold, f64::from(max_pt));
+        for line in &lines {
+            self.ensure_space(size + 6);
+            if !line.is_empty() {
+                self.text(x, size, bold, line);
+            }
+            self.advance(size + 3);
+        }
+        lines.len()
+    }
+
     /// Draw shared Image XObject `/Im{index}` with bottom-left at `(x, y)`.
     pub fn draw_image(&mut self, index: usize, x: f64, y: f64, w: f64, h: f64) {
+        let x = if self.reading_rtl() {
+            f64::from(M_LEFT + M_RIGHT) - x - w
+        } else {
+            x
+        };
         let _ = writeln!(
             self.cur,
             "q {w:.2} 0 0 {h:.2} {x:.2} {y:.2} cm /Im{index} Do Q"
@@ -314,20 +465,23 @@ impl PageBuilder {
 
     /// Text centered between `M_LEFT` and `M_RIGHT`.
     pub fn text_center(&mut self, size: i32, bold: bool, s: &str) {
-        let w = approx_text_width(s, size);
+        let w = text_width(s, size, bold);
         let x = M_LEFT + (CONTENT_WIDTH - w) / 2;
         self.text(x.max(M_LEFT), size, bold, s);
     }
 
-    /// Multi-line paragraph with soft wrap (`wrap_soft`). Automatically uses
-    /// `advance(size + 4)` per line and handles page breaks itself.
+    /// Multi-line paragraph wrapped by measured width (the `max_chars`
+    /// argument is kept for call-site compatibility and only caps the width).
+    /// Handles page breaks itself.
     pub fn paragraph(&mut self, text: &str, size: i32, max_chars: usize, indent: i32) {
+        let by_chars = (max_chars as f64 * f64::from(size) * 0.556) as i32;
+        let max_pt = (CONTENT_WIDTH - indent).min(by_chars.max(40));
         for raw_line in text.split('\n') {
             if raw_line.trim().is_empty() {
                 self.advance(size / 2);
                 continue;
             }
-            for chunk in wrap_soft(raw_line, max_chars) {
+            for chunk in super::metrics::wrap_to_width(raw_line, size, false, f64::from(max_pt)) {
                 self.ensure_space(size + 6);
                 self.text(M_LEFT + indent, size, false, &chunk);
                 self.advance(size + 4);
@@ -337,17 +491,22 @@ impl PageBuilder {
 
     /// Horizontal line at the current `y` position.
     pub fn hline(&mut self, x1: i32, x2: i32) {
+        let x1 = self.mirror_x(x1);
+        let x2 = self.mirror_x(x2);
         let _ = writeln!(self.cur, "{} {} m {} {} l S", x1, self.y, x2, self.y);
     }
 
     /// Horizontal line at an arbitrary `y` position (page element, e.g.
     /// letterhead divider).
     pub fn hline_at(&mut self, x1: i32, y: i32, x2: i32) {
+        let x1 = self.mirror_x(x1);
+        let x2 = self.mirror_x(x2);
         let _ = writeln!(self.cur, "{} {} m {} {} l S", x1, y, x2, y);
     }
 
     /// Filled rectangle (grayscale). `y_bottom` is the bottom edge.
     pub fn fill_rect(&mut self, x: i32, y_bottom: i32, w: i32, h: i32, gray: f64) {
+        let x = self.mirror_left(x, w);
         let _ = writeln!(
             self.cur,
             "q {g:.3} g {x} {y} {w} {h} re f Q",
@@ -361,6 +520,7 @@ impl PageBuilder {
 
     /// Outlined rectangle.
     pub fn stroke_rect(&mut self, x: i32, y_bottom: i32, w: i32, h: i32) {
+        let x = self.mirror_left(x, w);
         let _ = writeln!(
             self.cur,
             "{x} {y} {w} {h} re S",
@@ -408,13 +568,81 @@ impl PageBuilder {
     /// does not crash.
     pub fn finish(mut self) -> Vec<String> {
         if !self.cur.is_empty() {
-            self.pages.push(self.cur);
+            let last = std::mem::take(&mut self.cur);
+            self.pages.push(last);
         }
         if self.pages.is_empty() {
             self.pages.push(String::new());
         }
+        let footer = footer_stream(&self.footer_lines);
+        let marks = if self.letter_marks { letter_marks_stream() } else { String::new() };
+        let wm = self.watermark.as_deref().map(watermark_stream).unwrap_or_default();
         self.pages
+            .into_iter()
+            .map(|body| format!("{wm}{body}{footer}{marks}"))
+            .collect()
     }
+}
+
+/// DIN 5008 footer: up to three centred 7 pt lines above the page number.
+fn footer_stream(lines: &[String]) -> String {
+    let mut s = String::new();
+    let mut wrapped: Vec<String> = Vec::new();
+    for l in lines.iter().filter(|l| !l.trim().is_empty()) {
+        wrapped.extend(super::metrics::wrap_to_width(l, 7, false, f64::from(CONTENT_WIDTH)));
+    }
+    if wrapped.is_empty() {
+        return s;
+    }
+    let _ = writeln!(s, "q 0.6 G 0.5 w {M_LEFT} {} m {M_RIGHT} {} l S Q", M_BOTTOM - 8, M_BOTTOM - 8);
+    // Draw bottom-up so the first line ends highest.
+    for (i, line) in wrapped.iter().rev().take(3).enumerate() {
+        let w = text_width(line, 7, false);
+        let x = (M_LEFT + (CONTENT_WIDTH - w) / 2).max(M_LEFT);
+        let y = FOOTER_FIRST_Y + i as i32 * 9;
+        if super::unicode_font::needs_unicode(line) {
+            s.push_str(&super::unicode_font::positioned_ops(x, y, 7, line));
+        } else {
+            let _ = writeln!(s, "BT /F1 7 Tf {x} {y} Td {} Tj ET", text_operand(line));
+        }
+    }
+    s
+}
+
+/// Fold marks at 105 / 210 mm and the hole mark at 148.5 mm (DIN 5008 Form B).
+fn letter_marks_stream() -> String {
+    let mut s = String::from("q 0.4 w\n");
+    for y in [FOLD_MARK_1_Y, FOLD_MARK_2_Y] {
+        let _ = writeln!(s, "14 {y} m 28 {y} l S");
+    }
+    let _ = writeln!(s, "14 {y} m 34 {y} l S", y = HOLE_MARK_Y);
+    s.push_str("Q\n");
+    s
+}
+
+/// Light diagonal watermark drawn **under** the page content.
+fn watermark_stream(text: &str) -> String {
+    let size = 64;
+    let w = f64::from(text_width(text, size, true));
+    // Rotate 45° around the page centre.
+    let (c, sn) = (std::f64::consts::FRAC_1_SQRT_2, std::f64::consts::FRAC_1_SQRT_2);
+    let cx = f64::from(PAGE_WIDTH) / 2.0;
+    let cy = f64::from(PAGE_HEIGHT) / 2.0;
+    let x0 = cx - (w / 2.0) * c;
+    let y0 = cy - (w / 2.0) * sn;
+    if super::unicode_font::needs_unicode(text) {
+        // One shaped run, then the same rotation as the Latin watermark.
+        let ops = super::unicode_font::positioned_ops(0, 0, size, text);
+        return format!(
+            "q 0.88 g {c:.4} {sn:.4} {:.4} {c:.4} {x0:.2} {y0:.2} cm\n{ops}Q\n",
+            -sn,
+        );
+    }
+    format!(
+        "q 0.88 g BT /F2 {size} Tf {c:.4} {sn:.4} {:.4} {c:.4} {x0:.2} {y0:.2} Tm {} Tj ET Q\n",
+        -sn,
+        text_operand(text)
+    )
 }
 
 /// Helvetica-ish ascent above the baseline (points) for `font_size`.
@@ -445,25 +673,80 @@ pub fn table_row_height(line_count: usize, line_step: i32, font_size: i32) -> i3
 ///
 /// Typically called after `let pages = page_builder.finish();`.
 pub fn emit_multipage_pdf(page_streams: &[String], pdf_title: &str) -> Result<Vec<u8>, AppError> {
-    emit_multipage_pdf_with_images(page_streams, pdf_title, &[], "en")
+    emit_multipage_pdf_with_images(page_streams, pdf_title, &[], "de")
+}
+
+/// Document-level metadata written to the Catalog and Info dictionary.
+#[derive(Debug, Clone, Default)]
+pub struct PdfDocMeta {
+    pub title: String,
+    /// Stable document number or registry id (stored in `/Subject`).
+    pub subject: Option<String>,
+    /// Issuing practice / clinician (`/Author`).
+    pub author: Option<String>,
+    /// Document language (`de`, `en`, `fr`).
+    pub locale: String,
 }
 
 /// Like [`emit_multipage_pdf`], with optional Image XObjects (`/Im0` …) and
-/// localized page-number footer (`locale`: `en`|`de`|`fr`|`ar`).
+/// localized page-number footer.
 pub fn emit_multipage_pdf_with_images(
     page_streams: &[String],
     pdf_title: &str,
     images: &[super::logo::PdfLogo],
     locale: &str,
 ) -> Result<Vec<u8>, AppError> {
+    emit_pdf_document(
+        page_streams,
+        &PdfDocMeta {
+            title: pdf_title.to_string(),
+            locale: locale.to_string(),
+            ..Default::default()
+        },
+        images,
+    )
+}
+
+/// PDF date string `D:YYYYMMDDHHmmSS+HH'mm'` in local time.
+pub fn pdf_date_now() -> String {
+    let now = chrono::Local::now();
+    let off = now.offset().local_minus_utc();
+    let sign = if off < 0 { '-' } else { '+' };
+    let off = off.abs();
+    format!(
+        "D:{}{}{:02}'{:02}'",
+        now.format("%Y%m%d%H%M%S"),
+        sign,
+        off / 3600,
+        (off % 3600) / 60
+    )
+}
+
+/// Write the PDF file (PDF 1.4, base-14 fonts). Adds `/Lang`,
+/// `/DisplayDocTitle`, creation/modification dates and author/subject.
+pub fn emit_pdf_document(
+    page_streams: &[String],
+    meta: &PdfDocMeta,
+    images: &[super::logo::PdfLogo],
+) -> Result<Vec<u8>, AppError> {
+    let locale = pdf_locale(&meta.locale);
+    let pdf_title = meta.title.as_str();
     let n = page_streams.len().max(1);
     let image_count = images.len();
     // Object layout: 1=Catalog, 2=Pages, then page/content pairs, then fonts,
-    // then images, then Info.
+    // then images, then Info. Arabic text adds four objects for Noto Naskh.
+    let unicode = page_streams.iter().any(|s| s.contains("/F3 "))
+        || super::unicode_font::needs_unicode(&page_of_label(locale, 1, n));
     let font_regular_id = 3 + n * 2;
     let font_bold_id = font_regular_id + 1;
-    let first_image_id = font_bold_id + 1;
+    let unicode_font_id = font_bold_id + 1;
+    let first_image_id = font_bold_id + 1 + if unicode { 4 } else { 0 };
     let info_id = first_image_id + image_count;
+    let unicode_font_res = if unicode {
+        format!(" /F3 {unicode_font_id} 0 R")
+    } else {
+        String::new()
+    };
 
     let mut out: Vec<u8> = Vec::new();
     let mut offsets: Vec<usize> = Vec::new();
@@ -473,7 +756,19 @@ pub fn emit_multipage_pdf_with_images(
 
     // 1 0 obj — Catalog
     offsets.push(out.len());
-    out.extend_from_slice(b"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
+    out.extend_from_slice(
+        format!(
+            "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Lang {} \
+             /ViewerPreferences << /DisplayDocTitle true >> >>\nendobj\n",
+            text_operand(match locale {
+                "de" => "de-DE",
+                "fr" => "fr-FR",
+                "ar" => "ar",
+                _ => "en",
+            })
+        )
+        .as_bytes(),
+    );
 
     // 2 0 obj — Pages tree
     offsets.push(out.len());
@@ -513,13 +808,14 @@ pub fn emit_multipage_pdf_with_images(
             format!(
                 "{p} 0 obj\n<< /Type /Page /Parent 2 0 R \
                  /MediaBox [0 0 {w} {h}] \
-                 /Resources << /Font << /F1 {f} 0 R /F2 {fb} 0 R >>{xo} >> \
+                 /Resources << /Font << /F1 {f} 0 R /F2 {fb} 0 R{f3} >>{xo} >> \
                  /Contents {c} 0 R >>\nendobj\n",
                 p = page_id,
                 w = PAGE_WIDTH,
                 h = PAGE_HEIGHT,
                 f = font_regular_id,
                 fb = font_bold_id,
+                f3 = unicode_font_res,
                 xo = xobject_dict,
                 c = content_id,
             )
@@ -556,6 +852,9 @@ pub fn emit_multipage_pdf_with_images(
         )
         .as_bytes(),
     );
+    if unicode {
+        super::unicode_font::append_font_objects(&mut out, &mut offsets, unicode_font_id);
+    }
 
     // Images
     for (i, img) in images.iter().enumerate() {
@@ -579,14 +878,21 @@ pub fn emit_multipage_pdf_with_images(
 
     // Info-Dictionary
     offsets.push(out.len());
-    out.extend_from_slice(
-        format!(
-            "{} 0 obj\n<< /Title {} /Producer (MeDoc) /Creator (MeDoc) >>\nendobj\n",
-            info_id,
-            text_operand(pdf_title),
-        )
-        .as_bytes(),
+    let date = pdf_date_now();
+    let mut info = format!(
+        "<< /Title {} /Producer (MeDoc) /Creator (MeDoc) /CreationDate {} /ModDate {}",
+        info_string_operand(pdf_title),
+        text_operand(&date),
+        text_operand(&date),
     );
+    if let Some(s) = meta.subject.as_deref().filter(|s| !s.trim().is_empty()) {
+        info.push_str(&format!(" /Subject {}", info_string_operand(s)));
+    }
+    if let Some(a) = meta.author.as_deref().filter(|s| !s.trim().is_empty()) {
+        info.push_str(&format!(" /Author {}", info_string_operand(a)));
+    }
+    info.push_str(" >>");
+    out.extend_from_slice(format!("{info_id} 0 obj\n{info}\nendobj\n").as_bytes());
 
     // xref
     let xref_pos = out.len();
@@ -611,12 +917,7 @@ pub fn emit_multipage_pdf_with_images(
 }
 
 fn page_of_label(locale: &str, page: usize, total: usize) -> String {
-    match locale {
-        "de" => format!("Seite {page} von {total}"),
-        "fr" => format!("Page {page} sur {total}"),
-        "ar" => format!("صفحة {page} من {total}"),
-        _ => format!("Page {page} of {total}"),
-    }
+    super::i18n::page_label(locale, page, total)
 }
 
 fn append_page_number_footer(
@@ -625,10 +926,14 @@ fn append_page_number_footer(
     page_total: usize,
     locale: &str,
 ) {
-    let label = page_of_label(locale, page_index + 1, page_total);
-    let op = text_operand(&label);
+    let label = page_of_label(pdf_locale(locale), page_index + 1, page_total);
     // Centered in the footer.
-    let x = (PAGE_WIDTH - approx_text_width(&label, 9)) / 2;
+    let x = (PAGE_WIDTH - text_width(&label, 9, false)) / 2;
+    if super::unicode_font::needs_unicode(&label) {
+        stream.push_str(&super::unicode_font::positioned_ops(x, PAGE_NUMBER_Y, 9, &label));
+        return;
+    }
+    let op = text_operand(&label);
     let _ = writeln!(
         stream,
         "BT /F1 9 Tf {x} {y} Td {op} Tj ET",
@@ -904,6 +1209,33 @@ pub fn format_date_dmy(iso: &str) -> String {
     d.to_string()
 }
 
+static DOCUMENT_CURRENCY: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
+
+const DOCUMENT_CURRENCIES: &[&str] = &[
+    "EUR", "USD", "GBP", "CHF", "MAD", "CAD", "AUD", "SEK", "NOK", "DKK", "PLN", "CZK", "TND", "AED", "SAR",
+];
+
+/// Practice currency for money on screen and on documents. Unknown codes stay EUR.
+pub fn set_document_currency(code: &str) {
+    let next = code.trim().to_ascii_uppercase();
+    let next = if DOCUMENT_CURRENCIES.contains(&next.as_str()) {
+        next
+    } else {
+        "EUR".to_string()
+    };
+    if let Ok(mut guard) = DOCUMENT_CURRENCY.lock() {
+        *guard = next;
+    }
+}
+
+pub fn document_currency() -> String {
+    DOCUMENT_CURRENCY
+        .lock()
+        .ok()
+        .map(|g| if g.is_empty() { "EUR".to_string() } else { g.clone() })
+        .unwrap_or_else(|| "EUR".to_string())
+}
+
 /// Cent value → "1.234,56 EUR" (DIN-style, ASCII — Helvetica has no reliable € glyph).
 pub fn format_eur(cents: i64) -> String {
     let neg = cents < 0;
@@ -919,7 +1251,7 @@ pub fn format_eur(cents: i64) -> String {
         grouped.push(ch);
     }
     let euros_de: String = grouped.chars().rev().collect();
-    format!("{}{},{:02} EUR", if neg { "-" } else { "" }, euros_de, frac)
+    format!("{}{},{:02} {}", if neg { "-" } else { "" }, euros_de, frac, document_currency())
 }
 
 /// Make money / label text safe for Helvetica WinAnsi (no zero-width €, no NBSP).
@@ -1003,10 +1335,91 @@ mod tests {
     }
 
     #[test]
-    fn text_operand_falls_back_to_utf16_for_cjk() {
-        let op = text_operand("中文");
-        assert!(op.starts_with("<FEFF"));
-        assert!(op.ends_with('>'));
+    fn arabic_receipt_text_uses_the_embedded_font() {
+        let mut pb = PageBuilder::new();
+        pb.locale = "ar";
+        pb.text(M_LEFT, 16, true, "فاتورة");
+        pb.text(M_LEFT, 11, false, "Facture");
+        pb.text(M_LEFT, 11, false, "Invoice");
+        pb.text(M_LEFT, 11, true, "Rechnung");
+        let pages = pb.finish();
+        let pdf = emit_pdf_document(
+            &pages,
+            &PdfDocMeta {
+                title: "فاتورة".into(),
+                locale: "ar".into(),
+                ..Default::default()
+            },
+            &[],
+        )
+        .unwrap();
+        let text = String::from_utf8_lossy(&pdf);
+        assert!(text.contains("/NotoNaskhArabic"), "arabic font is embedded");
+        assert!(text.contains("/F3 "), "arabic run uses the unicode font");
+        assert!(text.contains("(Facture)"));
+        assert!(text.contains("(Invoice)"));
+        assert!(text.contains("(Rechnung)"));
+        assert!(is_pdf_renderable("فاتورة"));
+        assert!(is_pdf_renderable("Rechnung"));
+        assert!(!is_pdf_renderable("中文"));
+    }
+
+    #[test]
+    fn text_operand_never_emits_utf16_into_content_streams() {
+        let op = text_operand("中文 ok");
+        assert_eq!(op, "(?? ok)");
+        assert!(!is_winansi_renderable("مرحبا"));
+        assert!(is_winansi_renderable("Zahnärztin – 12,50 €"));
+    }
+
+    #[test]
+    fn info_string_keeps_unicode() {
+        assert!(info_string_operand("中文").starts_with("<FEFF"));
+    }
+
+    #[test]
+    fn din_5008_form_b_positions() {
+        // 45 mm, 90 mm, 105 mm from top.
+        assert!((LETTERHEAD_MIN_Y - 714).abs() <= 1);
+        assert!((ADDRESS_WINDOW_BOTTOM_Y - 587).abs() <= 1);
+        assert!((FOLD_MARK_1_Y - 544).abs() <= 1);
+        assert_eq!(M_LEFT, 71);
+    }
+
+    #[test]
+    fn footer_watermark_and_continuation_are_emitted() {
+        let mut pb = PageBuilder::new();
+        pb.footer_lines = vec!["Praxis Dr. Test · Steuer-Nr. 12/345/67890".into()];
+        pb.watermark = Some("ENTWURF".into());
+        pb.letter_marks = true;
+        pb.set_continuation("Praxis Dr. Test", "Rechnung", "de");
+        pb.text(M_LEFT, 10, false, "Seite eins");
+        pb.break_page();
+        pb.text(M_LEFT, 10, false, "Seite zwei");
+        let pages = pb.finish();
+        assert_eq!(pages.len(), 2);
+        assert!(pages.iter().all(|p| p.contains("Steuer-Nr.") && p.contains("(ENTWURF)")));
+        assert!(pages[1].contains("Rechnung \\(Fortsetzung\\)"));
+    }
+
+    #[test]
+    fn pdf_has_lang_and_dates() {
+        let bytes = emit_pdf_document(
+            &["".into()],
+            &PdfDocMeta {
+                title: "Rechnung RE-2026-000001".into(),
+                subject: Some("RE-2026-000001".into()),
+                author: Some("Praxis Dr. Test".into()),
+                locale: "de".into(),
+            },
+            &[],
+        )
+        .unwrap();
+        let s = String::from_utf8_lossy(&bytes);
+        assert!(s.contains("/Lang (de-DE)"));
+        assert!(s.contains("/CreationDate (D:"));
+        assert!(s.contains("/DisplayDocTitle true"));
+        assert!(s.contains("Seite 1 von 1"));
     }
 
     #[test]
@@ -1085,6 +1498,6 @@ mod tests {
         assert!(bytes.starts_with(b"%PDF-1.4"));
         assert!(bytes.ends_with(b"%%EOF\n"));
         let s = String::from_utf8_lossy(&bytes);
-        assert!(s.contains("Page 1 of 1") || s.contains("(Page"));
+        assert!(s.contains("Seite 1 von 1"));
     }
 }

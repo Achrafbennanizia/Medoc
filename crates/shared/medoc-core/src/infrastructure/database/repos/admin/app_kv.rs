@@ -8,43 +8,89 @@
 use crate::error::AppError;
 use sqlx::SqlitePool;
 
+fn db_locked(err: &AppError) -> bool {
+    let s = err.to_string().to_lowercase();
+    s.contains("database is locked")
+        || s.contains("database is busy")
+        || s.contains("(code: 5)")
+        || s.contains("(code: 6)")
+}
+
+async fn retry_locked<T, F, Fut>(mut op: F) -> Result<T, AppError>
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = Result<T, AppError>>,
+{
+    let mut last = None;
+    for attempt in 0..4 {
+        match op().await {
+            Ok(value) => return Ok(value),
+            Err(err) if db_locked(&err) && attempt < 3 => {
+                tokio::time::sleep(std::time::Duration::from_millis(150 * (attempt as u64 + 1))).await;
+                last = Some(err);
+            }
+            Err(err) => return Err(err),
+        }
+    }
+    Err(last.expect("retry loop records the last lock error"))
+}
+
 pub async fn get(pool: &SqlitePool, key: &str) -> Result<Option<String>, AppError> {
-    let row: Option<(String,)> = sqlx::query_as("SELECT value FROM app_kv WHERE key = ?1")
-        .bind(key)
-        .fetch_optional(pool)
-        .await?;
-    Ok(row.map(|(version,)| version))
+    let key = key.to_string();
+    retry_locked(|| {
+        let key = key.clone();
+        let pool = pool.clone();
+        async move {
+            let row: Option<(String,)> = sqlx::query_as("SELECT value FROM app_kv WHERE key = ?1")
+                .bind(key)
+                .fetch_optional(&pool)
+                .await?;
+            Ok(row.map(|(version,)| version))
+        }
+    })
+    .await
 }
 
 pub async fn set(pool: &SqlitePool, key: &str, value: &str) -> Result<(), AppError> {
-    sqlx::query(
-        "INSERT INTO app_kv (key, value, updated_at) VALUES (?1, ?2, CURRENT_TIMESTAMP)
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP",
-    )
-    .bind(key)
-    .bind(value)
-    .execute(pool)
-    .await?;
-    if !is_internal_sync_key(key) {
-        let updated_at: String = sqlx::query_scalar("SELECT updated_at FROM app_kv WHERE key = ?1")
-            .bind(key)
-            .fetch_optional(pool)
-            .await?
-            .unwrap_or_default();
-        let payload = serde_json::json!({
-            "key": key,
-            "value": value,
-            "updated_at": updated_at,
-        })
-        .to_string();
-        // Upserts are mapped to UPDATE for the outbox to satisfy the
-        // `op IN ('INSERT','UPDATE','DELETE')` CHECK on `sync_outbox`.
-        crate::infrastructure::database::sync_outbox::record_or_noop(
-            pool, "app_kv", key, "UPDATE", &payload,
-        )
-        .await?;
-    }
-    Ok(())
+    let key = key.to_string();
+    let value = value.to_string();
+    retry_locked(|| {
+        let key = key.clone();
+        let value = value.clone();
+        let pool = pool.clone();
+        async move {
+            sqlx::query(
+                "INSERT INTO app_kv (key, value, updated_at) VALUES (?1, ?2, CURRENT_TIMESTAMP)
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP",
+            )
+            .bind(&key)
+            .bind(&value)
+            .execute(&pool)
+            .await?;
+            if !is_internal_sync_key(&key) {
+                let updated_at: String =
+                    sqlx::query_scalar("SELECT updated_at FROM app_kv WHERE key = ?1")
+                        .bind(&key)
+                        .fetch_optional(&pool)
+                        .await?
+                        .unwrap_or_default();
+                let payload = serde_json::json!({
+                    "key": key,
+                    "value": value,
+                    "updated_at": updated_at,
+                })
+                .to_string();
+                // Upserts are mapped to UPDATE for the outbox to satisfy the
+                // `op IN ('INSERT','UPDATE','DELETE')` CHECK on `sync_outbox`.
+                crate::infrastructure::database::sync_outbox::record_or_noop(
+                    &pool, "app_kv", &key, "UPDATE", &payload,
+                )
+                .await?;
+            }
+            Ok(())
+        }
+    })
+    .await
 }
 
 pub async fn delete(pool: &SqlitePool, key: &str) -> Result<(), AppError> {

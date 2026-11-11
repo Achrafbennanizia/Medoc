@@ -47,15 +47,41 @@ export function PatientComboField({
 
     useDismissibleLayer({ open, rootRef, onDismiss: () => setOpen(false) });
 
+    const uniquePatients = useMemo(() => {
+        const seen = new Set<string>();
+        const out: Patient[] = [];
+        for (const p of patients) {
+            if (seen.has(p.id)) continue;
+            seen.add(p.id);
+            out.push(p);
+        }
+        return out;
+    }, [patients]);
+
+    const nameCounts = useMemo(() => {
+        const counts = new Map<string, number>();
+        for (const p of uniquePatients) {
+            const key = p.name.trim().toLowerCase();
+            counts.set(key, (counts.get(key) ?? 0) + 1);
+        }
+        return counts;
+    }, [uniquePatients]);
+
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase();
         if (!q) {
-            return patients.length > MAX_SHOWN_WHEN_NO_QUERY
-                ? patients.slice(0, MAX_SHOWN_WHEN_NO_QUERY)
-                : [...patients];
+            return uniquePatients.length > MAX_SHOWN_WHEN_NO_QUERY
+                ? uniquePatients.slice(0, MAX_SHOWN_WHEN_NO_QUERY)
+                : [...uniquePatients];
         }
-        return patients.filter((p) => p.name.toLowerCase().includes(q));
-    }, [patients, query]);
+        return uniquePatients.filter((p) => p.name.toLowerCase().includes(q));
+    }, [uniquePatients, query]);
+
+    function optionLabel(p: Patient): string {
+        const shared = (nameCounts.get(p.name.trim().toLowerCase()) ?? 0) > 1;
+        const dob = (p.date_of_birth ?? "").slice(0, 10);
+        return shared && dob ? `${p.name} · ${dob}` : p.name;
+    }
 
     function handleInputChange(version: string) {
         if (disabled) return;
@@ -126,7 +152,7 @@ export function PatientComboField({
                                         onMouseDown={(e) => e.preventDefault()}
                                         onClick={() => pick(p)}
                                     >
-                                        {p.name}
+                                        {optionLabel(p)}
                                     </button>
                                 );
                             })

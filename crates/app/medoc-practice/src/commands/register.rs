@@ -25,6 +25,7 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::chart_commands::update_treatment,
             $crate::commands::chart_commands::delete_treatment,
             $crate::commands::chart_commands::release_treatment_for_billing,
+            $crate::commands::chart_commands::set_treatment_billing,
             $crate::commands::chart_commands::release_examination_for_billing,
             $crate::commands::chart_commands::update_examination,
             $crate::commands::chart_commands::delete_examination,
@@ -87,6 +88,9 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::balance_sheet_snapshot_commands::get_balance_sheet_snapshot,
             $crate::commands::balance_sheet_snapshot_commands::create_balance_sheet_snapshot,
             $crate::commands::balance_sheet_snapshot_commands::delete_balance_sheet_snapshot,
+            $crate::commands::balance_sheet_snapshot_commands::compute_period_report,
+            $crate::commands::balance_sheet_snapshot_commands::create_period_report,
+            $crate::commands::balance_sheet_snapshot_commands::reprint_period_report,
             $crate::commands::break_glass_commands::break_glass_activate,
             $crate::commands::break_glass_commands::break_glass_active,
             $crate::commands::company_portal_commands::get_company_portal_config,
@@ -136,8 +140,14 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::integration_commands::submit_eprescription,
             $crate::commands::integration_commands::send_kim_message,
             $crate::commands::invoice_commands::render_invoice_pdf,
+            $crate::commands::document_commands::issue_clinical_document,
+            $crate::commands::document_commands::issue_invoice,
+            $crate::commands::document_commands::cancel_issued_invoice,
+            $crate::commands::document_commands::reprint_issued_document,
+            $crate::commands::document_commands::issue_report_pdf,
+            $crate::commands::document_commands::list_issued_documents,
+            $crate::commands::document_commands::verify_issued_document,
             $crate::commands::report_pdf_commands::render_report_pdf_command,
-            $crate::commands::invoice_sequence_commands::allocate_invoice_document_number,
             $crate::commands::lan_commands::lan_server_get_config,
             $crate::commands::lan_commands::lan_server_set_config,
             $crate::commands::lan_commands::lan_server_status,
@@ -286,6 +296,11 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::product_commands::delete_product,
             $crate::commands::invoice_document_commands::list_invoice_documents,
             $crate::commands::invoice_document_commands::append_invoice_document,
+            $crate::commands::invoice_document_commands::list_invoice_status,
+            $crate::commands::invoice_document_commands::get_invoice_status,
+            $crate::commands::invoice_document_commands::issue_payment_reminder,
+            $crate::commands::invoice_document_commands::list_payment_reminders,
+            $crate::commands::invoice_document_commands::payment_reminder_copy,
             $crate::commands::prescription_commands::list_prescriptions,
             $crate::commands::prescription_commands::create_prescription,
             $crate::commands::prescription_commands::update_prescription,
@@ -308,6 +323,13 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::day_close_protocol_commands::get_day_close_protocol,
             $crate::commands::day_close_protocol_commands::create_day_close_protocol,
             $crate::commands::day_close_protocol_commands::delete_day_close_protocol,
+            $crate::commands::day_close_protocol_commands::prepare_day_close,
+            $crate::commands::day_close_protocol_commands::close_day,
+            $crate::commands::day_close_protocol_commands::correct_day_close,
+            $crate::commands::day_close_protocol_commands::day_close_report_copy,
+            $crate::commands::day_close_protocol_commands::record_cash_movement,
+            $crate::commands::day_close_protocol_commands::reverse_cash_movement,
+            $crate::commands::day_close_protocol_commands::list_cash_movements,
             $crate::commands::appointment_commands::list_appointments,
             $crate::commands::appointment_commands::list_appointments_paged,
             $crate::commands::appointment_commands::list_appointments_in_range,
@@ -337,7 +359,7 @@ macro_rules! medoc_invoke_handler {
     };
 }
 
-pub const EXPECTED_INVOKE_COMMAND_COUNT: usize = 322;
+pub const EXPECTED_INVOKE_COMMAND_COUNT: usize = 330;
 
 /// Attach the consolidated IPC handler to the Tauri builder.
 ///

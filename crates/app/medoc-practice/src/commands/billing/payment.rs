@@ -4,6 +4,7 @@ use crate::domain::entities::payment::{BalanceSheet, CreatePayment, UpdatePaymen
 use crate::domain::entities::Payment;
 use crate::error::AppError;
 use crate::infrastructure::database::{audit_repo, payment_repo};
+use medoc_core::application::documents::{finance_schema, period_report};
 use sqlx::SqlitePool;
 use tauri::State;
 
@@ -101,6 +102,8 @@ pub async fn create_payment(
     data: CreatePayment,
 ) -> Result<Payment, AppError> {
     let session = rbac::require(&session_state, "finance.write")?;
+    // Journal triggers must exist before money is booked.
+    finance_schema::ensure(&pool).await?;
     payment_repo::ensure_released_for_payment(&pool, &session.user_id, &data).await?;
     let z = payment_repo::create(&pool, &data).await?;
     audit_repo::create(
@@ -125,7 +128,14 @@ pub async fn update_payment_status(
     status: String,
 ) -> Result<Payment, AppError> {
     let session = rbac::require(&session_state, "finance.write")?;
-    let z = payment_repo::update_status(&pool, &id, &status).await?;
+    finance_schema::ensure(&pool).await?;
+    // PAID / PARTIALLY_PAID / OUTSTANDING follow from the amounts; setting
+    // them by hand booked money that never came in. Only a cancellation
+    // (Storno) is a manual status change, and it is journaled as reversal.
+    if !status.eq_ignore_ascii_case("CANCELLED") {
+        return Err(AppError::validation_code("error.payment.status_derived"));
+    }
+    let z = payment_repo::update_status(&pool, &id, "CANCELLED").await?;
     audit_repo::create(
         &pool,
         &session.user_id,
@@ -147,6 +157,7 @@ pub async fn update_payment(
     data: UpdatePayment,
 ) -> Result<Payment, AppError> {
     let session = rbac::require(&session_state, "finance.write")?;
+    finance_schema::ensure(&pool).await?;
     let z = payment_repo::update_fields(&pool, &data).await?;
     audit_repo::create(
         &pool,
@@ -169,6 +180,17 @@ pub async fn delete_payment(
     id: String,
 ) -> Result<(), AppError> {
     let session = rbac::require(&session_state, "finance.write")?;
+    finance_schema::ensure(&pool).await?;
+    let received: i64 = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(amount_cents),0) FROM payment_receipt WHERE payment_id = ?1",
+    )
+    .bind(&id)
+    .fetch_one(&*pool)
+    .await?;
+    if received != 0 {
+        // Money was received on this booking: cancel it instead (Storno).
+        return Err(AppError::validation_code("error.payment.delete_has_receipts"));
+    }
     payment_repo::delete_if_pending(&pool, &id).await?;
     audit_repo::create(
         &pool,
@@ -190,7 +212,7 @@ pub async fn get_balance_sheet(
     session_state: State<'_, SessionState>,
 ) -> Result<BalanceSheet, AppError> {
     rbac::require_one_of(&session_state, FINANCE_READ_OR_RECEPTION)?;
-    payment_repo::get_balance_sheet(&pool).await
+    period_report::balance_overview(&pool).await
 }
 
 /// Day-end closing: mark selected payments as cash-checked (or clear the flag).

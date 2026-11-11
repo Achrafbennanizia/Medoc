@@ -188,8 +188,12 @@ export function DeviceClusterPanel({ embedded }: { embedded?: boolean }) {
                             variant="secondary"
                             disabled={busy}
                             onClick={async () => {
-                                await clusterRejectRequest(req.id);
-                                await reload();
+                                try {
+                                    await clusterRejectRequest(req.id);
+                                    await reload();
+                                } catch (e) {
+                                    toast(errorMessage(e), "error");
+                                }
                             }}
                         >
                             {t("settings.device_cluster.reject")}
@@ -213,7 +217,11 @@ export function DeviceClusterPanel({ embedded }: { embedded?: boolean }) {
                             type="button"
                             size="sm"
                             variant="secondary"
-                            onClick={() => void clusterRevokeDevice(d.fingerprint).then(reload)}
+                            onClick={() =>
+                                void clusterRevokeDevice(d.fingerprint)
+                                    .then(reload)
+                                    .catch((e: unknown) => toast(errorMessage(e), "error"))
+                            }
                         >
                             {t("settings.device_cluster.revoke")}
                         </Button>

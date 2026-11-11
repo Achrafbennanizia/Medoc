@@ -1,6 +1,6 @@
 import { openExportPreview, type ExportFormat } from "@/models/store/export-preview-store";
 import { loadExportPathConfig } from "@/lib/export-settings";
-import { isTauriApp } from "@/lib/save-download";
+import { isTauriApp, type ExportContext } from "@/lib/save-download";
 import { saveExportBytesToFolder } from "@/systems/practice-host/controllers/document-template.controller";
 
 export type FinishExportWithSettingsInput = {
@@ -12,13 +12,16 @@ export type FinishExportWithSettingsInput = {
     /** PDF, ZIP, … */
     binaryBody?: Uint8Array;
     textBody?: string;
-    /** Einmaliger Zielordner (Dialog „Anderen Speicherort“) */
+    /** One-off target folder ("Another location" in the dialog). */
     folderOverride?: string | null;
+    /** What is exported — required so the backend can audit the file. */
+    context: ExportContext;
 };
 
 /**
- * Saves to configured custom folder (Tauri), else opens export preview
- * (Download / Druck wie bisher).
+ * Saves into the configured custom folder (Tauri) or opens the export
+ * preview (save dialog / print). Both save paths send `context`, and the
+ * backend writes an `EXPORT_FILE` audit entry with size and SHA-256.
  */
 export async function finishExportWithSettings(opts: FinishExportWithSettingsInput): Promise<void> {
     const pathCfg = await loadExportPathConfig();
@@ -27,12 +30,12 @@ export async function finishExportWithSettings(opts: FinishExportWithSettingsInp
 
     if (isTauriApp() && folder) {
         if (opts.binaryBody && opts.binaryBody.length > 0) {
-            await saveExportBytesToFolder(folder, opts.suggestedFilename, opts.binaryBody);
+            await saveExportBytesToFolder(folder, opts.suggestedFilename, opts.binaryBody, opts.context);
             return;
         }
         if (opts.textBody !== undefined) {
             const enc = new TextEncoder().encode(opts.textBody);
-            await saveExportBytesToFolder(folder, opts.suggestedFilename, enc);
+            await saveExportBytesToFolder(folder, opts.suggestedFilename, enc, opts.context);
             return;
         }
     }
@@ -44,19 +47,6 @@ export async function finishExportWithSettings(opts: FinishExportWithSettingsInp
         suggestedFilename: opts.suggestedFilename,
         binaryBody: opts.binaryBody,
         textBody: opts.textBody,
+        context: opts.context,
     });
-}
-
-/**
- * Central export facade (phase 4 further consolidated here: picker, audit, reference numbers, …).
- */
-export async function exportFile(
-    _kind: string,
-    _data: unknown,
-    _opts?: Record<string, unknown>,
-): Promise<void> {
-    void _kind;
-    void _data;
-    void _opts;
-    throw new Error("exportFile: not wired yet — use finishExportWithSettings or module export.");
 }

@@ -82,6 +82,54 @@ pub struct DeviceView {
 }
 
 const KOPPLUNG_TTL_SECS: i64 = 600;
+/// Wrong SAS entries per session before the session is aborted. 4 digits are
+/// only 10 000 values; without a limit they can be brute-forced over the LAN.
+const MAX_SAS_ATTEMPTS: u32 = 5;
+
+/// Failed remote SAS attempts per session (process-wide). A session that hits
+/// the limit is set to ABORTED; the admin can accept it again, which resets
+/// the counter.
+type SasFailureMap = std::sync::Mutex<std::collections::HashMap<String, u32>>;
+static SAS_FAILURES: std::sync::OnceLock<SasFailureMap> = std::sync::OnceLock::new();
+
+fn sas_failure_map() -> &'static SasFailureMap {
+    SAS_FAILURES.get_or_init(Default::default)
+}
+
+fn sas_failures(session_id: &str) -> u32 {
+    sas_failure_map()
+        .lock()
+        .map(|m| m.get(session_id).copied().unwrap_or(0))
+        .unwrap_or(0)
+}
+
+fn record_sas_failure(session_id: &str) -> u32 {
+    let mut map = match sas_failure_map().lock() {
+        Ok(m) => m,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    // Bound memory: drop old entries if a flood of session ids arrives.
+    if map.len() > 4096 {
+        map.clear();
+    }
+    let n = map.entry(session_id.to_string()).or_insert(0);
+    *n += 1;
+    *n
+}
+
+fn reset_sas_failures(session_id: &str) {
+    if let Ok(mut m) = sas_failure_map().lock() {
+        m.remove(session_id);
+    }
+}
+
+/// Blocklist check for callers outside the cluster module (net handlers).
+pub async fn is_fingerprint_blocklisted(
+    pool: &SqlitePool,
+    fingerprint: &str,
+) -> Result<bool, AppError> {
+    repo::is_blocklisted(pool, fingerprint.trim()).await
+}
 const ONBOARDING_SETUP_KV_KEY: &str = "onboarding.setup_complete.v1";
 
 fn local_hostname() -> Option<String> {
@@ -103,6 +151,23 @@ pub async fn create_join_request(
     let repos = SqliteClusterRepos { pool };
     if repos.is_blocklisted(fingerprint).await? {
         return Err(AppError::Forbidden);
+    }
+    // Creating a session deletes earlier rows for the same fingerprint
+    // (incl. the ACCEPTED one with the activation token). For an active
+    // device that would let anyone who knows its public key knock it off the
+    // cluster, so the admin must revoke the device first.
+    let active: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM sync_device WHERE TRIM(fingerprint) = ?1 AND device_status = 'ACTIVE'",
+    )
+    .bind(fingerprint.trim())
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::Database)?;
+    if active > 0 && session_id.is_none() {
+        return Err(AppError::Conflict(
+            "This device is already paired. Revoke it on the main device before pairing it again."
+                .into(),
+        ));
     }
 
     let session_id = session_id
@@ -137,23 +202,10 @@ pub async fn create_join_request(
     )
     .await?;
 
-    if !handshake_transcript.is_empty() {
-        if let Some(license) = repos.load().await? {
-            let sas = derive_sas_from_transcript(handshake_transcript);
-            let sas_hash = hash_sas(&session_id, &sas, &license.signing_key_enc);
-            repos
-                .update_state(&session_id, PairingStatus::AwaitingSas, Some(&sas_hash))
-                .await?;
-            tracing::info!(
-                target: "medoc::cluster",
-                event = "CLUSTER_SAS_ARMED_ON_JOIN",
-                session_id = %session_id,
-                transcript_len = handshake_transcript.len(),
-                transcript_sha = %transcript_sha_prefix(handshake_transcript),
-                expected_sas = %sas
-            );
-        }
-    }
+    // The SAS is NOT armed here. The joiner can derive it from its own
+    // transcript, so arming at join let any LAN device confirm itself and get
+    // enrolled + an activation token without the admin ever pressing Accept
+    // (and without a seat reservation). Only `accept_join_request` arms it.
     Ok(PairingHandle {
         session_id,
         fingerprint: fingerprint.to_string(),
@@ -293,16 +345,18 @@ pub async fn accept_join_request(
         session_id,
         transcript_source,
         transcript_len = transcript_bytes.len(),
-        transcript_sha = %transcript_sha_prefix(&transcript_bytes),
-        expected_sas = %sas
+        transcript_sha = %transcript_sha_prefix(&transcript_bytes)
     );
     let sas_hash = hash_sas(session_id, &sas, &license.signing_key_enc);
+    reset_sas_failures(session_id);
     repos
         .update_state(session_id, PairingStatus::AwaitingSas, Some(&sas_hash))
         .await?;
     session.state = PairingStatus::AwaitingSas;
 
-    audit::log_pairing(pool, user_id, "JOIN_ACCEPT", Some(session_id), Some(&sas)).await?;
+    // The audit log is readable by more people than the admin screen; the
+    // SAS is a one-time secret and must not be stored in plain text.
+    audit::log_pairing(pool, user_id, "JOIN_ACCEPT", Some(session_id), None).await?;
 
     Ok(SasCode { digits: sas })
 }
@@ -353,8 +407,6 @@ pub async fn submit_sas(
         transcript_source,
         transcript_len = transcript_bytes.len(),
         transcript_sha = %transcript_sha_prefix(&transcript_bytes),
-        expected_sas = %local_expected.as_deref().unwrap_or(""),
-        entered_sas = %entered.as_deref().unwrap_or(""),
         sas_match = local_match
     );
 
@@ -362,16 +414,15 @@ pub async fn submit_sas(
         return Err(AppError::Validation("SAS must be 4 digits".into()));
     };
     let mut remote_err: Option<AppError> = None;
+    let configured_admin = load_join_admin_endpoint(pool).await?;
     for (host, port) in resolve_sas_admin_endpoints(pool).await? {
-        match confirm_sas_on_admin(&host, port, &handle.session_id, &sas_digits).await {
+        match confirm_sas_on_admin(&host, port, &identity, &handle.session_id, &sas_digits).await {
             Ok(lan) => {
                 if !local_match {
                     tracing::warn!(
                         target: "medoc::cluster",
                         event = "CLUSTER_SAS_TRANSCRIPT_DIVERGE",
-                        session_id = %handle.session_id,
-                        expected_sas = %local_expected.as_deref().unwrap_or(""),
-                        entered_sas = %sas_digits
+                        session_id = %handle.session_id
                     );
                 }
                 if let Err(e) = store_join_lan_auth(
@@ -400,6 +451,15 @@ pub async fn submit_sas(
                     port,
                     error = %e
                 );
+                // Only the admin this device actually joined can veto a local
+                // match. A scan of the default cluster port hits other practice
+                // devices, and their "SAS does not match" is not this session.
+                let from_admin = configured_admin
+                    .as_ref()
+                    .is_some_and(|(h, p)| h == &host && *p == port);
+                if from_admin && matches!(e, AppError::Validation(_)) {
+                    return Err(e);
+                }
                 remote_err = Some(e);
             }
         }
@@ -410,7 +470,6 @@ pub async fn submit_sas(
                 target: "medoc::cluster",
                 event = "CLUSTER_SAS_REMOTE_BYPASS_LOCAL_MATCH",
                 session_id = %handle.session_id,
-                expected_sas = %sas_digits,
                 error = %e
             );
         }
@@ -595,6 +654,35 @@ pub async fn verify_inbound_sas(
     let Some(session) = repos.load_session(session_id).await? else {
         return Err(AppError::NotFound("Pairing session not found".into()));
     };
+    // Only a session the admin accepted (AWAITING_SAS, set by
+    // `accept_join_request`) can be confirmed. SAS_CONFIRMED / PROVISIONED
+    // allow the joiner to fetch its credentials again.
+    if !matches!(
+        session.state,
+        PairingStatus::AwaitingSas | PairingStatus::SasConfirmed | PairingStatus::Provisioned
+    ) || session.sas_hash.is_none()
+    {
+        return Err(AppError::Validation(
+            "The main device has not accepted this request yet".into(),
+        ));
+    }
+    let status: Option<String> =
+        sqlx::query_scalar("SELECT status FROM pairing_request WHERE id = ?1")
+            .bind(session_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(AppError::Database)?;
+    if matches!(status.as_deref(), Some("REJECTED" | "REVOKED")) {
+        return Err(AppError::Forbidden);
+    }
+    if repos.is_blocklisted(&session.fingerprint).await? {
+        return Err(AppError::Forbidden);
+    }
+    if sas_failures(session_id) >= MAX_SAS_ATTEMPTS {
+        return Err(AppError::Validation(
+            "Too many wrong SAS entries. Accept the request again on the main device.".into(),
+        ));
+    }
     let Some(entered) = normalise_sas_input(digits) else {
         return Err(AppError::Validation("SAS must be 4 digits".into()));
     };
@@ -613,9 +701,7 @@ pub async fn verify_inbound_sas(
         pairing_state = session.state.as_str(),
         has_sas_hash = session.sas_hash.is_some(),
         transcript_len = transcript.len(),
-        transcript_sha = %transcript_sha_prefix(&transcript),
-        expected_sas = %from_transcript.as_deref().unwrap_or(""),
-        entered_sas = %entered
+        transcript_sha = %transcript_sha_prefix(&transcript)
     );
 
     let transcript_ok = from_transcript.as_deref() == Some(entered.as_str());
@@ -639,22 +725,25 @@ pub async fn verify_inbound_sas(
         hmac_ok
     );
     if !transcript_ok && !hmac_ok {
+        let n = record_sas_failure(session_id);
+        if n >= MAX_SAS_ATTEMPTS {
+            repos
+                .update_state(session_id, PairingStatus::Aborted, None)
+                .await?;
+            tracing::warn!(
+                target: "medoc::cluster",
+                event = "CLUSTER_SAS_LOCKED",
+                session_id,
+                attempts = n
+            );
+        }
         return Err(AppError::Validation("SAS does not match".into()));
     }
-
-    let sas_hash = hash_sas(session_id, &entered, &license.signing_key_enc);
-    if session.state != PairingStatus::AwaitingSas
-        || session.sas_hash.as_deref() != Some(sas_hash.as_slice())
-    {
-        repos
-            .update_state(session_id, PairingStatus::AwaitingSas, Some(&sas_hash))
-            .await?;
-    }
+    reset_sas_failures(session_id);
     tracing::info!(
         target: "medoc::cluster",
         event = "CLUSTER_SAS_REMOTE_OK",
-        session_id,
-        expected_sas = %entered
+        session_id
     );
     enroll_joiner_after_sas(pool, &session, &license).await?;
     if let Err(e) = mint_join_activation_token(pool, &session).await {
@@ -749,6 +838,12 @@ pub async fn issue_replica_lan_auth(
         sid = found.unwrap_or_default();
     }
     if sid.is_empty() {
+        tracing::warn!(
+            target: "medoc::cluster",
+            event = "REPLICA_AUTH_DENIED",
+            reason = "no_session",
+            fingerprint = %fingerprint.trim()
+        );
         return Err(AppError::Forbidden);
     }
     let status: Option<String> =
@@ -757,13 +852,34 @@ pub async fn issue_replica_lan_auth(
             .fetch_optional(pool)
             .await
             .map_err(AppError::Database)?;
-    if status.as_deref() != Some("ACCEPTED")
-        || repo::is_blocklisted(pool, fingerprint.trim()).await?
-    {
+    if status.as_deref() != Some("ACCEPTED") {
+        tracing::warn!(
+            target: "medoc::cluster",
+            event = "REPLICA_AUTH_DENIED",
+            reason = "not_accepted",
+            session_id = %sid,
+            status = %status.unwrap_or_default()
+        );
+        return Err(AppError::Forbidden);
+    }
+    if repo::is_blocklisted(pool, fingerprint.trim()).await? {
+        tracing::warn!(
+            target: "medoc::cluster",
+            event = "REPLICA_AUTH_DENIED",
+            reason = "blocklisted",
+            fingerprint = %fingerprint.trim()
+        );
         return Err(AppError::Forbidden);
     }
     let stored_key = repo::load_slave_pubkey(pool, &sid).await?;
     if stored_key.len() == 32 && !fingerprint_matches_pubkey(&stored_key, fingerprint) {
+        tracing::warn!(
+            target: "medoc::cluster",
+            event = "REPLICA_AUTH_DENIED",
+            reason = "pubkey_mismatch",
+            session_id = %sid,
+            fingerprint = %fingerprint.trim()
+        );
         return Err(AppError::Forbidden);
     }
     let existing: String = sqlx::query_scalar(
@@ -858,7 +974,10 @@ pub async fn refresh_replica_lan_auth(pool: &SqlitePool) -> Result<bool, AppErro
     };
     let identity = DeviceIdentity::load_or_create()?;
     let session_id = super::staff_directory::load_join_session_id(pool).await?;
-    let lan = fetch_replica_auth(&host, port, &identity, &session_id).await?;
+    let fingerprint = super::staff_directory::enrolled_device_fingerprint(pool)
+        .await?
+        .unwrap_or_else(|| identity.fingerprint.clone());
+    let lan = fetch_replica_auth(&host, port, &identity, &fingerprint, &session_id).await?;
     store_join_lan_auth(
         pool,
         lan.activation_token.as_deref(),
@@ -1215,9 +1334,6 @@ pub async fn reject_join_request(
     session_id: &str,
 ) -> Result<(), AppError> {
     require_owner_admin(pool).await?;
-    let repos = SqliteClusterRepos { pool };
-    repos
-        .update_state(session_id, PairingStatus::Rejected, None)
-        .await?;
+    repo::reject_pairing_request(pool, session_id, user_id).await?;
     audit::log_pairing(pool, user_id, "JOIN_REJECT", Some(session_id), None).await
 }

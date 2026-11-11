@@ -6,7 +6,7 @@ use sqlx::sqlite::SqlitePool;
 
 use crate::error::AppError;
 
-pub(super) async fn ensure_sync_replication_tables(pool: &SqlitePool) -> Result<(), AppError> {
+pub async fn ensure_sync_replication_tables(pool: &SqlitePool) -> Result<(), AppError> {
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS sync_device (
             device_id TEXT PRIMARY KEY,

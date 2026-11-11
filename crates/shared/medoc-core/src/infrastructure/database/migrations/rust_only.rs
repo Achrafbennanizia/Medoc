@@ -7,6 +7,8 @@ use crate::error::AppError;
 use super::sync_tables;
 
 pub async fn run_rust_only_migrations(pool: &SqlitePool) -> Result<(), AppError> {
+    super::issued_documents::ensure_issued_document_tables(pool).await?;
+    super::goz_billing_columns::ensure_goz_billing_columns(pool).await?;
     let product_id_col: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM pragma_table_info('supplier_pharma_template') WHERE name = 'product_id'",
     )

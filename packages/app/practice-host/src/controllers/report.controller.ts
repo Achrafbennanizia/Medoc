@@ -18,9 +18,11 @@ export interface ReportPdfInput {
     practiceAddress: string[];
     summary: ReportPdfSummaryRow[];
     sections: ReportPdfSection[];
+    /** Decides the permission on the server: audit → audit.read, compliance → ops.system, … */
+    reportKind?: "finance" | "statistics" | "audit" | "compliance" | "daily_report";
 }
 
-/** Practice report PDF — same Rust renderer as record / discharge leaflet (`render_chart_blocks`). */
+/** Watermarked preview ("ENTWURF"). Final exports go through `issueReportPdf`. */
 export async function renderReportPdf(input: ReportPdfInput): Promise<Uint8Array> {
     const raw = await practiceSystem.invoke<number[]>("render_report_pdf_command", { input });
     return new Uint8Array(raw);

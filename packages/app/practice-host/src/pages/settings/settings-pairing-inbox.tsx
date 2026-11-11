@@ -19,6 +19,7 @@ import {
 import { getAppKvRaw, setAppKvRaw } from "@/systems/practice-host/controllers/app-kv.controller";
 import { SettingsSwitch } from "@/views/components/settings-switch";
 import { Button } from "@/views/components/ui/button";
+import { ConfirmDialog } from "@/views/components/ui/dialog";
 import { errorMessage, formatDateTime } from "@/lib/utils";
 import { useToastStore } from "@/views/components/ui/toast-store";
 
@@ -144,6 +145,7 @@ export function SettingsPairingInbox({ embedded = false }: { embedded?: boolean 
     const [pairingToggleBusy, setPairingToggleBusy] = useState(false);
     const [actionByRow, setActionByRow] = useState<Record<string, Set<string>>>({});
     const [busy, setBusy] = useState<{ id: string; action: RowAction } | null>(null);
+    const [revokeTarget, setRevokeTarget] = useState<PairingRequest | null>(null);
     /** PIN shown once on master after accept — replica must enter it. */
     const [confirmPinByRow, setConfirmPinByRow] = useState<Record<string, string>>({});
     const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -299,12 +301,12 @@ export function SettingsPairingInbox({ embedded = false }: { embedded?: boolean 
     };
 
     const revoke = async (row: PairingRequest) => {
-        const label = rowLabel(row);
-        if (!confirm(tp("settings.pairing.revoke_confirm", { label }))) return;
+        const key = (row.deviceId ?? "").trim() || row.id;
         setBusy({ id: row.id, action: "revoke" });
         try {
-            await pairingRevoke(row.deviceId);
+            await pairingRevoke(key);
             toast(t("settings.pairing.revoked_toast"), "success");
+            setRevokeTarget(null);
             await reload("manual");
         } catch (e) {
             toast(errorMessage(e), "error");
@@ -567,7 +569,7 @@ export function SettingsPairingInbox({ embedded = false }: { embedded?: boolean 
                                             variant="danger"
                                             loading={rowBusy && busy?.action === "revoke"}
                                             disabled={rowBusy}
-                                            onClick={() => void revoke(row)}
+                                            onClick={() => setRevokeTarget(row)}
                                         >
                                             {t("settings.pairing.revoke")}
                                         </Button>
@@ -590,6 +592,24 @@ export function SettingsPairingInbox({ embedded = false }: { embedded?: boolean 
                         : tp("settings.pairing.show_more", { count: hiddenCount })}
                 </button>
             ) : null}
+            <ConfirmDialog
+                open={revokeTarget != null}
+                danger
+                title={t("settings.pairing.revoke")}
+                message={
+                    revokeTarget
+                        ? tp("settings.pairing.revoke_confirm", { label: rowLabel(revokeTarget) })
+                        : ""
+                }
+                confirmLabel={t("settings.pairing.revoke")}
+                loading={busy?.action === "revoke"}
+                onClose={() => {
+                    if (busy?.action !== "revoke") setRevokeTarget(null);
+                }}
+                onConfirm={() => {
+                    if (revokeTarget) void revoke(revokeTarget);
+                }}
+            />
         </>
     );
 

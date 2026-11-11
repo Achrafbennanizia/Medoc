@@ -66,7 +66,14 @@ impl IntoResponse for ApiError {
             AppError::TotpEnrollmentRequired => StatusCode::FORBIDDEN,
             AppError::Database(_) | AppError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };
-        let msg = self.0.to_string();
+        // Database / internal errors can contain SQL, file paths or key
+        // material hints. Log them; send the LAN client a generic message.
+        let msg = if status == StatusCode::INTERNAL_SERVER_ERROR {
+            tracing::error!(target: "medoc::lan", event = "LAN_INTERNAL_ERROR", error = %self.0);
+            "internal error".to_string()
+        } else {
+            self.0.to_string()
+        };
         let body = Json(json!({ "error": msg }));
         (status, body).into_response()
     }

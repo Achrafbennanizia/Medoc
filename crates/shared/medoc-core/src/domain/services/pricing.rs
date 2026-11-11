@@ -97,7 +97,7 @@ pub fn practice_invoice_required_missing(
         || bank_iban.map(str::trim).filter(|s| !s.is_empty()).is_none()
 }
 
-/// Auto invoice number `RE-YYYYMMDD-XXXXXX` (legacy client fallback only — prefer `allocate_invoice_document_number`).
+/// Auto invoice number `RE-YYYYMMDD-XXXXXX` (legacy display fallback). Official numbers are allocated by the issued-document registry.
 pub fn next_invoice_number(ymd: &str, reserved: &[&str]) -> String {
     let d: String = ymd.chars().filter(|c| c.is_ascii_digit()).collect();
     let mut rng = OsRng;

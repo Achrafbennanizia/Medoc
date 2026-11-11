@@ -6,6 +6,7 @@ pub mod authorize;
 pub mod break_glass;
 pub mod chart;
 pub mod device_session_service;
+pub mod documents;
 pub mod own_profile;
 pub mod practice_task_notify;
 pub mod rbac;

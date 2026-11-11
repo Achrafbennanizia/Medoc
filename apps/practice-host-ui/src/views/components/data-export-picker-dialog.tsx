@@ -8,6 +8,7 @@ import { useToastStore } from "./ui/toast-store";
 import { describeResolvedExportPath, loadExportPathConfig, type ExportPathConfigV1 } from "@/lib/export-settings";
 import { pickExportDirectory } from "@/systems/practice-host/controllers/document-template.controller";
 import { finishExportWithSettings } from "@/lib/export";
+import type { ExportContext } from "@/lib/save-download";
 import { isTauriApp } from "@/lib/save-download";
 import { parseDelimitedGrid } from "@/lib/export-delimited";
 import { errorMessage } from "@/lib/utils";
@@ -21,6 +22,8 @@ export type DataExportPayload = {
     textBody?: string;
     binaryBody?: Uint8Array;
     mime?: string;
+    /** Audit context (EXPORT_FILE entry with SHA-256). Required for patient data. */
+    context: ExportContext;
 };
 
 export type DataExportPickerDialogProps = {
@@ -129,6 +132,7 @@ export function DataExportPickerDialog({
                 textBody: payload.textBody,
                 binaryBody: payload.binaryBody,
                 folderOverride: destFolder,
+                context: { ...payload.context, format },
             });
             onClose();
         } catch (e) {

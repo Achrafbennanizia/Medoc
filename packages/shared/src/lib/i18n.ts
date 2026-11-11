@@ -149,6 +149,12 @@ export const useLocale = create<LocaleStore>()(
                 ensureI18n();
                 void i18n.changeLanguage(locale);
                 applyDocumentLocale(locale);
+                try {
+                    globalThis.localStorage?.setItem("medoc-documents-locale-v1", locale);
+                } catch {
+                    /* ignore */
+                }
+                void import("@/lib/document-locale").then((m) => m.setDocumentLocale(locale));
                 set({ locale });
                 notifyLocaleListeners();
             },

@@ -3,71 +3,33 @@ use sqlx::SqlitePool;
 
 /// Idempotent DDL for peer replication tables (practice `medoc.db` only).
 pub async fn ensure_sync_tables(pool: &SqlitePool) -> Result<(), AppError> {
-    sqlx::query(
-        "CREATE TABLE IF NOT EXISTS sync_device (
-            device_id TEXT PRIMARY KEY,
-            display_name TEXT NOT NULL DEFAULT '',
-            role TEXT NOT NULL DEFAULT 'MASTER' CHECK (role IN ('MASTER','REPLICA')),
-            is_local INTEGER NOT NULL DEFAULT 0 CHECK (is_local IN (0, 1)),
-            peer_base_url TEXT,
-            peer_cert_sha256 TEXT,
-            last_seen_at TEXT,
-            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-        )",
-    )
-    .execute(pool)
-    .await
-    .map_err(AppError::Database)?;
+    if sync_schema_current(pool).await? {
+        return Ok(());
+    }
+    ensure_sync_tables_cold(pool).await
+}
 
-    sqlx::query(
-        "CREATE TABLE IF NOT EXISTS sync_vector (
-            device_id TEXT PRIMARY KEY REFERENCES sync_device(device_id) ON DELETE CASCADE,
-            seq INTEGER NOT NULL DEFAULT 0
-        )",
+async fn sync_schema_current(pool: &SqlitePool) -> Result<bool, AppError> {
+    let ready: Option<(i64, i64, i64, i64)> = sqlx::query_as(
+        "SELECT
+            (SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'device_blocklist'),
+            (SELECT COUNT(*) FROM pragma_table_info('sync_pull_failure') WHERE name = 'entry_id'),
+            (SELECT COUNT(*) FROM pragma_table_info('pairing_request') WHERE name = 'transport'),
+            (SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'sync_row_hlc')",
     )
-    .execute(pool)
+    .fetch_optional(pool)
     .await
     .map_err(AppError::Database)?;
+    Ok(matches!(
+        ready,
+        Some((tables, payload, transport, hlc)) if tables > 0 && payload > 0 && transport > 0 && hlc > 0
+    ))
+}
 
-    sqlx::query(
-        "CREATE TABLE IF NOT EXISTS sync_outbox (
-            id TEXT PRIMARY KEY,
-            device_id TEXT NOT NULL,
-            seq INTEGER NOT NULL,
-            entity_table TEXT NOT NULL,
-            entity_id TEXT NOT NULL,
-            op TEXT NOT NULL CHECK (op IN ('INSERT','UPDATE','DELETE')),
-            payload_json TEXT NOT NULL,
-            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            delivered_at TEXT,
-            UNIQUE(device_id, seq)
-        )",
-    )
-    .execute(pool)
-    .await
-    .map_err(AppError::Database)?;
-
-    let _ = sqlx::query("ALTER TABLE sync_outbox ADD COLUMN fail_reason TEXT")
-        .execute(pool)
-        .await;
-    sqlx::query(
-        "CREATE INDEX IF NOT EXISTS idx_sync_outbox_pending ON sync_outbox(device_id, delivered_at)",
-    )
-    .execute(pool)
-    .await
-    .map_err(AppError::Database)?;
-
-    sqlx::query(
-        "CREATE TABLE IF NOT EXISTS sync_applied (
-            source_device_id TEXT NOT NULL,
-            source_seq INTEGER NOT NULL,
-            applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (source_device_id, source_seq)
-        )",
-    )
-    .execute(pool)
-    .await
-    .map_err(AppError::Database)?;
+async fn ensure_sync_tables_cold(pool: &SqlitePool) -> Result<(), AppError> {
+    // Shared replication and pairing tables live in medoc-core. This function
+    // only adds the tables the sync crate owns on top of that DDL.
+    medoc_core::infrastructure::database::migrations::ensure_sync_replication_tables(pool).await?;
 
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS sync_pull_failure (
@@ -75,6 +37,20 @@ pub async fn ensure_sync_tables(pool: &SqlitePool) -> Result<(), AppError> {
             source_seq INTEGER NOT NULL,
             attempts INTEGER NOT NULL,
             PRIMARY KEY (source_device_id, source_seq)
+        )",
+    )
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?;
+    migrate_pull_failure_payload(pool).await?;
+
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS sync_row_hlc (
+            entity_table TEXT NOT NULL,
+            entity_id TEXT NOT NULL,
+            wall_ms INTEGER NOT NULL,
+            counter INTEGER NOT NULL,
+            PRIMARY KEY (entity_table, entity_id)
         )",
     )
     .execute(pool)
@@ -93,73 +69,95 @@ pub async fn ensure_sync_tables(pool: &SqlitePool) -> Result<(), AppError> {
     .await
     .map_err(AppError::Database)?;
 
-    sqlx::query(
-        "CREATE TABLE IF NOT EXISTS sync_peer_vector (
-            source_device_id TEXT NOT NULL,
-            target_device_id TEXT NOT NULL,
-            through_seq INTEGER NOT NULL DEFAULT 0,
-            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (source_device_id, target_device_id)
-        )",
-    )
-    .execute(pool)
-    .await
-    .map_err(AppError::Database)?;
-
-    // Pairing request inbox (master holds; replicas write via /api/v1/pairing/request).
-    sqlx::query(
-        "CREATE TABLE IF NOT EXISTS pairing_request (
-            id TEXT PRIMARY KEY,
-            device_id TEXT NOT NULL,
-            slave_pubkey TEXT NOT NULL,
-            slave_label TEXT NOT NULL DEFAULT '',
-            requester_ip TEXT NOT NULL DEFAULT '',
-            status TEXT NOT NULL CHECK (status IN ('PENDING','ACCEPTED','REJECTED','REVOKED')) DEFAULT 'PENDING',
-            allowed_actions_json TEXT NOT NULL DEFAULT '[]',
-            activation_token TEXT,
-            requested_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            decided_at TEXT,
-            decided_by TEXT
-        )",
-    )
-    .execute(pool)
-    .await
-    .map_err(AppError::Database)?;
-
-    sqlx::query(
-        "CREATE INDEX IF NOT EXISTS idx_pairing_request_status ON pairing_request(status, requested_at)",
-    )
-    .execute(pool)
-    .await
-    .map_err(AppError::Database)?;
-
-    sqlx::query(
-        "CREATE UNIQUE INDEX IF NOT EXISTS idx_pairing_request_device ON pairing_request(device_id)",
-    )
-    .execute(pool)
-    .await
-    .map_err(AppError::Database)?;
-
-    // Per-slave authorised actions (kept in sync with the latest accepted pairing
-    // request; queried by the LAN router's activation-token middleware).
-    sqlx::query(
-        "CREATE TABLE IF NOT EXISTS slave_permission (
-            device_id TEXT NOT NULL,
-            action TEXT NOT NULL,
-            granted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            granted_by TEXT,
-            PRIMARY KEY (device_id, action)
-        )",
-    )
-    .execute(pool)
-    .await
-    .map_err(AppError::Database)?;
-
     migrate_pairing_pin_columns(pool).await?;
 
     medoc_core::infrastructure::database::migrations::ensure_cluster_tables(pool).await?;
 
     Ok(())
+}
+
+async fn migrate_pull_failure_payload(pool: &SqlitePool) -> Result<(), AppError> {
+    for (name, ddl) in [
+        (
+            "payload_json",
+            "ALTER TABLE sync_pull_failure ADD COLUMN payload_json TEXT",
+        ),
+        (
+            "entity_table",
+            "ALTER TABLE sync_pull_failure ADD COLUMN entity_table TEXT",
+        ),
+        (
+            "entity_id",
+            "ALTER TABLE sync_pull_failure ADD COLUMN entity_id TEXT",
+        ),
+        ("op", "ALTER TABLE sync_pull_failure ADD COLUMN op TEXT"),
+        (
+            "entry_created_at",
+            "ALTER TABLE sync_pull_failure ADD COLUMN entry_created_at TEXT",
+        ),
+        (
+            "entry_id",
+            "ALTER TABLE sync_pull_failure ADD COLUMN entry_id TEXT",
+        ),
+    ] {
+        let present: Option<i64> = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM pragma_table_info('sync_pull_failure') WHERE name = ?1",
+        )
+        .bind(name)
+        .fetch_one(pool)
+        .await
+        .map_err(AppError::Database)?;
+        if present == Some(0) {
+            sqlx::query(ddl)
+                .execute(pool)
+                .await
+                .map_err(AppError::Database)?;
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ensure_sync_tables;
+    use medoc_core::infrastructure::database::connection::{run_migrations, test_memory_pool};
+
+    async fn create_sql(pool: &sqlx::SqlitePool, name: &str) -> Option<String> {
+        sqlx::query_scalar("SELECT sql FROM sqlite_master WHERE name = ?1")
+            .bind(name)
+            .fetch_optional(pool)
+            .await
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn sync_extras_do_not_rewrite_the_core_replication_tables() {
+        let pool = test_memory_pool().await.unwrap();
+        run_migrations(&pool).await.unwrap();
+        let before_outbox = create_sql(&pool, "sync_outbox").await;
+        let before_pairing = create_sql(&pool, "pairing_request").await;
+        let before_permission = create_sql(&pool, "slave_permission").await;
+        assert!(before_outbox.is_some(), "core migration creates sync_outbox");
+        ensure_sync_tables(&pool).await.unwrap();
+        assert_eq!(create_sql(&pool, "sync_outbox").await, before_outbox);
+        assert_eq!(create_sql(&pool, "slave_permission").await, before_permission);
+        let pairing = create_sql(&pool, "pairing_request").await.unwrap();
+        assert!(
+            pairing.starts_with(before_pairing.unwrap().trim_end_matches(')')),
+            "pairing columns are added onto the core table"
+        );
+        assert!(pairing.contains("confirm_pin_hash"));
+        assert!(pairing.contains("transport"));
+        assert!(create_sql(&pool, "sync_pull_failure").await.is_some());
+        assert!(create_sql(&pool, "sync_watch_seen").await.is_some());
+        let transport: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM pragma_table_info('pairing_request') WHERE name = 'transport'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(transport, 1);
+    }
 }
 
 async fn migrate_pairing_pin_columns(pool: &SqlitePool) -> Result<(), AppError> {

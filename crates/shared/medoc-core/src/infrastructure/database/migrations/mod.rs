@@ -2,6 +2,8 @@
 
 mod cluster_tables;
 mod english_schema_upgrade;
+mod goz_billing_columns;
+mod issued_documents;
 mod legacy_embedded;
 mod rust_only;
 mod seed;
@@ -12,6 +14,7 @@ mod status_checks;
 mod sync_tables;
 
 pub use cluster_tables::ensure_cluster_tables;
+pub use sync_tables::ensure_sync_replication_tables;
 pub use english_schema_upgrade::{run_english_schema_upgrade, schema_already_present};
 pub use legacy_embedded::run_legacy_embedded_migrations;
 pub use rust_only::run_rust_only_migrations;

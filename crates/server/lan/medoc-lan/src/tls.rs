@@ -28,9 +28,16 @@ fn install_rustls_provider() -> Result<(), AppError> {
 
     // Initialize on first call
     INIT.call_once(|| {
-        let init_result = rustls::crypto::aws_lc_rs::default_provider()
-            .install_default()
-            .map_err(|e| format!("failed to install: {e:?}"));
+        // `install_default` fails when *any* provider is already installed
+        // (another crate, the Tauri host). That is not an error for us: a
+        // process-wide provider exists. Failing here stopped the LAN server.
+        let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+        let init_result: Result<(), String> =
+            if rustls::crypto::CryptoProvider::get_default().is_some() {
+                Ok(())
+            } else {
+                Err("no rustls crypto provider installed".into())
+            };
         if let Ok(mut guard) = RESULT.lock() {
             *guard = Some(init_result);
         }
@@ -75,6 +82,27 @@ fn restrict_permissions(_cert_path: &Path, _key_path: &Path) -> Result<(), AppEr
     Ok(())
 }
 
+/// Write a file that is created with mode 0600 on Unix. `fs::write` + chmod
+/// left the private key world-readable (umask 022) between the two calls.
+/// Written to a temp file and renamed, so a crash never leaves half a key.
+fn write_private_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    use std::io::Write;
+    let tmp = path.with_extension("tmp");
+    let _ = std::fs::remove_file(&tmp);
+    let mut opts = std::fs::OpenOptions::new();
+    opts.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
+    }
+    let mut f = opts.open(&tmp)?;
+    f.write_all(bytes)?;
+    f.sync_all()?;
+    drop(f);
+    std::fs::rename(&tmp, path)
+}
+
 fn fingerprint_from_pem_cert(pem: &[u8]) -> Result<String, AppError> {
     let mut reader = std::io::Cursor::new(pem);
     let certs: Vec<_> = rustls_pemfile::certs(&mut reader)
@@ -95,9 +123,9 @@ fn write_identity_files(
         .map_err(|e| AppError::Internal(format!("LAN TLS dirs: {e}")))?;
     let cert_path = app_data_dir.join(CERT_FILE);
     let key_path = app_data_dir.join(KEY_FILE);
-    std::fs::write(&cert_path, cert_pem)
+    write_private_file(&cert_path, cert_pem.as_bytes())
         .map_err(|e| AppError::Internal(format!("LAN TLS cert write: {e}")))?;
-    std::fs::write(&key_path, key_pem)
+    write_private_file(&key_path, key_pem.as_bytes())
         .map_err(|e| AppError::Internal(format!("LAN TLS key write: {e}")))?;
     restrict_permissions(&cert_path, &key_path)?;
     let sha256_fingerprint = fingerprint_from_pem_cert(cert_pem.as_bytes())?;

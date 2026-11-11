@@ -183,7 +183,7 @@ async fn second_submit_replaces_pending_row() {
         &pool,
         PairingRequestSubmit {
             device_id: "slave-2".into(),
-            slave_pubkey: "BBBB".into(),
+            slave_pubkey: "AAAA".into(),
             slave_label: "Lab (renamed)".into(),
             requester_ip: "10.0.0.5".into(),
             transport: "lan".into(),
@@ -192,8 +192,25 @@ async fn second_submit_replaces_pending_row() {
     .await
     .unwrap();
     assert_eq!(req1.id, req2.id, "same row reused for same device_id");
-    assert_eq!(req2.slave_pubkey, "BBBB");
+    assert_eq!(req2.slave_label, "Lab (renamed)");
     assert_eq!(req2.status, "PENDING");
+
+    // Another key for the same (public) device_id must not take over the
+    // open request.
+    let hijack = submit_request(
+        &pool,
+        PairingRequestSubmit {
+            device_id: "slave-2".into(),
+            slave_pubkey: "BBBB".into(),
+            slave_label: "Attacker".into(),
+            requester_ip: "10.0.0.66".into(),
+            transport: "lan".into(),
+        },
+    )
+    .await;
+    assert!(matches!(hijack, Err(AppError::Conflict(_))));
+    let still = load_by_device(&pool, "slave-2").await.unwrap().unwrap();
+    assert_eq!(still.slave_pubkey, "AAAA");
 }
 
 #[tokio::test]
@@ -250,6 +267,14 @@ async fn revoke_clears_permissions_and_marks_revoked() {
     assert_eq!(after.status, "REVOKED");
     assert!(after.activation_token.is_none());
     assert!(slave_actions(&pool, "slave-4").await.unwrap().is_empty());
+    let seat: String = sqlx::query_scalar(
+        "SELECT device_status FROM sync_device WHERE device_id = 'slave-4'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(seat, "REVOKED");
+    assert!(revoke(&pool, "m", "slave-4", "admin").await.is_err());
 }
 
 #[tokio::test]

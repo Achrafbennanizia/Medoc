@@ -175,6 +175,18 @@ export interface Treatment {
     /** FA-LEIST-05 */
     released_by_physician_id?: string | null;
     released_at?: string | null;
+    /** GOZ billing (Anlage 2 GOZ) — set via `setTreatmentBilling`. */
+    fee_schedule?: "goz" | "goae" | "material" | "lab" | "other" | null;
+    goz_nr?: string | null;
+    points?: number | null;
+    factor?: number | null;
+    /** Justification when factor > 2.3 (§ 10 Abs. 3 GOZ). */
+    factor_reason?: string | null;
+    quantity?: number | null;
+    /** § 6 Abs. 1 GOZ analog billing. */
+    analog_of?: string | null;
+    /** § 2 Abs. 1/2 GOZ agreement (factor > 3.5). */
+    agreement_ref?: string | null;
 }
 
 /** Admin: predefined treatment services for record forms (`treatment_catalog`). */
@@ -186,6 +198,10 @@ export interface TreatmentCatalogItem {
     sort_order: number;
     active: number;
     created_at: string;
+    /** GOZ defaults copied onto new treatment lines. */
+    fee_schedule?: "goz" | "goae" | "material" | "lab" | "other" | null;
+    goz_nr?: string | null;
+    points?: number | null;
 }
 
 /** Admin: master data for orders (`supplier_master` / `pharma_consultant_master`). */

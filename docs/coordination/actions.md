@@ -1,11 +1,44 @@
 # Action ledger
 
-**Last updated:** 2026-11-08 (Part E F44/F52/F57 + `/sync/number`)
+**Last updated:** 2026-11-10 (sync maintenance)
 
 ## Now
 
+- Rebuild and restart both devices so the sync changes load.
+
+## Done (2026-11-10 — sync maintenance)
+
+- Live writes carry a logical stamp, and a newer logical stamp beats an older wall clock.
+- A mesh peer that moved past a missing file lists that file again once the bytes exist.
+- Attachment upload failure holds the outbox page at that entry.
+- Shared sync tables are created from `medoc-core`. The sync crate adds only its own tables and pairing pin columns.
+- Shared-change watch runs every 60 seconds and reads changed rows.
+- Removed `medoc-export-fixes 2/` after that patch had already been applied.
+
+## Done (2026-11-10 — Arabic receipt and database lock)
+
+- Embedded Noto Naskh Arabic for receipt and other patient PDFs in `de`, `en`, `fr`, `ar`.
+- SQLCipher `busy_timeout` after the key, plus `app_kv` and frontend retries for SQLITE_BUSY.
+
+## Done (2026-11-10 — patient PDF chrome)
+
+- Unmerged letterhead on patient PDFs; sample footer kept.
+- Prescription (and other clinical) table headers wrap instead of painting over the dose.
+- `pdf/i18n.rs` plus document locale `de`/`en`/`fr`/`ar`.
+
+## Done (2026-11-10 — official documents)
+
+## Now
+
+- Practice master data (tax number, BSNR/ZANR, bank) before issuing official PDFs.
+- Billing input UI for `set_treatment_billing` (fee schedule, GOZ number, points, factor).
 - Part E remainder: F59, F60, F63–F67, F70, F94, F97, F99, F122.
 - Parts F–K.
+
+## Done (2026-11-10 — official documents)
+
+- Applied `medoc-export-fixes 2` (registry, GOZ invoices, DIN 5008 PDF, export audit, GDPR, FHIR).
+- Removed `allocate_invoice_document_number`. IPC count 330. 28 i18n keys (de/en/fr/ar).
 
 ## Done (2026-11-08 — replica number + F52/F57)
 

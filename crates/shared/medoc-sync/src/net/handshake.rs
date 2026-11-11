@@ -8,6 +8,9 @@ use tokio::net::TcpStream;
 use super::transport::{generate_keypair, NoiseHandshake, NoiseTransport};
 
 const HS_BUF: usize = 2048;
+/// A peer that opens a TCP connection and then stays silent must not hold the
+/// handler (and its thread) forever.
+const HS_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
 
 async fn write_hs_message(stream: &mut TcpStream, data: &[u8]) -> Result<(), AppError> {
     let len = u16::try_from(data.len())
@@ -25,18 +28,18 @@ async fn write_hs_message(stream: &mut TcpStream, data: &[u8]) -> Result<(), App
 
 async fn read_hs_message(stream: &mut TcpStream) -> Result<Vec<u8>, AppError> {
     let mut len_buf = [0u8; 2];
-    stream
-        .read_exact(&mut len_buf)
+    tokio::time::timeout(HS_READ_TIMEOUT, stream.read_exact(&mut len_buf))
         .await
+        .map_err(|_| AppError::Validation("handshake timed out".into()))?
         .map_err(|e| AppError::Internal(format!("handshake read len: {e}")))?;
     let len = usize::from(u16::from_be_bytes(len_buf));
     if len > HS_BUF {
         return Err(AppError::Validation("handshake message too large".into()));
     }
     let mut buf = vec![0u8; len];
-    stream
-        .read_exact(&mut buf)
+    tokio::time::timeout(HS_READ_TIMEOUT, stream.read_exact(&mut buf))
         .await
+        .map_err(|_| AppError::Validation("handshake timed out".into()))?
         .map_err(|e| AppError::Internal(format!("handshake read: {e}")))?;
     Ok(buf)
 }

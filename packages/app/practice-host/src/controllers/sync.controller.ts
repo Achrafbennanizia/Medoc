@@ -1,6 +1,13 @@
 import { practiceSystem } from "../adapters/practice-transport";
 import type { SyncDeploymentConfigV1 } from "../lib/deployment-config";
 
+export type InitialCopyStatus = {
+    side: "replica" | "master" | string;
+    deviceLabel: string;
+    done: number;
+    total: number;
+};
+
 export type SyncStatusSnapshot = {
     localDeviceId: string;
     deployment: SyncDeploymentConfigV1 & { schemaVersion: number };
@@ -14,6 +21,7 @@ export type SyncStatusSnapshot = {
         lastSeenAt: string | null;
     }>;
     vectors: Record<string, number>;
+    initialCopy?: InitialCopyStatus | null;
 };
 
 export type SyncRunReport = {

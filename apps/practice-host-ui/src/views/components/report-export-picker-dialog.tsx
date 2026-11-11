@@ -11,6 +11,8 @@ import { isTauriApp } from "@/lib/save-download";
 import { parseDelimitedGrid } from "@/lib/export-delimited";
 import {
     buildReportPdfBytes,
+    issueReportBundlePdf,
+    reportExportContext,
     financeTransactionsToLegacyCsv,
     reportBundleToCsv,
     reportBundleToJson,
@@ -203,17 +205,20 @@ export function ReportExportPickerDialog({
                     mime: "text/csv;charset=utf-8",
                     textBody: financeTransactionsToLegacyCsv(legacyCsv.rows, legacyCsv.patientNames),
                     folderOverride: destFolder,
+                    context: reportExportContext(bundle, "csv"),
                 });
             } else if (format === "pdf") {
-                const bytes = await buildReportPdfBytes(bundle);
+                // Preview above used the ENTWURF render; the saved file is issued.
+                const { issued, bytes } = await issueReportBundlePdf(bundle);
                 await finishExportWithSettings({
                     format: "pdf",
-                    title: bundle.exportTitle,
+                    title: `${bundle.exportTitle} ${issued.documentNumber ?? ""}`.trim(),
                     hint: bundle.hint,
                     suggestedFilename: finalName,
                     mime: "application/pdf",
                     binaryBody: bytes,
                     folderOverride: destFolder,
+                    context: reportExportContext(bundle, "pdf", issued.documentNumber),
                 });
             } else if (format === "csv") {
                 await finishExportWithSettings({
@@ -224,6 +229,7 @@ export function ReportExportPickerDialog({
                     mime: "text/csv;charset=utf-8",
                     textBody: reportBundleToCsv(bundle),
                     folderOverride: destFolder,
+                    context: reportExportContext(bundle, "csv"),
                 });
             } else if (format === "json") {
                 await finishExportWithSettings({
@@ -234,6 +240,7 @@ export function ReportExportPickerDialog({
                     mime: "application/json;charset=utf-8",
                     textBody: reportBundleToJson(bundle),
                     folderOverride: destFolder,
+                    context: reportExportContext(bundle, "json"),
                 });
             } else {
                 await finishExportWithSettings({
@@ -244,6 +251,7 @@ export function ReportExportPickerDialog({
                     mime: "application/xml;charset=utf-8",
                     textBody: reportBundleToXml(bundle),
                     folderOverride: destFolder,
+                    context: reportExportContext(bundle, "xml"),
                 });
             }
             onClose();

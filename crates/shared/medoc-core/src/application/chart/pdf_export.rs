@@ -1,7 +1,11 @@
 //! FA-AKTE-04 / FA-DOK-08 — PDF export use cases for the patient chart (`patient_chart`).
-//! User-facing PDF labels are English (default UI locale `en`).
+//! Labels follow the document language from Settings (`documents.locale.v1`,
+//! default German). Non-preview exports are numbered and registered in
+//! `issued_document` (hash + audit) via [`crate::application::documents::issue`].
 
 use crate::application::auth_service::Session;
+use crate::application::documents::issue::{register_rendered, DocKind, IssuedPdf, WATERMARK_PREVIEW};
+use crate::application::documents::practice_profile::{document_locale, PracticeProfile};
 use crate::application::rbac::{self, Role};
 use crate::error::AppError;
 use crate::infrastructure::database::{
@@ -9,7 +13,7 @@ use crate::infrastructure::database::{
     patient_repo, payment_repo, prescription_repo,
 };
 use crate::infrastructure::pdf::{
-    render_chart_blocks, ChartHeaderContext, ChartPdfBlock, ChartPdfTable,
+    render_chart_blocks, stamp_label, ChartHeaderContext, ChartPdfBlock, ChartPdfTable,
 };
 use crate::infrastructure::pdf_core::truncate_cell;
 use serde::Deserialize;
@@ -17,6 +21,112 @@ use sqlx::SqlitePool;
 
 fn default_true() -> bool {
     true
+}
+
+/// Fixed labels in the document language (German unless Settings say otherwise).
+fn l(de: bool, en: &'static str) -> String {
+    if !de {
+        return match en {
+            "Payments / Buchungen" => "Payments",
+            "Beschreibung" => "Description",
+            "Dateiname" => "File name",
+            "Aktion" => "Action",
+            "DentalFindings" => "Dental findings",
+            other => other,
+        }
+        .to_string();
+    }
+    match en {
+        "Date" => "Datum",
+        "Notes" => "Notizen",
+        "Time" => "Zeit",
+        "Issued" => "Ausgestellt",
+        "Practice" => "Praxis",
+        "Medication" => "Arzneimittel",
+        "Duration" => "Dauer",
+        "Dosage" => "Dosierung",
+        "Diagnosis" => "Diagnose",
+        "Tooth" => "Zahn",
+        "Sess." => "Sitz.",
+        "ServiceItem" => "Leistung",
+        "Phone" => "Telefon",
+        "Patient" => "Patient/in",
+        "MIME" => "Dateityp",
+        "Kind" => "Art",
+        "Finding" => "Befund",
+        "Examination findings (full)" => "Untersuchungsbefund (vollständig)",
+        "Entity" => "Objekt",
+        "Email" => "E-Mail",
+        "Date of birth" => "Geburtsdatum",
+        "Cat." => "Kat.",
+        "Active ingredient" => "Wirkstoff",
+        "(none recorded)" => "(nicht dokumentiert)",
+        "Valid until" => "Gültig bis",
+        "Valid from" => "Gültig ab",
+        "Type" => "Art",
+        "Treatments" => "Behandlungen",
+        "This leaflet summarises data from the practice software and does not replace medical advice." => "Dieses Merkblatt fasst Daten aus der Praxissoftware zusammen und ersetzt keine ärztliche Beratung.",
+        "This document contains confidential patient data (§ 630f BGB)." => "Dieses Dokument enthält vertrauliche Patientendaten (§ 630f BGB, Art. 9 DSGVO).",
+        "Sex" => "Geschlecht",
+        "Prescriptions" => "Verordnungen",
+        "Please bring this sheet to follow-up appointments if it was given to you." => "Bitte bringen Sie dieses Blatt zu Folgeterminen mit.",
+        "Planned" => "Geplant",
+        "Payments / Buchungen" => "Zahlungen",
+        "Patient — master data" => "Patient/in – Stammdaten",
+        "Patient status" => "Patientenstatus",
+        "Patient chart (core)" => "Patientenakte (Kern)",
+        "Notes:" => "Notizen:",
+        "Note" => "Hinweis",
+        "Medication (prescriptions, extract)" => "Medikation (Verordnungen, Auszug)",
+        "Master data" => "Stammdaten",
+        "Insurance number" => "Versichertennummer",
+        "Findings" => "Befunde",
+        "Examinations" => "Untersuchungen",
+        "Emergency" => "Notfall",
+        "Discontinued" => "Abgebrochen",
+        "Disclosure only with the patient's explicit consent." => "Weitergabe nur mit ausdrücklicher Einwilligung der Patientin bzw. des Patienten.",
+        "Diagnosis/findings not included for this role." => "Diagnose/Befunde für diese Rolle nicht enthalten.",
+        "Description:" => "Beschreibung:",
+        "DentalFindings" => "Zahnbefunde",
+        "Completed" => "Abgeschlossen",
+        "Clinician" => "Behandler/in",
+        "Chart status" => "Aktenstatus",
+        "Chart attachments (metadata)" => "Anhänge (Metadaten)",
+        "Chart ID" => "Akten-ID",
+        "Certificates (overview)" => "Bescheinigungen (Übersicht)",
+        "Cancelled" => "Storniert",
+        "Audit extract" => "Protokollauszug",
+        "Anamnesis / questionnaire" => "Anamnesebogen",
+        "Address" => "Anschrift",
+        "(no upcoming appointment booked)" => "(kein Folgetermin vereinbart)",
+        "(no treatment entries)" => "(keine Behandlungen)",
+        "(no prescriptions recorded)" => "(keine Verordnungen)",
+        "(no free text)" => "(kein Freitext)",
+        "(no date)" => "(ohne Datum)",
+        "(no certificates)" => "(keine Bescheinigungen)",
+        "(no appointment notes)" => "(keine Terminnotizen)",
+        "(no anamnesis form recorded)" => "(kein Anamnesebogen erfasst)",
+        "Additional notes / aftercare" => "Weitere Hinweise / Nachsorge",
+        "Certificates" => "Bescheinigungen",
+        "Last documented treatment" => "Zuletzt dokumentierte Behandlung",
+        "Medication (prescriptions)" => "Medikation (Verordnungen)",
+        "Next appointment" => "Nächster Termin",
+        "Referral / onward care" => "Überweisung / Weiterbehandlung",
+        other => other,
+    }
+    .to_string()
+}
+
+/// Localised certificate kind (never the raw enum such as `SICK_LEAVE`).
+fn certificate_kind_label(de: bool, kind: &str) -> String {
+    let (d, e) = match kind {
+        "SICK_LEAVE" => ("Arbeitsunfähigkeitsbescheinigung", "Sick-leave certificate"),
+        "SPORTS_EXEMPTION" => ("Sportbefreiung", "Sports exemption"),
+        "SCHOOL_EXEMPTION" => ("Schulbefreiung", "School exemption"),
+        "TREATMENT_CONFIRMATION" => ("Behandlungsbestätigung", "Treatment confirmation"),
+        _ => ("Bescheinigung", "Certificate"),
+    };
+    if de { d.into() } else { e.into() }
 }
 
 /// Turns off chart sections the caller's role is not allowed to see.
@@ -48,18 +158,18 @@ fn gate_chart_sections(
     }
 }
 
-fn fmt_treatment_status(raw: &str) -> String {
+fn fmt_treatment_status(de: bool, raw: &str) -> String {
     match raw.trim().to_uppercase().as_str() {
-        "COMPLETED" => "Completed".into(),
-        "PLANNED" => "Planned".into(),
-        "ABGEBROCHEN" => "Discontinued".into(),
-        "CANCELLED" => "Cancelled".into(),
+        "COMPLETED" => l(de, "Completed"),
+        "PLANNED" => l(de, "Planned"),
+        "ABGEBROCHEN" => l(de, "Discontinued"),
+        "CANCELLED" => l(de, "Cancelled"),
         other if other.is_empty() || other == "-" => "-".into(),
         other => truncate_cell(other, 12),
     }
 }
 
-async fn practice_kv_pairs_from_app_kv(pool: &SqlitePool) -> Vec<(String, String)> {
+async fn practice_kv_pairs_from_app_kv(pool: &SqlitePool, de: bool) -> Vec<(String, String)> {
     let Ok(Some(raw)) = app_kv_repo::get(pool, "invoice.practice.v1").await else {
         return Vec::new();
     };
@@ -74,10 +184,10 @@ async fn practice_kv_pairs_from_app_kv(pool: &SqlitePool) -> Vec<(String, String
     };
     let mut kv = Vec::new();
     if let Some(version) = get("name") {
-        kv.push(("Practice".into(), version));
+        kv.push((l(de, "Practice"), version));
     }
     if let Some(version) = get("clinician_name") {
-        kv.push(("Clinician".into(), version));
+        kv.push((l(de, "Clinician"), version));
     }
     if let Some(version) = get("bsnr") {
         kv.push(("BSNR".into(), version));
@@ -86,7 +196,7 @@ async fn practice_kv_pairs_from_app_kv(pool: &SqlitePool) -> Vec<(String, String
         kv.push(("ZANR".into(), version));
     }
     if let Some(version) = get("emergency_phone").or_else(|| get("notfall_phone")) {
-        kv.push(("Emergency".into(), version));
+        kv.push((l(de, "Emergency"), version));
     }
     kv
 }
@@ -95,6 +205,7 @@ async fn chart_header_from_app_kv(
     pool: &SqlitePool,
     created_by: &str,
     document_id: &str,
+    locale: &str,
 ) -> Option<ChartHeaderContext> {
     let Ok(Some(raw)) = app_kv_repo::get(pool, "invoice.practice.v1").await else {
         return None;
@@ -121,8 +232,24 @@ async fn chart_header_from_app_kv(
     if let Some(t) = get("phone") {
         practice_lines.push(format!("Tel. {t}"));
     }
+    if let Some(t) = get("fax") {
+        practice_lines.push(format!("Fax {t}"));
+    }
     if let Some(e) = get("email") {
         practice_lines.push(e);
+    }
+    if let Some(w) = get("web") {
+        practice_lines.push(
+            w.trim_start_matches("https://")
+                .trim_start_matches("http://")
+                .to_string(),
+        );
+    }
+    if let Some(b) = get("bsnr") {
+        practice_lines.push(format!("BSNR {b}"));
+    }
+    if let Some(z) = get("zanr") {
+        practice_lines.push(format!("ZANR {z}"));
     }
     Some(ChartHeaderContext {
         practice_lines,
@@ -132,17 +259,18 @@ async fn chart_header_from_app_kv(
         zanr: get("zanr"),
         created_by: Some(created_by.to_string()),
         document_id: Some(document_id.to_string()),
-        logo: app_kv_repo::get(pool, "practice.logo.v1")
+        logo: crate::application::documents::practice_profile::practice_logo(pool).await,
+        locale: locale.into(),
+        rtl: locale == "ar",
+        watermark: None,
+        footer_lines: PracticeProfile::load(pool)
             .await
-            .ok()
-            .flatten()
-            .and_then(|raw| crate::infrastructure::pdf::PdfLogo::from_kv_json(&raw)),
-        locale: "en".into(),
-        rtl: false,
+            .map(|p| p.footer_lines(locale))
+            .unwrap_or_default(),
     })
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChartExportSections {
     #[serde(default = "default_true")]
@@ -196,6 +324,9 @@ pub struct ExportChartPdfArgs {
     pub patient_id: String,
     #[serde(default)]
     pub sections: ChartExportSections,
+    /// Watermarked preview: no number, no registry entry, no export audit.
+    #[serde(default)]
+    pub preview: bool,
 }
 
 /// FA-DOK-08: Discharge leaflet / aftercare as PDF (compact summary).
@@ -210,21 +341,26 @@ pub struct ExportDischargeLeafletPdfArgs {
     /// Referral / onward care.
     #[serde(default, alias = "referralNotes")]
     pub referral_notes: Option<String>,
+    #[serde(default)]
+    pub preview: bool,
 }
 
-/// FA-AKTE-04: PatientChart als PDF (Abschnitte wählbar). Base64-encoded PDF bytes.
+/// FA-AKTE-04: patient chart extract as PDF (selectable sections).
+/// `preview = true` → watermarked, unnumbered, not registered.
 pub async fn export_chart_pdf(
     pool: &SqlitePool,
     session: &Session,
     args: ExportChartPdfArgs,
-) -> Result<String, AppError> {
+) -> Result<IssuedPdf, AppError> {
     use base64::Engine;
+    let preview = args.preview;
 
     let role = Role::parse(&session.role).ok_or(AppError::Unauthorized)?;
     let ov = &session.permission_overrides;
     let patient_id = args.patient_id.clone();
     let mut sec = args.sections;
     gate_chart_sections(&mut sec, role, ov);
+    let sections_json = serde_json::to_value(&sec).unwrap_or_default();
     let medical = rbac::effective_allowed("patient.read_medical", role, ov);
 
     let patient = patient_repo::find_by_id(pool, &patient_id)
@@ -240,15 +376,18 @@ pub async fn export_chart_pdf(
         chart_display.findings = None;
     }
 
-    let generated = chrono::Utc::now().format("%Y-%m-%d %H:%M UTC").to_string();
+    let locale = document_locale(pool).await;
+    let de = locale == "de";
+    // Local time: the document is read by people in the practice's time zone.
+    let generated = chrono::Local::now().format("%d.%m.%Y %H:%M").to_string();
     let mut blocks: Vec<ChartPdfBlock> = Vec::new();
 
-    let practice_kv = practice_kv_pairs_from_app_kv(pool).await;
+    let practice_kv = practice_kv_pairs_from_app_kv(pool, de).await;
     if !practice_kv.is_empty() {
         blocks.insert(
             0,
             ChartPdfBlock {
-                title: "Practice".into(),
+                title: l(de, "Practice"),
                 body_lines: vec![],
                 kv_pairs: practice_kv,
                 table: None,
@@ -259,25 +398,25 @@ pub async fn export_chart_pdf(
     if sec.patient {
         let mut kv = vec![
             ("Name".into(), patient.name.clone()),
-            ("Date of birth".into(), patient.date_of_birth.to_string()),
-            ("Sex".into(), patient.sex.clone()),
+            (l(de, "Date of birth"), patient.date_of_birth.to_string()),
+            (l(de, "Sex"), patient.sex.clone()),
             (
-                "Insurance number".into(),
+                l(de, "Insurance number"),
                 patient.insurance_number.clone().unwrap_or_default(),
             ),
-            ("Patient status".into(), patient.status.clone()),
+            (l(de, "Patient status"), patient.status.clone()),
         ];
         if let Some(t) = &patient.phone {
-            kv.push(("Phone".into(), t.clone()));
+            kv.push((l(de, "Phone"), t.clone()));
         }
         if let Some(e) = &patient.email {
-            kv.push(("Email".into(), e.clone()));
+            kv.push((l(de, "Email"), e.clone()));
         }
         if let Some(a) = &patient.address {
-            kv.push(("Address".into(), a.clone()));
+            kv.push((l(de, "Address"), a.clone()));
         }
         blocks.push(ChartPdfBlock {
-            title: "Master data".into(),
+            title: l(de, "Master data"),
             body_lines: vec![],
             kv_pairs: kv,
             table: None,
@@ -286,36 +425,36 @@ pub async fn export_chart_pdf(
 
     if sec.chart_core {
         let mut kv = vec![
-            ("Chart ID".into(), chart_display.id.clone()),
-            ("Chart status".into(), chart_display.status.clone()),
+            (l(de, "Chart ID"), chart_display.id.clone()),
+            (l(de, "Chart status"), chart_display.status.clone()),
         ];
         if medical {
             kv.push((
-                "Diagnosis".into(),
+                l(de, "Diagnosis"),
                 chart_display
                     .diagnosis
                     .as_deref()
                     .map(crate::infrastructure::clinical_text_format::plain_text_for_pdf)
                     .filter(|s| !s.trim().is_empty())
-                    .unwrap_or_else(|| "(none recorded)".into()),
+                    .unwrap_or_else(|| l(de, "(none recorded)")),
             ));
             kv.push((
-                "Findings".into(),
+                l(de, "Findings"),
                 chart_display
                     .findings
                     .as_deref()
                     .map(crate::infrastructure::clinical_text_format::plain_text_for_pdf)
                     .filter(|s| !s.trim().is_empty())
-                    .unwrap_or_else(|| "(none recorded)".into()),
+                    .unwrap_or_else(|| l(de, "(none recorded)")),
             ));
         } else {
             kv.push((
-                "Note".into(),
-                "Diagnosis/findings not included for this role.".into(),
+                l(de, "Note"),
+                l(de, "Diagnosis/findings not included for this role."),
             ));
         }
         blocks.push(ChartPdfBlock {
-            title: "Patient chart (core)".into(),
+            title: l(de, "Patient chart (core)"),
             body_lines: vec![],
             kv_pairs: kv,
             table: None,
@@ -327,10 +466,10 @@ pub async fn export_chart_pdf(
         let tbl = if rows_db.is_empty() {
             ChartPdfTable {
                 headers: vec![
-                    "Tooth".into(),
-                    "Finding".into(),
-                    "Diagnosis".into(),
-                    "Notes".into(),
+                    l(de, "Tooth"),
+                    l(de, "Finding"),
+                    l(de, "Diagnosis"),
+                    l(de, "Notes"),
                 ],
                 rows: vec![],
                 ..Default::default()
@@ -338,10 +477,10 @@ pub async fn export_chart_pdf(
         } else {
             ChartPdfTable {
                 headers: vec![
-                    "Tooth".into(),
-                    "Finding".into(),
-                    "Diagnosis".into(),
-                    "Notes".into(),
+                    l(de, "Tooth"),
+                    l(de, "Finding"),
+                    l(de, "Diagnosis"),
+                    l(de, "Notes"),
                 ],
                 rows: rows_db
                     .into_iter()
@@ -358,7 +497,7 @@ pub async fn export_chart_pdf(
             }
         };
         blocks.push(ChartPdfBlock {
-            title: "DentalFindings".into(),
+            title: l(de, "DentalFindings"),
             body_lines: vec![],
             kv_pairs: vec![],
             table: Some(tbl),
@@ -367,20 +506,25 @@ pub async fn export_chart_pdf(
 
     if sec.anamnesis && medical {
         if let Some(am) = chart_repo::find_anamnesis_form(pool, &patient_id).await? {
-            let signed = if am.signed { "Yes" } else { "No" };
+            let signed = match (de, am.signed) {
+                (true, true) => "Unterschrieben: ja",
+                (true, false) => "Unterschrieben: nein",
+                (false, true) => "Signed: yes",
+                (false, false) => "Signed: no",
+            };
             let mut lines =
                 crate::infrastructure::clinical_text_format::format_anamnesis_answers(&am.answers);
-            lines.insert(0, format!("Signed: {signed}"));
+            lines.insert(0, signed.to_string());
             blocks.push(ChartPdfBlock {
-                title: "Anamnesis / questionnaire".into(),
+                title: l(de, "Anamnesis / questionnaire"),
                 body_lines: lines,
                 kv_pairs: vec![],
                 table: None,
             });
         } else {
             blocks.push(ChartPdfBlock::body(
-                "Anamnesis / questionnaire",
-                vec!["(no anamnesis form recorded)".into()],
+                l(de, "Anamnesis / questionnaire"),
+                vec![l(de, "(no anamnesis form recorded)")],
             ));
         }
     }
@@ -390,9 +534,9 @@ pub async fn export_chart_pdf(
         let tbl = if rows_db.is_empty() {
             ChartPdfTable {
                 headers: vec![
-                    "Date".into(),
+                    l(de, "Date"),
                     "Nr.".into(),
-                    "Examination findings (full)".into(),
+                    l(de, "Examination findings (full)"),
                 ],
                 rows: vec![],
                 column_weights: Some(vec![2, 1, 12]),
@@ -400,9 +544,9 @@ pub async fn export_chart_pdf(
         } else {
             ChartPdfTable {
                 headers: vec![
-                    "Date".into(),
+                    l(de, "Date"),
                     "Nr.".into(),
-                    "Examination findings (full)".into(),
+                    l(de, "Examination findings (full)"),
                 ],
                 rows: rows_db
                     .into_iter()
@@ -424,7 +568,7 @@ pub async fn export_chart_pdf(
             }
         };
         blocks.push(ChartPdfBlock {
-            title: "Examinations".into(),
+            title: l(de, "Examinations"),
             body_lines: vec![],
             kv_pairs: vec![],
             table: Some(tbl),
@@ -436,14 +580,14 @@ pub async fn export_chart_pdf(
         let tbl = if rows_db.is_empty() {
             ChartPdfTable {
                 headers: vec![
-                    "Date".into(),
-                    "ServiceItem".into(),
-                    "Cat.".into(),
-                    "Sess.".into(),
+                    l(de, "Date"),
+                    l(de, "ServiceItem"),
+                    l(de, "Cat."),
+                    l(de, "Sess."),
                     "B-Nr.".into(),
                     "Status".into(),
                     "EUR".into(),
-                    "Notes".into(),
+                    l(de, "Notes"),
                 ],
                 rows: vec![],
                 column_weights: Some(vec![2, 4, 2, 1, 1, 2, 1, 3]),
@@ -451,14 +595,14 @@ pub async fn export_chart_pdf(
         } else {
             ChartPdfTable {
                 headers: vec![
-                    "Date".into(),
-                    "ServiceItem".into(),
-                    "Cat.".into(),
-                    "Sess.".into(),
+                    l(de, "Date"),
+                    l(de, "ServiceItem"),
+                    l(de, "Cat."),
+                    l(de, "Sess."),
                     "B-Nr.".into(),
                     "Status".into(),
                     "EUR".into(),
-                    "Notes".into(),
+                    l(de, "Notes"),
                 ],
                 rows: rows_db
                     .into_iter()
@@ -487,7 +631,7 @@ pub async fn export_chart_pdf(
                                 .map(|s| s.to_string())
                                 .unwrap_or_else(|| "-".into()),
                             b.treatment_number.as_deref().unwrap_or("-").to_string(),
-                            fmt_treatment_status(b.treatment_status.as_deref().unwrap_or("-")),
+                            fmt_treatment_status(de, b.treatment_status.as_deref().unwrap_or("-")),
                             cost,
                             b.notes.as_deref().unwrap_or("-").to_string(),
                         ]
@@ -497,7 +641,7 @@ pub async fn export_chart_pdf(
             }
         };
         blocks.push(ChartPdfBlock {
-            title: "Treatments".into(),
+            title: l(de, "Treatments"),
             body_lines: vec![],
             kv_pairs: vec![],
             table: Some(tbl),
@@ -509,12 +653,12 @@ pub async fn export_chart_pdf(
         let tbl = if rows_db.is_empty() {
             ChartPdfTable {
                 headers: vec![
-                    "Issued".into(),
-                    "Medication".into(),
-                    "Dosage".into(),
-                    "Duration".into(),
+                    l(de, "Issued"),
+                    l(de, "Medication"),
+                    l(de, "Dosage"),
+                    l(de, "Duration"),
                     "Status".into(),
-                    "Active ingredient".into(),
+                    l(de, "Active ingredient"),
                 ],
                 rows: vec![],
                 ..Default::default()
@@ -522,12 +666,12 @@ pub async fn export_chart_pdf(
         } else {
             ChartPdfTable {
                 headers: vec![
-                    "Issued".into(),
-                    "Medication".into(),
-                    "Dosage".into(),
-                    "Duration".into(),
+                    l(de, "Issued"),
+                    l(de, "Medication"),
+                    l(de, "Dosage"),
+                    l(de, "Duration"),
                     "Status".into(),
-                    "Active ingredient".into(),
+                    l(de, "Active ingredient"),
                 ],
                 rows: rows_db
                     .into_iter()
@@ -546,7 +690,7 @@ pub async fn export_chart_pdf(
             }
         };
         blocks.push(ChartPdfBlock {
-            title: "Prescriptions".into(),
+            title: l(de, "Prescriptions"),
             body_lines: vec![],
             kv_pairs: vec![],
             table: Some(tbl),
@@ -557,15 +701,15 @@ pub async fn export_chart_pdf(
         let rows_db = certificate_repo::find_for_patient(pool, &patient_id).await?;
         if rows_db.is_empty() {
             blocks.push(ChartPdfBlock::body(
-                "Certificates",
-                vec!["(no certificates)".into()],
+                l(de, "Certificates"),
+                vec![l(de, "(no certificates)")],
             ));
         } else {
             let certificate_rows: Vec<Vec<String>> = rows_db
                 .iter()
                 .map(|a| {
                     vec![
-                        a.kind.clone(),
+                        certificate_kind_label(de, &a.kind),
                         a.valid_from.to_string(),
                         a.valid_until.to_string(),
                         a.issued_at.to_string(),
@@ -573,15 +717,15 @@ pub async fn export_chart_pdf(
                 })
                 .collect();
             blocks.push(ChartPdfBlock {
-                title: "Certificates (overview)".into(),
+                title: l(de, "Certificates (overview)"),
                 body_lines: vec![],
                 kv_pairs: vec![],
                 table: Some(ChartPdfTable {
                     headers: vec![
-                        "Type".into(),
-                        "Valid from".into(),
-                        "Valid until".into(),
-                        "Issued".into(),
+                        l(de, "Type"),
+                        l(de, "Valid from"),
+                        l(de, "Valid until"),
+                        l(de, "Issued"),
                     ],
                     rows: certificate_rows,
                     ..Default::default()
@@ -590,7 +734,7 @@ pub async fn export_chart_pdf(
             for a in rows_db {
                 let mut lines: Vec<String> = Vec::new();
                 if a.body_text.trim().is_empty() {
-                    lines.push("(no free text)".into());
+                    lines.push(l(de, "(no free text)"));
                 } else {
                     for ln in a.body_text.lines() {
                         lines.push(if ln.is_empty() {
@@ -601,7 +745,7 @@ pub async fn export_chart_pdf(
                     }
                 }
                 blocks.push(ChartPdfBlock::body(
-                    format!("Certificate — {}", a.kind),
+                    certificate_kind_label(de, &a.kind),
                     lines,
                 ));
             }
@@ -613,11 +757,11 @@ pub async fn export_chart_pdf(
         let tbl = if rows_db.is_empty() {
             ChartPdfTable {
                 headers: vec![
-                    "Time".into(),
+                    l(de, "Time"),
                     "EUR".into(),
-                    "Kind".into(),
+                    l(de, "Kind"),
                     "Status".into(),
-                    "Beschreibung".into(),
+                    l(de, "Beschreibung"),
                 ],
                 rows: vec![],
                 ..Default::default()
@@ -625,11 +769,11 @@ pub async fn export_chart_pdf(
         } else {
             ChartPdfTable {
                 headers: vec![
-                    "Time".into(),
+                    l(de, "Time"),
                     "EUR".into(),
-                    "Kind".into(),
+                    l(de, "Kind"),
                     "Status".into(),
-                    "Beschreibung".into(),
+                    l(de, "Beschreibung"),
                 ],
                 rows: rows_db
                     .into_iter()
@@ -647,7 +791,7 @@ pub async fn export_chart_pdf(
             }
         };
         blocks.push(ChartPdfBlock {
-            title: "Payments / Buchungen".into(),
+            title: l(de, "Payments / Buchungen"),
             body_lines: vec![],
             kv_pairs: vec![],
             table: Some(tbl),
@@ -659,9 +803,9 @@ pub async fn export_chart_pdf(
         let tbl = if rows_db.is_empty() {
             ChartPdfTable {
                 headers: vec![
-                    "Dateiname".into(),
-                    "MIME".into(),
-                    "Date".into(),
+                    l(de, "Dateiname"),
+                    l(de, "MIME"),
+                    l(de, "Date"),
                     "Bytes".into(),
                 ],
                 rows: vec![],
@@ -670,9 +814,9 @@ pub async fn export_chart_pdf(
         } else {
             ChartPdfTable {
                 headers: vec![
-                    "Dateiname".into(),
-                    "MIME".into(),
-                    "Date".into(),
+                    l(de, "Dateiname"),
+                    l(de, "MIME"),
+                    l(de, "Date"),
                     "Bytes".into(),
                 ],
                 rows: rows_db
@@ -690,7 +834,7 @@ pub async fn export_chart_pdf(
             }
         };
         blocks.push(ChartPdfBlock {
-            title: "Chart attachments (metadata)".into(),
+            title: l(de, "Chart attachments (metadata)"),
             body_lines: vec![],
             kv_pairs: vec![],
             table: Some(tbl),
@@ -702,9 +846,9 @@ pub async fn export_chart_pdf(
         let tbl = if rows_db.is_empty() {
             ChartPdfTable {
                 headers: vec![
-                    "Time".into(),
-                    "Aktion".into(),
-                    "Entity".into(),
+                    l(de, "Time"),
+                    l(de, "Aktion"),
+                    l(de, "Entity"),
                     "ID".into(),
                     "Details".into(),
                 ],
@@ -714,9 +858,9 @@ pub async fn export_chart_pdf(
         } else {
             ChartPdfTable {
                 headers: vec![
-                    "Time".into(),
-                    "Aktion".into(),
-                    "Entity".into(),
+                    l(de, "Time"),
+                    l(de, "Aktion"),
+                    l(de, "Entity"),
                     "ID".into(),
                     "Details".into(),
                 ],
@@ -736,46 +880,51 @@ pub async fn export_chart_pdf(
             }
         };
         blocks.push(ChartPdfBlock {
-            title: "Audit extract".into(),
+            title: l(de, "Audit extract"),
             body_lines: vec![],
             kv_pairs: vec![],
             table: Some(tbl),
         });
     }
 
-    let document_id = uuid::Uuid::new_v4().to_string();
     let created_by = format!("{} ({})", session.name, session.role);
-    let header = chart_header_from_app_kv(pool, &created_by, &document_id).await;
+    let title = if de { "Patientenakte – Auszug" } else { "Patient chart – extract" };
+    let pdf_title = format!("{title} {}", patient.name);
+    let header_base = chart_header_from_app_kv(pool, &created_by, "", locale).await;
+    let render = |number: &str, watermark: Option<String>| -> Result<Vec<u8>, AppError> {
+        let mut blocks = blocks.clone();
+        let mut header = header_base.clone();
+        if let Some(h) = header.as_mut() {
+            h.document_id = Some(number.to_string());
+            h.watermark = watermark;
+        }
+        blocks.push(ChartPdfBlock::body(
+            l(de, "Notes"),
+            vec![
+                format!("{}: {created_by}", if de { "Erstellt von" } else { "Created by" }),
+                format!("{}: {number}", if de { "Dokument-Nr." } else { "Document no." }),
+                l(de, "This document contains confidential patient data (§ 630f BGB)."),
+                l(de, "Disclosure only with the patient's explicit consent."),
+            ],
+        ));
+        render_chart_blocks(title, &generated, &pdf_title, &blocks, header.as_ref())
+    };
 
-    blocks.push(ChartPdfBlock::body(
-        "Notes",
-        vec![
-            format!("Created by: {created_by}"),
-            format!("Document-ID: {document_id}"),
-            "This document contains confidential patient data (§ 630f BGB).".into(),
-            "Disclosure only with the patient's explicit consent.".into(),
-        ],
-    ));
-
-    let bytes = render_chart_blocks(
-        "Patient chart — export",
-        &generated,
-        &format!("Patient chart {}", patient.name),
-        &blocks,
-        header.as_ref(),
-    )?;
-
-    audit_repo::create(
-        pool,
-        &session.user_id,
-        "EXPORT_PDF",
-        "PatientChart",
-        Some(&patient_id),
-        None,
-    )
+    if preview {
+        let bytes = render(WATERMARK_PREVIEW, Some(WATERMARK_PREVIEW.into()))?;
+        return Ok(IssuedPdf {
+            document_id: None,
+            document_number: None,
+            sha256: crate::infrastructure::database::issued_document_repo::sha256_hex(&bytes),
+            pdf_base64: base64::engine::general_purpose::STANDARD.encode(&bytes),
+            reprint: false,
+        });
+    }
+    let payload = serde_json::json!({ "sections": sections_json, "generatedAt": generated });
+    register_rendered(pool, session, DocKind::ChartExtract, &patient_id, payload, |number| {
+        render(number, None)
+    })
     .await
-    .ok();
-    Ok(base64::engine::general_purpose::STANDARD.encode(&bytes))
 }
 
 /// FA-DOK-08: Discharge leaflet / aftercare as PDF.
@@ -783,8 +932,9 @@ pub async fn export_discharge_leaflet_pdf(
     pool: &SqlitePool,
     session: &Session,
     args: ExportDischargeLeafletPdfArgs,
-) -> Result<String, AppError> {
+) -> Result<IssuedPdf, AppError> {
     use base64::Engine;
+    let preview = args.preview;
 
     let patient_id = args.patient_id.clone();
     let patient = patient_repo::find_by_id(pool, &patient_id)
@@ -794,15 +944,18 @@ pub async fn export_discharge_leaflet_pdf(
         .await?
         .ok_or(AppError::NotFound("PatientChart".into()))?;
 
-    let generated = chrono::Utc::now().format("%Y-%m-%d %H:%M UTC").to_string();
+    let locale = document_locale(pool).await;
+    let de = locale == "de";
+    // Local time: the document is read by people in the practice's time zone.
+    let generated = chrono::Local::now().format("%d.%m.%Y %H:%M").to_string();
     let mut blocks: Vec<ChartPdfBlock> = Vec::new();
 
-    let practice_kv = practice_kv_pairs_from_app_kv(pool).await;
+    let practice_kv = practice_kv_pairs_from_app_kv(pool, de).await;
     if !practice_kv.is_empty() {
         blocks.insert(
             0,
             ChartPdfBlock {
-                title: "Practice".into(),
+                title: l(de, "Practice"),
                 body_lines: vec![],
                 kv_pairs: practice_kv,
                 table: None,
@@ -812,16 +965,16 @@ pub async fn export_discharge_leaflet_pdf(
 
     let mut master_kv = vec![
         ("Name".into(), patient.name.clone()),
-        ("Date of birth".into(), patient.date_of_birth.to_string()),
+        (l(de, "Date of birth"), patient.date_of_birth.to_string()),
     ];
     if let Some(t) = &patient.phone {
-        master_kv.push(("Phone".into(), t.clone()));
+        master_kv.push((l(de, "Phone"), t.clone()));
     }
     if let Some(e) = &patient.email {
-        master_kv.push(("Email".into(), e.clone()));
+        master_kv.push((l(de, "Email"), e.clone()));
     }
     blocks.push(ChartPdfBlock {
-        title: "Patient — master data".into(),
+        title: l(de, "Patient — master data"),
         body_lines: vec![],
         kv_pairs: master_kv,
         table: None,
@@ -838,20 +991,21 @@ pub async fn export_discharge_leaflet_pdf(
     if let Some(b) = latest_bh {
         let mut lines: Vec<String> = Vec::new();
         lines.push(format!(
-            "Date: {}",
+            "{}: {}",
+            l(de, "Date"),
             b.treatment_date
                 .clone()
-                .unwrap_or_else(|| "(no date)".into())
+                .unwrap_or_else(|| l(de, "(no date)"))
         ));
-        lines.push(format!("Kind: {}", b.kind));
+        lines.push(format!("{}: {}", l(de, "Kind"), b.kind));
         if let Some(k) = &b.category {
             if !k.trim().is_empty() {
-                lines.push(format!("Category: {}", k));
+                lines.push(format!("{}: {}", if de { "Kategorie" } else { "Category" }, k));
             }
         }
         if let Some(desc) = &b.description {
             if !desc.trim().is_empty() {
-                lines.push("Description:".into());
+                lines.push(l(de, "Description:"));
                 for ln in desc.lines() {
                     lines.push(if ln.is_empty() {
                         " ".into()
@@ -863,7 +1017,7 @@ pub async fn export_discharge_leaflet_pdf(
         }
         if let Some(n) = &b.notes {
             if !n.trim().is_empty() {
-                lines.push("Notes:".into());
+                lines.push(l(de, "Notes:"));
                 for ln in n.lines() {
                     lines.push(if ln.is_empty() {
                         " ".into()
@@ -873,11 +1027,11 @@ pub async fn export_discharge_leaflet_pdf(
                 }
             }
         }
-        blocks.push(ChartPdfBlock::body("Last documented treatment", lines));
+        blocks.push(ChartPdfBlock::body(l(de, "Last documented treatment"), lines));
     } else {
         blocks.push(ChartPdfBlock::body(
-            "Last documented treatment",
-            vec!["(no treatment entries)".into()],
+            l(de, "Last documented treatment"),
+            vec![l(de, "(no treatment entries)")],
         ));
     }
 
@@ -885,17 +1039,17 @@ pub async fn export_discharge_leaflet_pdf(
     let rz_take: Vec<_> = prescriptions.into_iter().take(12).collect();
     if rz_take.is_empty() {
         blocks.push(ChartPdfBlock::body(
-            "Medication (prescriptions)",
-            vec!["(no prescriptions recorded)".into()],
+            l(de, "Medication (prescriptions)"),
+            vec![l(de, "(no prescriptions recorded)")],
         ));
     } else {
         let tbl = ChartPdfTable {
             headers: vec![
-                "Issued".into(),
-                "Medication".into(),
-                "Dosage".into(),
-                "Duration".into(),
-                "Notes".into(),
+                l(de, "Issued"),
+                l(de, "Medication"),
+                l(de, "Dosage"),
+                l(de, "Duration"),
+                l(de, "Notes"),
             ],
             rows: rz_take
                 .iter()
@@ -912,7 +1066,7 @@ pub async fn export_discharge_leaflet_pdf(
             ..Default::default()
         };
         blocks.push(ChartPdfBlock {
-            title: "Medication (prescriptions, extract)".into(),
+            title: l(de, "Medication (prescriptions, extract)"),
             body_lines: vec![],
             kv_pairs: vec![],
             table: Some(tbl),
@@ -922,22 +1076,22 @@ pub async fn export_discharge_leaflet_pdf(
     match appointment_repo::find_next_for_patient(pool, &patient_id).await? {
         Some(t) => {
             blocks.push(ChartPdfBlock::body(
-                "Next appointment",
+                l(de, "Next appointment"),
                 vec![
-                    format!("Date: {} {}", t.date, t.time),
-                    format!("Kind: {}", t.kind),
+                    format!("{}: {} {}", l(de, "Date"), t.date, t.time),
+                    format!("{}: {}", l(de, "Kind"), t.kind),
                     format!("Status: {}", t.status),
                     t.notes
                         .filter(|s| !s.trim().is_empty())
-                        .map(|s| format!("Notes: {}", s))
-                        .unwrap_or_else(|| "(no appointment notes)".into()),
+                        .map(|s| format!("{} {}", l(de, "Notes:"), s))
+                        .unwrap_or_else(|| l(de, "(no appointment notes)")),
                 ],
             ));
         }
         None => {
             blocks.push(ChartPdfBlock::body(
-                "Next appointment",
-                vec!["(no upcoming appointment booked)".into()],
+                l(de, "Next appointment"),
+                vec![l(de, "(no upcoming appointment booked)")],
             ));
         }
     }
@@ -956,7 +1110,7 @@ pub async fn export_discharge_leaflet_pdf(
                 ln.to_string()
             });
         }
-        blocks.push(ChartPdfBlock::body("Referral / onward care", lines));
+        blocks.push(ChartPdfBlock::body(l(de, "Referral / onward care"), lines));
     }
 
     if let Some(txt) = args
@@ -973,7 +1127,7 @@ pub async fn export_discharge_leaflet_pdf(
                 ln.to_string()
             });
         }
-        blocks.push(ChartPdfBlock::body("Additional notes / aftercare", lines));
+        blocks.push(ChartPdfBlock::body(l(de, "Additional notes / aftercare"), lines));
     }
 
     if let Ok(Some(raw)) = app_kv_repo::get(pool, "invoice.practice.v1").await {
@@ -1010,45 +1164,57 @@ pub async fn export_discharge_leaflet_pdf(
                 if !zanr.is_empty() || !bsnr.is_empty() {
                     sig.push(format!("ZANR: {zanr} · BSNR: {bsnr}"));
                 }
-                sig.push("(Stempel)".into());
-                blocks.push(ChartPdfBlock::body("Clinician / Unterschrift", sig));
+                sig.push(stamp_label(if de { "de" } else { "en" }).into());
+                blocks.push(ChartPdfBlock::body(
+                    if de { "Behandler/in / Unterschrift" } else { "Clinician / signature" },
+                    sig,
+                ));
             }
         }
     }
 
-    let document_id = uuid::Uuid::new_v4().to_string();
     let created_by = format!("{} ({})", session.name, session.role);
-    let header = chart_header_from_app_kv(pool, &created_by, &document_id).await;
+    let title = if de { "Nachsorge-Merkblatt" } else { "Discharge leaflet / aftercare" };
+    let pdf_title = format!("{title} – {}", patient.name);
+    let header_base = chart_header_from_app_kv(pool, &created_by, "", locale).await;
+    let render = |number: &str, watermark: Option<String>| -> Result<Vec<u8>, AppError> {
+        let mut blocks = blocks.clone();
+        let mut header = header_base.clone();
+        if let Some(h) = header.as_mut() {
+            h.document_id = Some(number.to_string());
+            h.watermark = watermark;
+        }
+        blocks.push(ChartPdfBlock::body(
+            l(de, "Note"),
+            vec![
+                format!("{}: {created_by}", if de { "Erstellt von" } else { "Created by" }),
+                format!("{}: {number}", if de { "Dokument-Nr." } else { "Document no." }),
+                l(de, "This leaflet summarises data from the practice software and does not replace medical advice."),
+                l(de, "Please bring this sheet to follow-up appointments if it was given to you."),
+            ],
+        ));
+        render_chart_blocks(title, &generated, &pdf_title, &blocks, header.as_ref())
+    };
 
-    blocks.push(ChartPdfBlock::body(
-        "Note",
-        vec![
-            format!("Created by: {created_by}"),
-            format!("Document-ID: {document_id}"),
-            "This leaflet summarises data from the practice software and does not replace medical advice.".into(),
-            "Please bring this sheet to follow-up appointments if it was given to you.".into(),
-        ],
-    ));
-
-    let bytes = render_chart_blocks(
-        "Discharge leaflet / aftercare",
-        &generated,
-        &format!("Discharge leaflet — {}", patient.name),
-        &blocks,
-        header.as_ref(),
-    )?;
-
-    audit_repo::create(
-        pool,
-        &session.user_id,
-        "EXPORT_PDF",
-        "DischargeLeaflet",
-        Some(&patient_id),
-        None,
-    )
+    if preview {
+        let bytes = render(WATERMARK_PREVIEW, Some(WATERMARK_PREVIEW.into()))?;
+        return Ok(IssuedPdf {
+            document_id: None,
+            document_number: None,
+            sha256: crate::infrastructure::database::issued_document_repo::sha256_hex(&bytes),
+            pdf_base64: base64::engine::general_purpose::STANDARD.encode(&bytes),
+            reprint: false,
+        });
+    }
+    let payload = serde_json::json!({
+        "generatedAt": generated,
+        "additionalNotes": args.additional_notes,
+        "referralNotes": args.referral_notes,
+    });
+    register_rendered(pool, session, DocKind::DischargeLeaflet, &patient_id, payload, |number| {
+        render(number, None)
+    })
     .await
-    .ok();
-    Ok(base64::engine::general_purpose::STANDARD.encode(&bytes))
 }
 
 #[cfg(test)]

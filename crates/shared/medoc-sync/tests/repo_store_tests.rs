@@ -7,7 +7,8 @@ use medoc_sync::repo::{
     load_row_payload_json,
     append_outbox, enqueue_full_snapshot, ensure_local_device, list_entries_since,
     list_pending_outbox, list_pending_outbox_for_peer, mark_applied, mark_outbox_delivered,
-    mark_peer_delivery, save_deployment, set_observed_seq, status_snapshot, sync_record_or_noop,
+    mark_outbox_failed, mark_peer_delivery, save_deployment, set_observed_seq, status_snapshot,
+    sync_record_or_noop,
     was_applied, is_synced_table, synced_tables,
 };
 use medoc_sync::schema::ensure_sync_tables;
@@ -54,6 +55,10 @@ fn synced_tables_lists_parents_before_children() {
     assert!(pos("patient_chart") < pos("examination"));
     assert!(pos("patient_chart") < pos("treatment"));
     assert!(pos("service_item") < pos("payment"));
+    assert!(pos("product") < pos("supplier_pharma_template"));
+    assert!(pos("supplier_master") < pos("supplier_pharma_template"));
+    assert!(pos("pharma_consultant_master") < pos("supplier_pharma_template"));
+    assert!(pos("product") < pos("purchase_order"));
 }
 
 #[tokio::test]
@@ -148,6 +153,48 @@ async fn mark_outbox_delivered_clears_pending_count() {
         .await
         .expect("deliver");
     assert_eq!(list_pending_outbox(&pool, &device, 500).await.unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn delivered_watermark_leaves_a_missing_blob_row_pending() {
+    let pool = fresh_pool().await;
+    let device = ensure_local_device(&pool, "blob-hold").await.unwrap();
+    let blob = append_outbox(
+        &pool,
+        &device,
+        "chart_attachment",
+        "file-1",
+        "INSERT",
+        r#"{"sha256":"ab"}"#,
+    )
+    .await
+    .unwrap();
+    let later = append_outbox(
+        &pool,
+        &device,
+        "patient",
+        "p-1",
+        "INSERT",
+        r#"{"id":"p-1"}"#,
+    )
+    .await
+    .unwrap();
+    mark_outbox_failed(&pool, &blob.id, "BLOB_MISSING").await.unwrap();
+    mark_outbox_delivered(&pool, &device, later.seq).await.unwrap();
+    let delivered: Option<String> =
+        sqlx::query_scalar("SELECT delivered_at FROM sync_outbox WHERE id = ?1")
+            .bind(&blob.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert!(delivered.is_none());
+    let later_delivered: Option<String> =
+        sqlx::query_scalar("SELECT delivered_at FROM sync_outbox WHERE id = ?1")
+            .bind(&later.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert!(later_delivered.is_some());
 }
 
 #[tokio::test]

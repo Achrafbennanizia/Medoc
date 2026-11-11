@@ -3,6 +3,7 @@ pub mod admin;
 pub mod app_lifecycle;
 pub mod billing;
 pub mod clinical;
+pub mod documents;
 pub mod list_params;
 pub mod network;
 pub mod practice;
@@ -50,9 +51,6 @@ pub mod service_item_commands {
 }
 pub mod invoice_commands {
     pub use super::billing::invoice::*;
-}
-pub mod invoice_sequence_commands {
-    pub use super::billing::invoice_sequence::*;
 }
 pub mod invoice_document_commands {
     pub use super::billing::invoice_document::*;
@@ -146,6 +144,9 @@ pub mod export_commands {
 }
 pub mod document_pdf_commands {
     pub use super::system::document_pdf::*;
+}
+pub mod document_commands {
+    pub use super::documents::issue::*;
 }
 pub mod report_pdf_commands {
     pub use super::system::report_pdf::*;

@@ -1,6 +1,282 @@
 # Phase handoff
 
-**Last phase label:** Part E start — F44/F52/F57 + replica `/sync/number` (2026-11-08)
+**Last phase label:** Patient list, work time, currency, idle lock, hide network (2026-11-10)
+
+### Verified
+
+- Patient lists order by `name, id`. The payment Patient * combo drops duplicate ids and shows the date of birth when two patients share a name.
+- Weekly bars scale to 8 hours when no target is set, and the open session is not added on top of the week summary. `weekBarScaleMinutes` tests **PASS** (3). `day-close` tests **PASS** (9).
+- Logout with “Pause on logout” calls `workTimePause` for that account’s running session. Login resumes that account’s paused session. A new session starts only when auto-start is on and that account has no open session.
+- Settings → Practice stores `currency` on `invoice.practice.v1`. `formatCurrency` and cash amounts follow it. PDF money uses the same code after `PracticeProfile::load`. Default remains EUR. `euro_formatting` and `format_eur_groups_thousands` **PASS**.
+- Auto-lock reads the saved minutes when settings are saved, keyed by user id. Hide network no longer reopens the port when the switch is off, and the network panels stay hidden while it is on.
+- `npx tsc --noEmit` from `apps/practice-host-ui` **PASS** (`TSC_EXIT:0`).
+
+### Remains unverified
+
+- On-screen Patient * list, weekly bars, logout pause, currency change, auto-lock, and hide network. **NOT OBSERVED**. Rust PDF currency needs a rebuild.
+
+### Required next
+
+1. Rebuild and restart MeDoc, then check those six flows in the app.
+
+---
+
+**Previous last phase label:** Practice fax and document logo (2026-11-10)
+
+### Verified
+
+- Settings → Practice has its own fax row. Saving writes `fax` on `invoice.practice.v1`. Reports use `document_address_lines()`, which includes `Fax …`. Invoices and clinical documents already used `letterhead_lines()`.
+- `practice.logo.v1` stores `showOnDocuments`. Missing means show. `practice_logo` returns nothing when the flag is false, and a hidden logo clears `logoKvJson` on preview and reprint. Report PDFs take the same logo. HTML print skips the logo when the cache flag is false.
+- `letterhead_matches_official_form`, `a_missing_flag_shows_the_logo_and_false_hides_it`, and `renders_financial_report_with_summary_and_table` **PASS**. `cargo check -p medoc-practice` **PASS**. `npx tsc --noEmit` from `apps/practice-host-ui` **PASS**. `npm run build -w medoc` **PASS**. `cargo build -p medoc --target-dir target-inst2` **PASS** (1m 30s).
+
+### Remains unverified
+
+- The settings page and a printed PDF in the running app. **NOT OBSERVED**. The processes started at 15:26 still have the previous binary.
+- Push after quit and reopen (the product-delete 400 fix). **NOT OBSERVED**.
+
+### Required next
+
+1. Quit both MeDoc windows and open them again.
+
+---
+
+**Previous last phase label:** Push 400 on product delete (2026-11-10)
+
+### Verified
+
+- The replica outbox starts with `DELETE product` (`seed-prod-007` and the following product ids). The master log for that push is `LAN_SYNC_PUSH_FAILED` foreign key 787, returned as an empty 400. `product_delete_applies_while_a_template_still_points_at_it` **PASS**: the product is removed and the template row stays.
+- Reception can read `practice.header_privacy.v1` and `invoice.practice.v1`. Writing them still requires `ops.system`. `cargo test -p medoc-core --lib -- app_kv_policy::tests` **PASS** (8).
+- `cargo build -p medoc --target-dir target-inst2` **PASS**. The two processes that started at 15:26 are still the previous binary.
+
+### Remains unverified
+
+- Push after quit and reopen. **NOT OBSERVED**.
+
+### Required next
+
+1. Quit both MeDoc windows and open them again.
+
+---
+
+**Previous last phase label:** Day close cash report, cents, and selection lag (2026-11-10)
+
+### Verified
+
+- Cash report and Print on an older closing no longer fail with `error.day_close.no_report`. The first request issues the cash report from the stored figures; the next request reprints it. `older_closing_without_a_stored_report_still_prints` **PASS**. The PDF for counted `12.345` contains `12.35` and not `12.345`.
+- Cash amounts use two digits after a decimal point: `1,234.56 EUR`. `application::documents::cash_book::tests::euro_formatting` **PASS**. `cargo test -p medoc-core --test finance_workflow_tests` **PASS** (5).
+- Typed cash `1,234.50` and `245.500` stay in euros (`1234.5` and `245.5`). `npx vitest run src/lib/day-close.test.ts` from `apps/practice-host-ui` **PASS** (9). `npx tsc --noEmit` **PASS**.
+- Opening a closing that is already recorded skips the full journal reconcile. Cash-checked payments are counted in one query. The detail reload follows the protocol id.
+
+### Remains unverified
+
+- On-screen Cash report, Print, and how fast the day-close page feels after quit and reopen. **NOT OBSERVED**. The Rust binary must be rebuilt.
+
+### Required next
+
+1. Rebuild and restart MeDoc.
+
+---
+
+**Previous last phase label:** Sync logical clock and mesh file pickup (2026-11-10)
+
+### Verified
+
+- A live write keeps a logical stamp ahead of a wall clock that is already behind. `a_live_write_stays_ahead_of_a_slow_wall_clock` **PASS**. `records_on_practice_desktop_when_a_replica_is_registered` **PASS**.
+- When both copies of a row have a logical stamp, the newer stamp wins even if its wall `updated_at` is older. A later wall time with an older logical stamp does not replace it. `a_slow_wall_clock_wins_when_its_logical_stamp_is_newer` **PASS**. Stamps inside the two-minute window are still rewritten to the master clock (`a_future_stamp_is_clamped_to_the_master_clock` **PASS**). An unstamped edit two minutes ahead still beats an unstamped slower edit (`clock_two_minutes_ahead_overwrites_and_a_slow_clock_does_not` **PASS**).
+- A mesh page that skips a missing file records delivery only through the last contiguous sent row. `a_failed_blob_holds_back_that_entry_and_everything_after_it` **PASS** (prefix seq 1 when seq 2 is omitted).
+- A peer watermark that has already moved past a missing file moves back when the bytes exist, and the peer pending list includes that file. `a_peer_past_a_missing_file_sees_it_again_when_the_bytes_arrive` **PASS**. `peer_vector_tracks_mesh_delivery_watermark` **PASS**. The master delivery watermark still leaves the missing row pending (`delivered_watermark_leaves_a_missing_blob_row_pending` **PASS**).
+
+### Remains unverified
+
+- The two running `target-inst2/debug/medoc` processes. They need a rebuild. The practice LAN master was **NOT RUN**.
+- A row queued only by the safety-net watch, or by a full snapshot, keeps its wall `updated_at` as the logical stamp. A slow edit that never passed through the live write hook can still lose to a newer wall stamp.
+- After a missing file is given up, the next mesh page no longer contains that row, so a later cycle can move the watermark past it. The watermark moves back when the bytes arrive.
+
+### Required next
+
+1. Rebuild and restart both devices.
+
+---
+
+**Previous last phase label:** Official header prints each practice line once (2026-11-10)
+
+### Verified
+
+- The practice name, street, city, phone, and BSNR are drawn once. A repeated copy of the name and address under the letterhead is omitted, and a field listed twice in the header payload is kept once. `header_prints_each_practice_line_once` **PASS**. `cargo test -p medoc-core --lib infrastructure::pdf::letterhead::tests` **PASS** (10).
+
+### Remains unverified
+
+- The on-screen document after quit and reopen. The Rust binary must be rebuilt.
+
+### Required next
+
+1. Rebuild and restart MeDoc.
+
+---
+
+**Previous last phase label:** Invoice and receipt are different documents (2026-11-10)
+
+### Verified
+
+- A receipt confirms money already received. Its title is Quittung / Payment receipt, the table is date / service / amount paid, and the closing line is “Betrag dankend erhalten.” It does not say the patient must pay. `buildReceiptExportForPayment returns receipt bundle` **PASS** (8 tests).
+- The receipt number on the PDF is “Quittungs-Nr.” / “Receipt no.”, not the invoice number. `receipt_renders_in_every_supported_language` **PASS**. `cargo test -p medoc-core --lib infrastructure::pdf::clinical_layout::tests` **PASS** (15).
+- Administration → Finance & reports → Invoice lists only assignments that still have an open balance (`buildOpenPaymentLinkSelectOptions`). Paid assignments are left out.
+- Services & billing offers Invoice for an open treatment or examination and opens that invoice form with the patient and line selected. Receipt stays on paid and partially paid rows.
+- `npx tsc --noEmit` in `apps/practice-host-ui` **PASS**.
+
+### Remains unverified
+
+- On-screen invoice and receipt preview after quit and reopen. The Rust binary must be rebuilt.
+- A paid assignment is absent from the invoice dropdown at runtime. **NOT OBSERVED**.
+
+### Required next
+
+1. Rebuild and restart MeDoc so the receipt PDF uses the new layout.
+
+---
+
+**Previous last phase label:** Sync maintenance — blob hold, one schema, slower watch (2026-11-10)
+
+### Verified
+
+- A failed attachment upload keeps that outbox entry and every later entry in the page pending. `a_failed_blob_holds_back_that_entry_and_everything_after_it` **PASS**.
+- `ensure_sync_tables` calls the core replication DDL and only adds `sync_pull_failure`, `sync_watch_seen`, and pairing pin columns. `sync_extras_do_not_rewrite_the_core_replication_tables` **PASS**.
+- The shared-change scan queues a new row, skips a row whose stamp was already seen, and queues a delete. `queues_a_shared_row_once_then_a_later_edit_and_a_delete` **PASS**. It runs every 60 seconds.
+- A naive SQLite timestamp compares equal to the same instant with a `Z` suffix. A stamp two hours later wins. `parse_ts_str_handles_rfc3339_and_sqlite_naive` **PASS**.
+- `cargo check -p medoc-lan` **PASS**. Push and pull log `REPLICA_SEEN_FAILED` when `touch_replica_seen` returns an error. That error path was **NOT RUN**.
+- `medoc-export-fixes 2/` is removed. It was not a workspace member. The applied-patch note below is historical.
+
+### Remains unverified
+
+- The two running `target-inst2/debug/medoc` processes. They need a rebuild.
+- A stamp from 2 minutes behind the master through any time ahead is rewritten to the master's clock (`a_future_stamp_is_clamped_to_the_master_clock` **PASS**). An edit older than that window keeps its stamp. There is no hybrid logical clock.
+- A missing chart file is held for 8 tries, then marked `BLOB_MISSING`. The delivery watermark does not consume that row (`delivered_watermark_leaves_a_missing_blob_row_pending` **PASS**). When the bytes appear, the row is pending again (`a_missing_blob_is_queued_again_when_the_bytes_arrive` **PASS**).
+- Pool cap is 10, acquire timeout 10s (`extra_connection_stops_at_the_acquire_timeout` **PASS**). The practice LAN master was **NOT RUN**.
+
+### Required next
+
+1. Rebuild and restart both devices.
+
+---
+
+**Previous last phase label:** Arabic PDFs mirrored right to left (2026-11-10)
+
+### Verified
+
+- An Arabic document is the mirror of the Latin page: title, address, tables, columns, and the logo. `arabic_receipt_is_the_mirror_of_the_latin_page` **PASS** (German title at x=71, Arabic title flush to the right margin).
+- `cargo test -p medoc-core --lib infrastructure::pdf --offline` **PASS** (67). `cargo build -p medoc --offline` **PASS**.
+- The German GOZ invoice stays left to right (`locale: "de"` in `invoice_goz.rs`).
+
+### Remains unverified
+
+- On-screen Arabic preview after quit and reopen.
+- `npx tsc --noEmit` **NOT RUN**.
+
+### Required next
+
+1. Quit MeDoc and open it again so the new binary loads.
+
+---
+
+**Previous last phase label:** Arabic receipt font and practice-sync lock (2026-11-10)
+
+### Verified
+
+- Arabic preview is no longer rejected. `check_renderable` and GOZ validation use `is_pdf_renderable`. `non_latin_payload_is_rejected` **PASS** (Arabic `محمد` accepted, `中文` still rejected).
+- Receipt titles render for `de` Rechnung, `en` Invoice, `fr` Facture, `ar` فاتورة. Arabic runs use embedded Noto Naskh (`/F3`, `/NotoNaskhArabic`). `receipt_renders_in_every_supported_language` and `arabic_receipt_text_uses_the_embedded_font` **PASS**.
+- `cargo test -p medoc-core --lib infrastructure::pdf --offline` **PASS** (66). `cargo build -p medoc --offline` **PASS** (`dev`, `target-inst2`).
+- SQLCipher pool sets `busy_timeout = 20000` and WAL in `after_connect` (after the key). `app_kv` get/set retry SQLITE_BUSY. Frontend practice sync retries 6 times. Lock behavior at runtime is **NOT OBSERVED** (no second process held the database during this run).
+
+### Remains unverified
+
+- On-screen PDF preview and the settings “فشل مزامنة العيادة” toast after quit and reopen.
+- `npx tsc --noEmit` **NOT RUN**.
+- Cyrillic is still not in the embedded font. The error text mentions it; only Latin and Arabic are covered.
+
+### Required next
+
+1. Quit MeDoc and open it again so the new binary loads.
+
+---
+
+**Previous last phase label:** Prescription columns, right header, receipt as invoice (2026-11-10)
+
+### Verified
+
+- Pack size / quantity removed from the prescription PDF table (4 columns) and the combo form column. `prescription_headers_do_not_share_a_baseline_with_the_dose` **PASS**.
+- Header middots are split onto their own lines. Info block ends on the right margin. `header_splits_middot_fields_onto_their_own_lines` and `header_info_block_aligns_to_the_right_margin` **PASS**. Footer still matches the sample (`footer_matches_sample_document` **PASS**).
+- Patient receipt uses the `01-rechnung.pdf` title, window address, and 7-column fee table.
+- `cargo test -p medoc-core --lib infrastructure::pdf --offline` **PASS** (64). `cargo build -p medoc --offline` **PASS**.
+
+### Remains unverified
+
+- On-screen preview after quit and reopen.
+- `npx tsc --noEmit` **NOT RUN**.
+
+### Required next
+
+1. Quit MeDoc and open it again so the new binary loads.
+
+---
+
+**Previous last phase label:** Patient PDF header, prescription wrap, PDF i18n (2026-11-10)
+
+### Verified
+
+- Prescription table headers wrap inside the column. `prescription_headers_do_not_share_a_baseline_with_the_dose` **PASS**. Dose `1-0-1` sits below every 8 pt header baseline.
+- `cargo test -p medoc-core --lib infrastructure::pdf --offline` **PASS** (62). `letterhead_matches_official_form` **PASS**.
+- `cargo build -p medoc --offline` **PASS** (`dev`, `target-inst2`). Pre-existing `replica_desktop_name` warning.
+- PDF chrome catalog: `crates/shared/medoc-core/src/infrastructure/pdf/i18n.rs` (`de`, `en`, `fr`, `ar`). Document locale follows a pin, otherwise the UI language.
+
+### Remains unverified
+
+- On-screen preview after quit and reopen (binary is rebuilt; the running app still has the old process).
+- `npx tsc --noEmit` after the locale/label edits. **NOT RUN** this pass.
+- Arabic glyphs. Helvetica/WinAnsi stores `?` for Arabic letters (`text_operand_never_emits_utf16_into_content_streams`).
+
+### Understanding delta
+
+- Patient PDF headers are one field per line. Footer lines stay middot-joined, matching the sample PDFs.
+- Clinical preview watermark uses the catalog (`ENTWURF` / `DRAFT` / `BROUILLON` / `مسودة`). GOZ invoice body stays German.
+
+### Required next
+
+1. Quit MeDoc and open it again so the new binary loads.
+2. Embed a Unicode font before Arabic can be drawn on the page.
+
+---
+
+**Previous last phase label:** Official documents patch applied (2026-11-10)
+
+### Verified
+
+- `medoc-export-fixes 2/medoc-export-fixes.patch` applied (symlink duplicates `apps/practice-host-ui/src/lib` and `src-tauri` skipped; those paths alias `packages/shared` and `apps/practice-host`).
+- Rejects merged by hand: audit CSV BOM + session, `documents.locale.v1` on `ops.system`, `issued_document` in `sync_registry` (Numbered), CSV formula unguard, export `context` literals, GOZ fields on `Treatment`.
+- `invoice_sequence.rs` deleted. IPC count **330** (`invoke_command_registry_tests` **PASS** 2).
+- `cargo test -p medoc-core --offline --lib` **PASS** (164). `document_registry_tests` **PASS** (6). `official_pdf_samples` **PASS** (1).
+- `npx tsc --noEmit` in `apps/practice-host-ui` **PASS**. `npx vitest run` **PASS** (383).
+- i18n: 28 keys added to `packages/shared/locales/{de,en,fr,ar}.json`.
+
+### Remains unverified
+
+- Full `cargo test --workspace`.
+- Browser issue/preview of the new PDFs (samples rendered by the Rust test only).
+- Items the package left open: billing input UI, PDF/A embedded fonts, logo alpha, money as cents, telematics, server-side prescription completeness, archive PDF bytes.
+
+### Understanding delta
+
+- Official numbers (`RE`/`ST`/`QU`/…) are allocated in `issued_document` on the MASTER device, not by `allocate_invoice_document_number`.
+- The packaged `register.rs` is an older dump. This tree kept newer handlers (`decline_patient_chart`, `export_patients_csv`, `sync_reconcile_now`, …) and only added the document commands.
+
+### Required next
+
+1. Fill practice tax number, BSNR/ZANR and bank on the MASTER device before issuing.
+2. Billing form for fee schedule / GOZ number / points / factor (backend `set_treatment_billing` is in place).
+3. Parts E remainder and F–K from the previous handoff.
+
+---
+
+**Previous last phase label:** Part E start — F44/F52/F57 + replica `/sync/number` (2026-11-08)
 
 ### Verified
 

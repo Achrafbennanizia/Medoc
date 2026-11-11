@@ -1,32 +1,26 @@
-//! A pasted v2 sealed for another computer is rebound on a dev build and
-//! rejected with a stable UI code otherwise. A valid key can be activated again.
+//! A pasted v2 sealed for another computer is rejected. A valid key can be activated again.
 
 mod support;
 
-use medoc_core::infrastructure::license::{self, mint_dev_v2_license_envelope};
+use medoc_core::infrastructure::license::mint_dev_v2_license_envelope;
 use medoc_core::infrastructure::license_repo;
-use medoc_practice::commands::company_portal_commands::{
-    deployment_code_for_pasted_license, resolve_onboarding_license_key_with,
-};
+use medoc_practice::commands::company_portal_commands::resolve_onboarding_license_key_with;
 use medoc_sync::cluster::services::activate_cluster_license;
 use support::fresh_pool;
 
 #[tokio::test]
-async fn dev_seed_rebinds_a_foreign_v2_to_this_device() {
+async fn a_foreign_v2_is_not_rebound_to_this_device() {
     let pool = fresh_pool().await;
-    let local = license_repo::ensure_device_id(&pool).await.expect("device");
     let foreign = mint_dev_v2_license_envelope("other-device-not-this-one", "elsewhere", "PRO")
         .expect("mint");
     let resolved = resolve_onboarding_license_key_with(&pool, &foreign, true)
         .await
         .expect("resolve");
-    assert_ne!(resolved, foreign);
-    let status = license::verify(&resolved, &local);
-    assert!(status.valid, "{:?}", status.reason);
-    assert_eq!(
-        deployment_code_for_pasted_license(&foreign, true).as_deref(),
-        Some("MASTER")
-    );
+    assert_eq!(resolved, foreign);
+    let err = activate_cluster_license(&pool, "onboarding", &resolved)
+        .await
+        .expect_err("reject");
+    assert_eq!(err.to_string(), "error.license.wrong_device");
 }
 
 #[tokio::test]

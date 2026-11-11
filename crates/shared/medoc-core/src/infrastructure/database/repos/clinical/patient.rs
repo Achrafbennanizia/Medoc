@@ -6,7 +6,7 @@ use sqlx::{Sqlite, SqlitePool, Transaction};
 
 pub async fn find_all(pool: &SqlitePool) -> Result<Vec<Patient>, AppError> {
     let rows = sqlx::query_as::<_, Patient>(
-        "SELECT * FROM patient WHERE COALESCE(status,'ACTIVE') != 'ARCHIVED' ORDER BY name",
+        "SELECT * FROM patient WHERE COALESCE(status,'ACTIVE') != 'ARCHIVED' ORDER BY name, id",
     )
         .fetch_all(pool)
         .await?;
@@ -95,7 +95,7 @@ pub async fn find_paginated(
         );
         let list_sql = format!(
             "SELECT * FROM patient WHERE {vis} AND (name LIKE ?1 OR insurance_number LIKE ?1 OR phone LIKE ?1 OR email LIKE ?1)
-             ORDER BY name LIMIT ?2 OFFSET ?3"
+             ORDER BY name, id LIMIT ?2 OFFSET ?3"
         );
         let total: (i64,) = sqlx::query_as(&total_sql)
             .bind(&pattern)
@@ -111,7 +111,7 @@ pub async fn find_paginated(
     } else {
         let total_sql = format!("SELECT COUNT(*) FROM patient WHERE {vis}");
         let list_sql =
-            format!("SELECT * FROM patient WHERE {vis} ORDER BY name LIMIT ?1 OFFSET ?2");
+            format!("SELECT * FROM patient WHERE {vis} ORDER BY name, id LIMIT ?1 OFFSET ?2");
         let total: (i64,) = sqlx::query_as(&total_sql).fetch_one(pool).await?;
         let rows = sqlx::query_as::<_, Patient>(&list_sql)
             .bind(limit as i64)

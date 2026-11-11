@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { ExportContext } from "@/lib/save-download";
 
 export type ExportFormat = "csv" | "html" | "json" | "pdf" | "xml" | "zip";
 
@@ -10,6 +11,8 @@ export type ExportPreviewPayload = {
     suggestedFilename: string;
     textBody?: string;
     binaryBody?: Uint8Array;
+    /** Audit context passed to the save command. */
+    context?: ExportContext;
 };
 
 type State = {

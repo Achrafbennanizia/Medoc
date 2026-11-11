@@ -65,6 +65,14 @@ mod tests {
             treatment_date: None,
             released_by_physician_id: None,
             released_at: None,
+            fee_schedule: None,
+            goz_nr: None,
+            points: None,
+            factor: None,
+            factor_reason: None,
+            quantity: None,
+            analog_of: None,
+            agreement_ref: None,
         }
     }
 

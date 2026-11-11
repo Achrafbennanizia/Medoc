@@ -3,7 +3,8 @@
 use std::time::Duration;
 
 use medoc_sync::cluster::services::{
-    refresh_replica_lan_auth, repair_replica_master_https_url, sync_staff_from_stored_admin_endpoint,
+    refresh_replica_lan_auth, repair_replica_master_https_url,
+    sync_staff_from_stored_admin_endpoint,
 };
 use medoc_sync::deployment::SyncDeploymentConfig;
 use medoc_sync::engine::{SyncEngine, SyncRunReport};
@@ -27,8 +28,8 @@ pub struct SyncSetDeploymentPayload {
 /// replica that has not received that activation, keep the MeDoc icon.
 pub async fn replica_desktop_name(pool: &SqlitePool) -> Option<&'static str> {
     let cfg = medoc_sync::repo::load_deployment(pool).await.ok()?;
-    let activated_by_master = !cfg.activation_token.trim().is_empty()
-        && !cfg.master_base_url.trim().is_empty();
+    let activated_by_master =
+        !cfg.activation_token.trim().is_empty() && !cfg.master_base_url.trim().is_empty();
     if cfg.role == medoc_sync::deployment::DeviceRole::Replica
         && cfg.mode == medoc_sync::deployment::DeploymentMode::ServerlessPeer
         && activated_by_master
@@ -49,11 +50,7 @@ pub async fn sync_get_status(
     let mut snap = SyncEngine::status(&pool).await?;
     let role = crate::application::rbac::Role::parse(&session.role);
     let can_ops = role.is_some_and(|r| {
-        crate::application::rbac::effective_allowed(
-            "ops.system",
-            r,
-            &session.permission_overrides,
-        )
+        crate::application::rbac::effective_allowed("ops.system", r, &session.permission_overrides)
     });
     if !can_ops {
         snap.deployment.activation_token.clear();
@@ -152,6 +149,8 @@ pub async fn enqueue_local_sync(
 
 /// Healthy replicas poll twice a second. Each failed cycle doubles the wait, up to 30s.
 const REPLICA_SYNC_BASE: Duration = Duration::from_millis(500);
+/// Safety-net scan. Repository hooks already fill the outbox.
+const SHARED_WATCH_INTERVAL: Duration = Duration::from_secs(60);
 const REPLICA_SYNC_MAX: Duration = Duration::from_secs(30);
 
 pub(crate) fn replica_backoff(consecutive_failures: u32) -> Duration {
@@ -209,7 +208,12 @@ fn note_master_unreachable(error: &AppError) {
         std::sync::atomic::Ordering::Relaxed,
     );
     let first_this_outage = MASTER_UNREACHABLE_LOGGED_MS
-        .compare_exchange(0, now_ms(), std::sync::atomic::Ordering::Relaxed, std::sync::atomic::Ordering::Relaxed)
+        .compare_exchange(
+            0,
+            now_ms(),
+            std::sync::atomic::Ordering::Relaxed,
+            std::sync::atomic::Ordering::Relaxed,
+        )
         .is_ok();
     if first_this_outage {
         tracing::warn!(
@@ -272,7 +276,10 @@ fn sync_auth_rejected(msg: &str) -> bool {
         return true;
     }
     lower.contains("403")
-        && (lower.contains("token_mismatch") || lower.contains("token_unknown"))
+        && (lower.contains("token_mismatch")
+            || lower.contains("token_unknown")
+            || lower.contains("pairing_unknown")
+            || lower.contains("activation_token_mismatch"))
 }
 
 fn sync_auth_requires_repair(msg: &str) -> bool {
@@ -348,7 +355,11 @@ async fn run_replica_sync_recovering(pool: &SqlitePool) -> Result<SyncRunReport,
         }
     }
     let first = SyncEngine::run_replica_sync(pool).await?;
-    if first.error.as_deref().is_some_and(sync_auth_requires_repair) {
+    if first
+        .error
+        .as_deref()
+        .is_some_and(sync_auth_requires_repair)
+    {
         return Ok(first);
     }
     if !replica_report_needs_auth_refresh(&first) {
@@ -381,7 +392,11 @@ async fn run_replica_catchup_recovering(pool: &SqlitePool) -> Result<SyncRunRepo
         }
     }
     let first = SyncEngine::run_replica_sync_until_caught_up(pool).await?;
-    if first.error.as_deref().is_some_and(sync_auth_requires_repair) {
+    if first
+        .error
+        .as_deref()
+        .is_some_and(sync_auth_requires_repair)
+    {
         return Ok(first);
     }
     if !replica_report_needs_auth_refresh(&first) {
@@ -410,7 +425,7 @@ pub fn spawn_shared_change_sync_thread(pool: SqlitePool) {
         .name("medoc-shared-sync".into())
         .spawn(move || {
             tauri::async_runtime::block_on(async move {
-                let mut ticker = tokio::time::interval(REPLICA_SYNC_BASE);
+                let mut ticker = tokio::time::interval(SHARED_WATCH_INTERVAL);
                 ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
                 loop {
                     ticker.tick().await;
@@ -562,13 +577,18 @@ pub fn spawn_replica_offline_sync_loop(pool: SqlitePool) {
                             .as_ref()
                             .map(|p| p.applied.saturating_add(p.skipped))
                             .unwrap_or(0);
-                        if pulled < 500 && report.error.is_none() {
+                        let span_open =
+                            medoc_sync::engine::replica_initial_copy_blocks_catchup(&pool)
+                                .await
+                                .unwrap_or(true);
+                        if !span_open && pulled < 500 && report.error.is_none() {
                             let _ = medoc_core::infrastructure::database::app_kv_repo::set(
                                 &pool,
                                 REPLICA_CATCHUP_KV,
                                 "1",
                             )
                             .await;
+                            let _ = medoc_sync::engine::finish_replica_initial_copy(&pool).await;
                             tracing::info!(
                                 target: "medoc::sync",
                                 event = "REPLICA_INITIAL_SYNC_DONE",
@@ -620,6 +640,9 @@ mod backoff_tests {
     #[test]
     fn mismatch_403_refreshes_once() {
         assert!(super::sync_auth_rejected("403 token_mismatch"));
+        assert!(super::sync_auth_rejected(
+            "sync push http status 403 Forbidden: {\"reason\":\"pairing_unknown\"}"
+        ));
         assert!(super::sync_auth_rejected("401 unauthorized"));
         assert!(!super::sync_auth_rejected("403 revoked"));
     }

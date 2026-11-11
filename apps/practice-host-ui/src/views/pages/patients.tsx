@@ -17,6 +17,7 @@ import { MoreIcon, PlusIcon, SearchIcon, UsersIcon, XIcon, ExportIcon } from "@/
 import { useDismissibleLayer } from "../components/ui/use-dismissible-layer";
 import { usePageRefresh } from "../layouts/page-refresh";
 import { DataExportPickerDialog } from "../components/data-export-picker-dialog";
+import type { ExportContext } from "@/lib/save-download";
 import { ConfirmDialog, Dialog } from "../components/ui/dialog";
 import { Button } from "../components/ui/button";
 import { PhoneText } from "../components/ui/phone-text";
@@ -178,11 +179,20 @@ export function PatientsPage() {
             });
             if (token !== searchLoadTokenRef.current) return;
             setPatients((prev) => {
-                if (!silent || prev.length <= dataResp.items.length) return dataResp.items;
-                const fresh = new Map(dataResp.items.map((row) => [row.id, row]));
-                const prevIds = new Set(prev.map((row) => row.id));
-                const added = dataResp.items.filter((row) => !prevIds.has(row.id));
-                return added.concat(prev.map((row) => fresh.get(row.id) ?? row));
+                const rows = !silent || prev.length <= dataResp.items.length
+                    ? dataResp.items
+                    : (() => {
+                        const fresh = new Map(dataResp.items.map((row) => [row.id, row]));
+                        const prevIds = new Set(prev.map((row) => row.id));
+                        const added = dataResp.items.filter((row) => !prevIds.has(row.id));
+                        return added.concat(prev.map((row) => fresh.get(row.id) ?? row));
+                    })();
+                const seen = new Set<string>();
+                return rows.filter((row) => {
+                    if (seen.has(row.id)) return false;
+                    seen.add(row.id);
+                    return true;
+                });
             });
             setPatientTotal(dataResp.total);
             if (!silent) setPatientPage(dataResp.page);
@@ -288,7 +298,10 @@ export function PatientsPage() {
     }, [onListScroll, loading, patients.length]);
 
     const filtered = useMemo(() => {
+        const seen = new Set<string>();
         return patients.filter((p) => {
+            if (seen.has(p.id)) return false;
+            seen.add(p.id);
             if (statusFilter === "ALL") return true;
             const inv = patientHasOpenInvoice(openPaymentPatientIds, p.id);
             if (statusFilter === "IN_TREATMENT") return (p.status === "ACTIVE" || p.status === "VALIDATED") && !inv;
@@ -326,6 +339,7 @@ export function PatientsPage() {
             suggestedFilename: `medoc-patients-${d}.csv`,
             textBody: csv,
             mime: "text/csv;charset=utf-8",
+            context: { kind: "patients_migration", format: "csv", entityId: null } satisfies ExportContext,
         };
     }, [debouncedSearch, showArchived, statusFilter, t]);
 

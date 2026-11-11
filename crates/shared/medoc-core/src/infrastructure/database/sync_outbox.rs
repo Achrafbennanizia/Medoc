@@ -241,6 +241,30 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_live_write_stays_ahead_of_a_slow_wall_clock() {
+        let pool = test_memory_pool().await.unwrap();
+        run_migrations(&pool).await.unwrap();
+        enable_serverless(&pool).await;
+        app_kv_repo::set(&pool, "sync.hlc.v1", "5000000000000:4")
+            .await
+            .unwrap();
+        record_or_noop(&pool, "appointment", "a-slow", "INSERT", "{}")
+            .await
+            .unwrap();
+        let payload: String = sqlx::query_scalar(
+            "SELECT payload_json FROM sync_outbox WHERE entity_id = 'a-slow'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        let value: serde_json::Value = serde_json::from_str(&payload).unwrap();
+        let stamp = value["syncHlc"].as_str().expect("syncHlc");
+        let hlc = crate::infrastructure::database::hlc::parse_hlc(stamp).expect("hlc");
+        assert_eq!(hlc.wall_ms, 5_000_000_000_000);
+        assert!(hlc.counter > 4);
+    }
+
+    #[tokio::test]
     async fn noop_when_table_not_allow_listed() {
         let pool = test_memory_pool().await.unwrap();
         run_migrations(&pool).await.unwrap();
@@ -305,11 +329,12 @@ mod tests {
             "service_item",
             "in_app_notification",
             "practice_ticket",
+            "issued_document",
         ] {
             record_or_noop(&pool, table, "id-x", "INSERT", "{}")
                 .await
                 .unwrap();
         }
-        assert_eq!(count_outbox(&pool).await, 15);
+        assert_eq!(count_outbox(&pool).await, 16);
     }
 }

@@ -329,7 +329,48 @@ pub(crate) async fn load_join_lan_auth(
     Ok(Some(payload))
 }
 
+/// Device id baked into the activation token stored at SAS.
+/// Later join attempts must not replace this when refreshing LAN auth.
+pub(crate) async fn enrolled_device_fingerprint(
+    pool: &SqlitePool,
+) -> Result<Option<String>, AppError> {
+    let Some(auth) = load_join_lan_auth(pool).await? else {
+        return Ok(None);
+    };
+    let token = auth.activation_token.trim();
+    let pk = auth.master_pubkey.trim();
+    if token.is_empty() || pk.is_empty() {
+        return Ok(None);
+    }
+    let Ok(key) = crate::master_keys::parse_pubkey_b64(pk) else {
+        return Ok(None);
+    };
+    let Ok(payload) = crate::pairing::verify_activation_token(token, &key) else {
+        return Ok(None);
+    };
+    let id = payload.device_id.trim();
+    if id.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(id.to_string()))
+    }
+}
+
 pub(crate) async fn load_join_session_id(pool: &SqlitePool) -> Result<String, AppError> {
+    if let Some(enrolled) = enrolled_device_fingerprint(pool).await? {
+        let matched: Option<String> = sqlx::query_scalar(
+            "SELECT id FROM pairing_request
+             WHERE TRIM(fingerprint) = ?1 OR TRIM(device_id) = ?1
+             ORDER BY requested_at DESC LIMIT 1",
+        )
+        .bind(&enrolled)
+        .fetch_optional(pool)
+        .await
+        .map_err(AppError::Database)?;
+        if let Some(id) = matched.filter(|s| !s.trim().is_empty()) {
+            return Ok(id);
+        }
+    }
     let id: Option<String> = sqlx::query_scalar(
         "SELECT id FROM pairing_request
          WHERE TRIM(COALESCE(fingerprint, '')) != '' OR TRIM(device_id) != ''

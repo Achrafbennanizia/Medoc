@@ -1,6 +1,4 @@
 //! Vendor portal configuration (`ops.system` only — contains API keys).
-use medoc_core::infrastructure::license::mint_dev_v2_license_envelope;
-use medoc_core::infrastructure::license_repo;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sqlx::SqlitePool;
@@ -321,43 +319,7 @@ fn normalize_slug(raw: &str) -> String {
         .to_string()
 }
 
-fn plan_from_edition(edition: &str) -> &'static str {
-    match edition.trim().to_uppercase().as_str() {
-        "BASIC" => "BASIC",
-        "ENTERPRISE" => "ENTERPRISE",
-        _ => "PRO",
-    }
-}
-
-fn looks_like_short_license_code(key: &str) -> bool {
-    let k = key.trim();
-    !k.starts_with("v2.")
-        && !k.starts_with('{')
-        && k.len() >= 3
-        && k.len() <= 31
-        && !is_keygen_fingerprint(k)
-}
-
-fn is_keygen_fingerprint(code: &str) -> bool {
-    let k = code.trim();
-    k.len() >= 32 && k.len() <= 56 && k.bytes().all(|c| matches!(c, b'A'..=b'Z' | b'2'..=b'7'))
-}
-
-fn customer_id_from_code(code: &str) -> String {
-    let k = code.trim();
-    if is_keygen_fingerprint(k) {
-        normalize_slug(&k[..k.len().min(24)])
-    } else {
-        normalize_slug(k)
-    }
-}
-
-fn dev_seed_enabled() -> bool {
-    std::env::var("MEDOC_DEV_SEED").ok().as_deref() == Some("1")
-}
-
-/// Role code to apply after a successful paste. A foreign v2 rebound on a dev build
-/// becomes the main device. An explicit `MASTER-` / `REPLICA-` / `SLAVE-` prefix wins.
+/// Role code to apply after a successful paste. An explicit `MASTER-` / `REPLICA-` / `SLAVE-` prefix wins.
 pub fn deployment_code_for_pasted_license(original: &str, rebound: bool) -> Option<String> {
     let trimmed = original.trim();
     let upper = trimmed.to_ascii_uppercase();
@@ -371,53 +333,24 @@ pub fn deployment_code_for_pasted_license(original: &str, rebound: bool) -> Opti
     }
 }
 
-/// Resolve pasted input to a vendor license token (keygen fingerprint / dev code → minted v2).
+/// Return the pasted license unchanged. A key is accepted only when it verifies
+/// for this computer. Short codes and keys sealed for another computer are not rewritten.
 pub async fn resolve_onboarding_license_key(
     pool: &SqlitePool,
     license_key: &str,
 ) -> Result<String, AppError> {
-    resolve_onboarding_license_key_with(pool, license_key, dev_seed_enabled()).await
+    resolve_onboarding_license_key_with(pool, license_key, false).await
 }
 
 pub async fn resolve_onboarding_license_key_with(
-    pool: &SqlitePool,
+    _pool: &SqlitePool,
     license_key: &str,
-    dev_seed: bool,
+    _dev_seed: bool,
 ) -> Result<String, AppError> {
-    let device_id = license_repo::ensure_device_id(pool).await?;
     let trimmed = license_key.trim();
     if trimmed.is_empty() {
         return Err(AppError::Validation("License code missing.".into()));
     }
-
-    let verified = medoc_core::infrastructure::license::verify(trimmed, &device_id);
-    if verified.valid {
-        return Ok(trimmed.to_string());
-    }
-
-    let foreign_v2 = trimmed.starts_with("v2.");
-    if dev_seed && (looks_like_short_license_code(trimmed) || is_keygen_fingerprint(trimmed) || foreign_v2)
-    {
-        if foreign_v2 {
-            tracing::warn!(
-                target: "medoc::system",
-                event = "LICENSE_DEV_REBIND",
-                "pasted license does not open on this computer; issuing a license for this device"
-            );
-        }
-        let customer_id = if foreign_v2 {
-            "dev-local".to_string()
-        } else {
-            customer_id_from_code(trimmed)
-        };
-        let plan = if foreign_v2 {
-            "PRO"
-        } else {
-            plan_from_edition(trimmed)
-        };
-        return mint_dev_v2_license_envelope(&device_id, &customer_id, plan);
-    }
-
     Ok(trimmed.to_string())
 }
 

@@ -1,7 +1,7 @@
 import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
 import type { DocumentTemplatePayloadV1 } from "@/lib/document-template-schema";
 import type { DocumentKind } from "@/lib/document-template-schema";
-import { uint8ToBase64 } from "@/lib/save-download";
+import { uint8ToBase64, type ExportContext } from "@/lib/save-download";
 
 export type DocumentTemplateDto = {
     id: string;
@@ -74,10 +74,16 @@ export async function pickExportDirectory(): Promise<string | null> {
     return practiceSystem.invoke<string | null>("pick_export_directory");
 }
 
-export async function saveExportBytesToFolder(folder: string, fileName: string, bytes: Uint8Array): Promise<string> {
+export async function saveExportBytesToFolder(
+    folder: string,
+    fileName: string,
+    bytes: Uint8Array,
+    context?: ExportContext,
+): Promise<string> {
     return practiceSystem.invoke<string>("save_export_bytes_to_folder", {
         folder,
         file_name: fileName,
         contents_base64: uint8ToBase64(bytes),
+        context: context ?? null,
     });
 }

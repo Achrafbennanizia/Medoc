@@ -78,6 +78,12 @@ export function LicenseAndPairingGate({ children }: { children: ReactNode }) {
         void evaluate();
     }, [evaluate]);
 
+    useEffect(() => {
+        if (decision !== "needs-license" && decision !== "needs-pairing") return;
+        const id = window.setInterval(() => void evaluate(), 2000);
+        return () => window.clearInterval(id);
+    }, [decision, evaluate]);
+
     if (decision === "loading") {
         return (
             <div className="route-fallback" role="status" aria-live="polite">
@@ -87,7 +93,7 @@ export function LicenseAndPairingGate({ children }: { children: ReactNode }) {
     }
 
     if (decision === "needs-pairing") {
-        return <PairingScanPage />;
+        return <PairingScanPage onPaired={() => void evaluate()} />;
     }
 
     if (decision === "needs-license") {

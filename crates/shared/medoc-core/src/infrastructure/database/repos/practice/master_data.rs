@@ -368,6 +368,16 @@ pub struct TreatmentCatalogItem {
     pub sort_order: i64,
     pub active: i64,
     pub created_at: NaiveDateTime,
+    /// GOZ defaults copied onto new treatment lines.
+    #[sqlx(default)]
+    #[serde(default)]
+    pub fee_schedule: Option<String>,
+    #[sqlx(default)]
+    #[serde(default)]
+    pub goz_nr: Option<String>,
+    #[sqlx(default)]
+    #[serde(default)]
+    pub points: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]

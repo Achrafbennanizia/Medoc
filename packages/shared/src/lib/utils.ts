@@ -5,6 +5,7 @@ import type { Product } from "@/models/types";
 import { formatIpcError } from "./ipc-errors";
 import { effectiveArabicNumeralMode, rewriteDigitsForMode } from "./arabic-numerals";
 import { loadClientSettings } from "./client-settings";
+import { practiceCurrency } from "./practice-currency";
 import type { Locale } from "./i18n";
 import { bcp47ForLocale, useLocale } from "./i18n";
 
@@ -70,13 +71,24 @@ export function formatDate(dateStr: string, locale?: Locale): string {
 }
 
 export function formatCurrency(amount: number, locale?: Locale): string {
-    return applyUiDigits(
-        new Intl.NumberFormat(resolveLocaleTag(locale), {
-            style: "currency",
-            currency: "EUR",
-        }).format(amount),
-        locale,
-    );
+    const currency = practiceCurrency();
+    try {
+        return applyUiDigits(
+            new Intl.NumberFormat(resolveLocaleTag(locale), {
+                style: "currency",
+                currency,
+            }).format(amount),
+            locale,
+        );
+    } catch {
+        return applyUiDigits(
+            new Intl.NumberFormat(resolveLocaleTag(locale), {
+                style: "currency",
+                currency: "EUR",
+            }).format(amount),
+            locale,
+        );
+    }
 }
 
 /** How often the name appears — for ambiguity (same name, different category/price/ID). */

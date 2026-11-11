@@ -13,6 +13,7 @@ import { Button } from "@/views/components/ui/button";
 import { errorMessage } from "@/lib/utils";
 import { ExportIcon } from "@/lib/icons";
 import { DataExportPickerDialog } from "@/views/components/data-export-picker-dialog";
+import type { ExportContext } from "@/lib/save-download";
 import { PageLoadError, PageLoading } from "@/views/components/ui/page-status";
 import { WorkspacePageHeader } from "@/views/components/administration-page-header";
 
@@ -71,6 +72,7 @@ export function LoggingPage() {
             suggestedFilename: `medoc-logs-${new Date().toISOString().slice(0, 10)}.zip`,
             binaryBody: new Uint8Array(bytes),
             mime: "application/zip",
+            context: { kind: "system_logs", format: "zip", entityId: null } satisfies ExportContext,
         };
     }, [t]);
 

@@ -113,6 +113,15 @@ ${innerHtml}
     });
 }
 
+/** Print PDF bytes without laying out the whole application window. */
+export function printPdfBytes(bytes: Uint8Array): void {
+    const copy = new Uint8Array(bytes.byteLength);
+    copy.set(bytes);
+    const url = URL.createObjectURL(new Blob([copy], { type: "application/pdf" }));
+    printPdfBlobInHiddenIframe(url);
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
 /** PDF print via hidden iframe pointing at blob: URL (avoids pop-up blocker). */
 function printPdfBlobInHiddenIframe(blobUrl: string): void {
     const iframe = document.createElement("iframe");
@@ -282,7 +291,7 @@ export function ExportPreviewDialog({ payload, onClose }: ExportPreviewDialogPro
                 }
                 const copy = new Uint8Array(payload.binaryBody.byteLength);
                 copy.set(payload.binaryBody);
-                const ok = await saveOrDownloadBytes(name, copy, mimeForSave());
+                const ok = await saveOrDownloadBytes(name, copy, mimeForSave(), payload.context);
                 if (ok) toast(t("common.file_saved"), "success");
             } else {
                 const text = currentTextForSave();
@@ -290,7 +299,7 @@ export function ExportPreviewDialog({ payload, onClose }: ExportPreviewDialogPro
                     toast(t("common.no_content_to_save"), "error");
                     return;
                 }
-                const ok = await saveOrDownloadText(name, text, mimeForSave());
+                const ok = await saveOrDownloadText(name, text, mimeForSave(), payload.context);
                 if (ok) toast(t("common.file_saved"), "success");
             }
         } catch (e) {

@@ -957,10 +957,11 @@ async fn replica_push_is_visible_to_a_later_replica_pull() {
         .expect("push");
     assert_eq!(pushed.accepted, 1);
 
-    let pulled = SyncEngine::collect_pull_for_replica(&master, "replica-b", anchor.seq)
+    let pulled = SyncEngine::collect_pull_for_replica(&master, "replica-b", anchor.seq, 0)
         .await
         .expect("pull");
     let relayed = pulled
+        .entries
         .iter()
         .find(|e| e.entity_id == patient_id)
         .expect("replica B must receive replica A's patient");

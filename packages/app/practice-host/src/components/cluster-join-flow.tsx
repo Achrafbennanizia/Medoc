@@ -16,6 +16,7 @@ import { errorMessage, masterDeviceUnreachable } from "@/lib/utils";
 import { useToastStore } from "@/views/components/ui/toast-store";
 import { rewriteDigitsForMode } from "@/lib/arabic-numerals";
 import { useT } from "@/lib/i18n";
+import { PAGE_REFRESH_EVENT } from "@/views/layouts/page-refresh";
 
 const DEFAULT_PORT = 49300;
 
@@ -78,12 +79,14 @@ export function ClusterJoinFlow({ onComplete, onBack, completeWithAccountSetup =
     }, [scan]);
 
     const finishSuccess = useCallback(async () => {
-        setStatus(await clusterGetStatus());
+        setStatus(await clusterGetStatus().catch(() => null));
         if (completeWithAccountSetup || completeWithLogin) {
             navigate("/login", { replace: true });
             return;
         }
         onComplete?.();
+        window.dispatchEvent(new Event(PAGE_REFRESH_EVENT));
+        window.setTimeout(() => window.dispatchEvent(new Event(PAGE_REFRESH_EVENT)), 600);
     }, [completeWithAccountSetup, completeWithLogin, navigate, onComplete, setStatus]);
 
     const join = async (admin: JoinAdminTarget) => {

@@ -159,8 +159,8 @@ export function SettingsSystemSection({
         });
     };
     useEffect(() => {
-        if (hideNetwork) return;
-        void setNetworkHidden(false).catch(() => undefined);
+        if (!hideNetwork) return;
+        void setNetworkHidden(true).catch(() => undefined);
     }, [hideNetwork]);
     const desktopSettings = (
         <PracticeDesktopSettings
@@ -200,12 +200,13 @@ export function SettingsSystemSection({
                 {hideToggle}
                 {hideNetwork ? (
                     <p className="card-sub settings-system-network-hidden-hint">{t("settings.system.network_hidden_hint")}</p>
-                ) : null}
+                ) : (
                 <div className="settings-system-stack settings-system-stack--flush">
                     <DeviceClusterPanel embedded />
                     <SettingsDeploymentSection embedded showPairingInbox={canOpsSystem} />
                     <SettingsNetworkResetSection canOpsSystem={canOpsSystem} />
                 </div>
+                )}
             </section>
             {desktopSettings}
             </>
@@ -224,7 +225,7 @@ export function SettingsSystemSection({
             {hideToggle}
             {hideNetwork ? (
                 <p className="card-sub settings-system-network-hidden-hint">{t("settings.system.network_hidden_hint")}</p>
-            ) : null}
+            ) : (
             <div className="settings-system-stack">
                 <SettingsDeploymentSection embedded />
                 {canOpsSystem && SYSTEM_LAN_HOST_PANEL_ENABLED ? (
@@ -237,6 +238,7 @@ export function SettingsSystemSection({
                     <SettingsCompanyPortalSection embedded />
                 ) : null}
             </div>
+            )}
             {!SYSTEM_APPEARANCE_TOGGLES_ENABLED &&
             !SYSTEM_CHART_PHOTO_VIEWER_ENABLED &&
             !SYSTEM_DIAGNOSTICS_ENABLED &&

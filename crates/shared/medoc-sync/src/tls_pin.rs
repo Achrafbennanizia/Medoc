@@ -50,9 +50,7 @@ impl ServerCertVerifier for PinVerifier {
         if certificate_pin_matches(end_entity.as_ref(), &self.expected_hex) {
             Ok(ServerCertVerified::assertion())
         } else {
-            Err(rustls::Error::General(
-                "certificate pin mismatch".into(),
-            ))
+            Err(rustls::Error::General("certificate pin mismatch".into()))
         }
     }
 
@@ -109,7 +107,10 @@ pub async fn load_local_pin(pool: &SqlitePool) -> Option<String> {
 }
 
 /// Build a client that checks `cert_sha256` and rejects every other certificate.
-pub fn pinned_http_client(cert_sha256: &str, timeout: Duration) -> Result<reqwest::Client, AppError> {
+pub fn pinned_http_client(
+    cert_sha256: &str,
+    timeout: Duration,
+) -> Result<reqwest::Client, AppError> {
     let pin = normalize_sha256_pin(cert_sha256);
     if !is_sha256_pin(&pin) {
         return Err(AppError::Validation(

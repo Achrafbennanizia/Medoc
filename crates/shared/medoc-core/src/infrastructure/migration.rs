@@ -92,7 +92,7 @@ pub async fn import_patients(
         let get = |english: &str| -> Option<String> {
             col(english)
                 .and_then(|i| rec.get(i))
-                .map(|s| s.trim().to_string())
+                .map(|s| unguard_csv_cell(s.trim()).to_string())
                 .filter(|s| !s.is_empty())
         };
 
@@ -182,10 +182,43 @@ pub async fn import_patients(
 }
 
 fn decode_csv_bytes(bytes: &[u8]) -> String {
-    if let Ok(s) = std::str::from_utf8(bytes) {
-        return s.to_string();
+    let text = if let Ok(s) = std::str::from_utf8(bytes) {
+        s.to_string()
+    } else {
+        encoding_rs::WINDOWS_1252.decode(bytes).0.into_owned()
+    };
+    text.strip_prefix('\u{FEFF}').unwrap_or(&text).to_string()
+}
+
+/// Split one `;`-separated line, honouring `"…"` quoting and `""` escapes.
+#[cfg(test)]
+fn split_semicolon_csv(line: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut cur = String::new();
+    let mut in_q = false;
+    let mut chars = line.chars().peekable();
+    while let Some(c) = chars.next() {
+        match (c, in_q) {
+            ('"', true) if chars.peek() == Some(&'"') => {
+                cur.push('"');
+                chars.next();
+            }
+            ('"', true) => in_q = false,
+            ('"', false) if cur.is_empty() => in_q = true,
+            (';', false) => out.push(std::mem::take(&mut cur)),
+            (other, _) => cur.push(other),
+        }
     }
-    encoding_rs::WINDOWS_1252.decode(bytes).0.into_owned()
+    out.push(cur);
+    out
+}
+
+/// Undo the export's formula-injection guard (`'=…`, `'+49…`).
+fn unguard_csv_cell(s: &str) -> &str {
+    match s.strip_prefix('\'') {
+        Some(rest) if rest.starts_with(['=', '+', '-', '@']) => rest,
+        _ => s,
+    }
 }
 
 fn parse_date(s: &str) -> Option<NaiveDate> {
@@ -199,5 +232,18 @@ fn normalise_sex(s: &str) -> &'static str {
         "M" | "MALE" => "MALE",
         "W" | "F" | "FEMALE" => "FEMALE",
         _ => "DIVERSE",
+    }
+}
+
+#[cfg(test)]
+mod csv_split_tests {
+    use super::{split_semicolon_csv, unguard_csv_cell};
+
+    #[test]
+    fn quoted_fields_and_guard_round_trip() {
+        let f = split_semicolon_csv("\"Muster; Max\";1990-01-01;'+49 30 123;\"a \"\"b\"\"\"");
+        assert_eq!(f, vec!["Muster; Max", "1990-01-01", "'+49 30 123", "a \"b\""]);
+        assert_eq!(unguard_csv_cell(&f[2]), "+49 30 123");
+        assert_eq!(unguard_csv_cell("'Text"), "'Text");
     }
 }

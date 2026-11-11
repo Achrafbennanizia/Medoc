@@ -7,27 +7,25 @@ use sqlx::SqlitePool;
 use crate::deployment::{DeploymentMode, DeviceRole, SyncDeploymentConfig};
 use crate::merge::{apply_remote_entry_phased, ConflictPolicy};
 use crate::repo::{
-    clear_pull_failure, enqueue_full_snapshot, ensure_local_device, list_entries_since,
-    list_pending_outbox, list_pending_outbox_for_peer, load_deployment, load_row_payload_json,
-    mark_outbox_delivered, mark_outbox_failed, mark_peer_delivery, record_pull_failure,
-    save_deployment,
-    set_observed_seq, status_snapshot, SyncStatusSnapshot,
+    bump_deferred_pull, clear_pull_failure, ensure_local_device, list_deferred_pulls,
+    list_entries_since, list_pending_member_outbox, list_pending_outbox,
+    list_pending_outbox_for_peer, load_deployment, mark_outbox_ids_delivered,
+    load_row_payload_json, mark_outbox_delivered, mark_outbox_failed, mark_peer_delivery,
+    record_pull_failure, save_deferred_pull, save_deployment, set_observed_seq, status_snapshot,
+    SyncStatusSnapshot,
 };
 
 /// Failed pull rows are retried on later cycles. After this many failures the
 /// cursor moves past the row so one bad entry cannot stall every newer change.
 pub const PULL_ROW_RETRY_LIMIT: i64 = 8;
+
 const PUSH_PAGE_LIMIT: i64 = 500;
 const PUSH_MAX_PAGES: usize = 10;
 const PUSH_MAX_BYTES: usize = 12 * 1024 * 1024;
 
-use super::types::{MeshSyncReport, SyncPullResult, SyncPushResult, SyncRunReport};
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct SyncPullResponseBody {
-    entries: Vec<crate::repo::OutboxEntry>,
-}
+use super::types::{
+    MeshSyncReport, ReplicaPullPage, SyncPullResult, SyncPushResult, SyncRunReport,
+};
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -60,7 +58,9 @@ pub struct SyncEngine;
 
 impl SyncEngine {
     pub async fn status(pool: &SqlitePool) -> Result<SyncStatusSnapshot, AppError> {
-        status_snapshot(pool).await
+        let mut snap = status_snapshot(pool).await?;
+        snap.initial_copy = super::initial_copy::status_for(pool, &snap.deployment).await?;
+        Ok(snap)
     }
 
     /// Ingest remote outbox batch (master or replica receiving peer push).
@@ -80,26 +80,83 @@ impl SyncEngine {
         let relay = deployment.role == DeviceRole::Master && from_device_id != local_id;
         let mut accepted = 0u32;
         let mut last_seq = 0i64;
-        for entry in entries {
-            if entry.device_id != from_device_id {
+        for source in entries {
+            if source.device_id != from_device_id {
                 return Err(AppError::Validation("sync push device_id mismatch".into()));
             }
-            if crate::merge::apply_remote_entry_defer_mark(
+            let mut entry = source.clone();
+            if local_is_master && entry.device_id != local_id {
+                entry.payload_json = crate::merge::clamp_future_updated_at(
+                    &entry.payload_json,
+                    chrono::Utc::now(),
+                );
+            }
+            let applied = match crate::merge::apply_remote_entry_defer_mark(
                 pool,
                 &local_id,
                 local_is_master,
                 false,
                 ConflictPolicy::LastWriteWins,
-                entry,
+                &entry,
             )
-            .await?
+            .await
             {
+                Ok(applied) => {
+                    clear_pull_failure(pool, &entry.device_id, entry.seq).await?;
+                    applied
+                }
+                Err(e) => {
+                    let attempts = record_pull_failure(pool, &entry.device_id, entry.seq).await?;
+                    tracing::warn!(
+                        target: "medoc::sync",
+                        event = "PUSH_ENTRY_FAILED",
+                        table = %entry.entity_table,
+                        id = %entry.entity_id,
+                        op = %entry.op,
+                        seq = entry.seq,
+                        attempts,
+                        error = %e
+                    );
+                    if attempts >= PULL_ROW_RETRY_LIMIT {
+                        tracing::warn!(
+                            target: "medoc::sync",
+                            event = "PUSH_ENTRY_GAVE_UP",
+                            table = %entry.entity_table,
+                            id = %entry.entity_id,
+                            seq = entry.seq,
+                            attempts
+                        );
+                        clear_pull_failure(pool, &entry.device_id, entry.seq).await?;
+                        // Quarantine this seq so the sender can move past it.
+                        last_seq = entry.seq;
+                        continue;
+                    }
+                    // Keep order. Entries after this one stay pending.
+                    break;
+                }
+            };
+            if applied {
                 let payload = if relay {
-                    Some(relay_payload(pool, entry).await?)
+                    Some(relay_payload(pool, &entry).await?)
                 } else {
                     None
                 };
-                mark_applied_with_relay(pool, &local_id, entry, payload.as_deref()).await?;
+                mark_applied_with_relay(pool, &local_id, &entry, payload.as_deref()).await?;
+                if let Err(e) = crate::watch::note_remote_applied(
+                    pool,
+                    &entry.entity_table,
+                    &entry.entity_id,
+                )
+                .await
+                {
+                    tracing::warn!(
+                        target: "medoc::sync",
+                        event = "SHARED_SYNC_SEEN_FAILED",
+                        table = %entry.entity_table,
+                        id = %entry.entity_id,
+                        error = %e
+                    );
+                }
                 accepted += 1;
             }
             last_seq = entry.seq;
@@ -116,21 +173,40 @@ impl SyncEngine {
         list_entries_since(pool, device_id, since_seq).await
     }
 
-    /// First replica pull (`since_seq = 0`) queues a full row snapshot, then
+    /// First replica pull (`since_seq = 0`) queues one full row snapshot, then
     /// returns packages from **this node's** outbox. The replica-supplied
     /// `device_id` is ignored: independently seeded replicas never know the
     /// master's local outbox id, so serving by that id returned an empty pull.
+    ///
+    /// A brand-new requester also gets `initial_copy` so both devices can show
+    /// how far that snapshot has been handed over. Later pulls with a cursor
+    /// only update that span; they do not queue another snapshot.
     pub async fn collect_pull_for_replica(
         pool: &SqlitePool,
-        _device_id: &str,
+        device_id: &str,
         since_seq: i64,
-    ) -> Result<Vec<crate::repo::OutboxEntry>, AppError> {
+        live_since_seq: i64,
+    ) -> Result<ReplicaPullPage, AppError> {
         let deployment = load_deployment(pool).await?;
         let local_id = ensure_local_device(pool, &deployment.device_label).await?;
-        if since_seq <= 0 {
-            enqueue_full_snapshot(pool).await?;
-        }
-        Self::collect_pull(pool, &local_id, since_seq).await
+        let initial_copy =
+            super::initial_copy::note_master_pull(pool, device_id, since_seq, &local_id).await?;
+        let mut entries = Self::collect_pull(pool, &local_id, since_seq).await?;
+        let live = match &initial_copy {
+            Some(span) if since_seq < span.end_seq => {
+                // The snapshot page is capped at its end so a newer edit
+                // cannot advance the cursor past rows that are not copied yet.
+                entries.retain(|entry| entry.seq <= span.end_seq);
+                let after = span.end_seq.max(live_since_seq);
+                list_entries_since(pool, &local_id, after).await?
+            }
+            _ => Vec::new(),
+        };
+        Ok(ReplicaPullPage {
+            entries,
+            initial_copy,
+            live,
+        })
     }
 
     /// Replica: push pending local outbox to master over HTTPS.
@@ -158,8 +234,16 @@ impl SyncEngine {
         );
         let mut accepted = 0u32;
         let mut last_seq = 0i64;
+        requeue_blob_rows_with_bytes(pool).await?;
+        let member_only = super::initial_copy::replica_initial_copy_blocks_catchup(pool)
+            .await
+            .unwrap_or(false);
         for _ in 0..PUSH_MAX_PAGES {
-            let pending = list_pending_outbox(pool, &local_id, PUSH_PAGE_LIMIT).await?;
+            let pending = if member_only {
+                list_pending_member_outbox(pool, &local_id, PUSH_PAGE_LIMIT).await?
+            } else {
+                list_pending_outbox(pool, &local_id, PUSH_PAGE_LIMIT).await?
+            };
             if pending.is_empty() {
                 break;
             }
@@ -188,8 +272,33 @@ impl SyncEngine {
             if page.is_empty() {
                 continue;
             }
-            put_attachment_blobs(&client, &deployment.master_base_url, &bearer_token, pool, &page)
-                .await;
+            let blobs = put_attachment_blobs(
+                &client,
+                &deployment.master_base_url,
+                &bearer_token,
+                pool,
+                &page,
+            )
+            .await;
+            for id in &blobs.gave_up {
+                mark_outbox_failed(pool, id, "BLOB_MISSING").await?;
+            }
+            // A file still retrying stays at the head. A file that has given
+            // up is left out, so later rows can move.
+            let ready = page_ready_to_send(&page, &blobs.held, &blobs.gave_up);
+            if ready.is_empty() {
+                tracing::warn!(
+                    target: "medoc::sync",
+                    event = "SYNC_BLOB_PUT_HELD",
+                    held = blobs.held.len(),
+                    gave_up = blobs.gave_up.len()
+                );
+                if blobs.held.is_empty() {
+                    continue;
+                }
+                break;
+            }
+            let page = ready;
             let page_last = page.last().map(|e| e.seq).unwrap_or(0);
             let body = serde_json::json!({
                 "fromDeviceId": local_id,
@@ -203,23 +312,32 @@ impl SyncEngine {
                 .await
                 .map_err(|e| AppError::Internal(format!("sync push http: {e}")))?;
             if !resp.status().is_success() {
-                return Err(AppError::Internal(format!(
-                    "sync push http status {}",
-                    resp.status()
-                )));
+                return Err(http_status_error("sync push", resp).await);
             }
             let result: SyncPushResult = resp
                 .json()
                 .await
                 .map_err(|e| AppError::Internal(format!("sync push decode: {e}")))?;
-            mark_outbox_delivered(pool, &local_id, page_last).await?;
+            // Stop at the last seq the master actually accepted. Later rows in
+            // this page stay pending so one failure does not drop them.
+            let through = result.last_seq;
+            if member_only {
+                let ids: Vec<String> = page
+                    .iter()
+                    .filter(|entry| entry.seq <= through)
+                    .map(|entry| entry.id.clone())
+                    .collect();
+                mark_outbox_ids_delivered(pool, &ids).await?;
+            } else if through > 0 {
+                mark_outbox_delivered(pool, &local_id, through).await?;
+            }
             accepted = accepted.saturating_add(result.accepted);
-            last_seq = page_last;
+            last_seq = through;
+            if through < page_last {
+                break;
+            }
         }
-        Ok(SyncPushResult {
-            accepted,
-            last_seq,
-        })
+        Ok(SyncPushResult { accepted, last_seq })
     }
 
     /// Replica: pull master changes since last known vector.
@@ -237,7 +355,7 @@ impl SyncEngine {
         }
         let bearer_token = pick_bearer(&deployment)?;
         let vectors = crate::repo::all_vectors(pool).await?;
-        let local_id = ensure_local_device(pool, &deployment.device_label).await?;
+        let local_id = align_local_id_to_activation(pool, &deployment).await?;
         let master_device_id = resolve_master_device_id(pool, &deployment)
             .await
             .unwrap_or_default();
@@ -251,10 +369,12 @@ impl SyncEngine {
             "{}/api/v1/sync/pull",
             deployment.master_base_url.trim_end_matches('/')
         );
+        let live_since = super::initial_copy::live_seq(pool).await.unwrap_or(0);
         let body = serde_json::json!({
             "deviceId": master_device_id,
             "sinceSeq": since_seq,
             "requesterId": local_id,
+            "liveSinceSeq": live_since,
         });
         let resp = client
             .post(&url)
@@ -264,16 +384,19 @@ impl SyncEngine {
             .await
             .map_err(|e| AppError::Internal(format!("sync pull http: {e}")))?;
         if !resp.status().is_success() {
-            return Err(AppError::Internal(format!(
-                "sync pull http status {}",
-                resp.status()
-            )));
+            return Err(http_status_error("sync pull", resp).await);
         }
-        let pulled: SyncPullResponseBody = resp
+        let pulled: ReplicaPullPage = resp
             .json()
             .await
             .map_err(|e| AppError::Internal(format!("sync pull decode: {e}")))?;
-        if since_seq <= 0 {
+        let copying = pulled.initial_copy.is_some()
+            && super::initial_copy::should_skip_push(pool)
+                .await
+                .unwrap_or(false);
+        if copying {
+            super::initial_copy::clear_practice_once(pool).await?;
+        } else if since_seq <= 0 {
             // Independent year seeds use the same `seed-yr-apt-*` ids with
             // different rows. LWW then keeps the replica's calendar. Drop
             // local seed appointments so the master's snapshot is the source.
@@ -281,69 +404,29 @@ impl SyncEngine {
                 .execute(pool)
                 .await;
         }
-        let mut applied = 0u32;
-        let mut skipped = 0u32;
-        // Cursor stops at the last row before the first failure still under
-        // the retry limit. Later rows in this batch are still applied, so a
-        // parent that sorts after a child can land and the child succeeds
-        // on the next pull. Rows after the hole are fetched again; apply is
-        // idempotent.
-        let mut cursor: Option<(String, i64)> = None;
-        let mut blocked = false;
-        for entry in &pulled.entries {
-            match apply_remote_entry_phased(
-                pool,
-                &local_id,
-                false,
-                true,
-                ConflictPolicy::LastWriteWins,
-                entry,
-            )
-            .await
-            {
-                Ok(did_apply) => {
-                    if did_apply {
-                        applied += 1;
-                    } else {
-                        skipped += 1;
-                    }
-                    clear_pull_failure(pool, &entry.device_id, entry.seq).await?;
-                    if !blocked {
-                        cursor = Some((entry.device_id.clone(), entry.seq));
-                    }
-                }
-                Err(e) => {
-                    let attempts = record_pull_failure(pool, &entry.device_id, entry.seq).await?;
-                    tracing::warn!(
-                        target: "medoc::sync",
-                        event = "REPLICA_PULL_ROW_SKIP",
-                        table = %entry.entity_table,
-                        id = %entry.entity_id,
-                        attempts,
-                        error = %e
-                    );
-                    skipped += 1;
-                    if attempts >= PULL_ROW_RETRY_LIMIT {
-                        tracing::warn!(
-                            target: "medoc::sync",
-                            event = "REPLICA_PULL_ROW_GAVE_UP",
-                            table = %entry.entity_table,
-                            id = %entry.entity_id,
-                            seq = entry.seq,
-                            attempts
-                        );
-                        clear_pull_failure(pool, &entry.device_id, entry.seq).await?;
-                        if !blocked {
-                            cursor = Some((entry.device_id.clone(), entry.seq));
-                        }
-                    } else {
-                        blocked = true;
-                    }
-                }
-            }
+        let live_page = apply_pulled_entries(pool, &local_id, &pulled.live).await?;
+        if let Some((_, seq)) = &live_page.cursor {
+            super::initial_copy::save_live_seq(pool, *seq).await?;
         }
+        let snapshot_page = apply_pulled_entries(pool, &local_id, &pulled.entries).await?;
+        let mut applied = live_page.applied.saturating_add(snapshot_page.applied);
+        let skipped = live_page.skipped.saturating_add(snapshot_page.skipped);
+        let cursor = snapshot_page.cursor;
+        let page_moved = !pulled.entries.is_empty() || !pulled.live.is_empty();
+        match retry_deferred_pulls(pool, &local_id, page_moved).await {
+            Ok(n) => applied += n,
+            Err(e) => tracing::warn!(
+                target: "medoc::sync",
+                event = "REPLICA_PULL_DEFER_RETRY_FAILED",
+                error = %e
+            ),
+        }
+        let applied_through = cursor.as_ref().map(|(_, seq)| *seq).unwrap_or(since_seq);
         if let Some((device_id, seq)) = cursor {
             set_observed_seq(pool, &device_id, seq).await?;
+        }
+        if let Some(span) = &pulled.initial_copy {
+            super::initial_copy::record_replica_progress(pool, span, applied_through).await?;
         }
         fetch_attachment_blobs(
             &client,
@@ -377,6 +460,7 @@ impl SyncEngine {
         let bearer_token = pick_bearer(&deployment)?;
         let peers = fetch_peer_list(pool, &deployment, &bearer_token).await?;
         let local_id = ensure_local_device(pool, &deployment.device_label).await?;
+        requeue_blob_rows_with_bytes(pool).await?;
         let mut report = MeshSyncReport::default();
         if peers.is_empty() {
             return Ok(report);
@@ -426,9 +510,14 @@ impl SyncEngine {
             mesh: None,
             error: None,
         };
-        match Self::push_to_master(pool).await {
-            Ok(push) => report.push = Some(push),
-            Err(e) => report.error = Some(format!("push: {e}")),
+        let skip_push = super::initial_copy::should_skip_push(pool)
+            .await
+            .unwrap_or(false);
+        if !skip_push {
+            match Self::push_to_master(pool).await {
+                Ok(push) => report.push = Some(push),
+                Err(e) => report.error = Some(format!("push: {e}")),
+            }
         }
         match Self::pull_from_master(pool).await {
             Ok(pull) => report.pull = Some(pull),
@@ -549,6 +638,176 @@ async fn find_master_device_id(pool: &SqlitePool) -> Result<String, AppError> {
 
 /// Prefer the deployment's `master_device_id` (set during pairing). Falls
 /// back to the sync_device registry when the id is missing.
+struct PulledPage {
+    applied: u32,
+    skipped: u32,
+    cursor: Option<(String, i64)>,
+}
+
+/// Apply one pull page. The cursor is the last seq before a row that is
+/// still inside the retry limit, so a later parent can arrive and the
+/// child is tried again. Foreign-key misses are deferred and do not hold
+/// the cursor: the parent may be further down the snapshot.
+async fn apply_pulled_entries(
+    pool: &SqlitePool,
+    local_id: &str,
+    entries: &[crate::repo::OutboxEntry],
+) -> Result<PulledPage, AppError> {
+    let mut applied = 0u32;
+    let mut skipped = 0u32;
+    let mut cursor: Option<(String, i64)> = None;
+    let mut blocked = false;
+    for entry in entries {
+        match apply_remote_entry_phased(
+            pool,
+            local_id,
+            false,
+            true,
+            ConflictPolicy::LastWriteWins,
+            entry,
+        )
+        .await
+        {
+            Ok(did_apply) => {
+                if did_apply {
+                    applied += 1;
+                } else {
+                    skipped += 1;
+                }
+                clear_pull_failure(pool, &entry.device_id, entry.seq).await?;
+                if !blocked {
+                    cursor = Some((entry.device_id.clone(), entry.seq));
+                }
+            }
+            Err(e) => {
+                skipped += 1;
+                if is_foreign_key_error(&e) {
+                    save_deferred_pull(pool, entry).await?;
+                    tracing::warn!(
+                        target: "medoc::sync",
+                        event = "REPLICA_PULL_ROW_DEFER",
+                        table = %entry.entity_table,
+                        id = %entry.entity_id,
+                        seq = entry.seq,
+                        error = %e
+                    );
+                    if !blocked {
+                        cursor = Some((entry.device_id.clone(), entry.seq));
+                    }
+                } else {
+                    let attempts = record_pull_failure(pool, &entry.device_id, entry.seq).await?;
+                    tracing::warn!(
+                        target: "medoc::sync",
+                        event = "REPLICA_PULL_ROW_SKIP",
+                        table = %entry.entity_table,
+                        id = %entry.entity_id,
+                        attempts,
+                        error = %e
+                    );
+                    if attempts >= PULL_ROW_RETRY_LIMIT {
+                        tracing::warn!(
+                            target: "medoc::sync",
+                            event = "REPLICA_PULL_ROW_GAVE_UP",
+                            table = %entry.entity_table,
+                            id = %entry.entity_id,
+                            seq = entry.seq,
+                            attempts
+                        );
+                        clear_pull_failure(pool, &entry.device_id, entry.seq).await?;
+                        if !blocked {
+                            cursor = Some((entry.device_id.clone(), entry.seq));
+                        }
+                    } else {
+                        blocked = true;
+                    }
+                }
+            }
+        }
+    }
+    Ok(PulledPage {
+        applied,
+        skipped,
+        cursor,
+    })
+}
+
+fn is_foreign_key_error(err: &AppError) -> bool {
+    match err {
+        AppError::Database(sqlx::Error::Database(db)) => {
+            db.code().is_some_and(|code| code == "787")
+                || db.message().contains("FOREIGN KEY")
+        }
+        _ => false,
+    }
+}
+
+/// Apply rows that missed a parent. While new pages are still arriving, a
+/// failure does not count toward the give-up limit.
+async fn retry_deferred_pulls(
+    pool: &SqlitePool,
+    local_id: &str,
+    page_moved: bool,
+) -> Result<u32, AppError> {
+    let mut applied = 0u32;
+    for entry in list_deferred_pulls(pool).await? {
+        match apply_remote_entry_phased(
+            pool,
+            local_id,
+            false,
+            true,
+            ConflictPolicy::LastWriteWins,
+            &entry,
+        )
+        .await
+        {
+            Ok(_) => {
+                clear_pull_failure(pool, &entry.device_id, entry.seq).await?;
+                applied += 1;
+                tracing::info!(
+                    target: "medoc::sync",
+                    event = "REPLICA_PULL_ROW_DEFER_APPLIED",
+                    table = %entry.entity_table,
+                    id = %entry.entity_id,
+                    seq = entry.seq
+                );
+            }
+            Err(e) if is_foreign_key_error(&e) && page_moved => {
+                tracing::warn!(
+                    target: "medoc::sync",
+                    event = "REPLICA_PULL_ROW_DEFER",
+                    table = %entry.entity_table,
+                    id = %entry.entity_id,
+                    seq = entry.seq,
+                    error = %e
+                );
+            }
+            Err(e) => {
+                let attempts = bump_deferred_pull(pool, &entry.device_id, entry.seq).await?;
+                tracing::warn!(
+                    target: "medoc::sync",
+                    event = "REPLICA_PULL_ROW_SKIP",
+                    table = %entry.entity_table,
+                    id = %entry.entity_id,
+                    attempts,
+                    error = %e
+                );
+                if attempts >= PULL_ROW_RETRY_LIMIT {
+                    tracing::warn!(
+                        target: "medoc::sync",
+                        event = "REPLICA_PULL_ROW_GAVE_UP",
+                        table = %entry.entity_table,
+                        id = %entry.entity_id,
+                        seq = entry.seq,
+                        attempts
+                    );
+                    clear_pull_failure(pool, &entry.device_id, entry.seq).await?;
+                }
+            }
+        }
+    }
+    Ok(applied)
+}
+
 async fn resolve_master_device_id(
     pool: &SqlitePool,
     deployment: &SyncDeploymentConfig,
@@ -576,11 +835,7 @@ async fn align_local_id_to_activation(
     if authorized == local_id {
         return Ok(local_id);
     }
-    let fingerprint = crate::cluster::crypto::DeviceIdentity::try_load()
-        .ok()
-        .flatten()
-        .map(|identity| identity.fingerprint);
-    if fingerprint.as_deref() != Some(authorized.as_str()) {
+    if !activation_names_this_install(pool, &authorized).await? {
         tracing::warn!(
             target: "medoc::sync",
             event = "SYNC_DEVICE_ID_TOKEN_NOT_THIS_INSTALL",
@@ -604,6 +859,32 @@ async fn align_local_id_to_activation(
     )
     .await?;
     Ok(authorized)
+}
+
+/// The activation token names this install when its device id is the loaded
+/// cluster key, or the fingerprint this device presented when it joined.
+/// A verified token alone is not enough: that would let a copied token rename
+/// this install to someone else's device.
+async fn activation_names_this_install(
+    pool: &SqlitePool,
+    authorized: &str,
+) -> Result<bool, AppError> {
+    let fingerprint = crate::cluster::crypto::DeviceIdentity::try_load()
+        .ok()
+        .flatten()
+        .map(|identity| identity.fingerprint);
+    if fingerprint.as_deref() == Some(authorized) {
+        return Ok(true);
+    }
+    let joined: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM pairing_request
+         WHERE TRIM(fingerprint) = ?1 OR TRIM(device_id) = ?1",
+    )
+    .bind(authorized)
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::Database)?;
+    Ok(joined > 0)
 }
 
 fn verified_activation_device_id(deployment: &SyncDeploymentConfig) -> Option<String> {
@@ -642,12 +923,20 @@ async fn relay_payload(
         return Ok(entry.payload_json.clone());
     }
     match load_row_payload_json(pool, &entry.entity_table, &entry.entity_id).await? {
-        Some(json) => Ok(json),
+        Some(json) => {
+            crate::hlc::attach_row_hlc(pool, &entry.entity_table, &entry.entity_id, &json).await
+        }
         None => Ok(entry.payload_json.clone()),
     }
 }
 
 const MISSING_BLOBS_KV: &str = "sync.missing_blobs.v1";
+const BLOB_ATTEMPTS_KV: &str = "sync.blob_put_attempts.v1";
+
+struct BlobPutOutcome {
+    held: std::collections::HashSet<String>,
+    gave_up: std::collections::HashSet<String>,
+}
 
 fn payload_sha256(payload_json: &str) -> Option<String> {
     let value: serde_json::Value = serde_json::from_str(payload_json).ok()?;
@@ -691,6 +980,88 @@ async fn forget_missing_blob(pool: &SqlitePool, sha: &str) {
     store_missing_blobs(pool, &next).await;
 }
 
+/// Drop entries whose file will never arrive, then stop at the first entry
+/// that is still waiting for a retry. Rows after a retry stay pending.
+fn page_ready_to_send(
+    page: &[crate::repo::OutboxEntry],
+    held: &std::collections::HashSet<String>,
+    gave_up: &std::collections::HashSet<String>,
+) -> Vec<crate::repo::OutboxEntry> {
+    page.iter()
+        .filter(|entry| !gave_up.contains(&entry.id))
+        .take_while(|entry| !held.contains(&entry.id))
+        .cloned()
+        .collect()
+}
+
+/// Last sequence of the longest prefix of `offered` that was actually posted.
+/// A missing file in the middle stops the mesh watermark so later rows in the
+/// same page do not hide it.
+fn contiguous_prefix_seq(
+    offered: &[crate::repo::OutboxEntry],
+    sent: &[crate::repo::OutboxEntry],
+) -> i64 {
+    let sent_ids: std::collections::HashSet<&str> = sent.iter().map(|entry| entry.id.as_str()).collect();
+    let mut through = 0i64;
+    for entry in offered {
+        if !sent_ids.contains(entry.id.as_str()) {
+            break;
+        }
+        through = entry.seq;
+    }
+    through
+}
+
+async fn requeue_blob_rows_with_bytes(pool: &SqlitePool) -> Result<u32, AppError> {
+    let rows: Vec<(String, String, String, i64)> = sqlx::query_as(
+        "SELECT id, payload_json, device_id, seq FROM sync_outbox
+         WHERE fail_reason = 'BLOB_MISSING' AND delivered_at IS NULL",
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(AppError::Database)?;
+    let mut ready = 0u32;
+    for (id, payload, device_id, seq) in rows {
+        let Some(sha) = payload_sha256(&payload) else {
+            continue;
+        };
+        let bytes = medoc_core::infrastructure::database::sync_blob::get_bytes(pool, &sha).await;
+        let Ok(bytes) = bytes else {
+            continue;
+        };
+        if bytes.is_empty() {
+            continue;
+        }
+        sqlx::query("UPDATE sync_outbox SET fail_reason = NULL WHERE id = ?1")
+            .bind(&id)
+            .execute(pool)
+            .await
+            .map_err(AppError::Database)?;
+        forget_blob_attempt(pool, &id).await;
+        let now = chrono::Utc::now().to_rfc3339();
+        sqlx::query(
+            "UPDATE sync_peer_vector SET through_seq = ?1, updated_at = ?2
+             WHERE source_device_id = ?3 AND through_seq >= ?4",
+        )
+        .bind(seq.saturating_sub(1))
+        .bind(&now)
+        .bind(&device_id)
+        .bind(seq)
+        .execute(pool)
+        .await
+        .map_err(AppError::Database)?;
+        ready += 1;
+    }
+    if ready > 0 {
+        tracing::info!(
+            target: "medoc::sync",
+            event = "SYNC_BLOB_REQUEUED",
+            rows = ready
+        );
+    }
+    Ok(ready)
+}
+
 fn blob_url(base: &str, sha: &str) -> String {
     format!("{}/api/v1/sync/blob/{sha}", base.trim_end_matches('/'))
 }
@@ -701,7 +1072,9 @@ async fn put_attachment_blobs(
     token: &str,
     pool: &SqlitePool,
     page: &[crate::repo::OutboxEntry],
-) {
+) -> BlobPutOutcome {
+    let mut held = std::collections::HashSet::new();
+    let mut gave_up = std::collections::HashSet::new();
     for entry in page {
         if entry.entity_table != "chart_attachment" || entry.op == "DELETE" {
             continue;
@@ -709,14 +1082,21 @@ async fn put_attachment_blobs(
         let Some(sha) = payload_sha256(&entry.payload_json) else {
             continue;
         };
-        let bytes = match medoc_core::infrastructure::database::sync_blob::get_bytes(pool, &sha).await
-        {
-            Ok(b) if !b.is_empty() => b,
-            _ => {
-                remember_missing_blob(pool, &sha).await;
-                continue;
-            }
-        };
+        let bytes =
+            match medoc_core::infrastructure::database::sync_blob::get_bytes(pool, &sha).await {
+                Ok(b) if !b.is_empty() => b,
+                _ => {
+                    tracing::warn!(
+                        target: "medoc::sync",
+                        event = "SYNC_BLOB_PUT_MISSING",
+                        id = %entry.id,
+                        sha = %sha
+                    );
+                    remember_missing_blob(pool, &sha).await;
+                    note_blob_attempt(pool, &entry.id, &mut held, &mut gave_up).await;
+                    continue;
+                }
+            };
         match client
             .put(blob_url(base, &sha))
             .bearer_auth(token)
@@ -724,10 +1104,92 @@ async fn put_attachment_blobs(
             .send()
             .await
         {
-            Ok(resp) if resp.status().is_success() => forget_missing_blob(pool, &sha).await,
-            _ => remember_missing_blob(pool, &sha).await,
+            Ok(resp) if resp.status().is_success() => {
+                forget_missing_blob(pool, &sha).await;
+                forget_blob_attempt(pool, &entry.id).await;
+            }
+            Ok(resp) => {
+                tracing::warn!(
+                    target: "medoc::sync",
+                    event = "SYNC_BLOB_PUT_FAILED",
+                    id = %entry.id,
+                    sha = %sha,
+                    status = %resp.status()
+                );
+                remember_missing_blob(pool, &sha).await;
+                note_blob_attempt(pool, &entry.id, &mut held, &mut gave_up).await;
+            }
+            Err(error) => {
+                tracing::warn!(
+                    target: "medoc::sync",
+                    event = "SYNC_BLOB_PUT_FAILED",
+                    id = %entry.id,
+                    sha = %sha,
+                    error = %error
+                );
+                remember_missing_blob(pool, &sha).await;
+                note_blob_attempt(pool, &entry.id, &mut held, &mut gave_up).await;
+            }
         }
     }
+    BlobPutOutcome { held, gave_up }
+}
+
+async fn note_blob_attempt(
+    pool: &SqlitePool,
+    entry_id: &str,
+    held: &mut std::collections::HashSet<String>,
+    gave_up: &mut std::collections::HashSet<String>,
+) {
+    let attempts = bump_blob_attempts(pool, entry_id).await;
+    if attempts >= PULL_ROW_RETRY_LIMIT {
+        tracing::warn!(
+            target: "medoc::sync",
+            event = "SYNC_BLOB_GAVE_UP",
+            id = %entry_id,
+            attempts
+        );
+        gave_up.insert(entry_id.to_string());
+        forget_blob_attempt(pool, entry_id).await;
+    } else {
+        held.insert(entry_id.to_string());
+    }
+}
+
+async fn bump_blob_attempts(pool: &SqlitePool, entry_id: &str) -> i64 {
+    let mut map = load_blob_attempts(pool).await;
+    let next = map.get(entry_id).and_then(|v| v.as_i64()).unwrap_or(0).saturating_add(1);
+    map.insert(entry_id.to_string(), serde_json::Value::from(next));
+    store_blob_attempts(pool, &map).await;
+    next
+}
+
+async fn forget_blob_attempt(pool: &SqlitePool, entry_id: &str) {
+    let mut map = load_blob_attempts(pool).await;
+    if map.remove(entry_id).is_some() {
+        store_blob_attempts(pool, &map).await;
+    }
+}
+
+async fn load_blob_attempts(pool: &SqlitePool) -> serde_json::Map<String, serde_json::Value> {
+    let raw = medoc_core::infrastructure::database::app_kv_repo::get(pool, BLOB_ATTEMPTS_KV)
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "{}".into());
+    serde_json::from_str(&raw).unwrap_or_default()
+}
+
+async fn store_blob_attempts(
+    pool: &SqlitePool,
+    map: &serde_json::Map<String, serde_json::Value>,
+) {
+    let _ = medoc_core::infrastructure::database::app_kv_repo::set(
+        pool,
+        BLOB_ATTEMPTS_KV,
+        &serde_json::to_string(map).unwrap_or_else(|_| "{}".into()),
+    )
+    .await;
 }
 
 async fn fetch_attachment_blobs(
@@ -801,12 +1263,22 @@ async fn master_http_client(
     let pin = if crate::tls_pin::is_sha256_pin(&deployment.master_cert_sha256) {
         crate::tls_pin::normalize_sha256_pin(&deployment.master_cert_sha256)
     } else {
+        // Only the master's own certificate may be pinned for master calls.
+        // The old query took *any* stored pin and preferred `is_local = 1`,
+        // i.e. this device's own LAN certificate (or another replica's).
+        let master_id = deployment.master_device_id.trim();
+        if master_id.is_empty() {
+            return Err(AppError::Validation(
+                "sync TLS pin missing — refusing to accept an unpinned certificate".into(),
+            ));
+        }
         let stored: Option<String> = sqlx::query_scalar::<_, Option<String>>(
             "SELECT peer_cert_sha256 FROM sync_device
-             WHERE peer_cert_sha256 IS NOT NULL AND length(trim(peer_cert_sha256)) > 0
-             ORDER BY is_local DESC
+             WHERE device_id = ?1 AND is_local = 0
+               AND peer_cert_sha256 IS NOT NULL AND length(trim(peer_cert_sha256)) > 0
              LIMIT 1",
         )
+        .bind(master_id)
         .fetch_optional(pool)
         .await
         .map_err(AppError::Database)?
@@ -855,10 +1327,7 @@ async fn fetch_peer_list(
         .await
         .map_err(|e| AppError::Internal(format!("peers http: {e}")))?;
     if !resp.status().is_success() {
-        return Err(AppError::Internal(format!(
-            "peers http status {}",
-            resp.status()
-        )));
+        return Err(http_status_error("peers", resp).await);
     }
     let body: MeshPeerListResponse = resp
         .json()
@@ -896,25 +1365,42 @@ async fn push_to_peer(
             last_seq: 0,
         });
     }
-    let last_seq = pending.last().map(|e| e.seq).unwrap_or(0);
-    let stored_pin: Option<Option<String>> = sqlx::query_scalar(
-        "SELECT peer_cert_sha256 FROM sync_device WHERE device_id = ?1",
-    )
-    .bind(target_device_id)
-    .fetch_optional(pool)
-    .await
-    .map_err(AppError::Database)?;
-    let Some(pin) = stored_pin.flatten().filter(|value| !value.trim().is_empty()) else {
+    let stored_pin: Option<Option<String>> =
+        sqlx::query_scalar("SELECT peer_cert_sha256 FROM sync_device WHERE device_id = ?1")
+            .bind(target_device_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(AppError::Database)?;
+    let Some(pin) = stored_pin
+        .flatten()
+        .filter(|value| !value.trim().is_empty())
+    else {
         return Err(AppError::Validation(format!(
             "peer {target_device_id} has no TLS pin"
         )));
     };
     let client = build_http_client(&pin)?;
-    put_attachment_blobs(&client, peer_base_url, bearer_token, pool, pending).await;
+    let blobs = put_attachment_blobs(&client, peer_base_url, bearer_token, pool, pending).await;
+    for id in &blobs.gave_up {
+        mark_outbox_failed(pool, id, "BLOB_MISSING").await?;
+    }
+    let ready = page_ready_to_send(pending, &blobs.held, &blobs.gave_up);
+    if ready.is_empty() {
+        tracing::warn!(
+            target: "medoc::sync",
+            event = "SYNC_BLOB_PUT_HELD",
+            held = blobs.held.len(),
+            gave_up = blobs.gave_up.len()
+        );
+        return Ok(SyncPushResult {
+            accepted: 0,
+            last_seq: 0,
+        });
+    }
     let url = format!("{}/api/v1/sync/push", peer_base_url.trim_end_matches('/'));
     let body = serde_json::json!({
         "fromDeviceId": local_id,
-        "entries": pending,
+        "entries": ready,
     });
     let resp = client
         .post(&url)
@@ -924,17 +1410,28 @@ async fn push_to_peer(
         .await
         .map_err(|e| AppError::Internal(format!("peer push http: {e}")))?;
     if !resp.status().is_success() {
-        return Err(AppError::Internal(format!(
-            "peer push http status {}",
-            resp.status()
-        )));
+        return Err(http_status_error("peer push", resp).await);
     }
     let result: SyncPushResult = resp
         .json()
         .await
         .map_err(|e| AppError::Internal(format!("peer push decode: {e}")))?;
-    mark_peer_delivery(pool, local_id, target_device_id, last_seq).await?;
+    let prefix = contiguous_prefix_seq(pending, &ready);
+    let through = if result.last_seq > 0 {
+        prefix.min(result.last_seq)
+    } else {
+        0
+    };
+    if through > 0 {
+        mark_peer_delivery(pool, local_id, target_device_id, through).await?;
+    }
     Ok(result)
+}
+
+async fn http_status_error(kind: &str, resp: reqwest::Response) -> AppError {
+    let status = resp.status();
+    let body = resp.text().await.unwrap_or_default();
+    AppError::Internal(format!("{kind} http status {status}: {body}"))
 }
 
 /// Relay outbox row and `sync_applied` commit together. A failed relay leaves
@@ -992,6 +1489,210 @@ mod tests {
     use crate::repo::save_deployment;
     use crate::schema::ensure_sync_tables;
     use medoc_core::infrastructure::database::connection::{run_migrations, test_memory_pool};
+
+    #[tokio::test]
+    async fn blob_put_reaches_the_server_and_a_missing_file_holds_the_row() {
+        use medoc_core::infrastructure::database::sync_blob::{put_verified, sha256_hex};
+        use wiremock::matchers::{body_bytes, header, method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let pool = test_memory_pool().await.expect("pool");
+        run_migrations(&pool).await.expect("migrate");
+        ensure_sync_tables(&pool).await.expect("schema");
+        let bytes = b"chart-file";
+        let sha = sha256_hex(bytes);
+        put_verified(&pool, &sha, bytes).await.expect("store blob");
+        let ready = attachment_entry("file-ok", &sha);
+        let missing = attachment_entry("file-missing", &"ab".repeat(32));
+
+        let server = MockServer::start().await;
+        Mock::given(method("PUT"))
+            .and(path(format!("/api/v1/sync/blob/{sha}")))
+            .and(header("authorization", "Bearer practice-token"))
+            .and(body_bytes(bytes.as_slice()))
+            .respond_with(ResponseTemplate::new(201))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let page = vec![ready.clone(), missing.clone()];
+        let held = put_attachment_blobs(&client, &server.uri(), "practice-token", &pool, &page)
+            .await;
+        assert!(!held.held.contains(&ready.id), "uploaded file is not held");
+        assert!(held.held.contains(&missing.id), "row without bytes stays pending");
+        assert!(held.gave_up.is_empty());
+        assert_eq!(
+            page_ready_to_send(&page, &held.held, &held.gave_up).len(),
+            1
+        );
+
+        let failing = MockServer::start().await;
+        Mock::given(method("PUT"))
+            .and(path(format!("/api/v1/sync/blob/{sha}")))
+            .respond_with(ResponseTemplate::new(500).set_body_string("disk full"))
+            .expect(1)
+            .mount(&failing)
+            .await;
+        let held = put_attachment_blobs(&client, &failing.uri(), "practice-token", &pool, &[ready])
+            .await;
+        assert!(held.held.contains("file-ok"));
+    }
+
+    #[tokio::test]
+    async fn a_missing_file_gives_up_after_eight_tries_and_later_rows_can_send() {
+        let pool = test_memory_pool().await.expect("pool");
+        run_migrations(&pool).await.expect("migrate");
+        ensure_sync_tables(&pool).await.expect("schema");
+        let missing = attachment_entry("gone", &"cd".repeat(32));
+        let later = outbox_entry("later", 9);
+        let client = reqwest::Client::new();
+        let page = vec![missing, later];
+        let mut outcome = BlobPutOutcome {
+            held: std::collections::HashSet::new(),
+            gave_up: std::collections::HashSet::new(),
+        };
+        for attempt in 1..=PULL_ROW_RETRY_LIMIT {
+            outcome = put_attachment_blobs(&client, "http://127.0.0.1:9", "t", &pool, &page).await;
+            if attempt < PULL_ROW_RETRY_LIMIT {
+                assert!(outcome.held.contains("gone"), "attempt {attempt}");
+                assert!(page_ready_to_send(&page, &outcome.held, &outcome.gave_up).is_empty());
+            }
+        }
+        assert!(outcome.gave_up.contains("gone"));
+        assert!(!outcome.held.contains("gone"));
+        let ready = page_ready_to_send(&page, &outcome.held, &outcome.gave_up);
+        assert_eq!(ready.len(), 1);
+        assert_eq!(ready[0].id, "later");
+    }
+
+    #[tokio::test]
+    async fn a_missing_blob_is_queued_again_when_the_bytes_arrive() {
+        use medoc_core::infrastructure::database::sync_blob::{put_verified, sha256_hex};
+
+        let pool = test_memory_pool().await.expect("pool");
+        run_migrations(&pool).await.expect("migrate");
+        ensure_sync_tables(&pool).await.expect("schema");
+        let device = ensure_local_device(&pool, "blob-retry").await.expect("device");
+        let bytes = b"chart-file-later";
+        let sha = sha256_hex(bytes);
+        let entry = crate::repo::append_outbox(
+            &pool,
+            &device,
+            "chart_attachment",
+            "file-later",
+            "INSERT",
+            &format!(r#"{{"sha256":"{sha}"}}"#),
+        )
+        .await
+        .expect("outbox");
+        mark_outbox_failed(&pool, &entry.id, "BLOB_MISSING").await.expect("fail");
+        assert_eq!(requeue_blob_rows_with_bytes(&pool).await.expect("requeue"), 0);
+        put_verified(&pool, &sha, bytes).await.expect("bytes");
+        assert_eq!(requeue_blob_rows_with_bytes(&pool).await.expect("requeue"), 1);
+        let pending = list_pending_outbox(&pool, &device, 20).await.expect("pending");
+        assert!(pending.iter().any(|row| row.id == entry.id));
+    }
+
+    #[tokio::test]
+    async fn a_peer_past_a_missing_file_sees_it_again_when_the_bytes_arrive() {
+        use medoc_core::infrastructure::database::sync_blob::{put_verified, sha256_hex};
+
+        let pool = test_memory_pool().await.expect("pool");
+        run_migrations(&pool).await.expect("migrate");
+        ensure_sync_tables(&pool).await.expect("schema");
+        let device = ensure_local_device(&pool, "mesh-blob").await.expect("device");
+        let bytes = b"chart-file-mesh";
+        let sha = sha256_hex(bytes);
+        let blob = crate::repo::append_outbox(
+            &pool,
+            &device,
+            "chart_attachment",
+            "file-mesh",
+            "INSERT",
+            &format!(r#"{{"sha256":"{sha}"}}"#),
+        )
+        .await
+        .expect("blob");
+        let later = crate::repo::append_outbox(
+            &pool,
+            &device,
+            "patient",
+            "patient-mesh",
+            "UPDATE",
+            r#"{"name":"later"}"#,
+        )
+        .await
+        .expect("later");
+        mark_outbox_failed(&pool, &blob.id, "BLOB_MISSING").await.expect("fail");
+        mark_peer_delivery(&pool, &device, "peer-b", later.seq)
+            .await
+            .expect("watermark");
+        let hidden = list_pending_outbox_for_peer(&pool, &device, "peer-b")
+            .await
+            .expect("hidden");
+        assert!(hidden.iter().all(|row| row.id != blob.id));
+        put_verified(&pool, &sha, bytes).await.expect("bytes");
+        assert_eq!(requeue_blob_rows_with_bytes(&pool).await.expect("requeue"), 1);
+        let visible = list_pending_outbox_for_peer(&pool, &device, "peer-b")
+            .await
+            .expect("visible");
+        assert!(visible.iter().any(|row| row.id == blob.id));
+        let through: i64 = sqlx::query_scalar(
+            "SELECT through_seq FROM sync_peer_vector
+             WHERE source_device_id = ?1 AND target_device_id = 'peer-b'",
+        )
+        .bind(&device)
+        .fetch_one(&pool)
+        .await
+        .expect("through");
+        assert_eq!(through, blob.seq - 1);
+    }
+
+    fn attachment_entry(id: &str, sha: &str) -> crate::repo::OutboxEntry {
+        crate::repo::OutboxEntry {
+            id: id.into(),
+            device_id: "device".into(),
+            seq: 1,
+            entity_table: "chart_attachment".into(),
+            entity_id: id.into(),
+            op: "INSERT".into(),
+            payload_json: format!(r#"{{"sha256":"{sha}"}}"#),
+            created_at: "2026-01-01T00:00:00Z".into(),
+        }
+    }
+
+    #[test]
+    fn a_failed_blob_holds_back_that_entry_and_everything_after_it() {
+        let page = vec![
+            outbox_entry("a", 1),
+            outbox_entry("b", 2),
+            outbox_entry("c", 3),
+        ];
+        let held = std::collections::HashSet::from(["b".to_string()]);
+        let none = std::collections::HashSet::new();
+        let ready = page_ready_to_send(&page, &held, &none);
+        assert_eq!(ready.len(), 1);
+        assert_eq!(ready[0].id, "a");
+        assert_eq!(page_ready_to_send(&page, &none, &none).len(), 3);
+        let sent = vec![outbox_entry("a", 1), outbox_entry("c", 3)];
+        assert_eq!(contiguous_prefix_seq(&page, &sent), 1);
+        assert_eq!(contiguous_prefix_seq(&page, &page), 3);
+        assert_eq!(contiguous_prefix_seq(&page, &[]), 0);
+    }
+
+    fn outbox_entry(id: &str, seq: i64) -> crate::repo::OutboxEntry {
+        crate::repo::OutboxEntry {
+            id: id.into(),
+            device_id: "device".into(),
+            seq,
+            entity_table: "chart_attachment".into(),
+            entity_id: id.into(),
+            op: "INSERT".into(),
+            payload_json: "{}".into(),
+            created_at: "2026-01-01T00:00:00Z".into(),
+        }
+    }
 
     #[tokio::test]
     async fn push_ingest_applies_app_kv_row() {
@@ -1199,11 +1900,11 @@ mod tests {
         )
         .await
         .expect("outbox");
-        let pulled = SyncEngine::collect_pull_for_replica(&pool, "unknown-replica-guess", 0)
+        let pulled = SyncEngine::collect_pull_for_replica(&pool, "unknown-replica-guess", 0, 0)
             .await
             .expect("pull");
         assert!(
-            pulled.iter().any(|e| e.entity_id == "from-master"),
+            pulled.entries.iter().any(|e| e.entity_id == "from-master"),
             "master must serve its own outbox, not the replica-supplied device id"
         );
     }
@@ -1371,6 +2072,31 @@ mod tests {
             .await
             .expect("foreign token");
         assert_eq!(kept, "local-wrong");
+        sqlx::query(
+            "INSERT INTO pairing_request (id, device_id, slave_pubkey, fingerprint)
+             VALUES ('join-paired', 'paired-fp', '', 'paired-fp')",
+        )
+        .execute(&pool)
+        .await
+        .expect("pairing row");
+        let paired = crate::pairing::mint_activation_token(
+            &signing_key,
+            &crate::pairing::ActivationTokenPayload {
+                version: 2,
+                device_id: "paired-fp".into(),
+                slave_label: "Replica".into(),
+                master_device_id: "master".into(),
+                allowed_actions: vec!["sync.push".into()],
+                issued_at: "2026-11-06T00:00:00Z".into(),
+                nonce: "paired".into(),
+            },
+        )
+        .expect("mint paired token");
+        cfg.activation_token = paired;
+        let adopted = align_local_id_to_activation(&pool, &cfg)
+            .await
+            .expect("joined token");
+        assert_eq!(adopted, "paired-fp");
         let token = crate::pairing::mint_activation_token(
             &signing_key,
             &crate::pairing::ActivationTokenPayload {
@@ -1413,5 +2139,158 @@ mod tests {
                 .await
                 .expect("count");
         assert_eq!(wrong, 0);
+    }
+
+    #[tokio::test]
+    async fn initial_copy_skips_push_and_second_pull_advances_through_seq() {
+        let master = test_memory_pool().await.expect("pool");
+        run_migrations(&master).await.expect("migrate");
+        ensure_sync_tables(&master).await.expect("schema");
+        save_deployment(
+            &master,
+            &crate::deployment::SyncDeploymentConfig {
+                schema_version: 1,
+                mode: crate::deployment::DeploymentMode::PracticeDesktop,
+                role: crate::deployment::DeviceRole::Master,
+                device_label: "Main".into(),
+                ..Default::default()
+            },
+        )
+        .await
+        .expect("deploy");
+        ensure_local_device(&master, "Main").await.expect("device");
+        for (id, name, insurance) in [
+            (
+                "00000000-0000-0000-0000-0000000000c1",
+                "Copy One",
+                "V-COPY-1",
+            ),
+            (
+                "00000000-0000-0000-0000-0000000000c2",
+                "Copy Two",
+                "V-COPY-2",
+            ),
+        ] {
+            sqlx::query(
+                "INSERT INTO patient (id, name, date_of_birth, sex, insurance_number, status, updated_at)
+                 VALUES (?1, ?2, '1990-01-01', 'FEMALE', ?3, 'ACTIVE', '2099-03-01 00:00:00')",
+            )
+            .bind(id)
+            .bind(name)
+            .bind(insurance)
+            .execute(&master)
+            .await
+            .expect("patient");
+        }
+        let first = SyncEngine::collect_pull_for_replica(&master, "new-replica-copy", 0, 0)
+            .await
+            .expect("first pull");
+        let span = first.initial_copy.expect("snapshot span");
+        assert!(span.end_seq > 1, "snapshot must cover more than one row");
+        assert_eq!(span.through_seq, 0);
+        assert_eq!(span.total, span.end_seq);
+        assert!(!first.entries.is_empty());
+
+        let second = SyncEngine::collect_pull_for_replica(&master, "new-replica-copy", 1, 0)
+            .await
+            .expect("second pull");
+        let next = second.initial_copy.expect("copy still open");
+        assert!(next.through_seq > span.through_seq);
+        assert_eq!(next.through_seq, 1);
+        assert_eq!(next.end_seq, span.end_seq);
+
+        let replica = test_memory_pool().await.expect("pool");
+        run_migrations(&replica).await.expect("migrate");
+        ensure_sync_tables(&replica).await.expect("schema");
+        save_deployment(
+            &replica,
+            &crate::deployment::SyncDeploymentConfig {
+                schema_version: 1,
+                mode: crate::deployment::DeploymentMode::ServerlessPeer,
+                role: crate::deployment::DeviceRole::Replica,
+                device_label: "Replica".into(),
+                ..Default::default()
+            },
+        )
+        .await
+        .expect("replica deploy");
+        sqlx::query(
+            "INSERT INTO patient (id, name, date_of_birth, sex, insurance_number, status, updated_at)
+             VALUES ('00000000-0000-0000-0000-0000000000c3', 'Local Seed', '1990-01-01', 'MALE', 'V-SEED', 'ACTIVE', '2099-03-01 00:00:00')",
+        )
+        .execute(&replica)
+        .await
+        .expect("seed patient");
+        sqlx::query("INSERT INTO app_kv (key, value) VALUES ('ui.keep', 'yes')")
+            .execute(&replica)
+            .await
+            .expect("kv");
+        let report = SyncEngine::run_replica_sync(&replica).await.expect("sync");
+        assert!(report.push.is_none());
+        let err = report.error.expect("pull has no master url");
+        assert!(
+            !err.contains("push:"),
+            "a new replica must not push before the snapshot is applied: {err}"
+        );
+        let kept: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM patient")
+            .fetch_one(&replica)
+            .await
+            .expect("count");
+        assert_eq!(kept, 1, "a failed pull must not wipe local rows");
+
+        super::super::initial_copy::clear_practice_rows(&replica)
+            .await
+            .expect("clear");
+        let patients: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM patient")
+            .fetch_one(&replica)
+            .await
+            .expect("count");
+        assert_eq!(patients, 0);
+        let kv: Option<String> =
+            sqlx::query_scalar("SELECT value FROM app_kv WHERE key = 'ui.keep'")
+                .fetch_optional(&replica)
+                .await
+                .expect("kv");
+        assert_eq!(kv.as_deref(), Some("yes"));
+
+        let local = ensure_local_device(&master, "Main").await.expect("device");
+        crate::repo::append_outbox(
+            &master,
+            &local,
+            "patient",
+            "00000000-0000-0000-0000-0000000000c9",
+            "INSERT",
+            r#"{"id":"00000000-0000-0000-0000-0000000000c9","name":"Live","updated_at":"2099-04-01T00:00:00Z"}"#,
+        )
+        .await
+        .expect("live row");
+        let live = SyncEngine::collect_pull_for_replica(&master, "new-replica-copy", 1, 0)
+            .await
+            .expect("live pull");
+        assert!(
+            live.live
+                .iter()
+                .any(|entry| entry.entity_id == "00000000-0000-0000-0000-0000000000c9"),
+            "a change made after the snapshot must travel with the copy"
+        );
+        assert!(
+            live.entries.iter().all(|entry| entry.seq <= next.end_seq),
+            "the live row must not skip the snapshot cursor"
+        );
+
+        medoc_core::infrastructure::database::app_kv_repo::set(
+            &replica,
+            "sync.initial_copy.cleared.v1",
+            "1",
+        )
+        .await
+        .expect("cleared");
+        let skip = super::super::initial_copy::should_skip_push(&replica)
+            .await
+            .expect("skip");
+        assert!(
+            !skip,
+            "an edit made on this device after the wipe has to be sent"
+        );
     }
 }

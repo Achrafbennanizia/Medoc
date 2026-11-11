@@ -15,6 +15,7 @@ import { usePracticeWorkHoursStore } from "@/models/store/practice-work-hours-st
 import { bcp47ForLocale, useLocale } from "@/lib/i18n";
 import { timeZoneOptionLabel } from "@/lib/time-zone-label";
 import { errorMessage } from "@/lib/utils";
+import { PRACTICE_CURRENCIES, normalizePracticeCurrency } from "@/lib/practice-currency";
 import { UploadCircleIcon } from "@/lib/icons";
 import { Button } from "@/views/components/ui/button";
 import { DismissibleNotice } from "@/views/components/ui/dismissible-notice";
@@ -22,6 +23,7 @@ import { Input, Select } from "@/views/components/ui/input";
 import { useToastStore } from "@/views/components/ui/toast-store";
 import { translateLocale, useT, useTParams } from "@/lib/i18n";
 import { SettingsPracticeBillingSection } from "./settings-practice-billing";
+import { SettingsSwitch } from "@/views/components/settings-switch";
 
 function formatAddrOneLine(addr: string): string {
     return addr
@@ -144,6 +146,9 @@ export function SettingsPracticeSection({
     const [draftPracticeAddr, setDraftPracticeAddr] = useState("");
     const [editPracticeKv, setEditPracticeKv] = useState(false);
     const [draftPracticeKv, setDraftPracticeKv] = useState("");
+    const [editPracticeFax, setEditPracticeFax] = useState(false);
+    const [draftPracticeFax, setDraftPracticeFax] = useState("");
+    const [showLogoOnDocuments, setShowLogoOnDocuments] = useState(true);
     const [editPracticeExtra, setEditPracticeExtra] = useState(false);
     const [practiceExtraSnapshot, setPracticeExtraSnapshot] = useState<InvoicePractice | null>(null);
     const [editPracticeBilling, setEditPracticeBilling] = useState(false);
@@ -181,12 +186,14 @@ export function SettingsPracticeSection({
             try {
                 const raw = await getAppKv("practice.logo.v1");
                 if (c || !raw) return;
-                const j = JSON.parse(raw) as { mime?: string; data?: string };
+                const j = JSON.parse(raw) as { mime?: string; data?: string; showOnDocuments?: boolean };
+                const show = j.showOnDocuments !== false;
+                setShowLogoOnDocuments(show);
                 if (j.mime && j.data) {
                     setLogoPreviewUrl(`data:${j.mime};base64,${j.data}`);
                     try {
                         const { cachePracticeLogoForPrint } = await import("@/lib/document-print-html");
-                        cachePracticeLogoForPrint(j.mime, j.data);
+                        cachePracticeLogoForPrint(j.mime, j.data, show);
                     } catch {
                         /* optional */
                     }
@@ -221,6 +228,7 @@ export function SettingsPracticeSection({
             editPracticeName ||
             editPracticeAddr ||
             editPracticeKv ||
+            editPracticeFax ||
             editPracticeExtra ||
             editPracticeBilling;
         if (!sessionUserId || editingPractice) return;
@@ -249,6 +257,7 @@ export function SettingsPracticeSection({
         editPracticeName,
         editPracticeAddr,
         editPracticeKv,
+        editPracticeFax,
         editPracticeExtra,
         editPracticeBilling,
     ]);
@@ -300,13 +309,14 @@ export function SettingsPracticeSection({
 
     useEffect(() => {
         if (!practiceReady || !openingHoursSummary) return;
-        if (editPracticeName || editPracticeAddr || editPracticeKv || editPracticeExtra || editPracticeBilling) return;
+        if (editPracticeName || editPracticeAddr || editPracticeKv || editPracticeFax || editPracticeExtra || editPracticeBilling) return;
         if ((practice.opening_hours ?? "").trim() === openingHoursSummary) return;
         applyPracticePatch({ opening_hours: openingHoursSummary });
     }, [
         editPracticeAddr,
         editPracticeBilling,
         editPracticeExtra,
+        editPracticeFax,
         editPracticeKv,
         editPracticeName,
         openingHoursSummary,
@@ -329,6 +339,38 @@ export function SettingsPracticeSection({
             },
         });
         setEditPracticeKv(false);
+    }
+
+    function savePracticeFax() {
+        const fax = draftPracticeFax.trim();
+        const previous = practice.fax;
+        applyPracticePatch({ fax: fax || undefined });
+        toast(t("settings.practice.toast.contact_saved"), "success", {
+            onUndo: () => {
+                applyPracticePatch({ fax: previous });
+                setDraftPracticeFax(previous ?? "");
+            },
+        });
+        setEditPracticeFax(false);
+    }
+
+    async function onShowLogoChange(next: boolean) {
+        setShowLogoOnDocuments(next);
+        try {
+            const raw = await getAppKv("practice.logo.v1");
+            const current = raw
+                ? (JSON.parse(raw) as { mime?: string; data?: string; showOnDocuments?: boolean })
+                : {};
+            current.showOnDocuments = next;
+            await setAppKv("practice.logo.v1", JSON.stringify(current));
+            if (current.mime && current.data) {
+                const { cachePracticeLogoForPrint } = await import("@/lib/document-print-html");
+                cachePracticeLogoForPrint(current.mime, current.data, next);
+            }
+        } catch (err) {
+            setShowLogoOnDocuments(!next);
+            toast(tp("settings.practice.toast.logo_failed", { message: errorMessage(err) }), "error");
+        }
     }
 
     function startEditPracticeExtra() {
@@ -437,11 +479,14 @@ export function SettingsPracticeSection({
                 toast(t("settings.practice.toast.file_too_large"), "error");
                 return;
             }
-            await setAppKv("practice.logo.v1", JSON.stringify({ mime, data }));
+            await setAppKv(
+                "practice.logo.v1",
+                JSON.stringify({ mime, data, showOnDocuments: showLogoOnDocuments }),
+            );
             setLogoPreviewUrl(`data:${mime};base64,${data}`);
             try {
                 const { cachePracticeLogoForPrint } = await import("@/lib/document-print-html");
-                cachePracticeLogoForPrint(mime, data);
+                cachePracticeLogoForPrint(mime, data, showLogoOnDocuments);
             } catch {
                 /* optional cache */
             }
@@ -495,6 +540,26 @@ export function SettingsPracticeSection({
                     void setAppKv("practice.timezone.v1", next).catch((err) =>
                         toast(errorMessage(err), "error"),
                     );
+                }}
+            />
+        </div>
+        <div className="settings-row" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
+            <div style={{ flex: "1 1 200px", minWidth: 0 }}>
+                <span className="settings-field-label">
+                    <b>{t("settings.practice.currency")}</b>
+                </span>
+                <div className="settings-row-muted">{t("settings.practice.currency_hint")}</div>
+            </div>
+            <Select
+                className="settings-timezone-select"
+                value={normalizePracticeCurrency(practice.currency)}
+                disabled={!canEditPractice}
+                aria-label={t("settings.practice.currency")}
+                options={PRACTICE_CURRENCIES.map((code) => ({ value: code, label: code }))}
+                onChange={(e: ChangeEvent<HTMLSelectElement>) => {
+                    const next = { ...practice, currency: normalizePracticeCurrency(e.target.value) };
+                    setPractice(next);
+                    saveInvoicePracticeToStorage(next);
                 }}
             />
         </div>
@@ -595,6 +660,48 @@ export function SettingsPracticeSection({
         </div>
         <div className="settings-row" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
             <div style={{ flex: "1 1 200px", minWidth: 0 }}>
+                <b>{t("settings.practice.fax")}</b>
+                <div className="settings-row-muted">{(practice.fax ?? "").trim() || "—"}</div>
+                <div className="card-sub">{t("settings.practice.fax_hint")}</div>
+            </div>
+            <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end", flex: "0 1 auto" }}>
+                {canEditPractice && editPracticeFax ? (
+                    <>
+                        <Input
+                            id="px-fax-row"
+                            value={draftPracticeFax}
+                            onChange={(e) => setDraftPracticeFax(e.target.value)}
+                            aria-label={t("settings.practice.fax")}
+                            style={{ minWidth: 160, maxWidth: 220 }}
+                        />
+                        <Button type="button" onClick={() => savePracticeFax()}>{t("common.save")}</Button>
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={() => {
+                                setDraftPracticeFax(practice.fax ?? "");
+                                setEditPracticeFax(false);
+                            }}
+                        >
+                            {t("common.cancel")}
+                        </Button>
+                    </>
+                ) : canEditPractice ? (
+                    <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => {
+                            setDraftPracticeFax(practice.fax ?? "");
+                            setEditPracticeFax(true);
+                        }}
+                    >
+                        {t("common.edit")}
+                    </Button>
+                ) : null}
+            </div>
+        </div>
+        <div className="settings-row" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
+            <div style={{ flex: "1 1 200px", minWidth: 0 }}>
                 <b>{t("settings.practice.hours_label")}</b>
                 <div className="settings-row-muted" dir="ltr">{openingHoursSummary || "—"}</div>
                 <div className="card-sub">{t("settings.practice.hours_follows")}</div>
@@ -652,6 +759,16 @@ export function SettingsPracticeSection({
             <div>
                 <b>{t("settings.practice.logo")}</b>
                 <div className="card-sub">{t("settings.practice.logo_hint")}</div>
+                <div className="row" style={{ gap: 8, alignItems: "center", marginTop: 8 }}>
+                    <SettingsSwitch
+                        checked={showLogoOnDocuments}
+                        onChange={(next) => void onShowLogoChange(next)}
+                        ariaLabel={t("settings.practice.logo_show")}
+                        disabled={logoBusy}
+                    />
+                    <span>{t("settings.practice.logo_show")}</span>
+                </div>
+                <div className="card-sub">{t("settings.practice.logo_show_hint")}</div>
             </div>
             <div className="row" style={{ gap: 10, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
                 {logoPreviewUrl ? (
@@ -699,7 +816,6 @@ export function SettingsPracticeSection({
                         value={practice.phone ?? ""}
                         onChange={(e) => setPractice((p) => ({ ...p, phone: e.target.value }))}
                     />
-                    <Input id="px-fax" label={t("settings.practice.fax")} value={practice.fax ?? ""} onChange={(e) => setPractice((p) => ({ ...p, fax: e.target.value }))} />
                     <Input
                         id="px-em"
                         label={t("common.email")}

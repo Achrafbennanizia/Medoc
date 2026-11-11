@@ -60,6 +60,49 @@ pub struct Treatment {
     /// FA-LEIST-05: must be set before booking a payment linked via `treatment_id`.
     pub released_by_physician_id: Option<String>,
     pub released_at: Option<String>,
+    // --- GOZ billing (Anlage 2 GOZ) -------------------------------------
+    /// `goz` | `goae` | `material` | `lab` | `other`
+    #[sqlx(default)]
+    #[serde(default)]
+    pub fee_schedule: Option<String>,
+    #[sqlx(default)]
+    #[serde(default)]
+    pub goz_nr: Option<String>,
+    #[sqlx(default)]
+    #[serde(default)]
+    pub points: Option<i64>,
+    #[sqlx(default)]
+    #[serde(default)]
+    pub factor: Option<f64>,
+    /// Justification when factor > 2.3 (§ 10 Abs. 3 GOZ).
+    #[sqlx(default)]
+    #[serde(default)]
+    pub factor_reason: Option<String>,
+    #[sqlx(default)]
+    #[serde(default)]
+    pub quantity: Option<i64>,
+    /// § 6 Abs. 1 GOZ analog billing — number of the service the fee is taken from.
+    #[sqlx(default)]
+    #[serde(default)]
+    pub analog_of: Option<String>,
+    /// § 2 Abs. 1/2 GOZ agreement reference (factor > 3.5).
+    #[sqlx(default)]
+    #[serde(default)]
+    pub agreement_ref: Option<String>,
+}
+
+/// GOZ billing fields of one treatment line (physician sets them).
+#[derive(Debug, Clone, Deserialize)]
+pub struct TreatmentBilling {
+    pub treatment_id: String,
+    pub fee_schedule: String,
+    pub goz_nr: Option<String>,
+    pub points: Option<i64>,
+    pub factor: Option<f64>,
+    pub factor_reason: Option<String>,
+    pub quantity: Option<i64>,
+    pub analog_of: Option<String>,
+    pub agreement_ref: Option<String>,
 }
 
 /// Full update of an existing treatment line (chart history).

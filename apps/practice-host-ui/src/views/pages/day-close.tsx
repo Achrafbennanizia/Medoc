@@ -1,46 +1,32 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { DayCloseProtocolExtra } from "../components/day-close-form";
 import { useNavigate } from "react-router-dom";
-import { listPatientsByIds } from "@/systems/practice-host/controllers/patient.controller";
 import {
-    createDayCloseProtocol,
-    deleteDayCloseProtocol,
+    correctDayClose,
+    dayCloseReportCopy,
     listDayCloseProtocols,
-    type CreateDayCloseProtocol,
-    type DayCloseProtocol,
+    prepareDayClose,
+    type DayCloseDraft,
+    type DayCloseProtocolExt,
+    type DayCloseResult,
 } from "@/systems/practice-host/controllers/day-close-protocol.controller";
-import { listPaymentsPaged } from "@/systems/practice-host/controllers/payment.controller";
-import { errorMessage, formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
-import { parseDbUtc, paymentLocalYmd } from "@/lib/day-close";
-import { downloadDayCloseReportPdf } from "@/lib/day-close-invoice-pdf";
+import { issuedPdfBytes, type IssuedPdf } from "@/systems/practice-host/controllers/document.controller";
+import { openExportPreview } from "@/models/store/export-preview-store";
+import { printPdfBytes } from "../components/export-preview-dialog";
+import { errorMessage, formatDate, formatDateTime } from "@/lib/utils";
+import { formatCashAmount, parseDbUtc, parseEuroInput } from "@/lib/day-close";
+import { practiceCurrency } from "@/lib/practice-currency";
 import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "@/models/store/auth-store";
-import type { Patient, Payment } from "@/models/types";
 import { bcp47ForLocale, useLocale, useT, useTParams } from "@/lib/i18n";
 import { DayCloseForm } from "../components/day-close-form";
 import { Button } from "../components/ui/button";
 import { Card, CardHeader } from "../components/ui/card";
 import { EmptyState } from "../components/ui/empty-state";
-import { ConfirmDialog } from "../components/ui/dialog";
+import { Dialog } from "../components/ui/dialog";
+import { Input, Textarea } from "../components/ui/input";
 import { useToastStore } from "../components/ui/toast-store";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { AdministrationPageHeader } from "../components/administration-page-header";
-import { LAZY_PAGE_SIZE, mergeUniqueById } from "@/lib/lazy-list";
-
-async function loadAllPaymentsPaged(): Promise<Payment[]> {
-    let page = 1;
-    let all: Payment[] = [];
-    let total = Infinity;
-    while (all.length < total) {
-        const resp = await listPaymentsPaged({ page, pageSize: LAZY_PAGE_SIZE });
-        total = resp.total;
-        all = mergeUniqueById(all, resp.items);
-        if (resp.items.length === 0 || page * resp.pageSize >= total) break;
-        page += 1;
-        // F78: no fixed page cap (it silently dropped older days); stop on an empty page.
-    }
-    return all;
-}
 
 /**
  * DayClose — list of logged closings + new run / detail (cash reconciliation).
@@ -56,20 +42,17 @@ export function DayClosePage() {
     const canRead = role != null && allowed("finance.read", role);
     const canWrite = role != null && allowed("finance.day_close.write", role);
 
-    const [patients, setPatients] = useState<Patient[]>([]);
-    const [protocols, setProtocols] = useState<DayCloseProtocol[]>([]);
-    const [payments, setPayments] = useState<Payment[]>([]);
+    const [protocols, setProtocols] = useState<DayCloseProtocolExt[]>([]);
+    const [selectedDraft, setSelectedDraft] = useState<DayCloseDraft | null>(null);
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
     const [creating, setCreating] = useState(false);
-    const [selected, setSelected] = useState<DayCloseProtocol | null>(null);
+    const [selected, setSelected] = useState<DayCloseProtocolExt | null>(null);
     const [saveBusy, setSaveBusy] = useState(false);
-    const [deleteId, setDeleteId] = useState<string | null>(null);
-
-    const getPatientName = useCallback(
-        (pid: string) => patients.find((p) => p.id === pid)?.name ?? pid,
-        [patients],
-    );
+    const [correctOpen, setCorrectOpen] = useState(false);
+    const [correctCounted, setCorrectCounted] = useState("");
+    const [correctNote, setCorrectNote] = useState("");
+    const [reportBusy, setReportBusy] = useState(false);
 
     const readField = useCallback(
         (label: string, value: string) => (
@@ -88,12 +71,9 @@ export function DayClosePage() {
                 setLoadError(null);
             }
             try {
-                const [prots, zahls] = await Promise.all([listDayCloseProtocols(), loadAllPaymentsPaged()]);
-                const ids = [...new Set(zahls.map((z) => z.patient_id).filter(Boolean))];
-                const pats = ids.length ? await listPatientsByIds(ids) : [];
-                setPatients(pats);
+                // Only the protocols; journal lines are loaded per closing.
+                const prots = (await listDayCloseProtocols()) as DayCloseProtocolExt[];
                 setProtocols(prots);
-                setPayments(zahls);
                 setSelected((cur) => {
                     if (!cur) return null;
                     return prots.find((x) => x.id === cur.id) ?? null;
@@ -114,61 +94,107 @@ export function DayClosePage() {
         void load(true);
     }, [load, canRead]);
 
-    const onRecord = async (data: CreateDayCloseProtocol, extra: DayCloseProtocolExtra) => {
-        if (!canWrite) return;
+    const showReport = useCallback(
+        (pdf: IssuedPdf, date: string) => {
+            try {
+                openExportPreview({
+                    format: "pdf",
+                    title: `${t("page.day_close.report_title")} ${pdf.documentNumber ?? ""}`.trim(),
+                    hint: pdf.reprint ? "KOPIE" : undefined,
+                    suggestedFilename: `Kassenbericht-${date}${pdf.reprint ? "-Kopie" : ""}.pdf`,
+                    binaryBody: issuedPdfBytes(pdf),
+                    context: { kind: "daily_report", format: "pdf", entityId: date, documentNumber: pdf.documentNumber },
+                });
+            } catch (e) {
+                toast(tp("page.day_close.toast.pdf_fail", { message: errorMessage(e) }), "error");
+            }
+        },
+        [t, toast, tp],
+    );
+
+    /** Closing recorded on the server; show the numbered Kassenbericht. */
+    const onClosed = async (result: DayCloseResult) => {
+        toast(t("page.day_close.toast.saved"), "success");
+        showReport(result.report, result.draft.asOfDate);
+        setCreating(false);
+        const fresh = await listDayCloseProtocols().catch(() => [] as DayCloseProtocolExt[]);
+        setProtocols(fresh);
+        setSelected(fresh.find((p) => p.id === result.protocolId) ?? null);
+    };
+
+    const openCashReport = useCallback(
+        async (protocolId: string, date: string, mode: "preview" | "print") => {
+            if (reportBusy) return;
+            setReportBusy(true);
+            try {
+                const pdf = await dayCloseReportCopy(protocolId);
+                if (mode === "print") printPdfBytes(issuedPdfBytes(pdf));
+                else showReport(pdf, date);
+            } catch (e) {
+                toast(tp("page.day_close.toast.pdf_fail", { message: errorMessage(e) }), "error");
+            } finally {
+                setReportBusy(false);
+            }
+        },
+        [reportBusy, showReport, toast, tp],
+    );
+
+    const latestFinalId = useMemo(
+        () =>
+            [...protocols]
+                .filter((p) => (p.status ?? "FINAL") === "FINAL")
+                .sort((a, b) => b.as_of_date.localeCompare(a.as_of_date))[0]?.id ?? null,
+        [protocols],
+    );
+
+    const submitCorrection = async () => {
+        if (!selected) return;
+        const v = parseEuroInput(correctCounted);
+        if (v == null || !correctNote.trim()) return;
         setSaveBusy(true);
         try {
-            const created = await createDayCloseProtocol(data);
-            toast(t("page.day_close.toast.saved"), "success");
-            if (extra.dailyReportPdf) {
-                try {
-                    await downloadDayCloseReportPdf(created, payments, patients);
-                    toast(t("page.day_close.toast.pdf_ok"), "success");
-                } catch (e) {
-                    toast(tp("page.day_close.toast.pdf_fail", { message: errorMessage(e) }), "error");
-                }
-            }
-            setCreating(false);
-            void load();
-            setSelected(created);
+            const res = await correctDayClose(selected.id, {
+                countedCents: Math.round(v * 100),
+                note: correctNote.trim(),
+            });
+            setCorrectOpen(false);
+            setCorrectCounted("");
+            setCorrectNote("");
+            await onClosed(res);
+        } catch (e) {
+            toast(errorMessage(e), "error");
         } finally {
             setSaveBusy(false);
         }
     };
 
-    const handleDelete = async () => {
-        if (!deleteId) return;
-        const id = deleteId;
-        try {
-            await deleteDayCloseProtocol(id);
-            toast(t("page.day_close.toast.removed"), "success");
-            setDeleteId(null);
-            setSelected((s) => (s?.id === id ? null : s));
-            void load();
-        } catch (e) {
-            toast(errorMessage(e), "error");
-        }
-    };
-
     const handlePrintProtocol = useCallback(() => {
-        document.body.classList.add("day_close-printing");
-        const clear = () => {
-            document.body.classList.remove("day_close-printing");
-        };
-        window.addEventListener("afterprint", clear, { once: true });
-        window.setTimeout(clear, 60_000);
-        window.print();
-    }, []);
+        if (!selected) return;
+        void openCashReport(selected.id, selected.as_of_date, "print");
+    }, [openCashReport, selected]);
 
     const openCreate = () => {
         setCreating(true);
         setSelected(null);
     };
 
-    const paymentsAmAsOfDate = useMemo(() => {
-        if (!selected) return [] as Payment[];
-        return payments.filter((z) => paymentLocalYmd(z.created_at) === selected.as_of_date);
-    }, [payments, selected]);
+    useEffect(() => {
+        if (!selected) {
+            setSelectedDraft(null);
+            return;
+        }
+        let cancel = false;
+        void prepareDayClose(selected.as_of_date)
+            .then((d) => {
+                if (!cancel) setSelectedDraft(d);
+            })
+            .catch(() => {
+                if (!cancel) setSelectedDraft(null);
+            });
+        return () => {
+            cancel = true;
+        };
+    }, [selected?.id]);
 
     if (!canRead) {
         return (
@@ -211,11 +237,9 @@ export function DayClosePage() {
                     <div className="card-pad" style={{ paddingTop: 0 }}>
                         <DayCloseForm
                             canWrite={canWrite}
-                            getPatientName={getPatientName}
-                            onRecord={onRecord}
+                            onClosed={(r) => void onClosed(r)}
                             onCancel={() => setCreating(false)}
                             showCancelButton
-                            saveBusy={saveBusy}
                         />
                     </div>
                 </Card>
@@ -235,20 +259,18 @@ export function DayClosePage() {
                                     type="button"
                                     size="sm"
                                     variant="secondary"
-                                    onClick={() =>
-                                        void downloadDayCloseReportPdf(selected, payments, patients).catch((e) =>
-                                            toast(tp("page.day_close.toast.pdf_fail", { message: errorMessage(e) }), "error"),
-                                        )
-                                    }
+                                    loading={reportBusy}
+                                    disabled={reportBusy}
+                                    onClick={() => void openCashReport(selected.id, selected.as_of_date, "preview")}
                                 >
-                                    {t("page.day_close.report_pdf")}
+                                    {t("page.day_close.report_copy")}
                                 </Button>
-                                <Button type="button" size="sm" variant="secondary" onClick={handlePrintProtocol}>
+                                <Button type="button" size="sm" variant="secondary" disabled={reportBusy} onClick={handlePrintProtocol}>
                                     {t("page.day_close.print")}
                                 </Button>
-                                {canWrite ? (
-                                    <Button type="button" size="sm" variant="danger" onClick={() => setDeleteId(selected.id)}>
-                                        {t("page.day_close.remove_entry")}
+                                {canWrite && selected.id === latestFinalId ? (
+                                    <Button type="button" size="sm" variant="ghost" onClick={() => setCorrectOpen(true)}>
+                                        {t("page.day_close.correct_btn")}
                                     </Button>
                                 ) : null}
                             </div>
@@ -258,10 +280,21 @@ export function DayClosePage() {
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }} className="products-read-grid">
                             {readField(t("page.day_close.field.as_of_date"), formatDate(selected.as_of_date))}
                             {readField(t("page.day_close.field.recorded"), formatDateTime(selected.recorded_at))}
-                            {readField(t("page.day_close.field.bar_system"), formatCurrency(selected.system_cash_eur))}
-                            {readField(t("page.day_close.field.income_system"), formatCurrency(selected.system_income_eur))}
-                            {readField(t("page.day_close.field.counted"), selected.counted_eur == null ? "—" : formatCurrency(selected.counted_eur))}
-                            {readField(t("page.day_close.field.deviation"), selected.variance_eur == null ? "—" : formatCurrency(selected.variance_eur))}
+                            {readField(t("page.day_close.field.document"), selected.document_number ?? "—")}
+                            {readField(
+                                t("common.status"),
+                                (selected.status ?? "FINAL") === "CORRECTED"
+                                    ? t("page.day_close.status.corrected")
+                                    : t("page.day_close.status.final"),
+                            )}
+                            {selected.opening_cents != null
+                                ? readField(t("page.day_close.form.opening"), formatCashAmount(selected.opening_cents / 100))
+                                : null}
+                            {selected.closed_by_name ? readField(t("page.day_close.field.closed_by"), selected.closed_by_name) : null}
+                            {readField(t("page.day_close.field.bar_system"), formatCashAmount(selected.system_cash_eur))}
+                            {readField(t("page.day_close.field.income_system"), formatCashAmount(selected.system_income_eur))}
+                            {readField(t("page.day_close.field.counted"), selected.counted_eur == null ? "—" : formatCashAmount(selected.counted_eur))}
+                            {readField(t("page.day_close.field.deviation"), selected.variance_eur == null ? "—" : formatCashAmount(selected.variance_eur))}
                             {readField(t("page.day_close.field.bar_match"), barOk ? t("page.day_close.bar_ok") : t("page.day_close.bar_match_bad"))}
                             {readField(
                                 t("page.day_close.field.day_payments"),
@@ -277,37 +310,43 @@ export function DayClosePage() {
                         <div>
                             <p className="text-title" style={{ margin: "0 0 8px", fontSize: 14 }}>{t("page.day_close.payments_title")}</p>
                             <p className="page-sub" style={{ margin: "0 0 8px", fontSize: 12 }}>{t("page.day_close.payments_hint")}</p>
-                            {paymentsAmAsOfDate.length === 0 ? (
+                            {!selectedDraft || (selectedDraft.receipts.length === 0 && selectedDraft.movements.length === 0) ? (
                                 <p className="page-sub" style={{ margin: 0 }}>{t("page.day_close.no_payments")}</p>
                             ) : (
-                                <div className="card" style={{ overflow: "auto", maxHeight: 220 }}>
-                                    <table className="tbl" style={{ minWidth: 400, fontSize: 13, margin: 0 }}>
+                                <div className="card" style={{ overflow: "auto", maxHeight: 260 }}>
+                                    <table className="tbl" style={{ minWidth: 420, fontSize: 13, margin: 0 }}>
                                         <thead>
                                             <tr>
                                                 <th style={{ textAlign: "start" }}>{t("common.time")}</th>
-                                                <th style={{ textAlign: "start" }}>{t("common.patient")}</th>
+                                                <th style={{ textAlign: "start" }}>{t("page.day_close.col.entry")}</th>
                                                 <th>{t("page.day_close.col.kind")}</th>
-                                                <th>{t("common.status")}</th>
-                                                <th style={{ textAlign: "end" }}>€</th>
-                                                <th>{t("page.day_close.col.cash_checked")}</th>
+                                                <th>{t("page.day_close.col.voucher")}</th>
+                                                <th style={{ textAlign: "end" }}>{practiceCurrency()}</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {paymentsAmAsOfDate.map((z) => (
-                                                <tr key={z.id}>
-                                                    <td>
-                                                        {parseDbUtc(z.created_at).toLocaleTimeString(timeLocale, {
-                                                            hour: "2-digit",
-                                                            minute: "2-digit",
-                                                        })}
+                                            {selectedDraft.receipts.map((r) => (
+                                                <tr key={r.id}>
+                                                    <td style={{ whiteSpace: "nowrap" }}>
+                                                        {parseDbUtc(r.receivedAt).toLocaleTimeString(timeLocale, { hour: "2-digit", minute: "2-digit" })}
                                                     </td>
-                                                    <td style={{ maxWidth: 120 }} title={getPatientName(z.patient_id)}>
-                                                        {getPatientName(z.patient_id).slice(0, 24)}
+                                                    <td>{(r.patientName ?? r.patientId.slice(0, 8)).slice(0, 28)}</td>
+                                                    <td>{t(`page.day_close.method.${r.method.toLowerCase()}`)}</td>
+                                                    <td>{r.receiptNumber ?? "—"}</td>
+                                                    <td style={{ textAlign: "end", fontVariantNumeric: "tabular-nums" }}>{formatCashAmount(r.amountCents / 100)}</td>
+                                                </tr>
+                                            ))}
+                                            {selectedDraft.movements.map((m) => (
+                                                <tr key={m.id}>
+                                                    <td style={{ whiteSpace: "nowrap" }}>
+                                                        {parseDbUtc(m.occurredAt).toLocaleTimeString(timeLocale, { hour: "2-digit", minute: "2-digit" })}
                                                     </td>
-                                                    <td>{z.payment_method}</td>
-                                                    <td>{z.status}</td>
-                                                    <td style={{ textAlign: "end" }}>{formatCurrency(z.amount)}</td>
-                                                    <td style={{ textAlign: "center" }}>{(z.cash_verified ?? 0) === 1 ? "✓" : "—"}</td>
+                                                    <td>{`${t(`page.day_close.movement.kind.${m.kind.toLowerCase()}`)}: ${m.reason}`}</td>
+                                                    <td>{t("page.day_close.method.cash")}</td>
+                                                    <td>{m.receiptRef ?? "—"}</td>
+                                                    <td style={{ textAlign: "end", fontVariantNumeric: "tabular-nums" }}>
+                                                        {formatCashAmount((m.amountCents * m.direction) / 100)}
+                                                    </td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -398,9 +437,19 @@ export function DayClosePage() {
                                                     setSelected(row);
                                                 }}
                                             >
-                                                <td>{formatDate(row.as_of_date)}</td>
+                                                <td>
+                                                    {formatDate(row.as_of_date)}
+                                                    {(row.status ?? "FINAL") === "CORRECTED" ? (
+                                                        <span className="pill" style={{ marginInlineStart: 6, fontSize: 11 }}>
+                                                            {t("page.day_close.status.corrected")}
+                                                        </span>
+                                                    ) : null}
+                                                    {row.document_number ? (
+                                                        <div className="page-sub" style={{ fontSize: 11 }}>{row.document_number}</div>
+                                                    ) : null}
+                                                </td>
                                                 <td style={{ whiteSpace: "nowrap" }}>{formatDateTime(row.recorded_at)}</td>
-                                                <td style={{ textAlign: "end" }}>{formatCurrency(row.system_cash_eur)}</td>
+                                                <td style={{ textAlign: "end" }}>{formatCashAmount(row.system_cash_eur)}</td>
                                                 <td>{row.cash_matches === 1 ? t("page.day_close.bar_ok") : t("page.day_close.bar_check")}</td>
                                                 <td>
                                                     {row.day_payment_count}
@@ -422,14 +471,43 @@ export function DayClosePage() {
                 <div className="products-workspace__detail">{sidePanel}</div>
             </div>
 
-            <ConfirmDialog
-                open={deleteId != null}
-                onClose={() => setDeleteId(null)}
-                onConfirm={() => void handleDelete()}
-                title={t("page.day_close.delete.title")}
-                message={t("page.day_close.delete.message")}
-                danger
-            />
+            <Dialog
+                open={correctOpen}
+                onClose={() => setCorrectOpen(false)}
+                title={t("page.day_close.correct_title")}
+                footer={
+                    <div className="modal-actions" style={{ justifyContent: "flex-end", gap: 8 }}>
+                        <Button type="button" variant="ghost" onClick={() => setCorrectOpen(false)}>
+                            {t("common.cancel")}
+                        </Button>
+                        <Button
+                            type="button"
+                            onClick={() => void submitCorrection()}
+                            disabled={saveBusy || parseEuroInput(correctCounted) == null || !correctNote.trim()}
+                            loading={saveBusy}
+                        >
+                            {t("page.day_close.correct_confirm")}
+                        </Button>
+                    </div>
+                }
+            >
+                <div className="modal-body stack gap-3" style={{ maxWidth: 480 }}>
+                    <p style={{ margin: 0, fontSize: 13 }}>{t("page.day_close.correct_hint")}</p>
+                    <Input
+                        id="dc-correct-counted"
+                        label={t("page.day_close.form.counted_label")}
+                        value={correctCounted}
+                        onChange={(e) => setCorrectCounted(e.target.value)}
+                    />
+                    <Textarea
+                        id="dc-correct-note"
+                        label={t("page.day_close.form.reason_required")}
+                        rows={3}
+                        value={correctNote}
+                        onChange={(e) => setCorrectNote(e.target.value)}
+                    />
+                </div>
+            </Dialog>
         </div>
     );
 }

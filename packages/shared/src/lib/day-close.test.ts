@@ -46,6 +46,14 @@ describe("day_close", () => {
 
         it("single dot as decimal when no comma", () => {
             expect(parseEuroInput("12.34")).toBe(12.34);
+            expect(parseEuroInput("245.50")).toBe(245.5);
+            expect(parseEuroInput("245.500")).toBe(245.5);
+            expect(parseEuroInput("12.345")).toBe(12.345);
+        });
+
+        it("parses English thousands with a decimal point", () => {
+            expect(parseEuroInput("1,234.50")).toBe(1234.5);
+            expect(parseEuroInput("1,234.500")).toBe(1234.5);
         });
 
         it("returns null for empty or invalid", () => {

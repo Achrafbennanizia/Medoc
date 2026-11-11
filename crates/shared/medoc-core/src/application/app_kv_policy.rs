@@ -11,6 +11,18 @@ pub fn read_permission_for_app_kv_key(key: &str) -> Option<&'static str> {
     if key == "practice.timezone.v1" {
         return Some("dashboard.read");
     }
+    // The calendar draws these on every signed-in role. Writing hours and
+    // closures stays with the practice admin.
+    if matches!(
+        key,
+        "practice.work_hours.v1"
+            | "practice.blockedTimes.v1"
+            | "practice.calendar-workflows.v1"
+            | "practice.header_privacy.v1"
+            | "invoice.practice.v1"
+    ) {
+        return Some("dashboard.read");
+    }
     // F32: every signed-in role sees the work plan (work-time page, calendar);
     // writing it still needs `staff.write`.
     if key.starts_with("staff.work_plan.v1.") && permission_for_app_kv_key(key).is_some() {
@@ -35,7 +47,10 @@ pub fn permission_for_app_kv_key(key: &str) -> Option<&'static str> {
         | "export.formats.v1"
         | "practice.logo.v1"
         | "invoice.practice.v1"
-        | "practice.calendar-workflows.v1" => Some("ops.system"),
+        | "documents.locale.v1" => Some("ops.system"),
+        // Whoever can change an appointment can change how the calendar behaves,
+        // and that row syncs to the other device.
+        "practice.calendar-workflows.v1" => Some("appointment.write"),
         "lan.server.config.v1" | "practice.timezone.v1" => Some("ops.system"),
         "pairing.enabled.v1"
         | "network.hidden.v1"
@@ -133,6 +148,42 @@ mod tests {
         );
         assert_eq!(
             permission_for_app_kv_key("practice.calendar-workflows.v1"),
+            Some("appointment.write")
+        );
+        assert_eq!(
+            read_permission_for_app_kv_key("practice.calendar-workflows.v1"),
+            Some("dashboard.read")
+        );
+        assert_eq!(
+            read_permission_for_app_kv_key("practice.work_hours.v1"),
+            Some("dashboard.read")
+        );
+        assert_eq!(
+            permission_for_app_kv_key("practice.work_hours.v1"),
+            Some("ops.system")
+        );
+        assert_eq!(
+            read_permission_for_app_kv_key("practice.header_privacy.v1"),
+            Some("dashboard.read")
+        );
+        assert_eq!(
+            permission_for_app_kv_key("practice.header_privacy.v1"),
+            Some("ops.system")
+        );
+        assert_eq!(
+            read_permission_for_app_kv_key("invoice.practice.v1"),
+            Some("dashboard.read")
+        );
+        assert_eq!(
+            permission_for_app_kv_key("invoice.practice.v1"),
+            Some("ops.system")
+        );
+        assert_eq!(
+            read_permission_for_app_kv_key("practice.blockedTimes.v1"),
+            Some("dashboard.read")
+        );
+        assert_eq!(
+            permission_for_app_kv_key("documents.locale.v1"),
             Some("ops.system")
         );
     }

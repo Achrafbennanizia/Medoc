@@ -1,4 +1,5 @@
 import type { Payment } from "@/models/types";
+import { practiceCurrency } from "./practice-currency";
 
 /** Local date (YYYY-MM-DD) from `created_at` (SQLite-naive or ISO). */
 /**
@@ -77,24 +78,42 @@ export function amountsMatch(a: number, b: number): boolean {
 }
 
 /**
- * Parse German / mixed numeric input for Euro amounts.
- * - `1.234,56` → 1234.56 (`.` thousands, `,` decimal)
+ * Parse a cash amount.
+ * - `1.234,56` → 1234.56 (German: dot thousands, comma decimal)
+ * - `1,234.50` → 1234.50 (English: comma thousands, point decimal)
  * - `1234,56` → 1234.56
- * - `1.234.567` (only dots as thousands) → 1234567
- * - `12.34` with a single dot and no comma → decimal point (en-US style)
+ * - `1.234.567` (two or more groups of three) → 1234567
+ * - one point is always the decimal point, including three digits (`245.500` → 245.5, `12.345` → 12.345)
  */
 export function parseEuroInput(raw: string): number | null {
     const s0 = String(raw).trim().replace(/\s/g, "");
     if (s0 === "") return null;
 
-    let s = s0;
-    if (s.includes(",")) {
-        s = s.replace(/\./g, "").replace(",", ".");
-    } else if (/^\d{1,3}(\.\d{3})+$/.test(s)) {
-        s = s.replace(/\./g, "");
+    const lastComma = s0.lastIndexOf(",");
+    const lastDot = s0.lastIndexOf(".");
+    let s: string;
+    if (lastComma >= 0 && lastDot >= 0) {
+        s = lastComma > lastDot ? s0.replace(/\./g, "").replace(",", ".") : s0.replace(/,/g, "");
+    } else if (lastComma >= 0) {
+        s = s0.replace(",", ".");
+    } else if (/^\d{1,3}(\.\d{3})+$/.test(s0) && s0.split(".").length > 2) {
+        s = s0.replace(/\./g, "");
+    } else {
+        s = s0;
     }
 
     const n = Number(s);
     if (!Number.isFinite(n)) return null;
     return n;
+}
+
+/** Cash on the day-close screen, in the currency chosen under Settings → Practice. */
+export function formatCashAmount(euros: number): string {
+    if (!Number.isFinite(euros)) return "—";
+    const currency = practiceCurrency();
+    try {
+        return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(euros);
+    } catch {
+        return new Intl.NumberFormat(undefined, { style: "currency", currency: "EUR" }).format(euros);
+    }
 }

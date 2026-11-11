@@ -2,6 +2,24 @@
 
 import { collatorLocale, useLocale } from "./i18n";
 
+/**
+ * Neutralise spreadsheet formula injection (OWASP "CSV injection"): a cell
+ * that starts with = + - @ TAB or CR is prefixed with an apostrophe so Excel /
+ * LibreOffice treat it as text. Apply to every exported cell.
+ */
+export function csvSafeCell(raw: string): string {
+    return /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
+}
+
+/** RFC 4180 quoting + formula neutralisation. */
+export function csvCell(raw: string, delimiter: string): string {
+    const v = csvSafeCell(raw);
+    if (v.includes(delimiter) || v.includes('"') || v.includes("\n") || v.includes("\r")) {
+        return `"${v.replace(/"/g, '""')}"`;
+    }
+    return v;
+}
+
 export function stripBom(text: string): string {
     return text.replace(/^\uFEFF/, "");
 }
@@ -56,13 +74,7 @@ export function parseDelimitedGrid(text: string, delimiter?: ";" | ","): { rows:
 }
 
 export function stringifyDelimitedGrid(rows: string[][], delimiter: string): string {
-    const esc = (cell: string): string => {
-        if (cell.includes(delimiter) || cell.includes('"') || cell.includes("\n") || cell.includes("\r")) {
-            return `"${cell.replace(/"/g, '""')}"`;
-        }
-        return cell;
-    };
-    return rows.map((r) => r.map(esc).join(delimiter)).join("\r\n");
+    return `\uFEFF${rows.map((r) => r.map((c) => csvCell(c, delimiter)).join(delimiter)).join("\r\n")}`;
 }
 
 export function sortGridRows(rows: string[][], columnIndex: number, direction: "asc" | "desc"): string[][] {
