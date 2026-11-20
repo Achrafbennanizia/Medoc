@@ -1,0 +1,240 @@
+/* features/administration (components layer) */
+@layer components {
+  .administration-menu-page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--page-stack-gap);
+  }
+  /* Back control: content-width only (flex parents stretch children by default). */
+  .workspace-page-back-button,
+  .administration-back-button {
+    align-self: flex-start;
+    width: fit-content;
+    max-width: 100%;
+    text-decoration: none;
+  }
+  /* Workspace pages: back above title (Personalverwaltung pattern). */
+  .workspace-page__head-row,
+  .administration-page__head-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: clamp(12px, 2vw, 20px);
+    width: 100%;
+  }
+  .workspace-page__head-actions,
+  .administration-page__head-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-shrink: 0;
+    margin-inline-start: auto;
+  }
+  .workspace-page__eyebrow {
+    margin-bottom: 4px;
+  }
+  .workspace-page__subtitle .page-sub,
+  .administration-page__subtitle .page-sub {
+    max-width: 40rem;
+    margin-top: 8px;
+    line-height: 1.55;
+  }
+  .workspace-page__subtitle .page-sub:first-child,
+  .administration-page__subtitle .page-sub:first-child {
+    margin-top: 8px;
+  }
+
+  /* Working hours (Administration): week grid + side defaults — full window width */
+  .work_hours-page {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    align-self: stretch;
+  }
+  .work_hours-layout-split {
+    display: grid;
+    gap: 16px;
+    align-items: start;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 960px) {
+    .work_hours-layout-split {
+      grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+      gap: 18px;
+    }
+  }
+  .work_hours-aside-col {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+  }
+  .work_hours-week-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 700px) {
+    .work_hours-week-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @media (min-width: 1100px) {
+    .work_hours-week-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+  .work_hours-day-card {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px;
+    background: var(--bg-elev);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    box-shadow: var(--shadow-sm);
+    transition:
+      border-color var(--motion-fast) var(--ease-out),
+      box-shadow var(--motion-fast) var(--ease-out),
+      opacity var(--motion-fast) var(--ease-out);
+  }
+  .work_hours-day-card--inactive {
+    opacity: 0.78;
+    background: color-mix(in oklab, var(--fg) 2.5%, var(--bg-elev));
+  }
+  .work_hours-day-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .work_hours-day-name {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--fg);
+  }
+  .work_hours-day-badge {
+    flex-shrink: 0;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .work_hours-day-badge--on {
+    background: color-mix(in oklab, var(--accent) 16%, var(--panel));
+    color: var(--accent);
+    border: 1px solid color-mix(in oklab, var(--accent) 28%, var(--line));
+  }
+  .work_hours-day-badge--off {
+    background: color-mix(in oklab, var(--fg) 7%, var(--panel));
+    color: var(--fg-3);
+    border: 1px solid var(--line);
+  }
+  .administration-toc-table-card {
+    max-height: min(70vh, 560px);
+    overflow: auto;
+  }
+  /* TOC row: real <a> for navigation + a11y (focus ring, no fake <tr> button). */
+  .administration-toc-table tbody td.administration-toc-td {
+    padding: 0;
+    vertical-align: middle;
+    background: transparent;
+  }
+  .administration-toc-table tbody tr:hover td.administration-toc-td {
+    background: transparent;
+  }
+  .administration-toc-table tbody tr:last-child .administration-toc-row-link {
+    border-end-start-radius: var(--radius-card);
+    border-end-end-radius: var(--radius-card);
+  }
+  .administration-toc-row-link {
+    display: grid;
+    gap: 10px 12px;
+    align-items: center;
+    min-height: 80px;
+    padding: 16px 16px;
+    margin: 0;
+    box-sizing: border-box;
+    width: 100%;
+    text-decoration: none;
+    color: inherit;
+    outline: none;
+    border-radius: 0;
+  }
+  .administration-toc-row-link--icons {
+    grid-template-columns: 44px minmax(140px, 0.95fr) minmax(0, 1.55fr) 36px;
+  }
+  .administration-toc-row-link:not(.administration-toc-row-link--icons) {
+    grid-template-columns: minmax(140px, 0.95fr) minmax(0, 1.55fr) 36px;
+  }
+  .administration-toc-row-link:hover {
+    background: color-mix(in oklab, var(--fg) 4.5%, var(--bg-elev));
+  }
+  .administration-toc-row-link:hover .administration-toc-title-cell,
+  .administration-toc-row-link:hover .administration-toc-chevron,
+  .administration-toc-row-link:hover .administration-toc-ic {
+    color: var(--fg);
+  }
+  .administration-toc-row-link:focus {
+    outline: none;
+  }
+  .administration-toc-row-link:focus-visible {
+    outline: 2px solid color-mix(in oklab, var(--accent) 45%, var(--line));
+    outline-offset: -2px;
+    z-index: 1;
+    position: relative;
+  }
+  .page-head--administration-toc {
+    align-items: flex-start;
+  }
+  .page-sub--administration-toc {
+    max-width: 560px;
+    margin-top: 4px;
+  }
+  .administration-toc-table {
+    min-width: 480px;
+  }
+  .administration-toc-col-icon {
+    width: 44px;
+  }
+  .administration-toc-col-chev {
+    width: 40px;
+  }
+  .administration-toc-title-cell {
+    font-weight: 600;
+    color: var(--fg-2);
+    min-width: 0;
+    line-height: 1.3;
+  }
+  .administration-toc-desc-cell {
+    font-size: 13px;
+    display: block;
+    line-height: 1.45;
+    min-width: 0;
+    color: var(--fg-3);
+  }
+  .administration-toc-chevron,
+  .nav-chevron {
+    display: inline-block;
+    text-align: center;
+    color: var(--fg-4);
+    unicode-bidi: isolate;
+    direction: ltr;
+  }
+  .administration-toc-ic {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: center;
+    justify-self: center;
+    width: 44px;
+    color: var(--fg-3);
+    vertical-align: middle;
+  }
+}

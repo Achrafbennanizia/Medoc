@@ -8,7 +8,7 @@ const RUST_ENUMS: &[(&str, usize)] = &[
     ("AppointmentKind", 5),
     ("AppointmentStatus", 5),
     ("PatientStatus", 4),
-    ("ChartStatus", 4),
+    ("ChartStatus", 5),
     ("PaymentMethod", 4),
     ("PaymentStatus", 4),
     ("AuditAction", 5),

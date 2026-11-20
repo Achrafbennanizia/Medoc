@@ -27,6 +27,7 @@ import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { AdministrationPageHeader } from "../components/administration-page-header";
 import { LAZY_PAGE_SIZE, mergeUniqueById } from "@/lib/lazy-list";
 
+import { parseInstant } from "@/lib/practice-clock";
 async function loadAllPaymentsPaged(): Promise<Payment[]> {
     let page = 1;
     let all: Payment[] = [];
@@ -297,7 +298,7 @@ export function DayClosePage() {
                                             {paymentsAmAsOfDate.map((z) => (
                                                 <tr key={z.id}>
                                                     <td>
-                                                        {new Date(z.created_at.trim().replace(" ", "T")).toLocaleTimeString(timeLocale, {
+                                                        {(parseInstant(z.created_at) ?? new Date(NaN)).toLocaleTimeString(timeLocale, {
                                                             hour: "2-digit",
                                                             minute: "2-digit",
                                                         })}

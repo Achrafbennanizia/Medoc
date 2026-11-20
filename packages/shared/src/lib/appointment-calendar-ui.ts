@@ -6,6 +6,14 @@ import type { Absence, Appointment } from "@/models/types";
 import { resolveBookingWorkHoursForPhysician, type PracticeWorkHoursConfig } from "@/lib/practice-planning";
 import type { PhysicianSummary } from "@/systems/practice-host/controllers/staff.controller";
 
+import { parseInstant } from "./practice-clock";
+import {
+    statusBadgeVariant,
+    statusDefinition,
+    statusIsOpen,
+    statusLabelKey,
+    statusPillClass,
+} from "./status/status-registry";
 export type AppointmentBadgeVariant = "primary" | "success" | "default" | "error" | "warning";
 
 export const APPOINTMENT_STATUS_BADGE: Record<string, AppointmentBadgeVariant> = {
@@ -83,48 +91,36 @@ export type AppointmentBlockTone = "green" | "blue" | "accent" | "orange" | "pur
 export const APPOINTMENT_DOCTOR_TONE_CYCLE = ["green", "blue", "purple", "accent"] as const;
 export type AppointmentDoctorTone = (typeof APPOINTMENT_DOCTOR_TONE_CYCLE)[number];
 
-type AppointmentDisplayState = "cancelled" | "done" | "edited" | "confirmed" | "planned";
+/**
+ * Appointment status presentation — derived from the status registry (`./status/status-registry`).
+ * The displayed status is ALWAYS the persisted status. "Rescheduled" is a separate flag (shown next to
+ * the status), not a replacement: the old mapping showed CONFIRMED as "In treatment", NO_SHOW as
+ * "Cancelled", and any edited appointment as "Changed", which hid the real state.
+ */
+type CalendarPillTone = "active" | "planned" | "done" | "cancel" | "edit";
 
-const APPOINTMENT_STATE_VARIANT: Record<AppointmentDisplayState, AppointmentBadgeVariant> = {
-    cancelled: "error",
-    done: "success",
-    edited: "warning",
-    confirmed: "success",
-    planned: "primary",
+const CALENDAR_PILL_TONE: Readonly<Record<string, CalendarPillTone>> = {
+    PLANNED: "planned",
+    CONFIRMED: "active",
+    COMPLETED: "done",
+    NO_SHOW: "edit",
+    CANCELLED: "cancel",
 };
 
-const APPOINTMENT_STATE_LABEL_KEY: Record<AppointmentDisplayState, string> = {
-    cancelled: "appointment.status.cancelled",
-    done: "appointment.status.completed",
-    edited: "appointment.status.changed",
-    confirmed: "appointment.status.confirmed",
-    planned: "appointment.status.planned",
-};
+function appointmentStatusDef(appointment: Appointment) {
+    return statusDefinition("appointment", appointment.status) ?? statusDefinition("appointment", "PLANNED")!;
+}
 
-const CALENDAR_PILL_LABEL_KEY: Record<AppointmentDisplayState, string> = {
-    cancelled: "appointment.calendar.status.cancelled",
-    done: "appointment.calendar.status.done",
-    edited: "appointment.calendar.status.changed",
-    confirmed: "appointment.calendar.status.in_treatment",
-    planned: "appointment.calendar.status.planned",
-};
+/** Moved after booking (date/time edited more than a minute after creation, still open). Flag, not status. */
+export function appointmentWasRescheduled(appointment: Appointment): boolean {
+    if (!statusIsOpen("appointment", appointment.status)) return false;
+    const editedMs =
+        (parseInstant(appointment.updated_at)?.getTime() ?? 0) - (parseInstant(appointment.created_at)?.getTime() ?? 0);
+    return editedMs > 60_000;
+}
 
-function resolveAppointmentDisplayState(appointment: Appointment): AppointmentDisplayState {
-    if (appointment.status === "CANCELLED" || appointment.status === "NO_SHOW") {
-        return "cancelled";
-    }
-    if (appointment.status === "COMPLETED") {
-        return "done";
-    }
-    const editedMs = new Date(appointment.updated_at).getTime() - new Date(appointment.created_at).getTime();
-    const edited = editedMs > 60_000;
-    if (edited && (appointment.status === "PLANNED" || appointment.status === "CONFIRMED")) {
-        return "edited";
-    }
-    if (appointment.status === "CONFIRMED") {
-        return "confirmed";
-    }
-    return "planned";
+export function appointmentStatusLabel(appointment: Appointment): string {
+    return t(statusLabelKey("appointment", appointmentStatusDef(appointment).wire));
 }
 
 export function appointmentKindLabel(kind: string): string {
@@ -139,38 +135,25 @@ export function appointmentKindLabelFromAppointment(appointment: Appointment): s
 }
 
 export function appointmentStateDisplay(appointment: Appointment): { label: string; variant: AppointmentBadgeVariant } {
-    const state = resolveAppointmentDisplayState(appointment);
-    return { label: t(APPOINTMENT_STATE_LABEL_KEY[state]), variant: APPOINTMENT_STATE_VARIANT[state] };
+    const def = appointmentStatusDef(appointment);
+    return { label: appointmentStatusLabel(appointment), variant: statusBadgeVariant(def.tone) as AppointmentBadgeVariant };
 }
 
 export function stateSoftPillClass(appointment: Appointment): string {
-    switch (resolveAppointmentDisplayState(appointment)) {
-        case "cancelled":
-            return "red";
-        case "done":
-            return "accent";
-        case "edited":
-            return "yellow";
-        case "confirmed":
-            return "blue";
-        default:
-            return "grey";
-    }
+    return statusPillClass(appointmentStatusDef(appointment).tone);
 }
 
 export function appointmentCalendarStatusPill(appointment: Appointment): {
     label: string;
-    tone: "active" | "planned" | "done" | "cancel" | "edit";
+    tone: CalendarPillTone;
+    rescheduled: boolean;
 } {
-    const state = resolveAppointmentDisplayState(appointment);
-    const toneByState: Record<AppointmentDisplayState, "active" | "planned" | "done" | "cancel" | "edit"> = {
-        cancelled: "cancel",
-        done: "done",
-        edited: "edit",
-        confirmed: "active",
-        planned: "planned",
+    const def = appointmentStatusDef(appointment);
+    return {
+        label: appointmentStatusLabel(appointment),
+        tone: CALENDAR_PILL_TONE[def.wire] ?? "planned",
+        rescheduled: appointmentWasRescheduled(appointment),
     };
-    return { label: t(CALENDAR_PILL_LABEL_KEY[state]), tone: toneByState[state] };
 }
 
 export function appointmentTimeToMinutes(u: string): number {

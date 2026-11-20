@@ -8,6 +8,8 @@ export { PhoneText } from "./phone-text";
 export { Dialog, ConfirmDialog, IosConfirmActions } from "./dialog";
 export { Card, CardHeader } from "./card";
 export { Badge } from "./badge";
+export { StatusBadge } from "./status-badge";
+export { DataTable, type DataTableColumn, type DataTableProps } from "./data-table";
 export { EmptyState } from "./empty-state";
 export { PageLoadError, PageLoading } from "./page-status";
 export { FormSection } from "./form-section";

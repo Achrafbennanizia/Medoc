@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { deletePatient, listPatientsPaged, searchPatients } from "@/systems/practice-host/controllers/patient.controller";
 import { listPatientIdsOpenInvoice } from "@/systems/practice-host/controllers/payment.controller";
 import { errorMessage, formatDate } from "@/lib/utils";
-import { loadClientSettings } from "@/lib/client-settings";
 import { suggestSimilarTitles } from "@/lib/string-suggest";
 import { useT, useTParams } from "@/lib/i18n";
 import type { Patient } from "../../models/types";
@@ -24,7 +23,9 @@ import { PhoneText } from "../components/ui/phone-text";
 import { WorkspacePageHeader } from "../components/administration-page-header";
 import { PATIENT_LIST_CALL_EMAIL_ENABLED } from "@/lib/v1-ui-flags";
 import { LAZY_PAGE_SIZE, mergeUniqueById } from "@/lib/lazy-list";
+import { localYmd } from "@/lib/practice-clock";
 
+import { useClientSettings } from "@/lib/use-client-settings";
 const SEARCH_DEBOUNCE_MS = 250;
 
 function patientHasOpenInvoice(openPatientIds: ReadonlySet<string>, patientId: string): boolean {
@@ -124,6 +125,10 @@ export function PatientsPage() {
         return () => window.clearTimeout(t);
     }, [search]);
 
+    /** Settings → Search (reactive: toggling re-runs the search immediately). */
+    const includeInsuranceNumber = useClientSettings((c) => c.search?.patientIncludeInsuranceNumber !== false);
+    const autocompleteEnabled = useClientSettings((c) => c.search?.autocompleteSuggestionsEnabled !== false);
+
     const load = useCallback(async (opts?: { silent?: boolean }) => {
         const silent = opts?.silent === true;
         if (silent && silentLoadInflight.current) return;
@@ -137,9 +142,7 @@ export function PatientsPage() {
             const q = debouncedSearch.trim();
             const [dataResp, ids] = await Promise.all([
                 q
-                    ? searchPatients(q, {
-                          includeInsuranceNumber: loadClientSettings().search?.patientIncludeInsuranceNumber !== false,
-                      }).then((items) => ({ items, total: items.length, page: 1, pageSize: items.length || LAZY_PAGE_SIZE }))
+                    ? searchPatients(q, { includeInsuranceNumber }).then((items) => ({ items, total: items.length, page: 1, pageSize: items.length || LAZY_PAGE_SIZE }))
                     : listPatientsPaged({ page: 1, pageSize: LAZY_PAGE_SIZE }),
                 listPatientIdsOpenInvoice().catch(() => [] as string[]),
             ]);
@@ -162,7 +165,7 @@ export function PatientsPage() {
             if (silent) silentLoadInflight.current = false;
             if (!silent && token === searchLoadTokenRef.current) setLoading(false);
         }
-    }, [debouncedSearch]);
+    }, [debouncedSearch, includeInsuranceNumber]);
 
     useEffect(() => {
         void load();
@@ -220,7 +223,7 @@ export function PatientsPage() {
     const resolvePatientExport = useCallback(() => {
         if (filtered.length === 0) return null;
         const csv = buildPatientsMigrationCsv(filtered);
-        const d = new Date().toISOString().slice(0, 10);
+        const d = localYmd();
         return {
             exportTitle: t("patient.export.title_short"),
             hint: t("patient.export.hint"),
@@ -238,16 +241,13 @@ export function PatientsPage() {
         setExportPickerOpen(true);
     };
 
-    const nameSuggestions = useMemo(() => {
-        const disableFuzzy = loadClientSettings().search?.autocompleteSuggestionsEnabled === false;
-        return suggestSimilarTitles(
-            debouncedSearch,
-            allPatientNames.length > 0 ? allPatientNames : nameDirectory,
-            2,
-            5,
-            { disabled: disableFuzzy },
-        );
-    }, [debouncedSearch, nameDirectory, allPatientNames]);
+    const nameSuggestions = useMemo(
+        () =>
+            suggestSimilarTitles(debouncedSearch, allPatientNames.length > 0 ? allPatientNames : nameDirectory, 2, 5, {
+                disabled: !autocompleteEnabled,
+            }),
+        [debouncedSearch, nameDirectory, allPatientNames, autocompleteEnabled],
+    );
 
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">

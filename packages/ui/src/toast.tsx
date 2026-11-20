@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useT } from "@/lib/i18n";
-import { useToastStore, type Toast as ToastItem } from "./toast-store";
+import { OPEN_HELP_EVENT, useToastStore, type Toast as ToastItem } from "./toast-store";
 import { CheckIcon, XIcon } from "@/lib/icons";
 
 function ToastRow({
@@ -81,7 +81,22 @@ function ToastRow({
                 {toast.type === "error" && <XIcon aria-hidden />}
                 {toast.type === "info" && <span className="toast-info-dot" aria-hidden />}
                 {toast.type === "warning" && <span className="toast-warning-dot" aria-hidden />}
-                <span className="toast-message">{toast.message}</span>
+                <span className="toast-message">
+                    {toast.message}
+                    {toast.code ? (
+                        <button
+                            type="button"
+                            className="toast-code"
+                            onClick={() => {
+                                window.dispatchEvent(new CustomEvent(OPEN_HELP_EVENT, { detail: { tab: "errors", code: toast.code } }));
+                                remove(toast.id);
+                            }}
+                            title={t("errors.open_manual")}
+                        >
+                            {t("errors.code_label").replace("{code}", toast.code)} · {t("errors.open_manual")}
+                        </button>
+                    ) : null}
+                </span>
                 {toast.onUndo ? (
                     <button type="button" className="toast-undo" onClick={handleUndo}>
                         {toast.undoLabel}

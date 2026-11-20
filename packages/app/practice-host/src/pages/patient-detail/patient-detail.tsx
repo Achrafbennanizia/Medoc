@@ -80,6 +80,7 @@ import {
     type ChartSavePending,
     type PatientDetailChartTab,
 } from "@/lib/patient-detail-utils";
+import { localYmd } from "@/lib/practice-clock";
 
 type ChartTab = PatientDetailChartTab;
 
@@ -146,7 +147,7 @@ export function PatientDetailPage() {
         allergiesMed: "",
     });
     const [treatmentForm, setTreatmentForm] = useState({
-        date: new Date().toISOString().slice(0, 10),
+        date: localYmd(),
         category: "",
         service_name: "",
         serviceCatalogId: "",
@@ -812,7 +813,7 @@ export function PatientDetailPage() {
                         setTreatmentFormUnlocked(true);
                         setContinueFromTreatmentId("");
                         setTreatmentForm({
-                            date: new Date().toISOString().slice(0, 10),
+                            date: localYmd(),
                             category: "",
                             service_name: "",
                             serviceCatalogId: "",

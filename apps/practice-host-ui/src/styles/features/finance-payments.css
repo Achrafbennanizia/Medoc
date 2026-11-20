@@ -1,0 +1,639 @@
+/* features/finance-payments (components layer) */
+@layer components {
+  /* Patient chart + Finance: payments — fixed columns, alignment like header row */
+  .tbl.tbl-payment-chart,
+  .tbl.tbl-finance-payment {
+    table-layout: fixed;
+  }
+  .tbl.tbl-payment-chart thead th,
+  .tbl.tbl-payment-chart tbody td,
+  .tbl.tbl-finance-payment thead th,
+  .tbl.tbl-finance-payment tbody td {
+    overflow: hidden;
+  }
+  .tbl.tbl-payment-chart .payment-td-clip,
+  .tbl.tbl-finance-payment .payment-td-clip {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .tbl.tbl-payment-chart .payment-th-num,
+  .tbl.tbl-payment-chart .payment-td-num,
+  .tbl.tbl-finance-payment .payment-th-num,
+  .tbl.tbl-finance-payment .payment-td-num {
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .tbl.tbl-payment-chart .payment-td-actions,
+  .tbl.tbl-finance-payment .payment-td-actions {
+    overflow: visible;
+    text-align: center;
+    vertical-align: middle;
+  }
+  .tbl.tbl-payment-chart tbody td.payment-td-actions,
+  .tbl.tbl-finance-payment tbody td.payment-td-actions {
+    overflow: visible;
+  }
+  .tbl.tbl-payment-chart .payment-actions-inner,
+  .tbl.tbl-finance-payment .payment-actions-inner {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .payment-row-actions-menu {
+    position: relative;
+    display: inline-flex;
+    justify-content: flex-end;
+    margin-inline-start: auto;
+  }
+  .payment-row-actions-menu__trigger {
+    width: 30px;
+    height: 30px;
+    flex-shrink: 0;
+  }
+  .payment-row-actions-menu__panel {
+    min-width: 168px;
+    background: var(--bg-elev, #fff);
+    border-radius: 14px;
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--line);
+    overflow: hidden;
+  }
+  .payment-row-actions-menu__panel--portal {
+    position: fixed;
+    margin: 0;
+  }
+  .menu-item:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .menu-item:disabled:hover {
+    background: transparent;
+    color: var(--fg-2);
+  }
+  .tbl.tbl-finance-payment td.payment-td-status > div {
+    margin-bottom: 0;
+  }
+  /* History: inline editing as its own table row directly above the data row */
+  .tbl.tbl-payment-chart td.payment-history-edit-cell {
+    overflow: visible !important;
+    padding: 12px 14px 14px !important;
+    vertical-align: top;
+    background: color-mix(in oklab, var(--accent) 8%, transparent);
+    border-bottom: none !important;
+  }
+  .tbl.tbl-payment-chart .payment-history-edit-cell .chart-inline-panel--payment-table-edit {
+    margin: 0;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .card.card-pad:has(.payment-history-edit-row) {
+    overflow: visible;
+  }
+  .card.card-pad:has(.examination-stack-edit-slot) {
+    overflow: visible;
+  }
+  .chart-inline-panel--examination-stack-edit {
+    margin: 0;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .chart-inline-panel--examination-stack-edit .chart-inline-panel-body {
+    padding-top: 12px;
+  }
+  /* Finance: dashboard (sticky header + scrollable transaktionen) */
+  .finance-page {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    width: 100%;
+    min-width: 0;
+  }
+  .finance-page__sticky {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-sticky);
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    margin: 0 0 20px;
+    padding: 0 0 2px;
+    background: var(--bg);
+  }
+  /* Finance: transactions; "Neue Payment" is its own route `/finance/new`. */
+  .finance-workspace {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+  .finance-workspace--single {
+    grid-template-columns: 1fr;
+  }
+  .finance-workspace__detail {
+    min-width: 0;
+  }
+  .payment-finance-embed {
+    max-height: min(85vh, 900px);
+    overflow: auto;
+  }
+  .payment-finance-embed .payment-finance-embed__body {
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+  /* Shared workspace shell: orders, cash receipts, new order, new payment */
+  .practice-workspace-page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--page-stack-gap);
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: clamp(4px, 0.8vh, 8px) 0 clamp(12px, 2vh, 24px);
+  }
+  .practice-workspace-page--form {
+    max-width: 920px;
+    margin: 0 auto;
+  }
+  .practice-workspace-page .page-head {
+    align-items: flex-start;
+    gap: clamp(12px, 2vh, 20px);
+    margin-bottom: 2px;
+  }
+  .practice-workspace-page .page-sub {
+    max-width: 40rem;
+    margin-top: 8px;
+    line-height: 1.55;
+  }
+  .practice-workspace-page__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-shrink: 0;
+    padding-top: 2px;
+  }
+  /* Tables in cards: th/td share horizontal rhythm with card-head */
+  .tbl-data-card .tbl thead th,
+  .tbl-data-card .tbl tbody td {
+    padding-block: var(--tbl-td-pad-y);
+    padding-inline: var(--tbl-cell-pad-x);
+    vertical-align: middle;
+  }
+  /* Logical properties: in RTL (Arabic) the card-edge inset must sit on the right. */
+  .tbl-data-card .tbl thead th:first-child,
+  .tbl-data-card .tbl tbody td:first-child {
+    padding-inline-start: var(--card-pad-x);
+  }
+  .tbl-data-card .tbl thead th:last-child,
+  .tbl-data-card .tbl tbody td:last-child {
+    padding-inline-end: var(--card-pad-x);
+  }
+  .tbl .tbl-th-num,
+  .tbl .tbl-td-num {
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .tbl-data-card .tbl tbody tr:last-child td {
+    padding-bottom: clamp(12px, 1.6vh, 16px);
+  }
+
+  /* Reception: cash receipts — KPI + list (shell via .practice-workspace-page) */
+  .finance-cash-page__kpi {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px 24px;
+    padding: clamp(16px, 2.2vh, 22px) clamp(18px, 2.4vw, 24px);
+    border-top: 3px solid #E69600;
+    box-shadow: var(--shadow-sm);
+  }
+  .finance-cash-page__kpi .kpi-label-mini {
+    display: block;
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--fg-3);
+    margin-bottom: 6px;
+  }
+  .finance-cash-page__kpi-value {
+    font-size: clamp(26px, 3.6vw, 32px);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    color: var(--fg);
+  }
+  .finance-cash-page__kpi-meta {
+    margin-top: 6px;
+    font-size: 13px;
+    color: var(--fg-3);
+  }
+  .finance-cash-page__create {
+    margin: 0;
+  }
+  .finance-cash-page__create .payment-finance-embed {
+    max-height: none;
+    overflow: visible;
+    box-shadow: var(--shadow-md);
+  }
+  .finance-cash-page__create .payment-finance-embed__body,
+  .payment-create-form.card-pad {
+    padding: clamp(14px, 2vh, 20px) var(--card-pad-x) clamp(16px, 2.2vh, 22px);
+  }
+  .finance-cash-page__list {
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+  }
+  .finance-cash-page__list .card-head {
+    padding: clamp(14px, 1.8vh, 18px) var(--card-pad-x);
+  }
+  .finance-cash-page__list-empty {
+    padding: clamp(28px, 4vh, 44px) var(--card-pad-x);
+  }
+  .finance-cash-page__table-wrap {
+    padding: 0;
+  }
+  .tbl.tbl-cash {
+    table-layout: fixed;
+    width: 100%;
+    min-width: 0;
+  }
+  .tbl.tbl-cash thead th,
+  .tbl.tbl-cash tbody td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .cash-col-time { width: 18%; }
+  .cash-col-patient { width: 32%; }
+  .cash-col-kind { width: 16%; }
+  .cash-col-amount { width: 14%; }
+  .cash-col-status { width: 20%; }
+  .tbl.tbl-cash .tbl-th-num,
+  .tbl.tbl-cash .tbl-td-num {
+    font-weight: 600;
+  }
+  .tbl.tbl-cash .cash-td-patient {
+    min-width: 0;
+  }
+  .tbl.tbl-cash .cash-td-status {
+    white-space: nowrap;
+  }
+  @media (max-width: 640px) {
+    .practice-workspace-page__actions {
+      width: 100%;
+      justify-content: stretch;
+    }
+    .practice-workspace-page__actions .btn {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+  }
+  .finance-kpi-row {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+  }
+  @media (max-width: 1200px) {
+    .finance-kpi-row {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @media (max-width: 560px) {
+    .finance-kpi-row {
+      grid-template-columns: 1fr;
+    }
+  }
+  .finance-kpi {
+    background: var(--bg-elev);
+    border-radius: 14px;
+    padding: 14px 16px 12px;
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--line);
+    min-height: 110px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .finance-kpi--mint { border-top: 3px solid #148B4C; }
+  .finance-kpi--red { border-top: 3px solid var(--red); }
+  .finance-kpi--blue { border-top: 3px solid var(--blue); }
+  .finance-kpi--amber { border-top: 3px solid #E69600; }
+  .finance-kpi__label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--fg-3);
+  }
+  .finance-kpi__label span[aria-hidden] {
+    width: 24px;
+    height: 24px;
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+  }
+  .finance-kpi__val {
+    font-size: clamp(22px, 2.1vw, 30px);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    color: var(--fg);
+    line-height: 1.1;
+  }
+  .finance-kpi__foot {
+    font-size: 12px;
+    color: var(--fg-3);
+    margin-top: 4px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+  .finance-kpi__delta {
+    font-weight: 600;
+  }
+  .finance-kpi__delta--up { color: #148B4C; }
+  .finance-kpi__delta--down { color: var(--red); }
+  .finance-kpi__delta--muted { color: var(--fg-4); font-weight: 500; }
+  .finance-workspace__list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+    width: 100%;
+  }
+  .finance-tx-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px 20px;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+  .finance-tx-section-head__controls {
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    gap: 12px 16px;
+    flex-wrap: wrap;
+    margin-inline-start: auto;
+  }
+  .finance-tx-section-head__meta {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .finance-tx-section-title {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--fg);
+  }
+  .finance-tx-filter-selects {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .finance-tx-filter-select-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+  .finance-tx-filter-select__label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--fg-4);
+    line-height: 1.2;
+  }
+  .finance-tx-filter-select {
+    width: auto;
+    min-width: 9.5rem;
+    max-width: 12.5rem;
+    padding: 7px 32px 7px 10px;
+    font-size: 13px;
+    cursor: pointer;
+    background-color: var(--bg-elev);
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='none' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' d='M3 4.5l3 3 3-3'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 12px 12px;
+  }
+  .option-bar {
+    flex: 0 1 auto;
+    width: fit-content;
+    max-width: 100%;
+  }
+  .option-bar.option-bar--fill {
+    display: flex;
+    width: 100%;
+    max-width: none;
+    box-sizing: border-box;
+  }
+  .option-bar.option-bar--fill button {
+    flex: 1 1 0;
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    white-space: nowrap;
+  }
+  @media (max-width: 560px) {
+    .finance-tx-section-head__controls {
+      width: 100%;
+      margin-inline-start: 0;
+      justify-content: stretch;
+    }
+    .finance-tx-filter-selects {
+      width: 100%;
+    }
+    .finance-tx-filter-select-field {
+      flex: 1 1 8rem;
+    }
+    .finance-tx-filter-select {
+      width: 100%;
+      max-width: none;
+    }
+    .option-bar.option-bar--fill button {
+      flex: 1 1 auto;
+      min-width: 4.5rem;
+    }
+  }
+  .finance-tx-count {
+    color: var(--fg-3);
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .finance-tx-table-card {
+    width: 100%;
+    min-width: 0;
+  }
+  .finance-tx__scroll {
+    max-height: min(68vh, calc(100vh - 20rem));
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .finance-tx-v1 {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--fg-2);
+  }
+  .finance-tx-v2 {
+    font-size: 11.5px;
+    color: var(--fg-3);
+    margin-top: 2px;
+  }
+  /* Finance transactions — fixed utility cols + flexible Vorgang (orders rhythm) */
+  .tbl.tbl-finance-tx {
+    table-layout: fixed;
+    width: 100%;
+    min-width: 0;
+  }
+  .fin-tx-col-date { width: 6.5rem; }
+  .fin-tx-col-gegenpartei { width: 9.5rem; }
+  .fin-tx-col-amount { width: 7rem; }
+  .fin-tx-col-status { width: 10rem; }
+  .fin-tx-row--clickable,
+  .tbl.tbl-finance-tx tbody tr.fin-tx-row {
+    cursor: pointer;
+  }
+  .tbl.tbl-finance-tx tbody tr.fin-tx-row--selected td {
+    background: color-mix(in oklab, var(--accent) 6%, transparent);
+  }
+  .tbl.tbl-finance-tx .fin-tx-td-date {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    font-size: 13px;
+  }
+  .tbl.tbl-finance-tx .fin-tx-td-vorgang,
+  .tbl.tbl-finance-tx .fin-tx-td-gegenpartei {
+    min-width: 0;
+    overflow: hidden;
+  }
+  .tbl.tbl-finance-tx .fin-tx-td-gegenpartei .payment-td-clip {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .tbl.tbl-finance-tx .fin-tx-td-status {
+    overflow: visible;
+    white-space: nowrap;
+  }
+  .finance-tx-status-cell .ui-field-wrap {
+    margin-bottom: 0;
+    width: 100%;
+    min-width: 0;
+  }
+  .finance-tx-status-cell .select-wrap {
+    width: 100%;
+    max-width: 100%;
+  }
+  .finance-tx-status-cell .finance-payment-status-select.select-trigger {
+    min-height: 36px;
+    padding-top: 7px;
+    padding-bottom: 7px;
+    font-size: 13px;
+    width: 100%;
+  }
+  .finance-tx-status-cell .finance-payment-status-select.select-trigger .select-trigger-label {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .finance-tx-status-cell .select-menu {
+    inset-inline-start: 0;
+    inset-inline-end: auto;
+    width: max-content;
+    min-width: 100%;
+    max-width: min(14rem, calc(100vw - 48px));
+  }
+  .finance-amt-col {
+    text-align: right;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    min-width: 0;
+  }
+  .finance-th-amount-status {
+    vertical-align: bottom;
+    line-height: 1.35;
+  }
+  .finance-th-amount-status__line {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--fg-4);
+  }
+  .finance-th-amount-status__line--sub {
+    margin-top: 2px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--fg-3);
+    letter-spacing: 0.06em;
+  }
+  .finance-payment-status-block {
+    width: 100%;
+    max-width: 280px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 5px;
+  }
+  .finance-payment-status-hint {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--fg-4);
+    line-height: 1.2;
+  }
+  /* Status dropdown: enough width for "Outstanding" / "PartiallyPaid"; menu may be wider than trigger */
+  .finance-amt-col .finance-payment-status-block .select-wrap {
+    width: 100%;
+    max-width: 280px;
+  }
+  .finance-amt-col .finance-payment-status-select.select-trigger {
+    min-height: 36px;
+    padding-top: 7px;
+    padding-bottom: 7px;
+    font-size: 13px;
+  }
+  .finance-amt-col .select-menu {
+    inset-inline-start: auto;
+    inset-inline-end: 0;
+    width: max-content;
+    min-width: min(100%, 12.5rem);
+    max-width: min(20rem, calc(100vw - 40px));
+  }
+  .finance-amt-col .select-menu .select-option {
+    white-space: nowrap;
+  }
+  /* Table rows: short status labels, one line — full width for assignment stays multi-line (.select-trigger-label). */
+  .finance-amt-col .finance-payment-status-select.select-trigger .select-trigger-label {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    -webkit-line-clamp: unset;
+    -webkit-box-orient: unset;
+  }
+}

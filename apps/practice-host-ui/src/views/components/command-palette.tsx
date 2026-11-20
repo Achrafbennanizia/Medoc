@@ -2,10 +2,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Dialog } from "./ui/dialog";
 import type { PaletteCommand } from "@/lib/command-palette-data";
 import { SearchIcon } from "@/lib/icons";
-import { loadClientSettings } from "@/lib/client-settings";
 import { suggestSimilarTitles } from "@/lib/string-suggest";
 import { useT } from "@/lib/i18n";
 
+import { useClientSettings } from "@/lib/use-client-settings";
 type Props = {
     open: boolean;
     onClose: () => void;
@@ -30,10 +30,11 @@ export function CommandPalette({ open, onClose, commands, onNavigate }: Props) {
     }, [commands, query, t]);
 
     const fuzzyTitles = useMemo(() => commands.map((c) => t(c.titleKey)), [commands, t]);
-    const suggestions = useMemo(() => {
-        const disableFuzzy = loadClientSettings().search?.autocompleteSuggestionsEnabled === false;
-        return suggestSimilarTitles(query, fuzzyTitles, 2, 5, { disabled: disableFuzzy });
-    }, [query, fuzzyTitles]);
+    const autocompleteEnabled = useClientSettings((c) => c.search?.autocompleteSuggestionsEnabled !== false);
+    const suggestions = useMemo(
+        () => suggestSimilarTitles(query, fuzzyTitles, 2, 5, { disabled: !autocompleteEnabled }),
+        [query, fuzzyTitles, autocompleteEnabled],
+    );
 
     useEffect(() => {
         if (!open) return;

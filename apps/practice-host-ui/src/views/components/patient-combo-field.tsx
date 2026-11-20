@@ -3,6 +3,8 @@ import { useDismissibleLayer } from "./ui/use-dismissible-layer";
 import { useT, useTParams } from "@/lib/i18n";
 import type { Patient } from "@/models/types";
 
+import { filterPatients } from "@/lib/patient-search";
+import { useClientSettings } from "@/lib/use-client-settings";
 const MAX_SHOWN_WHEN_NO_QUERY = 200;
 
 type PatientComboFieldProps = {
@@ -47,15 +49,15 @@ export function PatientComboField({
 
     useDismissibleLayer({ open, rootRef, onDismiss: () => setOpen(false) });
 
+    const includeInsuranceNumber = useClientSettings((c) => c.search?.patientIncludeInsuranceNumber !== false);
     const filtered = useMemo(() => {
-        const q = query.trim().toLowerCase();
-        if (!q) {
+        if (!query.trim()) {
             return patients.length > MAX_SHOWN_WHEN_NO_QUERY
                 ? patients.slice(0, MAX_SHOWN_WHEN_NO_QUERY)
                 : [...patients];
         }
-        return patients.filter((p) => p.name.toLowerCase().includes(q));
-    }, [patients, query]);
+        return filterPatients(patients, query, { includeInsuranceNumber });
+    }, [patients, query, includeInsuranceNumber]);
 
     function handleInputChange(version: string) {
         if (disabled) return;

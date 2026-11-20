@@ -60,7 +60,7 @@ pub async fn run_legacy_embedded_migrations(pool: &SqlitePool) -> Result<(), App
         "CREATE TABLE IF NOT EXISTS patient_chart (
             id TEXT PRIMARY KEY,
             patient_id TEXT NOT NULL UNIQUE REFERENCES patient(id) ON DELETE CASCADE,
-            status TEXT NOT NULL DEFAULT 'DRAFT' CHECK (status IN ('DRAFT','IN_PROGRESS','VALIDATED','READONLY')),
+            status TEXT NOT NULL DEFAULT 'DRAFT' CHECK (status IN ('DRAFT','IN_PROGRESS','VALIDATED','DECLINED','READONLY')),
             diagnosis TEXT,
             findings TEXT,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

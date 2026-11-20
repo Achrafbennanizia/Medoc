@@ -1,0 +1,831 @@
+/* pages/appointments-calendar (unlayered: loads after utilities, wins over components) */
+/* ——— Appointment overview (calendar prototype) ——— */
+.appointment-page-sub .appointment-heute-accent {
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+.appointment-btn-emergency {
+  color: var(--red) !important;
+}
+.appointment-filter-anchor {
+  position: relative;
+}
+.appointment-filter-badge {
+  margin-inline-start: 6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--text-on-accent);
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.appointment-filter-popover {
+  position: absolute;
+  inset-inline-end: 0;
+  top: calc(100% + 8px);
+  z-index: 80;
+  width: min(320px, 94vw);
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--bg-elev);
+  border: 1px solid var(--line-strong);
+  animation: popIn 160ms ease both;
+  box-shadow: var(--shadow-lg);
+}
+/* Portal to document.body: do not clip by <main overflow:hidden> or flex intermediate containers */
+.appointment-filter-popover--portal {
+  position: fixed;
+  z-index: 2800;
+  right: auto;
+  top: auto;
+  margin: 0;
+}
+.appointment-filter-popover-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.appointment-filter-popover-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--fg-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.appointment-filter-popover-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 8px 4px 12px;
+}
+.appointment-filter-popover-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+  min-width: 0;
+}
+.appointment-filter-popover-select {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+.appointment-filter-check-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.appointment-filter-empty {
+  font-size: 13px;
+  color: var(--fg-3);
+  padding: 6px 0;
+}
+.appointment-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in oklab, var(--accent) 22%, transparent);
+  flex-shrink: 0;
+  max-width: 100%;
+}
+.appointment-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  border: 0;
+  font: inherit;
+}
+.appointment-filter-clear-all {
+  font-size: 13px;
+  padding: 6px 10px;
+}
+/* Date/period prev–label–next: chronological nav stays ← … → in every locale. */
+.appointment-nav-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+.appointment-toolbar-row > .appointment-nav-controls {
+  gap: 10px;
+}
+.appointment-nav-controls .icon-btn svg {
+  transform: none;
+}
+.appointment-toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  min-width: 0;
+  max-width: 100%;
+}
+.appointment-toolbar-row .spacer {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.appointment-toolbar-nav-label {
+  font-weight: 700;
+  font-size: 14px;
+  min-width: 0;
+}
+.appointment-toolbar-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 140px;
+  min-width: 0;
+  max-width: 420px;
+  padding: 0 12px;
+  min-height: 40px;
+  border-radius: 12px;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-elev);
+}
+.appointment-toolbar-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  outline: none;
+}
+.appointment-search-clear {
+  flex-shrink: 0;
+}
+.appointment-doctor-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  font-size: 12px;
+  color: var(--fg-2);
+  max-width: 100%;
+  justify-content: flex-end;
+}
+.appointment-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.appointment-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+}
+.appointment-legend-dot--green { background: var(--green); }
+.appointment-legend-dot--blue { background: var(--blue); }
+.appointment-legend-dot--purple { background: var(--purple); }
+.appointment-legend-dot--accent { background: var(--accent); }
+/* Appointment overview: use full main area, scroll only in calendar zones */
+.appointment-page-root {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+/* Do not "push away" top blocks; area goes into .appointment-content-fill */
+.appointment-page-head {
+  flex-shrink: 0;
+  min-width: 0;
+}
+.appointment-page-head > div:first-child {
+  min-width: 0;
+  flex: 1 1 min(0, 100%);
+}
+.appointment-page-head .page-sub {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.appointment-page-head .schedule-toolbar {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+.appointment-content-fill {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-x: clip;
+  overflow-y: hidden;
+}
+.appointment-main-full {
+  min-width: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.appointment-main-full:has(.appointment-day-split) {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+/* Month view: fixed top bar, calendar fills remaining height (flex rows, no scroll) */
+.appointment-month-view.card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.appointment-month-view .month-view-topbar {
+  flex-shrink: 0;
+}
+.appointment-month-view .appointments-month-cal.cal {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  height: 100%;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-rows: auto repeat(6, minmax(0, 1fr));
+  align-content: stretch;
+}
+.appointment-month-view--workweek .appointments-month-cal.cal {
+  grid-template-columns: repeat(var(--appointment-calendar-cols, 5), minmax(0, 1fr));
+}
+.appointment-month-view .appointments-month-cal.cal .cal-cell {
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+  padding: 34px 6px 8px;
+  justify-content: flex-end;
+  gap: 0;
+  transition: background var(--motion-fast) var(--ease-out);
+  container-type: inline-size;
+  container-name: appointment-month-cell;
+}
+.appointment-month-view .appointments-month-cal.cal .cal-cell:not(.dim):hover {
+  background: color-mix(in oklab, var(--accent) 6%, var(--bg-elev));
+}
+.appointment-month-view .appointments-month-cal.cal .cal-cell .cal-num {
+  position: absolute;
+  top: 8px;
+  inset-inline-end: 10px;
+  z-index: 1;
+  align-self: unset;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.appointment-month-view .appointments-month-cal.cal .cal-cell.today .cal-num {
+  top: 7px;
+  inset-inline-end: 9px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+.appointment-month-view .appointments-month-cal.cal .cal-cell.dim .cal-num {
+  position: absolute;
+  top: 8px;
+  inset-inline-end: 10px;
+  width: auto;
+  height: auto;
+  display: block;
+  background: transparent;
+  color: var(--fg-4);
+}
+.appointment-month-view .cal-cell-appointment-pill {
+  margin-top: auto;
+  align-self: stretch;
+  width: 100%;
+  max-width: 100%;
+  margin-inline: 0;
+  border-radius: 999px;
+  line-height: 1.25;
+  white-space: nowrap;
+  text-align: center;
+  font-size: clamp(9px, 1.1vw, 11px);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: clamp(3px, 0.5vw, 6px) clamp(6px, 1vw, 12px);
+  border: 1px solid transparent;
+  box-shadow: var(--shadow-ring-inset);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-sizing: border-box;
+  transition:
+    background var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out),
+    color var(--motion-fast) var(--ease-out),
+    box-shadow var(--motion-fast) var(--ease-out),
+    transform var(--motion-fast) var(--ease-out);
+}
+.appointment-month-view .cal-cell-appointment-pill__count {
+  display: none;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+@container appointment-month-cell (max-width: 5.75rem) {
+  .cal-cell-appointment-pill__full {
+    display: none;
+  }
+  .cal-cell-appointment-pill__count {
+    display: inline;
+  }
+  .cal-cell-appointment-pill {
+    padding-inline: 8px;
+  }
+}
+@container appointment-month-cell (max-width: 4.25rem) {
+  .cal-cell-appointment-pill {
+    font-size: 10px;
+    padding: 3px 6px;
+    border-radius: 8px;
+  }
+  .cal-num {
+    top: 6px;
+    inset-inline-end: 6px;
+    font-size: 11px;
+  }
+}
+/* Colors from practice preferences: --appointment-pill-accent set per cell */
+.appointment-month-view .cal-cell-appointment-pill:not(.cal-cell-appointment-pill--empty) {
+  --appointment-pill-accent: var(--accent);
+  background: color-mix(in oklab, var(--appointment-pill-accent) 20%, var(--bg-elev));
+  color: color-mix(in oklab, var(--appointment-pill-accent) 38%, var(--fg));
+  border-color: color-mix(in oklab, var(--appointment-pill-accent) 32%, var(--line));
+}
+.appointment-month-view .cal-cell:not(.dim):hover .cal-cell-appointment-pill:not(.cal-cell-appointment-pill--empty) {
+  background: color-mix(in oklab, var(--appointment-pill-accent) 28%, var(--bg-elev));
+  border-color: color-mix(in oklab, var(--appointment-pill-accent) 44%, var(--line));
+  color: color-mix(in oklab, var(--appointment-pill-accent) 48%, var(--fg));
+  transform: translateY(-0.5px);
+}
+.appointment-month-view .cal-cell-appointment-pill--empty {
+  margin-top: auto;
+  align-self: center;
+  margin-inline: 7px;
+  min-height: 1.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-4);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .appointment-month-view .cal-cell-appointment-pill {
+    transition: none;
+  }
+  .appointment-month-view .cal-cell:not(.dim):hover .cal-cell-appointment-pill:not(.cal-cell-appointment-pill--empty) {
+    transform: none;
+  }
+}
+.practice-month-cal-color-catalog {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.practice-month-cal-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 2px solid var(--line);
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+.practice-month-cal-swatch:hover {
+  transform: scale(1.06);
+}
+.practice-month-cal-swatch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.fade-up {
+  animation: fadeUp 380ms var(--ease-out) both;
+}
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0.96; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); opacity: 0.96; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes pulseDot {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.2); opacity: 0.85; }
+}
+/* Calendar rows: rem-based, columns: fr (even weekdays) */
+.appointment-week-calendar {
+  --appointment-hour-row: 5.25rem;
+  --appointment-slot-count: 11;
+}
+
+.appointment-week-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 0.5rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+.appointment-week-card.card:has(.appointment-appt-block:hover:not(.appointment-appt-block--dragging)),
+.appointment-week-card.card:has(.appointment-appt-block--dragging),
+.appointment-week-card:has(.appointment-appt-block:hover:not(.appointment-appt-block--dragging)),
+.appointment-week-card:has(.appointment-appt-block--dragging) {
+  overflow: visible;
+}
+.appointment-week-head-grid {
+  display: grid;
+  grid-template-columns: minmax(3.25rem, 4rem) repeat(7, minmax(0, 1fr));
+  gap: 0;
+  margin-bottom: 0.125rem;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.5rem;
+  flex-shrink: 0;
+  width: 100%;
+}
+.appointment-week-card--workweek .appointment-week-head-grid {
+  grid-template-columns: minmax(3rem, 3.5rem) repeat(var(--appointment-calendar-cols, 5), minmax(0, 1fr));
+}
+.appointment-week-corner {
+  min-height: 3rem;
+}
+.appointment-week-dow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 48px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.appointment-week-dow:hover {
+  background: color-mix(in oklab, var(--accent) 8%, transparent);
+}
+.appointment-week-dow.today {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.appointment-week-dow.weekend {
+  opacity: 0.55;
+}
+.appointment-week-dow-short {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+.appointment-week-dow.today .appointment-week-dow-short,
+.appointment-week-dow.today .appointment-week-dow-num {
+  color: var(--accent-ink);
+}
+.appointment-week-dow-num {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+/* Week grid: height via ResizeObserver (appointments.tsx), no own scroll */
+.appointment-week-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 0.75rem;
+  display: flex;
+  flex-direction: column;
+}
+/* Let magnified appointment cards spill across day columns (still clipped at outer card edge). */
+.appointment-week-body:has(.appointment-appt-block:hover:not(.appointment-appt-block--dragging)),
+.appointment-week-body:has(.appointment-appt-block--dragging) {
+  overflow: visible;
+}
+
+.appointment-week-body-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(3.25rem, 4rem) repeat(7, minmax(0, 1fr));
+  width: 100%;
+  min-width: 0;
+  align-items: stretch;
+  position: relative;
+}
+[data-appointment-week-canvas].appointment-drag-nav-edge-left::before,
+[data-appointment-day-canvas].appointment-drag-nav-edge-left::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 4px;
+  background: var(--accent);
+  box-shadow: 0 0 12px color-mix(in oklab, var(--accent) 55%, transparent);
+  pointer-events: none;
+  z-index: 12;
+  animation: appointmentDragNavPulse 0.9s ease-in-out infinite;
+}
+[data-appointment-week-canvas].appointment-drag-nav-edge-right::after,
+[data-appointment-day-canvas].appointment-drag-nav-edge-right::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  width: 4px;
+  background: var(--accent);
+  box-shadow: 0 0 12px color-mix(in oklab, var(--accent) 55%, transparent);
+  pointer-events: none;
+  z-index: 12;
+  animation: appointmentDragNavPulse 0.9s ease-in-out infinite;
+}
+@keyframes appointmentDragNavPulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+.appointment-week-card--workweek .appointment-week-body-grid {
+  grid-template-columns: minmax(3rem, 3.5rem) repeat(var(--appointment-calendar-cols, 5), minmax(0, 1fr));
+}
+.appointment-week-card--workweek .appointment-week-dow-short {
+  font-size: clamp(9px, 0.85vw, 11px);
+}
+.appointment-week-card--workweek .appointment-week-dow-num {
+  font-size: clamp(13px, 1.35vw, 17px);
+}
+.appointment-week-card--workweek .appointment-appt-block--week {
+  /* density classes own padding */
+}
+.appointment-week-card--workweek .appointment-appt-block-time-col {
+  min-width: 0;
+}
+
+.appointment-week-calendar .appointment-hour-label {
+  height: var(--appointment-hour-row, 5.25rem);
+  box-sizing: border-box;
+}
+.appointment-week-hours {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: 3;
+  background: linear-gradient(90deg, var(--bg-elev) 70%, transparent);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.appointment-week-hours-stack {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  min-height: 100%;
+  flex: 1;
+  min-height: 0;
+}
+.appointment-hour-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-3);
+  text-align: end;
+  padding-inline-end: 8px;
+  box-sizing: border-box;
+  border-top: 1px solid var(--line);
+}
+.appointment-day-col {
+  position: relative;
+  border-top: 1px solid var(--line);
+  background: var(--bg-elev);
+  min-height: calc(var(--appointment-hour-row, 5.25rem) * var(--appointment-slot-count, 11));
+  overflow: visible;
+  z-index: 0;
+}
+/* Day view: clip magnify inside column (left, right, top, bottom). */
+.appointment-day-body-grid .appointment-day-col {
+  overflow: clip;
+  overflow-clip-margin: 0;
+}
+/* Hovered / dragged cards must paint above neighboring opaque day columns. */
+.appointment-day-col:has(.appointment-appt-block:hover:not(.appointment-appt-block--dragging)),
+.appointment-day-col:has(.appointment-appt-block--dragging),
+.appointment-day-col:has(.appointment-appt-block--drag-ghost),
+.appointment-day-col:has(.appointment-appt-block--hover-front) {
+  z-index: 20;
+}
+.appointment-day-col__closed {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: color-mix(in oklab, var(--fg) 7%, var(--bg-elev));
+  border-block: 1px solid color-mix(in oklab, var(--fg) 5%, transparent);
+  pointer-events: none;
+  z-index: 1;
+}
+.appointment-day-col--today .appointment-day-col__closed {
+  background: color-mix(in oklab, var(--fg) 8%, color-mix(in oklab, var(--accent) 6%, var(--bg-elev)));
+}
+.appointment-day-col--today {
+  background: color-mix(in oklab, var(--accent) 10%, var(--bg-elev));
+}
+.appointment-day-col--weekend {
+  background: color-mix(in oklab, var(--fg) 3%, var(--bg-elev));
+}
+.appointment-hour-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 1px solid var(--line);
+  pointer-events: none;
+}
+.appointment-now-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--red);
+  z-index: 5;
+  pointer-events: none;
+}
+.appointment-now-dot {
+  position: absolute;
+  inset-inline-start: -2px;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin-top: -5px;
+  border-radius: 999px;
+  background: var(--red);
+  animation: pulseDot 1.6s ease-in-out infinite;
+}
+.appointment-now-pill {
+  position: absolute;
+  inset-inline-end: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--red-soft);
+  color: #9f1239;
+  z-index: 6;
+}
+.appointment-appt-block {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0;
+  font-size: 12px;
+  text-align: start;
+  cursor: grab;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  transform-origin: left top;
+  transition: transform 160ms cubic-bezier(0.2, 0.8, 0.25, 1), box-shadow 160ms ease, z-index 0s;
+  z-index: 4;
+  /* width set inline (full column or overlap lane) */
+  max-width: calc(100% - 8px);
+  background: var(--bg-elev);
+  color: var(--fg);
+  box-shadow: 0 1px 3px rgba(10, 12, 16, 0.06);
+  /* size → height + width queries so short duration cards can drop secondary content */
+  container-type: size;
+  container-name: appointment-appt;
+}
+html {
+  --appointment-card-hover-scale: 1.12;
+}
+html[data-appointment-card-hover="off"] {
+  --appointment-card-hover-scale: 1;
+}
+html[data-appointment-card-hover="sm"] {
+  --appointment-card-hover-scale: 1.06;
+}
+html[data-appointment-card-hover="md"] {
+  --appointment-card-hover-scale: 1.12;
+}
+html[data-appointment-card-hover="lg"] {
+  --appointment-card-hover-scale: 1.2;
+}
+html[data-appointment-card-hover="xl"] {
+  --appointment-card-hover-scale: 1.38;
+}
+html[data-appointment-card-hover="xxl"] {
+  --appointment-card-hover-scale: 1.55;
+}
+.appointment-appt-block:hover:not(.appointment-appt-block--dragging) {
+  transform: scale(var(--appointment-card-hover-scale));
+  /* Beat inline lane z-index (4 + col) so magnify paints above siblings */
+  z-index: 50 !important;
+  box-shadow: 0 10px 28px rgba(10, 12, 16, 0.14), 0 0 0 1px color-mix(in oklab, var(--accent) 28%, transparent);
+}
+/* Day view: grow from the inline-start edge into reserved end gutter (layoutScale). */
+.appointment-appt-block--day {
+  transform-origin: left var(--appointment-hover-origin-y, center);
+  max-width: none;
+}
+html[dir="rtl"] .appointment-appt-block {
+  transform-origin: right top;
+}
+html[dir="rtl"] .appointment-appt-block--day {
+  transform-origin: right var(--appointment-hover-origin-y, center);
+}
+.appointment-day-body-grid .appointment-appt-block--day {
+  /* CSS safety net if React layoutScale lags behind Appearance settings */
+  max-width: calc((100% - 8px) / var(--appointment-card-hover-scale, 1));
+}
+.appointment-appt-block--day:hover:not(.appointment-appt-block--dragging),
+.appointment-appt-block--day.appointment-appt-block--hover-front {
+  z-index: 50 !important;
+}
+html[data-appointment-card-hover="off"] .appointment-appt-block:hover:not(.appointment-appt-block--dragging) {
+  transform: translateY(-1px);
+  z-index: 6;
+  box-shadow: 0 1px 3px rgba(10, 12, 16, 0.06);
+}
+@media (prefers-reduced-motion: reduce) {
+  .appointment-appt-block {
+    transition: none;
+  }
+  .appointment-appt-block:hover:not(.appointment-appt-block--dragging) {
+    transform: none;
+  }
+}
+.appointment-appt-block--dragging {
+  cursor: grabbing;
+  top: var(--appointment-drag-top, 0px) !important;
+  z-index: 40 !important;
+  box-shadow: 0 6px 20px rgba(10, 12, 16, 0.14), 0 0 0 2px var(--accent);
+  transition: none !important;
+  will-change: top;
+  contain: layout style paint;
+}
+body.appointment-calendar-dragging .appointment-appt-block:not(.appointment-appt-block--dragging) {
+  pointer-events: none;
+}
+.appointment-day-col--drag-target {
+  background: color-mix(in oklab, var(--accent) 14%, var(--bg-elev));
+  box-shadow: inset 0 0 0 2px color-mix(in oklab, var(--accent) 45%, transparent);
+}
+.appointment-appt-block--drag-source-hidden {
+  opacity: 0.28 !important;
+  pointer-events: none !important;
+}
+.appointment-appt-block--drag-ghost {
+  transition: none !important;
+  will-change: transform;
+  contain: layout style paint;
+}
+body.appointment-calendar-dragging .appointment-appt-block:not(.appointment-appt-block--dragging):not(.appointment-appt-block--drag-source-hidden):hover {
+  transform: none;
+}
+.appointment-appt-block--dragging.appointment-appt-block--drag-invalid {
+  box-shadow: 0 6px 20px rgba(10, 12, 16, 0.12), 0 0 0 2px #e5484d;
+}
+.appointment-appt-block--cancelled {
+  opacity: 0.55;
+}
+.appointment-appt-block--cancelled .appointment-appt-block-name,
+.appointment-appt-block--cancelled .appointment-appt-block-type,
+.appointment-appt-block--cancelled .appointment-appt-block-duration,
+.appointment-appt-block--cancelled .appointment-appt-status-pill {
+  text-decoration: line-through;
+}
+.appointment-appt-block--green,
+.appointment-appt-block--blue,
+.appointment-appt-block--accent,
+.appointment-appt-block--orange,
+.appointment-appt-block--purple {
+  background: var(--bg-elev);
+  color: var(--fg);
+}

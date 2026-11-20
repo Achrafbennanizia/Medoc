@@ -214,6 +214,8 @@ pub async fn run_migrations(pool: &SqlitePool) -> Result<(), AppError> {
         migrations::run_rust_only_migrations(pool).await?;
         migrations::run_post_migration_seed(pool).await?;
     }
+    // Schema repairs that must run on every path (fresh SQL + legacy) and are idempotent.
+    migrations::ensure_patient_chart_declined_status(pool).await?;
     // Install staff-quota triggers after bootstrap/seed inserts (demo seed must not trip 1-PHYSICIAN cap).
     crate::mvp_security::ensure_staff_quota_db_triggers(pool).await?;
     Ok(())

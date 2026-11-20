@@ -7,6 +7,7 @@ import {
 } from "@/lib/schemas";
 import type { ListParams, ListResponse } from "@/lib/list-params";
 
+import { defaultCreateAppointmentStatus, loadClientSettings } from "@/lib/client-settings";
 export async function listAppointments(): Promise<Appointment[]> {
     return practiceSystem.invoke<Appointment[]>("list_appointments");
 }
@@ -31,6 +32,12 @@ export function notifyAppointmentsChanged(): void {
     window.dispatchEvent(new Event(APPOINTMENTS_CHANGED_EVENT));
 }
 
+/**
+ * Create an appointment. Initial status policy lives here (not in pages):
+ * explicit `status` wins, otherwise Settings → Workflows → "Automatically confirm new appointments".
+ * The backend always inserts PLANNED; CONFIRMED is applied as an allowed transition (PLANNED → CONFIRMED).
+ * If that second step fails the created row is returned unchanged (status PLANNED) so the caller can warn.
+ */
 export async function createAppointment(data: {
     date: string;
     time: string;
@@ -40,9 +47,22 @@ export async function createAppointment(data: {
     /** Free text / duration / internal notes (Rust `CreateAppointment.notes`). */
     notes?: string | null;
     chief_complaint?: string | null;
+    status?: "PLANNED" | "CONFIRMED";
 }): Promise<Appointment> {
-    const safe = parseOrThrow(CreateAppointmentSchema, data);
-    const row = await practiceSystem.invoke<Appointment>("create_appointment", { data: safe });
+    const { status, ...payload } = data;
+    const safe = parseOrThrow(CreateAppointmentSchema, payload);
+    let row = await practiceSystem.invoke<Appointment>("create_appointment", { data: safe });
+    const target = status ?? defaultCreateAppointmentStatus(loadClientSettings());
+    if (target === "CONFIRMED" && row.status !== "CONFIRMED") {
+        try {
+            row = await practiceSystem.invoke<Appointment>("update_appointment", {
+                id: row.id,
+                data: parseOrThrow(UpdateAppointmentSchema, { status: "CONFIRMED" }),
+            });
+        } catch {
+            /* keep PLANNED row; caller decides how to inform the user */
+        }
+    }
     notifyAppointmentsChanged();
     return row;
 }

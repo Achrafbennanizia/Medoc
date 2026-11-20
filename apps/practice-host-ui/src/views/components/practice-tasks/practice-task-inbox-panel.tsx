@@ -18,6 +18,7 @@ import { taskPatientLabel } from "./constants";
 import { dispatchNavBadgeRefresh, userCanViewTask } from "./task-workflow";
 import { PracticeTaskDetailDrawer } from "./practice-task-detail-drawer";
 import { PracticeTaskInboxRow } from "./practice-task-inbox-row";
+import { mergeUpdatedTask, sortTasksByFlow, taskBelongsInInbox } from "./task-flow";
 
 type Props = {
     userId: string;
@@ -57,7 +58,7 @@ export function PracticeTaskInboxPanel({ userId, isPhysician, isReception, activ
                 listPatients(),
                 loadTaskTeamDirectory(role, session?.permission_overrides),
             ]);
-            setTasks(tasksList);
+            setTasks(sortTasksByFlow(tasksList.filter(taskBelongsInInbox)));
             setPatients(pats);
             setStaff(team);
             void countOpenPracticeTasksForMe().then((n) => dispatchNavBadgeRefresh(n));
@@ -81,7 +82,9 @@ export function PracticeTaskInboxPanel({ userId, isPhysician, isReception, activ
     const selected = tasks.find((a) => a.id === selectedId) ?? null;
 
     const handleUpdated = (updated: PracticeTask) => {
-        setTasks((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
+        setTasks((prev) => mergeUpdatedTask(prev, updated, taskBelongsInInbox));
+        if (!taskBelongsInInbox(updated)) setSelectedId(null);
+        void countOpenPracticeTasksForMe().then((n) => dispatchNavBadgeRefresh(n));
     };
 
     if (loading) return <PageLoading label={t("page.practice_tickets.loading")} />;

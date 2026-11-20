@@ -40,6 +40,7 @@ import { HtmlDocumentExportPickerDialog } from "@/views/components/export-picker
 import { PracticeReadinessDialog } from "@/views/components/practice-readiness-dialog";
 import { LAZY_PAGE_SIZE, mergeUniqueById } from "@/lib/lazy-list";
 
+import { parseInstant } from "@/lib/practice-clock";
 const PAYMENT_KIND_VALUES = ["CASH", "CARD", "BANK_TRANSFER", "INVOICE"] as const;
 
 type FinanceTxTab = "all" | "income" | "expense";
@@ -54,7 +55,7 @@ function toFinanceRows(z: Payment[], b: PurchaseOrder[]): FinanceTxRowLocal[] {
 }
 
 function rowSortTs(r: FinanceTxRowLocal): number {
-    return new Date(r.kind === "payment" ? r.z.created_at : r.b.created_at).getTime();
+    return parseInstant(r.kind === "payment" ? r.z.created_at : r.b.created_at)?.getTime() ?? 0;
 }
 
 function formatPctLocalized(pct: number, locale: string): string {

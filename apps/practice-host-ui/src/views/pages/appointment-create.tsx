@@ -53,6 +53,8 @@ import {
     type PlanNextAppointmentV2,
 } from "@/lib/plan-next-appointment";
 import { loadPlanNextAppointmentWithMigration } from "@/systems/practice-host/controllers/plan-next-appointment.controller";
+import { filterPatients } from "@/lib/patient-search";
+import { useClientSettings } from "@/lib/use-client-settings";
 import {
     clearAppointmentDraftFromBackend,
     loadAppointmentDraftWithMigration,
@@ -186,6 +188,8 @@ export function AppointmentCreatePage() {
     const [statusPreference, setStatusPreference] = useState<string>(() =>
         defaultCreateAppointmentStatus(loadClientSettings()),
     );
+    /** Only an explicit choice is kept in drafts; otherwise Settings → "Automatically confirm" decides. */
+    const [statusTouched, setStatusTouched] = useState(false);
     const [patientError, setPatientError] = useState("");
     const [patientDropdownOpen, setPatientDropdownOpen] = useState(false);
     /** Structured plan from the patient record (plan-next-appointment workflow). */
@@ -357,7 +361,10 @@ export function AppointmentCreatePage() {
                 }
                 if (d.notes) setNotes(d.notes);
                 if (d.durationMin) setDurationMin(d.durationMin);
-                if (d.statusPreference) setStatusPreference(d.statusPreference);
+                if (d.statusPreference && d.statusTouched) {
+                    setStatusPreference(d.statusPreference);
+                    setStatusTouched(true);
+                }
             } catch {
                 /* ignore */
             } finally {
@@ -434,7 +441,8 @@ export function AppointmentCreatePage() {
             toothacheTeeth,
             notes,
             durationMin,
-            statusPreference,
+            statusPreference: statusTouched ? statusPreference : undefined,
+            statusTouched,
         };
         const timer = window.setTimeout(() => {
             void persistAppointmentDraftToBackend(draftId, snap).catch(() => {
@@ -442,7 +450,7 @@ export function AppointmentCreatePage() {
             });
         }, 400);
         return () => window.clearTimeout(timer);
-    }, [date, time, patientId, patientQuery, physicianId, kind, chiefComplaintTags, toothacheTeeth, notes, durationMin, statusPreference, draftId, draftHydrated, isEdit]);
+    }, [date, time, patientId, patientQuery, physicianId, kind, chiefComplaintTags, toothacheTeeth, notes, durationMin, statusPreference, statusTouched, draftId, draftHydrated, isEdit]);
 
     useEffect(() => {
         if (!chiefComplaintTags.includes(TOOTHACHE_TAG) && !chiefComplaintTags.includes(TOOTHACHE_TAG_LEGACY)) setToothacheTeeth([]);
@@ -560,11 +568,11 @@ export function AppointmentCreatePage() {
         });
     }, []);
 
+    const includeInsuranceNumber = useClientSettings((c) => c.search?.patientIncludeInsuranceNumber !== false);
     const filteredPatients = useMemo(() => {
-        const q = patientQuery.trim().toLowerCase();
-        if (!q) return patients.slice(0, 12);
-        return patients.filter((p) => p.name.toLowerCase().includes(q) || p.insurance_number.toLowerCase().includes(q)).slice(0, 20);
-    }, [patientQuery, patients]);
+        if (!patientQuery.trim()) return patients.slice(0, 12);
+        return filterPatients(patients, patientQuery, { includeInsuranceNumber }, 20);
+    }, [patientQuery, patients, includeInsuranceNumber]);
 
     const selectedPatient = patients.find((p) => p.id === patientId);
 
@@ -662,15 +670,13 @@ export function AppointmentCreatePage() {
                 kind: kindSend,
                 chief_complaint: chiefComplaintStr || null,
                 notes: notesPayload ?? null,
+                status: statusPreference === "CONFIRMED" ? "CONFIRMED" : "PLANNED",
             });
-            if (statusPreference && statusPreference !== "PLANNED") {
-                try {
-                    await updateAppointment(created.id, { status: statusPreference });
-                } catch {
-                    /* optional */
-                }
+            if (statusPreference === "CONFIRMED" && created.status !== "CONFIRMED") {
+                toast(t("appointment.create.toast_confirm_failed"), "warning");
+            } else {
+                toast(t("appointment.create.toast_saved"));
             }
-            toast(t("appointment.create.toast_saved"));
             await clearAppointmentDraftFromBackend(draftId);
             stripLegacyAppointmentDraftLocalStorage(draftId);
             navigate("/appointments");
@@ -929,7 +935,10 @@ export function AppointmentCreatePage() {
                                 options={[{ value: "", label: physicians.length ? t("appointment.create.doctor_pick") : t("appointment.create.doctor_empty") }, ...physicians.map((a) => ({ value: a.id, label: a.name }))]}
                             />
                             <Select id="tc-kind" label={t("appointment.create.treatment_type")} value={kind} onChange={(e) => setKind(e.target.value)} options={treatmentOptions} />
-                            <Select id="tc-status" label={t("appointment.create.status")} value={statusPreference} onChange={(e) => setStatusPreference(e.target.value)} options={statusOptions} />
+                            <Select id="tc-status" label={t("appointment.create.status")} value={statusPreference} onChange={(e) => {
+                                    setStatusPreference(e.target.value);
+                                    setStatusTouched(true);
+                                }} options={statusOptions} />
                             <TagInput label={t("appointment.create.complaints")} value={chiefComplaintTags} onChange={setChiefComplaintTags} suggestions={chiefComplaintSuggestions} />
                             {chiefComplaintTags.includes(TOOTHACHE_TAG) || chiefComplaintTags.includes(TOOTHACHE_TAG_LEGACY) ? (
                                 <DentalToothPickerMini

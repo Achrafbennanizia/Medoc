@@ -1,4 +1,5 @@
 import type { PracticeTaskStatus, PracticeTaskKind } from "@/systems/practice-host/controllers/practice-task.controller";
+import { taskNextStatuses } from "./task-flow";
 
 export const PRACTICE_TASK_KINDS: readonly { value: PracticeTaskKind; labelKey: string }[] = [
     { value: "BILLING", labelKey: "practice.tasks.kind.billing" },
@@ -9,24 +10,32 @@ export const PRACTICE_TASK_KINDS: readonly { value: PracticeTaskKind; labelKey: 
 ];
 
 export const PRACTICE_TASK_STATUSES: readonly { value: PracticeTaskStatus; labelKey: string }[] = [
+    { value: "BACK", labelKey: "practice.tasks.status.back" },
     { value: "OPEN", labelKey: "practice.tasks.status.open" },
     { value: "IN_PROGRESS", labelKey: "practice.tasks.status.in_processing" },
     { value: "DONE_RECEPTION", labelKey: "practice.tasks.status.done_reception" },
     { value: "VALIDATED", labelKey: "practice.tasks.status.validated" },
-    { value: "BACK", labelKey: "practice.tasks.status.back" },
 ];
 
-/** Status dropdown per RBAC (`task.status.fulfill` / `task.status.admin`). */
+/**
+ * Status dropdown per RBAC (`task.status.fulfill` / `task.status.admin`).
+ * Fulfillers only get transitions the backend allows from the *current* status (registry), so the UI never
+ * offers e.g. OPEN → Done (rejected by `workflow_transitions.rs`).
+ */
 export function selectableTaskStatuses(opts: {
     current: PracticeTaskStatus;
     canAdminStatus: boolean;
     canFulfillStatus: boolean;
 }): readonly { value: PracticeTaskStatus; labelKey: string }[] {
-    if (opts.canAdminStatus) return PRACTICE_TASK_STATUSES;
+    if (opts.canAdminStatus) {
+        if (opts.current === "VALIDATED") return PRACTICE_TASK_STATUSES.filter((s) => s.value === "VALIDATED");
+        return PRACTICE_TASK_STATUSES;
+    }
     const allowedValues = new Set<PracticeTaskStatus>([opts.current]);
     if (opts.canFulfillStatus) {
-        allowedValues.add("IN_PROGRESS");
-        allowedValues.add("DONE_RECEPTION");
+        for (const next of taskNextStatuses(opts.current)) {
+            if (next === "IN_PROGRESS" || next === "DONE_RECEPTION" || next === "OPEN") allowedValues.add(next);
+        }
     }
     return PRACTICE_TASK_STATUSES.filter((s) => allowedValues.has(s.value));
 }

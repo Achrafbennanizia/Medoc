@@ -8,9 +8,13 @@ import { PRIVACY_UI_ENABLED } from "@/lib/privacy-config";
 import { useRbac } from "@/lib/use-rbac";
 import { useT, useTParams } from "@/lib/i18n";
 import { SettingsSwitch } from "@/views/components/settings-switch";
+import { Select } from "@/views/components/ui/input";
 import { SettingsDeviceSessionsSection } from "./settings-device-sessions-section";
 
 type SecurityPrefs = NonNullable<ClientSettingsV1["security"]>;
+
+const IDLE_MINUTE_CHOICES = [1, 5, 10, 15, 30, 60] as const;
+const DEFAULT_IDLE_MINUTES = 10;
 
 export type SettingsSecuritySectionProps = {
     security: SecurityPrefs;
@@ -56,19 +60,39 @@ export function SettingsSecuritySection({
                                 <b>{t("settings.security.idle_lock")}</b>
                                 <div className="card-sub">{idleHint}</div>
                             </div>
-                            <SettingsSwitch
-                                ariaLabel={t("settings.security.idle_lock.aria")}
-                                checked={idleOn}
-                                onChange={() =>
-                                    onPersistClient((c) => {
-                                        const s = c.security ?? DEFAULT_CLIENT_SETTINGS.security!;
-                                        const on = (s.idleLogoutMinutes ?? 0) > 0;
-                                        return mergeClientSettingsPatch(c, {
-                                            security: { ...s, idleLogoutMinutes: on ? 0 : 5 },
-                                        });
-                                    })
-                                }
-                            />
+                            <div className="settings-security-row__controls">
+                                {idleOn ? (
+                                    <Select
+                                        aria-label={t("settings.security.idle_minutes_aria")}
+                                        value={String(idleMins)}
+                                        onChange={(e) => {
+                                            const minutes = Number(e.target.value);
+                                            onPersistClient((c) =>
+                                                mergeClientSettingsPatch(c, {
+                                                    security: { ...(c.security ?? DEFAULT_CLIENT_SETTINGS.security!), idleLogoutMinutes: minutes },
+                                                }),
+                                            );
+                                        }}
+                                        options={IDLE_MINUTE_CHOICES.map((m) => ({
+                                            value: String(m),
+                                            label: tp("settings.security.idle_minutes_option", { minutes: m }),
+                                        }))}
+                                    />
+                                ) : null}
+                                <SettingsSwitch
+                                    ariaLabel={t("settings.security.idle_lock.aria")}
+                                    checked={idleOn}
+                                    onChange={() =>
+                                        onPersistClient((c) => {
+                                            const s = c.security ?? DEFAULT_CLIENT_SETTINGS.security!;
+                                            const on = (s.idleLogoutMinutes ?? 0) > 0;
+                                            return mergeClientSettingsPatch(c, {
+                                                security: { ...s, idleLogoutMinutes: on ? 0 : DEFAULT_IDLE_MINUTES },
+                                            });
+                                        })
+                                    }
+                                />
+                            </div>
                         </div>
                     ) : null}
                 </div>

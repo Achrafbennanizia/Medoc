@@ -36,6 +36,39 @@ export function formatLanPracticeError(e: unknown, t: TFn, tp?: TParamsFn): stri
 
 type HttpMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 
+/** A LAN request must never hang the UI: abort after this and surface `error.app.timeout`. */
+const LAN_REQUEST_TIMEOUT_MS = 15_000;
+const CODED_TOKEN_RE = /^error\.[a-z0-9_.]+(\|.*)?$/i;
+
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+        return await fetch(url, { ...init, signal: ctrl.signal });
+    } catch (e) {
+        if (ctrl.signal.aborted) throw new Error("error.app.timeout");
+        throw new Error(`error.app.network|detail=${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+/**
+ * The LAN server returns `{ "error": "<wire token>" }` — the same token the desktop host sends over IPC.
+ * Pass it through unchanged so one resolver (`resolveAppError`) handles both transports.
+ */
+async function lanErrorFromResponse(res: Response): Promise<string> {
+    const text = await res.text().catch(() => "");
+    try {
+        const body = JSON.parse(text) as { error?: unknown };
+        if (typeof body.error === "string" && CODED_TOKEN_RE.test(body.error.trim())) return body.error.trim();
+        if (typeof body.error === "string") return `LAN HTTP ${res.status}: ${body.error.slice(0, 400)}`;
+    } catch {
+        /* not JSON */
+    }
+    return `LAN HTTP ${res.status}: ${text.slice(0, 400)}`;
+}
+
 /** Command → LAN REST route (Strategy map). */
 const LAN_COMMAND_ROUTES: Partial<
     Record<string, { method: HttpMethod; path: string | ((args: Record<string, unknown>) => string) }>
@@ -122,10 +155,9 @@ export class HttpPracticeAdapter implements PracticeSystemPort {
             }
         }
 
-        const res = await fetch(url, init);
+        const res = await fetchWithTimeout(url, init, LAN_REQUEST_TIMEOUT_MS);
         if (!res.ok) {
-            const text = await res.text().catch(() => "");
-            throw new Error(`LAN HTTP ${res.status}: ${text.slice(0, 400)}`);
+            throw new Error(await lanErrorFromResponse(res));
         }
         if (res.status === 204) {
             return undefined as T;

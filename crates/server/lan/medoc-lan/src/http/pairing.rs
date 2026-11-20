@@ -13,7 +13,6 @@ use std::net::SocketAddr;
 
 use axum::extract::{ConnectInfo, Extension, Path, State};
 use axum::http::{header, StatusCode};
-use axum::response::{IntoResponse, Response};
 use axum::Json;
 use medoc_core::error::AppError;
 use medoc_core::infrastructure::database::app_kv_repo;
@@ -24,36 +23,12 @@ use medoc_sync::pairing::{
     PairingRequestSubmit, ACTIVATION_TOKEN_PREFIX,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 
 use super::LanHttpState;
 use crate::jwt;
 use crate::master_license;
 
-pub struct ApiError(AppError);
-
-impl IntoResponse for ApiError {
-    fn into_response(self) -> Response {
-        let status = match &self.0 {
-            AppError::Unauthorized => StatusCode::UNAUTHORIZED,
-            AppError::Forbidden => StatusCode::FORBIDDEN,
-            AppError::RateLimited(_) => StatusCode::TOO_MANY_REQUESTS,
-            AppError::NotFound(_) => StatusCode::NOT_FOUND,
-            AppError::Conflict(_) => StatusCode::CONFLICT,
-            AppError::Validation(_) | AppError::ValidationCode(_) => StatusCode::BAD_REQUEST,
-            AppError::TotpRequired | AppError::TotpEnrollmentRequired => StatusCode::UNAUTHORIZED,
-            AppError::Database(_) | AppError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
-        };
-        let msg = self.0.to_string();
-        (status, Json(json!({ "error": msg }))).into_response()
-    }
-}
-
-impl From<AppError> for ApiError {
-    fn from(value: AppError) -> Self {
-        ApiError(value)
-    }
-}
+use super::ApiError;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]

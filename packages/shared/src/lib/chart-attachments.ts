@@ -1,3 +1,4 @@
+import { localYmd } from "./practice-clock";
 /** Patient record attachments — validation, display helpers, DTO mapping (no Tauri). */
 
 export const ATTACHMENT_MAX_BYTES = 50 * 1024 * 1024;
@@ -135,7 +136,7 @@ function extensionFromFileOrMime(file: File): string {
 /** Human-readable suggested label (never raw UUID filename for users). */
 export function deriveAttachmentDisplayName(file: File): string {
     const raw = file.name?.trim() ?? "";
-    const stamp = new Date().toISOString().slice(0, 10);
+    const stamp = localYmd();
     const ext = extensionFromFileOrMime(file);
 
     if (!raw.length) {

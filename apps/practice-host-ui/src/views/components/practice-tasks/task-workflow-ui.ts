@@ -1,4 +1,5 @@
 import type { PracticeTaskStatus } from "@/systems/practice-host/controllers/practice-task.controller";
+import { statusDefinition, statusDescriptionKey, statusLabelKey, statusPillClass } from "@/lib/status/status-registry";
 import { PRACTICE_TASK_STATUSES, PRACTICE_TASK_KINDS } from "./constants";
 
 export function taskDrawerText(t: (key: string) => string, key: string): string {
@@ -36,27 +37,21 @@ export function taskWorkflowActiveStep(status: PracticeTaskStatus): number {
 }
 
 export function taskStatusLabel(t: (key: string) => string, status: PracticeTaskStatus): string {
-    const key = `practice.tasks.status.${status.toLowerCase()}`;
-    const version = t(key);
-    if (version !== key) return version;
+    const key = statusLabelKey("practice_task", status);
+    const label = t(key);
+    if (label !== key) return label;
     const fallbackKey = PRACTICE_TASK_STATUSES.find((s) => s.value === status)?.labelKey;
     return fallbackKey ? t(fallbackKey) : status;
 }
 
+/** One-sentence meaning of the status (tooltip). */
+export function taskStatusDescription(t: (key: string) => string, status: PracticeTaskStatus): string {
+    return t(statusDescriptionKey("practice_task", status));
+}
+
 export function taskStatusPillClass(status: PracticeTaskStatus): string {
-    switch (status) {
-        case "OPEN":
-        case "BACK":
-            return "yellow";
-        case "IN_PROGRESS":
-            return "blue";
-        case "DONE_RECEPTION":
-            return "grey";
-        case "VALIDATED":
-            return "green";
-        default:
-            return "grey";
-    }
+    const def = statusDefinition("practice_task", status);
+    return def ? statusPillClass(def.tone) : "grey";
 }
 
 export function taskKindLabel(t: (key: string) => string, kind: string): string {

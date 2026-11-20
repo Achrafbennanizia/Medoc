@@ -11,6 +11,7 @@ import { getInvoicePracticeFromStorage } from "@/lib/invoice-service-item";
 import { checkPracticeDocumentReadiness } from "@/lib/practice-completeness";
 import { PracticeReadinessDialog } from "./practice-readiness-dialog";
 import { errorMessage } from "@/lib/utils";
+import { localYmd } from "@/lib/practice-clock";
 
 export type DischargeLeafletDialogProps = {
     open: boolean;
@@ -40,7 +41,7 @@ export function DischargeLeafletDialog({ open, onClose, patientId, patient }: Di
     const suggestedFilename = useMemo(() => {
         if (!patient) return t("discharge.leaflet.filename");
         const slug = slugPatientName(patient.name);
-        const ymd = new Date().toISOString().slice(0, 10);
+        const ymd = localYmd();
         const base = t("discharge.leaflet.filename").replace(/\.pdf$/i, "");
         return `${base}-${slug}-${ymd}.pdf`;
     }, [patient, t]);

@@ -281,16 +281,43 @@ export function loadClientSettings(): ClientSettingsV1 {
 }
 
 type ClientSettingsSaved = (next: ClientSettingsV1) => void;
-let afterClientSettingsSaved: ClientSettingsSaved | null = null;
+/** Observer list (was a single slot: a second subscriber silently replaced the first). */
+const clientSettingsListeners = new Set<ClientSettingsSaved>();
 
-/** Registered once by the calendar-workflow sync so a local save can be published. */
-export function onClientSettingsSaved(listener: ClientSettingsSaved): void {
-    afterClientSettingsSaved = listener;
+/** Fired on `window` after every save (same window) — `detail` is the new settings object. */
+export const CLIENT_SETTINGS_CHANGED_EVENT = "medoc-client-settings-changed";
+
+/** Subscribe to local saves. Returns an unsubscribe function. */
+export function onClientSettingsSaved(listener: ClientSettingsSaved): () => void {
+    clientSettingsListeners.add(listener);
+    return () => {
+        clientSettingsListeners.delete(listener);
+    };
 }
 
 export function saveClientSettings(next: ClientSettingsV1): void {
     localStorage.setItem(KEY, JSON.stringify(next));
-    afterClientSettingsSaved?.(next);
+    clientSettingsListeners.forEach((fn) => fn(next));
+    if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent(CLIENT_SETTINGS_CHANGED_EVENT, { detail: next }));
+    }
+}
+
+/**
+ * Subscribe to settings changes from this window (save) and other windows of the app (`storage` event).
+ * Used by {@link useClientSettings} so toggles apply immediately without reload.
+ */
+export function subscribeClientSettings(fn: () => void): () => void {
+    if (typeof window === "undefined") return () => {};
+    const onStorage = (e: StorageEvent) => {
+        if (e.key === KEY) fn();
+    };
+    window.addEventListener(CLIENT_SETTINGS_CHANGED_EVENT, fn);
+    window.addEventListener("storage", onStorage);
+    return () => {
+        window.removeEventListener(CLIENT_SETTINGS_CHANGED_EVENT, fn);
+        window.removeEventListener("storage", onStorage);
+    };
 }
 
 /** Applies appearance, sidebar tone, density, accent, avatar & keyboard hints to `<html>`. */

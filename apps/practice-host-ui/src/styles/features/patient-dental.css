@@ -1,0 +1,768 @@
+/* features/patient-dental (components layer) */
+@layer components {
+  .patient-hero-card {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    padding: clamp(14px, 1.6vw, 18px) clamp(16px, 2vw, 20px);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 0;
+    background: var(--surface-1);
+    border: 1px solid var(--line);
+    /* .card sets overflow:hidden — that clipped UR8/UL8 / LR8/LL8 on the odontogram */
+    overflow: visible;
+  }
+  .patient-hero-top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) max-content;
+    align-items: center;
+    justify-items: stretch;
+    gap: clamp(10px, 2vw, 16px) clamp(12px, 3vw, 20px);
+    width: 100%;
+    min-width: 0;
+  }
+  .patient-hero-identity {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+    justify-self: stretch;
+  }
+  .patient-hero-identity-text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    min-width: 0;
+    flex: 1 1 min-content;
+  }
+  .patient-hero-name {
+    font-weight: 650;
+    font-size: 17px;
+    line-height: 1.25;
+    letter-spacing: -0.02em;
+    margin: 0;
+    color: var(--fg);
+  }
+  .patient-hero-badges {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+    min-width: 0;
+  }
+  .patient-hero-dental {
+    justify-self: end;
+    width: max-content;
+    max-width: min(100%, 100vw - 2rem);
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: visible;
+    scrollbar-width: thin;
+  }
+  @media (max-width: 720px) {
+    .patient-hero-top {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .patient-hero-dental {
+      justify-self: start;
+      width: 100%;
+      max-width: 100%;
+    }
+  }
+  .patient-hero-contacts {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px clamp(12px, 3vw, 24px);
+    padding-top: 10px;
+    margin-top: 0;
+    border-top: 1px solid var(--line);
+    font-size: 12.5px;
+    color: var(--fg-3);
+    line-height: 1.4;
+  }
+  .patient-hero-contact {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 1 auto;
+    max-width: 100%;
+    min-width: 0;
+  }
+  .patient-hero-contact svg {
+    flex-shrink: 0;
+    display: block;
+    color: var(--fg-2);
+  }
+  .patient-hero-contact__text {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .patient-hero-contact__sep {
+    color: var(--fg-4);
+    user-select: none;
+  }
+  .patient-hero-contact__age {
+    color: var(--fg-2);
+    font-weight: 600;
+  }
+  .patient-hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 10px 16px;
+    padding-top: 4px;
+    border-top: 1px solid var(--line);
+  }
+  .patient-hero-actions__hint {
+    flex: 1 1 200px;
+    min-width: 0;
+  }
+  .patient-hero-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 12px 16px;
+    justify-content: flex-start;
+  }
+  .patient-hero-main {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+  .dental-mini-bar {
+    position: relative;
+    flex: 0 0 auto;
+    width: max-content;
+    max-width: none;
+    min-width: max-content;
+    overflow: visible;
+  }
+  .dental-mini-bar-inner {
+    box-sizing: border-box;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-card);
+    background: var(--surface-1);
+    padding: 10px 14px 12px;
+    overflow: visible;
+    width: max-content;
+  }
+  .dental-mini-title {
+    display: block;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--fg-3);
+    margin-bottom: 6px;
+  }
+  /* French-chart style cross: H/B vertical + D/G horizontal (patient right on start). */
+  .dental-odontogram {
+    display: grid;
+    grid-template-columns: auto max-content auto;
+    align-items: center;
+    column-gap: 6px;
+    width: max-content;
+    max-width: none;
+    min-width: max-content;
+    /* FDI chart: patient right stays on the visual left in every locale (incl. Arabic RTL). */
+    direction: ltr;
+    unicode-bidi: isolate;
+  }
+  html[dir="rtl"] .dental-mini-title {
+    letter-spacing: 0;
+    text-transform: none;
+    text-align: center;
+  }
+  html[dir="rtl"] .dental-mini-label,
+  html[dir="rtl"] .dental-mini-tooth-num,
+  html[dir="rtl"] .dental-tooth-label {
+    direction: ltr;
+    unicode-bidi: isolate;
+    white-space: nowrap;
+    letter-spacing: 0;
+  }
+  .dental-odontogram__center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: max-content;
+    grid-column: 2;
+  }
+  .dental-odontogram__chart {
+    width: max-content;
+    min-width: max-content;
+    display: grid;
+    grid-template-columns: max-content 2px max-content;
+    grid-template-rows: auto 2px auto;
+    align-items: stretch;
+    column-gap: 0;
+  }
+  .dental-odontogram__quad {
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    align-items: flex-end;
+    gap: 5px;
+    width: max-content;
+    min-width: max-content;
+    overflow: visible;
+  }
+  .dental-odontogram__quad--ur {
+    grid-column: 1;
+    grid-row: 1;
+    justify-content: flex-end;
+    padding: 2px 12px 8px 4px;
+  }
+  .dental-odontogram__quad--ul {
+    grid-column: 3;
+    grid-row: 1;
+    justify-content: flex-start;
+    padding: 2px 4px 8px 12px;
+  }
+  .dental-odontogram__quad--lr {
+    grid-column: 1;
+    grid-row: 3;
+    justify-content: flex-end;
+    padding: 8px 12px 2px 4px;
+  }
+  .dental-odontogram__quad--ll {
+    grid-column: 3;
+    grid-row: 3;
+    justify-content: flex-start;
+    padding: 8px 4px 2px 12px;
+  }
+  .dental-odontogram__quad--gap { gap: 6px; }
+  .dental-odontogram__quad--gap-sm { gap: 5px; }
+  .dental-odontogram__vline {
+    grid-column: 2;
+    grid-row: 1 / -1;
+    width: 2px;
+    justify-self: center;
+    background: var(--fg);
+    opacity: 0.82;
+    border-radius: 1px;
+  }
+  .dental-odontogram__hline {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    height: 2px;
+    align-self: center;
+    background: var(--fg);
+    opacity: 0.82;
+    border-radius: 1px;
+  }
+  .dental-odontogram__axis {
+    flex: 0 0 auto;
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1;
+    color: var(--fg);
+    letter-spacing: 0.02em;
+    user-select: none;
+    unicode-bidi: isolate;
+  }
+  .dental-odontogram__axis--top,
+  .dental-odontogram__axis--bottom {
+    text-align: center;
+    padding-block: 2px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    width: 100%;
+  }
+  .dental-odontogram__axis-glyph {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1em;
+    line-height: 1;
+    letter-spacing: 0;
+    direction: ltr;
+    unicode-bidi: isolate;
+    text-align: center;
+  }
+  .dental-odontogram__axis--top::after,
+  .dental-odontogram__axis--bottom::before {
+    content: "";
+    display: block;
+    width: 2px;
+    height: 8px;
+    margin-inline: auto;
+    background: var(--fg);
+    opacity: 0.82;
+    border-radius: 1px;
+  }
+  .dental-odontogram__axis--start,
+  .dental-odontogram__axis--end {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.1em;
+    padding-inline: 2px;
+    gap: 2px;
+  }
+  .dental-odontogram__axis--start {
+    grid-column: 1;
+  }
+  .dental-odontogram__axis--end {
+    grid-column: 3;
+  }
+  .dental-odontogram__axis--start::after,
+  .dental-odontogram__axis--end::before {
+    content: "";
+    display: block;
+    width: 8px;
+    height: 2px;
+    background: var(--fg);
+    opacity: 0.82;
+    border-radius: 1px;
+  }
+  .dental-odontogram--chart {
+    margin-top: 4px;
+    margin-inline: auto;
+  }
+  .dental-odontogram--picker {
+    margin-top: 8px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .dental-odontogram--picker .dental-odontogram__center {
+    min-width: 0;
+    width: 100%;
+  }
+  .dental-odontogram--picker .dental-odontogram__chart {
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr) 2px minmax(0, 1fr);
+  }
+  .dental-odontogram--picker .dental-odontogram__quad {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    gap: 2px;
+  }
+  .dental-odontogram--picker .dental-odontogram__quad--ur,
+  .dental-odontogram--picker .dental-odontogram__quad--lr {
+    padding-inline: 2px 8px;
+  }
+  .dental-odontogram--picker .dental-odontogram__quad--ul,
+  .dental-odontogram--picker .dental-odontogram__quad--ll {
+    padding-inline: 8px 2px;
+  }
+  .dental-odontogram--picker .dental-mini-tooth-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .dental-odontogram--picker .dental-mini-tooth-svg {
+    width: 100%;
+    height: auto;
+    max-height: 36px;
+  }
+  .dental-tooth-label {
+    unicode-bidi: isolate;
+    direction: ltr;
+  }
+  /* Treatments composer: center the tooth-status chart in the panel */
+  .treatment-composer-dental {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+  }
+  .treatment-composer-dental > .card {
+    width: max-content;
+    max-width: 100%;
+    margin-inline: auto;
+  }
+  .treatment-composer-dental .dental-odontogram {
+    margin-inline: auto;
+  }
+  .dental-mini-row {
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: center;
+    gap: 1px;
+    overflow-x: auto;
+    overflow-y: visible;
+    padding-inline: 4px;
+    padding-bottom: 4px;
+    scrollbar-width: thin;
+  }
+  .dental-mini-divider {
+    flex-shrink: 0;
+    height: 1px;
+    background: repeating-linear-gradient(
+      90deg,
+      var(--line-strong) 0 4px,
+      transparent 4px 8px
+    );
+    margin: 4px 0 6px;
+    opacity: 0.85;
+  }
+  .dental-mini-tooth-wrap {
+    flex: 0 0 auto;
+    width: max-content;
+    padding: 1px 1px;
+  }
+  .dental-mini-tooth {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 3px 3px 4px;
+    min-width: 24px;
+    box-sizing: border-box;
+    border: 1.5px solid transparent;
+    background: transparent;
+    cursor: default;
+    border-radius: 6px;
+    transition: background 120ms ease, transform 120ms ease, border-color 120ms ease;
+  }
+  .dental-mini-tooth-wrap:hover .dental-mini-tooth {
+    background: color-mix(in oklab, var(--accent) 12%, transparent);
+    transform: translateY(-1px);
+  }
+  .dental-mini-tooth.has-history {
+    border-color: color-mix(in oklab, var(--accent) 48%, var(--line-strong));
+  }
+  .dental-mini-tooth.is-active {
+    background: color-mix(in oklab, var(--accent) 20%, transparent);
+    border-color: var(--accent);
+  }
+  /* Chip-style tab/segment buttons used in Examination composer & similar.
+     Mirrors button visual language but compact for inline tab strips. */
+  .btn-chip {
+    appearance: none;
+    border: 1px solid var(--line);
+    background: var(--bg-elev);
+    color: var(--fg-2);
+    font-size: 12.5px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+  }
+  .btn-chip:hover {
+    background: color-mix(in oklab, var(--fg) 6%, var(--bg-elev));
+  }
+  .btn-chip.is-active {
+    background: var(--accent);
+    border-color: color-mix(in oklab, var(--accent) 55%, var(--line-strong));
+    color: var(--text-on-accent);
+    font-weight: 600;
+    box-shadow: inset 0 1px 0 color-mix(in oklab, var(--text-on-accent) 20%, transparent);
+  }
+  .dental-mini-label {
+    font-size: 8px;
+    color: var(--fg-3);
+    line-height: 1.15;
+    margin-top: 0;
+    padding-bottom: 1px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+    direction: ltr;
+    unicode-bidi: isolate;
+  }
+  .tooth-popover {
+    position: fixed;
+    z-index: 2500;
+    min-width: 220px;
+    max-width: min(320px, calc(100vw - 24px));
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding: 12px 14px;
+    background: var(--surface, #fff);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.06);
+    pointer-events: auto;
+  }
+  .tooth-popover.is-above {
+    box-shadow: 0 -10px 28px rgba(0, 0, 0, 0.12), 0 -4px 12px rgba(0, 0, 0, 0.06);
+  }
+  .tooth-popover-title {
+    font-weight: 700;
+    font-size: 14px;
+    margin-bottom: 2px;
+  }
+  .tooth-popover-meta {
+    font-size: 12px;
+    color: var(--fg-3);
+    margin-bottom: 10px;
+  }
+  .tooth-popover-section + .tooth-popover-section {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--line);
+  }
+  .tooth-popover-h {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--fg-4);
+    margin-bottom: 6px;
+  }
+  .tooth-popover-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .tooth-popover-list li {
+    font-size: 12.5px;
+    line-height: 1.35;
+  }
+  .tooth-popover-pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent-ink);
+    font-weight: 600;
+    font-size: 11px;
+    margin-inline-end: 6px;
+  }
+  .tooth-popover-sub {
+    display: block;
+    color: var(--fg-3);
+    font-size: 11.5px;
+    margin-top: 2px;
+  }
+  .tooth-popover-date {
+    display: block;
+    font-size: 10px;
+    color: var(--fg-4);
+    margin-top: 3px;
+  }
+  .tooth-popover-empty {
+    font-size: 12px;
+    color: var(--fg-4);
+    font-style: italic;
+  }
+
+  /* Examination detail grid — logical borders for RTL */
+  .examination-detail-sheet {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--surface);
+  }
+  .examination-detail-sheet__grid {
+    font-size: 13px;
+  }
+  .examination-detail-sheet__grid--clinical {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  @media (max-width: 767px) {
+    .examination-detail-sheet__grid--clinical {
+      grid-template-columns: 1fr;
+    }
+  }
+  .examination-detail-sheet__cell {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+  .examination-detail-sheet__cell--field {
+    min-height: 0;
+  }
+  .examination-detail-sheet__cell--split {
+    border-inline-end: 1px solid var(--line);
+  }
+  .examination-detail-sheet__label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--fg-3);
+    margin-bottom: 8px;
+  }
+  .examination-detail-sheet__value {
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--fg);
+    white-space: pre-line;
+  }
+  .examination-detail-sheet__value--pre {
+    color: var(--fg-2);
+  }
+  .examination-detail-sheet__tooth-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .examination-detail-sheet__tooth-note {
+    display: block;
+    margin-top: 2px;
+    white-space: pre-line;
+    color: var(--fg-2);
+  }
+  .examination-detail-sheet__empty,
+  .examination-detail-sheet__legacy {
+    margin: 0;
+    padding: 14px 16px;
+    font-size: 13px;
+    color: var(--fg-3);
+    background: var(--bg-2, rgba(0, 0, 0, 0.04));
+    border: 1px solid var(--line);
+    border-radius: 12px;
+  }
+  .examination-detail-sheet__legacy {
+    white-space: pre-wrap;
+    color: var(--fg-2);
+  }
+  .examination-detail-sheet__grid--clinical .examination-detail-sheet__cell--field:first-child {
+    border-inline-end: 1px solid var(--line);
+  }
+  @media (max-width: 767px) {
+    .examination-detail-sheet__grid--clinical .examination-detail-sheet__cell--field:first-child {
+      border-inline-end: none;
+    }
+  }
+  .examination-composer .seg {
+    direction: inherit;
+  }
+  .examination-composer .examination-doc-tooth-btn {
+    width: 100%;
+    text-align: start;
+    padding: 8px 10px;
+    border-radius: 8px;
+  }
+
+  /* Chart · anamnesis overview: vertical option list — same tokens as segment controls (.seg) */
+  .chart-section-eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--fg-4);
+    margin: 0 0 10px;
+  }
+  .anamnesis-opt-list {
+    gap: 8px !important;
+  }
+  .anamnesis-acc-item {
+    border-radius: 14px;
+    border: 1px solid var(--line-strong);
+    background: var(--bg-elev);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+    transition:
+      border-color var(--motion-fast) var(--ease-out),
+      box-shadow var(--motion-fast) var(--ease-out);
+  }
+  .anamnesis-acc-item.is-open {
+    border-color: color-mix(in oklab, var(--accent) 42%, var(--line-strong));
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--accent) 16%, transparent),
+      0 4px 18px color-mix(in oklab, var(--accent) 12%, transparent);
+  }
+  .anamnesis-acc-item + .anamnesis-acc-item {
+    margin-top: 0;
+  }
+  .anamnesis-acc-trigger {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 13px 16px;
+    border: none;
+    background: color-mix(in oklab, var(--fg) 4%, var(--bg-elev));
+    font: inherit;
+    font-weight: 600;
+    font-size: 14px;
+    text-align: start;
+    cursor: pointer;
+    color: var(--fg);
+    transition:
+      background var(--motion-fast) var(--ease-out),
+      color var(--motion-fast) var(--ease-out);
+  }
+  .anamnesis-acc-trigger:hover {
+    background: color-mix(in oklab, var(--fg) 7%, var(--bg-elev));
+  }
+  .anamnesis-acc-item.is-open .anamnesis-acc-trigger {
+    background: var(--accent);
+    color: var(--text-on-accent);
+  }
+  .anamnesis-acc-item.is-open .anamnesis-acc-trigger:hover {
+    background: color-mix(in oklab, var(--accent) 88%, var(--fg));
+    color: var(--text-on-accent);
+  }
+  .anamnesis-acc-chev {
+    font-size: 12px;
+    color: var(--fg-3);
+    transition: transform 180ms ease;
+    flex-shrink: 0;
+  }
+  .anamnesis-acc-item.is-open .anamnesis-acc-chev {
+    transform: rotate(90deg);
+    color: var(--text-on-accent);
+    opacity: 0.92;
+  }
+  .anamnesis-acc-body {
+    padding: 12px 16px 16px;
+    border-top: 1px solid var(--line);
+    background: color-mix(in oklab, var(--fg) 3.5%, var(--bg-elev));
+  }
+
+  /* New Patient: step strip */
+  .patient-create-steps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .patient-create-step {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.05);
+    color: var(--fg-3);
+  }
+  .patient-create-step.is-active {
+    background: var(--accent-soft);
+    color: var(--accent-ink);
+  }
+  .patient-create-sticky {
+    margin-top: 16px;
+  }
+  .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: var(--line); border-radius: var(--radius-card); overflow: hidden; border: 1px solid var(--line); }
+  .cal-head { background: var(--bg-elev); padding: 10px 12px; font-size: 11px; font-weight: 600; color: var(--fg-3); letter-spacing: 0.03em; text-transform: uppercase; }
+  .cal-cell { background: var(--bg-elev); min-height: 92px; padding: 7px 8px; display: flex; flex-direction: column; gap: 4px; cursor: pointer; transition: background 120ms ease; }
+  .cal-cell:hover { background: color-mix(in oklab, var(--fg) 4.5%, var(--bg-elev)); }
+  .cal-cell.dim { color: var(--fg-4); background: color-mix(in oklab, var(--fg) 5%, var(--bg)); }
+  .cal-cell.today .cal-num { background: var(--accent); color: var(--text-on-accent); width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 12px; }
+  .cal-num { font-size: 12px; font-weight: 600; align-self: flex-end; color: var(--fg-2); }
+  .cal-evt { font-size: 11px; padding: 3px 7px; border-radius: 6px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cal-evt.green  { background: var(--green-soft);  color: var(--green-ink); }
+  .cal-evt.blue   { background: var(--blue-soft);   color: var(--blue-ink); }
+  .cal-evt.orange { background: var(--orange-soft); color: var(--orange-ink); }
+  .cal-evt.accent { background: var(--accent-soft); color: var(--accent-ink); }
+  .cal-evt.purple { background: var(--purple-soft); color: var(--purple-ink); }
+  .cal-evt.grey { background: color-mix(in oklab, var(--fg) 7%, var(--bg-elev)); color: var(--fg-3); }
+}

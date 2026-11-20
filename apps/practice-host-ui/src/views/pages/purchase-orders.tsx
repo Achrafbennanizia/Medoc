@@ -14,11 +14,12 @@ import { errorMessage, formatDate, formatCurrency } from "@/lib/utils";
 import { orderStatusDisplay } from "@/lib/finance-order-labels";
 import { useT, useTParams } from "@/lib/i18n";
 import { WorkspacePageHeader } from "../components/administration-page-header";
+import { localYmd } from "@/lib/practice-clock";
 
 type StatusFilter = "ALL" | OrderStatus;
 
 function todayISO(): string {
-    return new Date().toISOString().slice(0, 10);
+    return localYmd();
 }
 
 function isOverdue(b: PurchaseOrder): boolean {

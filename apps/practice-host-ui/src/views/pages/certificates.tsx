@@ -21,6 +21,7 @@ import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { HtmlDocumentExportPickerDialog } from "../components/export-picker-dialog";
 import { bundleCertificateExport, suggestCertificateExportBasename, type ClinicalDocumentExportBundle } from "@/lib/document-print-html";
 import { useT, useTParams } from "@/lib/i18n";
+import { localYmd } from "@/lib/practice-clock";
 
 /**
  * Certificate management (FA-ATT-01..04).
@@ -44,7 +45,7 @@ export function CertificatesPage() {
         suggestedBasename: string;
         exportPreviewTitle: string;
     } | null>(null);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localYmd();
     const [form, setForm] = useState({
         kind: "SICK_LEAVE",
         body_text: "",

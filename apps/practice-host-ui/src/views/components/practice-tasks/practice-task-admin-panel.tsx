@@ -18,6 +18,7 @@ import { PageLoadError, PageLoading } from "../ui/page-status";
 import { FilterIcon, PlusIcon, SearchIcon } from "@/lib/icons";
 import { taskPatientLabel, PRACTICE_TASK_STATUSES, PRACTICE_TASK_KINDS } from "./constants";
 import { PracticeTaskAdminGrid } from "./practice-task-admin-grid";
+import { mergeUpdatedTask, sortTasksByFlow } from "./task-flow";
 import { PracticeTaskDetailDrawer } from "./practice-task-detail-drawer";
 import { WorkspacePageHeader } from "../administration-page-header";
 
@@ -58,7 +59,7 @@ export function PracticeTaskAdminPanel({ embedded = false, backHref = "/administ
                 listPatients(),
                 loadTaskTeamDirectory(parsedRole, session?.permission_overrides),
             ]);
-            setRows(tasks);
+            setRows(sortTasksByFlow(tasks));
             setPatients(pats);
             setStaff(team.filter((m) => m.available !== false));
         } catch (e) {
@@ -105,7 +106,7 @@ export function PracticeTaskAdminPanel({ embedded = false, backHref = "/administ
     }, [rows]);
 
     const handleUpdated = (updated: PracticeTask) => {
-        setRows((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+        setRows((prev) => mergeUpdatedTask(prev, updated));
     };
 
     if (loading) return <PageLoading label={t("practice.tasks.admin.loading")} />;

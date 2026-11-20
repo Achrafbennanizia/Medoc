@@ -170,7 +170,7 @@ const AppointmentApptBlockView = memo(function AppointmentApptBlockView({
             ? tp("dental.picker.one_tooth", { tooth: formatDentalToothLabel(painTeeth[0]!, t) })
             : tp("dental.picker.many_teeth", { teeth: formatDentalToothList(painTeeth, t) })
         : null;
-    const a11ySummary = [timeStr, durLabel, patientName, kindLabel, pill.label, toothLabel, dragTargetDateHint]
+    const a11ySummary = [timeStr, durLabel, patientName, kindLabel, pill.label, pill.rescheduled ? t("status.appointment.flag.rescheduled") : null, toothLabel, dragTargetDateHint]
         .filter(Boolean)
         .join(" · ");
 
@@ -180,10 +180,18 @@ const AppointmentApptBlockView = memo(function AppointmentApptBlockView({
         </span>
     ) : null;
 
+    const rescheduledLabel = pill.rescheduled ? t("status.appointment.flag.rescheduled") : null;
     const statusPill = weekView ? (
-        <span className="sr-only">{pill.label}</span>
+        <span className="sr-only">{[pill.label, rescheduledLabel].filter(Boolean).join(" · ")}</span>
     ) : (
-        <span className={`appointment-appt-status-pill appointment-appt-status-pill--${pill.tone}`}>{pill.label}</span>
+        <span className={`appointment-appt-status-pill appointment-appt-status-pill--${pill.tone}`}>
+            {pill.label}
+            {rescheduledLabel ? (
+                <span className="appointment-appt-status-flag" title={rescheduledLabel} aria-label={rescheduledLabel}>
+                    ↻
+                </span>
+            ) : null}
+        </span>
     );
 
     const timeLiveClass = dragPreviewTime ? " appointment-appt-block-time--drag-live" : "";

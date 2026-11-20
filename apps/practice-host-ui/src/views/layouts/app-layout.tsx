@@ -40,7 +40,6 @@ import { AuditChainBanner } from "../components/audit-chain-banner";
 import { BreakGlassBanner } from "../components/break-glass-banner";
 import { RouteOutletGuard } from "../components/route-outlet-guard";
 import { PageLoading } from "../components/ui/page-status";
-import { loadClientSettings } from "@/lib/client-settings";
 import {
     hydrateInvoicePracticeFromAppKv,
     migrateInvoicePracticeLocalStorageToAppKv,
@@ -50,9 +49,12 @@ import { syncNativeMenu } from "@/systems/practice-host/controllers/native-menu.
 import { workTimeGetPreference, workTimeSetPreference } from "@/systems/practice-host/controllers/work-time.controller";
 import { subscribeWorkTimeFocusMode, dispatchWorkTimeFocusMode } from "@/lib/work-time-focus-mode";
 import { subscribeAppMenu } from "@/lib/native-app-menu-bridge";
-import { countUnreadInAppNotifications } from "@/systems/practice-host/controllers/in-app-notification.controller";
 import { useMacWindowDrag } from "@/lib/mac-window-drag";
 
+import { OPEN_HELP_EVENT } from "@/views/components/ui/toast-store";
+import { useIdleLock } from "@/hooks/use-idle-lock";
+import { useNotificationCenter } from "@/systems/practice-host/notifications/notification-center";
+import { useNotificationPolling } from "@/systems/practice-host/notifications/use-notification-polling";
 const MEDOC_UI_ZOOM_KEY = "medoc-ui-zoom";
 const MEDOC_SIDEBAR_RAIL_PREF_KEY = "medoc-sidebar-rail-pref";
 
@@ -128,7 +130,6 @@ export function AppLayout() {
     const [commandOpen, setCommandOpen] = useState(false);
     const [roleSwitchOpen, setRoleSwitchOpen] = useState(false);
     const [notifOpen, setNotifOpen] = useState(false);
-    const [inAppUnread, setInAppUnread] = useState(0);
     const [chartsToValidateCount, setChartsToValidateCount] = useState(0);
     const [openPracticeTasksCount, setOpenPracticeTasksCount] = useState(0);
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -204,18 +205,15 @@ export function AppLayout() {
         return "";
     }, [session?.role, t]);
 
+    /** Notification center (all sources: inbox, tasks, reminders, stock, security) — single unread count. */
+    const notifUnread = useNotificationCenter((st) => st.unreadCount);
+    const refreshNotifications = useNotificationCenter((st) => st.refresh);
+    const notifDelivery = useMemo(() => ({ toast: (m: string, type: "info" | "warning" | "error") => toast(m, type) }), [toast]);
+    useNotificationPolling({ userId: session?.user_id, role: session?.role, t, tp, delivery: notifDelivery });
     const refreshInAppUnread = useCallback(async () => {
-        if (!session?.user_id) {
-            setInAppUnread(0);
-            return;
-        }
-        try {
-            const n = await countUnreadInAppNotifications();
-            setInAppUnread(typeof n === "number" && n > 0 ? n : 0);
-        } catch {
-            setInAppUnread(0);
-        }
-    }, [session?.user_id]);
+        if (!session?.user_id) return;
+        await refreshNotifications({ userId: session.user_id, role: session.role ?? "", t, tp }, notifDelivery);
+    }, [session?.user_id, session?.role, refreshNotifications, t, tp, notifDelivery]);
 
     const refreshNavBadges = useCallback(async () => {
         const role = session?.role;
@@ -246,17 +244,15 @@ export function AppLayout() {
     const handleMacWindowDrag = useMacWindowDrag(desktopChrome === "mac-overlay");
 
     useEffect(() => {
-        void refreshInAppUnread();
         void refreshNavBadges();
-    }, [refreshInAppUnread, refreshNavBadges, location.pathname]);
+    }, [refreshNavBadges, location.pathname]);
 
     useEffect(() => {
         const id = window.setInterval(() => {
-            void refreshInAppUnread();
             void refreshNavBadges();
         }, 120_000);
         return () => window.clearInterval(id);
-    }, [refreshInAppUnread, refreshNavBadges]);
+    }, [refreshNavBadges]);
 
     useEffect(() => {
         const onBadges = () => void refreshNavBadges();
@@ -410,8 +406,21 @@ export function AppLayout() {
             e.preventDefault();
             navigate("/help");
         };
+        /** "Code MD-… · What does this mean?" in toasts / inline errors → Help center at that code. */
+        const onOpenHelp = (e: Event) => {
+            const detail = (e as CustomEvent<{ tab?: string; code?: string }>).detail ?? {};
+            const q = new URLSearchParams();
+            if (detail.tab) q.set("tab", detail.tab);
+            if (detail.code) q.set("q", detail.code);
+            const qs = q.toString();
+            navigate(qs ? `/help?${qs}` : "/help");
+        };
         window.addEventListener("keydown", onKey);
-        return () => window.removeEventListener("keydown", onKey);
+        window.addEventListener(OPEN_HELP_EVENT, onOpenHelp);
+        return () => {
+            window.removeEventListener("keydown", onKey);
+            window.removeEventListener(OPEN_HELP_EVENT, onOpenHelp);
+        };
     }, [navigate]);
 
     useEffect(() => {
@@ -487,30 +496,18 @@ export function AppLayout() {
         })();
     }, [sessionUserId, toast, tp]);
 
-    useEffect(() => {
-        if (!session) return;
-        const mins = loadClientSettings().security?.idleLogoutMinutes ?? 0;
-        if (mins <= 0) return;
-        const ms = mins * 60_000;
-        let last = Date.now();
-        const bump = () => {
-            last = Date.now();
-        };
-        const events: (keyof DocumentEventMap)[] = ["mousemove", "keydown", "click", "scroll", "touchstart"];
-        events.forEach((e) => document.addEventListener(e, bump, { passive: true }));
-        const tick = window.setInterval(() => {
-            if (Date.now() - last >= ms) {
-                void (async () => {
-                    await logout();
-                    navigate("/login");
-                })();
-            }
-        }, 15_000);
-        return () => {
-            events.forEach((e) => document.removeEventListener(e, bump));
-            window.clearInterval(tick);
-        };
-    }, [session, navigate]);
+    useIdleLock(Boolean(session), {
+        onWarn: (secondsLeft) =>
+            toast(tp("settings.security.idle_warning", { seconds: secondsLeft }), "warning", { durationMs: 15_000 }),
+        onResume: () => {
+            /* warning toast auto-dismisses; nothing else to undo */
+        },
+        onLock: async () => {
+            await logout();
+            toast(t("settings.security.idle_signed_out"), "info", { durationMs: 8_000 });
+            navigate("/login");
+        },
+    });
 
     useEffect(() => {
         if (!breakOpen) return;
@@ -897,7 +894,11 @@ export function AppLayout() {
                     <button
                         type="button"
                         className="icon-btn"
-                        aria-label={t("a11y.notifications_region")}
+                        aria-label={
+                            notifUnread > 0
+                                ? tp("app.notifications.bell_aria_unread", { count: notifUnread })
+                                : t("a11y.notifications_region")
+                        }
                         aria-expanded={notifOpen}
                         onClick={() => {
                             setNotifOpen((o) => !o);
@@ -905,19 +906,16 @@ export function AppLayout() {
                         }}
                     >
                         <BellIcon size={ICON_SIZE_LG} />
-                        {inAppUnread > 0 || openPracticeTasksCount > 0 ? (
-                            <span className="dot" aria-hidden />
+                        {notifUnread > 0 ? (
+                            <span className="notif-badge" aria-hidden>
+                                {notifUnread > 99 ? "99+" : notifUnread}
+                            </span>
                         ) : null}
                     </button>
                     {notifOpen ? (
                         <NotificationsPopover
                             onClose={() => {
                                 setNotifOpen(false);
-                                void refreshInAppUnread();
-                                void refreshNavBadges();
-                            }}
-                            onUnreadChanged={() => {
-                                void refreshInAppUnread();
                                 void refreshNavBadges();
                             }}
                         />

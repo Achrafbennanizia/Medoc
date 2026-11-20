@@ -25,6 +25,13 @@ export function SettingsNotificationsSection({
     const { canOpsSystem } = useRbac();
     const liveLabel = t("common.live");
     const offLabel = t("common.off");
+    /**
+     * E-mail digest and patient SMS need a delivery channel (manufacturer portal). Without it the toggles
+     * cannot do anything, so they are shown disabled with the reason instead of pretending to work.
+     */
+    const emailAvailable = portalFlags?.notifications_email_digest_delivery === true;
+    const smsAvailable = portalFlags?.notifications_patient_sms_delivery === true;
+    const osSupported = typeof window !== "undefined" && typeof window.Notification !== "undefined";
 
     return (
         <section className="settings-subcard">
@@ -38,6 +45,7 @@ export function SettingsNotificationsSection({
                 <div>
                     <b>{t("settings.notifications.push")}</b>
                     <div className="card-sub">{t("settings.notifications.push_detail")}</div>
+                    {!osSupported ? <div className="card-sub settings-row__note">{t("settings.notifications.os_unsupported")}</div> : null}
                 </div>
                 <SettingsSwitch
                     ariaLabel={t("settings.notifications.push_aria")}
@@ -55,10 +63,12 @@ export function SettingsNotificationsSection({
                 <div>
                     <b>{t("settings.notifications.email")}</b>
                     <div className="card-sub">{t("settings.notifications.email_detail")}</div>
+                    {!emailAvailable ? <div className="card-sub settings-row__note">{t("settings.notifications.channel_unavailable")}</div> : null}
                 </div>
                 <SettingsSwitch
                     ariaLabel={t("settings.notifications.email_aria")}
-                    checked={notifications.emailSummary !== false}
+                    disabled={!emailAvailable}
+                    checked={emailAvailable && notifications.emailSummary !== false}
                     onChange={() =>
                         onPersistClient((c) => {
                             const n = c.notifications ?? DEFAULT_CLIENT_SETTINGS.notifications!;
@@ -89,10 +99,12 @@ export function SettingsNotificationsSection({
                 <div>
                     <b>{t("settings.notifications.patient_sms")}</b>
                     <div className="card-sub">{t("settings.notifications.patient_sms_detail")}</div>
+                    {!smsAvailable ? <div className="card-sub settings-row__note">{t("settings.notifications.channel_unavailable")}</div> : null}
                 </div>
                 <SettingsSwitch
                     ariaLabel={t("settings.notifications.sms_aria")}
-                    checked={notifications.patientSms === true}
+                    disabled={!smsAvailable}
+                    checked={smsAvailable && notifications.patientSms === true}
                     onChange={() =>
                         onPersistClient((c) => {
                             const n = c.notifications ?? DEFAULT_CLIENT_SETTINGS.notifications!;

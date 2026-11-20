@@ -26,6 +26,7 @@ import { Input, Textarea, Select } from "../components/ui/input";
 import { useToastStore } from "../components/ui/toast-store";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { WorkspacePageHeader } from "../components/administration-page-header";
+import { localYmd } from "@/lib/practice-clock";
 
 /** Display text for quick-select template (supplier · contact · product). */
 function formatTemplateDatalistLine(
@@ -60,7 +61,7 @@ function buildTemplatesDatalistRows(
 }
 
 function todayISO(): string {
-    return new Date().toISOString().slice(0, 10);
+    return localYmd();
 }
 
 function validateForm(f: PurchaseOrderCreateDraft, anzahlProducts: number, t: (key: string) => string): string | null {

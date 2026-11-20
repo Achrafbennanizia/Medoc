@@ -1,5 +1,9 @@
 import { create } from "zustand";
 import { t } from "@/lib/i18n";
+import { codeForMessage } from "@/lib/errors";
+
+/** Window event the app shell listens to for opening the help center at a tab / code. */
+export const OPEN_HELP_EVENT = "medoc-open-help";
 
 export type ToastType = "success" | "error" | "info" | "warning";
 
@@ -11,6 +15,8 @@ export interface Toast {
     durationMs: number;
     onUndo?: () => void;
     undoLabel?: string;
+    /** Support code (`MD-…`) for error toasts — links to Help → Error codes. */
+    code?: string;
 }
 
 const DURATION: Record<ToastType, number> = {
@@ -28,7 +34,7 @@ interface ToastState {
     add: (
         message: string,
         type?: ToastType,
-        options?: { onUndo?: () => void | Promise<void>; undoLabel?: string; durationMs?: number },
+        options?: { onUndo?: () => void | Promise<void>; undoLabel?: string; durationMs?: number; code?: string },
     ) => void;
     remove: (id: string) => void;
 }
@@ -47,8 +53,12 @@ export const useToastStore = create<ToastState>((set) => ({
             durationMs,
             onUndo: options?.onUndo,
             undoLabel: options?.undoLabel ?? t("common.undo"),
+            // Error toasts get their support code automatically when the message came from the resolver.
+            code: options?.code ?? (type === "error" ? codeForMessage(message) : undefined),
         };
-        set((s) => ({ toasts: [...s.toasts, toast] }));
+        set((s) => ({
+            toasts: [...s.toasts.filter((x) => !(x.message === message && x.type === type)), toast].slice(-5),
+        }));
     },
     remove: (id) => {
         set((s) => ({ toasts: s.toasts.filter((x) => x.id !== id) }));

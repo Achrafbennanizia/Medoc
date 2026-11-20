@@ -17,7 +17,9 @@ export type AppointmentDraft = {
     toothacheTooth?: string | null;
     notes: string;
     durationMin: string;
-    statusPreference: string;
+    /** Set only when the user explicitly picked a status (otherwise the confirm setting decides). */
+    statusPreference?: string;
+    statusTouched?: boolean;
 };
 
 export function appointmentDraftKvKey(draftId: string): string {
@@ -54,6 +56,7 @@ function parseDraft(raw: string | null): AppointmentDraft | null {
             statusPreference: typeof d.statusPreference === "string"
                 ? d.statusPreference
                 : "",
+            statusTouched: d.statusTouched === true,
         };
     } catch {
         return null;

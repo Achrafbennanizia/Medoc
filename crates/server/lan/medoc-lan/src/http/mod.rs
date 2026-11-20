@@ -56,21 +56,12 @@ pub struct LanHttpState {
 
 pub struct ApiError(AppError);
 
+/// Single AppError → HTTP mapping for every LAN router (status from `AppError::http_status`,
+/// body `{ "error": "<wire token>" }` identical to the Tauri IPC payload, so clients share one resolver).
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        let status = match &self.0 {
-            AppError::Unauthorized => StatusCode::UNAUTHORIZED,
-            AppError::Forbidden => StatusCode::FORBIDDEN,
-            AppError::RateLimited(_) => StatusCode::TOO_MANY_REQUESTS,
-            AppError::NotFound(_) => StatusCode::NOT_FOUND,
-            AppError::Conflict(_) => StatusCode::CONFLICT,
-            AppError::Validation(_) | AppError::ValidationCode(_) => StatusCode::BAD_REQUEST,
-            AppError::TotpRequired | AppError::TotpEnrollmentRequired => StatusCode::UNAUTHORIZED,
-            AppError::Database(_) | AppError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
-        };
-        let msg = self.0.to_string();
-        let body = Json(json!({ "error": msg }));
-        (status, body).into_response()
+        let status = StatusCode::from_u16(self.0.http_status()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+        (status, Json(json!({ "error": self.0.wire_code() }))).into_response()
     }
 }
 
@@ -256,16 +247,35 @@ pub fn build_router(state: LanHttpState) -> Router {
         ))
 }
 
+/// Host clock snapshot. Clients use `server_time` to correct their own clock drift so every device in
+/// the practice shows the same "now" (see `packages/shared/src/lib/practice-clock.ts`).
+fn clock_snapshot() -> serde_json::Value {
+    let now = chrono::Utc::now();
+    let local = chrono::Local::now();
+    json!({
+        "server_time": now.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+        "utc_offset_minutes": local.offset().local_minus_utc() / 60,
+    })
+}
+
 async fn health() -> Json<serde_json::Value> {
-    Json(json!({
+    let mut body = json!({
         "status": "ok",
         "service": "medoc-lan",
         "version": env!("CARGO_PKG_VERSION"),
-    }))
+    });
+    if let (Some(dst), serde_json::Value::Object(src)) = (body.as_object_mut(), clock_snapshot()) {
+        dst.extend(src);
+    }
+    Json(body)
 }
 
 async fn ping() -> Json<serde_json::Value> {
-    Json(json!({ "ok": true }))
+    let mut body = json!({ "ok": true });
+    if let (Some(dst), serde_json::Value::Object(src)) = (body.as_object_mut(), clock_snapshot()) {
+        dst.extend(src);
+    }
+    Json(body)
 }
 
 async fn login(

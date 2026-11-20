@@ -1,0 +1,252 @@
+/* Design tokens: light (:root) and dark (html[data-theme=dark]) custom properties. Values only, no selectors for components. */
+:root {
+  /*
+   * MeDoc UI colors (quick rules)
+   * — 60/30/10: neutral surfaces dominate; accent (`--accent*`) sparingly for guidance/CTA.
+   * — Selection & option lists (segments, Chart modes): active chip = `var(--accent)` + `var(--text-on-accent)`; track neutral with `var(--line)`.
+   * — Primary CTA: `--accent` + `--text-on-accent` (not `background: var(--fg)` with light text).
+   * — Calendar/Chart: surfaces `--bg-elev` / `--bg`, no fixed white areas outside tokens.
+   */
+  /* Breakpoints (align with `lib/breakpoints.ts`) */
+  --bp-sm: 640px;
+  --bp-md: 900px;
+  --bp-lg: 1200px;
+  /* Width floor is 0 so narrow viewports and 200% zoom can reflow (WCAG 1.4.10). */
+  --app-viewport-min-width: 0px;
+  --app-viewport-min-height: 800px;
+  --font-inter: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-system: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-source-sans: 'Source Sans 3', 'Segoe UI', sans-serif;
+  --font-ui: var(--font-inter);
+  --bg: #F3F4F6;
+  --bg-elev: #FFFFFF;
+  /** Surface levels (light) — for tables/lists; overridden dark in `html[data-theme="dark"]` */
+  --panel: #f4f4f5;
+  --surface: var(--bg-elev);
+  --surface-1: #fafafa;
+  --surface-2: #f4f4f5;
+  --surface-dim: #eaeaea;
+  --surface-container: #e8e8ea;
+  --sidebar: rgba(248,249,251,0.78);
+  --line: rgba(0,0,0,0.06);
+  --line-strong: rgba(0,0,0,0.12);
+  --fg: #0B0B0D;
+  --fg-2: #3C3C43;
+  --fg-3: #6E6E73;
+  --fg-4: #A1A1A6;
+  /* Aliases for rules and inline styles that predate the token names above.
+     Text colors use the *-ink tokens so they stay readable on --bg / --bg-elev.
+     These are var() references on :root, so a dark-theme override of the
+     underlying token on html wins when the alias is computed. */
+  --fg-1: var(--fg);
+  --border: var(--line);
+  --border-1: var(--line);
+  --border-2: var(--line-strong);
+  --line-1: var(--line);
+  --card: var(--bg-elev);
+  --bg-0: var(--bg);
+  --surface-accent: var(--accent-soft);
+  --text-muted: var(--fg-3);
+  --text-danger: var(--red-ink);
+  --danger: var(--red-ink);
+  --success: var(--green-ink);
+  --accent-green: var(--green-ink);
+  --accent-yellow: var(--yellow-ink);
+  --accent-red: var(--red-ink);
+  /* Ink on soft status fills. Dark theme replaces these so the same rules stay readable. */
+  --green-ink: #146C2E;
+  --blue-ink: #0355B7;
+  --orange-ink: #A35A00;
+  --yellow-ink: #7A5A00;
+  --red-ink: #B40E0E;
+  --purple-ink: #6B2A95;
+  --accent: #0EA07E;
+  --accent-ink: #06604B;
+  --accent-soft: #DCF3EC;
+  --blue: #0A84FF;
+  --blue-soft: #E5F1FF;
+  --red: #FF3B30;
+  --red-soft: #FFE5E3;
+  --orange: #FF9500;
+  --orange-soft: #FFF1DC;
+  --yellow: #FFCC00;
+  --yellow-soft: #FFF7D6;
+  --green: #30D158;
+  --green-soft: #DEF7E2;
+  --purple: #AF52DE;
+  --purple-soft: #F2E4FB;
+  /* Radii */
+  --radius-card: 16px;
+  --radius-ctl: 10px;
+  --radius-pill: 999px;
+  --radius-sm: 8px;
+  /* Spacing scale (4px base) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  /* Elevation */
+  --shadow-sm: 0 1px 2px rgba(16,24,40,0.04), 0 1px 3px rgba(16,24,40,0.04);
+  --shadow-md: 0 1px 2px rgba(16,24,40,0.04), 0 8px 24px rgba(16,24,40,0.06);
+  --shadow-lg: 0 8px 32px rgba(16,24,40,0.08), 0 24px 64px rgba(16,24,40,0.06);
+  --card-pad-x: clamp(14px, 1.8vw, 20px);
+  --card-pad-y: clamp(12px, 1.5vh, 16px);
+  /* Main area (outlet) — consistent with app shell */
+  --main-padding: clamp(10px, 1.8vw, 24px);
+  --main-stack-gap: var(--space-5);
+  /* One vertical rhythm for every page root (workspace + administration pages). */
+  --page-stack-gap: clamp(var(--space-4), 2.4vh, var(--space-6));
+  /* Horizontal cell padding for every table. */
+  --tbl-cell-pad-x: 14px;
+  /* Height of app chrome above <main> (top bar); used to size sticky side panels. */
+  --app-chrome-offset: 64px;
+  /* Density: 1 = cozy; compact ~0.85; spacious ~1.15 (`html[data-density]`) */
+  --density-scale: 1;
+  --row-h: calc(44px * var(--density-scale));
+  --tbl-td-pad-y: calc(12px * var(--density-scale));
+  --tbl-th-pad-y: calc(10px * var(--density-scale));
+  --form-gap: calc(14px * var(--density-scale));
+  --input-h: calc(40px * var(--density-scale));
+  --dash-title-size: clamp(24px, 2.4vh, 30px);
+  --dash-kpi-size: clamp(24px, 3.4vh, 34px);
+  --dash-card-title-size: clamp(14px, 1.7vh, 16px);
+  --dash-body-size: clamp(13px, 1.45vh, 15px);
+  --dash-meta-size: clamp(12px, 1.25vh, 13px);
+  /* Motion (enter: ease-out, exit: ease-in) */
+  --motion-fast: 150ms;
+  --motion-ui: 200ms;
+  --motion-dialog: 250ms;
+  --motion-page: 400ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.25, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  /* Focus ring (WCAG — match base `button:focus-visible`) */
+  --focus-ring-width: 2px;
+  --focus-ring-color: var(--accent);
+  --focus-ring-offset: 2px;
+  /* Stacking (toasts above modals) */
+  --z-sticky: 5;
+  --z-popover: 100;
+  --z-sidebar-mobile: 56;
+  --z-modal: 1200;
+  --z-toast: 2000;
+  --desktop-chrome-drag-height: 32px;
+  /*
+   * Layout / type — reference from @layer components (playbook: avoid raw px in blocks).
+   * --layout-sticky-below-chrome: aligns sticky side nav under topbar + typical page heading.
+   */
+  --layout-sticky-below-chrome: 84px;
+  --text-caption: 13px;
+  --text-body-sm: 13.5px;
+  --text-chip: 12px;
+  --text-callout: 15px;
+  --settings-section-title: clamp(18px, 2vw, 22px);
+  /* Text on saturated fills (e.g. primary segment); equals surface “paper” in light theme */
+  --fg-on-saturated: var(--bg-elev);
+  /* Tight switch / segment track padding (half step) */
+  --space-half: calc(var(--space-1) / 2);
+  /* Elevation: small control shadows (tokens so components stay hex-free) */
+  --shadow-thumb: 0 var(--space-1) var(--space-2) color-mix(in srgb, var(--fg) 16%, transparent);
+  --shadow-ring-inset: inset 0 0 0 1px color-mix(in srgb, var(--fg) 8%, transparent);
+
+  /*
+   * Sidebar · account chip (60-30-10): rail = canvas (~60%), chip = elevated surface (~30%),
+   * Brand/accent primarily on avatar & subtle border (~10%). Names = hierarchy / contrast.
+   */
+  --surface-sidebar-canvas: var(--sidebar);
+  --surface-sidebar-user: color-mix(in oklab, var(--accent-soft) 78%, var(--surface-1));
+  --surface-sidebar-user-hover: color-mix(in oklab, var(--accent-soft) 70%, var(--surface-1));
+  --border-sidebar-user: color-mix(in oklab, var(--accent) 22%, var(--line-strong));
+  --text-sidebar-user-primary: var(--fg);
+  --text-sidebar-user-secondary: var(--fg-3);
+  /** "Inverse" on saturated brand surface (avatar) — independent of --fg-on-saturated (buttons) */
+  --text-on-accent: #ffffff;
+
+  /* Odontogram (DentalMiniBar / DentalChart) */
+  --dental-healthy-fill: #ffffff;
+  --dental-healthy-stroke: #c8ccd1;
+  --dental-caries-fill: #ffe0dd;
+  --dental-caries-stroke: #e86b5e;
+  --dental-filling-fill: #dcecff;
+  --dental-filling-stroke: #4a9dff;
+  --dental-crown-fill: #fff0c8;
+  --dental-crown-stroke: #d9a300;
+  --dental-root-fill: #e8dcfb;
+  --dental-root-stroke: #9b6bd8;
+  --dental-missing-stroke: #bfc3c7;
+  --dental-implant-fill: var(--accent-soft);
+  --dental-implant-stroke: var(--accent);
+  --dental-planned-fill: var(--accent-soft);
+  --dental-planned-stroke: var(--accent);
+}
+
+/**
+ * Dark appearance — `data-theme` is set in `applyAppearanceFromSettings`
+ * (Light / Dark / System incl. OS preference). Accent hex stays inline from `applyAccentPresetToDocument`.
+ */
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0c0e13;
+  --bg-elev: #131820;
+  --panel: #161b24;
+  --surface: var(--bg-elev);
+  --surface-1: #171d27;
+  --surface-2: #1c2330;
+  --surface-dim: #1a2030;
+  --surface-container: #222a3a;
+  --sidebar: rgba(18, 22, 30, 0.94);
+  --line: rgba(255, 255, 255, 0.085);
+  --line-strong: rgba(255, 255, 255, 0.14);
+  --fg: #f3f4f6;
+  --fg-2: #d1d5db;
+  --fg-3: #9ca3af;
+  --fg-4: #6b7280;
+  --green-ink: #86efac;
+  --blue-ink: #93c5fd;
+  --orange-ink: #fdba74;
+  --yellow-ink: #fde047;
+  --red-ink: #fca5a5;
+  --purple-ink: #e9d5ff;
+  --blue-soft: color-mix(in oklab, var(--blue) 28%, var(--bg-elev));
+  --red-soft: color-mix(in oklab, var(--red) 26%, var(--bg-elev));
+  --orange-soft: color-mix(in oklab, var(--orange) 26%, var(--bg-elev));
+  --yellow-soft: color-mix(in oklab, var(--yellow) 28%, var(--bg-elev));
+  --green-soft: color-mix(in oklab, var(--green) 26%, var(--bg-elev));
+  --purple-soft: color-mix(in oklab, var(--purple) 26%, var(--bg-elev));
+  --fg-on-saturated: #0c0e13;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  --shadow-lg: 0 12px 48px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  --shadow-thumb: 0 var(--space-1) var(--space-2) color-mix(in srgb, #000 35%, transparent);
+  --shadow-ring-inset: inset 0 0 0 1px color-mix(in srgb, #fff 10%, transparent);
+  --focus-ring-color: color-mix(in oklab, #ffffff 50%, var(--accent));
+
+  /* Sidebar account: slightly lighter than rail canvas, subtle accent share */
+  --surface-sidebar-canvas: rgba(18, 22, 30, 0.94);
+  --surface-sidebar-user: color-mix(in oklab, var(--surface-2) 88%, var(--accent) 10%);
+  --surface-sidebar-user-hover: color-mix(in oklab, var(--surface-2) 84%, var(--accent) 14%);
+  --border-sidebar-user: color-mix(in oklab, var(--accent) 26%, var(--line-strong));
+  --text-sidebar-user-primary: var(--fg);
+  --text-sidebar-user-secondary: var(--fg-3);
+  --text-on-accent: #ffffff;
+
+  /* Odontogram — fills and strokes must sit above --bg-elev / picker surface */
+  --dental-healthy-fill: color-mix(in oklab, var(--fg) 28%, var(--surface-container));
+  --dental-healthy-stroke: color-mix(in oklab, var(--fg) 62%, var(--fg-3));
+  --dental-caries-fill: color-mix(in oklab, var(--red) 38%, var(--surface-2));
+  --dental-caries-stroke: color-mix(in oklab, var(--red) 78%, var(--fg));
+  --dental-filling-fill: color-mix(in oklab, var(--blue) 38%, var(--surface-2));
+  --dental-filling-stroke: color-mix(in oklab, var(--blue) 72%, var(--fg));
+  --dental-crown-fill: color-mix(in oklab, var(--yellow) 40%, var(--surface-2));
+  --dental-crown-stroke: color-mix(in oklab, var(--orange) 72%, var(--fg));
+  --dental-root-fill: color-mix(in oklab, var(--purple) 38%, var(--surface-2));
+  --dental-root-stroke: color-mix(in oklab, var(--purple) 72%, var(--fg));
+  --dental-missing-stroke: color-mix(in oklab, var(--fg-2) 55%, var(--line-strong));
+  --dental-implant-fill: color-mix(in oklab, var(--accent) 38%, var(--surface-2));
+  --dental-implant-stroke: color-mix(in oklab, var(--accent) 82%, var(--fg));
+  --dental-planned-fill: color-mix(in oklab, var(--accent) 32%, var(--surface-2));
+  --dental-planned-stroke: color-mix(in oklab, var(--accent) 78%, var(--fg));
+}

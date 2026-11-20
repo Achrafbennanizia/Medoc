@@ -7,7 +7,7 @@ import { useT } from "@/lib/i18n";
 import { errorMessage } from "@/lib/utils";
 import { LocaleSwitcher } from "../components/locale-switcher";
 import { useDesktopChromeMode } from "../components/desktop-chrome";
-import { useMacWindowDrag } from "@/lib/mac-window-drag";
+import { WindowDragStrip } from "@/views/components/window-drag-strip";
 
 const LS_REMEMBER_EMAIL = "medoc-login-remember-email";
 const LS_REMEMBER_FLAG = "medoc-login-remember-me";
@@ -100,7 +100,6 @@ export function LoginPage() {
     const [showPw, setShowPw] = useState(false);
     const desktopChrome = useDesktopChromeMode();
     const isMacOverlay = desktopChrome === "mac-overlay";
-    const handleMacWindowDrag = useMacWindowDrag(isMacOverlay);
 
     const deviceOpts = {
         device_label: typeof window !== "undefined" ? `MeDoc · ${window.location.hostname || "app"}` : "MeDoc",
@@ -138,23 +137,10 @@ export function LoginPage() {
 
     return (
         <div className={`login-root${isMacOverlay ? " login-root--mac" : ""}`}>
-            {isMacOverlay ? (
-                <header
-                    className="login-window-chrome"
-                    data-tauri-drag-region
-                    onMouseDown={handleMacWindowDrag}
-                    aria-label={t("login.window_drag_aria")}
-                >
-                    <span className="login-window-chrome__hint" aria-hidden>
-                        {t("login.brand")}
-                    </span>
-                </header>
-            ) : null}
+            <WindowDragStrip />
             <div className="login-root__panels">
             <div
-                className={`login-kind${isMacOverlay ? " login-kind--mac-drag" : ""}`}
-                data-tauri-drag-region={isMacOverlay ? true : undefined}
-                onMouseDown={isMacOverlay ? handleMacWindowDrag : undefined}
+                className="login-kind"
             >
                 <div className="login-kind_content" style={{ position: "relative", zIndex: 1 }}>
                     <div className="login-brand-row row">
@@ -187,9 +173,7 @@ export function LoginPage() {
             </div>
 
             <div
-                className={`login-form-wrap${isMacOverlay ? " login-form-wrap--mac-drag" : ""}`}
-                data-tauri-drag-region={isMacOverlay ? true : undefined}
-                onMouseDown={isMacOverlay ? handleMacWindowDrag : undefined}
+                className="login-form-wrap"
             >
                 <form className="login-form" onSubmit={handleSubmit}>
                     <div className="row" style={{ alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>

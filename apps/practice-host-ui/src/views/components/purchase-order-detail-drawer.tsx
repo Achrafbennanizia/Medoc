@@ -19,9 +19,10 @@ import { Button } from "./ui/button";
 import { ConfirmDialog } from "./ui/dialog";
 import { Input, Select, Textarea } from "./ui/input";
 import { useToastStore } from "./ui/toast-store";
+import { localYmd } from "@/lib/practice-clock";
 
 function todayISO(): string {
-    return new Date().toISOString().slice(0, 10);
+    return localYmd();
 }
 
 function isOverdue(b: PurchaseOrder): boolean {

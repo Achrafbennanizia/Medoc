@@ -49,6 +49,7 @@ import type { HtmlExportDocumentKind } from "@/views/components/export-picker-di
 import type { ClinicalDocumentExportBundle } from "@/lib/document-print-html";
 import { useT, useTParams } from "@/lib/i18n";
 import { errorMessage } from "@/lib/utils";
+import { localYmd } from "@/lib/practice-clock";
 
 export type PatientDetailPrescriptionTabProps = {
     patientId: string;
@@ -97,7 +98,7 @@ export function usePatientDetailPrescriptionTab({
     const certificateWizardPanelRef = useRef<HTMLDivElement>(null);
     const [certificateComposerKind, setCertificateComposerKind] = useState<"template" | "new">("new");
     const [certificateForm, setCertificateForm] = useState<CertificateComposerFormFields>(() =>
-        emptyCertificateComposerForm(new Date().toISOString().slice(0, 10), t));
+        emptyCertificateComposerForm(localYmd(), t));
     const [certificateBaselineJson, setCertificateBaselineJson] = useState<string | null>(null);
     const [certificateComposerBusy, setCertificateComposerBusy] = useState(false);
     const [certificateDraftErr, setCertificateDraftErr] = useState<string | null>(null);
@@ -151,7 +152,7 @@ export function usePatientDetailPrescriptionTab({
     }, []);
 
     const resetCertificateWizard = useCallback(() => {
-        const today = new Date().toISOString().slice(0, 10);
+        const today = localYmd();
         setCertificateWizardStep(null);
         setCertificateForm(emptyCertificateComposerForm(today, t));
         setCertificateBaselineJson(null);
@@ -315,7 +316,7 @@ export function usePatientDetailPrescriptionTab({
         }
         setCertificatePendingQueue({ ...certificateForm });
         setCertificateWizardStep("ask_template");
-        setCertificateForm(emptyCertificateComposerForm(new Date().toISOString().slice(0, 10), t));
+        setCertificateForm(emptyCertificateComposerForm(localYmd(), t));
     };
 
     const onCertificateAskTemplateNo = () => {
@@ -458,7 +459,7 @@ export function usePatientDetailPrescriptionTab({
             toast(t("patient.detail.toast.template_invalid_days"), "error");
             return;
         }
-        const today = new Date().toISOString().slice(0, 10);
+        const today = localYmd();
         const illness = parsed.illnesses.trim() || defaultIllnessLabel(t);
         const nextForm: CertificateComposerFormFields = {
             kind: CERTIFICATE_KIND_VALUES[0],

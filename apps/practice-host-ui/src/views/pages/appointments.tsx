@@ -42,6 +42,7 @@ import {
 import { CALENDAR_WORKFLOWS_CHANGED_EVENT } from "@/lib/practice-calendar-workflows-sync";
 import {
     DEFAULT_MONTH_CAL_PATIENT_LOAD,
+    PRACTICE_PREFERENCES_CHANGED_EVENT,
     loadPracticePreferencesFromKv,
     type MonthCalendarPatientLoadPrefs,
 } from "@/lib/practice-preferences-storage";
@@ -186,6 +187,8 @@ export function AppointmentsPage() {
     const [drawerAppointment, setDrawerAppointment] = useState<TCalEvent | null>(null);
     const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; appointment: TCalEvent } | null>(null);
     const [dragState, setDragState] = useState<AppointmentDragState | null>(null);
+    /** Settings → Workflows → "Calendar: drag & drop" (practice preference, live-updated). */
+    const [calendarDragEnabled, setCalendarDragEnabled] = useState(true);
     /** Day view: last hour chosen via drag on the hour rail (persists until new interaction). */
     const [appointmentDaySnapLabel, setAppointmentDaySnapLabel] = useState<null | { iso: string; startMin: number }>(null);
     /** Detach window listeners for the active drag (must not wait for useEffect — see beginAppointmentDrag). */
@@ -317,6 +320,7 @@ export function AppointmentsPage() {
             try {
                 const prefs = await loadPracticePreferencesFromKv();
                 setAppointmentBufferMin(Math.max(0, Number.parseInt(String(prefs.bufferMin ?? "0"), 10) || 0));
+                setCalendarDragEnabled(prefs.calendarDragDropEnabled !== false);
             } catch {
                 setAppointmentBufferMin(0);
             }
@@ -349,6 +353,15 @@ export function AppointmentsPage() {
     }, []);
 
     useEffect(() => {
+        const onPrefs = (e: Event) => {
+            const p = (e as CustomEvent<{ calendarDragDropEnabled?: boolean }>).detail;
+            if (p) setCalendarDragEnabled(p.calendarDragDropEnabled !== false);
+        };
+        window.addEventListener(PRACTICE_PREFERENCES_CHANGED_EVENT, onPrefs);
+        return () => window.removeEventListener(PRACTICE_PREFERENCES_CHANGED_EVENT, onPrefs);
+    }, []);
+
+    useEffect(() => {
         setPracticePlanCfg(storePracticeCfg);
     }, [storePracticeCfg]);
 
@@ -357,6 +370,7 @@ export function AppointmentsPage() {
             void loadPracticePreferencesFromKv().then((p) => {
                 setMonthCalPatientLoad(p.monthCalendarPatientLoad);
                 setAppointmentBufferMin(Math.max(0, Number.parseInt(String(p.bufferMin ?? "0"), 10) || 0));
+                setCalendarDragEnabled(p.calendarDragDropEnabled !== false);
             });
         };
         const refreshPracticePlan = () => {
@@ -810,6 +824,8 @@ export function AppointmentsPage() {
         }, APPT_DRAWER_OPEN_DELAY_MS);
     }, [cancelPendingDrawerOpen]);
 
+    /** Drag disabled in settings → a press is just a click (drawer opens on click as usual). */
+    const noAppointmentDrag = useCallback(() => {}, []);
     const beginAppointmentDrag = useCallback(
         (
             next: AppointmentDragState,
@@ -1184,6 +1200,7 @@ export function AppointmentsPage() {
         },
         [cancelPendingDrawerOpen, commitDrag, dayStartMin, dayEndMin, scheduleDrawerOpen, t, toast],
     );
+    const appointmentDragStart = calendarDragEnabled ? beginAppointmentDrag : noAppointmentDrag;
 
     useEffect(() => {
         return () => {
@@ -1532,7 +1549,7 @@ export function AppointmentsPage() {
                             daySnapLabel={appointmentDaySnapLabel}
                             onClearDaySnapLabel={() => setAppointmentDaySnapLabel(null)}
                             dragState={dragState}
-                            onAppointmentDragStart={beginAppointmentDrag}
+                            onAppointmentDragStart={appointmentDragStart}
                             clickSuppressUntilRef={suppressApptClickUntilRef}
                             onOpenDrawer={openDrawerFor}
                             onContextMenu={handleApptContextMenu}
@@ -1577,7 +1594,7 @@ export function AppointmentsPage() {
                             physicianToneMap={physicianToneMap}
                             practiceCfg={practicePlanCfg}
                             dragState={dragState}
-                            onAppointmentDragStart={beginAppointmentDrag}
+                            onAppointmentDragStart={appointmentDragStart}
                             snapLabel={appointmentDaySnapLabel}
                             onClearSnapLabel={() => setAppointmentDaySnapLabel(null)}
                             clickSuppressUntilRef={suppressApptClickUntilRef}

@@ -15,6 +15,7 @@ import { ExportIcon } from "@/lib/icons";
 import { DataExportPickerDialog } from "@/views/components/data-export-picker-dialog";
 import { PageLoadError, PageLoading } from "@/views/components/ui/page-status";
 import { WorkspacePageHeader } from "@/views/components/administration-page-header";
+import { localYmd } from "@/lib/practice-clock";
 
 const LEVELS: LogLevel[] = ["ERROR", "WARN", "INFO", "DEBUG", "TRACE"];
 
@@ -68,7 +69,7 @@ export function LoggingPage() {
         return {
             exportTitle: t("logging.export.title"),
             hint: t("logging.export.hint"),
-            suggestedFilename: `medoc-logs-${new Date().toISOString().slice(0, 10)}.zip`,
+            suggestedFilename: `medoc-logs-${localYmd()}.zip`,
             binaryBody: new Uint8Array(bytes),
             mime: "application/zip",
         };

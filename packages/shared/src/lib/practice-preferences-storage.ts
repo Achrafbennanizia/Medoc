@@ -201,8 +201,14 @@ export async function loadPracticePreferencesFromKv(): Promise<PracticePreferenc
     return normalizePartial({});
 }
 
+/** Fired after practice preferences are saved so open pages (calendar) apply them without reload. */
+export const PRACTICE_PREFERENCES_CHANGED_EVENT = "medoc-practice-preferences-changed";
+
 export async function savePracticePreferences(next: PracticePreferences): Promise<void> {
     await persistToDedicatedKey(next);
+    if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent(PRACTICE_PREFERENCES_CHANGED_EVENT, { detail: normalizePartial(next) }));
+    }
 }
 
 /**

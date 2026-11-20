@@ -1,0 +1,144 @@
+/* components/table — base table + DataTable (components layer). Owns every `.tbl` base rule. */
+@layer components {
+  .tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .tbl thead th {
+    text-align: center;
+    padding: var(--tbl-th-pad-y) var(--tbl-cell-pad-x);
+    border-bottom: 1px solid var(--line);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--fg-4);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    background: rgba(0,0,0,0.015);
+  }
+  .tbl tbody td {
+    padding: var(--tbl-td-pad-y) var(--tbl-cell-pad-x);
+    border-bottom: 1px solid var(--line);
+    vertical-align: middle;
+    text-align: center;
+  }
+  .tbl tbody td > div[class*="status-cell"] {
+    align-items: center;
+  }
+  .tbl tbody tr { min-height: var(--row-h); }
+}
+
+/* DataTable (packages/ui/src/data-table.tsx) — widths come from <colgroup>, never nth-child. */
+@layer components {
+  .data-table-wrap {
+    width: 100%;
+    min-width: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    container-type: inline-size;
+    container-name: data-table;
+  }
+  .tbl.data-table {
+    table-layout: fixed;
+    width: 100%;
+  }
+  .tbl.data-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    text-align: start;
+    background: var(--bg-elev);
+    box-shadow: inset 0 -1px 0 var(--line);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .tbl.data-table tbody td {
+    text-align: start;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+  }
+  .tbl.data-table .data-table__cell--end { text-align: end; }
+  .tbl.data-table .data-table__cell--center { text-align: center; }
+  .tbl.data-table .data-table__num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .tbl.data-table .data-table__cell--truncate,
+  .tbl.data-table .data-table__cell--truncate .data-table__primary,
+  .tbl.data-table .data-table__cell--truncate .data-table__secondary {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .tbl.data-table td .pill {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+  .data-table__stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-half);
+    min-width: 0;
+  }
+  .data-table__primary { font-weight: 650; color: var(--fg); }
+  .data-table__secondary,
+  .data-table__muted { color: var(--fg-3); font-size: 12px; }
+  .tbl.data-table[data-interactive] tbody .data-table__row { cursor: pointer; }
+  .tbl.data-table tbody .data-table__row:focus { outline: none; }
+  .tbl.data-table tbody .data-table__row:focus-visible td {
+    box-shadow: inset 0 0 0 2px color-mix(in oklab, var(--accent) 55%, transparent);
+  }
+  .tbl.data-table tbody .data-table__row--selected td {
+    background: color-mix(in oklab, var(--accent) 10%, transparent);
+  }
+  .tbl.data-table tbody .data-table__row--selected td:first-child {
+    box-shadow: inset 3px 0 0 var(--accent);
+  }
+  html[dir="rtl"] .tbl.data-table tbody .data-table__row--selected td:first-child {
+    box-shadow: inset -3px 0 0 var(--accent);
+  }
+  .data-table__empty {
+    padding: var(--space-6) var(--card-pad-x);
+    color: var(--fg-3);
+    text-align: center !important;
+  }
+  /* Responsive columns: hide by the table's own width (works in master-detail panes). */
+  @container data-table (max-width: 560px) {
+    .data-table__cell--hide-sm,
+    .data-table__col--hide-sm { display: none; }
+  }
+  @container data-table (max-width: 720px) {
+    .data-table__cell--hide-md,
+    .data-table__col--hide-md { display: none; }
+  }
+  @container data-table (max-width: 960px) {
+    .data-table__cell--hide-lg,
+    .data-table__col--hide-lg { display: none; }
+  }
+  /* Status badge (packages/ui/src/status-badge.tsx) */
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    max-width: 100%;
+  }
+  .status-badge__flag { font-weight: 500; }
+  .appointment-appt-status-flag {
+    margin-inline-start: var(--space-1);
+    font-size: 0.9em;
+    opacity: 0.85;
+  }
+  .kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.75em;
+    padding: 2px 6px;
+    border-radius: 6px;
+    border: 1px solid var(--line-strong);
+    border-bottom-width: 2px;
+    background: var(--bg-elev);
+    color: var(--fg-2);
+    font: 600 11.5px/1.3 var(--font-ui);
+    font-variant-numeric: tabular-nums;
+  }
+}

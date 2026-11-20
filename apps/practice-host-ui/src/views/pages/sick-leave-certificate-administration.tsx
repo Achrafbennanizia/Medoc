@@ -18,6 +18,7 @@ import { useToastStore } from "../components/ui/toast-store";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { errorMessage } from "@/lib/utils";
 import { useDateFnsLocale, useT, useTParams } from "@/lib/i18n";
+import { localYmd } from "@/lib/practice-clock";
 
 async function fileToDocumentRef(file: File, fileReadError: string): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -46,7 +47,7 @@ export function SickLeaveCertificateFormPage() {
 
     const [staffId, setStaffId] = useState(sessionUserId);
     const [note, setNote] = useState("");
-    const [dateFrom, setDateFrom] = useState(() => new Date().toISOString().slice(0, 10));
+    const [dateFrom, setDateFrom] = useState(() => localYmd());
     const [dateTo, setDateTo] = useState("");
     const [file, setFile] = useState<File | null>(null);
 

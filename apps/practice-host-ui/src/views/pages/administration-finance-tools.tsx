@@ -34,8 +34,9 @@ import { EmptyState } from "../components/ui/empty-state";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { AdministrationPageHeader } from "../components/administration-page-header";
 import { useT, useTParams } from "@/lib/i18n";
+import { localYmd } from "@/lib/practice-clock";
 
-const todayYmd = () => new Date().toISOString().slice(0, 10);
+const todayYmd = () => localYmd();
 
 type LineRow = { id: string; link: string };
 

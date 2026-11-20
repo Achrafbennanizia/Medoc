@@ -42,6 +42,7 @@ import type { TreatmentChartComposerPanelProps } from "@/views/components/treatm
 import { useT, useTParams , useCollatorLocale} from "@/lib/i18n";
 import { useToastStore } from "@/views/components/ui/toast-store";
 import { errorMessage } from "@/lib/utils";
+import { localYmd } from "@/lib/practice-clock";
 
 export type TreatmentFormState = {
     date: string;
@@ -64,7 +65,7 @@ export type AnamQuickState = {
 };
 
 const EMPTY_TREATMENT_FORM = (): TreatmentFormState => ({
-    date: new Date().toISOString().slice(0, 10),
+    date: localYmd(),
     category: "",
     service_name: "",
     serviceCatalogId: "",
@@ -608,7 +609,7 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
             const kid = resolveCatalogIdForTreatment(catalog, b);
             setContinueFromTreatmentId(treatmentId);
             setTreatmentForm({
-                date: new Date().toISOString().slice(0, 10),
+                date: localYmd(),
                 category: b.category ?? b.kind ?? "",
                 service_name: b.service_name ?? b.description ?? b.kind ?? "",
                 serviceCatalogId: kid,

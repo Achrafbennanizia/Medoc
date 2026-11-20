@@ -15,6 +15,7 @@ import { finishExportWithSettings } from "@/lib/export";
 import { renderReportPdf, type ReportPdfInput } from "@/systems/practice-host/controllers/report.controller";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { parseDelimitedGrid } from "@/lib/export-delimited";
+import { localYmd } from "./practice-clock";
 
 export type ReportExportFormat = "pdf" | "csv" | "json" | "xml";
 
@@ -208,7 +209,7 @@ export function buildStatisticsReportBundle(stats: StatisticsOverview, period: P
     const loc = locale ?? useLocale.getState().locale;
     const tr = (key: string) => translateLocale(loc, key);
     const pl = periodLabel(period, loc);
-    const dateStamp = new Date().toISOString().slice(0, 10);
+    const dateStamp = localYmd();
     const detailRows: string[][] = [];
     detailRows.push([tr("export.report.patients_total"), String(stats.patients_total)]);
     detailRows.push([tr("export.report.products_low_stock"), String(stats.products_low)]);
@@ -302,7 +303,7 @@ export function buildBalanceSheetReportBundle(
 ): ReportBundle {
     const loc = useLocale.getState().locale;
     const tr = (key: string) => translateLocale(loc, key);
-    const dateStamp = new Date().toISOString().slice(0, 10);
+    const dateStamp = localYmd();
     const monthRows = byMonth.map(([month, version]) => [
         month,
         formatCurrency(version.income),
@@ -393,7 +394,7 @@ export function buildFinanceReportBundle(
     const tr = (key: string) => translateLocale(loc, key);
     const tp = (key: string, params: Record<string, string | number>) => translateLocaleParams(loc, key, params);
     const dash = tr("common.em_dash");
-    const dateStamp = new Date().toISOString().slice(0, 10);
+    const dateStamp = localYmd();
     const txRows = rows.map((r) => {
         if (r.kind === "payment") {
             const z = r.z;
@@ -459,7 +460,7 @@ export function buildComplianceReportBundle(
 ): ReportBundle {
     const loc = useLocale.getState().locale;
     const tr = (key: string) => translateLocale(loc, key);
-    const dateStamp = new Date().toISOString().slice(0, 10);
+    const dateStamp = localYmd();
     if (kind === "vvt") {
         const version = data as VVT;
         const sections = version.activities.map((a) => ({
@@ -574,7 +575,7 @@ export function buildComplianceReportBundle(
 
 /** Audit log — parse backend CSV (RFC-4180) into report bundle for PDF/JSON/XML. */
 export function buildAuditReportBundleFromCsv(csvText: string, totalHint?: number): ReportBundle {
-    const dateStamp = new Date().toISOString().slice(0, 10);
+    const dateStamp = localYmd();
     const { rows } = parseDelimitedGrid(csvText, ",");
     const dataRows = rows.length > 1 ? rows.slice(1) : [];
     const tableRows = dataRows.map((r) => [
@@ -610,6 +611,8 @@ export function financeTransactionsToLegacyCsv(
     rows: FinanceTxRow[],
     patientNames: Map<string, string>,
 ): string {
+    const loc = useLocale.getState().locale;
+    const tr = (key: string) => translateLocale(loc, key);
     const esc = (s: string) => (/[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
     const header = ["Date", "Type", "Transaction", "Counterparty", "Payment method", "Status", "Amount_EUR", "Note"];
     const lines = [header.map(esc).join(",")];
@@ -620,9 +623,9 @@ export function financeTransactionsToLegacyCsv(
                 [
                     formatDate(z.created_at),
                     "Payment",
-                    financeTransactionText(z),
+                    financeTransactionText(z, tr),
                     patientNames.get(z.patient_id) ?? "—",
-                    paymentMethodLabelFin(z.payment_method),
+                    paymentMethodLabelFin(z.payment_method, tr),
                     z.status,
                     z.amount.toFixed(2).replace(".", ","),
                     (z.description ?? "").replace(/\r?\n/g, " ").trim(),

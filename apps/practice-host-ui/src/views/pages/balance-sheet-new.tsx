@@ -17,6 +17,7 @@ import { useToastStore } from "../components/ui/toast-store";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { WorkspacePageHeader } from "../components/administration-page-header";
 import { useT, useTParams } from "@/lib/i18n";
+import { localYmd } from "@/lib/practice-clock";
 
 type ContractDemo = {
     id: string;
@@ -456,7 +457,7 @@ export function BalanceSheetNewPage() {
                                         await createBalanceSheetSnapshot({
                                             period: balancePeriod,
                                             kind: balanceSheetKind,
-                                            label: label || tp("page.balance_sheet_new.label_fallback", { date: new Date().toISOString().slice(0, 10) }),
+                                            label: label || tp("page.balance_sheet_new.label_fallback", { date: localYmd() }),
                                             income_cents: incomeCents,
                                             expenses_cents: expensesCents,
                                             payload: {

@@ -1,21 +1,11 @@
 import type { PracticeTask, PracticeTaskStatus } from "@/systems/practice-host/controllers/practice-task.controller";
 import type { Staff } from "@/models/types";
 import { allowed, type PermissionOverride, type Role } from "@/lib/rbac";
+import { statusBadgeVariant, statusDefinition } from "@/lib/status/status-registry";
 
-export function taskStatusVariant(status: PracticeTaskStatus): "default" | "primary" | "warning" | "success" {
-    switch (status) {
-        case "OPEN":
-        case "BACK":
-            return "warning";
-        case "IN_PROGRESS":
-            return "primary";
-        case "DONE_RECEPTION":
-            return "default";
-        case "VALIDATED":
-            return "success";
-        default:
-            return "default";
-    }
+export function taskStatusVariant(status: PracticeTaskStatus): "default" | "primary" | "warning" | "success" | "error" {
+    const def = statusDefinition("practice_task", status);
+    return def ? statusBadgeVariant(def.tone) : "default";
 }
 
 export function assigneeLabel(

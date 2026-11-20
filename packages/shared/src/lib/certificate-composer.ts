@@ -1,3 +1,5 @@
+import { localYmd } from "./practice-clock";
+
 /** Certificate capture in patient record — aligned with certificate templates (`kind: "CERTIFICATE"`). */
 
 type TFn = (key: string) => string;
@@ -108,7 +110,7 @@ export function certificateValidUntilFromStartAndDays(validFromIso: string, dayC
     if (!Number.isFinite(n) || n < 1) return from;
     const d = new Date(`${from}T12:00:00`);
     d.setDate(d.getDate() + (n - 1));
-    return d.toISOString().slice(0, 10);
+    return localYmd(d);
 }
 
 export function buildCertificateTemplatePayload(fields: {

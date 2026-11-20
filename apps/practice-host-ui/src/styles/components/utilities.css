@@ -1,0 +1,277 @@
+/* components/utilities (components layer) */
+@layer components {
+  .btn-compact-sm {
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    min-height: 30px;
+    border-radius: 8px;
+  }
+  .row { display: flex; align-items: center; gap: 12px; }
+  .row--justify-end { justify-content: flex-end; width: 100%; }
+  .row--ms-auto { margin-inline-start: auto; }
+  .row--actions-end {
+    justify-content: flex-end;
+    margin-inline-start: auto;
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .row[style*="justify-content: flex-end"],
+  .row[style*="justify-content:flex-end"] {
+    width: 100%;
+  }
+  .col { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .spacer { flex: 1; }
+  .bar { background: var(--accent); border-radius: 6px 6px 2px 2px; transition: all 220ms ease; }
+  @keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes popIn   { from { opacity: 0; transform: translateY(10px) scale(.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  @keyframes fadeUp  { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes spin    { to { transform: rotate(360deg); } }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes fieldErrorShake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-4px); }
+    40% { transform: translateX(3px); }
+    60% { transform: translateX(-2px); }
+    80% { transform: translateX(1px); }
+  }
+  @keyframes skeletonShimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+  @keyframes emptyStateFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+  }
+  .animate-fade-in  { animation: fadeUp var(--motion-ui) var(--ease-out) both; }
+  /* Opacity only: `fadeUp` sets `transform` on the animated element, which breaks `position: sticky` for in-page sidebars (Statistiken, Settings). */
+  .animate-fade-in--sticky-safe { animation: fadeIn var(--motion-ui) var(--ease-out) both; }
+  .animate-scale-in { animation: popIn var(--motion-ui) var(--ease-out) both; }
+  .animate-slide-up { animation: slideUp var(--motion-ui) var(--ease-out) both; }
+  .animate-spin     { animation: spin 700ms linear infinite; }
+  /* Page-level enter (e.g. future route shell) */
+  .animate-page-in { animation: fadeUp var(--motion-page) var(--ease-out) both; }
+  .skeleton-shimmer {
+    background: linear-gradient(
+      110deg,
+      color-mix(in oklab, var(--fg) 6%, var(--bg-elev)) 0%,
+      color-mix(in oklab, var(--fg) 10%, var(--bg-elev)) 40%,
+      color-mix(in oklab, var(--fg) 6%, var(--bg-elev)) 80%
+    );
+    background-size: 200% 100%;
+    animation: skeletonShimmer 1.2s var(--ease-in) infinite;
+    border-radius: var(--radius-sm);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton-shimmer { animation: none; background: color-mix(in oklab, var(--fg) 8%, var(--bg-elev)); }
+  }
+  .ui-spinner {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid rgba(0,0,0,0.08);
+    border-top-color: var(--accent);
+    animation: spin 700ms linear infinite;
+  }
+  .ui-spinner--sm { width: 16px; height: 16px; border-width: 2px; }
+  .ui-spinner--lg { width: 36px; height: 36px; border-width: 3px; }
+  .ui-separator {
+    height: 0;
+    margin: var(--space-2) 0;
+    border: 0;
+    border-top: 1px solid var(--line);
+    background: transparent;
+  }
+  .ui-separator[role="separator"] { color: transparent; }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  .modal.command-palette-dialog {
+    width: min(560px, 94vw);
+    max-width: 560px;
+  }
+  .command-palette-option:last-child {
+    border-bottom: none !important;
+  }
+  @media (max-width: 899px) {
+    .app-shell {
+      display: grid;
+      grid-template-columns: 56px minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1fr);
+      flex: 1 1 auto;
+      min-height: 0;
+      max-height: 100%;
+      overflow: hidden;
+    }
+    .app-shell > div:last-child {
+      min-width: 0;
+      min-height: 0;
+    }
+    .glass.app-sidebar {
+      position: relative;
+      width: 56px;
+      min-width: 56px;
+      max-width: 56px;
+      left: auto;
+      top: auto;
+      bottom: auto;
+      transform: none;
+      transition:
+        width 200ms cubic-bezier(0.2, 0.8, 0.25, 1),
+        max-width 200ms cubic-bezier(0.2, 0.8, 0.25, 1),
+        box-shadow 200ms ease;
+      z-index: 2;
+      box-shadow: none;
+      padding: 10px 6px;
+      overflow-x: hidden;
+      overflow-y: auto;
+    }
+    .glass.app-sidebar[data-open="true"] {
+      position: fixed;
+      inset-inline-start: 0;
+      inset-inline-end: auto;
+      top: 0;
+      bottom: 0;
+      width: min(288px, 92vw);
+      min-width: unset;
+      max-width: min(288px, 92vw);
+      z-index: 56;
+      transform: none;
+      box-shadow: var(--shadow-lg);
+      padding: 18px 14px 14px;
+    }
+    .glass.app-sidebar:not([data-open="true"]) .sb-item-label,
+    .glass.app-sidebar:not([data-open="true"]) .sb-group-label,
+    .glass.app-sidebar:not([data-open="true"]) .app-sidebar-brand-meta {
+      position: absolute !important;
+      width: 1px !important;
+      height: 1px !important;
+      padding: 0 !important;
+      margin: -1px !important;
+      overflow: hidden !important;
+      clip: rect(0, 0, 0, 0) !important;
+      white-space: nowrap !important;
+      border: 0 !important;
+    }
+    .glass.app-sidebar:not([data-open="true"]) .sb-item {
+      justify-content: center;
+      padding: 8px 6px;
+      gap: 0;
+    }
+    .glass.app-sidebar:not([data-open="true"]) .app-sidebar-brand-row {
+      justify-content: center;
+      padding-inline: 0;
+    }
+    .glass.app-sidebar:not([data-open="true"]) .app-sidebar-user-card {
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    .glass.app-sidebar:not([data-open="true"]) .app-sidebar-user-card-chevron {
+      margin-inline: auto;
+    }
+    .app-sidebar-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(10, 12, 16, 0.38);
+      z-index: 55;
+      backdrop-filter: blur(3px);
+      -webkit-backdrop-filter: blur(3px);
+      border: 0;
+      padding: 0;
+      margin: 0;
+      cursor: pointer;
+    }
+    .app-sidebar-backdrop[data-open="true"] {
+      display: block;
+    }
+    .split { grid-template-columns: 1fr; }
+    .topbar {
+      padding-left: 14px;
+      padding-right: 14px;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: stretch;
+    }
+    .crumb {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+    .topbar-actions {
+      width: 100%;
+      justify-content: flex-start;
+      flex-wrap: wrap;
+    }
+    .topbar-search-trigger {
+      flex: 1 1 100%;
+      min-width: 0;
+      max-width: none;
+    }
+    .topbar-actions .tb-chip.update {
+      display: none;
+    }
+    .mobile-nav-trigger {
+      display: inline-grid !important;
+      place-items: center;
+    }
+    html.tauri-macos-traffic .app-shell:not(.app-shell--mac-unified) .topbar.topbar--mac-traffic .topbar-mac-content-row {
+      padding-left: max(76px, var(--main-padding));
+      padding-right: var(--main-padding);
+    }
+    html.tauri-macos-traffic .app-shell.app-shell--mac-unified .app-window-chrome__toolbar {
+      padding-left: var(--main-padding);
+      padding-right: var(--main-padding);
+    }
+  }
+  @media (min-width: 900px) {
+    html[data-sidebar-rail="icons"] .app-shell {
+      grid-template-columns: 56px minmax(0, 1fr);
+    }
+    html[data-sidebar-rail="icons"] .glass.app-sidebar {
+      width: 56px;
+      min-width: 56px;
+      max-width: 56px;
+      padding: 10px 6px;
+      overflow-x: hidden;
+    }
+    html[data-sidebar-rail="icons"] .glass.app-sidebar .sb-item-label,
+    html[data-sidebar-rail="icons"] .glass.app-sidebar .sb-group-label,
+    html[data-sidebar-rail="icons"] .glass.app-sidebar .app-sidebar-brand-meta {
+      position: absolute !important;
+      width: 1px !important;
+      height: 1px !important;
+      padding: 0 !important;
+      margin: -1px !important;
+      overflow: hidden !important;
+      clip: rect(0, 0, 0, 0) !important;
+      white-space: nowrap !important;
+      border: 0 !important;
+    }
+    html[data-sidebar-rail="icons"] .glass.app-sidebar .sb-item {
+      justify-content: center;
+      padding: 8px 6px;
+      gap: 0;
+    }
+    html[data-sidebar-rail="icons"] .glass.app-sidebar .app-sidebar-brand-row {
+      justify-content: center;
+      padding-inline: 0;
+    }
+    html[data-sidebar-rail="icons"] .glass.app-sidebar .app-sidebar-user-card {
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+  }
+  .mobile-nav-trigger {
+    display: none;
+  }
+}

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdministrationPageHeader } from "../components/administration-page-header";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
+import { DataTable, type DataTableColumn } from "../components/ui/data-table";
 import { Card, CardHeader } from "../components/ui/card";
 import { ConfirmDialog, Dialog } from "../components/ui/dialog";
 import { FormSection } from "../components/ui/form-section";
@@ -590,6 +591,68 @@ export function AdministrationContractsPage() {
         );
     })();
 
+    const contractColumns: DataTableColumn<ContractItem>[] = [
+        {
+            id: "doc",
+            header: t("page.administration.contracts.title_with_doc"),
+            srOnlyHeader: true,
+            width: "2.75rem",
+            align: "center",
+            cell: (v) => (
+                <span className="data-table__muted" title={v.documentPath ? t("page.administration.contracts.title_with_doc") : undefined}>
+                    {v.documentPath ? "📎" : "📄"}
+                </span>
+            ),
+        },
+        {
+            id: "designation",
+            header: t("page.administration.contracts.col.designation_partner"),
+            truncate: true,
+            text: (v) => `${v.designation} · ${v.partner}`,
+            cell: (v) => (
+                <div className="data-table__stack">
+                    <span className="data-table__primary">{v.designation}</span>
+                    <span className="data-table__secondary">{v.partner}</span>
+                </div>
+            ),
+        },
+        {
+            id: "amount",
+            header: t("page.administration.contracts.col.amount_interval"),
+            width: "9.5rem",
+            numeric: true,
+            cell: (v) => <strong>{formatAmountLine(v.amount, v.interval)}</strong>,
+        },
+        {
+            id: "term",
+            header: t("page.administration.contracts.col.runtime"),
+            width: "11rem",
+            truncate: true,
+            hideBelow: "sm",
+            text: (v) => formatTerm(v),
+            cell: (v) => <span className="data-table__secondary">{formatTerm(v)}</span>,
+        },
+        {
+            id: "status",
+            header: t("page.administration.contracts.col.status"),
+            width: "8.5rem",
+            cell: (v) =>
+                contractActiveToday(v) ? (
+                    <Badge variant="success">{t("page.administration.contracts.badge.active")}</Badge>
+                ) : (
+                    <Badge variant="warning">{t("page.administration.contracts.badge.outside")}</Badge>
+                ),
+        },
+        {
+            id: "ref",
+            header: t("page.administration.contracts.col.reference"),
+            width: "8.5rem",
+            numeric: true,
+            hideBelow: "md",
+            cell: (v) => <span className="data-table__secondary">{formatMonthlyRef(v)}</span>,
+        },
+    ];
+
     return (
         <div className="administration-menu-page practice-workspace-page animate-fade-in">
             <AdministrationPageHeader
@@ -609,59 +672,17 @@ export function AdministrationContractsPage() {
             ) : (
                 <div className="products-workspace">
                     <div className="products-workspace__list">
-                        <div className="card products-table-card tbl-data-card tbl-scroll">
-                            <table className="tbl contracts-tbl">
-                                <thead>
-                                    <tr>
-                                        <th scope="col" style={{ width: 40 }} aria-hidden> </th>
-                                        <th scope="col">{t("page.administration.contracts.col.designation_partner")}</th>
-                                        <th scope="col" style={{ textAlign: "end", whiteSpace: "nowrap" }}>{t("page.administration.contracts.col.amount_interval")}</th>
-                                        <th scope="col">{t("page.administration.contracts.col.runtime")}</th>
-                                        <th scope="col" style={{ whiteSpace: "nowrap" }}>{t("page.administration.contracts.col.status")}</th>
-                                        <th scope="col" style={{ textAlign: "end", minWidth: 100 }}>{t("page.administration.contracts.col.reference")}</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {contracts.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={6} className="page-sub" style={{ padding: 20 }}>
-                                                {t("page.administration.contracts.empty_table")}
-                                            </td>
-                                        </tr>
-                                    ) : (
-                                        contracts.map((version) => {
-                                            const active = contractActiveToday(version);
-                                            const isSel = !creating && selected?.id === version.id;
-                                            return (
-                                                <tr
-                                                    key={version.id}
-                                                    className={isSel ? "products-row--selected" : undefined}
-                                                    onClick={() => selectRow(version)}
-                                                    style={{ cursor: "pointer" }}
-                                                >
-                                                    <td style={{ color: "var(--fg-3)", textAlign: "center" }} title={version.documentPath ? t("page.administration.contracts.title_with_doc") : undefined}>
-                                                        {version.documentPath ? "📎" : "📄"}
-                                                    </td>
-                                                    <td>
-                                                        <div style={{ fontWeight: 700 }}>{version.designation}</div>
-                                                        <div style={{ color: "var(--fg-3)", fontSize: 12, marginTop: 2 }}>{version.partner}</div>
-                                                    </td>
-                                                    <td style={{ textAlign: "end", fontWeight: 700, whiteSpace: "nowrap" }}>
-                                                        {formatAmountLine(version.amount, version.interval)}
-                                                    </td>
-                                                    <td style={{ fontSize: 13, color: "var(--fg-2)" }}>{formatTerm(version)}</td>
-                                                    <td>
-                                                        {active ? <Badge variant="success">{t("page.administration.contracts.badge.active")}</Badge> : <Badge variant="warning">{t("page.administration.contracts.badge.outside")}</Badge>}
-                                                    </td>
-                                                    <td style={{ textAlign: "end", fontSize: 12, color: "var(--fg-3)" }}>
-                                                        {formatMonthlyRef(version)}
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })
-                                    )}
-                                </tbody>
-                            </table>
+                        <div className="card products-table-card">
+                            <DataTable
+                                label={t("page.administration.contracts.title")}
+                                columns={contractColumns}
+                                rows={contracts}
+                                getRowId={(v) => v.id}
+                                selectedId={creating ? null : selected?.id ?? null}
+                                onRowActivate={selectRow}
+                                emptyLabel={t("page.administration.contracts.empty_table")}
+                                minWidth="40rem"
+                            />
                         </div>
                     </div>
                     <div className="products-workspace__detail">{sidePanel}</div>

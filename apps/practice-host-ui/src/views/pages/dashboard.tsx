@@ -30,6 +30,7 @@ import { kpiIconChrome } from "@/lib/kpi-icon-chrome";
 import { WorkspacePageHeader } from "../components/administration-page-header";
 import { DismissibleNotice } from "../components/ui/dismissible-notice";
 import { PAGE_REFRESH_EVENT } from "../layouts/page-refresh";
+import { localYmd } from "@/lib/practice-clock";
 
 const DASHBOARD_PURCHASE_ORDERS_MAX = 10;
 const CHARTS_QUEUE_POLL_MS = 15_000;
@@ -45,7 +46,7 @@ function readInsightsDismissed(): boolean {
 }
 
 function todayISO(): string {
-    return new Date().toISOString().slice(0, 10);
+    return localYmd();
 }
 
 function purchaseOrderIsOverdue(b: PurchaseOrder): boolean {

@@ -1,12 +1,27 @@
 import { useT } from "@/lib/i18n";
+import { codeForMessage } from "@/lib/errors";
 import { Spinner } from "./spinner";
+import { OPEN_HELP_EVENT } from "./toast-store";
 
+/** Inline load failure: message, support code (when known) with a link to the manual, and Retry. */
 export function PageLoadError({ message, onRetry }: { message: string; onRetry: () => void }) {
     const t = useT();
+    const code = codeForMessage(message);
     return (
-        <div className="card card-pad" style={{ maxWidth: 420, margin: "0 auto", textAlign: "center" }} role="alert">
-            <p style={{ color: "var(--red)", marginBottom: 12, fontSize: 13.5 }}>{message}</p>
-            <button className="btn btn-subtle" onClick={onRetry}>{t("common.retry")}</button>
+        <div className="card card-pad page-load-error" role="alert">
+            <p className="page-load-error__message">{message}</p>
+            {code ? (
+                <button
+                    type="button"
+                    className="page-load-error__code"
+                    onClick={() => window.dispatchEvent(new CustomEvent(OPEN_HELP_EVENT, { detail: { tab: "errors", code } }))}
+                >
+                    {t("errors.code_label").replace("{code}", code)} · {t("errors.open_manual")}
+                </button>
+            ) : null}
+            <button type="button" className="btn btn-subtle" onClick={onRetry}>
+                {t("common.retry")}
+            </button>
         </div>
     );
 }

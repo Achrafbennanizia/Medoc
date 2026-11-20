@@ -13,7 +13,8 @@ import { useLocale, useT, useTParams } from "@/lib/i18n";
 import { Button } from "@/views/components/ui/button";
 import { ConfirmDialog, Dialog } from "@/views/components/ui/dialog";
 import { useToastStore } from "@/views/components/ui/toast-store";
-import { errorMessage } from "@/lib/utils";
+import { errorMessage, formatDateTime } from "@/lib/utils";
+import { PageLoadError } from "@/views/components/ui/page-status";
 
 /** Own device sessions — Settings → Security. */
 export function SettingsDeviceSessionsSection() {
@@ -29,18 +30,23 @@ export function SettingsDeviceSessionsSection() {
     const [trustBusyId, setTrustBusyId] = useState<string | null>(null);
     const [investigation, setInvestigation] = useState<DeviceSessionInvestigation | null>(null);
     const [revokeTarget, setRevokeTarget] = useState<DeviceSessionRow | null>(null);
+    /** Load failure is shown (with Retry) instead of pretending there are 0 sessions. */
+    const [loadError, setLoadError] = useState<string | null>(null);
 
     const refreshDeviceSessions = useCallback(async () => {
         try {
             setDeviceSessionsBusy(true);
+            setLoadError(null);
             const rows = await listMyDeviceSessions();
             setDeviceSessions(Array.isArray(rows) ? rows : []);
-        } catch {
+        } catch (e) {
             setDeviceSessions([]);
+            setLoadError(errorMessage(e));
         } finally {
             setDeviceSessionsBusy(false);
         }
     }, []);
+    const when = (raw: string | null | undefined) => (raw ? formatDateTime(raw) : t("common.dash"));
 
     useEffect(() => {
         void refreshDeviceSessions();
@@ -107,12 +113,12 @@ export function SettingsDeviceSessionsSection() {
 
     const otherCount = deviceSessions.filter((r) => !r.is_current).length;
     const suspectedCount = deviceSessions.filter((r) => r.is_suspected).length;
-    const suspectedSuffix = suspectedCount === 1 ? "" : locale === "de" ? "en" : "s";
+    const suspectedSuffix = suspectedCount === 1 ? "" : locale === "de" ? "en" : locale === "en" ? "s" : "";
 
     const trustStatusLabel = (session: DeviceSessionRow) => {
         if (session.is_trusted) {
             const since = session.trusted_at
-                ? tp("settings.device_sessions.trust_status.trusted_since", { date: session.trusted_at })
+                ? tp("settings.device_sessions.trust_status.trusted_since", { date: when(session.trusted_at) })
                 : "";
             return tp("settings.device_sessions.trust_status.trusted", { since });
         }
@@ -132,7 +138,7 @@ export function SettingsDeviceSessionsSection() {
                                 : t("settings.device_sessions.subtitle")}
                         </div>
                     </div>
-                    {!deviceSessionsBusy ? (
+                    {!deviceSessionsBusy && !loadError ? (
                         <span className="settings-device-sessions-count settings-pill-blue">
                             {tp("settings.device_sessions.count_active", { count: deviceSessions.length })}
                         </span>
@@ -146,7 +152,11 @@ export function SettingsDeviceSessionsSection() {
                 </div>
             ) : null}
 
-            {deviceSessions.length === 0 && !deviceSessionsBusy ? (
+            {loadError ? (
+                <div className="card-pad">
+                    <PageLoadError message={loadError} onRetry={() => void refreshDeviceSessions()} />
+                </div>
+            ) : deviceSessions.length === 0 && !deviceSessionsBusy ? (
                 <div className="settings-device-sessions-empty">
                     {t("settings.device_sessions.empty")}
                 </div>
@@ -178,11 +188,11 @@ export function SettingsDeviceSessionsSection() {
                                     {(row.user_agent ?? "").slice(0, 120) || "—"}
                                 </div>
                                 <div className="settings-device-session-meta">
-                                    {tp("settings.device_sessions.last_active", { time: row.last_seen_at })}
+                                    {tp("settings.device_sessions.last_active", { time: when(row.last_seen_at) })}
                                     {row.peer_ip
                                         ? ` · ${t("settings.device_sessions.dialog.ip")}: ${row.peer_ip}`
                                         : ""}
-                                    {row.trusted_at ? tp("settings.device_sessions.trusted_since", { time: row.trusted_at }) : ""}
+                                    {row.trusted_at ? tp("settings.device_sessions.trusted_since", { time: when(row.trusted_at) }) : ""}
                                 </div>
                                 {row.is_suspected && row.suspected_reasons.length > 0 ? (
                                     <ul className="settings-device-session-reasons">
@@ -309,11 +319,11 @@ export function SettingsDeviceSessionsSection() {
                             </div>
                             <div>
                                 <dt>{t("settings.device_sessions.dialog.created")}</dt>
-                                <dd>{investigation.session.created_at}</dd>
+                                <dd>{when(investigation.session.created_at)}</dd>
                             </div>
                             <div>
                                 <dt>{t("settings.device_sessions.dialog.last_active")}</dt>
-                                <dd>{investigation.session.last_seen_at}</dd>
+                                <dd>{when(investigation.session.last_seen_at)}</dd>
                             </div>
                             <div>
                                 <dt>{t("settings.device_sessions.dialog.ip")}</dt>

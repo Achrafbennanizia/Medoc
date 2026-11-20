@@ -1,5 +1,6 @@
 //! Schema evolution: SQLx file migrations, legacy ALTER paths, sync DDL, demo seed.
 
+mod chart_status_declined;
 mod cluster_tables;
 mod english_schema_upgrade;
 mod legacy_embedded;
@@ -10,6 +11,7 @@ mod seed_workday;
 mod seed_year;
 mod sync_tables;
 
+pub use chart_status_declined::ensure_patient_chart_declined_status;
 pub use cluster_tables::ensure_cluster_tables;
 pub use english_schema_upgrade::{run_english_schema_upgrade, schema_already_present};
 pub use legacy_embedded::run_legacy_embedded_migrations;

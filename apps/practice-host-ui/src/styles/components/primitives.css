@@ -1,0 +1,173 @@
+/* components/primitives (components layer) */
+@layer components {
+  .topbar { position: sticky; top: 0; z-index: 5; flex-shrink: 0; backdrop-filter: saturate(180%) blur(18px); -webkit-backdrop-filter: saturate(180%) blur(18px); background: color-mix(in srgb, var(--bg) 72%, transparent); border-bottom: 1px solid var(--line); padding: 14px var(--main-padding); display: flex; align-items: center; gap: 16px; }
+  .topbar-actions { min-width: 0; }
+  .topbar-search-trigger { flex: 1 1 240px; min-width: 160px; max-width: 420px; }
+  .crumb { display: flex; align-items: center; gap: 6px; color: var(--fg-3); font-size: 13px; }
+  .crumb b { color: var(--fg); font-weight: 600; }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: var(--radius-ctl);
+    font-size: 13.5px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    transition:
+      background var(--motion-fast) var(--ease-out),
+      color var(--motion-fast) var(--ease-out),
+      border-color var(--motion-fast) var(--ease-out),
+      box-shadow var(--motion-fast) var(--ease-out),
+      transform var(--motion-fast) var(--ease-out);
+  }
+  .btn:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+  /* Lock SVG icon aspect ratio — flex/grid parents must not stretch glyphs. */
+  .ui-icon {
+    flex-shrink: 0;
+    display: block;
+    align-self: center;
+    justify-self: center;
+    aspect-ratio: 1 / 1;
+    overflow: visible;
+  }
+  .btn-accent {
+    background: var(--accent);
+    color: var(--fg-on-saturated);
+    box-shadow:
+      0 1px 2px color-mix(in oklab, var(--accent) 35%, transparent),
+      inset 0 -1px 0 color-mix(in oklab, var(--fg) 12%, transparent);
+  }
+  .btn-accent:hover {
+    background: color-mix(in oklab, var(--accent) 88%, var(--fg));
+    transform: translateY(-1px);
+  }
+  .btn-accent:active:not(:disabled) { transform: scale(0.98); }
+  .btn-ghost { background: rgba(0,0,0,0.045); color: var(--fg); }
+  .btn-ghost:hover { background: rgba(0,0,0,0.08); }
+  .btn-subtle { background: var(--bg-elev); border: 1px solid var(--line); color: var(--fg-2); }
+  .btn-subtle:hover { background: rgba(0,0,0,0.03); }
+  .btn-danger,
+  .btn:has(.ui-icon-trash) {
+    background: color-mix(in oklab, var(--red) 16%, var(--bg-elev));
+    color: var(--red);
+    border: 1px solid color-mix(in oklab, var(--red) 42%, transparent);
+  }
+  .btn-danger:hover:not(:disabled),
+  .btn:has(.ui-icon-trash):hover:not(:disabled) {
+    background: color-mix(in oklab, var(--red) 26%, var(--bg-elev));
+    color: var(--red);
+  }
+  .attention-hover {
+    transition:
+      background var(--motion-fast) var(--ease-out),
+      color var(--motion-fast) var(--ease-out),
+      border-color var(--motion-fast) var(--ease-out);
+  }
+  .attention-hover:hover,
+  .attention-hover:focus-visible {
+    background: rgba(255, 59, 48, 0.12) !important;
+    color: #B42318 !important;
+    border-color: rgba(255, 59, 48, 0.28) !important;
+  }
+  .icon-btn { width: 34px; height: 34px; border-radius: var(--radius-ctl); display: grid; place-items: center; color: var(--fg-2); transition: background var(--motion-fast) var(--ease-out), transform var(--motion-fast) var(--ease-out); position: relative; }
+  .icon-btn:hover { background: rgba(0,0,0,0.05); }
+  .icon-btn:active:not(:disabled) { transform: scale(0.98); }
+  .icon-btn .dot { position: absolute; top: 8px; right: 9px; width: 8px; height: 8px; border-radius: 50%; background: var(--red); border: 2px solid var(--bg); }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; font-size: 11.5px; font-weight: 700; border-radius: 999px; letter-spacing: 0.01em; }
+  .pill.green  { background: var(--green-soft);  color: var(--green-ink); }
+  .pill.blue   { background: var(--blue-soft);   color: var(--blue-ink); }
+  .pill.orange { background: var(--orange-soft); color: var(--orange-ink); }
+  .pill.yellow { background: var(--yellow-soft); color: var(--yellow-ink); }
+  .pill.red    { background: var(--red-soft);    color: var(--red-ink); }
+  .pill.grey   { background: rgba(0,0,0,0.06);   color: var(--fg-2); }
+  .pill.accent { background: var(--accent-soft); color: var(--accent-ink); }
+  .pill.purple { background: var(--purple-soft); color: var(--purple-ink); }
+  .pill.solid-green { background: #30d158; color: #fff; }
+  .pill.solid-amber { background: #e5a000; color: #fff; }
+  .pill.solid-blue { background: #0a84ff; color: #fff; }
+  .pill.solid-teal { background: #0ea07e; color: #fff; }
+  .pill.solid-purple { background: #af52de; color: #fff; }
+  .pill.solid-red { background: #e95858; color: #fff; }
+  .pill .dot   { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .kpi { padding: clamp(12px, 1.6vh, 16px) var(--card-pad-x); display: flex; flex-direction: column; gap: clamp(4px, 0.8vh, 7px); min-height: clamp(92px, 12vh, 128px); }
+  .kpi-label { color: var(--fg-3); font-size: 12.5px; font-weight: 500; display: flex; align-items: center; gap: 6px; }
+  .kpi-val { font-size: 30px; font-weight: 700; letter-spacing: -0.03em; }
+  .kpi-delta { font-size: 12px; color: var(--fg-3); display: flex; align-items: center; gap: 4px; }
+  .dashboard-page .kpi-label { font-size: clamp(12px, 1.2vh, 13px); }
+  .dashboard-page .kpi-val { font-size: var(--dash-kpi-size); line-height: 1.06; }
+  .dashboard-page .kpi-delta { font-size: var(--dash-meta-size); }
+  .kpi-delta.up { color: #148B4C; }
+  .kpi-delta.down { color: var(--red); }
+  /** KPI sub-lines (Dashboard/Statistics): no inline colors — dark-mode contrast centralized */
+  .kpi-delta__trend--positive {
+    color: #148b4c;
+    font-weight: 500;
+  }
+  .kpi-delta__trend--negative {
+    color: #c94a4a;
+    font-weight: 500;
+  }
+
+  .input { display: flex; align-items: center; gap: 8px; background: var(--bg-elev); border: 1px solid var(--line); border-radius: var(--radius-ctl); padding: 8px 12px; transition: border var(--motion-fast) var(--ease-out), box-shadow var(--motion-fast) var(--ease-out); }
+  .input:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 22%, transparent);
+  }
+  .input input { border: 0; outline: 0; flex: 1; background: transparent; font-size: 13.5px; }
+  .input-edit { min-height: var(--input-h); box-sizing: border-box; background: var(--bg-elev); border: 1px solid var(--line-strong); border-radius: var(--radius-ctl); padding: 10px 12px; font-size: 13.5px; font-weight: 500; width: 100%; text-align: start; transition: border var(--motion-fast) var(--ease-out), box-shadow var(--motion-fast) var(--ease-out); }
+  .tag-input-shell {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    min-height: 44px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid var(--line-strong);
+    background: var(--bg-elev);
+    color: var(--fg);
+    box-sizing: border-box;
+  }
+  .tag-input-shell--error {
+    border-color: var(--red);
+  }
+  .tag-input-field {
+    flex: 1 1 120px;
+    min-width: 100px;
+    border: none;
+    outline: none;
+    font-size: 14px;
+    background: transparent;
+    color: inherit;
+  }
+  .tag-input-field::placeholder {
+    color: var(--fg-3);
+  }
+  .tag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--fg);
+    background: color-mix(in oklab, var(--tag-chip-accent, var(--accent)) 22%, var(--bg-elev));
+    border: 1px solid color-mix(in oklab, var(--tag-chip-accent, var(--accent)) 42%, var(--line-strong));
+  }
+  .tag-chip-remove {
+    width: 20px;
+    height: 20px;
+    color: var(--fg-2);
+  }
+  .tag-suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  /* Standard horizontal scroll shell for data tables below ~900px */
+}
