@@ -20,7 +20,7 @@ import {
 import { MAX_TOTAL_STAFF } from "@/lib/mvp-security-config";
 import { allowed, isFullChartReadonlyOverrideActive, parseRole, RBAC_ALL_ACTIONS } from "@/lib/rbac";
 import { useAuthStore } from "@/models/store/auth-store";
-import { errorMessage, formatDate } from "@/lib/utils";
+import { errorMessage, formatDate, initialsFromName } from "@/lib/utils";
 import type { Staff } from "../../models/types";
 import { Button } from "../components/ui/button";
 import { Card, CardHeader } from "../components/ui/card";
@@ -39,14 +39,6 @@ import type { Role } from "@/models/types";
 import { ACTIVE_ROLE_WIRES } from "@/lib/deferred-roles";
 import { useT, useTParams , useCollatorLocale} from "@/lib/i18n";
 import { syncGetStatus } from "@/systems/practice-host/controllers/sync.controller";
-
-function initialsFromName(name: string) {
-    return name
-        .split(" ")
-        .map((n) => n[0])
-        .slice(0, 2)
-        .join("");
-}
 
 const ROLE_VALUE_OPTIONS = [
     { value: "PHYSICIAN" as const, key: "enum.role.physician" },
@@ -76,7 +68,7 @@ export function StaffPage() {
     const [loadError, setLoadError] = useState<string | null>(null);
     const [searchParams, setSearchParams] = useSearchParams();
     const [creating, setCreating] = useState(false);
-    const [createForm, setCreateForm] = useState({ name: "", email: "", password: "", role: "RECEPTION" });
+    const [createForm, setCreateForm] = useState({ name: "", email: "", password: "", role: "RECEPTION" as Role });
     const [createErrors, setCreateErrors] = useState<{ name?: string; email?: string; password?: string }>({});
     const [createBusy, setCreateBusy] = useState(false);
     const [selected, setSelected] = useState<Staff | null>(null);
@@ -493,7 +485,7 @@ export function StaffPage() {
                             id="pers-new-role"
                             label={t("common.role")}
                             value={createForm.role}
-                            onChange={(e) => setCreateForm((f) => ({ ...f, role: e.target.value }))}
+                            onChange={(e) => setCreateForm((f) => ({ ...f, role: e.target.value as Role }))}
                             options={availableRoleOptions.map((o) => ({ value: o.value, label: o.label }))}
                         />
                         <div className="row" style={{ justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
@@ -974,7 +966,7 @@ export function StaffPage() {
     })();
 
     return (
-        <div className="staff-page practice-workspace-page animate-fade-in">
+        <div className="staff-page practice-workspace-page animate-fade-in--sticky-safe">
             <AdministrationPageHeader
                 title={t("page.staff.title")}
                 subtitle={quotaSubtitle}

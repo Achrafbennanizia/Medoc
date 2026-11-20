@@ -10,9 +10,9 @@ use tauri::{AppHandle, Manager, State};
 use tokio::task::JoinHandle;
 
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::error::AppError;
-use crate::infrastructure::database::app_kv_repo;
+use crate::infrastructure::database::repos::admin::app_kv as app_kv_repo;
 use crate::infrastructure::lan_server::{
     discovery, secrets, tls, LanBeaconPayload, LanServerConfigV1, APP_KV_KEY,
 };
@@ -215,16 +215,21 @@ pub async fn start_lan_embedded(
     }
 
     let cfg = load_or_default_config(&pool).await?;
-    let app_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| AppError::Internal(format!("App data directory: {e}")))?;
+    let app_dir = crate::commands::app_data_dir(&app)?;
 
     let jwt_arr = secrets::ensure_jwt_secret_bytes(&app_dir)?;
     let jwt_secret: Arc<[u8; 32]> = Arc::new(jwt_arr);
     let instance_id = secrets::ensure_instance_id(&app_dir)?;
     let tls_identity = tls::ensure_lan_tls_identity(&app_dir)?;
     medoc_sync::tls_pin::remember_local_pin(&pool, &tls_identity.sha256_fingerprint).await?;
+
+    if let Err(error) = medoc_sync::master_keys::align_to_license(&pool).await {
+        tracing::warn!(
+            target: "medoc::lan",
+            event = "MASTER_SIGNING_KEY_ALIGN_FAILED",
+            %error
+        );
+    }
 
     let brute = Arc::new(BruteForceTracker::new());
     brute
@@ -442,17 +447,4 @@ pub async fn lan_server_scan(
             cert_sha256: p.cert_sha256.clone(),
         })
         .collect())
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_lan_commands {
-    () => {
-        $crate::commands::lan_commands::lan_server_get_config,
-        $crate::commands::lan_commands::lan_server_set_config,
-        $crate::commands::lan_commands::lan_server_status,
-        $crate::commands::lan_commands::lan_server_start,
-        $crate::commands::lan_commands::lan_server_stop,
-        $crate::commands::lan_commands::lan_server_scan,
-    };
 }

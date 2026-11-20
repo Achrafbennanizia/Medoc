@@ -404,7 +404,7 @@ export function ProductsPage() {
     })();
 
     return (
-        <div className="products-page practice-workspace-page animate-fade-in">
+        <div className="products-page practice-workspace-page animate-fade-in--sticky-safe">
             <AdministrationPageHeader
                 showBack={canGoAdministration}
                 title={t("products.page.title")}

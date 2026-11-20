@@ -19,11 +19,6 @@ export function billingReleaseError(t: TParamsFn, entityLabel: string): string {
     return t("error.billing.not_released", { entity: entityLabel });
 }
 
-/** @deprecated Use billingReleaseError(t, entityLabel) */
-export function billingReleaseErrorDe(entityLabel: string): string {
-    return `${entityLabel} is not yet released for billing.`;
-}
-
 export function requireReleasedForBilling(
     releasedByPhysicianId: string | null | undefined,
     releasedAt: string | null | undefined,
@@ -33,7 +28,7 @@ export function requireReleasedForBilling(
     if (!isReleasedForBilling(releasedByPhysicianId, releasedAt)) {
         const msg = t
             ? billingReleaseError(t, entityLabel)
-            : billingReleaseErrorDe(entityLabel);
+            : `${entityLabel} is not yet released for billing.`;
         throw new Error(msg);
     }
 }

@@ -13,3 +13,4 @@
 pub mod api_key;
 pub mod db;
 pub mod http;
+pub mod stripe_secret;

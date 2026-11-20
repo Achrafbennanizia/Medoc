@@ -139,7 +139,7 @@ export function SickLeaveCertificateFormPage() {
     if (loadError && records.length === 0) return <PageLoadError message={loadError} onRetry={() => void load()} />;
 
     return (
-        <div className="practice-workspace-page animate-fade-in">
+        <div className="practice-workspace-page animate-fade-in--sticky-safe">
             <AdministrationPageHeader
                 title={t("page.sick_leave_certificate.title")}
                 subtitle={t("page.sick_leave_certificate.subtitle")}

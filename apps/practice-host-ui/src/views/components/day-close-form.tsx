@@ -10,10 +10,10 @@ import {
     type DayCloseDraft,
     type DayCloseResult,
 } from "@/systems/practice-host/controllers/day-close-protocol.controller";
-import { errorMessage, formatDate } from "@/lib/utils";
-import { formatCashAmount, parseDbUtc, parseEuroInput } from "@/lib/day-close";
+import { errorMessage, formatDate, formatDbTime, parseEuroInput } from "@/lib/utils";
+import { formatCashAmount } from "@/lib/day-close";
 import { practiceCurrency } from "@/lib/practice-currency";
-import { bcp47ForLocale, useLocale, useT, useTParams } from "@/lib/i18n";
+import { useLocale, useT, useTParams } from "@/lib/i18n";
 import { Button } from "./ui/button";
 import { ConfirmDialog } from "./ui/dialog";
 import { Input, Select, Textarea } from "./ui/input";
@@ -47,7 +47,6 @@ export function DayCloseForm({ canWrite, onClosed, onCancel, showCancelButton }:
     const t = useT();
     const tp = useTParams();
     const locale = useLocale((s) => s.locale);
-    const timeLocale = bcp47ForLocale(locale);
     const toast = useToastStore((s) => s.add);
 
     const [asOfDate, setAsOfDate] = useState(todayLocal);
@@ -173,9 +172,6 @@ export function DayCloseForm({ canWrite, onClosed, onCancel, showCancelButton }:
         }
     };
 
-    const time = (utc: string) =>
-        parseDbUtc(utc).toLocaleString(timeLocale, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
-
     const row = (label: string, value: string, strong = false) => (
         <div className="row" style={{ justifyContent: "space-between", gap: 12, fontSize: 14 }}>
             <span style={{ color: "var(--fg-2)" }}>{label}</span>
@@ -261,7 +257,7 @@ export function DayCloseForm({ canWrite, onClosed, onCancel, showCancelButton }:
                                     <tbody>
                                         {draft.receipts.map((r) => (
                                             <tr key={r.id}>
-                                                <td style={{ whiteSpace: "nowrap" }}>{time(r.receivedAt)}</td>
+                                                <td style={{ whiteSpace: "nowrap" }}>{formatDbTime(r.receivedAt, locale)}</td>
                                                 <td>
                                                     {(r.patientName ?? r.patientId.slice(0, 8)).slice(0, 28)}
                                                     {r.kind !== "RECEIPT" ? ` · ${t(`page.day_close.journal_kind.${r.kind.toLowerCase()}`)}` : ""}
@@ -273,7 +269,7 @@ export function DayCloseForm({ canWrite, onClosed, onCancel, showCancelButton }:
                                         ))}
                                         {draft.movements.map((m) => (
                                             <tr key={m.id}>
-                                                <td style={{ whiteSpace: "nowrap" }}>{time(m.occurredAt)}</td>
+                                                <td style={{ whiteSpace: "nowrap" }}>{formatDbTime(m.occurredAt, locale)}</td>
                                                 <td>{`${t(`page.day_close.movement.kind.${m.kind.toLowerCase()}`)}: ${m.reason}`}</td>
                                                 <td>{t("page.day_close.method.cash")}</td>
                                                 <td>{m.receiptRef ?? "—"}</td>

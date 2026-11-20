@@ -60,9 +60,9 @@ pub async fn validate(
     Json(body): Json<EPrescriptionBody>,
 ) -> Result<Json<Value>, ApiError> {
     if !medoc_core::mvp_security::EPRESCRIPTION_ENABLED {
-        return Err(ApiError::from(medoc_core::error::AppError::FeatureDisabled(
-            "eprescription".into(),
-        )));
+        return Err(ApiError::from(
+            medoc_core::error::AppError::FeatureDisabled("eprescription".into()),
+        ));
     }
     authorize(
         &state.pool,
@@ -93,9 +93,9 @@ pub async fn submit(
     Json(body): Json<EPrescriptionBody>,
 ) -> Result<Json<Value>, ApiError> {
     if !medoc_core::mvp_security::EPRESCRIPTION_ENABLED {
-        return Err(ApiError::from(medoc_core::error::AppError::FeatureDisabled(
-            "eprescription".into(),
-        )));
+        return Err(ApiError::from(
+            medoc_core::error::AppError::FeatureDisabled("eprescription".into()),
+        ));
     }
     authorize(
         &state.pool,

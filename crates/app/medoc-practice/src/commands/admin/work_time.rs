@@ -6,9 +6,9 @@ use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::application::rbac::{self, effective_allowed, Role};
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::error::AppError;
-use crate::infrastructure::database::app_kv_repo;
+use crate::infrastructure::database::repos::admin::app_kv as app_kv_repo;
 use tauri::State;
 
 const AUTO_RECORD_KV: &str = "work_time.auto_record_on_login.v1";
@@ -86,7 +86,13 @@ async fn sync_practice_auto_flags(
         .execute(pool)
         .await
         .map_err(AppError::Database)?;
-        medoc_core::infrastructure::database::recorded_write::record_row(pool, "work_time_preference", &pid, "UPDATE").await?;
+        medoc_core::infrastructure::database::recorded_write::record_row(
+            pool,
+            "work_time_preference",
+            &pid,
+            "UPDATE",
+        )
+        .await?;
     }
     Ok(())
 }
@@ -238,7 +244,13 @@ async fn close_open_pause_segment(pool: &SqlitePool, session_id: &str) -> Result
         .execute(pool)
         .await
         .map_err(AppError::Database)?;
-    medoc_core::infrastructure::database::recorded_write::record_row(pool, "work_time_pause_segment", &seg_id, "UPDATE").await?;
+    medoc_core::infrastructure::database::recorded_write::record_row(
+        pool,
+        "work_time_pause_segment",
+        &seg_id,
+        "UPDATE",
+    )
+    .await?;
     let mins = parse_rfc3339(&started_at)
         .and_then(|st| parse_rfc3339(&now).map(|en| (en - st).num_minutes()))
         .unwrap_or(0)
@@ -251,7 +263,13 @@ async fn close_open_pause_segment(pool: &SqlitePool, session_id: &str) -> Result
     .execute(pool)
     .await
     .map_err(AppError::Database)?;
-    medoc_core::infrastructure::database::recorded_write::record_row(pool, "work_time_session", &session_id, "UPDATE").await?;
+    medoc_core::infrastructure::database::recorded_write::record_row(
+        pool,
+        "work_time_session",
+        &session_id,
+        "UPDATE",
+    )
+    .await?;
     Ok(mins)
 }
 
@@ -288,7 +306,13 @@ pub async fn get_or_create_preference(
     .execute(pool)
     .await
     .map_err(AppError::Database)?;
-    medoc_core::infrastructure::database::recorded_write::record_row(pool, "work_time_preference", &staff_id, "INSERT").await?;
+    medoc_core::infrastructure::database::recorded_write::record_row(
+        pool,
+        "work_time_preference",
+        &staff_id,
+        "INSERT",
+    )
+    .await?;
     Ok(WorkTimePreference {
         focus_mode: false,
         auto_record_on_login: auto_login,
@@ -316,7 +340,13 @@ pub async fn end_open_session_for_user(
     .execute(pool)
     .await
     .map_err(AppError::Database)?;
-    medoc_core::infrastructure::database::recorded_write::record_row(pool, "work_time_session", &row.id, "UPDATE").await?;
+    medoc_core::infrastructure::database::recorded_write::record_row(
+        pool,
+        "work_time_session",
+        &row.id,
+        "UPDATE",
+    )
+    .await?;
     Ok(())
 }
 
@@ -371,7 +401,13 @@ async fn reconcile_stale_sessions(pool: &SqlitePool, staff_id: &str) -> Result<u
         .execute(pool)
         .await
         .map_err(AppError::Database)?;
-        medoc_core::infrastructure::database::recorded_write::record_row(pool, "work_time_session", &row.id, "UPDATE").await?;
+        medoc_core::infrastructure::database::recorded_write::record_row(
+            pool,
+            "work_time_session",
+            &row.id,
+            "UPDATE",
+        )
+        .await?;
         closed += 1;
     }
     Ok(closed)
@@ -480,7 +516,13 @@ pub async fn work_time_start(
     .execute(pool.inner())
     .await
     .map_err(AppError::Database)?;
-    medoc_core::infrastructure::database::recorded_write::record_row(pool.inner(), "work_time_session", &id, "INSERT").await?;
+    medoc_core::infrastructure::database::recorded_write::record_row(
+        pool.inner(),
+        "work_time_session",
+        &id,
+        "INSERT",
+    )
+    .await?;
     open_session(&pool, &session.user_id)
         .await?
         .ok_or_else(|| AppError::Internal("work_time_start".into()))
@@ -513,7 +555,13 @@ pub async fn work_time_pause(
     .execute(pool.inner())
     .await
     .map_err(AppError::Database)?;
-    medoc_core::infrastructure::database::recorded_write::record_row(pool.inner(), "work_time_pause_segment", &seg_id, "INSERT").await?;
+    medoc_core::infrastructure::database::recorded_write::record_row(
+        pool.inner(),
+        "work_time_pause_segment",
+        &seg_id,
+        "INSERT",
+    )
+    .await?;
     sqlx::query(
         "UPDATE work_time_session SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'), status = 'PAUSED', pause_started_at = ?1 WHERE id = ?2",
     )
@@ -522,7 +570,13 @@ pub async fn work_time_pause(
     .execute(pool.inner())
     .await
     .map_err(AppError::Database)?;
-    medoc_core::infrastructure::database::recorded_write::record_row(pool.inner(), "work_time_session", &row.id, "UPDATE").await?;
+    medoc_core::infrastructure::database::recorded_write::record_row(
+        pool.inner(),
+        "work_time_session",
+        &row.id,
+        "UPDATE",
+    )
+    .await?;
     open_session(&pool, &session.user_id)
         .await?
         .ok_or_else(|| AppError::Internal("work_time_pause".into()))
@@ -552,7 +606,13 @@ pub async fn work_time_resume(
     .execute(pool.inner())
     .await
     .map_err(AppError::Database)?;
-    medoc_core::infrastructure::database::recorded_write::record_row(pool.inner(), "work_time_session", &row.id, "UPDATE").await?;
+    medoc_core::infrastructure::database::recorded_write::record_row(
+        pool.inner(),
+        "work_time_session",
+        &row.id,
+        "UPDATE",
+    )
+    .await?;
     open_session(&pool, &session.user_id)
         .await?
         .ok_or_else(|| AppError::Internal("work_time_resume".into()))
@@ -578,7 +638,13 @@ pub async fn work_time_end(
     .execute(pool.inner())
     .await
     .map_err(AppError::Database)?;
-    medoc_core::infrastructure::database::recorded_write::record_row(pool.inner(), "work_time_session", &row.id, "UPDATE").await?;
+    medoc_core::infrastructure::database::recorded_write::record_row(
+        pool.inner(),
+        "work_time_session",
+        &row.id,
+        "UPDATE",
+    )
+    .await?;
     sqlx::query_as::<_, WorkTimeSession>(
         "SELECT id, staff_id, started_at, ended_at, pause_started_at, status, auto_recorded, end_reason,
                 COALESCE(pause_minutes, 0) AS pause_minutes
@@ -853,7 +919,13 @@ pub async fn work_time_set_preference(
             .execute(pool.inner())
             .await
             .map_err(AppError::Database)?;
-        medoc_core::infrastructure::database::recorded_write::record_row(pool.inner(), "work_time_preference", &pid, "UPDATE").await?;
+        medoc_core::infrastructure::database::recorded_write::record_row(
+            pool.inner(),
+            "work_time_preference",
+            &pid,
+            "UPDATE",
+        )
+        .await?;
     }
     if let Some(l) = patch.auto_record_on_login {
         sqlx::query(
@@ -864,7 +936,13 @@ pub async fn work_time_set_preference(
         .execute(pool.inner())
         .await
         .map_err(AppError::Database)?;
-        medoc_core::infrastructure::database::recorded_write::record_row(pool.inner(), "work_time_preference", &pid, "UPDATE").await?;
+        medoc_core::infrastructure::database::recorded_write::record_row(
+            pool.inner(),
+            "work_time_preference",
+            &pid,
+            "UPDATE",
+        )
+        .await?;
     }
     if let Some(o) = patch.auto_record_on_logout {
         sqlx::query(
@@ -875,7 +953,13 @@ pub async fn work_time_set_preference(
         .execute(pool.inner())
         .await
         .map_err(AppError::Database)?;
-        medoc_core::infrastructure::database::recorded_write::record_row(pool.inner(), "work_time_preference", &pid, "UPDATE").await?;
+        medoc_core::infrastructure::database::recorded_write::record_row(
+            pool.inner(),
+            "work_time_preference",
+            &pid,
+            "UPDATE",
+        )
+        .await?;
     }
     get_or_create_preference(&pool, &pid).await
 }
@@ -944,27 +1028,6 @@ pub async fn work_time_get_auto_record_on_login(
     practice_auto_record_on_login(&pool).await
 }
 
-#[macro_export]
-macro_rules! register_work_time_commands {
-    () => {
-        $crate::commands::work_time_commands::work_time_start,
-        $crate::commands::work_time_commands::work_time_pause,
-        $crate::commands::work_time_commands::work_time_resume,
-        $crate::commands::work_time_commands::work_time_end,
-        $crate::commands::work_time_commands::work_time_reconcile_on_login,
-        $crate::commands::work_time_commands::work_time_get_active_session,
-        $crate::commands::work_time_commands::work_time_get_week_overview,
-        $crate::commands::work_time_commands::work_time_get_team_overview,
-        $crate::commands::work_time_commands::work_time_get_statistics,
-        $crate::commands::work_time_commands::work_time_get_preference,
-        $crate::commands::work_time_commands::work_time_set_preference,
-        $crate::commands::work_time_commands::work_time_set_auto_record_on_login,
-        $crate::commands::work_time_commands::work_time_get_auto_record_on_login,
-        $crate::commands::work_time_commands::work_time_get_practice_policy,
-        $crate::commands::work_time_commands::work_time_set_practice_policy,
-    };
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -976,9 +1039,13 @@ mod tests {
     async fn open_shift_closes_at_local_midnight() {
         let pool = test_memory_pool().await.expect("pool");
         run_migrations(&pool).await.expect("migrate");
-        medoc_core::infrastructure::database::app_kv_repo::set(&pool, "practice.timezone.v1", "Europe/Berlin")
-            .await
-            .expect("tz");
+        medoc_core::infrastructure::database::repos::admin::app_kv::set(
+            &pool,
+            "practice.timezone.v1",
+            "Europe/Berlin",
+        )
+        .await
+        .expect("tz");
         let pid = "p-work-time-tz";
         seed_staff(&pool, pid).await;
         sqlx::query(
@@ -990,21 +1057,26 @@ mod tests {
         .await
         .expect("insert");
         assert_eq!(reconcile_all_stale_sessions(&pool).await.expect("sweep"), 1);
-        let (ended, reason): (String, String) = sqlx::query_as(
-            "SELECT ended_at, end_reason FROM work_time_session WHERE id = 'tz1'",
-        )
-        .fetch_one(&pool)
-        .await
-        .expect("row");
+        let (ended, reason): (String, String) =
+            sqlx::query_as("SELECT ended_at, end_reason FROM work_time_session WHERE id = 'tz1'")
+                .fetch_one(&pool)
+                .await
+                .expect("row");
         let ended = chrono::DateTime::parse_from_rfc3339(&ended).expect("rfc3339");
-        assert_eq!(ended.with_timezone(&Utc).to_rfc3339(), "2026-01-11T22:59:59+00:00");
+        assert_eq!(
+            ended.with_timezone(&Utc).to_rfc3339(),
+            "2026-01-11T22:59:59+00:00"
+        );
         assert_eq!(reason, "auto_closed");
         assert_eq!(
             started_date("2026-01-10T23:30:00+00:00"),
             NaiveDate::from_ymd_opt(2026, 1, 11),
             "week buckets use the local day"
         );
-        assert_eq!(local_day_start_utc(NaiveDate::from_ymd_opt(2026, 1, 12).unwrap()), "2026-01-11T23:00:00+00:00");
+        assert_eq!(
+            local_day_start_utc(NaiveDate::from_ymd_opt(2026, 1, 12).unwrap()),
+            "2026-01-11T23:00:00+00:00"
+        );
     }
 
     async fn seed_staff(pool: &SqlitePool, id: &str) {

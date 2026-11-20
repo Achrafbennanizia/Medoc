@@ -26,6 +26,8 @@ import { SettingsPairingInbox } from "@/systems/practice-host/pages/settings/set
 import { setNetworkHidden } from "@/systems/practice-host/controllers/cluster.controller";
 import { DeviceClusterPanel } from "@/systems/practice-host/pages/settings/device-cluster-panel";
 import { SettingsNetworkResetSection } from "@/systems/practice-host/pages/settings/settings-network-reset-section";
+import { PDF_HEADER_DESIGNER_ENABLED } from "@/lib/v1-ui-flags";
+import { PdfHeaderDesigner } from "@/systems/practice-host/pages/settings/pdf-header-designer";
 
 type WorkflowPrefs = NonNullable<ClientSettingsV1["workflows"]>;
 type SearchPrefs = NonNullable<ClientSettingsV1["search"]>;
@@ -162,6 +164,9 @@ export function SettingsSystemSection({
         if (!hideNetwork) return;
         void setNetworkHidden(true).catch(() => undefined);
     }, [hideNetwork]);
+    // TODO(later): restore the PDF header designer — see docs/coordination/todos-deferred-ui-blinds.md
+    const headerDesigner =
+        PDF_HEADER_DESIGNER_ENABLED && canOpsSystem ? <PdfHeaderDesigner /> : null;
     const desktopSettings = (
         <PracticeDesktopSettings
             canOpsSystem={canOpsSystem}
@@ -208,6 +213,7 @@ export function SettingsSystemSection({
                 </div>
                 )}
             </section>
+            {headerDesigner}
             {desktopSettings}
             </>
         );
@@ -248,6 +254,7 @@ export function SettingsSystemSection({
                 </p>
             ) : null}
         </section>
+        {headerDesigner}
         {desktopSettings}
         </>
     );

@@ -14,6 +14,8 @@ export MEDOC_DB_KEY="${MEDOC_DB_KEY:-0123456789abcdef0123456789abcdef0123456789a
 export MEDOC_AUDIT_KEY="${MEDOC_AUDIT_KEY:-k9-medoc-test-audit-key-32bytes!}"
 export MEDOC_PAIRING_MASTER_SECRET="${MEDOC_PAIRING_MASTER_SECRET:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}"
 export MEDOC_DEV_SEED=1
+# Live Stripe secret. No default — set STRIPE_SECRET_KEY in the host environment.
+export STRIPE_SECRET_KEY="${STRIPE_SECRET_KEY:-}"
 
 MASTER_PORT="${MEDOC_MASTER_PORT:-18787}"
 COMPANY_PORT="${MEDOC_COMPANY_PORT:-19797}"
@@ -50,6 +52,23 @@ truncate_body() {
   fi
 }
 
+# Drop credential material before it is written into the results file.
+redact_secrets() {
+  python3 -c '
+import re, sys
+s = sys.stdin.read()
+for prefix in ("sk_" + "live_", "sk_" + "test_", "rk_" + "live_", "rk_" + "test_"):
+    s = re.sub(prefix + r"[A-Za-z0-9_-]+", "${STRIPE_SECRET_KEY}", s)
+s = re.sub(
+    r"(\"api_key\"\s*:\s*\")(?!\$\{STRIPE_SECRET_KEY\}\")[^\"]*\"",
+    r"\1[redacted]\"",
+    s,
+)
+s = re.sub(r"(\"access_token\"\s*:\s*\")[^\"]*\"", r"\1[redacted]\"", s)
+sys.stdout.write(s)
+'
+}
+
 expect_ok() {
   local code="$1"
   shift
@@ -73,6 +92,7 @@ record() {
     FAIL=$((FAIL + 1))
   fi
   local tb
+  body="$(printf '%s' "$body" | redact_secrets)"
   tb="$(truncate_body "$body")"
   ROWS+=("| $((PASS + FAIL)) | \`$name\` | $method | \`$url\` | $expect | $code | $ok | ${tb//|/\\|} |")
   printf '[%s] %s %s → %s (expect %s)\n' "$ok" "$method" "$name" "$code" "$expect"

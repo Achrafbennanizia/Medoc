@@ -5,12 +5,8 @@ use medoc_core::infrastructure::database::number_sequence::allocate_number;
 async fn two_allocators_never_get_the_same_number() {
     let pool = test_memory_pool().await.expect("pool");
     run_migrations(&pool).await.expect("migrate");
-    let a = allocate_number(&pool, "RE", "2026-11-07")
-        .await
-        .expect("a");
-    let b = allocate_number(&pool, "RE", "2026-11-07")
-        .await
-        .expect("b");
+    let a = allocate_number(&pool, "RE", "2026-11-07").await.expect("a");
+    let b = allocate_number(&pool, "RE", "2026-11-07").await.expect("b");
     assert_ne!(a, b);
     assert!(a.starts_with("RE-2026-"));
     assert!(b.starts_with("RE-2026-"));
@@ -44,10 +40,18 @@ mod styled {
             .execute(&pool)
             .await
             .unwrap();
-        let a = allocate_styled(&pool, "RE", "2026-11-07", NumberStyle::Daily).await.unwrap();
-        let b = allocate_styled(&pool, "RE", "2026-11-07", NumberStyle::Daily).await.unwrap();
-        let q = allocate_styled(&pool, "QU", "2026-11-07", NumberStyle::Daily).await.unwrap();
-        let next_day = allocate_styled(&pool, "RE", "2026-11-08", NumberStyle::Daily).await.unwrap();
+        let a = allocate_styled(&pool, "RE", "2026-11-07", NumberStyle::Daily)
+            .await
+            .unwrap();
+        let b = allocate_styled(&pool, "RE", "2026-11-07", NumberStyle::Daily)
+            .await
+            .unwrap();
+        let q = allocate_styled(&pool, "QU", "2026-11-07", NumberStyle::Daily)
+            .await
+            .unwrap();
+        let next_day = allocate_styled(&pool, "RE", "2026-11-08", NumberStyle::Daily)
+            .await
+            .unwrap();
         assert_eq!(a, "RE-20261107-000042");
         assert_eq!(b, "RE-20261107-000043");
         assert_eq!(q, "QU-20261107-000003");
@@ -65,7 +69,9 @@ mod styled {
         .execute(&pool)
         .await
         .unwrap();
-        let n = allocate_styled(&pool, "B", "2026-11-20", NumberStyle::Monthly).await.unwrap();
+        let n = allocate_styled(&pool, "B", "2026-11-20", NumberStyle::Monthly)
+            .await
+            .unwrap();
         assert_eq!(n, "B-2026-11-0008");
     }
 
@@ -77,7 +83,9 @@ mod styled {
         for _ in 0..20 {
             let p = pool.clone();
             handles.push(tokio::spawn(async move {
-                allocate_styled(&p, "BR", "2026-11-07", NumberStyle::Daily).await.unwrap()
+                allocate_styled(&p, "BR", "2026-11-07", NumberStyle::Daily)
+                    .await
+                    .unwrap()
             }));
         }
         let mut all = Vec::new();

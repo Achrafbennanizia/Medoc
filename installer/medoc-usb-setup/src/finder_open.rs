@@ -104,7 +104,12 @@ fn resolve_medoc() -> PathBuf {
     }
     let user_apps: Vec<PathBuf> = bundles
         .iter()
-        .map(|name| home().join("Applications").join(name).join("Contents/MacOS/medoc"))
+        .map(|name| {
+            home()
+                .join("Applications")
+                .join(name)
+                .join("Contents/MacOS/medoc")
+        })
         .collect();
     if let Some(user) = newest_bundle(&user_apps) {
         return user;

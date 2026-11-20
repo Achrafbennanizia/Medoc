@@ -1,12 +1,14 @@
 //! FA-AKTE-14/15, FA-PERS-08 — Chart workflow (validation queue, forwarding, tickets).
 use crate::application::rbac::{self, Role};
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::domain::services::workflow_transitions;
 use crate::error::AppError;
-use crate::infrastructure::database::{
-    audit_repo, chart_repo, in_app_notification_repo, patient_repo, practice_ticket_repo,
-    staff_repo,
-};
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
+use crate::infrastructure::database::repos::admin::staff as staff_repo;
+use crate::infrastructure::database::repos::clinical::chart as chart_repo;
+use crate::infrastructure::database::repos::clinical::patient as patient_repo;
+use crate::infrastructure::database::repos::practice::in_app_notification as in_app_notification_repo;
+use crate::infrastructure::database::repos::scheduling::practice_ticket as practice_ticket_repo;
 use serde::Deserialize;
 use serde_json::json;
 use sqlx::SqlitePool;
@@ -133,14 +135,11 @@ pub async fn forward_chart_to_physicians(
             "error.chart.select_doctor_required",
         ));
     }
-    patient_repo::find_by_id(&pool, &args.patient_id)
-        .await?
-        .ok_or(AppError::NotFound("Patient".into()))?;
-    chart_repo::mark_chart_for_physician_review(&pool, &args.patient_id).await?;
     let patient_name = patient_repo::find_by_id(&pool, &args.patient_id)
         .await?
-        .map(|p| p.name)
-        .unwrap_or_default();
+        .ok_or(AppError::NotFound("Patient".into()))?
+        .name;
+    chart_repo::mark_chart_for_physician_review(&pool, &args.patient_id).await?;
     let from_name = staff_repo::find_by_id(&pool, &session.user_id)
         .await?
         .map(|p| p.name)
@@ -159,17 +158,18 @@ pub async fn forward_chart_to_physicians(
     let note = args.message.as_deref().unwrap_or("").trim();
     let payload = json!({
         "patientId": args.patient_id,
+        "patient_name": patient_name,
         "fromUserId": session.user_id,
         "fromName": from_name,
         "note": note,
     });
     let payload_str = payload.to_string();
-    let title = "Chart — review requested";
-    let body = if note.is_empty() {
-        format!("{from_name} requests a chart review ({patient_name}).")
+    let title = if patient_name.trim().is_empty() {
+        from_name.clone()
     } else {
-        format!("{from_name} ({patient_name}): {note}")
+        patient_name.clone()
     };
+    let body = note;
     for aid in &ids {
         if aid == &session.user_id {
             continue;
@@ -178,8 +178,8 @@ pub async fn forward_chart_to_physicians(
             &pool,
             aid,
             "CHART_FORWARD",
-            title,
-            &body,
+            &title,
+            body,
             Some(&payload_str),
         )
         .await?;
@@ -214,9 +214,10 @@ pub async fn create_practice_ticket(
     if body.is_empty() {
         return Err(AppError::validation_code("error.chart.message_empty"));
     }
-    patient_repo::find_by_id(&pool, &args.patient_id)
+    let pname = patient_repo::find_by_id(&pool, &args.patient_id)
         .await?
-        .ok_or(AppError::NotFound("Patient".into()))?;
+        .ok_or(AppError::NotFound("Patient".into()))?
+        .name;
     let to = staff_repo::find_by_id(&pool, &args.to_physician_id)
         .await?
         .ok_or(AppError::NotFound("error.entity.physician".into()))?;
@@ -233,17 +234,18 @@ pub async fn create_practice_ticket(
         body,
     )
     .await?;
-    let pname = patient_repo::find_by_id(&pool, &args.patient_id)
-        .await?
-        .map(|p| p.name)
-        .unwrap_or_default();
-    let title = format!("Ticket: {pname}");
+    let title = pname.clone();
     let notif_body = if body.len() > 200 {
         format!("{}…", &body[..200])
     } else {
         body.to_string()
     };
-    let pay = json!({ "ticketId": t.id, "patientId": args.patient_id }).to_string();
+    let pay = json!({
+        "ticketId": t.id,
+        "patientId": args.patient_id,
+        "patient_name": pname,
+    })
+    .to_string();
     in_app_notification_repo::insert(
         &pool,
         &args.to_physician_id,
@@ -328,20 +330,4 @@ pub async fn count_open_practice_tickets_for_me(
         return Ok(0);
     }
     practice_ticket_repo::count_open_for_physician(&pool, &session.user_id).await
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_chart_workflow_commands {
-    () => {
-        $crate::commands::chart_workflow_commands::list_charts_to_validate,
-        $crate::commands::chart_workflow_commands::count_charts_to_validate,
-        $crate::commands::chart_workflow_commands::validate_patient_chart,
-        $crate::commands::chart_workflow_commands::decline_patient_chart,
-        $crate::commands::chart_workflow_commands::forward_chart_to_physicians,
-        $crate::commands::chart_workflow_commands::create_practice_ticket,
-        $crate::commands::chart_workflow_commands::list_practice_tickets_for_me,
-        $crate::commands::chart_workflow_commands::update_practice_ticket_status,
-        $crate::commands::chart_workflow_commands::count_open_practice_tickets_for_me,
-    };
 }

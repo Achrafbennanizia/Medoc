@@ -1,4 +1,4 @@
-import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
+import { practiceSystem } from "@/systems/practice-host/adapters/practice-transport";
 import type { AuditLog } from "@/models/types";
 import type { ListParams, ListResponse } from "@/lib/list-params";
 

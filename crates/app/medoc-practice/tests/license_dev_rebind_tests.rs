@@ -2,9 +2,9 @@
 
 mod support;
 
+use medoc_core::infrastructure::database::repos::admin::license as license_repo;
 use medoc_core::infrastructure::license::mint_dev_v2_license_envelope;
-use medoc_core::infrastructure::license_repo;
-use medoc_practice::commands::company_portal_commands::resolve_onboarding_license_key_with;
+use medoc_practice::commands::network::company_portal::resolve_onboarding_license_key_with;
 use medoc_sync::cluster::services::activate_cluster_license;
 use support::fresh_pool;
 
@@ -41,12 +41,10 @@ async fn production_rejects_a_foreign_v2_with_wrong_device_code() {
 #[tokio::test]
 async fn a_valid_license_can_be_activated_twice() {
     std::env::set_var("MEDOC_AUDIT_KEY", "k9-medoc-test-audit-key-32bytes!");
-    let dir = std::env::temp_dir().join(format!(
-        "medoc-license-audit-{}",
-        uuid::Uuid::new_v4()
-    ));
+    let dir = std::env::temp_dir().join(format!("medoc-license-audit-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&dir).expect("audit dir");
-    medoc_core::infrastructure::database::audit_repo::init_audit_hmac_key(&dir).expect("audit");
+    medoc_core::infrastructure::database::repos::admin::audit::init_audit_hmac_key(&dir)
+        .expect("audit");
 
     let pool = fresh_pool().await;
     let local = license_repo::ensure_device_id(&pool).await.expect("device");

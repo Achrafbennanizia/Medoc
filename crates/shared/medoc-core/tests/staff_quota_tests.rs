@@ -5,7 +5,7 @@ use medoc_core::domain::enums::Role;
 use medoc_core::error::AppError;
 use medoc_core::infrastructure::crypto;
 use medoc_core::infrastructure::database::connection::test_memory_pool;
-use medoc_core::infrastructure::database::staff_repo;
+use medoc_core::infrastructure::database::repos::admin::staff as staff_repo;
 use medoc_core::mvp_security;
 
 async fn staff_only_pool() -> sqlx::SqlitePool {

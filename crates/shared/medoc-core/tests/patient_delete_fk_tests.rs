@@ -1,7 +1,7 @@
 //! Removing a patient row must not hit SQLITE_CONSTRAINT_FOREIGNKEY (787).
 
 use medoc_core::infrastructure::database::connection::{run_migrations, test_memory_pool};
-use medoc_core::infrastructure::database::patient_repo;
+use medoc_core::infrastructure::database::repos::clinical::patient as patient_repo;
 
 #[tokio::test]
 async fn delete_seed_patient_with_appointments_and_payments_does_not_fk_fail() {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { localIsoDate } from "./utils";
 import { addDays, startOfWeek } from "date-fns";
 import { readPracticeWorkHoursConfig, hasAnyAvailableSlot, isCalendarDaySelectable, isPracticeDayBookable, type PracticeWorkHoursConfig } from "./practice-planning";
 import { timeToMinutes } from "./appointment-availability";
@@ -56,7 +57,7 @@ describe("appointment-calendar-layout", () => {
         const days = appointmentCalendarWeekDays(anchor, cfg);
         expect(days).toHaveLength(6);
         expect(days[5]!.getDay()).toBe(6);
-        expect(formatIso(days[5]!)).toBe(formatIso(addDays(anchor, 5)));
+        expect(localIsoDate(days[5]!)).toBe(localIsoDate(addDays(anchor, 5)));
     });
 
     it("deriveWeekTimelineBounds uses tallest day in the week", () => {
@@ -132,9 +133,3 @@ describe("appointment-calendar-layout", () => {
     });
 });
 
-function formatIso(d: Date): string {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
-}

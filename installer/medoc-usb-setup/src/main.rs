@@ -2,6 +2,7 @@
 
 mod install;
 mod ui;
+mod ui_i18n;
 
 use std::path::PathBuf;
 

@@ -9,9 +9,9 @@ use sqlx::SqlitePool;
 use tauri::State;
 
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::error::AppError;
-use crate::infrastructure::pdf_export::ReportPdfInput;
+use crate::infrastructure::pdf::export::ReportPdfInput;
 use medoc_core::application::documents::issue as svc;
 
 #[tauri::command]
@@ -26,12 +26,4 @@ pub async fn render_report_pdf_command(
     STANDARD
         .decode(out.pdf_base64)
         .map_err(|e| AppError::Internal(e.to_string()))
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_report_pdf_commands {
-    () => {
-        $crate::commands::report_pdf_commands::render_report_pdf_command,
-    };
 }

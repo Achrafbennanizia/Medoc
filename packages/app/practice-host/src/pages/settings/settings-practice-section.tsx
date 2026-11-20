@@ -16,6 +16,12 @@ import { bcp47ForLocale, useLocale } from "@/lib/i18n";
 import { timeZoneOptionLabel } from "@/lib/time-zone-label";
 import { errorMessage } from "@/lib/utils";
 import { PRACTICE_CURRENCIES, normalizePracticeCurrency } from "@/lib/practice-currency";
+import {
+    DEFAULT_PRACTICE_TIMEZONE,
+    hydratePracticeTimezoneFromAppKv,
+    mirrorPracticeTimezoneLocal,
+    practiceTimezone,
+} from "@/lib/practice-timezone";
 import { UploadCircleIcon } from "@/lib/icons";
 import { Button } from "@/views/components/ui/button";
 import { DismissibleNotice } from "@/views/components/ui/dismissible-notice";
@@ -24,6 +30,19 @@ import { useToastStore } from "@/views/components/ui/toast-store";
 import { translateLocale, useT, useTParams } from "@/lib/i18n";
 import { SettingsPracticeBillingSection } from "./settings-practice-billing";
 import { SettingsSwitch } from "@/views/components/settings-switch";
+
+type PracticeLogoPlacement = "top" | "side";
+
+type PracticeLogoRecord = {
+    mime?: string;
+    data?: string;
+    showOnDocuments?: boolean;
+    placement?: PracticeLogoPlacement;
+};
+
+function logoPlacementOf(raw: unknown): PracticeLogoPlacement {
+    return raw === "top" ? "top" : "side";
+}
 
 function formatAddrOneLine(addr: string): string {
     return addr
@@ -149,6 +168,7 @@ export function SettingsPracticeSection({
     const [editPracticeFax, setEditPracticeFax] = useState(false);
     const [draftPracticeFax, setDraftPracticeFax] = useState("");
     const [showLogoOnDocuments, setShowLogoOnDocuments] = useState(true);
+    const [logoPlacement, setLogoPlacement] = useState<PracticeLogoPlacement>("side");
     const [editPracticeExtra, setEditPracticeExtra] = useState(false);
     const [practiceExtraSnapshot, setPracticeExtraSnapshot] = useState<InvoicePractice | null>(null);
     const [editPracticeBilling, setEditPracticeBilling] = useState(false);
@@ -163,22 +183,25 @@ export function SettingsPracticeSection({
         const cfg = workHours ?? readPracticeWorkHoursConfig();
         return formatPracticeOpeningHours(cfg, (key: PracticeDayKey) => translateLocale(locale, `page.workTime.day_short.${key}`));
     }, [locale, workHours]);
-    const [timezone, setTimezone] = useState("Europe/Berlin");
+    const [timezone, setTimezone] = useState(() => practiceTimezone());
     const timeZones = useMemo(() => {
         const intl = Intl as typeof Intl & { supportedValuesOf?: (key: string) => string[] };
         try {
-            const zones = intl.supportedValuesOf?.("timeZone") ?? ["Europe/Berlin"];
-            return zones.includes("Europe/Berlin") ? zones : ["Europe/Berlin", ...zones];
+            const zones = intl.supportedValuesOf?.("timeZone") ?? [DEFAULT_PRACTICE_TIMEZONE];
+            return zones.includes(DEFAULT_PRACTICE_TIMEZONE)
+                ? zones
+                : [DEFAULT_PRACTICE_TIMEZONE, ...zones];
         } catch {
-            return ["Europe/Berlin"];
+            return [DEFAULT_PRACTICE_TIMEZONE];
         }
     }, []);
     const timeZoneOptions = useMemo(() => {
         const tag = bcp47ForLocale(locale);
-        return timeZones
+        const list = timeZones.includes(timezone) ? timeZones : [timezone, ...timeZones];
+        return list
             .map((zone) => ({ value: zone, label: timeZoneOptionLabel(zone, tag) }))
             .sort((a, b) => a.label.localeCompare(b.label, locale));
-    }, [locale, timeZones]);
+    }, [locale, timeZones, timezone]);
 
     useEffect(() => {
         let c = false;
@@ -186,17 +209,13 @@ export function SettingsPracticeSection({
             try {
                 const raw = await getAppKv("practice.logo.v1");
                 if (c || !raw) return;
-                const j = JSON.parse(raw) as { mime?: string; data?: string; showOnDocuments?: boolean };
+                const j = JSON.parse(raw) as PracticeLogoRecord;
                 const show = j.showOnDocuments !== false;
+                const placement = logoPlacementOf(j.placement);
                 setShowLogoOnDocuments(show);
+                setLogoPlacement(placement);
                 if (j.mime && j.data) {
                     setLogoPreviewUrl(`data:${j.mime};base64,${j.data}`);
-                    try {
-                        const { cachePracticeLogoForPrint } = await import("@/lib/document-print-html");
-                        cachePracticeLogoForPrint(j.mime, j.data, show);
-                    } catch {
-                        /* optional */
-                    }
                 }
             } catch {
                 /* Web / missing */
@@ -209,15 +228,9 @@ export function SettingsPracticeSection({
 
     useEffect(() => {
         let cancelled = false;
-        void (async () => {
-            try {
-                const raw = await getAppKv("practice.timezone.v1");
-                if (cancelled || !raw?.trim()) return;
-                setTimezone(raw.trim());
-            } catch {
-                /* missing */
-            }
-        })();
+        void hydratePracticeTimezoneFromAppKv(() => getAppKv("practice.timezone.v1")).then((zone) => {
+            if (!cancelled) setTimezone(zone);
+        });
         return () => {
             cancelled = true;
         };
@@ -354,21 +367,37 @@ export function SettingsPracticeSection({
         setEditPracticeFax(false);
     }
 
+    async function savePracticeLogo(patch: Partial<PracticeLogoRecord>): Promise<PracticeLogoRecord> {
+        const raw = await getAppKv("practice.logo.v1");
+        const current: PracticeLogoRecord = raw ? (JSON.parse(raw) as PracticeLogoRecord) : {};
+        const next: PracticeLogoRecord = {
+            ...current,
+            ...patch,
+            placement: logoPlacementOf(patch.placement ?? current.placement),
+            showOnDocuments: patch.showOnDocuments ?? current.showOnDocuments !== false,
+        };
+        await setAppKv("practice.logo.v1", JSON.stringify(next));
+        return next;
+    }
+
     async function onShowLogoChange(next: boolean) {
+        const previous = showLogoOnDocuments;
         setShowLogoOnDocuments(next);
         try {
-            const raw = await getAppKv("practice.logo.v1");
-            const current = raw
-                ? (JSON.parse(raw) as { mime?: string; data?: string; showOnDocuments?: boolean })
-                : {};
-            current.showOnDocuments = next;
-            await setAppKv("practice.logo.v1", JSON.stringify(current));
-            if (current.mime && current.data) {
-                const { cachePracticeLogoForPrint } = await import("@/lib/document-print-html");
-                cachePracticeLogoForPrint(current.mime, current.data, next);
-            }
+            await savePracticeLogo({ showOnDocuments: next, placement: logoPlacement });
         } catch (err) {
-            setShowLogoOnDocuments(!next);
+            setShowLogoOnDocuments(previous);
+            toast(tp("settings.practice.toast.logo_failed", { message: errorMessage(err) }), "error");
+        }
+    }
+
+    async function onLogoPlacementChange(next: PracticeLogoPlacement) {
+        const previous = logoPlacement;
+        setLogoPlacement(next);
+        try {
+            await savePracticeLogo({ showOnDocuments: showLogoOnDocuments, placement: next });
+        } catch (err) {
+            setLogoPlacement(previous);
             toast(tp("settings.practice.toast.logo_failed", { message: errorMessage(err) }), "error");
         }
     }
@@ -479,17 +508,8 @@ export function SettingsPracticeSection({
                 toast(t("settings.practice.toast.file_too_large"), "error");
                 return;
             }
-            await setAppKv(
-                "practice.logo.v1",
-                JSON.stringify({ mime, data, showOnDocuments: showLogoOnDocuments }),
-            );
+            await savePracticeLogo({ mime, data, showOnDocuments: showLogoOnDocuments, placement: logoPlacement });
             setLogoPreviewUrl(`data:${mime};base64,${data}`);
-            try {
-                const { cachePracticeLogoForPrint } = await import("@/lib/document-print-html");
-                cachePracticeLogoForPrint(mime, data, showLogoOnDocuments);
-            } catch {
-                /* optional cache */
-            }
             toast(t("settings.practice.toast.logo_saved"), "success");
         } catch (err) {
             toast(tp("settings.practice.toast.logo_failed", { message: errorMessage(err) }), "error");
@@ -536,10 +556,12 @@ export function SettingsPracticeSection({
                 options={timeZoneOptions}
                 onChange={(e: ChangeEvent<HTMLSelectElement>) => {
                     const next = e.target.value;
-                    setTimezone(next);
-                    void setAppKv("practice.timezone.v1", next).catch((err) =>
-                        toast(errorMessage(err), "error"),
-                    );
+                    // Update local cache + subscribers first so the rest of the UI
+                    // refreshes even if the app_kv write is slow or fails.
+                    setTimezone(mirrorPracticeTimezoneLocal(next));
+                    void setAppKv("practice.timezone.v1", next)
+                        .then(() => toast(t("settings.practice.toast.timezone_saved"), "success"))
+                        .catch((err) => toast(errorMessage(err), "error"));
                 }}
             />
         </div>
@@ -559,7 +581,11 @@ export function SettingsPracticeSection({
                 onChange={(e: ChangeEvent<HTMLSelectElement>) => {
                     const next = { ...practice, currency: normalizePracticeCurrency(e.target.value) };
                     setPractice(next);
-                    saveInvoicePracticeToStorage(next);
+                    void saveInvoicePracticeToStorage(next)
+                        .then(() => toast(t("settings.practice.toast.currency_saved"), "success"))
+                        .catch((err) => {
+                            toast(tp("settings.practice.toast.sync_failed", { message: errorMessage(err) }), "warning");
+                        });
                 }}
             />
         </div>
@@ -769,6 +795,23 @@ export function SettingsPracticeSection({
                     <span>{t("settings.practice.logo_show")}</span>
                 </div>
                 <div className="card-sub">{t("settings.practice.logo_show_hint")}</div>
+                {showLogoOnDocuments ? (
+                    <div style={{ marginTop: 8, maxWidth: 220 }}>
+                        <Select
+                            value={logoPlacement}
+                            disabled={logoBusy}
+                            aria-label={t("settings.practice.logo_place")}
+                            options={[
+                                { value: "side", label: t("settings.practice.logo_place_side") },
+                                { value: "top", label: t("settings.practice.logo_place_top") },
+                            ]}
+                            onChange={(e: ChangeEvent<HTMLSelectElement>) =>
+                                void onLogoPlacementChange(logoPlacementOf(e.target.value))
+                            }
+                        />
+                        <div className="card-sub">{t("settings.practice.logo_place_hint")}</div>
+                    </div>
+                ) : null}
             </div>
             <div className="row" style={{ gap: 10, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
                 {logoPreviewUrl ? (

@@ -1,4 +1,4 @@
-import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
+import { practiceSystem } from "@/systems/practice-host/adapters/practice-transport";
 import { useAuthStore } from "@/models/store/auth-store";
 import type { Session } from "@/models/types";
 

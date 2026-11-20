@@ -5,9 +5,9 @@
 //! wide settings persisted via SQLite (vs. the prior `localStorage` blob).
 use crate::application::app_kv_policy;
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::error::AppError;
-use crate::infrastructure::database::app_kv_repo;
+use crate::infrastructure::database::repos::admin::app_kv as app_kv_repo;
 use sqlx::SqlitePool;
 use tauri::State;
 
@@ -50,14 +50,4 @@ pub async fn delete_app_kv(
         .ok_or_else(|| AppError::Validation(format!("Unknown KV key: {key}")))?;
     rbac::require(&session_state, perm)?;
     app_kv_repo::delete(&pool, &key).await
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_app_kv_commands {
-    () => {
-        $crate::commands::app_kv_commands::get_app_kv,
-        $crate::commands::app_kv_commands::set_app_kv,
-        $crate::commands::app_kv_commands::delete_app_kv,
-    };
 }

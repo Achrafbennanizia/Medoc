@@ -8,9 +8,9 @@ use sqlx::SqlitePool;
 use tauri::State;
 
 use crate::application::rbac::{self, effective_allowed, Role};
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::error::AppError;
-use crate::infrastructure::database::app_kv_repo;
+use crate::infrastructure::database::repos::admin::app_kv as app_kv_repo;
 use medoc_core::application::documents::export_audit::{log_export, ExportContext};
 
 /// Configured export folder from `export.path.v1`
@@ -49,12 +49,12 @@ pub fn export_file_path(
     if path_has_parent(folder) || path_has_parent(allowed_root) {
         return Err(AppError::validation_code("error.export.invalid_filename"));
     }
-    let root = allowed_root.canonicalize().map_err(|_| {
-        AppError::validation_code("error.export.folder_outside_root")
-    })?;
-    let folder_real = folder.canonicalize().map_err(|_| {
-        AppError::validation_code("error.export.folder_outside_root")
-    })?;
+    let root = allowed_root
+        .canonicalize()
+        .map_err(|_| AppError::validation_code("error.export.folder_outside_root"))?;
+    let folder_real = folder
+        .canonicalize()
+        .map_err(|_| AppError::validation_code("error.export.folder_outside_root"))?;
     if folder_real != root && !folder_real.starts_with(&root) {
         return Err(AppError::validation_code(
             "error.export.folder_outside_root",
@@ -169,7 +169,10 @@ mod tests {
             configured_export_root(r#"{"mode":"custom","customPath":"/srv/exports"}"#),
             Some(std::path::PathBuf::from("/srv/exports"))
         );
-        assert_eq!(configured_export_root(r#"{"mode":"custom","customPath":""}"#), None);
+        assert_eq!(
+            configured_export_root(r#"{"mode":"custom","customPath":""}"#),
+            None
+        );
         assert_eq!(configured_export_root("/raw/path/is/not/json"), None);
     }
     use std::fs;
@@ -193,14 +196,4 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
         let _ = fs::remove_dir_all(&other);
     }
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_export_commands {
-    () => {
-        $crate::commands::export_commands::save_export_file,
-        $crate::commands::export_commands::pick_export_directory,
-        $crate::commands::export_commands::save_export_bytes_to_folder,
-    };
 }

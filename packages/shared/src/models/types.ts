@@ -253,6 +253,8 @@ export interface Payment {
     /** 0/1 — day-end close: payment cash-verified. */
     cash_verified?: number;
     created_at: string;
+    /** Set when a later edit records the money (placeholder fill). */
+    updated_at?: string | null;
 }
 
 export interface BalanceSheet {
@@ -302,6 +304,7 @@ export interface AuditLog {
 export interface DashboardStats {
     patients_total: number | null;
     appointments_today: number | null;
+    revenue_today: number | null;
     revenue_month: number | null;
     products_low: number | null;
 }

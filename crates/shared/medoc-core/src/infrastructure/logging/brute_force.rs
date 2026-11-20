@@ -11,7 +11,8 @@ use chrono::{DateTime, Utc};
 use sqlx::SqlitePool;
 
 use crate::error::AppError;
-use crate::infrastructure::database::{audit_repo, brute_force_repo};
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
+use crate::infrastructure::database::repos::admin::brute_force as brute_force_repo;
 
 const WINDOW: Duration = Duration::from_secs(10 * 60);
 const LOCKOUT: Duration = Duration::from_secs(15 * 60);
@@ -93,8 +94,7 @@ impl BruteForceTracker {
 
     pub async fn check(&self, pool: Option<&SqlitePool>, key: &BruteKey) -> CheckResult {
         for storage in [key.storage_key(), key.account_storage_key()] {
-            if let CheckResult::Locked { remaining_secs } =
-                self.check_storage(pool, &storage).await
+            if let CheckResult::Locked { remaining_secs } = self.check_storage(pool, &storage).await
             {
                 return CheckResult::Locked { remaining_secs };
             }
@@ -134,13 +134,15 @@ impl BruteForceTracker {
         let account_key = key.account_storage_key();
         let (ip_state, account_state) = {
             let mut map = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-            (bump_entry(&mut map, &ip_key), bump_entry(&mut map, &account_key))
+            (
+                bump_entry(&mut map, &ip_key),
+                bump_entry(&mut map, &account_key),
+            )
         };
         if let Some(pool) = pool {
             let _ = brute_force_repo::upsert(pool, &ip_key, ip_state.0, ip_state.1).await;
-            let _ =
-                brute_force_repo::upsert(pool, &account_key, account_state.0, account_state.1)
-                    .await;
+            let _ = brute_force_repo::upsert(pool, &account_key, account_state.0, account_state.1)
+                .await;
         }
         ip_state.2 || account_state.2
     }
@@ -171,7 +173,10 @@ impl BruteForceTracker {
 }
 
 /// Returns `(failure_count, locked_until, newly_locked)`.
-fn bump_entry(map: &mut HashMap<String, Entry>, storage: &str) -> (i64, Option<DateTime<Utc>>, bool) {
+fn bump_entry(
+    map: &mut HashMap<String, Entry>,
+    storage: &str,
+) -> (i64, Option<DateTime<Utc>>, bool) {
     let entry = map.entry(storage.to_string()).or_default();
     let now = Instant::now();
     entry.failures.retain(|t| now.duration_since(*t) <= WINDOW);

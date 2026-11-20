@@ -29,11 +29,10 @@
 //! is used (see [`emit_continuation_header`]).
 
 use super::core::{
-    pdf_locale, PageBuilder, ADDRESS_WINDOW_BOTTOM_Y, ADDRESS_WINDOW_Y,
-    CONTENT_START_Y, INFO_BLOCK_TOP_Y, INFO_BLOCK_X, LETTERHEAD_MIN_Y, M_LEFT, M_RIGHT, M_TOP,
-    SENDER_HINT_Y,
+    pdf_locale, PageBuilder, ADDRESS_WINDOW_BOTTOM_Y, ADDRESS_WINDOW_Y, CONTENT_START_Y,
+    INFO_BLOCK_TOP_Y, INFO_BLOCK_X, LETTERHEAD_MIN_Y, M_LEFT, M_RIGHT, M_TOP, SENDER_HINT_Y,
 };
-use super::logo::PdfLogo;
+use super::logo::{LogoPlacement, PdfLogo, LOGO_GAP};
 
 /// One row of the meta / information block: "label" + "value".
 #[derive(Debug, Clone)]
@@ -54,9 +53,9 @@ impl MetaRow {
 /// Complete practice letterhead.
 #[derive(Debug, Clone, Default)]
 pub struct Letterhead<'a> {
-    /// First line = practice name (bold); further lines = address, contact.
-    /// Lines that do not fit into the 45 mm letterhead zone move to the page
-    /// footer instead of being dropped.
+    /// First line = practice name (bold); further lines = address, contact,
+    /// one field per line in the saved order. A block taller than 45 mm
+    /// grows the letterhead and moves the address down with it.
     pub practice_lines: &'a [String],
     /// Contact extras ("Tel: …"). Only used when `meta_rows` is empty.
     pub header_right_lines: &'a [String],
@@ -81,19 +80,21 @@ pub struct Letterhead<'a> {
 /// Render the letterhead (DIN 5008 Form B) on the current page and place
 /// `pb.y` below it. Returns the new `pb.y`.
 ///
-/// Layout: practice block top-left (above 45 mm), return-address line at
-/// 45–50 mm, address field 62.7–90 mm, information block at x = 125 mm.
+/// Layout: practice block top-left. When it ends above 45 mm, the return
+/// address, the window, and the information block stay on the DIN 5008
+/// positions. A taller block keeps every field and moves the address down.
 /// Without an address field the information block sits top-right.
 pub fn emit_letterhead(pb: &mut PageBuilder, lh: &Letterhead) -> i32 {
     pb.locale = pdf_locale(lh.locale);
-    if lh.rtl || pb.locale == "ar" {
+    if lh.rtl || super::i18n::is_rtl(pb.locale) {
         pb.rtl = true;
     }
     // One field per line. A payload that still joins "Tel. · email" or
     // "BSNR · ZANR" is split here so every document header matches.
     // Coordinates stay in the Latin layout. `PageBuilder` mirrors them when
     // `rtl` is set, so the logo and the information block are not swapped twice.
-    let practice_lines = split_header_fields(lh.practice_lines);
+    // Each incoming line is one table row. A middle dot already joins the two
+    // cells of that row, so it must not be split apart.
     let header_right_lines = split_header_fields(lh.header_right_lines);
 
     let mut text_left = M_LEFT;
@@ -102,58 +103,55 @@ pub fn emit_letterhead(pb: &mut PageBuilder, lh: &Letterhead) -> i32 {
     } else {
         M_RIGHT
     };
+    let mut left_y = M_TOP;
     if let Some(logo) = lh.logo {
         let x = logo.x_for_side(false);
         let y = logo.y_bottom(M_TOP);
         pb.draw_image(0, x, y, logo.display_w, logo.display_h);
-        text_left = logo.practice_text_left(false);
-        text_right_cap = text_right_cap.min(logo.practice_text_right_cap(false));
+        match logo.placement {
+            LogoPlacement::Side => {
+                text_left = logo.practice_text_left(false);
+                text_right_cap = text_right_cap.min(logo.practice_text_right_cap(false));
+            }
+            LogoPlacement::Top => {
+                left_y = y as i32 - LOGO_GAP;
+            }
+        }
     }
     let avail_pt = f64::from((text_right_cap - text_left).max(80));
 
-    // --- 1. Practice block (must stay above 45 mm) --------------------------
-    let mut left_y = M_TOP;
-    let mut overflow: Vec<String> = Vec::new();
-    for (i, line) in practice_lines.iter().enumerate() {
-        let size = if i == 0 { 12 } else { 9 };
-        let step = if i == 0 { 14 } else { 11 };
-        let chunks = super::metrics::wrap_to_width(line, size, i == 0, avail_pt);
-        let needed = step * chunks.len() as i32;
-        if left_y - needed < LETTERHEAD_MIN_Y && i > 0 {
-            overflow.push(line.clone());
-            continue;
-        }
-        for chunk in chunks {
-            pb.y = left_y;
-            pb.text(text_left, size, i == 0, &chunk);
-            left_y -= step;
-        }
+    // --- 1. Practice block ----------------------------------------------------
+    // One field per line, in the saved order. A block that still ends above
+    // 45 mm keeps the DIN 5008 window. A taller block is printed in full and
+    // the address moves down with it; nothing is sent to the footer.
+    let rows = compose_letterhead(lh.practice_lines);
+    let mut block_bottom = left_y - practice_block_span(&rows, avail_pt);
+    if let Some(logo) = lh.logo.filter(|logo| logo.placement == LogoPlacement::Side) {
+        block_bottom = block_bottom.min(logo.y_bottom(M_TOP) as i32 - 4);
     }
-    if let Some(logo) = lh.logo {
+    let fits_window = block_bottom >= LETTERHEAD_MIN_Y;
+    let window_layout = !lh.address_lines.is_empty() && !lh.compact_address && fits_window;
+    left_y = emit_practice_rows(pb, &rows, text_left, left_y, avail_pt);
+    if let Some(logo) = lh.logo.filter(|logo| logo.placement == LogoPlacement::Side) {
         left_y = left_y.min(logo.y_bottom(M_TOP) as i32 - 4);
     }
-    // Nothing is silently lost: overflow goes into the DIN footer.
-    pb.footer_lines.extend(overflow);
-
-    let window_layout = !lh.address_lines.is_empty() && !lh.compact_address;
 
     // --- 2. Information block / contact -------------------------------------
+    // Beside the name when there is no address window. A DIN window keeps the
+    // block at its fixed position. A header that grew past 45 mm places it
+    // under the practice lines, with the address.
+    let info_beside_name = lh.address_lines.is_empty() || (lh.compact_address && fits_window);
     let mut right_y = M_TOP;
-    // Lowest point of the information block (window layout); a long block
-    // pushes the content start down instead of running into the title.
     let mut info_bottom = i32::MAX;
-    if !lh.meta_rows.is_empty() {
-        if window_layout {
-            // DIN 5008: information block right of the address field.
-            info_bottom = emit_info_block(pb, lh.meta_rows, INFO_BLOCK_X, INFO_BLOCK_TOP_Y);
-        } else {
+    if info_beside_name {
+        if !lh.meta_rows.is_empty() {
             right_y = emit_info_block(pb, lh.meta_rows, INFO_BLOCK_X, M_TOP);
-        }
-    } else {
-        for line in header_right_lines.iter().take(8) {
-            pb.y = right_y;
-            pb.text_right(M_RIGHT, 9, false, line);
-            right_y -= 11;
+        } else {
+            for line in header_right_lines.iter().take(8) {
+                pb.y = right_y;
+                pb.text_right(M_RIGHT, 9, false, line);
+                right_y -= 11;
+            }
         }
     }
     let header_bottom = left_y.min(right_y);
@@ -162,25 +160,59 @@ pub fn emit_letterhead(pb: &mut PageBuilder, lh: &Letterhead) -> i32 {
     let rule_y;
     if lh.address_lines.is_empty() {
         rule_y = header_bottom - 8;
-    } else if lh.compact_address {
+    } else if window_layout {
+        if !lh.meta_rows.is_empty() {
+            info_bottom = emit_info_block(pb, lh.meta_rows, INFO_BLOCK_X, INFO_BLOCK_TOP_Y);
+        } else {
+            let mut y = M_TOP;
+            for line in header_right_lines.iter().take(8) {
+                pb.y = y;
+                pb.text_right(M_RIGHT, 9, false, line);
+                y -= 11;
+            }
+        }
+        pb.letter_marks = true;
+        if lh.show_sender_hint {
+            // Name, street, and city each on their own line (no middot).
+            emit_sender_hint_lines(pb, lh.practice_lines, SENDER_HINT_Y, 8);
+        }
+        emit_address_lines(
+            pb,
+            lh.address_lines,
+            ADDRESS_WINDOW_Y,
+            ADDRESS_WINDOW_BOTTOM_Y,
+        );
+        rule_y = (CONTENT_START_Y + 12).min(info_bottom - 2);
+    } else if lh.compact_address && fits_window {
         let mut addr_y = header_bottom - 16;
         if lh.show_sender_hint {
-            addr_y = emit_sender_hint_lines(pb, &practice_lines, addr_y, 9);
+            addr_y = emit_sender_hint_lines(pb, lh.practice_lines, addr_y, 9);
         }
         addr_y = emit_address_lines(pb, lh.address_lines, addr_y, i32::MIN);
         rule_y = addr_y - 8;
     } else {
-        pb.letter_marks = true;
+        let mut block_y = header_bottom - 16;
         if lh.show_sender_hint {
-            // Name, street, and city each on their own line (no middot).
-            emit_sender_hint_lines(pb, &practice_lines, SENDER_HINT_Y, 8);
+            block_y = emit_sender_hint_lines(pb, lh.practice_lines, block_y, 9);
         }
-        emit_address_lines(pb, lh.address_lines, ADDRESS_WINDOW_Y, ADDRESS_WINDOW_BOTTOM_Y);
-        rule_y = (CONTENT_START_Y + 12).min(info_bottom - 2);
+        let address_top = block_y;
+        let addr_bottom = emit_address_lines(pb, lh.address_lines, address_top, i32::MIN);
+        let info_end = if !lh.meta_rows.is_empty() {
+            emit_info_block(pb, lh.meta_rows, INFO_BLOCK_X, address_top)
+        } else {
+            let mut y = address_top;
+            for line in header_right_lines.iter().take(8) {
+                pb.y = y;
+                pb.text_right(M_RIGHT, 9, false, line);
+                y -= 11;
+            }
+            y
+        };
+        rule_y = addr_bottom.min(info_end) - 8;
     }
 
-    pb.hline_at(M_LEFT, rule_y, M_RIGHT);
-    pb.y = rule_y - 18;
+    pb.hline_gray(M_LEFT, rule_y, M_RIGHT, 0.72);
+    pb.y = rule_y - 16;
     pb.y
 }
 
@@ -256,6 +288,111 @@ fn emit_info_block(pb: &mut PageBuilder, rows: &[MetaRow], x: i32, start_y: i32)
         y -= 3;
     }
     y
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum HeaderKind {
+    Title,
+    Body,
+    Contact,
+    Identity,
+}
+
+struct HeaderRow {
+    text: String,
+    kind: HeaderKind,
+}
+
+/// One incoming line is one table row. A middle dot stays in the line: it
+/// separates the two cells of that row. An exact duplicate line is skipped.
+fn compose_letterhead(lines: &[String]) -> Vec<HeaderRow> {
+    let mut out = Vec::new();
+    for line in lines {
+        let text = line.trim();
+        if text.is_empty() || out.iter().any(|row: &HeaderRow| row.text == text) {
+            continue;
+        }
+        let kind = if out.is_empty() {
+            HeaderKind::Title
+        } else {
+            classify_header_line(text)
+        };
+        out.push(HeaderRow {
+            text: text.to_string(),
+            kind,
+        });
+    }
+    out
+}
+
+fn header_row_style(kind: HeaderKind) -> (i32, i32, bool) {
+    match kind {
+        HeaderKind::Title => (13, 16, true),
+        HeaderKind::Identity => (8, 11, false),
+        HeaderKind::Contact | HeaderKind::Body => (9, 12, false),
+    }
+}
+
+/// Vertical span of the practice block, in points, before it is drawn.
+fn practice_block_span(rows: &[HeaderRow], avail_pt: f64) -> i32 {
+    let mut span = 0;
+    for row in rows {
+        let (size, step, bold) = header_row_style(row.kind);
+        let lines = super::metrics::wrap_to_width(&row.text, size, bold, avail_pt).len() as i32;
+        span += step * lines;
+    }
+    span
+}
+
+fn emit_practice_rows(
+    pb: &mut PageBuilder,
+    rows: &[HeaderRow],
+    text_left: i32,
+    start_y: i32,
+    avail_pt: f64,
+) -> i32 {
+    let mut y = start_y;
+    for row in rows {
+        let (size, step, bold) = header_row_style(row.kind);
+        for chunk in super::metrics::wrap_to_width(&row.text, size, bold, avail_pt) {
+            pb.y = y;
+            if row.kind == HeaderKind::Identity {
+                pb.text_gray(text_left, size, bold, &chunk, 0.35);
+            } else {
+                pb.text(text_left, size, bold, &chunk);
+            }
+            y -= step;
+        }
+    }
+    y
+}
+
+fn classify_header_line(line: &str) -> HeaderKind {
+    let t = line.trim();
+    let lower = t.to_ascii_lowercase();
+    if lower.starts_with("tel")
+        || lower.starts_with("fax")
+        || lower.starts_with("email")
+        || lower.starts_with("e-mail")
+        || lower.starts_with("notdienst")
+        || t.contains('@')
+        || (t.contains('.') && !t.contains(' ') && !t.contains('@'))
+    {
+        return HeaderKind::Contact;
+    }
+    if lower.starts_with("bsnr")
+        || lower.starts_with("zanr")
+        || lower.starts_with("kv ")
+        || lower.starts_with("steuer")
+        || lower.starts_with("tax")
+        || lower.starts_with("vat")
+        || lower.starts_with("iban")
+        || lower.starts_with("bic")
+        || lower.starts_with("konto")
+    {
+        return HeaderKind::Identity;
+    }
+    HeaderKind::Body
 }
 
 /// Drop middots from a header line and keep each field on its own line.
@@ -405,14 +542,23 @@ pub struct PracticeFooter {
 pub fn footer_lines_for_practice(f: &PracticeFooter, locale: &str) -> Vec<String> {
     let mut l1 = vec![f.practice_name.trim().to_string()];
     if let Some(c) = f.chamber.as_deref().filter(|s| !s.trim().is_empty()) {
-        l1.push(format!("{}: {c}", super::i18n::t(locale, super::i18n::Phrase::Chamber)));
+        l1.push(format!(
+            "{}: {c}",
+            super::i18n::t(locale, super::i18n::Phrase::Chamber)
+        ));
     }
     let mut l2 = Vec::new();
     if let Some(t) = f.tax_number.as_deref().filter(|s| !s.trim().is_empty()) {
-        l2.push(format!("{} {t}", super::i18n::t(locale, super::i18n::Phrase::TaxNo)));
+        l2.push(format!(
+            "{} {t}",
+            super::i18n::t(locale, super::i18n::Phrase::TaxNo)
+        ));
     }
     if let Some(v) = f.vat_id.as_deref().filter(|s| !s.trim().is_empty()) {
-        l2.push(format!("{} {v}", super::i18n::t(locale, super::i18n::Phrase::VatId)));
+        l2.push(format!(
+            "{} {v}",
+            super::i18n::t(locale, super::i18n::Phrase::VatId)
+        ));
     }
     let mut l3 = Vec::new();
     if let Some(b) = f.bank_name.as_deref().filter(|s| !s.trim().is_empty()) {
@@ -463,9 +609,8 @@ mod tests {
             "MeDoc Demo Dental Practice".into(),
             "Am Markt 12".into(),
             "28195 Bremen".into(),
-            "Tel. +49 421 555 0100".into(),
-            "MeDoc Demo Dental Practice".into(),
             "Tel. +49 421 555 0100 · BSNR 987654321".into(),
+            "MeDoc Demo Dental Practice".into(),
             "BSNR 987654321".into(),
         ];
         let addr = dummy_address();
@@ -481,7 +626,12 @@ mod tests {
         assert_eq!(page.matches("(MeDoc Demo Dental Practice)").count(), 1);
         assert_eq!(page.matches("(Am Markt 12)").count(), 1);
         assert_eq!(page.matches("(28195 Bremen)").count(), 1);
-        assert_eq!(page.matches("(Tel. +49 421 555 0100)").count(), 1);
+        let tel = page.find("Tel. +49 421 555 0100").expect("phone");
+        let near = &page[tel..(tel + 80).min(page.len())];
+        assert!(
+            near.contains("BSNR 987654321"),
+            "phone and registration stay on one line"
+        );
         assert_eq!(page.matches("(BSNR 987654321)").count(), 1);
     }
 
@@ -507,6 +657,7 @@ mod tests {
         };
         let y_after = emit_letterhead(&mut pb, &lh);
         assert!(y_after < M_TOP);
+        assert!(pb.letter_marks, "a short header keeps the envelope marks");
         let pages = pb.finish();
         assert_eq!(pages.len(), 1);
     }
@@ -542,7 +693,7 @@ mod tests {
     }
 
     #[test]
-    fn header_splits_middot_fields_onto_their_own_lines() {
+    fn header_keeps_same_row_fields_on_one_line() {
         let mut pb = PageBuilder::new();
         let practice = vec![
             "Praxis".into(),
@@ -556,11 +707,18 @@ mod tests {
         };
         emit_letterhead(&mut pb, &lh);
         let page = pb.finish().remove(0);
-        assert!(page.contains("(Tel. 030 1)"));
-        assert!(page.contains("(praxis@example.de)"));
-        assert!(page.contains("(BSNR 123456789)"));
-        assert!(page.contains("(ZANR 987654321)"));
-        assert!(!page.contains("\\267"));
+        let contact = page
+            .lines()
+            .find(|line| line.contains("Tel. 030 1"))
+            .expect("contact line");
+        assert!(contact.contains("praxis@example.de"));
+        let identity = page
+            .lines()
+            .find(|line| line.contains("BSNR 123456789"))
+            .expect("registration line");
+        assert!(identity.contains("ZANR 987654321"));
+        assert_eq!(page.matches("Tel. 030 1").count(), 1);
+        assert_eq!(page.matches("BSNR 123456789").count(), 1);
     }
 
     #[test]
@@ -584,20 +742,40 @@ mod tests {
     }
 
     #[test]
-    fn overlong_practice_header_moves_to_footer_not_dropped() {
+    fn overlong_practice_header_stays_in_the_header() {
         let mut pb = PageBuilder::new();
         let practice: Vec<String> = (0..12).map(|i| format!("Kopfzeile {i}")).collect();
         let addr = dummy_address();
+        let meta = vec![MetaRow::new("Rechnungs-Nr.", "RE-2026-000001")];
         let lh = Letterhead {
             practice_lines: &practice,
+            meta_rows: &meta,
             address_lines: &addr,
             locale: "de",
             ..Default::default()
         };
         emit_letterhead(&mut pb, &lh);
-        assert!(!pb.footer_lines.is_empty());
-        assert!(pb.footer_lines.iter().any(|l| l == "Kopfzeile 11"));
-        assert!(pb.letter_marks);
+        assert!(
+            pb.footer_lines
+                .iter()
+                .all(|line| !line.starts_with("Kopfzeile")),
+            "header lines must not move to the footer"
+        );
+        assert!(!pb.letter_marks, "a grown header is not a window envelope");
+        let page = pb.finish().remove(0);
+        for i in 0..12 {
+            assert!(
+                page.contains(&format!("Kopfzeile {i}")),
+                "missing Kopfzeile {i}"
+            );
+        }
+        let last = page.find("Kopfzeile 11").expect("last header line");
+        let address = page.find("Max Sample").expect("recipient");
+        let info = page.find("Rechnungs-Nr.").expect("info block");
+        assert!(
+            last < address && last < info,
+            "address and info follow the header"
+        );
     }
 
     #[test]

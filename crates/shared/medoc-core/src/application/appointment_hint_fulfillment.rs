@@ -3,9 +3,10 @@
 
 use crate::domain::entities::Appointment;
 use crate::error::AppError;
-use crate::infrastructure::database::{
-    audit_repo, chart_next_appointment_repo, in_app_notification_repo, patient_repo,
-};
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
+use crate::infrastructure::database::repos::clinical::chart_next_appointment as chart_next_appointment_repo;
+use crate::infrastructure::database::repos::clinical::patient as patient_repo;
+use crate::infrastructure::database::repos::practice::in_app_notification as in_app_notification_repo;
 use sqlx::SqlitePool;
 
 pub async fn after_appointment_created_best_effort(
@@ -56,15 +57,15 @@ async fn try_fulfill_plan_hint(
 
     let time_short = appointment.time.chars().take(5).collect::<String>();
 
-    let title = "Appointment hint fulfilled";
-    let body = format!(
-        "{patient_name}: appointment on {} at {}",
-        appointment.date, time_short
-    );
+    let title = patient_name.clone();
+    let body = "";
 
     let payload = serde_json::json!({
         "appointment_id": appointment.id,
         "patient_id": appointment.patient_id,
+        "patient_name": patient_name,
+        "date": appointment.date,
+        "time": time_short,
     })
     .to_string();
 
@@ -72,8 +73,8 @@ async fn try_fulfill_plan_hint(
         pool,
         &appointment.physician_id,
         "plan_hint_fulfilled",
-        title,
-        &body,
+        &title,
+        body,
         Some(&payload),
     )
     .await?;

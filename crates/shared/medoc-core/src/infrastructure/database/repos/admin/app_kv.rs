@@ -26,7 +26,8 @@ where
         match op().await {
             Ok(value) => return Ok(value),
             Err(err) if db_locked(&err) && attempt < 3 => {
-                tokio::time::sleep(std::time::Duration::from_millis(150 * (attempt as u64 + 1))).await;
+                tokio::time::sleep(std::time::Duration::from_millis(150 * (attempt as u64 + 1)))
+                    .await;
                 last = Some(err);
             }
             Err(err) => return Err(err),

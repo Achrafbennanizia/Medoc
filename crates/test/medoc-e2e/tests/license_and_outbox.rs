@@ -6,11 +6,13 @@ use chrono::{NaiveDate, TimeZone, Utc};
 use ed25519_dalek::{Signer, SigningKey};
 use medoc_core::domain::entities::patient::CreatePatient;
 use medoc_core::domain::enums::Sex;
-use medoc_core::infrastructure::database::{app_kv_repo, connection, patient_repo};
+use medoc_core::infrastructure::database::connection;
+use medoc_core::infrastructure::database::repos::admin::app_kv as app_kv_repo;
+use medoc_core::infrastructure::database::repos::admin::license as license_repo;
+use medoc_core::infrastructure::database::repos::clinical::patient as patient_repo;
 use medoc_core::infrastructure::license::{
     encrypt_v2_for_device, verify, LicenseV2, VENDOR_PUBKEY,
 };
-use medoc_core::infrastructure::license_repo;
 use medoc_e2e::harness::{ensure_e2e_env, LanHarness};
 
 const TEST_SIGNING_KEY_HEX: &str =

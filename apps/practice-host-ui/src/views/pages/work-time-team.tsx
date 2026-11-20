@@ -13,7 +13,8 @@ import {
     type WorkTimeTeamOverview,
 } from "@/systems/practice-host/controllers/work-time.controller";
 import { formatWorkMinutes } from "@/lib/work-time-ui";
-import { weekStartMonday, ymd } from "@/lib/staff-work-plan";
+import { weekStartMonday } from "@/lib/staff-work-plan";
+import { localIsoDate } from "@/lib/utils";
 import { errorMessage } from "@/lib/utils";
 import { useCollatorLocale, useDateFnsLocale, useT, useTParams } from "@/lib/i18n";
 
@@ -42,7 +43,7 @@ export function WorkTimeTeamPage() {
     const [error, setError] = useState<string | null>(null);
     const [query, setQuery] = useState("");
 
-    const weekStartYmd = useMemo(() => ymd(weekStartMonday(weekAnchor)), [weekAnchor]);
+    const weekStartYmd = useMemo(() => localIsoDate(weekStartMonday(weekAnchor)), [weekAnchor]);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -94,7 +95,7 @@ export function WorkTimeTeamPage() {
     if (error && !overview) return <PageLoadError message={error} onRetry={() => void load()} />;
 
     return (
-        <div className="practice-workspace-page animate-fade-in work-time-team-page">
+        <div className="practice-workspace-page animate-fade-in--sticky-safe work-time-team-page">
             <AdministrationPageHeader
                 title={t("page.workTime.team.title")}
                 subtitle={t("page.workTime.team.subtitle")}

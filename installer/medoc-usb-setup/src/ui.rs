@@ -4,13 +4,16 @@ use std::path::PathBuf;
 
 use eframe::egui::{self, Color32, RichText, Vec2};
 
+use crate::ui_i18n::{self, Locale, Msg};
 use crate::{cmd_init_campaign, cmd_install, kit_root, Cli};
-use medoc_core::infrastructure::database::license_repo;
+use medoc_core::infrastructure::database::repos::admin::license as license_repo;
 use medoc_core::infrastructure::install_plan::{InstallRole, PlanActivationMode, SlotStatus};
 use medoc_core::infrastructure::usb_vault::{
     next_pending_slot, practice_app_data_dir, unlock_campaign,
 };
 use medoc_sync::cluster::services::mint_and_activate_usb_owner_license;
+
+const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub fn run(root: Option<PathBuf>) -> Result<(), medoc_core::error::AppError> {
     let instance = single_instance::SingleInstance::new("de.medoc.usb-setup")
@@ -37,14 +40,16 @@ pub fn run(root: Option<PathBuf>) -> Result<(), medoc_core::error::AppError> {
             .with_title("MeDoc USB Setup"),
         ..Default::default()
     };
+    let locale = Locale::En;
     let app = InstallerApp {
         cli: Cli {
             root,
             command: None,
         },
+        locale,
         password: String::new(),
         unlocked: false,
-        status_text: "Enter the USB kit password, choose a role, then Install. Use Open MeDoc to start the app (Finder double-click is blocked by macOS on unsigned USB copies).".into(),
+        status_text: ui_i18n::t(locale, Msg::Subtitle).into(),
         log: String::new(),
         role_idx: 1,
         busy: false,
@@ -61,6 +66,7 @@ pub fn run(root: Option<PathBuf>) -> Result<(), medoc_core::error::AppError> {
 
 struct InstallerApp {
     cli: Cli,
+    locale: Locale,
     password: String,
     unlocked: bool,
     status_text: String,
@@ -123,7 +129,7 @@ impl InstallerApp {
 
     fn create_campaign(&mut self) {
         if self.password.len() < 4 {
-            self.status_text = "Choose a password of at least 4 characters.".into();
+            self.status_text = ui_i18n::t(self.locale, Msg::ShortPassword).into();
             return;
         }
         let cli = self.root_cli();
@@ -132,7 +138,7 @@ impl InstallerApp {
             Some(self.password.clone()),
             "default".into(),
             self.devices.max(1),
-            "en".into(),
+            self.locale.code().into(),
             30,
             String::new(),
             String::new(),
@@ -321,187 +327,240 @@ impl eframe::App for InstallerApp {
                 .id_salt("installer_main_scroll")
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
-            ui.add_space(8.0);
-            ui.label(RichText::new("MeDoc USB Setup").size(22.0).strong());
-            ui.label(RichText::new("Install the practice app, then Open MeDoc from this window.").size(13.0).color(Color32::GRAY));
-            ui.add_space(12.0);
+                    let loc = self.locale;
+                    ui.add_space(8.0);
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            RichText::new(ui_i18n::t(loc, Msg::Title))
+                                .size(22.0)
+                                .strong(),
+                        );
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            for option in Locale::ALL {
+                                let selected = self.locale == option;
+                                if ui
+                                    .selectable_label(selected, option.label())
+                                    .on_hover_text(option.code())
+                                    .clicked()
+                                {
+                                    self.locale = option;
+                                }
+                            }
+                        });
+                    });
+                    ui.label(
+                        RichText::new(ui_i18n::t(loc, Msg::Subtitle))
+                            .size(13.0)
+                            .color(Color32::GRAY),
+                    );
+                    ui.label(
+                        RichText::new(format!("{} {APP_VERSION}", ui_i18n::t(loc, Msg::Build)))
+                            .size(12.0)
+                            .color(Color32::from_rgb(90, 90, 110)),
+                    );
+                    ui.add_space(12.0);
 
-            ui.label("USB kit password");
-            ui.add(egui::TextEdit::singleline(&mut self.password).password(true).hint_text("same password as init-campaign"));
-            ui.horizontal(|ui| {
-                if ui.button("Unlock").clicked() {
-                    self.try_unlock();
-                }
-                if ui.button("New campaign").clicked() {
-                    self.create_mode = true;
-                    self.unlocked = false;
-                    self.status_text = "Create a new campaign (replaces the vault on this kit).".into();
-                }
-            });
+                    ui.label(ui_i18n::t(loc, Msg::Password));
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.password)
+                            .password(true)
+                            .hint_text(ui_i18n::t(loc, Msg::PasswordHint)),
+                    );
+                    ui.horizontal(|ui| {
+                        if ui.button(ui_i18n::t(loc, Msg::Unlock)).clicked() {
+                            self.try_unlock();
+                        }
+                        if ui.button(ui_i18n::t(loc, Msg::NewCampaign)).clicked() {
+                            self.create_mode = true;
+                            self.unlocked = false;
+                            self.status_text =
+                                ui_i18n::t(self.locale, Msg::CreateCampaignHint).into();
+                        }
+                    });
 
-            ui.add_space(10.0);
-            if self.create_mode {
-                ui.label("Number of devices in this campaign");
-                ui.add(egui::Slider::new(&mut self.devices, 1..=16));
-                if ui.button("Create campaign").clicked() {
-                    self.create_campaign();
-                }
-            }
-
-            ui.add_space(8.0);
-            ui.separator();
-            ui.add_space(8.0);
-
-            ui.label("Role for this PC");
-            egui::ComboBox::from_id_salt("role")
-                .selected_text(role_label(self.role_idx))
-                .show_ui(ui, |ui| {
-                    ui.selectable_value(&mut self.role_idx, 0, "Use next chain slot");
-                    ui.selectable_value(&mut self.role_idx, 1, "Master");
-                    ui.selectable_value(&mut self.role_idx, 2, "Replica / user");
-                    ui.selectable_value(&mut self.role_idx, 3, "Server host");
-                    ui.selectable_value(&mut self.role_idx, 4, "LAN client");
-                });
-
-            ui.add_space(10.0);
-            let install_enabled = self.unlocked && !self.busy && !self.password.is_empty();
-            ui.add_enabled_ui(install_enabled, |ui| {
-                if ui
-                    .add_sized(Vec2::new(ui.available_width(), 36.0), egui::Button::new("Install MeDoc"))
-                    .clicked()
-                {
-                    if !self.unlocked {
-                        self.try_unlock();
+                    ui.add_space(10.0);
+                    if self.create_mode {
+                        ui.label(ui_i18n::t(loc, Msg::Devices));
+                        ui.add(egui::Slider::new(&mut self.devices, 1..=16));
+                        if ui.button(ui_i18n::t(loc, Msg::CreateCampaign)).clicked() {
+                            self.create_campaign();
+                        }
                     }
-                    if self.unlocked {
-                        self.install();
-                    }
-                }
-            });
 
-            ui.add_space(8.0);
-            ui.add_enabled_ui(!self.busy, |ui| {
-                if ui
-                    .add_sized(
-                        Vec2::new(ui.available_width(), 36.0),
-                        egui::Button::new("Update MeDoc from latest build"),
-                    )
-                    .clicked()
-                {
-                    self.update_from_latest_build();
-                }
-            });
-            ui.label(
-                RichText::new("Copies the newest compiled medoc on this Mac into the USB kit and Applications. Compile first (npm + cargo). Does not wipe data.")
-                    .size(12.0)
-                    .color(Color32::GRAY),
-            );
+                    ui.add_space(8.0);
+                    ui.separator();
+                    ui.add_space(8.0);
 
-            ui.add_space(8.0);
-            ui.add_enabled_ui(!self.busy, |ui| {
-                if ui
-                    .add_sized(
-                        Vec2::new(ui.available_width(), 36.0),
-                        egui::Button::new("Open MeDoc"),
-                    )
-                    .clicked()
-                {
-                    self.open_medoc();
-                }
-            });
-            ui.label(
-                RichText::new("Use Open MeDoc in this window — that starts MeDoc with nohup and no Terminal. Finder cannot do that for an unsigned USB app.")
-                    .size(12.0)
-                    .color(Color32::GRAY),
-            );
+                    ui.label(ui_i18n::t(loc, Msg::Role));
+                    egui::ComboBox::from_id_salt("role")
+                        .selected_text(ui_i18n::role_label(loc, self.role_idx))
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(
+                                &mut self.role_idx,
+                                0,
+                                ui_i18n::t(loc, Msg::RoleNext),
+                            );
+                            ui.selectable_value(
+                                &mut self.role_idx,
+                                1,
+                                ui_i18n::t(loc, Msg::RoleMaster),
+                            );
+                            ui.selectable_value(
+                                &mut self.role_idx,
+                                2,
+                                ui_i18n::t(loc, Msg::RoleReplica),
+                            );
+                            ui.selectable_value(
+                                &mut self.role_idx,
+                                3,
+                                ui_i18n::t(loc, Msg::RoleServer),
+                            );
+                            ui.selectable_value(
+                                &mut self.role_idx,
+                                4,
+                                ui_i18n::t(loc, Msg::RoleLan),
+                            );
+                        });
 
-            ui.add_space(8.0);
-            ui.horizontal(|ui| {
-                let wipe_label = if self.confirm_wipe {
-                    "Confirm delete"
-                } else {
-                    "Delete everything on this Mac"
-                };
-                ui.add_enabled_ui(!self.busy, |ui| {
-                    if ui
-                        .add(
-                            egui::Button::new(RichText::new(wipe_label).color(Color32::from_rgb(160, 40, 40))),
-                        )
-                        .clicked()
-                    {
-                        self.wipe_this_mac();
-                    }
-                });
-                if self.confirm_wipe && ui.button("Cancel").clicked() {
-                    self.confirm_wipe = false;
-                    self.status_text = "Delete cancelled.".into();
-                }
-            });
+                    ui.add_space(10.0);
+                    let install_enabled = self.unlocked && !self.busy && !self.password.is_empty();
+                    ui.add_enabled_ui(install_enabled, |ui| {
+                        if ui
+                            .add_sized(
+                                Vec2::new(ui.available_width(), 36.0),
+                                egui::Button::new(ui_i18n::t(loc, Msg::Install)),
+                            )
+                            .clicked()
+                        {
+                            if !self.unlocked {
+                                self.try_unlock();
+                            }
+                            if self.unlocked {
+                                self.install();
+                            }
+                        }
+                    });
 
-            ui.add_space(12.0);
-            ui.separator();
-            ui.add_space(8.0);
-            ui.label(RichText::new("License key").strong());
-            ui.label(
-                RichText::new("Activates MeDoc on this Mac (cluster + LAN). Close MeDoc first if it is open.")
-                    .size(12.0)
-                    .color(Color32::GRAY),
-            );
-            ui.add_space(6.0);
-            let license_ok = !self.busy && (!self.password.is_empty() || self.installed);
-            ui.add_enabled_ui(license_ok, |ui| {
-                if ui
-                    .add_sized(
-                        Vec2::new(ui.available_width(), 32.0),
-                        egui::Button::new("Activate license on this Mac"),
-                    )
-                    .clicked()
-                {
-                    self.create_license_key();
-                }
-            });
-            ui.add_space(6.0);
-            ui.add(
-                egui::TextEdit::multiline(&mut self.license_key)
-                    .desired_width(f32::INFINITY)
-                    .desired_rows(5)
-                    .hint_text("License key appears here"),
-            );
-            ui.horizontal(|ui| {
-                let can_copy = !self.license_key.is_empty();
-                ui.add_enabled_ui(can_copy, |ui| {
-                    if ui.button("Copy license key").clicked() {
-                        ui.ctx().copy_text(self.license_key.chars().filter(|c| !c.is_whitespace()).collect::<String>());
-                        self.copy_flash = "Copied to clipboard.".into();
-                    }
-                });
-                if !self.copy_flash.is_empty() {
-                    ui.label(RichText::new(&self.copy_flash).color(Color32::from_rgb(30, 90, 70)));
-                }
-            });
+                    ui.add_space(8.0);
+                    ui.add_enabled_ui(!self.busy, |ui| {
+                        if ui
+                            .add_sized(
+                                Vec2::new(ui.available_width(), 36.0),
+                                egui::Button::new(ui_i18n::t(loc, Msg::UpdateFromBuild)),
+                            )
+                            .clicked()
+                        {
+                            self.update_from_latest_build();
+                        }
+                    });
+                    ui.label(
+                        RichText::new(ui_i18n::t(loc, Msg::UpdateHint))
+                            .size(12.0)
+                            .color(Color32::GRAY),
+                    );
 
-            ui.add_space(12.0);
-            ui.label(RichText::new(&self.status_text).color(Color32::from_rgb(30, 90, 70)));
-            ui.add_space(6.0);
-            egui::ScrollArea::vertical()
-                .id_salt("installer_log_scroll")
-                .max_height(140.0)
-                .show(ui, |ui| {
-                    ui.label(RichText::new(&self.log).small().color(Color32::DARK_GRAY));
-                });
+                    ui.add_space(8.0);
+                    ui.add_enabled_ui(!self.busy, |ui| {
+                        if ui
+                            .add_sized(
+                                Vec2::new(ui.available_width(), 36.0),
+                                egui::Button::new(ui_i18n::t(loc, Msg::OpenMedoc)),
+                            )
+                            .clicked()
+                        {
+                            self.open_medoc();
+                        }
+                    });
+                    ui.label(
+                        RichText::new(ui_i18n::t(loc, Msg::OpenHint))
+                            .size(12.0)
+                            .color(Color32::GRAY),
+                    );
+
+                    ui.add_space(8.0);
+                    ui.horizontal(|ui| {
+                        let wipe_label = if self.confirm_wipe {
+                            ui_i18n::t(loc, Msg::WipeConfirm)
+                        } else {
+                            ui_i18n::t(loc, Msg::Wipe)
+                        };
+                        ui.add_enabled_ui(!self.busy, |ui| {
+                            if ui
+                                .add(egui::Button::new(
+                                    RichText::new(wipe_label).color(Color32::from_rgb(160, 40, 40)),
+                                ))
+                                .clicked()
+                            {
+                                self.wipe_this_mac();
+                            }
+                        });
+                        if self.confirm_wipe && ui.button(ui_i18n::t(loc, Msg::Cancel)).clicked() {
+                            self.confirm_wipe = false;
+                            self.status_text = ui_i18n::t(self.locale, Msg::DeleteCancelled).into();
+                        }
+                    });
+
+                    ui.add_space(12.0);
+                    ui.separator();
+                    ui.add_space(8.0);
+                    ui.label(RichText::new(ui_i18n::t(loc, Msg::LicenseHeading)).strong());
+                    ui.label(
+                        RichText::new(ui_i18n::t(loc, Msg::LicenseHint))
+                            .size(12.0)
+                            .color(Color32::GRAY),
+                    );
+                    ui.add_space(6.0);
+                    let license_ok = !self.busy && (!self.password.is_empty() || self.installed);
+                    ui.add_enabled_ui(license_ok, |ui| {
+                        if ui
+                            .add_sized(
+                                Vec2::new(ui.available_width(), 32.0),
+                                egui::Button::new(ui_i18n::t(loc, Msg::ActivateLicense)),
+                            )
+                            .clicked()
+                        {
+                            self.create_license_key();
+                        }
+                    });
+                    ui.add_space(6.0);
+                    ui.add(
+                        egui::TextEdit::multiline(&mut self.license_key)
+                            .desired_width(f32::INFINITY)
+                            .desired_rows(5)
+                            .hint_text(ui_i18n::t(loc, Msg::LicenseKeyHint)),
+                    );
+                    ui.horizontal(|ui| {
+                        let can_copy = !self.license_key.is_empty();
+                        ui.add_enabled_ui(can_copy, |ui| {
+                            if ui.button(ui_i18n::t(loc, Msg::CopyLicense)).clicked() {
+                                ui.ctx().copy_text(
+                                    self.license_key
+                                        .chars()
+                                        .filter(|c| !c.is_whitespace())
+                                        .collect::<String>(),
+                                );
+                                self.copy_flash = ui_i18n::t(self.locale, Msg::Copied).into();
+                            }
+                        });
+                        if !self.copy_flash.is_empty() {
+                            ui.label(
+                                RichText::new(&self.copy_flash)
+                                    .color(Color32::from_rgb(30, 90, 70)),
+                            );
+                        }
+                    });
+
+                    ui.add_space(12.0);
+                    ui.label(RichText::new(&self.status_text).color(Color32::from_rgb(30, 90, 70)));
+                    ui.add_space(6.0);
+                    egui::ScrollArea::vertical()
+                        .id_salt("installer_log_scroll")
+                        .max_height(140.0)
+                        .show(ui, |ui| {
+                            ui.label(RichText::new(&self.log).small().color(Color32::DARK_GRAY));
+                        });
                 });
         });
-    }
-}
-
-fn role_label(idx: usize) -> &'static str {
-    match idx {
-        0 => "Use next chain slot",
-        1 => "Master",
-        2 => "Replica / user",
-        3 => "Server host",
-        4 => "LAN client",
-        _ => "Master",
     }
 }
 

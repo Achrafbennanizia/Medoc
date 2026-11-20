@@ -67,20 +67,16 @@ async fn replication_active(pool: &SqlitePool) -> Result<bool, AppError> {
     if deployment.mode == DeploymentMode::ServerlessPeer {
         return Ok(true);
     }
-    let joined: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM sync_device
-         WHERE is_local = 0
-           AND (role = 'REPLICA' OR seat_role = 'MEMBER')",
-    )
-    .fetch_one(pool)
-    .await
-    .unwrap_or(0);
+    let joined: i64 =
+        medoc_core::infrastructure::database::recorded_write::count_remote_replicas(pool)
+            .await
+            .unwrap_or(0);
     Ok(joined > 0)
 }
 
 async fn baseline_done(pool: &SqlitePool) -> Result<bool, AppError> {
     let value: Option<String> =
-        medoc_core::infrastructure::database::app_kv_repo::get(pool, BASELINE_KEY).await?;
+        medoc_core::infrastructure::database::repos::admin::app_kv::get(pool, BASELINE_KEY).await?;
     Ok(value.as_deref() == Some("1"))
 }
 
@@ -155,13 +151,21 @@ fn watermark_key(table: &str) -> String {
 }
 
 async fn watermark(pool: &SqlitePool, table: &str) -> Result<String, AppError> {
-    let value =
-        medoc_core::infrastructure::database::app_kv_repo::get(pool, &watermark_key(table)).await?;
+    let value = medoc_core::infrastructure::database::repos::admin::app_kv::get(
+        pool,
+        &watermark_key(table),
+    )
+    .await?;
     Ok(value.unwrap_or_default())
 }
 
 async fn store_watermark(pool: &SqlitePool, table: &str, stamp: &str) -> Result<(), AppError> {
-    medoc_core::infrastructure::database::app_kv_repo::set(pool, &watermark_key(table), stamp).await
+    medoc_core::infrastructure::database::repos::admin::app_kv::set(
+        pool,
+        &watermark_key(table),
+        stamp,
+    )
+    .await
 }
 
 async fn seen_stamp(

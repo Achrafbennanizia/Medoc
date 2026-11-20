@@ -1,4 +1,5 @@
-import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
+import { moneyToInvoiceCents } from "@/lib/invoice-service-item";
+import { practiceSystem } from "@/systems/practice-host/adapters/practice-transport";
 import type { InvoiceInput, InvoiceLineInput } from "@/systems/practice-host/controllers/invoice.controller";
 import type { IssuedPdf } from "@/systems/practice-host/controllers/document.controller";
 
@@ -149,7 +150,7 @@ export function normalizeInvoiceInput(
                   );
                   const cents = firstNumber(line, "amount_cents", "amountCents");
                   const euros = firstNumber(line, "total_cost", "totalCost", "amount", "price");
-                  const amount_cents = cents > 0 ? Math.round(cents) : euros > 0 ? Math.round(euros * 100) : 0;
+                  const amount_cents = cents > 0 ? Math.round(cents) : euros > 0 ? moneyToInvoiceCents(euros) : 0;
                   const goz = firstString(line, "goz_nr", "gozNr");
                   const schedule = firstString(line, "fee_schedule", "feeSchedule");
                   const fee_schedule = schedule || (goz ? "goz" : "other");
@@ -328,7 +329,7 @@ async function listLegacyInvoiceDocuments(limit?: number): Promise<SavedInvoice[
 
 /** Legacy import only (browser history before the registry). The server refuses registry numbers. */
 export async function appendInvoiceDocument(entry: SavedInvoice): Promise<void> {
-    const totalCents = Math.round(sumInvoiceEur(entry.invoice) * 100);
+    const totalCents = moneyToInvoiceCents(sumInvoiceEur(entry.invoice));
     await practiceSystem.invoke<void>("append_invoice_document", {
         input: {
             id: entry.id,

@@ -1,7 +1,14 @@
-import { appointmentIsEmergencyMarked, parseAppointmentDurationMin, type AppointmentKindNotes } from "@/lib/appointment-domain";
-import { isAppointmentSpanSchedulable, minutesToTime } from "@/lib/appointment-availability";
+import {
+    appointmentCountsAsPlanned,
+    appointmentIsEmergencyMarked,
+    parseAppointmentDurationMin,
+    type AppointmentKindNotes,
+} from "@/lib/appointment-domain";
+export { appointmentCountsAsPlanned };
+import { isAppointmentSpanSchedulable, minutesToTime, timeToMinutes } from "@/lib/appointment-availability";
 import { listOpenWorkIntervals } from "@/lib/appointment-calendar-layout";
 import { t } from "@/lib/i18n";
+import { parseDbUtc } from "@/lib/utils";
 import type { Absence, Appointment } from "@/models/types";
 import { resolveBookingWorkHoursForPhysician, type PracticeWorkHoursConfig } from "@/lib/practice-planning";
 import type { PhysicianSummary } from "@/systems/practice-host/controllers/staff.controller";
@@ -25,12 +32,6 @@ const APPOINTMENT_KIND_KEYS = [
     "CONSULTATION",
 ] as const;
 
-/** @deprecated Prefer `appointmentKindFilterOptions()` for localized labels. */
-export const APPOINTMENT_KIND_FILTER_OPTIONS = APPOINTMENT_KIND_KEYS.map((value) => ({
-    value,
-    label: value,
-}));
-
 export function appointmentKindFilterOptions(): Array<{ value: string; label: string }> {
     return APPOINTMENT_KIND_KEYS.map((value) => ({
         value,
@@ -51,10 +52,6 @@ import {
     APPOINTMENT_TIMELINE_DEFAULT_START_MIN,
 } from "./appointment-calendar-layout";
 
-/** @deprecated Prefer {@link deriveAppointmentTimelineBounds} with practice config. */
-export const APPOINTMENT_DAY_START_MIN = APPOINTMENT_TIMELINE_DEFAULT_START_MIN;
-/** @deprecated Prefer {@link deriveAppointmentTimelineBounds} with practice config. */
-export const APPOINTMENT_DAY_END_MIN = APPOINTMENT_TIMELINE_DEFAULT_END_MIN;
 export const APPOINTMENT_DEFAULT_DUR_MIN = 45;
 export const APPOINTMENT_HOUR_PX = 84;
 export const APPOINTMENT_PX_PER_MIN = 1.4;
@@ -116,7 +113,7 @@ function resolveAppointmentDisplayState(appointment: Appointment): AppointmentDi
     if (appointment.status === "COMPLETED") {
         return "done";
     }
-    const editedMs = new Date(appointment.updated_at).getTime() - new Date(appointment.created_at).getTime();
+    const editedMs = parseDbUtc(appointment.updated_at).getTime() - parseDbUtc(appointment.created_at).getTime();
     const edited = editedMs > 60_000;
     if (edited && (appointment.status === "PLANNED" || appointment.status === "CONFIRMED")) {
         return "edited";
@@ -173,15 +170,7 @@ export function appointmentCalendarStatusPill(appointment: Appointment): {
     return { label: t(CALENDAR_PILL_LABEL_KEY[state]), tone: toneByState[state] };
 }
 
-export function appointmentTimeToMinutes(u: string): number {
-    const p = u.slice(0, 5).split(":");
-    const h = Number(p[0]);
-    const m = Number(p[1]);
-    if (Number.isNaN(h) || Number.isNaN(m)) return APPOINTMENT_DAY_START_MIN;
-    return h * 60 + m;
-}
-
-export { minutesToTime, timeToMinutes } from "@/lib/appointment-availability";
+export { minutesToTime, timeToMinutes };
 
 export function buildPhysicianToneMap(physicians: PhysicianSummary[]): Map<string, AppointmentDoctorTone> {
     const m = new Map<string, AppointmentDoctorTone>();
@@ -206,10 +195,6 @@ export function doctorStripeVar(tone: AppointmentDoctorTone): string {
     return "var(--accent)";
 }
 
-export function appointmentCountsAsPlanned(t: Appointment): boolean {
-    return t.status !== "CANCELLED" && t.status !== "NO_SHOW";
-}
-
 export function computePackedUpdatesAfterMove(
     all: Appointment[],
     movingId: string,
@@ -220,8 +205,8 @@ export function computePackedUpdatesAfterMove(
     dayBounds?: { startMin: number; endMin: number },
     schedule?: { practiceCfg: PracticeWorkHoursConfig; absences: Absence[] },
 ): { updates: { id: string; data: Record<string, unknown> }[]; error?: string } {
-    const dayStartMin = dayBounds?.startMin ?? APPOINTMENT_DAY_START_MIN;
-    const dayEndMin = dayBounds?.endMin ?? APPOINTMENT_DAY_END_MIN;
+    const dayStartMin = dayBounds?.startMin ?? APPOINTMENT_TIMELINE_DEFAULT_START_MIN;
+    const dayEndMin = dayBounds?.endMin ?? APPOINTMENT_TIMELINE_DEFAULT_END_MIN;
     const moving = all.find((t) => t.id === movingId);
     if (!moving) return { updates: [] };
 
@@ -229,7 +214,7 @@ export function computePackedUpdatesAfterMove(
     const step = 5;
     const gap = Math.max(0, Math.floor(Number(gapAfterMin) || 0));
     const eff = schedule
-        ? resolveBookingWorkHoursForPhysician(schedule.practiceCfg, physicianId)
+        ? resolveBookingWorkHoursForPhysician(schedule.practiceCfg, physicianId, targetDate)
         : null;
 
     const align = (min: number) => {
@@ -273,7 +258,7 @@ export function computePackedUpdatesAfterMove(
         )
         .map((row) => ({
             id: row.id,
-            start: appointmentTimeToMinutes(row.time),
+            start: timeToMinutes(row.time),
             dur: Math.max(5, parseAppointmentDurationMin(row.notes, APPOINTMENT_DEFAULT_DUR_MIN)),
         }));
 
@@ -335,7 +320,6 @@ export function calendarMonthOffsetFromToday(d: Date): number {
 
 export {
     APPOINTMENT_CALENDAR_MONTH_ROWS,
-    APPOINTMENT_CALENDAR_WORKING_DAYS,
     buildAppointmentMonthCalendarCells,
     deriveDayClosedSpans,
     deriveDayTimelineBounds,

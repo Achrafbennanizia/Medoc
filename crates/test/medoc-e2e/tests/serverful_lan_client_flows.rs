@@ -156,7 +156,11 @@ async fn appointment_query_param_parses_and_returns_array() {
             Some(&physician),
         )
         .await;
-    assert_eq!(status, StatusCode::NOT_FOUND, "appointments route: {body:?}");
+    assert_eq!(
+        status,
+        StatusCode::NOT_FOUND,
+        "appointments route: {body:?}"
+    );
 }
 
 #[tokio::test]

@@ -1,13 +1,15 @@
 use crate::application::auth_service::{self, LoginRequest, Session};
 use crate::application::device_session_service;
+use crate::application::mvp_security;
 use crate::application::rbac;
 use crate::error::AppError;
-use crate::infrastructure::database::{audit_repo, device_session_repo, staff_permission_repo};
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
+use crate::infrastructure::database::repos::admin::device_session as device_session_repo;
+use crate::infrastructure::database::repos::admin::staff as staff_repo;
+use crate::infrastructure::database::repos::admin::staff_permission as staff_permission_repo;
 use crate::infrastructure::logging::brute_force::{
     BruteForceTracker, BruteKey, CheckResult, DESKTOP_PEER_IP,
 };
-use crate::application::mvp_security;
-use crate::infrastructure::database::staff_repo;
 use crate::infrastructure::totp::{self, TotpEnrollmentDto};
 use crate::log_security;
 use sqlx::SqlitePool;
@@ -223,10 +225,10 @@ pub async fn logout(
     };
     if let Some(user_id) = work_time_logout {
         if let Ok(pref) =
-            crate::commands::work_time_commands::get_or_create_preference(&pool, &user_id).await
+            crate::commands::admin::work_time::get_or_create_preference(&pool, &user_id).await
         {
             if pref.auto_record_on_logout {
-                let _ = crate::commands::work_time_commands::end_open_session_for_user(
+                let _ = crate::commands::admin::work_time::end_open_session_for_user(
                     &pool, &user_id, "logout",
                 )
                 .await;
@@ -416,7 +418,9 @@ pub async fn start_totp_enrollment_login(
         return Err(AppError::validation_code("error.auth.totp_optional_role"));
     }
     if staff_repo::is_totp_enrolled(&user) {
-        return Err(AppError::Conflict("Two-factor authentication is already active".into()));
+        return Err(AppError::Conflict(
+            "Two-factor authentication is already active".into(),
+        ));
     }
     let (secret, dto) = totp::generate_enrollment(&user.email)?;
     staff_repo::set_totp_pending_secret(&pool, &user.id, &secret).await?;
@@ -446,22 +450,4 @@ pub async fn confirm_totp_enrollment_login(
     }
     staff_repo::confirm_totp_enrollment(&pool, &user.id).await?;
     Ok(())
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_auth_commands {
-    () => {
-        $crate::commands::auth_commands::login,
-        $crate::commands::auth_commands::logout,
-        $crate::commands::auth_commands::get_session,
-        $crate::commands::auth_commands::touch_session,
-        $crate::commands::auth_commands::list_my_device_sessions,
-        $crate::commands::auth_commands::revoke_my_other_device_sessions,
-        $crate::commands::auth_commands::investigate_my_device_session,
-        $crate::commands::auth_commands::revoke_my_device_session,
-        $crate::commands::auth_commands::set_my_device_session_trusted,
-        $crate::commands::auth_commands::start_totp_enrollment_login,
-        $crate::commands::auth_commands::confirm_totp_enrollment_login,
-    };
 }

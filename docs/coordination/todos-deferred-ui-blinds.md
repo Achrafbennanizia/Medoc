@@ -2,7 +2,7 @@
 
 **Purpose:** Catalog of **UI options we intentionally hid or commented out** because they are incomplete or need more effort. Use this list when polishing a page later — do **not** treat these as bugs.
 
-**Last updated:** 2026-11-07
+**Last updated:** 2026-11-15
 
 **Related deferred trackers (larger scopes):**
 
@@ -152,6 +152,25 @@
 
 ---
 
+## Settings — PDF header designer — OFF
+
+**Flag:** `PDF_HEADER_DESIGNER_ENABLED = false` in [`packages/shared/src/lib/v1-ui-flags.ts`](../../packages/shared/src/lib/v1-ui-flags.ts) (and [`apps/practice-host-ui/src/lib/v1-ui-flags.ts`](../../apps/practice-host-ui/src/lib/v1-ui-flags.ts))
+
+**Gate:** Settings → System (`settings-system-section.tsx`) — the drag-and-drop header table (`PdfHeaderDesigner`).
+
+**Kept:** Official PDFs still print the practice letterhead. A receipt uses the same letterhead as a prescription.
+
+**Why deferred:** Dropping a field into the table does not stay put reliably, and the printed header does not yet follow the table. Hide the designer until both match.
+
+### Re-enable checklist
+
+1. Set `PDF_HEADER_DESIGNER_ENABLED = true`.
+2. Confirm a drop onto a left or right cell stays there after release, including a swap with a field already in that cell.
+3. Confirm a generated PDF prints two fields from the same row on one line, separated by `·`, and that a receipt header matches a prescription header.
+4. QA in Settings → System as a user who can edit system settings.
+
+---
+
 ## Other skipped UI (pointers)
 
 | Item | Notes |
@@ -163,6 +182,7 @@
 | Chart validation queue — Decline | `CHART_QUEUE_DECLINE_ENABLED` — dashboard + Records to validate |
 | Patient chart workflow header buttons | `PATIENT_CHART_WORKFLOW_HEADER_BUTTONS_ENABLED` — see v1 surfaces doc |
 | Patient list — Show archived | `PATIENT_LIST_SHOW_ARCHIVED_ENABLED` — status filter row |
+| Settings — PDF header designer | `PDF_HEADER_DESIGNER_ENABLED` — System section table |
 
 ### Code markers
 
@@ -173,4 +193,5 @@ APPOINTMENT_CALL_REMINDER_ENABLED
 CHART_QUEUE_DECLINE_ENABLED
 WORKFLOW_APPOINTMENT_REMINDER_NOSHOW_UI_ENABLED
 PATIENT_LIST_SHOW_ARCHIVED_ENABLED
+PDF_HEADER_DESIGNER_ENABLED
 ```

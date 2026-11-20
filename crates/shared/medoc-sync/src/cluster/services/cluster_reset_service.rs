@@ -4,8 +4,8 @@ use std::path::Path;
 
 use chrono::Utc;
 use medoc_core::error::AppError;
-use medoc_core::infrastructure::database::app_kv_repo;
-use medoc_core::infrastructure::license_repo;
+use medoc_core::infrastructure::database::repos::admin::app_kv as app_kv_repo;
+use medoc_core::infrastructure::database::repos::admin::license as license_repo;
 use medoc_core::infrastructure::secret_store;
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
@@ -13,7 +13,7 @@ use uuid::Uuid;
 
 use crate::cluster::crypto::DeviceIdentity;
 use crate::cluster::enums::{DeviceStatus, SeatRole};
-use crate::cluster::ports::{DeviceRepo, LicenseRepo, SqliteClusterRepos};
+use crate::cluster::ports::SqliteClusterRepos;
 use crate::cluster::services::audit;
 use crate::cluster::services::license_service::{cluster_status, require_owner_admin};
 use crate::master_keys;
@@ -30,10 +30,10 @@ const NETWORK_KV_KEYS: &[&str] = &[
     license_repo::KEY_V1,
     license_repo::KEY_V2,
     license_repo::KEY_DEVICE_ID,
-    "sync.device_id.v1",
+    crate::deployment::APP_KV_DEVICE_ID_KEY,
     "onboarding.setup_complete.v1",
     "company.portal.config.v1",
-    "sync.deployment.v1",
+    crate::deployment::APP_KV_DEPLOYMENT_KEY,
     "pairing.enabled.v1",
     "network.hidden.v1",
     "migration.demo_seed.v1",
@@ -569,7 +569,7 @@ pub async fn apply_queued_remote_reset_if_any(
 mod tests {
     use super::*;
     use medoc_core::infrastructure::database::connection::{run_migrations, test_memory_pool};
-    use medoc_core::infrastructure::database::license_repo;
+    use medoc_core::infrastructure::database::repos::admin::license as license_repo;
 
     #[test]
     fn reset_token_sign_verify_roundtrip() {

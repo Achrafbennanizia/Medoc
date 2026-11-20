@@ -1,6 +1,6 @@
-use medoc_lib::infrastructure::database::audit_repo;
-use medoc_lib::infrastructure::database::brute_force_repo;
 use medoc_lib::infrastructure::database::connection::test_memory_pool;
+use medoc_lib::infrastructure::database::repos::admin::audit as audit_repo;
+use medoc_lib::infrastructure::database::repos::admin::brute_force as brute_force_repo;
 use medoc_lib::infrastructure::logging::brute_force::{
     self, BruteForceTracker, BruteKey, CheckResult, DESKTOP_PEER_IP,
 };

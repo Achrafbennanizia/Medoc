@@ -8,8 +8,8 @@ pub async fn find_all(pool: &SqlitePool) -> Result<Vec<Patient>, AppError> {
     let rows = sqlx::query_as::<_, Patient>(
         "SELECT * FROM patient WHERE COALESCE(status,'ACTIVE') != 'ARCHIVED' ORDER BY name, id",
     )
-        .fetch_all(pool)
-        .await?;
+    .fetch_all(pool)
+    .await?;
     Ok(rows)
 }
 
@@ -143,11 +143,7 @@ pub async fn find_all_matching(
     Ok(all)
 }
 
-pub async fn name_dob_exists(
-    pool: &SqlitePool,
-    name: &str,
-    dob: &str,
-) -> Result<bool, AppError> {
+pub async fn name_dob_exists(pool: &SqlitePool, name: &str, dob: &str) -> Result<bool, AppError> {
     let n: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM patient
          WHERE lower(trim(name)) = lower(trim(?1))
@@ -254,10 +250,10 @@ pub async fn create(pool: &SqlitePool, data: &CreatePatient) -> Result<Patient, 
         "INSERT INTO patient_chart (id, patient_id, updated_at)
          VALUES (?1, ?2, strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
     )
-        .bind(&chart_id)
-        .bind(&id)
-        .execute(&mut *tx)
-        .await?;
+    .bind(&chart_id)
+    .bind(&id)
+    .execute(&mut *tx)
+    .await?;
 
     let anam_id = uuid::Uuid::new_v4().to_string();
     let empty_anam = r#"{"version":1,"preExisting":{},"medication":{},"allergies":{}}"#;
@@ -271,8 +267,10 @@ pub async fn create(pool: &SqlitePool, data: &CreatePatient) -> Result<Patient, 
     .execute(&mut *tx)
     .await?;
 
-    crate::infrastructure::database::recorded_write::record_in_tx(&mut tx, "patient", &id, "INSERT")
-        .await?;
+    crate::infrastructure::database::recorded_write::record_in_tx(
+        &mut tx, "patient", &id, "INSERT",
+    )
+    .await?;
     crate::infrastructure::database::recorded_write::record_in_tx(
         &mut tx,
         "patient_chart",
@@ -345,8 +343,10 @@ pub async fn create_from_import(
     .execute(&mut *tx)
     .await?;
 
-    crate::infrastructure::database::recorded_write::record_in_tx(&mut tx, "patient", &id, "INSERT")
-        .await?;
+    crate::infrastructure::database::recorded_write::record_in_tx(
+        &mut tx, "patient", &id, "INSERT",
+    )
+    .await?;
     crate::infrastructure::database::recorded_write::record_in_tx(
         &mut tx,
         "patient_chart",
@@ -393,9 +393,18 @@ pub async fn update(
          status = ?5, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?6",
     )
     .bind(name)
-    .bind(crate::domain::serde_util::patch_text(&data.phone, existing.phone.as_deref()))
-    .bind(crate::domain::serde_util::patch_text(&data.email, existing.email.as_deref()))
-    .bind(crate::domain::serde_util::patch_text(&data.address, existing.address.as_deref()))
+    .bind(crate::domain::serde_util::patch_text(
+        &data.phone,
+        existing.phone.as_deref(),
+    ))
+    .bind(crate::domain::serde_util::patch_text(
+        &data.email,
+        existing.email.as_deref(),
+    ))
+    .bind(crate::domain::serde_util::patch_text(
+        &data.address,
+        existing.address.as_deref(),
+    ))
     .bind(&status)
     .bind(id)
     .execute(pool)
@@ -450,13 +459,12 @@ pub async fn expire_new_status_after_completed_appointment(
 }
 
 pub async fn archive(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
-    let status: String = sqlx::query_scalar(
-        "SELECT COALESCE(status,'ACTIVE') FROM patient WHERE id = ?1",
-    )
-    .bind(id)
-    .fetch_optional(pool)
-    .await?
-    .ok_or_else(|| AppError::NotFound("Patient".into()))?;
+    let status: String =
+        sqlx::query_scalar("SELECT COALESCE(status,'ACTIVE') FROM patient WHERE id = ?1")
+            .bind(id)
+            .fetch_optional(pool)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Patient".into()))?;
     crate::domain::status::PatientStatus::require_transition(&status, "ARCHIVED")?;
     let mut tx = pool.begin().await?;
     let n = sqlx::query(
@@ -507,18 +515,26 @@ async fn exec_bound(
     let re = regex::Regex::new(r"(?is)^\s*DELETE\s+FROM\s+([a-z_][a-z0-9_]*)\s+(WHERE\s+.*)$")
         .map_err(|e| AppError::Internal(e.to_string()))?;
     let Some(caps) = re.captures(sql) else {
-        return Err(AppError::Internal(format!("exec_bound expects DELETE … WHERE: {sql}")));
+        return Err(AppError::Internal(format!(
+            "exec_bound expects DELETE … WHERE: {sql}"
+        )));
     };
-    let table = caps.get(1).map(|m| m.as_str()).unwrap_or_default().to_string();
+    let table = caps
+        .get(1)
+        .map(|m| m.as_str())
+        .unwrap_or_default()
+        .to_string();
     let where_sql = caps.get(2).map(|m| m.as_str()).unwrap_or_default();
-    let synced = crate::infrastructure::database::sync_registry::synced_tables()
-        .any(|t| t == table);
+    let synced =
+        crate::infrastructure::database::sync_registry::synced_tables().any(|t| t == table);
     let ids: Vec<String> = if record && synced {
         let key = crate::infrastructure::database::sync_registry::key_expr(&table);
-        sqlx::query_scalar(&format!("SELECT CAST({key} AS TEXT) FROM {table} {where_sql}"))
-            .bind(patient_id)
-            .fetch_all(&mut **tx)
-            .await?
+        sqlx::query_scalar(&format!(
+            "SELECT CAST({key} AS TEXT) FROM {table} {where_sql}"
+        ))
+        .bind(patient_id)
+        .fetch_all(&mut **tx)
+        .await?
     } else {
         Vec::new()
     };
@@ -548,38 +564,50 @@ pub async fn delete_dependents(
     deleted += exec_bound(
         tx,
         "DELETE FROM appointment WHERE patient_id = ?1",
-        patient_id, record
+        patient_id,
+        record,
     )
     .await?;
     deleted += exec_bound(
         tx,
         "DELETE FROM anamnesis_form WHERE patient_id = ?1",
-        patient_id, record
+        patient_id,
+        record,
     )
     .await?;
-    deleted += exec_bound(tx, "DELETE FROM payment WHERE patient_id = ?1", patient_id, record).await?;
+    deleted += exec_bound(
+        tx,
+        "DELETE FROM payment WHERE patient_id = ?1",
+        patient_id,
+        record,
+    )
+    .await?;
     deleted += exec_bound(
         tx,
         "DELETE FROM prescription WHERE patient_id = ?1",
-        patient_id, record
+        patient_id,
+        record,
     )
     .await?;
     deleted += exec_bound(
         tx,
         "DELETE FROM certificate WHERE patient_id = ?1",
-        patient_id, record
+        patient_id,
+        record,
     )
     .await?;
     deleted += exec_bound(
         tx,
         "DELETE FROM chart_validation WHERE patient_id = ?1",
-        patient_id, record
+        patient_id,
+        record,
     )
     .await?;
     deleted += exec_bound(
         tx,
         "DELETE FROM chart_next_appointment_hint WHERE patient_id = ?1",
-        patient_id, record
+        patient_id,
+        record,
     )
     .await?;
 
@@ -587,7 +615,8 @@ pub async fn delete_dependents(
     deleted += exec_bound(
         tx,
         "DELETE FROM in_app_notification WHERE payload_json LIKE ?1",
-        &in_app_needle, record
+        &in_app_needle,
+        record,
     )
     .await?;
 
@@ -595,19 +624,22 @@ pub async fn delete_dependents(
         tx,
         "DELETE FROM invoice_document_audit WHERE document_id IN
          (SELECT id FROM invoice_document WHERE patient_id = ?1)",
-        patient_id, record
+        patient_id,
+        record,
     )
     .await?;
     deleted += exec_bound(
         tx,
         "DELETE FROM invoice_document WHERE patient_id = ?1",
-        patient_id, record
+        patient_id,
+        record,
     )
     .await?;
     deleted += exec_bound(
         tx,
         "DELETE FROM practice_ticket WHERE patient_id = ?1",
-        patient_id, record
+        patient_id,
+        record,
     )
     .await?;
 
@@ -621,8 +653,13 @@ pub async fn delete_dependents(
         .execute(&mut **tx)
         .await?;
     for task_id in task_ids.iter().filter(|_| record) {
-        crate::infrastructure::database::recorded_write::record_in_tx(tx, "practice_task", task_id, "UPDATE")
-            .await?;
+        crate::infrastructure::database::recorded_write::record_in_tx(
+            tx,
+            "practice_task",
+            task_id,
+            "UPDATE",
+        )
+        .await?;
     }
 
     deleted += exec_bound(
@@ -652,7 +689,8 @@ pub async fn delete_dependents(
     deleted += exec_bound(
         tx,
         "DELETE FROM patient_chart WHERE patient_id = ?1",
-        patient_id, record
+        patient_id,
+        record,
     )
     .await?;
     Ok(deleted)

@@ -14,10 +14,15 @@ use medoc_core::domain::entities::patient::CreatePatient;
 use medoc_core::domain::entities::practice_task::CreatePracticeTask;
 use medoc_core::domain::entities::prescription::CreatePrescription;
 use medoc_core::domain::enums::{AppointmentKind, Sex};
-use medoc_core::infrastructure::database::{
-    app_kv_repo, appointment_repo, chart_repo, connection, patient_repo, payment_repo,
-    practice_task_repo, practice_ticket_repo, prescription_repo,
-};
+use medoc_core::infrastructure::database::connection;
+use medoc_core::infrastructure::database::repos::admin::app_kv as app_kv_repo;
+use medoc_core::infrastructure::database::repos::billing::payment as payment_repo;
+use medoc_core::infrastructure::database::repos::clinical::chart as chart_repo;
+use medoc_core::infrastructure::database::repos::clinical::patient as patient_repo;
+use medoc_core::infrastructure::database::repos::clinical::prescription as prescription_repo;
+use medoc_core::infrastructure::database::repos::scheduling::appointment as appointment_repo;
+use medoc_core::infrastructure::database::repos::scheduling::practice_task as practice_task_repo;
+use medoc_core::infrastructure::database::repos::scheduling::practice_ticket as practice_ticket_repo;
 use sqlx::SqlitePool;
 
 async fn fresh_pool() -> SqlitePool {
@@ -346,7 +351,10 @@ async fn chart_validation_rows_record_with_composite_key() {
     .fetch_all(&pool)
     .await
     .unwrap();
-    assert_eq!(ids, vec![format!("{}|anamnesis", p.id), format!("{}|findings", p.id)]);
+    assert_eq!(
+        ids,
+        vec![format!("{}|anamnesis", p.id), format!("{}|findings", p.id)]
+    );
     let payload: String = sqlx::query_scalar(
         "SELECT payload_json FROM sync_outbox WHERE entity_table = 'chart_validation' LIMIT 1",
     )

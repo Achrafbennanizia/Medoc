@@ -1,9 +1,11 @@
 import { type CSSProperties, type Dispatch, type SetStateAction, useMemo } from "react";
 import { addMonths, format, startOfWeek } from "date-fns";
-import type { Appointment } from "@/models/types";
+import type { Absence, Appointment } from "@/models/types";
+import { absenceCoversIso } from "@/lib/appointment-availability";
 import { useDateFnsLocale, useT, useTParams } from "@/lib/i18n";
 import type { PhysicianSummary } from "@/systems/practice-host/controllers/staff.controller";
 import type { PracticeWorkHoursConfig } from "@/lib/practice-planning";
+import { practiceTodayYmd } from "@/lib/practice-timezone";
 import {
     monthCalPatientLoadAccentHex,
     monthCalPatientLoadTier,
@@ -26,6 +28,7 @@ export type AppointmentMonthCalendarProps = {
     physicianToneMap: Map<string, AppointmentDoctorTone>;
     patientLoadSettings: MonthCalendarPatientLoadPrefs;
     practiceCfg: PracticeWorkHoursConfig;
+    absences: Absence[];
     onPickDay: (iso: string) => void;
 };
 
@@ -37,6 +40,7 @@ export function AppointmentMonthCalendar({
     physicianToneMap,
     patientLoadSettings,
     practiceCfg,
+    absences,
     onPickDay,
 }: AppointmentMonthCalendarProps) {
     const t = useT();
@@ -57,7 +61,7 @@ export function AppointmentMonthCalendar({
         () => ({ "--appointment-calendar-cols": columnCount } as CSSProperties),
         [columnCount],
     );
-    const todayIso = format(new Date(), "yyyy-MM-dd");
+    const todayIso = practiceTodayYmd();
     const countByDate = useMemo(() => {
         const acc: Record<string, number> = {};
         for (const row of appointments) acc[row.date] = (acc[row.date] ?? 0) + 1;
@@ -92,7 +96,7 @@ export function AppointmentMonthCalendar({
                             key={idx}
                             role="button"
                             tabIndex={0}
-                            className={`cal-cell ${inMonth ? "" : "dim"} ${isTodayCell ? "today" : ""}`}
+                            className={`cal-cell ${inMonth ? "" : "dim"} ${isTodayCell ? "today" : ""} ${inMonth && absenceCoversIso(absences, iso) ? "cal-cell--absence" : ""}`}
                             onClick={() => onPickDay(iso)}
                             onKeyDown={(e) => {
                                 if (e.key === "Enter" || e.key === " ") {

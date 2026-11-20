@@ -8,6 +8,9 @@
 //! replaced by the font's own `hmtx` table.
 
 /// Advance width of `ch` in 1/1000 em.
+///
+/// Every WinAnsi character has its own AFM width (the old table guessed 556
+/// for Æ, œ, «, », ¿ … and right-aligned French amounts drifted).
 pub fn glyph_width(ch: char, bold: bool) -> u32 {
     let c = ch as u32;
     if (32..=126).contains(&c) {
@@ -18,56 +21,16 @@ pub fn glyph_width(ch: char, bold: bool) -> u32 {
             REGULAR_ASCII[idx]
         } as u32;
     }
-    // Accented letters share the width of their base letter in Helvetica.
-    let base = match ch {
-        'ä' | 'à' | 'á' | 'â' | 'å' => Some('a'),
-        'Ä' | 'À' | 'Á' | 'Â' | 'Å' => Some('A'),
-        'ö' | 'ò' | 'ó' | 'ô' | 'ø' => Some('o'),
-        'Ö' | 'Ò' | 'Ó' | 'Ô' | 'Ø' => Some('O'),
-        'ü' | 'ù' | 'ú' | 'û' => Some('u'),
-        'Ü' | 'Ù' | 'Ú' | 'Û' => Some('U'),
-        'é' | 'è' | 'ê' | 'ë' => Some('e'),
-        'É' | 'È' | 'Ê' | 'Ë' => Some('E'),
-        'í' | 'ì' | 'î' | 'ï' => Some('i'),
-        'ç' => Some('c'),
-        'Ç' => Some('C'),
-        'ñ' => Some('n'),
-        'Ñ' => Some('N'),
-        'š' => Some('s'),
-        'Š' => Some('S'),
-        'ž' => Some('z'),
-        'Ž' => Some('Z'),
-        _ => None,
-    };
-    if let Some(b) = base {
-        return glyph_width(b, bold);
-    }
-    match ch {
-        'ß' => 611,
-        '€' => 556,
-        '§' => 556,
-        '°' => 400,
-        '×' | '÷' | '±' => 584,
-        '–' => 556,
-        '—' | '…' | '‰' => 1000,
-        '•' => 350,
-        '\u{00A0}' => 278,
-        '„' | '“' | '”' => {
-            if bold {
-                500
+    match super::core::winansi_byte(ch) {
+        Some(b) if b >= 0x80 => {
+            let idx = usize::from(b - 0x80);
+            u32::from(if bold {
+                BOLD_HIGH[idx]
             } else {
-                333
-            }
+                REGULAR_HIGH[idx]
+            })
         }
-        '‚' | '‘' | '’' => {
-            if bold {
-                278
-            } else {
-                222
-            }
-        }
-        '²' | '³' | '¹' => 333,
-        '½' | '¼' | '¾' => 834,
+        Some(b) if (32..=126).contains(&b) => glyph_width(b as char, bold),
         _ => 556,
     }
 }
@@ -78,25 +41,36 @@ pub fn text_width_pt(s: &str, font_size: i32, bold: bool) -> f64 {
     f64::from(units) * f64::from(font_size) / 1000.0
 }
 
-/// Largest prefix (in chars) of `s` that fits into `max_pt`.
+/// Width as drawn: Helvetica metrics for WinAnsi text, shaped width otherwise.
 fn advance_pt(s: &str, font_size: i32, bold: bool) -> f64 {
-    if super::unicode_font::needs_unicode(s) {
-        super::unicode_font::width_pt(s, font_size)
-    } else {
-        text_width_pt(s, font_size, bold)
-    }
+    super::text::width_pt(s, f64::from(font_size), bold, false)
 }
 
+/// Largest prefix (in chars) of `s` that fits into `max_pt`.
 pub fn fit_chars(s: &str, font_size: i32, bold: bool, max_pt: f64) -> usize {
-    let mut acc = 0.0;
-    for (i, c) in s.chars().enumerate() {
-        let piece: String = c.to_string();
-        acc += advance_pt(&piece, font_size, bold);
-        if acc > max_pt {
-            return i;
+    // Shaped scripts must measure the shaped prefix — summing isolated letter
+    // widths breaks words at the wrong place.
+    let chars: Vec<char> = s.chars().collect();
+    let mut lo = 0usize;
+    let mut hi = chars.len();
+    while lo < hi {
+        let mid = (lo + hi + 1) / 2;
+        let prefix: String = chars[..mid].iter().collect();
+        if advance_pt(&prefix, font_size, bold) <= max_pt {
+            lo = mid;
+        } else {
+            hi = mid - 1;
         }
     }
-    s.chars().count()
+    // Never split a base letter from the combining mark that follows it.
+    while lo > 0 && lo < chars.len() && is_combining(chars[lo]) {
+        lo -= 1;
+    }
+    lo
+}
+
+fn is_combining(c: char) -> bool {
+    matches!(c, '\u{0300}'..='\u{036F}' | '\u{064B}'..='\u{065F}' | '\u{0670}' | '\u{06D6}'..='\u{06ED}')
 }
 
 /// Wrap on whitespace so that every line fits into `max_pt`. Words longer
@@ -123,7 +97,12 @@ pub fn wrap_to_width(text: &str, font_size: i32, bold: bool, max_pt: f64) -> Vec
             if !cur.is_empty() {
                 out.push(std::mem::take(&mut cur));
             }
-            // Word alone too long → hard break.
+            // A word that fits on its own line moves there whole.
+            if advance_pt(word, font_size, bold) <= max_pt {
+                cur = word.to_string();
+                continue;
+            }
+            // Word alone too long → hard break (shaped fit for Arabic).
             let mut rest: String = word.to_string();
             while advance_pt(&rest, font_size, bold) > max_pt {
                 let n = fit_chars(&rest, font_size, bold, max_pt).max(1);
@@ -169,6 +148,32 @@ const BOLD_ASCII: [u16; 95] = [
     389, 280, 389, 584,
 ];
 
+/// Helvetica widths for WinAnsi 0x80–0xFF (Adobe Core14 AFM; 0 = unused code).
+#[rustfmt::skip]
+const REGULAR_HIGH: [u16; 128] = [
+    556, 0, 222, 556, 333, 1000, 556, 556, 333, 1000, 667, 333, 1000, 0, 611, 0,   // 0x80
+    0, 222, 222, 333, 333, 350, 556, 1000, 333, 1000, 500, 333, 944, 0, 500, 667,  // 0x90
+    278, 333, 556, 556, 556, 556, 260, 556, 333, 737, 370, 556, 584, 333, 737, 333, // 0xA0
+    400, 584, 333, 333, 333, 556, 537, 278, 333, 333, 365, 556, 834, 834, 834, 611, // 0xB0
+    667, 667, 667, 667, 667, 667, 1000, 722, 667, 667, 667, 667, 278, 278, 278, 278, // 0xC0
+    722, 722, 778, 778, 778, 778, 778, 584, 778, 722, 722, 722, 722, 667, 667, 611, // 0xD0
+    556, 556, 556, 556, 556, 556, 889, 500, 556, 556, 556, 556, 278, 278, 278, 278, // 0xE0
+    556, 556, 556, 556, 556, 556, 556, 584, 611, 556, 556, 556, 556, 500, 556, 500, // 0xF0
+];
+
+/// Helvetica-Bold widths for WinAnsi 0x80–0xFF.
+#[rustfmt::skip]
+const BOLD_HIGH: [u16; 128] = [
+    556, 0, 278, 556, 500, 1000, 556, 556, 333, 1000, 667, 333, 1000, 0, 611, 0,   // 0x80
+    0, 278, 278, 500, 500, 350, 556, 1000, 333, 1000, 556, 333, 944, 0, 500, 667,  // 0x90
+    278, 333, 556, 556, 556, 556, 280, 556, 333, 737, 370, 556, 584, 333, 737, 333, // 0xA0
+    400, 584, 333, 333, 333, 611, 556, 278, 333, 333, 365, 556, 834, 834, 834, 611, // 0xB0
+    722, 722, 722, 722, 722, 722, 1000, 722, 667, 667, 667, 667, 278, 278, 278, 278, // 0xC0
+    722, 722, 778, 778, 778, 778, 778, 584, 778, 722, 722, 722, 722, 667, 667, 611, // 0xD0
+    556, 556, 556, 556, 556, 556, 889, 556, 556, 556, 556, 556, 278, 278, 278, 278, // 0xE0
+    611, 611, 611, 611, 611, 611, 611, 584, 611, 611, 611, 611, 611, 556, 611, 556, // 0xF0
+];
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -189,6 +194,25 @@ mod tests {
     #[test]
     fn umlaut_matches_base() {
         assert_eq!(glyph_width('ä', false), glyph_width('a', false));
+    }
+
+    #[test]
+    fn french_and_nordic_letters_have_real_widths() {
+        assert_eq!(glyph_width('Æ', false), 1000);
+        assert_eq!(glyph_width('œ', false), 944);
+        assert_eq!(glyph_width('à', false), glyph_width('a', false));
+        assert_eq!(glyph_width('ô', true), glyph_width('o', true));
+        assert_eq!(glyph_width('«', false), 556);
+    }
+
+    #[test]
+    fn arabic_wraps_without_overflow() {
+        let text = "يحتوي هذا المستند على بيانات مريض سرية ولا يُفصح عنها إلا بموافقة صريحة من المريض";
+        let lines = wrap_to_width(text, 9, false, 120.0);
+        assert!(lines.len() > 2);
+        for l in &lines {
+            assert!(advance_pt(l, 9, false) <= 120.0 + 0.01, "{l}");
+        }
     }
 
     #[test]

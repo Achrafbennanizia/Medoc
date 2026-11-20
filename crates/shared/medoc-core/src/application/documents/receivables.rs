@@ -23,8 +23,8 @@ use super::issue::{require_permission, year_now, WATERMARK_COPY, WATERMARK_PREVI
 use super::practice_profile::{practice_logo, PracticeProfile};
 use crate::application::auth_service::Session;
 use crate::error::AppError;
-use crate::infrastructure::database::audit_repo;
-use crate::infrastructure::database::issued_document_repo::{self as repo, sha256_hex};
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
+use crate::infrastructure::database::repos::billing::issued_document::{self as repo, sha256_hex};
 use crate::infrastructure::pdf::{render_clinical_layout_with_logo, ClinicalPdfLayout, Invoice};
 
 use super::issue::IssuedPdf;
@@ -86,12 +86,6 @@ pub struct ReminderArgs {
 
 fn today() -> NaiveDate {
     Local::now().date_naive()
-}
-
-fn dmy(ymd: &str) -> String {
-    NaiveDate::parse_from_str(ymd.get(..10).unwrap_or(ymd), "%Y-%m-%d")
-        .map(|d| d.format("%d.%m.%Y").to_string())
-        .unwrap_or_else(|_| ymd.to_string())
 }
 
 fn source_refs(inv: &Invoice) -> Vec<(String, String)> {
@@ -240,7 +234,7 @@ pub async fn list_invoices(
     session: &Session,
     filter: InvoiceListFilter,
 ) -> Result<Vec<InvoiceStatusRow>, AppError> {
-    require_permission(session, "finance.read")?;
+    require_permission(session, "billing.read")?;
     finance_schema::ensure(pool).await?;
     let limit = filter.limit.unwrap_or(200).clamp(1, 1000);
     let rows = sqlx::query_as::<_, DocRow>(
@@ -270,7 +264,7 @@ pub async fn invoice_status(
     session: &Session,
     document_id: &str,
 ) -> Result<InvoiceStatusRow, AppError> {
-    require_permission(session, "finance.read")?;
+    require_permission(session, "billing.read")?;
     finance_schema::ensure(pool).await?;
     let r = sqlx::query_as::<_, DocRow>(
         "SELECT id, kind, document_number, patient_id, payload_json, status, cancels_id, issued_at
@@ -308,20 +302,20 @@ fn reminder_layout(
         1 => format!(
             "sicher ist Ihnen im Alltag entgangen, dass unsere Rechnung {} vom {} noch nicht vollständig beglichen ist. \
              Bitte überweisen Sie den offenen Betrag bis zum {}.",
-            row.document_number, dmy(&row.date), dmy(pay_by)
+            row.document_number, super::format_dmy(&row.date), super::format_dmy(pay_by)
         ),
         2 => format!(
             "leider konnten wir zu unserer Rechnung {} vom {} trotz unserer Zahlungserinnerung keinen vollständigen \
              Zahlungseingang feststellen. Sie befinden sich mit der Zahlung in Verzug (§ 286 BGB). \
              Bitte überweisen Sie den offenen Betrag bis zum {}.",
-            row.document_number, dmy(&row.date), dmy(pay_by)
+            row.document_number, super::format_dmy(&row.date), super::format_dmy(pay_by)
         ),
         _ => format!(
             "trotz Zahlungserinnerung und Mahnung ist unsere Rechnung {} vom {} weiterhin offen. \
              Wir bitten Sie letztmalig, den offenen Betrag bis zum {} zu überweisen. \
              Nach Ablauf dieser Frist werden wir die Forderung ohne weitere Ankündigung gerichtlich \
              oder durch ein Inkassounternehmen geltend machen; die dadurch entstehenden Kosten gehen zu Ihren Lasten.",
-            row.document_number, dmy(&row.date), dmy(pay_by)
+            row.document_number, super::format_dmy(&row.date), super::format_dmy(pay_by)
         ),
     };
     let mut totals = vec![
@@ -332,7 +326,8 @@ fn reminder_layout(
     if fee > 0 {
         totals.push(json!({"label": "Mahngebühr", "value": fmt_eur(fee)}));
     }
-    totals.push(json!({"label": "Zu zahlen", "value": fmt_eur(row.open_cents + fee), "total": true}));
+    totals
+        .push(json!({"label": "Zu zahlen", "value": fmt_eur(row.open_cents + fee), "total": true}));
     let mut closing = vec![];
     let bank = profile.bank_lines();
     if !bank.is_empty() {
@@ -346,7 +341,8 @@ fn reminder_layout(
         "Sollten Sie den Betrag in den letzten Tagen bereits überwiesen haben, betrachten Sie dieses Schreiben bitte als gegenstandslos."
             .into(),
     );
-    closing.push("Bei Fragen zur Rechnung erreichen Sie uns gern telefonisch oder per E-Mail.".into());
+    closing
+        .push("Bei Fragen zur Rechnung erreichen Sie uns gern telefonisch oder per E-Mail.".into());
     let mut address = vec![inv.recipient_name.clone()];
     address.extend(inv.recipient_address.iter().cloned());
     json!({
@@ -363,8 +359,8 @@ fn reminder_layout(
             "headers": ["Rechnung", "Rechnungsdatum", "Fällig seit", "Behandelte Person", "Offen"],
             "rows": [[
                 row.document_number,
-                dmy(&row.date),
-                row.due_date.as_deref().map(dmy).unwrap_or_default(),
+                super::format_dmy(&row.date),
+                row.due_date.as_deref().map(super::format_dmy).unwrap_or_default(),
                 row.patient_name,
                 fmt_eur(row.open_cents),
             ]]
@@ -382,7 +378,14 @@ pub async fn issue_reminder(
     session: &Session,
     args: ReminderArgs,
 ) -> Result<IssuedPdf, AppError> {
-    require_permission(session, if args.preview { "finance.read" } else { "finance.write" })?;
+    require_permission(
+        session,
+        if args.preview {
+            "billing.read"
+        } else {
+            "billing.create"
+        },
+    )?;
     finance_schema::ensure(pool).await?;
     let row = invoice_status(pool, session, &args.invoice_document_id).await?;
     if row.kind != "INVOICE" || row.status != "ISSUED" {
@@ -396,7 +399,9 @@ pub async fn issue_reminder(
         return Err(AppError::validation_code("error.reminder.fee_not_allowed"));
     }
     let days = args.days.unwrap_or(DEFAULT_REMINDER_DAYS).clamp(7, 30);
-    let pay_by = (today() + chrono::Duration::days(days)).format("%Y-%m-%d").to_string();
+    let pay_by = (today() + chrono::Duration::days(days))
+        .format("%Y-%m-%d")
+        .to_string();
     let inv: Invoice = serde_json::from_value(row.invoice.clone()).unwrap_or_default();
     let profile = PracticeProfile::load(pool).await?;
     profile.require_complete()?;
@@ -424,7 +429,9 @@ pub async fn issue_reminder(
     repo::ensure_numbering_authority(pool).await?;
     let id = uuid::Uuid::new_v4().to_string();
     let mut conn_guard = pool.acquire().await?;
-    sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn_guard).await?;
+    sqlx::query("BEGIN IMMEDIATE")
+        .execute(&mut *conn_guard)
+        .await?;
     let result: Result<(String, Vec<u8>, String), AppError> = async {
         let conn: &mut SqliteConnection = &mut conn_guard;
         // Re-check inside the lock: two clicks must not send two reminders.
@@ -440,7 +447,8 @@ pub async fn issue_reminder(
         }
         let number = repo::next_number(conn, REMINDER_PREFIX, year_now()).await?;
         let v = reminder_layout(&profile, &inv, &row, level, Some(&number), args.fee_cents, &pay_by);
-        let bytes = render(&v)?;
+        // The reminder PDF carries `payment_reminder.id` as its document id.
+        let bytes = crate::infrastructure::pdf::with_document_uid(&id, || render(&v))?;
         let sha = sha256_hex(&bytes);
         sqlx::query(
             "INSERT INTO payment_reminder (id, invoice_document_id, invoice_number, patient_id, level,
@@ -475,6 +483,17 @@ pub async fn issue_reminder(
         }
     };
     drop(conn_guard);
+    if let Err(e) = crate::infrastructure::database::sync_outbox::record_or_noop(
+        pool,
+        "payment_reminder",
+        &id,
+        "INSERT",
+        "",
+    )
+    .await
+    {
+        tracing::warn!(event = "PAYMENT_REMINDER_OUTBOX_FAILED", error = %e);
+    }
     let _ = audit_repo::create(
         pool,
         &session.user_id,
@@ -516,7 +535,7 @@ pub async fn list_reminders(
     session: &Session,
     invoice_document_id: &str,
 ) -> Result<Vec<ReminderRow>, AppError> {
-    require_permission(session, "finance.read")?;
+    require_permission(session, "billing.read")?;
     finance_schema::ensure(pool).await?;
     Ok(sqlx::query_as::<_, ReminderRow>(
         "SELECT id, invoice_document_id, invoice_number, level, document_number, open_cents, fee_cents,
@@ -534,7 +553,7 @@ pub async fn reminder_copy(
     session: &Session,
     reminder_id: &str,
 ) -> Result<IssuedPdf, AppError> {
-    require_permission(session, "finance.read")?;
+    require_permission(session, "billing.read")?;
     finance_schema::ensure(pool).await?;
     let (number, payload): (String, String) =
         sqlx::query_as("SELECT document_number, payload_json FROM payment_reminder WHERE id = ?1")
@@ -542,7 +561,8 @@ pub async fn reminder_copy(
             .fetch_optional(pool)
             .await?
             .ok_or_else(|| AppError::NotFound("Reminder".into()))?;
-    let mut v: Value = serde_json::from_str(&payload).map_err(|e| AppError::Internal(e.to_string()))?;
+    let mut v: Value =
+        serde_json::from_str(&payload).map_err(|e| AppError::Internal(e.to_string()))?;
     v["watermark"] = Value::String(WATERMARK_COPY.into());
     let layout: ClinicalPdfLayout =
         serde_json::from_value(v).map_err(|e| AppError::Internal(e.to_string()))?;
@@ -557,7 +577,10 @@ pub async fn reminder_copy(
 }
 
 /// Open receivables at a cut-off date, for the period report.
-pub async fn open_receivables_cents(pool: &SqlitePool, as_of: &str) -> Result<(i64, i64), AppError> {
+pub async fn open_receivables_cents(
+    pool: &SqlitePool,
+    as_of: &str,
+) -> Result<(i64, i64), AppError> {
     let rows = sqlx::query_as::<_, DocRow>(
         "SELECT id, kind, document_number, patient_id, payload_json, status, cancels_id, issued_at
            FROM issued_document WHERE kind = 'INVOICE' AND status = 'ISSUED' AND substr(issued_at,1,10) <= ?1",

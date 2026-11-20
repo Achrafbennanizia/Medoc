@@ -1,4 +1,5 @@
-import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
+import type { z } from "zod";
+import { practiceSystem } from "@/systems/practice-host/adapters/practice-transport";
 import type { Patient } from "@/models/types";
 import {
     CreatePatientSchema,
@@ -53,30 +54,12 @@ export async function getPatient(id: string): Promise<Patient> {
     return practiceSystem.invoke<Patient>("get_patient", { id });
 }
 
-export async function searchPatients(
-    query: string,
-    opts?: { includeInsuranceNumber?: boolean },
-): Promise<Patient[]> {
-    return practiceSystem.invoke<Patient[]>("search_patients", {
-        query,
-        include_insurance_number: opts?.includeInsuranceNumber !== false,
-    });
-}
-
-export async function createPatient(data: {
-    name: string;
-    date_of_birth: string;
-    sex: string;
-    insurance_number: string;
-    phone?: string;
-    email?: string;
-    address?: string;
-}): Promise<Patient> {
+export async function createPatient(data: z.input<typeof CreatePatientSchema>): Promise<Patient> {
     const safe = parseOrThrow(CreatePatientSchema, data);
     return practiceSystem.invoke<Patient>("create_patient", { data: safe });
 }
 
-export async function updatePatient(id: string, data: Record<string, unknown>): Promise<Patient> {
+export async function updatePatient(id: string, data: z.input<typeof UpdatePatientSchema>): Promise<Patient> {
     const safe = parseOrThrow(UpdatePatientSchema, data);
     return practiceSystem.invoke<Patient>("update_patient", { id, data: safe });
 }

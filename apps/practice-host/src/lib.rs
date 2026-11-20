@@ -14,8 +14,8 @@ pub use medoc_practice::{
     log_device, log_migration, log_perf, log_security, log_system, log_workflow,
 };
 
-use commands::audit_chain_commands::AuditChainGuardExt;
-use commands::auth_commands::{BruteForceState, SessionState};
+use commands::admin::audit_chain::AuditChainGuardExt;
+use commands::admin::auth::{BruteForceState, SessionState};
 use infrastructure::database;
 use infrastructure::logging::{self, brute_force::BruteForceTracker};
 use std::sync::Arc;
@@ -35,6 +35,12 @@ pub fn run() {
         .filter(|s| !s.trim().is_empty())
         .map(|s| format!("de.medoc.app.practice-host.{s}"))
         .unwrap_or_else(|| "de.medoc.app.practice-host".to_string());
+    // macOS stores this name as a file path. A relative name fails when
+    // LaunchServices starts the app with working directory "/".
+    let instance_lock_path = dirs::home_dir()
+        .map(|home| home.join(&instance_lock_name))
+        .unwrap_or_else(|| std::path::PathBuf::from(&instance_lock_name));
+    let instance_lock_name = instance_lock_path.to_string_lossy().into_owned();
     let instance = match single_instance::SingleInstance::new(&instance_lock_name) {
         Ok(i) => i,
         Err(e) => {
@@ -55,10 +61,10 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(SessionState::new())
         .manage(BruteForceState(BruteForceTracker::new()))
-        .manage(commands::break_glass_commands::BreakGlassStateExt(
+        .manage(commands::admin::break_glass::BreakGlassStateExt(
             Arc::new(application::break_glass::BreakGlassState::new()),
         ))
-        .manage(commands::lan_commands::LanServerControl::default())
+        .manage(commands::network::lan::LanServerControl::default())
         .manage(commands::network::cluster::ClusterListenerControl::default())
         .setup(|app| {
             let app_handle = app.handle().clone();
@@ -97,7 +103,7 @@ pub fn run() {
             }
 
             let mut db_result = tauri::async_runtime::block_on(
-                crate::commands::db_setup_commands::init_db_from_app(&app_handle),
+                crate::commands::admin::db_setup::init_db_from_app(&app_handle),
             );
             if let Err(ref e) = db_result {
                 let msg = e.to_string();
@@ -108,7 +114,7 @@ pub fn run() {
                 if let Ok(app_dir) = app_handle.path().app_data_dir() {
                     let _ = database::connection::prepare_practice_db_before_launch(&app_dir);
                     db_result = tauri::async_runtime::block_on(
-                        crate::commands::db_setup_commands::init_db_from_app(&app_handle),
+                        crate::commands::admin::db_setup::init_db_from_app(&app_handle),
                     );
                 }
             }
@@ -120,7 +126,7 @@ pub fn run() {
                     {
                         if std::env::args().any(|a| a == "--dev-seed-contracts") {
                             if let Err(e) = tauri::async_runtime::block_on(
-                                database::contract_repo::dev_seed_demo(&pool),
+                                database::repos::billing::contract::dev_seed_demo(&pool),
                             ) {
                                 tracing::warn!(
                                     target: "medoc::system",
@@ -168,7 +174,7 @@ pub fn run() {
                     }
 
                     replica_desktop_name = tauri::async_runtime::block_on(
-                        commands::sync_commands::replica_desktop_name(&pool),
+                        commands::network::sync::replica_desktop_name(&pool),
                     );
 
                     if let Some(brute) = app.try_state::<BruteForceState>() {
@@ -184,8 +190,8 @@ pub fn run() {
                     }
 
                     if crate::application::mvp_security::BREAK_GLASS_ENABLED {
-                        if let Some(bg) = app.try_state::<commands::break_glass_commands::BreakGlassStateExt>() {
-                            crate::infrastructure::database::audit_break_glass::register_break_glass(
+                        if let Some(bg) = app.try_state::<commands::admin::break_glass::BreakGlassStateExt>() {
+                            crate::infrastructure::database::repos::admin::audit_break_glass::register_break_glass(
                                 Arc::clone(&bg.0),
                             );
                         }
@@ -194,7 +200,7 @@ pub fn run() {
                     let verify_pool = pool.clone();
                     let verify_guard = audit_chain_guard.clone();
                     tauri::async_runtime::spawn(async move {
-                        match infrastructure::database::audit_repo::purge_legacy_placeholder_audit_rows(
+                        match infrastructure::database::repos::admin::audit::purge_legacy_placeholder_audit_rows(
                             &verify_pool,
                         )
                         .await
@@ -211,11 +217,11 @@ pub fn run() {
                                 error = %e
                             ),
                         }
-                        match infrastructure::database::audit_repo::verify_chain(&verify_pool).await
+                        match infrastructure::database::repos::admin::audit::verify_chain(&verify_pool).await
                         {
                             Ok(None) => verify_guard.set_ok(),
                             Ok(Some(row_id)) => {
-                                match infrastructure::database::audit_repo::repair_broken_audit_chain(
+                                match infrastructure::database::repos::admin::audit::repair_broken_audit_chain(
                                     &verify_pool,
                                 )
                                 .await
@@ -233,7 +239,7 @@ pub fn run() {
                                         error = %e
                                     ),
                                 }
-                                match infrastructure::database::audit_repo::verify_chain(&verify_pool).await
+                                match infrastructure::database::repos::admin::audit::verify_chain(&verify_pool).await
                                 {
                                     Ok(None) => verify_guard.set_ok(),
                                     Ok(Some(still_broken)) => {
@@ -269,13 +275,13 @@ pub fn run() {
                     let auto_app = app_handle.clone();
                     tauri::async_runtime::spawn(async move {
                         tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
-                        commands::lan_commands::auto_start_if_enabled(
+                        commands::network::lan::auto_start_if_enabled(
                             auto_app.clone(),
                             auto_pool.clone(),
                         )
                         .await;
-                        if let Some(ctrl) = auto_app.try_state::<commands::lan_commands::LanServerControl>() {
-                            commands::lan_commands::auto_start_replica_sync_lan(
+                        if let Some(ctrl) = auto_app.try_state::<commands::network::lan::LanServerControl>() {
+                            commands::network::lan::auto_start_replica_sync_lan(
                                 &auto_app,
                                 auto_pool.clone(),
                                 &ctrl,
@@ -295,20 +301,20 @@ pub fn run() {
                             auto_app.clone(),
                             auto_pool.clone(),
                         );
-                        commands::sync_commands::spawn_replica_offline_sync_loop(auto_pool.clone());
+                        commands::network::sync::spawn_replica_offline_sync_loop(auto_pool.clone());
                         // F150: started once (was twice: two threads pushing the same changes).
-                        commands::sync_commands::spawn_shared_change_sync_thread(auto_pool.clone());
+                        commands::network::sync::spawn_shared_change_sync_thread(auto_pool.clone());
                         // F137: stored log level survives restarts.
                         let lvl_pool = auto_pool.clone();
                         tauri::async_runtime::spawn(async move {
-                            commands::logging_commands::restore_log_level(&lvl_pool).await;
+                            commands::system::logging::restore_log_level(&lvl_pool).await;
                         });
                         // F122: close work-time sessions left open past their local day.
                         let wt_pool = auto_pool.clone();
                         tauri::async_runtime::spawn(async move {
                             loop {
                                 if let Err(e) =
-                                    commands::work_time_commands::reconcile_all_stale_sessions(&wt_pool).await
+                                    commands::admin::work_time::reconcile_all_stale_sessions(&wt_pool).await
                                 {
                                     tracing::warn!(target: "medoc::system", event = "WORK_TIME_SWEEP_FAILED", error = %e);
                                 }

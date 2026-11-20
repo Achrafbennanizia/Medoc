@@ -8,15 +8,18 @@ import type {
     PracticeTaskStatus,
 } from "@/systems/practice-host/controllers/practice-task.controller";
 import {
+    taskWorkflowTrack,
     transitionPracticeTask,
     updatePracticeTaskAdmin,
 } from "@/systems/practice-host/controllers/practice-task.controller";
 import { errorMessage, formatCurrency } from "@/lib/utils";
 import { useDateFnsLocale, useT } from "@/lib/i18n";
-import { displayPracticeTaskTitle } from "@/lib/finance-order-labels";
+import { practiceTaskHeadline } from "@/lib/practice-task-display";
 import { clinicalServiceLabel } from "@/lib/clinical-service-label";
+import { practiceTodayYmd } from "@/lib/practice-timezone";
 import {
     BoltIcon,
+    CalendarIcon,
     CheckIcon,
     EditIcon,
     EyeIcon,
@@ -36,17 +39,22 @@ import {
 } from "./task-workflow";
 import { countOpenPracticeTasksForMe } from "@/systems/practice-host/controllers/practice-task.controller";
 import {
+    SIMPLE_TASK_WORKFLOW_STEPS,
     TASK_WORKFLOW_STEPS,
     taskDrawerText,
     taskStatusLabel,
     taskStatusPillClass,
     taskKindLabel,
     taskWorkflowActiveStep,
+    simpleTaskWorkflowActiveStep,
     taskWorkflowStepLabel,
 } from "./task-workflow-ui";
 import { PracticeTaskComments } from "./practice-task-comments";
+import { PracticeTaskTicketForm } from "./practice-task-ticket-form";
+import { PracticeTaskAppointmentNoteForm } from "./practice-task-appointment-note-form";
 
 const WORKFLOW_ICONS = [CheckIcon, BoltIcon, EyeIcon, ShieldCheckIcon] as const;
+const SIMPLE_WORKFLOW_ICONS = [CheckIcon, EyeIcon, ShieldCheckIcon] as const;
 
 export type PracticeTaskDetailDrawerProps = {
     task: PracticeTask;
@@ -93,29 +101,55 @@ export function PracticeTaskDetailDrawer({
     const [showReturnForm, setShowReturnForm] = useState(false);
     const busy = busyExternal || busyLocal;
     const tx = (key: string) => taskDrawerText(t, key);
+    const headline = practiceTaskHeadline(task, t);
 
+    const track = taskWorkflowTrack(task.kind);
+    const isSimple = track === "simple";
     const showRezFulfill = isReception && canFulfillAsReception(task, userId);
     const showPhysicianFulfill = isPhysician && canFulfillAsPhysician(task, userId);
     const showPhysicianValidate = isPhysician && canValidateAsPhysician(task, userId);
     const showRezValidate = isReception && canValidateAsReception(task, userId);
     const canFulfillWorkflow =
         canAdminStatus || canFulfillStatus || showRezFulfill || showPhysicianFulfill;
+
+    const canMarkViewed =
+        isSimple &&
+        canFulfillWorkflow &&
+        (task.status === "OPEN" || (canAdminStatus && task.status !== "DONE"));
+    const canMarkDone =
+        isSimple &&
+        canFulfillWorkflow &&
+        (task.status === "VIEWED" || (canAdminStatus && task.status === "OPEN"));
+
     const canTake =
+        !isSimple &&
         canFulfillWorkflow &&
         (task.status === "OPEN" || (canAdminStatus && task.status === "BACK"));
     const canComplete =
+        !isSimple &&
         canFulfillWorkflow &&
         (task.status === "IN_PROGRESS" ||
             task.status === "BACK" ||
             (canAdminStatus && task.status === "OPEN"));
-    const canValidate = showPhysicianValidate || showRezValidate;
-    const active = taskWorkflowActiveStep(task.status);
+    const canValidate = !isSimple && (showPhysicianValidate || showRezValidate);
+    const active = isSimple
+        ? simpleTaskWorkflowActiveStep(task.status)
+        : taskWorkflowActiveStep(task.status);
+    const workflowSteps = isSimple ? SIMPLE_TASK_WORKFLOW_STEPS : TASK_WORKFLOW_STEPS;
     const canComment = canAdmin || userCanViewTask(task, userId, { isReception });
 
     const canClickWorkflowStep = (stepIndex: number): boolean => {
-        const target = TASK_WORKFLOW_STEPS[stepIndex]?.status;
+        const target = workflowSteps[stepIndex]?.status;
         if (!target || target === task.status) return false;
         if (canAdminStatus) return true;
+        if (isSimple) {
+            if (target === "VIEWED" && canMarkViewed) return true;
+            if (target === "DONE" && canMarkDone) return true;
+            if (target === "OPEN" && task.status === "VIEWED") {
+                return canAdminStatus || showRezFulfill || showPhysicianFulfill;
+            }
+            return false;
+        }
         if (target === "IN_PROGRESS" && canTake) return true;
         if (target === "DONE_RECEPTION" && canComplete) return true;
         if (target === "VALIDATED" && canValidate) return true;
@@ -156,7 +190,7 @@ export function PracticeTaskDetailDrawer({
                 : await transitionPracticeTask({ id: task.id, status, ...extra });
             toast(t("page.practice_tickets.task_updated_toast"), "success");
             onUpdated(updated);
-            if (status === "BACK" || status === "DONE_RECEPTION") {
+            if (status === "BACK" || status === "DONE_RECEPTION" || status === "DONE" || status === "VIEWED") {
                 setShowReturnForm(false);
                 setReturnReason("");
                 void countOpenPracticeTasksForMe().then((n) => dispatchNavBadgeRefresh(n));
@@ -174,10 +208,24 @@ export function PracticeTaskDetailDrawer({
 
     const onWorkflowStep = (stepIndex: number) => {
         if (!canClickWorkflowStep(stepIndex)) return;
-        const target = TASK_WORKFLOW_STEPS[stepIndex]?.status;
+        const target = workflowSteps[stepIndex]?.status;
         if (!target || target === task.status) return;
         if (canAdminStatus) {
             void applyStatus(target);
+            return;
+        }
+        if (isSimple) {
+            if (target === "VIEWED" && canMarkViewed) {
+                void applyStatus("VIEWED");
+                return;
+            }
+            if (target === "DONE" && canMarkDone) {
+                void applyStatus("DONE");
+                return;
+            }
+            if (target === "OPEN" && task.status === "VIEWED" && (showRezFulfill || showPhysicianFulfill)) {
+                void applyStatus("OPEN");
+            }
             return;
         }
         if (target === "IN_PROGRESS" && canTake) {
@@ -197,6 +245,14 @@ export function PracticeTaskDetailDrawer({
             void applyStatus("OPEN");
         }
     };
+
+    const openWeekCalendar = () => {
+        const date = practiceTodayYmd();
+        navigate(`/appointments?view=week&date=${encodeURIComponent(date)}`);
+        onClose();
+    };
+
+    const icons = isSimple ? SIMPLE_WORKFLOW_ICONS : WORKFLOW_ICONS;
 
     const layer = (
         <div className="appointment-drawer-root" role="presentation">
@@ -221,8 +277,8 @@ export function PracticeTaskDetailDrawer({
 
                     <div className="appointment-drawer-section">
                         <div className="appointment-drawer-eyebrow">{tx("page.practice_tickets.drawer_eyebrow")}</div>
-                        <h2 id={titleId} className="appointment-drawer-title">
-                            {displayPracticeTaskTitle(task.title, t)}
+                        <h2 id={titleId} className="appointment-drawer-title" dir="auto">
+                            {headline}
                         </h2>
                         <div className="appointment-drawer-sub">
                             {patientName} · {taskKindLabel(t, task.kind)}
@@ -250,10 +306,16 @@ export function PracticeTaskDetailDrawer({
 
                     <div className="appointment-drawer-section">
                         <div className="appointment-drawer-eyebrow">{tx("page.practice_tickets.drawer_workflow")}</div>
-                        <div className="appointment-workflow-simple">
-                            {TASK_WORKFLOW_STEPS.map((step, i) => {
-                                const Icon = WORKFLOW_ICONS[i] ?? CheckIcon;
+                        <div
+                            className={[
+                                "appointment-workflow-simple",
+                                `appointment-workflow-simple--${workflowSteps.length}`,
+                            ].join(" ")}
+                        >
+                            {workflowSteps.map((step, i) => {
+                                const Icon = icons[i] ?? CheckIcon;
                                 const isNext =
+                                    !isSimple &&
                                     canValidate &&
                                     task.status === "DONE_RECEPTION" &&
                                     step.status === "VALIDATED";
@@ -283,149 +345,234 @@ export function PracticeTaskDetailDrawer({
                         </div>
                     </div>
 
-                    <div className="ios-list">
-                        <div className="ios-row">
-                            <div className="appointment-drawer-eyebrow">{tx("page.practice_tickets.drawer_patient")}</div>
-                            <div className="appointment-drawer-meta-val">{patientName}</div>
-                        </div>
-                        <div className="ios-row">
-                            <div className="appointment-drawer-eyebrow">{tx("page.practice_tickets.drawer_creator")}</div>
-                            <div className="appointment-drawer-meta-val">{creatorLabel}</div>
-                        </div>
-                        {task.service_name || task.total_cost != null ? (
-                            <div className="ios-row">
-                                <div className="appointment-drawer-eyebrow">{t("page.practice_tickets.service_item_fallback")}</div>
-                                <div className="appointment-drawer-meta-val">
-                                    {task.service_name
-                                        ? clinicalServiceLabel(task.service_name)
-                                        : t("page.practice_tickets.service_item_fallback")}
-                                    {task.total_cost != null ? ` · ${formatCurrency(task.total_cost)}` : ""}
+                    {task.kind === "TICKET" ? (
+                        <PracticeTaskTicketForm
+                            task={task}
+                            patientName={patientName}
+                            creatorLabel={creatorLabel}
+                        />
+                    ) : null}
+
+                    {task.kind === "APPOINTMENT" ? (
+                        <PracticeTaskAppointmentNoteForm
+                            task={task}
+                            patientName={patientName}
+                            creatorLabel={creatorLabel}
+                        />
+                    ) : null}
+
+                    {!isSimple ? (
+                        <>
+                            <div className="ios-list">
+                                <div className="ios-row">
+                                    <div className="appointment-drawer-eyebrow">{tx("page.practice_tickets.drawer_patient")}</div>
+                                    <div className="appointment-drawer-meta-val">{patientName}</div>
                                 </div>
+                                <div className="ios-row">
+                                    <div className="appointment-drawer-eyebrow">{tx("page.practice_tickets.drawer_creator")}</div>
+                                    <div className="appointment-drawer-meta-val">{creatorLabel}</div>
+                                </div>
+                                {task.service_name || task.total_cost != null ? (
+                                    <div className="ios-row">
+                                        <div className="appointment-drawer-eyebrow">{t("page.practice_tickets.service_item_fallback")}</div>
+                                        <div className="appointment-drawer-meta-val">
+                                            {task.service_name
+                                                ? clinicalServiceLabel(task.service_name)
+                                                : t("page.practice_tickets.service_item_fallback")}
+                                            {task.total_cost != null ? ` · ${formatCurrency(task.total_cost)}` : ""}
+                                        </div>
+                                    </div>
+                                ) : null}
                             </div>
-                        ) : null}
-                    </div>
 
-                    <PracticeTaskComments task={task} staff={staff} active canComment={canComment} />
+                            <PracticeTaskComments task={task} staff={staff} active canComment={canComment} />
 
-                    {canComplete ? (
-                        <div className="practice-task-drawer-inline">
-                            <Input
-                                label={t("page.practice_tickets.task_note_label")}
-                                value={completeNote}
-                                onChange={(e) => setCompleteNote(e.target.value)}
-                                placeholder={t("page.practice_tickets.task_note_placeholder")}
-                            />
-                        </div>
-                    ) : null}
+                            {canComplete ? (
+                                <div className="practice-task-drawer-inline">
+                                    <Input
+                                        label={t("page.practice_tickets.task_note_label")}
+                                        value={completeNote}
+                                        onChange={(e) => setCompleteNote(e.target.value)}
+                                        placeholder={t("page.practice_tickets.task_note_placeholder")}
+                                    />
+                                </div>
+                            ) : null}
 
-                    {showReturnForm ? (
-                        <div className="practice-task-drawer-inline">
-                            <Textarea
-                                label={t("page.practice_tickets.task_return_reason")}
-                                value={returnReason}
-                                onChange={(e) => setReturnReason(e.target.value)}
-                            />
-                        </div>
-                    ) : null}
+                            {showReturnForm ? (
+                                <div className="practice-task-drawer-inline">
+                                    <Textarea
+                                        label={t("page.practice_tickets.task_return_reason")}
+                                        value={returnReason}
+                                        onChange={(e) => setReturnReason(e.target.value)}
+                                    />
+                                </div>
+                            ) : null}
 
-                    <div className="appointment-drawer-actions row">
-                        {task.patient_id?.trim() ? (
-                            <button
-                                type="button"
-                                className="btn btn-subtle"
-                                onClick={() => navigate(`/patients/${task.patient_id}`)}
-                            >
-                                {t("page.practice_tickets.open_chart")}
-                            </button>
-                        ) : null}
-                        {onEdit ? (
-                            <button type="button" className="btn btn-subtle" onClick={onEdit}>
-                                <EditIcon size={14} />
-                                {tx("page.practice_tickets.drawer_edit")}
-                            </button>
-                        ) : null}
-                    </div>
-                </div>
-
-                <div className="appointment-drawer-panel-foot">
-                    <div className="appointment-drawer-footer row">
-                        {canTake ? (
-                            <button
-                                type="button"
-                                className="btn btn-accent"
-                                disabled={busy}
-                                onClick={() => void applyStatus("IN_PROGRESS")}
-                            >
-                                {t("page.practice_tickets.task_take")}
-                            </button>
-                        ) : null}
-                        {canComplete ? (
-                            <button
-                                type="button"
-                                className="btn btn-accent"
-                                disabled={busy}
-                                onClick={() => {
-                                    const note = completeNote.trim() || (task.body ?? task.title).trim();
-                                    void applyStatus("DONE_RECEPTION", { doneNote: note || undefined });
-                                }}
-                            >
-                                {t("page.practice_tickets.task_done")}
-                            </button>
-                        ) : null}
-                        {canValidate ? (
-                            <button
-                                type="button"
-                                className="btn btn-accent"
-                                disabled={busy}
-                                onClick={() => void applyStatus("VALIDATED")}
-                            >
-                                {t("page.practice_tickets.task_validate")}
-                            </button>
-                        ) : null}
-                        {canValidate ? (
-                            showReturnForm ? (
-                                <>
+                            <div className="appointment-drawer-actions row">
+                                {task.patient_id?.trim() ? (
                                     <button
                                         type="button"
                                         className="btn btn-subtle"
-                                        disabled={busy}
-                                        onClick={() => {
-                                            setShowReturnForm(false);
-                                            setReturnReason("");
-                                        }}
+                                        onClick={() => navigate(`/patients/${task.patient_id}`)}
                                     >
-                                        {t("page.practice_tickets.cancel")}
+                                        {t("page.practice_tickets.open_chart")}
                                     </button>
+                                ) : null}
+                                {onEdit ? (
+                                    <button type="button" className="btn btn-subtle" onClick={onEdit}>
+                                        <EditIcon size={14} />
+                                        {tx("page.practice_tickets.drawer_edit")}
+                                    </button>
+                                ) : null}
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <PracticeTaskComments task={task} staff={staff} active canComment={canComment} />
+                            <div className="appointment-drawer-actions row">
+                                {task.patient_id?.trim() ? (
+                                    <button
+                                        type="button"
+                                        className="btn btn-subtle"
+                                        onClick={() => navigate(`/patients/${task.patient_id}`)}
+                                    >
+                                        {t("page.practice_tickets.open_chart")}
+                                    </button>
+                                ) : null}
+                                {onEdit ? (
+                                    <button type="button" className="btn btn-subtle" onClick={onEdit}>
+                                        <EditIcon size={14} />
+                                        {tx("page.practice_tickets.drawer_edit")}
+                                    </button>
+                                ) : null}
+                            </div>
+                        </>
+                    )}
+                </div>
+
+                {isSimple ? (
+                    <div className="appointment-drawer-panel-foot">
+                        <div className="appointment-drawer-footer row" style={{ flexWrap: "wrap" }}>
+                            {task.kind === "APPOINTMENT" ? (
+                                <button
+                                    type="button"
+                                    className="btn btn-accent"
+                                    disabled={busy}
+                                    onClick={openWeekCalendar}
+                                >
+                                    <CalendarIcon size={14} />
+                                    {t("practice.tasks.drawer.open_calendar")}
+                                </button>
+                            ) : null}
+                            {canMarkViewed ? (
+                                <button
+                                    type="button"
+                                    className={task.kind === "APPOINTMENT" ? "btn btn-subtle" : "btn btn-accent"}
+                                    disabled={busy}
+                                    onClick={() => void applyStatus("VIEWED")}
+                                >
+                                    <EyeIcon size={14} />
+                                    {t("practice.tasks.drawer.mark_viewed")}
+                                </button>
+                            ) : null}
+                            {canMarkDone ? (
+                                <button
+                                    type="button"
+                                    className={
+                                        task.kind === "APPOINTMENT" || canMarkViewed
+                                            ? "btn btn-subtle"
+                                            : "btn btn-accent"
+                                    }
+                                    disabled={busy}
+                                    onClick={() => void applyStatus("DONE")}
+                                >
+                                    <CheckIcon size={14} />
+                                    {t("practice.tasks.drawer.mark_done")}
+                                </button>
+                            ) : null}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="appointment-drawer-panel-foot">
+                        <div className="appointment-drawer-footer row">
+                            {canTake ? (
+                                <button
+                                    type="button"
+                                    className="btn btn-accent"
+                                    disabled={busy}
+                                    onClick={() => void applyStatus("IN_PROGRESS")}
+                                >
+                                    {t("page.practice_tickets.task_take")}
+                                </button>
+                            ) : null}
+                            {canComplete ? (
+                                <button
+                                    type="button"
+                                    className="btn btn-accent"
+                                    disabled={busy}
+                                    onClick={() => {
+                                        const note = completeNote.trim() || (task.body ?? task.title).trim();
+                                        void applyStatus("DONE_RECEPTION", { doneNote: note || undefined });
+                                    }}
+                                >
+                                    {t("page.practice_tickets.task_done")}
+                                </button>
+                            ) : null}
+                            {canValidate ? (
+                                <button
+                                    type="button"
+                                    className="btn btn-accent"
+                                    disabled={busy}
+                                    onClick={() => void applyStatus("VALIDATED")}
+                                >
+                                    {t("page.practice_tickets.task_validate")}
+                                </button>
+                            ) : null}
+                            {canValidate ? (
+                                showReturnForm ? (
+                                    <>
+                                        <button
+                                            type="button"
+                                            className="btn btn-subtle"
+                                            disabled={busy}
+                                            onClick={() => {
+                                                setShowReturnForm(false);
+                                                setReturnReason("");
+                                            }}
+                                        >
+                                            {t("page.practice_tickets.cancel")}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="btn btn-subtle danger"
+                                            disabled={busy || !returnReason.trim()}
+                                            onClick={() => {
+                                                void applyStatus("BACK", {
+                                                    returnReason: returnReason.trim(),
+                                                });
+                                            }}
+                                        >
+                                            {showRezValidate
+                                                ? t("page.practice_tickets.task_return_physician")
+                                                : t("page.practice_tickets.task_return_send")}
+                                        </button>
+                                    </>
+                                ) : (
                                     <button
                                         type="button"
                                         className="btn btn-subtle danger"
-                                        disabled={busy || !returnReason.trim()}
-                                        onClick={() => {
-                                            void applyStatus("BACK", {
-                                                returnReason: returnReason.trim(),
-                                            });
-                                        }}
+                                        disabled={busy}
+                                        onClick={() => setShowReturnForm(true)}
                                     >
                                         {showRezValidate
                                             ? t("page.practice_tickets.task_return_physician")
-                                            : t("page.practice_tickets.task_return_send")}
+                                            : t("page.practice_tickets.task_return")}
                                     </button>
-                                </>
-                            ) : (
-                                <button
-                                    type="button"
-                                    className="btn btn-subtle danger"
-                                    disabled={busy}
-                                    onClick={() => setShowReturnForm(true)}
-                                >
-                                    {showRezValidate
-                                        ? t("page.practice_tickets.task_return_physician")
-                                        : t("page.practice_tickets.task_return")}
-                                </button>
-                            )
-                        ) : null}
+                                )
+                            ) : null}
+                        </div>
                     </div>
-                </div>
+                )}
             </div>
         </div>
     );

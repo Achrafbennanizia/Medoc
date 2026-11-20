@@ -1,4 +1,5 @@
-import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
+import type { z } from "zod";
+import { practiceSystem } from "@/systems/practice-host/adapters/practice-transport";
 import type { FeedbackCategory, FeedbackStatus } from "@/models/types";
 import { CreateFeedbackSchema, parseOrThrow } from "@/lib/schemas";
 
@@ -16,12 +17,7 @@ export interface FeedbackEntry {
     updated_at: string;
 }
 
-export interface CreateFeedback {
-    category: FeedbackCategory;
-    subject: string;
-    message: string;
-    reference?: string | null;
-}
+export type CreateFeedback = z.input<typeof CreateFeedbackSchema>;
 
 export const submitFeedback = (data: CreateFeedback) => {
     const safe = parseOrThrow(CreateFeedbackSchema, data);

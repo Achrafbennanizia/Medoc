@@ -21,8 +21,7 @@ fn token_re() -> Option<&'static Regex> {
 fn json_secret_re() -> Option<&'static Regex> {
     static R: OnceLock<Option<Regex>> = OnceLock::new();
     R.get_or_init(|| {
-        Regex::new(r#"(?i)"(password|token|secret|api[_-]?key|license|iban)"\s*:\s*"[^"]*""#)
-            .ok()
+        Regex::new(r#"(?i)"(password|token|secret|api[_-]?key|license|iban)"\s*:\s*"[^"]*""#).ok()
     })
     .as_ref()
 }
@@ -163,9 +162,11 @@ mod tests {
 
     #[test]
     fn masks_passwords() {
-        let s = sanitize("user=alice password=hunter2 ok");
+        // Built at runtime so this suite does not embed a password literal.
+        let secret = format!("fixture-{}", std::process::id());
+        let s = sanitize(&format!("user=alice password={secret} ok"));
         assert!(s.contains("password=***"));
-        assert!(!s.contains("hunter2"));
+        assert!(!s.contains(&secret));
     }
 
     #[test]
@@ -177,14 +178,17 @@ mod tests {
     #[test]
     fn json_password_and_email_are_redacted_on_write() {
         let mut buf = Vec::new();
-        let line = r#"{"password":"hunter2","email":"ada@practice.de","iban":"DE89370400440532013000"}"#;
+        let secret = format!("fixture-{}", std::process::id());
+        let email = "ada@practice.de";
+        let iban = "DE89370400440532013000";
+        let line = format!(r#"{{"password":"{secret}","email":"{email}","iban":"{iban}"}}"#);
         crate::infrastructure::logging::redacting_writer::SanitizingWriter { inner: &mut buf }
             .write_all(line.as_bytes())
             .unwrap();
         let out = String::from_utf8(buf).unwrap();
-        assert!(!out.contains("hunter2"));
-        assert!(!out.contains("ada@practice.de"));
-        assert!(!out.contains("DE89370400440532013000"));
+        assert!(!out.contains(&secret));
+        assert!(!out.contains(&email));
+        assert!(!out.contains(&iban));
         assert!(out.contains(r#""password":"***""#));
         assert!(out.contains("***@***"));
         assert!(

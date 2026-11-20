@@ -1,5 +1,5 @@
 import type { Absence, Appointment } from "../models/types";
-import { parseAppointmentDurationMin } from "./appointment-domain";
+import { appointmentCountsAsPlanned, parseAppointmentDurationMin } from "./appointment-domain";
 import {
     dayKeyFromIsoDate,
     resolveBookingWorkHoursForPhysician,
@@ -39,7 +39,7 @@ export function hasAppointmentOverlapForPhysician(
     const endMin = startMin + durMin;
     for (const t of appointments) {
         if (excludeAppointmentId && t.id === excludeAppointmentId) continue;
-        if (t.status === "CANCELLED" || t.status === "NO_SHOW") continue;
+        if (!appointmentCountsAsPlanned(t)) continue;
         if (t.date !== date || t.physician_id !== physicianId) continue;
         const tStart = timeToMinutes(t.time);
         const tDur = parseAppointmentDurationMin(t.notes, defaultExistingDurMin);
@@ -64,7 +64,7 @@ export function buildAppointmentSlotGrid(opts: {
     excludeAppointmentId?: string;
     defaultAppointmentDurMin?: number;
 }): AppointmentSlotGrid {
-    const eff = resolveBookingWorkHoursForPhysician(opts.practiceCfg, opts.physicianId);
+    const eff = resolveBookingWorkHoursForPhysician(opts.practiceCfg, opts.physicianId, opts.date);
     const step = Math.max(5, Number(eff.slotMin) || 30);
     const durMin = Math.max(5, opts.durMin);
     const defaultDur = opts.defaultAppointmentDurMin ?? step;

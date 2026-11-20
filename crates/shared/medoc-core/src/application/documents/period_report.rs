@@ -20,16 +20,17 @@ use sqlx::{SqliteConnection, SqlitePool};
 
 use super::cash_book::fmt_eur;
 use super::finance_schema;
-use super::issue::{
-    after_insert, now_iso, require_permission, year_now, DocKind, IssuedPdf, WATERMARK_PREVIEW,
-};
+use super::issue::{after_insert, now_iso, require_permission, year_now, DocKind, IssuedPdf};
 use super::practice_profile::{document_locale, practice_logo, PracticeProfile};
 use super::receivables::open_receivables_cents;
 use crate::application::auth_service::Session;
 use crate::domain::entities::payment::BalanceSheet;
+use crate::domain::services::pricing::{euros_to_cents, round_money_2};
 use crate::error::AppError;
-use crate::infrastructure::database::audit_repo;
-use crate::infrastructure::database::issued_document_repo::{self as repo, sha256_hex, IssuedDocument};
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
+use crate::infrastructure::database::repos::billing::issued_document::{
+    self as repo, sha256_hex, IssuedDocument,
+};
 use crate::infrastructure::pdf::{
     render_report_pdf, ReportPdfInput, ReportPdfSection, ReportPdfSummaryRow,
 };
@@ -62,6 +63,9 @@ pub struct ExpenseLine {
     pub cents: i64,
     /// Contracts are pro-rata estimates, not payments.
     pub estimate: bool,
+    /// Cash-book voucher number, when the movement has one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub voucher: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -92,18 +96,13 @@ fn parse(s: &str) -> Result<NaiveDate, AppError> {
         .map_err(|_| AppError::validation_code("error.period_report.bad_period"))
 }
 
-fn dmy(ymd: &str) -> String {
-    NaiveDate::parse_from_str(ymd.get(..10).unwrap_or(ymd), "%Y-%m-%d")
-        .map(|d| d.format("%d.%m.%Y").to_string())
-        .unwrap_or_else(|_| ymd.to_string())
-}
-
-fn method_label(m: &str) -> String {
+fn method_label(m: &str, locale: &str) -> String {
+    use crate::infrastructure::pdf::i18n::tr;
     match m {
-        "CASH" => "Bar",
-        "CARD" => "Karte",
-        "BANK_TRANSFER" => "Überweisung",
-        "INVOICE" => "Rechnung",
+        "CASH" | "Bar" => tr(locale, "period.cash"),
+        "CARD" | "Karte" => tr(locale, "period.card"),
+        "BANK_TRANSFER" | "Überweisung" => tr(locale, "period.bank_transfer"),
+        "INVOICE" | "Rechnung" => tr(locale, "period.invoice"),
         other => other,
     }
     .to_string()
@@ -131,10 +130,15 @@ fn contract_share_cents(
         "YEAR" => amount_eur / 365.0,
         _ => 0.0,
     };
-    (per_day * days as f64 * 100.0).round() as i64
+    euros_to_cents(per_day * days as f64)
 }
 
-pub async fn compute(pool: &SqlitePool, from: &str, to: &str, kind: &str) -> Result<PeriodReport, AppError> {
+pub async fn compute(
+    pool: &SqlitePool,
+    from: &str,
+    to: &str,
+    kind: &str,
+) -> Result<PeriodReport, AppError> {
     finance_schema::ensure(pool).await?;
     finance_schema::reconcile(pool).await?;
     let f = parse(from)?;
@@ -142,7 +146,10 @@ pub async fn compute(pool: &SqlitePool, from: &str, to: &str, kind: &str) -> Res
     if t < f || (t - f).num_days() > 366 * 2 {
         return Err(AppError::validation_code("error.period_report.bad_period"));
     }
-    let (from, to) = (f.format("%Y-%m-%d").to_string(), t.format("%Y-%m-%d").to_string());
+    let (from, to) = (
+        f.format("%Y-%m-%d").to_string(),
+        t.format("%Y-%m-%d").to_string(),
+    );
 
     // ---- Income (Zufluss) ------------------------------------------------
     let by_method: Vec<(String, i64)> = sqlx::query_as(
@@ -175,7 +182,8 @@ pub async fn compute(pool: &SqlitePool, from: &str, to: &str, kind: &str) -> Res
     .await?;
     let (mut invoiced, mut inv_n, mut canc, mut canc_n) = (0i64, 0i64, 0i64, 0i64);
     for (k, payload) in docs {
-        let inv: crate::infrastructure::pdf::Invoice = serde_json::from_str(&payload).unwrap_or_default();
+        let inv: crate::infrastructure::pdf::Invoice =
+            serde_json::from_str(&payload).unwrap_or_default();
         if k == "INVOICE" {
             invoiced += inv.total_cents();
             inv_n += 1;
@@ -203,12 +211,10 @@ pub async fn compute(pool: &SqlitePool, from: &str, to: &str, kind: &str) -> Res
         expenses.push(ExpenseLine {
             source: "CASH".into(),
             date: day,
-            label: match voucher {
-                Some(v) => format!("{reason} (Beleg {v})"),
-                None => reason,
-            },
+            label: reason,
             cents: -cents * dir,
             estimate: false,
+            voucher,
         });
     }
     let purchases: Vec<(String, String, String, f64)> = sqlx::query_as(
@@ -227,8 +233,9 @@ pub async fn compute(pool: &SqlitePool, from: &str, to: &str, kind: &str) -> Res
             source: "PURCHASE".into(),
             date: day,
             label: format!("{supplier}: {item}"),
-            cents: (total * 100.0).round() as i64,
+            cents: euros_to_cents(total),
             estimate: false,
+            voucher: None,
         });
     }
     let contracts: Vec<(String, String, f64, String, Option<String>, Option<String>)> = sqlx::query_as(
@@ -237,8 +244,12 @@ pub async fn compute(pool: &SqlitePool, from: &str, to: &str, kind: &str) -> Res
     .fetch_all(pool)
     .await?;
     for (name, partner, amount, interval, c_from, c_until) in contracts {
-        let pf = c_from.as_deref().and_then(|s| NaiveDate::parse_from_str(s.get(..10)?, "%Y-%m-%d").ok());
-        let pu = c_until.as_deref().and_then(|s| NaiveDate::parse_from_str(s.get(..10)?, "%Y-%m-%d").ok());
+        let pf = c_from
+            .as_deref()
+            .and_then(|s| NaiveDate::parse_from_str(s.get(..10)?, "%Y-%m-%d").ok());
+        let pu = c_until
+            .as_deref()
+            .and_then(|s| NaiveDate::parse_from_str(s.get(..10)?, "%Y-%m-%d").ok());
         let cents = contract_share_cents(amount, &interval, pf, pu, f, t);
         if cents > 0 {
             expenses.push(ExpenseLine {
@@ -247,11 +258,16 @@ pub async fn compute(pool: &SqlitePool, from: &str, to: &str, kind: &str) -> Res
                 label: format!("{name} ({partner})"),
                 cents,
                 estimate: true,
+                voucher: None,
             });
         }
     }
     let exp_total: i64 = expenses.iter().map(|e| e.cents).sum();
-    let exp_est: i64 = expenses.iter().filter(|e| e.estimate).map(|e| e.cents).sum();
+    let exp_est: i64 = expenses
+        .iter()
+        .filter(|e| e.estimate)
+        .map(|e| e.cents)
+        .sum();
 
     let unclosed_days: Vec<String> = sqlx::query_scalar(
         "SELECT DISTINCT local_day FROM payment_receipt
@@ -270,7 +286,7 @@ pub async fn compute(pool: &SqlitePool, from: &str, to: &str, kind: &str) -> Res
         income_cents: income,
         income_by_method: by_method
             .into_iter()
-            .map(|(m, c)| Amount { label: method_label(&m), cents: c })
+            .map(|(m, c)| Amount { label: m, cents: c })
             .collect(),
         income_by_month: by_month
             .into_iter()
@@ -290,52 +306,98 @@ pub async fn compute(pool: &SqlitePool, from: &str, to: &str, kind: &str) -> Res
     })
 }
 
-fn kind_label(kind: &str) -> &'static str {
+fn kind_label(kind: &str, locale: &str) -> &'static str {
+    use crate::infrastructure::pdf::i18n::tr;
     match kind {
-        "MONTH" => "Monat",
-        "QUARTER" => "Quartal",
-        "YEAR" => "Jahr",
-        _ => "Zeitraum",
+        "MONTH" => tr(locale, "period.month"),
+        "QUARTER" => tr(locale, "period.quarter"),
+        "YEAR" => tr(locale, "period.year"),
+        _ => tr(locale, "period.period"),
     }
 }
 
-fn report_input(profile: &PracticeProfile, locale: &'static str, r: &PeriodReport, label: &str) -> ReportPdfInput {
-    let row = |l: &str, c: i64| ReportPdfSummaryRow { label: l.into(), value: fmt_eur(c) };
+fn report_input(
+    profile: &PracticeProfile,
+    locale: &'static str,
+    r: &PeriodReport,
+    label: &str,
+) -> ReportPdfInput {
+    let t = |key: &str| crate::infrastructure::pdf::i18n::tr(locale, key).to_string();
+    let row = |l: String, c: i64| ReportPdfSummaryRow {
+        label: l,
+        value: fmt_eur(c),
+    };
     let mut summary = vec![
         ReportPdfSummaryRow {
-            label: "Zeitraum".into(),
-            value: format!("{} – {} ({})", dmy(&r.from), dmy(&r.to), kind_label(&r.kind)),
+            label: t("period.period"),
+            value: format!(
+                "{} – {} ({})",
+                super::format_dmy(&r.from),
+                super::format_dmy(&r.to),
+                kind_label(&r.kind, locale)
+            ),
         },
-        row("Betriebseinnahmen (Zahlungseingänge)", r.income_cents),
-        row("Betriebsausgaben", r.expenses_cents),
-        row("Überschuss / Fehlbetrag", r.result_cents),
-        row(&format!("Rechnungen gestellt ({})", r.invoice_count), r.invoiced_cents),
-        row(&format!("Stornorechnungen ({})", r.cancellation_count), r.cancellation_cents),
+        row(t("period.practice_income_receipts"), r.income_cents),
+        row(t("period.practice_expenses"), r.expenses_cents),
+        row(t("period.surplus_deficit"), r.result_cents),
         row(
-            &format!("Offene Forderungen zum {} ({})", dmy(&r.to), r.open_receivables_count),
+            format!("{} ({})", t("period.invoices_issued"), r.invoice_count),
+            r.invoiced_cents,
+        ),
+        row(
+            format!(
+                "{} ({})",
+                t("period.cancellation_invoices"),
+                r.cancellation_count
+            ),
+            r.cancellation_cents,
+        ),
+        row(
+            format!(
+                "{} {} ({})",
+                t("period.open_receivables_as_of"),
+                super::format_dmy(&r.to),
+                r.open_receivables_count
+            ),
             r.open_receivables_cents,
         ),
     ];
     if r.expenses_estimate_cents > 0 {
-        summary.push(row("davon Vertragskosten anteilig (Schätzwert)", r.expenses_estimate_cents));
+        summary.push(row(
+            t("period.of_which_contract_costs_pro_rata_estimate"),
+            r.expenses_estimate_cents,
+        ));
     }
     if !r.unclosed_days.is_empty() {
         summary.push(ReportPdfSummaryRow {
-            label: "Tage mit Bargeld ohne Tagesabschluss".into(),
-            value: r.unclosed_days.iter().map(|d| dmy(d)).collect::<Vec<_>>().join(", "),
+            label: t("period.days_with_cash_and_no_day_close"),
+            value: r
+                .unclosed_days
+                .iter()
+                .map(|d| super::format_dmy(d))
+                .collect::<Vec<_>>()
+                .join(", "),
         });
     }
     let mut sections = vec![
         ReportPdfSection {
-            title: "Einnahmen nach Zahlart".into(),
-            headers: vec!["Zahlart".into(), "Betrag EUR".into()],
-            rows: r.income_by_method.iter().map(|a| vec![a.label.clone(), fmt_eur(a.cents)]).collect(),
+            title: t("period.income_by_payment_method"),
+            headers: vec![t("period.method"), t("period.amount")],
+            rows: r
+                .income_by_method
+                .iter()
+                .map(|a| vec![method_label(&a.label, locale), fmt_eur(a.cents)])
+                .collect(),
             column_weights: None,
         },
         ReportPdfSection {
-            title: "Einnahmen nach Monat".into(),
-            headers: vec!["Monat".into(), "Betrag EUR".into()],
-            rows: r.income_by_month.iter().map(|a| vec![a.label.clone(), fmt_eur(a.cents)]).collect(),
+            title: t("period.income_by_month"),
+            headers: vec![t("period.month_column"), t("period.amount")],
+            rows: r
+                .income_by_month
+                .iter()
+                .map(|a| vec![a.label.clone(), fmt_eur(a.cents)])
+                .collect(),
             column_weights: None,
         },
     ];
@@ -345,32 +407,52 @@ fn report_input(profile: &PracticeProfile, locale: &'static str, r: &PeriodRepor
     }
     for (src, lines) in grouped {
         let title = match src {
-            "CASH" => "Ausgaben aus dem Kassenbuch",
-            "PURCHASE" => "Materialeinkauf (gelieferte Bestellungen)",
-            _ => "Laufende Verträge (anteilig, Schätzwert)",
+            "CASH" => t("period.cash_book_expenses"),
+            "PURCHASE" => t("period.material_purchases_delivered_orders"),
+            _ => t("period.ongoing_contracts_pro_rata_estimate"),
         };
         sections.push(ReportPdfSection {
-            title: title.into(),
-            headers: vec!["Datum".into(), "Bezeichnung".into(), "Betrag EUR".into()],
+            title,
+            headers: vec![
+                t("period.date"),
+                t("period.description"),
+                t("period.amount"),
+            ],
             rows: lines
                 .iter()
-                .map(|e| vec![dmy(&e.date), e.label.clone(), fmt_eur(e.cents)])
+                .map(|e| {
+                    let description = match e
+                        .voucher
+                        .as_deref()
+                        .map(str::trim)
+                        .filter(|v| !v.is_empty())
+                    {
+                        Some(v) => format!("{} ({} {v})", e.label, t("period.voucher")),
+                        None => e.label.clone(),
+                    };
+                    vec![super::format_dmy(&e.date), description, fmt_eur(e.cents)]
+                })
                 .collect(),
             column_weights: Some(vec![2, 6, 2]),
         });
     }
     sections.push(ReportPdfSection {
-        title: "Hinweis".into(),
+        title: t("period.note"),
         headers: vec!["".into()],
         rows: vec![
-            vec!["Vorläufige Auswertung nach dem Zufluss-/Abflussprinzip (§ 11 EStG). Maßgeblich für die Anlage EÜR sind die Belege und die Buchführung der Steuerberatung.".into()],
-            vec!["Rechnungen und offene Forderungen sind zur Information aufgeführt und nicht in den Einnahmen enthalten.".into()],
+            vec![t("period.preliminary_notice")],
+            vec![t("period.info_only_notice")],
         ],
         column_weights: None,
     });
     ReportPdfInput {
         doc_title: if label.trim().is_empty() {
-            format!("Einnahmen-Überschuss-Übersicht {} – {}", dmy(&r.from), dmy(&r.to))
+            format!(
+                "{} {} – {}",
+                t("period.income_surplus_overview"),
+                super::format_dmy(&r.from),
+                super::format_dmy(&r.to)
+            )
         } else {
             label.trim().to_string()
         },
@@ -400,14 +482,23 @@ pub async fn create(
     session: &Session,
     args: PeriodArgs,
 ) -> Result<PeriodReportResult, AppError> {
-    require_permission(session, if args.preview { "finance.read" } else { "finance.write" })?;
+    require_permission(
+        session,
+        if args.preview {
+            "reports.read"
+        } else {
+            "reports.create"
+        },
+    )?;
     let kind = match args.kind.trim().to_uppercase().as_str() {
         k @ ("MONTH" | "QUARTER" | "YEAR" | "CUSTOM") => k.to_string(),
         _ => "CUSTOM".to_string(),
     };
     if !args.preview && parse(&args.to)? >= Local::now().date_naive() {
         // A saved report covers a finished period.
-        return Err(AppError::validation_code("error.period_report.period_not_finished"));
+        return Err(AppError::validation_code(
+            "error.period_report.period_not_finished",
+        ));
     }
     let report = compute(pool, &args.from, &args.to, &kind).await?;
     let profile = PracticeProfile::load(pool).await?;
@@ -418,7 +509,13 @@ pub async fn create(
     input.logo = practice_logo(pool).await;
 
     if args.preview {
-        input.watermark = Some(WATERMARK_PREVIEW.into());
+        input.watermark = Some(
+            crate::infrastructure::pdf::i18n::t(
+                locale,
+                crate::infrastructure::pdf::i18n::Phrase::Draft,
+            )
+            .into(),
+        );
         let bytes = render_report_pdf(&input)?;
         return Ok(PeriodReportResult {
             snapshot_id: None,
@@ -442,9 +539,10 @@ pub async fn create(
         let conn: &mut SqliteConnection = &mut guard;
         let number = repo::next_number(conn, DocKind::Report.prefix(), year_now()).await?;
         input.document_number = Some(number.clone());
-        let bytes = render_report_pdf(&input)?;
+        let doc_id = crate::infrastructure::pdf::new_document_uid();
+        let bytes = crate::infrastructure::pdf::with_document_uid(&doc_id, || render_report_pdf(&input))?;
         let doc = IssuedDocument {
-            id: uuid::Uuid::new_v4().to_string(),
+            id: doc_id.clone(),
             kind: DocKind::Report.as_db().into(),
             document_number: number.clone(),
             source_table: Some("balance_sheet_snapshot".into()),
@@ -497,6 +595,18 @@ pub async fn create(
     };
     drop(guard);
     after_insert(pool, session, &doc, "ISSUE_DOCUMENT").await;
+    // The saved figures themselves, not only the PDF record.
+    if let Err(e) = crate::infrastructure::database::sync_outbox::record_or_noop(
+        pool,
+        "balance_sheet_snapshot",
+        &snapshot_id,
+        "INSERT",
+        "",
+    )
+    .await
+    {
+        tracing::warn!(event = "BALANCE_SNAPSHOT_OUTBOX_FAILED", error = %e);
+    }
     let _ = audit_repo::create(
         pool,
         &session.user_id,
@@ -530,7 +640,7 @@ pub async fn reprint_snapshot(
     session: &Session,
     snapshot_id: &str,
 ) -> Result<IssuedPdf, AppError> {
-    require_permission(session, "finance.read")?;
+    require_permission(session, "reports.read")?;
     let id = snapshot_id.trim();
     if id.is_empty() {
         return Err(AppError::validation_code("error.period_report.no_pdf"));
@@ -572,9 +682,10 @@ pub async fn reprint_snapshot(
 /// payments in income.
 pub async fn balance_overview(pool: &SqlitePool) -> Result<BalanceSheet, AppError> {
     finance_schema::ensure(pool).await?;
-    let income: i64 = sqlx::query_scalar("SELECT COALESCE(SUM(amount_cents),0) FROM payment_receipt")
-        .fetch_one(pool)
-        .await?;
+    let income: i64 =
+        sqlx::query_scalar("SELECT COALESCE(SUM(amount_cents),0) FROM payment_receipt")
+            .fetch_one(pool)
+            .await?;
     let outstanding: f64 = sqlx::query_scalar(
         "SELECT CAST(COALESCE(SUM(MAX(COALESCE(amount_expected,0) - COALESCE(amount,0), 0)), 0) AS REAL)
            FROM payment WHERE UPPER(COALESCE(status,'')) IN ('OUTSTANDING','PARTIALLY_PAID')",
@@ -586,10 +697,12 @@ pub async fn balance_overview(pool: &SqlitePool) -> Result<BalanceSheet, AppErro
     )
     .fetch_one(pool)
     .await?;
-    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM payment").fetch_one(pool).await?;
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM payment")
+        .fetch_one(pool)
+        .await?;
     Ok(BalanceSheet {
         income: income as f64 / 100.0,
-        outstanding: (outstanding * 100.0).round() / 100.0,
+        outstanding: round_money_2(outstanding),
         cancelled,
         payment_count: count,
     })
@@ -610,8 +723,142 @@ mod tests {
         assert_eq!(m, 29589);
         // Contract ended before the period.
         assert_eq!(
-            contract_share_cents(50.0, "MONTH", None, Some(d("2025-12-31")), d("2026-01-01"), d("2026-03-31")),
+            contract_share_cents(
+                50.0,
+                "MONTH",
+                None,
+                Some(d("2025-12-31")),
+                d("2026-01-01"),
+                d("2026-03-31")
+            ),
             0
         );
+    }
+
+    fn sample_report() -> PeriodReport {
+        PeriodReport {
+            from: "2026-01-01".into(),
+            to: "2026-01-31".into(),
+            kind: "MONTH".into(),
+            income_cents: 15000,
+            income_by_method: vec![
+                Amount {
+                    label: "CASH".into(),
+                    cents: 10000,
+                },
+                Amount {
+                    label: "BANK_TRANSFER".into(),
+                    cents: 5000,
+                },
+            ],
+            income_by_month: vec![Amount {
+                label: "2026-01".into(),
+                cents: 15000,
+            }],
+            invoiced_cents: 0,
+            invoice_count: 0,
+            cancellation_cents: 0,
+            cancellation_count: 0,
+            open_receivables_cents: 0,
+            open_receivables_count: 0,
+            expenses_cents: 1200,
+            expenses_estimate_cents: 0,
+            expenses: vec![ExpenseLine {
+                source: "CASH".into(),
+                date: "2026-01-15".into(),
+                label: "Gloves".into(),
+                cents: 1200,
+                estimate: false,
+                voucher: Some("12".into()),
+            }],
+            result_cents: 13800,
+            unclosed_days: Vec::new(),
+        }
+    }
+
+    /// WinAnsi octal escapes (`\351` → é) so French and German labels are searchable.
+    fn decode_pdf(pdf: &[u8]) -> String {
+        let mut out = String::with_capacity(pdf.len());
+        let mut i = 0;
+        while i < pdf.len() {
+            let b = pdf[i];
+            if b == b'\\' && i + 1 < pdf.len() {
+                let n = pdf[i + 1];
+                if n.is_ascii_digit()
+                    && i + 3 < pdf.len()
+                    && pdf[i + 2].is_ascii_digit()
+                    && pdf[i + 3].is_ascii_digit()
+                {
+                    let v = (n - b'0') as u32 * 64
+                        + (pdf[i + 2] - b'0') as u32 * 8
+                        + (pdf[i + 3] - b'0') as u32;
+                    out.push(char::from_u32(v).unwrap_or('?'));
+                    i += 4;
+                    continue;
+                }
+                if matches!(n, b'(' | b')' | b'\\') {
+                    out.push(n as char);
+                    i += 2;
+                    continue;
+                }
+            }
+            out.push(char::from(b));
+            i += 1;
+        }
+        out
+    }
+
+    #[test]
+    fn pdf_labels_follow_every_document_language() {
+        let profile = PracticeProfile {
+            name: "Practice".into(),
+            ..PracticeProfile::default()
+        };
+        let report = sample_report();
+        let cases = [
+            ("de", "Betriebseinnahmen", "Bar", "Beleg 12", "ENTWURF"),
+            ("en", "Practice income", "Cash", "Voucher 12", "DRAFT"),
+            (
+                "fr",
+                "Recettes du cabinet",
+                "Espèces",
+                "Pièce 12",
+                "BROUILLON",
+            ),
+        ];
+        for (locale, income, method, voucher, draft) in cases {
+            let mut input = report_input(&profile, locale, &report, "");
+            input.watermark = Some(
+                crate::infrastructure::pdf::i18n::t(
+                    locale,
+                    crate::infrastructure::pdf::i18n::Phrase::Draft,
+                )
+                .into(),
+            );
+            let pdf = render_report_pdf(&input).unwrap();
+            assert!(pdf.starts_with(b"%PDF-1.4"), "{locale}");
+            let text = decode_pdf(&pdf);
+            assert!(text.contains(income), "{locale} missing {income}");
+            assert!(text.contains(method), "{locale} missing {method}");
+            assert!(text.contains(voucher), "{locale} missing {voucher}");
+            assert!(text.contains(draft), "{locale} missing {draft}");
+        }
+        let mut ar = report_input(&profile, "ar", &report, "");
+        ar.watermark = Some(
+            crate::infrastructure::pdf::i18n::t(
+                "ar",
+                crate::infrastructure::pdf::i18n::Phrase::Draft,
+            )
+            .into(),
+        );
+        let pdf = render_report_pdf(&ar).unwrap();
+        let text = decode_pdf(&pdf);
+        assert!(
+            text.contains("/NotoNaskhArabic") || text.contains("/F3 "),
+            "arabic font"
+        );
+        assert!(!text.contains("Betriebseinnahmen"), "ar still German");
+        assert!(!text.contains("Beleg 12"), "ar voucher");
+        assert!(!text.contains("ENTWURF"), "ar draft watermark");
     }
 }

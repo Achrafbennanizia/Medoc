@@ -48,12 +48,16 @@ pub async fn save_ack(
     Ok(())
 }
 
-pub async fn is_acked(pool: &sqlx::SqlitePool, broken_row_id: &str) -> Result<bool, crate::error::AppError> {
+pub async fn is_acked(
+    pool: &sqlx::SqlitePool,
+    broken_row_id: &str,
+) -> Result<bool, crate::error::AppError> {
     ensure_ack_table(pool).await?;
-    let n: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM audit_chain_ack WHERE broken_row_id = ?1")
-        .bind(broken_row_id)
-        .fetch_one(pool)
-        .await?;
+    let n: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM audit_chain_ack WHERE broken_row_id = ?1")
+            .bind(broken_row_id)
+            .fetch_one(pool)
+            .await?;
     Ok(n > 0)
 }
 
@@ -119,9 +123,13 @@ mod tests {
 mod ack_tests {
     #[tokio::test]
     async fn ack_survives_restart() {
-        let pool = crate::infrastructure::database::connection::test_memory_pool().await.unwrap();
+        let pool = crate::infrastructure::database::connection::test_memory_pool()
+            .await
+            .unwrap();
         assert!(!super::is_acked(&pool, "row-7").await.unwrap());
-        super::save_ack(&pool, "row-7", "seed-admin-001").await.unwrap();
+        super::save_ack(&pool, "row-7", "seed-admin-001")
+            .await
+            .unwrap();
         // A new guard (restart) consults the table.
         let g = super::AuditChainGuard::new();
         g.set_broken("row-7".into());
@@ -129,6 +137,9 @@ mod ack_tests {
             g.acknowledge();
         }
         assert!(!g.blocks_ops());
-        assert!(!super::is_acked(&pool, "row-8").await.unwrap(), "a new break is not pre-acknowledged");
+        assert!(
+            !super::is_acked(&pool, "row-8").await.unwrap(),
+            "a new break is not pre-acknowledged"
+        );
     }
 }

@@ -1,7 +1,7 @@
 use crate::error::AppError;
 use sqlx::SqlitePool;
 
-/// Same non-empty semantics as [`crate::commands::chart_next_appointment_commands::list_chart_next_appointment_hints_pending`].
+/// Same non-empty semantics as `medoc_practice::commands::clinical::chart_next_appointment::list_chart_next_appointment_hints_pending`.
 pub fn hint_json_is_pending_non_empty(hint_json: &str) -> bool {
     let trimmed = hint_json.trim();
     if trimmed.is_empty() || trimmed == "{}" || trimmed == "null" {
@@ -29,7 +29,36 @@ pub async fn set_json(
     patient_id: &str,
     hint_json: &str,
 ) -> Result<(), AppError> {
-    let mut tx = pool.begin().await?;
+    // IMMEDIATE + busy_timeout: avoid SQLITE_BUSY (code 5) when the UI saves
+    // rapidly while sync or another command holds a read/write lock.
+    let mut last_err = None;
+    for attempt in 0..4u32 {
+        match set_json_once(pool, patient_id, hint_json).await {
+            Ok(()) => return Ok(()),
+            Err(e) if is_sqlite_busy(&e) && attempt < 3 => {
+                last_err = Some(e);
+                tokio::time::sleep(std::time::Duration::from_millis(40 * (1 << attempt))).await;
+            }
+            Err(e) => return Err(e),
+        }
+    }
+    Err(last_err.unwrap_or_else(|| AppError::Internal("chart_next_appointment set_json".into())))
+}
+
+fn is_sqlite_busy(err: &AppError) -> bool {
+    let s = err.to_string().to_lowercase();
+    s.contains("database is locked")
+        || s.contains("database is busy")
+        || s.contains("(code: 5)")
+        || s.contains("(code: 6)")
+}
+
+async fn set_json_once(
+    pool: &SqlitePool,
+    patient_id: &str,
+    hint_json: &str,
+) -> Result<(), AppError> {
+    let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
     sqlx::query(
         "INSERT INTO chart_next_appointment_hint (patient_id, hint_json, updated_at)
          VALUES (?1, ?2, CURRENT_TIMESTAMP)

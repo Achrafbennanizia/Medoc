@@ -11,7 +11,9 @@ use sqlx::SqlitePool;
 use crate::application::auth_service::Session;
 use crate::application::rbac::{effective_allowed, Role};
 use crate::error::AppError;
-use crate::infrastructure::database::{audit_repo, device_session_repo, staff_permission_repo, staff_repo};
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
+use crate::infrastructure::database::repos::admin::device_session as device_session_repo;
+use crate::infrastructure::database::repos::admin::staff as staff_repo;
 
 /// Same idle window as the desktop session clock.
 pub const IDLE_TIMEOUT: Duration = Duration::from_secs(30 * 60);
@@ -31,10 +33,7 @@ pub async fn authorize(
     action: &str,
     audit_entity_id: Option<&str>,
 ) -> Result<Session, AppError> {
-    if caller
-        .idle_for
-        .is_some_and(|idle| idle > IDLE_TIMEOUT)
-    {
+    if caller.idle_for.is_some_and(|idle| idle > IDLE_TIMEOUT) {
         return Err(AppError::Unauthorized);
     }
     if let Some(session_id) = caller.device_session_id.as_deref() {
@@ -60,8 +59,17 @@ pub async fn authorize(
         return Err(AppError::Unauthorized);
     }
     let role = Role::parse(&staff.role).ok_or(AppError::Forbidden)?;
-    let overrides = staff_permission_repo::list_for_staff(pool, &staff.id).await?;
+    // Read fresh on every call: a change of access applies at once, even to
+    // a session that signed in before it.
+    let overrides =
+        crate::application::access_control::session_overrides(pool, &staff.id, &staff.role).await?;
     if !effective_allowed(action, role, &overrides) {
+        tracing::info!(
+            target: "medoc::security",
+            event = "ACCESS_DENIED",
+            staff_id = %staff.id,
+            action = %action,
+        );
         return Err(AppError::Forbidden);
     }
     if is_medical_read(action) {
@@ -89,7 +97,14 @@ pub async fn authorize(
 fn is_medical_read(action: &str) -> bool {
     matches!(
         action,
-        "patient.read" | "patient.read_medical" | "patient.read_documents" | "appointment.read"
+        "patient.read"
+            | "patient.read_medical"
+            | "patient.read_documents"
+            | "appointment.read"
+            | "patients.read"
+            | "medical.read"
+            | "documents.read"
+            | "calendar.read"
     )
 }
 

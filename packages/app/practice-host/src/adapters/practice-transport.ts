@@ -6,7 +6,6 @@
  */
 import { isLanClientActive } from "@/systems/lan/lib/lan-client-config";
 import { isLanClientOnly } from "@/systems/practice-host/lib/deployment-config";
-import { argsToIpc, resultFromIpc } from "@/lib/ipc-bridge";
 import type { PracticeSystemPort } from "../ports/practice-system.port";
 import { HttpPracticeAdapter } from "./http-practice.adapter";
 import { TauriPracticeAdapter } from "./tauri-practice.adapter";
@@ -47,9 +46,7 @@ export function createPracticeSystem(): PracticeSystemPort {
 /** Facade — re-resolves when LAN client config changes (page reload recommended). */
 export const practiceSystem: PracticeSystemPort = {
     invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
-        return createPracticeSystem()
-            .invoke<T>(command, argsToIpc(command, args))
-            .then((row) => resultFromIpc(command, row));
+        return createPracticeSystem().invoke<T>(command, args);
     },
 };
 

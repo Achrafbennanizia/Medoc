@@ -7,6 +7,7 @@ use crate::error::AppError;
 use super::sync_tables;
 
 pub async fn run_rust_only_migrations(pool: &SqlitePool) -> Result<(), AppError> {
+    crate::infrastructure::database::repos::admin::staff_access::ensure_table(pool).await?;
     super::issued_documents::ensure_issued_document_tables(pool).await?;
     super::goz_billing_columns::ensure_goz_billing_columns(pool).await?;
     let product_id_col: i64 = sqlx::query_scalar(
@@ -58,7 +59,7 @@ pub async fn run_rust_only_migrations(pool: &SqlitePool) -> Result<(), AppError>
     let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM staff")
         .fetch_one(pool)
         .await?;
-    if count.0 == 0 {
+    if count.0 == 0 && super::seed::may_seed_default_staff(pool).await {
         let hash = bcrypt::hash("password123", 12)
             .map_err(|e| AppError::Internal(format!("Seed password (bcrypt): {e}")))?;
         sqlx::query(
@@ -78,7 +79,8 @@ pub async fn run_rust_only_migrations(pool: &SqlitePool) -> Result<(), AppError>
         .execute(pool)
         .await?;
         if crate::mvp_security::TOTP_2FA_ENABLED {
-            let (secret, _) = crate::infrastructure::totp::generate_enrollment("ahmed@practice.de")?;
+            let (secret, _) =
+                crate::infrastructure::totp::generate_enrollment("ahmed@practice.de")?;
             sqlx::query(
                 "UPDATE staff SET totp_secret = ?1, totp_enrolled_at = CURRENT_TIMESTAMP
                  WHERE id = 'seed-physician-001'",
@@ -389,7 +391,9 @@ pub async fn run_rust_only_migrations(pool: &SqlitePool) -> Result<(), AppError>
     .map_err(AppError::Database)?;
     ensure_appointment_duration(pool).await?;
     // F86: correction chain for issued prescriptions.
-    let _ = sqlx::query("ALTER TABLE prescription ADD COLUMN replaces_id TEXT").execute(pool).await;
+    let _ = sqlx::query("ALTER TABLE prescription ADD COLUMN replaces_id TEXT")
+        .execute(pool)
+        .await;
     super::cluster_tables::ensure_cluster_tables(pool).await?;
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS sync_tombstone (
@@ -449,7 +453,8 @@ async fn ensure_appointment_duration(pool: &SqlitePool) -> Result<(), AppError> 
     .fetch_all(pool)
     .await
     .map_err(AppError::Database)?;
-    let re = regex::Regex::new(r"(?i)(?:^\s*|duration:\s*)(\d{1,3})\s*min").expect("duration regex");
+    let re =
+        regex::Regex::new(r"(?i)(?:^\s*|duration:\s*)(\d{1,3})\s*min").expect("duration regex");
     for (id, notes) in rows {
         if let Some(m) = re
             .captures(&notes)
@@ -471,6 +476,9 @@ async fn ensure_appointment_duration(pool: &SqlitePool) -> Result<(), AppError> 
 
 async fn ensure_updated_at_on_synced_tables(pool: &SqlitePool) -> Result<(), AppError> {
     use crate::infrastructure::database::sync_registry::synced_tables;
+    // Unconditional BEFORE UPDATE … RAISE(ABORT, 'error.documents.immutable').
+    // ADD COLUMN is fine; a backfill UPDATE of existing rows is not.
+    const SKIP_UPDATED_AT_BACKFILL: &[&str] = &["balance_sheet_snapshot", "payment_reminder"];
     for table in synced_tables() {
         let exists: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?1",
@@ -493,6 +501,9 @@ async fn ensure_updated_at_on_synced_tables(pool: &SqlitePool) -> Result<(), App
                 .execute(pool)
                 .await
                 .map_err(AppError::Database)?;
+        }
+        if SKIP_UPDATED_AT_BACKFILL.contains(&table) {
+            continue;
         }
         let has_created: i64 = sqlx::query_scalar(&format!(
             "SELECT COUNT(*) FROM pragma_table_info('{table}') WHERE name = 'created_at'"

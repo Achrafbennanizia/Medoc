@@ -98,7 +98,11 @@ pub async fn delete(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
 
 async fn local_today(pool: &SqlitePool) -> String {
     let tz = crate::domain::practice_time::practice_tz(pool).await;
-    chrono::Utc::now().with_timezone(&tz).date_naive().format("%Y-%m-%d").to_string()
+    chrono::Utc::now()
+        .with_timezone(&tz)
+        .date_naive()
+        .format("%Y-%m-%d")
+        .to_string()
 }
 
 /// F86: insert the corrected version (`replaces_id` = old id) and mark the old
@@ -141,8 +145,13 @@ async fn correct_issued(
     .bind(&ex.id)
     .execute(&mut *tx)
     .await?;
-    crate::infrastructure::database::recorded_write::record_in_tx(&mut tx, "prescription", &new_id, "INSERT")
-        .await?;
+    crate::infrastructure::database::recorded_write::record_in_tx(
+        &mut tx,
+        "prescription",
+        &new_id,
+        "INSERT",
+    )
+    .await?;
     sqlx::query(
         "UPDATE prescription SET status = 'REPLACED', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
          WHERE id = ?1 AND status = 'ISSUED'",
@@ -150,8 +159,13 @@ async fn correct_issued(
     .bind(&ex.id)
     .execute(&mut *tx)
     .await?;
-    crate::infrastructure::database::recorded_write::record_in_tx(&mut tx, "prescription", &ex.id, "UPDATE")
-        .await?;
+    crate::infrastructure::database::recorded_write::record_in_tx(
+        &mut tx,
+        "prescription",
+        &ex.id,
+        "UPDATE",
+    )
+    .await?;
     tx.commit().await?;
     find_by_id(pool, &new_id)
         .await?

@@ -49,4 +49,7 @@ export function subscribePracticeCurrency(listener: () => void): () => void {
 
 export function publishPracticeCurrency(): void {
     for (const listener of listeners) listener();
+    if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("medoc:practice-currency-changed"));
+    }
 }

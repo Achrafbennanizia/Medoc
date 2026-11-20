@@ -840,7 +840,7 @@ pub async fn run_legacy_embedded_migrations(pool: &SqlitePool) -> Result<(), App
         .fetch_one(pool)
         .await?;
 
-    if count.0 == 0 {
+    if count.0 == 0 && super::seed::may_seed_default_staff(pool).await {
         let hash = bcrypt::hash("password123", 12)
             .map_err(|e| AppError::Internal(format!("Seed password (bcrypt): {e}")))?;
         sqlx::query(

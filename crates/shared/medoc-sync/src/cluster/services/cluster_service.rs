@@ -2,7 +2,7 @@
 
 use chrono::{Duration, Utc};
 use medoc_core::error::AppError;
-use medoc_core::infrastructure::database::app_kv_repo;
+use medoc_core::infrastructure::database::repos::admin::app_kv as app_kv_repo;
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
@@ -13,8 +13,7 @@ use crate::cluster::crypto::{
 use crate::cluster::entities::{Device, PairingSession};
 use crate::cluster::enums::{DeviceStatus, PairingStatus, SeatRole};
 use crate::cluster::ports::{
-    is_provisioned, mark_provisioned, reserve_seat_atomic, DeviceRepo, LicenseRepo, PairingRepo,
-    SqliteClusterRepos,
+    is_provisioned, mark_provisioned, reserve_seat_atomic, SqliteClusterRepos,
 };
 use crate::cluster::repo;
 use crate::deployment::{DeploymentMode, DeviceRole};
@@ -602,22 +601,12 @@ async fn provision_joiner_after_sas(
                 error = %e
             );
         }
-        match SyncEngine::run_replica_sync_until_caught_up(pool).await {
-            Ok(report) => {
-                tracing::info!(
-                    target: "medoc::sync",
-                    event = "REPLICA_INITIAL_SYNC",
-                    pull_applied = report.pull.as_ref().map(|p| p.applied).unwrap_or(0),
-                    push_accepted = report.push.as_ref().map(|p| p.accepted).unwrap_or(0),
-                    error = report.error.as_deref().unwrap_or("")
-                );
-            }
-            Err(e) => tracing::warn!(
-                target: "medoc::sync",
-                event = "REPLICA_INITIAL_SYNC_FAILED",
-                error = %e
-            ),
-        }
+        // The replica sync loop copies practice rows after this returns.
+        // Waiting here held the Confirm button for the whole snapshot.
+        tracing::info!(
+            target: "medoc::sync",
+            event = "REPLICA_INITIAL_SYNC_DEFERRED"
+        );
         if let Err(e) =
             audit::log_pairing(pool, user_id, "PROVISION", Some(&handle.session_id), None).await
         {
@@ -753,7 +742,10 @@ pub async fn verify_inbound_sas(
             error = %e
         );
     }
-    if let Err(e) = crate::repo::enqueue_full_snapshot(pool).await {
+    // Tagged for the joining device: other replicas do not re-download it.
+    if let Err(e) =
+        crate::repo::enqueue_snapshot_for(pool, Some(session.fingerprint.as_str())).await
+    {
         tracing::warn!(
             target: "medoc::sync",
             event = "SYNC_SNAPSHOT_AFTER_SAS_FAILED",
@@ -890,7 +882,7 @@ pub async fn issue_replica_lan_auth(
     .await
     .map_err(AppError::Database)?
     .unwrap_or_default();
-    let signing_key = master_keys::load_or_create()?;
+    let signing_key = master_keys::align_to_license(pool).await?;
     let token_ok = {
         let t = existing.trim();
         !t.is_empty() && verify_activation_token(t, &signing_key.verifying_key()).is_ok()
@@ -911,9 +903,7 @@ pub async fn issue_replica_lan_auth(
     .map_err(AppError::Database)?
     .flatten()
     .filter(|s: &String| !s.trim().is_empty());
-    let master_pubkey = crate::master_keys::load_or_create()
-        .ok()
-        .map(|sk| crate::master_keys::pubkey_b64(&sk));
+    let master_pubkey = Some(crate::master_keys::pubkey_b64(&signing_key));
     let master_device_id = crate::repo::ensure_local_device(pool, "Main")
         .await
         .ok()
@@ -996,7 +986,7 @@ async fn mint_join_activation_token(
     session: &PairingSession,
 ) -> Result<(), AppError> {
     crate::schema::ensure_sync_tables(pool).await?;
-    let signing_key = master_keys::load_or_create()?;
+    let signing_key = master_keys::align_to_license(pool).await?;
     let master_device_id = crate::repo::ensure_local_device(pool, "Main").await?;
     let now = Utc::now().to_rfc3339();
     let actions: Vec<String> = DEFAULT_ALLOWED_ACTIONS
@@ -1223,7 +1213,9 @@ async fn demote_local_cluster_seat_to_member(pool: &SqlitePool) -> Result<(), Ap
         return Ok(());
     };
     let mut keys = vec![identity.fingerprint.clone()];
-    if let Ok(device_id) = medoc_core::infrastructure::license_repo::ensure_device_id(pool).await {
+    if let Ok(device_id) =
+        medoc_core::infrastructure::database::repos::admin::license::ensure_device_id(pool).await
+    {
         if !keys.iter().any(|k| k == &device_id) {
             keys.push(device_id);
         }

@@ -1,3 +1,4 @@
+pub mod access_control;
 pub mod app_kv_policy;
 pub mod appointment_hint_fulfillment;
 pub mod audit_chain_guard;
@@ -7,7 +8,9 @@ pub mod break_glass;
 pub mod chart;
 pub mod device_session_service;
 pub mod documents;
+pub mod first_run;
 pub mod own_profile;
 pub mod practice_task_notify;
+pub mod practice_task_sync_notify;
 pub mod rbac;
 pub mod totp_service;

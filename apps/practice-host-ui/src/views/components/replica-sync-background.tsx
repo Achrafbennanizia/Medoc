@@ -94,6 +94,9 @@ export function ReplicaSyncBackground() {
                     failures.current = 0;
                     lastToast.current = null;
                     setLastSyncError(null);
+                    // Remote practice_task / in_app_notification rows may have landed.
+                    window.dispatchEvent(new Event("medoc-in-app-notifications-refresh"));
+                    window.dispatchEvent(new Event("medoc-nav-badges-refresh"));
                 }
             } catch (e) {
                 nextDelay = onError(errorMessage(e));

@@ -1,4 +1,5 @@
-import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
+import type { z } from "zod";
+import { practiceSystem } from "@/systems/practice-host/adapters/practice-transport";
 import type { ChartExportSectionsState } from "@/lib/chart-export";
 import type { IssuedPdf } from "@/systems/practice-host/controllers/document.controller";
 import type { ChartAttachmentRowDto } from "@/lib/chart-attachments";
@@ -26,13 +27,9 @@ export async function listDentalFindings(chartId: string): Promise<DentalFinding
     return practiceSystem.invoke<DentalFinding[]>("list_dental_findings", { chart_id: chartId });
 }
 
-export async function createDentalFinding(data: {
-    chart_id: string;
-    tooth_number: number;
-    finding: string;
-    diagnosis?: string | null;
-    notes?: string | null;
-}): Promise<DentalFinding> {
+export async function createDentalFinding(
+    data: z.input<typeof CreateDentalFindingSchema>,
+): Promise<DentalFinding> {
     const safe = parseOrThrow(CreateDentalFindingSchema, data);
     return practiceSystem.invoke<DentalFinding>("update_dental_finding", { data: safe });
 }
@@ -88,49 +85,23 @@ export async function listExaminations(chartId: string): Promise<Examination[]> 
     return practiceSystem.invoke<Examination[]>("list_examinations", { chart_id: chartId });
 }
 
-export async function createTreatment(data: {
-    chart_id: string;
-    kind: string;
-    description?: string | null;
-    teeth?: string | null;
-    material?: string | null;
-    notes?: string | null;
-    category?: string | null;
-    service_name?: string | null;
-    treatment_number?: string | null;
-    session_number?: number | null;
-    treatment_status?: string | null;
-    total_cost?: number | null;
-    appointment_required?: boolean | null;
-    treatment_date?: string | null;
-}): Promise<Treatment> {
+export async function createTreatment(
+    data: z.input<typeof CreateTreatmentSchema>,
+): Promise<Treatment> {
     const safe = parseOrThrow(CreateTreatmentSchema, data);
     return practiceSystem.invoke<Treatment>("create_treatment", { data: safe });
 }
 
-export async function createExamination(data: {
-    chart_id: string;
-    chief_complaint?: string | null;
-    results?: string | null;
-    diagnosis?: string | null;
-    examination_number?: string | null;
-    category?: string | null;
-    service_name?: string | null;
-    total_cost?: number | null;
-}): Promise<Examination> {
+export async function createExamination(
+    data: z.input<typeof CreateExaminationSchema>,
+): Promise<Examination> {
     const safe = parseOrThrow(CreateExaminationSchema, data);
     return practiceSystem.invoke<Examination>("create_examination", { data: safe });
 }
 
-export async function updateExamination(data: {
-    id: string;
-    chief_complaint?: string | null;
-    results?: string | null;
-    diagnosis?: string | null;
-    category?: string | null;
-    service_name?: string | null;
-    total_cost?: number | null;
-}): Promise<Examination> {
+export async function updateExamination(
+    data: z.input<typeof UpdateExaminationSchema>,
+): Promise<Examination> {
     const safe = parseOrThrow(UpdateExaminationSchema, data);
     return practiceSystem.invoke<Examination>("update_examination", { data: safe });
 }
@@ -139,22 +110,9 @@ export async function deleteExamination(id: string): Promise<void> {
     return practiceSystem.invoke<void>("delete_examination", { id });
 }
 
-export async function updateTreatment(data: {
-    id: string;
-    kind: string;
-    description?: string | null;
-    teeth?: string | null;
-    material?: string | null;
-    notes?: string | null;
-    category?: string | null;
-    service_name?: string | null;
-    treatment_number?: string | null;
-    session_number?: number | null;
-    treatment_status?: string | null;
-    total_cost?: number | null;
-    appointment_required?: boolean | null;
-    treatment_date?: string | null;
-}): Promise<Treatment> {
+export async function updateTreatment(
+    data: z.input<typeof UpdateTreatmentSchema>,
+): Promise<Treatment> {
     const safe = parseOrThrow(UpdateTreatmentSchema, data);
     return practiceSystem.invoke<Treatment>("update_treatment", { data: safe });
 }

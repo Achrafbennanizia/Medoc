@@ -1,4 +1,4 @@
-import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
+import { practiceSystem } from "@/systems/practice-host/adapters/practice-transport";
 import {
     VALIDATION_SECTIONS,
     type ValidationSection,
@@ -45,6 +45,33 @@ export async function listChartValidation(patientId: string): Promise<ChartValid
     const pid = typeof patientId === "string" ? patientId.trim() : "";
     if (!pid) return [];
     return practiceSystem.invoke<ChartValidationRow[]>("list_chart_validation", { patientId: pid });
+}
+
+/**
+ * Keys `payment:{id}` that are already validated.
+ * `null` when every lookup failed, so the caller can keep the previous status.
+ */
+export async function listValidatedPaymentKeys(patientIds: string[]): Promise<Set<string> | null> {
+    const ids = [...new Set(patientIds.map((id) => id.trim()).filter(Boolean))];
+    if (ids.length === 0) return new Set();
+    const results = await Promise.all(
+        ids.map(async (id) => {
+            try {
+                return await listChartValidation(id);
+            } catch {
+                return null;
+            }
+        }),
+    );
+    if (results.every((rows) => rows === null)) return null;
+    const keys = new Set<string>();
+    for (const rows of results) {
+        if (!rows) continue;
+        for (const row of rows) {
+            if (row.section_or_item.startsWith("payment:")) keys.add(row.section_or_item);
+        }
+    }
+    return keys;
 }
 
 export async function setChartSectionValidated(

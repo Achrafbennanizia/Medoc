@@ -59,3 +59,7 @@ Der eingebettete **LAN-Server** (`medoc-lan`) bietet für dieselbe Rolle `ops.sy
 - `POST /api/v1/company/billing/portal-session`
 
 Authentifizierung wie bei den anderen LAN-Routen: **`Authorization: Bearer <JWT>`** nach `POST /api/v1/auth/login`.
+
+## Stripe
+
+Live billing reads `STRIPE_SECRET_KEY` from the environment. The server does not embed a key. If the variable is missing or blank, `require_stripe_secret_key` returns an error and does not fall back to a built-in value. The demo portal route does not call Stripe, so the process can still start without the variable. Set the real key only in the host environment or the CI secret store.

@@ -361,6 +361,7 @@ Useful optional vars:
 | `MEDOC_VENDOR_SEED` | License crypto material (licensing docs) |
 | `MEDOC_LAN_JWT_SECRET` | Override LAN JWT secret |
 | `MEDOC_COMPANY_API_BASE` / `MEDOC_COMPANY_API_KEY` | Company server client config |
+| `STRIPE_SECRET_KEY` | Stripe live secret. Leave empty in git. No built-in fallback. |
 
 ```bash
 npm ci

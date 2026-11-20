@@ -15,8 +15,8 @@ use medoc_core::application::documents::issue::{
     cancel_invoice, issue_clinical_document, issue_invoice, issue_report, IssueClinicalArgs,
     IssueInvoiceArgs, IssuedPdf,
 };
-use medoc_core::infrastructure::database::app_kv_repo;
 use medoc_core::infrastructure::database::connection::{run_migrations, test_memory_pool};
+use medoc_core::infrastructure::database::repos::admin::app_kv as app_kv_repo;
 use medoc_core::infrastructure::pdf::{
     unit_fee_cents, FeeSchedule, Invoice, InvoiceLine, ReportPdfInput, ReportPdfSummaryRow,
 };

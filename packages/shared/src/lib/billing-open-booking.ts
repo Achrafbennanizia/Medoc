@@ -1,6 +1,10 @@
 /**
- * FA-LEIST-06 — mirrors `pricing::treatment_has_billable_service_item` + patient-detail UX.
+ * FA-LEIST-06 — UI hint for a billable treatment or examination line.
+ * A cost counts when it is above `PAYMENT_EUR_EPS`.
  */
+
+import { isReleasedForBilling as releasedFields } from "@/lib/billing-release";
+import { PAYMENT_EUR_EPS } from "@/lib/payment-booking";
 
 /** FA-LEIST-06/07 — same rule for Treatment and Examination. */
 export function treatmentHasBillableServiceItem(
@@ -9,7 +13,7 @@ export function treatmentHasBillableServiceItem(
 ): boolean {
     if ((service_name ?? "").trim().length > 0) return true;
     const g = total_cost;
-    return g != null && Number.isFinite(g) && g > 0.005;
+    return g != null && Number.isFinite(g) && g > PAYMENT_EUR_EPS;
 }
 
 export const examinationHasBillableServiceItem = treatmentHasBillableServiceItem;
@@ -19,7 +23,5 @@ export function isReleasedForBilling(entry: {
     released_by_physician_id?: string | null;
     released_at?: string | null;
 }): boolean {
-    const by = entry.released_by_physician_id;
-    const at = entry.released_at;
-    return Boolean(by) && (at ?? "").trim() !== "";
+    return releasedFields(entry.released_by_physician_id, entry.released_at);
 }

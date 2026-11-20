@@ -112,15 +112,43 @@ const PRACTICE_TASK_PHRASES: Record<string, string> = {
 const AUTO_BILLING_PREFIX =
     /^(?:Payment erfassen|Zahlung erfassen|Record payment|Collect payment|Enregistrer un paiement|تسجيل دفعة)\s*[:：—–-]*\s*(.*)$/iu;
 
-export function displayPracticeTaskTitle(title: string, t: TFn): string {
+/** Fields the auto-billing task already stores. Older rows keep an English title instead. */
+export type PracticeTaskCopy = {
+    kind?: string | null;
+    title?: string | null;
+    service_name?: string | null;
+};
+
+function autoBillingLabel(rest: string, t: TFn): string {
+    const svc = rest ? clinicalServiceLabel(rest) : "";
+    return svc ? `${t("practice_task.auto_billing")}: ${svc}` : t("practice_task.auto_billing");
+}
+
+/**
+ * A new auto-billing row stores the service name as the title (empty when there is no service).
+ * The body is that title, or `Service (12.00 EUR)` / `(12.00 EUR)` when an amount is known.
+ * Older rows still start with a translated prefix and are handled above this check.
+ */
+function storedAutoBilling(text: string, task: PracticeTaskCopy, t: TFn): string | null {
+    if ((task.kind ?? "").trim() !== "BILLING") return null;
+    const service = (task.service_name ?? "").trim();
+    const storedTitle = (task.title ?? "").trim();
+    if (storedTitle !== service) return null;
+    if (text === storedTitle) return autoBillingLabel(text, t);
+    if (service && text.startsWith(`${service} (`)) return autoBillingLabel(text, t);
+    if (!service && /^\(\d/.test(text)) return autoBillingLabel(text, t);
+    return null;
+}
+
+export function displayPracticeTaskTitle(title: string, t: TFn, task?: PracticeTaskCopy | null): string {
     const stripped = stripRequirementIds(title);
     const canned = PRACTICE_TASK_PHRASES[stripped];
     if (canned) return t(canned);
     const m = AUTO_BILLING_PREFIX.exec(stripped);
-    if (m) {
-        const rest = (m[1] ?? "").trim();
-        const svc = rest ? clinicalServiceLabel(rest) : "";
-        return svc ? `${t("practice_task.auto_billing")}: ${svc}` : t("practice_task.auto_billing");
+    if (m) return autoBillingLabel((m[1] ?? "").trim(), t);
+    if (task) {
+        const stored = storedAutoBilling(stripped.trim(), task, t);
+        if (stored) return stored;
     }
     return clinicalServiceLabel(stripped);
 }

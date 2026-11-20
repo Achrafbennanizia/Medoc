@@ -1,4 +1,4 @@
-import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
+import { practiceSystem } from "@/systems/practice-host/adapters/practice-transport";
 
 /** Whitelisted keys (mirror of `permission_for` in `app_kv_commands.rs`). */
 export type AppKvKey =
@@ -13,6 +13,8 @@ export type AppKvKey =
     | "invoice.practice.v1"
     /** Language of official documents (`de` default). Write: ops.system. */
     | "documents.locale.v1"
+    /** Ordered PDF letterhead fields. Write: ops.system. */
+    | "documents.header_layout.v1"
     | "practice.timezone.v1"
     /** LAN host configuration (same key as backend `APP_KV_KEY`). */
     | "lan.server.config.v1"

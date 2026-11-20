@@ -194,7 +194,10 @@ mod tests {
     #[test]
     fn patient_status_rejects_unknown_value() {
         assert!(PatientStatus::parse("NOPE").is_err());
-        assert_eq!(PatientStatus::parse("archived").unwrap().as_str(), "ARCHIVED");
+        assert_eq!(
+            PatientStatus::parse("archived").unwrap().as_str(),
+            "ARCHIVED"
+        );
     }
 
     #[test]

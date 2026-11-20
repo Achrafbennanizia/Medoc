@@ -1,4 +1,5 @@
 import type { Examination, DentalFinding } from "@/models/types";
+import { previewNextYearNumber } from "@/lib/patient-detail-utils";
 import { findingToStatusKey } from "@/lib/dental";
 
 export interface ExaminationV1 {
@@ -284,15 +285,5 @@ export function dentalFindingUpsertsFromExamination(
 
 /** Next `U-{year}-{nnn}` per chart — same sequence as the SQLite `examination_number` helper in Rust. */
 export function previewNextExaminationNumber(existing: Iterable<string | null | undefined>): string {
-    const year = new Date().getFullYear();
-    const prefix = `U-${year}-`;
-    let max = 0;
-    for (const raw of existing) {
-        const n = (raw ?? "").trim();
-        if (!n.startsWith(prefix)) continue;
-        const rest = n.slice(prefix.length);
-        const version = Number.parseInt(rest, 10);
-        if (Number.isFinite(version) && version > max) max = version;
-    }
-    return `${prefix}${String(max + 1).padStart(3, "0")}`;
+    return previewNextYearNumber("U", existing);
 }

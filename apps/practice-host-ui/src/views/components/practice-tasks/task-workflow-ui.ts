@@ -12,6 +12,12 @@ export const TASK_WORKFLOW_STEPS = [
     { labelKey: "practice.tasks.workflow.validated", status: "VALIDATED" as const },
 ] as const;
 
+export const SIMPLE_TASK_WORKFLOW_STEPS = [
+    { labelKey: "practice.tasks.workflow.open", status: "OPEN" as const },
+    { labelKey: "practice.tasks.workflow.viewed", status: "VIEWED" as const },
+    { labelKey: "practice.tasks.workflow.done_simple", status: "DONE" as const },
+] as const;
+
 export function taskWorkflowStepLabel(
     t: (key: string) => string,
     step: { labelKey: string },
@@ -25,11 +31,26 @@ export function taskWorkflowActiveStep(status: PracticeTaskStatus): number {
         case "BACK":
             return 0;
         case "IN_PROGRESS":
+        case "VIEWED":
             return 1;
         case "DONE_RECEPTION":
             return 2;
         case "VALIDATED":
-            return 3;
+        case "DONE":
+            return status === "DONE" ? 2 : 3;
+        default:
+            return 0;
+    }
+}
+
+export function simpleTaskWorkflowActiveStep(status: PracticeTaskStatus): number {
+    switch (status) {
+        case "OPEN":
+            return 0;
+        case "VIEWED":
+            return 1;
+        case "DONE":
+            return 2;
         default:
             return 0;
     }
@@ -49,10 +70,12 @@ export function taskStatusPillClass(status: PracticeTaskStatus): string {
         case "BACK":
             return "yellow";
         case "IN_PROGRESS":
+        case "VIEWED":
             return "blue";
         case "DONE_RECEPTION":
             return "grey";
         case "VALIDATED":
+        case "DONE":
             return "green";
         default:
             return "grey";

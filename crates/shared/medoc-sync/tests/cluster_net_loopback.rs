@@ -3,15 +3,15 @@
 use std::net::IpAddr;
 
 use chrono::Utc;
-use medoc_core::infrastructure::database::audit_repo::init_audit_hmac_key;
 use medoc_core::infrastructure::database::connection::{run_migrations, test_memory_pool};
+use medoc_core::infrastructure::database::repos::admin::audit::init_audit_hmac_key;
 use medoc_sync::cluster::crypto::{derive_sas_from_transcript, hash_sas, DeviceIdentity};
 use medoc_sync::cluster::services::{
     list_pending_requests, mirror_join_session, store_join_admin_endpoint, submit_sas,
     PairingHandle,
 };
 use medoc_sync::cluster::SeatRole;
-use medoc_sync::cluster::{License, LicenseRepo, PairingRepo, PairingStatus, SqliteClusterRepos};
+use medoc_sync::cluster::{License, PairingStatus, SqliteClusterRepos};
 use medoc_sync::net::{
     bind_cluster_listener, complete_xx_handshake, confirm_sas_on_admin, fetch_staff_directory,
     generate_keypair, handle_join_connection, join_admin_endpoint, run_xx_initiator,
@@ -293,7 +293,8 @@ async fn sas_confirm_rejected_without_admin_accept() {
     let digits = derive_sas_from_transcript(&outcome.handshake_transcript);
     // The joiner can always derive the SAS from its own transcript. Before
     // the admin accepted, that must not enrol it or hand out a token.
-    let res = confirm_sas_on_admin("127.0.0.1", port, &identity, &outcome.session_id, &digits).await;
+    let res =
+        confirm_sas_on_admin("127.0.0.1", port, &identity, &outcome.session_id, &digits).await;
     assert!(res.is_err(), "SAS confirm must require the admin's Accept");
     let status: Option<String> =
         sqlx::query_scalar("SELECT status FROM pairing_request WHERE id = ?1")
@@ -313,7 +314,10 @@ async fn sas_confirm_rejected_without_admin_accept() {
 
     // Staff directory is not available to an unaccepted joiner either.
     let staff = fetch_staff_directory("127.0.0.1", port, &identity, &outcome.session_id).await;
-    assert!(staff.is_err(), "staff directory must require an accepted session");
+    assert!(
+        staff.is_err(),
+        "staff directory must require an accepted session"
+    );
 
     std::env::remove_var("MEDOC_CLUSTER_DEVICE_SECRET");
 }
@@ -346,8 +350,12 @@ async fn sas_confirm_rejected_while_still_join_requested() {
         .expect("join");
     save_admin_license(&admin_pool).await;
     let digits = derive_sas_from_transcript(&outcome.handshake_transcript);
-    let res = confirm_sas_on_admin("127.0.0.1", port, &identity, &outcome.session_id, &digits).await;
-    assert!(res.is_err(), "JOIN_REQUESTED (not accepted) must not confirm");
+    let res =
+        confirm_sas_on_admin("127.0.0.1", port, &identity, &outcome.session_id, &digits).await;
+    assert!(
+        res.is_err(),
+        "JOIN_REQUESTED (not accepted) must not confirm"
+    );
 
     std::env::remove_var("MEDOC_CLUSTER_DEVICE_SECRET");
 }
@@ -484,9 +492,11 @@ async fn sas_brute_force_is_locked_after_five_attempts() {
 
     let wrong = if digits == "0000" { "1111" } else { "0000" };
     for _ in 0..5 {
-        assert!(confirm_sas_on_admin("127.0.0.1", port, &identity, &outcome.session_id, wrong)
-            .await
-            .is_err());
+        assert!(
+            confirm_sas_on_admin("127.0.0.1", port, &identity, &outcome.session_id, wrong)
+                .await
+                .is_err()
+        );
     }
     assert!(
         confirm_sas_on_admin("127.0.0.1", port, &identity, &outcome.session_id, &digits)

@@ -7,14 +7,12 @@ import { ConfirmDialog, Dialog } from "../components/ui/dialog";
 import { FormSection } from "../components/ui/form-section";
 import { Input, Select } from "../components/ui/input";
 import { useToastStore } from "../components/ui/toast-store";
-import { parseEuroInput } from "@/lib/day-close";
-import { errorMessage, formatCurrency } from "@/lib/utils";
+import { errorMessage, formatCurrency, localIsoDate, parseEuroInput } from "@/lib/utils";
 import {
     CONTRACT_INTERVAL_OPTIONS,
     type ContractInterval,
     type ContractItem,
     amountEquivalentPerMonth,
-    todayYmd,
     contractActiveToday,
 } from "@/lib/contract-domain";
 import {
@@ -325,7 +323,7 @@ export function AdministrationContractsPage() {
         })();
     };
 
-    const asOfDate = useMemo(() => todayYmd(), []);
+    const asOfDate = useMemo(() => localIsoDate(new Date()), []);
 
     const formatTerm = (version: ContractItem): string => {
         if (version.unlimited) return t("page.administration.contracts.fmt.unlimited");
@@ -344,6 +342,44 @@ export function AdministrationContractsPage() {
     const formatAmountLine = (amount: number, interval: ContractInterval): string => {
         if (amount <= 0) return t("page.administration.contracts.fmt.variable");
         return `${formatCurrency(amount)} / ${t(`page.administration.contracts.interval_short.${interval}`)}`;
+    };
+
+    const renderAmountCell = (amount: number, interval: ContractInterval) => {
+        if (amount <= 0) {
+            return <span className="contracts-td-amount__value">{t("page.administration.contracts.fmt.variable")}</span>;
+        }
+        return (
+            <span className="contracts-td-amount__stack">
+                <span className="contracts-td-amount__value">{formatCurrency(amount)}</span>
+                <span className="contracts-td-amount__interval">
+                    / {t(`page.administration.contracts.interval_short.${interval}`)}
+                </span>
+            </span>
+        );
+    };
+
+    const renderTermCell = (version: ContractItem) => {
+        if (version.unlimited) {
+            return t("page.administration.contracts.fmt.unlimited");
+        }
+        if (version.periodFrom && version.periodUntil) {
+            return (
+                <span className="contracts-td-term__range">
+                    <span className="contracts-td-term__date">{version.periodFrom}</span>
+                    <span className="contracts-td-term__sep" aria-hidden>
+                        –
+                    </span>
+                    <span className="contracts-td-term__date">{version.periodUntil}</span>
+                </span>
+            );
+        }
+        if (version.periodFrom) {
+            return tp("page.administration.contracts.fmt.from", { date: version.periodFrom });
+        }
+        if (version.periodUntil) {
+            return tp("page.administration.contracts.fmt.until", { date: version.periodUntil });
+        }
+        return t("common.em_dash");
     };
 
     const formatMonthlyRef = (version: ContractItem): string => {
@@ -591,7 +627,7 @@ export function AdministrationContractsPage() {
     })();
 
     return (
-        <div className="administration-menu-page practice-workspace-page animate-fade-in">
+        <div className="administration-menu-page practice-workspace-page animate-fade-in--sticky-safe">
             <AdministrationPageHeader
                 title={t("page.administration.contracts.title")}
                 subtitle={t("page.administration.contracts.subtitle")}
@@ -607,24 +643,30 @@ export function AdministrationContractsPage() {
             {!hydrated ? (
                 <p className="page-sub" style={{ margin: 0 }}>{t("page.administration.contracts.loading")}</p>
             ) : (
-                <div className="products-workspace">
-                    <div className="products-workspace__list">
-                        <div className="card products-table-card tbl-data-card tbl-scroll">
+                <div className="staff-workspace contracts-workspace">
+                    <div className="staff-workspace__list">
+                        <div className="card staff-table-card tbl-data-card tbl-scroll">
                             <table className="tbl contracts-tbl">
+                                <colgroup>
+                                    <col className="contracts-col-name" />
+                                    <col className="contracts-col-amount" />
+                                    <col className="contracts-col-term" />
+                                    <col className="contracts-col-status" />
+                                    <col className="contracts-col-ref" />
+                                </colgroup>
                                 <thead>
                                     <tr>
-                                        <th scope="col" style={{ width: 40 }} aria-hidden> </th>
                                         <th scope="col">{t("page.administration.contracts.col.designation_partner")}</th>
-                                        <th scope="col" style={{ textAlign: "end", whiteSpace: "nowrap" }}>{t("page.administration.contracts.col.amount_interval")}</th>
+                                        <th scope="col">{t("page.administration.contracts.col.amount_interval")}</th>
                                         <th scope="col">{t("page.administration.contracts.col.runtime")}</th>
-                                        <th scope="col" style={{ whiteSpace: "nowrap" }}>{t("page.administration.contracts.col.status")}</th>
-                                        <th scope="col" style={{ textAlign: "end", minWidth: 100 }}>{t("page.administration.contracts.col.reference")}</th>
+                                        <th scope="col">{t("page.administration.contracts.col.status")}</th>
+                                        <th scope="col">{t("page.administration.contracts.col.reference")}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {contracts.length === 0 ? (
                                         <tr>
-                                            <td colSpan={6} className="page-sub" style={{ padding: 20 }}>
+                                            <td colSpan={5} className="page-sub" style={{ padding: 20 }}>
                                                 {t("page.administration.contracts.empty_table")}
                                             </td>
                                         </tr>
@@ -639,21 +681,29 @@ export function AdministrationContractsPage() {
                                                     onClick={() => selectRow(version)}
                                                     style={{ cursor: "pointer" }}
                                                 >
-                                                    <td style={{ color: "var(--fg-3)", textAlign: "center" }} title={version.documentPath ? t("page.administration.contracts.title_with_doc") : undefined}>
-                                                        {version.documentPath ? "📎" : "📄"}
+                                                    <td className="contracts-td-name">
+                                                        <div className="contracts-td-name__row">
+                                                            <span
+                                                                className="contracts-td-name__icon"
+                                                                aria-hidden
+                                                                title={version.documentPath ? t("page.administration.contracts.title_with_doc") : undefined}
+                                                            >
+                                                                {version.documentPath ? "📎" : "📄"}
+                                                            </span>
+                                                            <div className="contracts-td-name__text">
+                                                                <div className="contracts-td-name__title">{version.designation}</div>
+                                                                <div className="contracts-td-name__partner">{version.partner}</div>
+                                                            </div>
+                                                        </div>
                                                     </td>
-                                                    <td>
-                                                        <div style={{ fontWeight: 700 }}>{version.designation}</div>
-                                                        <div style={{ color: "var(--fg-3)", fontSize: 12, marginTop: 2 }}>{version.partner}</div>
+                                                    <td className="contracts-td-amount">
+                                                        {renderAmountCell(version.amount, version.interval)}
                                                     </td>
-                                                    <td style={{ textAlign: "end", fontWeight: 700, whiteSpace: "nowrap" }}>
-                                                        {formatAmountLine(version.amount, version.interval)}
-                                                    </td>
-                                                    <td style={{ fontSize: 13, color: "var(--fg-2)" }}>{formatTerm(version)}</td>
-                                                    <td>
+                                                    <td className="contracts-td-term">{renderTermCell(version)}</td>
+                                                    <td className="contracts-td-status">
                                                         {active ? <Badge variant="success">{t("page.administration.contracts.badge.active")}</Badge> : <Badge variant="warning">{t("page.administration.contracts.badge.outside")}</Badge>}
                                                     </td>
-                                                    <td style={{ textAlign: "end", fontSize: 12, color: "var(--fg-3)" }}>
+                                                    <td className="contracts-td-ref">
                                                         {formatMonthlyRef(version)}
                                                     </td>
                                                 </tr>
@@ -664,7 +714,7 @@ export function AdministrationContractsPage() {
                             </table>
                         </div>
                     </div>
-                    <div className="products-workspace__detail">{sidePanel}</div>
+                    <div className="staff-workspace__detail">{sidePanel}</div>
                 </div>
             )}
 

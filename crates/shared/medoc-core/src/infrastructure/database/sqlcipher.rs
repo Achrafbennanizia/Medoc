@@ -291,15 +291,9 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("medoc.db");
         let key = Zeroizing::new(vec![0x11; 32]);
-        let pool = open_encrypted_pool_limited(
-            &path,
-            key,
-            true,
-            1,
-            Duration::from_millis(200),
-        )
-        .await
-        .expect("open");
+        let pool = open_encrypted_pool_limited(&path, key, true, 1, Duration::from_millis(200))
+            .await
+            .expect("open");
         let held = pool.acquire().await.expect("first connection");
         let started = Instant::now();
         let err = pool.acquire().await.expect_err("second connection waits");

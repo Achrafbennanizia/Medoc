@@ -7,9 +7,9 @@ use tauri::State;
 
 use crate::application::audit_chain_guard::AuditChainGuard;
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::error::AppError;
-use crate::infrastructure::database::audit_repo;
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
 use crate::log_security;
 
 pub struct AuditChainGuardExt(pub Arc<AuditChainGuard>);
@@ -104,14 +104,4 @@ pub async fn repair_audit_chain(
         chain_ok: broken_at.is_none(),
         broken_at,
     })
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_audit_chain_commands {
-    () => {
-        $crate::commands::audit_chain_commands::get_audit_chain_status,
-        $crate::commands::audit_chain_commands::acknowledge_audit_chain_break,
-        $crate::commands::audit_chain_commands::repair_audit_chain,
-    };
 }

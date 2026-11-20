@@ -85,6 +85,16 @@ describe("i18n locale parity", () => {
         expect(translateLocaleParams("ar", "appointment.drawer.duration_min", { min: 45 })).toBe("45 د.");
     });
 
+    it("interpolates {{count}} without leaving braces (notifications task link)", () => {
+        expect(translateLocaleParams("en", "app.notifications.show_tasks_count", { count: 15 })).toBe(
+            "My tasks (15)",
+        );
+        expect(translateLocaleParams("ar", "app.notifications.show_tasks_count", { count: 15 })).toBe(
+            "مهامي (15)",
+        );
+        expect(translateLocaleParams("en", "app.notifications.show_tasks_count", { count: 15 })).not.toContain("{");
+    });
+
     it("pairing confirmation code keeps western digits in Arabic", () => {
         const shown = translateLocaleParams("ar", "settings.pairing.confirm_code", { pin: "0482" });
         expect(shown).toContain("0482");
@@ -127,6 +137,71 @@ describe("i18n locale parity", () => {
         })).not.toMatch(/s/);
         expect(translatePluralUnit("ar", "page.finance_cash.payment_unit", 3)).toBe("دفعات");
         expect(translatePluralUnit("ar", "page.finance_cash.payment_unit", 11)).toBe("دفعة");
+    });
+
+    it("all notification list keys resolve in all four locales", () => {
+        const keys = [
+            "app.notifications.title",
+            "app.notifications.empty",
+            "app.notifications.mark_all_read",
+            "app.notifications.marked_all",
+            "app.notifications.show_dashboard",
+            "app.notifications.show_tasks",
+            "app.notifications.show_tasks_count",
+            "app.notifications.task_open",
+            "app.notifications.task_returned",
+            "app.notifications.task_needs_validation",
+            "app.notifications.task_assigned_title",
+            "app.notifications.task_assigned_body_fallback",
+            "app.notifications.task_done_title",
+            "app.notifications.task_done_body_fallback",
+            "app.notifications.task_back_title",
+            "app.notifications.task_back_body_fallback",
+            "app.notifications.plan_hint_title",
+            "app.notifications.plan_hint_body",
+            "app.notifications.chart_forward_title",
+            "app.notifications.chart_forward_body",
+            "app.notifications.chart_forward_body_note",
+            "app.notifications.ticket_title",
+            "app.notifications.outside_hours_summary_title",
+            "app.notifications.outside_hours_summary_body",
+            "app.notifications.outside_hours_item_title",
+            "app.notifications.outside_hours_item_body",
+            "app.notifications.outside_hours_item_body_reason",
+            "app.notifications.outside_hours_toast",
+            "app.notifications.outside_hours_reason.outside_hours",
+            "app.notifications.outside_hours_reason.break",
+            "app.notifications.outside_hours_reason.closure",
+            "app.notifications.outside_hours_reason.absence",
+            "app.notifications.seed.PRACTICE_TASK.title",
+            "app.notifications.seed.PRACTICE_TASK.body",
+            "app.notifications.seed.TICKET.title",
+            "app.notifications.seed.TICKET.body",
+            "app.notifications.seed.APPOINTMENT.title",
+            "app.notifications.seed.APPOINTMENT.body",
+            "app.notifications.seed.STOCK.title",
+            "app.notifications.seed.STOCK.body",
+            "app.notifications.seed.SYSTEM.title",
+            "app.notifications.seed.SYSTEM.body",
+            "appointments.scheduling.outside_hours",
+            "appointments.scheduling.absence",
+        ] as const;
+        const arabicRe = /[\u0600-\u06FF]/;
+        for (const loc of LOCALES) {
+            for (const key of keys) {
+                const text = translateLocale(loc, key);
+                expect(text, `${loc}:${key}`).not.toBe(key);
+                expect(text.trim().length, `${loc}:${key} empty`).toBeGreaterThan(0);
+            }
+        }
+        expect(arabicRe.test(translateLocale("ar", "app.notifications.plan_hint_title"))).toBe(true);
+        expect(arabicRe.test(translateLocale("ar", "app.notifications.seed.STOCK.title"))).toBe(true);
+        expect(
+            translateLocaleParams("de", "app.notifications.task_assigned_title", { label: "Ada" }),
+        ).toContain("Neue Aufgabe");
+        expect(
+            translateLocaleParams("fr", "app.notifications.outside_hours_toast", { count: 2 }),
+        ).not.toMatch(/\bNotifications\b/);
     });
 
     it("RTL locale helper marks Arabic", () => {

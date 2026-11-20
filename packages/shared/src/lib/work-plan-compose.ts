@@ -1,7 +1,8 @@
 /**
  * Additive WorkPlan entries (add + time off) and resolution to target intervals per day.
  */
-import { eachDayOfInterval, format, getISODay, parseISO } from "date-fns";
+import { eachDayOfInterval, getISODay, parseISO } from "date-fns";
+import { localIsoDate } from "@/lib/utils";
 
 export type WorkPlanComposeEntry =
     | {
@@ -36,10 +37,6 @@ export type WorkPlanComposeEntry =
 
 function isoWeekdayYmd(ymd: string): 1 | 2 | 3 | 4 | 5 | 6 | 7 {
     return getISODay(parseISO(ymd.length >= 10 ? ymd.slice(0, 10) : ymd)) as 1 | 2 | 3 | 4 | 5 | 6 | 7;
-}
-
-function ymd(d: Date): string {
-    return format(d, "yyyy-MM-dd");
 }
 
 function mergeIntervals(iv: [number, number][]): [number, number][] {
@@ -80,7 +77,7 @@ export function resolveComposeWorkIntervals(
             if (from > to) [from, to] = [to, from];
             const days = eachDayOfInterval({ start: from, end: to });
             for (const d of days) {
-                const y = ymd(d);
+                const y = localIsoDate(d);
                 if (y !== ymdStr) continue;
                 const wd = isoWeekdayYmd(ymdStr);
                 if (e.weekdays.length > 0 && !e.weekdays.includes(wd)) continue;
@@ -95,7 +92,7 @@ export function resolveComposeWorkIntervals(
         if (from > to) [from, to] = [to, from];
         const days = eachDayOfInterval({ start: from, end: to });
         for (const d of days) {
-            if (ymd(d) === ymdStr) return [];
+            if (localIsoDate(d) === ymdStr) return [];
         }
     }
     return mergeIntervals(adds);

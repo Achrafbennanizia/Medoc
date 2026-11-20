@@ -46,7 +46,7 @@ export interface InvoiceInput {
     bank_details?: string[] | null;
     payment_terms_text?: string | null;
     vat_notice?: string | null;
-    /** UI locale for letterhead chrome (`en`|`de`|`fr`|`ar`). */
+    /** Document language (`documentLocale()`); the server prints the whole invoice in it. */
     locale?: string | null;
     /** Arabic: logo on the top-right. */
     rtl?: boolean | null;

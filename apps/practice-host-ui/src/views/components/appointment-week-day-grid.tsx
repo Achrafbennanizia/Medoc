@@ -5,6 +5,7 @@ import {
     type MouseEvent as ReactMouseEvent,
     type SetStateAction,
     memo,
+    useEffect,
     useLayoutEffect,
     useMemo,
     useRef,
@@ -15,8 +16,10 @@ import type { PhysicianSummary } from "@/systems/practice-host/controllers/staff
 import { useDateFnsLocale, useT, useTParams } from "@/lib/i18n";
 import { extractToothacheFdisFromChiefComplaint, formatDentalToothLabel, formatDentalToothList } from "@/lib/dental";
 import { appointmentIsEmergencyMarked, parseAppointmentDurationMin } from "@/lib/appointment-domain";
-import { minutesToTime } from "@/lib/appointment-availability";
-import type { PracticeWorkHoursConfig } from "@/lib/practice-planning";
+import { absenceBandsOnDay, minutesToTime } from "@/lib/appointment-availability";
+import { practiceSlotMinutes, type PracticeWorkHoursConfig } from "@/lib/practice-planning";
+import { practiceTodayYmd } from "@/lib/practice-timezone";
+import { snapAppointmentDragPosition } from "@/lib/appointment-drag-snap";
 import {
     blockToneForAppointment,
     calendarMonthOffsetFromToday,
@@ -37,20 +40,23 @@ import {
     assignAppointmentOverlapLanes,
     appointmentOverlapLaneInsets,
     appointmentTimelineHourLabels,
-    appointmentTimeToMinutes,
+    timeToMinutes,
     type AppointmentDoctorTone,
     type AppointmentTimelineBounds,
 } from "@/lib/appointment-calendar-ui";
-import type { Appointment } from "@/models/types";
+import type { Absence, Appointment } from "@/models/types";
 import { BoltIcon, CalendarIcon, ChevronLeftIcon, ChevronRightIcon } from "@/lib/icons";
 import { Button } from "@/views/components/ui/button";
 import { EmptyState } from "@/views/components/ui/empty-state";
 import { DoctorLegend } from "@/views/components/appointment-doctor-legend";
-import { bindAppointmentDragBlock, paintAppointmentDragVisual } from "@/lib/appointment-drag-runtime";
+import {
+    bindAppointmentDragBlock,
+    paintAppointmentDragVisual,
+    subscribeAppointmentHourGutterSnap,
+} from "@/lib/appointment-drag-runtime";
 
 const PX_PER_MIN = APPOINTMENT_PX_PER_MIN;
 const HOUR_PX = APPOINTMENT_HOUR_PX;
-const timeToMinutes = appointmentTimeToMinutes;
 
 export type AppointmentDragState = {
     id: string;
@@ -109,14 +115,25 @@ function AppointmentHourGutterSnap(props: {
     dayStartMin: number;
 }) {
     const { startMin, pxPerMin, phase, dayStartMin } = props;
-    if (startMin == null || phase == null) return null;
+    const [dragMin, setDragMin] = useState<number | null>(null);
+    useEffect(() => {
+        if (phase !== "drag") {
+            setDragMin(null);
+            return;
+        }
+        return subscribeAppointmentHourGutterSnap((min) => {
+            setDragMin((prev) => (prev === min ? prev : min));
+        });
+    }, [phase]);
+    const shown = phase === "drag" && dragMin != null ? dragMin : startMin;
+    if (shown == null || phase == null) return null;
     return (
         <div
             className={`appointment-hour-gutter-snap appointment-hour-gutter-snap--${phase}`}
-            style={{ top: (startMin - dayStartMin) * pxPerMin }}
+            style={{ top: (shown - dayStartMin) * pxPerMin }}
             aria-hidden
         >
-            <span className="appointment-hour-gutter-snap__time">{minutesToTime(startMin)}</span>
+            <span className="appointment-hour-gutter-snap__time">{minutesToTime(shown)}</span>
         </div>
     );
 }
@@ -307,6 +324,7 @@ function AppointmentTimeColumnBody({
     clickSuppressUntilRef,
     timelineBounds,
     practiceCfg,
+    absences,
 }: {
     iso: string;
     appointments: Appointment[];
@@ -327,6 +345,7 @@ function AppointmentTimeColumnBody({
     /** Day and week view: hour height from available grid (ResizeObserver) */
     axisLayout?: { hourPx: number; pxPerMin: number };
     timelineBounds: AppointmentTimelineBounds;
+    absences: Absence[];
     practiceCfg: PracticeWorkHoursConfig;
 }) {
     const t = useT();
@@ -337,7 +356,7 @@ function AppointmentTimeColumnBody({
     const hourPx = axisLayout?.hourPx ?? HOUR_PX;
     const pxPerMin = axisLayout?.pxPerMin ?? PX_PER_MIN;
     const axisHeightPx = ((dayEndMin - dayStartMin) / 60) * hourPx;
-    const todayIso = format(new Date(), "yyyy-MM-dd");
+    const todayIso = practiceTodayYmd();
     const isTodayCol = iso === todayIso;
     const isInactiveDay = !isAppointmentCalendarWorkingDay(parseISO(iso), practiceCfg);
     const dayList = useMemo(() => [...appointments].sort((a, b) => a.time.localeCompare(b.time)), [appointments]);
@@ -375,6 +394,10 @@ function AppointmentTimeColumnBody({
         () => deriveDayClosedSpans(practiceCfg, iso, timelineBounds),
         [practiceCfg, iso, timelineBounds],
     );
+    const absenceBands = useMemo(
+        () => absenceBandsOnDay(absences, iso, timelineBounds),
+        [absences, iso, timelineBounds],
+    );
     const nMin = nowMin();
 
     useLayoutEffect(() => {
@@ -392,11 +415,18 @@ function AppointmentTimeColumnBody({
         const r = el.getBoundingClientRect();
         const y = e.clientY - r.top;
         const raw = dayStartMin + y / pxPerMin;
-        const snapped = Math.round(raw / 15) * 15;
-        const lo = dayStartMin;
-        const hi = dayEndMin - 15;
-        const start = Math.max(lo, Math.min(snapped, hi));
-        onNewAt(iso, start);
+        const durMin = Math.max(5, practiceSlotMinutes(practiceCfg));
+        const snap = snapAppointmentDragPosition({
+            practiceCfg,
+            absences,
+            physicianId: practiceCfg.defaultPhysicianId ?? "",
+            isoDate: iso,
+            rawStartMin: raw,
+            durMin,
+            timelineBounds,
+        });
+        if (!snap.dayAllowed || !snap.slotAllowed) return;
+        onNewAt(iso, snap.startMin);
     };
 
     return (
@@ -420,6 +450,18 @@ function AppointmentTimeColumnBody({
                         top: (span.fromMin - dayStartMin) * pxPerMin,
                         height: (span.toMin - span.fromMin) * pxPerMin,
                     }}
+                    aria-hidden
+                />
+            ))}
+            {absenceBands.map((span, i) => (
+                <div
+                    key={`absence-${i}`}
+                    className="appointment-day-col__absence"
+                    style={{
+                        top: (span.fromMin - dayStartMin) * pxPerMin,
+                        height: (span.toMin - span.fromMin) * pxPerMin,
+                    }}
+                    title={t("appointments.scheduling.absence")}
                     aria-hidden
                 />
             ))}
@@ -532,6 +574,7 @@ export function AppointmentWeekGrid({
     onContextMenu,
     onNewAt,
     nowMin,
+    absences,
 }: {
     appointments: Appointment[];
     weekOffset: number;
@@ -548,6 +591,7 @@ export function AppointmentWeekGrid({
     onContextMenu: (t: Appointment, e: ReactMouseEvent) => void;
     onNewAt: (iso: string, min: number) => void;
     nowMin: () => number;
+    absences: Absence[];
 }) {
     const dateFnsLocale = useDateFnsLocale();
     const columnCount = useMemo(() => appointmentCalendarColumnCount(practiceCfg), [practiceCfg]);
@@ -588,7 +632,7 @@ export function AppointmentWeekGrid({
                 <div className="appointment-week-corner" aria-hidden />
                 {days.map((d) => {
                     const iso = format(d, "yyyy-MM-dd");
-                    const isToday = iso === format(new Date(), "yyyy-MM-dd");
+                    const isToday = iso === practiceTodayYmd();
                     const isInactiveDay = !isAppointmentCalendarWorkingDay(d, practiceCfg);
                     const dow = format(d, "EEEEE", { locale: dateFnsLocale }).toUpperCase();
                     return (
@@ -641,6 +685,7 @@ export function AppointmentWeekGrid({
                                 axisLayout={weekAxisLayout}
                                 timelineBounds={timelineBounds}
                                 practiceCfg={practiceCfg}
+                                absences={absences}
                                 onBeginAppointmentDrag={onClearSnapLabel}
                                 clickSuppressUntilRef={clickSuppressUntilRef}
                             />
@@ -675,6 +720,7 @@ export function AppointmentDaySplit({
     onEmptyCreate,
     onEmptyResetFilters,
     nowMin,
+    absences,
 }: {
     dayDate: Date;
     onJumpToDay: (d: Date) => void;
@@ -698,6 +744,7 @@ export function AppointmentDaySplit({
     onEmptyCreate: () => void;
     onEmptyResetFilters?: () => void;
     nowMin: () => number;
+    absences: Absence[];
 }) {
     const t = useT();
     const tp = useTParams();
@@ -738,7 +785,7 @@ export function AppointmentDaySplit({
     const first = new Date(y, m, 1);
     const startOffset = (first.getDay() + 6) % 7;
     const daysInMonth = new Date(y, m + 1, 0).getDate();
-    const todayIso = format(new Date(), "yyyy-MM-dd");
+    const todayIso = practiceTodayYmd();
     const selectedIso = iso;
 
     const hourGutterSnapMin = dragState != null ? dragState.currentStartMin : daySnapLabel != null ? daySnapLabel.startMin : null;
@@ -897,6 +944,7 @@ export function AppointmentDaySplit({
                                 axisLayout={dayAxisLayout}
                                 timelineBounds={timelineBounds}
                                 practiceCfg={practiceCfg}
+                                absences={absences}
                             />
                         </div>
                     </div>

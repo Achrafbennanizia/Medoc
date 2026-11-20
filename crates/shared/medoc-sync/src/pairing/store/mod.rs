@@ -12,8 +12,8 @@ use crate::master_keys;
 use crate::schema::ensure_sync_tables;
 
 use super::pin::{
-    generate_confirm_pin, generate_confirm_pin_from_transcript, hash_confirm_pin,
-    normalise_pin_input, verify_confirm_pin, CONFIRM_PIN_MAX_ATTEMPTS, CONFIRM_PIN_TTL_SECS,
+    generate_confirm_pin_random, hash_confirm_pin, normalise_pin_input, verify_confirm_pin,
+    CONFIRM_PIN_MAX_ATTEMPTS, CONFIRM_PIN_TTL_SECS,
 };
 use super::policy::{is_pairing_enabled, sanitise_actions};
 use super::types::{PairingDecideResult, PairingDecision, PairingRequest, PairingRequestSubmit};
@@ -261,8 +261,6 @@ async fn confirm_pin_matching_handshake(
     pool: &SqlitePool,
     request_id: &str,
 ) -> Result<String, AppError> {
-    use base64::engine::general_purpose::{STANDARD, STANDARD_NO_PAD, URL_SAFE, URL_SAFE_NO_PAD};
-    use base64::Engine;
     let row: Option<(Option<String>, Option<String>)> = sqlx::query_as(
         "SELECT handshake_transcript_b64, pairing_state FROM pairing_request WHERE id = ?1",
     )
@@ -271,17 +269,12 @@ async fn confirm_pin_matching_handshake(
     .await
     .map_err(AppError::Database)?;
     let Some((b64, pairing_state)) = row else {
-        return Ok(generate_confirm_pin());
+        return Ok(generate_confirm_pin_random());
     };
     if let Some(raw) = b64 {
-        let trimmed = raw.trim();
-        if !trimmed.is_empty() {
-            for engine in [&STANDARD, &STANDARD_NO_PAD, &URL_SAFE, &URL_SAFE_NO_PAD] {
-                if let Ok(bytes) = engine.decode(trimmed) {
-                    if !bytes.is_empty() {
-                        return Ok(generate_confirm_pin_from_transcript(&bytes));
-                    }
-                }
+        if let Some(bytes) = crate::cluster::crypto::decode_handshake_transcript(&raw) {
+            if !bytes.is_empty() {
+                return Ok(crate::cluster::crypto::derive_sas_from_transcript(&bytes));
             }
         }
     }
@@ -290,7 +283,7 @@ async fn confirm_pin_matching_handshake(
             "Cluster handshake missing; send a new join request from the replica.".into(),
         ));
     }
-    Ok(generate_confirm_pin())
+    Ok(generate_confirm_pin_random())
 }
 
 /// Replica confirms the 4-digit PIN; master mints activation token on success.

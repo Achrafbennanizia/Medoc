@@ -113,8 +113,9 @@ impl Default for SyncDeploymentConfig {
     }
 }
 
-pub const APP_KV_DEPLOYMENT_KEY: &str = "sync.deployment.v1";
-pub const APP_KV_DEVICE_ID_KEY: &str = "sync.device_id.v1";
+pub use medoc_core::infrastructure::database::sync_registry::{
+    APP_KV_DEPLOYMENT_KEY, APP_KV_DEVICE_ID_KEY,
+};
 /// SHA-256 of this install's LAN certificate. The main device writes it when
 /// HTTPS starts; replicas copy it into `master_cert_sha256` after join.
 pub const APP_KV_LAN_TLS_PIN: &str = "sync.lan_tls_pin.v1";

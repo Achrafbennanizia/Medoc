@@ -4,12 +4,10 @@ use medoc_core::infrastructure::database::connection::{run_migrations, test_memo
 use medoc_sync::deployment::{DeploymentMode, DeviceRole, SyncDeploymentConfig};
 use medoc_sync::engine::SyncEngine;
 use medoc_sync::repo::{
-    load_row_payload_json,
-    append_outbox, enqueue_full_snapshot, ensure_local_device, list_entries_since,
-    list_pending_outbox, list_pending_outbox_for_peer, mark_applied, mark_outbox_delivered,
-    mark_outbox_failed, mark_peer_delivery, save_deployment, set_observed_seq, status_snapshot,
-    sync_record_or_noop,
-    was_applied, is_synced_table, synced_tables,
+    append_outbox, enqueue_full_snapshot, ensure_local_device, is_synced_table, list_entries_since,
+    list_pending_outbox, list_pending_outbox_for_peer, load_row_payload_json, mark_applied,
+    mark_outbox_delivered, mark_outbox_failed, mark_peer_delivery, save_deployment,
+    set_observed_seq, status_snapshot, sync_record_or_noop, synced_tables, was_applied,
 };
 use medoc_sync::schema::ensure_sync_tables;
 use sqlx::SqlitePool;
@@ -148,11 +146,23 @@ async fn mark_outbox_delivered_clears_pending_count() {
     )
     .await
     .expect("append");
-    assert_eq!(list_pending_outbox(&pool, &device, 500).await.unwrap().len(), 2);
+    assert_eq!(
+        list_pending_outbox(&pool, &device, 500)
+            .await
+            .unwrap()
+            .len(),
+        2
+    );
     mark_outbox_delivered(&pool, &device, e1.seq)
         .await
         .expect("deliver");
-    assert_eq!(list_pending_outbox(&pool, &device, 500).await.unwrap().len(), 1);
+    assert_eq!(
+        list_pending_outbox(&pool, &device, 500)
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
 }
 
 #[tokio::test]
@@ -179,8 +189,12 @@ async fn delivered_watermark_leaves_a_missing_blob_row_pending() {
     )
     .await
     .unwrap();
-    mark_outbox_failed(&pool, &blob.id, "BLOB_MISSING").await.unwrap();
-    mark_outbox_delivered(&pool, &device, later.seq).await.unwrap();
+    mark_outbox_failed(&pool, &blob.id, "BLOB_MISSING")
+        .await
+        .unwrap();
+    mark_outbox_delivered(&pool, &device, later.seq)
+        .await
+        .unwrap();
     let delivered: Option<String> =
         sqlx::query_scalar("SELECT delivered_at FROM sync_outbox WHERE id = ?1")
             .bind(&blob.id)
@@ -463,7 +477,7 @@ async fn snapshot_omits_staff_secrets_and_portal_keys() {
     .execute(&pool)
     .await
     .expect("staff");
-    medoc_core::infrastructure::database::app_kv_repo::set(
+    medoc_core::infrastructure::database::repos::admin::app_kv::set(
         &pool,
         "company.portal.config.v1",
         r#"{"apiKey":"PORTAL-SECRET-P2"}"#,
@@ -478,8 +492,10 @@ async fn snapshot_omits_staff_secrets_and_portal_keys() {
             .is_none(),
         "staff is DeviceLocal and must not enter the outbox"
     );
-    assert!(load_row_payload_json(&pool, "app_kv", "company.portal.config.v1")
-        .await
-        .expect("portal load")
-        .is_none());
+    assert!(
+        load_row_payload_json(&pool, "app_kv", "company.portal.config.v1")
+            .await
+            .expect("portal load")
+            .is_none()
+    );
 }

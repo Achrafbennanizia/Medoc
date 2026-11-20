@@ -1,7 +1,7 @@
 use crate::domain::entities::AuditLog;
 use crate::error::AppError;
 use crate::infrastructure::crypto;
-use crate::infrastructure::database::audit_break_glass;
+use crate::infrastructure::database::repos::admin::audit_break_glass;
 use crate::infrastructure::secret_store;
 use sqlx::SqlitePool;
 use std::path::Path;

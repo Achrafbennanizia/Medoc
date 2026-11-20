@@ -1,4 +1,7 @@
 import type { Absence, Appointment } from "../models/types";
+import { minutesToTime } from "@/lib/utils";
+
+export { minutesToTime };
 import { parseAppointmentDurationMin } from "./appointment-domain";
 import type { PracticeWorkHoursConfig } from "./practice-planning";
 import {
@@ -19,12 +22,6 @@ export function timeToMinutes(u: string): number {
     return h * 60 + m;
 }
 
-export function minutesToTime(min: number): string {
-    const h = Math.floor(min / 60);
-    const m = min % 60;
-    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-}
-
 function hmStringToMinutes(s: string | null | undefined): number | null {
     if (!s?.trim()) return null;
     const t = s.trim();
@@ -34,6 +31,57 @@ function hmStringToMinutes(s: string | null | undefined): number | null {
 
 function isoDateInAbwRange(iso: string, fromDay: string, toDay: string): boolean {
     return iso >= fromDay && iso <= toDay;
+}
+
+export function absenceCoversIso(rows: Absence[], isoDate: string): boolean {
+    return rows.some((a) => isoDateInAbwRange(isoDate, a.from_day, a.to_day));
+}
+
+/** Absence bands clipped to the visible timeline. A row with no times covers the whole day. */
+export function absenceBandsOnDay(
+    rows: Absence[],
+    isoDate: string,
+    bounds: { startMin: number; endMin: number },
+): Array<{ fromMin: number; toMin: number }> {
+    const bands: Array<{ fromMin: number; toMin: number }> = [];
+    for (const a of rows) {
+        if (!isoDateInAbwRange(isoDate, a.from_day, a.to_day)) continue;
+        const rawFrom = a.from_time?.trim();
+        const rawTo = a.to_time?.trim();
+        if (!rawFrom || !rawTo) {
+            bands.push({ fromMin: bounds.startMin, toMin: bounds.endMin });
+            continue;
+        }
+        const fromMin = hmStringToMinutes(rawFrom);
+        const toMin = hmStringToMinutes(rawTo);
+        if (fromMin == null || toMin == null || toMin <= fromMin) {
+            bands.push({ fromMin: bounds.startMin, toMin: bounds.endMin });
+            continue;
+        }
+        const from = Math.max(bounds.startMin, fromMin);
+        const to = Math.min(bounds.endMin, toMin);
+        if (to > from) bands.push({ fromMin: from, toMin: to });
+    }
+    return mergeMinuteBands(bands);
+}
+
+/** Overlapping or touching holiday windows become one span. */
+function mergeMinuteBands(
+    bands: Array<{ fromMin: number; toMin: number }>,
+): Array<{ fromMin: number; toMin: number }> {
+    if (bands.length < 2) return bands;
+    const sorted = [...bands].sort((a, b) => a.fromMin - b.fromMin || a.toMin - b.toMin);
+    const merged: Array<{ fromMin: number; toMin: number }> = [{ ...sorted[0]! }];
+    for (let i = 1; i < sorted.length; i++) {
+        const next = sorted[i]!;
+        const last = merged[merged.length - 1]!;
+        if (next.fromMin <= last.toMin) {
+            last.toMin = Math.max(last.toMin, next.toMin);
+        } else {
+            merged.push({ ...next });
+        }
+    }
+    return merged;
 }
 
 /** True if [startMin, endMin) overlaps a practice absence window on `isoDate`. */
@@ -112,7 +160,7 @@ export function validateAppointmentSchedulingUpdates(
         const physicianId =
             (typeof u.data.physician_id === "string" && u.data.physician_id.trim() ? u.data.physician_id.trim() : undefined)
             ?? appointment.physician_id;
-        const eff = resolveBookingWorkHoursForPhysician(practiceCfg, physicianId);
+        const eff = resolveBookingWorkHoursForPhysician(practiceCfg, physicianId, date);
         const reason = appointmentSchedulingBlockReason(eff, absences, date, startMin, endMin, t);
         if (reason) return reason;
     }
@@ -167,7 +215,7 @@ export function suggestAlternativeAppointmentSlots(opts: {
     t: TFn;
 }): string[] {
     const max = opts.max ?? 5;
-    const eff = resolveBookingWorkHoursForPhysician(opts.practiceCfg, opts.physicianId);
+    const eff = resolveBookingWorkHoursForPhysician(opts.practiceCfg, opts.physicianId, opts.date);
     const step = Math.max(5, opts.slotStep);
     const prefMin = timeToMinutes(normTimeHm(opts.preferredTime));
     const offsets: number[] = [0];
@@ -195,11 +243,4 @@ export function suggestAlternativeAppointmentSlots(opts: {
 export function formatAlternativeSlots(slots: string[], tp: TParamsFn): string {
     if (slots.length === 0) return "";
     return slots.map((s) => tp("appointments.scheduling.time_oclock", { time: s })).join(", ");
-}
-
-/** @deprecated Use formatAlternativeSlots(slots, tp) */
-export function formatAlternativeSlotsDe(slots: string[]): string {
-    return formatAlternativeSlots(slots, (key, params) =>
-        key === "appointments.scheduling.time_oclock" ? `${params.time} Uhr` : String(params.time),
-    );
 }

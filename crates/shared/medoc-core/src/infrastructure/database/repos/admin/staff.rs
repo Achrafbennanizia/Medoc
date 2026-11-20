@@ -419,64 +419,102 @@ async fn staff_delete_ref_counts(pool: &SqlitePool, id: &str) -> Result<StaffDel
 }
 
 async fn detach_staff_operational_rows(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
-    // sync: recorded by caller delete_staff
     tracing::info!(
         target: "medoc::staff",
         event = "STAFF_DELETE_DETACH_OPERATIONAL",
         staff_id = %id
     );
-    sqlx::query(
-        "DELETE FROM work_time_pause_segment WHERE session_id IN
-         (SELECT id FROM work_time_session WHERE staff_id = ?1)",
-    )
-    .bind(id)
-    .execute(pool)
-    .await?;
-    sqlx::query("DELETE FROM work_time_preference WHERE staff_id = ?1")
-        .bind(id)
-        .execute(pool)
-        .await?;
-    sqlx::query("DELETE FROM work_time_session WHERE staff_id = ?1")
-        .bind(id)
-        .execute(pool)
-        .await?;
-    sqlx::query("DELETE FROM work_plan_adjustment WHERE staff_id = ?1")
-        .bind(id)
-        .execute(pool)
-        .await?;
-    sqlx::query("DELETE FROM sick_leave_certificate WHERE staff_id = ?1")
-        .bind(id)
-        .execute(pool)
-        .await?;
+    // Every removed or re-pointed row is queued for the other devices in the
+    // same transaction. Before, these statements ran without an outbox entry
+    // (the comment said "recorded by caller", but the caller did not), so
+    // replicas kept the deleted person's time sheets and sick notes.
+    let mut tx = pool.begin().await?;
+    let detach: [(&str, &str, &str); 5] = [
+        (
+            "work_time_pause_segment",
+            "DELETE FROM work_time_pause_segment WHERE session_id IN
+             (SELECT id FROM work_time_session WHERE staff_id = ?1) RETURNING id",
+            "DELETE",
+        ),
+        (
+            "work_time_preference",
+            "DELETE FROM work_time_preference WHERE staff_id = ?1 RETURNING staff_id",
+            "DELETE",
+        ),
+        (
+            "work_time_session",
+            "DELETE FROM work_time_session WHERE staff_id = ?1 RETURNING id",
+            "DELETE",
+        ),
+        (
+            "work_plan_adjustment",
+            "DELETE FROM work_plan_adjustment WHERE staff_id = ?1 RETURNING id",
+            "DELETE",
+        ),
+        (
+            "sick_leave_certificate",
+            "DELETE FROM sick_leave_certificate WHERE staff_id = ?1 RETURNING id",
+            "DELETE",
+        ),
+    ];
+    for (table, sql, op) in detach {
+        let ids: Vec<String> = sqlx::query_scalar(sql).bind(id).fetch_all(&mut *tx).await?;
+        for row_id in ids {
+            crate::infrastructure::database::recorded_write::record_in_tx(
+                &mut tx, table, &row_id, op,
+            )
+            .await?;
+        }
+    }
     // A note written for someone else stays. Point the author columns at
     // another account so this delete does not fail the foreign key.
     let other: Option<String> =
         sqlx::query_scalar("SELECT id FROM staff WHERE id != ?1 ORDER BY id LIMIT 1")
             .bind(id)
-            .fetch_optional(pool)
+            .fetch_optional(&mut *tx)
             .await
             .map_err(AppError::Database)?;
     if let Some(other) = other {
-        sqlx::query(
+        let ids: Vec<String> = sqlx::query_scalar(
             "UPDATE sick_leave_certificate SET created_by = ?1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
-             WHERE created_by = ?2 AND staff_id != ?2",
+             WHERE created_by = ?2 AND staff_id != ?2 RETURNING id",
         )
         .bind(&other)
         .bind(id)
-        .execute(pool)
+        .fetch_all(&mut *tx)
         .await?;
+        for row_id in ids {
+            crate::infrastructure::database::recorded_write::record_in_tx(
+                &mut tx,
+                "sick_leave_certificate",
+                &row_id,
+                "UPDATE",
+            )
+            .await?;
+        }
     }
-    sqlx::query(
+    let ids: Vec<String> = sqlx::query_scalar(
         "UPDATE sick_leave_certificate SET ended_by = NULL, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
-         WHERE ended_by = ?1 AND staff_id != ?1",
+         WHERE ended_by = ?1 AND staff_id != ?1 RETURNING id",
     )
     .bind(id)
-    .execute(pool)
+    .fetch_all(&mut *tx)
     .await?;
+    for row_id in ids {
+        crate::infrastructure::database::recorded_write::record_in_tx(
+            &mut tx,
+            "sick_leave_certificate",
+            &row_id,
+            "UPDATE",
+        )
+        .await?;
+    }
+    // Device sessions are local to this device.
     sqlx::query("DELETE FROM device_session WHERE user_id = ?1")
         .bind(id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
+    tx.commit().await?;
     Ok(())
 }
 
@@ -631,11 +669,13 @@ async fn record_returning(
 }
 
 pub async fn update_password_hash(pool: &SqlitePool, id: &str, hash: &str) -> Result<(), AppError> {
-    sqlx::query("UPDATE staff SET password_hash = ?1, updated_at = CURRENT_TIMESTAMP WHERE id = ?2")
-        .bind(hash)
-        .bind(id)
-        .execute(pool)
-        .await?;
+    sqlx::query(
+        "UPDATE staff SET password_hash = ?1, updated_at = CURRENT_TIMESTAMP WHERE id = ?2",
+    )
+    .bind(hash)
+    .bind(id)
+    .execute(pool)
+    .await?;
     Ok(())
 }
 
@@ -652,11 +692,10 @@ pub async fn replace_password(pool: &SqlitePool, id: &str, hash: &str) -> Result
 }
 
 pub async fn token_version(pool: &SqlitePool, id: &str) -> Result<i64, AppError> {
-    let version: Option<i64> =
-        sqlx::query_scalar("SELECT token_version FROM staff WHERE id = ?1")
-            .bind(id)
-            .fetch_optional(pool)
-            .await?;
+    let version: Option<i64> = sqlx::query_scalar("SELECT token_version FROM staff WHERE id = ?1")
+        .bind(id)
+        .fetch_optional(pool)
+        .await?;
     version.ok_or(AppError::Unauthorized)
 }
 

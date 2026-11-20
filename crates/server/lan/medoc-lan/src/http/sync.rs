@@ -18,7 +18,7 @@ use axum::extract::{ConnectInfo, Extension, Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
-use medoc_core::infrastructure::database::app_kv_repo;
+use medoc_core::infrastructure::database::repos::admin::app_kv as app_kv_repo;
 use medoc_sync::deployment::APP_KV_DEVICE_ID_KEY;
 use medoc_sync::engine::SyncEngine;
 use medoc_sync::master_keys;
@@ -45,6 +45,18 @@ pub struct SyncPullBody {
     pub requester_id: Option<String>,
     #[serde(default)]
     pub live_since_seq: i64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncExchangeBody {
+    pub from_device_id: String,
+    #[serde(default)]
+    pub packets: Vec<OutboxEntry>,
+    #[serde(default)]
+    pub ack_through_seq: i64,
+    #[serde(default)]
+    pub queues: Vec<String>,
 }
 
 fn forbidden(reason: &'static str) -> Response {
@@ -132,6 +144,89 @@ pub async fn sync_push(
     Ok(Json(result))
 }
 
+pub async fn sync_exchange(
+    State(state): State<LanHttpState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    mut req: axum::extract::Request,
+) -> Result<Json<medoc_sync::engine::SyncExchangePage>, Response> {
+    if master_license::require_master_license(&state.pool)
+        .await
+        .is_err()
+    {
+        return Err(forbidden("master_license_required"));
+    }
+    let Some(token_check) = req.extensions().get::<ActivationTokenPayload>().cloned() else {
+        return Err(forbidden("activation_token_required"));
+    };
+    let body_bytes =
+        match axum::body::to_bytes(std::mem::take(req.body_mut()), 16 * 1024 * 1024).await {
+            Ok(b) => b,
+            Err(_) => {
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    Json(json!({"error": "sync_exchange_failed", "reason": "body"})),
+                )
+                    .into_response())
+            }
+        };
+    let body: SyncExchangeBody = match serde_json::from_slice(&body_bytes) {
+        Ok(b) => b,
+        Err(error) => {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(json!({
+                    "error": "sync_exchange_failed",
+                    "reason": error.to_string()
+                })),
+            )
+                .into_response())
+        }
+    };
+    if token_check.device_id != body.from_device_id {
+        return Err(forbidden("from_device_mismatch"));
+    }
+    let result = SyncEngine::serve_exchange(
+        &state.pool,
+        &body.from_device_id,
+        &body.packets,
+        body.ack_through_seq,
+        &body.queues,
+    )
+    .await
+    .map_err(|e| {
+        tracing::warn!(target: "medoc::lan", event = "LAN_SYNC_EXCHANGE_FAILED", error = %e);
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({
+                "error": "sync_exchange_failed",
+                "reason": e.to_string()
+            })),
+        )
+            .into_response()
+    })?;
+    let deployment = medoc_sync::repo::load_deployment(&state.pool)
+        .await
+        .unwrap_or_default();
+    if deployment.role == medoc_sync::deployment::DeviceRole::Master {
+        if let Err(error) = repo::touch_replica_seen(
+            &state.pool,
+            &body.from_device_id,
+            &addr.ip().to_string(),
+            state.http_port,
+        )
+        .await
+        {
+            tracing::warn!(
+                target: "medoc::lan",
+                event = "REPLICA_SEEN_FAILED",
+                device_id = %body.from_device_id,
+                error = %error
+            );
+        }
+    }
+    Ok(Json(result))
+}
+
 pub async fn sync_pull(
     State(state): State<LanHttpState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -154,8 +249,8 @@ pub async fn sync_pull(
         body.since_seq,
         body.live_since_seq,
     )
-        .await
-        .map_err(|_| StatusCode::BAD_REQUEST.into_response())?;
+    .await
+    .map_err(|_| StatusCode::BAD_REQUEST.into_response())?;
     if let Some(ref requester_id) = body.requester_id {
         if let Err(error) = repo::touch_replica_seen(
             &state.pool,
@@ -205,17 +300,41 @@ pub async fn verify_activation_for_path(
     path: &str,
     method: &str,
 ) -> Result<ActivationTokenPayload, Response> {
-    let sk = master_keys::load_or_create()
+    let sk = master_keys::align_to_license(&state.pool)
+        .await
         .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "master key").into_response())?;
-    let payload = pairing::verify_activation_token(token, &sk.verifying_key()).map_err(|e| {
-        tracing::warn!(
-            target: "medoc::lan",
-            event = "LAN_MT2_REJECTED",
-            path = %path,
-            error = %e
-        );
-        (StatusCode::UNAUTHORIZED, "activation token").into_response()
-    })?;
+    let payload = match pairing::verify_activation_token(token, &sk.verifying_key()) {
+        Ok(payload) => payload,
+        // The main device dials this replica with a token it signed itself:
+        // for the exchange, and to fetch attachment bytes the exchange named.
+        Err(error)
+            if path.ends_with(medoc_sync::paths::SYNC_EXCHANGE)
+                || (path.contains(medoc_sync::paths::SYNC_BLOB_PREFIX)
+                    && method.eq_ignore_ascii_case("GET")) =>
+        {
+            match verify_exchange_from_main(state, token).await {
+                Ok(payload) => payload,
+                Err(response) => {
+                    tracing::warn!(
+                        target: "medoc::lan",
+                        event = "LAN_MT2_REJECTED",
+                        path = %path,
+                        error = %error
+                    );
+                    return Err(response);
+                }
+            }
+        }
+        Err(error) => {
+            tracing::warn!(
+                target: "medoc::lan",
+                event = "LAN_MT2_REJECTED",
+                path = %path,
+                error = %error
+            );
+            return Err((StatusCode::UNAUTHORIZED, "activation token").into_response());
+        }
+    };
     let action = action_for_path(path, method);
     if action.is_empty() {
         return Err(forbidden("activation_token_route"));
@@ -390,25 +509,62 @@ fn action_granted(allowed: &[String], action: &str) -> bool {
         || (action == "sync.number" && allowed.iter().any(|a| a == "sync.push"))
 }
 
+/// The main device dials a replica with a token it just signed. The replica
+/// does not have the main device's private key, so the local license check
+/// fails. Accept the token when it verifies with the paired main public key
+/// and names that main device.
+async fn verify_exchange_from_main(
+    state: &LanHttpState,
+    token: &str,
+) -> Result<ActivationTokenPayload, Response> {
+    let deployment = medoc_sync::repo::load_deployment(&state.pool)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())?;
+    if deployment.role != medoc_sync::deployment::DeviceRole::Replica {
+        return Err((StatusCode::UNAUTHORIZED, "activation token").into_response());
+    }
+    let pubkey = deployment.master_pubkey.trim();
+    let main_id = deployment.master_device_id.trim();
+    if pubkey.is_empty() || main_id.is_empty() {
+        return Err((StatusCode::UNAUTHORIZED, "activation token").into_response());
+    }
+    let key = master_keys::parse_pubkey_b64(pubkey)
+        .map_err(|_| (StatusCode::UNAUTHORIZED, "activation token").into_response())?;
+    let payload = pairing::verify_activation_token(token, &key)
+        .map_err(|_| (StatusCode::UNAUTHORIZED, "activation token").into_response())?;
+    if payload.device_id.trim() != main_id || payload.master_device_id.trim() != main_id {
+        return Err(forbidden("from_device_mismatch"));
+    }
+    Ok(payload)
+}
+
 fn action_for_path(path: &str, method: &str) -> &'static str {
-    if path.contains("/sync/blob/") {
+    use medoc_sync::paths::{
+        SYNC_BLOB_PREFIX, SYNC_DIGEST, SYNC_EXCHANGE, SYNC_NUMBER, SYNC_PULL, SYNC_PUSH, SYNC_ROWS,
+        SYNC_ROW_HASHES, SYNC_STATUS,
+    };
+    if path.ends_with(SYNC_EXCHANGE) {
+        // Same grant as a push: a paired device may hand its queue over and
+        // take the other device's queue back.
+        "sync.push"
+    } else if path.contains(SYNC_BLOB_PREFIX) {
         if method.eq_ignore_ascii_case("PUT") {
             "sync.blob.put"
         } else {
             "sync.blob.get"
         }
-    } else if path.ends_with("/sync/push") {
+    } else if path.ends_with(SYNC_PUSH) {
         "sync.push"
-    } else if path.ends_with("/sync/pull") {
+    } else if path.ends_with(SYNC_PULL) {
         "sync.pull"
-    } else if path.ends_with("/sync/status") {
+    } else if path.ends_with(SYNC_STATUS) {
         "sync.status"
-    } else if path.ends_with("/sync/digest")
-        || path.ends_with("/sync/row-hashes")
-        || path.ends_with("/sync/rows")
+    } else if path.ends_with(SYNC_DIGEST)
+        || path.ends_with(SYNC_ROW_HASHES)
+        || path.ends_with(SYNC_ROWS)
     {
         "sync.reconcile"
-    } else if path.ends_with("/sync/number") {
+    } else if path.ends_with(SYNC_NUMBER) {
         "sync.number"
     } else if path.ends_with("/pairing/peers") {
         "pairing.peers"
@@ -459,6 +615,10 @@ mod sync_route_tests {
     #[test]
     fn action_for_path_maps_sync_and_pairing_routes() {
         assert_eq!(action_for_path("/api/v1/sync/push", "POST"), "sync.push");
+        assert_eq!(
+            action_for_path("/api/v1/sync/exchange", "POST"),
+            "sync.push"
+        );
         assert_eq!(action_for_path("/api/v1/sync/pull", "POST"), "sync.pull");
         assert_eq!(action_for_path("/api/v1/sync/status", "GET"), "sync.status");
         assert_eq!(

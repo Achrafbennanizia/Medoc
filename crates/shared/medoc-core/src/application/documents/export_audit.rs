@@ -8,7 +8,8 @@ use sqlx::SqlitePool;
 
 use crate::application::auth_service::Session;
 use crate::error::AppError;
-use crate::infrastructure::database::{audit_repo, issued_document_repo::sha256_hex};
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
+use crate::infrastructure::database::repos::billing::issued_document::sha256_hex;
 
 /// Context the UI sends with a save request.
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -33,13 +34,21 @@ pub async fn log_export(
     destination: &str,
     bytes: &[u8],
 ) -> Result<(), AppError> {
+    // Every MeDoc PDF carries a document id; logging it maps a file found
+    // later (preview, export, issued copy) back to this export.
+    let uid = if ctx.format == "pdf" {
+        crate::infrastructure::pdf::document_uid_of(bytes)
+    } else {
+        None
+    };
     let details = format!(
-        "kind={} format={} bytes={} sha256={} nr={} dest={}",
+        "kind={} format={} bytes={} sha256={} nr={} uid={} dest={}",
         ctx.kind,
         ctx.format,
         bytes.len(),
         sha256_hex(bytes),
         ctx.document_number.as_deref().unwrap_or("-"),
+        uid.as_deref().unwrap_or("-"),
         // Only the file name — full paths can contain the user's name.
         std::path::Path::new(destination)
             .file_name()

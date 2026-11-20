@@ -21,11 +21,10 @@ import {
     type InvoicePaymentState,
     type SavedInvoice,
 } from "@/systems/practice-host/controllers/invoice-document.controller";
-import { getInvoicePracticeFromStorage, lineFromServiceItemChoice } from "@/lib/invoice-service-item";
+import { buildInvoiceServiceOptions, getInvoicePracticeFromStorage, lineFromServiceItemChoice } from "@/lib/invoice-service-item";
 import { checkPracticeDocumentReadiness } from "@/lib/practice-completeness";
 import { PracticeReadinessDialog } from "../components/practice-readiness-dialog";
-import { buildOpenPaymentLinkSelectOptions } from "@/lib/payment-booking";
-import { errorMessage, formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
+import { errorMessage, formatCurrency, formatDate, formatDateTime, localIsoDate } from "@/lib/utils";
 import { openExportPreview } from "@/models/store/export-preview-store";
 import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "@/models/store/auth-store";
@@ -38,13 +37,30 @@ import { useToastStore } from "../components/ui/toast-store";
 import { EmptyState } from "../components/ui/empty-state";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { AdministrationPageHeader } from "../components/administration-page-header";
-import { useT, useTParams } from "@/lib/i18n";
+import { bcp47ForLocale, isRtlLocale, translateLocale, useLocale, useT, useTParams } from "@/lib/i18n";
+import { documentLocale } from "@/lib/document-locale";
 
-/** Local calendar date (toISOString() is UTC and gave yesterday's date after midnight). */
-const todayYmd = () => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-};
+const CANCEL_NOTE_PREFIXES = [
+    "Grund der Stornierung:",
+    "Cancellation reason:",
+    "Motif d'annulation :",
+    "Motif d'annulation:",
+    "سبب الإلغاء:",
+];
+
+function noteForDisplay(note: string, tp: (key: string, params: Record<string, string | number>) => string): string {
+    for (const prefix of CANCEL_NOTE_PREFIXES) {
+        if (note.startsWith(prefix)) {
+            return tp("page.administration_finance_tools.cancel_note", { reason: note.slice(prefix.length).trim() });
+        }
+    }
+    return note;
+}
+
+function fileSlug(prefix: string, number: string, suffix = ""): string {
+    const safe = number.replace(/[^\w.-]+/g, "_");
+    return `${prefix}-${safe}${suffix}.pdf`;
+}
 
 const STATE_STYLE: Record<InvoicePaymentState, { bg: string; fg: string }> = {
     OPEN: { bg: "var(--surface-2, #eef)", fg: "var(--fg-1)" },
@@ -69,6 +85,16 @@ const newRow = (): LineRow => ({ id: `r-${Date.now()}-${Math.random().toString(3
 export function AdministrationFinanceToolsPage() {
     const t = useT();
     const tp = useTParams();
+    const locale = useLocale((s) => s.locale);
+    // Line descriptions are printed on the invoice → document language, not UI language.
+    const serviceLabels = useMemo(() => {
+        const docLocale = documentLocale();
+        return {
+            treatment: translateLocale(docLocale, "payment.link.treatment"),
+            examination: translateLocale(docLocale, "payment.link.examination"),
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [locale]);
     const navigate = useNavigate();
     const toast = useToastStore((s) => s.add);
     const role = parseRole(useAuthStore((s) => s.session?.role));
@@ -85,7 +111,7 @@ export function AdministrationFinanceToolsPage() {
     const [cancelReason, setCancelReason] = useState("");
     const [practiceGuardOpen, setPracticeGuardOpen] = useState(false);
     const [patientId, setPatientId] = useState("");
-    const [invoiceDate, setInvoiceDate] = useState(() => todayYmd());
+    const [invoiceDate, setInvoiceDate] = useState(() => localIsoDate(new Date()));
     const [invoiceNr, setInvoiceNr] = useState("");
     const [invoiceHistory, setInvoiceHistory] = useState<SavedInvoice[]>([]);
     const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null);
@@ -208,7 +234,7 @@ export function AdministrationFinanceToolsPage() {
     const linkOptions = useMemo(
         () =>
             patientId
-                ? buildOpenPaymentLinkSelectOptions(patientPayments, patientId, treatments, examinations, t, tp)
+                ? buildInvoiceServiceOptions(patientPayments, patientId, treatments, examinations, t, tp)
                 : [{ value: "", label: t("payment.link.select_placeholder") }],
         [patientPayments, patientId, treatments, examinations, t, tp],
     );
@@ -244,9 +270,9 @@ export function AdministrationFinanceToolsPage() {
     const builtLines = useMemo(() => {
         if (!patientId) return [];
         return lines
-            .map((row) => (row.link ? lineFromServiceItemChoice(row.link, patientId, treatments, examinations, patientPayments) : null))
+            .map((row) => (row.link ? lineFromServiceItemChoice(row.link, patientId, treatments, examinations, patientPayments, serviceLabels) : null))
             .filter((x): x is NonNullable<typeof x> => x != null);
-    }, [patientId, lines, treatments, examinations, patientPayments]);
+    }, [patientId, lines, treatments, examinations, patientPayments, serviceLabels]);
 
     const amountBruttoEur = useMemo(
         () => (builtLines.length > 0 ? builtLines.reduce((s, l) => s + l.amount_cents, 0) / 100 : 0),
@@ -275,7 +301,7 @@ export function AdministrationFinanceToolsPage() {
             return null;
         }
         const pdfLines = withLinks
-            .map((row) => lineFromServiceItemChoice(row.link, patientId, treatments, examinations, patientPayments))
+            .map((row) => lineFromServiceItemChoice(row.link, patientId, treatments, examinations, patientPayments, serviceLabels))
             .filter((x): x is NonNullable<typeof x> => x != null);
         if (pdfLines.length === 0) {
             toast(t("page.administration_finance_tools.toast.lines_failed"));
@@ -302,6 +328,10 @@ export function AdministrationFinanceToolsPage() {
                 treatment_date: line.treatment_date || invoiceDate,
             })),
             note: note.trim() || null,
+            // The server prints the invoice in this language (it used to ignore
+            // the UI and always use the Settings language).
+            locale: documentLocale(),
+            rtl: isRtlLocale(documentLocale()),
         };
     };
 
@@ -315,8 +345,8 @@ export function AdministrationFinanceToolsPage() {
             openExportPreview({
                 format: "pdf",
                 title: t("page.administration_finance_tools.preview_title"),
-                hint: "ENTWURF",
-                suggestedFilename: `Rechnung-Entwurf-${invoiceDate}.pdf`,
+                hint: t("page.administration_finance_tools.draft_mark"),
+                suggestedFilename: fileSlug("Invoice", invoiceDate, "-draft"),
                 binaryBody: bytes,
                 context: { kind: "invoice_preview", format: "pdf", entityId: patientId, documentNumber: null },
             });
@@ -341,7 +371,7 @@ export function AdministrationFinanceToolsPage() {
                 format: "pdf",
                 title: t("page.administration_finance_tools.pdf_preview_title"),
                 hint: tp("page.administration_finance_tools.pdf_preview_hint", { number: num, date: invoiceDate }),
-                suggestedFilename: `Rechnung-${num.replace(/[^\w.-]+/g, "_")}.pdf`,
+                suggestedFilename: fileSlug("Invoice", num),
                 binaryBody: pdfBase64ToBytes(issued.pdfBase64),
                 context: { kind: "invoice", format: "pdf", entityId: patientId, documentNumber: num },
             });
@@ -373,7 +403,7 @@ export function AdministrationFinanceToolsPage() {
             openExportPreview({
                 format: "pdf",
                 title: `${t("page.administration_finance_tools.cancellation_title")} ${storno.documentNumber ?? ""}`.trim(),
-                suggestedFilename: `Storno-${(storno.documentNumber ?? "").replace(/[^\w.-]+/g, "_")}.pdf`,
+                suggestedFilename: fileSlug("Cancellation", storno.documentNumber ?? ""),
                 binaryBody: pdfBase64ToBytes(storno.pdfBase64),
                 context: { kind: "invoice_cancellation", format: "pdf", entityId: entry.patientId, documentNumber: storno.documentNumber },
             });
@@ -399,8 +429,8 @@ export function AdministrationFinanceToolsPage() {
             openExportPreview({
                 format: "pdf",
                 title: `${t("page.administration_finance_tools.reminder_title")} ${out.documentNumber ?? ""}`.trim(),
-                hint: preview ? "ENTWURF" : undefined,
-                suggestedFilename: `Mahnung-${(out.documentNumber ?? entry.invoice.number).replace(/[^\w.-]+/g, "_")}${preview ? "-Entwurf" : ""}.pdf`,
+                hint: preview ? t("page.administration_finance_tools.draft_mark") : undefined,
+                suggestedFilename: fileSlug("Reminder", out.documentNumber ?? entry.invoice.number, preview ? "-draft" : ""),
                 binaryBody: pdfBase64ToBytes(out.pdfBase64),
                 context: { kind: "payment_reminder", format: "pdf", entityId: entry.patientId, documentNumber: out.documentNumber },
             });
@@ -442,7 +472,7 @@ export function AdministrationFinanceToolsPage() {
         setPatientId("");
         setLines([newRow()]);
         setNote("");
-        setInvoiceDate(todayYmd());
+        setInvoiceDate(localIsoDate(new Date()));
         setAltRecipient(false);
         setRecName("");
         setRecAddr("");
@@ -481,7 +511,7 @@ export function AdministrationFinanceToolsPage() {
                 format: "pdf",
                 title: t("page.administration_finance_tools.export_again_title"),
                 hint: tp("page.administration_finance_tools.toast.redownload_hint", { number: entry.invoice.number }),
-                suggestedFilename: `Rechnung-${entry.invoice.number.replace(/[^\w.-]+/g, "_")}-Kopie.pdf`,
+                suggestedFilename: fileSlug("Invoice", entry.invoice.number, "-copy"),
                 binaryBody: bytes,
                 context: { kind: "invoice", format: "pdf", entityId: entry.patientId, documentNumber: entry.invoice.number },
             });
@@ -494,7 +524,7 @@ export function AdministrationFinanceToolsPage() {
 
     if (loading) {
         return (
-            <div className="practice-workspace-page animate-fade-in">
+            <div className="practice-workspace-page animate-fade-in--sticky-safe">
                 <AdministrationPageHeader titleLevel="h1" title={t("page.administration_finance_tools.title")} />
                 <PageLoading label={t("page.administration_finance_tools.loading")} />
             </div>
@@ -502,7 +532,7 @@ export function AdministrationFinanceToolsPage() {
     }
     if (loadError) {
         return (
-            <div className="practice-workspace-page animate-fade-in">
+            <div className="practice-workspace-page animate-fade-in--sticky-safe">
                 <AdministrationPageHeader titleLevel="h1" title={t("page.administration_finance_tools.title")} />
                 <PageLoadError message={loadError} onRetry={() => void load()} />
             </div>
@@ -511,7 +541,7 @@ export function AdministrationFinanceToolsPage() {
 
     if (!canReadFinance) {
         return (
-            <div className="practice-workspace-page animate-fade-in">
+            <div className="practice-workspace-page animate-fade-in--sticky-safe">
                 <AdministrationPageHeader
                     titleLevel="h1"
                     title={t("page.administration_finance_tools.title")}
@@ -583,7 +613,15 @@ export function AdministrationFinanceToolsPage() {
                     readOnly
                     tabIndex={-1}
                 />
-                <Input id="inv-wz-date" type="date" label={t("common.date")} value={invoiceDate} readOnly tabIndex={-1} />
+                <Input
+                    id="inv-wz-date"
+                    type="date"
+                    label={t("page.administration_finance_tools.invoice_date")}
+                    value={invoiceDate}
+                    max={localIsoDate(new Date())}
+                    disabled={!canWritePayment}
+                    onChange={(e) => setInvoiceDate(e.target.value)}
+                />
                 <Input
                     id="inv-wz-practice"
                     label={t("page.administration_finance_tools.practice_name")}
@@ -643,6 +681,7 @@ export function AdministrationFinanceToolsPage() {
                                     treatments,
                                     examinations,
                                     patientPayments,
+                                    serviceLabels,
                                 );
                                 if (!b) {
                                     return <p className="page-sub" style={{ margin: 0 }}>{t("page.administration_finance_tools.line_not_found")}</p>;
@@ -676,6 +715,7 @@ export function AdministrationFinanceToolsPage() {
                     id="inv-wz-note"
                     label={t("page.administration_finance_tools.note_label")}
                     value={note}
+                    dir="auto"
                     disabled={!canWritePayment}
                     onChange={(e) => setNote(e.target.value)}
                 />
@@ -794,7 +834,7 @@ export function AdministrationFinanceToolsPage() {
                 {(selectedEntry.invoice.lines ?? []).map((line, i) => (
                     <div key={i} className="card card-pad" style={{ background: "var(--surface-1)" }}>
                         <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: "var(--fg-2)", whiteSpace: "pre-wrap" }}>
-                            {[line.treatment_date ? formatDate(line.treatment_date) : null, line.tooth_nr ? `Zahn ${line.tooth_nr}` : null, line.goz_nr ? `${(line.fee_schedule ?? "goz").toUpperCase()} ${line.goz_nr}` : null, line.factor != null ? `× ${String(line.factor).replace(".", ",")}` : null]
+                            {[line.treatment_date ? formatDate(line.treatment_date) : null, line.tooth_nr ? tp("page.administration_finance_tools.tooth", { n: line.tooth_nr }) : null, line.goz_nr ? `${(line.fee_schedule ?? "goz").toUpperCase()} ${line.goz_nr}` : null, line.factor != null ? `× ${line.factor.toLocaleString(bcp47ForLocale(locale), { maximumFractionDigits: 4 })}` : null]
                                 .filter(Boolean)
                                 .join(" · ")}
                             {line.treatment_date || line.goz_nr ? "\n" : ""}
@@ -813,7 +853,14 @@ export function AdministrationFinanceToolsPage() {
                     tabIndex={-1}
                 />
                 {selectedEntry.invoice.note ? (
-                    <Textarea id="read-note" label={t("common.note")} value={selectedEntry.invoice.note} readOnly tabIndex={-1} />
+                    <Textarea
+                        id="read-note"
+                        label={t("common.note")}
+                        value={noteForDisplay(selectedEntry.invoice.note, tp)}
+                        dir="auto"
+                        readOnly
+                        tabIndex={-1}
+                    />
                 ) : null}
                 <p className="page-sub" style={{ margin: 0, fontSize: 12 }}>
                     {tp("page.administration_finance_tools.history_hint", { max: INVOICE_HISTORY_MAX })}
@@ -844,7 +891,7 @@ export function AdministrationFinanceToolsPage() {
             : emptyDetail;
 
     return (
-        <div className="invoice-pdf-page practice-workspace-page animate-fade-in">
+        <div className="invoice-pdf-page practice-workspace-page animate-fade-in--sticky-safe">
             <AdministrationPageHeader
                 titleLevel="h1"
                 title={t("page.administration_finance_tools.title")}
@@ -892,15 +939,23 @@ export function AdministrationFinanceToolsPage() {
                         </p>
                     ) : (
                         <div className="card products-table-card" style={{ overflow: "auto" }}>
-                            <table className="tbl products-tbl tbl-fluid" style={{ fontSize: 14, margin: 0 }}>
+                            <table className="tbl tbl-invoice-history">
+                                <colgroup>
+                                    <col className="inv-hist-col-invoice" />
+                                    <col className="inv-hist-col-date" />
+                                    <col className="inv-hist-col-recipient" />
+                                    <col className="inv-hist-col-total" />
+                                    <col className="inv-hist-col-status" />
+                                    <col className="inv-hist-col-created" />
+                                </colgroup>
                                 <thead>
                                     <tr>
-                                        <th scope="col" style={{ textAlign: "start" }}>{t("page.administration_finance_tools.col.invoice")}</th>
-                                        <th scope="col" style={{ textAlign: "start" }}>{t("common.date")}</th>
-                                        <th scope="col" style={{ textAlign: "start" }}>{t("common.recipient")}</th>
-                                        <th scope="col" style={{ textAlign: "end" }}>{t("common.sum_gross")}</th>
-                                        <th scope="col" style={{ textAlign: "start" }}>{t("common.status")}</th>
-                                        <th scope="col" style={{ textAlign: "start" }}>{t("page.administration_finance_tools.col.created")}</th>
+                                        <th scope="col">{t("page.administration_finance_tools.col.invoice")}</th>
+                                        <th scope="col">{t("common.date")}</th>
+                                        <th scope="col">{t("common.recipient")}</th>
+                                        <th scope="col" className="inv-hist-total">{t("common.sum_gross")}</th>
+                                        <th scope="col">{t("common.status")}</th>
+                                        <th scope="col">{t("page.administration_finance_tools.col.created")}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -910,25 +965,16 @@ export function AdministrationFinanceToolsPage() {
                                             <tr
                                                 key={h.id}
                                                 className={isSel ? "products-row--selected" : undefined}
-                                                style={{ cursor: "pointer" }}
                                                 onClick={() => selectHistoryRow(h.id)}
                                             >
                                                 <td>
                                                     <span style={{ fontWeight: 600, color: "var(--fg-2)" }}>{h.invoice.number}</span>
                                                 </td>
-                                                <td style={{ whiteSpace: "nowrap" }}>{formatDate(h.invoice.date)}</td>
-                                                <td style={{ maxWidth: 160 }} title={h.invoice.recipient_name}>
-                                                    {h.invoice.recipient_name.length > 28
-                                                        ? `${h.invoice.recipient_name.slice(0, 28)}…`
-                                                        : h.invoice.recipient_name}
-                                                </td>
-                                                <td style={{ textAlign: "end", fontVariantNumeric: "tabular-nums" }}>
-                                                    {formatCurrency(totalOf(h))}
-                                                </td>
-                                                <td>{stateBadge(h.paymentState)}</td>
-                                                <td className="page-sub" style={{ fontSize: 12, whiteSpace: "nowrap" }}>
-                                                    {formatDateTime(h.createdAt)}
-                                                </td>
+                                                <td>{formatDate(h.invoice.date)}</td>
+                                                <td title={h.invoice.recipient_name}>{h.invoice.recipient_name}</td>
+                                                <td className="inv-hist-total">{formatCurrency(totalOf(h))}</td>
+                                                <td className="inv-hist-status">{stateBadge(h.paymentState)}</td>
+                                                <td className="inv-hist-created page-sub">{formatDateTime(h.createdAt)}</td>
                                             </tr>
                                         );
                                     })}

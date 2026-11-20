@@ -11,13 +11,14 @@ import { Input, Select, Textarea } from "../components/ui/input";
 import { FormSection } from "../components/ui/form-section";
 import { Dialog, ConfirmDialog } from "../components/ui/dialog";
 import { useToastStore } from "../components/ui/toast-store";
+import type { Sex } from "@/models/types";
 import { WorkspacePageHeader } from "../components/administration-page-header";
 
 type FormState = {
     last_name: string;
     first_name: string;
     date_of_birth: string;
-    sex: string;
+    sex: Sex;
     phone: string;
     email: string;
     address: string;
@@ -320,7 +321,7 @@ export function PatientCreatePage() {
                             id="sex"
                             label={t("page.patient_create.field.gender")}
                             value={form.sex}
-                            onChange={(e) => set("sex", e.target.value)}
+                            onChange={(e) => set("sex", e.target.value as Sex)}
                             options={[
                                 { value: "MALE", label: t("patient.gender.MALE") },
                                 { value: "FEMALE", label: t("patient.gender.FEMALE") },

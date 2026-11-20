@@ -7,12 +7,27 @@ use sqlx::{Connection, SqliteConnection, SqlitePool};
 
 /// (table, column, full list of allowed values after the upgrade)
 pub const STATUS_CHECKS: &[(&str, &str, &[&str])] = &[
-    ("patient", "status", &["NEW", "ACTIVE", "VALIDATED", "READONLY", "ARCHIVED"]),
-    ("patient_chart", "status", &["DRAFT", "IN_PROGRESS", "VALIDATED", "READONLY", "DECLINED"]),
+    (
+        "patient",
+        "status",
+        &["NEW", "ACTIVE", "VALIDATED", "READONLY", "ARCHIVED"],
+    ),
+    (
+        "patient_chart",
+        "status",
+        &["DRAFT", "IN_PROGRESS", "VALIDATED", "READONLY", "DECLINED"],
+    ),
     (
         "appointment",
         "status",
-        &["PLANNED", "CONFIRMED", "IN_PROGRESS", "COMPLETED", "NO_SHOW", "CANCELLED"],
+        &[
+            "PLANNED",
+            "CONFIRMED",
+            "IN_PROGRESS",
+            "COMPLETED",
+            "NO_SHOW",
+            "CANCELLED",
+        ],
     ),
 ];
 
@@ -67,13 +82,12 @@ async fn widen_one(
     column: &str,
     values: &[&str],
 ) -> Result<(), AppError> {
-    let create_sql: Option<String> = sqlx::query_scalar(
-        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?1",
-    )
-    .bind(table)
-    .fetch_optional(&mut *conn)
-    .await
-    .map_err(AppError::Database)?;
+    let create_sql: Option<String> =
+        sqlx::query_scalar("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?1")
+            .bind(table)
+            .fetch_optional(&mut *conn)
+            .await
+            .map_err(AppError::Database)?;
     let Some(create_sql) = create_sql else {
         return Ok(());
     };
@@ -175,10 +189,19 @@ async fn rebuild_table_on_conn(
                 .await
                 .map_err(AppError::Database)?;
         }
-        let fk_bad: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM pragma_foreign_key_check")
-            .fetch_one(&mut *tx)
-            .await
-            .map_err(AppError::Database)?;
+        if !table.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+            return Err(AppError::Internal(format!(
+                "status CHECK upgrade: unexpected table name {table}"
+            )));
+        }
+        // Only the rebuilt table. A whole-database check also counts older
+        // orphans in other tables and blocks this upgrade.
+        let fk_bad: i64 = sqlx::query_scalar(&format!(
+            "SELECT COUNT(*) FROM pragma_foreign_key_check('{table}')"
+        ))
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(AppError::Database)?;
         if fk_bad > 0 {
             return Err(AppError::Internal(format!(
                 "status CHECK upgrade of {table}: {fk_bad} foreign key violations"
@@ -210,8 +233,12 @@ mod tests {
     #[test]
     fn adds_missing_value_and_keeps_rest_of_ddl() {
         let sql = "CREATE TABLE patient (id TEXT PRIMARY KEY, status TEXT NOT NULL DEFAULT 'NEW' CHECK (status IN ('NEW','ACTIVE','VALIDATED','READONLY')), x TEXT REFERENCES staff(id))";
-        let out = rewrite_check(sql, "status", &["NEW", "ACTIVE", "VALIDATED", "READONLY", "ARCHIVED"])
-            .expect("rewritten");
+        let out = rewrite_check(
+            sql,
+            "status",
+            &["NEW", "ACTIVE", "VALIDATED", "READONLY", "ARCHIVED"],
+        )
+        .expect("rewritten");
         assert!(out.contains("'ARCHIVED'"));
         assert!(out.contains("REFERENCES staff(id)"));
         assert!(out.contains("DEFAULT 'NEW'"));

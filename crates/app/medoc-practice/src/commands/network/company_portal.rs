@@ -5,14 +5,14 @@ use sqlx::SqlitePool;
 use tauri::State;
 
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::error::AppError;
 use crate::infrastructure::company_portal::config::{
     default_onboarding_base_url, is_portal_configured, load_company_portal_config,
     require_vendor_base_url, CompanyPortalConfig, COMPANY_PORTAL_KV_KEY,
 };
 use crate::infrastructure::company_portal::register_practice_onboarding;
-use crate::infrastructure::database::app_kv_repo;
+use crate::infrastructure::database::repos::admin::app_kv as app_kv_repo;
 use crate::systems::company::{CompanyPortalPort, COMPANY_PORTAL};
 use medoc_core::domain::enums::Role;
 use medoc_sync::cluster::services::{
@@ -468,7 +468,7 @@ async fn create_onboarding_staff_account(
 ) -> Result<(), AppError> {
     use medoc_core::domain::entities::staff::CreateStaff;
 
-    if medoc_core::infrastructure::database::staff_repo::find_by_email(pool, email)
+    if medoc_core::infrastructure::database::repos::admin::staff::find_by_email(pool, email)
         .await?
         .is_some()
     {
@@ -491,7 +491,10 @@ async fn create_onboarding_staff_account(
         specialty,
         phone: None,
     };
-    medoc_core::infrastructure::database::staff_repo::create_with_quota(pool, &data, &hash).await?;
+    medoc_core::infrastructure::database::repos::admin::staff::create_with_quota(
+        pool, &data, &hash,
+    )
+    .await?;
     Ok(())
 }
 
@@ -544,7 +547,8 @@ async fn assign_onboarding_admin_account(
     admin_password: &str,
 ) -> Result<(), AppError> {
     if let Some(existing) =
-        medoc_core::infrastructure::database::staff_repo::find_by_email(pool, admin_email).await?
+        medoc_core::infrastructure::database::repos::admin::staff::find_by_email(pool, admin_email)
+            .await?
     {
         if !existing.id.starts_with("seed-") {
             return Err(AppError::validation_code("error.staff.email_taken"));
@@ -557,7 +561,7 @@ async fn assign_onboarding_admin_account(
 
     if let Some(seed_id) = find_seed_physician_id(pool).await? {
         use medoc_core::domain::entities::staff::UpdateStaff;
-        medoc_core::infrastructure::database::staff_repo::update(
+        medoc_core::infrastructure::database::repos::admin::staff::update(
             pool,
             &seed_id,
             &UpdateStaff {
@@ -571,7 +575,7 @@ async fn assign_onboarding_admin_account(
             },
         )
         .await?;
-        medoc_core::infrastructure::database::staff_repo::replace_password(
+        medoc_core::infrastructure::database::repos::admin::staff::replace_password(
             pool, &seed_id, &hash,
         )
         .await?;
@@ -851,25 +855,4 @@ mod setup_flag_tests {
         assert!(!setup_flag_is_complete("true"));
         assert!(!setup_flag_is_complete(""));
     }
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_company_portal_commands {
-    () => {
-        $crate::commands::company_portal_commands::get_company_portal_config,
-        $crate::commands::company_portal_commands::set_company_portal_config,
-        $crate::commands::company_portal_commands::company_portal_fetch_summary,
-        $crate::commands::company_portal_commands::company_portal_fetch_integrations,
-        $crate::commands::company_portal_commands::company_portal_fetch_feature_flags,
-        $crate::commands::company_portal_commands::company_portal_billing_portal_url,
-        $crate::commands::company_portal_commands::company_portal_attach_payment,
-        $crate::commands::company_portal_commands::company_portal_fetch_update_manifest,
-        $crate::commands::company_portal_commands::company_portal_ping,
-        $crate::commands::company_portal_commands::onboarding_subscription_status,
-        $crate::commands::company_portal_commands::register_onboarding_subscription,
-        $crate::commands::company_portal_commands::register_onboarding_member_account,
-        $crate::commands::company_portal_commands::onboarding_use_existing_account,
-        $crate::commands::company_portal_commands::onboarding_skip_practice_setup,
-    };
 }

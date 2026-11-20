@@ -68,8 +68,6 @@ export type ClientSettingsV1 = {
         appointmentsDefaultView?: AppointmentCalendarView;
         /** Default duration in "New appointment" (minutes). */
         defaultAppointmentDurationMin?: number;
-        /** Local time for one-time daily reminder (HH:mm, e.g. 18:00). */
-        dayCloseReminderTime?: string;
         /** CAL2: pause/emergency toolbar in calendar (experimental). */
         calendarEmergencyToolbarEnabled?: boolean;
         /**
@@ -132,7 +130,6 @@ export const DEFAULT_CLIENT_SETTINGS: ClientSettingsV1 = {
     workflows: {
         appointmentsDefaultView: "week",
         defaultAppointmentDurationMin: 30,
-        dayCloseReminderTime: "18:00",
         calendarEmergencyToolbarEnabled: false,
         appointmentConfirmMode: "manual",
     },
@@ -296,6 +293,15 @@ export function saveClientSettings(next: ClientSettingsV1): void {
     if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("medoc-client-settings"));
     }
+    // Durable per-instance file (survives shared Vite origin / refresh races).
+    // Also pin the current UI locale so a settings-only file cannot leave language unset.
+    void Promise.all([
+        import("@/systems/practice-host/controllers/ui-prefs.controller"),
+        import("@/lib/i18n"),
+    ]).then(([prefs, i18nMod]) => {
+        const locale = i18nMod.useLocale.getState().locale;
+        return prefs.persistUiPrefs({ settings: next, locale });
+    });
 }
 
 /** Applies appearance, sidebar tone, density, accent, avatar & keyboard hints to `<html>`. */

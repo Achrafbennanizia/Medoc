@@ -128,6 +128,39 @@ describe("appointment-drag-snap", () => {
         expect(bounds).toEqual({ startMin: 9 * 60, endMin: 13 * 60 });
     });
 
+    it("practice break applies on practice-fallback day (doctor break not overlaid)", () => {
+        const base = readPracticeWorkHoursConfig();
+        const cfg: PracticeWorkHoursConfig = {
+            ...base,
+            breakFrom: "12:00",
+            breakUntil: "13:00",
+            plan: {
+                ...base.plan,
+                sa: { active: true, segments: [{ from: "09:00", to: "13:00" }] },
+            },
+            physicianSchedules: {
+                doc1: {
+                    plan: { ...base.plan, sa: { active: false, segments: [] } },
+                    breakFrom: "11:00",
+                    breakUntil: "12:00",
+                    slotMin: "30",
+                },
+            },
+        };
+        const snap = snapAppointmentDragPosition({
+            practiceCfg: cfg,
+            absences: [],
+            physicianId: "doc1",
+            isoDate: "2026-07-11",
+            rawStartMin: 11 * 60 + 30,
+            durMin: 30,
+            timelineBounds: TIMELINE,
+        });
+        expect(snap.dayAllowed).toBe(true);
+        expect(snap.slotAllowed).toBe(true);
+        expect(snap.startMin).toBe(11 * 60 + 30);
+    });
+
     it("blocks drag during full-day absence", () => {
         const cfg = readPracticeWorkHoursConfig();
         const abw: Absence[] = [

@@ -1,84 +1,35 @@
-# medoc-keygen (admin device only)
+# medoc-keygen (admin device only) — Safe Bridge v2
 
-Generates the root key material for a MeDoc cluster owner device and writes a
-sealed `activation.json` manifest that the app imports once on first run.
+Generates owner activation material plus Bridge C recovery artifacts.
 
-This tool runs on the **admin (cluster owner) device only**. Member devices
-generate just their own device identity in-app and receive everything else
-through the approved pairing (PROVISION) flow. They never run this tool.
+See [`docs/architecture/safe-bridge-recovery.md`](../../docs/architecture/safe-bridge-recovery.md).
 
-Distributed **separately** from MeDoc app installers (ops portal / USB).
+## Outputs
 
-## What it generates
+| File | Holder | Notes |
+|------|--------|-------|
+| `activation.json` | Practice | Sealed device/CA/db_key + cleartext `kcv` |
+| `license.code` | Public | Device fingerprint only |
+| `practice-recovery.share.v2.json` | Practice | **Cleartext** random share (not passphrase-sealed) |
+| `practice-recovery.sheet.txt` | Practice safe | Printable forgotten-passphrase path |
+| `vendor-recovery.share.v2.json` | Vendor vault | X25519 ECDH + AEAD **with AAD** + `key_id` |
+| `vendor-recovery.sk` | Vendor vault (dev) | Ephemeral X25519 sk when no pubkey supplied |
 
-- `cluster_id` (16 random bytes)
-- device ed25519 identity keypair
-- cluster CA ed25519 keypair (signs member seat certificates)
-- device fingerprint = `base32(sha256(device_pubkey))`, RFC 4648, no padding
-- 32-byte database master key
-
-The three secret keys (device secret key, CA secret key, DB master key) are
-concatenated and sealed with XChaCha20-Poly1305 under a key derived from the
-admin passphrase via Argon2id. Public values are written in clear so the
-manifest is inspectable.
-
-## Build
-
-Linux / macOS:
+## Build / run
 
 ```bash
 cmake -S . -B build && cmake --build build
-# or: bash ../build-keygen.sh
-```
-
-Windows (vcpkg):
-
-```powershell
-vcpkg install libsodium:x64-windows
-cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake"
-cmake --build build --config Release
-```
-
-## Run
-
-```bash
-./build/medoc-keygen --out activation.json
-```
-
-Non-interactive (CI / automation):
-
-```bash
-./build/medoc-keygen --out activation.json --passphrase-file ./pw.txt
-./build/medoc-keygen --out activation.json --passphrase-env MEDOC_KEYGEN_PASS
-```
-
-Reads the passphrase without echo (interactive), confirms it, writes
-`activation.json` with owner-only permissions, and writes **`license.code`**
-(next to the manifest) containing the device fingerprint — this is what the
-admin enters in the app onboarding screen.
-
-The manifest is a secret. Import it once on the owner device, then delete it.
-In production onboarding the admin only needs the **license code** from
-`license.code` (or stderr: `license code: …`).
-
-## Interop contract (must match the Rust importer exactly)
-
-| Manifest field | libsodium value here | `argon2` crate equivalent |
-|----------------|----------------------|---------------------------|
-| `kdf.alg`      | `ALG_ARGON2ID13`     | `Algorithm::Argon2id`, `Version::V0x13` |
-| `kdf.ops`      | `OPSLIMIT_MODERATE` = 3 | `t_cost = 3` |
-| `kdf.mem`      | `MEMLIMIT_MODERATE` = 268435456 bytes | `m_cost = 262144` (KiB) |
-| parallelism    | fixed at 1 by libsodium | `p_cost = 1` |
-| output length  | 32                   | output length 32 |
-
-AEAD: `XChaCha20-Poly1305-IETF`, 24-byte nonce, 16-byte tag.
-
-Plaintext: 160 bytes = device_sk (64) || ca_sk (64) || db_key (32). On the Rust
-side use the **first 32 bytes** of each libsodium secret key as the
-`ed25519-dalek` seed.
-
-## Verify
-
-```bash
+./build/medoc-keygen --out activation.json --passphrase-file pw.txt
 ./build/medoc-keygen-verify activation.json "your passphrase"
 ```
+
+Vendor pubkey: `--vendor-recovery-pubkey PATH|HEX` or `MEDOC_VENDOR_RECOVERY_PUBKEY`.
+
+## Interop
+
+Activation AEAD matches Rust importer (`argon2id13` MODERATE + XChaCha20-Poly1305).
+
+Vendor share: ephemeral X25519 → HKDF-SHA256(info=`medoc-vendor-share-v2`) → XChaCha20-Poly1305 with AAD  
+`medoc-vendor-share-v2 || cluster_id || fingerprint || key_id || policy`.
+
+KCV = first 16 bytes of HKDF-SHA256(ikm=`db_key`, info=`medoc-kcv-v1`).

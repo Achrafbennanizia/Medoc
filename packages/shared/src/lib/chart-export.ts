@@ -13,6 +13,7 @@ import { listPrescriptions, type Prescription } from "@/systems/practice-host/co
 import { listPaymentsForPatient } from "@/systems/practice-host/controllers/payment.controller";
 import type { ChartAttachmentRowDto } from "./chart-attachments";
 import type { Patient, PatientChart, DentalFinding, Treatment, Examination, Payment } from "@/models/types";
+import { localIsoDate } from "@/lib/utils";
 
 /**
  * Normative / de-facto patterns for exports (information model, no certification):
@@ -139,7 +140,7 @@ export function suggestChartExportFilenames(patient: Patient, ext: string): stri
     const id8 = patient.id.replace(/-/g, "").slice(0, 8);
     const d = new Date();
     const pad = (n: number) => String(n).padStart(2, "0");
-    const ymd = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+    const ymd = localIsoDate(d).replaceAll("-", "");
     const hms = `${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
     return [
         `MeDoc-Akte-${id8}-${ymd}-${hms}.${ext}`,

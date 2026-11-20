@@ -20,7 +20,7 @@ export function deriveDayPackingBounds(
     physicianId: string,
     isoDate: string,
 ): { startMin: number; endMin: number } | null {
-    const eff = resolveBookingWorkHoursForPhysician(practiceCfg, physicianId);
+    const eff = resolveBookingWorkHoursForPhysician(practiceCfg, physicianId, isoDate);
     const day = eff.plan[dayKeyFromIsoDate(isoDate)];
     if (!day?.active) return null;
     let startMin = Number.POSITIVE_INFINITY;
@@ -97,7 +97,7 @@ export function snapAppointmentDragPosition(opts: {
         };
     }
 
-    const eff = resolveBookingWorkHoursForPhysician(opts.practiceCfg, opts.physicianId);
+    const eff = resolveBookingWorkHoursForPhysician(opts.practiceCfg, opts.physicianId, opts.isoDate);
     const valid = listSchedulableStartMinutes(eff, opts.absences, opts.isoDate, opts.durMin);
     if (valid.length === 0) {
         const bounds = deriveDayPackingBounds(opts.practiceCfg, opts.physicianId, opts.isoDate);

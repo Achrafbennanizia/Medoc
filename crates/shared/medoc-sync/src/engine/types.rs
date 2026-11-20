@@ -9,6 +9,16 @@ pub struct SyncPushResult {
     pub last_seq: i64,
 }
 
+/// Result of `POST /sync/exchange`. `packets` are the callee’s own queued
+/// updates the caller has not acknowledged yet.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncExchangePage {
+    pub accepted: u32,
+    pub last_seq: i64,
+    pub packets: Vec<crate::repo::OutboxEntry>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SyncPullResult {

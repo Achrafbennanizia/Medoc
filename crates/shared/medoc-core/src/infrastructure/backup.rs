@@ -15,7 +15,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use crate::error::AppError;
-use crate::infrastructure::database::audit_repo;
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
 use crate::infrastructure::database::{db_key, sqlcipher};
 use crate::log_system;
 
@@ -86,6 +86,15 @@ fn verify_signature(db_path: &Path) -> Option<bool> {
 
 /// Create a timestamped backup of the live database.
 pub async fn create(pool: &SqlitePool) -> Result<PathBuf, AppError> {
+    create_with_app_dir(pool, None).await
+}
+
+/// Create a backup and, when `app_data_dir` is set, copy Bridge B recovery
+/// sidecars (`db-key.wrap`, `db-key.salt`, `db-key.kcv`) beside the snapshot.
+pub async fn create_with_app_dir(
+    pool: &SqlitePool,
+    app_data_dir: Option<&Path>,
+) -> Result<PathBuf, AppError> {
     let dir = backup_dir();
     std::fs::create_dir_all(&dir).map_err(|e| AppError::Internal(format!("backup dir: {e}")))?;
 
@@ -107,6 +116,9 @@ pub async fn create(pool: &SqlitePool) -> Result<PathBuf, AppError> {
         })?;
 
     write_signature(&target)?;
+    if let Some(app_dir) = app_data_dir {
+        copy_recovery_sidecars(app_dir, &target);
+    }
     let report = enforce_retention(&dir)?;
     log_system!(
         info,
@@ -119,6 +131,28 @@ pub async fn create(pool: &SqlitePool) -> Result<PathBuf, AppError> {
     log_system!(info, event = "BACKUP_COMPLETE", target = %target.display(), bytes = size);
 
     Ok(target)
+}
+
+/// Copy wrap/salt/kcv next to `backup_db` as `backup_db.db-key.*` so Bridge B
+/// survives restore when the keychain is empty.
+fn copy_recovery_sidecars(app_data_dir: &Path, backup_db: &Path) {
+    for name in db_key::recovery_sidecar_names() {
+        let src = app_data_dir.join(name);
+        if !src.exists() {
+            continue;
+        }
+        let dest = PathBuf::from(format!("{}.{}", backup_db.display(), name));
+        if let Err(e) = std::fs::copy(&src, &dest) {
+            log_system!(
+                warn,
+                event = "BACKUP_SIDECAR_COPY_FAILED",
+                file = %name,
+                error = %e
+            );
+        } else {
+            log_system!(info, event = "BACKUP_SIDECAR_COPIED", file = %name);
+        }
+    }
 }
 
 /// List all backup files (newest first) with optional signature verification.
@@ -264,6 +298,15 @@ pub struct RestoreReport {
 /// Replace `medoc.db` with a validated backup snapshot (G2 / WAAD 9.1).
 ///
 /// Closes the active pool; the desktop app must restart to reopen the database.
+///
+/// Safety rules:
+/// - a snapshot of the current data must succeed first, or nothing is replaced;
+/// - the backup is copied aside before that snapshot runs retention, which
+///   could otherwise delete the very file being restored;
+/// - an unsigned file is accepted only when it opens with this practice's key,
+///   so a foreign plaintext SQLite file cannot replace the practice database;
+/// - the live file is swapped atomically and never deleted before the new one
+///   is in place.
 pub async fn restore_from_backup(
     pool: &SqlitePool,
     app_data_dir: &Path,
@@ -275,83 +318,92 @@ pub async fn restore_from_backup(
     if backup_path.extension().and_then(|e| e.to_str()) != Some("db") {
         return Err(AppError::validation_code("error.backup.only_db_files"));
     }
-    match verify_signature(backup_path) {
+    let signed = match verify_signature(backup_path) {
         Some(false) => {
             return Err(AppError::validation_code("error.backup.signature_invalid"));
         }
-        Some(true) => {}
+        Some(true) => true,
         None => {
             if !validate(backup_path)? {
                 return Err(AppError::validation_code("error.backup.invalid_sqlite"));
             }
+            false
         }
-    }
+    };
 
-    let pre = create(pool).await.is_ok();
-
-    let db_path = app_data_dir.join("medoc.db");
     let key = db_key::ensure_sqlcipher_key(app_data_dir, false)?;
-
-    // Fail fast if the snapshot itself is unreadable with the live key.
-    if !sqlcipher::opens_with_sqlcipher_key(backup_path, &key).await
-        && !sqlcipher::is_plaintext_sqlite_file(backup_path)
-    {
+    let opens_encrypted = sqlcipher::opens_with_sqlcipher_key(backup_path, &key).await;
+    let plaintext = !opens_encrypted && sqlcipher::is_plaintext_sqlite_file(backup_path);
+    if !opens_encrypted && !(plaintext && signed) {
         return Err(AppError::validation_code("error.backup.invalid_medoc_db"));
     }
 
-    pool.close().await;
+    // Copy the source aside first: the safety snapshot below runs retention,
+    // which may delete an old backup — possibly this one.
+    let source_copy = backup_path.with_extension("db.restore-src");
+    let _ = std::fs::remove_file(&source_copy);
+    std::fs::copy(backup_path, &source_copy)
+        .map_err(|e| AppError::Internal(format!("Restore failed (copy source): {e}")))?;
 
-    // Close releases handles asynchronously on Windows; retry sidecar + replace.
-    replace_live_db_with_backup(&db_path, backup_path).await?;
-    remove_db_sidecars(&db_path);
-
-    // `VACUUM INTO` may yield plaintext or SQLCipher (header is always "SQLite format 3").
-    let mut opened = sqlcipher::opens_with_sqlcipher_key(&db_path, &key).await;
-    if !opened {
-        for attempt in 1..10u32 {
-            remove_db_sidecars(&db_path);
-            tokio::time::sleep(std::time::Duration::from_millis(30 * u64::from(attempt))).await;
-            opened = sqlcipher::opens_with_sqlcipher_key(&db_path, &key).await;
-            if opened {
-                break;
-            }
-        }
-    }
-    if !opened {
-        // Encrypted SQLCipher files share the SQLite header — only migrate when
-        // the snapshot is known-plaintext or the backup itself opens as plain.
-        if sqlcipher::is_plaintext_sqlite_file(backup_path)
-            && !sqlcipher::opens_with_sqlcipher_key(backup_path, &key).await
-        {
-            // Re-copy then migrate: destination may still have been locked mid-write.
-            replace_live_db_with_backup(&db_path, backup_path).await?;
-            remove_db_sidecars(&db_path);
-            sqlcipher::migrate_plaintext_to_sqlcipher(&db_path, &key).await?;
-        } else if sqlcipher::opens_with_sqlcipher_key(backup_path, &key).await {
-            // Backup is fine; destination still poisoned — replace once more.
-            replace_live_db_with_backup(&db_path, backup_path).await?;
-            remove_db_sidecars(&db_path);
-            if !sqlcipher::opens_with_sqlcipher_key(&db_path, &key).await {
-                return Err(AppError::validation_code("error.backup.invalid_medoc_db"));
-            }
-        } else {
-            return Err(AppError::validation_code("error.backup.invalid_medoc_db"));
-        }
-    }
+    let outcome = restore_staged(pool, app_data_dir, &source_copy, &key, plaintext).await;
+    let _ = std::fs::remove_file(&source_copy);
+    let pre_path = outcome?;
 
     log_system!(
         warn,
         event = "BACKUP_RESTORE",
         from = %backup_path.display(),
-        target = %db_path.display(),
-        pre_snapshot = pre,
+        target = %app_data_dir.join("medoc.db").display(),
+        pre_snapshot = %pre_path.display(),
     );
 
     Ok(RestoreReport {
         requires_app_restart: true,
         restored_from: backup_path.to_path_buf(),
-        pre_restore_backup_created: pre,
+        pre_restore_backup_created: true,
     })
+}
+
+/// Snapshot the live data, then swap in `source`. Returns the snapshot path.
+async fn restore_staged(
+    pool: &SqlitePool,
+    app_data_dir: &Path,
+    source: &Path,
+    key: &[u8],
+    plaintext: bool,
+) -> Result<PathBuf, AppError> {
+    // No safety snapshot, no restore.
+    let pre_path = create(pool).await.map_err(|e| {
+        log_system!(error, event = "BACKUP_RESTORE_ABORTED", error = %e);
+        AppError::Internal(format!(
+            "Restore cancelled: the safety backup of the current data failed ({e})"
+        ))
+    })?;
+
+    let db_path = app_data_dir.join("medoc.db");
+    pool.close().await;
+
+    // Close releases handles asynchronously on Windows; the swap retries.
+    replace_live_db_with_backup(&db_path, source).await?;
+    if plaintext {
+        sqlcipher::migrate_plaintext_to_sqlcipher(&db_path, key).await?;
+    }
+
+    let mut opened = sqlcipher::opens_with_sqlcipher_key(&db_path, key).await;
+    for attempt in 1..10u32 {
+        if opened {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(30 * u64::from(attempt))).await;
+        opened = sqlcipher::opens_with_sqlcipher_key(&db_path, key).await;
+    }
+    if !opened {
+        // Put the data that was live a moment ago back in place.
+        log_system!(error, event = "BACKUP_RESTORE_ROLLBACK", from = %pre_path.display());
+        replace_live_db_with_backup(&db_path, &pre_path).await?;
+        return Err(AppError::validation_code("error.backup.invalid_medoc_db"));
+    }
+    Ok(pre_path)
 }
 
 fn db_sidecar(db_path: &Path, suffix: &str) -> PathBuf {
@@ -367,51 +419,65 @@ fn remove_db_sidecars(db_path: &Path) {
 }
 
 /// Copy `backup_path` onto `db_path` without leaving a stale WAL next to a replaced file.
+///
+/// The live file is never deleted before the new one is in place: it is moved
+/// aside, the staged copy is renamed in (same directory, so the rename is
+/// atomic), and only then is the old file removed. On failure the old file is
+/// moved back and the staged copy is kept for manual recovery.
 async fn replace_live_db_with_backup(db_path: &Path, backup_path: &Path) -> Result<(), AppError> {
-    // `Path::with_extension("db.restore-tmp")` on `medoc.db` → `medoc.db.restore-tmp`.
     let staging = db_path.with_file_name("medoc.db.restore-tmp");
+    let aside = db_path.with_file_name("medoc.db.restore-old");
     let _ = std::fs::remove_file(&staging);
 
-    std::fs::copy(backup_path, &staging).map_err(|e| {
-        AppError::Internal(format!("Restore failed (stage {}): {e}", staging.display()))
-    })?;
-
-    // Ensure staged copy is fully flushed before we swap (Windows AV / SMB).
-    if let Ok(f) = std::fs::File::open(&staging) {
-        let _ = f.sync_all();
+    {
+        std::fs::copy(backup_path, &staging).map_err(|e| {
+            AppError::Internal(format!("Restore failed (stage {}): {e}", staging.display()))
+        })?;
+        // Flush the staged copy before the swap (Windows AV / SMB).
+        let f = std::fs::File::open(&staging)
+            .map_err(|e| AppError::Internal(format!("Restore failed (stage open): {e}")))?;
+        f.sync_all()
+            .map_err(|e| AppError::Internal(format!("Restore failed (stage sync): {e}")))?;
     }
 
-    let mut last_err = None;
+    let mut last_err: Option<std::io::Error> = None;
     for attempt in 0..16u32 {
         remove_db_sidecars(db_path);
-        let gone = match std::fs::remove_file(db_path) {
-            Ok(()) => true,
-            Err(e) => {
-                if db_path.exists() {
-                    last_err = Some(e);
-                    false
-                } else {
-                    true
-                }
+        let had_live = db_path.exists();
+        if had_live {
+            let _ = std::fs::remove_file(&aside);
+            if let Err(e) = std::fs::rename(db_path, &aside) {
+                // Still locked by a closing connection: wait and retry.
+                last_err = Some(e);
+                tokio::time::sleep(std::time::Duration::from_millis(
+                    25 * u64::from(attempt + 1),
+                ))
+                .await;
+                continue;
             }
-        };
-        if gone {
-            match std::fs::rename(&staging, db_path) {
-                Ok(()) => {
-                    remove_db_sidecars(db_path);
-                    return Ok(());
-                }
-                Err(e) => {
-                    // Fall back to copy+delete staging if rename is cross-volume / locked.
-                    match std::fs::copy(&staging, db_path) {
-                        Ok(_) => {
-                            let _ = std::fs::remove_file(&staging);
-                            remove_db_sidecars(db_path);
-                            return Ok(());
-                        }
-                        Err(_) => last_err = Some(e),
+        }
+        match std::fs::rename(&staging, db_path) {
+            Ok(()) => {
+                remove_db_sidecars(db_path);
+                let _ = std::fs::remove_file(&aside);
+                return Ok(());
+            }
+            Err(e) => {
+                if had_live {
+                    if let Err(back) = std::fs::rename(&aside, db_path) {
+                        log_system!(
+                            error,
+                            event = "BACKUP_RESTORE_PUT_BACK_FAILED",
+                            aside = %aside.display(),
+                            error = %back
+                        );
+                        return Err(AppError::Internal(format!(
+                            "Restore failed and the current database is kept at {}: {e}",
+                            aside.display()
+                        )));
                     }
                 }
+                last_err = Some(e);
             }
         }
         tokio::time::sleep(std::time::Duration::from_millis(
@@ -420,10 +486,11 @@ async fn replace_live_db_with_backup(db_path: &Path, backup_path: &Path) -> Resu
         .await;
     }
 
-    let _ = std::fs::remove_file(&staging);
+    // The staged copy stays on disk so the backup is not lost with the error.
     Err(AppError::Internal(format!(
-        "Restore failed (replace {}): {}",
+        "Restore failed (replace {}, staged copy kept at {}): {}",
         db_path.display(),
+        staging.display(),
         last_err
             .map(|e| e.to_string())
             .unwrap_or_else(|| "destination still locked".into())

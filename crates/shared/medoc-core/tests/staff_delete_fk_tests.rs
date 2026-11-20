@@ -3,7 +3,7 @@
 use medoc_core::error::AppError;
 use medoc_core::infrastructure::crypto;
 use medoc_core::infrastructure::database::connection::{run_migrations, test_memory_pool};
-use medoc_core::infrastructure::database::staff_repo;
+use medoc_core::infrastructure::database::repos::admin::staff as staff_repo;
 use sqlx::SqlitePool;
 
 async fn fresh_pool() -> SqlitePool {

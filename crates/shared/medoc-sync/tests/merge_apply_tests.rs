@@ -323,9 +323,8 @@ async fn clock_two_minutes_ahead_overwrites_and_a_slow_clock_does_not() {
         .unwrap();
     assert_eq!(name, "Replica Two Minutes Fast");
 
-    let payload = format!(
-        r#"{{"id":"{ahead}","name":"Replica Slow","updated_at":"2099-06-01T12:00:00Z"}}"#
-    );
+    let payload =
+        format!(r#"{{"id":"{ahead}","name":"Replica Slow","updated_at":"2099-06-01T12:00:00Z"}}"#);
     let e = entry("replica-slow", 16, "patient", ahead, "UPDATE", &payload);
     apply_remote_entry(&pool, LOCAL_MASTER, true, ConflictPolicy::LastWriteWins, &e)
         .await
@@ -770,7 +769,13 @@ async fn seed_examination(pool: &SqlitePool, id: &str, complaint: &str, updated_
     .expect("seed examination");
 }
 
-async fn seed_payment_row(pool: &SqlitePool, id: &str, patient_id: &str, amount: f64, updated_at: &str) {
+async fn seed_payment_row(
+    pool: &SqlitePool,
+    id: &str,
+    patient_id: &str,
+    amount: f64,
+    updated_at: &str,
+) {
     sqlx::query(
         "INSERT INTO payment (id, patient_id, amount, payment_method, status, updated_at)
          VALUES (?1, ?2, ?3, 'CASH', 'OUTSTANDING', ?4)",
@@ -855,9 +860,15 @@ async fn mesh_equal_timestamp_keeps_local() {
     let payload =
         format!(r#"{{"id":"{id}","name":"Peer Mesh","updated_at":"2099-05-01T00:00:00Z"}}"#);
     let e = entry("peer-replica", 42, "patient", id, "UPDATE", &payload);
-    apply_remote_entry(&pool, LOCAL_REPLICA, false, ConflictPolicy::LastWriteWins, &e)
-        .await
-        .unwrap();
+    apply_remote_entry(
+        &pool,
+        LOCAL_REPLICA,
+        false,
+        ConflictPolicy::LastWriteWins,
+        &e,
+    )
+    .await
+    .unwrap();
     let name: String = sqlx::query_scalar("SELECT name FROM patient WHERE id = ?1")
         .bind(id)
         .fetch_one(&pool)
@@ -874,34 +885,75 @@ async fn apply_insert_update_delete_on_patient_keyed_hint() {
     let pid = "hint-patient-1";
     seed_patient(&pool, pid, "Hint", "2099-01-01 00:00:00").await;
     let ins = entry(
-        "remote", 1, "chart_next_appointment_hint", pid, "INSERT",
-        &format!(r#"{{"patient_id":"{pid}","hint_json":"{{}}","updated_at":"2099-01-02T00:00:00Z"}}"#),
+        "remote",
+        1,
+        "chart_next_appointment_hint",
+        pid,
+        "INSERT",
+        &format!(
+            r#"{{"patient_id":"{pid}","hint_json":"{{}}","updated_at":"2099-01-02T00:00:00Z"}}"#
+        ),
     );
-    apply_remote_entry(&pool, LOCAL_MASTER, true, ConflictPolicy::LastWriteWins, &ins)
-        .await
-        .expect("insert hint");
+    apply_remote_entry(
+        &pool,
+        LOCAL_MASTER,
+        true,
+        ConflictPolicy::LastWriteWins,
+        &ins,
+    )
+    .await
+    .expect("insert hint");
     let upd = entry(
-        "remote", 2, "chart_next_appointment_hint", pid, "UPDATE",
-        &format!(r#"{{"patient_id":"{pid}","hint_json":"{{\"a\":1}}","updated_at":"2099-01-03T00:00:00Z"}}"#),
+        "remote",
+        2,
+        "chart_next_appointment_hint",
+        pid,
+        "UPDATE",
+        &format!(
+            r#"{{"patient_id":"{pid}","hint_json":"{{\"a\":1}}","updated_at":"2099-01-03T00:00:00Z"}}"#
+        ),
     );
-    apply_remote_entry(&pool, LOCAL_MASTER, true, ConflictPolicy::LastWriteWins, &upd)
-        .await
-        .expect("update hint");
-    let hint: String = sqlx::query_scalar("SELECT hint_json FROM chart_next_appointment_hint WHERE patient_id = ?1")
-        .bind(pid)
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+    apply_remote_entry(
+        &pool,
+        LOCAL_MASTER,
+        true,
+        ConflictPolicy::LastWriteWins,
+        &upd,
+    )
+    .await
+    .expect("update hint");
+    let hint: String = sqlx::query_scalar(
+        "SELECT hint_json FROM chart_next_appointment_hint WHERE patient_id = ?1",
+    )
+    .bind(pid)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
     assert_eq!(hint, r#"{"a":1}"#);
-    let del = entry("remote", 3, "chart_next_appointment_hint", pid, "DELETE", r#"{}"#);
-    apply_remote_entry(&pool, LOCAL_MASTER, true, ConflictPolicy::LastWriteWins, &del)
-        .await
-        .expect("delete hint");
-    let n: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM chart_next_appointment_hint WHERE patient_id = ?1")
-        .bind(pid)
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+    let del = entry(
+        "remote",
+        3,
+        "chart_next_appointment_hint",
+        pid,
+        "DELETE",
+        r#"{}"#,
+    );
+    apply_remote_entry(
+        &pool,
+        LOCAL_MASTER,
+        true,
+        ConflictPolicy::LastWriteWins,
+        &del,
+    )
+    .await
+    .expect("delete hint");
+    let n: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM chart_next_appointment_hint WHERE patient_id = ?1",
+    )
+    .bind(pid)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
     assert_eq!(n, 0);
 }
 
@@ -913,22 +965,42 @@ async fn apply_chart_validation_by_composite_key() {
     seed_patient(&pool, pid, "CV", "2099-01-01 00:00:00").await;
     for (seq, section) in [(1, "anamnesis"), (2, "findings")] {
         let e = entry(
-            "remote", seq, "chart_validation", &format!("{pid}|{section}"), "INSERT",
-            &format!(r#"{{"patient_id":"{pid}","section_or_item":"{section}","validated_at":"2099-01-02T00:00:00Z","updated_at":"2099-01-02T00:00:00Z"}}"#),
+            "remote",
+            seq,
+            "chart_validation",
+            &format!("{pid}|{section}"),
+            "INSERT",
+            &format!(
+                r#"{{"patient_id":"{pid}","section_or_item":"{section}","validated_at":"2099-01-02T00:00:00Z","updated_at":"2099-01-02T00:00:00Z"}}"#
+            ),
         );
         apply_remote_entry(&pool, LOCAL_MASTER, true, ConflictPolicy::LastWriteWins, &e)
             .await
             .expect("insert cv");
     }
-    let del = entry("remote", 3, "chart_validation", &format!("{pid}|anamnesis"), "DELETE", r#"{}"#);
-    apply_remote_entry(&pool, LOCAL_MASTER, true, ConflictPolicy::LastWriteWins, &del)
-        .await
-        .expect("delete cv");
-    let left: Vec<String> = sqlx::query_scalar("SELECT section_or_item FROM chart_validation WHERE patient_id = ?1")
-        .bind(pid)
-        .fetch_all(&pool)
-        .await
-        .unwrap();
+    let del = entry(
+        "remote",
+        3,
+        "chart_validation",
+        &format!("{pid}|anamnesis"),
+        "DELETE",
+        r#"{}"#,
+    );
+    apply_remote_entry(
+        &pool,
+        LOCAL_MASTER,
+        true,
+        ConflictPolicy::LastWriteWins,
+        &del,
+    )
+    .await
+    .expect("delete cv");
+    let left: Vec<String> =
+        sqlx::query_scalar("SELECT section_or_item FROM chart_validation WHERE patient_id = ?1")
+            .bind(pid)
+            .fetch_all(&pool)
+            .await
+            .unwrap();
     assert_eq!(left, vec!["findings".to_string()]);
 }
 
@@ -950,17 +1022,37 @@ async fn apply_refuses_device_local_app_kv_keys() {
         "UPDATE",
         r#"{"key":"sync.lan_tls_pin.v1","value":"attacker-pin","updated_at":"2099-12-01T00:00:00Z"}"#,
     );
-    apply_remote_entry(&pool, LOCAL_MASTER, true, ConflictPolicy::LastWriteWins, &overwrite)
-        .await
-        .unwrap();
-    let delete = entry("remote", 42, "app_kv", "sync.lan_tls_pin.v1", "DELETE", "{}");
-    apply_remote_entry(&pool, LOCAL_MASTER, true, ConflictPolicy::LastWriteWins, &delete)
-        .await
-        .unwrap();
-    let val: String = sqlx::query_scalar("SELECT value FROM app_kv WHERE key = 'sync.lan_tls_pin.v1'")
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+    apply_remote_entry(
+        &pool,
+        LOCAL_MASTER,
+        true,
+        ConflictPolicy::LastWriteWins,
+        &overwrite,
+    )
+    .await
+    .unwrap();
+    let delete = entry(
+        "remote",
+        42,
+        "app_kv",
+        "sync.lan_tls_pin.v1",
+        "DELETE",
+        "{}",
+    );
+    apply_remote_entry(
+        &pool,
+        LOCAL_MASTER,
+        true,
+        ConflictPolicy::LastWriteWins,
+        &delete,
+    )
+    .await
+    .unwrap();
+    let val: String =
+        sqlx::query_scalar("SELECT value FROM app_kv WHERE key = 'sync.lan_tls_pin.v1'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(val, "local-pin");
 
     // Entity id names a harmless key, payload names a protected one.
@@ -972,11 +1064,15 @@ async fn apply_refuses_device_local_app_kv_keys() {
         "INSERT",
         r#"{"key":"sync.deployment.v1","value":"x"}"#,
     );
-    assert!(
-        apply_remote_entry(&pool, LOCAL_MASTER, true, ConflictPolicy::LastWriteWins, &smuggled)
-            .await
-            .is_err()
-    );
+    assert!(apply_remote_entry(
+        &pool,
+        LOCAL_MASTER,
+        true,
+        ConflictPolicy::LastWriteWins,
+        &smuggled
+    )
+    .await
+    .is_err());
     let n: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM app_kv WHERE key = 'sync.deployment.v1'")
         .fetch_one(&pool)
         .await
@@ -1041,12 +1137,11 @@ async fn template_and_appointment_apply_before_their_parents() {
     )
     .await
     .expect("appointment is stored even though the patient is later in the copy");
-    let appts: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM appointment WHERE id = 'seed-yr-apt-01405'",
-    )
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let appts: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM appointment WHERE id = 'seed-yr-apt-01405'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(appts, 1);
 
     for _ in 0..4 {
@@ -1055,7 +1150,10 @@ async fn template_and_appointment_apply_before_their_parents() {
             .fetch_one(&mut *conn)
             .await
             .unwrap();
-        assert_eq!(on, 1, "sync apply must not return a connection with foreign keys off");
+        assert_eq!(
+            on, 1,
+            "sync apply must not return a connection with foreign keys off"
+        );
     }
 }
 
@@ -1096,10 +1194,11 @@ async fn product_delete_applies_while_a_template_still_points_at_it() {
     )
     .await
     .expect("a product delete must not fail the push when a template still points at it");
-    let products: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM product WHERE id = 'seed-prod-007'")
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+    let products: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM product WHERE id = 'seed-prod-007'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(products, 0);
     let templates: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM supplier_pharma_template WHERE id = 'seed-spt-01'",
@@ -1108,4 +1207,45 @@ async fn product_delete_applies_while_a_template_still_points_at_it() {
     .await
     .unwrap();
     assert_eq!(templates, 1);
+}
+
+/// Remote practice_task INSERT without a synced notification must still create
+/// a local PRACTICE_TASK_ASSIGNED for the assignee (sync gap-fill hook).
+#[tokio::test]
+async fn practice_task_remote_insert_ensures_assignee_notification() {
+    let pool = fresh_pool().await;
+    seed_patient(&pool, "sync-task-pat", "Sync Task Pat", "2099-01-01 00:00:00").await;
+    let task_id = "sync-task-remote-001";
+    let payload = format!(
+        r#"{{"id":"{task_id}","patient_id":"sync-task-pat","kind":"TICKET","title":"Remote ticket","body":"Please review","assignee_role":null,"assignee_user_id":"seed-physician-001","created_by":"seed-rez-001","treatment_id":null,"examination_id":null,"service_name":null,"total_cost":null,"payment_id":null,"done_note":null,"return_reason":null,"status":"OPEN","legacy_ticket_id":null,"created_at":"2099-06-01T12:00:00Z","updated_at":"2099-06-01T12:00:00Z"}}"#
+    );
+    let e = entry("remote-device", 90, "practice_task", task_id, "INSERT", &payload);
+    assert!(
+        apply_remote_entry(&pool, LOCAL_MASTER, true, ConflictPolicy::LastWriteWins, &e)
+            .await
+            .expect("apply task"),
+        "remote task insert applies"
+    );
+    let n: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM practice_task WHERE id = ?1 AND assignee_user_id = 'seed-physician-001'",
+    )
+    .bind(task_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(n, 1, "task visible for assignee");
+    let assigned: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM in_app_notification
+         WHERE user_id = 'seed-physician-001'
+           AND kind = 'PRACTICE_TASK_ASSIGNED'
+           AND payload_json LIKE ?1",
+    )
+    .bind(format!("%\"taskId\":\"{task_id}\"%"))
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        assigned, 1,
+        "gap-fill creates PRACTICE_TASK_ASSIGNED for remote task"
+    );
 }

@@ -4,10 +4,10 @@
 //! from the cash journal. The client sends only the counted cash, the
 //! denomination count, the card terminal total and a note.
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::domain::entities::day_close_protocol::{CreateDayCloseProtocol, DayCloseProtocol};
 use crate::error::AppError;
-use crate::infrastructure::database::day_close_protocol_repo;
+use crate::infrastructure::database::repos::billing::day_close_protocol as day_close_protocol_repo;
 use medoc_core::application::documents::cash_book::{
     self, CashMovement, CashMovementArgs, CloseDayArgs, DayCloseDraft, DayCloseResult,
 };
@@ -55,7 +55,9 @@ pub async fn create_day_close_protocol(
         &session,
         CloseDayArgs {
             as_of_date: data.as_of_date.clone(),
-            counted_cents: data.counted_eur.map(|e| (e * 100.0).round() as i64),
+            counted_cents: data
+                .counted_eur
+                .map(medoc_core::domain::services::pricing::euros_to_cents),
             note: data.note.clone(),
             ..Default::default()
         },
@@ -167,22 +169,4 @@ pub async fn list_cash_movements(
 ) -> Result<Vec<CashMovement>, AppError> {
     let session = rbac::require_authenticated(&session_state)?;
     cash_book::list_cash_movements(&pool, &session, &from, &to).await
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_day_close_protocol_commands {
-    () => {
-        $crate::commands::day_close_protocol_commands::list_day_close_protocols,
-        $crate::commands::day_close_protocol_commands::get_day_close_protocol,
-        $crate::commands::day_close_protocol_commands::create_day_close_protocol,
-        $crate::commands::day_close_protocol_commands::delete_day_close_protocol,
-        $crate::commands::day_close_protocol_commands::prepare_day_close,
-        $crate::commands::day_close_protocol_commands::close_day,
-        $crate::commands::day_close_protocol_commands::correct_day_close,
-        $crate::commands::day_close_protocol_commands::day_close_report_copy,
-        $crate::commands::day_close_protocol_commands::record_cash_movement,
-        $crate::commands::day_close_protocol_commands::reverse_cash_movement,
-        $crate::commands::day_close_protocol_commands::list_cash_movements,
-    };
 }

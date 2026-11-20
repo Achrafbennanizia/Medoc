@@ -10,6 +10,29 @@ type HmacSha256 = Hmac<Sha256>;
 
 pub const SAS_LEN: usize = 4;
 
+/// Decode a stored handshake. Writers do not share one alphabet, so the four
+/// standard engines are tried in order. An empty string is `None`. A decode
+/// that yields no bytes is kept only when every alphabet that accepts the
+/// input is empty.
+pub fn decode_handshake_transcript(raw: &str) -> Option<Vec<u8>> {
+    use base64::engine::general_purpose::{STANDARD, STANDARD_NO_PAD, URL_SAFE, URL_SAFE_NO_PAD};
+    use base64::Engine;
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let mut blank = None;
+    for engine in [&STANDARD, &STANDARD_NO_PAD, &URL_SAFE, &URL_SAFE_NO_PAD] {
+        if let Ok(bytes) = engine.decode(trimmed) {
+            if !bytes.is_empty() {
+                return Some(bytes);
+            }
+            blank.get_or_insert(bytes);
+        }
+    }
+    blank
+}
+
 /// Derive a 4-digit SAS from the Noise handshake transcript hash (channel-bound).
 pub fn derive_sas_from_transcript(transcript: &[u8]) -> String {
     let digest = Sha256::digest(transcript);

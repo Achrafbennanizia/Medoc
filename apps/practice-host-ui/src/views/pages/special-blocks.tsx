@@ -9,6 +9,7 @@ import { AdministrationPageHeader } from "../components/administration-page-head
 import { useToastStore } from "../components/ui/toast-store";
 import type { PracticeClosureMode, PracticeClosureRule } from "@/lib/practice-planning";
 import { loadPracticeWorkHoursConfig, savePracticeWorkHoursConfig } from "@/lib/practice-planning";
+import { notifyAppointmentsOutsideWorkHours } from "@/lib/appointment-hours-compliance-notify";
 import { errorMessage } from "@/lib/utils";
 import { useRbac } from "@/lib/use-rbac";
 import { EditIcon, TrashIcon } from "@/lib/icons";
@@ -49,7 +50,23 @@ export function SpecialBlockedTimesPage() {
         setSelected((s) => (s ? next.find((x) => x.id === s.id) ?? null : null));
         try {
             const cfg = await loadPracticeWorkHoursConfig();
-            await savePracticeWorkHoursConfig({ ...cfg, closures: next });
+            const nextCfg = { ...cfg, closures: next };
+            await savePracticeWorkHoursConfig(nextCfg);
+            try {
+                const { violations } = await notifyAppointmentsOutsideWorkHours({
+                    practiceCfg: nextCfg,
+                    t,
+                    tp,
+                });
+                if (violations.length > 0) {
+                    toast(
+                        tp("app.notifications.outside_hours_toast", { count: violations.length }),
+                        "warning",
+                    );
+                }
+            } catch {
+                /* schedule saved; compliance notify is best-effort */
+            }
         } catch (e) {
             setClosures(previous);
             toast(tp("common.save_failed", { message: errorMessage(e) }), "error");
@@ -340,7 +357,7 @@ export function SpecialBlockedTimesPage() {
     if (loading) return <PageLoading label={t("page.special_blocked_times.loading")} />;
 
     return (
-        <div className="products-page practice-workspace-page animate-fade-in">
+        <div className="products-page practice-workspace-page animate-fade-in--sticky-safe">
             <AdministrationPageHeader
                 title={t("page.special_blocked_times.title")}
                 subtitle={t("page.special_blocked_times.subtitle")}

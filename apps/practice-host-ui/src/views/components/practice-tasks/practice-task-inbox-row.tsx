@@ -2,8 +2,8 @@ import type { PracticeTask } from "@/systems/practice-host/controllers/practice-
 import { formatDateTime } from "@/lib/utils";
 import { Badge } from "../ui/badge";
 import { taskStatusVariant } from "./task-workflow";
-import { useT } from "@/lib/i18n";
-import { displayPracticeTaskTitle } from "@/lib/finance-order-labels";
+import { useT, useTParams } from "@/lib/i18n";
+import { practiceTaskHeadline, practiceTaskPreview } from "@/lib/practice-task-display";
 import { taskStatusLabel, taskKindLabel } from "./task-workflow-ui";
 
 type Props = {
@@ -22,6 +22,9 @@ export function PracticeTaskInboxRow({
     onOpen,
 }: Props) {
     const t = useT();
+    const tp = useTParams();
+    const headline = practiceTaskHeadline(task, t);
+    const preview = practiceTaskPreview(task, t, tp);
     return (
         <button
             type="button"
@@ -38,8 +41,8 @@ export function PracticeTaskInboxRow({
             aria-disabled={!canOpen}
         >
             <div className="practice-task-inbox-row__main">
-                <div className="practice-task-inbox-row__title">
-                    {displayPracticeTaskTitle(task.title, t)}
+                <div className="practice-task-inbox-row__title" dir="auto">
+                    {headline}
                 </div>
                 <div className="practice-task-inbox-row__sub">
                     <span className="practice-task-inbox-row__name" dir="auto">
@@ -50,9 +53,9 @@ export function PracticeTaskInboxRow({
                     {" · "}
                     {formatDateTime(task.updated_at)}
                 </div>
-                {task.body ? (
-                    <div className="practice-task-inbox-row__preview">
-                        {displayPracticeTaskTitle(task.body, t)}
+                {preview ? (
+                    <div className="practice-task-inbox-row__preview" dir="auto">
+                        {preview}
                     </div>
                 ) : null}
             </div>

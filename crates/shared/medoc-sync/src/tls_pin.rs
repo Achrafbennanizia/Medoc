@@ -10,7 +10,7 @@ use rustls::{DigitallySignedStruct, SignatureScheme};
 use sha2::{Digest, Sha256};
 
 use medoc_core::error::AppError;
-use medoc_core::infrastructure::database::app_kv_repo;
+use medoc_core::infrastructure::database::repos::admin::app_kv as app_kv_repo;
 use sqlx::SqlitePool;
 
 use crate::deployment::APP_KV_LAN_TLS_PIN;

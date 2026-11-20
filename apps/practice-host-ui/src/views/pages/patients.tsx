@@ -2,13 +2,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { countPatientsByFilter, deletePatient, exportPatientsCsv, listAllPatients, listPatientsPaged, restorePatient, type PatientFilterCounts } from "@/systems/practice-host/controllers/patient.controller";
 import { listPatientIdsOpenInvoice } from "@/systems/practice-host/controllers/payment.controller";
-import { errorMessage, formatDate } from "@/lib/utils";
+import { errorMessage, formatDate, hueFromId, initialsFromName } from "@/lib/utils";
 import { loadClientSettings } from "@/lib/client-settings";
 import { suggestSimilarTitles } from "@/lib/string-suggest";
 import { useT, useTParams } from "@/lib/i18n";
 import type { Patient } from "../../models/types";
 import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "../../models/store/auth-store";
+import {
+    patientMatchesStatusFilter,
+    patientStatusFilterNeedsClientBucket,
+    patientStatusFilterServerStatus,
+    type PatientStatusFilter,
+} from "@/lib/patient-status-filter";
 import { Badge } from "../components/ui/badge";
 import { EmptyState } from "../components/ui/empty-state";
 import { useToastStore } from "../components/ui/toast-store";
@@ -47,32 +53,21 @@ function patientHasOpenInvoice(openPatientIds: ReadonlySet<string>, patientId: s
     return openPatientIds.has(patientId);
 }
 
-/** Stable spread of avatar hues from full id (avoid UUID first-hex clustering). */
-function avatarHueFromId(id: string): number {
-    let h = 2166136261;
-    for (let i = 0; i < id.length; i++) h = Math.imul(h ^ id.charCodeAt(i), 16777619);
-    return Math.abs(h >>> 0) % 360;
-}
-
-type PatientStatusFilter = "ALL" | "IN_TREATMENT" | "NEW_PATIENT" | "INVOICE_OPEN" | "CHART_OPEN" | "CLOSED";
-
 function buildFilterCounts(
     patients: Patient[],
     openPatientIds: ReadonlySet<string>,
 ): Record<PatientStatusFilter, number> {
-    const hasOpen = (pid: string) => openPatientIds.has(pid);
     let inTreatment = 0;
     let newPatient = 0;
     let invoiceOpen = 0;
     let chartOpen = 0;
     let closed = 0;
     for (const p of patients) {
-        const inv = hasOpen(p.id);
-        if ((p.status === "ACTIVE" || p.status === "VALIDATED") && !inv) inTreatment += 1;
-        if (p.status === "NEW") newPatient += 1;
-        if (inv) invoiceOpen += 1;
-        if (p.status === "NEW" && !inv) chartOpen += 1;
-        if (p.status === "VALIDATED" || p.status === "READONLY") closed += 1;
+        if (patientMatchesStatusFilter(p, "IN_TREATMENT", openPatientIds)) inTreatment += 1;
+        if (patientMatchesStatusFilter(p, "NEW_PATIENT", openPatientIds)) newPatient += 1;
+        if (patientMatchesStatusFilter(p, "INVOICE_OPEN", openPatientIds)) invoiceOpen += 1;
+        if (patientMatchesStatusFilter(p, "CHART_OPEN", openPatientIds)) chartOpen += 1;
+        if (patientMatchesStatusFilter(p, "CLOSED", openPatientIds)) closed += 1;
     }
     return {
         ALL: patients.length,
@@ -82,6 +77,30 @@ function buildFilterCounts(
         CHART_OPEN: chartOpen,
         CLOSED: closed,
     };
+}
+
+/** Load every page for search + optional single status (client buckets need the full set). */
+async function listPatientsComplete(opts: {
+    showArchived: boolean;
+    search?: string;
+    status?: string;
+}): Promise<Patient[]> {
+    const out: Patient[] = [];
+    const pageSize = 500;
+    for (let page = 1; page <= 1000; page += 1) {
+        const resp = await listPatientsPaged({
+            page,
+            pageSize,
+            search: opts.search,
+            filter: {
+                showArchived: opts.showArchived,
+                ...(opts.status ? { status: opts.status } : {}),
+            },
+        });
+        out.push(...resp.items);
+        if (resp.items.length === 0 || out.length >= resp.total) break;
+    }
+    return out;
 }
 
 function patientStatusPill(p: Patient, t: (key: string) => string): { label: string; variant: "primary" | "success" | "default" | "warning" } {
@@ -124,6 +143,8 @@ export function PatientsPage() {
     const [loading, setLoading] = useState(() => !initialPatientList);
     const [loadError, setLoadError] = useState<string | null>(null);
     const [exportPickerOpen, setExportPickerOpen] = useState(false);
+    /** Client-bucket tabs load the full matching set — disable infinite scroll. */
+    const [clientBucketComplete, setClientBucketComplete] = useState(false);
     const actionLayerRef = useRef<HTMLDivElement>(null);
     const listScrollRef = useRef<HTMLDivElement>(null);
     const loadMoreLock = useRef(false);
@@ -161,6 +182,7 @@ export function PatientsPage() {
             setPatientPage(snap.page);
             setServerCounts(snap.counts);
             if (snap.invoiceIds.length > 0) setOpenPaymentPatientIds(new Set(snap.invoiceIds));
+            setClientBucketComplete(patientStatusFilterNeedsClientBucket(statusFilter));
             setLoading(false);
         }
         if (silent) silentLoadInflight.current = true;
@@ -169,8 +191,52 @@ export function PatientsPage() {
             setLoadError(null);
         }
         try {
-            const status =
-                statusFilter === "NEW_PATIENT" ? "NEW" : statusFilter === "CLOSED" ? "VALIDATED" : undefined;
+            const useClientBucket = patientStatusFilterNeedsClientBucket(statusFilter);
+            const status = patientStatusFilterServerStatus(statusFilter);
+            const refreshInvoices = !invoicesFetchedRef.current || silent || useClientBucket;
+            const [ids, counts] = await Promise.all([
+                refreshInvoices
+                    ? listPatientIdsOpenInvoice().catch(() => [] as string[])
+                    : Promise.resolve(null),
+                q ? Promise.resolve(null) : countPatientsByFilter(showArchived).catch(() => null),
+            ]);
+            if (token !== searchLoadTokenRef.current) return;
+            const invoiceIds = ids ?? [...(snap?.invoiceIds ?? [])];
+            const openSet = new Set(invoiceIds);
+            if (ids) {
+                invoicesFetchedRef.current = true;
+                setOpenPaymentPatientIds(openSet);
+            }
+            setServerCounts(counts);
+
+            if (useClientBucket) {
+                // Tab counts are global; page-1 + client filter left lists empty.
+                const all = q
+                    ? await listPatientsComplete({ showArchived, search: q || undefined })
+                    : await listAllPatients(showArchived);
+                if (token !== searchLoadTokenRef.current) return;
+                const matched = all.filter((p) => patientMatchesStatusFilter(p, statusFilter, openSet));
+                setPatients(matched);
+                setPatientTotal(matched.length);
+                setPatientPage(1);
+                setClientBucketComplete(true);
+                setLoading(false);
+                const names = matched.map((p) => p.name);
+                if (!q) {
+                    setNameDirectory(names);
+                    setAllPatientNames((prev) => (prev.length > names.length ? prev : names));
+                }
+                writeListSnapshot<PatientListCache>(key, {
+                    items: matched,
+                    total: matched.length,
+                    page: 1,
+                    counts,
+                    invoiceIds,
+                });
+                return;
+            }
+
+            setClientBucketComplete(false);
             const dataResp = await listPatientsPaged({
                 page: 1,
                 pageSize: PATIENT_PAGE_SIZE,
@@ -202,20 +268,6 @@ export function PatientsPage() {
                 setNameDirectory(names);
                 setAllPatientNames((prev) => (prev.length > names.length ? prev : names));
             }
-            const refreshInvoices = !invoicesFetchedRef.current || silent;
-            const [ids, counts] = await Promise.all([
-                refreshInvoices
-                    ? listPatientIdsOpenInvoice().catch(() => [] as string[])
-                    : Promise.resolve(null),
-                q ? Promise.resolve(null) : countPatientsByFilter(showArchived).catch(() => null),
-            ]);
-            if (token !== searchLoadTokenRef.current) return;
-            setServerCounts(counts);
-            const invoiceIds = ids ?? [...(snap?.invoiceIds ?? [])];
-            if (ids) {
-                invoicesFetchedRef.current = true;
-                setOpenPaymentPatientIds(new Set(ids));
-            }
             writeListSnapshot<PatientListCache>(key, {
                 items: dataResp.items,
                 total: dataResp.total,
@@ -245,15 +297,15 @@ export function PatientsPage() {
         void load({ silent: true });
     });
 
-    const patientsHaveMore = patientPage * PATIENT_PAGE_SIZE < patientTotal;
+    const patientsHaveMore =
+        !clientBucketComplete && patientPage * PATIENT_PAGE_SIZE < patientTotal;
 
     const onListScroll = useCallback(() => {
-        if (!patientsHaveMore || loadingMore || loadMoreLock.current) return;
+        if (!patientsHaveMore || loadingMore || loadMoreLock.current || clientBucketComplete) return;
         loadMoreLock.current = true;
         setLoadingMore(true);
         const q = debouncedSearch.trim();
-        const status =
-            statusFilter === "NEW_PATIENT" ? "NEW" : statusFilter === "CLOSED" ? "VALIDATED" : undefined;
+        const status = patientStatusFilterServerStatus(statusFilter);
         void listPatientsPaged({
             page: patientPage + 1,
             pageSize: PATIENT_PAGE_SIZE,
@@ -275,7 +327,17 @@ export function PatientsPage() {
                 setLoadingMore(false);
                 loadMoreLock.current = false;
             });
-    }, [patientsHaveMore, loadingMore, patientPage, toast, tp, showArchived, debouncedSearch, statusFilter]);
+    }, [
+        patientsHaveMore,
+        loadingMore,
+        patientPage,
+        toast,
+        tp,
+        showArchived,
+        debouncedSearch,
+        statusFilter,
+        clientBucketComplete,
+    ]);
 
     useEffect(() => {
         const anchor = listScrollRef.current;
@@ -302,14 +364,8 @@ export function PatientsPage() {
         return patients.filter((p) => {
             if (seen.has(p.id)) return false;
             seen.add(p.id);
-            if (statusFilter === "ALL") return true;
-            const inv = patientHasOpenInvoice(openPaymentPatientIds, p.id);
-            if (statusFilter === "IN_TREATMENT") return (p.status === "ACTIVE" || p.status === "VALIDATED") && !inv;
-            if (statusFilter === "NEW_PATIENT") return p.status === "NEW";
-            if (statusFilter === "INVOICE_OPEN") return inv;
-            if (statusFilter === "CHART_OPEN") return p.status === "NEW" && !inv;
-            if (statusFilter === "CLOSED") return p.status === "VALIDATED" || p.status === "READONLY";
-            return true;
+            // Client-bucket loads already match; still re-check so invoice updates apply.
+            return patientMatchesStatusFilter(p, statusFilter, openPaymentPatientIds);
         });
     }, [patients, statusFilter, openPaymentPatientIds]);
 
@@ -325,8 +381,7 @@ export function PatientsPage() {
 
     const resolvePatientExport = useCallback(async () => {
         const q = debouncedSearch.trim();
-        const status =
-            statusFilter === "NEW_PATIENT" ? "NEW" : statusFilter === "CLOSED" ? "VALIDATED" : undefined;
+        const status = patientStatusFilterServerStatus(statusFilter);
         const csv = await exportPatientsCsv({
             search: q || undefined,
             filter: { showArchived, ...(status ? { status } : {}) },
@@ -463,20 +518,20 @@ export function PatientsPage() {
                     description={t("patient.empty.description")}
                 />
             ) : filtered.length === 0 ? (
-                <div className="card card-pad" style={{ maxWidth: 560 }}>
-                    <h3 className="page-title" style={{ fontSize: 18 }}>{t("patient.search.no_results")}</h3>
-                    <p style={{ color: "var(--fg-3)", fontSize: 14, marginTop: 8 }}>
+                <div className="card card-pad patients-no-results">
+                    <h3 className="page-title patients-no-results__title">{t("patient.search.no_results")}</h3>
+                    <p className="patients-no-results__desc">
                         {debouncedSearch.trim()
                             ? tp("patient.search.query_label", { query: debouncedSearch.trim() })
                             : t("patient.search.filter_no_match")}
                     </p>
                     {nameSuggestions.length > 0 ? (
-                        <p style={{ color: "var(--fg-2)", fontSize: 13, marginTop: 12 }}>
-                            <span style={{ color: "var(--fg-3)" }}>{t("palette.suggest_prefix")}</span>{" "}
+                        <p className="patients-no-results__suggest">
+                            <span>{t("palette.suggest_prefix")}</span>{" "}
                             {nameSuggestions.join(" · ")}
                         </p>
                     ) : null}
-                    <div className="row" style={{ gap: 8, marginTop: 18 }}>
+                    <div className="patients-no-results__actions">
                         <button type="button" className="btn btn-subtle" onClick={() => { setSearch(""); setStatusFilter("ALL"); }}>
                             {t("common.reset_filters")}
                         </button>
@@ -493,7 +548,7 @@ export function PatientsPage() {
                         <div>{t("patient.table.patient")}</div><div>{t("patient.table.birthdate")}</div><div>{t("patient.table.contact")}</div><div>{t("patient.table.status")}</div><div />
                     </div>
                     {filtered.map((p) => {
-                        const hue = avatarHueFromId(p.id);
+                        const hue = hueFromId(p.id);
                         const pill = patientStatusPill(p, t);
                         const openInv = patientHasOpenInvoice(openPaymentPatientIds, p.id);
                         return (
@@ -504,7 +559,7 @@ export function PatientsPage() {
                             >
                                 <div className="row" style={{ gap: 12 }}>
                                     <div className="av" style={{ background: `linear-gradient(135deg, hsl(${hue} 70% 80%), hsl(${hue} 60% 50%))` }}>
-                                        {p.name.split(" ").map((n) => n[0]).slice(0, 2).join("")}
+                                        {initialsFromName(p.name)}
                                     </div>
                                     <div className="col">
                                         <div style={{ fontWeight: 600, fontSize: 14 }}>{p.name}</div>
@@ -545,7 +600,7 @@ export function PatientsPage() {
                                         <MoreIcon size={16} />
                                     </button>
                                     {actionMenuPatientId === p.id ? (
-                                        <div className="menu-surface" style={{ right: 0, top: "calc(100% + 6px)", bottom: "auto", minWidth: 220 }} role="menu">
+                                        <div className="menu-surface" style={{ insetInlineEnd: 0, top: "calc(100% + 6px)", bottom: "auto", minWidth: 220 }} role="menu">
                                             <div className="menu-list" style={{ paddingTop: 8 }}>
                                                 <button
                                                     type="button"

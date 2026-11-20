@@ -4,7 +4,7 @@
 //! by the in-app `Feedback` page; the previous version dropped the input on
 //! the floor with only a toast.
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::error::AppError;
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
@@ -97,13 +97,4 @@ pub async fn list_feedback(
             .fetch_all(&*pool)
             .await?;
     Ok(rows)
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_feedback_commands {
-    () => {
-        $crate::commands::feedback_commands::submit_feedback,
-        $crate::commands::feedback_commands::list_feedback,
-    };
 }

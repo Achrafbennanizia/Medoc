@@ -9,9 +9,9 @@ use tauri::State;
 use crate::application::break_glass::{BreakGlassGrant, BreakGlassState};
 use crate::application::mvp_security;
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::error::AppError;
-use crate::infrastructure::database::audit_repo;
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
 use crate::log_security;
 
 pub struct BreakGlassStateExt(pub Arc<BreakGlassState>);
@@ -86,13 +86,4 @@ pub fn break_glass_active(
             elapsed_secs: g.granted_at.elapsed().as_secs(),
         })
         .collect())
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_break_glass_commands {
-    () => {
-        $crate::commands::break_glass_commands::break_glass_activate,
-        $crate::commands::break_glass_commands::break_glass_active,
-    };
 }

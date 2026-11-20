@@ -5,6 +5,7 @@ import type { ClinicalDocumentExportBundle } from "@/lib/document-print-html";
 import { buildReceiptExportForPayment, canIssueReceipt } from "@/lib/receipt-export-flow";
 import type { DocumentKind } from "@/lib/document-template-schema";
 import type { HtmlExportDocumentKind } from "@/views/components/export-picker-dialog";
+import { parseEuroInput } from "@/lib/utils";
 import { PATIENT_DETAIL_TOAST_UNDO_MS } from "@/lib/patient-detail-utils";
 import {
     PAYMENT_EUR_EPS,
@@ -141,7 +142,7 @@ export function usePatientDetailPaymentActions(args: UsePatientDetailPaymentActi
             toast(t("patient.detail.toast.edit_unlock_first"), "info");
             return;
         }
-        const amount = Number(String(paymentEditForm.amount).replace(",", "."));
+        const amount = parseEuroInput(String(paymentEditForm.amount)) ?? Number.NaN;
         if (!Number.isFinite(amount) || amount <= 0) {
             toast(t("patient.detail.toast.valid_amount_required"), "error");
             return;
@@ -196,7 +197,7 @@ export function usePatientDetailPaymentActions(args: UsePatientDetailPaymentActi
             toast(t("patient.detail.toast.payment_link_required"), "error");
             return;
         }
-        const amount = Number(String(paymentNewForm.amount).replace(",", "."));
+        const amount = parseEuroInput(String(paymentNewForm.amount)) ?? Number.NaN;
         if (!Number.isFinite(amount) || amount <= 0) {
             toast(t("patient.detail.toast.payment_amount_invalid"), "error");
             return;

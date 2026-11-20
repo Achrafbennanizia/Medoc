@@ -15,7 +15,7 @@ import { reprintPeriodReport } from "@/systems/practice-host/controllers/balance
 import { openExportPreview } from "@/models/store/export-preview-store";
 import type { BalanceSheet, Payment } from "../../models/types";
 import { paymentStatusDisplay } from "@/lib/finance-order-labels";
-import { errorMessage, formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
+import { errorMessage, formatCurrency, formatDate, formatDateTime, kpiValueSizeClass } from "@/lib/utils";
 import { buildBalanceSheetReportBundle } from "@/lib/report-export";
 import { ReportExportToolbar } from "../components/report-export-toolbar";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
@@ -98,8 +98,8 @@ export function BalanceSheetPage() {
             openExportPreview({
                 format: "pdf",
                 title: `${snap.label} ${pdf.documentNumber ?? ""}`.trim(),
-                hint: "KOPIE",
-                suggestedFilename: `Periodenbericht-${(pdf.documentNumber ?? snap.id).replace(/[^\w.-]+/g, "_")}-Kopie.pdf`,
+                hint: t("page.balance_sheet_new.pdf_hint_copy"),
+                suggestedFilename: `${t("page.balance_sheet_new.pdf_filename")}-${(pdf.documentNumber ?? snap.id).replace(/[^\w.-]+/g, "_")}-${t("page.balance_sheet_new.pdf_file_copy")}.pdf`,
                 binaryBody: issuedPdfBytes(pdf),
                 context: { kind: "period_report", format: "pdf", entityId: snap.id, documentNumber: pdf.documentNumber },
             });
@@ -122,8 +122,12 @@ export function BalanceSheetPage() {
         return <PageLoading label={t("balanceSheet.loading")} />;
     }
 
+    const incomePaidLabel = formatCurrency(balance_sheet.income);
+    const outstandingLabel = formatCurrency(balance_sheet.outstanding);
+    const cancelledLabel = formatCurrency(balance_sheet.cancelled);
+
     return (
-        <div className="practice-workspace-page animate-fade-in">
+        <div className="practice-workspace-page animate-fade-in--sticky-safe">
             <AdministrationPageHeader
                 showBack={canBackAdministration}
                 title={t("balanceSheet.title")}
@@ -144,21 +148,21 @@ export function BalanceSheetPage() {
             <div
                 style={{
                     display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
                     gap: 16,
                 }}
             >
                 <Card className="kpi">
                     <CardHeader title={t("balanceSheet.kpi.income_paid")} />
-                    <p className="kpi-val" style={{ color: "var(--accent-green)" }}>{formatCurrency(balance_sheet.income)}</p>
+                    <p className={kpiValueSizeClass(incomePaidLabel)} style={{ color: "var(--accent-green)" }}>{incomePaidLabel}</p>
                 </Card>
                 <Card className="kpi">
                     <CardHeader title={t("balanceSheet.kpi.pending")} />
-                    <p className="kpi-val" style={{ color: "var(--accent-yellow)" }}>{formatCurrency(balance_sheet.outstanding)}</p>
+                    <p className={kpiValueSizeClass(outstandingLabel)} style={{ color: "var(--accent-yellow)" }}>{outstandingLabel}</p>
                 </Card>
                 <Card className="kpi">
                     <CardHeader title={t("balanceSheet.kpi.cancelled")} />
-                    <p className="kpi-val" style={{ color: "var(--fg-3)" }}>{formatCurrency(balance_sheet.cancelled)}</p>
+                    <p className={kpiValueSizeClass(cancelledLabel)} style={{ color: "var(--fg-3)" }}>{cancelledLabel}</p>
                 </Card>
             </div>
 

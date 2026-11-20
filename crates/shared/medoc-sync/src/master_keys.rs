@@ -61,6 +61,60 @@ pub fn load_or_create() -> Result<SigningKey, AppError> {
     Ok(signing_key_from_seed(arr))
 }
 
+/// Cluster license seed when it is a raw 32-byte ed25519 seed and differs from `current`.
+///
+/// Activation tokens are signed with the key stored on the license row. A later
+/// keychain miss mints a second key; HTTP sync then rejects every existing token
+/// with `Invalid signature`. Callers that sign or verify tokens must prefer the
+/// license seed.
+pub(crate) fn prefer_license_seed(current: &SigningKey, license_seed: Option<&[u8]>) -> SigningKey {
+    let Some(raw) = license_seed else {
+        return signing_key_from_seed(current.to_bytes());
+    };
+    let Ok(seed) = <[u8; 32]>::try_from(raw) else {
+        return signing_key_from_seed(current.to_bytes());
+    };
+    let pinned = signing_key_from_seed(seed);
+    if pinned.verifying_key().to_bytes() == current.verifying_key().to_bytes() {
+        signing_key_from_seed(current.to_bytes())
+    } else {
+        pinned
+    }
+}
+
+/// Signing key for activation tokens. Uses the cluster license seed when the
+/// keychain key has drifted. The license row is left as the source of truth;
+/// this process remembers it so later signs match the tokens already issued.
+pub async fn align_to_license(pool: &sqlx::SqlitePool) -> Result<SigningKey, AppError> {
+    if std::env::var("MEDOC_PAIRING_MASTER_SECRET").is_ok() {
+        return load_or_create();
+    }
+    let current = load_or_create()?;
+    let seed = match sqlx::query_scalar::<_, Vec<u8>>("SELECT signing_key_enc FROM license LIMIT 1")
+        .fetch_optional(pool)
+        .await
+    {
+        Ok(row) => row,
+        Err(sqlx::Error::Database(db)) if db.message().contains("no such table") => None,
+        Err(error) => return Err(AppError::Database(error)),
+    };
+    let chosen = prefer_license_seed(&current, seed.as_deref());
+    if chosen.verifying_key().to_bytes() == current.verifying_key().to_bytes() {
+        return Ok(current);
+    }
+    let raw = <[u8; 32]>::try_from(seed.unwrap_or_default()).map_err(|_| {
+        AppError::Internal("license signing key drifted but seed was not 32 bytes".into())
+    })?;
+    tracing::warn!(
+        target: "medoc::sync",
+        event = "MASTER_SIGNING_KEY_ALIGNED_TO_LICENSE"
+    );
+    if let Ok(mut guard) = CACHED_SEED.lock() {
+        *guard = Some(raw);
+    }
+    Ok(signing_key_from_seed(raw))
+}
+
 /// One-time import from owner activation manifest (32-byte ed25519 seed).
 pub fn import_seed(seed: [u8; 32]) -> Result<SigningKey, AppError> {
     secret_store::store_bytes_replace(&master_key_account(), &seed)?;
@@ -130,4 +184,42 @@ pub fn verify(pubkey: &VerifyingKey, body: &[u8], sig_b64: &str) -> Result<(), A
     pubkey
         .verify_strict(body, &sig)
         .map_err(|_| AppError::Validation("Invalid signature".into()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::prefer_license_seed;
+    use super::signing_key_from_seed;
+    use crate::pairing::{mint_activation_token, verify_activation_token, ActivationTokenPayload};
+
+    #[test]
+    fn drifted_keychain_key_does_not_verify_a_license_signed_token() {
+        let license = signing_key_from_seed([7u8; 32]);
+        let drifted = signing_key_from_seed([9u8; 32]);
+        let payload = ActivationTokenPayload {
+            version: 2,
+            device_id: "device-1".into(),
+            slave_label: "Replica".into(),
+            master_device_id: "master-1".into(),
+            allowed_actions: vec!["sync.push".into(), "sync.pull".into()],
+            issued_at: "2026-11-15T20:25:03Z".into(),
+            nonce: "nonce-1".into(),
+        };
+        let token = mint_activation_token(&license, &payload).expect("mint");
+        assert!(verify_activation_token(&token, &drifted.verifying_key()).is_err());
+        let chosen = prefer_license_seed(&drifted, Some(&license.to_bytes()));
+        assert!(verify_activation_token(&token, &chosen.verifying_key()).is_ok());
+        assert_eq!(
+            prefer_license_seed(&license, Some(&license.to_bytes()))
+                .verifying_key()
+                .to_bytes(),
+            license.verifying_key().to_bytes()
+        );
+        assert_eq!(
+            prefer_license_seed(&drifted, Some(&[1, 2, 3]))
+                .verifying_key()
+                .to_bytes(),
+            drifted.verifying_key().to_bytes()
+        );
+    }
 }

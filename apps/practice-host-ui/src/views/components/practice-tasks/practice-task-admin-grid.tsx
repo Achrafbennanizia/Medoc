@@ -3,9 +3,9 @@ import type { KeyboardEvent } from "react";
 import { Link } from "react-router-dom";
 import type { Patient, Staff } from "@/models/types";
 import type { PracticeTask } from "@/systems/practice-host/controllers/practice-task.controller";
-import { displayPracticeTaskTitle } from "@/lib/finance-order-labels";
+import { practiceTaskHeadline, practiceTaskPreview } from "@/lib/practice-task-display";
 import { formatDateTime } from "@/lib/utils";
-import { EditIcon } from "@/lib/icons";
+import { MoreIcon } from "@/lib/icons";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { taskPatientLabel } from "./constants";
@@ -96,6 +96,8 @@ export function PracticeTaskAdminGrid({
                                     onOpen(row);
                                 }
                             };
+                            const headline = practiceTaskHeadline(row, t);
+                            const preview = practiceTaskPreview(row, t, tp);
                             return (
                                 <tr
                                     key={row.id}
@@ -105,7 +107,7 @@ export function PracticeTaskAdminGrid({
                                     ].join(" ")}
                                     tabIndex={canOpen ? 0 : undefined}
                                     role={canOpen ? "link" : undefined}
-                                    aria-label={canOpen ? tp("practice.tasks.open_aria", { title: row.title }) : undefined}
+                                    aria-label={canOpen ? tp("practice.tasks.open_aria", { title: headline }) : undefined}
                                     onClick={canOpen ? () => onOpen(row) : undefined}
                                     onKeyDown={onRowKeyDown}
                                     aria-disabled={!canOpen}
@@ -113,11 +115,11 @@ export function PracticeTaskAdminGrid({
                                     <td className="tasks-td-updated">{formatDateTime(row.updated_at)}</td>
                                     <td className="tasks-td-title">
                                         <span className="tasks-title" dir="auto">
-                                            {displayPracticeTaskTitle(row.title, t)}
+                                            {headline}
                                         </span>
-                                        {row.body ? (
+                                        {preview ? (
                                             <span className="tasks-body-sub" dir="auto">
-                                                {displayPracticeTaskTitle(row.body, t)}
+                                                {preview}
                                             </span>
                                         ) : null}
                                         {compact ? (
@@ -160,7 +162,7 @@ export function PracticeTaskAdminGrid({
                                                 aria-label={tp("practice.tasks.admin.edit_aria", { title: row.title })}
                                                 onClick={() => onEdit(row)}
                                             >
-                                                <EditIcon size={14} aria-hidden />
+                                                <MoreIcon size={14} aria-hidden />
                                             </Button>
                                         </div>
                                     </td>

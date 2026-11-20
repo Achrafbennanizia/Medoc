@@ -101,7 +101,7 @@ async fn probe_master_reachable_is_false_when_master_port_is_closed() {
     )
     .await
     .expect("deploy");
-    let reachable = medoc_practice::commands::sync_commands::probe_master_reachable(&pool)
+    let reachable = medoc_practice::commands::network::sync::probe_master_reachable(&pool)
         .await
         .expect("probe");
     assert!(!reachable);

@@ -8,9 +8,10 @@ use sqlx::SqlitePool;
 use tauri::State;
 
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::error::AppError;
-use crate::infrastructure::database::{audit_repo, chart_next_appointment_repo};
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
+use crate::infrastructure::database::repos::clinical::chart_next_appointment as chart_next_appointment_repo;
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -98,14 +99,4 @@ pub async fn set_chart_next_appointment_hint(
     )
     .await?;
     Ok(())
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_chart_next_appointment_commands {
-    () => {
-        $crate::commands::chart_next_appointment_commands::get_chart_next_appointment_hint,
-        $crate::commands::chart_next_appointment_commands::list_chart_next_appointment_hints_pending,
-        $crate::commands::chart_next_appointment_commands::set_chart_next_appointment_hint,
-    };
 }

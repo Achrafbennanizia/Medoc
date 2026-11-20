@@ -6,61 +6,22 @@
 //! already seen.
 
 use medoc_core::error::AppError;
+use medoc_core::infrastructure::database::sync_registry::APP_KV_HLC_KEY;
 use sqlx::SqlitePool;
 
-const HLC_KEY: &str = "sync.hlc.v1";
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Hlc {
-    pub wall_ms: i64,
-    pub counter: i64,
-}
-
-pub fn tick(prev: Hlc, physical_ms: i64) -> Hlc {
-    if physical_ms > prev.wall_ms {
-        Hlc {
-            wall_ms: physical_ms,
-            counter: 0,
-        }
-    } else {
-        Hlc {
-            wall_ms: prev.wall_ms,
-            counter: prev.counter.saturating_add(1),
-        }
-    }
-}
-
-pub fn observe(local: Hlc, remote: Hlc, physical_ms: i64) -> Hlc {
-    let wall = local.wall_ms.max(remote.wall_ms).max(physical_ms);
-    let counter = if wall == local.wall_ms && wall == remote.wall_ms {
-        local.counter.max(remote.counter).saturating_add(1)
-    } else if wall == local.wall_ms {
-        local.counter.saturating_add(1)
-    } else if wall == remote.wall_ms {
-        remote.counter.saturating_add(1)
-    } else {
-        0
-    };
-    Hlc { wall_ms: wall, counter }
-}
-
-pub fn format_hlc(hlc: Hlc) -> String {
-    format!("{}:{}", hlc.wall_ms, hlc.counter)
-}
-
-pub fn parse_hlc(raw: &str) -> Option<Hlc> {
-    let (wall, counter) = raw.trim().split_once(':')?;
-    Some(Hlc {
-        wall_ms: wall.parse().ok()?,
-        counter: counter.parse().ok()?,
-    })
-}
+pub use medoc_core::infrastructure::database::hlc::{format_hlc, observe, parse_hlc, tick, Hlc};
 
 pub fn payload_hlc(obj: &serde_json::Map<String, serde_json::Value>) -> Option<Hlc> {
-    obj.get("syncHlc").and_then(|v| v.as_str()).and_then(parse_hlc)
+    obj.get("syncHlc")
+        .and_then(|v| v.as_str())
+        .and_then(parse_hlc)
 }
 
-pub async fn load_row(pool: &SqlitePool, table: &str, entity_id: &str) -> Result<Option<Hlc>, AppError> {
+pub async fn load_row(
+    pool: &SqlitePool,
+    table: &str,
+    entity_id: &str,
+) -> Result<Option<Hlc>, AppError> {
     let row: Option<(i64, i64)> = sqlx::query_as(
         "SELECT wall_ms, counter FROM sync_row_hlc WHERE entity_table = ?1 AND entity_id = ?2",
     )
@@ -163,14 +124,20 @@ pub async fn stamp_payload(
         );
         saved
     } else if let Some(wall_ms) = updated_at_millis(obj) {
-        let from_row = Hlc { wall_ms, counter: 0 };
+        let from_row = Hlc {
+            wall_ms,
+            counter: 0,
+        };
         obj.insert(
             "syncHlc".to_string(),
             serde_json::Value::String(format_hlc(from_row)),
         );
         from_row
     } else {
-        let next = tick(load_clock(pool).await?, chrono::Utc::now().timestamp_millis());
+        let next = tick(
+            load_clock(pool).await?,
+            chrono::Utc::now().timestamp_millis(),
+        );
         store_clock(pool, next).await?;
         obj.insert(
             "syncHlc".to_string(),
@@ -183,7 +150,8 @@ pub async fn stamp_payload(
 }
 
 async fn load_clock(pool: &SqlitePool) -> Result<Hlc, AppError> {
-    let raw = medoc_core::infrastructure::database::app_kv_repo::get(pool, HLC_KEY).await?;
+    let raw = medoc_core::infrastructure::database::repos::admin::app_kv::get(pool, APP_KV_HLC_KEY)
+        .await?;
     Ok(raw.as_deref().and_then(parse_hlc).unwrap_or(Hlc {
         wall_ms: 0,
         counter: 0,
@@ -191,7 +159,12 @@ async fn load_clock(pool: &SqlitePool) -> Result<Hlc, AppError> {
 }
 
 async fn store_clock(pool: &SqlitePool, hlc: Hlc) -> Result<(), AppError> {
-    medoc_core::infrastructure::database::app_kv_repo::set(pool, HLC_KEY, &format_hlc(hlc)).await
+    medoc_core::infrastructure::database::repos::admin::app_kv::set(
+        pool,
+        APP_KV_HLC_KEY,
+        &format_hlc(hlc),
+    )
+    .await
 }
 
 #[cfg(test)]
@@ -218,16 +191,13 @@ mod tests {
     }
 
     #[test]
-    fn an_older_logical_stamp_sorts_first() {
-        let older = Hlc {
-            wall_ms: 50,
-            counter: 9,
-        };
-        let newer = Hlc {
-            wall_ms: 50,
-            counter: 10,
-        };
-        assert!(older.counter < newer.counter);
-        assert_eq!(parse_hlc("50:10"), Some(newer));
+    fn parse_hlc_reads_wall_and_counter() {
+        assert_eq!(
+            parse_hlc("50:10"),
+            Some(Hlc {
+                wall_ms: 50,
+                counter: 10,
+            })
+        );
     }
 }

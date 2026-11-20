@@ -7,8 +7,26 @@
 use sqlx::{Sqlite, Transaction};
 
 use crate::error::AppError;
+use crate::infrastructure::database::sync_registry::APP_KV_HLC_KEY;
 
-const HLC_KEY: &str = "sync.hlc.v1";
+const ROW_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS sync_row_hlc (
+            entity_table TEXT NOT NULL,
+            entity_id TEXT NOT NULL,
+            wall_ms INTEGER NOT NULL,
+            counter INTEGER NOT NULL,
+            PRIMARY KEY (entity_table, entity_id)
+        )";
+
+pub async fn ensure_sync_row_hlc<'e, E>(executor: E) -> Result<(), AppError>
+where
+    E: sqlx::Executor<'e, Database = Sqlite>,
+{
+    sqlx::query(ROW_TABLE_SQL)
+        .execute(executor)
+        .await
+        .map_err(AppError::Database)?;
+    Ok(())
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Hlc {
@@ -41,7 +59,10 @@ pub fn observe(local: Hlc, remote: Hlc, physical_ms: i64) -> Hlc {
     } else {
         0
     };
-    Hlc { wall_ms: wall, counter }
+    Hlc {
+        wall_ms: wall,
+        counter,
+    }
 }
 
 pub fn format_hlc(hlc: Hlc) -> String {
@@ -64,18 +85,7 @@ pub async fn stamp_in_tx(
     entity_id: &str,
     payload_json: &str,
 ) -> Result<String, AppError> {
-    sqlx::query(
-        "CREATE TABLE IF NOT EXISTS sync_row_hlc (
-            entity_table TEXT NOT NULL,
-            entity_id TEXT NOT NULL,
-            wall_ms INTEGER NOT NULL,
-            counter INTEGER NOT NULL,
-            PRIMARY KEY (entity_table, entity_id)
-        )",
-    )
-    .execute(&mut **tx)
-    .await
-    .map_err(AppError::Database)?;
+    ensure_sync_row_hlc(&mut **tx).await?;
 
     let Ok(mut value) = serde_json::from_str::<serde_json::Value>(payload_json) else {
         return Ok(payload_json.to_string());
@@ -83,7 +93,11 @@ pub async fn stamp_in_tx(
     let Some(obj) = value.as_object_mut() else {
         return Ok(payload_json.to_string());
     };
-    let hlc = if let Some(existing) = obj.get("syncHlc").and_then(|v| v.as_str()).and_then(parse_hlc) {
+    let hlc = if let Some(existing) = obj
+        .get("syncHlc")
+        .and_then(|v| v.as_str())
+        .and_then(parse_hlc)
+    {
         existing
     } else {
         let prev = load_clock(tx).await?;
@@ -114,7 +128,7 @@ pub async fn stamp_in_tx(
 
 async fn load_clock(tx: &mut Transaction<'_, Sqlite>) -> Result<Hlc, AppError> {
     let raw: Option<String> = sqlx::query_scalar("SELECT value FROM app_kv WHERE key = ?1")
-        .bind(HLC_KEY)
+        .bind(APP_KV_HLC_KEY)
         .fetch_optional(&mut **tx)
         .await
         .map_err(AppError::Database)?;
@@ -129,7 +143,7 @@ async fn store_clock(tx: &mut Transaction<'_, Sqlite>, hlc: Hlc) -> Result<(), A
         "INSERT INTO app_kv (key, value, updated_at) VALUES (?1, ?2, CURRENT_TIMESTAMP)
          ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP",
     )
-    .bind(HLC_KEY)
+    .bind(APP_KV_HLC_KEY)
     .bind(format_hlc(hlc))
     .execute(&mut **tx)
     .await

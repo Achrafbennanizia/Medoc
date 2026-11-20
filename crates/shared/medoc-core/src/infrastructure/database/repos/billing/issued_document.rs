@@ -122,6 +122,7 @@ pub async fn list_for_patient(
 pub async fn list_recent(
     pool: &SqlitePool,
     kind: Option<&str>,
+    status: Option<&str>,
     limit: i64,
 ) -> Result<Vec<IssuedDocumentListRow>, AppError> {
     Ok(sqlx::query_as::<_, IssuedDocumentListRow>(
@@ -129,9 +130,11 @@ pub async fn list_recent(
                 cancels_id, issued_by, issued_at
            FROM issued_document
           WHERE (?1 IS NULL OR kind = ?1)
-          ORDER BY issued_at DESC LIMIT ?2",
+            AND (?2 IS NULL OR status = ?2)
+          ORDER BY issued_at DESC LIMIT ?3",
     )
     .bind(kind)
+    .bind(status)
     .bind(limit)
     .fetch_all(pool)
     .await?)
@@ -163,13 +166,19 @@ pub async fn insert(tx: &mut SqliteConnection, doc: &IssuedDocument) -> Result<(
         "INSERT INTO issued_document_print (id, document_id, sha256, is_reprint, printed_by)
          VALUES (?1, ?2, ?3, 0, ?4)",
     )
-    .bind(uuid::Uuid::new_v4().to_string())
+    // Fixed id, so `after_insert` can queue this row for the other devices.
+    .bind(original_print_id(&doc.id))
     .bind(&doc.id)
     .bind(&doc.sha256)
     .bind(&doc.issued_by)
     .execute(&mut *tx)
     .await?;
     Ok(())
+}
+
+/// Id of the print-log row written with a document's first issue.
+pub fn original_print_id(document_id: &str) -> String {
+    format!("{document_id}:original")
 }
 
 pub async fn mark_cancelled(tx: &mut SqliteConnection, id: &str) -> Result<(), AppError> {
@@ -194,15 +203,25 @@ pub async fn record_reprint(
     sha256: &str,
     user_id: &str,
 ) -> Result<(), AppError> {
+    let id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
         "INSERT INTO issued_document_print (id, document_id, sha256, is_reprint, printed_by)
          VALUES (?1, ?2, ?3, 1, ?4)",
     )
-    .bind(uuid::Uuid::new_v4().to_string())
+    .bind(&id)
     .bind(document_id)
     .bind(sha256)
     .bind(user_id)
     .execute(pool)
+    .await?;
+    // A copy printed on one device must verify (find_by_sha256) on all of them.
+    crate::infrastructure::database::sync_outbox::record_or_noop(
+        pool,
+        "issued_document_print",
+        &id,
+        "INSERT",
+        "",
+    )
     .await?;
     Ok(())
 }

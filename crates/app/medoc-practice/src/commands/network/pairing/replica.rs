@@ -8,7 +8,7 @@ use medoc_sync::pairing::{PairingRequest, ACTIVATION_TOKEN_PREFIX};
 use sqlx::SqlitePool;
 use tauri::{Manager, State};
 
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::error::AppError as TauriAppError;
 
 use super::support::{build_http_client, ensure_local_device_id, into_tauri};
@@ -178,8 +178,8 @@ pub async fn pairing_persist_token(
     SyncEngine::set_deployment(&pool, cfg)
         .await
         .map_err(into_tauri)?;
-    if let Some(ctrl) = app.try_state::<crate::commands::lan_commands::LanServerControl>() {
-        crate::commands::lan_commands::auto_start_replica_sync_lan(&app, (*pool).clone(), &ctrl)
+    if let Some(ctrl) = app.try_state::<crate::commands::network::lan::LanServerControl>() {
+        crate::commands::network::lan::auto_start_replica_sync_lan(&app, (*pool).clone(), &ctrl)
             .await;
     }
     Ok(())

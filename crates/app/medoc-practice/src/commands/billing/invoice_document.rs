@@ -5,9 +5,10 @@ use sqlx::SqlitePool;
 use tauri::State;
 
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::error::AppError;
-use crate::infrastructure::database::{audit_repo, invoice_document_repo};
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
+use crate::infrastructure::database::repos::billing::invoice_document as invoice_document_repo;
 use medoc_core::application::documents::issue::IssuedPdf;
 use medoc_core::application::documents::receivables::{
     self, InvoiceListFilter, InvoiceStatusRow, ReminderArgs, ReminderRow,
@@ -67,14 +68,15 @@ pub async fn append_invoice_document(
     let session = rbac::require(&session_state, "finance.write")?;
     // Only for importing the pre-registry browser history. Such rows are
     // marked as legacy and can never take a number the registry issued.
-    let taken: Option<String> = sqlx::query_scalar(
-        "SELECT id FROM issued_document WHERE document_number = ?1 LIMIT 1",
-    )
-    .bind(input.document_number.trim())
-    .fetch_optional(&*pool)
-    .await?;
+    let taken: Option<String> =
+        sqlx::query_scalar("SELECT id FROM issued_document WHERE document_number = ?1 LIMIT 1")
+            .bind(input.document_number.trim())
+            .fetch_optional(&*pool)
+            .await?;
     if taken.is_some() || input.document_number.trim().starts_with("RE-") {
-        return Err(AppError::validation_code("error.invoice.legacy_import_only"));
+        return Err(AppError::validation_code(
+            "error.invoice.legacy_import_only",
+        ));
     }
     if input.id.trim().is_empty() || input.patient_id.trim().is_empty() {
         return Err(AppError::Validation(
@@ -164,18 +166,4 @@ pub async fn payment_reminder_copy(
 ) -> Result<IssuedPdf, AppError> {
     let session = rbac::require_authenticated(&session_state)?;
     receivables::reminder_copy(&pool, &session, &reminder_id).await
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_invoice_document_commands {
-    () => {
-        $crate::commands::invoice_document_commands::list_invoice_documents,
-        $crate::commands::invoice_document_commands::append_invoice_document,
-        $crate::commands::invoice_document_commands::list_invoice_status,
-        $crate::commands::invoice_document_commands::get_invoice_status,
-        $crate::commands::invoice_document_commands::issue_payment_reminder,
-        $crate::commands::invoice_document_commands::list_payment_reminders,
-        $crate::commands::invoice_document_commands::payment_reminder_copy,
-    };
 }

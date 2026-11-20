@@ -11,13 +11,12 @@ import {
 } from "@/systems/practice-host/controllers/day-close-protocol.controller";
 import { issuedPdfBytes, type IssuedPdf } from "@/systems/practice-host/controllers/document.controller";
 import { openExportPreview } from "@/models/store/export-preview-store";
-import { printPdfBytes } from "../components/export-preview-dialog";
-import { errorMessage, formatDate, formatDateTime } from "@/lib/utils";
-import { formatCashAmount, parseDbUtc, parseEuroInput } from "@/lib/day-close";
+import { errorMessage, formatDate, formatDateTime, formatDbTime, parseEuroInput } from "@/lib/utils";
+import { formatCashAmount } from "@/lib/day-close";
 import { practiceCurrency } from "@/lib/practice-currency";
 import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "@/models/store/auth-store";
-import { bcp47ForLocale, useLocale, useT, useTParams } from "@/lib/i18n";
+import { useLocale, useT, useTParams } from "@/lib/i18n";
 import { DayCloseForm } from "../components/day-close-form";
 import { Button } from "../components/ui/button";
 import { Card, CardHeader } from "../components/ui/card";
@@ -36,7 +35,6 @@ export function DayClosePage() {
     const t = useT();
     const tp = useTParams();
     const locale = useLocale((s) => s.locale);
-    const timeLocale = bcp47ForLocale(locale);
     const toast = useToastStore((s) => s.add);
     const role = parseRole(useAuthStore((s) => s.session?.role));
     const canRead = role != null && allowed("finance.read", role);
@@ -97,11 +95,12 @@ export function DayClosePage() {
     const showReport = useCallback(
         (pdf: IssuedPdf, date: string) => {
             try {
+                const copySuffix = pdf.reprint ? `-${t("page.day_close.pdf_file_copy")}` : "";
                 openExportPreview({
                     format: "pdf",
                     title: `${t("page.day_close.report_title")} ${pdf.documentNumber ?? ""}`.trim(),
-                    hint: pdf.reprint ? "KOPIE" : undefined,
-                    suggestedFilename: `Kassenbericht-${date}${pdf.reprint ? "-Kopie" : ""}.pdf`,
+                    hint: pdf.reprint ? t("page.day_close.pdf_hint_copy") : undefined,
+                    suggestedFilename: `${t("page.day_close.pdf_filename")}-${date}${copySuffix}.pdf`,
                     binaryBody: issuedPdfBytes(pdf),
                     context: { kind: "daily_report", format: "pdf", entityId: date, documentNumber: pdf.documentNumber },
                 });
@@ -112,7 +111,7 @@ export function DayClosePage() {
         [t, toast, tp],
     );
 
-    /** Closing recorded on the server; show the numbered Kassenbericht. */
+    /** Closing recorded on the server; show the numbered cash report in Export Preview. */
     const onClosed = async (result: DayCloseResult) => {
         toast(t("page.day_close.toast.saved"), "success");
         showReport(result.report, result.draft.asOfDate);
@@ -123,13 +122,12 @@ export function DayClosePage() {
     };
 
     const openCashReport = useCallback(
-        async (protocolId: string, date: string, mode: "preview" | "print") => {
+        async (protocolId: string, date: string) => {
             if (reportBusy) return;
             setReportBusy(true);
             try {
                 const pdf = await dayCloseReportCopy(protocolId);
-                if (mode === "print") printPdfBytes(issuedPdfBytes(pdf));
-                else showReport(pdf, date);
+                showReport(pdf, date);
             } catch (e) {
                 toast(tp("page.day_close.toast.pdf_fail", { message: errorMessage(e) }), "error");
             } finally {
@@ -170,7 +168,7 @@ export function DayClosePage() {
 
     const handlePrintProtocol = useCallback(() => {
         if (!selected) return;
-        void openCashReport(selected.id, selected.as_of_date, "print");
+        void openCashReport(selected.id, selected.as_of_date);
     }, [openCashReport, selected]);
 
     const openCreate = () => {
@@ -198,7 +196,7 @@ export function DayClosePage() {
 
     if (!canRead) {
         return (
-            <div className="day_close-page practice-workspace-page animate-fade-in">
+            <div className="day_close-page practice-workspace-page animate-fade-in--sticky-safe">
                 <AdministrationPageHeader title={t("page.day_close.title")} subtitle={t("page.day_close.no_permission")} />
             </div>
         );
@@ -206,7 +204,7 @@ export function DayClosePage() {
 
     if (loading) {
         return (
-            <div className="day_close-page practice-workspace-page animate-fade-in">
+            <div className="day_close-page practice-workspace-page animate-fade-in--sticky-safe">
                 <AdministrationPageHeader title={t("page.day_close.title")} />
                 <PageLoading label={t("page.day_close.loading")} />
             </div>
@@ -214,7 +212,7 @@ export function DayClosePage() {
     }
     if (loadError) {
         return (
-            <div className="day_close-page practice-workspace-page animate-fade-in">
+            <div className="day_close-page practice-workspace-page animate-fade-in--sticky-safe">
                 <AdministrationPageHeader title={t("page.day_close.title")} />
                 <PageLoadError message={loadError} onRetry={() => void load(true)} />
             </div>
@@ -261,7 +259,7 @@ export function DayClosePage() {
                                     variant="secondary"
                                     loading={reportBusy}
                                     disabled={reportBusy}
-                                    onClick={() => void openCashReport(selected.id, selected.as_of_date, "preview")}
+                                    onClick={() => void openCashReport(selected.id, selected.as_of_date)}
                                 >
                                     {t("page.day_close.report_copy")}
                                 </Button>
@@ -328,7 +326,7 @@ export function DayClosePage() {
                                             {selectedDraft.receipts.map((r) => (
                                                 <tr key={r.id}>
                                                     <td style={{ whiteSpace: "nowrap" }}>
-                                                        {parseDbUtc(r.receivedAt).toLocaleTimeString(timeLocale, { hour: "2-digit", minute: "2-digit" })}
+                                                        {formatDbTime(r.receivedAt, locale)}
                                                     </td>
                                                     <td>{(r.patientName ?? r.patientId.slice(0, 8)).slice(0, 28)}</td>
                                                     <td>{t(`page.day_close.method.${r.method.toLowerCase()}`)}</td>
@@ -339,7 +337,7 @@ export function DayClosePage() {
                                             {selectedDraft.movements.map((m) => (
                                                 <tr key={m.id}>
                                                     <td style={{ whiteSpace: "nowrap" }}>
-                                                        {parseDbUtc(m.occurredAt).toLocaleTimeString(timeLocale, { hour: "2-digit", minute: "2-digit" })}
+                                                        {formatDbTime(m.occurredAt, locale)}
                                                     </td>
                                                     <td>{`${t(`page.day_close.movement.kind.${m.kind.toLowerCase()}`)}: ${m.reason}`}</td>
                                                     <td>{t("page.day_close.method.cash")}</td>
@@ -371,7 +369,7 @@ export function DayClosePage() {
     })();
 
     return (
-        <div className="day_close-page practice-workspace-page animate-fade-in">
+        <div className="day_close-page practice-workspace-page animate-fade-in--sticky-safe">
             <AdministrationPageHeader
                 className="day_close-no-print"
                 titleLevel="h1"

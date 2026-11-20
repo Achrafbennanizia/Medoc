@@ -1,9 +1,10 @@
 use crate::application::rbac::{self, FINANCE_READ_OR_RECEPTION};
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::domain::entities::payment::{BalanceSheet, CreatePayment, UpdatePayment};
 use crate::domain::entities::Payment;
 use crate::error::AppError;
-use crate::infrastructure::database::{audit_repo, payment_repo};
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
+use crate::infrastructure::database::repos::billing::payment as payment_repo;
 use medoc_core::application::documents::{finance_schema, period_report};
 use sqlx::SqlitePool;
 use tauri::State;
@@ -40,6 +41,7 @@ pub async fn list_payments_paged(
         date_on: p.filter_str("dateOn"),
         date_from: p.filter_str("dateFrom"),
         date_to: p.filter_str("dateTo"),
+        active_on: p.filter_str("activeOn"),
     };
     let (items, total) =
         payment_repo::find_paginated(&pool, limit, offset, sort_dir, filter).await?;
@@ -189,7 +191,9 @@ pub async fn delete_payment(
     .await?;
     if received != 0 {
         // Money was received on this booking: cancel it instead (Storno).
-        return Err(AppError::validation_code("error.payment.delete_has_receipts"));
+        return Err(AppError::validation_code(
+            "error.payment.delete_has_receipts",
+        ));
     }
     payment_repo::delete_if_pending(&pool, &id).await?;
     audit_repo::create(
@@ -239,23 +243,4 @@ pub async fn set_payments_cash_verified(
     .await
     .ok();
     Ok(n)
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_payment_commands {
-    () => {
-        $crate::commands::payment_commands::list_payments,
-        $crate::commands::payment_commands::list_payments_paged,
-        $crate::commands::payment_commands::payment_finance_kpis,
-        $crate::commands::payment_commands::payment_monthly_breakdown,
-        $crate::commands::payment_commands::list_payments_for_patient,
-        $crate::commands::payment_commands::list_patient_ids_open_invoice,
-        $crate::commands::payment_commands::create_payment,
-        $crate::commands::payment_commands::update_payment,
-        $crate::commands::payment_commands::delete_payment,
-        $crate::commands::payment_commands::update_payment_status,
-        $crate::commands::payment_commands::get_balance_sheet,
-        $crate::commands::payment_commands::set_payments_cash_verified,
-    };
 }

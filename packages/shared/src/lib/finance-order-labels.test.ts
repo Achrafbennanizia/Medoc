@@ -82,6 +82,34 @@ describe("displayPracticeTaskTitle", () => {
             "Record payment: Root canal anterior",
         );
         expect(displayPracticeTaskTitle("Demo billing follow-up", t)).toBe("Demo billing follow-up");
+        expect(
+            displayPracticeTaskTitle("Root canal anterior", t, {
+                kind: "BILLING",
+                title: "Root canal anterior",
+                service_name: "Root canal anterior",
+            }),
+        ).toBe("Record payment: Root canal anterior");
+        expect(
+            displayPracticeTaskTitle("Root canal anterior (49.00 EUR)", t, {
+                kind: "BILLING",
+                title: "Root canal anterior",
+                service_name: "Root canal anterior",
+            }),
+        ).toBe("Record payment: Root canal anterior (49.00 EUR)");
+        expect(
+            displayPracticeTaskTitle("(49.00 EUR)", t, {
+                kind: "BILLING",
+                title: "",
+                service_name: "",
+            }),
+        ).toBe("Record payment: (49.00 EUR)");
+        expect(
+            displayPracticeTaskTitle("Call the lab", t, {
+                kind: "BILLING",
+                title: "Call the lab",
+                service_name: null,
+            }),
+        ).toBe("Call the lab");
     });
 });
 

@@ -1,6 +1,6 @@
 //! Axum HTTPS API — authenticated LAN access (JWT HS256, TLS via `lan_server::tls`).
 //!
-//! **Background / ops:** The embedded host runs in its own Tokio tasks (`lan_commands`) and does not
+//! **Background / ops:** The embedded host runs in its own Tokio tasks (`commands::network::lan`) and does not
 //! block the Tauri UI. Headless: `medoc-server` binary. **Timeouts** prevent hung LAN requests.
 
 #![allow(clippy::result_large_err)] // axum handlers return `Response` as Err
@@ -9,7 +9,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use axum::extract::{ConnectInfo, Extension, Query, State};
+use axum::extract::{ConnectInfo, Extension, Path, Query, State};
 use axum::http::{header, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
@@ -21,16 +21,18 @@ use sqlx::SqlitePool;
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::timeout::TimeoutLayer;
 
+use medoc_core::application::access_control::{self, MyAccessDto};
 use medoc_core::application::app_kv_policy;
 use medoc_core::application::auth_service::{self, LoginRequest};
+use medoc_core::application::authorize;
 use medoc_core::application::own_profile::{self, OwnProfileDto};
-use medoc_core::application::rbac::{self, Role};
 use medoc_core::company::{CompanyPortalPort, COMPANY_PORTAL};
 use medoc_core::domain::entities::staff::UpdateOwnProfile;
 use medoc_core::error::AppError;
 use medoc_core::infrastructure::company_portal::load_company_portal_config;
 use medoc_core::infrastructure::cors_policy::{self, CorsGate};
-use medoc_core::infrastructure::database::{app_kv_repo, staff_repo};
+use medoc_core::infrastructure::database::repos::admin::app_kv as app_kv_repo;
+use medoc_core::infrastructure::database::repos::admin::staff as staff_repo;
 use medoc_core::infrastructure::logging::brute_force::{BruteForceTracker, BruteKey, CheckResult};
 
 use crate::discovery::LanBeaconPayload;
@@ -105,14 +107,32 @@ pub struct AppKvPutBody {
     pub value: String,
 }
 
-fn require_app_kv_write(claims: &jwt::LanClaims, key: &str) -> Result<(), AppError> {
+/// One authorization path for every JWT route: the staff row is re-read, so a
+/// deactivated account, a per-person DENY or a changed access profile applies
+/// at once — not only after the 8 h token expires. The role baked into the
+/// token is not trusted.
+async fn require_claims(
+    pool: &SqlitePool,
+    claims: &jwt::LanClaims,
+    action: &str,
+) -> Result<(), AppError> {
+    let caller = authorize::Caller {
+        user_id: claims.sub.clone(),
+        idle_for: None,
+        device_session_id: None,
+    };
+    authorize::authorize(pool, &caller, action, None).await?;
+    Ok(())
+}
+
+async fn require_app_kv_write(
+    pool: &SqlitePool,
+    claims: &jwt::LanClaims,
+    key: &str,
+) -> Result<(), AppError> {
     let perm = app_kv_policy::permission_for_app_kv_key(key)
         .ok_or_else(|| AppError::Validation(format!("Unbekannter KV-Key: {key}")))?;
-    let role = Role::parse(&claims.role).ok_or(AppError::Forbidden)?;
-    if !rbac::allowed(perm, role) {
-        return Err(AppError::Forbidden);
-    }
-    Ok(())
+    require_claims(pool, claims, perm).await
 }
 
 #[derive(Serialize)]
@@ -194,12 +214,11 @@ async fn jwt_auth_middleware(
     Ok(next.run(req).await)
 }
 
-fn require_ops_system_claims(claims: &jwt::LanClaims) -> Result<(), AppError> {
-    let role = Role::parse(&claims.role).ok_or(AppError::Forbidden)?;
-    if !rbac::allowed("ops.system", role) {
-        return Err(AppError::Forbidden);
-    }
-    Ok(())
+async fn require_ops_system_claims(
+    pool: &SqlitePool,
+    claims: &jwt::LanClaims,
+) -> Result<(), AppError> {
+    require_claims(pool, claims, "ops.system").await
 }
 
 pub fn build_router(state: LanHttpState) -> Router {
@@ -226,6 +245,11 @@ pub fn build_router(state: LanHttpState) -> Router {
 
     let protected = Router::new()
         .route("/me", get(me_get).patch(me_patch))
+        .route("/me/access", get(me_access_get))
+        // Staff route (not under `/sync/`, which only takes device tokens).
+        .route("/sync-problems", get(sync_problems_list))
+        .route("/sync-problems/{id}/retry", post(sync_problem_retry))
+        .route("/sync-problems/{id}/dismiss", post(sync_problem_dismiss))
         .route(
             "/app-kv",
             get(app_kv_get).put(app_kv_put).delete(app_kv_delete),
@@ -240,15 +264,28 @@ pub fn build_router(state: LanHttpState) -> Router {
             "/company/billing/portal-session",
             post(company_billing_portal_post),
         )
-        .route("/sync/push", post(self::sync::sync_push))
-        .route("/sync/pull", post(self::sync::sync_pull))
-        .route("/sync/digest", post(self::sync::sync_digest))
-        .route("/sync/row-hashes", post(self::sync::sync_row_hashes))
-        .route("/sync/rows", post(self::sync::sync_rows))
-        .route("/sync/status", get(self::sync::sync_status))
-        .route("/sync/number", post(self::sync::sync_number))
+        .route(medoc_sync::paths::SYNC_PUSH, post(self::sync::sync_push))
+        .route(medoc_sync::paths::SYNC_PULL, post(self::sync::sync_pull))
         .route(
-            "/sync/blob/{sha256}",
+            medoc_sync::paths::SYNC_EXCHANGE,
+            post(self::sync::sync_exchange),
+        )
+        .route(
+            medoc_sync::paths::SYNC_DIGEST,
+            post(self::sync::sync_digest),
+        )
+        .route(
+            medoc_sync::paths::SYNC_ROW_HASHES,
+            post(self::sync::sync_row_hashes),
+        )
+        .route(medoc_sync::paths::SYNC_ROWS, post(self::sync::sync_rows))
+        .route(medoc_sync::paths::SYNC_STATUS, get(self::sync::sync_status))
+        .route(
+            medoc_sync::paths::SYNC_NUMBER,
+            post(self::sync::sync_number),
+        )
+        .route(
+            medoc_sync::paths::SYNC_BLOB_ROUTE,
             get(self::sync::sync_blob_get).put(self::sync::sync_blob_put),
         )
         .route("/pairing/pending", get(self::pairing::pending))
@@ -378,6 +415,53 @@ async fn me_get(
     Ok(Json(dto))
 }
 
+/// What the signed-in person may do: area levels and allowed actions.
+/// Clients use it to hide what the server would refuse anyway.
+async fn me_access_get(
+    State(state): State<LanHttpState>,
+    Extension(claims): Extension<jwt::LanClaims>,
+) -> Result<Json<MyAccessDto>, ApiError> {
+    require_claims(&state.pool, &claims, "dashboard.read").await?;
+    let dto = access_control::my_access(&state.pool, &claims.sub).await?;
+    Ok(Json(dto))
+}
+
+#[derive(Deserialize)]
+pub struct SyncProblemsQuery {
+    #[serde(default)]
+    pub all: bool,
+}
+
+/// Changes that could not be applied or sent, for the admin to resolve.
+async fn sync_problems_list(
+    State(state): State<LanHttpState>,
+    Extension(claims): Extension<jwt::LanClaims>,
+    Query(q): Query<SyncProblemsQuery>,
+) -> Result<Json<Vec<medoc_sync::problems::SyncProblem>>, ApiError> {
+    require_claims(&state.pool, &claims, "ops.system").await?;
+    Ok(Json(medoc_sync::problems::list(&state.pool, q.all).await?))
+}
+
+async fn sync_problem_retry(
+    State(state): State<LanHttpState>,
+    Extension(claims): Extension<jwt::LanClaims>,
+    Path(id): Path<String>,
+) -> Result<StatusCode, ApiError> {
+    require_claims(&state.pool, &claims, "ops.system").await?;
+    medoc_sync::problems::retry(&state.pool, &id, &claims.sub).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn sync_problem_dismiss(
+    State(state): State<LanHttpState>,
+    Extension(claims): Extension<jwt::LanClaims>,
+    Path(id): Path<String>,
+) -> Result<StatusCode, ApiError> {
+    require_claims(&state.pool, &claims, "ops.system").await?;
+    medoc_sync::problems::dismiss(&state.pool, &id, &claims.sub).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 /// Update own profile — mirrors Tauri `update_own_profile`.
 async fn me_patch(
     State(state): State<LanHttpState>,
@@ -396,10 +480,7 @@ async fn app_kv_get(
 ) -> Result<Json<Option<String>>, ApiError> {
     let perm = app_kv_policy::read_permission_for_app_kv_key(&q.key)
         .ok_or_else(|| AppError::Validation(format!("Unknown KV key: {}", q.key)))?;
-    let role = Role::parse(&claims.role).ok_or(AppError::Forbidden)?;
-    if !rbac::allowed(perm, role) {
-        return Err(AppError::Forbidden.into());
-    }
+    require_claims(&state.pool, &claims, perm).await?;
     let row = app_kv_repo::get(&state.pool, &q.key).await?;
     Ok(Json(row))
 }
@@ -410,7 +491,7 @@ async fn app_kv_put(
     Extension(claims): Extension<jwt::LanClaims>,
     Json(body): Json<AppKvPutBody>,
 ) -> Result<StatusCode, ApiError> {
-    require_app_kv_write(&claims, &body.key)?;
+    require_app_kv_write(&state.pool, &claims, &body.key).await?;
     app_kv_policy::validate_app_kv_value(&body.key, &body.value)?;
     app_kv_repo::set(&state.pool, &body.key, &body.value).await?;
     Ok(StatusCode::NO_CONTENT)
@@ -422,7 +503,7 @@ async fn app_kv_delete(
     Extension(claims): Extension<jwt::LanClaims>,
     Query(q): Query<AppKvKeyQuery>,
 ) -> Result<StatusCode, ApiError> {
-    require_app_kv_write(&claims, &q.key)?;
+    require_app_kv_write(&state.pool, &claims, &q.key).await?;
     app_kv_repo::delete(&state.pool, &q.key).await?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -432,7 +513,7 @@ async fn company_summary_get(
     State(state): State<LanHttpState>,
     Extension(claims): Extension<jwt::LanClaims>,
 ) -> Result<Json<Value>, ApiError> {
-    require_ops_system_claims(&claims)?;
+    require_ops_system_claims(&state.pool, &claims).await?;
     let cfg = load_company_portal_config(&state.pool).await;
     let version = COMPANY_PORTAL.fetch_subscription_summary(&cfg).await?;
     Ok(Json(version))
@@ -442,7 +523,7 @@ async fn company_integrations_get(
     State(state): State<LanHttpState>,
     Extension(claims): Extension<jwt::LanClaims>,
 ) -> Result<Json<Value>, ApiError> {
-    require_ops_system_claims(&claims)?;
+    require_ops_system_claims(&state.pool, &claims).await?;
     let cfg = load_company_portal_config(&state.pool).await;
     let version = COMPANY_PORTAL.fetch_integration_statuses(&cfg).await?;
     Ok(Json(version))
@@ -452,7 +533,7 @@ async fn company_feature_flags_get(
     State(state): State<LanHttpState>,
     Extension(claims): Extension<jwt::LanClaims>,
 ) -> Result<Json<Value>, ApiError> {
-    require_ops_system_claims(&claims)?;
+    require_ops_system_claims(&state.pool, &claims).await?;
     let cfg = load_company_portal_config(&state.pool).await;
     let version = COMPANY_PORTAL.fetch_feature_flags(&cfg).await?;
     Ok(Json(version))
@@ -462,7 +543,7 @@ async fn company_billing_portal_post(
     State(state): State<LanHttpState>,
     Extension(claims): Extension<jwt::LanClaims>,
 ) -> Result<Json<Value>, ApiError> {
-    require_ops_system_claims(&claims)?;
+    require_ops_system_claims(&state.pool, &claims).await?;
     let cfg = load_company_portal_config(&state.pool).await;
     let url = COMPANY_PORTAL.post_billing_portal_url(&cfg).await?;
     Ok(Json(json!({ "url": url, "provider": "Vendor portal" })))

@@ -42,7 +42,9 @@ fn validate_absence_range(from_day: &str, to_day: &str) -> Result<(), AppError> 
     let parse = |d: &str| chrono::NaiveDate::parse_from_str(d.trim(), "%Y-%m-%d");
     match (parse(from_day), parse(to_day)) {
         (Ok(from), Ok(to)) if to >= from => Ok(()),
-        _ => Err(AppError::validation_code("error.master.date_range_required")),
+        _ => Err(AppError::validation_code(
+            "error.master.date_range_required",
+        )),
     }
 }
 
@@ -435,11 +437,12 @@ pub async fn create_treatment_catalog_item(
     .bind(sort)
     .execute(pool)
     .await?;
-    let row = sqlx::query_as::<_, TreatmentCatalogItem>("SELECT * FROM treatment_catalog WHERE id = ?1")
-        .bind(&id)
-        .fetch_one(pool)
-        .await
-        .map_err(AppError::from)?;
+    let row =
+        sqlx::query_as::<_, TreatmentCatalogItem>("SELECT * FROM treatment_catalog WHERE id = ?1")
+            .bind(&id)
+            .fetch_one(pool)
+            .await
+            .map_err(AppError::from)?;
     crate::infrastructure::database::sync_outbox::record_or_noop(
         pool,
         "treatment_catalog",

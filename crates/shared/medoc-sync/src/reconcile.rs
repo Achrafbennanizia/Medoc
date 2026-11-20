@@ -332,7 +332,7 @@ async fn pending_empty(pool: &SqlitePool) -> Result<bool, AppError> {
 }
 
 async fn repair_required(pool: &SqlitePool) -> bool {
-    medoc_core::infrastructure::database::app_kv_repo::get(pool, REPAIR_KV)
+    medoc_core::infrastructure::database::repos::admin::app_kv::get(pool, REPAIR_KV)
         .await
         .ok()
         .flatten()
@@ -340,10 +340,11 @@ async fn repair_required(pool: &SqlitePool) -> bool {
 }
 
 async fn last_run_too_recent(pool: &SqlitePool) -> bool {
-    let Some(raw) = medoc_core::infrastructure::database::app_kv_repo::get(pool, LAST_RUN_KV)
-        .await
-        .ok()
-        .flatten()
+    let Some(raw) =
+        medoc_core::infrastructure::database::repos::admin::app_kv::get(pool, LAST_RUN_KV)
+            .await
+            .ok()
+            .flatten()
     else {
         return false;
     };
@@ -419,7 +420,7 @@ async fn run_against_master(pool: &SqlitePool) -> Result<ReconcileReport, AppErr
     let local_digest = compute_digest(pool).await?;
     let remote_digest: DigestResponse = post_json(
         &client,
-        &format!("{base}/api/v1/sync/digest"),
+        &crate::paths::api_url(base, crate::paths::SYNC_DIGEST),
         token,
         &serde_json::json!({}),
     )
@@ -443,7 +444,7 @@ async fn run_against_master(pool: &SqlitePool) -> Result<ReconcileReport, AppErr
 
     let remote_wrap: RowHashesBody = post_json(
         &client,
-        &format!("{base}/api/v1/sync/row-hashes"),
+        &crate::paths::api_url(base, crate::paths::SYNC_ROW_HASHES),
         token,
         &RowHashesRequest {
             buckets: mismatch.clone(),
@@ -484,7 +485,7 @@ async fn run_against_master(pool: &SqlitePool) -> Result<ReconcileReport, AppErr
     if !fetch_ids.is_empty() {
         let rows_wrap: RowsBody = post_json(
             &client,
-            &format!("{base}/api/v1/sync/rows"),
+            &crate::paths::api_url(base, crate::paths::SYNC_ROWS),
             token,
             &RowsRequest {
                 ids: fetch_ids.clone(),
@@ -515,7 +516,7 @@ async fn run_against_master(pool: &SqlitePool) -> Result<ReconcileReport, AppErr
     }
 
     persist_result(pool, &report).await?;
-    let _ = medoc_core::infrastructure::database::audit_repo::create(
+    let _ = medoc_core::infrastructure::database::repos::admin::audit::create(
         pool,
         "system",
         "RECONCILE",
@@ -529,8 +530,9 @@ async fn run_against_master(pool: &SqlitePool) -> Result<ReconcileReport, AppErr
 
 async fn persist_result(pool: &SqlitePool, report: &ReconcileReport) -> Result<(), AppError> {
     let now = chrono::Utc::now().to_rfc3339();
-    medoc_core::infrastructure::database::app_kv_repo::set(pool, LAST_RUN_KV, &now).await?;
-    medoc_core::infrastructure::database::app_kv_repo::set(
+    medoc_core::infrastructure::database::repos::admin::app_kv::set(pool, LAST_RUN_KV, &now)
+        .await?;
+    medoc_core::infrastructure::database::repos::admin::app_kv::set(
         pool,
         LAST_RESULT_KV,
         &serde_json::to_string(report).unwrap_or_default(),

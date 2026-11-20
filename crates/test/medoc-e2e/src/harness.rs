@@ -14,8 +14,8 @@ use http_body_util::BodyExt;
 use medoc_core::domain::entities::patient::CreatePatient;
 use medoc_core::domain::enums::Sex;
 use medoc_core::infrastructure::database::connection;
+use medoc_core::infrastructure::database::repos::admin::license as license_repo;
 use medoc_core::infrastructure::license::{encrypt_v2_for_device, LicenseV2, VENDOR_PUBKEY};
-use medoc_core::infrastructure::license_repo;
 use medoc_core::infrastructure::logging::brute_force::BruteForceTracker;
 use medoc_lan::LanSystemFactory;
 use medoc_sync::deployment::{
@@ -47,7 +47,9 @@ pub fn ensure_e2e_env() {
         );
         let audit_dir = std::env::temp_dir().join("medoc-e2e-audit-init");
         let _ = std::fs::create_dir_all(&audit_dir);
-        let _ = medoc_core::infrastructure::database::audit_repo::init_audit_hmac_key(&audit_dir);
+        let _ = medoc_core::infrastructure::database::repos::admin::audit::init_audit_hmac_key(
+            &audit_dir,
+        );
     });
 }
 
@@ -94,7 +96,7 @@ pub async fn enroll_seed_physician_totp(pool: &SqlitePool) {
     if !medoc_core::mvp_security::TOTP_2FA_ENABLED {
         return;
     }
-    use medoc_core::infrastructure::database::staff_repo;
+    use medoc_core::infrastructure::database::repos::admin::staff as staff_repo;
     use medoc_core::infrastructure::totp;
     let (secret, _) = totp::generate_enrollment("ahmed@practice.de").expect("totp enroll");
     staff_repo::set_totp_pending_secret(pool, "seed-physician-001", &secret)
@@ -112,7 +114,8 @@ pub const PORT_MASTER_SEED_PATIENT_NAME: &str = "Master Seed Pull Patient";
 pub async fn prepare_master_data_dir(data_dir: &std::path::Path) {
     ensure_e2e_env();
     std::fs::create_dir_all(data_dir).expect("mkdir master data dir");
-    let _ = medoc_core::infrastructure::database::audit_repo::init_audit_hmac_key(data_dir);
+    let _ =
+        medoc_core::infrastructure::database::repos::admin::audit::init_audit_hmac_key(data_dir);
     let pool = medoc_core::infrastructure::database::connection::init_db_headless(data_dir)
         .await
         .expect("init_db_headless");
@@ -123,7 +126,7 @@ pub async fn prepare_master_data_dir(data_dir: &std::path::Path) {
         "practice_slug": "demo-practice",
         "api_key": ""
     });
-    medoc_core::infrastructure::database::app_kv_repo::set(
+    medoc_core::infrastructure::database::repos::admin::app_kv::set(
         &pool,
         medoc_core::infrastructure::company_portal::config::COMPANY_PORTAL_KV_KEY,
         &portal_cfg.to_string(),
@@ -142,7 +145,7 @@ pub async fn prepare_master_data_dir(data_dir: &std::path::Path) {
         .await
         .expect("serverless master deployment");
 
-    medoc_core::infrastructure::database::patient_repo::create(
+    medoc_core::infrastructure::database::repos::clinical::patient::create(
         &pool,
         &CreatePatient {
             name: PORT_MASTER_SEED_PATIENT_NAME.into(),
@@ -180,14 +183,19 @@ pub async fn prepare_replica_data_dir(
 ) {
     ensure_e2e_env();
     std::fs::create_dir_all(data_dir).expect("mkdir replica data dir");
-    let _ = medoc_core::infrastructure::database::audit_repo::init_audit_hmac_key(data_dir);
+    let _ =
+        medoc_core::infrastructure::database::repos::admin::audit::init_audit_hmac_key(data_dir);
     let pool = open_headless_pool(data_dir).await;
     medoc_sync::schema::ensure_sync_tables(&pool)
         .await
         .expect("sync schema");
-    medoc_core::infrastructure::database::app_kv_repo::set(&pool, APP_KV_DEVICE_ID_KEY, device_id)
-        .await
-        .expect("replica device id");
+    medoc_core::infrastructure::database::repos::admin::app_kv::set(
+        &pool,
+        APP_KV_DEVICE_ID_KEY,
+        device_id,
+    )
+    .await
+    .expect("replica device id");
     let cfg = SyncDeploymentConfig {
         schema_version: 1,
         mode: DeploymentMode::ServerlessPeer,
@@ -241,9 +249,13 @@ pub async fn fresh_replica_pool(device_id: &str) -> SqlitePool {
     medoc_sync::schema::ensure_sync_tables(&pool)
         .await
         .expect("sync schema");
-    medoc_core::infrastructure::database::app_kv_repo::set(&pool, APP_KV_DEVICE_ID_KEY, device_id)
-        .await
-        .expect("device id");
+    medoc_core::infrastructure::database::repos::admin::app_kv::set(
+        &pool,
+        APP_KV_DEVICE_ID_KEY,
+        device_id,
+    )
+    .await
+    .expect("device id");
     pool
 }
 
@@ -422,11 +434,7 @@ impl LanHarness {
         (status, body)
     }
 
-    pub async fn get_bytes(
-        &mut self,
-        path: &str,
-        bearer: Option<&str>,
-    ) -> (u16, Vec<u8>) {
+    pub async fn get_bytes(&mut self, path: &str, bearer: Option<&str>) -> (u16, Vec<u8>) {
         let mut builder = Request::builder().method("GET").uri(path);
         if let Some(token) = bearer {
             builder = builder.header("Authorization", format!("Bearer {token}"));
@@ -664,7 +672,7 @@ async fn pair_mesh_replica(lan: &mut LanHarness, jwt: &str, seed: u8, device_id:
 }
 
 async fn enable_replica_outbox(pool: &SqlitePool, label: &str) {
-    medoc_core::infrastructure::database::app_kv_repo::set(
+    medoc_core::infrastructure::database::repos::admin::app_kv::set(
         pool,
         "sync.deployment.v1",
         &format!(

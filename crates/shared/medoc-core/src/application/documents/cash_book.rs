@@ -4,8 +4,9 @@
 //! and the cash movements; the client only supplies what a person counted.
 //!
 //! Rules (GoBD Rz. 111 ff., AEAO zu § 146 AO):
-//! * cash is recorded daily; a closing covers every journal line not yet
-//!   closed up to its date (late entries roll into the next closing),
+//! * cash is recorded daily; a closing covers the journal lines whose
+//!   `local_day` is the chosen day. Earlier unclosed days stay open for
+//!   their own closing,
 //! * Soll-Bestand = Anfangsbestand + Bareinnahmen ± Einlagen/Entnahmen,
 //!   Anfangsbestand = counted cash of the previous closing,
 //! * a counted amount is mandatory; a difference needs a written reason,
@@ -26,16 +27,26 @@ use super::issue::{
 };
 use super::practice_profile::{document_locale, practice_logo, PracticeProfile};
 use crate::application::auth_service::Session;
+use crate::domain::services::pricing::euros_to_cents;
 use crate::error::AppError;
-use crate::infrastructure::database::issued_document_repo::{self as repo, sha256_hex, IssuedDocument};
-use crate::infrastructure::database::{audit_repo, sync_outbox};
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
+use crate::infrastructure::database::repos::billing::issued_document::{
+    self as repo, sha256_hex, IssuedDocument,
+};
+use crate::infrastructure::database::repos::billing::payment as payment_repo;
+use crate::infrastructure::database::sync_outbox;
 use crate::infrastructure::pdf::{
     render_report_pdf, ReportPdfInput, ReportPdfSection, ReportPdfSummaryRow,
 };
 
-pub const PERM_READ: &str = "finance.read";
-pub const PERM_CLOSE: &str = "finance.day_close.write";
-pub const PERM_CASH: &str = "finance.write";
+/// Cash desk permissions (see `domain::access`). Without an access profile
+/// they decide exactly as `finance.read` / `finance.write` /
+/// `finance.day_close.write` did before.
+pub const PERM_READ: &str = "cash.read";
+pub const PERM_CLOSE: &str = "cash.day_close";
+pub const PERM_CASH: &str = "cash.create";
+/// Reversing a booking voids it: full cash desk access.
+pub const PERM_REVERSE: &str = "cash.delete";
 
 /// Euro coins and notes in cents, largest first.
 pub const DENOMINATIONS: [i64; 15] = [
@@ -45,7 +56,9 @@ pub const DENOMINATIONS: [i64; 15] = [
 macro_rules! immediate_tx {
     ($pool:expr, |$conn:ident| $body:block) => {{
         let mut conn_guard = $pool.acquire().await?;
-        sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn_guard).await?;
+        sqlx::query("BEGIN IMMEDIATE")
+            .execute(&mut *conn_guard)
+            .await?;
         let result: Result<_, AppError> = async {
             let $conn: &mut SqliteConnection = &mut *conn_guard;
             $body
@@ -209,16 +222,6 @@ pub fn fmt_eur(cents: i64) -> String {
     )
 }
 
-fn euros_to_cents(euros: f64) -> i64 {
-    (euros * 100.0).round() as i64
-}
-
-fn dmy(ymd: &str) -> String {
-    NaiveDate::parse_from_str(ymd.get(..10).unwrap_or(ymd), "%Y-%m-%d")
-        .map(|d| d.format("%d.%m.%Y").to_string())
-        .unwrap_or_else(|_| ymd.to_string())
-}
-
 /// UTC `YYYY-MM-DD HH:MM:SS` → local `dd.mm.yyyy HH:MM`.
 fn local_time(utc: &str) -> String {
     chrono::NaiveDateTime::parse_from_str(utc.get(..19).unwrap_or(utc), "%Y-%m-%d %H:%M:%S")
@@ -235,50 +238,41 @@ fn movement_direction(kind: &str) -> Result<i64, AppError> {
     match kind {
         "OPENING_FLOAT" | "DEPOSIT" => Ok(1),
         "WITHDRAWAL" | "BANK_DEPOSIT" | "EXPENSE" => Ok(-1),
-        _ => Err(AppError::validation_code("error.cash_book.bad_movement_kind")),
+        _ => Err(AppError::validation_code(
+            "error.cash_book.bad_movement_kind",
+        )),
     }
 }
 
-fn movement_label(kind: &str, de: bool) -> &'static str {
-    match (kind, de) {
-        ("OPENING_FLOAT", true) => "Wechselgeld-Einlage",
-        ("OPENING_FLOAT", false) => "Opening float",
-        ("DEPOSIT", true) => "Einlage",
-        ("DEPOSIT", false) => "Deposit",
-        ("WITHDRAWAL", true) => "Entnahme",
-        ("WITHDRAWAL", false) => "Withdrawal",
-        ("BANK_DEPOSIT", true) => "Bankeinzahlung",
-        ("BANK_DEPOSIT", false) => "Bank deposit",
-        ("EXPENSE", true) => "Barausgabe",
-        ("EXPENSE", false) => "Cash expense",
-        ("REVERSAL", true) => "Storno Kassenbewegung",
-        _ => "Reversal",
+fn movement_label(kind: &str, locale: &str) -> &'static str {
+    use crate::infrastructure::pdf::i18n::tr;
+    match kind {
+        "OPENING_FLOAT" => tr(locale, "cash.opening_float"),
+        "DEPOSIT" => tr(locale, "cash.deposit"),
+        "WITHDRAWAL" => tr(locale, "cash.withdrawal"),
+        "BANK_DEPOSIT" => tr(locale, "cash.bank_deposit"),
+        "EXPENSE" => tr(locale, "cash.cash_expense"),
+        _ => tr(locale, "cash.movement_reversal"),
     }
 }
 
-fn method_label(m: &str, de: bool) -> &'static str {
-    match (m, de) {
-        ("CASH", true) => "Bar",
-        ("CASH", false) => "Cash",
-        ("CARD", true) => "Karte",
-        ("CARD", false) => "Card",
-        ("BANK_TRANSFER", true) => "Überweisung",
-        ("BANK_TRANSFER", false) => "Bank transfer",
-        ("INVOICE", true) => "Rechnung",
-        _ => "Invoice",
+fn method_label(m: &str, locale: &str) -> &'static str {
+    use crate::infrastructure::pdf::i18n::tr;
+    match m {
+        "CASH" => tr(locale, "cash.cash"),
+        "CARD" => tr(locale, "cash.card"),
+        "BANK_TRANSFER" => tr(locale, "cash.bank_transfer"),
+        _ => tr(locale, "cash.invoice"),
     }
 }
 
-fn kind_label(k: &str, de: bool) -> &'static str {
-    match (k, de) {
-        ("RECEIPT", true) => "Zahlung",
-        ("RECEIPT", false) => "Payment",
-        ("REVERSAL", true) => "Storno",
-        ("REVERSAL", false) => "Reversal",
-        ("CORRECTION", true) => "Korrektur",
-        ("CORRECTION", false) => "Correction",
-        ("BACKFILL", true) => "Übernahme",
-        _ => "Carried over",
+fn kind_label(k: &str, locale: &str) -> &'static str {
+    use crate::infrastructure::pdf::i18n::tr;
+    match k {
+        "RECEIPT" => tr(locale, "cash.payment"),
+        "REVERSAL" => tr(locale, "cash.kind_reversal"),
+        "CORRECTION" => tr(locale, "cash.correction"),
+        _ => tr(locale, "cash.carried_over"),
     }
 }
 
@@ -296,73 +290,78 @@ async fn last_final_close(
         .bind(before_or_on)
         .fetch_optional(pool)
         .await?;
-    Ok(row.map(|(id, d, counted, expected, counted_eur, sys_eur, nr)| {
-        // Closing balance = what was counted; legacy rows only have euros.
-        let closing = counted
-            .or(expected)
-            .or_else(|| counted_eur.map(|e| (e * 100.0).round() as i64))
-            .or_else(|| sys_eur.map(|e| (e * 100.0).round() as i64))
-            .unwrap_or(0);
-        LastClose {
-            id,
-            as_of_date: d,
-            closing_cents: closing,
-            document_number: nr,
-        }
-    }))
+    Ok(
+        row.map(|(id, d, counted, expected, counted_eur, sys_eur, nr)| {
+            // Closing balance = what was counted; legacy rows only have euros.
+            let closing = counted
+                .or(expected)
+                .or_else(|| counted_eur.map(euros_to_cents))
+                .or_else(|| sys_eur.map(euros_to_cents))
+                .unwrap_or(0);
+            LastClose {
+                id,
+                as_of_date: d,
+                closing_cents: closing,
+                document_number: nr,
+            }
+        }),
+    )
 }
 
-async fn open_receipts(pool: &SqlitePool, upto: &str) -> Result<Vec<JournalLine>, AppError> {
-    Ok(sqlx::query_as::<_, JournalLine>(
-        "SELECT r.id, r.payment_id, r.patient_id, p.name AS patient_name, r.amount_cents, r.method,
-                r.kind, r.received_at, r.local_day,
-                (SELECT d.document_number FROM issued_document d
-                  WHERE d.kind = 'RECEIPT' AND d.source_id = r.payment_id LIMIT 1) AS receipt_number
-           FROM payment_receipt r LEFT JOIN patient p ON p.id = r.patient_id
-          WHERE r.day_close_id IS NULL AND r.local_day <= ?1
-          ORDER BY r.received_at, r.rowid",
-    )
-    .bind(upto)
-    .fetch_all(pool)
-    .await?)
+const RECEIPT_SQL: &str = "\
+SELECT r.id, r.payment_id, r.patient_id, p.name AS patient_name, r.amount_cents, r.method,
+       r.kind, r.received_at, r.local_day,
+       (SELECT d.document_number FROM issued_document d
+         WHERE d.kind = 'RECEIPT' AND d.source_id = r.payment_id LIMIT 1) AS receipt_number
+  FROM payment_receipt r LEFT JOIN patient p ON p.id = r.patient_id
+ WHERE ";
+
+async fn receipts(
+    pool: &SqlitePool,
+    filter: &'static str,
+    bind: &str,
+) -> Result<Vec<JournalLine>, AppError> {
+    let sql = format!("{RECEIPT_SQL}{filter} ORDER BY r.received_at, r.rowid");
+    Ok(sqlx::query_as::<_, JournalLine>(&sql)
+        .bind(bind)
+        .fetch_all(pool)
+        .await?)
+}
+
+async fn open_receipts(pool: &SqlitePool, day: &str) -> Result<Vec<JournalLine>, AppError> {
+    receipts(pool, "r.day_close_id IS NULL AND r.local_day = ?1", day).await
 }
 
 async fn closed_receipts(pool: &SqlitePool, close_id: &str) -> Result<Vec<JournalLine>, AppError> {
-    Ok(sqlx::query_as::<_, JournalLine>(
-        "SELECT r.id, r.payment_id, r.patient_id, p.name AS patient_name, r.amount_cents, r.method,
-                r.kind, r.received_at, r.local_day,
-                (SELECT d.document_number FROM issued_document d
-                  WHERE d.kind = 'RECEIPT' AND d.source_id = r.payment_id LIMIT 1) AS receipt_number
-           FROM payment_receipt r LEFT JOIN patient p ON p.id = r.patient_id
-          WHERE r.day_close_id = ?1
-          ORDER BY r.received_at, r.rowid",
-    )
-    .bind(close_id)
-    .fetch_all(pool)
-    .await?)
+    receipts(pool, "r.day_close_id = ?1", close_id).await
 }
 
-async fn open_movements(pool: &SqlitePool, upto: &str) -> Result<Vec<CashMovement>, AppError> {
-    Ok(sqlx::query_as::<_, CashMovement>(
-        "SELECT id, kind, amount_cents, direction, reason, receipt_ref, reverses_id, occurred_at,
-                local_day, created_by, day_close_id
-           FROM cash_movement WHERE day_close_id IS NULL AND local_day <= ?1
-          ORDER BY occurred_at, rowid",
-    )
-    .bind(upto)
-    .fetch_all(pool)
-    .await?)
+const MOVEMENT_SQL: &str = "\
+SELECT id, kind, amount_cents, direction, reason, receipt_ref, reverses_id, occurred_at,
+       local_day, created_by, day_close_id
+  FROM cash_movement WHERE ";
+
+async fn movements(
+    pool: &SqlitePool,
+    filter: &'static str,
+    bind: &str,
+) -> Result<Vec<CashMovement>, AppError> {
+    let sql = format!("{MOVEMENT_SQL}{filter} ORDER BY occurred_at, rowid");
+    Ok(sqlx::query_as::<_, CashMovement>(&sql)
+        .bind(bind)
+        .fetch_all(pool)
+        .await?)
 }
 
-async fn closed_movements(pool: &SqlitePool, close_id: &str) -> Result<Vec<CashMovement>, AppError> {
-    Ok(sqlx::query_as::<_, CashMovement>(
-        "SELECT id, kind, amount_cents, direction, reason, receipt_ref, reverses_id, occurred_at,
-                local_day, created_by, day_close_id
-           FROM cash_movement WHERE day_close_id = ?1 ORDER BY occurred_at, rowid",
-    )
-    .bind(close_id)
-    .fetch_all(pool)
-    .await?)
+async fn open_movements(pool: &SqlitePool, day: &str) -> Result<Vec<CashMovement>, AppError> {
+    movements(pool, "day_close_id IS NULL AND local_day = ?1", day).await
+}
+
+async fn closed_movements(
+    pool: &SqlitePool,
+    close_id: &str,
+) -> Result<Vec<CashMovement>, AppError> {
+    movements(pool, "day_close_id = ?1", close_id).await
 }
 
 fn build_draft(
@@ -390,19 +389,22 @@ fn build_draft(
         .sum();
     let mov: i64 = movements.iter().map(CashMovement::signed).sum();
     let opening = last.as_ref().map(|l| l.closing_cents).unwrap_or(0);
-    let period_from = match &last {
-        Some(l) => parse_day(&l.as_of_date)
-            .map(|d| (d + chrono::Duration::days(1)).format("%Y-%m-%d").to_string())
-            .unwrap_or_else(|_| as_of_date.to_string()),
-        None => receipts
+    let period_from = receipts
+        .iter()
+        .map(|r| r.local_day.as_str())
+        .chain(movements.iter().map(|m| m.local_day.as_str()))
+        .filter(|d| *d <= as_of_date)
+        .min()
+        .unwrap_or(as_of_date)
+        .to_string();
+    let late_count = receipts
+        .iter()
+        .filter(|r| r.local_day.as_str() < as_of_date)
+        .count() as i64
+        + movements
             .iter()
-            .map(|r| r.local_day.clone())
-            .chain(movements.iter().map(|m| m.local_day.clone()))
-            .min()
-            .unwrap_or_else(|| as_of_date.to_string()),
-    };
-    let late_count = receipts.iter().filter(|r| r.local_day.as_str() < as_of_date).count() as i64
-        + movements.iter().filter(|m| m.local_day.as_str() < as_of_date).count() as i64;
+            .filter(|m| m.local_day.as_str() < as_of_date)
+            .count() as i64;
     DayCloseDraft {
         as_of_date: as_of_date.to_string(),
         period_from: if period_from.as_str() > as_of_date {
@@ -441,25 +443,60 @@ pub async fn prepare(
     require_permission(session, PERM_READ)?;
     finance_schema::ensure(pool).await?;
     let day = parse_day(as_of_date)?.format("%Y-%m-%d").to_string();
-    let already: Option<String> =
-        sqlx::query_scalar("SELECT id FROM day_close_protocol WHERE status = 'FINAL' AND as_of_date = ?1")
-            .bind(&day)
-            .fetch_optional(pool)
-            .await?;
+    let already: Option<String> = sqlx::query_scalar(
+        "SELECT id FROM day_close_protocol WHERE status = 'FINAL' AND as_of_date = ?1",
+    )
+    .bind(&day)
+    .fetch_optional(pool)
+    .await?;
     if let Some(id) = already {
         // Recorded day: read the locked lines. Reconciling the whole journal
         // here only rewrites open payments and makes selecting a closing slow.
         return protocol_draft(pool, &id).await;
     }
     finance_schema::reconcile(pool).await?;
-    let last = last_final_close(pool, Some(&day)).await?;
-    let receipts = open_receipts(pool, &day).await?;
-    let movements = open_movements(pool, &day).await?;
-    let unverified = unverified_cash_count(pool, &receipts).await?;
-    Ok(build_draft(&day, last, false, receipts, movements, unverified))
+    let verify = require_permission(session, PERM_CLOSE).is_ok();
+    load_open_draft(pool, &day, verify).await
 }
 
-async fn unverified_cash_count(pool: &SqlitePool, receipts: &[JournalLine]) -> Result<i64, AppError> {
+/// Open lines for `day` only. When `verify_cash` is set, that day's cash
+/// payments are marked checked so a new closing does not wait on a manual tick.
+async fn load_open_draft(
+    pool: &SqlitePool,
+    day: &str,
+    verify_cash: bool,
+) -> Result<DayCloseDraft, AppError> {
+    let last = last_final_close(pool, Some(day)).await?;
+    let receipts = open_receipts(pool, day).await?;
+    if verify_cash {
+        verify_day_cash(pool, &receipts).await?;
+    }
+    let movements = open_movements(pool, day).await?;
+    let unverified = unverified_cash_count(pool, &receipts).await?;
+    Ok(build_draft(
+        day, last, false, receipts, movements, unverified,
+    ))
+}
+
+async fn verify_day_cash(pool: &SqlitePool, receipts: &[JournalLine]) -> Result<(), AppError> {
+    let mut ids: Vec<String> = receipts
+        .iter()
+        .filter(|r| r.method == "CASH" && r.amount_cents > 0)
+        .map(|r| r.payment_id.clone())
+        .collect();
+    ids.sort();
+    ids.dedup();
+    if ids.is_empty() {
+        return Ok(());
+    }
+    payment_repo::set_cash_verified_for_ids(pool, &ids, 1).await?;
+    Ok(())
+}
+
+async fn unverified_cash_count(
+    pool: &SqlitePool,
+    receipts: &[JournalLine],
+) -> Result<i64, AppError> {
     let mut ids: Vec<&str> = receipts
         .iter()
         .filter(|r| r.method == "CASH" && r.amount_cents > 0)
@@ -470,7 +507,9 @@ async fn unverified_cash_count(pool: &SqlitePool, receipts: &[JournalLine]) -> R
     if ids.is_empty() {
         return Ok(0);
     }
-    let mut sql = String::from("SELECT COUNT(*) FROM payment WHERE COALESCE(cash_verified, 0) = 1 AND id IN (");
+    let mut sql = String::from(
+        "SELECT COUNT(*) FROM payment WHERE COALESCE(cash_verified, 0) = 1 AND id IN (",
+    );
     for i in 0..ids.len() {
         if i > 0 {
             sql.push(',');
@@ -505,7 +544,9 @@ async fn protocol_draft(pool: &SqlitePool, id: &str) -> Result<DayCloseDraft, Ap
     let receipts = closed_receipts(pool, &items_id).await?;
     let movements = closed_movements(pool, &items_id).await?;
     let unverified = unverified_cash_count(pool, &receipts).await?;
-    Ok(build_draft(&as_of, last, true, receipts, movements, unverified))
+    Ok(build_draft(
+        &as_of, last, true, receipts, movements, unverified,
+    ))
 }
 
 async fn root_protocol(
@@ -540,7 +581,9 @@ fn counted_from_args(args: &CloseDayArgs) -> Result<(i64, Option<String>), AppEr
                 .parse()
                 .map_err(|_| AppError::validation_code("error.day_close.bad_denomination"))?;
             if !DENOMINATIONS.contains(&value) || *n < 0 {
-                return Err(AppError::validation_code("error.day_close.bad_denomination"));
+                return Err(AppError::validation_code(
+                    "error.day_close.bad_denomination",
+                ));
             }
             if *n > 0 {
                 total += value * n;
@@ -558,7 +601,9 @@ fn counted_from_args(args: &CloseDayArgs) -> Result<(i64, Option<String>), AppEr
     match args.counted_cents {
         Some(c) if c >= 0 => Ok((c, None)),
         Some(_) => Err(AppError::validation_code("error.day_close.bad_amount")),
-        None => Err(AppError::validation_code("error.day_close.counted_required")),
+        None => Err(AppError::validation_code(
+            "error.day_close.counted_required",
+        )),
     }
 }
 
@@ -593,26 +638,29 @@ pub async fn close_day(
         if last.as_of_date > day {
             return Err(AppError::validation_code_params(
                 "error.day_close.later_close_exists",
-                &[("date", dmy(&last.as_of_date).as_str())],
+                &[("date", super::format_dmy(&last.as_of_date).as_str())],
             ));
         }
     }
     let (counted, denominations_json) = counted_from_args(&args)?;
     finance_schema::reconcile(pool).await?;
-    let draft = {
-        let last = last_final_close(pool, Some(&day)).await?;
-        let receipts = open_receipts(pool, &day).await?;
-        let movements = open_movements(pool, &day).await?;
-        let unverified = unverified_cash_count(pool, &receipts).await?;
-        build_draft(&day, last, false, receipts, movements, unverified)
-    };
-    let note = args.note.as_deref().map(str::trim).filter(|s| !s.is_empty()).map(String::from);
+    let draft = load_open_draft(pool, &day, true).await?;
+    let note = args
+        .note
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(String::from);
     if counted != draft.expected_cents && note.is_none() {
-        return Err(AppError::validation_code("error.day_close.variance_note_required"));
+        return Err(AppError::validation_code(
+            "error.day_close.variance_note_required",
+        ));
     }
     if let Some(t) = args.card_terminal_cents {
         if t != draft.card_cents && note.is_none() {
-            return Err(AppError::validation_code("error.day_close.variance_note_required"));
+            return Err(AppError::validation_code(
+                "error.day_close.variance_note_required",
+            ));
         }
     }
     record(
@@ -655,11 +703,20 @@ pub async fn correct_day_close(
     let latest = last_final_close(pool, None).await?;
     if latest.map(|l| l.id) != Some(protocol_id.to_string()) {
         // Later closings carried this balance forward.
-        return Err(AppError::validation_code("error.day_close.only_latest_correctable"));
+        return Err(AppError::validation_code(
+            "error.day_close.only_latest_correctable",
+        ));
     }
-    let note = args.note.as_deref().map(str::trim).filter(|s| !s.is_empty()).map(String::from);
+    let note = args
+        .note
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(String::from);
     if note.is_none() {
-        return Err(AppError::validation_code("error.day_close.correction_reason_required"));
+        return Err(AppError::validation_code(
+            "error.day_close.correction_reason_required",
+        ));
     }
     let (counted, denominations_json) = counted_from_args(&args)?;
     let draft = protocol_draft(pool, protocol_id).await?;
@@ -783,9 +840,11 @@ async fn record(
             },
         );
         input.logo = logo.clone();
-        let bytes = render_report_pdf(&input)?;
+        let doc_id = crate::infrastructure::pdf::new_document_uid();
+        let bytes =
+            crate::infrastructure::pdf::with_document_uid(&doc_id, || render_report_pdf(&input))?;
         let doc = IssuedDocument {
-            id: uuid::Uuid::new_v4().to_string(),
+            id: doc_id.clone(),
             kind: DocKind::DailyReport.as_db().into(),
             document_number: number.clone(),
             source_table: Some("day_close_protocol".into()),
@@ -793,7 +852,8 @@ async fn record(
             copy_variant: "ORIGINAL".into(),
             patient_id: None,
             sha256: sha256_hex(&bytes),
-            payload_json: serde_json::to_string(&input).map_err(|e| AppError::Internal(e.to_string()))?,
+            payload_json: serde_json::to_string(&input)
+                .map_err(|e| AppError::Internal(e.to_string()))?,
             status: "ISSUED".into(),
             cancels_id: None,
             issued_by: session.user_id.clone(),
@@ -801,12 +861,14 @@ async fn record(
             updated_at: issued_at.clone(),
         };
         repo::insert(conn, &doc).await?;
-        sqlx::query("UPDATE day_close_protocol SET document_id = ?1, document_number = ?2 WHERE id = ?3")
-            .bind(&doc.id)
-            .bind(&number)
-            .bind(&id)
-            .execute(&mut *conn)
-            .await?;
+        sqlx::query(
+            "UPDATE day_close_protocol SET document_id = ?1, document_number = ?2 WHERE id = ?3",
+        )
+        .bind(&doc.id)
+        .bind(&number)
+        .bind(&id)
+        .execute(&mut *conn)
+        .await?;
         Ok((doc, bytes))
     })?;
 
@@ -814,7 +876,11 @@ async fn record(
     if let Err(e) = audit_repo::create(
         pool,
         &session.user_id,
-        if v.corrects.is_some() { "CORRECT" } else { "CREATE" },
+        if v.corrects.is_some() {
+            "CORRECT"
+        } else {
+            "CREATE"
+        },
         "DayCloseProtocol",
         Some(&id),
         Some(&format!(
@@ -828,6 +894,14 @@ async fn record(
     }
     let body = serde_json::json!({ "id": id, "as_of_date": draft.as_of_date }).to_string();
     let _ = sync_outbox::record_or_noop(pool, "day_close_protocol", &id, "INSERT", &body).await;
+    // The cash lines this close locked: other devices must see them as closed.
+    for m in &draft.movements {
+        if let Err(e) =
+            sync_outbox::record_or_noop(pool, "cash_movement", &m.id, "UPDATE", "").await
+        {
+            tracing::warn!(event = "CASH_MOVEMENT_OUTBOX_FAILED", id = %m.id, error = %e);
+        }
+    }
 
     Ok(DayCloseResult {
         protocol_id: id,
@@ -862,17 +936,23 @@ fn report_input(
     d: &DayCloseDraft,
     m: &ReportMeta<'_>,
 ) -> ReportPdfInput {
-    let de = locale == "de";
-    let l = |a: &str, b: &str| if de { a.to_string() } else { b.to_string() };
+    let l = |key: &str| crate::infrastructure::pdf::i18n::tr(locale, key).to_string();
     let period = if d.period_from == d.as_of_date {
-        dmy(&d.as_of_date)
+        super::format_dmy(&d.as_of_date)
     } else {
-        format!("{} – {}", dmy(&d.period_from), dmy(&d.as_of_date))
+        format!(
+            "{} – {}",
+            super::format_dmy(&d.period_from),
+            super::format_dmy(&d.as_of_date)
+        )
     };
-    let mut summary = vec![ReportPdfSummaryRow { label: l("Zeitraum", "Period"), value: period }];
+    let mut summary = vec![ReportPdfSummaryRow {
+        label: l("cash.period"),
+        value: period,
+    }];
     if let Some(n) = m.corrects_number {
         summary.push(ReportPdfSummaryRow {
-            label: l("Korrektur zu", "Corrects"),
+            label: l("cash.corrects"),
             value: n.to_string(),
         });
     }
@@ -880,11 +960,17 @@ fn report_input(
         .last_close
         .as_ref()
         .and_then(|c| c.document_number.clone())
-        .map(|n| format!(" ({} {n})", l("Übertrag aus", "carried from")))
+        .map(|n| format!(" ({} {n})", l("cash.carried_from")))
         .unwrap_or_default();
-    let row = |label: String, cents: i64| ReportPdfSummaryRow { label, value: fmt_eur(cents) };
-    summary.push(row(format!("{}{carry}", l("Anfangsbestand", "Opening balance")), d.opening_cents));
-    summary.push(row(l("+ Bareinnahmen (saldiert)", "+ Cash receipts (net)"), d.cash_receipts_cents));
+    let row = |label: String, cents: i64| ReportPdfSummaryRow {
+        label,
+        value: fmt_eur(cents),
+    };
+    summary.push(row(
+        format!("{}{carry}", l("cash.opening_balance")),
+        d.opening_cents,
+    ));
+    summary.push(row(l("cash.cash_receipts_net"), d.cash_receipts_cents));
     // Movements by kind.
     let mut by_kind: BTreeMap<&str, i64> = BTreeMap::new();
     for mv in &d.movements {
@@ -892,37 +978,37 @@ fn report_input(
     }
     for (k, v) in &by_kind {
         let sign = if *v >= 0 { "+" } else { "−" };
-        summary.push(row(format!("{sign} {}", movement_label(k, de)), *v));
+        summary.push(row(format!("{sign} {}", movement_label(k, locale)), *v));
     }
-    summary.push(row(l("= Soll-Bestand (rechnerisch)", "= Expected cash"), d.expected_cents));
-    summary.push(row(l("Ist-Bestand (gezählt)", "Counted cash"), m.counted));
-    summary.push(row(l("Kassendifferenz", "Cash variance"), m.variance));
-    summary.push(row(l("Kartenzahlungen (System)", "Card payments (system)"), d.card_cents));
+    summary.push(row(l("cash.expected_cash"), d.expected_cents));
+    summary.push(row(l("cash.counted_cash"), m.counted));
+    summary.push(row(l("cash.cash_variance"), m.variance));
+    summary.push(row(l("cash.card_payments_system"), d.card_cents));
     if let Some(t) = m.card_terminal {
-        summary.push(row(l("Kartenterminal (Kassenschnitt)", "Card terminal total"), t));
-        summary.push(row(l("Differenz Karte", "Card variance"), t - d.card_cents));
+        summary.push(row(l("cash.card_terminal_total"), t));
+        summary.push(row(l("cash.card_variance"), t - d.card_cents));
     }
-    summary.push(row(l("Überweisungen", "Bank transfers"), d.transfer_cents));
+    summary.push(row(l("cash.bank_transfers"), d.transfer_cents));
     if d.other_cents != 0 {
-        summary.push(row(l("Sonstige Zahlarten", "Other methods"), d.other_cents));
+        summary.push(row(l("cash.other_methods"), d.other_cents));
     }
     summary.push(ReportPdfSummaryRow {
-        label: l("Anzahl Buchungen", "Number of entries"),
+        label: l("cash.number_of_entries"),
         value: (d.receipt_count + d.movements.len() as i64).to_string(),
     });
     if d.late_count > 0 {
         summary.push(ReportPdfSummaryRow {
-            label: l("Davon Nachträge aus Vortagen", "Of which late entries"),
+            label: l("cash.of_which_late_entries"),
             value: d.late_count.to_string(),
         });
     }
     summary.push(ReportPdfSummaryRow {
-        label: l("Abgeschlossen von", "Closed by"),
+        label: l("cash.closed_by"),
         value: format!("{} · {}", m.closed_by, m.closed_at),
     });
     if let Some(n) = m.note {
         summary.push(ReportPdfSummaryRow {
-            label: l("Begründung / Bemerkung", "Reason / note"),
+            label: l("cash.reason_note"),
             value: n.to_string(),
         });
     }
@@ -938,12 +1024,16 @@ fn report_input(
         .filter(|r| r.method == "CASH")
         .map(|r| (r.received_at.clone(), Line::R(r)))
         .collect();
-    lines.extend(d.movements.iter().map(|mv| (mv.occurred_at.clone(), Line::M(mv))));
+    lines.extend(
+        d.movements
+            .iter()
+            .map(|mv| (mv.occurred_at.clone(), Line::M(mv))),
+    );
     lines.sort_by(|a, b| a.0.cmp(&b.0));
     let mut balance = d.opening_cents;
     let mut cash_rows = vec![vec![
         String::new(),
-        l("Anfangsbestand", "Opening balance"),
+        l("cash.opening_balance"),
         String::new(),
         String::new(),
         String::new(),
@@ -955,8 +1045,12 @@ fn report_input(
                 local_time(&r.received_at),
                 format!(
                     "{} · {}",
-                    kind_label(&r.kind, de),
-                    r.patient_name.clone().unwrap_or_else(|| r.patient_id.chars().take(8).collect())
+                    kind_label(&r.kind, locale),
+                    r.patient_name.clone().unwrap_or_else(|| r
+                        .patient_id
+                        .chars()
+                        .take(8)
+                        .collect())
                 ),
                 r.receipt_number
                     .clone()
@@ -965,10 +1059,14 @@ fn report_input(
             ),
             Line::M(mv) => (
                 local_time(&mv.occurred_at),
-                if mv.reason.trim().eq_ignore_ascii_case(movement_label(&mv.kind, de)) {
+                if mv
+                    .reason
+                    .trim()
+                    .eq_ignore_ascii_case(movement_label(&mv.kind, locale))
+                {
                     mv.reason.clone()
                 } else {
-                    format!("{}: {}", movement_label(&mv.kind, de), mv.reason)
+                    format!("{}: {}", movement_label(&mv.kind, locale), mv.reason)
                 },
                 mv.receipt_ref.clone().unwrap_or_default(),
                 mv.signed(),
@@ -983,14 +1081,14 @@ fn report_input(
         cash_rows.push(vec![when, text, beleg, inc, out, fmt_eur(balance)]);
     }
     let mut sections = vec![ReportPdfSection {
-        title: l("Kassenbuch (Bar)", "Cash book"),
+        title: l("cash.cash_book"),
         headers: vec![
-            l("Zeitpunkt", "Time"),
-            l("Vorgang", "Entry"),
-            l("Beleg", "Voucher"),
-            l("Einnahme", "In EUR"),
-            l("Ausgabe", "Out EUR"),
-            l("Bestand", "Balance"),
+            l("cash.time"),
+            l("cash.entry"),
+            l("cash.voucher"),
+            l("cash.in"),
+            l("cash.out"),
+            l("cash.balance"),
         ],
         rows: cash_rows,
         column_weights: Some(vec![3, 6, 2, 3, 3, 3]),
@@ -1002,22 +1100,24 @@ fn report_input(
         .map(|r| {
             vec![
                 local_time(&r.received_at),
-                r.patient_name.clone().unwrap_or_else(|| r.patient_id.chars().take(8).collect()),
-                method_label(&r.method, de).to_string(),
-                kind_label(&r.kind, de).to_string(),
+                r.patient_name
+                    .clone()
+                    .unwrap_or_else(|| r.patient_id.chars().take(8).collect()),
+                method_label(&r.method, locale).to_string(),
+                kind_label(&r.kind, locale).to_string(),
                 fmt_eur(r.amount_cents),
             ]
         })
         .collect();
     if !non_cash.is_empty() {
         sections.push(ReportPdfSection {
-            title: l("Unbare Zahlungen", "Non-cash payments"),
+            title: l("cash.non_cash_payments"),
             headers: vec![
-                l("Zeitpunkt", "Time"),
-                l("Patient/in", "Patient"),
-                l("Zahlart", "Method"),
-                l("Vorgang", "Entry"),
-                l("Betrag EUR", "Amount EUR"),
+                l("cash.time"),
+                l("cash.patient"),
+                l("cash.method"),
+                l("cash.entry"),
+                l("cash.amount"),
             ],
             rows: non_cash,
             column_weights: Some(vec![3, 5, 2, 2, 3]),
@@ -1030,10 +1130,10 @@ fn report_input(
                 .filter_map(|v| map.get(v).map(|n| (*v, *n)))
                 .map(|(v, n)| vec![fmt_eur(v), n.to_string(), fmt_eur(v * n)])
                 .collect();
-            rows.push(vec![l("Summe", "Total"), String::new(), fmt_eur(m.counted)]);
+            rows.push(vec![l("cash.total"), String::new(), fmt_eur(m.counted)]);
             sections.push(ReportPdfSection {
-                title: l("Zählprotokoll", "Cash count"),
-                headers: vec![l("Stückelung", "Denomination"), l("Anzahl", "Count"), l("Betrag EUR", "Amount EUR")],
+                title: l("cash.cash_count"),
+                headers: vec![l("cash.denomination"), l("cash.count"), l("cash.amount")],
                 rows,
                 column_weights: None,
             });
@@ -1041,7 +1141,11 @@ fn report_input(
     }
 
     ReportPdfInput {
-        doc_title: format!("{} {}", l("Kassenbericht", "Cash report"), dmy(&d.as_of_date)),
+        doc_title: format!(
+            "{} {}",
+            l("cash.cash_report"),
+            super::format_dmy(&d.as_of_date)
+        ),
         generated_at: Local::now().format("%d.%m.%Y %H:%M").to_string(),
         practice_name: profile.name.trim().to_string(),
         practice_address: profile.document_address_lines(),
@@ -1052,8 +1156,8 @@ fn report_input(
         document_number: Some(m.number.to_string()),
         watermark: None,
         signatures: vec![
-            l("Kassierer/in (Datum, Unterschrift)", "Cashier (date, signature)"),
-            l("Geprüft (Datum, Unterschrift)", "Checked by (date, signature)"),
+            l("cash.cashier_date_signature"),
+            l("cash.checked_by_date_signature"),
         ],
         footer_lines: profile.footer_lines(locale),
         logo: None,
@@ -1079,7 +1183,10 @@ pub async fn report_copy(
     }
 }
 
-async fn protocol_document_id(pool: &SqlitePool, protocol_id: &str) -> Result<Option<String>, AppError> {
+async fn protocol_document_id(
+    pool: &SqlitePool,
+    protocol_id: &str,
+) -> Result<Option<String>, AppError> {
     let row: Option<Option<String>> =
         sqlx::query_scalar("SELECT document_id FROM day_close_protocol WHERE id = ?1")
             .bind(protocol_id)
@@ -1161,7 +1268,9 @@ async fn issue_missing_report(
     let row = row.ok_or_else(|| AppError::NotFound("DayCloseProtocol".into()))?;
     let receipts = closed_receipts(pool, protocol_id).await?;
     let movements = closed_movements(pool, protocol_id).await?;
-    let expected = row.expected_cents.unwrap_or_else(|| euros_to_cents(row.system_cash_eur));
+    let expected = row
+        .expected_cents
+        .unwrap_or_else(|| euros_to_cents(row.system_cash_eur));
     let counted = row
         .counted_cents
         .or_else(|| row.counted_eur.map(euros_to_cents))
@@ -1171,7 +1280,10 @@ async fn issue_missing_report(
     let opening = row.opening_cents.unwrap_or(expected - cash - mov);
     let draft = DayCloseDraft {
         as_of_date: row.as_of_date.clone(),
-        period_from: row.period_from.clone().unwrap_or_else(|| row.as_of_date.clone()),
+        period_from: row
+            .period_from
+            .clone()
+            .unwrap_or_else(|| row.as_of_date.clone()),
         last_close: None,
         already_closed: true,
         opening_cents: opening,
@@ -1190,15 +1302,26 @@ async fn issue_missing_report(
     let profile = PracticeProfile::load(pool).await?;
     profile.require_complete()?;
     let locale = document_locale(pool).await;
-    let note = row.note.as_deref().map(str::trim).filter(|s| !s.is_empty()).map(str::to_string);
-    let closed_by = row.closed_by_name.clone().filter(|s| !s.trim().is_empty()).unwrap_or_else(|| session.name.clone());
+    let note = row
+        .note
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string);
+    let closed_by = row
+        .closed_by_name
+        .clone()
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| session.name.clone());
     let closed_at = local_time(&row.recorded_at);
     let corrects_number: Option<String> = match &row.corrects_id {
-        Some(id) => sqlx::query_scalar("SELECT document_number FROM day_close_protocol WHERE id = ?1")
-            .bind(id)
-            .fetch_optional(pool)
-            .await?
-            .flatten(),
+        Some(id) => {
+            sqlx::query_scalar("SELECT document_number FROM day_close_protocol WHERE id = ?1")
+                .bind(id)
+                .fetch_optional(pool)
+                .await?
+                .flatten()
+        }
         None => None,
     };
     let variance = counted - expected;
@@ -1234,9 +1357,11 @@ async fn issue_missing_report(
             },
         );
         input.logo = logo.clone();
-        let bytes = render_report_pdf(&input)?;
+        let doc_id = crate::infrastructure::pdf::new_document_uid();
+        let bytes =
+            crate::infrastructure::pdf::with_document_uid(&doc_id, || render_report_pdf(&input))?;
         let doc = IssuedDocument {
-            id: uuid::Uuid::new_v4().to_string(),
+            id: doc_id.clone(),
             kind: DocKind::DailyReport.as_db().into(),
             document_number: number.clone(),
             source_table: Some("day_close_protocol".into()),
@@ -1244,7 +1369,8 @@ async fn issue_missing_report(
             copy_variant: "ORIGINAL".into(),
             patient_id: None,
             sha256: sha256_hex(&bytes),
-            payload_json: serde_json::to_string(&input).map_err(|e| AppError::Internal(e.to_string()))?,
+            payload_json: serde_json::to_string(&input)
+                .map_err(|e| AppError::Internal(e.to_string()))?,
             status: "ISSUED".into(),
             cancels_id: None,
             issued_by: session.user_id.clone(),
@@ -1278,6 +1404,12 @@ async fn issue_missing_report(
                 after_insert(pool, session, &doc, "ISSUE_DOCUMENT").await;
             }
         }
+        // The protocol now points at its report: replicate that link too.
+        if let Err(e) =
+            sync_outbox::record_or_noop(pool, "day_close_protocol", protocol_id, "UPDATE", "").await
+        {
+            tracing::warn!(event = "DAY_CLOSE_OUTBOX_FAILED", error = %e);
+        }
     }
     Ok(outcome)
 }
@@ -1303,12 +1435,29 @@ pub async fn record_cash_movement(
         return Err(AppError::validation_code("error.cash_book.reason_required"));
     }
     if kind == "EXPENSE"
-        && args.receipt_ref.as_deref().map(str::trim).unwrap_or("").is_empty()
+        && args
+            .receipt_ref
+            .as_deref()
+            .map(str::trim)
+            .unwrap_or("")
+            .is_empty()
     {
         // GoBD: no booking without a voucher (Belegprinzip).
-        return Err(AppError::validation_code("error.cash_book.voucher_required"));
+        return Err(AppError::validation_code(
+            "error.cash_book.voucher_required",
+        ));
     }
-    insert_movement(pool, session, &kind, direction, args.amount_cents, reason, args.receipt_ref.as_deref(), None).await
+    insert_movement(
+        pool,
+        session,
+        &kind,
+        direction,
+        args.amount_cents,
+        reason,
+        args.receipt_ref.as_deref(),
+        None,
+    )
+    .await
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1323,6 +1472,9 @@ async fn insert_movement(
     reverses: Option<&str>,
 ) -> Result<CashMovement, AppError> {
     let id = uuid::Uuid::new_v4().to_string();
+    // The line and its outbox entry commit together, so the main device's
+    // day close sees cash booked on any device.
+    let mut tx = pool.begin().await?;
     sqlx::query(
         "INSERT INTO cash_movement (id, kind, amount_cents, direction, reason, receipt_ref, reverses_id,
                                     occurred_at, local_day, created_by)
@@ -1337,8 +1489,16 @@ async fn insert_movement(
     .bind(receipt_ref.map(str::trim).filter(|s| !s.is_empty()))
     .bind(reverses)
     .bind(&session.user_id)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
+    crate::infrastructure::database::recorded_write::record_in_tx(
+        &mut tx,
+        "cash_movement",
+        &id,
+        "INSERT",
+    )
+    .await?;
+    tx.commit().await?;
     let _ = audit_repo::create(
         pool,
         &session.user_id,
@@ -1364,7 +1524,7 @@ pub async fn reverse_cash_movement(
     id: &str,
     reason: &str,
 ) -> Result<CashMovement, AppError> {
-    require_permission(session, PERM_CASH)?;
+    require_permission(session, PERM_REVERSE)?;
     finance_schema::ensure(pool).await?;
     if reason.trim().is_empty() {
         return Err(AppError::validation_code("error.cash_book.reason_required"));
@@ -1377,12 +1537,15 @@ pub async fn reverse_cash_movement(
     .fetch_optional(pool)
     .await?
     .ok_or_else(|| AppError::NotFound("CashMovement".into()))?;
-    let already: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM cash_movement WHERE reverses_id = ?1")
-        .bind(id)
-        .fetch_one(pool)
-        .await?;
+    let already: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM cash_movement WHERE reverses_id = ?1")
+            .bind(id)
+            .fetch_one(pool)
+            .await?;
     if orig.kind == "REVERSAL" || already > 0 {
-        return Err(AppError::validation_code("error.cash_book.already_reversed"));
+        return Err(AppError::validation_code(
+            "error.cash_book.already_reversed",
+        ));
     }
     insert_movement(
         pool,
@@ -1434,9 +1597,16 @@ mod tests {
         let mut d = BTreeMap::new();
         d.insert("5000".into(), 2);
         d.insert("200".into(), 3);
-        let args = CloseDayArgs { denominations: Some(d.clone()), ..Default::default() };
+        let args = CloseDayArgs {
+            denominations: Some(d.clone()),
+            ..Default::default()
+        };
         assert_eq!(counted_from_args(&args).unwrap().0, 10600);
-        let bad = CloseDayArgs { denominations: Some(d), counted_cents: Some(1), ..Default::default() };
+        let bad = CloseDayArgs {
+            denominations: Some(d),
+            counted_cents: Some(1),
+            ..Default::default()
+        };
         assert!(counted_from_args(&bad).is_err());
         let none = CloseDayArgs::default();
         assert!(counted_from_args(&none).is_err(), "a count is mandatory");

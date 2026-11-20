@@ -90,8 +90,11 @@ pub async fn peer_advertised_url(
 
 /// Hide network — defaults to visible when unset.
 pub async fn is_network_hidden(pool: &SqlitePool) -> Result<bool, AppError> {
-    let raw =
-        medoc_core::infrastructure::database::app_kv_repo::get(pool, APP_KV_NETWORK_HIDDEN).await?;
+    let raw = medoc_core::infrastructure::database::repos::admin::app_kv::get(
+        pool,
+        APP_KV_NETWORK_HIDDEN,
+    )
+    .await?;
     Ok(matches!(raw.as_deref(), Some("1") | Some("true")))
 }
 
@@ -113,8 +116,11 @@ pub fn admit_inbound_cluster(
 
 /// Master-side toggle — defaults to enabled when unset.
 pub async fn is_pairing_enabled(pool: &SqlitePool) -> Result<bool, AppError> {
-    let raw = medoc_core::infrastructure::database::app_kv_repo::get(pool, APP_KV_PAIRING_ENABLED)
-        .await?;
+    let raw = medoc_core::infrastructure::database::repos::admin::app_kv::get(
+        pool,
+        APP_KV_PAIRING_ENABLED,
+    )
+    .await?;
     Ok(!matches!(raw.as_deref(), Some("0") | Some("false")))
 }
 

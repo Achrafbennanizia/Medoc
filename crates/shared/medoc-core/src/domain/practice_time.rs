@@ -4,7 +4,7 @@ use chrono::{DateTime, NaiveDate, TimeZone, Utc};
 pub use chrono_tz::Tz;
 use sqlx::SqlitePool;
 
-use crate::infrastructure::database::app_kv_repo;
+use crate::infrastructure::database::repos::admin::app_kv as app_kv_repo;
 
 const KEY: &str = "practice.timezone.v1";
 pub const DEFAULT: Tz = chrono_tz::Europe::Berlin;

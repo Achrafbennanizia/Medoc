@@ -22,15 +22,17 @@ pub fn ensure_inside(root: &Path, candidate: &Path) -> Result<PathBuf, AppError>
         let parent_real = parent
             .canonicalize()
             .map_err(|e| AppError::Validation(format!("Path: {e}")))?;
-        let name = candidate.file_name().ok_or_else(|| {
-            AppError::Validation("Path has no file name".into())
-        })?;
+        let name = candidate
+            .file_name()
+            .ok_or_else(|| AppError::Validation("Path has no file name".into()))?;
         parent_real.join(name)
     };
     if candidate_real == root_real || candidate_real.starts_with(&root_real) {
         Ok(candidate_real)
     } else {
-        Err(AppError::Validation("Path is outside the allowed folder".into()))
+        Err(AppError::Validation(
+            "Path is outside the allowed folder".into(),
+        ))
     }
 }
 

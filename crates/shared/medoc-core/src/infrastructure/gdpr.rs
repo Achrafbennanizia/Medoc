@@ -15,7 +15,7 @@ use sqlx::{Column, Row, SqlitePool, TypeInfo, ValueRef};
 use std::path::Path;
 
 use crate::error::AppError;
-use crate::infrastructure::database::patient_repo;
+use crate::infrastructure::database::repos::clinical::patient as patient_repo;
 use crate::infrastructure::database::{db_key, sqlcipher};
 use crate::infrastructure::{backup, logging::sanitizer};
 use crate::log_system;
@@ -57,14 +57,16 @@ pub async fn export_patient(pool: &SqlitePool, patient_id: &str) -> Result<Value
     let p = patient.ok_or(AppError::NotFound("Patient".into()))?;
 
     let related = collect_related(pool, patient_id).await?;
-    let access_log = crate::infrastructure::database::audit_repo::find_for_patient_entity(
+    let access_log = crate::infrastructure::database::repos::admin::audit::find_for_patient_entity(
         pool, patient_id, 100_000,
     )
     .await?;
     let issued_documents =
-        crate::infrastructure::database::issued_document_repo::list_for_patient(pool, patient_id)
-            .await
-            .unwrap_or_default();
+        crate::infrastructure::database::repos::billing::issued_document::list_for_patient(
+            pool, patient_id,
+        )
+        .await
+        .unwrap_or_default();
 
     log_system!(info, event = "DSGVO_EXPORT", patient_id = %patient_id);
 
@@ -99,7 +101,7 @@ pub async fn erase_patient(
     let (deleted, chart_ids) = erase_patient_records(pool, patient_id).await?;
 
     for (aid,) in chart_ids {
-        crate::infrastructure::database::chart_attachment_repo::remove_storage_dir_best_effort(
+        crate::infrastructure::database::repos::clinical::chart_attachment::remove_storage_dir_best_effort(
             app_data_dir,
             &aid,
         );
@@ -182,8 +184,10 @@ pub async fn erase_patient_records(
         ));
     }
     // F119: the pseudonymised row must replace the original on every device.
-    crate::infrastructure::database::recorded_write::record_in_tx(&mut tx, "patient", patient_id, "UPDATE")
-        .await?;
+    crate::infrastructure::database::recorded_write::record_in_tx(
+        &mut tx, "patient", patient_id, "UPDATE",
+    )
+    .await?;
 
     tx.commit().await?;
     Ok((deleted, chart_ids))
@@ -231,7 +235,10 @@ async fn redact_patient_from_all_backups(
 /// Statutory retention (§ 630f Abs. 3 BGB, § 147 AO): 10 years after the end
 /// of the year of the last treatment / payment / issued document.
 /// Returns the date (YYYY-12-31) until which erasure is blocked, if any.
-pub async fn retention_until(pool: &SqlitePool, patient_id: &str) -> Result<Option<String>, AppError> {
+pub async fn retention_until(
+    pool: &SqlitePool,
+    patient_id: &str,
+) -> Result<Option<String>, AppError> {
     let last: Option<String> = sqlx::query_scalar(
         "SELECT MAX(d) FROM (
             SELECT MAX(CAST(t.created_at AS TEXT)) AS d FROM treatment t
@@ -253,7 +260,11 @@ pub async fn retention_until(pool: &SqlitePool, patient_id: &str) -> Result<Opti
     };
     let year: i32 = last[..4].parse().unwrap_or(0);
     let until_year = year + 10;
-    let now_year = chrono::Local::now().format("%Y").to_string().parse::<i32>().unwrap_or(0);
+    let now_year = chrono::Local::now()
+        .format("%Y")
+        .to_string()
+        .parse::<i32>()
+        .unwrap_or(0);
     if now_year <= until_year {
         Ok(Some(format!("{until_year}-12-31")))
     } else {
@@ -275,17 +286,22 @@ fn row_to_json(row: &SqliteRow) -> Value {
             Value::Null
         } else {
             match raw.type_info().name() {
-                "INTEGER" | "INT" | "INT8" | "BIGINT" | "BOOLEAN" => {
-                    row.try_get::<i64, _>(i).map(Value::from).unwrap_or(Value::Null)
-                }
-                "REAL" | "FLOAT" | "DOUBLE" | "NUMERIC" => {
-                    row.try_get::<f64, _>(i).map(Value::from).unwrap_or(Value::Null)
-                }
+                "INTEGER" | "INT" | "INT8" | "BIGINT" | "BOOLEAN" => row
+                    .try_get::<i64, _>(i)
+                    .map(Value::from)
+                    .unwrap_or(Value::Null),
+                "REAL" | "FLOAT" | "DOUBLE" | "NUMERIC" => row
+                    .try_get::<f64, _>(i)
+                    .map(Value::from)
+                    .unwrap_or(Value::Null),
                 "BLOB" => row
                     .try_get::<Vec<u8>, _>(i)
                     .map(|b| Value::String(base64::engine::general_purpose::STANDARD.encode(b)))
                     .unwrap_or(Value::Null),
-                _ => row.try_get::<String, _>(i).map(Value::String).unwrap_or(Value::Null),
+                _ => row
+                    .try_get::<String, _>(i)
+                    .map(Value::String)
+                    .unwrap_or(Value::Null),
             }
         };
         m.insert(col.name().to_string(), v);
@@ -301,15 +317,42 @@ async fn rows(pool: &SqlitePool, sql: &str, patient_id: &str) -> Result<Value, A
 async fn collect_related(pool: &SqlitePool, patient_id: &str) -> Result<Value, AppError> {
     const CHART: &str = "(SELECT id FROM patient_chart WHERE patient_id = ?1)";
     let queries: Vec<(&str, String)> = vec![
-        ("patient_chart", "SELECT * FROM patient_chart WHERE patient_id = ?1".into()),
-        ("anamnesis_form", "SELECT * FROM anamnesis_form WHERE patient_id = ?1".into()),
-        ("dental_findings", format!("SELECT * FROM dental_finding WHERE chart_id IN {CHART}")),
-        ("examinations", format!("SELECT * FROM examination WHERE chart_id IN {CHART}")),
-        ("treatments", format!("SELECT * FROM treatment WHERE chart_id IN {CHART}")),
-        ("prescriptions", "SELECT * FROM prescription WHERE patient_id = ?1".into()),
-        ("certificates", "SELECT * FROM certificate WHERE patient_id = ?1".into()),
-        ("appointments", "SELECT * FROM appointment WHERE patient_id = ?1".into()),
-        ("payments", "SELECT * FROM payment WHERE patient_id = ?1".into()),
+        (
+            "patient_chart",
+            "SELECT * FROM patient_chart WHERE patient_id = ?1".into(),
+        ),
+        (
+            "anamnesis_form",
+            "SELECT * FROM anamnesis_form WHERE patient_id = ?1".into(),
+        ),
+        (
+            "dental_findings",
+            format!("SELECT * FROM dental_finding WHERE chart_id IN {CHART}"),
+        ),
+        (
+            "examinations",
+            format!("SELECT * FROM examination WHERE chart_id IN {CHART}"),
+        ),
+        (
+            "treatments",
+            format!("SELECT * FROM treatment WHERE chart_id IN {CHART}"),
+        ),
+        (
+            "prescriptions",
+            "SELECT * FROM prescription WHERE patient_id = ?1".into(),
+        ),
+        (
+            "certificates",
+            "SELECT * FROM certificate WHERE patient_id = ?1".into(),
+        ),
+        (
+            "appointments",
+            "SELECT * FROM appointment WHERE patient_id = ?1".into(),
+        ),
+        (
+            "payments",
+            "SELECT * FROM payment WHERE patient_id = ?1".into(),
+        ),
         (
             // Metadata only; the files themselves are added by the ZIP export.
             "chart_attachments",

@@ -125,4 +125,8 @@ export async function mergeCalendarWorkflowsFromKv(): Promise<void> {
     }
     applyAppearanceFromSettings(next);
     window.dispatchEvent(new CustomEvent(CALENDAR_WORKFLOWS_CHANGED_EVENT));
+    // Keep instance ui-prefs.json aligned (do not leave Appearance only in shared LS).
+    void import("@/systems/practice-host/controllers/ui-prefs.controller").then((m) => {
+        m.schedulePersistUiPrefs({ settings: next });
+    });
 }

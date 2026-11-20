@@ -9,7 +9,7 @@
 | # | Test / function | Method | Path | Expect | Status | OK | Output (truncated) |
 |---:|---|---|---|---|---:|:---:|---|
 | 1 | `company.health` | GET | `/health` | 200 | 200 | PASS | {"_demo":true,"banner":"Demo-only billing stub — not for production (GAP-15 deferred).","service":"medoc-company-server","status":"ok"} |
-| 2 | `company.register` | POST | `/register` | 200 201 409 400 | 200 | PASS | {"_demo":true,"admin_email":"matrix@example.com","admin_name":"Matrix Admin","api_key":"sk_live_XAfSAJ3fRP691yUzPRFalg","city":null,"display_name":"Matrix Practice","max_users":5,"… |
+| 2 | `company.register` | POST | `/register` | 200 201 409 400 | 200 | PASS | {"_demo":true,"admin_email":"matrix@example.com","admin_name":"Matrix Admin","api_key":"${STRIPE_SECRET_KEY}","city":null,"display_name":"Matrix Practice","max_users":5,"… |
 | 3 | `company.v1.health` | GET | `/v1/health` | 200 | 200 | PASS | {"_demo":true,"authenticated":true,"status":"ok"} |
 | 4 | `company.v1.summary` | GET | `/v1/summary` | 200 | 200 | PASS | {"active_users":1,"display_name":"Demo Practice GmbH","e_prescription_month_quota":-1,"e_prescription_month_used":142,"max_users":5,"monthly_fee_cents":18900,"next_billing_iso":"20… |
 | 5 | `company.v1.integrations` | GET | `/v1/integrations/status` | 200 | 200 | PASS | {"_demo":true,"card_reader":{"detail":"No card reader detected","status":"disconnected"},"datev":{"detail":"DATEV export prepared","status":"beta"},"doccheck_sso":{"detail":"Not co… |

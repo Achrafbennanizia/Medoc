@@ -20,7 +20,7 @@ use sqlx::SqlitePool;
 use crate::error::AppError;
 
 /// Bump when the trigger SQL changes; old triggers are dropped and recreated.
-const SCHEMA_VERSION: &str = "v1";
+const SCHEMA_VERSION: &str = "v2";
 
 fn effective_cents(alias: &str) -> String {
     format!(
@@ -32,6 +32,14 @@ fn effective_cents(alias: &str) -> String {
 
 const NEW_ID: &str = "lower(hex(randomblob(16)))";
 const NOW_UTC: &str = "strftime('%Y-%m-%d %H:%M:%S','now')";
+/// When a payment changed. A change that moved `updated_at` (a local edit
+/// stamps now; a synced edit carries the time it was made on the other
+/// device) is dated by it. Before (v1), a change synced the next day landed
+/// on the receiving device's journal for the next day.
+const CHANGED_AT: &str = "COALESCE(CASE WHEN NEW.updated_at IS NOT NULL \
+     AND NEW.updated_at IS NOT OLD.updated_at \
+     THEN strftime('%Y-%m-%d %H:%M:%S', NEW.updated_at) END, \
+     strftime('%Y-%m-%d %H:%M:%S','now'))";
 
 async fn table_exists(pool: &SqlitePool, name: &str) -> Result<bool, AppError> {
     let n: i64 = sqlx::query_scalar(
@@ -219,20 +227,20 @@ async fn install_payment_triggers(pool: &SqlitePool) -> Result<(), AppError> {
                 ),
                 &format!("({new} - {old})"),
                 "UPPER(NEW.payment_method)",
-                NOW_UTC
+                CHANGED_AT
             )
         ),
         // Method changed (e.g. cash → card): reverse under the old method,
-        // book again under the new one. Both lines land on today.
+        // book again under the new one. Both lines land on the day of the change.
         format!(
             "CREATE TRIGGER trg_payment_receipt_{v}_method AFTER UPDATE ON payment
              WHEN UPPER(OLD.payment_method) <> UPPER(NEW.payment_method) AND ({old} <> 0 OR {new} <> 0)
              BEGIN
                INSERT INTO payment_receipt (id, payment_id, patient_id, amount_cents, method, kind, received_at, local_day)
-               SELECT {NEW_ID}, NEW.id, NEW.patient_id, -{old}, UPPER(OLD.payment_method), 'CORRECTION', {NOW_UTC}, date({NOW_UTC}, 'localtime')
+               SELECT {NEW_ID}, NEW.id, NEW.patient_id, -{old}, UPPER(OLD.payment_method), 'CORRECTION', {CHANGED_AT}, date({CHANGED_AT}, 'localtime')
                WHERE {old} <> 0;
                INSERT INTO payment_receipt (id, payment_id, patient_id, amount_cents, method, kind, received_at, local_day)
-               SELECT {NEW_ID}, NEW.id, NEW.patient_id, {new}, UPPER(NEW.payment_method), 'CORRECTION', {NOW_UTC}, date({NOW_UTC}, 'localtime')
+               SELECT {NEW_ID}, NEW.id, NEW.patient_id, {new}, UPPER(NEW.payment_method), 'CORRECTION', {CHANGED_AT}, date({CHANGED_AT}, 'localtime')
                WHERE {new} <> 0;
              END"
         ),
@@ -378,12 +386,24 @@ mod tests {
             .execute(&pool).await.unwrap();
         assert!(journal(&pool, "z1").await.is_empty());
         // Placeholder filled with 40 €, then raised to 100 €.
-        q("UPDATE payment SET amount = 40, status = 'PARTIALLY_PAID' WHERE id = 'z1'").execute(&pool).await.unwrap();
-        q("UPDATE payment SET amount = 100, status = 'PAID' WHERE id = 'z1'").execute(&pool).await.unwrap();
+        q("UPDATE payment SET amount = 40, status = 'PARTIALLY_PAID' WHERE id = 'z1'")
+            .execute(&pool)
+            .await
+            .unwrap();
+        q("UPDATE payment SET amount = 100, status = 'PAID' WHERE id = 'z1'")
+            .execute(&pool)
+            .await
+            .unwrap();
         // Paid by card instead.
-        q("UPDATE payment SET payment_method = 'CARD' WHERE id = 'z1'").execute(&pool).await.unwrap();
+        q("UPDATE payment SET payment_method = 'CARD' WHERE id = 'z1'")
+            .execute(&pool)
+            .await
+            .unwrap();
         // Cancelled.
-        q("UPDATE payment SET status = 'CANCELLED' WHERE id = 'z1'").execute(&pool).await.unwrap();
+        q("UPDATE payment SET status = 'CANCELLED' WHERE id = 'z1'")
+            .execute(&pool)
+            .await
+            .unwrap();
         let j = journal(&pool, "z1").await;
         assert_eq!(
             j,
@@ -395,10 +415,20 @@ mod tests {
                 (-10000, "CARD".into(), "REVERSAL".into()),
             ]
         );
-        assert_eq!(reconcile(&pool).await.unwrap(), 0, "triggers kept the journal exact");
+        assert_eq!(
+            reconcile(&pool).await.unwrap(),
+            0,
+            "triggers kept the journal exact"
+        );
         // Journal is append-only.
-        assert!(q("UPDATE payment_receipt SET amount_cents = 1").execute(&pool).await.is_err());
-        assert!(q("DELETE FROM payment_receipt").execute(&pool).await.is_err());
+        assert!(q("UPDATE payment_receipt SET amount_cents = 1")
+            .execute(&pool)
+            .await
+            .is_err());
+        assert!(q("DELETE FROM payment_receipt")
+            .execute(&pool)
+            .await
+            .is_err());
     }
 
     #[tokio::test]
@@ -407,7 +437,13 @@ mod tests {
         sqlx::query("INSERT INTO payment (id, patient_id, amount, payment_method, status) VALUES ('old','p1',55.5,'CASH','PAID')")
             .execute(&pool).await.unwrap();
         ensure(&pool).await.unwrap();
-        assert_eq!(journal(&pool, "old").await, vec![(5550, "CASH".into(), "BACKFILL".into())]);
-        assert!(sqlx::query("DELETE FROM payment WHERE id = 'old'").execute(&pool).await.is_err());
+        assert_eq!(
+            journal(&pool, "old").await,
+            vec![(5550, "CASH".into(), "BACKFILL".into())]
+        );
+        assert!(sqlx::query("DELETE FROM payment WHERE id = 'old'")
+            .execute(&pool)
+            .await
+            .is_err());
     }
 }

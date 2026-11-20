@@ -243,7 +243,12 @@ async fn staff_jwt_on_digest_is_401() {
     let mut lan = LanTestHarness::licensed_master().await;
     let jwt = lan.ops_jwt();
     let (status, _) = lan
-        .json("POST", "/api/v1/sync/digest", Some(&serde_json::json!({})), Some(&jwt))
+        .json(
+            "POST",
+            "/api/v1/sync/digest",
+            Some(&serde_json::json!({})),
+            Some(&jwt),
+        )
         .await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
     std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
@@ -256,7 +261,12 @@ async fn digest_returns_256_buckets_with_activation_token() {
     let mut lan = LanTestHarness::licensed_master().await;
     let token = device_token("digest-device", &["sync.reconcile"]);
     let (status, body) = lan
-        .json("POST", "/api/v1/sync/digest", Some(&serde_json::json!({})), Some(&token))
+        .json(
+            "POST",
+            "/api/v1/sync/digest",
+            Some(&serde_json::json!({})),
+            Some(&token),
+        )
         .await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(body["buckets"].as_array().map(|a| a.len()), Some(256));
@@ -299,7 +309,11 @@ async fn blob_with_wrong_hash_is_rejected() {
     let token = device_token("blob-device", &["sync.blob.put", "sync.blob.get"]);
     let bad_hex = "00".repeat(32);
     let bad = lan
-        .put_bytes(&format!("/api/v1/sync/blob/{bad_hex}"), bytes.to_vec(), &token)
+        .put_bytes(
+            &format!("/api/v1/sync/blob/{bad_hex}"),
+            bytes.to_vec(),
+            &token,
+        )
         .await;
     assert_eq!(bad, StatusCode::BAD_REQUEST);
     let ok = lan

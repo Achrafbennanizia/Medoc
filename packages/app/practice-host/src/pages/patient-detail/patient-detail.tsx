@@ -282,15 +282,46 @@ export function PatientDetailPage() {
         attachmentsRef.current = attachments;
     }, [attachments]);
 
+    const planPersistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const planPersistSeqRef = useRef(0);
+    useEffect(() => {
+        return () => {
+            if (planPersistTimerRef.current != null) {
+                clearTimeout(planPersistTimerRef.current);
+            }
+        };
+    }, []);
+
     const persistPlanNext = useCallback(
         (next: PlanNextAppointmentV2) => {
             setPlanNext((prev) => {
                 const merged =
                     canViewClinical ? next : { ...next, internalNote: prev.internalNote };
                 if (id) {
-                    void persistPlanNextAppointmentToBackend(id, merged).catch((e) => {
-                        toast(tp("patient.detail.toast.plan_save_failed", { message: errorMessage(e) }), "error");
-                    });
+                    // Debounce: each keystroke used to open a write tx + audit + outbox row,
+                    // which raced SQLITE_BUSY (code 5) under sync / concurrent commands.
+                    if (planPersistTimerRef.current != null) {
+                        clearTimeout(planPersistTimerRef.current);
+                    }
+                    const seq = ++planPersistSeqRef.current;
+                    const patientId = id;
+                    const payload = merged;
+                    planPersistTimerRef.current = setTimeout(() => {
+                        planPersistTimerRef.current = null;
+                        void persistPlanNextAppointmentToBackend(patientId, payload)
+                            .then(() => {
+                                /* ignore stale completions */
+                            })
+                            .catch((e) => {
+                                if (seq !== planPersistSeqRef.current) return;
+                                toast(
+                                    tp("patient.detail.toast.plan_save_failed", {
+                                        message: errorMessage(e),
+                                    }),
+                                    "error",
+                                );
+                            });
+                    }, 450);
                 }
                 return merged;
             });

@@ -49,9 +49,12 @@ Run **medoc-keygen** for owner license codes (`license.code`). Member devices ne
 
 ## CI (this repo)
 
-`.github/workflows/ci.yml` — tests. `.github/workflows/release.yml` — **app binaries**
-(`medoc-app-*` artifacts), not installers or keygen.
+`.github/workflows/ci.yml` — tests plus **Ops UIs** release build
+(`medoc-ops-uis-*` artifacts: `MedocUsbSetup`, `medoc-recovery`, `medoc-recovery-ui`).
 
+`.github/workflows/release.yml` — **app binaries** (`medoc-app-*`, including
+`Medoc_replica.app` / `medoc-replica` on each OS) and the same ops UI artifacts.
+NSIS/MSI/DMG packages and **medoc-keygen** stay in the separate installer/ops system.
 ## In-app updates (Tauri + GitHub Releases)
 
 Updater signing, `latest.json`, and OS installer packages are owned by the

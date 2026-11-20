@@ -2,11 +2,12 @@ use sqlx::SqlitePool;
 use tauri::State;
 
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::domain::entities::prescription::{CreatePrescription, UpdatePrescription};
 use crate::domain::entities::Prescription;
 use crate::error::AppError;
-use crate::infrastructure::database::{audit_repo, prescription_repo};
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
+use crate::infrastructure::database::repos::clinical::prescription as prescription_repo;
 
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state, patient_id))]
@@ -19,7 +20,11 @@ pub async fn list_prescriptions(
         &session_state,
         &["patient.read_medical", "patient.read_documents"],
     )?;
-    let r = prescription_repo::find_for_patient(&pool, &patient_id).await?;
+    let mut r = prescription_repo::find_for_patient(&pool, &patient_id).await?;
+    let role = rbac::Role::parse(&session.role).ok_or(AppError::Unauthorized)?;
+    if !rbac::effective_allowed("patient.read_medical", role, &session.permission_overrides) {
+        r.retain(|row| row.status == "ISSUED");
+    }
     audit_repo::create(
         &pool,
         &session.user_id,
@@ -97,15 +102,4 @@ pub async fn delete_prescription(
     .await
     .ok();
     Ok(())
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_prescription_commands {
-    () => {
-        $crate::commands::prescription_commands::list_prescriptions,
-        $crate::commands::prescription_commands::create_prescription,
-        $crate::commands::prescription_commands::update_prescription,
-        $crate::commands::prescription_commands::delete_prescription,
-    };
 }

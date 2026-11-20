@@ -1,9 +1,9 @@
 //! Integration tests for GOZ invoice, Chart, and clinical document PDF markers.
 
-use medoc_lib::infrastructure::clinical_pdf_layout::{
+use medoc_lib::infrastructure::clinical_text_format::format_examination_for_chart_table;
+use medoc_lib::infrastructure::pdf::clinical_layout::{
     render_clinical_layout, ClinicalPdfLayout, LabelValue, PdfTableSpec, TableColumnLayout,
 };
-use medoc_lib::infrastructure::clinical_text_format::format_examination_for_chart_table;
 use medoc_lib::infrastructure::pdf::{
     render, render_chart_blocks, render_report_pdf, ChartPdfBlock, ChartPdfTable, Invoice,
     InvoiceLine, ReportPdfInput, ReportPdfSection, ReportPdfSummaryRow,
@@ -50,7 +50,14 @@ fn test_invoice_goz_has_required_fields() {
     };
     let pdf = render(&inv).expect("render");
     let s = String::from_utf8_lossy(&pdf);
-    for needle in ["GOZ", "Faktor", "IBAN", "VAT-exempt", "Payable within", "Rechnungsbetrag"] {
+    for needle in [
+        "GOZ",
+        "Faktor",
+        "IBAN",
+        "VAT-exempt",
+        "Payable within",
+        "Rechnungsbetrag",
+    ] {
         assert!(s.contains(needle), "missing {needle}");
     }
 }
@@ -141,7 +148,10 @@ fn test_clinical_certificate_layout_markers() {
     for needle in ["Dental practice North", "Issue date"] {
         assert!(s.contains(needle), "missing {needle}");
     }
-    assert!(s.contains("(MEDICAL CERTIFICATE)"), "title must be a WinAnsi literal");
+    assert!(
+        s.contains("(MEDICAL CERTIFICATE)"),
+        "title must be a WinAnsi literal"
+    );
 }
 
 #[test]
@@ -299,7 +309,12 @@ fn test_financial_report_pdf_markers() {
     let pdf = render_report_pdf(&input).expect("report pdf");
     let s = String::from_utf8_lossy(&pdf);
     assert!(pdf.starts_with(b"%PDF"));
-    for needle in ["Balance report", "Zusammenfassung", "Monthly trend", "Seite 1 von 1"] {
+    for needle in [
+        "Balance report",
+        "Zusammenfassung",
+        "Monthly trend",
+        "Seite 1 von 1",
+    ] {
         assert!(s.contains(needle), "missing {needle}");
     }
 }

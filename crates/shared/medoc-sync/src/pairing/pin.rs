@@ -5,7 +5,7 @@ use rand::Rng;
 use sha2::Sha256;
 use subtle::ConstantTimeEq;
 
-use crate::cluster::crypto::sas::{derive_sas_from_transcript, SAS_LEN};
+use crate::cluster::crypto::sas::SAS_LEN;
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -13,27 +13,10 @@ pub const CONFIRM_PIN_LEN: usize = SAS_LEN;
 pub const CONFIRM_PIN_TTL_SECS: i64 = 600;
 pub const CONFIRM_PIN_MAX_ATTEMPTS: i32 = 5;
 
-/// Derive SAS from Noise handshake transcript (preferred for device cluster).
-#[allow(dead_code)] // wired when Noise join path uses transcript-derived SAS (device-cluster phase 5)
-pub fn generate_confirm_pin_from_transcript(transcript: &[u8]) -> String {
-    derive_sas_from_transcript(transcript)
-}
-
 /// Legacy random PIN for HTTP pairing until Noise cutover.
 pub fn generate_confirm_pin_random() -> String {
     let n: u16 = rand::thread_rng().gen_range(0..10_000);
     format!("{n:04}")
-}
-
-/// Generate a 4-digit confirmation code. Uses transcript when provided (device cluster).
-pub fn generate_confirm_pin() -> String {
-    generate_confirm_pin_random()
-}
-
-/// Device-cluster path: always derive from handshake transcript.
-#[allow(dead_code)] // wired when Noise join path uses transcript-derived SAS (device-cluster phase 5)
-pub fn generate_confirm_pin_for_cluster(transcript: &[u8]) -> String {
-    generate_confirm_pin_from_transcript(transcript)
 }
 
 pub fn normalise_pin_input(raw: &str) -> Option<String> {

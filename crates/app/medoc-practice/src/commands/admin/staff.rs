@@ -2,12 +2,15 @@ use crate::application::auth_service::PermissionOverride;
 use crate::application::mvp_security::{self, StaffQuota};
 use crate::application::own_profile::{self, OwnProfileDto};
 use crate::application::rbac;
-use crate::commands::auth_commands::{BruteForceState, SessionState};
+use crate::commands::admin::auth::{BruteForceState, SessionState};
 use crate::domain::entities::staff::{CreateStaff, UpdateOwnProfile, UpdateStaff};
 use crate::domain::entities::{PhysicianSummary, Staff, TaskTeamMember};
 use crate::error::AppError;
 use crate::infrastructure::crypto;
-use crate::infrastructure::database::{audit_repo, device_session_repo, staff_permission_repo, staff_repo};
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
+use crate::infrastructure::database::repos::admin::device_session as device_session_repo;
+use crate::infrastructure::database::repos::admin::staff as staff_repo;
+use crate::infrastructure::database::repos::admin::staff_permission as staff_permission_repo;
 use crate::infrastructure::logging::brute_force;
 // TODO(deferred-security): 2FA unwired — see todos-deferred-security-features.md
 // use crate::infrastructure::totp::{self, TotpEnrollmentDto};
@@ -172,9 +175,13 @@ pub async fn update_staff(
         staff_repo::update(&pool, &id, &data).await?
     };
     if data.available == Some(false) {
-        staff_repo::replace_password(&pool, &id, &existing.password_hash).await.ok();
-        let _ = crate::infrastructure::database::device_session_repo::end_all_for_user(&pool, &id)
-            .await;
+        staff_repo::replace_password(&pool, &id, &existing.password_hash)
+            .await
+            .ok();
+        let _ = crate::infrastructure::database::repos::admin::device_session::end_all_for_user(
+            &pool, &id,
+        )
+        .await;
     }
     audit_repo::create(&pool, &session.user_id, "UPDATE", "Staff", Some(&id), None)
         .await
@@ -327,9 +334,7 @@ pub async fn set_staff_permission_override(
     let session = rbac::require(&session_state, "staff.write")?;
     reject_staff_writes_on_replica(&pool).await?;
     if !rbac::is_known_action(action.trim()) {
-        return Err(AppError::Validation(
-            "Unknown permission action.".into(),
-        ));
+        return Err(AppError::Validation("Unknown permission action.".into()));
     }
     staff_permission_repo::upsert(&pool, &staff_id, &action, &effect).await?;
     audit_repo::create(
@@ -525,36 +530,4 @@ pub async fn admin_unlock_brute_force(
     .await
     .ok();
     Ok(removed)
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_staff_commands {
-    () => {
-        $crate::commands::staff_commands::list_staff,
-        $crate::commands::staff_commands::list_physicians,
-        $crate::commands::staff_commands::list_task_team_directory,
-        $crate::commands::staff_commands::get_staff,
-        $crate::commands::staff_commands::get_own_profile,
-        $crate::commands::staff_commands::update_own_profile,
-        $crate::commands::staff_commands::create_staff,
-        $crate::commands::staff_commands::update_staff,
-        $crate::commands::staff_commands::delete_staff,
-        $crate::commands::staff_commands::change_password,
-        $crate::commands::staff_commands::set_staff_password_by_admin,
-        $crate::commands::staff_commands::list_staff_permission_overrides,
-        $crate::commands::staff_commands::set_staff_permission_override,
-        $crate::commands::staff_commands::delete_staff_permission_override,
-        $crate::commands::staff_commands::reset_staff_permission_overrides,
-        $crate::commands::staff_commands::set_staff_full_chart_readonly,
-        $crate::commands::staff_commands::grant_staff_all_permissions,
-        $crate::commands::staff_commands::admin_unlock_brute_force,
-        $crate::commands::staff_commands::evaluate_password_policy,
-        $crate::commands::staff_commands::get_staff_quota,
-        // TODO(deferred-security): 2FA IPC unwired
-        // $crate::commands::staff_commands::get_totp_status,
-        // $crate::commands::staff_commands::start_totp_enrollment,
-        // $crate::commands::staff_commands::confirm_totp_enrollment,
-        // $crate::commands::staff_commands::deactivate_totp,
-    };
 }

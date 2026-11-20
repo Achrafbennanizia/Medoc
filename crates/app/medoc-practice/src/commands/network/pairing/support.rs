@@ -22,7 +22,8 @@ pub(crate) async fn require_master_license_cmd(pool: &SqlitePool) -> Result<(), 
     {
         return Ok(());
     }
-    let status = medoc_core::infrastructure::license_repo::current_status(pool).await?;
+    let status =
+        medoc_core::infrastructure::database::repos::admin::license::current_status(pool).await?;
     if status.valid {
         Ok(())
     } else {
@@ -32,7 +33,8 @@ pub(crate) async fn require_master_license_cmd(pool: &SqlitePool) -> Result<(), 
 
 pub(crate) async fn master_local_device_id(pool: &SqlitePool) -> Result<String, AppError> {
     let id =
-        medoc_core::infrastructure::database::app_kv_repo::get(pool, APP_KV_DEVICE_ID_KEY).await?;
+        medoc_core::infrastructure::database::repos::admin::app_kv::get(pool, APP_KV_DEVICE_ID_KEY)
+            .await?;
     Ok(id
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| "master-local".into()))

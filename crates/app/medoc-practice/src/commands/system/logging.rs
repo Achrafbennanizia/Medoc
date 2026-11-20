@@ -4,9 +4,9 @@ use sqlx::SqlitePool;
 use tauri::State;
 
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::error::AppError;
-use crate::infrastructure::database::audit_repo;
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
 use crate::infrastructure::logging::{self, LogLevel, LOGGING_CONFIG};
 use crate::{log_system, log_workflow};
 
@@ -31,14 +31,17 @@ pub async fn set_log_level(
     let prev = LOGGING_CONFIG.level();
     LOGGING_CONFIG.set_level(level);
     let raw = serde_json::to_string(&level).map_err(|e| AppError::Internal(e.to_string()))?;
-    medoc_core::infrastructure::database::app_kv_repo::set(&pool, LOG_LEVEL_KV, &raw).await?;
+    medoc_core::infrastructure::database::repos::admin::app_kv::set(&pool, LOG_LEVEL_KV, &raw)
+        .await?;
     log_system!(info, event = "LOG_LEVEL_CHANGED", from = ?prev, to = ?level);
     Ok(())
 }
 
 /// F137: apply the stored level at startup (it used to reset on every restart).
 pub async fn restore_log_level(pool: &SqlitePool) {
-    if let Ok(Some(raw)) = medoc_core::infrastructure::database::app_kv_repo::get(pool, LOG_LEVEL_KV).await {
+    if let Ok(Some(raw)) =
+        medoc_core::infrastructure::database::repos::admin::app_kv::get(pool, LOG_LEVEL_KV).await
+    {
         if let Ok(level) = serde_json::from_str::<LogLevel>(&raw) {
             LOGGING_CONFIG.set_level(level);
         }
@@ -75,16 +78,4 @@ pub async fn verify_audit_chain(
 pub fn log_dir(session_state: State<'_, SessionState>) -> Result<String, AppError> {
     rbac::require(&session_state, "ops.logs")?;
     Ok(logging::log_dir()?.display().to_string())
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_logging_commands {
-    () => {
-        $crate::commands::logging_commands::get_log_level,
-        $crate::commands::logging_commands::set_log_level,
-        $crate::commands::logging_commands::export_logs,
-        $crate::commands::logging_commands::verify_audit_chain,
-        $crate::commands::logging_commands::log_dir,
-    };
 }

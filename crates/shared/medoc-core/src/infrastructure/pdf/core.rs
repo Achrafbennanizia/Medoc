@@ -74,99 +74,103 @@ pub const FOOTER_FIRST_Y: i32 = 42;
 /// Y where the signature footer area begins.
 pub const SIGNATURE_FOOTER_Y: i32 = 90;
 
-/// Document language for all official PDFs. The base-14 fonts cannot render
-/// Arabic; until fonts are embedded, an Arabic UI still produces German
-/// documents (the legal language of a German practice).
-/// `de` | `en` | `fr` | `ar`, or `None` when the caller did not name one.
+/// Document language: a code from [`super::i18n::LOCALES`], or `None` when
+/// the caller did not name a supported one. Region and case are ignored
+/// (`"ar-MA"` → `ar`, `"fr_FR"` → `fr`) — the old exact match turned every
+/// `"en-US"` / `"ar-MA"` request into a German document.
 pub fn known_pdf_locale(requested: &str) -> Option<&'static str> {
-    match requested.trim().trim_matches('"') {
-        "de" => Some("de"),
-        "en" => Some("en"),
-        "fr" => Some("fr"),
-        "ar" => Some("ar"),
-        _ => None,
-    }
+    super::i18n::known_locale(requested)
 }
 
 pub fn pdf_locale(requested: &str) -> &'static str {
-    known_pdf_locale(requested).unwrap_or("de")
+    super::i18n::locale_or_default(requested)
+}
+
+// ---------------------------------------------------------------------------
+// Document identity
+// ---------------------------------------------------------------------------
+
+thread_local! {
+    static DOCUMENT_UID: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+}
+
+/// New document id (UUID v4). Issued documents use it as `issued_document.id`.
+pub fn new_document_uid() -> String {
+    uuid::Uuid::new_v4().to_string()
+}
+
+/// Render with a fixed document id: every PDF written by `f` on this thread
+/// carries `uid` (footer, `/MeDocDocumentId`, trailer `/ID`). Without it each
+/// PDF gets a fresh id, so previews and exports are identifiable too.
+pub fn with_document_uid<T>(uid: &str, f: impl FnOnce() -> T) -> T {
+    let previous = DOCUMENT_UID.with(|c| c.replace(Some(uid.to_string())));
+    let out = f();
+    DOCUMENT_UID.with(|c| *c.borrow_mut() = previous);
+    out
+}
+
+/// Guard form of [`with_document_uid`] for a block that renders several
+/// ways (`match`). Keep it inside a block without `.await`: the id lives in
+/// a thread-local.
+pub struct DocumentUidScope {
+    previous: Option<String>,
+}
+
+impl DocumentUidScope {
+    pub fn enter(uid: &str) -> Self {
+        let previous = DOCUMENT_UID.with(|c| c.replace(Some(uid.to_string())));
+        Self { previous }
+    }
+}
+
+impl Drop for DocumentUidScope {
+    fn drop(&mut self) {
+        let previous = self.previous.take();
+        DOCUMENT_UID.with(|c| *c.borrow_mut() = previous);
+    }
+}
+
+fn current_document_uid() -> String {
+    DOCUMENT_UID
+        .with(|c| c.borrow().clone())
+        .unwrap_or_else(new_document_uid)
+}
+
+/// Read the document id back from PDF bytes written by MeDoc.
+pub fn document_uid_of(pdf: &[u8]) -> Option<String> {
+    let needle = b"/MeDocDocumentId (";
+    let start = pdf.windows(needle.len()).position(|w| w == needle)? + needle.len();
+    let end = pdf[start..].iter().position(|&b| b == b')')? + start;
+    let uid = std::str::from_utf8(&pdf[start..end]).ok()?;
+    uid.chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-')
+        .then(|| uid.to_string())
 }
 
 // ---------------------------------------------------------------------------
 // Encoding
 // ---------------------------------------------------------------------------
 
-/// Map a Unicode code point to WinAnsi (Helvetica Type-1).
+/// Map a Unicode code point to WinAnsi (CP1252, Helvetica Type-1).
 ///
-/// Covers all characters relevant for German practice text — when not
-/// mapped, `None` signals the caller to switch **the entire string**
-/// to UTF-16BE hex (PDF hex literal `<…>`).
-fn winansi_byte(ch: char) -> Option<u8> {
-    if ch.is_ascii() {
-        return Some(ch as u8);
+/// The complete table: ASCII, the Latin-1 block U+00A0–U+00FF (identical
+/// byte values) and the 27 CP1252 extensions in 0x80–0x9F. The old table
+/// listed letters one by one and missed most of French (à â î ï ô û ù ë ÿ æ)
+/// and Spanish/Portuguese (á í ó ú ã õ), so those strings fell through to
+/// the Arabic font and lost characters or were rejected.
+pub(crate) fn winansi_byte(ch: char) -> Option<u8> {
+    let c = ch as u32;
+    if c < 0x80 {
+        return Some(c as u8);
+    }
+    if (0xA0..=0xFF).contains(&c) {
+        return Some(c as u8);
     }
     Some(match ch {
-        '\u{00A0}' => 0xA0,
-        '\u{00A1}' => 0xA1,
-        '\u{00A2}' => 0xA2,
-        '\u{00A3}' => 0xA3,
-        '\u{00A4}' => 0xA4,
-        '\u{00A5}' => 0xA5,
-        '\u{00A6}' => 0xA6,
-        '\u{00A7}' => 0xA7,
-        '\u{00A8}' => 0xA8,
-        '\u{00A9}' => 0xA9,
-        '\u{00AA}' => 0xAA,
-        '\u{00AB}' => 0xAB,
-        '\u{00AC}' => 0xAC,
-        '\u{00AD}' => 0xAD,
-        '\u{00AE}' => 0xAE,
-        '\u{00AF}' => 0xAF,
-        '\u{00B0}' => 0xB0,
-        '\u{00B1}' => 0xB1,
-        '\u{00B2}' => 0xB2,
-        '\u{00B3}' => 0xB3,
-        '\u{00B4}' => 0xB4,
-        '\u{00B5}' => 0xB5,
-        '\u{00B6}' => 0xB6,
-        '\u{00B7}' => 0xB7,
-        '\u{00B8}' => 0xB8,
-        '\u{00B9}' => 0xB9,
-        '\u{00BA}' => 0xBA,
-        '\u{00BB}' => 0xBB,
-        '\u{00BC}' => 0xBC,
-        '\u{00BD}' => 0xBD,
-        '\u{00BE}' => 0xBE,
-        '\u{00BF}' => 0xBF,
-        // German Umlauts
-        'Ä' => 0xC4,
-        'Å' => 0xC5,
-        'Ö' => 0xD6,
-        'Ø' => 0xD8,
-        'Ü' => 0xDC,
-        'ß' => 0xDF,
-        'ä' => 0xE4,
-        'å' => 0xE5,
-        'ö' => 0xF6,
-        'ø' => 0xF8,
-        'ü' => 0xFC,
-        'É' => 0xC9,
-        'È' => 0xC8,
-        'Ê' => 0xCA,
-        'é' => 0xE9,
-        'è' => 0xE8,
-        'ê' => 0xEA,
-        'ç' => 0xE7,
-        'Ç' => 0xC7,
-        'ñ' => 0xF1,
-        'Ñ' => 0xD1,
-        '\u{00D7}' => 0xD7, // × Multiplikationszeichen
-        '\u{00F7}' => 0xF7, // ÷ Divisionszeichen
-        // CP1252 (WinAnsi) extensions
         '€' => 0x80,
-        '\u{201A}' => 0x82, // ‚ low single quote
+        '\u{201A}' => 0x82, // ‚
         'ƒ' => 0x83,
-        '\u{201E}' => 0x84, // „ low double quote
+        '\u{201E}' => 0x84, // „
         '\u{2026}' => 0x85, // …
         '\u{2020}' => 0x86, // †
         '\u{2021}' => 0x87, // ‡
@@ -176,10 +180,10 @@ fn winansi_byte(ch: char) -> Option<u8> {
         '\u{2039}' => 0x8B, // ‹
         'Œ' => 0x8C,
         'Ž' => 0x8E,
-        '\u{2018}' => 0x91, // '
-        '\u{2019}' => 0x92, // '
-        '\u{201C}' => 0x93, // "
-        '\u{201D}' => 0x94, // "
+        '\u{2018}' => 0x91, // ‘
+        '\u{2019}' => 0x92, // ’
+        '\u{201C}' => 0x93, // “
+        '\u{201D}' => 0x94, // ”
         '\u{2022}' => 0x95, // •
         '\u{2013}' => 0x96, // –
         '\u{2014}' => 0x97, // —
@@ -190,7 +194,7 @@ fn winansi_byte(ch: char) -> Option<u8> {
         'œ' => 0x9C,
         'ž' => 0x9E,
         'Ÿ' => 0x9F,
-        // Mathematik / typographische Striche → ASCII-Fallback
+        // Typographic minus / bars → ASCII hyphen.
         '\u{2015}' | '\u{2212}' => b'-',
         _ => return None,
     })
@@ -216,14 +220,20 @@ fn pdf_escape_winansi_bytes(bytes: &[u8]) -> String {
 
 /// True when every character of `s` can be drawn with the WinAnsi fonts.
 pub fn is_winansi_renderable(s: &str) -> bool {
-    s.chars().all(|c| winansi_byte(c).is_some() || c.is_whitespace())
+    s.chars()
+        .all(|c| winansi_byte(c).is_some() || c.is_whitespace())
 }
 
-/// Latin (Helvetica) or a character the embedded Noto Naskh font can draw.
+/// True when every character can be drawn by Helvetica or an embedded font
+/// (after normalisation: NFC, exotic spaces, emoji and invisible characters
+/// are handled by [`super::text::prepare`]).
 pub fn is_pdf_renderable(s: &str) -> bool {
-    s.chars().all(|c| {
-        c.is_whitespace() || winansi_byte(c).is_some() || super::unicode_font::has_glyph(c)
-    })
+    super::text::is_renderable(s)
+}
+
+/// Characters no font can draw (for error messages and logs).
+pub fn unrenderable_chars(s: &str) -> Vec<char> {
+    super::text::unsupported_chars(s)
 }
 
 /// Encode a text literal for a **content stream** (Helvetica / WinAnsi).
@@ -248,7 +258,9 @@ pub fn text_operand(s: &str) -> String {
 /// Encode a string for the document **Info dictionary** / metadata, where
 /// PDF allows UTF-16BE with BOM (unlike content streams).
 pub fn info_string_operand(s: &str) -> String {
-    if s.chars().all(|c| winansi_byte(c).is_some()) {
+    // Info strings use PDFDocEncoding, which differs from WinAnsi in
+    // 0x80–0x9F (€, quotes, dashes). Only plain ASCII stays a literal.
+    if s.chars().all(|c| (' '..='~').contains(&c)) {
         return text_operand(s);
     }
     let mut hex = String::from("<FEFF");
@@ -265,12 +277,10 @@ pub fn approx_text_width(s: &str, font_size: i32) -> i32 {
 }
 
 /// Text width in PDF points from the Helvetica / Helvetica-Bold AFM metrics.
+/// Measured exactly like [`PageBuilder::text`] draws it (shaped scripts,
+/// embedded fonts and Helvetica alike).
 pub fn text_width(s: &str, font_size: i32, bold: bool) -> i32 {
-    if super::unicode_font::needs_unicode(s) {
-        super::unicode_font::width_pt(s, font_size).ceil() as i32
-    } else {
-        super::metrics::text_width_pt(s, font_size, bold).ceil() as i32
-    }
+    super::text::width_pt(s, f64::from(font_size), bold, false).ceil() as i32
 }
 
 /// Continuation header drawn automatically after every page break.
@@ -340,9 +350,14 @@ impl PageBuilder {
         }
     }
 
-    /// Arabic documents are laid out as the mirror of the Latin page.
-    fn reading_rtl(&self) -> bool {
-        self.rtl || self.locale == "ar"
+    /// Right-to-left documents are laid out as the mirror of the Latin page.
+    pub fn reading_rtl(&self) -> bool {
+        self.rtl || super::i18n::is_rtl(self.locale)
+    }
+
+    /// Width of `s` exactly as [`Self::text`] draws it on this page.
+    pub fn width(&self, s: &str, size: i32, bold: bool) -> f64 {
+        super::text::width_pt(s, f64::from(size), bold, self.reading_rtl())
     }
 
     /// Left edge after mirroring a run that starts at `x` in the Latin layout.
@@ -410,28 +425,33 @@ impl PageBuilder {
     /// Write text. `bold = true` uses /F2 (Helvetica-Bold), otherwise /F1.
     /// **Cursor is NOT moved** — caller is responsible for `advance(line_height)`.
     pub fn text(&mut self, x: i32, size: i32, bold: bool, s: &str) {
-        let x = self.mirror_left(x, text_width(s, size, bold));
-        if super::unicode_font::needs_unicode(s) {
-            self.cur
-                .push_str(&super::unicode_font::positioned_ops(x, self.y, size, s));
+        let line = super::text::layout(s, f64::from(size), bold, self.reading_rtl());
+        if line.pieces.is_empty() {
             return;
         }
-        let font = if bold { "F2" } else { "F1" };
-        let op = text_operand(s);
-        let _ = writeln!(
-            self.cur,
-            "BT /{font} {size} Tf {x} {y} Td {op} Tj ET",
-            font = font,
-            size = size,
-            x = x,
-            y = self.y,
-            op = op,
-        );
+        let x = if self.reading_rtl() {
+            f64::from(M_LEFT + M_RIGHT - x) - line.width
+        } else {
+            f64::from(x)
+        };
+        self.cur.push_str(&super::text::draw_layout(
+            x,
+            f64::from(self.y),
+            &line,
+            f64::from(size),
+        ));
+    }
+
+    /// Same as [`Self::text`], drawn in grayscale (`0` black, `1` white).
+    pub fn text_gray(&mut self, x: i32, size: i32, bold: bool, s: &str, gray: f64) {
+        let _ = writeln!(self.cur, "q {gray:.3} g");
+        self.text(x, size, bold, s);
+        let _ = writeln!(self.cur, "Q");
     }
 
     /// Text right-aligned to right margin `x_right`.
     pub fn text_right(&mut self, x_right: i32, size: i32, bold: bool, s: &str) {
-        let w = text_width(s, size, bold);
+        let w = self.width(s, size, bold).ceil() as i32;
         let x = (x_right - w).max(M_LEFT);
         self.text(x, size, bold, s);
     }
@@ -465,7 +485,7 @@ impl PageBuilder {
 
     /// Text centered between `M_LEFT` and `M_RIGHT`.
     pub fn text_center(&mut self, size: i32, bold: bool, s: &str) {
-        let w = text_width(s, size, bold);
+        let w = self.width(s, size, bold).ceil() as i32;
         let x = M_LEFT + (CONTENT_WIDTH - w) / 2;
         self.text(x.max(M_LEFT), size, bold, s);
     }
@@ -502,6 +522,13 @@ impl PageBuilder {
         let x1 = self.mirror_x(x1);
         let x2 = self.mirror_x(x2);
         let _ = writeln!(self.cur, "{} {} m {} {} l S", x1, y, x2, y);
+    }
+
+    /// Hairline used under a letterhead. `gray` is 0 (black) to 1 (white).
+    pub fn hline_gray(&mut self, x1: i32, y: i32, x2: i32, gray: f64) {
+        let x1 = self.mirror_x(x1);
+        let x2 = self.mirror_x(x2);
+        let _ = writeln!(self.cur, "q {gray:.3} G 0.4 w {x1} {y} m {x2} {y} l S Q");
     }
 
     /// Filled rectangle (grayscale). `y_bottom` is the bottom edge.
@@ -574,9 +601,20 @@ impl PageBuilder {
         if self.pages.is_empty() {
             self.pages.push(String::new());
         }
-        let footer = footer_stream(&self.footer_lines);
-        let marks = if self.letter_marks { letter_marks_stream() } else { String::new() };
-        let wm = self.watermark.as_deref().map(watermark_stream).unwrap_or_default();
+        let rtl = self.reading_rtl();
+        let footer = footer_stream(&self.footer_lines, rtl);
+        let marks = if self.letter_marks {
+            letter_marks_stream()
+        } else {
+            String::new()
+        };
+        let locale = self.locale;
+        let wm = self
+            .watermark
+            .as_deref()
+            .filter(|w| !w.trim().is_empty())
+            .map(|w| watermark_stream(&super::i18n::localize_watermark(w, locale), rtl))
+            .unwrap_or_default();
         self.pages
             .into_iter()
             .map(|body| format!("{wm}{body}{footer}{marks}"))
@@ -585,26 +623,33 @@ impl PageBuilder {
 }
 
 /// DIN 5008 footer: up to three centred 7 pt lines above the page number.
-fn footer_stream(lines: &[String]) -> String {
+fn footer_stream(lines: &[String], rtl: bool) -> String {
     let mut s = String::new();
     let mut wrapped: Vec<String> = Vec::new();
     for l in lines.iter().filter(|l| !l.trim().is_empty()) {
-        wrapped.extend(super::metrics::wrap_to_width(l, 7, false, f64::from(CONTENT_WIDTH)));
+        wrapped.extend(super::metrics::wrap_to_width(
+            l,
+            7,
+            false,
+            f64::from(CONTENT_WIDTH),
+        ));
     }
     if wrapped.is_empty() {
         return s;
     }
-    let _ = writeln!(s, "q 0.6 G 0.5 w {M_LEFT} {} m {M_RIGHT} {} l S Q", M_BOTTOM - 8, M_BOTTOM - 8);
+    let _ = writeln!(
+        s,
+        "q 0.6 G 0.5 w {M_LEFT} {} m {M_RIGHT} {} l S Q",
+        M_BOTTOM - 8,
+        M_BOTTOM - 8
+    );
     // Draw bottom-up so the first line ends highest.
     for (i, line) in wrapped.iter().rev().take(3).enumerate() {
-        let w = text_width(line, 7, false);
-        let x = (M_LEFT + (CONTENT_WIDTH - w) / 2).max(M_LEFT);
+        let layout = super::text::layout(line, 7.0, false, rtl);
+        let x = (f64::from(M_LEFT) + (f64::from(CONTENT_WIDTH) - layout.width) / 2.0)
+            .max(f64::from(M_LEFT));
         let y = FOOTER_FIRST_Y + i as i32 * 9;
-        if super::unicode_font::needs_unicode(line) {
-            s.push_str(&super::unicode_font::positioned_ops(x, y, 7, line));
-        } else {
-            let _ = writeln!(s, "BT /F1 7 Tf {x} {y} Td {} Tj ET", text_operand(line));
-        }
+        s.push_str(&super::text::draw_layout(x, f64::from(y), &layout, 7.0));
     }
     s
 }
@@ -621,27 +666,23 @@ fn letter_marks_stream() -> String {
 }
 
 /// Light diagonal watermark drawn **under** the page content.
-fn watermark_stream(text: &str) -> String {
+fn watermark_stream(text: &str, rtl: bool) -> String {
     let size = 64;
-    let w = f64::from(text_width(text, size, true));
+    let w = super::text::width_pt(text, f64::from(size), true, rtl);
     // Rotate 45° around the page centre.
-    let (c, sn) = (std::f64::consts::FRAC_1_SQRT_2, std::f64::consts::FRAC_1_SQRT_2);
+    let (c, sn) = (
+        std::f64::consts::FRAC_1_SQRT_2,
+        std::f64::consts::FRAC_1_SQRT_2,
+    );
     let cx = f64::from(PAGE_WIDTH) / 2.0;
     let cy = f64::from(PAGE_HEIGHT) / 2.0;
     let x0 = cx - (w / 2.0) * c;
     let y0 = cy - (w / 2.0) * sn;
-    if super::unicode_font::needs_unicode(text) {
-        // One shaped run, then the same rotation as the Latin watermark.
-        let ops = super::unicode_font::positioned_ops(0, 0, size, text);
-        return format!(
-            "q 0.88 g {c:.4} {sn:.4} {:.4} {c:.4} {x0:.2} {y0:.2} cm\n{ops}Q\n",
-            -sn,
-        );
-    }
+    // One laid-out line (any script), rotated 45° around the page centre.
+    let ops = super::text::draw_ops(0.0, 0.0, text, f64::from(size), true, rtl);
     format!(
-        "q 0.88 g BT /F2 {size} Tf {c:.4} {sn:.4} {:.4} {c:.4} {x0:.2} {y0:.2} Tm {} Tj ET Q\n",
+        "q 0.88 g {c:.4} {sn:.4} {:.4} {c:.4} {x0:.2} {y0:.2} cm\n{ops}Q\n",
         -sn,
-        text_operand(text)
     )
 }
 
@@ -722,31 +763,52 @@ pub fn pdf_date_now() -> String {
     )
 }
 
-/// Write the PDF file (PDF 1.4, base-14 fonts). Adds `/Lang`,
-/// `/DisplayDocTitle`, creation/modification dates and author/subject.
+/// Write the PDF file (PDF 1.4). Adds `/Lang`, `/DisplayDocTitle`,
+/// creation/modification dates, author/subject, the document id
+/// (`/MeDocDocumentId`, trailer `/ID`, footer line) and the embedded font
+/// subsets the pages use.
 pub fn emit_pdf_document(
     page_streams: &[String],
     meta: &PdfDocMeta,
     images: &[super::logo::PdfLogo],
 ) -> Result<Vec<u8>, AppError> {
     let locale = pdf_locale(&meta.locale);
+    let rtl = super::i18n::is_rtl(locale);
+    let uid = current_document_uid();
     let pdf_title = meta.title.as_str();
     let n = page_streams.len().max(1);
     let image_count = images.len();
-    // Object layout: 1=Catalog, 2=Pages, then page/content pairs, then fonts,
-    // then images, then Info. Arabic text adds four objects for Noto Naskh.
-    let unicode = page_streams.iter().any(|s| s.contains("/F3 "))
-        || super::unicode_font::needs_unicode(&page_of_label(locale, 1, n));
+
+    // Final page streams (page number + document id footer included), so the
+    // font scan below sees every glyph.
+    let streams: Vec<String> = (0..n)
+        .map(|i| {
+            let mut stream = page_streams.get(i).cloned().unwrap_or_default();
+            append_page_number_footer(&mut stream, i, n, locale, rtl, &uid);
+            stream
+        })
+        .collect();
+    let stream_refs: Vec<&str> = streams.iter().map(String::as_str).collect();
+    let used = super::fonts::scan_used_glyphs(&stream_refs);
+
+    // Object layout: 1=Catalog, 2=Pages, page/content pairs, Helvetica ×2,
+    // embedded fonts (6 objects each), images, Info.
     let font_regular_id = 3 + n * 2;
     let font_bold_id = font_regular_id + 1;
-    let unicode_font_id = font_bold_id + 1;
-    let first_image_id = font_bold_id + 1 + if unicode { 4 } else { 0 };
+    let mut next_id = font_bold_id + 1;
+    let mut embedded: Vec<(&'static super::fonts::LoadedFace, usize)> = Vec::new();
+    for face in super::fonts::faces() {
+        if used.get(face.res).is_some_and(|g| !g.is_empty()) {
+            embedded.push((face, next_id));
+            next_id += super::fonts::OBJECTS_PER_FONT;
+        }
+    }
+    let first_image_id = next_id;
     let info_id = first_image_id + image_count;
-    let unicode_font_res = if unicode {
-        format!(" /F3 {unicode_font_id} 0 R")
-    } else {
-        String::new()
-    };
+    let embedded_res: String = embedded
+        .iter()
+        .map(|(face, id)| format!(" /{} {id} 0 R", face.res))
+        .collect();
 
     let mut out: Vec<u8> = Vec::new();
     let mut offsets: Vec<usize> = Vec::new();
@@ -759,13 +821,9 @@ pub fn emit_pdf_document(
     out.extend_from_slice(
         format!(
             "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Lang {} \
-             /ViewerPreferences << /DisplayDocTitle true >> >>\nendobj\n",
-            text_operand(match locale {
-                "de" => "de-DE",
-                "fr" => "fr-FR",
-                "ar" => "ar",
-                _ => "en",
-            })
+             /ViewerPreferences << /DisplayDocTitle true{} >> >>\nendobj\n",
+            text_operand(super::i18n::lang_tag(locale)),
+            if rtl { " /Direction /R2L" } else { "" },
         )
         .as_bytes(),
     );
@@ -795,12 +853,9 @@ pub fn emit_pdf_document(
     };
 
     // 3 0 obj .. — Page + Content per page
-    for i in 0..n {
+    for (i, stream) in streams.iter().enumerate() {
         let page_id = 3 + i * 2;
         let content_id = 4 + i * 2;
-
-        let mut stream = page_streams.get(i).cloned().unwrap_or_default();
-        append_page_number_footer(&mut stream, i, n, locale);
         let bytes = stream.as_bytes();
 
         offsets.push(out.len());
@@ -808,14 +863,14 @@ pub fn emit_pdf_document(
             format!(
                 "{p} 0 obj\n<< /Type /Page /Parent 2 0 R \
                  /MediaBox [0 0 {w} {h}] \
-                 /Resources << /Font << /F1 {f} 0 R /F2 {fb} 0 R{f3} >>{xo} >> \
+                 /Resources << /Font << /F1 {f} 0 R /F2 {fb} 0 R{emb} >>{xo} >> \
                  /Contents {c} 0 R >>\nendobj\n",
                 p = page_id,
                 w = PAGE_WIDTH,
                 h = PAGE_HEIGHT,
                 f = font_regular_id,
                 fb = font_bold_id,
-                f3 = unicode_font_res,
+                emb = embedded_res,
                 xo = xobject_dict,
                 c = content_id,
             )
@@ -852,8 +907,9 @@ pub fn emit_pdf_document(
         )
         .as_bytes(),
     );
-    if unicode {
-        super::unicode_font::append_font_objects(&mut out, &mut offsets, unicode_font_id);
+    for (face, id) in &embedded {
+        let glyphs = used.get(face.res).cloned().unwrap_or_default();
+        super::fonts::append_font_objects(&mut out, &mut offsets, *id, face, &glyphs);
     }
 
     // Images
@@ -880,7 +936,7 @@ pub fn emit_pdf_document(
     offsets.push(out.len());
     let date = pdf_date_now();
     let mut info = format!(
-        "<< /Title {} /Producer (MeDoc) /Creator (MeDoc) /CreationDate {} /ModDate {}",
+        "<< /Title {} /Producer (MeDoc) /Creator (MeDoc) /CreationDate {} /ModDate {} /MeDocDocumentId ({uid})",
         info_string_operand(pdf_title),
         text_operand(&date),
         text_operand(&date),
@@ -891,6 +947,10 @@ pub fn emit_pdf_document(
     if let Some(a) = meta.author.as_deref().filter(|s| !s.trim().is_empty()) {
         info.push_str(&format!(" /Author {}", info_string_operand(a)));
     }
+    info.push_str(&format!(
+        " /Keywords {}",
+        info_string_operand(&format!("MeDoc document id {uid}"))
+    ));
     info.push_str(" >>");
     out.extend_from_slice(format!("{info_id} 0 obj\n{info}\nendobj\n").as_bytes());
 
@@ -902,10 +962,16 @@ pub fn emit_pdf_document(
         out.extend_from_slice(format!("{:010} 00000 n \n", off).as_bytes());
     }
 
-    // trailer
+    // trailer — /ID from the document id (PDF 1.4 file identifier).
+    let id_hex: String = uid.chars().filter(|c| c.is_ascii_hexdigit()).collect();
+    let id_hex = if id_hex.len() == 32 {
+        id_hex.to_ascii_uppercase()
+    } else {
+        format!("{:0>32}", id_hex.to_ascii_uppercase())
+    };
     out.extend_from_slice(
         format!(
-            "trailer\n<< /Size {} /Root 1 0 R /Info {} 0 R >>\nstartxref\n{}\n%%EOF\n",
+            "trailer\n<< /Size {} /Root 1 0 R /Info {} 0 R /ID [<{id_hex}> <{id_hex}>] >>\nstartxref\n{}\n%%EOF\n",
             offsets.len() + 1,
             info_id,
             xref_pos,
@@ -920,27 +986,44 @@ fn page_of_label(locale: &str, page: usize, total: usize) -> String {
     super::i18n::page_label(locale, page, total)
 }
 
+/// Page number centred; document id small and grey in the bottom corner
+/// (left on Latin pages, right on right-to-left pages).
 fn append_page_number_footer(
     stream: &mut String,
     page_index: usize,
     page_total: usize,
     locale: &str,
+    rtl: bool,
+    uid: &str,
 ) {
-    let label = page_of_label(pdf_locale(locale), page_index + 1, page_total);
-    // Centered in the footer.
-    let x = (PAGE_WIDTH - text_width(&label, 9, false)) / 2;
-    if super::unicode_font::needs_unicode(&label) {
-        stream.push_str(&super::unicode_font::positioned_ops(x, PAGE_NUMBER_Y, 9, &label));
-        return;
-    }
-    let op = text_operand(&label);
-    let _ = writeln!(
-        stream,
-        "BT /F1 9 Tf {x} {y} Td {op} Tj ET",
-        x = x,
-        y = PAGE_NUMBER_Y,
-        op = op,
+    let label = page_of_label(locale, page_index + 1, page_total);
+    let layout = super::text::layout(&label, 9.0, false, rtl);
+    let x = (f64::from(PAGE_WIDTH) - layout.width) / 2.0;
+    stream.push_str(&super::text::draw_layout(
+        x,
+        f64::from(PAGE_NUMBER_Y),
+        &layout,
+        9.0,
+    ));
+
+    let id_label = format!(
+        "{}: {uid}",
+        super::i18n::t(locale, super::i18n::Phrase::DocumentId)
     );
+    let id_layout = super::text::layout(&id_label, 6.0, false, rtl);
+    let id_x = if rtl {
+        f64::from(M_RIGHT) - id_layout.width
+    } else {
+        f64::from(M_LEFT)
+    };
+    stream.push_str("q 0.45 g\n");
+    stream.push_str(&super::text::draw_layout(
+        id_x,
+        f64::from(PAGE_NUMBER_Y),
+        &id_layout,
+        6.0,
+    ));
+    stream.push_str("Q\n");
 }
 
 // ---------------------------------------------------------------------------
@@ -1007,9 +1090,26 @@ pub fn wrap_soft(text: &str, max_chars: usize) -> Vec<String> {
     lines
 }
 
+/// Wrap for the document language: German text breaks long compounds at
+/// syllable points ([`wrap_text`]); every other language wraps on spaces only
+/// — German syllable rules produced wrong hyphens in French and English, and
+/// a hyphen inside an Arabic word disconnects its letters.
+pub fn wrap_text_locale(text: &str, max_chars: usize, locale: &str) -> Vec<String> {
+    if pdf_locale(locale) == "de" {
+        wrap_text(text, max_chars)
+    } else {
+        wrap_soft(text, max_chars)
+    }
+}
+
 /// German flowing-text wrap — also breaks long compounds at syllable points
 /// (prefix/suffix heuristic + vowel/consonant change) with a hyphen.
+/// Arabic (and other non-WinAnsi) text never hyphenates — that disconnects
+/// joining letter forms — so it falls back to soft whitespace wrapping.
 pub fn wrap_text(text: &str, max_chars: usize) -> Vec<String> {
+    if !super::text::is_helvetica_only(&super::text::prepare(text)) {
+        return wrap_soft(text, max_chars);
+    }
     let width = max_chars.clamp(12, 200);
     let mut lines = Vec::new();
     for paragraph in text.split('\n') {
@@ -1212,8 +1312,14 @@ pub fn format_date_dmy(iso: &str) -> String {
 static DOCUMENT_CURRENCY: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
 
 const DOCUMENT_CURRENCIES: &[&str] = &[
-    "EUR", "USD", "GBP", "CHF", "MAD", "CAD", "AUD", "SEK", "NOK", "DKK", "PLN", "CZK", "TND", "AED", "SAR",
+    "EUR", "USD", "GBP", "CHF", "MAD", "CAD", "AUD", "SEK", "NOK", "DKK", "PLN", "CZK", "TND",
+    "AED", "SAR",
 ];
+
+pub fn is_known_currency(code: &str) -> bool {
+    let next = code.trim().to_ascii_uppercase();
+    DOCUMENT_CURRENCIES.contains(&next.as_str())
+}
 
 /// Practice currency for money on screen and on documents. Unknown codes stay EUR.
 pub fn set_document_currency(code: &str) {
@@ -1232,11 +1338,18 @@ pub fn document_currency() -> String {
     DOCUMENT_CURRENCY
         .lock()
         .ok()
-        .map(|g| if g.is_empty() { "EUR".to_string() } else { g.clone() })
+        .map(|g| {
+            if g.is_empty() {
+                "EUR".to_string()
+            } else {
+                g.clone()
+            }
+        })
         .unwrap_or_else(|| "EUR".to_string())
 }
 
 /// Cent value → "1.234,56 EUR" (DIN-style, ASCII — Helvetica has no reliable € glyph).
+/// The suffix is the practice currency from [`document_currency`].
 pub fn format_eur(cents: i64) -> String {
     let neg = cents < 0;
     let version = cents.abs();
@@ -1251,7 +1364,94 @@ pub fn format_eur(cents: i64) -> String {
         grouped.push(ch);
     }
     let euros_de: String = grouped.chars().rev().collect();
-    format!("{}{},{:02} {}", if neg { "-" } else { "" }, euros_de, frac, document_currency())
+    format!(
+        "{}{},{:02} {}",
+        if neg { "-" } else { "" },
+        euros_de,
+        frac,
+        document_currency()
+    )
+}
+
+/// Money for a payment, invoice, or chart PDF: keep the number, end with the
+/// practice currency. "120,00", "120,00 USD", and "120,00 €" all become
+/// "120,00 MAD" when MAD is selected. Dates and other text are left as written.
+pub fn ensure_money_currency(raw: &str) -> String {
+    let sanitized = sanitize_pdf_money(raw);
+    let trimmed = sanitized.trim();
+    if trimmed.is_empty() || trimmed == "-" || trimmed == "—" {
+        return trimmed.to_string();
+    }
+    let mut core = trimmed.to_string();
+    if let Some(rest) = strip_known_currency_suffix(&core) {
+        core = rest;
+    } else if let Some(rest) = strip_known_currency_prefix(&core) {
+        core = rest;
+    }
+    let core = core.trim();
+    if !looks_like_money_number(core) {
+        return trimmed.to_string();
+    }
+    format!("{core} {}", document_currency())
+}
+
+fn strip_known_currency_suffix(value: &str) -> Option<String> {
+    let value = value.trim_end();
+    for code in DOCUMENT_CURRENCIES {
+        let Some(rest) = value.strip_suffix(code) else {
+            continue;
+        };
+        if rest
+            .chars()
+            .last()
+            .is_some_and(|c| c.is_ascii_alphanumeric())
+        {
+            continue;
+        }
+        return Some(rest.trim_end().to_string());
+    }
+    None
+}
+
+fn strip_known_currency_prefix(value: &str) -> Option<String> {
+    let value = value.trim_start();
+    for code in DOCUMENT_CURRENCIES {
+        let Some(rest) = value.strip_prefix(code) else {
+            continue;
+        };
+        if rest
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_alphanumeric())
+        {
+            continue;
+        }
+        return Some(rest.trim_start().to_string());
+    }
+    None
+}
+
+/// "1.234,56", "1,234.56", "70.00", "-12,94". Not a date ("02.11.2026").
+fn looks_like_money_number(core: &str) -> bool {
+    let t = core
+        .trim()
+        .trim_start_matches('+')
+        .trim_start_matches('-')
+        .trim();
+    let (head, frac) = if let Some(pair) = t.rsplit_once(',') {
+        pair
+    } else if let Some(pair) = t.rsplit_once('.') {
+        pair
+    } else {
+        return false;
+    };
+    frac.len() == 2
+        && frac.chars().all(|c| c.is_ascii_digit())
+        && !head.is_empty()
+        && head.chars().any(|c| c.is_ascii_digit())
+        && head
+            .chars()
+            .all(|c| c.is_ascii_digit() || matches!(c, '.' | ',' | ' ' | '\u{a0}'))
 }
 
 /// Make money / label text safe for Helvetica WinAnsi (no zero-width €, no NBSP).
@@ -1263,15 +1463,15 @@ pub fn sanitize_pdf_money(s: &str) -> String {
         let c = chars[i];
         match c {
             '€' => {
-                // Prefer "12.34 EUR" / "EUR 12.34" over a broken € glyph.
+                let code = document_currency();
                 let prev = out.chars().last();
                 if prev.map(|p| p.is_ascii_digit()).unwrap_or(false) {
                     if prev != Some(' ') {
                         out.push(' ');
                     }
-                    out.push_str("EUR");
+                    out.push_str(&code);
                 } else {
-                    out.push_str("EUR");
+                    out.push_str(&code);
                     let next = chars.get(i + 1).copied();
                     if next.map(|n| n.is_ascii_digit()).unwrap_or(false) {
                         out.push(' ');
@@ -1354,8 +1554,11 @@ mod tests {
         )
         .unwrap();
         let text = String::from_utf8_lossy(&pdf);
-        assert!(text.contains("/NotoNaskhArabic"), "arabic font is embedded");
-        assert!(text.contains("/F3 "), "arabic run uses the unicode font");
+        assert!(text.contains("+NotoNaskhArabic"), "arabic font is embedded");
+        assert!(
+            text.contains("/F4 "),
+            "bold arabic run uses the bold arabic font"
+        );
         assert!(text.contains("(Facture)"));
         assert!(text.contains("(Invoice)"));
         assert!(text.contains("(Rechnung)"));
@@ -1398,7 +1601,9 @@ mod tests {
         pb.text(M_LEFT, 10, false, "Seite zwei");
         let pages = pb.finish();
         assert_eq!(pages.len(), 2);
-        assert!(pages.iter().all(|p| p.contains("Steuer-Nr.") && p.contains("(ENTWURF)")));
+        assert!(pages
+            .iter()
+            .all(|p| p.contains("Steuer-Nr.") && p.contains("(ENTWURF)")));
         assert!(pages[1].contains("Rechnung \\(Fortsetzung\\)"));
     }
 
@@ -1442,6 +1647,18 @@ mod tests {
         assert_eq!(sanitize_pdf_money("€99.00"), "EUR 99.00");
         assert_eq!(sanitize_pdf_money("0,00 €"), "0,00 EUR");
         assert_eq!(sanitize_pdf_money("79,00\u{00A0}€"), "79,00 EUR");
+    }
+
+    #[test]
+    fn ensure_money_currency_uses_practice_code() {
+        assert_eq!(ensure_money_currency("120,00"), "120,00 EUR");
+        assert_eq!(ensure_money_currency("120,00 USD"), "120,00 EUR");
+        assert_eq!(ensure_money_currency("USD 120.00"), "120.00 EUR");
+        assert_eq!(ensure_money_currency("45,00 €"), "45,00 EUR");
+        assert_eq!(ensure_money_currency("-12,94"), "-12,94 EUR");
+        assert_eq!(ensure_money_currency("Checkup"), "Checkup");
+        assert_eq!(ensure_money_currency("02.11.2026"), "02.11.2026");
+        assert_eq!(ensure_money_currency("-"), "-");
     }
 
     #[test]

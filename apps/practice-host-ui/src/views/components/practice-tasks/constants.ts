@@ -6,6 +6,7 @@ export const PRACTICE_TASK_KINDS: readonly { value: PracticeTaskKind; labelKey: 
     { value: "PRINT", labelKey: "practice.tasks.kind.print" },
     { value: "MASTER_DATA", labelKey: "practice.tasks.kind.master_data" },
     { value: "OTHER", labelKey: "practice.tasks.kind.other" },
+    { value: "TICKET", labelKey: "practice.tasks.kind.ticket" },
 ];
 
 export const PRACTICE_TASK_STATUSES: readonly { value: PracticeTaskStatus; labelKey: string }[] = [
@@ -14,6 +15,8 @@ export const PRACTICE_TASK_STATUSES: readonly { value: PracticeTaskStatus; label
     { value: "DONE_RECEPTION", labelKey: "practice.tasks.status.done_reception" },
     { value: "VALIDATED", labelKey: "practice.tasks.status.validated" },
     { value: "BACK", labelKey: "practice.tasks.status.back" },
+    { value: "VIEWED", labelKey: "practice.tasks.status.viewed" },
+    { value: "DONE", labelKey: "practice.tasks.status.done" },
 ];
 
 /** Status dropdown per RBAC (`task.status.fulfill` / `task.status.admin`). */
@@ -21,12 +24,18 @@ export function selectableTaskStatuses(opts: {
     current: PracticeTaskStatus;
     canAdminStatus: boolean;
     canFulfillStatus: boolean;
+    track?: "simple" | "verify";
 }): readonly { value: PracticeTaskStatus; labelKey: string }[] {
     if (opts.canAdminStatus) return PRACTICE_TASK_STATUSES;
     const allowedValues = new Set<PracticeTaskStatus>([opts.current]);
     if (opts.canFulfillStatus) {
-        allowedValues.add("IN_PROGRESS");
-        allowedValues.add("DONE_RECEPTION");
+        if (opts.track === "simple") {
+            allowedValues.add("VIEWED");
+            allowedValues.add("DONE");
+        } else {
+            allowedValues.add("IN_PROGRESS");
+            allowedValues.add("DONE_RECEPTION");
+        }
     }
     return PRACTICE_TASK_STATUSES.filter((s) => allowedValues.has(s.value));
 }

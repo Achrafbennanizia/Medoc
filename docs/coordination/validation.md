@@ -1,6 +1,367 @@
 # Validation ledger
 
-**Last updated:** 2026-11-10 (Arabic receipt font, practice-sync lock)
+**Last updated:** 2026-11-20 (one assignee notice)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Sync assignee gap-fill | `cargo test -p medoc-core --offline --lib practice_task_sync_notify` | **PASS** (1) |
+
+**Previous:** 2026-11-20 (billing task title)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Core and practice libs | `cargo check -p medoc-core -p medoc-practice --offline --lib` | **PASS** (37.45s) |
+| Billing titles and notification display | vitest `finance-order-labels.test.ts` `in-app-notification-display.test.ts` | **PASS** (9) |
+
+**Previous:** 2026-11-20 (one app data directory)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Practice library | `cargo check -p medoc-practice --offline --lib` | **PASS** |
+
+**Previous:** 2026-11-20 (ticket notice label)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Practice library | `cargo check -p medoc-practice --offline --lib` | **PASS** |
+
+**Previous:** 2026-11-20 (chart and hint notices)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Core and practice libs | `cargo check -p medoc-core -p medoc-practice --offline --lib` | **PASS** |
+| Notification display | vitest `in-app-notification-display.test.ts` | **PASS** (3) |
+
+**Previous:** 2026-11-20 (one status notice)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Core library | `cargo check -p medoc-core --offline --lib` | **PASS** |
+
+**Previous:** 2026-11-20 (one task notice payload)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Core library | `cargo check -p medoc-core --offline --lib` | **PASS** |
+
+**Previous:** 2026-11-20 (one task assignee notice)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Core library | `cargo check -p medoc-core --offline --lib` | **PASS** |
+
+**Previous:** 2026-11-20 (task notice label)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Notification display | vitest `in-app-notification-display.test.ts` | **PASS** (3) |
+| Core library | `cargo check -p medoc-core --offline --lib` | **PASS** |
+
+**Previous:** 2026-11-20 (task notice fallback)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Notification display | vitest `in-app-notification-display.test.ts` | **PASS** (3) |
+| Core library | `cargo check -p medoc-core --offline --lib` | **PASS** |
+
+**Previous:** 2026-11-20 (one invoice cent conversion)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Invoice cents | vitest invoice-service-item, invoice-document.controller | **PASS** (7) |
+| Practice host typecheck | `tsc --noEmit` in `apps/practice-host-ui` | **PASS** |
+
+**Previous:** 2026-11-20 (one outside-hours message)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Hours scan and notification text | vitest compliance, notification display | **PASS** (12) |
+| Practice host typecheck | `tsc --noEmit` in `apps/practice-host-ui` | **PASS** |
+
+**Previous:** 2026-11-20 (one outside-hours reason)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Hours scan and notification text | vitest compliance, notification display | **PASS** (12) |
+| Practice host typecheck | `tsc --noEmit` in `apps/practice-host-ui` | **PASS** |
+
+**Previous:** 2026-11-20 (one calendar-day span)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Calendar days | vitest utils, certificate-composer, notification display | **PASS** (16) |
+| Practice host typecheck | `tsc --noEmit` in `apps/practice-host-ui` | **PASS** |
+
+**Previous:** 2026-11-20 (one display date)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Dates and reports | vitest utils, report-export, report-import, hours-compliance | **PASS** (28) |
+| Practice host typecheck | `tsc --noEmit` in `apps/practice-host-ui` | **PASS** |
+
+**Previous:** 2026-11-20 (database timestamp callers)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Day close and calendar | vitest `day-close.test.ts`, `appointment-calendar-ui.test.ts` | **PASS** (15) |
+| Practice host typecheck | `tsc --noEmit` in `apps/practice-host-ui` | **PASS** |
+
+**Previous:** 2026-11-20 (one database timestamp)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Day close, utils, report export | vitest those three files | **PASS** (26) |
+| Practice host typecheck | `tsc --noEmit` in `apps/practice-host-ui` | **PASS** |
+
+**Previous:** 2026-11-20 (one payment-counts rule)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Day close and invoice lines | vitest `day-close.test.ts`, `invoice-service-item.test.ts` | **PASS** (15) |
+| Practice host typecheck | `tsc --noEmit` in `apps/practice-host-ui` | **PASS** |
+
+**Previous:** 2026-11-20 (one appointment clock parse)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Appointment clock | vitest calendar-ui, availability, calendar-pack | **PASS** (10) |
+| Practice host typecheck | `tsc --noEmit` in `apps/practice-host-ui` | **PASS** |
+
+**Previous:** 2026-11-20 (one planned-appointment rule)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Appointment schedule | vitest calendar-ui, hours-compliance, slot-grid, domain | **PASS** (22) |
+| Practice host typecheck | `tsc --noEmit` in `apps/practice-host-ui` | **PASS** |
+
+**Previous:** 2026-11-20 (one date and money format)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Report export and import | vitest `report-export.test.ts`, `report-import.test.ts` | **PASS** (10) |
+| Practice host typecheck | `tsc --noEmit` in `apps/practice-host-ui` | **PASS** |
+
+**Previous:** 2026-11-20 (euro parser next to currency format)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Euro parser and utils | vitest `day-close.test.ts`, `utils.test.ts` | **PASS** (18) |
+| Practice host typecheck | `tsc --noEmit` in `apps/practice-host-ui` | **PASS** |
+
+**Previous:** 2026-11-20 (one euro input parser)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Euro input | vitest `day-close.test.ts` | **PASS** (11) |
+| Practice host typecheck | `tsc --noEmit` in `apps/practice-host-ui` | **PASS** |
+
+**Previous:** 2026-11-20 (one id hue)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Hue and initials | vitest `utils.test.ts` | **PASS** (7) |
+| Work-plan sync | vitest `staff-work-plan-sync.test.ts` | **PASS** (3) |
+| Practice host typecheck | `tsc --noEmit` in `apps/practice-host-ui` | **PASS** |
+
+**Previous:** 2026-11-20 (one name initial)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Name initials | vitest `utils.test.ts` | **PASS** (6) |
+| Practice host typecheck | `tsc --noEmit` in `apps/practice-host-ui` | **PASS** |
+
+**Previous:** 2026-11-20 (one clock label)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Clock callers | vitest availability, slot grid, compliance, calendar layout, work hours, drag snap | **PASS** (48) |
+| Practice host typecheck | `tsc --noEmit` in `apps/practice-host-ui` | **PASS** |
+
+**Previous:** 2026-11-20 (local calendar day aliases removed)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Date callers | vitest calendar range, layout, contract, compliance, work plan | **PASS** (28) |
+| Practice host typecheck | `tsc --noEmit` in `apps/practice-host-ui` | **PASS** |
+
+**Previous:** 2026-11-20 (one local calendar day)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Local-date callers | vitest utils, contract, timezone, calendar range, work plan, appointment hours | **PASS** (38) |
+| Practice host typecheck | `tsc --noEmit` in `apps/practice-host-ui` | **PASS** |
+
+**Previous:** 2026-11-20 (one chart number sequence)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Chart number and schema tests | vitest examination, patient-detail-utils, schemas | **PASS** (20) |
+| Practice host typecheck | `tsc --noEmit` in `apps/practice-host-ui` | **PASS** |
+
+**Previous:** 2026-11-20 (write payloads follow schemas)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Practice host typecheck | `tsc --noEmit` in `apps/practice-host-ui` | **PASS** |
+| Schema tests | vitest `schemas.test.ts` | **PASS** (11) |
+
+**Previous:** 2026-11-20 (one treatment line name)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Related UI tests | vitest billing-open-booking, billing-release, patient-detail-utils, receipt prices, payment assignment, invoice practice | **PASS** (20) |
+| Practice host typecheck | `tsc --noEmit` in `apps/practice-host-ui` | **PASS** |
+
+**Previous:** 2026-11-20 (one booking tolerance)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Core library | `cargo check -p medoc-core --offline --lib` | **PASS** |
+| Billable-line hint | vitest `billing-open-booking.test.ts` | **PASS** (3) |
+
+**Previous:** 2026-11-20 (one euro-to-cents conversion)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Core and practice, with tests compiled | `cargo check -p medoc-core -p medoc-practice --offline --lib --tests` | **PASS** |
+| Core library with tests compiled | `cargo check -p medoc-core --offline --lib --tests` | **PASS** |
+| Cash euro formatting | `cargo test -p medoc-core --offline --lib euro_formatting` | **PASS** (1) |
+| Contract pro-rata cents | `cargo test -p medoc-core --offline --lib contract_pro_rata` | **PASS** (1) |
+
+**Previous:** 2026-11-20 (one euro rounding function)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Core library | `CARGO_TARGET_DIR=target cargo check -p medoc-core --offline --lib` | **PASS** |
+
+**Previous:** 2026-11-20 (one payment-method label)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Practice UI typecheck | `apps/practice-host-ui` `tsc --noEmit` | **PASS** (exit 0) |
+| Payment labels and document export | vitest `finance-order-labels.test.ts`, `document-print-html.test.ts` | **PASS** (8) |
+
+**Previous:** 2026-11-20 (unused print HTML and deprecated aliases removed)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Practice UI typecheck | `apps/practice-host-ui` `tsc --noEmit` | **PASS** (exit 0) |
+| Billing release and document export tests | vitest `billing-release.test.ts`, `billing-release-flow.test.ts`, `document-print-html.test.ts` | **PASS** (7) |
+
+**Previous:** 2026-11-20 (document export locale consistency)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Invoice GOZ locale chrome | `cargo test -p medoc-core --lib invoice_goz::` | **PASS** (8) |
+| Chart fixed labels 4 locales | `cargo test -p medoc-core --lib chart_label_locale` | **PASS** (1) |
+| medoc-core check | `cargo check -p medoc-core --lib` | **PASS** |
+| Document export locale + print HTML + receipt | `apps/practice-host-ui` `npm test -- --run src/lib/document-export-locale.test.ts src/lib/document-print-html.test.ts src/lib/clinical-pdf-layout.receipt-prices.test.ts` | **PASS** (8) |
+
+**Previous:** 2026-11-20 (practice currency + timezone UI refresh)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Currency/TZ + hydrate race + day-close TZ | `apps/practice-host-ui` `npm test -- --run src/lib/practice-timezone.test.ts src/lib/practice-currency.test.ts src/lib/invoice-service-item.test.ts src/lib/day-close.test.ts` | **PASS** (25) |
+
+**Previous:** 2026-11-20 (PDF i18n all locales)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Receipt prices + clinical PDF + locales | `npm test -w medoc -- clinical-pdf-layout.receipt-prices.test.ts clinical-document-pdf.test.ts i18n-locales.test.ts` | **PASS** (16) |
+| PDF phrase catalog | `MEDOC_VENDOR_PUBKEY=… cargo test -p medoc-core --lib every_phrase_resolves` | **PASS** |
+| Chart/report chrome 4 locales | `MEDOC_VENDOR_PUBKEY=… cargo test -p medoc-core --lib chart_and_report_chrome` | **PASS** |
+| Clinical receipt 4 locales | `MEDOC_VENDOR_PUBKEY=… cargo test -p medoc-core --lib receipt_renders_in_every_supported_language` | **PASS** |
+
+**Previous:** 2026-11-20 (daily hours compliance precaution)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Hours compliance unit | `apps/practice-host-ui` `npm test -- src/lib/appointment-hours-compliance.test.ts` | **PASS** (9) |
+| Locale key parity | `apps/practice-host-ui` `npm test -- src/lib/i18n-locales.test.ts` | **PASS** (10) |
+
+**Previous:** 2026-11-16 (LAN and company portal call the adapters)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Practice UI typecheck | `apps/practice-host-ui` `tsc --noEmit` | **PASS** (exit 0) after pages call `lanSystem` and `companySystem` |
+
+**Previous:** 2026-11-16 (practiceSystem import path)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Invoice document controller | `apps/practice-host-ui` vitest `invoice-document.controller.test.ts` | **PASS** (3) |
+
+**Previous:** 2026-11-16 (unused day-close delete removed)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Core and practice libraries | `CARGO_TARGET_DIR=target cargo check -p medoc-core -p medoc-practice --offline --lib` | **PASS** |
+
+**Previous:** 2026-11-15 (cluster repo traits removed)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Sync and e2e, with tests | `CARGO_TARGET_DIR=target cargo check -p medoc-sync -p medoc-e2e --offline --tests` | **PASS** after `logo_placement` stopped returning a borrow of the parsed JSON |
+
+**Previous:** 2026-11-15 (pairing port removed)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Sync, LAN, and practice, with tests | `CARGO_TARGET_DIR=target cargo check -p medoc-sync -p medoc-lan -p medoc-practice --offline --tests` | **PASS** |
+
+**Previous:** 2026-11-15 (pairing pin wrappers removed)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Pairing pin | `CARGO_TARGET_DIR=target cargo test -p medoc-sync --offline --lib pairing::pin` | **PASS** (1) |
+| Sync crate, with tests | `CARGO_TARGET_DIR=target cargo check -p medoc-sync --offline --tests` | **PASS** |
+| TypeScript `tsc` after removing `ipc-bridge` and unrouted onboarding pages | — | **NOT RUN** |
+
+**Previous:** 2026-11-15 (one sync route table)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Sync route permissions | `CARGO_TARGET_DIR=target cargo test -p medoc-lan --offline --lib http::sync::sync_route_tests` | **PASS** (1) |
+| Sync and LAN, with tests | `CARGO_TARGET_DIR=target cargo check -p medoc-sync -p medoc-lan --offline --tests` | **PASS** |
+
+**Previous:** 2026-11-15 (one handshake decoder)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| SAS unit tests | `CARGO_TARGET_DIR=target cargo test -p medoc-sync --offline --lib cluster::crypto::sas` | **PASS** (4) |
+| Sync crate, with tests | `CARGO_TARGET_DIR=target cargo check -p medoc-sync --offline --tests` | **PASS** |
+
+**Previous:** 2026-11-15 (one hybrid clock, one replica count)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Sync clock tests | `CARGO_TARGET_DIR=target cargo test -p medoc-sync --offline --lib hlc::tests` | **PASS** (2) |
+| Core and sync, with tests | `CARGO_TARGET_DIR=target cargo check -p medoc-core -p medoc-sync --offline --tests` | **PASS** |
+| Core `hlc` filter | `cargo test -p medoc-core --offline --lib infrastructure::database::hlc` | **PASS** (0; the clock tests live in medoc-sync) |
+
+**Previous:** 2026-11-15 (unused ports, shims, and tautological tests)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Outbox unit tests | `CARGO_TARGET_DIR=target cargo test -p medoc-core --offline --lib infrastructure::database::sync_outbox` | **PASS** (6) |
+| Logical clock unit tests | `CARGO_TARGET_DIR=target cargo test -p medoc-sync --offline --lib hlc::tests` | **PASS** (2) |
+| Pairing pin | `CARGO_TARGET_DIR=target cargo test -p medoc-sync --offline --lib pairing::pin` | **PASS** (1) |
+| Typecheck core and sync, with tests | `CARGO_TARGET_DIR=target cargo check -p medoc-core -p medoc-sync --offline --tests` | **PASS** (rechecked after clearing `target/debug/incremental`; the first attempt died with no space left) |
+| Domain enum contract | `apps/practice-host-ui` vitest `packages/shared/src/lib/domain-enums.test.ts` | **PASS** (8) |
+| Full workspace `cargo test` | — | **NOT RUN** |
+| TypeScript `tsc` | — | **NOT RUN** |
+
+**Previous:** 2026-11-15 (IPC and repository path collapse)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Typecheck practice, LAN, sync, shell, with tests | `MEDOC_VENDOR_PUBKEY=… CARGO_TARGET_DIR=target cargo check -p medoc-practice -p medoc-lan -p medoc-sync -p medoc --offline --tests` | **PASS** |
+| IPC registry | `cargo test -p medoc-practice --offline --test invoke_command_registry_tests` | **PASS** (2) |
+| MVP security gates | `cargo test -p medoc-core --offline --test mvp_security_gates_tests` | **PASS** (9) |
+| Full workspace `cargo test` | — | **NOT RUN** |
+| TypeScript `tsc` | — | **NOT RUN** |
+
+**Previous:** 2026-11-10 (Arabic receipt font, practice-sync lock)
 
 | Check | Command | Result |
 |-------|---------|--------|

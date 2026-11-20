@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
     eachIsoDate,
     mergeAppointmentsInSpan,
+    replaceAppointmentsInSpan,
     monthGridRangeForView,
     practiceYearRange,
     rangeIsCovered,
@@ -36,5 +37,14 @@ describe("appointment visible range", () => {
         const merged = mergeAppointmentsInSpan([local, outside], [stale], "2026-10-26", "2026-12-06");
         expect(merged.find((row) => row.id === "a")?.time).toBe("10:00");
         expect(merged.find((row) => row.id === "b")?.date).toBe("2027-01-15");
+    });
+
+    it("a database refresh replaces the row on screen", () => {
+        const shown = { id: "a", date: "2026-11-08", time: "09:00" };
+        const fromDb = { id: "a", date: "2026-11-08", time: "11:30" };
+        const outside = { id: "b", date: "2027-01-15", time: "08:00" };
+        const next = replaceAppointmentsInSpan([shown, outside], [fromDb], "2026-10-26", "2026-12-06");
+        expect(next.find((row) => row.id === "a")?.time).toBe("11:30");
+        expect(next.find((row) => row.id === "b")?.date).toBe("2027-01-15");
     });
 });

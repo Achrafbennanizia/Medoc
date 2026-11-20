@@ -1,11 +1,12 @@
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::domain::entities::patient::{CreatePatient, UpdatePatient};
 use crate::domain::entities::Patient;
 use crate::error::AppError;
-use crate::infrastructure::database::{audit_repo, patient_repo};
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
+use crate::infrastructure::database::repos::clinical::patient as patient_repo;
 use sqlx::SqlitePool;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, State};
 
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state))]
@@ -37,10 +38,16 @@ pub async fn count_patients_by_filter(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
     show_archived: Option<bool>,
-) -> Result<medoc_core::infrastructure::database::patient_repo::PatientFilterCounts, AppError> {
+) -> Result<
+    medoc_core::infrastructure::database::repos::clinical::patient::PatientFilterCounts,
+    AppError,
+> {
     rbac::require(&session_state, "patient.read")?;
-    let with_invoices =
-        rbac::require_one_of(&session_state, crate::application::rbac::FINANCE_READ_OR_RECEPTION).is_ok();
+    let with_invoices = rbac::require_one_of(
+        &session_state,
+        crate::application::rbac::FINANCE_READ_OR_RECEPTION,
+    )
+    .is_ok();
     patient_repo::filter_counts(&pool, show_archived.unwrap_or(false), with_invoices).await
 }
 
@@ -174,10 +181,7 @@ pub async fn delete_patient(
     id: String,
 ) -> Result<(), AppError> {
     let session = rbac::require(&session_state, "patient.write_medical")?;
-    let _app_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| AppError::Internal(format!("App data directory: {e}")))?;
+    let _app_dir = crate::commands::app_data_dir(&app)?;
     patient_repo::archive(&pool, &id).await?;
     let _ = app;
     audit_repo::create(
@@ -302,22 +306,4 @@ pub async fn export_patients_csv(
     .await?;
     // BOM so spreadsheet apps detect UTF-8 (umlauts).
     Ok(format!("\u{FEFF}{csv}"))
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_patient_commands {
-    () => {
-        $crate::commands::patient_commands::list_patients,
-        $crate::commands::patient_commands::list_patients_paged,
-        $crate::commands::patient_commands::count_patients_by_filter,
-        $crate::commands::patient_commands::list_patients_by_ids,
-        $crate::commands::patient_commands::get_patient,
-        $crate::commands::patient_commands::create_patient,
-        $crate::commands::patient_commands::update_patient,
-        $crate::commands::patient_commands::delete_patient,
-        $crate::commands::patient_commands::restore_patient,
-        $crate::commands::patient_commands::search_patients,
-        $crate::commands::patient_commands::export_patients_csv,
-    };
 }

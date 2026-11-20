@@ -6,11 +6,22 @@ use uuid::Uuid;
 
 use crate::error::AppError;
 use crate::infrastructure::database::sync_registry::{
-    deny_app_kv_key, deny_column, is_synced_table,
+    deny_app_kv_key, deny_column, is_synced_table, APP_KV_DEPLOYMENT_KEY, APP_KV_DEVICE_ID_KEY,
 };
 
-const APP_KV_DEPLOYMENT_KEY: &str = "sync.deployment.v1";
-const APP_KV_DEVICE_ID_KEY: &str = "sync.device_id.v1";
+/// Devices that receive replicated writes. A database error is the caller's to handle.
+pub async fn count_remote_replicas<'e, E>(executor: E) -> Result<i64, sqlx::Error>
+where
+    E: sqlx::Executor<'e, Database = Sqlite>,
+{
+    sqlx::query_scalar(
+        "SELECT COUNT(*) FROM sync_device
+         WHERE is_local = 0
+           AND (role = 'REPLICA' OR seat_role = 'MEMBER')",
+    )
+    .fetch_one(executor)
+    .await
+}
 
 /// RFC 3339 millis strictly after `current` (and after now). Same-millisecond
 /// INSERT then UPDATE otherwise ties under D8 and the master keeps the INSERT.
@@ -98,7 +109,8 @@ pub async fn record_in_tx(
     .fetch_one(&mut **tx)
     .await
     .map_err(AppError::Database)?;
-    let payload = crate::infrastructure::database::hlc::stamp_in_tx(tx, table, id, &payload).await?;
+    let payload =
+        crate::infrastructure::database::hlc::stamp_in_tx(tx, table, id, &payload).await?;
     let outbox_id = Uuid::new_v4().to_string();
     let created_at = Utc::now().to_rfc3339();
     sqlx::query(
@@ -173,14 +185,7 @@ async fn replication_active_tx(tx: &mut Transaction<'_, Sqlite>) -> Result<bool,
     if mode == "serverless_peer" {
         return Ok(true);
     }
-    let n: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM sync_device
-         WHERE is_local = 0
-           AND (role = 'REPLICA' OR seat_role = 'MEMBER')",
-    )
-    .fetch_one(&mut **tx)
-    .await
-    .unwrap_or(0);
+    let n: i64 = count_remote_replicas(&mut **tx).await.unwrap_or(0);
     Ok(n > 0)
 }
 
@@ -235,7 +240,12 @@ pub async fn purge_old_tombstones(pool: &SqlitePool) -> Result<u64, AppError> {
 
 /// Record one row written outside a transaction (command layer). Builds the
 /// payload from the stored row, like `record_in_tx`.
-pub async fn record_row(pool: &SqlitePool, table: &str, id: &str, op: &str) -> Result<(), AppError> {
+pub async fn record_row(
+    pool: &SqlitePool,
+    table: &str,
+    id: &str,
+    op: &str,
+) -> Result<(), AppError> {
     record_or_noop_in_own_tx(pool, table, id, op).await
 }
 

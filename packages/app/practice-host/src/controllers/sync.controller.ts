@@ -60,6 +60,10 @@ export async function syncRunNow(): Promise<SyncRunReport> {
     return practiceSystem.invoke<SyncRunReport>("sync_run_now");
 }
 
+export async function syncExchangeQueues(queues: string[]): Promise<SyncRunReport> {
+    return practiceSystem.invoke<SyncRunReport>("sync_exchange_queue", { args: { queues } });
+}
+
 export type ReconcileReport = {
     bucketsChecked: number;
     rowsFetched: number;

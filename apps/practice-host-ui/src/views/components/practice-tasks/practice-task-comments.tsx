@@ -8,6 +8,7 @@ import {
 import type { Staff } from "@/models/types";
 import { errorMessage, formatDateTime } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
+import { displayPracticeTaskTitle } from "@/lib/finance-order-labels";
 import { taskDrawerText } from "./task-workflow-ui";
 import { Button } from "../ui/button";
 import { Textarea } from "../ui/input";
@@ -42,7 +43,10 @@ function buildSystemEntries(
         entries.push({
             id: `${task.id}-body`,
             authorLabel: authorName(task.created_by, staff, t),
-            body: task.body.trim(),
+            body:
+                task.kind === "BILLING"
+                    ? displayPracticeTaskTitle(task.body.trim(), t, task)
+                    : task.body.trim(),
             createdAt: task.created_at,
             kind: "system",
         });
@@ -51,7 +55,10 @@ function buildSystemEntries(
         entries.push({
             id: `${task.id}-done`,
             authorLabel: t("practice.tasks.done_note_label"),
-            body: task.done_note.trim(),
+            body:
+                task.kind === "BILLING"
+                    ? displayPracticeTaskTitle(task.done_note.trim(), t, task)
+                    : task.done_note.trim(),
             createdAt: task.updated_at,
             kind: "system",
         });

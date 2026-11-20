@@ -10,17 +10,33 @@ fn should_run_demo_seed() -> bool {
         || std::env::args().any(|a| a == "--dev-seed")
 }
 
+/// The two demo logins (`password123`) are created only for a demo/dev
+/// database or an in-memory test pool. A real practice file never gets them:
+/// first-run setup creates the first account, and an emptied staff table must
+/// not come back with a well-known password on the next launch.
+pub(crate) async fn may_seed_default_staff(pool: &SqlitePool) -> bool {
+    if should_run_demo_seed() {
+        return true;
+    }
+    // `PRAGMA database_list` reports an empty file name for `:memory:`.
+    let file: Option<String> =
+        sqlx::query_scalar("SELECT file FROM pragma_database_list WHERE name = 'main'")
+            .fetch_optional(pool)
+            .await
+            .ok()
+            .flatten();
+    file.map(|f| f.trim().is_empty()).unwrap_or(false)
+}
+
 const DEMO_SEED_KV_KEY: &str = "migration.demo_seed.v1";
 
 async fn column_exists(pool: &SqlitePool, table: &str, column: &str) -> Result<bool, AppError> {
-    let n: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM pragma_table_info(?1) WHERE name = ?2",
-    )
-    .bind(table)
-    .bind(column)
-    .fetch_one(pool)
-    .await
-    .map_err(AppError::Database)?;
+    let n: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM pragma_table_info(?1) WHERE name = ?2")
+        .bind(table)
+        .bind(column)
+        .fetch_one(pool)
+        .await
+        .map_err(AppError::Database)?;
     Ok(n > 0)
 }
 
@@ -53,7 +69,7 @@ async fn mark_demo_seed_applied(pool: &SqlitePool) -> Result<(), AppError> {
 }
 
 pub async fn run_post_migration_seed(pool: &SqlitePool) -> Result<(), AppError> {
-    crate::infrastructure::database::brute_force_repo::ensure_schema(pool).await?;
+    crate::infrastructure::database::repos::admin::brute_force::ensure_schema(pool).await?;
     // Drop dense year-demo rows that lack Duration (UI defaults to 45 min → overlaps).
     sqlx::query(
         "DELETE FROM appointment

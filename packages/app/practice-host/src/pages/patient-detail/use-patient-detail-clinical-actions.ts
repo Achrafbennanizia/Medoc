@@ -15,6 +15,7 @@ import { persistPlanNextAppointmentToBackend } from "@/systems/practice-host/con
 import { mergeQuickIntoAnamnesisJson, parseAnamnesisV1 } from "@/lib/anamnesis";
 import { clearPatientScopedBrowserStorage } from "@/lib/patient-browser-storage";
 import {
+    previewNextYearNumber,
     treatmentContinueLabel,
     treatmentToUpdatePayload,
     PATIENT_DETAIL_TOAST_UNDO_MS,
@@ -29,6 +30,7 @@ import {
     planNextHasContent,
     type PlanNextAppointmentV2,
 } from "@/lib/plan-next-appointment";
+import { parseEuroInput } from "@/lib/utils";
 import { previewNextExaminationNumber, dentalFindingUpsertsFromExamination } from "@/lib/examination";
 import type {
     Treatment,
@@ -224,8 +226,7 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
             const maxS = same.reduce((acc, b) => Math.max(acc, b.session_number ?? 0), 0);
             sessionNumberNum = maxS + 1;
         }
-        const gRaw = treatmentForm.total_cost.trim().replace(",", ".");
-        const g = gRaw === "" ? NaN : Number(gRaw);
+        const g = parseEuroInput(treatmentForm.total_cost);
         const payload = {
             kind: treatmentForm.service_name.trim(),
             description: treatmentForm.service_name.trim(),
@@ -635,21 +636,10 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
         return order.map((key) => map.get(key)!);
     }, [treatments]);
 
-    const generateNewTreatmentNumber = useCallback(() => {
-        const year = new Date().getFullYear();
-        const prefix = `B-${year}-`;
-        let max = 0;
-        for (const b of treatments) {
-            const n = (b.treatment_number ?? "").trim();
-            if (!n.startsWith(prefix)) continue;
-            const tail = n.slice(prefix.length);
-            const m = /^(\d+)/.exec(tail);
-            if (!m) continue;
-            const version = Number.parseInt(m[1], 10);
-            if (Number.isFinite(version) && version > max) max = version;
-        }
-        return `${prefix}${String(max + 1).padStart(3, "0")}`;
-    }, [treatments]);
+    const generateNewTreatmentNumber = useCallback(
+        () => previewNextYearNumber("B", treatments.map((b) => b.treatment_number)),
+        [treatments],
+    );
 
     const applyContinueFromTreatment = useCallback(
         (treatmentId: string) => {

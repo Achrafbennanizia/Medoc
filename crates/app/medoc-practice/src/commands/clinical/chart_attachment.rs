@@ -4,13 +4,15 @@ use base64::Engine;
 use serde::Deserialize;
 use sqlx::SqlitePool;
 use std::path::{Path, PathBuf};
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, State};
 
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::error::AppError;
-use crate::infrastructure::database::audit_repo;
-use crate::infrastructure::database::chart_attachment_repo::{self, ChartAttachmentRow};
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
+use crate::infrastructure::database::repos::clinical::chart_attachment::{
+    self as chart_attachment_repo, ChartAttachmentRow,
+};
 
 const ALLOWED_DOCUMENT_KINDS: &[&str] =
     &["MRT", "CT", "XRAY", "LAB", "REFERRAL", "CONSENT", "OTHER"];
@@ -102,9 +104,7 @@ pub struct ChartAttachmentDto {
 }
 
 fn app_data_dir(app: &AppHandle) -> Result<std::path::PathBuf, AppError> {
-    app.path()
-        .app_data_dir()
-        .map_err(|e| AppError::Internal(format!("App data directory: {e}")))
+    crate::commands::app_data_dir(app)
 }
 
 fn row_to_dto(app_data_dir: &Path, row: ChartAttachmentRow) -> ChartAttachmentDto {
@@ -278,12 +278,13 @@ pub async fn create_chart_attachment_from_path(
     let session = rbac::require(&session_state, "patient.write_medical")?;
     let app_dir = app_data_dir(&app)?;
     let src = Path::new(data.src_path.trim());
-    let scan_root = crate::infrastructure::database::app_kv_repo::get(&pool, "scanner.folder.v1")
-        .await
-        .ok()
-        .flatten()
-        .map(PathBuf::from)
-        .unwrap_or_else(|| app_dir.join("scans"));
+    let scan_root =
+        crate::infrastructure::database::repos::admin::app_kv::get(&pool, "scanner.folder.v1")
+            .await
+            .ok()
+            .flatten()
+            .map(PathBuf::from)
+            .unwrap_or_else(|| app_dir.join("scans"));
     medoc_core::infrastructure::fs_guard::ensure_inside(&scan_root, src)?;
     if !src.is_file() {
         return Err(AppError::NotFound("Scanner-Datei".into()));
@@ -467,19 +468,4 @@ pub async fn duplicate_chart_attachment(
     .await
     .ok();
     Ok(row_to_dto(&app_dir, row))
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_chart_attachment_commands {
-    () => {
-        $crate::commands::chart_attachment_commands::list_chart_attachments,
-        $crate::commands::chart_attachment_commands::create_chart_attachment,
-        $crate::commands::chart_attachment_commands::create_chart_attachment_from_path,
-        $crate::commands::chart_attachment_commands::delete_chart_attachment,
-        $crate::commands::chart_attachment_commands::rename_chart_attachment,
-        $crate::commands::chart_attachment_commands::set_chart_attachment_document_kind,
-        $crate::commands::chart_attachment_commands::open_chart_attachment_externally,
-        $crate::commands::chart_attachment_commands::duplicate_chart_attachment,
-    };
 }

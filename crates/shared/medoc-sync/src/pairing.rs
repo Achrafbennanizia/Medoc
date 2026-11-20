@@ -7,14 +7,11 @@
 //! | [`policy`] | URLs, toggle, action lists |
 //! | [`token`] | Activation token crypto |
 //! | [`store`] | SQLite persistence (submit, decide, confirm, revoke) |
-//! | [`port`] | [`PairingPersistence`] trait + [`SqlitePairingStore`] |
 //!
-//! Free functions at the crate root (`medoc_sync::pairing::*`) delegate to
-//! [`SqlitePairingStore`] for backward compatibility.
+//! Free functions at the crate root (`medoc_sync::pairing::*`) call [`store`].
 
 mod pin;
 mod policy;
-mod port;
 mod store;
 mod token;
 mod types;
@@ -23,21 +20,18 @@ mod types;
 mod tests;
 
 pub use pin::{
-    generate_confirm_pin, hash_confirm_pin, normalise_pin_input, verify_confirm_pin,
-    CONFIRM_PIN_MAX_ATTEMPTS, CONFIRM_PIN_TTL_SECS,
+    hash_confirm_pin, normalise_pin_input, verify_confirm_pin, CONFIRM_PIN_MAX_ATTEMPTS,
+    CONFIRM_PIN_TTL_SECS,
 };
 pub use policy::{
     admit_inbound_cluster, canonical_ip_str, canonical_peer_ip, choose_requester_ip,
     is_network_hidden, is_pairing_enabled, peer_advertised_url, peer_base_url_from_ip,
     slave_actions,
 };
-pub use port::{PairingPersistence, SqlitePairingStore};
 pub use token::{mint_activation_token, verify_activation_token};
 pub use types::*;
 
-// ---------------------------------------------------------------------------
-// Legacy free-function API (delegates to the default SQLite port implementation)
-// ---------------------------------------------------------------------------
+// Callers use these names. The bodies live in `store`.
 
 use medoc_core::error::AppError;
 use sqlx::SqlitePool;
@@ -46,26 +40,26 @@ pub async fn submit_request(
     pool: &SqlitePool,
     submit: PairingRequestSubmit,
 ) -> Result<PairingRequest, AppError> {
-    SqlitePairingStore(pool).submit_request(submit).await
+    store::submit_request(pool, submit).await
 }
 
 pub async fn list_pending(pool: &SqlitePool) -> Result<Vec<PairingRequest>, AppError> {
-    SqlitePairingStore(pool).list_pending().await
+    store::list_pending(pool).await
 }
 
 pub async fn list_all(pool: &SqlitePool) -> Result<Vec<PairingRequest>, AppError> {
-    SqlitePairingStore(pool).list_all().await
+    store::list_all(pool).await
 }
 
 pub async fn load_by_id(pool: &SqlitePool, id: &str) -> Result<Option<PairingRequest>, AppError> {
-    SqlitePairingStore(pool).load_by_id(id).await
+    store::load_by_id(pool, id).await
 }
 
 pub async fn load_by_device(
     pool: &SqlitePool,
     device_id: &str,
 ) -> Result<Option<PairingRequest>, AppError> {
-    SqlitePairingStore(pool).load_by_device(device_id).await
+    store::load_by_device(pool, device_id).await
 }
 
 pub async fn decide(
@@ -75,9 +69,14 @@ pub async fn decide(
     decision: PairingDecision,
     replica_http_port: u16,
 ) -> Result<PairingDecideResult, AppError> {
-    SqlitePairingStore(pool)
-        .decide(master_device_id, request_id, decision, replica_http_port)
-        .await
+    store::decide(
+        pool,
+        master_device_id,
+        request_id,
+        decision,
+        replica_http_port,
+    )
+    .await
 }
 
 pub async fn confirm_pin(
@@ -87,9 +86,7 @@ pub async fn confirm_pin(
     pin: &str,
     replica_http_port: u16,
 ) -> Result<PairingRequest, AppError> {
-    SqlitePairingStore(pool)
-        .confirm_pin(master_device_id, request_id, pin, replica_http_port)
-        .await
+    store::confirm_pin(pool, master_device_id, request_id, pin, replica_http_port).await
 }
 
 pub async fn clear_device_activation(
@@ -105,7 +102,5 @@ pub async fn revoke(
     device_id: &str,
     decided_by: &str,
 ) -> Result<(), AppError> {
-    SqlitePairingStore(pool)
-        .revoke(master_device_id, device_id, decided_by)
-        .await
+    store::revoke(pool, master_device_id, device_id, decided_by).await
 }

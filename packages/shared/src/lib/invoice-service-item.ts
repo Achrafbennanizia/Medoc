@@ -7,7 +7,8 @@ import {
     maskPracticeExportToken,
     type PracticeHeaderPrivacyV1,
 } from "@/lib/practice-header-privacy";
-import { roundMoney2 } from "@/lib/payment-booking";
+import { examinationLineLabel, treatmentLineLabel } from "@/lib/clinical-service-label";
+import { buildPaymentLinkSelectOptions, paymentCountsTowardPaid, roundMoney2 } from "@/lib/payment-booking";
 import { paymentLocalYmd } from "@/lib/day-close";
 import { isolateLtrPhone } from "@/lib/arabic-numerals";
 
@@ -206,15 +207,12 @@ export function practiceInvoiceRequiredMissing(p: InvoicePractice): boolean {
     );
 }
 
-/** @deprecated Use practiceInvoiceRequiredMissing */
-export const practiceInvoicePflichtMissing = practiceInvoiceRequiredMissing;
-
 /** Invoice PDF and save: current privacy setting from device. */
 export function buildInvoiceHeaderAddressLinesForExport(p: InvoicePractice): string[] {
     return buildInvoiceHeaderAddressLines(p, loadPracticeHeaderPrivacy());
 }
 
-function moneyToInvoiceCents(bruto: number): number {
+export function moneyToInvoiceCents(bruto: number): number {
     // No rounding up to 1 ct: an invoice line must equal the computed fee.
     return Math.round(roundMoney2(bruto) * 100);
 }
@@ -240,11 +238,20 @@ export function getInvoicePracticeFromStorage(): InvoicePractice {
     }
 }
 
+/** Bumped on every local practice write so async hydrates cannot clobber newer UI state. */
+let invoicePracticeWriteEpoch = 0;
+
+/** Test / diagnostics: current optimistic-write generation. */
+export function invoicePracticeWriteEpochNow(): number {
+    return invoicePracticeWriteEpoch;
+}
+
 /** Persists practice master data (invoices, PDFs, Settings). */
-export function saveInvoicePracticeToStorage(p: InvoicePractice): void {
+export function saveInvoicePracticeToStorage(p: InvoicePractice): Promise<void> {
+    invoicePracticeWriteEpoch += 1;
     localStorage.setItem(LS_INVOICE_PRACTICE, JSON.stringify(invoicePracticeToBlob(p)));
     publishPracticeCurrency();
-    void syncInvoicePracticeToAppKv(p);
+    return syncInvoicePracticeToAppKv(p);
 }
 
 function practiceDbBusy(error: unknown): boolean {
@@ -299,25 +306,42 @@ export async function migrateInvoicePracticeLocalStorageToAppKv(): Promise<boole
 export async function patchInvoicePracticeOpeningHours(openingHours: string): Promise<void> {
     const trimmed = openingHours.trim();
     if (!trimmed) return;
-    const fromKv = await hydrateInvoicePracticeFromAppKv();
-    const hasLocal = readInvoicePracticeLocalStorage()?.trim();
-    if (!fromKv && !hasLocal) return;
-    const base = fromKv ?? getInvoicePracticeFromStorage();
+    // Keep the currency and the rest of the profile already on this screen.
+    // Reading the stored profile here used to replace a currency the user had
+    // just selected with the previous database copy.
+    if (!readInvoicePracticeLocalStorage()?.trim()) return;
+    const base = getInvoicePracticeFromStorage();
     if ((base.opening_hours ?? "").trim() === trimmed) return;
     const next = { ...base, opening_hours: trimmed };
-    saveInvoicePracticeToStorage(next);
-    await syncInvoicePracticeToAppKv(next);
+    await saveInvoicePracticeToStorage(next);
+}
+
+/** Mirror practice profile into localStorage and notify UI (no app_kv write). */
+export function mirrorInvoicePracticeToLocalCache(p: InvoicePractice): void {
+    invoicePracticeWriteEpoch += 1;
+    localStorage.setItem(LS_INVOICE_PRACTICE, JSON.stringify(invoicePracticeToBlob(p)));
+    publishPracticeCurrency();
 }
 
 /** Loads `invoice.practice.v1` from DB and mirrors to localStorage (desktop). */
 export async function hydrateInvoicePracticeFromAppKv(): Promise<InvoicePractice | null> {
     try {
+        const epochAtStart = invoicePracticeWriteEpoch;
         await migrateInvoicePracticeLocalStorageToAppKv();
         const raw = await getAppKv(INVOICE_PRACTICE_KV_KEY);
+        // A Settings/currency write landed while we were reading app_kv — keep local.
+        if (invoicePracticeWriteEpoch !== epochAtStart) {
+            return getInvoicePracticeFromStorage();
+        }
         if (!raw) return null;
         const j = JSON.parse(raw) as InvoicePracticeJson;
         const merged = parseInvoicePracticeJson(j);
-        saveInvoicePracticeToStorage(merged);
+        // Do not call saveInvoicePracticeToStorage here: that re-writes app_kv and
+        // can race a Settings change that already updated localStorage first.
+        if (invoicePracticeWriteEpoch !== epochAtStart) {
+            return getInvoicePracticeFromStorage();
+        }
+        mirrorInvoicePracticeToLocalCache(merged);
         return merged;
     } catch {
         return null;
@@ -346,25 +370,57 @@ export function gozUnitFeeCents(schedule: "goz" | "goae", points: number, factor
     return Math.floor((raw + denom / 2) / denom);
 }
 
+type ServiceLabels = { treatment: string; examination: string };
+
+const ENGLISH_SERVICE_LABELS: ServiceLabels = { treatment: "Treatment", examination: "Examination" };
+
+/** Recorded fee, or the sum already paid on that chart line when the fee was left empty. */
+function billableCents(
+    recorded: number | null | undefined,
+    payments: Payment[],
+    patientId: string,
+    kind: "treatment" | "examination",
+    id: string,
+): number | null {
+    if (recorded != null && Number.isFinite(recorded)) {
+        const cost = roundMoney2(recorded);
+        if (cost > 0) return moneyToInvoiceCents(cost);
+    }
+    const paid = roundMoney2(
+        payments
+            .filter(
+                (z) =>
+                    z.patient_id === patientId
+                    && paymentCountsTowardPaid(z.status)
+                    && (kind === "treatment" ? z.treatment_id === id : z.examination_id === id),
+            )
+            .reduce((sum, z) => sum + z.amount, 0),
+    );
+    if (paid > 0) return moneyToInvoiceCents(paid);
+    return null;
+}
+
 /**
  * Invoice line for a treatment / examination. Treatments with GOZ billing data
  * become fee lines (number, points, factor, date, tooth); everything else is
- * an `other` line at its recorded cost. Returns `null` when no cost is
- * recorded — the old 0,01 € placeholder produced invoices with fake amounts.
+ * an `other` line at its recorded cost, or at the amount already paid when the
+ * chart has no fee. Returns `null` when neither is a positive amount — the old
+ * 0,01 € placeholder produced invoices with fake amounts.
  */
 export function lineFromServiceItemChoice(
     link: string,
-    _patientId: string,
+    patientId: string,
     treatments: Treatment[],
     examinations: Examination[],
-    _payments: Payment[],
+    payments: Payment[],
+    labels: ServiceLabels = ENGLISH_SERVICE_LABELS,
 ): InvoiceLineInput | null {
     const p = parseServiceItemLink(link);
     if (!p) return null;
     if (p.kind === "treatment") {
         const b = treatments.find((x) => x.id === p.id);
         if (!b) return null;
-        const serviceLabel = (b.service_name || b.description || b.kind || "Behandlung").trim();
+        const serviceLabel = treatmentLineLabel(b, labels.treatment);
         const date = (b.treatment_date ?? b.created_at ?? "").slice(0, 10) || null;
         const schedule = b.fee_schedule ?? null;
         if ((schedule === "goz" || schedule === "goae") && b.goz_nr && b.points != null && b.factor != null) {
@@ -386,12 +442,12 @@ export function lineFromServiceItemChoice(
                 source_ref: `treatment:${b.id}`,
             };
         }
-        const cost = b.total_cost != null && Number.isFinite(b.total_cost) ? roundMoney2(b.total_cost) : null;
-        if (cost == null || cost <= 0) return null;
+        const cents = billableCents(b.total_cost, payments, patientId, "treatment", b.id);
+        if (cents == null) return null;
         return {
             description: serviceLabel,
             fee_schedule: schedule === "material" || schedule === "lab" ? schedule : "other",
-            amount_cents: moneyToInvoiceCents(cost),
+            amount_cents: cents,
             tooth_nr: (b.teeth ?? "").trim() || null,
             treatment_date: date,
             source_ref: `treatment:${b.id}`,
@@ -399,16 +455,40 @@ export function lineFromServiceItemChoice(
     }
     const u = examinations.find((x) => x.id === p.id);
     if (!u) return null;
-    const cost = u.total_cost != null && Number.isFinite(u.total_cost) ? roundMoney2(u.total_cost) : null;
-    if (cost == null || cost <= 0) return null;
-    const serviceLabel = (u.service_name || u.diagnosis || "Untersuchung").trim().slice(0, 200);
+    const cents = billableCents(u.total_cost, payments, patientId, "examination", u.id);
+    if (cents == null) return null;
+    const serviceLabel = examinationLineLabel(u, labels.examination).slice(0, 200);
     return {
         description: serviceLabel,
         fee_schedule: "other",
-        amount_cents: moneyToInvoiceCents(cost),
+        amount_cents: cents,
         treatment_date: (u.created_at ?? "").slice(0, 10) || null,
         source_ref: `examination:${u.id}`,
     };
+}
+
+/** Chart lines that can be invoiced, including ones already paid. */
+export function buildInvoiceServiceOptions(
+    payments: Payment[],
+    patientId: string,
+    treatments: Treatment[],
+    examinations: Examination[],
+    t: (key: string) => string,
+    tp: (key: string, params: Record<string, string | number>) => string,
+): { value: string; label: string }[] {
+    const labels: ServiceLabels = {
+        treatment: t("payment.link.treatment"),
+        examination: t("payment.link.examination"),
+    };
+    const billable = buildPaymentLinkSelectOptions(treatments, examinations, t, tp).filter(
+        (option) =>
+            !option.value
+            || lineFromServiceItemChoice(option.value, patientId, treatments, examinations, payments, labels) != null,
+    );
+    if (billable.length <= 1) {
+        return [{ value: "", label: t("page.administration_finance_tools.no_billable") }];
+    }
+    return billable;
 }
 
 /**
@@ -423,7 +503,7 @@ export function buildDailyReportLines(
     examinations: Examination[],
 ): { description: string; amount_cents: number }[] {
     const onDay = payments.filter(
-        (z) => z.patient_id === patientId && paymentLocalYmd(z.created_at) === as_of_date && z.status !== "CANCELLED",
+        (z) => z.patient_id === patientId && paymentLocalYmd(z.created_at) === as_of_date && paymentCountsTowardPaid(z.status),
     );
     const paidOnDay = (id: "treatment" | "examination", uId: string) =>
         roundMoney2(

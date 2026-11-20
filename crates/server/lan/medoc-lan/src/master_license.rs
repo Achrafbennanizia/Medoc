@@ -5,7 +5,7 @@
 //! running embedded LAN for mesh receive skip this check.
 
 use medoc_core::error::AppError;
-use medoc_core::infrastructure::license_repo;
+use medoc_core::infrastructure::database::repos::admin::license as license_repo;
 use medoc_sync::deployment::{DeploymentMode, DeviceRole};
 use medoc_sync::repo::load_deployment;
 use sqlx::SqlitePool;

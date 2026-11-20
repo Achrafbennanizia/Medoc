@@ -45,10 +45,7 @@ pub async fn allocate_document_number(
         return number_sequence::allocate_styled(pool, prefix, ymd, style).await;
     }
     let client = crate::engine::master_http_client_for_reconcile(pool, &deployment).await?;
-    let url = format!(
-        "{}/api/v1/sync/number",
-        deployment.master_base_url.trim_end_matches('/')
-    );
+    let url = crate::paths::api_url(&deployment.master_base_url, crate::paths::SYNC_NUMBER);
     let resp = client
         .post(&url)
         .bearer_auth(bearer(&deployment)?)

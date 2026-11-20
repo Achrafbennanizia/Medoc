@@ -1,4 +1,4 @@
-import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
+import { practiceSystem } from "@/systems/practice-host/adapters/practice-transport";
 import type { SyncNativeMenuPayload } from "@/lib/native-go-menu";
 
 /** Rebuilds the native menu bar (Go to, File, View, Help) from RBAC-aligned payload. */

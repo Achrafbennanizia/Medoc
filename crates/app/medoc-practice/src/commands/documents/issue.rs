@@ -11,9 +11,11 @@ use sqlx::SqlitePool;
 use tauri::State;
 
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::error::AppError;
-use crate::infrastructure::database::issued_document_repo::{self, IssuedDocumentListRow};
+use crate::infrastructure::database::repos::billing::issued_document::{
+    self as issued_document_repo, IssuedDocumentListRow,
+};
 use crate::infrastructure::pdf::ReportPdfInput;
 use medoc_core::application::documents::issue::{
     self as svc, IssueClinicalArgs, IssueInvoiceArgs, IssuedPdf,
@@ -97,6 +99,16 @@ pub async fn issue_report_pdf(
     svc::issue_report(&pool, &session, args.input, args.source_id, args.preview).await
 }
 
+/// Physicians and finance staff see drafts and cancellations. Reception sees
+/// documents that have been generated and issued.
+fn sees_every_document_status(session: &crate::application::auth_service::Session) -> bool {
+    let Some(role) = rbac::Role::parse(&session.role) else {
+        return false;
+    };
+    rbac::effective_allowed("finance.read", role, &session.permission_overrides)
+        || rbac::effective_allowed("patient.read_medical", role, &session.permission_overrides)
+}
+
 /// Issued documents of one patient (chart view) or recent ones (finance).
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state))]
@@ -109,13 +121,28 @@ pub async fn list_issued_documents(
 ) -> Result<Vec<IssuedDocumentListRow>, AppError> {
     match patient_id {
         Some(pid) => {
-            rbac::require(&session_state, "patient.read")?;
-            issued_document_repo::list_for_patient(&pool, &pid).await
+            let session = rbac::require(&session_state, "patient.read")?;
+            let mut rows = issued_document_repo::list_for_patient(&pool, &pid).await?;
+            if !sees_every_document_status(&session) {
+                rows.retain(|row| row.status == "ISSUED");
+            }
+            Ok(rows)
         }
         None => {
-            rbac::require(&session_state, "finance.read")?;
-            issued_document_repo::list_recent(&pool, kind.as_deref(), limit.unwrap_or(200).min(1000))
-                .await
+            let session =
+                rbac::require_one_of(&session_state, &["finance.read", "patient.read_documents"])?;
+            let status = if sees_every_document_status(&session) {
+                None
+            } else {
+                Some("ISSUED")
+            };
+            issued_document_repo::list_recent(
+                &pool,
+                kind.as_deref(),
+                status,
+                limit.unwrap_or(200).min(1000),
+            )
+            .await
         }
     }
 }
@@ -130,18 +157,4 @@ pub async fn verify_issued_document(
 ) -> Result<Option<IssuedDocumentListRow>, AppError> {
     rbac::require(&session_state, "audit.read")?;
     issued_document_repo::find_by_sha256(&pool, sha256.trim()).await
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_document_commands {
-    () => {
-        $crate::commands::document_commands::issue_clinical_document,
-        $crate::commands::document_commands::issue_invoice,
-        $crate::commands::document_commands::cancel_issued_invoice,
-        $crate::commands::document_commands::reprint_issued_document,
-        $crate::commands::document_commands::issue_report_pdf,
-        $crate::commands::document_commands::list_issued_documents,
-        $crate::commands::document_commands::verify_issued_document,
-    };
 }

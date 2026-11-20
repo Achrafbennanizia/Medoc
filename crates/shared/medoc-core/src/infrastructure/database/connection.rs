@@ -2,23 +2,23 @@
 //!
 //! Pool lifecycle lives here; schema evolution is in [`super::migrations`].
 //!
-//! The Tauri-bound desktop entry point lives in
-//! [`crate::commands::db_setup_commands::init_db_from_app`] and resolves
+//! The Tauri-bound desktop entry point is
+//! `medoc_practice::commands::admin::db_setup::init_db_from_app`. It resolves
 //! `app_data_dir` from the `AppHandle` before delegating to [`init_db_headless`].
 
 use sqlx::sqlite::SqlitePool;
 
 use crate::error::AppError;
-use crate::infrastructure::database::audit_repo;
 use crate::infrastructure::database::db_key;
 use crate::infrastructure::database::migrations;
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
 use crate::infrastructure::database::sqlcipher;
 use std::path::Path;
 
 /// Initialise the on-disk SQLCipher store at `app_data_dir/medoc.db`,
 /// running schema + Rust-only migrations and seeding the audit-HMAC key.
 ///
-/// Both the desktop binary (via `commands::db_setup_commands::init_db_from_app`)
+/// Both the desktop binary (via `medoc_practice::commands::admin::db_setup::init_db_from_app`)
 /// and the headless `medoc-server` binary call this — `app_data_dir`
 /// **must match** the desktop app's data directory so LAN clients and the
 /// GUI share one database.
@@ -221,7 +221,16 @@ fn resolve_sqlcipher_key(
             "Database is locked — enter passphrase to unlock.".into(),
         ));
     }
-    db_key::ensure_sqlcipher_key(app_dir, true)
+    // F46: an encrypted `medoc.db` already exists, so its key exists somewhere.
+    // Minting a new one cannot open it and, written to the keychain, would
+    // replace the real key. Only a first launch (no file, or a plaintext file
+    // about to be migrated) may create a key.
+    let db_path = app_dir.join("medoc.db");
+    // An empty or plain-text file holds no practice data (it gets quarantined).
+    let may_create = !db_path.exists()
+        || file_is_not_a_database(&db_path)
+        || sqlcipher::is_plaintext_sqlite_file(&db_path);
+    db_key::ensure_sqlcipher_key(app_dir, may_create)
 }
 
 /// Encrypted in-memory pool for integration tests (`MEDOC_DB_KEY` or fixed test key).

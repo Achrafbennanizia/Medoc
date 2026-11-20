@@ -1,4 +1,5 @@
-import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
+import type { z } from "zod";
+import { practiceSystem } from "@/systems/practice-host/adapters/practice-transport";
 import type { Appointment } from "@/models/types";
 import {
     CreateAppointmentSchema,
@@ -45,27 +46,19 @@ export function notifyAppointmentsChanged(): void {
     window.dispatchEvent(new Event(APPOINTMENTS_CHANGED_EVENT));
 }
 
-export async function createAppointment(data: {
-    date: string;
-    time: string;
-    kind: string;
-    patient_id: string;
-    physician_id: string;
-    /** Free text / duration / internal notes (Rust `CreateAppointment.notes`). */
-    notes?: string | null;
-    chief_complaint?: string | null;
-    /** F65: slot length in minutes (default 30 on the backend). */
-    duration_minutes?: number;
-    /** F67: initial status in the same create call. */
-    status?: "PLANNED" | "CONFIRMED";
-}): Promise<Appointment> {
+export async function createAppointment(
+    data: z.input<typeof CreateAppointmentSchema>,
+): Promise<Appointment> {
     const safe = parseOrThrow(CreateAppointmentSchema, data);
     const row = await practiceSystem.invoke<Appointment>("create_appointment", { data: safe });
     notifyAppointmentsChanged();
     return row;
 }
 
-export async function updateAppointment(id: string, data: Record<string, unknown>): Promise<Appointment> {
+export async function updateAppointment(
+    id: string,
+    data: z.input<typeof UpdateAppointmentSchema>,
+): Promise<Appointment> {
     const safe = parseOrThrow(UpdateAppointmentSchema, data);
     const row = await practiceSystem.invoke<Appointment>("update_appointment", { id, data: safe });
     notifyAppointmentsChanged();

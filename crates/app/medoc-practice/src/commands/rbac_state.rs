@@ -13,7 +13,7 @@ use tauri::State;
 
 use crate::application::auth_service::Session;
 use crate::application::rbac::{effective_allowed, Role};
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::error::AppError;
 use crate::log_security;
 

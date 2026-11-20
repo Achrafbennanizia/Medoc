@@ -3,14 +3,12 @@
  * Persistence: localStorage (same device).
  */
 import { addDays, format, getISODay, parseISO, startOfWeek } from "date-fns";
-import { de as dateFnsDe } from "date-fns/locale/de";
 import type { Locale as DateFnsLocale } from "date-fns";
 import type { PlanPreference } from "./work-plan-preferences";
 import { defaultLayerForScope } from "./work-plan-preferences";
 import type { WorkPlanComposeEntry } from "./work-plan-compose";
 import { parseComposeEntries } from "./work-plan-compose";
 import { getAppKv, setAppKv } from "@/systems/practice-host/controllers/app-kv.controller";
-
 const LS_KEY_V1 = "medoc-staff-work_plan-v1";
 const LS_KEY_V2 = "medoc-staff-work_plan-v2";
 const WORK_PLAN_KV_PREFIX = "staff.work_plan.v1." as const;
@@ -414,23 +412,12 @@ export function timeToMin(h: number, m: number): number {
     return h * 60 + m;
 }
 
-export function minToLabel(min: number): string {
-    const h = Math.floor(min / 60);
-    const m = min % 60;
-    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-}
-
 export function formatLocalizedDate(ymd: string, locale: DateFnsLocale): string {
     try {
         return format(parseISO(ymd), "EEEE, d. MMM yyyy", { locale });
     } catch {
         return ymd;
     }
-}
-
-/** @deprecated Use formatLocalizedDate with dateFnsLocaleFor()/useDateFnsLocale(). */
-export function formatDeDate(ymd: string): string {
-    return formatLocalizedDate(ymd, dateFnsDe);
 }
 
 /** Wochenstart Montag */
@@ -440,10 +427,6 @@ export function weekStartMonday(d: Date): Date {
 
 export function weekDaysMonFirst(weekStart: Date): Date[] {
     return Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
-}
-
-export function ymd(d: Date): string {
-    return format(d, "yyyy-MM-dd");
 }
 
 export function parseYmd(s: string): Date {
@@ -462,14 +445,4 @@ export function rulesForDay(
 ): WeeklyWorkRule[] {
     const wd = isoWeekdayFromYmd(ymdStr);
     return rules.filter((r) => r.staffId === staffId && r.weekday === wd);
-}
-
-/** Simple color per staffId (UI) — FNV-1a-like spread over HSL hue. */
-export function hueForStaff(id: string): number {
-    let h = 2166136261;
-    for (let i = 0; i < id.length; i++) {
-        h ^= id.charCodeAt(i);
-        h = Math.imul(h, 16777619);
-    }
-    return Math.abs(h) % 360;
 }

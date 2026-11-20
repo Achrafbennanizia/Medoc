@@ -1,11 +1,13 @@
 use crate::application::appointment_hint_fulfillment;
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::domain::entities::appointment::{CreateAppointment, UpdateAppointment};
 use crate::domain::entities::Appointment;
 use crate::domain::services::workflow_transitions;
 use crate::error::AppError;
-use crate::infrastructure::database::{appointment_repo, audit_repo, patient_repo};
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
+use crate::infrastructure::database::repos::clinical::patient as patient_repo;
+use crate::infrastructure::database::repos::scheduling::appointment as appointment_repo;
 use sqlx::SqlitePool;
 use tauri::State;
 
@@ -74,8 +76,15 @@ pub async fn move_appointments(
     let session = rbac::require(&session_state, "appointment.write")?;
     let moved = appointment_repo::move_many(&pool, &changes).await?;
     for a in &moved {
-        if let Err(e) =
-            audit_repo::create(&pool, &session.user_id, "UPDATE", "Appointment", Some(&a.id), None).await
+        if let Err(e) = audit_repo::create(
+            &pool,
+            &session.user_id,
+            "UPDATE",
+            "Appointment",
+            Some(&a.id),
+            None,
+        )
+        .await
         {
             tracing::warn!(target: "medoc::security", event = "AUDIT_WRITE_FAILED", error = %e);
         }
@@ -193,20 +202,4 @@ pub async fn list_appointments_by_date(
 ) -> Result<Vec<Appointment>, AppError> {
     rbac::require(&session_state, "appointment.read")?;
     appointment_repo::find_by_date(&pool, &date).await
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_appointment_commands {
-    () => {
-        $crate::commands::appointment_commands::list_appointments,
-        $crate::commands::appointment_commands::list_appointments_paged,
-        $crate::commands::appointment_commands::list_appointments_in_range,
-        $crate::commands::appointment_commands::move_appointments,
-        $crate::commands::appointment_commands::get_appointment,
-        $crate::commands::appointment_commands::create_appointment,
-        $crate::commands::appointment_commands::update_appointment,
-        $crate::commands::appointment_commands::delete_appointment,
-        $crate::commands::appointment_commands::list_appointments_by_date,
-    };
 }

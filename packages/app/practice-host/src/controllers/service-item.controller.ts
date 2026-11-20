@@ -1,25 +1,24 @@
-import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
+import type { z } from "zod";
+import { practiceSystem } from "@/systems/practice-host/adapters/practice-transport";
 import type { ServiceItem } from "@/models/types";
-import { CreateServiceItemSchema, UpdateServiceItemSchema, parseOrThrow, type UpdateServiceItemInput } from "@/lib/schemas";
+import { CreateServiceItemSchema, UpdateServiceItemSchema, parseOrThrow } from "@/lib/schemas";
 
 export async function listServices(): Promise<ServiceItem[]> {
     return practiceSystem.invoke<ServiceItem[]>("list_services");
 }
 
-export async function createServiceItem(data: {
-    name: string;
-    description?: string;
-    category: string;
-    price: number;
-}): Promise<ServiceItem> {
+export async function createServiceItem(
+    data: z.input<typeof CreateServiceItemSchema>,
+): Promise<ServiceItem> {
     const safe = parseOrThrow(CreateServiceItemSchema, data);
     return practiceSystem.invoke<ServiceItem>("create_service_item", { data: safe });
 }
 
-/** Fields mirror Tauri `UpdateServiceItem` — all optional, merged with existing row. */
-export type UpdateServiceItemPayload = UpdateServiceItemInput;
-
-export async function updateServiceItem(id: string, data: UpdateServiceItemPayload): Promise<ServiceItem> {
+/** Fields follow `UpdateServiceItemSchema` — all optional, merged with the existing row. */
+export async function updateServiceItem(
+    id: string,
+    data: z.input<typeof UpdateServiceItemSchema>,
+): Promise<ServiceItem> {
     const safe = parseOrThrow(UpdateServiceItemSchema, data);
     return practiceSystem.invoke<ServiceItem>("update_service_item", { id, data: safe });
 }

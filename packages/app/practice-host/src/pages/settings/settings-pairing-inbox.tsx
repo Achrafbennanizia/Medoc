@@ -20,7 +20,7 @@ import { getAppKvRaw, setAppKvRaw } from "@/systems/practice-host/controllers/ap
 import { SettingsSwitch } from "@/views/components/settings-switch";
 import { Button } from "@/views/components/ui/button";
 import { ConfirmDialog } from "@/views/components/ui/dialog";
-import { errorMessage, formatDateTime } from "@/lib/utils";
+import { errorMessage, formatDateTime, parseDbUtc } from "@/lib/utils";
 import { useToastStore } from "@/views/components/ui/toast-store";
 
 const PAIRING_ACTION_KEYS: Record<string, string> = {
@@ -72,7 +72,7 @@ function displayIp(raw: string): string {
 
 function requestedLabel(value: string, locale: Locale): string | null {
     if (!value) return null;
-    const date = new Date(value);
+    const date = parseDbUtc(value);
     if (Number.isNaN(date.getTime())) return null;
     return formatDateTime(value, locale);
 }
@@ -99,7 +99,7 @@ function mergeInbox(all: PairingRequest[], pending: PairingRequest[]): PairingRe
             ...prev,
             requesterIp: prev.requesterIp?.trim() ? prev.requesterIp : row.requesterIp,
             slaveLabel: prev.slaveLabel?.trim() ? prev.slaveLabel : row.slaveLabel,
-            couplingCode: prev.couplingCode ?? row.couplingCode,
+            couplingCode: row.couplingCode ?? prev.couplingCode,
             status: "PENDING",
         });
     }
@@ -186,6 +186,14 @@ export function SettingsPairingInbox({ embedded = false }: { embedded?: boolean 
             );
             setPairingEnabled(enabledRaw !== "0" && enabledRaw !== "false");
             setItems(list);
+            setConfirmPinByRow((prev) => {
+                const ids = new Set(list.map((row) => row.id));
+                const next: Record<string, string> = {};
+                for (const [id, pin] of Object.entries(prev)) {
+                    if (ids.has(id)) next[id] = pin;
+                }
+                return next;
+            });
             setMaster(info);
             setActionByRow((prev) => {
                 const next: Record<string, Set<string>> = {};
@@ -429,7 +437,7 @@ export function SettingsPairingInbox({ embedded = false }: { embedded?: boolean 
                         const isPending = row.status === "PENDING";
                         const isAwaitingPin = isPending && (Boolean(row.awaitingPin) || Boolean(confirmPinByRow[row.id]));
                         const isAccepted = row.status === "ACCEPTED";
-                        const displayedPin = row.couplingCode || confirmPinByRow[row.id] || undefined;
+                        const displayedPin = confirmPinByRow[row.id] || row.couplingCode || undefined;
                         const when = requestedLabel(row.requestedAt, locale);
                         const rowBusy = busy?.id === row.id;
                         const codeReady = isPending && Boolean(displayedPin) && !isAwaitingPin;

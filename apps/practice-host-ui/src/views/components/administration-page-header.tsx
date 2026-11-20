@@ -20,6 +20,11 @@ type WorkspacePageHeaderProps = {
     className?: string;
     /** Extra classes on the inner `<header>` (e.g. schedule / appointment layout). */
     headerClassName?: string;
+    /**
+     * Pin back + title while the main column scrolls.
+     * Defaults on for Administration hierarchy back links.
+     */
+    sticky?: boolean;
 };
 
 function renderSubtitle(subtitle: ReactNode) {
@@ -39,6 +44,7 @@ export function WorkspacePageHeader({
     back = false,
     className,
     headerClassName,
+    sticky,
 }: WorkspacePageHeaderProps) {
     const TitleTag = titleLevel;
     let backNode: ReactNode = null;
@@ -53,8 +59,10 @@ export function WorkspacePageHeader({
             );
     }
 
+    const pin = sticky ?? back === "administration";
+
     return (
-        <div className={className}>
+        <div className={[pin ? "workspace-page__sticky-chrome" : null, className].filter(Boolean).join(" ")}>
             {backNode}
             <header
                 className={["page-head col workspace-page__head", headerClassName].filter(Boolean).join(" ")}
@@ -82,5 +90,11 @@ type AdministrationPageHeaderProps = Omit<WorkspacePageHeaderProps, "back"> & {
 
 /** Administration sub-pages — hierarchy back via `AdministrationBackButton`. */
 export function AdministrationPageHeader({ showBack = true, ...rest }: AdministrationPageHeaderProps) {
-    return <WorkspacePageHeader {...rest} back={showBack ? "administration" : false} />;
+    return (
+        <WorkspacePageHeader
+            {...rest}
+            back={showBack ? "administration" : false}
+            sticky={rest.sticky ?? true}
+        />
+    );
 }

@@ -13,8 +13,8 @@
 use crate::error::AppError;
 
 use super::core::{
-    emit_pdf_document, pdf_locale, sanitize_pdf_money, table_row_height, text_width, truncate_cell,
-    wrap_text, PageBuilder, PdfDocMeta, CONTENT_WIDTH, M_BOTTOM, M_LEFT, M_RIGHT,
+    emit_pdf_document, pdf_locale, sanitize_pdf_money, table_row_height, truncate_cell,
+    wrap_text_locale, PageBuilder, PdfDocMeta, CONTENT_WIDTH, M_BOTTOM, M_LEFT, M_RIGHT,
 };
 use super::letterhead::{emit_continuation_header_locale, emit_letterhead, Letterhead, MetaRow};
 use super::logo::PdfLogo;
@@ -109,6 +109,8 @@ pub struct ChartDocument {
     pub findings: Option<String>,
     pub treatments: Vec<(String, String)>,
     pub generated_at: String,
+    /// Document locale (`de`|`en`|`fr`|`ar`). Defaults to German when empty.
+    pub locale: String,
 }
 
 /// Practice header data for record / fact sheet (optional — when `None` a
@@ -164,8 +166,7 @@ pub fn render_chart_blocks(
     let mut pb = PageBuilder::new();
     let locale = pdf_locale(header.map(|h| h.locale.as_str()).unwrap_or("de"));
     pb.locale = locale;
-    pb.rtl = locale == "ar" || header.is_some_and(|h| h.rtl);
-    let de = locale == "de";
+    pb.rtl = super::i18n::is_rtl(locale) || header.is_some_and(|h| h.rtl);
     if let Some(h) = header {
         pb.watermark = h.watermark.clone();
         pb.footer_lines = h.footer_lines.clone();
@@ -176,23 +177,23 @@ pub fn render_chart_blocks(
         let mut meta = Vec::new();
         if let Some(id) = h.document_id.as_deref().filter(|s| !s.trim().is_empty()) {
             meta.push(MetaRow::new(
-                if de { "Dokument-Nr." } else { "Document no." },
+                super::i18n::t(locale, super::i18n::Phrase::DocumentNo),
                 id,
             ));
         }
         meta.push(MetaRow::new(
-            if de { "Erstellt am" } else { "Created" },
+            super::i18n::t(locale, super::i18n::Phrase::CreatedAt),
             generated_at,
         ));
         if let Some(by) = h.created_by.as_deref().filter(|s| !s.trim().is_empty()) {
             meta.push(MetaRow::new(
-                if de { "Erstellt von" } else { "Created by" },
+                super::i18n::t(locale, super::i18n::Phrase::CreatedBy),
                 by,
             ));
         }
         if let Some(b) = h.clinician_name.as_deref().filter(|s| !s.trim().is_empty()) {
             meta.push(MetaRow::new(
-                if de { "Behandler/in" } else { "Clinician" },
+                super::i18n::t(locale, super::i18n::Phrase::Clinician),
                 b,
             ));
         }
@@ -205,7 +206,7 @@ pub fn render_chart_blocks(
             show_sender_hint: false,
             compact_address: false,
             logo: h.logo.as_ref(),
-            rtl: h.rtl,
+            rtl: h.rtl || super::i18n::is_rtl(locale),
             locale,
         };
         emit_letterhead(&mut pb, &lh);
@@ -213,7 +214,7 @@ pub fn render_chart_blocks(
         // Slim header: title + date only
         pb.text(M_LEFT, 18, true, doc_title);
         pb.advance(22);
-        let created = if de { "Erstellt am" } else { "Created" };
+        let created = super::i18n::t(locale, super::i18n::Phrase::CreatedAt);
         pb.text(M_LEFT, 9, false, &format!("{created}: {generated_at}"));
         pb.advance(14);
         pb.hline(M_LEFT, M_RIGHT);
@@ -235,11 +236,7 @@ pub fn render_chart_blocks(
     pb.set_continuation(&practice_name, doc_title, locale);
 
     if blocks.is_empty() {
-        let empty = if de {
-            "(Keine Inhalte für diesen Export.)"
-        } else {
-            "(No content for this export.)"
-        };
+        let empty = super::i18n::t(locale, super::i18n::Phrase::EmptyExport);
         pb.text(M_LEFT, 10, false, empty);
         pb.advance(14);
     }
@@ -258,20 +255,10 @@ pub fn render_chart_blocks(
             M_LEFT,
             8,
             true,
-            if de {
-                "Datenschutzhinweis"
-            } else {
-                "Privacy notice"
-            },
+            super::i18n::t(locale, super::i18n::Phrase::PrivacyHeading),
         );
         pb.advance(11);
-        let notice = if de {
-            "Dieses Dokument enthält vertrauliche Patientendaten (§ 630f BGB, Art. 9 DSGVO). \
-             Weitergabe nur mit ausdrücklicher Einwilligung der Patientin bzw. des Patienten."
-        } else {
-            "This document contains confidential patient data (§ 630f BGB, Art. 9 GDPR). \
-             Disclosure only with the patient's explicit consent."
-        };
+        let notice = super::i18n::t(locale, super::i18n::Phrase::ChartPrivacy);
         pb.paragraph(notice, 8, 120, 0);
     }
 
@@ -328,7 +315,7 @@ fn emit_chart_block(
     if !block.body_lines.is_empty() {
         for line in &block.body_lines {
             let display = crate::infrastructure::clinical_text_format::plain_text_for_pdf(line);
-            for chunk in wrap_text(&display, 90) {
+            for chunk in wrap_text_locale(&display, 90, pb.locale) {
                 if pb.y < M_BOTTOM + 24 {
                     pb.break_page();
                     emit_continuation_header_locale(pb, practice_name, doc_title, pb.locale);
@@ -341,11 +328,7 @@ fn emit_chart_block(
     }
 
     if !wrote_any {
-        let none = if pb.locale == "de" {
-            "(keine Einträge)"
-        } else {
-            "(no entries)"
-        };
+        let none = super::i18n::t(pb.locale, super::i18n::Phrase::NoEntries);
         pb.text(M_LEFT, 10, false, none);
         pb.advance(12);
     }
@@ -365,11 +348,11 @@ fn emit_chart_kv_pair(
     let display =
         sanitize_pdf_money(&crate::infrastructure::clinical_text_format::plain_text_for_pdf(value));
     let label = format!("{key}:");
-    let label_w = text_width(&label, 9, true);
+    let label_w = pb.width(&label, 9, true).ceil() as i32;
     // Long labels (e.g. "Income (current calendar month)") must not collide with values.
     let value_x = M_LEFT + label_w + 14;
     let fits_one_line = !display.contains('\n')
-        && value_x + text_width(&display, 10, false) <= M_RIGHT
+        && value_x + pb.width(&display, 10, false).ceil() as i32 <= M_RIGHT
         && label_w <= 240;
 
     if pb.y < M_BOTTOM + 30 {
@@ -384,7 +367,7 @@ fn emit_chart_kv_pair(
     } else {
         pb.text(M_LEFT, 9, true, &label);
         pb.advance(12);
-        for chunk in wrap_text(&display, 90) {
+        for chunk in wrap_text_locale(&display, 90, pb.locale) {
             if pb.y < M_BOTTOM + 24 {
                 pb.break_page();
                 emit_continuation_header_locale(pb, practice_name, doc_title, pb.locale);
@@ -423,16 +406,43 @@ fn chart_table_column_pt_widths(col_xs: &[i32]) -> Vec<i32> {
     w
 }
 
+/// Money columns are right-aligned. The header words cover every document
+/// language (the old list only knew German and English, so French and
+/// Arabic reports had left-aligned amounts).
 fn is_amount_header(h: &str) -> bool {
-    let l = h.to_ascii_lowercase();
-    l.contains("amount")
-        || l.contains("betrag")
-        || l.contains("total")
-        || l.contains("eur")
-        || l.contains("einnahme")
-        || l.contains("ausgabe")
-        || l.contains("bestand")
-        || l.contains("balance")
+    let l = h.to_lowercase();
+    const WORDS: &[&str] = &[
+        // de / en
+        "amount",
+        "betrag",
+        "total",
+        "summe",
+        "eur",
+        "einnahme",
+        "ausgabe",
+        "bestand",
+        "balance",
+        "income",
+        "expense",
+        // fr
+        "montant",
+        "solde",
+        "recette",
+        "dépense",
+        "entrée",
+        "sortie",
+        // ar
+        "المبلغ",
+        "المجموع",
+        "الرصيد",
+        "إجمالي",
+        "مقبوضات",
+        "مدفوعات",
+        "الإيرادات",
+    ];
+    WORDS.iter().any(|w| l.contains(w))
+        || matches!(l.trim(), "in" | "out")
+        || l.trim() == crate::infrastructure::pdf::document_currency().to_lowercase()
 }
 
 const CHART_CELL_PAD: i32 = 6;
@@ -553,16 +563,12 @@ fn emit_chart_table(
 
 /// Legacy wrapper.
 pub fn render_chart(doc: &ChartDocument) -> Result<Vec<u8>, AppError> {
-    let diag = doc
-        .diagnosis
-        .clone()
-        .unwrap_or_else(|| "(none recorded)".into());
-    let bef = doc
-        .findings
-        .clone()
-        .unwrap_or_else(|| "(none recorded)".into());
+    let locale = pdf_locale(&doc.locale);
+    let none = super::i18n::t(locale, super::i18n::Phrase::NoneRecorded);
+    let diag = doc.diagnosis.clone().unwrap_or_else(|| none.to_string());
+    let bef = doc.findings.clone().unwrap_or_else(|| none.to_string());
     let beh_lines: Vec<String> = if doc.treatments.is_empty() {
-        vec!["(no treatments recorded)".to_string()]
+        vec![super::i18n::t(locale, super::i18n::Phrase::NoTreatments).to_string()]
     } else {
         doc.treatments
             .iter()
@@ -570,27 +576,58 @@ pub fn render_chart(doc: &ChartDocument) -> Result<Vec<u8>, AppError> {
             .collect()
     };
 
+    let title = super::i18n::t(locale, super::i18n::Phrase::PatientChart);
     let blocks = vec![
         ChartPdfBlock::kv(
-            "Master data / chart header",
+            super::i18n::t(locale, super::i18n::Phrase::MasterData),
             vec![
-                ("Patient".into(), doc.patient_name.clone()),
-                ("Date of birth".into(), doc.patient_date_of_birth.clone()),
-                ("Insurance no.".into(), doc.patient_insurance_number.clone()),
-                ("Chart status".into(), doc.chart_status.clone()),
+                (
+                    super::i18n::t(locale, super::i18n::Phrase::Patient).into(),
+                    doc.patient_name.clone(),
+                ),
+                (
+                    super::i18n::t(locale, super::i18n::Phrase::DateOfBirth)
+                        .trim_end_matches(':')
+                        .into(),
+                    doc.patient_date_of_birth.clone(),
+                ),
+                (
+                    super::i18n::t(locale, super::i18n::Phrase::InsuranceNo)
+                        .trim_end_matches(':')
+                        .into(),
+                    doc.patient_insurance_number.clone(),
+                ),
+                (
+                    super::i18n::t(locale, super::i18n::Phrase::ChartStatus).into(),
+                    doc.chart_status.clone(),
+                ),
             ],
         ),
-        ChartPdfBlock::body("Diagnosis", vec![diag]),
-        ChartPdfBlock::body("Findings (free text)", vec![bef]),
-        ChartPdfBlock::body("Treatments", beh_lines),
+        ChartPdfBlock::body(
+            super::i18n::t(locale, super::i18n::Phrase::Diagnosis),
+            vec![diag],
+        ),
+        ChartPdfBlock::body(
+            super::i18n::t(locale, super::i18n::Phrase::Findings),
+            vec![bef],
+        ),
+        ChartPdfBlock::body(
+            super::i18n::t(locale, super::i18n::Phrase::Treatments),
+            beh_lines,
+        ),
     ];
 
+    let header = ChartHeaderContext {
+        locale: locale.into(),
+        rtl: super::i18n::is_rtl(locale),
+        ..Default::default()
+    };
     render_chart_blocks(
-        "PatientChart",
+        title,
         &doc.generated_at,
-        &format!("PatientChart {}", doc.patient_name),
+        &format!("{title} {}", doc.patient_name),
         &blocks,
-        None,
+        Some(&header),
     )
 }
 
@@ -672,6 +709,7 @@ pub fn render_report_pdf(input: &ReportPdfInput) -> Result<Vec<u8>, AppError> {
         Some(ChartHeaderContext {
             practice_lines,
             locale: pdf_locale(input.locale.as_deref().unwrap_or("de")).into(),
+            rtl: super::i18n::is_rtl(input.locale.as_deref().unwrap_or("de")),
             document_id: input.document_number.clone(),
             watermark: input.watermark.clone(),
             footer_lines: input.footer_lines.clone(),
@@ -679,12 +717,12 @@ pub fn render_report_pdf(input: &ReportPdfInput) -> Result<Vec<u8>, AppError> {
             ..Default::default()
         })
     };
-    let de = pdf_locale(input.locale.as_deref().unwrap_or("de")) == "de";
+    let locale = pdf_locale(input.locale.as_deref().unwrap_or("de"));
 
     let mut blocks: Vec<ChartPdfBlock> = Vec::new();
     if !input.summary.is_empty() {
         blocks.push(ChartPdfBlock::kv(
-            if de { "Zusammenfassung" } else { "Summary" },
+            super::i18n::t(locale, super::i18n::Phrase::Summary),
             input
                 .summary
                 .iter()
@@ -698,7 +736,11 @@ pub fn render_report_pdf(input: &ReportPdfInput) -> Result<Vec<u8>, AppError> {
         }
         let mut table = ChartPdfTable::new(sec.headers.clone(), sec.rows.clone());
         // Two-column metric/amount tables: give the value column room + right align.
-        if let Some(w) = sec.column_weights.clone().filter(|w| w.len() == sec.headers.len()) {
+        if let Some(w) = sec
+            .column_weights
+            .clone()
+            .filter(|w| w.len() == sec.headers.len())
+        {
             table = table.with_column_weights(w);
         } else if sec.headers.len() == 2 {
             table = table.with_column_weights(vec![3, 2]);
@@ -713,7 +755,7 @@ pub fn render_report_pdf(input: &ReportPdfInput) -> Result<Vec<u8>, AppError> {
             lines.push(s.clone());
         }
         blocks.push(ChartPdfBlock::body(
-            if de { "Bestätigung" } else { "Confirmation" },
+            super::i18n::t(locale, super::i18n::Phrase::Confirmation),
             lines,
         ));
     }
@@ -733,7 +775,7 @@ pub fn render_report_pdf(input: &ReportPdfInput) -> Result<Vec<u8>, AppError> {
 
 /// Preview renderer: uses either a structured layout
 /// (`layout_json`, see `clinical_pdf_layout`) or the same letterhead/footer
-/// library via [`clinical_pdf_layout::render_plain_preview`].
+/// library via [`super::clinical_layout::render_plain_preview`].
 pub fn render_template_preview_pdf(
     kind: &str,
     template_name: &str,
@@ -876,6 +918,123 @@ mod tests {
             "IBAN DE00",
         ] {
             assert!(text.contains(needle), "missing {needle}");
+        }
+    }
+
+    #[test]
+    fn chart_and_report_chrome_in_every_supported_language() {
+        // Decode WinAnsi octal escapes (`\351` → é) so French chrome is searchable.
+        let decode = |pdf: &[u8]| -> String {
+            let mut out = String::with_capacity(pdf.len());
+            let mut i = 0;
+            while i < pdf.len() {
+                let b = pdf[i];
+                if b == b'\\' && i + 1 < pdf.len() {
+                    let n = pdf[i + 1];
+                    if n.is_ascii_digit()
+                        && i + 3 < pdf.len()
+                        && pdf[i + 2].is_ascii_digit()
+                        && pdf[i + 3].is_ascii_digit()
+                    {
+                        let v = (n - b'0') as u32 * 64
+                            + (pdf[i + 2] - b'0') as u32 * 8
+                            + (pdf[i + 3] - b'0') as u32;
+                        out.push(char::from_u32(v).unwrap_or('?'));
+                        i += 4;
+                        continue;
+                    }
+                    if matches!(n, b'(' | b')' | b'\\') {
+                        out.push(n as char);
+                        i += 2;
+                        continue;
+                    }
+                }
+                out.push(char::from(b));
+                i += 1;
+            }
+            out
+        };
+        let cases = [
+            (
+                "de",
+                "Dokument-Nr.",
+                "Zusammenfassung",
+                "Seite 1 von",
+                "Datenschutzhinweis",
+            ),
+            (
+                "en",
+                "Document no.",
+                "Summary",
+                "Page 1 of",
+                "Privacy notice",
+            ),
+            (
+                "fr",
+                "N° de document",
+                "Résumé",
+                "Page 1 sur",
+                "Avis de confidentialité",
+            ),
+            ("ar", "رقم المستند", "ملخص", "صفحة 1 من", "إشعار الخصوصية"),
+        ];
+        for (locale, doc_no, summary, page, privacy) in cases {
+            let header = ChartHeaderContext {
+                practice_lines: vec!["Test Practice".into()],
+                document_id: Some("AKT-001".into()),
+                locale: locale.into(),
+                rtl: locale == "ar",
+                ..Default::default()
+            };
+            let chart = render_chart_blocks(
+                "Chart",
+                "20.11.2026",
+                "Chart title",
+                &[ChartPdfBlock::kv("Block", vec![("A".into(), "1".into())])],
+                Some(&header),
+            )
+            .unwrap();
+            assert!(chart.starts_with(b"%PDF-1.4"), "{locale}");
+            let chart_text = decode(&chart);
+            if locale == "ar" {
+                assert!(
+                    chart_text.contains("+NotoNaskhArabic") || chart_text.contains("/F3 "),
+                    "{locale} missing arabic font"
+                );
+                assert!(chart_text.contains("/Lang (ar)"), "{locale} /Lang");
+            } else {
+                assert!(chart_text.contains(doc_no), "{locale} missing {doc_no}");
+                assert!(chart_text.contains(page), "{locale} missing {page}");
+                assert!(chart_text.contains(privacy), "{locale} missing {privacy}");
+            }
+
+            let report = render_report_pdf(&ReportPdfInput {
+                doc_title: "Report".into(),
+                generated_at: "20.11.2026".into(),
+                practice_name: "Test Practice".into(),
+                practice_address: vec!["Street 1".into()],
+                summary: vec![ReportPdfSummaryRow {
+                    label: "X".into(),
+                    value: "1".into(),
+                }],
+                sections: Vec::new(),
+                locale: Some(locale.into()),
+                document_number: Some("TB-1".into()),
+                signatures: vec!["Sign".into()],
+                ..Default::default()
+            })
+            .unwrap();
+            assert!(report.starts_with(b"%PDF-1.4"), "{locale}");
+            let report_text = decode(&report);
+            if locale == "ar" {
+                assert!(
+                    report_text.contains("+NotoNaskhArabic") || report_text.contains("/F3 "),
+                    "{locale} report arabic font"
+                );
+            } else {
+                assert!(report_text.contains(summary), "{locale} missing {summary}");
+                assert!(report_text.contains(page), "{locale} report page");
+            }
         }
     }
 }

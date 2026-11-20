@@ -9,7 +9,7 @@ pub use device_identity::{
     verify_channel_signature, ChannelPurpose, DeviceIdentity,
 };
 pub use sas::{
-    derive_sas_from_transcript, hash_sas, normalise_sas_input, transcript_sha_prefix,
-    validate_sas_match, verify_sas, SAS_LEN,
+    decode_handshake_transcript, derive_sas_from_transcript, hash_sas, normalise_sas_input,
+    transcript_sha_prefix, validate_sas_match, verify_sas, SAS_LEN,
 };
 pub use seat_cert::{mint_seat_certificate, verify_seat_certificate, SEAT_CERT_PREFIX};

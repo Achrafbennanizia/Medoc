@@ -199,12 +199,20 @@ export function paintAppointmentDragVisual(topPx: number, startMin: number, inva
     el.classList.toggle("appointment-appt-block--drag-invalid", invalid);
 }
 
-export function paintAppointmentHourGutterSnap(topPx: number, startMin: number): void {
-    const snap = document.querySelector<HTMLElement>(".appointment-hour-gutter-snap--drag");
-    if (!snap) return;
-    snap.style.top = `${topPx}px`;
-    const label = snap.querySelector<HTMLElement>(".appointment-hour-gutter-snap__time");
-    if (label) label.textContent = minutesToTime(startMin).slice(0, 5);
+type HourGutterSnapListener = (startMin: number) => void;
+
+const hourGutterSnapListeners = new Set<HourGutterSnapListener>();
+
+/** Drag paints the live minute here. The gutter label rerenders from this, in its own scale. */
+export function subscribeAppointmentHourGutterSnap(listener: HourGutterSnapListener): () => void {
+    hourGutterSnapListeners.add(listener);
+    return () => {
+        hourGutterSnapListeners.delete(listener);
+    };
+}
+
+export function paintAppointmentHourGutterSnap(_topPx: number, startMin: number): void {
+    for (const listener of hourGutterSnapListeners) listener(startMin);
 }
 
 export function invalidateAppointmentDragColumnCache(): void {

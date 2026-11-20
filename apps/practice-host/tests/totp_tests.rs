@@ -2,7 +2,7 @@
 
 use medoc_lib::application::auth_service::{authenticate, LoginRequest};
 use medoc_lib::infrastructure::database::connection::{run_migrations, test_memory_pool};
-use medoc_lib::infrastructure::database::staff_repo;
+use medoc_lib::infrastructure::database::repos::admin::staff as staff_repo;
 use medoc_lib::infrastructure::totp;
 
 async fn migrated_pool() -> sqlx::SqlitePool {

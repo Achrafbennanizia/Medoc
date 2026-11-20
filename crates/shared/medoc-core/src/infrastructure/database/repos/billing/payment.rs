@@ -3,12 +3,9 @@ use crate::domain::entities::Payment;
 use crate::domain::enums::PaymentMethod;
 use crate::domain::services::pricing;
 use crate::error::AppError;
-use crate::infrastructure::database::chart_repo;
-use crate::infrastructure::database::practice_task_repo;
+use crate::infrastructure::database::repos::clinical::chart as chart_repo;
+use crate::infrastructure::database::repos::scheduling::practice_task as practice_task_repo;
 use sqlx::SqlitePool;
-
-/// Allowed tolerance for due/open checks (EUR) — frontend `PAYMENT_EUR_EPS` matches this value.
-const OPEN_BOOKING_TOLERANCE_EUR: f64 = 0.005;
 
 /// Older databases were created before `payment.updated_at` existed. Reads that
 /// decode the column fail with "no column found for name: updated_at" until it is added.
@@ -30,26 +27,17 @@ async fn ensure_payment_updated_at(pool: &SqlitePool) -> Result<(), AppError> {
     Ok(())
 }
 
-/// Cent rounding like frontend `roundMoney2` (`payment-buchung.ts`).
-#[inline]
-fn round_money2(n: f64) -> f64 {
-    if !n.is_finite() {
-        return n;
-    }
-    (n * 100.0).round() / 100.0
-}
-
 fn compute_payment_status(amount: f64, erwartet: Option<f64>) -> &'static str {
-    const EPS: f64 = 1e-6;
     // Positive expected remaining/due amount (> 0); values ≤ 0 are ignored.
-    let exp_positive = erwartet.filter(|e| e.is_finite() && *e > EPS);
+    let exp_positive = erwartet.filter(|e| e.is_finite() && *e > pricing::MONEY_ZERO_EUR);
 
-    if amount <= EPS {
+    if amount <= pricing::MONEY_ZERO_EUR {
         // Open placeholder booking or no payment amount posted yet.
         match exp_positive {
             Some(_) => return "OUTSTANDING",
             None => {
-                if matches!(erwartet, Some(e) if e.is_finite() && (-EPS..=EPS).contains(&e)) {
+                if matches!(erwartet, Some(e) if e.is_finite() && (-pricing::MONEY_ZERO_EUR..=pricing::MONEY_ZERO_EUR).contains(&e))
+                {
                     return "PAID";
                 }
                 return "OUTSTANDING";
@@ -58,7 +46,7 @@ fn compute_payment_status(amount: f64, erwartet: Option<f64>) -> &'static str {
     }
     match exp_positive {
         Some(exp) => {
-            if amount + EPS >= exp {
+            if amount + pricing::MONEY_ZERO_EUR >= exp {
                 "PAID"
             } else {
                 "PARTIALLY_PAID"
@@ -102,7 +90,6 @@ async fn find_zero_amount_open_booking_id(
     treatment_id: Option<&str>,
     examination_id: Option<&str>,
 ) -> Result<Option<String>, AppError> {
-    const EPS: f64 = 1e-6;
     let row: Option<(String,)> = if let Some(bid) = treatment_id {
         sqlx::query_as(
             "SELECT id FROM payment
@@ -114,7 +101,7 @@ async fn find_zero_amount_open_booking_id(
         )
         .bind(patient_id)
         .bind(bid)
-        .bind(EPS)
+        .bind(pricing::MONEY_ZERO_EUR)
         .fetch_optional(pool)
         .await?
     } else if let Some(uid) = examination_id {
@@ -128,7 +115,7 @@ async fn find_zero_amount_open_booking_id(
         )
         .bind(patient_id)
         .bind(uid)
-        .bind(EPS)
+        .bind(pricing::MONEY_ZERO_EUR)
         .fetch_optional(pool)
         .await?
     } else {
@@ -167,6 +154,9 @@ pub struct PaymentListFilter<'a> {
     pub date_on: Option<&'a str>,
     pub date_from: Option<&'a str>,
     pub date_to: Option<&'a str>,
+    /// Practice-local day the money was recorded: `created_at` or a later `updated_at`
+    /// (a 0 € booking filled in on a later day).
+    pub active_on: Option<&'a str>,
 }
 
 pub async fn find_paginated(
@@ -233,6 +223,24 @@ pub async fn find_paginated(
             .format("%Y-%m-%d %H:%M:%S")
             .to_string())
     };
+    if let Some(d) = filter.active_on {
+        let from = day_start(d)?;
+        let to = day_end(d)?;
+        let i = binds.len();
+        wheres.push(format!(
+            "(julianday(created_at) >= julianday(?{a}) AND julianday(created_at) < julianday(?{b}) \
+              OR (updated_at IS NOT NULL AND julianday(updated_at) >= julianday(?{c}) \
+                  AND julianday(updated_at) < julianday(?{d})))",
+            a = i + 1,
+            b = i + 2,
+            c = i + 3,
+            d = i + 4,
+        ));
+        binds.push(from.clone());
+        binds.push(to.clone());
+        binds.push(from);
+        binds.push(to);
+    }
     let (from, to) = match filter.date_on {
         Some(d) => (Some(day_start(d)?), Some(day_end(d)?)),
         None => (
@@ -241,11 +249,17 @@ pub async fn find_paginated(
         ),
     };
     if let Some(f) = from {
-        wheres.push(format!("julianday(created_at) >= julianday(?{})", binds.len() + 1));
+        wheres.push(format!(
+            "julianday(created_at) >= julianday(?{})",
+            binds.len() + 1
+        ));
         binds.push(f);
     }
     if let Some(t) = to {
-        wheres.push(format!("julianday(created_at) < julianday(?{})", binds.len() + 1));
+        wheres.push(format!(
+            "julianday(created_at) < julianday(?{})",
+            binds.len() + 1
+        ));
         binds.push(t);
     }
     let where_sql = if wheres.is_empty() {
@@ -363,7 +377,9 @@ pub async fn monthly_breakdown(
     .await?;
     let mut buckets: std::collections::BTreeMap<String, (f64, f64, f64)> = Default::default();
     for (created, status, amount) in rows {
-        let Some(utc) = parse_db_utc(&created) else { continue };
+        let Some(utc) = parse_db_utc(&created) else {
+            continue;
+        };
         let ym = utc.with_timezone(&tz).format("%Y-%m").to_string();
         let b = buckets.entry(ym).or_insert((0.0, 0.0, 0.0));
         match status.as_str() {
@@ -377,12 +393,14 @@ pub async fn monthly_breakdown(
         .into_iter()
         .rev()
         .take(months as usize)
-        .map(|(year_month, (income, outstanding, cancelled))| PaymentMonthBucket {
-            year_month,
-            income,
-            outstanding,
-            cancelled,
-        })
+        .map(
+            |(year_month, (income, outstanding, cancelled))| PaymentMonthBucket {
+                year_month,
+                income,
+                outstanding,
+                cancelled,
+            },
+        )
         .collect())
 }
 
@@ -392,7 +410,12 @@ pub fn parse_db_utc(raw: &str) -> Option<chrono::DateTime<chrono::Utc>> {
     if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(t) {
         return Some(dt.with_timezone(&chrono::Utc));
     }
-    for fmt in ["%Y-%m-%d %H:%M:%S%.f", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S%.f", "%Y-%m-%dT%H:%M:%S"] {
+    for fmt in [
+        "%Y-%m-%d %H:%M:%S%.f",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%dT%H:%M:%S%.f",
+        "%Y-%m-%dT%H:%M:%S",
+    ] {
         if let Ok(n) = chrono::NaiveDateTime::parse_from_str(t.trim_end_matches('Z'), fmt) {
             return Some(chrono::DateTime::from_naive_utc_and_offset(n, chrono::Utc));
         }
@@ -448,8 +471,10 @@ pub async fn ensure_released_for_payment(
         .fetch_optional(pool)
         .await?;
         if let Some((by, at)) = row {
-            if !crate::domain::services::pricing::is_released_for_billing(by.as_deref(), at.as_deref())
-            {
+            if !crate::domain::services::pricing::is_released_for_billing(
+                by.as_deref(),
+                at.as_deref(),
+            ) {
                 chart_repo::release_treatment_for_billing(pool, id, staff_id).await?;
             }
         }
@@ -467,8 +492,10 @@ pub async fn ensure_released_for_payment(
         .fetch_optional(pool)
         .await?;
         if let Some((by, at)) = row {
-            if !crate::domain::services::pricing::is_released_for_billing(by.as_deref(), at.as_deref())
-            {
+            if !crate::domain::services::pricing::is_released_for_billing(
+                by.as_deref(),
+                at.as_deref(),
+            ) {
                 chart_repo::release_examination_for_billing(pool, id, staff_id).await?;
             }
         }
@@ -532,9 +559,8 @@ pub async fn create(pool: &SqlitePool, data: &CreatePayment) -> Result<Payment, 
         )?;
     }
 
-    const EPS: f64 = 1e-6;
-    let is_placeholder = data.amount <= EPS;
-    if data.amount < -EPS {
+    let is_placeholder = data.amount <= pricing::MONEY_ZERO_EUR;
+    if data.amount < -pricing::MONEY_ZERO_EUR {
         return Err(AppError::validation_code("error.payment.amount_invalid"));
     }
     if is_placeholder && data.service_item_id.is_some() {
@@ -549,10 +575,11 @@ pub async fn create(pool: &SqlitePool, data: &CreatePayment) -> Result<Payment, 
         0.0
     } else {
         if let Some(ref lid) = data.service_item_id {
-            let exists: Option<i64> = sqlx::query_scalar("SELECT 1 FROM service_item WHERE id = ?1")
-                .bind(lid)
-                .fetch_optional(pool)
-                .await?;
+            let exists: Option<i64> =
+                sqlx::query_scalar("SELECT 1 FROM service_item WHERE id = ?1")
+                    .bind(lid)
+                    .fetch_optional(pool)
+                    .await?;
             if exists.is_none() {
                 return Err(AppError::NotFound("Service item".into()));
             }
@@ -583,8 +610,8 @@ pub async fn create(pool: &SqlitePool, data: &CreatePayment) -> Result<Payment, 
                 .await
                 .unwrap_or(0.0);
                 // Parity with UI: `Math.max(0, roundMoney2(gesamt - paidSoFar))`
-                let open = round_money2(g - sum_paid).max(0.0);
-                if amount > open + OPEN_BOOKING_TOLERANCE_EUR {
+                let open = pricing::round_money_2(g - sum_paid).max(0.0);
+                if amount > open + pricing::PAYMENT_BOOKING_TOLERANCE_EUR {
                     return Err(AppError::validation_code_params(
                         "error.payment.overpayment_treatment",
                         &[
@@ -621,8 +648,8 @@ pub async fn create(pool: &SqlitePool, data: &CreatePayment) -> Result<Payment, 
                 .fetch_one(pool)
                 .await
                 .unwrap_or(0.0);
-                let open = round_money2(g - sum_paid).max(0.0);
-                if amount > open + OPEN_BOOKING_TOLERANCE_EUR {
+                let open = pricing::round_money_2(g - sum_paid).max(0.0);
+                if amount > open + pricing::PAYMENT_BOOKING_TOLERANCE_EUR {
                     return Err(AppError::validation_code_params(
                         "error.payment.overpayment_examination",
                         &[
@@ -744,14 +771,11 @@ async fn refresh_zero_open_booking_from_clinical(
     .bind(amount_expected)
     .bind(description)
     .bind(payment_id)
-    .bind(OPEN_BOOKING_TOLERANCE_EUR)
+    .bind(pricing::PAYMENT_BOOKING_TOLERANCE_EUR)
     .execute(&mut *tx)
     .await?;
     crate::infrastructure::database::recorded_write::record_in_tx(
-        &mut tx,
-        "payment",
-        payment_id,
-        "UPDATE",
+        &mut tx, "payment", payment_id, "UPDATE",
     )
     .await?;
     tx.commit().await?;
@@ -789,7 +813,7 @@ pub async fn ensure_open_booking_for_billable_treatment(
     };
     let amount_expected = b
         .total_cost
-        .filter(|g| g.is_finite() && *g > OPEN_BOOKING_TOLERANCE_EUR);
+        .filter(|g| g.is_finite() && *g > pricing::PAYMENT_BOOKING_TOLERANCE_EUR);
     let description = open_booking_description(b.service_name.as_deref(), b.total_cost);
 
     let existing: Option<(String, f64)> = sqlx::query_as(
@@ -804,7 +828,7 @@ pub async fn ensure_open_booking_for_billable_treatment(
     .fetch_optional(pool)
     .await?;
     if let Some((id, amt)) = existing {
-        if amt <= OPEN_BOOKING_TOLERANCE_EUR {
+        if amt <= pricing::PAYMENT_BOOKING_TOLERANCE_EUR {
             refresh_zero_open_booking_from_clinical(pool, &id, amount_expected, &description)
                 .await?;
         }
@@ -860,7 +884,7 @@ pub async fn ensure_open_booking_for_billable_examination(
     };
     let amount_expected = u
         .total_cost
-        .filter(|g| g.is_finite() && *g > OPEN_BOOKING_TOLERANCE_EUR);
+        .filter(|g| g.is_finite() && *g > pricing::PAYMENT_BOOKING_TOLERANCE_EUR);
     let description = open_booking_description(u.service_name.as_deref(), u.total_cost);
 
     let existing: Option<(String, f64)> = sqlx::query_as(
@@ -875,7 +899,7 @@ pub async fn ensure_open_booking_for_billable_examination(
     .fetch_optional(pool)
     .await?;
     if let Some((id, amt)) = existing {
-        if amt <= OPEN_BOOKING_TOLERANCE_EUR {
+        if amt <= pricing::PAYMENT_BOOKING_TOLERANCE_EUR {
             refresh_zero_open_booking_from_clinical(pool, &id, amount_expected, &description)
                 .await?;
         }
@@ -993,8 +1017,8 @@ pub async fn update_fields(pool: &SqlitePool, data: &UpdatePayment) -> Result<Pa
                 .fetch_one(pool)
                 .await
                 .unwrap_or(0.0);
-                let max_for_row = round_money2(g - sum_others).max(0.0);
-                if data.amount > max_for_row + OPEN_BOOKING_TOLERANCE_EUR {
+                let max_for_row = pricing::round_money_2(g - sum_others).max(0.0);
+                if data.amount > max_for_row + pricing::PAYMENT_BOOKING_TOLERANCE_EUR {
                     return Err(AppError::validation_code_params(
                         "error.payment.overpayment_edit_treatment",
                         &[("max", &format!("{max_for_row:.2}"))],
@@ -1027,8 +1051,8 @@ pub async fn update_fields(pool: &SqlitePool, data: &UpdatePayment) -> Result<Pa
                 .fetch_one(pool)
                 .await
                 .unwrap_or(0.0);
-                let max_for_row = round_money2(g - sum_others).max(0.0);
-                if data.amount > max_for_row + OPEN_BOOKING_TOLERANCE_EUR {
+                let max_for_row = pricing::round_money_2(g - sum_others).max(0.0);
+                if data.amount > max_for_row + pricing::PAYMENT_BOOKING_TOLERANCE_EUR {
                     return Err(AppError::validation_code_params(
                         "error.payment.overpayment_edit_examination",
                         &[("max", &format!("{max_for_row:.2}"))],
@@ -1181,9 +1205,7 @@ pub async fn set_cash_verified_for_ids(
                 .await?;
         let stamp =
             crate::infrastructure::database::recorded_write::next_updated_at(prev.as_deref());
-        let r = sqlx::query(
-            "UPDATE payment SET cash_verified = ?1, updated_at = ?2 WHERE id = ?3",
-        )
+        let r = sqlx::query("UPDATE payment SET cash_verified = ?1, updated_at = ?2 WHERE id = ?3")
             .bind(cash_verified)
             .bind(&stamp)
             .bind(id)
@@ -1191,10 +1213,7 @@ pub async fn set_cash_verified_for_ids(
             .await?;
         if r.rows_affected() > 0 {
             crate::infrastructure::database::recorded_write::record_in_tx(
-                &mut tx,
-                "payment",
-                id,
-                "UPDATE",
+                &mut tx, "payment", id, "UPDATE",
             )
             .await?;
             n = n.saturating_add(r.rows_affected());

@@ -7,11 +7,9 @@ import { useClusterStore } from "@/models/store/cluster-store";
 import { PasswordPolicyHints } from "../components/password-policy-hints";
 import { WorkspacePageHeader } from "../components/administration-page-header";
 import { useUiPreferencesStore } from "../../models/store/ui-preferences-store";
+import { companySystem } from "@/systems/company-portal/adapters/tauri-company.adapter";
 import {
     changePassword,
-    companyPortalFetchFeatureFlags,
-    companyPortalFetchIntegrations,
-    companyPortalFetchSummary,
     type LicenseStatus,
     verifyLicense,
     activateLicense,
@@ -32,7 +30,7 @@ import {
 } from "@/lib/client-settings";
 import {
     DEFAULT_PRACTICE_PREFERENCES,
-    hydratePracticePreferencesFromKv,
+    loadPracticePreferencesFromKv,
     savePracticePreferences,
     type PracticePreferences,
 } from "@/lib/practice-preferences-storage";
@@ -145,7 +143,7 @@ export function SettingsPage() {
 
     useEffect(() => {
         let cancelled = false;
-        void hydratePracticePreferencesFromKv().then((version) => {
+        void loadPracticePreferencesFromKv().then((version) => {
             if (!cancelled) setPrefs(version);
         });
         return () => {
@@ -163,7 +161,7 @@ export function SettingsPage() {
             try {
                 // Portal optional (offline / no company host): `null` is intentional, not a silent failure.
                 if (activeSection === "license") {
-                    const sum = await companyPortalFetchSummary().catch(() => null);
+                    const sum = await companySystem.fetchSummary().catch(() => null);
                     const lic = await currentLicenseStatus().catch(() => null);
                     if (!cancelled) {
                         if (sum && typeof sum === "object") setPortalSummary(sum as Record<string, unknown>);
@@ -171,15 +169,15 @@ export function SettingsPage() {
                     }
                 } else if (activeSection === "integrations") {
                     const [sum, integ] = await Promise.all([
-                        companyPortalFetchSummary().catch(() => null),
-                        companyPortalFetchIntegrations().catch(() => null),
+                        companySystem.fetchSummary().catch(() => null),
+                        companySystem.fetchIntegrations().catch(() => null),
                     ]);
                     if (!cancelled) {
                         if (sum && typeof sum === "object") setPortalSummary(sum as Record<string, unknown>);
                         if (integ && typeof integ === "object") setPortalIntegrations(integ as Record<string, unknown>);
                     }
                 } else if (activeSection === "notifications") {
-                    const ff = await companyPortalFetchFeatureFlags().catch(() => null);
+                    const ff = await companySystem.fetchFeatureFlags().catch(() => null);
                     if (!cancelled && ff && typeof ff === "object") setPortalFlags(ff as Record<string, unknown>);
                 }
             } finally {

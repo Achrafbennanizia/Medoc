@@ -20,7 +20,8 @@ pub async fn ensure_local_device(pool: &SqlitePool, label: &str) -> Result<Strin
         label
     };
     let existing =
-        medoc_core::infrastructure::database::app_kv_repo::get(pool, APP_KV_DEVICE_ID_KEY).await?;
+        medoc_core::infrastructure::database::repos::admin::app_kv::get(pool, APP_KV_DEVICE_ID_KEY)
+            .await?;
     if let Some(id) = existing.filter(|s| !s.trim().is_empty()) {
         let stored_role: Option<String> =
             sqlx::query_scalar("SELECT role FROM sync_device WHERE device_id = ?1")
@@ -35,15 +36,20 @@ pub async fn ensure_local_device(pool: &SqlitePool, label: &str) -> Result<Strin
         register_device_row(pool, &id, display_name, role, true, None, None).await?;
         return Ok(id);
     }
-    let legacy = medoc_core::infrastructure::database::app_kv_repo::get(
+    let legacy = medoc_core::infrastructure::database::repos::admin::app_kv::get(
         pool,
-        medoc_core::infrastructure::license_repo::KEY_DEVICE_ID,
+        medoc_core::infrastructure::database::repos::admin::license::KEY_DEVICE_ID,
     )
     .await?;
     let id = legacy
         .filter(|s| !s.trim().is_empty())
         .unwrap_or_else(|| Uuid::new_v4().to_string());
-    medoc_core::infrastructure::database::app_kv_repo::set(pool, APP_KV_DEVICE_ID_KEY, &id).await?;
+    medoc_core::infrastructure::database::repos::admin::app_kv::set(
+        pool,
+        APP_KV_DEVICE_ID_KEY,
+        &id,
+    )
+    .await?;
     register_device_row(
         pool,
         &id,
@@ -193,8 +199,11 @@ pub async fn adopt_local_device_id(
 }
 
 pub async fn load_deployment(pool: &SqlitePool) -> Result<SyncDeploymentConfig, AppError> {
-    let raw =
-        medoc_core::infrastructure::database::app_kv_repo::get(pool, APP_KV_DEPLOYMENT_KEY).await?;
+    let raw = medoc_core::infrastructure::database::repos::admin::app_kv::get(
+        pool,
+        APP_KV_DEPLOYMENT_KEY,
+    )
+    .await?;
     match raw {
         Some(s) => serde_json::from_str(&s)
             .map_err(|e| AppError::Validation(format!("sync.deployment.v1: {e}"))),
@@ -208,7 +217,8 @@ pub async fn save_deployment(
 ) -> Result<(), AppError> {
     let s = serde_json::to_string(cfg)
         .map_err(|e| AppError::Internal(format!("sync deployment serialise: {e}")))?;
-    medoc_core::infrastructure::database::app_kv_repo::set(pool, APP_KV_DEPLOYMENT_KEY, &s).await
+    medoc_core::infrastructure::database::repos::admin::app_kv::set(pool, APP_KV_DEPLOYMENT_KEY, &s)
+        .await
 }
 
 /// Recorder helper for repository write paths.
@@ -234,14 +244,10 @@ pub async fn sync_record_or_noop(
     }
     let deployment = load_deployment(pool).await.unwrap_or_default();
     let peer_mode = deployment.mode == crate::deployment::DeploymentMode::ServerlessPeer;
-    let replica_joined: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM sync_device
-         WHERE is_local = 0
-           AND (role = 'REPLICA' OR seat_role = 'MEMBER')",
-    )
-    .fetch_one(pool)
-    .await
-    .unwrap_or(0);
+    let replica_joined: i64 =
+        medoc_core::infrastructure::database::recorded_write::count_remote_replicas(pool)
+            .await
+            .unwrap_or(0);
     if !peer_mode && replica_joined == 0 {
         return Ok(());
     }
@@ -271,7 +277,8 @@ pub async fn append_outbox(
 
     let id = Uuid::new_v4().to_string();
     let created_at = Utc::now().to_rfc3339();
-    let payload_json = crate::hlc::stamp_payload(pool, entity_table, entity_id, payload_json).await?;
+    let payload_json =
+        crate::hlc::stamp_payload(pool, entity_table, entity_id, payload_json).await?;
     sqlx::query(
         "INSERT INTO sync_outbox (id, device_id, seq, entity_table, entity_id, op, payload_json, created_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
@@ -288,6 +295,8 @@ pub async fn append_outbox(
     .await
     .map_err(AppError::Database)?;
 
+    enqueue_packet_row(pool, device_id, entity_table, seq, &id, &created_at).await?;
+
     Ok(OutboxEntry {
         id,
         device_id: device_id.to_string(),
@@ -298,6 +307,301 @@ pub async fn append_outbox(
         payload_json: payload_json.to_string(),
         created_at,
     })
+}
+
+const EXCHANGE_QUEUES: &[&str] = &[
+    "patients",
+    "appointments",
+    "charts",
+    "finance",
+    "parameters",
+    "orders",
+    "tasks",
+    "work_time",
+    "practice",
+];
+
+async fn enqueue_packet_row(
+    pool: &SqlitePool,
+    device_id: &str,
+    entity_table: &str,
+    seq: i64,
+    outbox_id: &str,
+    created_at: &str,
+) -> Result<(), AppError> {
+    medoc_core::infrastructure::database::migrations::ensure_packet_queue(pool).await?;
+    let queue = medoc_core::infrastructure::database::sync_registry::queue_of(entity_table);
+    sqlx::query(
+        "INSERT INTO sync_packet_queue (id, device_id, queue_name, seq, outbox_id, status, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, 'pending', ?6)
+         ON CONFLICT(device_id, seq) DO NOTHING",
+    )
+    .bind(outbox_id)
+    .bind(device_id)
+    .bind(queue)
+    .bind(seq)
+    .bind(outbox_id)
+    .bind(created_at)
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?;
+    Ok(())
+}
+
+/// Append one local change onto this device's packet queue.
+///
+/// The main device and a replica both use this. The next exchange sends the
+/// packet to the other device, which applies it.
+pub async fn enqueue_update_packet(
+    pool: &SqlitePool,
+    entity_table: &str,
+    entity_id: &str,
+    op: &str,
+    payload_json: &str,
+) -> Result<OutboxEntry, AppError> {
+    if !is_synced_table(entity_table) {
+        return Err(AppError::Validation(format!(
+            "table {entity_table} is not on a sync queue"
+        )));
+    }
+    let deployment = load_deployment(pool).await.unwrap_or_default();
+    let local_id = ensure_local_device(pool, &deployment.device_label).await?;
+    append_outbox(pool, &local_id, entity_table, entity_id, op, payload_json).await
+}
+
+/// Cursor key for one queue of a peer pair in `sync_peer_vector`.
+/// A queue-filtered exchange moves only its own queues' cursors, never the
+/// whole-stream cursor, so rows of the other queues are not skipped.
+fn queue_target(target_device_id: &str, queue: &str) -> String {
+    format!("{target_device_id}#{queue}")
+}
+
+async fn peer_cursor(pool: &SqlitePool, source: &str, target: &str) -> Result<i64, AppError> {
+    Ok(sqlx::query_scalar(
+        "SELECT COALESCE(through_seq, 0) FROM sync_peer_vector
+         WHERE source_device_id = ?1 AND target_device_id = ?2",
+    )
+    .bind(source)
+    .bind(target)
+    .fetch_optional(pool)
+    .await
+    .map_err(AppError::Database)?
+    .unwrap_or(0))
+}
+
+fn requested_queues(queues: &[String]) -> Result<Vec<&'static str>, AppError> {
+    if queues.is_empty() {
+        return Ok(EXCHANGE_QUEUES.to_vec());
+    }
+    let picked: Vec<&'static str> = EXCHANGE_QUEUES
+        .iter()
+        .copied()
+        .filter(|known| queues.iter().any(|q| q.trim() == *known))
+        .collect();
+    if picked.is_empty() {
+        return Err(AppError::Validation(
+            "no known sync queue in the exchange request".into(),
+        ));
+    }
+    Ok(picked)
+}
+
+/// Record that `target` has everything from `source` through `seq`, for all
+/// queues (`queues` empty) or only the named ones.
+pub async fn mark_peer_delivery_for_queues(
+    pool: &SqlitePool,
+    source_device_id: &str,
+    target_device_id: &str,
+    queues: &[String],
+    through_seq: i64,
+) -> Result<(), AppError> {
+    if queues.is_empty() {
+        return mark_peer_delivery(pool, source_device_id, target_device_id, through_seq).await;
+    }
+    for queue in requested_queues(queues)? {
+        mark_peer_delivery(
+            pool,
+            source_device_id,
+            &queue_target(target_device_id, queue),
+            through_seq,
+        )
+        .await?;
+    }
+    Ok(())
+}
+
+/// Highest seq of `remote` this device has applied, for all queues or the named ones.
+pub async fn received_through(
+    pool: &SqlitePool,
+    remote_device_id: &str,
+    local_device_id: &str,
+    queues: &[String],
+) -> Result<i64, AppError> {
+    let global = all_vectors(pool)
+        .await?
+        .get(remote_device_id)
+        .copied()
+        .unwrap_or(0);
+    if queues.is_empty() {
+        return Ok(global);
+    }
+    let mut lowest = i64::MAX;
+    for queue in requested_queues(queues)? {
+        let q = peer_cursor(
+            pool,
+            remote_device_id,
+            &queue_target(local_device_id, queue),
+        )
+        .await?;
+        lowest = lowest.min(q.max(global));
+    }
+    Ok(if lowest == i64::MAX { global } else { lowest })
+}
+
+/// Remember what was applied from `remote`: the whole stream, or named queues.
+pub async fn note_received(
+    pool: &SqlitePool,
+    remote_device_id: &str,
+    local_device_id: &str,
+    queues: &[String],
+    seq: i64,
+) -> Result<(), AppError> {
+    if queues.is_empty() {
+        // `set_observed_seq` registers an unknown peer as MASTER, which is
+        // right on a replica. On the main device the peer is a replica: a row
+        // labelled MASTER would hide it from the devices the main one dials.
+        let deployment = load_deployment(pool).await.unwrap_or_default();
+        if deployment.role == crate::deployment::DeviceRole::Master {
+            sqlx::query(
+                "INSERT INTO sync_device (device_id, display_name, role, is_local)
+                 VALUES (?1, 'Replica', 'REPLICA', 0)
+                 ON CONFLICT(device_id) DO NOTHING",
+            )
+            .bind(remote_device_id)
+            .execute(pool)
+            .await
+            .map_err(AppError::Database)?;
+        }
+        return set_observed_seq(pool, remote_device_id, seq).await;
+    }
+    for queue in requested_queues(queues)? {
+        mark_peer_delivery(
+            pool,
+            remote_device_id,
+            &queue_target(local_device_id, queue),
+            seq,
+        )
+        .await?;
+    }
+    Ok(())
+}
+
+/// Packets this device still owes `peer_device_id`, oldest first.
+///
+/// Read from `sync_outbox` itself. The old query joined `sync_packet_queue`,
+/// which only rows written through `append_outbox` ever reached: live edits
+/// recorded by the repositories (`recorded_write::record_in_tx`), rows the
+/// main device relays from another replica, and initial-copy rows were never
+/// sent on the exchange path.
+///
+/// `only_undelivered`: a replica has one target (the main device), so rows it
+/// already pushed are skipped. The main device serves several replicas and
+/// relies on each peer's cursor alone.
+pub async fn list_exchange_packets(
+    pool: &SqlitePool,
+    device_id: &str,
+    peer_device_id: &str,
+    queues: &[String],
+    limit: i64,
+) -> Result<Vec<OutboxEntry>, AppError> {
+    let deployment = load_deployment(pool).await.unwrap_or_default();
+    let only_undelivered = deployment.role == crate::deployment::DeviceRole::Replica;
+    list_exchange_packets_with(
+        pool,
+        device_id,
+        peer_device_id,
+        queues,
+        limit,
+        only_undelivered,
+    )
+    .await
+}
+
+pub async fn list_exchange_packets_with(
+    pool: &SqlitePool,
+    device_id: &str,
+    peer_device_id: &str,
+    queues: &[String],
+    limit: i64,
+    only_undelivered: bool,
+) -> Result<Vec<OutboxEntry>, AppError> {
+    let Ok(wanted) = requested_queues(queues) else {
+        return Ok(Vec::new());
+    };
+    let global = peer_cursor(pool, device_id, peer_device_id).await?;
+    let mut clauses = Vec::new();
+    for queue in wanted {
+        let tables: Vec<String> = synced_tables()
+            .filter(|t| medoc_core::infrastructure::database::sync_registry::queue_of(t) == queue)
+            .map(|t| format!("'{t}'"))
+            .collect();
+        if tables.is_empty() {
+            continue;
+        }
+        let since = peer_cursor(pool, device_id, &queue_target(peer_device_id, queue))
+            .await?
+            .max(global);
+        clauses.push(format!(
+            "(entity_table IN ({}) AND seq > {since})",
+            tables.join(", ")
+        ));
+    }
+    if clauses.is_empty() {
+        return Ok(Vec::new());
+    }
+    let delivered = if only_undelivered {
+        " AND delivered_at IS NULL"
+    } else {
+        ""
+    };
+    let sql = format!(
+        "SELECT id, device_id, seq, entity_table, entity_id, op, payload_json, created_at
+         FROM sync_outbox
+         WHERE device_id = ?1 AND seq > ?2
+           AND (fail_reason IS NULL OR fail_reason = '')
+           AND (snapshot_for IS NULL OR snapshot_for = ?3)
+           {delivered}
+           AND ({})
+         ORDER BY seq ASC
+         LIMIT ?4",
+        clauses.join(" OR ")
+    );
+    let rows =
+        sqlx::query_as::<_, (String, String, i64, String, String, String, String, String)>(&sql)
+            .bind(device_id)
+            .bind(global)
+            .bind(peer_device_id)
+            .bind(limit)
+            .fetch_all(pool)
+            .await
+            .map_err(AppError::Database)?;
+    Ok(rows
+        .into_iter()
+        .map(
+            |(id, device_id, seq, entity_table, entity_id, op, payload_json, created_at)| {
+                OutboxEntry {
+                    id,
+                    device_id,
+                    seq,
+                    entity_table,
+                    entity_id,
+                    op,
+                    payload_json,
+                    created_at,
+                }
+            },
+        )
+        .collect())
 }
 
 pub async fn list_pending_outbox(
@@ -341,6 +645,57 @@ pub async fn list_pending_outbox(
 /// Pending rows a joined device may send while the first snapshot is still
 /// copying. Practice settings (`app_kv`, absences) stay queued so this
 /// device's seed copy does not overwrite the main device.
+/// Pending rows for one page queue. A blocked queue does not hide the others.
+pub async fn list_pending_outbox_tables(
+    pool: &SqlitePool,
+    device_id: &str,
+    tables: &[&str],
+    limit: i64,
+) -> Result<Vec<OutboxEntry>, AppError> {
+    let list = tables
+        .iter()
+        .filter(|table| is_synced_table(table))
+        .map(|table| format!("'{table}'"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    if list.is_empty() {
+        return Ok(Vec::new());
+    }
+    let sql = format!(
+        "SELECT id, device_id, seq, entity_table, entity_id, op, payload_json, created_at
+         FROM sync_outbox
+         WHERE device_id = ?1 AND delivered_at IS NULL
+           AND (fail_reason IS NULL OR fail_reason = '')
+           AND entity_table IN ({list})
+         ORDER BY seq ASC
+         LIMIT ?2"
+    );
+    let rows =
+        sqlx::query_as::<_, (String, String, i64, String, String, String, String, String)>(&sql)
+            .bind(device_id)
+            .bind(limit)
+            .fetch_all(pool)
+            .await
+            .map_err(AppError::Database)?;
+    Ok(rows
+        .into_iter()
+        .map(
+            |(id, device_id, seq, entity_table, entity_id, op, payload_json, created_at)| {
+                OutboxEntry {
+                    id,
+                    device_id,
+                    seq,
+                    entity_table,
+                    entity_id,
+                    op,
+                    payload_json,
+                    created_at,
+                }
+            },
+        )
+        .collect())
+}
+
 pub async fn list_pending_member_outbox(
     pool: &SqlitePool,
     device_id: &str,
@@ -356,12 +711,13 @@ pub async fn list_pending_member_outbox(
          ORDER BY seq ASC
          LIMIT ?2"
     );
-    let rows = sqlx::query_as::<_, (String, String, i64, String, String, String, String, String)>(&sql)
-        .bind(device_id)
-        .bind(limit)
-        .fetch_all(pool)
-        .await
-        .map_err(AppError::Database)?;
+    let rows =
+        sqlx::query_as::<_, (String, String, i64, String, String, String, String, String)>(&sql)
+            .bind(device_id)
+            .bind(limit)
+            .fetch_all(pool)
+            .await
+            .map_err(AppError::Database)?;
     Ok(rows
         .into_iter()
         .map(
@@ -395,10 +751,7 @@ fn member_table_sql_list() -> String {
         .join(", ")
 }
 
-pub async fn mark_outbox_ids_delivered(
-    pool: &SqlitePool,
-    ids: &[String],
-) -> Result<(), AppError> {
+pub async fn mark_outbox_ids_delivered(pool: &SqlitePool, ids: &[String]) -> Result<(), AppError> {
     if ids.is_empty() {
         return Ok(());
     }
@@ -447,6 +800,28 @@ pub async fn mark_outbox_failed(
         .execute(pool)
         .await
         .map_err(AppError::Database)?;
+    // A change that will not be sent is listed for the admin, not just logged.
+    let row = sqlx::query_as::<_, (String, String, i64, String, String, String, String, String)>(
+        "SELECT id, device_id, seq, entity_table, entity_id, op, payload_json, created_at
+         FROM sync_outbox WHERE id = ?1",
+    )
+    .bind(entry_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(AppError::Database)?;
+    if let Some((id, device_id, seq, entity_table, entity_id, op, payload_json, created_at)) = row {
+        let entry = OutboxEntry {
+            id,
+            device_id,
+            seq,
+            entity_table,
+            entity_id,
+            op,
+            payload_json,
+            created_at,
+        };
+        crate::problems::record_outgoing(pool, &entry, reason).await;
+    }
     Ok(())
 }
 
@@ -472,10 +847,13 @@ pub async fn list_pending_outbox_for_peer(
          FROM sync_outbox
          WHERE device_id = ?1 AND seq > ?2
            AND (fail_reason IS NULL OR fail_reason = '')
-         ORDER BY seq ASC",
+           AND (snapshot_for IS NULL OR snapshot_for = ?3)
+         ORDER BY seq ASC
+         LIMIT 500",
     )
     .bind(source_device_id)
     .bind(since)
+    .bind(target_device_id)
     .fetch_all(pool)
     .await
     .map_err(AppError::Database)?;
@@ -528,15 +906,29 @@ pub async fn list_entries_since(
     device_id: &str,
     since_seq: i64,
 ) -> Result<Vec<OutboxEntry>, AppError> {
+    list_entries_since_for(pool, device_id, since_seq, None).await
+}
+
+/// Outbox page for one reader. Initial-copy rows queued for another device
+/// are skipped (`snapshot_for`), so a second replica joining does not make
+/// every other replica download the whole practice again.
+pub async fn list_entries_since_for(
+    pool: &SqlitePool,
+    device_id: &str,
+    since_seq: i64,
+    reader: Option<&str>,
+) -> Result<Vec<OutboxEntry>, AppError> {
     let rows = sqlx::query_as::<_, (String, String, i64, String, String, String, String, String)>(
         "SELECT id, device_id, seq, entity_table, entity_id, op, payload_json, created_at
          FROM sync_outbox
          WHERE device_id = ?1 AND seq > ?2
+           AND (snapshot_for IS NULL OR snapshot_for = ?3)
          ORDER BY seq ASC
          LIMIT 500",
     )
     .bind(device_id)
     .bind(since_seq)
+    .bind(reader)
     .fetch_all(pool)
     .await
     .map_err(AppError::Database)?;
@@ -610,26 +1002,100 @@ pub async fn enqueue_calendar_controls(pool: &SqlitePool) -> Result<u32, AppErro
 }
 
 /// Dump current practice rows into the outbox so a replica can pull a full initial package.
+///
+/// Kept for callers that do not know the joining device; the rows are then
+/// visible to every peer. Prefer [`enqueue_snapshot_for`].
 pub async fn enqueue_full_snapshot(pool: &SqlitePool) -> Result<u32, AppError> {
+    enqueue_snapshot_for(pool, None).await
+}
+
+/// Queue one full copy of every synced table for `requester` (the joining
+/// replica's device id).
+///
+/// - The whole copy is written in one `BEGIN IMMEDIATE` transaction. Before,
+///   each table was counted, the sequence was reserved, and the rows were
+///   inserted in separate statements: a live write in between took a reserved
+///   sequence number, the `INSERT … SELECT` hit `UNIQUE(device_id, seq)`, and
+///   that whole table was missing from the replica's copy.
+/// - Each row carries its `syncHlc`, so a replica that already holds a newer
+///   edit of the row keeps it instead of being overwritten by the copy.
+/// - Rows are tagged `snapshot_for = requester`: other replicas skip them
+///   instead of downloading the whole practice every time a device joins.
+///   A previous, unfinished copy for the same requester is replaced.
+pub async fn enqueue_snapshot_for(
+    pool: &SqlitePool,
+    requester: Option<&str>,
+) -> Result<u32, AppError> {
     ensure_sync_tables(pool).await?;
     let deployment = load_deployment(pool).await?;
     let local_id = ensure_local_device(pool, &deployment.device_label).await?;
+    let requester = requester.map(str::trim).filter(|r| !r.is_empty());
+    let mut tx = pool
+        .begin_with("BEGIN IMMEDIATE")
+        .await
+        .map_err(AppError::Database)?;
+    if let Some(requester) = requester {
+        sqlx::query("DELETE FROM sync_outbox WHERE device_id = ?1 AND snapshot_for = ?2")
+            .bind(&local_id)
+            .bind(requester)
+            .execute(&mut *tx)
+            .await
+            .map_err(AppError::Database)?;
+    }
     let mut queued = 0u32;
     for table in synced_tables() {
-        queued += snapshot_table(pool, &local_id, table).await?;
+        queued += snapshot_table_in(&mut tx, &local_id, table, requester).await?;
     }
+    tx.commit().await.map_err(AppError::Database)?;
     tracing::info!(
         target: "medoc::sync",
         event = "SYNC_SNAPSHOT_QUEUED",
-        rows = queued
+        rows = queued,
+        requester = requester.unwrap_or("")
     );
     Ok(queued)
 }
 
+/// Highest sequence of a copy already queued for `requester` within the last
+/// day, so a second request (pairing, then the first pull) reuses it.
+pub async fn recent_snapshot_end(
+    pool: &SqlitePool,
+    local_id: &str,
+    requester: &str,
+) -> Result<Option<i64>, AppError> {
+    let cutoff = (Utc::now() - chrono::Duration::hours(24)).to_rfc3339();
+    let end: Option<i64> = sqlx::query_scalar(
+        "SELECT MAX(seq) FROM sync_outbox
+         WHERE device_id = ?1 AND snapshot_for = ?2 AND created_at >= ?3",
+    )
+    .bind(local_id)
+    .bind(requester)
+    .bind(cutoff)
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::Database)?;
+    Ok(end)
+}
+
 async fn snapshot_table(pool: &SqlitePool, device_id: &str, table: &str) -> Result<u32, AppError> {
+    let mut tx = pool
+        .begin_with("BEGIN IMMEDIATE")
+        .await
+        .map_err(AppError::Database)?;
+    let n = snapshot_table_in(&mut tx, device_id, table, None).await?;
+    tx.commit().await.map_err(AppError::Database)?;
+    Ok(n)
+}
+
+async fn snapshot_table_in(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    device_id: &str,
+    table: &str,
+    requester: Option<&str>,
+) -> Result<u32, AppError> {
     let cols: Vec<String> =
         sqlx::query_scalar(&format!("SELECT name FROM pragma_table_info('{table}')"))
-            .fetch_all(pool)
+            .fetch_all(&mut **tx)
             .await
             .map_err(AppError::Database)?;
     if cols.is_empty() {
@@ -647,30 +1113,35 @@ async fn snapshot_table(pool: &SqlitePool, device_id: &str, table: &str) -> Resu
     {
         return Ok(0);
     }
-    let mut from_sql = table.to_string();
+    let mut from_sql = format!("\"{table}\"");
     if table == "app_kv" {
-        from_sql.push_str(
-            " WHERE key NOT LIKE 'sync.%'
-               AND key NOT LIKE 'license.%'
-               AND key NOT LIKE 'pairing.%'
-               AND key NOT LIKE 'onboarding.%'
-               AND key NOT LIKE 'cluster.%'
-               AND key NOT LIKE 'company.portal.%'",
-        );
+        let predicate =
+            medoc_core::infrastructure::database::sync_registry::synced_app_kv_predicate("key");
+        from_sql.push_str(" WHERE ");
+        from_sql.push_str(&predicate);
     }
     let count: i64 = sqlx::query_scalar(&format!("SELECT COUNT(*) FROM {from_sql}"))
-        .fetch_one(pool)
+        .fetch_one(&mut **tx)
         .await
         .map_err(AppError::Database)?;
     if count <= 0 {
         return Ok(0);
     }
     sqlx::query(
+        "INSERT INTO sync_device (device_id, display_name, role, is_local)
+         VALUES (?1, 'This device', 'MASTER', 1)
+         ON CONFLICT(device_id) DO NOTHING",
+    )
+    .bind(device_id)
+    .execute(&mut **tx)
+    .await
+    .map_err(AppError::Database)?;
+    sqlx::query(
         "INSERT INTO sync_vector (device_id, seq) VALUES (?1, 0)
          ON CONFLICT(device_id) DO NOTHING",
     )
     .bind(device_id)
-    .execute(pool)
+    .execute(&mut **tx)
     .await
     .map_err(AppError::Database)?;
     let new_max: i64 = sqlx::query_scalar(
@@ -678,26 +1149,40 @@ async fn snapshot_table(pool: &SqlitePool, device_id: &str, table: &str) -> Resu
     )
     .bind(device_id)
     .bind(count)
-    .fetch_one(pool)
+    .fetch_one(&mut **tx)
     .await
     .map_err(AppError::Database)?;
     let seq_base = new_max - count;
-    let json_expr = snapshot_pairs(table, &cols);
+    // The row's stored clock stamp travels with the copy (NULL when none).
+    let json_expr = format!(
+        "json_set({}, '$.syncHlc',
+            (SELECT h.wall_ms || ':' || h.counter FROM sync_row_hlc h
+              WHERE h.entity_table = ?3 AND h.entity_id = CAST({key} AS TEXT)))",
+        snapshot_pairs(table, &cols)
+    );
     let created_at = chrono::Utc::now().to_rfc3339();
     let insert_sql = format!(
-        "INSERT INTO sync_outbox (id, device_id, seq, entity_table, entity_id, op, payload_json, created_at)
+        "INSERT INTO sync_outbox
+            (id, device_id, seq, entity_table, entity_id, op, payload_json, created_at, snapshot_for)
          SELECT lower(hex(randomblob(16))), ?1, ?2 + ROW_NUMBER() OVER (ORDER BY {key}),
-                ?3, CAST({key} AS TEXT), 'UPDATE', {json_expr}, ?4
+                ?3, CAST({key} AS TEXT), 'UPDATE', {json_expr}, ?4, ?5
          FROM {from_sql}"
     );
-    sqlx::query(&insert_sql)
+    let inserted = sqlx::query(&insert_sql)
         .bind(device_id)
         .bind(seq_base)
         .bind(table)
         .bind(&created_at)
-        .execute(pool)
+        .bind(requester)
+        .execute(&mut **tx)
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::Database)?
+        .rows_affected();
+    if inserted as i64 != count {
+        return Err(AppError::Internal(format!(
+            "snapshot of {table}: counted {count} rows, copied {inserted}"
+        )));
+    }
     Ok(count as u32)
 }
 
@@ -772,10 +1257,7 @@ pub async fn set_observed_seq(
 
 /// Keep a foreign-key miss so a later page can apply it after the parent arrives.
 /// Attempts stay put until the caller decides the snapshot is no longer moving.
-pub async fn save_deferred_pull(
-    pool: &SqlitePool,
-    entry: &OutboxEntry,
-) -> Result<(), AppError> {
+pub async fn save_deferred_pull(pool: &SqlitePool, entry: &OutboxEntry) -> Result<(), AppError> {
     ensure_sync_tables(pool).await?;
     sqlx::query(
         "INSERT INTO sync_pull_failure (
@@ -934,6 +1416,7 @@ pub async fn all_vectors(pool: &SqlitePool) -> Result<HashMap<String, i64>, AppE
 }
 
 pub async fn status_snapshot(pool: &SqlitePool) -> Result<SyncStatusSnapshot, AppError> {
+    let open_problems = crate::problems::open_count(pool).await.unwrap_or(0);
     ensure_sync_tables(pool).await?;
     let deployment = load_deployment(pool).await?;
     let local_device_id = ensure_local_device(pool, &deployment.device_label).await?;
@@ -961,6 +1444,7 @@ pub async fn status_snapshot(pool: &SqlitePool) -> Result<SyncStatusSnapshot, Ap
         peers,
         vectors,
         initial_copy: None,
+        open_problems,
     })
 }
 
@@ -1084,4 +1568,177 @@ async fn list_peers(pool: &SqlitePool) -> Result<Vec<SyncPeer>, AppError> {
             },
         )
         .collect())
+}
+
+// ---------------------------------------------------------------------------
+// Outbox retention
+// ---------------------------------------------------------------------------
+
+/// Highest main-device sequence that pruning removed. A replica whose cursor
+/// is below it cannot catch up from the outbox and receives a fresh copy.
+pub const APP_KV_PRUNED_THROUGH: &str = "sync.outbox.pruned_through.v1";
+/// Rows stay at least this long, whatever the cursors say.
+const KEEP_DAYS: i64 = 7;
+/// A replica not seen for this long no longer holds pruning back.
+const STALE_REPLICA_DAYS: i64 = 180;
+
+pub async fn pruned_through(pool: &SqlitePool) -> i64 {
+    medoc_core::infrastructure::database::repos::admin::app_kv::get(pool, APP_KV_PRUNED_THROUGH)
+        .await
+        .ok()
+        .flatten()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(0)
+}
+
+/// Delete outbox rows every reader has already received. Returns rows removed.
+///
+/// Main device: an untagged row goes once every active replica's cursor has
+/// passed it; an initial-copy row once its own replica has passed it (or that
+/// replica is gone). Replica: rows the main device confirmed, after
+/// [`KEEP_DAYS`]. Mesh mode keeps everything (peers keep their own cursors).
+pub async fn prune_outbox(pool: &SqlitePool) -> Result<u64, AppError> {
+    ensure_sync_tables(pool).await?;
+    let deployment = load_deployment(pool).await?;
+    if deployment.unstable_mesh {
+        return Ok(0);
+    }
+    let local_id = ensure_local_device(pool, &deployment.device_label).await?;
+    let keep_after = (Utc::now() - chrono::Duration::days(KEEP_DAYS)).to_rfc3339();
+    let mut removed = 0u64;
+    if deployment.role == crate::deployment::DeviceRole::Replica {
+        removed += sqlx::query(
+            "DELETE FROM sync_outbox
+             WHERE device_id = ?1 AND delivered_at IS NOT NULL AND delivered_at < ?2",
+        )
+        .bind(&local_id)
+        .bind(&keep_after)
+        .execute(pool)
+        .await
+        .map_err(AppError::Database)?
+        .rows_affected();
+    } else {
+        // `last_seen_at` is written as SQLite CURRENT_TIMESTAMP; compare alike.
+        let stale = (Utc::now() - chrono::Duration::days(STALE_REPLICA_DAYS))
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string();
+        let cursors: Vec<(String, i64)> = sqlx::query_as(
+            "SELECT d.device_id, COALESCE(v.through_seq, 0)
+             FROM sync_device d
+             LEFT JOIN sync_peer_vector v
+               ON v.source_device_id = ?1 AND v.target_device_id = d.device_id
+             WHERE d.is_local = 0 AND d.role = 'REPLICA'
+               AND (d.last_seen_at IS NULL OR d.last_seen_at >= ?2)",
+        )
+        .bind(&local_id)
+        .bind(&stale)
+        .fetch_all(pool)
+        .await
+        .map_err(AppError::Database)?;
+        let floor = match cursors.iter().map(|(_, c)| *c).min() {
+            Some(min) => min,
+            // Nobody reads this outbox: everything older than the window may go.
+            None => i64::MAX,
+        };
+        let deleted_max: Option<i64> = sqlx::query_scalar(
+            "SELECT MAX(seq) FROM sync_outbox
+             WHERE device_id = ?1 AND snapshot_for IS NULL AND seq <= ?2 AND created_at < ?3",
+        )
+        .bind(&local_id)
+        .bind(floor)
+        .bind(&keep_after)
+        .fetch_one(pool)
+        .await
+        .map_err(AppError::Database)?;
+        removed += sqlx::query(
+            "DELETE FROM sync_outbox
+             WHERE device_id = ?1 AND snapshot_for IS NULL AND seq <= ?2 AND created_at < ?3",
+        )
+        .bind(&local_id)
+        .bind(floor)
+        .bind(&keep_after)
+        .execute(pool)
+        .await
+        .map_err(AppError::Database)?
+        .rows_affected();
+        // Copy rows: gone once their replica passed them, or the replica is gone.
+        let active: Vec<String> = cursors.iter().map(|(id, _)| id.clone()).collect();
+        let tagged: Vec<(String, i64)> = sqlx::query_as(
+            "SELECT snapshot_for, MAX(seq) FROM sync_outbox
+             WHERE device_id = ?1 AND snapshot_for IS NOT NULL AND created_at < ?2
+             GROUP BY snapshot_for",
+        )
+        .bind(&local_id)
+        .bind(&keep_after)
+        .fetch_all(pool)
+        .await
+        .map_err(AppError::Database)?;
+        for (reader, _) in tagged {
+            let through = if active.contains(&reader) {
+                cursors
+                    .iter()
+                    .find(|(id, _)| *id == reader)
+                    .map(|(_, c)| *c)
+                    .unwrap_or(0)
+            } else {
+                i64::MAX
+            };
+            removed += sqlx::query(
+                "DELETE FROM sync_outbox
+                 WHERE device_id = ?1 AND snapshot_for = ?2 AND seq <= ?3 AND created_at < ?4",
+            )
+            .bind(&local_id)
+            .bind(&reader)
+            .bind(through)
+            .bind(&keep_after)
+            .execute(pool)
+            .await
+            .map_err(AppError::Database)?
+            .rows_affected();
+        }
+        if let Some(max) = deleted_max {
+            if max > pruned_through(pool).await {
+                medoc_core::infrastructure::database::repos::admin::app_kv::set(
+                    pool,
+                    APP_KV_PRUNED_THROUGH,
+                    &max.to_string(),
+                )
+                .await?;
+            }
+        }
+    }
+    medoc_core::infrastructure::database::migrations::ensure_packet_queue(pool).await?;
+    sqlx::query(
+        "DELETE FROM sync_packet_queue WHERE outbox_id NOT IN (SELECT id FROM sync_outbox)",
+    )
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?;
+    // Dedupe marks far behind every cursor are no longer consulted.
+    sqlx::query("DELETE FROM sync_applied WHERE applied_at < datetime('now', '-180 days')")
+        .execute(pool)
+        .await
+        .map_err(AppError::Database)?;
+    if removed > 0 {
+        tracing::info!(target: "medoc::sync", event = "SYNC_OUTBOX_PRUNED", rows = removed);
+    }
+    Ok(removed)
+}
+
+/// Run [`prune_outbox`] at most once an hour per process. Never fails the caller.
+pub async fn maybe_prune_outbox(pool: &SqlitePool) {
+    static LAST: std::sync::Mutex<Option<std::time::Instant>> = std::sync::Mutex::new(None);
+    {
+        let mut last = match LAST.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        if last.is_some_and(|t| t.elapsed() < std::time::Duration::from_secs(3600)) {
+            return;
+        }
+        *last = Some(std::time::Instant::now());
+    }
+    if let Err(e) = prune_outbox(pool).await {
+        tracing::warn!(target: "medoc::sync", event = "SYNC_OUTBOX_PRUNE_FAILED", error = %e);
+    }
 }

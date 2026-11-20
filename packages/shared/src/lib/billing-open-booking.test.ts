@@ -17,6 +17,7 @@ describe("FA-LEIST-06/07 billing-open-booking", () => {
     it("detects physician billing release", () => {
         expect(isReleasedForBilling({ released_by_physician_id: "a1", released_at: "2026-01-01" })).toBe(true);
         expect(isReleasedForBilling({ released_by_physician_id: "a1", released_at: "" })).toBe(false);
+        expect(isReleasedForBilling({ released_by_physician_id: "  ", released_at: "2026-01-01" })).toBe(false);
         expect(isReleasedForBilling({})).toBe(false);
     });
 });

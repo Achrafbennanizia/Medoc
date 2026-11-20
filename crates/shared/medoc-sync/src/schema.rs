@@ -10,19 +10,22 @@ pub async fn ensure_sync_tables(pool: &SqlitePool) -> Result<(), AppError> {
 }
 
 async fn sync_schema_current(pool: &SqlitePool) -> Result<bool, AppError> {
-    let ready: Option<(i64, i64, i64, i64)> = sqlx::query_as(
+    let ready: Option<(i64, i64, i64, i64, i64, i64)> = sqlx::query_as(
         "SELECT
             (SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'device_blocklist'),
             (SELECT COUNT(*) FROM pragma_table_info('sync_pull_failure') WHERE name = 'entry_id'),
             (SELECT COUNT(*) FROM pragma_table_info('pairing_request') WHERE name = 'transport'),
-            (SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'sync_row_hlc')",
+            (SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'sync_row_hlc'),
+            (SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'sync_packet_queue'),
+            (SELECT COUNT(*) FROM pragma_table_info('sync_outbox') WHERE name = 'snapshot_for')",
     )
     .fetch_optional(pool)
     .await
     .map_err(AppError::Database)?;
     Ok(matches!(
         ready,
-        Some((tables, payload, transport, hlc)) if tables > 0 && payload > 0 && transport > 0 && hlc > 0
+        Some((tables, payload, transport, hlc, packets, snapshot))
+            if tables > 0 && payload > 0 && transport > 0 && hlc > 0 && packets > 0 && snapshot > 0
     ))
 }
 
@@ -44,18 +47,7 @@ async fn ensure_sync_tables_cold(pool: &SqlitePool) -> Result<(), AppError> {
     .map_err(AppError::Database)?;
     migrate_pull_failure_payload(pool).await?;
 
-    sqlx::query(
-        "CREATE TABLE IF NOT EXISTS sync_row_hlc (
-            entity_table TEXT NOT NULL,
-            entity_id TEXT NOT NULL,
-            wall_ms INTEGER NOT NULL,
-            counter INTEGER NOT NULL,
-            PRIMARY KEY (entity_table, entity_id)
-        )",
-    )
-    .execute(pool)
-    .await
-    .map_err(AppError::Database)?;
+    medoc_core::infrastructure::database::hlc::ensure_sync_row_hlc(pool).await?;
 
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS sync_watch_seen (
@@ -137,10 +129,16 @@ mod tests {
         let before_outbox = create_sql(&pool, "sync_outbox").await;
         let before_pairing = create_sql(&pool, "pairing_request").await;
         let before_permission = create_sql(&pool, "slave_permission").await;
-        assert!(before_outbox.is_some(), "core migration creates sync_outbox");
+        assert!(
+            before_outbox.is_some(),
+            "core migration creates sync_outbox"
+        );
         ensure_sync_tables(&pool).await.unwrap();
         assert_eq!(create_sql(&pool, "sync_outbox").await, before_outbox);
-        assert_eq!(create_sql(&pool, "slave_permission").await, before_permission);
+        assert_eq!(
+            create_sql(&pool, "slave_permission").await,
+            before_permission
+        );
         let pairing = create_sql(&pool, "pairing_request").await.unwrap();
         assert!(
             pairing.starts_with(before_pairing.unwrap().trim_end_matches(')')),

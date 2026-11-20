@@ -1,4 +1,4 @@
-import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
+import { practiceSystem } from "@/systems/practice-host/adapters/practice-transport";
 import type { DocumentTemplatePayloadV1 } from "@/lib/document-template-schema";
 import type { DocumentKind } from "@/lib/document-template-schema";
 import { uint8ToBase64, type ExportContext } from "@/lib/save-download";

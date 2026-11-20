@@ -14,7 +14,8 @@ pub mod merge;
 pub mod net;
 pub mod numbering;
 pub mod pairing;
-pub mod ports;
+pub mod paths;
+pub mod problems;
 pub mod reconcile;
 pub mod repo;
 pub mod schema;
@@ -28,5 +29,4 @@ pub use pairing::{
     ActivationTokenPayload, PairingDecideResult, PairingDecision, PairingRequest,
     PairingRequestSubmit, ACTIVATION_TOKEN_PREFIX, DEFAULT_ALLOWED_ACTIONS,
 };
-pub use ports::{PairingPersistence, SqlitePairingStore, SqliteSyncStore, SyncReplicationStore};
 pub use repo::{InitialCopyStatus, OutboxEntry, SyncPeer, SyncStatusSnapshot};

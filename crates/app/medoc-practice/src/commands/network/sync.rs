@@ -7,14 +7,14 @@ use medoc_sync::cluster::services::{
     sync_staff_from_stored_admin_endpoint,
 };
 use medoc_sync::deployment::SyncDeploymentConfig;
-use medoc_sync::engine::{SyncEngine, SyncRunReport};
+use medoc_sync::engine::{SyncEngine, SyncPullResult, SyncRunReport};
 use medoc_sync::reconcile::{self, ReconcileReport};
 use medoc_sync::repo::SyncStatusSnapshot;
 use serde::Deserialize;
 use sqlx::SqlitePool;
 use tauri::State;
 
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::commands::rbac_state::{require, require_authenticated};
 use crate::error::AppError;
 
@@ -93,8 +93,56 @@ pub async fn sync_run_now(
         && snap.deployment.role == medoc_sync::deployment::DeviceRole::Replica;
     if !is_replica {
         require(&session_state, "ops.system")?;
+        return SyncEngine::exchange_packets(&pool, None).await;
     }
     run_replica_sync_recovering(&pool).await
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExchangeQueueArgs {
+    pub queues: Vec<String>,
+}
+
+/// Exchange one page queue. If that queue is already in the current run, wait
+/// for it instead of sending a second request.
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
+pub async fn sync_exchange_queue(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    args: ExchangeQueueArgs,
+) -> Result<SyncRunReport, AppError> {
+    require_authenticated(&session_state)?;
+    let snap = SyncEngine::status(&pool).await?;
+    let is_replica = snap.deployment.mode == medoc_sync::deployment::DeploymentMode::ServerlessPeer
+        && snap.deployment.role == medoc_sync::deployment::DeviceRole::Replica;
+    let queues: Vec<String> = args
+        .queues
+        .into_iter()
+        .map(|queue| queue.trim().to_string())
+        .filter(|queue| !queue.is_empty())
+        .collect();
+    if !is_replica {
+        return SyncEngine::exchange_packets(&pool, Some(&queues)).await;
+    }
+    if queues.is_empty() {
+        return Ok(SyncRunReport {
+            push: None,
+            pull: None,
+            mesh: None,
+            error: None,
+        });
+    }
+    exchange_queues(
+        &pool,
+        ExchangeCover {
+            all: false,
+            queues: queues.clone(),
+        },
+        ExchangeJob::Queues(queues),
+    )
+    .await
 }
 
 /// Replica topbar: reach the master's LAN HTTPS with the same TLS policy as sync (self-signed OK).
@@ -270,6 +318,138 @@ const REPLICA_CATCHUP_KV: &str = "sync.replica.catchup.done.v1";
 /// The host loop and the window both call sync. One run at a time.
 static REPLICA_SYNC_GATE: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
+#[derive(Clone)]
+struct ExchangeCover {
+    all: bool,
+    queues: Vec<String>,
+}
+
+struct ExchangeFlight {
+    cover: ExchangeCover,
+    done: tokio::sync::watch::Receiver<bool>,
+}
+
+static EXCHANGE_FLIGHT: tokio::sync::Mutex<Option<ExchangeFlight>> =
+    tokio::sync::Mutex::const_new(None);
+
+enum ExchangeJob {
+    Steady,
+    Catchup,
+    Queues(Vec<String>),
+}
+
+fn cover_includes(flight: &ExchangeCover, want: &ExchangeCover) -> bool {
+    if flight.all {
+        return true;
+    }
+    if want.all {
+        return false;
+    }
+    want.queues
+        .iter()
+        .all(|queue| flight.queues.iter().any(|have| have == queue))
+}
+
+async fn exchange_queues(
+    pool: &SqlitePool,
+    cover: ExchangeCover,
+    job: ExchangeJob,
+) -> Result<SyncRunReport, AppError> {
+    let (finish, done) = tokio::sync::watch::channel(false);
+    loop {
+        let wait = {
+            let mut slot = EXCHANGE_FLIGHT.lock().await;
+            if let Some(flight) = slot.as_ref() {
+                Some((flight.done.clone(), cover_includes(&flight.cover, &cover)))
+            } else {
+                *slot = Some(ExchangeFlight {
+                    cover: cover.clone(),
+                    done: done.clone(),
+                });
+                None
+            }
+        };
+        match wait {
+            Some((mut done, true)) => {
+                let _ = done.changed().await;
+                return Ok(SyncRunReport {
+                    push: None,
+                    pull: None,
+                    mesh: None,
+                    error: None,
+                });
+            }
+            Some((mut done, false)) => {
+                let _ = done.changed().await;
+            }
+            None => break,
+        }
+    }
+    let result = match job {
+        ExchangeJob::Steady => run_replica_sync_recovering(pool).await,
+        ExchangeJob::Catchup => run_replica_catchup_recovering(pool).await,
+        ExchangeJob::Queues(queues) => run_queue_exchange(pool, &queues).await,
+    };
+    {
+        let mut slot = EXCHANGE_FLIGHT.lock().await;
+        *slot = None;
+    }
+    let _ = finish.send(true);
+    result
+}
+
+async fn run_queue_exchange(
+    pool: &SqlitePool,
+    queues: &[String],
+) -> Result<SyncRunReport, AppError> {
+    let _gate = REPLICA_SYNC_GATE.lock().await;
+    let mut report = SyncRunReport {
+        push: None,
+        pull: None,
+        mesh: None,
+        error: None,
+    };
+    match SyncEngine::exchange_packets(pool, Some(queues)).await {
+        Ok(extra) => merge_exchange(&mut report, extra),
+        Err(e) => report.error = Some(format!("exchange: {e}")),
+    }
+    match SyncEngine::push_queues(pool, Some(queues)).await {
+        Ok(push) => match report.push.as_mut() {
+            Some(prev) => {
+                prev.accepted = prev.accepted.saturating_add(push.accepted);
+                prev.last_seq = prev.last_seq.max(push.last_seq);
+            }
+            None => report.push = Some(push),
+        },
+        Err(e) => {
+            let msg = format!("push: {e}");
+            report.error = Some(match report.error.take() {
+                Some(prev) => format!("{prev}; {msg}"),
+                None => msg,
+            });
+        }
+    }
+    match SyncEngine::pull_from_master(pool).await {
+        Ok(pull) => {
+            report.pull = Some(match report.pull.take() {
+                Some(prev) => SyncPullResult {
+                    applied: prev.applied.saturating_add(pull.applied),
+                    skipped: prev.skipped.saturating_add(pull.skipped),
+                },
+                None => pull,
+            });
+        }
+        Err(e) => {
+            let msg = format!("pull: {e}");
+            report.error = Some(match report.error.take() {
+                Some(prev) => format!("{prev}; {msg}"),
+                None => msg,
+            });
+        }
+    }
+    Ok(report)
+}
+
 fn sync_auth_rejected(msg: &str) -> bool {
     let lower = msg.to_ascii_lowercase();
     if lower.contains("401") || lower.contains("unauthorized") {
@@ -363,7 +543,7 @@ async fn run_replica_sync_recovering(pool: &SqlitePool) -> Result<SyncRunReport,
         return Ok(first);
     }
     if !replica_report_needs_auth_refresh(&first) {
-        return Ok(first);
+        return Ok(attach_packet_exchange(pool, first).await);
     }
     tracing::warn!(
         target: "medoc::sync",
@@ -371,13 +551,78 @@ async fn run_replica_sync_recovering(pool: &SqlitePool) -> Result<SyncRunReport,
         error = first.error.as_deref().unwrap_or("")
     );
     match try_refresh_replica_auth(pool).await {
-        Ok(_) => SyncEngine::run_replica_sync(pool).await,
+        Ok(_) => {
+            let again = SyncEngine::run_replica_sync(pool).await?;
+            Ok(attach_packet_exchange(pool, again).await)
+        }
         Err(e) => {
             if master_unreachable_message(&e.to_string()) {
                 return Ok(unreachable_report(&e));
             }
             Ok(first)
         }
+    }
+}
+
+async fn attach_packet_exchange(pool: &SqlitePool, mut report: SyncRunReport) -> SyncRunReport {
+    if report.error.as_deref().is_some_and(sync_auth_rejected) {
+        return report;
+    }
+    match SyncEngine::exchange_packets(pool, None).await {
+        Ok(mut extra) => {
+            let failed = extra.error.take();
+            let had_sync = report.push.is_some() || report.pull.is_some();
+            merge_exchange(&mut report, extra);
+            if let Some(err) = failed {
+                if had_sync {
+                    tracing::warn!(
+                        target: "medoc::sync",
+                        event = "PACKET_EXCHANGE_DEFERRED",
+                        error = %err
+                    );
+                } else {
+                    report.error = Some(match report.error.take() {
+                        Some(prev) => format!("{prev}; {err}"),
+                        None => err,
+                    });
+                }
+            }
+            report
+        }
+        Err(e) => {
+            tracing::warn!(
+                target: "medoc::sync",
+                event = "PACKET_EXCHANGE_DEFERRED",
+                error = %e
+            );
+            report
+        }
+    }
+}
+
+fn merge_exchange(report: &mut SyncRunReport, extra: SyncRunReport) {
+    if let Some(pull) = extra.pull {
+        report.pull = Some(match report.pull.take() {
+            Some(prev) => SyncPullResult {
+                applied: prev.applied.saturating_add(pull.applied),
+                skipped: prev.skipped.saturating_add(pull.skipped),
+            },
+            None => pull,
+        });
+    }
+    if report.push.is_none() {
+        report.push = extra.push;
+    } else if let Some(push) = extra.push {
+        if let Some(prev) = report.push.as_mut() {
+            prev.accepted = prev.accepted.saturating_add(push.accepted);
+            prev.last_seq = prev.last_seq.max(push.last_seq);
+        }
+    }
+    if let Some(err) = extra.error {
+        report.error = Some(match report.error.take() {
+            Some(prev) => format!("{prev}; {err}"),
+            None => err,
+        });
     }
 }
 
@@ -418,8 +663,9 @@ async fn run_replica_catchup_recovering(pool: &SqlitePool) -> Result<SyncRunRepo
     }
 }
 
-/// Own OS thread: scan shared admin/user rows, queue the ones that changed,
-/// and on a replica push that queue to the master immediately.
+/// Own OS thread: scan shared rows and fill each queue. A count above zero
+/// is sent on that pass: a replica pushes its queue and pulls the main
+/// device's queue in the same call.
 pub fn spawn_shared_change_sync_thread(pool: SqlitePool) {
     if let Err(e) = std::thread::Builder::new()
         .name("medoc-shared-sync".into())
@@ -458,31 +704,45 @@ pub fn spawn_shared_change_sync_thread(pool: SqlitePool) {
                         changes
                     );
                     if !is_replica {
+                        // These rows sit in the main outbox. The replica pulls
+                        // them on its own pass (the same push-then-pull call).
+                        tracing::info!(
+                            target: "medoc::sync",
+                            event = "SHARED_SYNC_READY_FOR_PULL",
+                            changes
+                        );
+                        continue;
+                    }
+                    if master_unreachable_cooling_down() {
                         continue;
                     }
                     match run_replica_sync_recovering(&pool).await {
                         Ok(report) => {
                             if let Some(err) = report.error.as_deref() {
-                                if !master_unreachable_message(err) {
-                                    tracing::warn!(
-                                        target: "medoc::sync",
-                                        event = "SHARED_SYNC_SEND_DEFERRED",
-                                        error = %err
-                                    );
-                                }
+                                tracing::warn!(
+                                    target: "medoc::sync",
+                                    event = "SHARED_SYNC_SEND_FAILED",
+                                    changes,
+                                    error = %err
+                                );
                             } else {
                                 tracing::info!(
                                     target: "medoc::sync",
                                     event = "SHARED_SYNC_SENT",
-                                    changes
+                                    changes,
+                                    pushed = report.push.as_ref().map(|push| push.accepted).unwrap_or(0),
+                                    pulled = report.pull.as_ref().map(|pull| pull.applied).unwrap_or(0)
                                 );
                             }
                         }
-                        Err(e) => tracing::warn!(
-                            target: "medoc::sync",
-                            event = "SHARED_SYNC_SEND_FAILED",
-                            error = %e
-                        ),
+                        Err(e) => {
+                            tracing::warn!(
+                                target: "medoc::sync",
+                                event = "SHARED_SYNC_SEND_FAILED",
+                                changes,
+                                error = %e
+                            );
+                        }
                     }
                 }
             });
@@ -507,7 +767,12 @@ pub fn spawn_replica_offline_sync_loop(pool: SqlitePool) {
         }
         let mut failures: u32 = 0;
         loop {
-            tokio::time::sleep(replica_backoff(failures)).await;
+            let wait = if failures > 0 {
+                replica_backoff(failures)
+            } else {
+                replica_backoff(0)
+            };
+            tokio::time::sleep(wait).await;
             let Ok(snap) = SyncEngine::status(&pool).await else {
                 continue;
             };
@@ -544,17 +809,23 @@ pub fn spawn_replica_offline_sync_loop(pool: SqlitePool) {
                     }
                 }
             }
-            let catchup_done =
-                medoc_core::infrastructure::database::app_kv_repo::get(&pool, REPLICA_CATCHUP_KV)
-                    .await
-                    .ok()
-                    .flatten()
-                    .as_deref()
-                    == Some("1");
+            let catchup_done = medoc_core::infrastructure::database::repos::admin::app_kv::get(
+                &pool,
+                REPLICA_CATCHUP_KV,
+            )
+            .await
+            .ok()
+            .flatten()
+            .as_deref()
+                == Some("1");
+            let cover = ExchangeCover {
+                all: true,
+                queues: Vec::new(),
+            };
             let result = if catchup_done {
-                run_replica_sync_recovering(&pool).await
+                exchange_queues(&pool, cover, ExchangeJob::Steady).await
             } else {
-                run_replica_catchup_recovering(&pool).await
+                exchange_queues(&pool, cover, ExchangeJob::Catchup).await
             };
             match result {
                 Ok(report) => {
@@ -582,12 +853,13 @@ pub fn spawn_replica_offline_sync_loop(pool: SqlitePool) {
                                 .await
                                 .unwrap_or(true);
                         if !span_open && pulled < 500 && report.error.is_none() {
-                            let _ = medoc_core::infrastructure::database::app_kv_repo::set(
-                                &pool,
-                                REPLICA_CATCHUP_KV,
-                                "1",
-                            )
-                            .await;
+                            let _ =
+                                medoc_core::infrastructure::database::repos::admin::app_kv::set(
+                                    &pool,
+                                    REPLICA_CATCHUP_KV,
+                                    "1",
+                                )
+                                .await;
                             let _ = medoc_sync::engine::finish_replica_initial_copy(&pool).await;
                             tracing::info!(
                                 target: "medoc::sync",

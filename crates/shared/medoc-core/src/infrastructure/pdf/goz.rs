@@ -140,41 +140,75 @@ pub fn validate_invoice(inv: &Invoice) -> Result<(), AppError> {
     for (i, l) in inv.lines.iter().enumerate() {
         let pos = (i + 1).to_string();
         if l.description.trim().is_empty() {
-            push_code(&mut errs, "error.invoice.line_description", &[("pos", pos.clone())]);
+            push_code(
+                &mut errs,
+                "error.invoice.line_description",
+                &[("pos", pos.clone())],
+            );
         }
         if blank(&l.treatment_date) || !is_iso_date(l.treatment_date.as_deref().unwrap_or("")) {
-            push_code(&mut errs, "error.invoice.line_date", &[("pos", pos.clone())]);
+            push_code(
+                &mut errs,
+                "error.invoice.line_date",
+                &[("pos", pos.clone())],
+            );
         }
         if !cancellation && l.amount_cents <= 0 {
-            push_code(&mut errs, "error.invoice.line_amount", &[("pos", pos.clone())]);
+            push_code(
+                &mut errs,
+                "error.invoice.line_amount",
+                &[("pos", pos.clone())],
+            );
         }
         if cancellation && l.amount_cents >= 0 {
-            push_code(&mut errs, "error.invoice.line_cancellation_sign", &[("pos", pos.clone())]);
+            push_code(
+                &mut errs,
+                "error.invoice.line_cancellation_sign",
+                &[("pos", pos.clone())],
+            );
         }
 
         if l.fee_schedule.is_fee() {
             if blank(&l.goz_nr) {
-                push_code(&mut errs, "error.invoice.line_fee_number", &[("pos", pos.clone())]);
+                push_code(
+                    &mut errs,
+                    "error.invoice.line_fee_number",
+                    &[("pos", pos.clone())],
+                );
             }
             match l.factor {
-                None => push_code(&mut errs, "error.invoice.line_factor_missing", &[("pos", pos.clone())]),
-                Some(f) if f < 1.0 => {
-                    push_code(&mut errs, "error.invoice.line_factor_low", &[("pos", pos.clone())])
+                None => push_code(
+                    &mut errs,
+                    "error.invoice.line_factor_missing",
+                    &[("pos", pos.clone())],
+                ),
+                Some(f) if f < 1.0 => push_code(
+                    &mut errs,
+                    "error.invoice.line_factor_low",
+                    &[("pos", pos.clone())],
+                ),
+                Some(f) if f > FACTOR_MAX_WITHOUT_AGREEMENT && blank(&l.agreement_ref) => {
+                    push_code(
+                        &mut errs,
+                        "error.invoice.line_factor_agreement",
+                        &[("pos", pos.clone()), ("factor", format!("{f:.1}"))],
+                    )
                 }
-                Some(f) if f > FACTOR_MAX_WITHOUT_AGREEMENT && blank(&l.agreement_ref) => push_code(
-                    &mut errs,
-                    "error.invoice.line_factor_agreement",
-                    &[("pos", pos.clone()), ("factor", format!("{f:.1}"))],
-                ),
-                Some(f) if f > FACTOR_JUSTIFICATION_THRESHOLD && blank(&l.diagnosis_reason) => push_code(
-                    &mut errs,
-                    "error.invoice.line_factor_reason",
-                    &[("pos", pos.clone()), ("factor", format!("{f:.1}"))],
-                ),
+                Some(f) if f > FACTOR_JUSTIFICATION_THRESHOLD && blank(&l.diagnosis_reason) => {
+                    push_code(
+                        &mut errs,
+                        "error.invoice.line_factor_reason",
+                        &[("pos", pos.clone()), ("factor", format!("{f:.1}"))],
+                    )
+                }
                 _ => {}
             }
             match (l.points, expected_line_cents(l)) {
-                (None, _) => push_code(&mut errs, "error.invoice.line_points", &[("pos", pos.clone())]),
+                (None, _) => push_code(
+                    &mut errs,
+                    "error.invoice.line_points",
+                    &[("pos", pos.clone())],
+                ),
                 (Some(_), Some(expected)) => {
                     if (l.amount_cents.abs() - expected).abs() > 1 {
                         push_code(
@@ -191,13 +225,21 @@ pub fn validate_invoice(inv: &Invoice) -> Result<(), AppError> {
                 _ => {}
             }
             if l.analog_of.is_some() && l.fee_schedule != FeeSchedule::Goz {
-                push_code(&mut errs, "error.invoice.line_analog", &[("pos", pos.clone())]);
+                push_code(
+                    &mut errs,
+                    "error.invoice.line_analog",
+                    &[("pos", pos.clone())],
+                );
             }
         } else if matches!(l.fee_schedule, FeeSchedule::Material | FeeSchedule::Lab)
             && l.amount_cents.abs() > EXPENSE_RECEIPT_THRESHOLD_CENTS
             && !l.receipt_attached
         {
-            push_code(&mut errs, "error.invoice.line_receipt", &[("pos", pos.clone())]);
+            push_code(
+                &mut errs,
+                "error.invoice.line_receipt",
+                &[("pos", pos.clone())],
+            );
         }
     }
 

@@ -1,4 +1,4 @@
-import { translateLocale, translateLocaleParams, useLocale, bcp47ForLocale, type Locale } from "@/lib/i18n";
+import { translateLocale, translateLocaleParams, useLocale, type Locale } from "@/lib/i18n";
 import type { BalanceSheet, StatisticsOverview, Payment } from "@/models/types";
 import type { BalanceSheetSnapshot } from "@/systems/practice-host/controllers/balance-sheet-snapshot.controller";
 import type { PurchaseOrder } from "@/systems/practice-host/controllers/purchase-order.controller";
@@ -16,6 +16,8 @@ import { renderReportPdf, type ReportPdfInput } from "@/systems/practice-host/co
 import { issueReportPdf, pdfBase64ToBytes, type IssuedPdf } from "@/systems/practice-host/controllers/document.controller";
 import type { ExportContext } from "@/lib/save-download";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
+import { practiceCurrency } from "@/lib/practice-currency";
+import { paymentMethodLabel } from "@/lib/finance-order-labels";
 import { csvCell, csvSafeCell, parseDelimitedGrid } from "@/lib/export-delimited";
 
 export type ReportExportFormat = "pdf" | "csv" | "json" | "xml";
@@ -230,7 +232,7 @@ function periodLabel(period: Period, locale: Locale): string {
 }
 
 function todayLocalized(locale: Locale): string {
-    return new Date().toLocaleDateString(bcp47ForLocale(locale));
+    return formatDate(new Date().toISOString(), locale);
 }
 
 /** Statistics page — full overview including income section. */
@@ -398,17 +400,6 @@ export interface FinanceKpiSnapshot {
     profitMtd: number;
 }
 
-function paymentMethodLabelFin(kind: string, tr: (key: string) => string): string {
-    const map: Record<string, string> = {
-        CASH: "enum.payment_method.cash",
-        CARD: "enum.payment_method.card",
-        BANK_TRANSFER: "enum.payment_method.bank_transfer",
-        INVOICE: "enum.payment_method.invoice",
-    };
-    const key = map[kind];
-    return key ? tr(key) : kind;
-}
-
 function financeTransactionText(z: Payment, tr: (key: string) => string): string {
     const reference = z.treatment_id
         ? tr("export.report.treatment")
@@ -440,7 +431,7 @@ export function buildFinanceReportBundle(
                 tr("export.report.payment"),
                 financeTransactionText(z, tr),
                 patientNames.get(z.patient_id) ?? dash,
-                paymentMethodLabelFin(z.payment_method, tr),
+                paymentMethodLabel(z.payment_method, tr),
                 z.status,
                 formatCurrency(z.amount),
             ];
@@ -656,7 +647,7 @@ export function financeTransactionsToLegacyCsv(
     // F151: the label helpers take the translator; the legacy CSV stays English.
     const tr = (key: string) => translateLocale("en", key);
     const esc = (s: string) => csvCell(s, ",");
-    const header = ["Date", "Type", "Transaction", "Counterparty", "Payment method", "Status", "Amount_EUR", "Note"];
+    const header = ["Date", "Type", "Transaction", "Counterparty", "Payment method", "Status", `Amount_${practiceCurrency()}`, "Note"];
     const lines = [header.map(esc).join(",")];
     for (const r of rows) {
         if (r.kind === "payment") {
@@ -667,7 +658,7 @@ export function financeTransactionsToLegacyCsv(
                     "Payment",
                     financeTransactionText(z, tr),
                     patientNames.get(z.patient_id) ?? "—",
-                    paymentMethodLabelFin(z.payment_method, tr),
+                    paymentMethodLabel(z.payment_method, tr),
                     z.status,
                     z.amount.toFixed(2).replace(".", ","),
                     (z.description ?? "").replace(/\r?\n/g, " ").trim(),

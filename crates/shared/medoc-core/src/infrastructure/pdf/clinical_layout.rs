@@ -15,15 +15,15 @@ use crate::error::AppError;
 use serde::Deserialize;
 
 use super::core::{
-    emit_multipage_pdf_with_images, emit_pdf_document, pdf_locale, table_row_height, wrap_soft,
-    wrap_text, PageBuilder, PdfDocMeta, CONTENT_WIDTH, M_BOTTOM, M_LEFT, M_RIGHT,
+    emit_pdf_document, pdf_locale, table_row_height, wrap_soft, wrap_text_locale, PageBuilder,
+    PdfDocMeta, CONTENT_WIDTH, M_BOTTOM, M_LEFT, M_RIGHT,
 };
-use super::metrics::wrap_to_width;
 use super::letterhead::{
     emit_continuation_header_locale, emit_letterhead, emit_signature_block, stamp_label,
     Letterhead, MetaRow,
 };
 use super::logo::PdfLogo;
+use super::metrics::wrap_to_width;
 
 // ===========================================================================
 // Input schemas
@@ -263,14 +263,17 @@ fn is_amount_column(table: &PdfTableSpec, ci: usize) -> bool {
         if cell.is_empty() || cell == "—" || cell == "-" {
             continue;
         }
+        let code = crate::infrastructure::pdf::document_currency();
         let core = cell
+            .trim()
+            .trim_end_matches(code.as_str())
             .trim_end_matches("EUR")
             .trim_end_matches('€')
             .trim();
         // Needs a currency or a decimal comma, so dates ("02.11.2026") and
         // fee numbers ("0010") stay left-aligned.
-        let money_hint = core.len() != cell.len()
-            || core.rsplit_once(',').is_some_and(|(_, d)| d.len() == 2);
+        let money_hint =
+            core.len() != cell.len() || core.rsplit_once(',').is_some_and(|(_, d)| d.len() == 2);
         let ok = money_hint
             && core.chars().any(|c| c.is_ascii_digit())
             && core
@@ -285,7 +288,15 @@ fn is_amount_column(table: &PdfTableSpec, ci: usize) -> bool {
 }
 
 /// Draw one cell, right-aligned inside the column for amount columns.
-fn draw_cell(pb: &mut PageBuilder, x: i32, width: i32, size: i32, bold: bool, s: &str, right: bool) {
+fn draw_cell(
+    pb: &mut PageBuilder,
+    x: i32,
+    width: i32,
+    size: i32,
+    bold: bool,
+    s: &str,
+    right: bool,
+) {
     if right {
         pb.text_right(x + TABLE_CELL_PAD + width, size, bold, s);
     } else {
@@ -334,11 +345,14 @@ pub fn render_clinical_layout_with_logo(
 
     let mut pb = PageBuilder::new();
     pb.locale = locale;
-    pb.rtl = doc.rtl || locale == "ar";
+    pb.rtl = doc.rtl || super::i18n::is_rtl(locale);
     pb.watermark = doc.watermark.clone().filter(|w| !w.trim().is_empty());
     pb.footer_lines = doc.footer_lines.clone();
     pb.set_continuation(
-        doc.practice_lines.first().map(|s| s.as_str()).unwrap_or("MeDoc"),
+        doc.practice_lines
+            .first()
+            .map(|s| s.as_str())
+            .unwrap_or("MeDoc"),
         &doc.document_title,
         locale,
     );
@@ -372,13 +386,17 @@ pub fn render_clinical_layout_with_logo(
 /// Information-block rows incl. the registry number (if issued).
 fn meta_rows_with_number(doc: &ClinicalPdfLayout, locale: &str) -> Vec<MetaRow> {
     let mut rows = to_meta_rows(&doc.meta_lines);
-    if let Some(n) = doc.document_number.as_deref().filter(|s| !s.trim().is_empty()) {
+    if let Some(n) = doc
+        .document_number
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+    {
+        // Was "Dokument-Nr." / "Document no." only: French and Arabic
+        // documents printed the English label.
         let label = if doc.kind == "receipt" {
             super::i18n::t(locale, super::i18n::Phrase::ReceiptNo)
-        } else if pdf_locale(locale) == "de" {
-            "Dokument-Nr."
         } else {
-            "Document no."
+            super::i18n::t(locale, super::i18n::Phrase::DocumentNo)
         };
         if !rows.iter().any(|r| r.value == n) {
             rows.insert(0, MetaRow::new(label, n));
@@ -407,16 +425,18 @@ fn clinical_letterhead<'a>(
         address_lines: &doc.address_lines,
         header_right_lines: &doc.header_right_lines,
         show_sender_hint: !doc.address_lines.is_empty(),
-        // A receipt is handed to the patient. An invoice keeps the window envelope.
-        compact_address: doc.kind == "receipt",
+        // Same letterhead as a prescription: practice block on the left, the
+        // information block in the DIN window, not beside the practice name.
+        compact_address: false,
         logo,
-        rtl: doc.rtl,
+        rtl: doc.rtl || super::i18n::is_rtl(locale),
         locale,
     }
 }
 
 /// Plain preview when the frontend sends `bodyLines` only (no `layoutJson`).
-/// Uses the same letterhead + footer stack as structured clinical exports.
+/// Uses the same letterhead + footer stack as structured clinical exports,
+/// in the practice's current document language.
 pub fn render_plain_preview(
     kind: &str,
     template_name: &str,
@@ -424,6 +444,27 @@ pub fn render_plain_preview(
     body_pt: i32,
     body_lines: &[String],
 ) -> Result<Vec<u8>, AppError> {
+    render_plain_preview_locale(
+        kind,
+        template_name,
+        footer,
+        body_pt,
+        body_lines,
+        super::i18n::default_document_locale(),
+    )
+}
+
+/// [`render_plain_preview`] in an explicit document language.
+pub fn render_plain_preview_locale(
+    kind: &str,
+    template_name: &str,
+    footer: &str,
+    body_pt: i32,
+    body_lines: &[String],
+    locale: &str,
+) -> Result<Vec<u8>, AppError> {
+    let locale = pdf_locale(locale);
+    let rtl = super::i18n::is_rtl(locale);
     let fs = body_pt.clamp(8, 18);
     let wrap_cols = 86usize.saturating_sub((18 - fs) as usize * 2);
 
@@ -448,14 +489,15 @@ pub fn render_plain_preview(
         show_sender_hint: false,
         compact_address: false,
         logo: None,
-        rtl: false,
-        locale: "de",
+        rtl,
+        locale,
     };
     emit_letterhead(&mut pb, &lh);
 
     pb.text(M_LEFT, 14, true, template_name);
     pb.advance(18);
-    pb.text(M_LEFT, 9, false, &format!("Dokumentart: {kind}"));
+    let kind_label = super::i18n::t(locale, super::i18n::Phrase::DocumentType);
+    pb.text(M_LEFT, 9, false, &format!("{kind_label}: {kind}"));
     pb.advance(14);
     pb.hline(M_LEFT, M_RIGHT);
     pb.advance(16);
@@ -478,12 +520,21 @@ pub fn render_plain_preview(
         }
     }
 
-    emit_clinical_privacy_footer(&mut pb, kind, "de");
+    emit_clinical_privacy_footer(&mut pb, kind, locale);
 
     // This path renders free text without a registry entry → never official.
-    pb.watermark = Some("ENTWURF".into());
+    pb.watermark = Some(super::i18n::t(locale, super::i18n::Phrase::Draft).into());
     let pages = pb.finish();
-    emit_multipage_pdf_with_images(&pages, &format!("Vorschau {template_name}"), &[], "de")
+    let preview = super::i18n::t(locale, super::i18n::Phrase::Preview);
+    emit_pdf_document(
+        &pages,
+        &PdfDocMeta {
+            title: format!("{preview} {template_name}"),
+            locale: locale.to_string(),
+            ..Default::default()
+        },
+        &[],
+    )
 }
 
 fn emit_clinical_privacy_footer(pb: &mut PageBuilder, _kind: &str, locale: &str) {
@@ -493,7 +544,12 @@ fn emit_clinical_privacy_footer(pb: &mut PageBuilder, _kind: &str, locale: &str)
     pb.advance(12);
     pb.hline(M_LEFT, M_RIGHT);
     pb.advance(10);
-    pb.text(M_LEFT, 7, false, notice);
+    // Wrapped: the French and Arabic notices are longer than one line and
+    // ran past the margin (off the page when mirrored for Arabic).
+    for line in wrap_to_width(notice, 7, false, f64::from(CONTENT_WIDTH)) {
+        pb.text(M_LEFT, 7, false, &line);
+        pb.advance(9);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -662,10 +718,13 @@ fn render_receipt(
         doc.document_title.as_str(),
     );
     // Service lines first, then money totals (standard receipt order).
-    for table in &doc.tables {
+    // Amounts carry the practice currency even when the client sent a bare number.
+    let tables = receipt_tables_with_currency(&doc.tables);
+    let totals = receipt_totals_with_currency(&doc.totals);
+    for table in &tables {
         emit_table(pb, table, cont);
     }
-    emit_receipt_totals(pb, &doc.totals);
+    emit_receipt_totals(pb, &totals);
 
     pb.advance(6);
     for p in &doc.closing_paragraphs {
@@ -772,7 +831,7 @@ fn emit_label_value_rows(pb: &mut PageBuilder, rows: &[LabelValue]) {
     // labels like "Voraussichtlich bis einschließlich" never overlap the value.
     let label_col = rows
         .iter()
-        .map(|r| crate::infrastructure::pdf::text_width(&format!("{}:", r.label), 9, true))
+        .map(|r| pb.width(&format!("{}:", r.label), 9, true).ceil() as i32)
         .max()
         .unwrap_or(0)
         .clamp(130, 230)
@@ -781,8 +840,7 @@ fn emit_label_value_rows(pb: &mut PageBuilder, rows: &[LabelValue]) {
     for row in rows {
         pb.ensure_space(36);
         let multiline = row.value.contains('\n');
-        let compact = !multiline
-            && crate::infrastructure::pdf::text_width(row.value.trim(), 10, false) as f64 <= value_pt;
+        let compact = !multiline && pb.width(row.value.trim(), 10, false) <= value_pt;
 
         if compact {
             pb.text(M_LEFT, 9, true, &format!("{}:", row.label));
@@ -798,7 +856,7 @@ fn emit_label_value_rows(pb: &mut PageBuilder, rows: &[LabelValue]) {
                     pb.advance(6);
                     continue;
                 }
-                for chunk in wrap_text(raw, 84) {
+                for chunk in wrap_text_locale(raw, 84, pb.locale) {
                     pb.ensure_space(30);
                     pb.text(M_LEFT + 4, 10, false, &chunk);
                     pb.advance(12);
@@ -817,7 +875,9 @@ fn emit_two_column_panel(pb: &mut PageBuilder, block: &TwoColumnBlock) {
             .map(|l| wrap_to_width(l, 9, false, col_pt).len() as i32)
             .sum()
     };
-    let rows = count(&block.left_lines).max(count(&block.right_lines)).max(1);
+    let rows = count(&block.left_lines)
+        .max(count(&block.right_lines))
+        .max(1);
     // Title band + rows + padding — the box grows with its content.
     let panel_h = 30 + rows * 11;
     pb.ensure_space(panel_h + 30);
@@ -835,11 +895,12 @@ fn emit_two_column_panel(pb: &mut PageBuilder, block: &TwoColumnBlock) {
     // Titel
     let prev_y = pb.y;
     pb.y = title_y;
+    let fallback = super::i18n::t(pb.locale, super::i18n::Phrase::Patient);
     pb.text(
         M_LEFT + 8,
         9,
         true,
-        block.left_title.as_deref().unwrap_or("Patient"),
+        block.left_title.as_deref().unwrap_or(fallback),
     );
     if let Some(t) = block.right_title.as_deref() {
         pb.text(mid_x + 4, 9, true, t);
@@ -963,7 +1024,12 @@ fn emit_detail_records(pb: &mut PageBuilder, records: &[DetailRecord]) {
         pb.fill_rect(M_LEFT, box_bottom, CONTENT_WIDTH, total_h - 8, 0.97);
 
         pb.advance(2);
-        pb.text(M_LEFT + 6, 9, true, super::i18n::t(pb.locale, super::i18n::Phrase::DetailType));
+        pb.text(
+            M_LEFT + 6,
+            9,
+            true,
+            super::i18n::t(pb.locale, super::i18n::Phrase::DetailType),
+        );
         pb.advance(12);
         for chunk in wrap_soft(&rec.kind, 80) {
             pb.text(M_LEFT + 6, 9, false, &chunk);
@@ -1012,6 +1078,35 @@ fn is_total_row(row: &LabelValue, all: &[LabelValue]) -> bool {
     }
     let l = row.label.to_lowercase();
     l == "total" || l == "gesamt" || l.starts_with("gesamtbetrag") || l.starts_with("endbetrag")
+}
+
+fn receipt_tables_with_currency(tables: &[PdfTableSpec]) -> Vec<PdfTableSpec> {
+    tables
+        .iter()
+        .map(|table| {
+            let mut table = table.clone();
+            let idx = table.headers.len().saturating_sub(1);
+            if table.headers.len() >= 2 {
+                for row in &mut table.rows {
+                    if let Some(cell) = row.get_mut(idx) {
+                        *cell = super::core::ensure_money_currency(cell);
+                    }
+                }
+            }
+            table
+        })
+        .collect()
+}
+
+fn receipt_totals_with_currency(totals: &[LabelValue]) -> Vec<LabelValue> {
+    totals
+        .iter()
+        .map(|row| {
+            let mut row = row.clone();
+            row.value = super::core::ensure_money_currency(&row.value);
+            row
+        })
+        .collect()
 }
 
 fn emit_receipt_totals(pb: &mut PageBuilder, totals: &[LabelValue]) {
@@ -1425,7 +1520,10 @@ mod tests {
         let dose_y = td_y_for(&text, "1-0-1");
         let header_ys = td_ys_for_font(&text, "/F2 8 Tf");
         assert!(dose_y.is_some(), "dose must be drawn");
-        assert!(!header_ys.is_empty(), "wrapped headers must be drawn at 8 pt");
+        assert!(
+            !header_ys.is_empty(),
+            "wrapped headers must be drawn at 8 pt"
+        );
         let dose_y = dose_y.unwrap();
         assert!(
             header_ys.iter().all(|y| *y > dose_y),
@@ -1440,9 +1538,7 @@ mod tests {
             if !line.contains(&needle) {
                 return None;
             }
-            line.split_whitespace()
-                .nth(5)
-                .and_then(|y| y.parse().ok())
+            line.split_whitespace().nth(5).and_then(|y| y.parse().ok())
         })
     }
 
@@ -1513,6 +1609,10 @@ mod tests {
         assert!(pdf.starts_with(b"%PDF-1.4"));
         let text = String::from_utf8_lossy(&pdf);
         assert!(text.contains("RECEIPT") || text.contains("Receipt") || text.contains("\\321"));
+        assert!(
+            text.contains("45,00 EUR"),
+            "receipt total must show the practice currency"
+        );
     }
 
     #[test]
@@ -1696,7 +1796,10 @@ mod tests {
         assert!(text.contains("Standard template"));
         assert!(text.contains("Seite 1 von 1"));
         assert!(text.contains("630f"));
-        assert!(text.contains("(ENTWURF)"), "free-text preview must be watermarked");
+        assert!(
+            text.contains("(ENTWURF)"),
+            "free-text preview must be watermarked"
+        );
     }
 
     fn au_doc(variant: &str) -> ClinicalPdfLayout {
@@ -1726,8 +1829,9 @@ mod tests {
 
     #[test]
     fn employer_copy_has_no_diagnosis() {
-        let employer = String::from_utf8_lossy(&render_clinical_layout(&au_doc("employer")).unwrap())
-            .into_owned();
+        let employer =
+            String::from_utf8_lossy(&render_clinical_layout(&au_doc("employer")).unwrap())
+                .into_owned();
         assert!(!employer.contains("K04.0"));
         assert!(employer.contains("Arbeitgeber"));
         assert!(employer.contains("AU-2026-000017"));
@@ -1773,7 +1877,10 @@ mod tests {
         };
         let de_x = x_of("de");
         let ar_x = x_of("ar");
-        assert!((de_x - f64::from(M_LEFT)).abs() < 1.0, "german title x={de_x}");
+        assert!(
+            (de_x - f64::from(M_LEFT)).abs() < 1.0,
+            "german title x={de_x}"
+        );
         let width = crate::infrastructure::pdf::core::text_width("Rechnung", 16, true);
         let expect = f64::from(M_RIGHT - width);
         assert!(
@@ -1789,7 +1896,7 @@ mod tests {
             ("de", "Rechnung", "(Rechnung)", false),
             ("en", "Invoice", "(Invoice)", false),
             ("fr", "Facture", "(Facture)", false),
-            ("ar", "فاتورة", "/NotoNaskhArabic", true),
+            ("ar", "فاتورة", "+NotoNaskhArabic", true),
         ];
         for (locale, title, marker, unicode) in titles {
             let doc = ClinicalPdfLayout {
@@ -1802,7 +1909,11 @@ mod tests {
                 locale: Some(locale.into()),
                 rtl: unicode,
                 totals: vec![LabelValue {
-                    label: if unicode { "المبلغ المستحق".into() } else { "Amount due".into() },
+                    label: if unicode {
+                        "المبلغ المستحق".into()
+                    } else {
+                        "Amount due".into()
+                    },
                     value: "12,50".into(),
                     total: true,
                     ..Default::default()
@@ -1824,7 +1935,10 @@ mod tests {
             if unicode {
                 assert!(text.contains("/F3 "), "{locale} did not draw arabic glyphs");
             } else {
-                assert!(!text.contains("/NotoNaskhArabic"), "{locale} embedded the arabic font");
+                assert!(
+                    !text.contains("+NotoNaskhArabic"),
+                    "{locale} embedded the arabic font"
+                );
             }
         }
     }
@@ -1832,8 +1946,17 @@ mod tests {
     #[test]
     fn explicit_total_flag_wins_over_label() {
         let rows = vec![
-            LabelValue { label: "Subtotal".into(), value: "1".into(), ..Default::default() },
-            LabelValue { label: "Zu zahlen".into(), value: "1".into(), total: true, ..Default::default() },
+            LabelValue {
+                label: "Subtotal".into(),
+                value: "1".into(),
+                ..Default::default()
+            },
+            LabelValue {
+                label: "Zu zahlen".into(),
+                value: "1".into(),
+                total: true,
+                ..Default::default()
+            },
         ];
         assert!(!is_total_row(&rows[0], &rows));
         assert!(is_total_row(&rows[1], &rows));

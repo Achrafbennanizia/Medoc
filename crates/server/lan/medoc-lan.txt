@@ -1,0 +1,3822 @@
+medoc-lan codebase dump
+root: /Users/achraf/pro/Medoc/crates/server/lan/medoc-lan
+files: 18
+
+================================================================================
+FILE: Cargo.toml
+================================================================================
+[package]
+name = "medoc-lan"
+version = "0.1.0"
+edition = "2021"
+description = "MeDoc LAN server — authenticated HTTPS access for browsers/tablets on the practice LAN."
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+medoc-core = { path = "../../../shared/medoc-core" }
+medoc-sync = { path = "../../../shared/medoc-sync" }
+
+# HTTP / TLS stack
+axum = { version = "0.8", features = ["macros", "json"] }
+axum-server = { version = "0.7", features = ["tls-rustls"] }
+rustls = { version = "0.23.45", features = ["aws_lc_rs"] }
+rustls-pemfile = "2"
+rcgen = "0.13"
+tower = { version = "0.5", features = ["util"] }
+tower-http = { version = "0.6", features = ["cors", "limit", "timeout", "trace"] }
+sha2 = "0.10"
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# JWT auth (LAN session tokens)
+jsonwebtoken = "9"
+
+# Structured logging — emit `medoc::lan` events.
+tracing = "0.1"
+
+# Data + serialisation
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+sqlx = { version = "0.8", default-features = false, features = [
+    "macros",
+    "sqlite",
+    "runtime-tokio",
+    "chrono",
+] }
+# Pulls in the same SQLCipher-enabled sqlite as the practice + medoc-core crates.
+libsqlite3-sys = { version = "0.30.1", features = ["bundled-sqlcipher"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+axum = { version = "0.8", features = ["macros", "json"] }
+http-body-util = "0.1"
+tower = { version = "0.5", features = ["util"] }
+serde_json = "1"
+base64 = { version = "0.22", features = ["std"] }
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+chrono = { version = "0.4", features = ["serde"] }
+serial_test = "3"
+
+================================================================================
+FILE: src/config.rs
+================================================================================
+//! Persisted LAN server settings (`app_kv` key `lan.server.config.v1`).
+
+use serde::{Deserialize, Serialize};
+
+pub const APP_KV_KEY: &str = "lan.server.config.v1";
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LanServerConfigV1 {
+    pub schema_version: u32,
+    /// TCP bind address, e.g. `0.0.0.0` for all interfaces or `127.0.0.1` for loopback only.
+    pub bind_addr: String,
+    pub http_port: u16,
+    pub udp_discovery_port: u16,
+    /// Shown to clients during discovery (e.g. "Practice Dr. Sample").
+    pub instance_label: String,
+    /// Start the LAN listener automatically when the desktop app launches (after DB init).
+    pub auto_start_with_app: bool,
+    /// Extra browser origins allowed for CORS (full URL, e.g. `http://192.168.1.20:1420`).
+    #[serde(default)]
+    pub extra_cors_origins: Vec<String>,
+}
+
+impl Default for LanServerConfigV1 {
+    fn default() -> Self {
+        Self {
+            schema_version: 1,
+            bind_addr: "0.0.0.0".into(),
+            http_port: 8787,
+            udp_discovery_port: 47_830,
+            instance_label: "MeDoc Practice".into(),
+            auto_start_with_app: true,
+            extra_cors_origins: vec![],
+        }
+    }
+}
+
+================================================================================
+FILE: src/discovery.rs
+================================================================================
+//! Re-export shim — the UDP discovery beacon protocol now lives in
+//! `medoc_core::discovery` so it can be shared between the practice host
+//! (which scans for LAN servers) and the LAN server binary (which broadcasts
+//! beacons), without forcing `medoc-core::cors_policy` to depend on the
+//! LAN crate. The full `lan_server` module moves to `medoc-lan` in Wave B7.
+
+pub use medoc_core::discovery::{
+    parse_beacon_line, run_discovery_responder, scan_lan_hosts, LanBeaconPayload, DISCOVER_PROBE,
+    SCHEMA,
+};
+
+================================================================================
+FILE: src/http/eprescription.rs
+================================================================================
+//! LAN HTTP endpoints for e-prescription validate/submit (Tauri telematik parity).
+//!
+//! - `POST /api/v1/eprescriptions/validate` — JWT — pure validation (PZN/KVNR/LANR).
+//! - `POST /api/v1/eprescriptions/submit` — JWT — same stub as Tauri (`telematik::submit_via_ti`).
+
+use axum::extract::{Extension, State};
+use axum::Json;
+use medoc_core::application::authorize::{authorize, Caller};
+use medoc_core::infrastructure::telematik::{self, EPrescription};
+use serde::Deserialize;
+use serde_json::{json, Value};
+
+use super::{ApiError, LanHttpState};
+use crate::jwt;
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EPrescriptionBody {
+    #[serde(default)]
+    pub patient_id: String,
+    pub kvnr: String,
+    pub pzn: String,
+    #[serde(default)]
+    pub medication_name: String,
+    #[serde(default)]
+    pub dosage: String,
+    #[serde(default = "default_quantity")]
+    pub quantity: u32,
+    pub doctor_lanr: String,
+    #[serde(default)]
+    pub issued_at: String,
+}
+
+fn default_quantity() -> u32 {
+    1
+}
+
+fn to_rx(body: EPrescriptionBody) -> EPrescription {
+    let issued = if body.issued_at.trim().is_empty() {
+        chrono::Utc::now().date_naive().to_string()
+    } else {
+        body.issued_at
+    };
+    EPrescription {
+        patient_id: body.patient_id,
+        kvnr: body.kvnr,
+        pzn: body.pzn,
+        medication_name: body.medication_name,
+        dosage: body.dosage,
+        quantity: body.quantity,
+        doctor_lanr: body.doctor_lanr,
+        issued_at: issued,
+    }
+}
+
+/// Validate without TI — mirrors Tauri `validate_eprescription`.
+pub async fn validate(
+    State(state): State<LanHttpState>,
+    Extension(claims): Extension<jwt::LanClaims>,
+    Json(body): Json<EPrescriptionBody>,
+) -> Result<Json<Value>, ApiError> {
+    if !medoc_core::mvp_security::EPRESCRIPTION_ENABLED {
+        return Err(ApiError::from(
+            medoc_core::error::AppError::FeatureDisabled("eprescription".into()),
+        ));
+    }
+    authorize(
+        &state.pool,
+        &Caller {
+            user_id: claims.sub.clone(),
+            idle_for: None,
+            device_session_id: None,
+        },
+        "patient.write_medical",
+        Some(body.patient_id.as_str()),
+    )
+    .await?;
+    let rx = to_rx(body);
+    telematik::validate(&rx)?;
+    Ok(Json(json!({
+        "taskId": "",
+        "accessCode": "",
+        "redeemUrl": "",
+        "status": "VALIDATED",
+        "message": "Validation passed"
+    })))
+}
+
+/// Submit via TI stub — mirrors Tauri `submit_eprescription` (not implemented without connector).
+pub async fn submit(
+    State(state): State<LanHttpState>,
+    Extension(claims): Extension<jwt::LanClaims>,
+    Json(body): Json<EPrescriptionBody>,
+) -> Result<Json<Value>, ApiError> {
+    if !medoc_core::mvp_security::EPRESCRIPTION_ENABLED {
+        return Err(ApiError::from(
+            medoc_core::error::AppError::FeatureDisabled("eprescription".into()),
+        ));
+    }
+    authorize(
+        &state.pool,
+        &Caller {
+            user_id: claims.sub.clone(),
+            idle_for: None,
+            device_session_id: None,
+        },
+        "patient.write_medical",
+        Some(body.patient_id.as_str()),
+    )
+    .await?;
+    let rx = to_rx(body);
+    let token = telematik::submit_via_ti(&rx)?;
+    Ok(Json(json!({
+        "taskId": token.task_id,
+        "accessCode": token.access_code,
+        "redeemUrl": token.redeem_url,
+        "status": "SUBMITTED",
+        "message": "Submitted via TI"
+    })))
+}
+
+================================================================================
+FILE: src/http/license.rs
+================================================================================
+//! LAN HTTP endpoints for practice license status / activate / clear
+//! (mirrors Tauri `current_license_status`, `activate_license`, `clear_license`).
+//!
+//! - `GET    /api/v1/license` — JWT — current status
+//! - `POST   /api/v1/license/activate` — JWT — verify + persist v1/v2 token
+//! - `DELETE /api/v1/license` — JWT — clear installed license
+
+use axum::extract::{Extension, State};
+use axum::http::StatusCode;
+use axum::Json;
+use medoc_core::application::rbac::Role;
+use medoc_core::error::AppError;
+use medoc_core::infrastructure::database::repos::admin::license as license_repo;
+use medoc_core::infrastructure::license::{self, LicenseStatus};
+use serde::Deserialize;
+use serde_json::{json, Value};
+use tracing::info;
+
+use super::{ApiError, LanHttpState};
+use crate::jwt;
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActivateBody {
+    /// Vendor license token (v1 `<json>.<sig>` or v2 envelope).
+    #[serde(alias = "licenseKey", alias = "license_key")]
+    pub token: String,
+}
+
+fn require_authenticated(claims: &jwt::LanClaims) -> Result<(), AppError> {
+    Role::parse(&claims.role).ok_or(AppError::Forbidden)?;
+    Ok(())
+}
+
+/// Map core `LicenseStatus` into the Swing / LAN client envelope used by Settings.
+fn to_client_status(status: &LicenseStatus) -> Value {
+    let active = status.valid;
+    let hint = status
+        .license_v2
+        .as_ref()
+        .map(|l| format!("{}…", l.customer_id.chars().take(4).collect::<String>()))
+        .or_else(|| {
+            status
+                .license
+                .as_ref()
+                .map(|l| format!("{}…", l.customer_id.chars().take(4).collect::<String>()))
+        })
+        .unwrap_or_default();
+    let activated = status
+        .license_v2
+        .as_ref()
+        .map(|l| l.activated_at.to_rfc3339())
+        .or_else(|| status.license.as_ref().map(|l| l.issued_at.to_rfc3339()))
+        .unwrap_or_default();
+    json!({
+        "status": if active { "ACTIVE" } else { "INACTIVE" },
+        "tokenHint": hint,
+        "activatedAt": activated,
+        "message": status.reason.clone().unwrap_or_else(|| {
+            if active {
+                "License active".into()
+            } else {
+                "No license activated".into()
+            }
+        }),
+        "valid": status.valid,
+        "format": status.format,
+        "daysUntilExpiry": status.days_until_expiry,
+    })
+}
+
+pub async fn status(
+    State(state): State<LanHttpState>,
+    Extension(claims): Extension<jwt::LanClaims>,
+) -> Result<Json<Value>, ApiError> {
+    require_authenticated(&claims)?;
+    let status = license_repo::current_status(&state.pool).await?;
+    Ok(Json(to_client_status(&status)))
+}
+
+pub async fn activate(
+    State(state): State<LanHttpState>,
+    Extension(claims): Extension<jwt::LanClaims>,
+    Json(body): Json<ActivateBody>,
+) -> Result<Json<Value>, ApiError> {
+    require_authenticated(&claims)?;
+    let device_id = license_repo::ensure_device_id(&state.pool).await?;
+    let status = license::verify(body.token.trim(), &device_id);
+    if !status.valid {
+        info!(
+            event = "LICENSE_ACTIVATE_REJECTED",
+            reason = status.reason.as_deref().unwrap_or(""),
+        );
+        return Ok(Json(to_client_status(&status)));
+    }
+    match status.format.as_deref() {
+        Some("v2") => license_repo::store_v2(&state.pool, body.token.trim()).await?,
+        Some("v1") => license_repo::store_v1(&state.pool, body.token.trim()).await?,
+        _ => {}
+    }
+    info!(
+        event = "LICENSE_ACTIVATED",
+        format = status.format.as_deref().unwrap_or(""),
+    );
+    let stored = license_repo::current_status(&state.pool).await?;
+    Ok(Json(to_client_status(&stored)))
+}
+
+pub async fn clear(
+    State(state): State<LanHttpState>,
+    Extension(claims): Extension<jwt::LanClaims>,
+) -> Result<StatusCode, ApiError> {
+    medoc_core::application::authorize::authorize(
+        &state.pool,
+        &medoc_core::application::authorize::Caller {
+            user_id: claims.sub.clone(),
+            idle_for: None,
+            device_session_id: None,
+        },
+        "ops.system",
+        None,
+    )
+    .await?;
+    license_repo::clear(&state.pool).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+================================================================================
+FILE: src/http/mod.rs
+================================================================================
+//! Axum HTTPS API — authenticated LAN access (JWT HS256, TLS via `lan_server::tls`).
+//!
+//! **Background / ops:** The embedded host runs in its own Tokio tasks (`commands::network::lan`) and does not
+//! block the Tauri UI. Headless: `medoc-server` binary. **Timeouts** prevent hung LAN requests.
+
+#![allow(clippy::result_large_err)] // axum handlers return `Response` as Err
+
+use std::net::SocketAddr;
+use std::sync::Arc;
+use std::time::Duration;
+
+use axum::extract::{ConnectInfo, Extension, Query, State};
+use axum::http::{header, StatusCode};
+use axum::middleware::{self, Next};
+use axum::response::{IntoResponse, Response};
+use axum::routing::{get, post};
+use axum::{Json, Router};
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+use sqlx::SqlitePool;
+use tower_http::limit::RequestBodyLimitLayer;
+use tower_http::timeout::TimeoutLayer;
+
+use medoc_core::application::app_kv_policy;
+use medoc_core::application::auth_service::{self, LoginRequest};
+use medoc_core::application::own_profile::{self, OwnProfileDto};
+use medoc_core::application::rbac::{self, Role};
+use medoc_core::company::{CompanyPortalPort, COMPANY_PORTAL};
+use medoc_core::domain::entities::staff::UpdateOwnProfile;
+use medoc_core::error::AppError;
+use medoc_core::infrastructure::company_portal::load_company_portal_config;
+use medoc_core::infrastructure::cors_policy::{self, CorsGate};
+use medoc_core::infrastructure::database::repos::admin::app_kv as app_kv_repo;
+use medoc_core::infrastructure::database::repos::admin::staff as staff_repo;
+use medoc_core::infrastructure::logging::brute_force::{BruteForceTracker, BruteKey, CheckResult};
+
+use crate::discovery::LanBeaconPayload;
+use crate::jwt;
+
+pub mod eprescription;
+pub mod license;
+pub mod pairing;
+pub mod sync;
+
+#[derive(Clone)]
+pub struct LanHttpState {
+    pub pool: SqlitePool,
+    pub jwt_secret: Arc<[u8; 32]>,
+    pub brute: Arc<BruteForceTracker>,
+    pub http_port: u16,
+    pub extra_cors_origins: Arc<Vec<String>>,
+    pub discovery_peers: Arc<Vec<(SocketAddr, LanBeaconPayload)>>,
+}
+
+pub struct ApiError(AppError);
+
+impl IntoResponse for ApiError {
+    fn into_response(self) -> Response {
+        let status = match &self.0 {
+            AppError::Unauthorized => StatusCode::UNAUTHORIZED,
+            AppError::Forbidden => StatusCode::FORBIDDEN,
+            AppError::RateLimited(_) => StatusCode::TOO_MANY_REQUESTS,
+            AppError::NotFound(_) => StatusCode::NOT_FOUND,
+            AppError::Conflict(_) | AppError::FeatureDisabled(_) => StatusCode::CONFLICT,
+            AppError::Validation(_) | AppError::ValidationCode(_) => StatusCode::BAD_REQUEST,
+            AppError::TotpRequired => StatusCode::UNAUTHORIZED,
+            AppError::TotpEnrollmentRequired => StatusCode::FORBIDDEN,
+            AppError::Database(_) | AppError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
+        };
+        // Database / internal errors can contain SQL, file paths or key
+        // material hints. Log them; send the LAN client a generic message.
+        let msg = if status == StatusCode::INTERNAL_SERVER_ERROR {
+            tracing::error!(target: "medoc::lan", event = "LAN_INTERNAL_ERROR", error = %self.0);
+            "internal error".to_string()
+        } else {
+            self.0.to_string()
+        };
+        let body = Json(json!({ "error": msg }));
+        (status, body).into_response()
+    }
+}
+
+impl From<AppError> for ApiError {
+    fn from(value: AppError) -> Self {
+        ApiError(value)
+    }
+}
+
+#[derive(Deserialize)]
+pub struct LoginBody {
+    pub email: String,
+    #[serde(alias = "password")]
+    pub password: String,
+    #[serde(default)]
+    pub totp_code: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct AppKvKeyQuery {
+    pub key: String,
+}
+
+#[derive(Deserialize)]
+pub struct AppKvPutBody {
+    pub key: String,
+    pub value: String,
+}
+
+fn require_app_kv_write(claims: &jwt::LanClaims, key: &str) -> Result<(), AppError> {
+    let perm = app_kv_policy::permission_for_app_kv_key(key)
+        .ok_or_else(|| AppError::Validation(format!("Unbekannter KV-Key: {key}")))?;
+    let role = Role::parse(&claims.role).ok_or(AppError::Forbidden)?;
+    if !rbac::allowed(perm, role) {
+        return Err(AppError::Forbidden);
+    }
+    Ok(())
+}
+
+#[derive(Serialize)]
+pub struct LoginResponse {
+    pub access_token: String,
+    pub token_type: &'static str,
+    pub expires_in: i64,
+    pub user: LoginUserDto,
+}
+
+#[derive(Serialize)]
+pub struct LoginUserDto {
+    pub user_id: String,
+    pub email: String,
+    pub name: String,
+    pub role: String,
+}
+
+fn unauthorized(msg: &'static str) -> Response {
+    (StatusCode::UNAUTHORIZED, Json(json!({ "error": msg }))).into_response()
+}
+
+async fn jwt_auth_middleware(
+    State(state): State<LanHttpState>,
+    mut req: axum::extract::Request,
+    next: Next,
+) -> Result<Response, Response> {
+    let auth = req
+        .headers()
+        .get(header::AUTHORIZATION)
+        .and_then(|version| version.to_str().ok())
+        .ok_or_else(|| unauthorized("Authorization header required"))?;
+    let raw = auth
+        .strip_prefix("Bearer ")
+        .ok_or_else(|| unauthorized("Bearer token required"))?
+        .trim();
+    let path = req.uri().path().to_string();
+    let sync_channel = path.contains("/sync/") || path.ends_with("/pairing/peers");
+    if sync_channel && !raw.starts_with(medoc_sync::pairing::ACTIVATION_TOKEN_PREFIX) {
+        let reconcile = path.contains("/sync/digest")
+            || path.contains("/sync/row-hashes")
+            || path.contains("/sync/rows");
+        if reconcile {
+            return Err(unauthorized("staff jwt is not a device activation token"));
+        }
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({
+                "error": "sync routes accept only a paired device activation token",
+                "reason": "staff_jwt_rejected"
+            })),
+        )
+            .into_response());
+    }
+    if raw.starts_with(medoc_sync::pairing::ACTIVATION_TOKEN_PREFIX) {
+        // Activation-token path (Slice 4): replicas authenticate sync calls
+        // with the Ed25519-signed token instead of the legacy JWT.
+        let method = req.method().as_str().to_string();
+        let payload = self::sync::verify_activation_for_path(&state, raw, &path, &method).await?;
+        req.extensions_mut().insert(payload);
+        return Ok(next.run(req).await);
+    }
+    let claims = jwt::verify_token(state.jwt_secret.as_ref(), raw).map_err(|_| {
+        tracing::warn!(
+            target: "medoc::lan",
+            event = "LAN_JWT_REJECTED",
+            path = %req.uri().path(),
+            token_prefix = %raw.chars().take(8).collect::<String>()
+        );
+        unauthorized("Invalid token")
+    })?;
+    let current = staff_repo::token_version(&state.pool, &claims.sub)
+        .await
+        .map_err(|_| unauthorized("Invalid token"))?;
+    if claims.token_version != current {
+        return Err(unauthorized("Invalid token"));
+    }
+    req.extensions_mut().insert(claims);
+    Ok(next.run(req).await)
+}
+
+fn require_ops_system_claims(claims: &jwt::LanClaims) -> Result<(), AppError> {
+    let role = Role::parse(&claims.role).ok_or(AppError::Forbidden)?;
+    if !rbac::allowed("ops.system", role) {
+        return Err(AppError::Forbidden);
+    }
+    Ok(())
+}
+
+pub fn build_router(state: LanHttpState) -> Router {
+    let allowed = cors_policy::lan_allowed_origin_strings(
+        state.http_port,
+        &state.extra_cors_origins,
+        &state.discovery_peers,
+    );
+    let cors_gate = CorsGate::lan(
+        state.http_port,
+        &state.extra_cors_origins,
+        &state.discovery_peers,
+    );
+
+    let public = Router::new()
+        .route("/ping", get(ping))
+        .route("/auth/login", post(login))
+        .route("/pairing/request", post(self::pairing::submit))
+        .route("/pairing/status/{id}", get(self::pairing::status))
+        .route("/pairing/confirm/{id}", post(self::pairing::confirm))
+        .route("/pairing/master-info", get(self::pairing::master_info))
+        .route("/pairing/peers", get(self::pairing::peers))
+        .with_state(state.clone());
+
+    let protected = Router::new()
+        .route("/me", get(me_get).patch(me_patch))
+        .route(
+            "/app-kv",
+            get(app_kv_get).put(app_kv_put).delete(app_kv_delete),
+        )
+        .route("/company/summary", get(company_summary_get))
+        .route(
+            "/company/integrations/status",
+            get(company_integrations_get),
+        )
+        .route("/company/feature-flags", get(company_feature_flags_get))
+        .route(
+            "/company/billing/portal-session",
+            post(company_billing_portal_post),
+        )
+        .route(medoc_sync::paths::SYNC_PUSH, post(self::sync::sync_push))
+        .route(medoc_sync::paths::SYNC_PULL, post(self::sync::sync_pull))
+        .route(
+            medoc_sync::paths::SYNC_EXCHANGE,
+            post(self::sync::sync_exchange),
+        )
+        .route(
+            medoc_sync::paths::SYNC_DIGEST,
+            post(self::sync::sync_digest),
+        )
+        .route(
+            medoc_sync::paths::SYNC_ROW_HASHES,
+            post(self::sync::sync_row_hashes),
+        )
+        .route(medoc_sync::paths::SYNC_ROWS, post(self::sync::sync_rows))
+        .route(medoc_sync::paths::SYNC_STATUS, get(self::sync::sync_status))
+        .route(
+            medoc_sync::paths::SYNC_NUMBER,
+            post(self::sync::sync_number),
+        )
+        .route(
+            medoc_sync::paths::SYNC_BLOB_ROUTE,
+            get(self::sync::sync_blob_get).put(self::sync::sync_blob_put),
+        )
+        .route("/pairing/pending", get(self::pairing::pending))
+        .route("/pairing/all", get(self::pairing::list_all))
+        .route("/pairing/decide/{id}", post(self::pairing::decide))
+        .route("/pairing/revoke/{device_id}", post(self::pairing::revoke))
+        .route(
+            "/eprescriptions/validate",
+            post(self::eprescription::validate),
+        )
+        .route("/eprescriptions/submit", post(self::eprescription::submit))
+        .route(
+            "/license",
+            get(self::license::status).delete(self::license::clear),
+        )
+        .route("/license/activate", post(self::license::activate))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            jwt_auth_middleware,
+        ))
+        .with_state(state.clone());
+
+    Router::new()
+        .route("/health", get(health))
+        .nest("/api/v1", public.merge(protected))
+        .layer(TimeoutLayer::with_status_code(
+            StatusCode::REQUEST_TIMEOUT,
+            Duration::from_secs(120),
+        ))
+        .layer(RequestBodyLimitLayer::new(16 * 1024 * 1024))
+        .layer(cors_policy::lan_cors_layer(&allowed))
+        .layer(middleware::from_fn_with_state(
+            cors_gate,
+            cors_policy::cors_origin_gate_middleware,
+        ))
+}
+
+async fn health() -> Json<serde_json::Value> {
+    Json(json!({
+        "status": "ok",
+        "service": "medoc-lan",
+        "version": env!("CARGO_PKG_VERSION"),
+    }))
+}
+
+async fn ping() -> Json<serde_json::Value> {
+    Json(json!({ "ok": true }))
+}
+
+async fn login(
+    State(state): State<LanHttpState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    Json(body): Json<LoginBody>,
+) -> Result<Json<LoginResponse>, Response> {
+    let peer_ip = addr.ip().to_string();
+    let brute_key =
+        BruteKey::from_subject(&body.email, &peer_ip).map_err(|e| ApiError(e).into_response())?;
+    match state.brute.check(Some(&state.pool), &brute_key).await {
+        CheckResult::Locked { remaining_secs } => {
+            return Err((
+                StatusCode::TOO_MANY_REQUESTS,
+                Json(
+                    json!({ "error": format!("error.app.rate_limited|seconds={remaining_secs}") }),
+                ),
+            )
+                .into_response());
+        }
+        CheckResult::Allowed => {}
+    }
+
+    let req = LoginRequest {
+        email: body.email.clone(),
+        password: body.password,
+        totp_code: body.totp_code.clone(),
+    };
+
+    let session = match auth_service::authenticate(&state.pool, &req).await {
+        Ok(s) => s,
+        Err(e) => {
+            let locked = state
+                .brute
+                .record_failure(Some(&state.pool), &brute_key)
+                .await;
+            if locked {
+                tracing::warn!(target: "medoc::lan", event = "LAN_LOGIN_LOCKOUT", ip = %peer_ip);
+            }
+            return Err(ApiError(e).into_response());
+        }
+    };
+
+    state
+        .brute
+        .record_success(Some(&state.pool), &brute_key)
+        .await;
+
+    let token_version = staff_repo::token_version(&state.pool, &session.user_id)
+        .await
+        .map_err(|e| ApiError(e).into_response())?;
+    let token = jwt::issue_token_versioned(
+        state.jwt_secret.as_ref(),
+        &session.user_id,
+        &session.email,
+        &session.role,
+        token_version,
+    )
+    .map_err(|e| ApiError(e).into_response())?;
+
+    Ok(Json(LoginResponse {
+        access_token: token,
+        token_type: "Bearer",
+        expires_in: 8 * 3600,
+        user: LoginUserDto {
+            user_id: session.user_id,
+            email: session.email.clone(),
+            name: session.name,
+            role: session.role.clone(),
+        },
+    }))
+}
+
+/// Own profile — mirrors Tauri `get_own_profile` (any valid JWT session).
+async fn me_get(
+    State(state): State<LanHttpState>,
+    Extension(claims): Extension<jwt::LanClaims>,
+) -> Result<Json<OwnProfileDto>, ApiError> {
+    let dto = own_profile::get_own_profile(&state.pool, &claims.sub).await?;
+    Ok(Json(dto))
+}
+
+/// Update own profile — mirrors Tauri `update_own_profile`.
+async fn me_patch(
+    State(state): State<LanHttpState>,
+    Extension(claims): Extension<jwt::LanClaims>,
+    Json(body): Json<UpdateOwnProfile>,
+) -> Result<Json<OwnProfileDto>, ApiError> {
+    let updated = own_profile::apply_own_profile_update(&state.pool, &claims.sub, &body).await?;
+    Ok(Json(OwnProfileDto::from(&updated)))
+}
+
+/// Mirrors Tauri `get_app_kv` — the key's permission applies to reads as well as writes.
+async fn app_kv_get(
+    State(state): State<LanHttpState>,
+    Extension(claims): Extension<jwt::LanClaims>,
+    Query(q): Query<AppKvKeyQuery>,
+) -> Result<Json<Option<String>>, ApiError> {
+    let perm = app_kv_policy::read_permission_for_app_kv_key(&q.key)
+        .ok_or_else(|| AppError::Validation(format!("Unknown KV key: {}", q.key)))?;
+    let role = Role::parse(&claims.role).ok_or(AppError::Forbidden)?;
+    if !rbac::allowed(perm, role) {
+        return Err(AppError::Forbidden.into());
+    }
+    let row = app_kv_repo::get(&state.pool, &q.key).await?;
+    Ok(Json(row))
+}
+
+/// Mirrors Tauri `set_app_kv`.
+async fn app_kv_put(
+    State(state): State<LanHttpState>,
+    Extension(claims): Extension<jwt::LanClaims>,
+    Json(body): Json<AppKvPutBody>,
+) -> Result<StatusCode, ApiError> {
+    require_app_kv_write(&claims, &body.key)?;
+    app_kv_policy::validate_app_kv_value(&body.key, &body.value)?;
+    app_kv_repo::set(&state.pool, &body.key, &body.value).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Mirrors Tauri `delete_app_kv`.
+async fn app_kv_delete(
+    State(state): State<LanHttpState>,
+    Extension(claims): Extension<jwt::LanClaims>,
+    Query(q): Query<AppKvKeyQuery>,
+) -> Result<StatusCode, ApiError> {
+    require_app_kv_write(&claims, &q.key)?;
+    app_kv_repo::delete(&state.pool, &q.key).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Vendor portal — subscription summary (`ops.system` only; uses practice KV + optional env).
+async fn company_summary_get(
+    State(state): State<LanHttpState>,
+    Extension(claims): Extension<jwt::LanClaims>,
+) -> Result<Json<Value>, ApiError> {
+    require_ops_system_claims(&claims)?;
+    let cfg = load_company_portal_config(&state.pool).await;
+    let version = COMPANY_PORTAL.fetch_subscription_summary(&cfg).await?;
+    Ok(Json(version))
+}
+
+async fn company_integrations_get(
+    State(state): State<LanHttpState>,
+    Extension(claims): Extension<jwt::LanClaims>,
+) -> Result<Json<Value>, ApiError> {
+    require_ops_system_claims(&claims)?;
+    let cfg = load_company_portal_config(&state.pool).await;
+    let version = COMPANY_PORTAL.fetch_integration_statuses(&cfg).await?;
+    Ok(Json(version))
+}
+
+async fn company_feature_flags_get(
+    State(state): State<LanHttpState>,
+    Extension(claims): Extension<jwt::LanClaims>,
+) -> Result<Json<Value>, ApiError> {
+    require_ops_system_claims(&claims)?;
+    let cfg = load_company_portal_config(&state.pool).await;
+    let version = COMPANY_PORTAL.fetch_feature_flags(&cfg).await?;
+    Ok(Json(version))
+}
+
+async fn company_billing_portal_post(
+    State(state): State<LanHttpState>,
+    Extension(claims): Extension<jwt::LanClaims>,
+) -> Result<Json<Value>, ApiError> {
+    require_ops_system_claims(&claims)?;
+    let cfg = load_company_portal_config(&state.pool).await;
+    let url = COMPANY_PORTAL.post_billing_portal_url(&cfg).await?;
+    Ok(Json(json!({ "url": url, "provider": "Vendor portal" })))
+}
+
+================================================================================
+FILE: src/http/pairing.rs
+================================================================================
+//! LAN HTTP endpoints for the master/replica pairing handshake.
+//!
+//! - `POST /api/v1/pairing/request`         (unauth) — replica submits.
+//! - `GET  /api/v1/pairing/status/:id`      (unauth) — replica polls.
+//! - `GET  /api/v1/pairing/master-info`     (unauth) — replica learns master pubkey + label.
+//! - `POST /api/v1/pairing/decide/:id`      (JWT, ops.system) — master accepts/rejects.
+//! - `POST /api/v1/pairing/confirm/:id`     (unauth) — replica submits 4-digit PIN.
+//! - `GET  /api/v1/pairing/pending`         (JWT, ops.system) — master inbox.
+//! - `POST /api/v1/pairing/revoke/:device`  (JWT, ops.system) — master revokes.
+//! - `GET  /api/v1/pairing/peers`           (activation token) — replica fetches signed peer list (mesh, BEST-EFFORT).
+
+use std::net::SocketAddr;
+
+use axum::extract::{ConnectInfo, Extension, Path, State};
+use axum::http::{header, StatusCode};
+use axum::response::{IntoResponse, Response};
+use axum::Json;
+use medoc_core::error::AppError;
+use medoc_core::infrastructure::database::repos::admin::app_kv as app_kv_repo;
+use medoc_sync::deployment::APP_KV_DEVICE_ID_KEY;
+use medoc_sync::master_keys;
+use medoc_sync::pairing::{
+    self, ActivationTokenPayload, PairingDecideResult, PairingDecision, PairingRequest,
+    PairingRequestSubmit, ACTIVATION_TOKEN_PREFIX,
+};
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+
+use super::LanHttpState;
+use crate::jwt;
+use crate::master_license;
+
+pub struct ApiError(AppError);
+
+impl IntoResponse for ApiError {
+    fn into_response(self) -> Response {
+        let status = match &self.0 {
+            AppError::Unauthorized => StatusCode::UNAUTHORIZED,
+            AppError::Forbidden => StatusCode::FORBIDDEN,
+            AppError::RateLimited(_) => StatusCode::TOO_MANY_REQUESTS,
+            AppError::NotFound(_) => StatusCode::NOT_FOUND,
+            AppError::Conflict(_) | AppError::FeatureDisabled(_) => StatusCode::CONFLICT,
+            AppError::Validation(_) | AppError::ValidationCode(_) => StatusCode::BAD_REQUEST,
+            AppError::TotpRequired => StatusCode::UNAUTHORIZED,
+            AppError::TotpEnrollmentRequired => StatusCode::FORBIDDEN,
+            AppError::Database(_) | AppError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
+        };
+        // Database / internal errors can contain SQL, file paths or key
+        // material hints. Log them; send the LAN client a generic message.
+        let msg = if status == StatusCode::INTERNAL_SERVER_ERROR {
+            tracing::error!(target: "medoc::lan", event = "LAN_INTERNAL_ERROR", error = %self.0);
+            "internal error".to_string()
+        } else {
+            self.0.to_string()
+        };
+        (status, Json(json!({ "error": msg }))).into_response()
+    }
+}
+
+impl From<AppError> for ApiError {
+    fn from(value: AppError) -> Self {
+        ApiError(value)
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PairingRequestBody {
+    pub device_id: String,
+    pub slave_pubkey: String,
+    #[serde(default)]
+    pub slave_label: String,
+    #[serde(default = "default_transport")]
+    pub transport: String,
+}
+
+fn default_transport() -> String {
+    "lan".into()
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PairingConfirmBody {
+    pub pin: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PairingDecisionBody {
+    pub accept: bool,
+    #[serde(default)]
+    pub allowed_actions: Vec<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MasterInfo {
+    pub master_device_id: String,
+    pub master_pubkey: String,
+    pub master_label: String,
+    pub master_version: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PairingPeerListing {
+    pub master_device_id: String,
+    pub peers: Vec<PairingPeerEntry>,
+    pub signature: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PairingPeerEntry {
+    pub device_id: String,
+    pub slave_label: String,
+    pub slave_pubkey: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub peer_base_url: Option<String>,
+}
+
+pub async fn submit(
+    State(state): State<LanHttpState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    Json(body): Json<PairingRequestBody>,
+) -> Result<Json<PairingRequest>, ApiError> {
+    master_license::require_master_license(&state.pool).await?;
+    let ip = addr.ip().to_string();
+    let req = pairing::submit_request(
+        &state.pool,
+        PairingRequestSubmit {
+            device_id: body.device_id,
+            slave_pubkey: body.slave_pubkey,
+            slave_label: body.slave_label,
+            requester_ip: ip,
+            transport: body.transport,
+        },
+    )
+    .await?;
+    Ok(Json(req.redact_public_token()))
+}
+
+pub async fn status(
+    State(state): State<LanHttpState>,
+    Path(id): Path<String>,
+) -> Result<Json<PairingRequest>, ApiError> {
+    let row = pairing::load_by_id(&state.pool, &id)
+        .await?
+        .ok_or(AppError::NotFound("pairing_request".into()))?;
+    Ok(Json(row.redact_public_token()))
+}
+
+pub async fn master_info(State(state): State<LanHttpState>) -> Result<Json<MasterInfo>, ApiError> {
+    let signing_key = master_keys::align_to_license(&state.pool).await?;
+    let master_device_id = app_kv_repo::get(&state.pool, APP_KV_DEVICE_ID_KEY)
+        .await?
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "unknown".into());
+    let master_label = app_kv_repo::get(&state.pool, "lan.host_label.v1")
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "MeDoc Master".to_string());
+    Ok(Json(MasterInfo {
+        master_device_id,
+        master_pubkey: master_keys::pubkey_b64(&signing_key),
+        master_label,
+        master_version: env!("CARGO_PKG_VERSION").to_string(),
+    }))
+}
+
+pub async fn pending(
+    State(state): State<LanHttpState>,
+    Extension(claims): Extension<jwt::LanClaims>,
+) -> Result<Json<Vec<PairingRequest>>, ApiError> {
+    require_ops_system(&claims)?;
+    let rows = pairing::list_pending(&state.pool).await?;
+    Ok(Json(rows))
+}
+
+pub async fn list_all(
+    State(state): State<LanHttpState>,
+    Extension(claims): Extension<jwt::LanClaims>,
+) -> Result<Json<Vec<PairingRequest>>, ApiError> {
+    require_ops_system(&claims)?;
+    let rows = pairing::list_all(&state.pool).await?;
+    Ok(Json(rows))
+}
+
+pub async fn decide(
+    State(state): State<LanHttpState>,
+    Extension(claims): Extension<jwt::LanClaims>,
+    Path(id): Path<String>,
+    Json(body): Json<PairingDecisionBody>,
+) -> Result<Json<PairingDecideResult>, ApiError> {
+    require_ops_system(&claims)?;
+    master_license::require_master_license(&state.pool).await?;
+    let master_device_id = master_local_device_id(&state).await?;
+    let result = pairing::decide(
+        &state.pool,
+        &master_device_id,
+        &id,
+        PairingDecision {
+            accept: body.accept,
+            allowed_actions: body.allowed_actions,
+            decided_by: claims.sub.clone(),
+        },
+        state.http_port,
+    )
+    .await?;
+    Ok(Json(result))
+}
+
+pub async fn confirm(
+    State(state): State<LanHttpState>,
+    Path(id): Path<String>,
+    Json(body): Json<PairingConfirmBody>,
+) -> Result<Json<PairingRequest>, ApiError> {
+    master_license::require_master_license(&state.pool).await?;
+    let master_device_id = master_local_device_id(&state).await?;
+    let row = pairing::confirm_pin(
+        &state.pool,
+        &master_device_id,
+        &id,
+        &body.pin,
+        state.http_port,
+    )
+    .await?;
+    Ok(Json(row))
+}
+
+pub async fn revoke(
+    State(state): State<LanHttpState>,
+    Extension(claims): Extension<jwt::LanClaims>,
+    Path(device_id): Path<String>,
+) -> Result<StatusCode, ApiError> {
+    require_ops_system(&claims)?;
+    master_license::require_master_license(&state.pool).await?;
+    let master_device_id = master_local_device_id(&state).await?;
+    pairing::revoke(&state.pool, &master_device_id, &device_id, &claims.sub).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Activation-token-authenticated peer list — replicas use this to learn
+/// each other's `device_id` so they can mesh-sync directly.
+pub async fn peers(
+    State(state): State<LanHttpState>,
+    req: axum::extract::Request,
+) -> Result<Json<PairingPeerListing>, ApiError> {
+    let token = extract_bearer(&req)?;
+    let signing_key = master_keys::load_or_create()?;
+    let payload = pairing::verify_activation_token(token, &signing_key.verifying_key())?;
+    require_action(&payload, "pairing.peers")?;
+    let master_device_id_local = master_local_device_id(&state).await?;
+    // Revocation gate: if THIS node knows `device_id` as a paired slave and
+    // its status is REVOKED, reject. If no row exists at all, this is a
+    // mesh-peer scenario (sibling replica fetching the peer list against
+    // its own master, not us) — fall back to trusting the master signature
+    // and baked-in actions. Mirrors `http::sync::verify_activation_for_path`.
+    if let Some(req) = pairing::load_by_device(&state.pool, &payload.device_id).await? {
+        if req.status == "REVOKED" {
+            return Err(AppError::Forbidden.into());
+        }
+        if req.status != "ACCEPTED" || req.activation_token.as_deref() != Some(token) {
+            return Err(AppError::Forbidden.into());
+        }
+        let live_actions = pairing::slave_actions(&state.pool, &payload.device_id).await?;
+        if !live_actions.is_empty() && !live_actions.iter().any(|a| a == "pairing.peers") {
+            return Err(AppError::Forbidden.into());
+        }
+    } else if payload.master_device_id == master_device_id_local {
+        // We issued this token but no longer know the device (row deleted on
+        // reset/re-pair): treat as revoked, never as a mesh peer.
+        return Err(AppError::Forbidden.into());
+    }
+    let master_device_id = master_device_id_local;
+    let rows = pairing::list_all(&state.pool).await?;
+    let mut peers_list: Vec<PairingPeerEntry> = Vec::new();
+    for r in rows {
+        if r.status != "ACCEPTED" || r.device_id == payload.device_id {
+            continue;
+        }
+        let peer_base_url = pairing::peer_advertised_url(
+            &state.pool,
+            &r.device_id,
+            &r.requester_ip,
+            state.http_port,
+        )
+        .await?;
+        peers_list.push(PairingPeerEntry {
+            device_id: r.device_id,
+            slave_label: r.slave_label,
+            slave_pubkey: r.slave_pubkey,
+            peer_base_url,
+        });
+    }
+    let body = serde_json::to_vec(&serde_json::json!({
+        "masterDeviceId": master_device_id,
+        "peers": peers_list,
+    }))
+    .map_err(|e| AppError::Internal(format!("peers body: {e}")))?;
+    let sig = master_keys::sign(&signing_key, &body);
+    Ok(Json(PairingPeerListing {
+        master_device_id,
+        peers: peers_list,
+        signature: sig,
+    }))
+}
+
+async fn master_local_device_id(state: &LanHttpState) -> Result<String, AppError> {
+    let id = app_kv_repo::get(&state.pool, APP_KV_DEVICE_ID_KEY)
+        .await?
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "master-local".into());
+    Ok(id)
+}
+
+fn require_ops_system(claims: &jwt::LanClaims) -> Result<(), AppError> {
+    use medoc_core::application::rbac::{self, Role};
+    let role = Role::parse(&claims.role).ok_or(AppError::Forbidden)?;
+    if !rbac::allowed("ops.system", role) {
+        return Err(AppError::Forbidden);
+    }
+    Ok(())
+}
+
+fn require_action(payload: &ActivationTokenPayload, action: &str) -> Result<(), AppError> {
+    if payload.allowed_actions.iter().any(|a| a == action) {
+        Ok(())
+    } else {
+        Err(AppError::Forbidden)
+    }
+}
+
+fn extract_bearer(req: &axum::extract::Request) -> Result<&str, AppError> {
+    let raw = req
+        .headers()
+        .get(header::AUTHORIZATION)
+        .and_then(|version| version.to_str().ok())
+        .ok_or(AppError::Unauthorized)?;
+    let token = raw
+        .strip_prefix("Bearer ")
+        .ok_or(AppError::Unauthorized)?
+        .trim();
+    if !token.starts_with(ACTIVATION_TOKEN_PREFIX) {
+        return Err(AppError::Unauthorized);
+    }
+    Ok(token)
+}
+
+================================================================================
+FILE: src/http/sync.rs
+================================================================================
+//! LAN HTTP endpoints for peer replication (`/api/v1/sync/*`).
+//!
+//! Authentication:
+//!
+//! - Legacy JWT path is still wired by `http::build_router` (replicas paired
+//!   before Slice 4 keep working unchanged).
+//! - The new activation-token middleware ([`require_activation_token`])
+//!   recognises `Authorization: Bearer mt2.<body>.<sig>` tokens, verifies
+//!   the signature against the master's Ed25519 public key, and rejects
+//!   pushes whose `from_device_id` does not match the token's `device_id`.
+
+#![allow(clippy::result_large_err)] // axum handlers return `Response` as Err
+
+use std::net::SocketAddr;
+
+use axum::body::Bytes;
+use axum::extract::{ConnectInfo, Extension, Path, State};
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
+use axum::Json;
+use medoc_core::infrastructure::database::repos::admin::app_kv as app_kv_repo;
+use medoc_sync::deployment::APP_KV_DEVICE_ID_KEY;
+use medoc_sync::engine::SyncEngine;
+use medoc_sync::master_keys;
+use medoc_sync::pairing::{self, ActivationTokenPayload};
+use medoc_sync::repo::{self, OutboxEntry};
+use serde::Deserialize;
+use serde_json::json;
+
+use super::{ApiError, LanHttpState};
+use crate::master_license;
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncPushBody {
+    pub from_device_id: String,
+    pub entries: Vec<OutboxEntry>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncPullBody {
+    pub device_id: String,
+    pub since_seq: i64,
+    pub requester_id: Option<String>,
+    #[serde(default)]
+    pub live_since_seq: i64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncExchangeBody {
+    pub from_device_id: String,
+    #[serde(default)]
+    pub packets: Vec<OutboxEntry>,
+    #[serde(default)]
+    pub ack_through_seq: i64,
+    #[serde(default)]
+    pub queues: Vec<String>,
+}
+
+fn forbidden(reason: &'static str) -> Response {
+    (
+        StatusCode::FORBIDDEN,
+        Json(json!({
+            "error": "forbidden",
+            "reason": reason
+        })),
+    )
+        .into_response()
+}
+
+pub async fn sync_push(
+    State(state): State<LanHttpState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    mut req: axum::extract::Request,
+) -> Result<Json<medoc_sync::engine::SyncPushResult>, Response> {
+    if master_license::require_master_license(&state.pool)
+        .await
+        .is_err()
+    {
+        return Err(forbidden("master_license_required"));
+    }
+    // The middleware only lets activation tokens through on /sync/*; a push
+    // without one would skip the device binding below, so refuse it.
+    let Some(token_check) = req.extensions().get::<ActivationTokenPayload>().cloned() else {
+        return Err(forbidden("activation_token_required"));
+    };
+    let body_bytes =
+        match axum::body::to_bytes(std::mem::take(req.body_mut()), 16 * 1024 * 1024).await {
+            Ok(b) => b,
+            Err(_) => {
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    Json(json!({"error": "sync_push_failed", "reason": "body"})),
+                )
+                    .into_response())
+            }
+        };
+    let body: SyncPushBody = match serde_json::from_slice(&body_bytes) {
+        Ok(b) => b,
+        Err(error) => {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(json!({
+                    "error": "sync_push_failed",
+                    "reason": error.to_string()
+                })),
+            )
+                .into_response())
+        }
+    };
+    if token_check.device_id != body.from_device_id {
+        return Err(forbidden("from_device_mismatch"));
+    }
+    let result = SyncEngine::ingest_push(&state.pool, &body.from_device_id, &body.entries)
+        .await
+        .map_err(|e| {
+            tracing::warn!(target: "medoc::lan", event = "LAN_SYNC_PUSH_FAILED", error = %e);
+            (
+                StatusCode::BAD_REQUEST,
+                Json(json!({
+                    "error": "sync_push_failed",
+                    "reason": e.to_string()
+                })),
+            )
+                .into_response()
+        })?;
+    if let Err(error) = repo::touch_replica_seen(
+        &state.pool,
+        &body.from_device_id,
+        &addr.ip().to_string(),
+        state.http_port,
+    )
+    .await
+    {
+        tracing::warn!(
+            target: "medoc::lan",
+            event = "REPLICA_SEEN_FAILED",
+            device_id = %body.from_device_id,
+            error = %error
+        );
+    }
+    Ok(Json(result))
+}
+
+pub async fn sync_exchange(
+    State(state): State<LanHttpState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    mut req: axum::extract::Request,
+) -> Result<Json<medoc_sync::engine::SyncExchangePage>, Response> {
+    if master_license::require_master_license(&state.pool)
+        .await
+        .is_err()
+    {
+        return Err(forbidden("master_license_required"));
+    }
+    let Some(token_check) = req.extensions().get::<ActivationTokenPayload>().cloned() else {
+        return Err(forbidden("activation_token_required"));
+    };
+    let body_bytes =
+        match axum::body::to_bytes(std::mem::take(req.body_mut()), 16 * 1024 * 1024).await {
+            Ok(b) => b,
+            Err(_) => {
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    Json(json!({"error": "sync_exchange_failed", "reason": "body"})),
+                )
+                    .into_response())
+            }
+        };
+    let body: SyncExchangeBody = match serde_json::from_slice(&body_bytes) {
+        Ok(b) => b,
+        Err(error) => {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(json!({
+                    "error": "sync_exchange_failed",
+                    "reason": error.to_string()
+                })),
+            )
+                .into_response())
+        }
+    };
+    if token_check.device_id != body.from_device_id {
+        return Err(forbidden("from_device_mismatch"));
+    }
+    let result = SyncEngine::serve_exchange(
+        &state.pool,
+        &body.from_device_id,
+        &body.packets,
+        body.ack_through_seq,
+        &body.queues,
+    )
+    .await
+    .map_err(|e| {
+        tracing::warn!(target: "medoc::lan", event = "LAN_SYNC_EXCHANGE_FAILED", error = %e);
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({
+                "error": "sync_exchange_failed",
+                "reason": e.to_string()
+            })),
+        )
+            .into_response()
+    })?;
+    let deployment = medoc_sync::repo::load_deployment(&state.pool)
+        .await
+        .unwrap_or_default();
+    if deployment.role == medoc_sync::deployment::DeviceRole::Master {
+        if let Err(error) = repo::touch_replica_seen(
+            &state.pool,
+            &body.from_device_id,
+            &addr.ip().to_string(),
+            state.http_port,
+        )
+        .await
+        {
+            tracing::warn!(
+                target: "medoc::lan",
+                event = "REPLICA_SEEN_FAILED",
+                device_id = %body.from_device_id,
+                error = %error
+            );
+        }
+    }
+    Ok(Json(result))
+}
+
+pub async fn sync_pull(
+    State(state): State<LanHttpState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    Extension(token): Extension<ActivationTokenPayload>,
+    Json(body): Json<SyncPullBody>,
+) -> Result<Json<medoc_sync::engine::ReplicaPullPage>, Response> {
+    if master_license::require_master_license(&state.pool)
+        .await
+        .is_err()
+    {
+        return Err(forbidden("master_license_required"));
+    }
+    if body.requester_id.as_deref() != Some(token.device_id.as_str()) {
+        return Err(forbidden("requester_mismatch"));
+    }
+    // The requester id is used to throttle full-snapshot requests per device.
+    let page = SyncEngine::collect_pull_for_replica(
+        &state.pool,
+        &token.device_id,
+        body.since_seq,
+        body.live_since_seq,
+    )
+    .await
+    .map_err(|_| StatusCode::BAD_REQUEST.into_response())?;
+    if let Some(ref requester_id) = body.requester_id {
+        if let Err(error) = repo::touch_replica_seen(
+            &state.pool,
+            requester_id,
+            &addr.ip().to_string(),
+            state.http_port,
+        )
+        .await
+        {
+            tracing::warn!(
+                target: "medoc::lan",
+                event = "REPLICA_SEEN_FAILED",
+                device_id = %requester_id,
+                error = %error
+            );
+        }
+    }
+    Ok(Json(page))
+}
+
+pub async fn sync_status(
+    State(state): State<LanHttpState>,
+) -> Result<Json<medoc_sync::repo::SyncStatusSnapshot>, Response> {
+    if master_license::require_master_license(&state.pool)
+        .await
+        .is_err()
+    {
+        return Err(forbidden("master_license_required"));
+    }
+    SyncEngine::status(&state.pool)
+        .await
+        .map(Json)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
+}
+
+/// Verify an activation token and the requested action against the
+/// per-slave allow-list. Used by the LAN JWT middleware to bypass the
+/// JWT path when the bearer is `mt2.<…>` (Slice 4).
+///
+/// BEST-EFFORT scope (Slice "best_effort_rbac"): activation tokens are
+/// **only** accepted on the small list of sync-related routes returned by
+/// [`action_for_path`]. Any other protected route requires a legacy JWT;
+/// replicas presenting an mt2 token to `/patients`, `/me`, etc. get a 403.
+pub async fn verify_activation_for_path(
+    state: &LanHttpState,
+    token: &str,
+    path: &str,
+    method: &str,
+) -> Result<ActivationTokenPayload, Response> {
+    let sk = master_keys::align_to_license(&state.pool)
+        .await
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "master key").into_response())?;
+    let payload = match pairing::verify_activation_token(token, &sk.verifying_key()) {
+        Ok(payload) => payload,
+        Err(error) if path.ends_with(medoc_sync::paths::SYNC_EXCHANGE) => {
+            match verify_exchange_from_main(state, token).await {
+                Ok(payload) => payload,
+                Err(response) => {
+                    tracing::warn!(
+                        target: "medoc::lan",
+                        event = "LAN_MT2_REJECTED",
+                        path = %path,
+                        error = %error
+                    );
+                    return Err(response);
+                }
+            }
+        }
+        Err(error) => {
+            tracing::warn!(
+                target: "medoc::lan",
+                event = "LAN_MT2_REJECTED",
+                path = %path,
+                error = %error
+            );
+            return Err((StatusCode::UNAUTHORIZED, "activation token").into_response());
+        }
+    };
+    let action = action_for_path(path, method);
+    if action.is_empty() {
+        return Err(forbidden("activation_token_route"));
+    }
+    if !action_granted(&payload.allowed_actions, action) {
+        return Err(forbidden("action_not_allowed"));
+    }
+    // Revocation gate. Three cases must be distinguished:
+    //   1. This node is the master of `device_id` and the request is REVOKED → 403.
+    //   2. This node is the master of `device_id`, the request is ACCEPTED,
+    //      but the action was revoked individually → 403.
+    //   3. This node has no `pairing_request` row for `device_id` at all,
+    //      which means we are a sibling replica receiving a mesh peer push.
+    //      We cannot consult our own `slave_permission` table — we rely
+    //      on the master signature already verified above and the
+    //      token's baked-in `allowed_actions`. This is the documented
+    //      mesh contract (see `medoc-sync::engine::run_mesh_sync`).
+    let row = pairing::load_by_device(&state.pool, &payload.device_id)
+        .await
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "pairing lookup").into_response())?;
+    if row.is_none() {
+        // Case 3 only applies to tokens another master issued. If this node
+        // issued the token (its device id is the token's master), a missing
+        // row means the pairing was removed (reset, re-pair): treat as
+        // revoked. Without this, a revoked device whose row was deleted kept
+        // full sync access forever (tokens carry no expiry).
+        let local_id = app_kv_repo::get(&state.pool, APP_KV_DEVICE_ID_KEY)
+            .await
+            .ok()
+            .flatten()
+            .unwrap_or_default();
+        if !local_id.trim().is_empty() && payload.master_device_id == local_id.trim() {
+            return Err(forbidden("pairing_unknown"));
+        }
+    }
+    if let Some(req) = row {
+        if req.status != "ACCEPTED" {
+            return Err(forbidden("pairing_not_accepted"));
+        }
+        if req.activation_token.as_deref() != Some(token) {
+            return Err(forbidden("activation_token_mismatch"));
+        }
+        let actions = pairing::slave_actions(&state.pool, &payload.device_id)
+            .await
+            .unwrap_or_default();
+        if !actions.is_empty() && !action_granted(&actions, action) {
+            return Err(forbidden("action_revoked"));
+        }
+    }
+    Ok(payload)
+}
+
+fn too_many_requests() -> Response {
+    (
+        StatusCode::TOO_MANY_REQUESTS,
+        Json(json!({ "error": "reconcile already in progress" })),
+    )
+        .into_response()
+}
+
+pub async fn sync_digest(
+    State(state): State<LanHttpState>,
+    Extension(token): Extension<ActivationTokenPayload>,
+) -> Result<Json<medoc_sync::reconcile::DigestResponse>, Response> {
+    if master_license::require_master_license(&state.pool)
+        .await
+        .is_err()
+    {
+        return Err(forbidden("master_license_required"));
+    }
+    let Some(_guard) = medoc_sync::reconcile::ReconcileGuard::acquire(&token.device_id) else {
+        return Err(too_many_requests());
+    };
+    medoc_sync::reconcile::compute_digest(&state.pool)
+        .await
+        .map(Json)
+        .map_err(|e| ApiError(e).into_response())
+}
+
+pub async fn sync_row_hashes(
+    State(state): State<LanHttpState>,
+    Extension(token): Extension<ActivationTokenPayload>,
+    Json(body): Json<medoc_sync::reconcile::RowHashesRequest>,
+) -> Result<Json<medoc_sync::reconcile::RowHashesBody>, Response> {
+    if master_license::require_master_license(&state.pool)
+        .await
+        .is_err()
+    {
+        return Err(forbidden("master_license_required"));
+    }
+    let Some(_guard) = medoc_sync::reconcile::ReconcileGuard::acquire(&token.device_id) else {
+        return Err(too_many_requests());
+    };
+    let rows = medoc_sync::reconcile::compute_row_hashes(&state.pool, &body.buckets)
+        .await
+        .map_err(|e| ApiError(e).into_response())?;
+    Ok(Json(medoc_sync::reconcile::RowHashesBody { rows }))
+}
+
+pub async fn sync_rows(
+    State(state): State<LanHttpState>,
+    Extension(token): Extension<ActivationTokenPayload>,
+    Json(body): Json<medoc_sync::reconcile::RowsRequest>,
+) -> Result<Json<medoc_sync::reconcile::RowsBody>, Response> {
+    if master_license::require_master_license(&state.pool)
+        .await
+        .is_err()
+    {
+        return Err(forbidden("master_license_required"));
+    }
+    let Some(_guard) = medoc_sync::reconcile::ReconcileGuard::acquire(&token.device_id) else {
+        return Err(too_many_requests());
+    };
+    let rows = medoc_sync::reconcile::fetch_rows(&state.pool, &body.ids)
+        .await
+        .map_err(|e| ApiError(e).into_response())?;
+    Ok(Json(medoc_sync::reconcile::RowsBody { rows }))
+}
+
+/// Maps a request path to its activation-token action name. Returning
+/// `""` means: activation tokens are **not accepted** on this route.
+#[derive(Debug, Deserialize)]
+pub struct NumberAllocBody {
+    prefix: String,
+    #[serde(alias = "ymd")]
+    date: String,
+    #[serde(default)]
+    style: Option<String>,
+}
+
+pub async fn sync_number(
+    State(state): State<LanHttpState>,
+    Json(body): Json<NumberAllocBody>,
+) -> Result<Json<serde_json::Value>, Response> {
+    if master_license::require_master_license(&state.pool)
+        .await
+        .is_err()
+    {
+        return Err(forbidden("master_license_required"));
+    }
+    let style = medoc_core::infrastructure::database::number_sequence::NumberStyle::parse(
+        body.style.as_deref(),
+    )
+    .map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response()
+    })?;
+    let number = medoc_core::infrastructure::database::number_sequence::allocate_styled(
+        &state.pool,
+        &body.prefix,
+        &body.date,
+        style,
+    )
+    .await
+    .map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response()
+    })?;
+    Ok(Json(json!({ "number": number })))
+}
+
+/// Tokens minted before `sync.number` existed only list `sync.push`; a device
+/// allowed to push writes may also allocate document numbers.
+fn action_granted(allowed: &[String], action: &str) -> bool {
+    allowed.iter().any(|a| a == action)
+        || (action == "sync.number" && allowed.iter().any(|a| a == "sync.push"))
+}
+
+/// The main device dials a replica with a token it just signed. The replica
+/// does not have the main device's private key, so the local license check
+/// fails. Accept the token when it verifies with the paired main public key
+/// and names that main device.
+async fn verify_exchange_from_main(
+    state: &LanHttpState,
+    token: &str,
+) -> Result<ActivationTokenPayload, Response> {
+    let deployment = medoc_sync::repo::load_deployment(&state.pool)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())?;
+    if deployment.role != medoc_sync::deployment::DeviceRole::Replica {
+        return Err((StatusCode::UNAUTHORIZED, "activation token").into_response());
+    }
+    let pubkey = deployment.master_pubkey.trim();
+    let main_id = deployment.master_device_id.trim();
+    if pubkey.is_empty() || main_id.is_empty() {
+        return Err((StatusCode::UNAUTHORIZED, "activation token").into_response());
+    }
+    let key = master_keys::parse_pubkey_b64(pubkey)
+        .map_err(|_| (StatusCode::UNAUTHORIZED, "activation token").into_response())?;
+    let payload = pairing::verify_activation_token(token, &key)
+        .map_err(|_| (StatusCode::UNAUTHORIZED, "activation token").into_response())?;
+    if payload.device_id.trim() != main_id || payload.master_device_id.trim() != main_id {
+        return Err(forbidden("from_device_mismatch"));
+    }
+    Ok(payload)
+}
+
+fn action_for_path(path: &str, method: &str) -> &'static str {
+    use medoc_sync::paths::{
+        SYNC_BLOB_PREFIX, SYNC_DIGEST, SYNC_EXCHANGE, SYNC_NUMBER, SYNC_PULL, SYNC_PUSH, SYNC_ROWS,
+        SYNC_ROW_HASHES, SYNC_STATUS,
+    };
+    if path.ends_with(SYNC_EXCHANGE) {
+        // Same grant as a push: a paired device may hand its queue over and
+        // take the other device's queue back.
+        "sync.push"
+    } else if path.contains(SYNC_BLOB_PREFIX) {
+        if method.eq_ignore_ascii_case("PUT") {
+            "sync.blob.put"
+        } else {
+            "sync.blob.get"
+        }
+    } else if path.ends_with(SYNC_PUSH) {
+        "sync.push"
+    } else if path.ends_with(SYNC_PULL) {
+        "sync.pull"
+    } else if path.ends_with(SYNC_STATUS) {
+        "sync.status"
+    } else if path.ends_with(SYNC_DIGEST)
+        || path.ends_with(SYNC_ROW_HASHES)
+        || path.ends_with(SYNC_ROWS)
+    {
+        "sync.reconcile"
+    } else if path.ends_with(SYNC_NUMBER) {
+        "sync.number"
+    } else if path.ends_with("/pairing/peers") {
+        "pairing.peers"
+    } else {
+        ""
+    }
+}
+
+pub async fn sync_blob_get(
+    State(state): State<LanHttpState>,
+    Path(sha256): Path<String>,
+) -> Result<Vec<u8>, Response> {
+    if master_license::require_master_license(&state.pool)
+        .await
+        .is_err()
+    {
+        return Err(forbidden("master_license_required"));
+    }
+    medoc_core::infrastructure::database::sync_blob::get_bytes(&state.pool, &sha256)
+        .await
+        .map_err(|e| ApiError(e).into_response())
+}
+
+pub async fn sync_blob_put(
+    State(state): State<LanHttpState>,
+    Path(sha256): Path<String>,
+    body: Bytes,
+) -> Result<StatusCode, Response> {
+    if master_license::require_master_license(&state.pool)
+        .await
+        .is_err()
+    {
+        return Err(forbidden("master_license_required"));
+    }
+    if body.len() > 200 * 1024 * 1024 {
+        return Err(StatusCode::PAYLOAD_TOO_LARGE.into_response());
+    }
+    medoc_core::infrastructure::database::sync_blob::put_verified(&state.pool, &sha256, &body)
+        .await
+        .map_err(|e| ApiError(e).into_response())?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[cfg(test)]
+mod sync_route_tests {
+    use super::action_for_path;
+
+    #[test]
+    fn action_for_path_maps_sync_and_pairing_routes() {
+        assert_eq!(action_for_path("/api/v1/sync/push", "POST"), "sync.push");
+        assert_eq!(action_for_path("/api/v1/sync/exchange", "POST"), "sync.push");
+        assert_eq!(action_for_path("/api/v1/sync/pull", "POST"), "sync.pull");
+        assert_eq!(action_for_path("/api/v1/sync/status", "GET"), "sync.status");
+        assert_eq!(
+            action_for_path("/api/v1/sync/digest", "POST"),
+            "sync.reconcile"
+        );
+        assert_eq!(
+            action_for_path("/api/v1/sync/row-hashes", "POST"),
+            "sync.reconcile"
+        );
+        assert_eq!(
+            action_for_path("/api/v1/sync/rows", "POST"),
+            "sync.reconcile"
+        );
+        assert_eq!(
+            action_for_path("/api/v1/pairing/peers", "GET"),
+            "pairing.peers"
+        );
+        assert_eq!(
+            action_for_path("/api/v1/sync/blob/ab", "PUT"),
+            "sync.blob.put"
+        );
+        assert_eq!(
+            action_for_path("/api/v1/sync/blob/ab", "GET"),
+            "sync.blob.get"
+        );
+        assert_eq!(action_for_path("/api/v1/patients", "GET"), "");
+        assert_eq!(action_for_path("/api/v1/appointments", "GET"), "");
+        assert_eq!(action_for_path("/api/v1/me", "GET"), "");
+    }
+}
+
+================================================================================
+FILE: src/jwt.rs
+================================================================================
+//! JWT access tokens for authenticated LAN HTTP requests (HS256, short-lived).
+
+use chrono::Utc;
+use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
+use serde::{Deserialize, Serialize};
+
+use medoc_core::error::AppError;
+
+const JWT_ISS: &str = "medoc-lan";
+const TOKEN_TTL_SECS: i64 = 8 * 3600;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LanClaims {
+    pub iss: String,
+    pub sub: String,
+    pub email: String,
+    pub role: String,
+    /// Staff password generation. Older tokens fail once this moves on.
+    #[serde(default)]
+    pub token_version: i64,
+    pub exp: i64,
+}
+
+pub fn issue_token(
+    secret: &[u8],
+    user_id: &str,
+    email: &str,
+    role: &str,
+) -> Result<String, AppError> {
+    issue_token_versioned(secret, user_id, email, role, 0)
+}
+
+pub fn issue_token_versioned(
+    secret: &[u8],
+    user_id: &str,
+    email: &str,
+    role: &str,
+    token_version: i64,
+) -> Result<String, AppError> {
+    let exp = Utc::now().timestamp() + TOKEN_TTL_SECS;
+    let claims = LanClaims {
+        iss: JWT_ISS.into(),
+        sub: user_id.into(),
+        email: email.into(),
+        role: role.into(),
+        token_version,
+        exp,
+    };
+    let mut header = Header::new(Algorithm::HS256);
+    header.typ = Some("JWT".into());
+    encode(&header, &claims, &EncodingKey::from_secret(secret))
+        .map_err(|e| AppError::Internal(format!("JWT encode: {e}")))
+}
+
+pub fn verify_token(secret: &[u8], token: &str) -> Result<LanClaims, AppError> {
+    let mut validation = Validation::new(Algorithm::HS256);
+    validation.set_issuer(&[JWT_ISS]);
+    let key = DecodingKey::from_secret(secret);
+    let data = decode::<LanClaims>(token, &key, &validation).map_err(|_| AppError::Unauthorized)?;
+    Ok(data.claims)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn roundtrip_token() {
+        let secret = b"01234567890123456789012345678901";
+        let tok = issue_token(secret, "u1", "a@b.de", "RECEPTION").unwrap();
+        let c = verify_token(secret, &tok).unwrap();
+        assert_eq!(c.sub, "u1");
+        assert_eq!(c.role, "RECEPTION");
+        assert_eq!(c.iss, JWT_ISS);
+    }
+}
+
+================================================================================
+FILE: src/lib.rs
+================================================================================
+//! # MeDoc LAN server crate
+//!
+//! Authenticated HTTPS API + UDP discovery beacon — runs as either:
+//!
+//! 1. **Embedded** inside the practice host (`medoc-server` binary spawned by
+//!    `commands::network::lan::start_lan_embedded`), or
+//! 2. **Standalone** on a separate Linux/macOS host (`medoc-server` binary
+//!    started from the CLI), pointing at the same SQLCipher database file.
+
+pub mod config;
+pub mod discovery;
+pub mod http;
+pub mod jwt;
+pub mod master_license;
+pub mod secrets;
+pub mod tls;
+
+pub use config::{LanServerConfigV1, APP_KV_KEY};
+pub use discovery::{scan_lan_hosts, LanBeaconPayload, SCHEMA};
+pub use secrets::{ensure_instance_id, ensure_jwt_secret_bytes};
+
+/// LAN system **Factory** — single entry point that builds the HTTPS state +
+/// Axum router for both the embedded path (Tauri practice host spawns it
+/// via `commands::network::lan`) and the standalone `medoc-server` binary.
+pub struct LanSystemFactory;
+
+impl LanSystemFactory {
+    pub fn build_state(
+        pool: sqlx::SqlitePool,
+        jwt_secret: std::sync::Arc<[u8; 32]>,
+        brute: std::sync::Arc<medoc_core::infrastructure::logging::brute_force::BruteForceTracker>,
+        http_port: u16,
+        extra_cors_origins: Vec<String>,
+        discovery_peers: Vec<(std::net::SocketAddr, LanBeaconPayload)>,
+    ) -> http::LanHttpState {
+        http::LanHttpState {
+            pool,
+            jwt_secret,
+            brute,
+            http_port,
+            extra_cors_origins: std::sync::Arc::new(extra_cors_origins),
+            discovery_peers: std::sync::Arc::new(discovery_peers),
+        }
+    }
+
+    pub fn build_router(state: http::LanHttpState) -> axum::Router {
+        http::build_router(state)
+    }
+}
+
+================================================================================
+FILE: src/master_license.rs
+================================================================================
+//! Master-side license gate for LAN pairing/sync endpoints.
+//!
+//! Installations acting as the sync **master** must hold a valid v2/v1
+//! license before accepting replicas or ingesting sync traffic. Replicas
+//! running embedded LAN for mesh receive skip this check.
+
+use medoc_core::error::AppError;
+use medoc_core::infrastructure::database::repos::admin::license as license_repo;
+use medoc_sync::deployment::{DeploymentMode, DeviceRole};
+use medoc_sync::repo::load_deployment;
+use sqlx::SqlitePool;
+
+fn skip_enforcement() -> bool {
+    std::env::var("MEDOC_SKIP_MASTER_LICENSE")
+        .ok()
+        .is_some_and(|version| version == "1" || version.eq_ignore_ascii_case("true"))
+}
+
+async fn acts_as_sync_master(pool: &SqlitePool) -> Result<bool, AppError> {
+    let deployment = load_deployment(pool).await?;
+    Ok(matches!(
+        (deployment.mode, deployment.role),
+        (DeploymentMode::PracticeDesktop, _)
+            | (DeploymentMode::ServerlessPeer, DeviceRole::Master)
+            | (DeploymentMode::LanClient, DeviceRole::Master)
+    ))
+}
+
+/// Returns `Ok(())` when the host may accept pairing/sync as master.
+pub async fn require_master_license(pool: &SqlitePool) -> Result<(), AppError> {
+    if skip_enforcement() {
+        return Ok(());
+    }
+    if !acts_as_sync_master(pool).await? {
+        return Ok(());
+    }
+    let status = license_repo::current_status(pool).await?;
+    if status.valid {
+        Ok(())
+    } else {
+        Err(AppError::Forbidden)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use medoc_core::infrastructure::database::connection::{run_migrations, test_memory_pool};
+
+    #[tokio::test]
+    async fn unlicensed_practice_desktop_master_is_rejected() {
+        let pool = test_memory_pool().await.expect("pool");
+        run_migrations(&pool).await.expect("migrate");
+        std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
+        let err = require_master_license(&pool)
+            .await
+            .expect_err("needs license");
+        assert!(matches!(err, AppError::Forbidden));
+    }
+
+    #[tokio::test]
+    async fn replica_role_skips_license_gate() {
+        use medoc_sync::deployment::{DeploymentMode, DeviceRole, SyncDeploymentConfig};
+        use medoc_sync::repo::save_deployment;
+
+        let pool = test_memory_pool().await.expect("pool");
+        run_migrations(&pool).await.expect("migrate");
+        std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
+        save_deployment(
+            &pool,
+            &SyncDeploymentConfig {
+                schema_version: 1,
+                mode: DeploymentMode::ServerlessPeer,
+                role: DeviceRole::Replica,
+                device_label: "Replica".into(),
+                ..Default::default()
+            },
+        )
+        .await
+        .expect("deploy");
+        require_master_license(&pool).await.expect("replica skip");
+    }
+
+    #[tokio::test]
+    async fn skip_enforcement_env_allows_unlicensed_master() {
+        let pool = test_memory_pool().await.expect("pool");
+        run_migrations(&pool).await.expect("migrate");
+        std::env::set_var("MEDOC_SKIP_MASTER_LICENSE", "1");
+        require_master_license(&pool).await.expect("skip env");
+        std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
+    }
+}
+
+================================================================================
+FILE: src/secrets.rs
+================================================================================
+//! LAN JWT signing key and instance id — OS keychain first (no plaintext in app data dir).
+
+use std::path::Path;
+
+use uuid::Uuid;
+
+use medoc_core::error::AppError;
+use medoc_core::infrastructure::secret_store;
+
+const JWT_SECRET_FILE: &str = "lan-jwt-secret.bin";
+const INSTANCE_ID_FILE: &str = "lan-instance-id.txt";
+
+pub fn ensure_jwt_secret_bytes(app_data_dir: &Path) -> Result<[u8; 32], AppError> {
+    let legacy = app_data_dir.join(JWT_SECRET_FILE);
+    let bytes = secret_store::load_or_create_bytes("lan-jwt-secret", Some(&legacy), 32)?;
+    if bytes.len() != 32 {
+        return Err(AppError::Internal(format!(
+            "LAN JWT secret must be 32 bytes (got {})",
+            bytes.len()
+        )));
+    }
+    let mut a = [0u8; 32];
+    a.copy_from_slice(&bytes);
+    Ok(a)
+}
+
+pub fn ensure_instance_id(app_data_dir: &Path) -> Result<String, AppError> {
+    let path = app_data_dir.join(INSTANCE_ID_FILE);
+    if path.exists() {
+        let s = std::fs::read_to_string(&path)
+            .map_err(|e| AppError::Internal(format!("LAN instance id: {e}")))?;
+        let t = s.trim();
+        if !t.is_empty() {
+            return Ok(t.into());
+        }
+    }
+    std::fs::create_dir_all(app_data_dir)
+        .map_err(|e| AppError::Internal(format!("LAN dirs: {e}")))?;
+    let id = Uuid::new_v4().to_string();
+    std::fs::write(&path, &id)
+        .map_err(|e| AppError::Internal(format!("LAN instance id write: {e}")))?;
+    Ok(id)
+}
+
+================================================================================
+FILE: src/tls.rs
+================================================================================
+//! Self-signed TLS material for the LAN API (NFA-NET-07 / NFA-SEC-09).
+
+use std::path::{Path, PathBuf};
+
+use axum_server::tls_rustls::RustlsConfig;
+use rcgen::{CertificateParams, KeyPair, SanType};
+use sha2::{Digest, Sha256};
+use tokio::net::TcpListener;
+
+use medoc_core::error::AppError;
+
+const CERT_FILE: &str = "lan-tls.crt";
+const KEY_FILE: &str = "lan-tls.key";
+
+fn install_rustls_provider() -> Result<(), AppError> {
+    use std::sync::{Mutex, Once};
+    static INIT: Once = Once::new();
+    static RESULT: Mutex<Option<Result<(), String>>> = Mutex::new(None);
+
+    // Check if already initialized
+    if let Ok(guard) = RESULT.lock() {
+        if let Some(result) = guard.as_ref() {
+            return result
+                .clone()
+                .map_err(|e| AppError::Internal(format!("TLS crypto provider: {e}")));
+        }
+    }
+
+    // Initialize on first call
+    INIT.call_once(|| {
+        // `install_default` fails when *any* provider is already installed
+        // (another crate, the Tauri host). That is not an error for us: a
+        // process-wide provider exists. Failing here stopped the LAN server.
+        let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+        let init_result: Result<(), String> =
+            if rustls::crypto::CryptoProvider::get_default().is_some() {
+                Ok(())
+            } else {
+                Err("no rustls crypto provider installed".into())
+            };
+        if let Ok(mut guard) = RESULT.lock() {
+            *guard = Some(init_result);
+        }
+    });
+
+    // Retrieve the result
+    if let Ok(guard) = RESULT.lock() {
+        if let Some(result) = guard.as_ref() {
+            return result.clone().map_err(|e| AppError::Internal(e.clone()));
+        }
+    }
+
+    Ok(())
+}
+
+#[derive(Debug, Clone)]
+pub struct LanTlsIdentity {
+    pub cert_path: PathBuf,
+    pub key_path: PathBuf,
+    /// SHA-256 fingerprint of the certificate DER (lowercase hex).
+    pub sha256_fingerprint: String,
+}
+
+fn fingerprint_der(der: &[u8]) -> String {
+    let digest = Sha256::digest(der);
+    digest.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+#[cfg(unix)]
+fn restrict_permissions(cert_path: &Path, key_path: &Path) -> Result<(), AppError> {
+    use std::os::unix::fs::PermissionsExt;
+    let mode = std::fs::Permissions::from_mode(0o600);
+    std::fs::set_permissions(cert_path, mode.clone())
+        .map_err(|e| AppError::Internal(format!("LAN TLS cert chmod: {e}")))?;
+    std::fs::set_permissions(key_path, mode)
+        .map_err(|e| AppError::Internal(format!("LAN TLS key chmod: {e}")))?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn restrict_permissions(_cert_path: &Path, _key_path: &Path) -> Result<(), AppError> {
+    Ok(())
+}
+
+/// Write a file that is created with mode 0600 on Unix. `fs::write` + chmod
+/// left the private key world-readable (umask 022) between the two calls.
+/// Written to a temp file and renamed, so a crash never leaves half a key.
+fn write_private_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    use std::io::Write;
+    let tmp = path.with_extension("tmp");
+    let _ = std::fs::remove_file(&tmp);
+    let mut opts = std::fs::OpenOptions::new();
+    opts.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
+    }
+    let mut f = opts.open(&tmp)?;
+    f.write_all(bytes)?;
+    f.sync_all()?;
+    drop(f);
+    std::fs::rename(&tmp, path)
+}
+
+fn fingerprint_from_pem_cert(pem: &[u8]) -> Result<String, AppError> {
+    let mut reader = std::io::Cursor::new(pem);
+    let certs: Vec<_> = rustls_pemfile::certs(&mut reader)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| AppError::Internal(format!("LAN TLS cert PEM: {e}")))?;
+    let der = certs
+        .first()
+        .ok_or_else(|| AppError::Internal("LAN TLS cert PEM leer".into()))?;
+    Ok(fingerprint_der(der))
+}
+
+fn write_identity_files(
+    app_data_dir: &Path,
+    cert_pem: &str,
+    key_pem: &str,
+) -> Result<LanTlsIdentity, AppError> {
+    std::fs::create_dir_all(app_data_dir)
+        .map_err(|e| AppError::Internal(format!("LAN TLS dirs: {e}")))?;
+    let cert_path = app_data_dir.join(CERT_FILE);
+    let key_path = app_data_dir.join(KEY_FILE);
+    write_private_file(&cert_path, cert_pem.as_bytes())
+        .map_err(|e| AppError::Internal(format!("LAN TLS cert write: {e}")))?;
+    write_private_file(&key_path, key_pem.as_bytes())
+        .map_err(|e| AppError::Internal(format!("LAN TLS key write: {e}")))?;
+    restrict_permissions(&cert_path, &key_path)?;
+    let sha256_fingerprint = fingerprint_from_pem_cert(cert_pem.as_bytes())?;
+    Ok(LanTlsIdentity {
+        cert_path,
+        key_path,
+        sha256_fingerprint,
+    })
+}
+
+fn generate_self_signed_pem() -> Result<(String, String), AppError> {
+    let mut params =
+        CertificateParams::new(vec!["localhost".to_string(), "medoc.local".to_string()])
+            .map_err(|e| AppError::Internal(format!("LAN TLS names: {e}")))?;
+    params
+        .subject_alt_names
+        .push(SanType::IpAddress(std::net::IpAddr::V4(
+            std::net::Ipv4Addr::LOCALHOST,
+        )));
+    for ip in medoc_core::discovery::practice_lan_ipv4_addrs() {
+        params
+            .subject_alt_names
+            .push(SanType::IpAddress(std::net::IpAddr::V4(ip)));
+    }
+    let key = KeyPair::generate().map_err(|e| AppError::Internal(format!("LAN TLS key: {e}")))?;
+    let cert = params
+        .self_signed(&key)
+        .map_err(|e| AppError::Internal(format!("LAN TLS generate: {e}")))?;
+    Ok((cert.pem(), key.serialize_pem()))
+}
+
+/// Load or create `lan-tls.{crt,key}` under `app_data_dir` (Unix: mode 0600).
+pub fn ensure_lan_tls_identity(app_data_dir: &Path) -> Result<LanTlsIdentity, AppError> {
+    let cert_path = app_data_dir.join(CERT_FILE);
+    let key_path = app_data_dir.join(KEY_FILE);
+    if cert_path.exists() && key_path.exists() {
+        let cert_pem = std::fs::read_to_string(&cert_path)
+            .map_err(|e| AppError::Internal(format!("LAN TLS cert read: {e}")))?;
+        restrict_permissions(&cert_path, &key_path)?;
+        let sha256_fingerprint = fingerprint_from_pem_cert(cert_pem.as_bytes())?;
+        return Ok(LanTlsIdentity {
+            cert_path,
+            key_path,
+            sha256_fingerprint,
+        });
+    }
+
+    let (cert_pem, key_pem) = generate_self_signed_pem()?;
+    write_identity_files(app_data_dir, &cert_pem, &key_pem)
+}
+
+/// Bind **HTTPS only** on `addr` (plain HTTP is not offered on this port).
+pub async fn serve_tls_router(
+    addr: std::net::SocketAddr,
+    identity: &LanTlsIdentity,
+    router: axum::Router,
+    shutdown: std::sync::Arc<std::sync::atomic::AtomicBool>,
+) -> Result<(), std::io::Error> {
+    install_rustls_provider().map_err(|e| std::io::Error::other(e.to_string()))?;
+    let config = RustlsConfig::from_pem_file(&identity.cert_path, &identity.key_path).await?;
+    let handle = axum_server::Handle::new();
+    let graceful = handle.clone();
+    let sd = shutdown.clone();
+    tokio::spawn(async move {
+        while !sd.load(std::sync::atomic::Ordering::SeqCst) {
+            tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+        }
+        graceful.graceful_shutdown(Some(std::time::Duration::from_millis(0)));
+    });
+
+    axum_server::bind_rustls(addr, config)
+        .handle(handle)
+        .serve(router.into_make_service_with_connect_info::<std::net::SocketAddr>())
+        .await
+}
+
+/// Returns `true` if a plain HTTP probe gets a response (should be false when only TLS is bound).
+pub async fn plain_http_reachable(addr: std::net::SocketAddr) -> bool {
+    let Ok(Ok(mut stream)) = tokio::time::timeout(
+        std::time::Duration::from_millis(800),
+        tokio::net::TcpStream::connect(addr),
+    )
+    .await
+    else {
+        return false;
+    };
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let req = b"GET /health HTTP/1.1\r\nHost: localhost\r\n\r\n";
+    if stream.write_all(req).await.is_err() {
+        return false;
+    }
+    let mut buf = [0u8; 16];
+    matches!(
+        tokio::time::timeout(std::time::Duration::from_millis(500), stream.read(&mut buf)).await,
+        Ok(Ok(n)) if n > 0
+    )
+}
+
+#[cfg(test)]
+mod san_tests {
+    use super::generate_self_signed_pem;
+
+    #[test]
+    fn certificate_carries_loopback_as_an_ip_san() {
+        let (pem, _) = generate_self_signed_pem().expect("cert");
+        let der = pem_der(&pem);
+        assert!(
+            der.windows(4).any(|window| window == [127, 0, 0, 1]),
+            "127.0.0.1 must be an IP address SAN"
+        );
+        assert!(
+            !der.windows(9).any(|window| window == b"127.0.0.1"),
+            "127.0.0.1 must not be stored as a DNS name"
+        );
+    }
+
+    fn pem_der(pem: &str) -> Vec<u8> {
+        let b64: String = pem
+            .lines()
+            .filter(|line| !line.starts_with("-----"))
+            .collect();
+        base64_decode(&b64)
+    }
+
+    fn base64_decode(input: &str) -> Vec<u8> {
+        const TABLE: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        let mut out = Vec::new();
+        let mut buf = 0u32;
+        let mut bits = 0;
+        for byte in input.bytes() {
+            if byte == b'=' {
+                break;
+            }
+            let Some(val) = TABLE.iter().position(|c| *c == byte) else {
+                continue;
+            };
+            buf = (buf << 6) | val as u32;
+            bits += 6;
+            if bits >= 8 {
+                bits -= 8;
+                out.push((buf >> bits) as u8);
+            }
+        }
+        out
+    }
+}
+
+/// Ensure the TCP port accepts TLS (used in integration checks).
+pub async fn tls_listener_bound(addr: std::net::SocketAddr) -> bool {
+    TcpListener::bind(addr).await.is_ok()
+}
+
+================================================================================
+FILE: tests/feature_disabled_http_tests.rs
+================================================================================
+//! H1: FeatureDisabled is returned as HTTP 409.
+
+use axum::http::StatusCode;
+use axum::response::IntoResponse;
+use medoc_core::error::AppError;
+use medoc_lan::http::ApiError;
+
+#[test]
+fn feature_disabled_maps_to_409() {
+    let response = ApiError::from(AppError::FeatureDisabled("scanner".into())).into_response();
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+}
+
+================================================================================
+FILE: tests/http_pairing_tests.rs
+================================================================================
+//! In-process HTTP tests for `/api/v1/pairing/*` (T-U1 medoc-lan).
+
+mod support;
+
+use axum::http::StatusCode;
+use medoc_sync::pairing::ACTIVATION_TOKEN_PREFIX;
+use serial_test::serial;
+use support::LanTestHarness;
+
+#[tokio::test]
+#[serial]
+async fn pairing_master_info_is_public() {
+    std::env::set_var("MEDOC_SKIP_MASTER_LICENSE", "1");
+    let mut lan = LanTestHarness::licensed_master().await;
+    let (status, body) = lan
+        .json("GET", "/api/v1/pairing/master-info", None, None)
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(body["masterPubkey"].is_string());
+    assert!(body["masterDeviceId"].is_string());
+    std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
+}
+
+#[tokio::test]
+#[serial]
+async fn pairing_submit_and_accept_issues_activation_token() {
+    std::env::set_var("MEDOC_SKIP_MASTER_LICENSE", "1");
+    let lan = LanTestHarness::licensed_master().await;
+    let jwt = lan.ops_jwt();
+    let mut lan = lan;
+    let device_id = "unit-pair-replica-1";
+    let slave_pubkey = LanTestHarness::slave_pubkey(17);
+
+    let (status, submitted) = lan
+        .json(
+            "POST",
+            "/api/v1/pairing/request",
+            Some(&serde_json::json!({
+                "deviceId": device_id,
+                "slavePubkey": slave_pubkey,
+                "slaveLabel": "Unit Tablet"
+            })),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let request_id = submitted["id"].as_str().expect("id");
+    assert_eq!(submitted["status"], "PENDING");
+
+    let (status, pending) = lan
+        .json("GET", "/api/v1/pairing/pending", None, Some(&jwt))
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(pending
+        .as_array()
+        .expect("array")
+        .iter()
+        .any(|r| r["id"].as_str() == Some(request_id)));
+
+    let (status, decided) = lan
+        .json(
+            "POST",
+            &format!("/api/v1/pairing/decide/{request_id}"),
+            Some(&serde_json::json!({ "accept": true })),
+            Some(&jwt),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(decided["request"]["status"], "PENDING");
+    assert!(decided["request"]["awaitingPin"].as_bool().unwrap_or(false));
+    let pin = decided["confirmPin"].as_str().expect("confirm pin");
+
+    let (status, confirmed) = lan
+        .json(
+            "POST",
+            &format!("/api/v1/pairing/confirm/{request_id}"),
+            Some(&serde_json::json!({ "pin": pin })),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(confirmed["status"], "ACCEPTED");
+    let token = confirmed["activationToken"]
+        .as_str()
+        .expect("activation token");
+    assert!(token.starts_with(ACTIVATION_TOKEN_PREFIX));
+
+    let (status, polled) = lan
+        .json(
+            "GET",
+            &format!("/api/v1/pairing/status/{request_id}"),
+            None,
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(polled["status"], "ACCEPTED");
+
+    let (status, peers) = lan
+        .json("GET", "/api/v1/pairing/peers", None, Some(token))
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(peers["signature"].is_string());
+    assert!(peers["peers"].is_array());
+    std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
+}
+
+#[tokio::test]
+#[serial]
+async fn pairing_submit_rejected_without_license() {
+    std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
+    let mut lan = LanTestHarness::unlicensed_master().await;
+    let (status, _) = lan
+        .json(
+            "POST",
+            "/api/v1/pairing/request",
+            Some(&serde_json::json!({
+                "deviceId": "no-lic",
+                "slavePubkey": LanTestHarness::slave_pubkey(18),
+                "slaveLabel": "X"
+            })),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+#[serial]
+async fn pairing_pending_requires_ops_jwt() {
+    std::env::set_var("MEDOC_SKIP_MASTER_LICENSE", "1");
+    let mut lan = LanTestHarness::licensed_master().await;
+    let (status, _) = lan.json("GET", "/api/v1/pairing/pending", None, None).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
+}
+
+#[tokio::test]
+#[serial]
+async fn pairing_status_unknown_id_returns_not_found() {
+    std::env::set_var("MEDOC_SKIP_MASTER_LICENSE", "1");
+    let mut lan = LanTestHarness::licensed_master().await;
+    let (status, _) = lan
+        .json("GET", "/api/v1/pairing/status/does-not-exist", None, None)
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
+}
+
+#[tokio::test]
+#[serial]
+async fn pairing_revoke_returns_no_content() {
+    std::env::set_var("MEDOC_SKIP_MASTER_LICENSE", "1");
+    let lan = LanTestHarness::licensed_master().await;
+    let jwt = lan.ops_jwt();
+    let mut lan = lan;
+    let device_id = "revoke-target-1";
+    let (status, submitted) = lan
+        .json(
+            "POST",
+            "/api/v1/pairing/request",
+            Some(&serde_json::json!({
+                "deviceId": device_id,
+                "slavePubkey": LanTestHarness::slave_pubkey(19),
+                "slaveLabel": "Revoke Me"
+            })),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let request_id = submitted["id"].as_str().unwrap();
+
+    lan.json(
+        "POST",
+        &format!("/api/v1/pairing/decide/{request_id}"),
+        Some(&serde_json::json!({ "accept": true })),
+        Some(&jwt),
+    )
+    .await;
+
+    let (status, _) = lan
+        .json(
+            "POST",
+            &format!("/api/v1/pairing/revoke/{device_id}"),
+            None,
+            Some(&jwt),
+        )
+        .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
+}
+
+================================================================================
+FILE: tests/http_route_matrix_tests.rs
+================================================================================
+//! Full LAN HTTP route matrix — calls every `/api/v1` handler and writes a results ledger.
+//!
+//! Run:
+//! ```bash
+//! cargo test -p medoc-lan --test http_route_matrix_tests -- --nocapture
+//! ```
+//!
+//! Output: `docs/coordination/backend-http-route-matrix-results.md`
+
+mod support;
+
+use std::fs;
+use std::path::PathBuf;
+
+use axum::http::StatusCode;
+use serial_test::serial;
+use support::LanTestHarness;
+
+#[derive(Clone)]
+struct Case {
+    name: &'static str,
+    method: &'static str,
+    path: String,
+    body: Option<serde_json::Value>,
+    auth: Auth,
+    /// Acceptable HTTP statuses (business-correct outcomes, including intentional stubs).
+    expect: &'static [u16],
+}
+
+#[derive(Clone, Copy)]
+enum Auth {
+    None,
+    Jwt,
+    /// Use activation token from pairing accept, if available.
+    Activation,
+}
+
+struct Row {
+    name: String,
+    method: String,
+    path: String,
+    expect: String,
+    status: u16,
+    ok: bool,
+    body: String,
+}
+
+fn truncate(s: &str, max: usize) -> String {
+    let t = s.replace('\n', " ");
+    if t.chars().count() <= max {
+        t
+    } else {
+        format!("{}…", t.chars().take(max).collect::<String>())
+    }
+}
+
+fn results_path() -> PathBuf {
+    // crates/server/lan/medoc-lan → repo root
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../../docs/coordination/backend-http-route-matrix-results.md")
+}
+
+#[tokio::test]
+#[serial]
+async fn lan_http_route_matrix_all_endpoints() {
+    std::env::set_var("MEDOC_SKIP_MASTER_LICENSE", "1");
+    std::env::set_var("MEDOC_DEV_SEED", "1");
+
+    let mut lan = LanTestHarness::licensed_master().await;
+    let jwt = lan.ops_jwt();
+
+    // --- Pairing flow to obtain activation token for sync/peers ---
+    let device_id = "matrix-replica-1";
+    let slave_pubkey = LanTestHarness::slave_pubkey(42);
+    let (st, submitted) = lan
+        .json(
+            "POST",
+            "/api/v1/pairing/request",
+            Some(&serde_json::json!({
+                "deviceId": device_id,
+                "slavePubkey": slave_pubkey,
+                "slaveLabel": "Matrix Replica"
+            })),
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "pairing request setup: {submitted}");
+    let request_id = submitted["id"].as_str().expect("pairing id").to_string();
+
+    let (st, decided) = lan
+        .json(
+            "POST",
+            &format!("/api/v1/pairing/decide/{request_id}"),
+            Some(&serde_json::json!({ "accept": true })),
+            Some(&jwt),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "pairing decide setup: {decided}");
+    let pin = decided["confirmPin"]
+        .as_str()
+        .expect("confirmPin after accept")
+        .to_string();
+    let (st, confirmed) = lan
+        .json(
+            "POST",
+            &format!("/api/v1/pairing/confirm/{request_id}"),
+            Some(&serde_json::json!({ "pin": pin })),
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "pairing confirm setup: {confirmed}");
+    let activation = confirmed["activationToken"]
+        .as_str()
+        .expect("activationToken after PIN confirm")
+        .to_string();
+
+    let today = chrono::Local::now()
+        .date_naive()
+        .format("%Y-%m-%d")
+        .to_string();
+
+    let cases: Vec<Case> = vec![
+        Case {
+            name: "health",
+            method: "GET",
+            path: "/health".into(),
+            body: None,
+            auth: Auth::None,
+            expect: &[200],
+        },
+        Case {
+            name: "ping",
+            method: "GET",
+            path: "/api/v1/ping".into(),
+            body: None,
+            auth: Auth::None,
+            expect: &[200],
+        },
+        Case {
+            name: "pairing.master_info",
+            method: "GET",
+            path: "/api/v1/pairing/master-info".into(),
+            body: None,
+            auth: Auth::None,
+            expect: &[200],
+        },
+        Case {
+            name: "auth.login",
+            method: "POST",
+            path: "/api/v1/auth/login".into(),
+            body: Some(serde_json::json!({
+                "email": "ahmed@practice.de",
+                "password": "password123",
+                "totp_code": "1234"
+            })),
+            auth: Auth::None,
+            expect: &[200],
+        },
+        Case {
+            name: "auth.login_bad_password",
+            method: "POST",
+            path: "/api/v1/auth/login".into(),
+            body: Some(serde_json::json!({
+                "email": "ahmed@practice.de",
+                "password": "wrong-password"
+            })),
+            auth: Auth::None,
+            expect: &[401, 403, 429],
+        },
+        Case {
+            name: "me.get",
+            method: "GET",
+            path: "/api/v1/me".into(),
+            body: None,
+            auth: Auth::Jwt,
+            expect: &[200],
+        },
+        Case {
+            name: "me.patch",
+            method: "PATCH",
+            path: "/api/v1/me".into(),
+            body: Some(serde_json::json!({
+                "name": "Dr. Ahmed R.",
+                "phone": "+49 421 900100"
+            })),
+            auth: Auth::Jwt,
+            expect: &[200],
+        },
+        Case {
+            name: "patients.list",
+            method: "GET",
+            path: "/api/v1/patients".into(),
+            body: None,
+            auth: Auth::Jwt,
+            expect: &[404],
+        },
+        Case {
+            name: "appointments.list",
+            method: "GET",
+            path: format!("/api/v1/appointments?date={today}"),
+            body: None,
+            auth: Auth::Jwt,
+            expect: &[404],
+        },
+        Case {
+            name: "app_kv.put",
+            method: "PUT",
+            path: "/api/v1/app-kv".into(),
+            body: Some(serde_json::json!({
+                "key": "practice.preferences.v1",
+                "value": "{\"theme\":\"system\"}"
+            })),
+            auth: Auth::Jwt,
+            expect: &[200, 204],
+        },
+        Case {
+            name: "app_kv.get",
+            method: "GET",
+            path: "/api/v1/app-kv?key=practice.preferences.v1".into(),
+            body: None,
+            auth: Auth::Jwt,
+            expect: &[200],
+        },
+        Case {
+            name: "app_kv.delete",
+            method: "DELETE",
+            path: "/api/v1/app-kv?key=practice.preferences.v1".into(),
+            body: None,
+            auth: Auth::Jwt,
+            expect: &[200, 204],
+        },
+        Case {
+            name: "license.status",
+            method: "GET",
+            path: "/api/v1/license".into(),
+            body: None,
+            auth: Auth::Jwt,
+            expect: &[200],
+        },
+        Case {
+            name: "license.activate_invalid",
+            method: "POST",
+            path: "/api/v1/license/activate".into(),
+            body: Some(serde_json::json!({ "token": "not-a-real-license" })),
+            auth: Auth::Jwt,
+            // Handler returns 200 + valid:false for bad tokens (structured status body)
+            expect: &[200, 400, 422],
+        },
+        Case {
+            name: "eprescription.validate",
+            method: "POST",
+            path: "/api/v1/eprescriptions/validate".into(),
+            body: Some(serde_json::json!({
+                "patientId": "seed-pat-001",
+                "kvnr": "A123456789",
+                "pzn": "12345678",
+                "medicationName": "Amoxicillin",
+                "dosage": "1-0-1",
+                "quantity": 1,
+                "doctorLanr": "123456789"
+            })),
+            auth: Auth::Jwt,
+            expect: &[409],
+        },
+        Case {
+            name: "eprescription.submit_stub",
+            method: "POST",
+            path: "/api/v1/eprescriptions/submit".into(),
+            body: Some(serde_json::json!({
+                "patientId": "seed-pat-001",
+                "kvnr": "A123456789",
+                "pzn": "12345678",
+                "medicationName": "Amoxicillin",
+                "dosage": "1-0-1",
+                "quantity": 1,
+                "doctorLanr": "123456789"
+            })),
+            auth: Auth::Jwt,
+            expect: &[409],
+        },
+        Case {
+            name: "pairing.pending",
+            method: "GET",
+            path: "/api/v1/pairing/pending".into(),
+            body: None,
+            auth: Auth::Jwt,
+            expect: &[200],
+        },
+        Case {
+            name: "pairing.all",
+            method: "GET",
+            path: "/api/v1/pairing/all".into(),
+            body: None,
+            auth: Auth::Jwt,
+            expect: &[200],
+        },
+        Case {
+            name: "pairing.status",
+            method: "GET",
+            path: format!("/api/v1/pairing/status/{request_id}"),
+            body: None,
+            auth: Auth::None,
+            expect: &[200],
+        },
+        Case {
+            name: "pairing.peers",
+            method: "GET",
+            path: "/api/v1/pairing/peers".into(),
+            body: None,
+            auth: Auth::Activation,
+            expect: &[200],
+        },
+        Case {
+            name: "sync.status",
+            method: "GET",
+            path: "/api/v1/sync/status".into(),
+            body: None,
+            auth: Auth::Activation,
+            expect: &[200],
+        },
+        Case {
+            name: "sync.push_empty",
+            method: "POST",
+            path: "/api/v1/sync/push".into(),
+            body: Some(serde_json::json!({
+                "fromDeviceId": device_id,
+                "entries": []
+            })),
+            auth: Auth::Activation,
+            expect: &[200],
+        },
+        Case {
+            name: "sync.pull",
+            method: "POST",
+            path: "/api/v1/sync/pull".into(),
+            body: Some(serde_json::json!({
+                "deviceId": device_id,
+                "requesterId": device_id,
+                "sinceSeq": 0
+            })),
+            auth: Auth::Activation,
+            expect: &[200],
+        },
+        Case {
+            name: "company.summary_no_upstream",
+            method: "GET",
+            path: "/api/v1/company/summary".into(),
+            body: None,
+            auth: Auth::Jwt,
+            // Without MEDOC_COMPANY_* upstream — validation 400 or upstream errors
+            expect: &[200, 400, 502, 503, 500, 404],
+        },
+        Case {
+            name: "company.feature_flags_no_upstream",
+            method: "GET",
+            path: "/api/v1/company/feature-flags".into(),
+            body: None,
+            auth: Auth::Jwt,
+            expect: &[200, 400, 502, 503, 500, 404],
+        },
+        Case {
+            name: "company.integrations_no_upstream",
+            method: "GET",
+            path: "/api/v1/company/integrations/status".into(),
+            body: None,
+            auth: Auth::Jwt,
+            expect: &[200, 400, 502, 503, 500, 404],
+        },
+        Case {
+            name: "company.billing_portal_no_upstream",
+            method: "POST",
+            path: "/api/v1/company/billing/portal-session".into(),
+            body: Some(serde_json::json!({})),
+            auth: Auth::Jwt,
+            expect: &[200, 400, 502, 503, 500, 404],
+        },
+        Case {
+            name: "patients.unauthorized",
+            method: "GET",
+            path: "/api/v1/patients".into(),
+            body: None,
+            auth: Auth::None,
+            expect: &[404],
+        },
+        // Fresh pairing request + revoke (cleanup path)
+        Case {
+            name: "pairing.request_for_revoke",
+            method: "POST",
+            path: "/api/v1/pairing/request".into(),
+            body: Some(serde_json::json!({
+                "deviceId": "matrix-replica-revoke",
+                "slavePubkey": LanTestHarness::slave_pubkey(99),
+                "slaveLabel": "Revoke Me"
+            })),
+            auth: Auth::None,
+            expect: &[200],
+        },
+    ];
+
+    let mut rows: Vec<Row> = Vec::new();
+    let mut revoke_device = String::new();
+
+    for case in &cases {
+        let bearer = match case.auth {
+            Auth::None => None,
+            Auth::Jwt => Some(jwt.as_str()),
+            Auth::Activation => {
+                if activation.is_empty() {
+                    None
+                } else {
+                    Some(activation.as_str())
+                }
+            }
+        };
+
+        let (status, body) = lan
+            .json(case.method, &case.path, case.body.as_ref(), bearer)
+            .await;
+        let code = status.as_u16();
+        let ok = case.expect.contains(&code);
+        let body_s = truncate(&body.to_string(), 220);
+
+        if case.name == "pairing.request_for_revoke" && ok {
+            revoke_device = "matrix-replica-revoke".into();
+        }
+
+        rows.push(Row {
+            name: case.name.into(),
+            method: case.method.into(),
+            path: case.path.clone(),
+            expect: case
+                .expect
+                .iter()
+                .map(|c| c.to_string())
+                .collect::<Vec<_>>()
+                .join("|"),
+            status: code,
+            ok,
+            body: body_s,
+        });
+    }
+
+    // Decide + revoke for the revoke-target device
+    if !revoke_device.is_empty() {
+        // Find pending request id for revoke device via /pairing/pending
+        let (st, pending) = lan
+            .json("GET", "/api/v1/pairing/pending", None, Some(&jwt))
+            .await;
+        let mut rev_id = None;
+        if st == StatusCode::OK {
+            if let Some(arr) = pending.as_array() {
+                for item in arr {
+                    if item["deviceId"].as_str() == Some(revoke_device.as_str())
+                        || item["device_id"].as_str() == Some(revoke_device.as_str())
+                    {
+                        rev_id = item["id"].as_str().map(|s| s.to_string());
+                        break;
+                    }
+                }
+            }
+        }
+        if let Some(id) = rev_id {
+            let (st, body) = lan
+                .json(
+                    "POST",
+                    &format!("/api/v1/pairing/decide/{id}"),
+                    Some(&serde_json::json!({ "accept": true })),
+                    Some(&jwt),
+                )
+                .await;
+            rows.push(Row {
+                name: "pairing.decide_for_revoke".into(),
+                method: "POST".into(),
+                path: format!("/api/v1/pairing/decide/{id}"),
+                expect: "200".into(),
+                status: st.as_u16(),
+                ok: st == StatusCode::OK,
+                body: truncate(&body.to_string(), 220),
+            });
+        }
+
+        let (st, body) = lan
+            .json(
+                "POST",
+                &format!("/api/v1/pairing/revoke/{revoke_device}"),
+                None,
+                Some(&jwt),
+            )
+            .await;
+        rows.push(Row {
+            name: "pairing.revoke".into(),
+            method: "POST".into(),
+            path: format!("/api/v1/pairing/revoke/{revoke_device}"),
+            expect: "200|204".into(),
+            status: st.as_u16(),
+            ok: st == StatusCode::OK || st == StatusCode::NO_CONTENT,
+            body: truncate(&body.to_string(), 220),
+        });
+    }
+
+    // pairing.confirm with wrong PIN (setup already confirmed successfully)
+    let (st, body) = lan
+        .json(
+            "POST",
+            &format!("/api/v1/pairing/confirm/{request_id}"),
+            Some(&serde_json::json!({ "pin": "0000" })),
+            None,
+        )
+        .await;
+    rows.push(Row {
+        name: "pairing.confirm_wrong_pin".into(),
+        method: "POST".into(),
+        path: format!("/api/v1/pairing/confirm/{request_id}"),
+        expect: "400|404|409".into(),
+        status: st.as_u16(),
+        ok: matches!(st.as_u16(), 400 | 404 | 409),
+        body: truncate(&body.to_string(), 220),
+    });
+
+    // Last: clear license (destructive) — covered after all other license-dependent cases
+    let (st, body) = lan
+        .json("DELETE", "/api/v1/license", None, Some(&jwt))
+        .await;
+    rows.push(Row {
+        name: "license.clear".into(),
+        method: "DELETE".into(),
+        path: "/api/v1/license".into(),
+        expect: "200|204".into(),
+        status: st.as_u16(),
+        ok: st == StatusCode::OK || st == StatusCode::NO_CONTENT,
+        body: truncate(&body.to_string(), 220),
+    });
+
+    let passed = rows.iter().filter(|r| r.ok).count();
+    let failed = rows.iter().filter(|r| !r.ok).count();
+
+    let mut md = String::new();
+    md.push_str("# LAN backend HTTP route matrix\n\n");
+    md.push_str(&format!(
+        "**Generated:** `cargo test -p medoc-lan --test http_route_matrix_tests`  \n\
+         **Harness:** in-process `LanTestHarness` (same handlers as `medoc-server`)  \n\
+         **Result:** {passed} passed / {failed} failed / {} total\n\n",
+        rows.len()
+    ));
+    md.push_str(
+        "| # | Test / function | Method | Path | Expect | Status | OK | Output (truncated) |\n",
+    );
+    md.push_str("|---:|---|---|---|---|---:|:---:|---|\n");
+    for (i, r) in rows.iter().enumerate() {
+        let mark = if r.ok { "PASS" } else { "**FAIL**" };
+        md.push_str(&format!(
+            "| {} | `{}` | {} | `{}` | {} | {} | {} | {} |\n",
+            i + 1,
+            r.name,
+            r.method,
+            r.path.replace('|', "\\|"),
+            r.expect,
+            r.status,
+            mark,
+            r.body.replace('|', "\\|")
+        ));
+    }
+    md.push_str("\n## Notes\n\n");
+    md.push_str("- `eprescription.submit_stub` expects 500/501 without TI connector.\n");
+    md.push_str("- Company proxy routes expect 400 when vendor portal URL is unset.\n");
+    md.push_str("- Auth uses seeded `ahmed@practice.de` / `password123` plus ops JWT.\n");
+    md.push_str("- Sync/peers use activation token after pairing decide + PIN confirm.\n");
+    md.push_str(
+        "- `license.activate_invalid` returns HTTP 200 with `valid:false` (structured status).\n",
+    );
+
+    let out = results_path();
+    if let Some(parent) = out.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    fs::write(&out, &md).expect("write results markdown");
+    eprintln!("Wrote {}", out.display());
+    eprintln!("{md}");
+
+    std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
+
+    let failures: Vec<_> = rows.iter().filter(|r| !r.ok).collect();
+    assert!(
+        failures.is_empty(),
+        "LAN route matrix failures ({}):\n{}",
+        failures.len(),
+        failures
+            .iter()
+            .map(|r| format!(
+                "- {} {} {} → {} (expect {}) body={}",
+                r.name, r.method, r.path, r.status, r.expect, r.body
+            ))
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+}
+
+================================================================================
+FILE: tests/http_sync_tests.rs
+================================================================================
+//! In-process HTTP tests for `/api/v1/sync/*` (T-U1 medoc-lan).
+
+mod support;
+
+use axum::http::StatusCode;
+use serial_test::serial;
+use support::LanTestHarness;
+
+#[tokio::test]
+#[serial]
+async fn sync_status_requires_license_on_unlicensed_master() {
+    std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
+    let lan = LanTestHarness::unlicensed_master().await;
+    let jwt = lan.ops_jwt();
+    let mut lan = lan;
+    let (status, body) = lan
+        .json("GET", "/api/v1/sync/status", None, Some(&jwt))
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(body["reason"], "staff_jwt_rejected");
+}
+
+#[tokio::test]
+#[serial]
+async fn sync_status_returns_snapshot_when_licensed() {
+    std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
+    let mut lan = LanTestHarness::licensed_master().await;
+    let token = device_token("status-device", &["sync.status"]);
+    let (status, body) = lan
+        .json("GET", "/api/v1/sync/status", None, Some(&token))
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(body["localDeviceId"].is_string());
+}
+
+#[tokio::test]
+#[serial]
+async fn sync_push_rejects_invalid_json_body() {
+    std::env::set_var("MEDOC_SKIP_MASTER_LICENSE", "1");
+    let mut lan = LanTestHarness::licensed_master().await;
+    let token = device_token("json-device", &["sync.push"]);
+    let status = lan.post_raw("/api/v1/sync/push", "{not-json", &token).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
+}
+
+#[tokio::test]
+#[serial]
+async fn sync_push_ingests_remote_app_kv_row() {
+    std::env::set_var("MEDOC_SKIP_MASTER_LICENSE", "1");
+    let mut lan = LanTestHarness::licensed_master().await;
+    let remote = "remote-lan-replica-1";
+    let token = device_token(&remote, &["sync.push"]);
+    let entry = serde_json::json!({
+        "id": "lan-e1",
+        "deviceId": remote,
+        "seq": 1,
+        "entityTable": "app_kv",
+        "entityId": "lan.http.key",
+        "op": "INSERT",
+        "payloadJson": r#"{"key":"lan.http.key","value":"42"}"#,
+        "createdAt": "2099-01-01T00:00:00Z"
+    });
+
+    let (status, push_body) = lan
+        .json(
+            "POST",
+            "/api/v1/sync/push",
+            Some(&serde_json::json!({
+                "fromDeviceId": remote,
+                "entries": [entry]
+            })),
+            Some(&token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(push_body["accepted"], 1);
+
+    let val: String = sqlx::query_scalar("SELECT value FROM app_kv WHERE key = 'lan.http.key'")
+        .fetch_one(&lan.pool)
+        .await
+        .expect("app_kv");
+    assert_eq!(val, "42");
+    std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
+}
+
+#[tokio::test]
+#[serial]
+async fn sync_pull_rejects_staff_jwt() {
+    std::env::set_var("MEDOC_SKIP_MASTER_LICENSE", "1");
+    let lan = LanTestHarness::licensed_master().await;
+    let jwt = lan.ops_jwt();
+    let mut lan = lan;
+    let device = medoc_sync::repo::ensure_local_device(&lan.pool, "LAN Test Master")
+        .await
+        .expect("device");
+    medoc_sync::repo::append_outbox(
+        &lan.pool,
+        &device,
+        "app_kv",
+        "pull.key",
+        "INSERT",
+        r#"{"key":"pull.key","value":"99"}"#,
+    )
+    .await
+    .expect("seed outbox");
+
+    let (status, pull_body) = lan
+        .json(
+            "POST",
+            "/api/v1/sync/pull",
+            Some(&serde_json::json!({
+                "deviceId": device,
+                "sinceSeq": 0
+            })),
+            Some(&jwt),
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "staff jwt pull: {pull_body:?}"
+    );
+    assert_eq!(pull_body["reason"], "staff_jwt_rejected");
+    std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
+}
+
+#[tokio::test]
+#[serial]
+async fn sync_pull_rejects_unlicensed_master() {
+    std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
+    let lan = LanTestHarness::unlicensed_master().await;
+    let jwt = lan.ops_jwt();
+    let mut lan = lan;
+    let (status, body) = lan
+        .json(
+            "POST",
+            "/api/v1/sync/pull",
+            Some(&serde_json::json!({
+                "deviceId": "any",
+                "sinceSeq": 0
+            })),
+            Some(&jwt),
+        )
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(body["reason"], "staff_jwt_rejected");
+}
+
+fn device_token(device_id: &str, actions: &[&str]) -> String {
+    let signing_key = medoc_sync::master_keys::load_or_create().expect("master key");
+    medoc_sync::pairing::mint_activation_token(
+        &signing_key,
+        &medoc_sync::pairing::ActivationTokenPayload {
+            version: 2,
+            device_id: device_id.to_string(),
+            slave_label: "replica".into(),
+            master_device_id: "master".into(),
+            allowed_actions: actions.iter().map(|action| (*action).to_string()).collect(),
+            issued_at: "2026-11-07T00:00:00Z".into(),
+            nonce: format!("n-{device_id}"),
+        },
+    )
+    .expect("mint")
+}
+
+#[tokio::test]
+#[serial]
+async fn sync_push_rejects_a_foreign_device_id() {
+    std::env::set_var("MEDOC_SKIP_MASTER_LICENSE", "1");
+    let mut lan = LanTestHarness::licensed_master().await;
+    let token = device_token("paired-device", &["sync.push"]);
+    let (status, body) = lan
+        .json(
+            "POST",
+            "/api/v1/sync/push",
+            Some(&serde_json::json!({
+                "fromDeviceId": "someone-else",
+                "entries": []
+            })),
+            Some(&token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(body["reason"], "from_device_mismatch");
+    std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
+}
+
+#[tokio::test]
+#[serial]
+async fn sync_status_rejects_an_unlicensed_paired_device() {
+    std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
+    let mut lan = LanTestHarness::unlicensed_master().await;
+    let token = device_token("paired-device", &["sync.status"]);
+    let (status, body) = lan
+        .json("GET", "/api/v1/sync/status", None, Some(&token))
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(body["reason"], "master_license_required");
+}
+
+#[tokio::test]
+#[serial]
+async fn reception_cannot_delete_the_license_or_submit_a_prescription() {
+    std::env::set_var("MEDOC_SKIP_MASTER_LICENSE", "1");
+    let lan = LanTestHarness::licensed_master().await;
+    let jwt = lan.reception_jwt();
+    let mut lan = lan;
+    let (license_status, _) = lan
+        .json("DELETE", "/api/v1/license", None, Some(&jwt))
+        .await;
+    assert_eq!(license_status, StatusCode::FORBIDDEN);
+    let (rx_status, _) = lan
+        .json(
+            "POST",
+            "/api/v1/eprescriptions/validate",
+            Some(&serde_json::json!({
+                "kvnr": "A123456789",
+                "pzn": "12345678",
+                "doctorLanr": "123456789"
+            })),
+            Some(&jwt),
+        )
+        .await;
+    assert_eq!(rx_status, StatusCode::CONFLICT);
+    std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
+}
+
+#[tokio::test]
+#[serial]
+async fn sync_routes_require_bearer_token() {
+    std::env::set_var("MEDOC_SKIP_MASTER_LICENSE", "1");
+    let mut lan = LanTestHarness::licensed_master().await;
+    let (status, _) = lan.json("GET", "/api/v1/sync/status", None, None).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
+}
+
+#[tokio::test]
+#[serial]
+async fn staff_jwt_on_digest_is_401() {
+    std::env::set_var("MEDOC_SKIP_MASTER_LICENSE", "1");
+    let mut lan = LanTestHarness::licensed_master().await;
+    let jwt = lan.ops_jwt();
+    let (status, _) = lan
+        .json(
+            "POST",
+            "/api/v1/sync/digest",
+            Some(&serde_json::json!({})),
+            Some(&jwt),
+        )
+        .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
+}
+
+#[tokio::test]
+#[serial]
+async fn digest_returns_256_buckets_with_activation_token() {
+    std::env::set_var("MEDOC_SKIP_MASTER_LICENSE", "1");
+    let mut lan = LanTestHarness::licensed_master().await;
+    let token = device_token("digest-device", &["sync.reconcile"]);
+    let (status, body) = lan
+        .json(
+            "POST",
+            "/api/v1/sync/digest",
+            Some(&serde_json::json!({})),
+            Some(&token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["buckets"].as_array().map(|a| a.len()), Some(256));
+    std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
+}
+
+#[tokio::test]
+#[serial]
+async fn replica_sync_push_token_can_allocate_document_number() {
+    std::env::set_var("MEDOC_SKIP_MASTER_LICENSE", "1");
+    let mut lan = LanTestHarness::licensed_master().await;
+    let token = device_token("number-device", &["sync.push"]);
+    let body = serde_json::json!({
+        "prefix": "RE",
+        "date": "2026-11-08",
+        "style": "daily"
+    });
+    let (status, first) = lan
+        .json("POST", "/api/v1/sync/number", Some(&body), Some(&token))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{first}");
+    let n1 = first["number"].as_str().expect("number");
+    assert!(n1.contains("RE"), "{n1}");
+    let (status, second) = lan
+        .json("POST", "/api/v1/sync/number", Some(&body), Some(&token))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{second}");
+    let n2 = second["number"].as_str().expect("number");
+    assert_ne!(n1, n2, "replica allocations must be unique");
+    std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
+}
+
+#[tokio::test]
+#[serial]
+async fn blob_with_wrong_hash_is_rejected() {
+    std::env::set_var("MEDOC_SKIP_MASTER_LICENSE", "1");
+    let mut lan = LanTestHarness::licensed_master().await;
+    let bytes = b"attachment-bytes";
+    let hex = medoc_core::infrastructure::database::sync_blob::sha256_hex(bytes);
+    let token = device_token("blob-device", &["sync.blob.put", "sync.blob.get"]);
+    let bad_hex = "00".repeat(32);
+    let bad = lan
+        .put_bytes(
+            &format!("/api/v1/sync/blob/{bad_hex}"),
+            bytes.to_vec(),
+            &token,
+        )
+        .await;
+    assert_eq!(bad, StatusCode::BAD_REQUEST);
+    let ok = lan
+        .put_bytes(&format!("/api/v1/sync/blob/{hex}"), bytes.to_vec(), &token)
+        .await;
+    assert_eq!(ok, StatusCode::NO_CONTENT);
+    std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
+}
+
+================================================================================
+FILE: tests/support.rs
+================================================================================
+//! Shared in-process LAN router harness for medoc-lan integration tests.
+
+#![allow(dead_code)]
+
+use std::net::SocketAddr;
+use std::sync::{Arc, OnceLock};
+
+use axum::body::{Body, Bytes};
+use axum::extract::ConnectInfo;
+use axum::http::{Request, StatusCode};
+use axum::Router;
+use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine};
+use chrono::{TimeZone, Utc};
+use ed25519_dalek::{Signer, SigningKey};
+use http_body_util::BodyExt;
+use medoc_core::infrastructure::database::connection;
+use medoc_core::infrastructure::database::repos::admin::license as license_repo;
+use medoc_core::infrastructure::license::{encrypt_v2_for_device, LicenseV2, VENDOR_PUBKEY};
+use medoc_core::infrastructure::logging::brute_force::BruteForceTracker;
+use medoc_lan::LanSystemFactory;
+use medoc_sync::deployment::{DeploymentMode, DeviceRole, SyncDeploymentConfig};
+use medoc_sync::engine::SyncEngine;
+use sqlx::SqlitePool;
+use tower::ServiceExt;
+
+static TEST_ENV: OnceLock<()> = OnceLock::new();
+
+const VENDOR_SIGNING_KEY_HEX: &str =
+    "8762be1a9a0963f36d98d47c0de6a73a0124b77d3268c170365824a6045d2fbf";
+
+pub fn ensure_test_env() {
+    TEST_ENV.get_or_init(|| {
+        std::env::set_var("MEDOC_DEV_SEED", "1");
+        std::env::set_var("MEDOC_AUDIT_KEY", "k9-medoc-test-audit-key-32bytes!");
+        std::env::set_var(
+            "MEDOC_PAIRING_MASTER_SECRET",
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        );
+        std::env::set_var(
+            "MEDOC_DB_KEY",
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        );
+        std::env::set_var(
+            "MEDOC_VENDOR_PUBKEY",
+            "79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32",
+        );
+        let audit_dir = std::env::temp_dir().join("medoc-lan-test-audit");
+        let _ = std::fs::create_dir_all(&audit_dir);
+        medoc_core::infrastructure::database::repos::admin::audit::init_audit_hmac_key(&audit_dir)
+            .expect("init audit hmac key for LAN tests");
+    });
+}
+
+fn connect_addr() -> SocketAddr {
+    "127.0.0.1:54321".parse().expect("connect addr")
+}
+
+pub async fn seed_master_license(pool: &SqlitePool) {
+    let device_id = medoc_sync::repo::ensure_local_device(pool, "LAN Test Master")
+        .await
+        .expect("device id");
+    let mut bytes = [0u8; 32];
+    for (i, chunk) in VENDOR_SIGNING_KEY_HEX.as_bytes().chunks(2).enumerate() {
+        bytes[i] = u8::from_str_radix(std::str::from_utf8(chunk).unwrap(), 16).unwrap();
+    }
+    let sk = SigningKey::from_bytes(&bytes);
+    assert_eq!(sk.verifying_key().to_bytes(), VENDOR_PUBKEY);
+    let lic = LicenseV2 {
+        version: 2,
+        customer_id: "lan-test".into(),
+        edition: "PRO".into(),
+        device_id: device_id.clone(),
+        activated_at: Utc.with_ymd_and_hms(2026, 5, 26, 12, 0, 0).unwrap(),
+        max_users: 5,
+        modules: vec![],
+        edition_features: vec![],
+        install_plan: None,
+    };
+    let body = serde_json::to_string(&lic).unwrap();
+    let sig = sk.sign(body.as_bytes());
+    let signed = format!("{body}.{}", STANDARD_NO_PAD.encode(sig.to_bytes()));
+    let envelope = encrypt_v2_for_device(&signed, &device_id).expect("encrypt");
+    license_repo::store_v2(pool, &envelope)
+        .await
+        .expect("store license");
+    let deploy = SyncDeploymentConfig {
+        schema_version: 1,
+        mode: DeploymentMode::ServerlessPeer,
+        role: DeviceRole::Master,
+        device_label: "LAN Test Master".into(),
+        ..Default::default()
+    };
+    SyncEngine::set_deployment(pool, deploy)
+        .await
+        .expect("master deployment");
+}
+
+pub async fn licensed_master_pool() -> SqlitePool {
+    ensure_test_env();
+    let pool = connection::test_memory_pool().await.expect("pool");
+    connection::run_migrations(&pool).await.expect("migrate");
+    medoc_sync::schema::ensure_sync_tables(&pool)
+        .await
+        .expect("sync schema");
+    seed_master_license(&pool).await;
+    pool
+}
+
+pub struct LanTestHarness {
+    router: Router,
+    connect: SocketAddr,
+    pub pool: SqlitePool,
+    jwt_secret: Arc<[u8; 32]>,
+}
+
+impl LanTestHarness {
+    pub async fn licensed_master() -> Self {
+        Self::from_pool(licensed_master_pool().await).await
+    }
+
+    pub async fn unlicensed_master() -> Self {
+        ensure_test_env();
+        let pool = connection::test_memory_pool().await.expect("pool");
+        connection::run_migrations(&pool).await.expect("migrate");
+        medoc_sync::repo::ensure_local_device(&pool, "Unlicensed")
+            .await
+            .expect("device");
+        Self::from_pool(pool).await
+    }
+
+    async fn from_pool(pool: SqlitePool) -> Self {
+        let jwt_secret = Arc::new([42u8; 32]);
+        let brute = Arc::new(BruteForceTracker::new());
+        let state = LanSystemFactory::build_state(
+            pool.clone(),
+            jwt_secret.clone(),
+            brute,
+            8787,
+            vec![],
+            vec![],
+        );
+        Self {
+            router: LanSystemFactory::build_router(state),
+            connect: connect_addr(),
+            pool,
+            jwt_secret,
+        }
+    }
+
+    pub fn ops_jwt(&self) -> String {
+        medoc_lan::jwt::issue_token(
+            self.jwt_secret.as_ref(),
+            "seed-physician-001",
+            "ops@test",
+            "PHYSICIAN",
+        )
+        .expect("jwt")
+    }
+
+    pub fn reception_jwt(&self) -> String {
+        medoc_lan::jwt::issue_token(
+            self.jwt_secret.as_ref(),
+            "seed-rez-001",
+            "aya@practice.de",
+            "RECEPTION",
+        )
+        .expect("jwt")
+    }
+
+    pub fn slave_pubkey(seed: u8) -> String {
+        let sk = ed25519_dalek::SigningKey::from_bytes(&[seed; 32]);
+        medoc_sync::master_keys::pubkey_b64(&sk)
+    }
+
+    pub async fn json(
+        &mut self,
+        method: &str,
+        path: &str,
+        body: Option<&serde_json::Value>,
+        bearer: Option<&str>,
+    ) -> (StatusCode, serde_json::Value) {
+        self.request(method, path, body, bearer).await
+    }
+
+    pub async fn request(
+        &mut self,
+        method: &str,
+        path: &str,
+        body: Option<&serde_json::Value>,
+        bearer: Option<&str>,
+    ) -> (StatusCode, serde_json::Value) {
+        let mut builder = Request::builder().method(method).uri(path);
+        if let Some(token) = bearer {
+            builder = builder.header("Authorization", format!("Bearer {token}"));
+        }
+        let req = if let Some(json) = body {
+            builder
+                .header("content-type", "application/json")
+                .body(Body::from(json.to_string()))
+                .expect("request body")
+        } else if method == "POST" {
+            builder
+                .header("content-type", "application/json")
+                .body(Body::from("{}"))
+                .expect("empty json post")
+        } else {
+            builder.body(Body::empty()).expect("empty body")
+        };
+        let mut req = req;
+        req.extensions_mut().insert(ConnectInfo(self.connect));
+        let resp = self.router.clone().oneshot(req).await.expect("oneshot");
+        let status = resp.status();
+        let bytes: Bytes = resp
+            .into_body()
+            .collect()
+            .await
+            .expect("collect")
+            .to_bytes();
+        let value = if bytes.is_empty() {
+            serde_json::Value::Null
+        } else {
+            serde_json::from_slice(&bytes)
+                .unwrap_or_else(|_| serde_json::json!({ "raw": String::from_utf8_lossy(&bytes) }))
+        };
+        (status, value)
+    }
+
+    pub async fn put_bytes(&mut self, path: &str, bytes: Vec<u8>, bearer: &str) -> StatusCode {
+        let mut req = Request::builder()
+            .method("PUT")
+            .uri(path)
+            .header("content-type", "application/octet-stream")
+            .header("Authorization", format!("Bearer {bearer}"))
+            .body(Body::from(bytes))
+            .expect("body");
+        req.extensions_mut().insert(ConnectInfo(self.connect));
+        self.router
+            .clone()
+            .oneshot(req)
+            .await
+            .expect("oneshot")
+            .status()
+    }
+
+    pub async fn post_raw(&mut self, path: &str, raw_body: &str, bearer: &str) -> StatusCode {
+        let mut req = Request::builder()
+            .method("POST")
+            .uri(path)
+            .header("content-type", "application/json")
+            .header("Authorization", format!("Bearer {bearer}"))
+            .body(Body::from(raw_body.to_string()))
+            .expect("body");
+        req.extensions_mut().insert(ConnectInfo(self.connect));
+        self.router
+            .clone()
+            .oneshot(req)
+            .await
+            .expect("oneshot")
+            .status()
+    }
+}

@@ -10,7 +10,7 @@ import { useToastStore } from "./ui/toast-store";
 import { getInvoicePracticeFromStorage } from "@/lib/invoice-service-item";
 import { checkPracticeDocumentReadiness } from "@/lib/practice-completeness";
 import { PracticeReadinessDialog } from "./practice-readiness-dialog";
-import { errorMessage } from "@/lib/utils";
+import { errorMessage, localIsoDate } from "@/lib/utils";
 
 export type DischargeLeafletDialogProps = {
     open: boolean;
@@ -41,8 +41,7 @@ export function DischargeLeafletDialog({ open, onClose, patientId, patient }: Di
         if (!patient) return t("discharge.leaflet.filename");
         // Patient id prefix instead of the name (data minimisation); local date.
         const id8 = patient.id.replace(/-/g, "").slice(0, 8);
-        const d = new Date();
-        const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        const ymd = localIsoDate(new Date());
         const base = t("discharge.leaflet.filename").replace(/\.pdf$/i, "");
         return `${base}-${id8}-${ymd}.pdf`;
     }, [patient, t]);

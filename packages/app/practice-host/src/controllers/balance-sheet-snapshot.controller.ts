@@ -1,5 +1,7 @@
+import { localIsoDate } from "@/lib/utils";
+import type { z } from "zod";
 import type { IssuedPdf } from "@/systems/practice-host/controllers/document.controller";
-import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
+import { practiceSystem } from "@/systems/practice-host/adapters/practice-transport";
 import { CreateBalanceSheetSnapshotSchema, parseOrThrow } from "@/lib/schemas";
 
 export interface BalanceSheetSnapshot {
@@ -16,14 +18,7 @@ export interface BalanceSheetSnapshot {
     created_at: string;
 }
 
-export interface CreateBalanceSheetSnapshot {
-    period: string;
-    kind: string;
-    label: string;
-    income_cents: number;
-    expenses_cents: number;
-    payload: unknown;
-}
+export type CreateBalanceSheetSnapshot = z.input<typeof CreateBalanceSheetSnapshotSchema>;
 
 export const listBalanceSheetSnapshots = () =>
     practiceSystem.invoke<BalanceSheetSnapshot[]>("list_balance_sheet_snapshots");
@@ -35,10 +30,6 @@ export const createBalanceSheetSnapshot = (data: CreateBalanceSheetSnapshot) => 
     const safe = parseOrThrow(CreateBalanceSheetSnapshotSchema, data);
     return practiceSystem.invoke<BalanceSheetSnapshot>("create_balance_sheet_snapshot", { data: safe });
 };
-
-/** @deprecated Saved reports are final; the server refuses. */
-export const deleteBalanceSheetSnapshot = (id: string) =>
-    practiceSystem.invoke<void>("delete_balance_sheet_snapshot", { id });
 
 // ---------------------------------------------------------------------------
 // Period report (Einnahmen-Überschuss-Übersicht), computed on the server
@@ -59,6 +50,8 @@ export interface PeriodExpenseLine {
     cents: number;
     /** Contracts are pro-rata estimates, not payments. */
     estimate: boolean;
+    /** Cash-book voucher number, when the movement has one. */
+    voucher?: string | null;
 }
 
 export interface PeriodReport {
@@ -102,12 +95,10 @@ export const reprintPeriodReport = (snapshotId: string) =>
 export function periodBounds(kind: Exclude<PeriodKind, "CUSTOM">, ref: Date): { from: string; to: string } {
     const y = ref.getFullYear();
     const m = ref.getMonth();
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
     if (kind === "YEAR") return { from: `${y}-01-01`, to: `${y}-12-31` };
     if (kind === "QUARTER") {
         const q0 = Math.floor(m / 3) * 3;
-        return { from: ymd(new Date(y, q0, 1)), to: ymd(new Date(y, q0 + 3, 0)) };
+        return { from: localIsoDate(new Date(y, q0, 1)), to: localIsoDate(new Date(y, q0 + 3, 0)) };
     }
-    return { from: ymd(new Date(y, m, 1)), to: ymd(new Date(y, m + 1, 0)) };
+    return { from: localIsoDate(new Date(y, m, 1)), to: localIsoDate(new Date(y, m + 1, 0)) };
 }

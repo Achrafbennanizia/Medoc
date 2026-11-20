@@ -1,6 +1,6 @@
 use crate::error::AppError;
 use crate::infrastructure::crypto;
-use crate::infrastructure::database::staff_repo;
+use crate::infrastructure::database::repos::admin::staff as staff_repo;
 use crate::infrastructure::totp;
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
@@ -59,9 +59,10 @@ pub async fn authenticate(pool: &SqlitePool, req: &LoginRequest) -> Result<Sessi
         staff_repo::update_password_hash(pool, &user.id, &new_hash).await?;
     }
 
+    // Hand-set overrides plus the compiled access profile: every
+    // `effective_allowed(…, &session.permission_overrides)` check enforces it.
     let permission_overrides =
-        crate::infrastructure::database::staff_permission_repo::list_for_staff(pool, &user.id)
-            .await?;
+        crate::application::access_control::session_overrides(pool, &user.id, &user.role).await?;
     // Stored secrets stay in the database. While the flag is off they are not checked,
     // so an account enrolled under the previous build can still sign in with a password.
     if crate::mvp_security::TOTP_2FA_ENABLED

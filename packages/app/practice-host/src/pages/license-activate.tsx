@@ -17,6 +17,7 @@ import {
 } from "@/systems/practice-host/lib/license-device-role";
 import { activateLicense, currentLicenseStatus, type LicenseStatus } from "@/systems/practice-host/controllers/settings-page.controller";
 import { Button } from "@/views/components/ui/button";
+import { LocaleSwitcher } from "@/views/components/locale-switcher";
 import { errorMessage } from "@/lib/utils";
 import { useToastStore } from "@/views/components/ui/toast-store";
 
@@ -217,7 +218,15 @@ export function LicenseActivatePage(props: { onActivated?: () => void }) {
 
     return (
         <main className="card-pad license-activate-page" style={{ maxWidth: 720, margin: "32px auto" }}>
-            <h1 className="card-title">{t("license.activate.title")}</h1>
+            <div className="row" style={{ alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                <h1 className="card-title" style={{ margin: 0 }}>
+                    {t("license.activate.title")}
+                </h1>
+                <LocaleSwitcher />
+            </div>
+            <p className="card-sub" style={{ marginTop: 8 }}>
+                {t("login.build")} {import.meta.env.VITE_APP_VERSION ?? "—"}
+            </p>
 
             {step === "choose" ? <DeviceRoleChooser onSelect={chooseRole} /> : null}
             {step === "main" ? <MainLicenseForm onActivated={props.onActivated} onBack={goBackToChoose} /> : null}

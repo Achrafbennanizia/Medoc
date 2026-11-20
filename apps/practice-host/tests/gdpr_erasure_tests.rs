@@ -1,8 +1,8 @@
 // DSGVO erasure: deletes chart-linked rows, anonymises, redacts backups + logs.
 
 use medoc_lib::infrastructure::backup;
-use medoc_lib::infrastructure::database::audit_repo;
 use medoc_lib::infrastructure::database::connection::{init_db_headless, run_migrations};
+use medoc_lib::infrastructure::database::repos::admin::audit as audit_repo;
 use medoc_lib::infrastructure::database::{db_key, sqlcipher};
 use medoc_lib::infrastructure::gdpr;
 use medoc_lib::infrastructure::logging::sanitizer;

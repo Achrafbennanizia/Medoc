@@ -6,7 +6,7 @@ use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::error::AppError;
 use tauri::State;
 
@@ -51,7 +51,13 @@ pub async fn insert_cut_range_adjustment(
     .execute(pool)
     .await
     .map_err(AppError::Database)?;
-    medoc_core::infrastructure::database::recorded_write::record_row(pool, "work_plan_adjustment", &id, "INSERT").await?;
+    medoc_core::infrastructure::database::recorded_write::record_row(
+        pool,
+        "work_plan_adjustment",
+        &id,
+        "INSERT",
+    )
+    .await?;
     Ok(id)
 }
 
@@ -70,7 +76,13 @@ pub async fn deactivate_adjustments_for_source(
     .await
     .map_err(AppError::Database)?;
     for id in ids {
-        medoc_core::infrastructure::database::recorded_write::record_row(pool, "work_plan_adjustment", &id, "UPDATE").await?;
+        medoc_core::infrastructure::database::recorded_write::record_row(
+            pool,
+            "work_plan_adjustment",
+            &id,
+            "UPDATE",
+        )
+        .await?;
     }
     Ok(())
 }
@@ -128,11 +140,4 @@ pub async fn list_work_plan_adjustments(
             },
         )
         .collect())
-}
-
-#[macro_export]
-macro_rules! register_work_plan_adjustment_commands {
-    () => {
-        $crate::commands::work_plan_adjustment_commands::list_work_plan_adjustments,
-    };
 }

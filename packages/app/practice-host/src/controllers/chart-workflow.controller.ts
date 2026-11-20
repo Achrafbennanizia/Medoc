@@ -1,4 +1,4 @@
-import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
+import { practiceSystem } from "@/systems/practice-host/adapters/practice-transport";
 
 export type ChartToValidateRow = {
     patient_id: string;
@@ -20,7 +20,8 @@ export type PracticeTicket = {
 };
 
 export async function listChartsToValidate(): Promise<ChartToValidateRow[]> {
-    return practiceSystem.invoke<ChartToValidateRow[]>("list_charts_to_validate");
+    const rows = await practiceSystem.invoke<ChartToValidateRow[]>("list_charts_to_validate");
+    return [...rows].sort((a, b) => b.updated_at.localeCompare(a.updated_at));
 }
 
 export async function countChartsToValidate(): Promise<number> {

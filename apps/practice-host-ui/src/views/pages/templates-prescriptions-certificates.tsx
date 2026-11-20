@@ -133,7 +133,7 @@ export function TemplatesPrescriptionsCertificatesPage() {
     if (status === "loading") return <PageLoading label={t("page.templates.loading")} />;
     if (status === "error" && loadError) {
         return (
-            <div className="products-page practice-workspace-page animate-fade-in">
+            <div className="products-page practice-workspace-page animate-fade-in--sticky-safe">
                 <AdministrationPageHeader title={t("page.templates.title")} />
                 <PageLoadError message={loadError} onRetry={() => void reload()} />
             </div>
@@ -225,7 +225,7 @@ export function TemplatesPrescriptionsCertificatesPage() {
     })();
 
     return (
-        <div className="products-page practice-workspace-page animate-fade-in">
+        <div className="products-page practice-workspace-page animate-fade-in--sticky-safe">
             <ConfirmDialog
                 open={Boolean(deleteId)}
                 title={t("page.templates.delete.title")}

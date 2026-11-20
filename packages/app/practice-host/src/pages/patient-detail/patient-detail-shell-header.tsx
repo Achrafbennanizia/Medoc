@@ -1,12 +1,17 @@
 import type { ChartCompletenessGap } from "@/lib/chart-completeness";
 import { CalendarIcon, EditIcon, ExportIcon, ICON_SIZE_MD, MailIcon, PhoneIcon, PinIcon, ShieldCheckIcon } from "@/lib/icons";
 import { WorkspacePageHeader } from "@/views/components/administration-page-header";
-import { emptyPlanNextAppointment, planNextHasContent, type PlanNextAppointmentV2 } from "@/lib/plan-next-appointment";
+import {
+    buildPlanNextPracticeTask,
+    emptyPlanNextAppointment,
+    planNextHasContent,
+    type PlanNextAppointmentV2,
+} from "@/lib/plan-next-appointment";
 import { alterAusDateOfBirth } from "@/lib/patient-detail-utils";
 import type { PatientDetailChartTab } from "@/lib/patient-detail-utils";
 import type { ValidationRecord } from "@/lib/chart-validation";
 import type { PatientStatus, Patient, PatientChart, DentalFinding, Treatment, Examination, Payment, Role } from "@/models/types";
-import { formatDate, formatDateTime } from "@/lib/utils";
+import { errorMessage, formatDate, formatDateTime } from "@/lib/utils";
 import { DentalMiniBar } from "@/views/components/DentalMiniBar";
 import { PATIENT_CHART_WORKFLOW_HEADER_BUTTONS_ENABLED } from "@/lib/v1-ui-flags";
 import { ChartEditFormOrInline, ConfirmOrInline } from "@/views/components/chart-confirm-presentation";
@@ -15,7 +20,10 @@ import { Button } from "@/views/components/ui/button";
 import { DismissibleNotice } from "@/views/components/ui/dismissible-notice";
 import { Input, Select, Textarea } from "@/views/components/ui/input";
 import { PhoneText } from "@/views/components/ui/phone-text";
+import { useToastStore } from "@/views/components/ui/toast-store";
 import { useT, useTParams } from "@/lib/i18n";
+import { createPracticeTask } from "@/systems/practice-host/controllers/practice-task.controller";
+import { useState } from "react";
 
 export type PatientMasterEditForm = {
     name: string;
@@ -180,36 +188,42 @@ export function PatientDetailShellHeader({
                 back={{ onClick: onNavigateBack, label: t("patient.detail.back") }}
                 actions={
                 <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
-                    <button
-                        type="button"
-                        className="btn btn-subtle"
-                        onClick={onTogglePlanTip}
-                        title={t("patient.detail.header.plan_next_title")}
-                        aria-pressed={showPlanTip}
-                        style={
-                            planNextHasContent(planNext)
-                                ? { borderColor: "var(--accent)", color: "var(--accent-ink)", background: "var(--accent-soft)" }
-                                : undefined
-                        }
-                    >
-                        <CalendarIcon size={ICON_SIZE_MD} />
-                        {t("patient.detail.header.plan_next_button")}
-                        {planNextHasContent(planNext) ? (
-                            <span
-                                aria-hidden
-                                title={t("patient.detail.header.plan_next_has_content")}
-                                style={{
-                                    display: "inline-block",
-                                    width: 6,
-                                    height: 6,
-                                    borderRadius: "50%",
-                                    background: "var(--accent)",
-                                    marginLeft: 6,
-                                    verticalAlign: "middle",
-                                }}
-                            />
-                        ) : null}
-                    </button>
+                    {role === "PHYSICIAN" ? (
+                        <button
+                            type="button"
+                            className="btn btn-subtle"
+                            onClick={onTogglePlanTip}
+                            title={t("patient.detail.header.plan_next_title")}
+                            aria-pressed={showPlanTip}
+                            style={
+                                planNextHasContent(planNext)
+                                    ? {
+                                          borderColor: "var(--accent)",
+                                          color: "var(--accent-ink)",
+                                          background: "var(--accent-soft)",
+                                      }
+                                    : undefined
+                            }
+                        >
+                            <CalendarIcon size={ICON_SIZE_MD} />
+                            {t("patient.detail.header.plan_next_button")}
+                            {planNextHasContent(planNext) ? (
+                                <span
+                                    aria-hidden
+                                    title={t("patient.detail.header.plan_next_has_content")}
+                                    style={{
+                                        display: "inline-block",
+                                        width: 6,
+                                        height: 6,
+                                        borderRadius: "50%",
+                                        background: "var(--accent)",
+                                        marginLeft: 6,
+                                        verticalAlign: "middle",
+                                    }}
+                                />
+                            ) : null}
+                        </button>
+                    ) : null}
                     <button
                         type="button"
                         className="btn btn-subtle"
@@ -299,8 +313,14 @@ export function PatientDetailShellHeader({
                     }
                 />
             ) : null}
-            {showPlanTip ? (
-                <PlanNextTipCard planNext={planNext} canViewClinical={canViewClinical} onPersistPlanNext={onPersistPlanNext} onClose={onTogglePlanTip} />
+            {showPlanTip && role === "PHYSICIAN" ? (
+                <PlanNextTipCard
+                    planNext={planNext}
+                    patientId={patientId}
+                    canViewClinical={canViewClinical}
+                    onPersistPlanNext={onPersistPlanNext}
+                    onClose={onTogglePlanTip}
+                />
             ) : null}
             <div className="card patient-hero-card">
                 <div className="patient-hero-top">
@@ -486,18 +506,52 @@ export function PatientDetailShellHeader({
     );
 }
 
+/** Physician → reception: structured note; Send creates an APPOINTMENT practice task (simple track). */
 function PlanNextTipCard({
     planNext,
+    patientId,
     canViewClinical,
     onPersistPlanNext,
     onClose,
 }: {
     planNext: PlanNextAppointmentV2;
+    patientId: string;
     canViewClinical: boolean;
     onPersistPlanNext: (next: PlanNextAppointmentV2) => void;
     onClose: () => void;
 }) {
     const t = useT();
+    const toast = useToastStore((s) => s.add);
+    const [sendBusy, setSendBusy] = useState(false);
+
+    const sendAsReceptionTask = async () => {
+        if (sendBusy) return;
+        // Store English canonical copy; list/drawer translate EN → device locale.
+        const draft = buildPlanNextPracticeTask(planNext);
+        if (!draft) {
+            toast(t("patient.detail.plan_next.toast.empty"), "error");
+            return;
+        }
+        setSendBusy(true);
+        try {
+            await createPracticeTask({
+                patientId,
+                kind: "APPOINTMENT",
+                title: draft.title,
+                body: draft.body || null,
+                assigneeRole: "RECEPTION",
+                assigneeUserId: null,
+            });
+            onPersistPlanNext(emptyPlanNextAppointment());
+            onClose();
+            toast(t("patient.detail.plan_next.toast.sent"), "success");
+            window.dispatchEvent(new Event("medoc-nav-badges-refresh"));
+        } catch (e) {
+            toast(errorMessage(e), "error");
+        } finally {
+            setSendBusy(false);
+        }
+    };
 
     return (
         <DismissibleNotice
@@ -513,7 +567,12 @@ function PlanNextTipCard({
                     id="plan-urgency"
                     label={t("patient.detail.plan_next.urgency")}
                     value={planNext.urgency}
-                    onChange={(e) => onPersistPlanNext({ ...planNext, urgency: e.target.value as PlanNextAppointmentV2["urgency"] })}
+                    onChange={(e) =>
+                        onPersistPlanNext({
+                            ...planNext,
+                            urgency: e.target.value as PlanNextAppointmentV2["urgency"],
+                        })
+                    }
                     options={[
                         { value: "routine", label: t("patient.detail.plan_next.urgency.routine") },
                         { value: "bald", label: t("patient.detail.plan_next.urgency.soon") },
@@ -592,12 +651,26 @@ function PlanNextTipCard({
                     />
                 ) : null}
             </details>
-            <div className="row" style={{ justifyContent: "flex-end", gap: 8, marginTop: 12 }}>
+            <div className="row" style={{ justifyContent: "flex-end", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
                 {planNextHasContent(planNext) ? (
-                    <Button size="sm" variant="ghost" onClick={() => onPersistPlanNext(emptyPlanNextAppointment())}>
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => onPersistPlanNext(emptyPlanNextAppointment())}
+                        disabled={sendBusy}
+                    >
                         {t("patient.detail.plan_next.clear")}
                     </Button>
                 ) : null}
+                <Button
+                    size="sm"
+                    variant="primary"
+                    disabled={!planNextHasContent(planNext) || sendBusy || !patientId}
+                    onClick={() => void sendAsReceptionTask()}
+                    title={t("patient.detail.plan_next.send_hint")}
+                >
+                    {sendBusy ? t("common.sending") : t("common.send")}
+                </Button>
             </div>
         </DismissibleNotice>
     );

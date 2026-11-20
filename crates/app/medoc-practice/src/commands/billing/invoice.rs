@@ -10,7 +10,7 @@ use sqlx::SqlitePool;
 use tauri::State;
 
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::error::AppError;
 use crate::infrastructure::pdf::Invoice;
 use medoc_core::application::documents::issue::{self as svc, IssueInvoiceArgs};
@@ -37,12 +37,4 @@ pub async fn render_invoice_pdf(
     STANDARD
         .decode(out.pdf_base64)
         .map_err(|e| AppError::Internal(e.to_string()))
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_invoice_commands {
-    () => {
-        $crate::commands::invoice_commands::render_invoice_pdf,
-    };
 }

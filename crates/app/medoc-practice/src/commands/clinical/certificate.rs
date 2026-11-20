@@ -2,11 +2,12 @@ use sqlx::SqlitePool;
 use tauri::State;
 
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::domain::entities::certificate::CreateCertificate;
 use crate::domain::entities::Certificate;
 use crate::error::AppError;
-use crate::infrastructure::database::{audit_repo, certificate_repo};
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
+use crate::infrastructure::database::repos::clinical::certificate as certificate_repo;
 
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state, patient_id))]
@@ -80,14 +81,4 @@ pub async fn delete_certificate(
     .await
     .ok();
     Ok(())
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_certificate_commands {
-    () => {
-        $crate::commands::certificate_commands::list_certificates,
-        $crate::commands::certificate_commands::create_certificate,
-        $crate::commands::certificate_commands::delete_certificate,
-    };
 }

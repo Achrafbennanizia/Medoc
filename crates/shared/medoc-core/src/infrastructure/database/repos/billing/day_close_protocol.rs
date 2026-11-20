@@ -107,23 +107,3 @@ pub async fn create(
     tx.commit().await?;
     get(pool, &id).await
 }
-
-pub async fn delete_row(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
-    let mut tx = pool.begin().await?;
-    crate::infrastructure::database::recorded_write::record_in_tx(
-        &mut tx,
-        "day_close_protocol",
-        id,
-        "DELETE",
-    )
-    .await?;
-    let r = sqlx::query("DELETE FROM day_close_protocol WHERE id = ?1")
-        .bind(id)
-        .execute(&mut *tx)
-        .await?;
-    tx.commit().await?;
-    if r.rows_affected() == 0 {
-        return Err(AppError::NotFound("DayCloseProtocol".into()));
-    }
-    Ok(())
-}

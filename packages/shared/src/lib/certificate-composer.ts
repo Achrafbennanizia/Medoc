@@ -1,5 +1,7 @@
 /** Certificate capture in patient record — aligned with certificate templates (`kind: "CERTIFICATE"`). */
 
+import { addCalendarDays } from "@/lib/utils";
+
 type TFn = (key: string) => string;
 
 /** Serialized certificate type values (backend / stored documents — do not rename). */
@@ -25,12 +27,6 @@ export function certificateKindSelectOptions(t: TFn) {
         label: t(CERTIFICATE_KIND_LABEL_KEYS[value]),
     }));
 }
-
-/** @deprecated Use certificateKindSelectOptions(t) */
-export const CERTIFICATE_KIND_OPTIONS = CERTIFICATE_KIND_VALUES.map((value) => ({
-    value,
-    label: value,
-}));
 
 export const ILLNESS_SUGGESTION_KEYS = [
     "template.suggestion.illness.cold",
@@ -106,9 +102,7 @@ export function certificateValidUntilFromStartAndDays(validFromIso: string, dayC
     const from = validFromIso.slice(0, 10);
     const n = Number.parseInt(dayCount.trim(), 10);
     if (!Number.isFinite(n) || n < 1) return from;
-    const d = new Date(`${from}T12:00:00`);
-    d.setDate(d.getDate() + (n - 1));
-    return d.toISOString().slice(0, 10);
+    return addCalendarDays(from, n - 1);
 }
 
 export function buildCertificateTemplatePayload(fields: {

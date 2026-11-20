@@ -27,13 +27,11 @@ import type {
 import {
     hydrateWorkPlanStore,
     loadWorkPlanStore,
-    minToLabel,
     newBlockId,
     persistWorkPlanStore,
     saveWorkPlanStore,
     weekDaysMonFirst,
     weekStartMonday,
-    ymd,
 } from "@/lib/staff-work-plan";
 import {
     newComposeEntryId,
@@ -48,7 +46,7 @@ import {
     resolveSegmentsForPersonDay,
 } from "@/lib/work-plan-preferences";
 import type { Staff } from "@/models/types";
-import { errorMessage } from "@/lib/utils";
+import { errorMessage, hueFromId, initialsFromName, localIsoDate, minutesToTime } from "@/lib/utils";
 import { Button } from "../components/ui/button";
 import { CardHeader } from "../components/ui/card";
 import { ConfirmDialog } from "../components/ui/dialog";
@@ -63,6 +61,7 @@ import {
 } from "@/systems/practice-host/controllers/work-time.controller";
 import { listWorkPlanAdjustments } from "@/systems/practice-host/controllers/work-plan-adjustment.controller";
 import { useDateFnsLocale, useT, useTParams , useCollatorLocale} from "@/lib/i18n";
+import { practiceTodayYmd } from "@/lib/practice-timezone";
 
 const DND_MIME = "application/x-medoc-arbeitsblock";
 /** Max visible timeline height (px) — day view; week uses horizontal mini rows. */
@@ -112,13 +111,6 @@ function layoutOverlapBlock(blocks: StaffWorkBlock[]): Map<string, { lane: numbe
 }
 
 type FilterLayer = "work" | "break" | "both" | "net";
-
-function personInitials(name: string): string {
-    const parts = name.trim().split(/\s+/).filter(Boolean);
-    if (parts.length === 0) return "?";
-    if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
-    return `${parts[0]!.charAt(0)}${parts[parts.length - 1]!.charAt(0)}`.toUpperCase();
-}
 
 function xToMin(e: React.DragEvent | React.MouseEvent, el: HTMLDivElement, minD: number, daySpan: number, snapMin: number): number {
     const r = el.getBoundingClientRect();
@@ -229,7 +221,7 @@ function dayMinutesForDisplay(
 /** Display target work intervals (gross) for staff overview */
 function formatWorkDayRanges(workRaw: [number, number][]): string {
     if (workRaw.length === 0) return "—";
-    return workRaw.map(([a, b]) => `${minToLabel(a)} – ${minToLabel(b)}`).join(" · ");
+    return workRaw.map(([a, b]) => `${minutesToTime(a)} – ${minutesToTime(b)}`).join(" · ");
 }
 
 function totalIntervalMinutes(iv: [number, number][]): number {
@@ -306,8 +298,8 @@ function composeEntryLine(
             from: e.dateFrom,
             to: e.dateTo,
             weekdays: wd,
-            start: minToLabel(e.startMin),
-            end: minToLabel(e.endMin),
+            start: minutesToTime(e.startMin),
+            end: minutesToTime(e.endMin),
         });
     }
     if (e.kind === "cut_range") {
@@ -315,8 +307,8 @@ function composeEntryLine(
     }
     return tp("page.work_plan.compose.entry.add_day", {
         date: e.date,
-        start: minToLabel(e.startMin),
-        end: minToLabel(e.endMin),
+        start: minutesToTime(e.startMin),
+        end: minutesToTime(e.endMin),
     });
 }
 
@@ -339,9 +331,9 @@ function WorkPlanComposeCard(props: {
     const dayShort = useMemo(() => DAY_SHORT_KEYS.map((k) => t(`page.work_plan.day_short.${k}`)), [t]);
     const [addOpen, setAddOpen] = useState(false);
     const toast = useToastStore((s) => s.add);
-    const [df, setDf] = useState(() => format(new Date(), "yyyy-MM-dd"));
+    const [df, setDf] = useState(() => practiceTodayYmd());
     const [dt, setDt] = useState(() => format(addDays(new Date(), 30), "yyyy-MM-dd"));
-    const [dDay, setDDay] = useState(() => format(new Date(), "yyyy-MM-dd"));
+    const [dDay, setDDay] = useState(() => practiceTodayYmd());
     const [wds, setWds] = useState<Set<1 | 2 | 3 | 4 | 5 | 6 | 7>>(() => new Set([1, 2, 3, 4, 5]));
     const [tStart, setTStart] = useState("08:00");
     const [tEnd, setTEnd] = useState("17:00");
@@ -679,7 +671,7 @@ export function StaffWorkPlanPage() {
         return sortedP.filter((p) => filterPersonSet.has(p.id));
     }, [sortedP, filterPersonSet]);
 
-    const dayYmd = useMemo(() => ymd(anchor), [anchor]);
+    const dayYmd = useMemo(() => localIsoDate(anchor), [anchor]);
     const weekStart = useMemo(() => weekStartMonday(anchor), [anchor]);
     const weekDays = useMemo(() => weekDaysMonFirst(weekStart), [weekStart]);
     const monthStart = useMemo(() => startOfMonth(anchor), [anchor]);
@@ -691,16 +683,10 @@ export function StaffWorkPlanPage() {
         [monthGridStart, monthGridEnd],
     );
 
-    const hue = (id: string) => {
-        let h = 0;
-        for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) % 360;
-        return h;
-    };
-
     const referenceDays = useMemo(() => {
         if (view === "day") return [dayYmd];
-        if (view === "week") return weekDays.map(ymd);
-        return monthDays.filter((d) => isSameMonth(d, monthStart)).map(ymd);
+        if (view === "week") return weekDays.map(localIsoDate);
+        return monthDays.filter((d) => isSameMonth(d, monthStart)).map(localIsoDate);
     }, [view, dayYmd, weekDays, monthDays, monthStart]);
 
     const employeeSollRows = useMemo(() => {
@@ -831,7 +817,7 @@ export function StaffWorkPlanPage() {
     if (loadError) return <PageLoadError message={loadError} onRetry={() => void load()} />;
 
     return (
-        <div className="staff-workPlan-page practice-workspace-page animate-fade-in">
+        <div className="staff-workPlan-page practice-workspace-page animate-fade-in--sticky-safe">
             <AdministrationPageHeader
                 titleLevel="h1"
                 title={t("page.work_plan.title")}
@@ -966,7 +952,7 @@ export function StaffWorkPlanPage() {
                                 {activePeople.map((p) => (
                                     <DayColumn
                                         key={p.id} staff={p} ymdStr={dayYmd} planPreferences={planPreferences} blocks={blocks} filterLayer={filterLayer}
-                                        minD={minD} daySpan={daySpan} timeColH={timeColH} canWrite={canWrite} hue={hue} composeCal={composeCal}
+                                        minD={minD} daySpan={daySpan} timeColH={timeColH} canWrite={canWrite} hue={hueFromId} composeCal={composeCal}
                                         onDoubleClickEinsatz={() => {
                                             if (!canWrite) return;
                                             const id = newBlockId();
@@ -990,7 +976,7 @@ export function StaffWorkPlanPage() {
                             <div className="workPlan-week-matrix" role="grid" aria-label={t("page.work_plan.week.aria")}>
                                 <div className="workPlan-week-matrix__corner" aria-hidden>{t("page.work_plan.week.corner")}</div>
                                 {weekDays.map((d) => {
-                                    const y = ymd(d);
+                                    const y = localIsoDate(d);
                                     return (
                                         <div key={y} className="workPlan-week-matrix__dhead">
                                             <span className="workPlan-week-matrix__dow">{format(d, "EEE", { locale: dateFnsLocale })}</span>
@@ -1001,11 +987,11 @@ export function StaffWorkPlanPage() {
                                 {activePeople.map((p) => (
                                     <Fragment key={p.id}>
                                         <div className="workPlan-week-matrix__rhead" title={p.name}>
-                                            <span className="workPlan-week-matrix__rinit">{personInitials(p.name)}</span>
+                                            <span className="workPlan-week-matrix__rinit">{initialsFromName(p.name)}</span>
                                             <span className="workPlan-week-matrix__rname">{p.name}</span>
                                         </div>
                                         {weekDays.map((d) => {
-                                            const y = ymd(d);
+                                            const y = localIsoDate(d);
                                             return (
                                                 <WeekPersonDayHBar
                                                     key={`${p.id}-${y}`}
@@ -1017,7 +1003,7 @@ export function StaffWorkPlanPage() {
                                                     minD={minD}
                                                     daySpan={daySpan}
                                                     canWrite={canWrite}
-                                                    hueN={hue(p.id)}
+                                                    hueN={hueFromId(p.id)}
                                                     dndActiveId={dndActiveId}
                                                     setDndActiveId={setDndActiveId}
                                                     onDropCell={(e, el) => handleDropWeekHBar(e, y, p.id, el)}
@@ -1033,7 +1019,7 @@ export function StaffWorkPlanPage() {
                             </div>
                             </div>
                             <p className="workPlan-week-hint" style={{ fontSize: 10.5, color: "var(--fg-3)", margin: "6px 0 0", lineHeight: 1.3 }}>
-                                {tp("page.work_plan.week.hint", { start: minToLabel(minD), end: minToLabel(maxD) })}
+                                {tp("page.work_plan.week.hint", { start: minutesToTime(minD), end: minutesToTime(maxD) })}
                             </p>
                         </div>
                     ) : null}
@@ -1173,7 +1159,7 @@ function WeekPersonDayHBar({
                                     background: `hsla(${hueN}, 52%, 46%, 0.32)`,
                                     pointerEvents: dndActiveId ? "none" : "auto",
                                 }}
-                                title={`${b.title} · ${minToLabel(b.startMin)}–${minToLabel(b.endMin)}`}
+                                title={`${b.title} · ${minutesToTime(b.startMin)}–${minutesToTime(b.endMin)}`}
                             >
                                 <span className="workPlan-block-h__lbl">{b.title}</span>
                                 {canWrite ? (
@@ -1300,14 +1286,14 @@ function WorkPlanMonth({ monthDays, monthStart, planPreferences, people, filterL
     const personById = useMemo(() => new Map(people.map((p) => [p.id, p])), [people]);
 
     return (
-        <div className="cal workPlan-month-cal animate-fade-in" style={{ animationDuration: "240ms" }}>
+        <div className="cal workPlan-month-cal animate-fade-in--sticky-safe" style={{ animationDuration: "240ms" }}>
             {dayShort.map((d) => (
                 <div key={d} className="cal-head">
                     {d}
                 </div>
             ))}
             {monthDays.map((d) => {
-                const y = ymd(d);
+                const y = localIsoDate(d);
                 const inM = isSameMonth(d, monthStart);
                 const sumMin = people.reduce((s, p) => s + dayMinutesForDisplay(p.id, y, planPreferences, filterLayer, composeCal), 0);
                 const dayBlocks = [...blocks]
@@ -1333,7 +1319,7 @@ function WorkPlanMonth({ monthDays, monthStart, planPreferences, people, filterL
                         }}
                         title={
                             dayBlocks.length
-                                ? dayBlocks.map((b) => `${minToLabel(b.startMin)} ${b.title}`).join(" · ")
+                                ? dayBlocks.map((b) => `${minutesToTime(b.startMin)} ${b.title}`).join(" · ")
                                 : sumMin > 0
                                     ? tp("page.work_plan.month.tooltip.soll", {
                                           label,
@@ -1345,7 +1331,7 @@ function WorkPlanMonth({ monthDays, monthStart, planPreferences, people, filterL
                         <div className="cal-num">{format(d, "d")}</div>
                         {visible.map((b) => {
                             const p = personById.get(b.staffId);
-                            const initials = p ? personInitials(p.name) : "?";
+                            const initials = p ? initialsFromName(p.name) : "?";
                             const tone = monthCalEvtClass(b.staffId, people);
                             return (
                                 <div
@@ -1357,7 +1343,7 @@ function WorkPlanMonth({ monthDays, monthStart, planPreferences, people, filterL
                                         onSelectDay(d);
                                     }}
                                 >
-                                    <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 700 }}>{minToLabel(b.startMin)}</span>
+                                    <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 700 }}>{minutesToTime(b.startMin)}</span>
                                     <span style={{ overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>
                                         {b.title}
                                         {p ? ` · ${initials}` : ""}
@@ -1458,7 +1444,7 @@ function Block({ b, minD, daySpan, lo, dnd, canWrite, onDel, onDragStart, onDrag
             style={st}
         >
             <span>
-                {minToLabel(b.startMin)} – {minToLabel(b.endMin)} · {b.title}
+                {minutesToTime(b.startMin)} – {minutesToTime(b.endMin)} · {b.title}
             </span>
             {canWrite ? (
                 <button

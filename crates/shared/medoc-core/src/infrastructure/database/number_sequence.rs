@@ -32,7 +32,9 @@ impl NumberStyle {
             None | Some("") | Some("yearly") => Ok(Self::Yearly),
             Some("daily") => Ok(Self::Daily),
             Some("monthly") => Ok(Self::Monthly),
-            Some(other) => Err(AppError::Validation(format!("unknown number style {other}"))),
+            Some(other) => Err(AppError::Validation(format!(
+                "unknown number style {other}"
+            ))),
         }
     }
 
@@ -72,13 +74,19 @@ fn parse_day(ymd: &str) -> Result<NaiveDate, AppError> {
 fn normalize_prefix(prefix: &str) -> Result<String, AppError> {
     let p = prefix.trim().to_ascii_uppercase();
     if p.is_empty() || p.len() > 16 || !p.chars().all(|c| c.is_ascii_alphanumeric()) {
-        return Err(AppError::Validation("prefix must be 1-16 letters or digits".into()));
+        return Err(AppError::Validation(
+            "prefix must be 1-16 letters or digits".into(),
+        ));
     }
     Ok(p)
 }
 
 /// Allocate `PREFIX-YYYY-NNNN` under `BEGIN IMMEDIATE` (kept for existing callers).
-pub async fn allocate_number(pool: &SqlitePool, prefix: &str, ymd: &str) -> Result<String, AppError> {
+pub async fn allocate_number(
+    pool: &SqlitePool,
+    prefix: &str,
+    ymd: &str,
+) -> Result<String, AppError> {
     allocate_styled(pool, prefix, ymd, NumberStyle::Yearly).await
 }
 
@@ -146,12 +154,11 @@ async fn legacy_floor(
 ) -> Result<i64, AppError> {
     match style {
         NumberStyle::Daily => {
-            let raw: Option<String> =
-                sqlx::query_scalar("SELECT value FROM app_kv WHERE key = ?1")
-                    .bind(LEGACY_INVOICE_COUNTERS_KEY)
-                    .fetch_optional(&mut **tx)
-                    .await
-                    .map_err(AppError::Database)?;
+            let raw: Option<String> = sqlx::query_scalar("SELECT value FROM app_kv WHERE key = ?1")
+                .bind(LEGACY_INVOICE_COUNTERS_KEY)
+                .fetch_optional(&mut **tx)
+                .await
+                .map_err(AppError::Database)?;
             let from_kv = raw
                 .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
                 .and_then(|v| {
@@ -210,8 +217,16 @@ async fn max_suffix(
 /// being renamed silently (a rename on one device would diverge from others).
 pub async fn ensure_unique_number_indexes(pool: &SqlitePool) -> Result<(), AppError> {
     for (index, table, column) in [
-        ("ux_purchase_order_order_number", "purchase_order", "order_number"),
-        ("ux_invoice_document_number", "invoice_document", "document_number"),
+        (
+            "ux_purchase_order_order_number",
+            "purchase_order",
+            "order_number",
+        ),
+        (
+            "ux_invoice_document_number",
+            "invoice_document",
+            "document_number",
+        ),
     ] {
         let exists: Option<String> =
             sqlx::query_scalar("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?1")

@@ -90,21 +90,12 @@ impl From<RawRow> for PairingRequest {
 }
 
 fn coupling_code_from_transcript_b64(b64: Option<&str>) -> Option<String> {
-    use crate::cluster::crypto::derive_sas_from_transcript;
-    use base64::engine::general_purpose::{STANDARD, STANDARD_NO_PAD, URL_SAFE, URL_SAFE_NO_PAD};
-    use base64::Engine;
-    let raw = b64?.trim();
-    if raw.is_empty() {
+    use crate::cluster::crypto::{decode_handshake_transcript, derive_sas_from_transcript};
+    let bytes = decode_handshake_transcript(b64?)?;
+    if bytes.is_empty() {
         return None;
     }
-    for engine in [&STANDARD, &STANDARD_NO_PAD, &URL_SAFE, &URL_SAFE_NO_PAD] {
-        if let Ok(bytes) = engine.decode(raw) {
-            if !bytes.is_empty() {
-                return Some(derive_sas_from_transcript(&bytes));
-            }
-        }
-    }
-    None
+    Some(derive_sas_from_transcript(&bytes))
 }
 
 pub(crate) fn is_cluster_sas_state(pairing_state: Option<&str>) -> bool {

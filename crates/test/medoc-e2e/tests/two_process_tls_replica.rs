@@ -10,7 +10,7 @@
 use chrono::NaiveDate;
 use medoc_core::domain::entities::patient::CreatePatient;
 use medoc_core::domain::enums::Sex;
-use medoc_core::infrastructure::database::patient_repo;
+use medoc_core::infrastructure::database::repos::clinical::patient as patient_repo;
 use medoc_e2e::harness::{
     self, open_headless_pool, prepare_master_data_dir, prepare_replica_data_dir,
     PORT_MASTER_SEED_PATIENT_NAME,
@@ -33,9 +33,13 @@ fn fresh_dir(name: &str) -> std::path::PathBuf {
 }
 
 async fn set_pin(pool: &sqlx::SqlitePool, pin: &str) {
-    let mut cfg = medoc_sync::repo::load_deployment(pool).await.expect("deployment");
+    let mut cfg = medoc_sync::repo::load_deployment(pool)
+        .await
+        .expect("deployment");
     cfg.master_cert_sha256 = pin.to_string();
-    SyncEngine::set_deployment(pool, cfg).await.expect("save pin");
+    SyncEngine::set_deployment(pool, cfg)
+        .await
+        .expect("save pin");
 }
 
 #[tokio::test]
@@ -57,9 +61,14 @@ async fn replica_syncs_with_separate_master_process_over_pinned_tls() {
     let jwt = client.login_physician_totp("1234").await;
     let device_id = "tls2p-replica-1";
     let token = pair_replica_over_port(&client, &jwt, 41, device_id).await;
-    let (_, info) = client.json("GET", "/api/v1/pairing/master-info", None, None).await;
+    let (_, info) = client
+        .json("GET", "/api/v1/pairing/master-info", None, None)
+        .await;
     let master_pubkey = info["masterPubkey"].as_str().expect("pubkey").to_string();
-    let master_device_id = info["masterDeviceId"].as_str().expect("master id").to_string();
+    let master_device_id = info["masterDeviceId"]
+        .as_str()
+        .expect("master id")
+        .to_string();
 
     // Replica: separate data dir, production deployment config + the real pin.
     let replica_dir = fresh_dir("replica");
@@ -92,8 +101,13 @@ async fn replica_syncs_with_separate_master_process_over_pinned_tls() {
     )
     .await
     .expect("create on replica");
-    let pushed = SyncEngine::push_to_master(&replica).await.expect("push over TLS");
-    assert!(pushed.accepted >= 1, "main accepted the replica's rows: {pushed:?}");
+    let pushed = SyncEngine::push_to_master(&replica)
+        .await
+        .expect("push over TLS");
+    assert!(
+        pushed.accepted >= 1,
+        "main accepted the replica's rows: {pushed:?}"
+    );
 
     let master_pool = open_headless_pool(&master_dir).await;
     let on_master: Option<String> = sqlx::query_scalar("SELECT name FROM patient WHERE id = ?1")
@@ -104,8 +118,13 @@ async fn replica_syncs_with_separate_master_process_over_pinned_tls() {
     assert_eq!(on_master.as_deref(), Some("TLS Two Process"));
 
     // Main device data → pull over pinned TLS → row on the replica.
-    let pulled = SyncEngine::pull_from_master(&replica).await.expect("pull over TLS");
-    assert!(pulled.applied >= 1, "replica applied rows from main: {pulled:?}");
+    let pulled = SyncEngine::pull_from_master(&replica)
+        .await
+        .expect("pull over TLS");
+    assert!(
+        pulled.applied >= 1,
+        "replica applied rows from main: {pulled:?}"
+    );
     let seeded: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM patient WHERE name = ?1")
         .bind(PORT_MASTER_SEED_PATIENT_NAME)
         .fetch_one(&replica)
@@ -135,13 +154,17 @@ async fn replica_syncs_with_separate_master_process_over_pinned_tls() {
     let msg = err.to_string().to_lowercase();
     assert!(
         // reqwest wraps the rustls "certificate pin mismatch" as a send error.
-        msg.contains("certificate") || msg.contains("pin") || msg.contains("tls") || msg.contains("error sending request"),
+        msg.contains("certificate")
+            || msg.contains("pin")
+            || msg.contains("tls")
+            || msg.contains("error sending request"),
         "unexpected error for pin mismatch: {msg}"
     );
-    let leaked: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM patient WHERE name = 'Must Not Arrive'")
-        .fetch_one(&master_pool)
-        .await
-        .expect("query master");
+    let leaked: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM patient WHERE name = 'Must Not Arrive'")
+            .fetch_one(&master_pool)
+            .await
+            .expect("query master");
     assert_eq!(leaked, 0);
 
     drop(server);

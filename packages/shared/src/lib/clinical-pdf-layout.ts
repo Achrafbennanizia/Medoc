@@ -18,14 +18,18 @@ import type {
     TreatmentCatalogItem,
     ServiceItem,
 } from "@/models/types";
-import { translateLocale, translateLocaleParams, translatePluralUnit } from "@/lib/i18n";
-import { formatDate } from "@/lib/utils";
+import { bcp47ForLocale, isRtlLocale, translateLocaleParams, translatePluralUnit, translateLocale } from "@/lib/i18n";
+import { localizedVatNotice } from "@/lib/clinical-document-pdf";
+import { formatWrittenDay, inclusiveCalendarDays } from "@/lib/utils";
 import { getInvoicePracticeFromStorage } from "@/lib/invoice-service-item";
-import { formatPaymentReferenceLine, paymentMethodLabel } from "@/lib/payment-booking";
+import { treatmentLineLabel } from "@/lib/clinical-service-label";
+import { formatPaymentReferenceLine } from "@/lib/payment-booking";
+import { paymentMethodLabel } from "@/lib/finance-order-labels";
 import { resolveCatalogIdForTreatment } from "@/lib/patient-detail-utils";
 import { certificateKindSelectOptions } from "@/lib/certificate-composer";
 import { documentLocale, documentLocaleForI18n } from "@/lib/document-locale";
 import { docLabel } from "@/lib/document-labels";
+import { practiceCurrency } from "@/lib/practice-currency";
 
 /** Document text follows the document language (Settings), not the UI language. */
 const docT = (key: string) => translateLocale(documentLocaleForI18n(), key);
@@ -88,32 +92,29 @@ function base(kind: string): Pick<ClinicalPdfLayout, "kind" | "practiceLines" | 
         practiceLines: [p.name ?? "", ...(p.addr ?? "").split(/\r?\n/)].map((l) => l.trim()).filter(Boolean),
         signatureLines: [],
         locale: documentLocale(),
-        rtl: documentLocale() === "ar",
+        rtl: isRtlLocale(documentLocale()),
     };
-}
-
-function formatPrescriptionDate(iso: string): string {
-    const d = iso.trim().slice(0, 10);
-    if (d.length >= 10 && d[4] === "-") {
-        return `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}`;
-    }
-    return formatDate(iso);
 }
 
 function certificateKindLabel(kind: string): string {
     return certificateKindSelectOptions(docT).find((o) => o.value === kind)?.label ?? kind;
 }
 
+function prescriptionTypeLabel(raw: string): string {
+    const code = (raw.trim() || "PRIVAT").toUpperCase();
+    const key = `prescription.kind.${code}`;
+    const label = docT(key);
+    return label === key ? code : label;
+}
+
 export function buildCertificatePdfLayout(a: Certificate, patient: Patient | null): ClinicalPdfLayout {
-    const from = formatClinicalDate(a.valid_from);
-    const until = formatClinicalDate(a.valid_until);
-    const issued = formatClinicalDate(a.issued_at);
-    const t0 = new Date(`${a.valid_from.slice(0, 10)}T12:00:00`);
-    const t1 = new Date(`${a.valid_until.slice(0, 10)}T12:00:00`);
-    const days = Math.max(1, Math.round((t1.getTime() - t0.getTime()) / 86_400_000) + 1);
+    const from = formatWrittenDay(a.valid_from);
+    const until = formatWrittenDay(a.valid_until);
+    const issued = formatWrittenDay(a.issued_at);
+    const days = inclusiveCalendarDays(a.valid_from, a.valid_until);
     const followUp = (a.first_or_follow_up ?? "FIRST") === "FOLLOW_UP";
     const pname = patient?.name ?? a.patient_id;
-    const dob = patient ? formatClinicalDate(patient.date_of_birth) : docT("common.em_dash");
+    const dob = patient ? formatWrittenDay(patient.date_of_birth) : docT("common.em_dash");
     const icd = (a.icd10_code ?? "").trim();
     const sickLeave = a.kind === "SICK_LEAVE";
 
@@ -183,7 +184,7 @@ export function buildCertificatePdfLayout(a: Certificate, patient: Patient | nul
 function patientPanel(patient: Patient | null): ClinicalPdfLayout["twoColumn"] {
     const left: string[] = [
         docTp("document.print.name_line", { name: patient?.name ?? docT("common.em_dash") }),
-        patient ? `${docT("document.print.date_of_birth")}: ${formatClinicalDate(patient.date_of_birth)}` : "",
+        patient ? `${docT("document.print.date_of_birth")}: ${formatWrittenDay(patient.date_of_birth)}` : "",
         patient?.insurance_number ? docTp("document.print.ins_no_short", { number: patient.insurance_number }) : "",
     ].filter(Boolean);
     const right = patient?.address?.trim() ? [patient.address.trim().replace(/\n/g, ", ")] : [docT("common.em_dash")];
@@ -202,11 +203,12 @@ function substitutionText(r: Prescription): string {
 
 /** AMVV § 2: drug incl. strength, dosage form, dosage, prescriber signature. */
 export function buildPrescriptionPdfLayout(r: Prescription, patient: Patient | null): ClinicalPdfLayout {
-    const kind = (r.prescription_type ?? "PRIVAT").trim() || "PRIVAT";
+    const kindCode = (r.prescription_type ?? "PRIVAT").trim() || "PRIVAT";
+    const kind = prescriptionTypeLabel(kindCode);
     return {
         ...base("prescription"),
         metaLines: [
-            { label: docT("document.print.prescription_date_label"), value: formatPrescriptionDate(r.issued_at) },
+            { label: docT("document.print.prescription_date_label"), value: formatWrittenDay(r.issued_at) },
             { label: docT("document.print.prescription_type_label"), value: kind },
         ],
         addressLines: [],
@@ -246,7 +248,7 @@ export function buildPrescriptionPdfLayout(r: Prescription, patient: Patient | n
         ],
         detailRecords: [],
         totals: [],
-        closingParagraphs: kind === "PRIVAT" ? [docLabel("private_rx_validity")] : [],
+        closingParagraphs: kindCode === "PRIVAT" ? [docLabel("private_rx_validity")] : [],
     };
 }
 
@@ -268,7 +270,7 @@ export function buildPrescriptionComboPdfLayout(items: Prescription[], patient: 
     return {
         ...base("prescription"),
         metaLines: [
-            { label: docT("document.print.date"), value: formatPrescriptionDate(first.issued_at) },
+            { label: docT("document.print.date"), value: formatWrittenDay(first.issued_at) },
             { label: docT("document.print.line_items"), value: String(items.length) },
         ],
         addressLines: [],
@@ -318,7 +320,7 @@ export function receiptPriceBreakdown(
     if (z.treatment_id) {
         const b = treatments.find((t) => t.id === z.treatment_id);
         if (b) {
-            serviceName = (b.service_name || b.description || b.kind || "").trim();
+            serviceName = treatmentLineLabel(b);
             if (b.total_cost != null && Number.isFinite(b.total_cost)) {
                 billedPrice = b.total_cost;
             }
@@ -390,13 +392,11 @@ export function buildReceiptPdfLayout(
     services: ServiceItem[] = [],
 ): ClinicalPdfLayout {
     const practice = getInvoicePracticeFromStorage();
-    const ust =
-        (practice.vat_exemption_notice ?? "").trim() ||
-        translateLocale(documentLocaleForI18n(), "settings.practice.vat_exemption_default");
-    const payDate = formatClinicalDate(z.created_at);
+    const ust = localizedVatNotice(practice.vat_exemption_notice);
+    const payDate = formatWrittenDay(z.created_at);
     const prices = receiptPriceBreakdown(z, treatments, examinations, catalog, services);
     const treatment = z.treatment_id ? treatments.find((t) => t.id === z.treatment_id) : undefined;
-    const serviceDate = formatClinicalDate(treatment?.treatment_date || treatment?.created_at || z.created_at);
+    const serviceDate = formatWrittenDay(treatment?.treatment_date || treatment?.created_at || z.created_at);
     const loc = documentLocale();
     const description = receiptServiceDescription(z, treatments, examinations);
 
@@ -444,17 +444,16 @@ export function buildReceiptPdfLayout(
 }
 
 function receiptMoney(amount: number, locale: string): string {
-    const tag = locale === "en" ? "en-GB" : "de-DE";
-    return new Intl.NumberFormat(tag, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
-}
-
-/** DD.MM.YYYY for clinical printouts (independent of UI locale). */
-function formatClinicalDate(iso: string): string {
-    const d = iso.trim().slice(0, 10);
-    if (d.length >= 10 && d[4] === "-" && d[7] === "-") {
-        return `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}`;
-    }
-    return formatDate(iso);
+    // Latin digits on documents; Intl's narrow no-break space (fr) becomes a
+    // plain space so the PDF renderer never sees an exotic separator.
+    const tag = `${bcp47ForLocale(locale as Parameters<typeof bcp47ForLocale>[0]).split("-u-")[0]}-u-nu-latn`;
+    const formatted = new Intl.NumberFormat(tag, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    })
+        .format(amount)
+        .replace(/[\u00A0\u202F\u2009]/g, " ");
+    return `${formatted} ${practiceCurrency()}`;
 }
 
 /** Patient-facing service line — never show internal “No B/U line” jargon. */

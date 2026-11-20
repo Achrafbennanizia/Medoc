@@ -1,4 +1,4 @@
-import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
+import { practiceSystem } from "@/systems/practice-host/adapters/practice-transport";
 
 export type WorkTimeSession = {
     id: string;
@@ -135,17 +135,6 @@ export async function workTimeSetPracticePolicy(
     patch: WorkTimePracticePolicyPatch,
 ): Promise<WorkTimePracticePolicy> {
     return practiceSystem.invoke<WorkTimePracticePolicy>("work_time_set_practice_policy", { patch });
-}
-
-/** @deprecated Use {@link workTimeSetPracticePolicy}. */
-export async function workTimeSetAutoRecordOnLogin(enabled: boolean): Promise<void> {
-    await workTimeSetPracticePolicy({ autoRecordOnLogin: enabled });
-}
-
-/** @deprecated Use {@link workTimeGetPreference}. */
-export async function workTimeGetAutoRecordOnLogin(): Promise<boolean> {
-    const pref = await workTimeGetPreference();
-    return pref.autoRecordOnLogin;
 }
 
 export async function workTimeReconcileOnLogin(): Promise<WorkTimeReconcileReport> {

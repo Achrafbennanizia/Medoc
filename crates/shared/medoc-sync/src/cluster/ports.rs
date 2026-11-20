@@ -1,91 +1,10 @@
 //! Repository ports for the device cluster (DIP).
 
-use std::future::Future;
-
 use medoc_core::error::AppError;
 use sqlx::SqlitePool;
 
 use super::entities::{Cluster, Device, License, PairingSession, SeatUsage};
 use super::enums::{DeviceStatus, PairingStatus, SeatRole};
-
-pub trait LicenseRepo: Send + Sync {
-    fn load(&self) -> impl Future<Output = Result<Option<License>, AppError>> + Send;
-    fn save(&self, license: &License) -> impl Future<Output = Result<(), AppError>> + Send;
-}
-
-pub trait DeviceRepo: Send + Sync {
-    fn seat_usage(
-        &self,
-        cluster_id: &str,
-    ) -> impl Future<Output = Result<SeatUsage, AppError>> + Send;
-
-    fn find_by_fingerprint(
-        &self,
-        fingerprint: &str,
-    ) -> impl Future<Output = Result<Option<Device>, AppError>> + Send;
-
-    fn upsert(&self, device: &Device) -> impl Future<Output = Result<(), AppError>> + Send;
-
-    fn list_active(
-        &self,
-        cluster_id: &str,
-    ) -> impl Future<Output = Result<Vec<Device>, AppError>> + Send;
-
-    fn set_status(
-        &self,
-        fingerprint: &str,
-        status: DeviceStatus,
-    ) -> impl Future<Output = Result<(), AppError>> + Send;
-
-    fn is_blocklisted(
-        &self,
-        fingerprint: &str,
-    ) -> impl Future<Output = Result<bool, AppError>> + Send;
-
-    fn block(
-        &self,
-        fingerprint: &str,
-        reason: &str,
-    ) -> impl Future<Output = Result<(), AppError>> + Send;
-
-    fn unblock(&self, fingerprint: &str) -> impl Future<Output = Result<(), AppError>> + Send;
-}
-
-pub trait PairingRepo: Send + Sync {
-    fn create_session(
-        &self,
-        session: &PairingSession,
-    ) -> impl Future<Output = Result<(), AppError>> + Send;
-
-    fn load_session(
-        &self,
-        id: &str,
-    ) -> impl Future<Output = Result<Option<PairingSession>, AppError>> + Send;
-
-    fn update_state(
-        &self,
-        id: &str,
-        state: PairingStatus,
-        sas_hash: Option<&[u8]>,
-    ) -> impl Future<Output = Result<(), AppError>> + Send;
-
-    fn list_pending(
-        &self,
-        cluster_id: &str,
-    ) -> impl Future<Output = Result<Vec<PairingSession>, AppError>> + Send;
-}
-
-/// Load cluster aggregate with current seat usage.
-pub async fn load_cluster<L: LicenseRepo, G: DeviceRepo>(
-    license_repo: &L,
-    geraet_repo: &G,
-) -> Result<Option<Cluster>, AppError> {
-    let Some(license) = license_repo.load().await? else {
-        return Ok(None);
-    };
-    let usage = geraet_repo.seat_usage(&license.cluster_id).await?;
-    Ok(Some(Cluster::from_license(&license, usage)))
-}
 
 /// Atomically reserve a seat inside a transaction (caller provides pool).
 pub async fn reserve_seat_atomic(
@@ -110,10 +29,10 @@ pub async fn reserve_seat_atomic(
         super::repo::OCCUPIED_SEAT_SQL
     );
     let row: (i64, i64, i64) = sqlx::query_as(&sql)
-    .bind(cluster_id)
-    .fetch_one(&mut *tx)
-    .await
-    .map_err(AppError::Database)?;
+        .bind(cluster_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(AppError::Database)?;
 
     let admin_used = row.0 as u32;
     let member_used = row.1 as u32;
@@ -144,60 +63,60 @@ pub struct SqliteClusterRepos<'a> {
     pub pool: &'a SqlitePool,
 }
 
-impl LicenseRepo for SqliteClusterRepos<'_> {
-    async fn load(&self) -> Result<Option<License>, AppError> {
+impl SqliteClusterRepos<'_> {
+    pub async fn load(&self) -> Result<Option<License>, AppError> {
         super::repo::load_license(self.pool).await
     }
 
-    async fn save(&self, license: &License) -> Result<(), AppError> {
+    pub async fn save(&self, license: &License) -> Result<(), AppError> {
         super::repo::save_license(self.pool, license).await
     }
-}
 
-impl DeviceRepo for SqliteClusterRepos<'_> {
-    async fn seat_usage(&self, cluster_id: &str) -> Result<SeatUsage, AppError> {
+    pub async fn seat_usage(&self, cluster_id: &str) -> Result<SeatUsage, AppError> {
         super::repo::seat_usage(self.pool, cluster_id).await
     }
 
-    async fn find_by_fingerprint(&self, fingerprint: &str) -> Result<Option<Device>, AppError> {
+    pub async fn find_by_fingerprint(&self, fingerprint: &str) -> Result<Option<Device>, AppError> {
         super::repo::find_by_fingerprint(self.pool, fingerprint).await
     }
 
-    async fn upsert(&self, device: &Device) -> Result<(), AppError> {
+    pub async fn upsert(&self, device: &Device) -> Result<(), AppError> {
         super::repo::upsert_device(self.pool, device).await
     }
 
-    async fn list_active(&self, cluster_id: &str) -> Result<Vec<Device>, AppError> {
+    pub async fn list_active(&self, cluster_id: &str) -> Result<Vec<Device>, AppError> {
         super::repo::list_devices(self.pool, cluster_id).await
     }
 
-    async fn set_status(&self, fingerprint: &str, status: DeviceStatus) -> Result<(), AppError> {
+    pub async fn set_status(
+        &self,
+        fingerprint: &str,
+        status: DeviceStatus,
+    ) -> Result<(), AppError> {
         super::repo::set_device_status(self.pool, fingerprint, status).await
     }
 
-    async fn is_blocklisted(&self, fingerprint: &str) -> Result<bool, AppError> {
+    pub async fn is_blocklisted(&self, fingerprint: &str) -> Result<bool, AppError> {
         super::repo::is_blocklisted(self.pool, fingerprint).await
     }
 
-    async fn block(&self, fingerprint: &str, reason: &str) -> Result<(), AppError> {
+    pub async fn block(&self, fingerprint: &str, reason: &str) -> Result<(), AppError> {
         super::repo::block_fingerprint(self.pool, fingerprint, reason).await
     }
 
-    async fn unblock(&self, fingerprint: &str) -> Result<(), AppError> {
+    pub async fn unblock(&self, fingerprint: &str) -> Result<(), AppError> {
         super::repo::unblock_fingerprint(self.pool, fingerprint).await
     }
-}
 
-impl PairingRepo for SqliteClusterRepos<'_> {
-    async fn create_session(&self, session: &PairingSession) -> Result<(), AppError> {
+    pub async fn create_session(&self, session: &PairingSession) -> Result<(), AppError> {
         super::repo::create_pairing_session(self.pool, session).await
     }
 
-    async fn load_session(&self, id: &str) -> Result<Option<PairingSession>, AppError> {
+    pub async fn load_session(&self, id: &str) -> Result<Option<PairingSession>, AppError> {
         super::repo::load_pairing_session(self.pool, id).await
     }
 
-    async fn update_state(
+    pub async fn update_state(
         &self,
         id: &str,
         state: PairingStatus,
@@ -206,7 +125,7 @@ impl PairingRepo for SqliteClusterRepos<'_> {
         super::repo::update_pairing_state(self.pool, id, state, sas_hash).await
     }
 
-    async fn list_pending(&self, cluster_id: &str) -> Result<Vec<PairingSession>, AppError> {
+    pub async fn list_pending(&self, cluster_id: &str) -> Result<Vec<PairingSession>, AppError> {
         super::repo::list_pending_pairing(self.pool, cluster_id).await
     }
 }

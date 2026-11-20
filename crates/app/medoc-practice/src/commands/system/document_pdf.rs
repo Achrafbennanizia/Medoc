@@ -11,10 +11,10 @@ use sqlx::SqlitePool;
 use tauri::State;
 
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::error::AppError;
+use crate::infrastructure::pdf::export::render_template_preview_pdf;
 use crate::infrastructure::pdf::{render_clinical_layout_with_logo, ClinicalPdfLayout};
-use crate::infrastructure::pdf_export::render_template_preview_pdf;
 use medoc_core::application::documents::issue::WATERMARK_PREVIEW;
 use medoc_core::application::documents::practice_profile::{
     document_locale, logo_hidden_on_documents, practice_logo, PracticeProfile,
@@ -82,12 +82,4 @@ pub async fn preview_document_pdf(
         )?
     };
     Ok(STANDARD.encode(&bytes))
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_document_pdf_commands {
-    () => {
-        $crate::commands::document_pdf_commands::preview_document_pdf,
-    };
 }

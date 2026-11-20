@@ -1,8 +1,8 @@
 //! Negative-path coverage for the master license gate on LAN HTTP routes.
 //!
-//! `master_license::require_master_license` is called from:
-//! - `sync_http::sync_push` (line 48), `sync_pull` (line 86), `sync_status` (line 101)
-//! - `pairing_http::submit_request` (line 106), `decide` (line 175), `revoke` (line 198)
+//! `master_license::require_master_license` is called from
+//! `http::sync` (`sync_push`, `sync_pull`, `sync_status`, and the other sync routes)
+//! and `http::pairing` (`submit`, `decide`, `confirm`, `revoke`).
 //!
 //! Envelope-level negative paths (tampered ciphertext, wrong device, inner
 //! mismatch) are already covered in `medoc-core/tests/license_v2_tests.rs`.
@@ -13,9 +13,10 @@ use axum::http::StatusCode;
 use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine};
 use chrono::{TimeZone, Utc};
 use ed25519_dalek::{Signer, SigningKey};
-use medoc_core::infrastructure::database::{app_kv_repo, connection};
+use medoc_core::infrastructure::database::connection;
+use medoc_core::infrastructure::database::repos::admin::app_kv as app_kv_repo;
+use medoc_core::infrastructure::database::repos::admin::license as license_repo;
 use medoc_core::infrastructure::license::{encrypt_v2_for_device, LicenseV2, VENDOR_PUBKEY};
-use medoc_core::infrastructure::license_repo;
 use medoc_e2e::harness::{ensure_e2e_env, slave_pubkey_b64, slave_signing_key, LanHarness};
 use std::sync::OnceLock;
 use tokio::sync::Mutex;

@@ -5,7 +5,10 @@ use crate::domain::entities::treatment::{
     CreateExamination, CreateTreatment, Examination, Treatment, UpdateExamination, UpdateTreatment,
 };
 use crate::error::AppError;
-use crate::infrastructure::database::{audit_repo, chart_repo, payment_repo, practice_task_repo};
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
+use crate::infrastructure::database::repos::billing::payment as payment_repo;
+use crate::infrastructure::database::repos::clinical::chart as chart_repo;
+use crate::infrastructure::database::repos::scheduling::practice_task as practice_task_repo;
 use sqlx::SqlitePool;
 
 pub async fn patient_id_for_clinical_line(

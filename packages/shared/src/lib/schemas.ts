@@ -56,9 +56,6 @@ export {
     PaymentMethodSchema,
     PaymentStatusSchema,
 } from "@/lib/schemas.enums.generated";
-/** @deprecated Use {@link SexSchema}. */
-export const PatientSexSchema = SexSchema;
-
 export const CreatePatientSchema = z.object({
     name: nonEmpty("Name is required").max(120),
     date_of_birth: isoDate,
@@ -74,8 +71,6 @@ export const CreatePatientSchema = z.object({
         .transform((version) => (version == null || version === "" ? null : version)),
     address: optionalText,
 });
-export type CreatePatientInput = z.infer<typeof CreatePatientSchema>;
-
 export const UpdatePatientSchema = z
     .object({
         name: z.string().min(1).max(120).optional(),
@@ -100,8 +95,6 @@ export const CreateAppointmentSchema = z.object({
     duration_minutes: z.number().int().min(5).max(720).optional(),
     status: z.enum(["PLANNED", "CONFIRMED"]).optional(),
 });
-export type CreateAppointmentInput = z.infer<typeof CreateAppointmentSchema>;
-
 export const UpdateAppointmentSchema = z
     .object({
         date: isoDate.optional(),
@@ -351,8 +344,6 @@ export const CreateFeedbackSchema = z.object({
     message: z.string().min(10, "Message too short").max(4000),
     reference: optionalText,
 });
-
-export type UpdateServiceItemInput = z.infer<typeof UpdateServiceItemSchema>;
 
 /**
  * Convert a ZodError into a single human-readable string suitable for toasts.

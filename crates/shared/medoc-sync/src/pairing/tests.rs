@@ -267,12 +267,11 @@ async fn revoke_clears_permissions_and_marks_revoked() {
     assert_eq!(after.status, "REVOKED");
     assert!(after.activation_token.is_none());
     assert!(slave_actions(&pool, "slave-4").await.unwrap().is_empty());
-    let seat: String = sqlx::query_scalar(
-        "SELECT device_status FROM sync_device WHERE device_id = 'slave-4'",
-    )
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let seat: String =
+        sqlx::query_scalar("SELECT device_status FROM sync_device WHERE device_id = 'slave-4'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(seat, "REVOKED");
     assert!(revoke(&pool, "m", "slave-4", "admin").await.is_err());
 }

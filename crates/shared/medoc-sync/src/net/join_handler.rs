@@ -750,7 +750,8 @@ async fn load_join_lan_credentials(
             .ok()
             .flatten()
             .filter(|s: &String| !s.trim().is_empty());
-    let master_pubkey = crate::master_keys::load_or_create()
+    let master_pubkey = crate::master_keys::align_to_license(pool)
+        .await
         .ok()
         .map(|sk| crate::master_keys::pubkey_b64(&sk));
     let master_device_id = crate::repo::ensure_local_device(pool, "Main")

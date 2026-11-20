@@ -1,18 +1,28 @@
 //! FA-AUFG-01..06 — Practice tasks (bidirectional, status machine).
 use crate::application::auth_service::Session;
 use crate::application::rbac::{self, effective_allowed, Role};
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::domain::entities::practice_task::{
     AddPracticeTaskCommentArgs, CreatePracticeTask, PracticeTask, PracticeTaskComment,
     TransitionPracticeTaskArgs, UpdatePracticeTaskAdmin,
 };
 use crate::domain::services::workflow_transitions;
 use crate::error::AppError;
-use crate::infrastructure::database::{audit_repo, patient_repo, practice_task_repo, staff_repo};
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
+use crate::infrastructure::database::repos::admin::staff as staff_repo;
+use crate::infrastructure::database::repos::clinical::patient as patient_repo;
+use crate::infrastructure::database::repos::scheduling::practice_task as practice_task_repo;
 use sqlx::SqlitePool;
 use tauri::State;
 
-const TASK_KINDS: &[&str] = &["BILLING", "APPOINTMENT", "PRINT", "MASTER_DATA", "OTHER"];
+const TASK_KINDS: &[&str] = &[
+    "BILLING",
+    "APPOINTMENT",
+    "PRINT",
+    "MASTER_DATA",
+    "OTHER",
+    "TICKET",
+];
 
 /// Inbox visibility or practice-task admin (`administration.read`).
 fn assert_task_readable(session: &Session, role: Role, a: &PracticeTask) -> Result<(), AppError> {
@@ -35,6 +45,7 @@ fn normalize_kind(raw: &str) -> Result<String, AppError> {
         "ABRECHNUNG" | "BILLING" => "BILLING".to_string(),
         "STAMMDATEN" | "MASTER_DATA" => "MASTER_DATA".to_string(),
         "SONSTIGES" | "OTHER" => "OTHER".to_string(),
+        "TICKET" => "TICKET".to_string(),
         other => other.to_string(),
     };
     if TASK_KINDS.iter().any(|x| *x == t) {
@@ -188,6 +199,7 @@ pub async fn transition_practice_task(
     workflow_transitions::practice_task_status_transition(
         &current.status,
         &st,
+        &current.kind,
         role,
         current.assignee_role.as_deref(),
         current.assignee_user_id.as_deref(),
@@ -450,19 +462,21 @@ pub async fn add_practice_task_comment(
     Ok(out)
 }
 
-#[macro_export]
-macro_rules! register_practice_task_commands {
-    ($register:ident) => {
-        $register!(
-            $crate::commands::practice_task_commands::create_practice_task,
-            $crate::commands::practice_task_commands::list_practice_tasks_for_me,
-            $crate::commands::practice_task_commands::transition_practice_task,
-            $crate::commands::practice_task_commands::count_open_practice_tasks_for_me,
-            $crate::commands::practice_task_commands::list_practice_tasks_admin,
-            $crate::commands::practice_task_commands::create_practice_task_admin,
-            $crate::commands::practice_task_commands::update_practice_task_admin,
-            $crate::commands::practice_task_commands::list_practice_task_comments,
-            $crate::commands::practice_task_commands::add_practice_task_comment,
-        );
-    };
+#[cfg(test)]
+mod tests {
+    use super::normalize_kind;
+
+    #[test]
+    fn normalize_kind_accepts_ticket() {
+        assert_eq!(normalize_kind("TICKET").unwrap(), "TICKET");
+        assert_eq!(normalize_kind("ticket").unwrap(), "TICKET");
+        assert_eq!(normalize_kind("  Ticket  ").unwrap(), "TICKET");
+    }
+
+    #[test]
+    fn normalize_kind_rejects_unknown() {
+        let err = normalize_kind("NOT_A_KIND").unwrap_err().to_string();
+        assert!(err.contains("Unknown task type: NOT_A_KIND"), "{err}");
+        assert!(err.contains("TICKET"), "{err}");
+    }
 }

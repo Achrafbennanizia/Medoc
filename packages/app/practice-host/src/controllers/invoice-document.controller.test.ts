@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@/systems/practice-host/adapters/tauri-practice.adapter", () => ({
+vi.mock("@/systems/practice-host/adapters/practice-transport", () => ({
     practiceSystem: { invoke: vi.fn() },
 }));
 

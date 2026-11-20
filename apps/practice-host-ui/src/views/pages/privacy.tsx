@@ -104,7 +104,7 @@ export function PrivacyPage() {
     }
 
     return (
-        <div className="practice-workspace-page animate-fade-in">
+        <div className="practice-workspace-page animate-fade-in--sticky-safe">
             <WorkspacePageHeader
                 title={t("page.privacy.title")}
                 back={{ to: "/settings", label: t("page.privacy.back_settings") }}

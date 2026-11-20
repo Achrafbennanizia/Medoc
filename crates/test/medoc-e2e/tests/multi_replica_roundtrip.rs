@@ -26,7 +26,7 @@ use axum::http::StatusCode;
 use chrono::{NaiveDate, Utc};
 use medoc_core::domain::entities::patient::CreatePatient;
 use medoc_core::domain::enums::Sex;
-use medoc_core::infrastructure::database::patient_repo;
+use medoc_core::infrastructure::database::repos::clinical::patient as patient_repo;
 use medoc_e2e::harness::{slave_pubkey_b64, slave_signing_key, LanHarness};
 use medoc_sync::repo::OutboxEntry;
 use std::net::SocketAddr;
@@ -204,7 +204,7 @@ async fn replica_pull_sees_master_local_writes() {
 
     // Master is in `serverless_peer` mode AS MASTER for this test, so its
     // local writes append to `sync_outbox` (see `sync_outbox_hooks_tests`).
-    medoc_core::infrastructure::database::app_kv_repo::set(
+    medoc_core::infrastructure::database::repos::admin::app_kv::set(
         &lan.pool,
         "sync.deployment.v1",
         r#"{"schemaVersion":1,"mode":"serverless_peer","role":"MASTER","masterBaseUrl":"","masterCertSha256":"","masterAccessToken":"","deviceLabel":"E2E Master"}"#,
@@ -551,7 +551,9 @@ async fn pull_with_unknown_master_device_id_returns_empty_entries() {
     assert_eq!(status, StatusCode::OK, "pull body: {body:?}");
     let entries = body["entries"].as_array().expect("entries array");
     assert!(
-        !entries.iter().any(|e| e["deviceId"] == "nonexistent-device-xyz"),
+        !entries
+            .iter()
+            .any(|e| e["deviceId"] == "nonexistent-device-xyz"),
         "must not leak a foreign device outbox: {body:?}"
     );
 }

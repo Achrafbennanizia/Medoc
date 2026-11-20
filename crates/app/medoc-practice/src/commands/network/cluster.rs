@@ -6,7 +6,8 @@ use std::time::Duration;
 use medoc_core::infrastructure::install_plan::{InstallPlan, ProvisioningWindowState};
 use medoc_sync::cluster::crypto::DeviceIdentity;
 use medoc_sync::cluster::services::{
-    accept_join_request, activate_cluster_license, apply_install_plan, block_device, cluster_network_ready, cluster_status, consume_default_sidecar_and_apply,
+    accept_join_request, activate_cluster_license, apply_install_plan, block_device,
+    cluster_network_ready, cluster_status, consume_default_sidecar_and_apply,
     get_provisioning_window, import_owner_activation, list_devices, list_pending_requests,
     mirror_join_session, reclaim_stale_seat, reject_join_request, require_owner_admin,
     revoke_device, run_provisioning_tasks, store_join_admin_endpoint, submit_sas,
@@ -24,7 +25,7 @@ use sqlx::SqlitePool;
 use tauri::{AppHandle, Manager, State};
 use tokio::sync::{watch, Mutex};
 
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::commands::rbac_state::require;
 use crate::error::AppError;
 
@@ -75,7 +76,7 @@ async fn require_ops_after_onboarding(
     pool: &SqlitePool,
     session_state: &State<'_, SessionState>,
 ) -> Result<(), AppError> {
-    let done = medoc_core::infrastructure::database::app_kv_repo::get(
+    let done = medoc_core::infrastructure::database::repos::admin::app_kv::get(
         pool,
         "onboarding.setup_complete.v1",
     )
@@ -113,7 +114,7 @@ pub async fn license_activate(
     require_ops_after_onboarding(&pool, &session_state).await?;
     // Pre-login onboarding: no session yet — use bootstrap actor id.
     let uid = user_id(&session_state).unwrap_or_else(|_| "onboarding".into());
-    let resolved = crate::commands::company_portal_commands::resolve_onboarding_license_key(
+    let resolved = crate::commands::network::company_portal::resolve_onboarding_license_key(
         &pool,
         &license_key,
     )
@@ -122,18 +123,18 @@ pub async fn license_activate(
     if status.licensed {
         let rebound = resolved.trim() != license_key.trim();
         if let Some(code) =
-            crate::commands::company_portal_commands::deployment_code_for_pasted_license(
+            crate::commands::network::company_portal::deployment_code_for_pasted_license(
                 &license_key,
                 rebound,
             )
         {
             let _ =
-                crate::commands::company_portal_commands::apply_serverless_role_from_license_code(
+                crate::commands::network::company_portal::apply_serverless_role_from_license_code(
                     &pool, &code,
                 )
                 .await;
         }
-        crate::commands::company_portal_commands::reset_onboarding_after_owner_license_activation(
+        crate::commands::network::company_portal::reset_onboarding_after_owner_license_activation(
             &pool,
         )
         .await?;
@@ -148,10 +149,7 @@ pub async fn import_activation_manifest(
     manifest_path: String,
     passphrase: String,
 ) -> Result<ImportActivationResult, AppError> {
-    let app_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| AppError::Internal(format!("App data directory: {e}")))?;
+    let app_dir = crate::commands::app_data_dir(&app)?;
     let summary = import_owner_activation(
         &pool,
         &app_dir,
@@ -173,6 +171,7 @@ pub async fn import_activation_manifest(
         cluster_id: Some(summary.cluster_id),
         device_fingerprint: Some(summary.device_fingerprint),
         requires_app_reload: summary.requires_app_reload,
+        needs_bridge_b_passphrase: summary.needs_bridge_b_passphrase,
     })
 }
 
@@ -333,7 +332,7 @@ pub async fn auto_start_cluster_if_ready(pool: &SqlitePool, listener: &ClusterLi
         );
         return;
     }
-    if crate::commands::lan_commands::lan_server_listen_disabled() {
+    if crate::commands::network::lan::lan_server_listen_disabled() {
         tracing::info!(
             target: "medoc::cluster",
             event = "CLUSTER_LISTENER_SKIP_INSTANCE"
@@ -465,7 +464,7 @@ pub async fn network_set_hidden(
     hidden: bool,
 ) -> Result<(), AppError> {
     require(&session_state, "ops.system")?;
-    crate::infrastructure::database::app_kv_repo::set(
+    crate::infrastructure::database::repos::admin::app_kv::set(
         &pool,
         medoc_sync::pairing::APP_KV_NETWORK_HIDDEN,
         if hidden { "1" } else { "0" },
@@ -473,8 +472,8 @@ pub async fn network_set_hidden(
     .await?;
     if hidden {
         listener.close_all().await;
-        if let Some(lan) = app.try_state::<crate::commands::lan_commands::LanServerControl>() {
-            crate::commands::lan_commands::stop_lan_listener(&lan).await;
+        if let Some(lan) = app.try_state::<crate::commands::network::lan::LanServerControl>() {
+            crate::commands::network::lan::stop_lan_listener(&lan).await;
         }
         tracing::info!(target: "medoc::cluster", event = "NETWORK_HIDDEN_PORT_CLOSED");
         return Ok(());
@@ -486,8 +485,8 @@ pub async fn network_set_hidden(
             error = %error
         );
     }
-    if let Some(lan) = app.try_state::<crate::commands::lan_commands::LanServerControl>() {
-        match crate::commands::lan_commands::start_lan_embedded(&app, pool.inner().clone(), &lan)
+    if let Some(lan) = app.try_state::<crate::commands::network::lan::LanServerControl>() {
+        match crate::commands::network::lan::start_lan_embedded(&app, pool.inner().clone(), &lan)
             .await
         {
             Ok(_) => {}
@@ -663,9 +662,10 @@ async fn validate_cluster_reset_reauth(
 ) -> Result<String, AppError> {
     let session = require(session_state, "ops.system")?;
 
-    let user = crate::infrastructure::database::staff_repo::find_by_id(pool, &session.user_id)
-        .await?
-        .ok_or(AppError::NotFound("error.entity.staff".into()))?;
+    let user =
+        crate::infrastructure::database::repos::admin::staff::find_by_id(pool, &session.user_id)
+            .await?
+            .ok_or(AppError::NotFound("error.entity.staff".into()))?;
     let ok = medoc_core::infrastructure::crypto::verify_password(password, &user.password_hash)
         .map_err(|e| AppError::Internal(e.to_string()))?;
     if !ok {
@@ -674,7 +674,7 @@ async fn validate_cluster_reset_reauth(
 
     /*
     // TODO(deferred-security): 2FA cluster-reset reauth unwired
-    if crate::infrastructure::database::staff_repo::is_totp_enrolled(&user) {
+    if crate::infrastructure::database::repos::admin::staff::is_totp_enrolled(&user) {
         let code = totp_code
             .map(str::trim)
             .filter(|s| !s.is_empty())
@@ -726,10 +726,7 @@ pub async fn cluster_execute_cluster_reset(
     crate::commands::app_lifecycle::stop_network_services(&app).await;
 
     let mode = medoc_sync::cluster::services::ClusterResetMode::parse(&request.mode)?;
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| AppError::Internal(format!("App data directory: {e}")))?;
+    let app_data_dir = crate::commands::app_data_dir(&app)?;
 
     let report = medoc_sync::cluster::services::execute_owner_cluster_reset(
         &pool,

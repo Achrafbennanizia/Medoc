@@ -6,9 +6,10 @@ use std::path::Path;
 use tauri::State;
 
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::error::AppError;
-use crate::infrastructure::database::{audit_repo, contract_repo};
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
+use crate::infrastructure::database::repos::billing::contract as contract_repo;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContractDto {
@@ -185,15 +186,4 @@ pub async fn open_contract_document(
     .await
     .ok();
     Ok(())
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_contract_commands {
-    () => {
-        $crate::commands::contract_commands::list_contracts,
-        $crate::commands::contract_commands::upsert_contract,
-        $crate::commands::contract_commands::delete_contract,
-        $crate::commands::contract_commands::open_contract_document,
-    };
 }

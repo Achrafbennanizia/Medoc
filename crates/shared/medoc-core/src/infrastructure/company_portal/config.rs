@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
 use crate::error::AppError;
-use crate::infrastructure::database::app_kv_repo;
+use crate::infrastructure::database::repos::admin::app_kv as app_kv_repo;
 
 pub const COMPANY_PORTAL_KV_KEY: &str = "company.portal.config.v1";
 
@@ -79,8 +79,8 @@ pub fn require_vendor_base_url(raw: &str) -> Result<String, AppError> {
         ));
     }
     let loopback = matches!(host, "localhost" | "127.0.0.1" | "::1");
-    let allowed = scheme.eq_ignore_ascii_case("https")
-        || (scheme.eq_ignore_ascii_case("http") && loopback);
+    let allowed =
+        scheme.eq_ignore_ascii_case("https") || (scheme.eq_ignore_ascii_case("http") && loopback);
     if !allowed {
         return Err(AppError::Validation(
             "Vendor portal URL must use https.".into(),

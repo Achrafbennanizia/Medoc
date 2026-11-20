@@ -130,7 +130,12 @@ pub async fn update_status(
     )?;
     let delivered = if status == STATUS_DELIVERED {
         let tz = crate::domain::practice_time::practice_tz(pool).await;
-        Some(chrono::Utc::now().with_timezone(&tz).date_naive().to_string())
+        Some(
+            chrono::Utc::now()
+                .with_timezone(&tz)
+                .date_naive()
+                .to_string(),
+        )
     } else {
         None
     };

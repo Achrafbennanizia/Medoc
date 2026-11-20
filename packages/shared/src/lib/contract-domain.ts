@@ -1,4 +1,4 @@
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, localIsoDate } from "@/lib/utils";
 
 /** Billing period for the entered amount (the amount applies to this cadence). */
 export type ContractInterval = "DAY" | "WEEK" | "MONTH" | "YEAR";
@@ -58,21 +58,13 @@ export function amountEquivalentPerMonth(amount: number, interval: ContractInter
     }
 }
 
-export function todayYmd(): string {
-    const d = new Date();
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
-}
-
 /** Is the contract active today? (termination / expiry date) */
 export function contractActiveToday(version: ContractItem): boolean {
     if (version.unlimited) return true;
     const from = version.periodFrom;
     const until = version.periodUntil;
     if (!from || !until) return true;
-    const t = todayYmd();
+    const t = localIsoDate(new Date());
     return t >= from && t <= until;
 }
 

@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { createPayment, listPaymentsForPatient } from "@/systems/practice-host/controllers/payment.controller";
 import { listPatients } from "@/systems/practice-host/controllers/patient.controller";
 import { getChart, listTreatments, listExaminations } from "@/systems/practice-host/controllers/chart.controller";
-import { errorMessage, formatCurrency, formatDate } from "@/lib/utils";
+import { errorMessage, formatCurrency, formatDate, parseEuroInput } from "@/lib/utils";
 import { allowed, parseRole } from "@/lib/rbac";
 import type { Treatment, Patient, Examination, Payment, PaymentMethod } from "../../models/types";
 import { useAuthStore } from "../../models/store/auth-store";
@@ -29,9 +29,8 @@ import {
     sumPaymentsForExamination,
     paymentHistoryForTreatment,
     paymentHistoryForExamination,
-    paymentStatusDisplay,
-    paymentMethodLabel,
 } from "@/lib/payment-booking";
+import { paymentMethodLabel, paymentStatusDisplay } from "@/lib/finance-order-labels";
 
 type LinkKind = "" | "treatment" | "examination";
 
@@ -304,7 +303,7 @@ function PaymentCreatePanelInner({ variant, onFinanceSaved, onFinanceClose }: Pa
             setFormError(t("payment.create.error.link_required"));
             return;
         }
-        const amountN = Number(String(amount).replace(",", "."));
+        const amountN = parseEuroInput(String(amount)) ?? Number.NaN;
         if (!Number.isFinite(amountN) || amountN <= 0) {
             setFormError(t("payment.create.error.amount_invalid"));
             return;
@@ -543,7 +542,7 @@ function PaymentCreatePanelInner({ variant, onFinanceSaved, onFinanceClose }: Pa
                                             linkId,
                                         );
                                         const openNow = gesamt != null && gesamt > 0 ? Math.max(0, gesamt - paidSum) : null;
-                                        const amountN = Number(String(amount).replace(",", "."));
+                                        const amountN = parseEuroInput(String(amount)) ?? Number.NaN;
                                         const add = Number.isFinite(amountN) && amountN > 0 ? amountN : 0;
                                         const openAfter =
                                             gesamt != null && gesamt > 0 ? Math.max(0, gesamt - paidSum - add) : null;
@@ -723,7 +722,7 @@ function PaymentCreatePanelInner({ variant, onFinanceSaved, onFinanceClose }: Pa
                                         onChange={(e) => setAmount(e.target.value)}
                                         onBlur={(e) => {
                                             if (paymentNewMaxAmountEur == null) return;
-                                            const n = Number(String(e.target.value).replace(",", "."));
+                                            const n = parseEuroInput(e.target.value) ?? Number.NaN;
                                             if (!Number.isFinite(n) || n <= 0) return;
                                             if (n > paymentNewMaxAmountEur + PAYMENT_EUR_EPS) {
                                                 setAmount(String(roundMoney2(paymentNewMaxAmountEur)));

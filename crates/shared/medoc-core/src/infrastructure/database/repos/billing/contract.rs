@@ -65,16 +65,20 @@ pub async fn upsert(pool: &SqlitePool, row: &ContractRow) -> Result<(), AppError
     .bind(&row.document_path)
     .execute(&mut *tx)
     .await?;
-    crate::infrastructure::database::recorded_write::record_in_tx(&mut tx, "contract", &row.id, "UPDATE")
-        .await?;
+    crate::infrastructure::database::recorded_write::record_in_tx(
+        &mut tx, "contract", &row.id, "UPDATE",
+    )
+    .await?;
     tx.commit().await?;
     Ok(())
 }
 
 pub async fn delete_by_id(pool: &SqlitePool, id: &str) -> Result<u64, AppError> {
     let mut tx = pool.begin().await?;
-    crate::infrastructure::database::recorded_write::record_in_tx(&mut tx, "contract", id, "DELETE")
-        .await?;
+    crate::infrastructure::database::recorded_write::record_in_tx(
+        &mut tx, "contract", id, "DELETE",
+    )
+    .await?;
     let n = sqlx::query("DELETE FROM contract WHERE id = ?1")
         .bind(id)
         .execute(&mut *tx)

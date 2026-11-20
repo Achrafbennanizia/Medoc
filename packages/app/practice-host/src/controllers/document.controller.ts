@@ -1,4 +1,4 @@
-import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
+import { practiceSystem } from "@/systems/practice-host/adapters/practice-transport";
 import type { ClinicalPdfLayout } from "@/lib/clinical-pdf-layout";
 import type { InvoiceInput } from "@/systems/practice-host/controllers/invoice.controller";
 import type { ReportPdfInput } from "@/systems/practice-host/controllers/report.controller";
@@ -40,6 +40,8 @@ export type IssuedDocumentRow = {
     issued_by: string;
     issued_at: string;
 };
+
+export { pdfDocumentUid } from "@/lib/pdf-document-uid";
 
 export function pdfBase64ToBytes(b64: string): Uint8Array {
     const bin = atob(b64.replace(/\s/g, ""));

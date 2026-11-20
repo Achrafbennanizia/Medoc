@@ -1,9 +1,9 @@
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::commands::list_params::{ListParams, ListResponse, SortDir};
 use crate::domain::entities::AuditLog;
 use crate::error::AppError;
-use crate::infrastructure::database::audit_repo;
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
 use sqlx::SqlitePool;
 use tauri::State;
 
@@ -96,21 +96,14 @@ pub async fn export_audit_csv(
     Ok(out.into_bytes())
 }
 
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_audit_commands {
-    () => {
-        $crate::commands::audit_commands::list_audit_logs,
-        $crate::commands::audit_commands::list_audit_logs_paged,
-        $crate::commands::audit_commands::export_audit_csv,
-    };
-}
-
 #[cfg(test)]
 mod csv_cell_tests {
     #[test]
     fn audit_export_neutralizes_formulas() {
-        assert_eq!(super::csv_cell("=HYPERLINK(\"x\")"), "\"'=HYPERLINK(\"\"x\"\")\"");
+        assert_eq!(
+            super::csv_cell("=HYPERLINK(\"x\")"),
+            "\"'=HYPERLINK(\"\"x\"\")\""
+        );
         assert_eq!(super::csv_cell("+1"), "'+1");
         assert_eq!(super::csv_cell("@SUM(A1)"), "'@SUM(A1)");
         assert_eq!(super::csv_cell("plain"), "plain");

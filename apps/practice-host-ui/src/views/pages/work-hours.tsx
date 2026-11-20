@@ -14,8 +14,9 @@ import {
     isValidSlotMinutes,
     validatePracticeWorkPlan,
 } from "@/lib/practice-work-hours-validation";
+import { notifyAppointmentsOutsideWorkHours } from "@/lib/appointment-hours-compliance-notify";
 import { errorMessage, formatTpl } from "@/lib/utils";
-import { useT } from "@/lib/i18n";
+import { useT, useTParams } from "@/lib/i18n";
 import { useRbac } from "@/lib/use-rbac";
 import { listPhysicians, type PhysicianSummary } from "@/systems/practice-host/controllers/staff.controller";
 
@@ -83,6 +84,7 @@ export function WorkHoursPage() {
     const navigate = useNavigate();
     const toast = useToastStore((s) => s.add);
     const tr = useT();
+    const tp = useTParams();
     const { canWritePracticePlanning } = useRbac();
     const [storedCfg, setStoredCfg] = useState<PracticeWorkHoursConfig | null>(null);
     const [selectedProfile, setSelectedProfile] = useState<string>(PRACTICE_PROFILE_KEY);
@@ -231,11 +233,27 @@ export function WorkHoursPage() {
                         await savePracticeWorkHoursConfig(prev);
                         usePracticeWorkHoursStore.getState().setConfig(prev);
                         setStoredCfg(prev);
+                        void notifyAppointmentsOutsideWorkHours({ practiceCfg: prev, t: tr, tp }).catch(() => undefined);
                     } catch (err) {
                         toast(`${tr("page.work_hours.toast_save_failed")} ${errorMessage(err)}`, "error");
                     }
                 },
             });
+            try {
+                const { violations } = await notifyAppointmentsOutsideWorkHours({
+                    practiceCfg: nextCfg,
+                    t: tr,
+                    tp,
+                });
+                if (violations.length > 0) {
+                    toast(
+                        tp("app.notifications.outside_hours_toast", { count: violations.length }),
+                        "warning",
+                    );
+                }
+            } catch {
+                /* schedule saved; compliance notify is best-effort */
+            }
         } catch (e) {
             toast(`${tr("page.work_hours.toast_save_failed")} ${errorMessage(e)}`, "error");
         } finally {
@@ -279,7 +297,7 @@ export function WorkHoursPage() {
             : (physicians.find((x) => x.id === selectedProfile)?.name ?? selectedProfile);
 
     return (
-        <div className="work_hours-page practice-workspace-page animate-fade-in">
+        <div className="work_hours-page practice-workspace-page animate-fade-in--sticky-safe">
             {storedInvalid ? (
                 <p role="alert" style={{ color: "var(--danger, #b42318)", margin: "0 0 12px" }}>
                     {tr("page.work_hours.stored_invalid")}

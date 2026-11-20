@@ -7,8 +7,8 @@ use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::application::rbac;
+use crate::commands::admin::auth::SessionState;
 use crate::commands::admin::work_plan_adjustment::deactivate_adjustments_for_source;
-use crate::commands::auth_commands::SessionState;
 use crate::error::AppError;
 use tauri::State;
 
@@ -77,7 +77,9 @@ pub async fn sick_leave_certificate_save(
         let to = NaiveDate::parse_from_str(to, "%Y-%m-%d")
             .map_err(|_| AppError::Validation("date_to: YYYY-MM-DD".into()))?;
         if to < from {
-            return Err(AppError::Validation("date_to must not be before date_from".into()));
+            return Err(AppError::Validation(
+                "date_to must not be before date_from".into(),
+            ));
         }
     }
 
@@ -138,8 +140,20 @@ pub async fn sick_leave_certificate_save(
     .await
     .map_err(AppError::Database)?;
     // F145: both rows are shared; record them in the same transaction.
-    medoc_core::infrastructure::database::recorded_write::record_in_tx(&mut tx, "sick_leave_certificate", &id, "INSERT").await?;
-    medoc_core::infrastructure::database::recorded_write::record_in_tx(&mut tx, "work_plan_adjustment", &adj_id, "INSERT").await?;
+    medoc_core::infrastructure::database::recorded_write::record_in_tx(
+        &mut tx,
+        "sick_leave_certificate",
+        &id,
+        "INSERT",
+    )
+    .await?;
+    medoc_core::infrastructure::database::recorded_write::record_in_tx(
+        &mut tx,
+        "work_plan_adjustment",
+        &adj_id,
+        "INSERT",
+    )
+    .await?;
     tx.commit().await.map_err(AppError::Database)?;
 
     fetch_sick_leave(&pool, &id).await
@@ -198,18 +212,15 @@ pub async fn end_sick_leave_certificate(
     .execute(pool.inner())
     .await
     .map_err(AppError::Database)?;
-    medoc_core::infrastructure::database::recorded_write::record_row(pool.inner(), "sick_leave_certificate", &id, "UPDATE").await?;
+    medoc_core::infrastructure::database::recorded_write::record_row(
+        pool.inner(),
+        "sick_leave_certificate",
+        &id,
+        "UPDATE",
+    )
+    .await?;
     deactivate_adjustments_for_source(&pool, "sick_leave_certificate", &id).await?;
     fetch_sick_leave(&pool, &id).await
-}
-
-#[macro_export]
-macro_rules! register_sick_leave_certificate_commands {
-    () => {
-        $crate::commands::sick_leave_certificate_commands::sick_leave_certificate_save,
-        $crate::commands::sick_leave_certificate_commands::list_sick_leave_certificates,
-        $crate::commands::sick_leave_certificate_commands::end_sick_leave_certificate,
-    };
 }
 
 #[cfg(test)]

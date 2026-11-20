@@ -11,7 +11,7 @@ import { issuedPdfBytes } from "@/systems/practice-host/controllers/document.con
 import { openExportPreview } from "@/models/store/export-preview-store";
 import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "../../models/store/auth-store";
-import { errorMessage, formatCurrency, formatDate } from "@/lib/utils";
+import { errorMessage, formatCurrency, formatDate, localIsoDate } from "@/lib/utils";
 import { Button } from "../components/ui/button";
 import { Card, CardHeader } from "../components/ui/card";
 import { Input, Select } from "../components/ui/input";
@@ -23,6 +23,32 @@ import { WorkspacePageHeader } from "../components/administration-page-header";
 import { useT, useTParams } from "@/lib/i18n";
 
 const eur = (cents: number) => formatCurrency(cents / 100);
+
+const METHOD_KEYS: Record<string, string> = {
+    CASH: "page.day_close.method.cash",
+    CARD: "page.day_close.method.card",
+    BANK_TRANSFER: "page.day_close.method.bank_transfer",
+    INVOICE: "page.day_close.method.invoice",
+    Bar: "page.day_close.method.cash",
+    Karte: "page.day_close.method.card",
+    Überweisung: "page.day_close.method.bank_transfer",
+    Rechnung: "page.day_close.method.invoice",
+};
+
+function methodName(t: (key: string) => string, code: string): string {
+    const key = METHOD_KEYS[code];
+    return key ? t(key) : code;
+}
+
+function expenseLabel(
+    tp: (key: string, params: Record<string, string | number>) => string,
+    label: string,
+    voucher?: string | null,
+): string {
+    const no = voucher?.trim();
+    if (!no) return label;
+    return `${label} (${tp("page.balance_sheet_new.voucher", { no })})`;
+}
 
 function previousPeriod(kind: Exclude<PeriodKind, "CUSTOM">): { from: string; to: string } {
     const now = new Date();
@@ -79,11 +105,8 @@ export function BalanceSheetNewPage() {
         void load();
     }, [load]);
 
-    const todayYmd = useMemo(() => {
-        const d = new Date();
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    }, []);
-    const finished = to < todayYmd;
+    const today = useMemo(() => localIsoDate(new Date()), []);
+    const finished = to < today;
 
     const openPdf = async (preview: boolean) => {
         setBusy(true);
@@ -92,8 +115,8 @@ export function BalanceSheetNewPage() {
             openExportPreview({
                 format: "pdf",
                 title: `${t("page.balance_sheet_new.title")} ${res.pdf.documentNumber ?? ""}`.trim(),
-                hint: preview ? "ENTWURF" : undefined,
-                suggestedFilename: `Periodenbericht-${from}-${to}${preview ? "-Entwurf" : ""}.pdf`,
+                hint: preview ? t("page.balance_sheet_new.pdf_hint_draft") : undefined,
+                suggestedFilename: `${t("page.balance_sheet_new.pdf_filename")}-${from}-${to}${preview ? `-${t("page.balance_sheet_new.pdf_file_draft")}` : ""}.pdf`,
                 binaryBody: issuedPdfBytes(res.pdf),
                 context: { kind: "period_report", format: "pdf", entityId: res.snapshotId, documentNumber: res.pdf.documentNumber },
             });
@@ -116,7 +139,7 @@ export function BalanceSheetNewPage() {
     );
 
     return (
-        <div className="practice-workspace-page animate-fade-in">
+        <div className="practice-workspace-page animate-fade-in--sticky-safe">
             <WorkspacePageHeader
                 titleLevel="h1"
                 title={t("page.balance_sheet_new.title")}
@@ -185,7 +208,7 @@ export function BalanceSheetNewPage() {
                                     {report.incomeByMethod.length === 0 ? (
                                         <p className="page-sub" style={{ margin: 0 }}>{t("page.balance_sheet_new.none")}</p>
                                     ) : (
-                                        report.incomeByMethod.map((a) => <div key={a.label}>{line(a.label, a.cents)}</div>)
+                                        report.incomeByMethod.map((a) => <div key={a.label}>{line(methodName(t, a.label), a.cents)}</div>)
                                     )}
                                 </Card>
                                 <Card className="card-pad">
@@ -197,7 +220,7 @@ export function BalanceSheetNewPage() {
                                             {report.expenses.map((e, i) => (
                                                 <div key={i}>
                                                     {line(
-                                                        `${t(`page.balance_sheet_new.source.${e.source.toLowerCase()}`)} · ${e.label}${e.estimate ? " *" : ""}`,
+                                                        `${t(`page.balance_sheet_new.source.${e.source.toLowerCase()}`)} · ${expenseLabel(tp, e.label, e.voucher)}${e.estimate ? " *" : ""}`,
                                                         e.cents,
                                                     )}
                                                 </div>

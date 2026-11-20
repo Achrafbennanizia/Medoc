@@ -184,10 +184,10 @@ pub async fn seat_usage(pool: &SqlitePool, cluster_id: &str) -> Result<SeatUsage
            AND {OCCUPIED_SEAT_SQL}"
     );
     let row: (i64, i64, i64) = sqlx::query_as(&sql)
-    .bind(cluster_id)
-    .fetch_one(pool)
-    .await
-    .map_err(AppError::Database)?;
+        .bind(cluster_id)
+        .fetch_one(pool)
+        .await
+        .map_err(AppError::Database)?;
 
     Ok(SeatUsage {
         admin_used: row.0 as u32,
@@ -503,6 +503,25 @@ pub async fn create_pairing_session(
         .await
         .map_err(AppError::Database)?;
     }
+    // A reinstall rotates the device key, so the fingerprint no longer matches
+    // the previous pending row. That row would keep showing its old SAS.
+    if !label.is_empty() {
+        sqlx::query(
+            "DELETE FROM pairing_request
+              WHERE status = 'PENDING'
+                AND COALESCE(transport, 'lan') = 'cluster'
+                AND id != ?1
+                AND (
+                    TRIM(COALESCE(hostname, '')) = ?2
+                    OR TRIM(COALESCE(slave_label, '')) = ?2
+                )",
+        )
+        .bind(&session.id)
+        .bind(label)
+        .execute(&mut *tx)
+        .await
+        .map_err(AppError::Database)?;
+    }
     sqlx::query(
         "INSERT INTO pairing_request (
             id, device_id, slave_pubkey, slave_label, requester_ip, transport, status,
@@ -634,7 +653,6 @@ pub async fn load_handshake_transcript(
     pool: &SqlitePool,
     session_id: &str,
 ) -> Result<Option<Vec<u8>>, AppError> {
-    use base64::{engine::general_purpose::STANDARD, Engine};
     ensure(pool).await?;
     let row: Option<(Option<String>,)> =
         sqlx::query_as("SELECT handshake_transcript_b64 FROM pairing_request WHERE id = ?1")
@@ -645,17 +663,11 @@ pub async fn load_handshake_transcript(
     let Some((Some(b64),)) = row else {
         return Ok(None);
     };
-    let trimmed = b64.trim();
-    if trimmed.is_empty() {
-        return Ok(None);
+    match crate::cluster::crypto::decode_handshake_transcript(&b64) {
+        Some(bytes) => Ok(Some(bytes)),
+        None if b64.trim().is_empty() => Ok(None),
+        None => Err(AppError::Internal("handshake_transcript_b64 decode".into())),
     }
-    STANDARD
-        .decode(trimmed)
-        .or_else(|_| base64::engine::general_purpose::STANDARD_NO_PAD.decode(trimmed))
-        .or_else(|_| base64::engine::general_purpose::URL_SAFE.decode(trimmed))
-        .or_else(|_| base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(trimmed))
-        .map(Some)
-        .map_err(|e| AppError::Internal(format!("handshake_transcript_b64 decode: {e}")))
 }
 
 pub async fn find_active_device_by_hostname(

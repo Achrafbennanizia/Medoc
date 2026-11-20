@@ -137,8 +137,9 @@ fn write_identity_files(
 }
 
 fn generate_self_signed_pem() -> Result<(String, String), AppError> {
-    let mut params = CertificateParams::new(vec!["localhost".to_string(), "medoc.local".to_string()])
-        .map_err(|e| AppError::Internal(format!("LAN TLS names: {e}")))?;
+    let mut params =
+        CertificateParams::new(vec!["localhost".to_string(), "medoc.local".to_string()])
+            .map_err(|e| AppError::Internal(format!("LAN TLS names: {e}")))?;
     params
         .subject_alt_names
         .push(SanType::IpAddress(std::net::IpAddr::V4(

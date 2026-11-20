@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use super::entities::{Cluster, Device, License, SeatUsage};
 use super::enums::{DeviceStatus, PairingStatus, SeatRole};
-use super::ports::{reserve_seat_atomic, DeviceRepo, LicenseRepo, SqliteClusterRepos};
+use super::ports::{reserve_seat_atomic, SqliteClusterRepos};
 use crate::schema::ensure_sync_tables;
 
 fn sample_license(cluster_id: &str) -> License {
@@ -168,7 +168,12 @@ async fn revoked_certificate_frees_the_seat() {
         .save(&sample_license(&cluster_id))
         .await
         .expect("license");
-    let mut device = sample_device(&cluster_id, "fp-revoked", SeatRole::Member, DeviceStatus::Active);
+    let mut device = sample_device(
+        &cluster_id,
+        "fp-revoked",
+        SeatRole::Member,
+        DeviceStatus::Active,
+    );
     device.device_id = "fp-revoked".into();
     device.seat_cert = Some(b"seat-cert".to_vec());
     repos.upsert(&device).await.expect("upsert");
@@ -182,12 +187,11 @@ async fn revoked_certificate_frees_the_seat() {
 
     let usage = repos.seat_usage(&cluster_id).await.expect("usage");
     assert_eq!(usage.total_used, 0);
-    let status: String = sqlx::query_scalar(
-        "SELECT device_status FROM sync_device WHERE device_id = 'fp-revoked'",
-    )
-    .fetch_one(&pool)
-    .await
-    .expect("status");
+    let status: String =
+        sqlx::query_scalar("SELECT device_status FROM sync_device WHERE device_id = 'fp-revoked'")
+            .fetch_one(&pool)
+            .await
+            .expect("status");
     assert_eq!(status, "REVOKED");
     let cert: Option<Vec<u8>> =
         sqlx::query_scalar("SELECT seat_cert FROM sync_device WHERE device_id = 'fp-revoked'")
@@ -212,7 +216,7 @@ fn seat_budget_from_basis_edition() {
 async fn repeat_coupling_replaces_the_inbox_row() {
     use super::services::create_join_request;
     use crate::pairing;
-    use medoc_core::infrastructure::database::audit_repo::init_audit_hmac_key;
+    use medoc_core::infrastructure::database::repos::admin::audit::init_audit_hmac_key;
 
     let audit_dir =
         std::env::temp_dir().join(format!("medoc-coupling-inbox-{}", uuid::Uuid::new_v4()));
@@ -260,6 +264,60 @@ async fn repeat_coupling_replaces_the_inbox_row() {
         .expect("pending");
     assert_eq!(pending.len(), 1);
     assert_eq!(pending[0].id, second.session_id);
+}
+
+#[tokio::test]
+async fn rotated_device_key_replaces_the_pending_sas_row() {
+    use super::services::create_join_request;
+    use crate::pairing;
+    use medoc_core::infrastructure::database::repos::admin::audit::init_audit_hmac_key;
+
+    let audit_dir =
+        std::env::temp_dir().join(format!("medoc-coupling-rotate-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&audit_dir).expect("audit dir");
+    init_audit_hmac_key(&audit_dir).expect("audit key");
+
+    let pool = fresh_pool().await;
+    let first = create_join_request(
+        &pool,
+        "fp-before-reinstall",
+        SeatRole::Member,
+        b"transcript-before",
+        None,
+        Some("Reception"),
+        Some("10.1.1.8"),
+    )
+    .await
+    .expect("first coupling");
+    sqlx::query(
+        "INSERT INTO pairing_request (id, device_id, slave_pubkey, slave_label, status, transport, hostname)
+         VALUES ('kept-accepted', 'fp-other-device', '', 'Reception', 'ACCEPTED', 'cluster', 'Reception')",
+    )
+    .execute(&pool)
+    .await
+    .expect("accepted row");
+
+    let second = create_join_request(
+        &pool,
+        "fp-after-reinstall",
+        SeatRole::Member,
+        b"transcript-after",
+        None,
+        Some("Reception"),
+        Some("10.1.1.8"),
+    )
+    .await
+    .expect("second coupling");
+    assert_ne!(first.session_id, second.session_id);
+
+    let rows = pairing::list_all(&pool).await.expect("inbox");
+    let pending: Vec<_> = rows.iter().filter(|row| row.status == "PENDING").collect();
+    assert_eq!(pending.len(), 1, "the previous SAS must leave the inbox");
+    assert_eq!(pending[0].id, second.session_id);
+    assert!(
+        rows.iter().any(|row| row.id == "kept-accepted"),
+        "an already accepted device with the same name stays"
+    );
 }
 
 #[tokio::test]

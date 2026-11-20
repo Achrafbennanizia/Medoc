@@ -1,5 +1,5 @@
 use crate::application::rbac::{self, Role};
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::error::AppError;
 use serde::Serialize;
 use sqlx::SqlitePool;
@@ -29,8 +29,11 @@ fn local_month_start(tz: PracticeTz) -> chrono::NaiveDate {
 fn bucket_local_months(rows: Vec<(String, f64)>, tz: PracticeTz) -> Vec<(String, f64)> {
     let mut map: std::collections::BTreeMap<String, f64> = Default::default();
     for (created, v) in rows {
-        if let Some(utc) = medoc_core::infrastructure::database::payment_repo::parse_db_utc(&created) {
-            *map.entry(utc.with_timezone(&tz).format("%Y-%m").to_string()).or_insert(0.0) += v;
+        if let Some(utc) =
+            medoc_core::infrastructure::database::repos::billing::payment::parse_db_utc(&created)
+        {
+            *map.entry(utc.with_timezone(&tz).format("%Y-%m").to_string())
+                .or_insert(0.0) += v;
         }
     }
     map.into_iter().collect()
@@ -40,6 +43,7 @@ fn bucket_local_months(rows: Vec<(String, f64)>, tz: PracticeTz) -> Vec<(String,
 pub struct DashboardStats {
     pub patients_total: Option<i64>,
     pub appointments_today: Option<i64>,
+    pub revenue_today: Option<f64>,
     pub revenue_month: Option<f64>,
     pub products_low: Option<i64>,
 }
@@ -79,18 +83,21 @@ pub async fn get_dashboard_stats(
         None
     };
 
-    let revenue_month = if allowed("finance.read") {
-        // F105: income = paid and partially paid, from the local month start.
-        let row: (f64,) = sqlx::query_as(
-            "SELECT CAST(COALESCE(SUM(amount), 0) AS REAL) FROM payment
-             WHERE status IN ('PAID','PARTIALLY_PAID') AND julianday(created_at) >= julianday(?1)",
-        )
-        .bind(local_day_start_sql(local_month_start(tz), tz))
-        .fetch_one(pool.inner())
-        .await?;
-        Some(row.0)
+    let (revenue_today, revenue_month) = if allowed("finance.read") {
+        // F105: income = paid and partially paid, in the practice time zone.
+        let income_since = "SELECT CAST(COALESCE(SUM(amount), 0) AS REAL) FROM payment
+             WHERE status IN ('PAID','PARTIALLY_PAID') AND julianday(created_at) >= julianday(?1)";
+        let today: (f64,) = sqlx::query_as(income_since)
+            .bind(local_day_start_sql(local_today(tz), tz))
+            .fetch_one(pool.inner())
+            .await?;
+        let month: (f64,) = sqlx::query_as(income_since)
+            .bind(local_day_start_sql(local_month_start(tz), tz))
+            .fetch_one(pool.inner())
+            .await?;
+        (Some(today.0), Some(month.0))
     } else {
-        None
+        (None, None)
     };
 
     let products_low = if allowed("product.read") {
@@ -106,6 +113,7 @@ pub async fn get_dashboard_stats(
     Ok(DashboardStats {
         patients_total,
         appointments_today,
+        revenue_today,
         revenue_month,
         products_low,
     })
@@ -268,11 +276,12 @@ pub async fn get_statistics_overview(
                     .checked_add_months(chrono::Months::new(1))
                     .unwrap_or(first);
                 let end = local_day_start_sql(next, tz);
-                let row: (i64,) =
-                    sqlx::query_as("SELECT COUNT(*) FROM patient WHERE julianday(created_at) < julianday(?1)")
-                        .bind(&end)
-                        .fetch_one(pool.inner())
-                        .await?;
+                let row: (i64,) = sqlx::query_as(
+                    "SELECT COUNT(*) FROM patient WHERE julianday(created_at) < julianday(?1)",
+                )
+                .bind(&end)
+                .fetch_one(pool.inner())
+                .await?;
                 buckets.push(MonthBucket {
                     month: m.clone(),
                     value: row.0 as f64,
@@ -509,13 +518,4 @@ pub async fn get_statistics_overview(
     }
 
     Ok(out)
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! regisappt_statistics_commands {
-    () => {
-        $crate::commands::statistics_commands::get_dashboard_stats,
-        $crate::commands::statistics_commands::get_statistics_overview,
-    };
 }

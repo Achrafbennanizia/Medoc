@@ -3,7 +3,7 @@
 use crate::domain::entities::treatment::{Examination, Treatment};
 use crate::error::AppError;
 use crate::infrastructure::database::recorded_write::audit_in_tx;
-use crate::infrastructure::database::{chart_repo};
+use crate::infrastructure::database::repos::clinical::chart as chart_repo;
 use sqlx::SqlitePool;
 
 pub async fn release_treatment_for_billing(

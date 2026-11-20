@@ -58,15 +58,6 @@ describe("three-system frontend layout", () => {
         ).toBe(true);
     });
 
-    it("exposes system registry", async () => {
-        const { systems } = await import(
-            "../../../../apps/practice-host-ui/src/systems/registry"
-        );
-        expect(systems.practice).toBeDefined();
-        expect(systems.lan).toBeDefined();
-        expect(systems.company).toBeDefined();
-    });
-
     it("has LAN pages module", () => {
         expect(
             existsSync(resolve(appRoot, "packages/server/lan/src/pages/settings-lan-host.tsx")),

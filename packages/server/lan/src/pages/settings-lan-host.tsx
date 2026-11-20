@@ -1,14 +1,9 @@
 import { useCallback, useEffect, useState, type ChangeEvent, type ReactNode } from "react";
-import {
-    lanServerGetConfig,
-    lanServerScan,
-    lanServerSetConfig,
-    lanServerStart,
-    lanServerStatus,
-    lanServerStop,
-    type LanDiscoveryHitDto,
-    type LanServerConfigV1,
-    type LanServerStatusPayload,
+import { lanSystem } from "@/systems/lan/adapters/tauri-lan.adapter";
+import type {
+    LanDiscoveryHitDto,
+    LanServerConfigV1,
+    LanServerStatusPayload,
 } from "@/systems/practice-host/controllers/settings-page.controller";
 import {
     EMPTY_LAN_CLIENT_CONFIG,
@@ -77,7 +72,7 @@ export function SettingsLanHostSection({ embedded = false }: { embedded?: boolea
 
     const refresh = useCallback(async () => {
         try {
-            const [c, s] = await Promise.all([lanServerGetConfig(), lanServerStatus()]);
+            const [c, s] = await Promise.all([lanSystem.getConfig(), lanSystem.status()]);
             setCfg({
                 schemaVersion: c.schemaVersion ?? 1,
                 bindAddr: c.bindAddr ?? DEFAULT_CFG.bindAddr,
@@ -105,7 +100,7 @@ export function SettingsLanHostSection({ embedded = false }: { embedded?: boolea
     const saveCfg = async () => {
         setBusy(true);
         try {
-            await lanServerSetConfig(cfg);
+            await lanSystem.setConfig(cfg);
             toast(t("page.lan.host.toast.config_saved"), "success");
             await refresh();
         } catch (e) {
@@ -118,7 +113,7 @@ export function SettingsLanHostSection({ embedded = false }: { embedded?: boolea
     const start = async () => {
         setBusy(true);
         try {
-            const s = await lanServerStart();
+            const s = await lanSystem.start();
             setStatus(s);
             toast(t("page.lan.host.toast.started"), "success");
         } catch (e) {
@@ -141,7 +136,7 @@ export function SettingsLanHostSection({ embedded = false }: { embedded?: boolea
     const stop = async () => {
         setBusy(true);
         try {
-            await lanServerStop();
+            await lanSystem.stop();
             await refresh();
             toast(t("page.lan.host.toast.stopped"), "success");
         } catch (e) {
@@ -154,7 +149,7 @@ export function SettingsLanHostSection({ embedded = false }: { embedded?: boolea
     const scan = async () => {
         setScanBusy(true);
         try {
-            const h = await lanServerScan(scanFilter.trim() || undefined);
+            const h = await lanSystem.scan(scanFilter.trim() || undefined);
             setHits(h);
             toast(
                 h.length

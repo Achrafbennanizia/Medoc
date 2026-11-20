@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { format } from "date-fns";
 import { getDashboardStats, type DashboardStats } from "@/systems/practice-host/controllers/statistics.controller";
 import { APPOINTMENTS_CHANGED_EVENT, listAppointmentsByDate } from "@/systems/practice-host/controllers/appointment.controller";
 import { listPatients } from "@/systems/practice-host/controllers/patient.controller";
@@ -11,10 +10,10 @@ import {
     declinePatientChart,
     type ChartToValidateRow,
 } from "@/systems/practice-host/controllers/chart-workflow.controller";
-import { errorMessage, formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
+import { errorMessage, formatCurrency, formatDate, formatDateTime, formatDbTime, initialsFromName, kpiValueSizeClass } from "@/lib/utils";
 import { useAuthStore } from "../../models/store/auth-store";
-import type { Patient, Appointment } from "../../models/types";
-import { allowed, parseRole, routeChildPathAllowed } from "@/lib/rbac";
+import type { Patient, Appointment, Payment } from "../../models/types";
+import { allowed, canReadFinance as canReadCashArea, parseRole, routeChildPathAllowed } from "@/lib/rbac";
 import { CheckIcon, FilterIcon, NAV_ICONS, PackageIcon, PlusIcon, SparkleIcon, XIcon } from "@/lib/icons";
 import { CHART_QUEUE_DECLINE_ENABLED } from "@/lib/v1-ui-flags";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
@@ -25,16 +24,31 @@ import { appointmentIsEmergencyMarked } from "@/lib/appointment-domain";
 import { appointmentKindLabel } from "@/lib/appointment-calendar-ui";
 import { useLocale, useT, useTParams, bcp47ForLocale } from "@/lib/i18n";
 import { practiceClosingTimeHm } from "@/lib/practice-planning";
+import { practiceTodayYmd } from "@/lib/practice-timezone";
 import { usePracticeWorkHoursStore } from "@/models/store/practice-work-hours-store";
-import { listUpcomingAppointments, type UpcomingAppointment } from "@/systems/practice-host/controllers/integration.controller";
+import { itemValidationKey } from "@/lib/chart-validation";
+import { filterReceptionCashQueue } from "@/lib/day-close";
+import { paymentMethodLabel } from "@/lib/finance-order-labels";
+import { practiceTaskHeadline, practiceTaskPreview } from "@/lib/practice-task-display";
+import { filterReceptionPendingTasks } from "@/lib/practice-task-actionable";
+import { INBOX_POLL_MS } from "@/lib/inbox-config";
 import { kpiIconChrome } from "@/lib/kpi-icon-chrome";
+import {
+    listPracticeTasksForMe,
+    type PracticeTask,
+} from "@/systems/practice-host/controllers/practice-task.controller";
+import { taskPatientLabel } from "../components/practice-tasks/constants";
+import { taskKindLabel, taskStatusLabel } from "../components/practice-tasks/task-workflow-ui";
+import { Badge } from "../components/ui/badge";
+import { taskStatusVariant } from "../components/practice-tasks/task-workflow";
 import { WorkspacePageHeader } from "../components/administration-page-header";
 import { DismissibleNotice } from "../components/ui/dismissible-notice";
 import { PAGE_REFRESH_EVENT } from "../layouts/page-refresh";
 
 const DASHBOARD_PURCHASE_ORDERS_MAX = 10;
+const DASHBOARD_OPEN_CASH_MAX = 8;
+const DASHBOARD_PENDING_TASKS_MAX = 12;
 const CHARTS_QUEUE_POLL_MS = 15_000;
-const UPCOMING_APPOINTMENTS_POLL_MS = 15_000;
 const INSIGHTS_DISMISSED_KEY = "medoc.dashboard.insights.dismissed";
 
 function readInsightsDismissed(): boolean {
@@ -69,13 +83,6 @@ function appointmentStatusLabel(status: string, t: (key: string) => string): str
     return version === key ? status : version;
 }
 
-function initialsFromName(name: string): string {
-    const parts = name.trim().split(/\s+/).filter(Boolean);
-    if (parts.length === 0) return "?";
-    if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
-    return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase();
-}
-
 export function DashboardPage() {
     const t = useT();
     const tp = useTParams();
@@ -87,21 +94,21 @@ export function DashboardPage() {
     const [purchase_orders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
     const [chartsToValidate, setChartsToValidate] = useState<ChartToValidateRow[]>([]);
     const [chartsQueueLoading, setChartsQueueLoading] = useState(false);
-    const [dismissedFreigabe, setDismissedFreigabe] = useState<Record<string, true>>({});
+    const [pendingTasks, setPendingTasks] = useState<PracticeTask[]>([]);
+    const [pendingTasksLoading, setPendingTasksLoading] = useState(false);
     const [approveBusyId, setApproveBusyId] = useState<string | null>(null);
     const [orderBusyId, setOrderBusyId] = useState<string | null>(null);
     const [stornoConfirmPurchaseOrder, setStornoConfirmPurchaseOrder] = useState<PurchaseOrder | null>(null);
     const [listsError, setListsError] = useState<string | null>(null);
-    const [upcomingAppointments, setUpcomingAppointments] = useState<UpcomingAppointment[]>([]);
+    const [openCash, setOpenCash] = useState<Payment[]>([]);
+    const [openCashValidatedKeys, setOpenCashValidatedKeys] = useState<Set<string> | null>(null);
+    const [openCashLoaded, setOpenCashLoaded] = useState(false);
+    const [openCashError, setOpenCashError] = useState<string | null>(null);
     const listsErrorToastSent = useRef(false);
     const [reloadToken, setReloadToken] = useState(0);
     const [insightsDismissed, setInsightsDismissed] = useState(readInsightsDismissed);
     const reload = useCallback(() => setReloadToken((n) => n + 1), []);
     const session = useAuthStore((s) => s.session);
-
-    useEffect(() => {
-        setDismissedFreigabe({});
-    }, [reloadToken]);
 
     const navigate = useNavigate();
     const toast = useToastStore((s) => s.add);
@@ -134,7 +141,7 @@ export function DashboardPage() {
         setListsError(null);
 
         const loadLists = (showError: boolean) => {
-            const day = format(new Date(), "yyyy-MM-dd");
+            const day = practiceTodayYmd();
             return Promise.all([listAppointmentsByDate(day), listPatients(), listPurchaseOrders()])
                 .then(([appointmentsList, patientList, purchaseOrdersList]) => {
                     if (!cancelled) {
@@ -176,48 +183,54 @@ export function DashboardPage() {
     useEffect(() => {
         let cancelled = false;
         const r = parseRole(session?.role ?? undefined);
-        if (!r || !allowed("appointment.read", r)) {
-            setUpcomingAppointments([]);
+        if (!r || !canReadCashArea(r, session?.permission_overrides)) {
+            setOpenCash([]);
+            setOpenCashError(null);
+            setOpenCashLoaded(true);
             return;
         }
 
-        const loadUpcoming = async (showError: boolean) => {
+        const loadOpenCash = async () => {
             try {
-                const rows = await listUpcomingAppointments(24 * 60);
-                if (!cancelled) setUpcomingAppointments(rows);
+                const { listPaymentsPaged } = await import("@/systems/practice-host/controllers/payment.controller");
+                const day = practiceTodayYmd();
+                const resp = await listPaymentsPaged({
+                    page: 1,
+                    pageSize: 100,
+                    sortDir: "desc",
+                    filter: { activeOn: day },
+                });
+                if (cancelled) return;
+                const open = filterReceptionCashQueue(resp.items, day).sort((a, b) =>
+                    b.created_at.localeCompare(a.created_at),
+                );
+                setOpenCash(open);
+                const { listValidatedPaymentKeys } = await import("@/systems/practice-host/controllers/validation.controller");
+                const validated = await listValidatedPaymentKeys(open.map((row) => row.patient_id));
+                if (cancelled) return;
+                if (validated) setOpenCashValidatedKeys(validated);
+                setOpenCashError(null);
             } catch (e) {
                 if (!cancelled) {
-                    setUpcomingAppointments([]);
-                    if (showError) {
-                        toast(`${t("dashboard.reminders.toast_load_error")}: ${errorMessage(e)}`, "error");
-                    }
+                    setOpenCash([]);
+                    setOpenCashError(errorMessage(e));
                 }
+            } finally {
+                if (!cancelled) setOpenCashLoaded(true);
             }
         };
 
-        void loadUpcoming(true);
-        const interval = window.setInterval(() => {
-            void loadUpcoming(false);
-        }, UPCOMING_APPOINTMENTS_POLL_MS);
-        const onChanged = () => {
-            void loadUpcoming(false);
+        setOpenCashLoaded(false);
+        void loadOpenCash();
+        const onRefresh = () => {
+            void loadOpenCash();
         };
-        const onVisible = () => {
-            if (document.visibilityState === "visible") void loadUpcoming(false);
-        };
-        window.addEventListener(APPOINTMENTS_CHANGED_EVENT, onChanged);
-        window.addEventListener(PAGE_REFRESH_EVENT, onChanged);
-        window.addEventListener("focus", onChanged);
-        document.addEventListener("visibilitychange", onVisible);
+        window.addEventListener(PAGE_REFRESH_EVENT, onRefresh);
         return () => {
             cancelled = true;
-            window.clearInterval(interval);
-            window.removeEventListener(APPOINTMENTS_CHANGED_EVENT, onChanged);
-            window.removeEventListener(PAGE_REFRESH_EVENT, onChanged);
-            window.removeEventListener("focus", onChanged);
-            document.removeEventListener("visibilitychange", onVisible);
+            window.removeEventListener(PAGE_REFRESH_EVENT, onRefresh);
         };
-    }, [reloadToken, session?.role, toast, t]);
+    }, [reloadToken, session?.role, session?.permission_overrides]);
 
     useEffect(() => {
         let cancelled = false;
@@ -267,6 +280,55 @@ export function DashboardPage() {
         };
     }, [session?.role, session?.permission_overrides, reloadToken]);
 
+    useEffect(() => {
+        let cancelled = false;
+        const roleNow = parseRole(session?.role ?? undefined);
+        const canClinical =
+            roleNow != null && allowed("patient.read_medical", roleNow, session?.permission_overrides);
+        const canTickets =
+            roleNow === "PHYSICIAN" || roleNow === "RECEPTION";
+
+        const loadPendingTasks = async (initial: boolean) => {
+            if (canClinical || !canTickets) {
+                if (!cancelled) {
+                    setPendingTasks([]);
+                    setPendingTasksLoading(false);
+                }
+                return;
+            }
+            if (initial) setPendingTasksLoading(true);
+            try {
+                const rows = filterReceptionPendingTasks(await listPracticeTasksForMe());
+                if (!cancelled) setPendingTasks(rows);
+            } catch {
+                if (!cancelled) setPendingTasks([]);
+            } finally {
+                if (!cancelled && initial) setPendingTasksLoading(false);
+            }
+        };
+
+        void loadPendingTasks(true);
+        const onRefresh = () => {
+            void loadPendingTasks(false);
+        };
+        window.addEventListener("medoc-nav-badges-refresh", onRefresh);
+        window.addEventListener(PAGE_REFRESH_EVENT, onRefresh);
+        const interval = window.setInterval(() => {
+            void loadPendingTasks(false);
+        }, INBOX_POLL_MS);
+        const onVisible = () => {
+            if (document.visibilityState === "visible") void loadPendingTasks(false);
+        };
+        document.addEventListener("visibilitychange", onVisible);
+        return () => {
+            cancelled = true;
+            window.removeEventListener("medoc-nav-badges-refresh", onRefresh);
+            window.removeEventListener(PAGE_REFRESH_EVENT, onRefresh);
+            window.clearInterval(interval);
+            document.removeEventListener("visibilitychange", onVisible);
+        };
+    }, [session?.role, session?.permission_overrides, reloadToken]);
+
     /** Day-close reminder at that day's closing time from Opening hours (once per day). */
     useEffect(() => {
         const check = () => {
@@ -293,14 +355,9 @@ export function DashboardPage() {
         return () => window.clearInterval(id);
     }, [toast, t]);
 
-    const todayIso = format(new Date(), "yyyy-MM-dd");
-    const patientNameById = useMemo(() => new Map(patients.map((p) => [p.id, p.name])), [patients]);
+    const todayIso = practiceTodayYmd();
+    const patientById = useMemo(() => new Map(patients.map((p) => [p.id, p])), [patients]);
     const role = useMemo(() => parseRole(session?.role ?? undefined), [session?.role]);
-
-    const heutePlannedCount = useMemo(() => {
-        if (!role || !allowed("appointment.read", role)) return 0;
-        return appointments.filter((x) => x.date === todayIso && x.status === "PLANNED").length;
-    }, [appointments, todayIso, role]);
 
     const dashboardPurchaseOrders = useMemo(() => {
         return purchase_orders
@@ -313,21 +370,24 @@ export function DashboardPage() {
             .slice(0, DASHBOARD_PURCHASE_ORDERS_MAX);
     }, [purchase_orders]);
 
-    const showPlannedRow =
-        role != null &&
-        allowed("appointment.read", role) &&
-        !allowed("patient.read_medical", role, session?.permission_overrides) &&
-        heutePlannedCount > 0 &&
-        !dismissedFreigabe["planned"];
-
     const canPatientWrite = role != null && allowed("patient.write", role, session?.permission_overrides);
     const canViewClinical = role != null && allowed("patient.read_medical", role, session?.permission_overrides);
     const canWriteMedical = role != null && allowed("patient.write_medical", role, session?.permission_overrides);
-    const freigabenItemCount = canViewClinical ? chartsToValidate.length : showPlannedRow ? 1 : 0;
-    const freigabenLeer = !chartsQueueLoading && freigabenItemCount === 0 && !listsError;
+    const receptionPendingTasks = useMemo(
+        () => (canViewClinical ? [] : filterReceptionPendingTasks(pendingTasks)).slice(0, DASHBOARD_PENDING_TASKS_MAX),
+        [canViewClinical, pendingTasks],
+    );
+    const showPendingTasks = !canViewClinical && receptionPendingTasks.length > 0;
+    const freigabenItemCount = canViewClinical ? chartsToValidate.length : receptionPendingTasks.length;
+    const freigabenLeer =
+        !chartsQueueLoading &&
+        !pendingTasksLoading &&
+        freigabenItemCount === 0 &&
+        !listsError;
     const canReadPatients = role != null && allowed("patient.read", role, session?.permission_overrides);
     const canReadAppointments = role != null && allowed("appointment.read", role, session?.permission_overrides);
     const canReadFinance = role != null && allowed("finance.read", role, session?.permission_overrides);
+    const canSeeOpenCash = role != null && canReadCashArea(role, session?.permission_overrides);
     const canPurchaseOrderWrite = role != null && allowed("purchase_order.write", role, session?.permission_overrides);
     const showStatistics = role != null && routeChildPathAllowed("statistics", role, session?.permission_overrides);
 
@@ -346,10 +406,6 @@ export function DashboardPage() {
         }
         toast(t("dashboard.insights.dismiss_toast"), "info");
     }, [toast, t]);
-
-    const dismissFreigabe = useCallback((key: string) => {
-        setDismissedFreigabe((p) => ({ ...p, [key]: true }));
-    }, []);
 
     const handleApproveChart = useCallback(
         async (patientId: string) => {
@@ -432,11 +488,17 @@ export function DashboardPage() {
     const localeTag = bcp47ForLocale(locale);
     const today = new Intl.DateTimeFormat(localeTag, { weekday: "long", day: "2-digit", month: "long", year: "numeric" }).format(new Date());
 
-    const freigabenSub = chartsQueueLoading && chartsToValidate.length === 0
-        ? t("dashboard.freigaben.scanning")
-        : freigabenItemCount > 0
-          ? t("dashboard.freigaben.sub_count").replace("{{count}}", String(freigabenItemCount))
-          : t("dashboard.freigaben.sub_zero");
+    const freigabenSub = canViewClinical
+        ? chartsQueueLoading && chartsToValidate.length === 0
+            ? t("dashboard.freigaben.scanning")
+            : freigabenItemCount > 0
+              ? t("dashboard.freigaben.sub_count").replace("{{count}}", String(freigabenItemCount))
+              : t("dashboard.freigaben.sub_zero")
+        : pendingTasksLoading && receptionPendingTasks.length === 0
+          ? t("dashboard.pending_tasks.loading")
+          : freigabenItemCount > 0
+            ? t("dashboard.pending_tasks.sub_count").replace("{{count}}", String(freigabenItemCount))
+            : t("dashboard.pending_tasks.sub_zero");
 
     return (
         <div
@@ -506,6 +568,16 @@ export function DashboardPage() {
                         trend="neutral"
                     />
                 )}
+                {stats.revenue_today != null && canReadFinance && (
+                    <StatCard
+                        label={t("dashboard.kpi.revenue_today")}
+                        value={formatCurrency(stats.revenue_today)}
+                        icon="Wallet"
+                        accent="#0A84FF"
+                        sub={t("dashboard.kpi.revenue_today_sub")}
+                        trend="neutral"
+                    />
+                )}
                 {stats.revenue_month != null && canReadFinance && (
                     <StatCard
                         label={t("dashboard.kpi.umsatz_mtd")}
@@ -522,14 +594,16 @@ export function DashboardPage() {
                     <div className="card dashboard-card-fill">
                         <div className="card-head" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: 10 }}>
                             <div style={{ minWidth: 0 }}>
-                                <div className="card-title">{t("dashboard.freigaben.title")}</div>
+                                <div className="card-title">
+                                    {canViewClinical ? t("dashboard.freigaben.title") : t("dashboard.pending_tasks.title")}
+                                </div>
                                 <div className="card-sub">{freigabenSub}</div>
                             </div>
                             <div className="dashboard-wire-head-actions">
                                 <button
                                     type="button"
                                     className="dashboard-wire-head-link nav-link-forward"
-                                    onClick={() => navigate(canViewClinical ? "/charts/to-validate" : "/appointments")}
+                                    onClick={() => navigate(canViewClinical ? "/charts/to-validate" : "/tickets")}
                                 >
                                     {t("dashboard.freigaben.show_all")} <span className="nav-chevron" aria-hidden>›</span>
                                 </button>
@@ -538,6 +612,11 @@ export function DashboardPage() {
                         <div className="dashboard-card-list" style={{ padding: 0 }}>
                             {chartsQueueLoading && chartsToValidate.length === 0 && canViewClinical ? (
                                 <div style={{ padding: "16px 20px", fontSize: 14, color: "var(--fg-3)" }}>{t("page.charts_to_validate.loading")}</div>
+                            ) : null}
+                            {!canViewClinical && pendingTasksLoading && receptionPendingTasks.length === 0 ? (
+                                <div style={{ padding: "16px 20px", fontSize: 14, color: "var(--fg-3)" }}>
+                                    {t("dashboard.pending_tasks.loading")}
+                                </div>
                             ) : null}
                             {canViewClinical
                                 ? chartsToValidate.map((row) => {
@@ -615,51 +694,86 @@ export function DashboardPage() {
                                       );
                                   })
                                 : null}
-                            {showPlannedRow ? (
-                                <div className="dashboard-wire-row">
-                                    <div className="dashboard-wire-avatar dashboard-wire-avatar--muted" aria-hidden>
-                                        {heutePlannedCount > 9 ? "9+" : String(heutePlannedCount)}
-                                    </div>
-                                    <div className="dashboard-wire-row-main">
-                                        <div className="dashboard-wire-name-line">
-                                            <span className="dashboard-wire-name">
-                                                {t("dashboard.freigaben.row_planned").replace("{{count}}", String(heutePlannedCount))}
-                                            </span>
-                                            <span className="dashboard-wire-tag">{t("dashboard.freigaben.tag_appointments")}</span>
-                                        </div>
-                                        <div className="dashboard-wire-desc">{t("dashboard.freigaben.desc_appointments")}</div>
-                                    </div>
-                                    <div className="dashboard-wire-row-aside">
-                                        <div className="dashboard-wire-date">{formatDate(todayIso)}</div>
-                                        <div className="dashboard-wire-freigabe-actions">
-                                            <button
-                                                type="button"
-                                                className="dashboard-wire-icon-btn"
-                                                title={t("dashboard.freigaben.dismiss")}
-                                                aria-label={t("dashboard.freigaben.dismiss")}
-                                                onClick={() => dismissFreigabe("planned")}
-                                            >
-                                                <XIcon size={16} />
-                                            </button>
-                                            <button
-                                                type="button"
-                                                className="dashboard-wire-approve-btn"
-                                                onClick={() => navigate("/appointments")}
-                                            >
-                                                {t("dashboard.freigaben.open_appointments")}
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            ) : null}
+                            {showPendingTasks
+                                ? receptionPendingTasks.map((task) => {
+                                      const patientName = taskPatientLabel(
+                                          task.patient_id,
+                                          patientById,
+                                          t("common.dash"),
+                                      );
+                                      const openTask = () =>
+                                          navigate(`/tickets?task=${encodeURIComponent(task.id)}`);
+                                      const onRowKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+                                          if (e.key === "Enter" || e.key === " ") {
+                                              e.preventDefault();
+                                              openTask();
+                                          }
+                                      };
+                                      return (
+                                          <div
+                                              key={task.id}
+                                              className="dashboard-wire-row dashboard-wire-row--nav"
+                                              role="link"
+                                              tabIndex={0}
+                                              onClick={openTask}
+                                              onKeyDown={onRowKeyDown}
+                                          >
+                                              <div className="dashboard-wire-avatar" aria-hidden>
+                                                  {initialsFromName(patientName === t("common.dash") ? "?" : patientName)}
+                                              </div>
+                                              <div className="dashboard-wire-row-main">
+                                                  <div className="dashboard-wire-name-line">
+                                                      <span className="dashboard-wire-name">
+                                                          {practiceTaskHeadline(task, t)}
+                                                      </span>
+                                                      <Badge variant={taskStatusVariant(task.status)}>
+                                                          {taskStatusLabel(t, task.status)}
+                                                      </Badge>
+                                                  </div>
+                                                  <div className="dashboard-wire-desc">
+                                                      {patientName}
+                                                      {" · "}
+                                                      {taskKindLabel(t, task.kind)}
+                                                      {(() => {
+                                                          const preview = practiceTaskPreview(task, t, tp).slice(0, 80);
+                                                          return preview ? ` · ${preview}` : "";
+                                                      })()}
+                                                  </div>
+                                              </div>
+                                              <div className="dashboard-wire-row-aside">
+                                                  <div className="dashboard-wire-date">
+                                                      {formatDateTime(task.updated_at || task.created_at)}
+                                                  </div>
+                                                  <div className="dashboard-wire-freigabe-actions">
+                                                      <button
+                                                          type="button"
+                                                          className="dashboard-wire-approve-btn"
+                                                          onClick={(e) => {
+                                                              e.stopPropagation();
+                                                              openTask();
+                                                          }}
+                                                          title={t("dashboard.pending_tasks.open_hint")}
+                                                      >
+                                                          {t("dashboard.pending_tasks.open")}
+                                                      </button>
+                                                  </div>
+                                              </div>
+                                          </div>
+                                      );
+                                  })
+                                : null}
                             {freigabenLeer ? (
                                 <EmptyState
                                     icon="✅"
-                                    title={canViewClinical ? t("page.charts_to_validate.empty_title") : t("dashboard.freigaben.empty_title")}
+                                    title={
+                                        canViewClinical
+                                            ? t("page.charts_to_validate.empty_title")
+                                            : t("dashboard.pending_tasks.empty_title")
+                                    }
                                     description={
                                         canViewClinical
                                             ? t("page.charts_to_validate.subtitle")
-                                            : t("dashboard.freigaben.empty_desc")
+                                            : t("dashboard.pending_tasks.empty_desc")
                                     }
                                 />
                             ) : null}
@@ -767,47 +881,60 @@ export function DashboardPage() {
                 </div>
                 <div className="col dashboard-col-secondary">
                     <div className="dashboard-col-secondary__schedule">
-                    {role != null && allowed("appointment.read", role) ? (
+                    {canSeeOpenCash ? (
                         <div className="card dashboard-card-fill">
                             <div className="card-head">
                                 <div>
-                                    <div className="card-title">{t("dashboard.reminders.title")}</div>
-                                    <div className="card-sub">
-                                        {t("dashboard.reminders.sub")}
-                                    </div>
+                                    <div className="card-title">{t("page.finance_cash.title")}</div>
+                                    <div className="card-sub">{t("page.finance_cash.list_sub")}</div>
                                 </div>
                             </div>
                             <div className="dashboard-card-list">
-                                {upcomingAppointments.length === 0 ? (
-                                    <p style={{ padding: "16px 20px", margin: 0, color: "var(--fg-3)", fontSize: 14 }}>
-                                        {t("dashboard.reminders.empty")}
-                                    </p>
+                                {!openCashLoaded ? (
+                                    <p className="dashboard-cash-note">{t("page.finance_cash.loading")}</p>
+                                ) : openCashError ? (
+                                    <p className="dashboard-cash-note">{openCashError}</p>
+                                ) : openCash.length === 0 ? (
+                                    <p className="dashboard-cash-note">{t("page.finance_cash.empty_title")}</p>
                                 ) : (
-                                    upcomingAppointments.slice(0, 12).map((u) => (
-                                        <Link
-                                            key={u.appointment_id}
-                                            to={`/patients/${u.patient_id}`}
-                                            className="dashboard-reminder-row"
-                                            aria-label={`${t("dashboard.reminders.open_patient")}: ${u.patient_name}`}
-                                        >
-                                            <div className="dashboard-reminder-row__patient">
-                                                <div className="schedule-day-name" dir="auto">
-                                                    {u.patient_name}
+                                    openCash.slice(0, DASHBOARD_OPEN_CASH_MAX).map((row) => {
+                                        const name =
+                                            patientById.get(row.patient_id)?.name ?? t("appointment.calendar.patient_fallback");
+                                        const clock = formatDbTime(row.created_at, locale);
+                                        const method = paymentMethodLabel(row.payment_method, t);
+                                        return (
+                                            <Link
+                                                key={row.id}
+                                                to={`/patients/${row.patient_id}`}
+                                                className="dashboard-cash-row"
+                                                aria-label={`${t("dashboard.reminders.open_patient")}: ${name}`}
+                                            >
+                                                <div className="dashboard-cash-row__who">
+                                                    <div className="dashboard-wire-avatar" aria-hidden>
+                                                        {initialsFromName(name)}
+                                                    </div>
+                                                    <div className="dashboard-cash-row__who-text">
+                                                        <div className="dashboard-cash-row__name" dir="auto">
+                                                            {name}
+                                                        </div>
+                                                        <div className="dashboard-cash-row__meta">
+                                                            {clock ? `${clock} · ${method}` : method}
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                            <div className="dashboard-reminder-row__when">
-                                                <div className="schedule-day-time-primary">
-                                                    {formatDate(u.date)}
-                                                    <span className="dashboard-reminder-row__time">{u.time.slice(0, 5)}</span>
+                                                <div className="dashboard-cash-row__figures">
+                                                    <div className="dashboard-cash-row__amount">{formatCurrency(row.amount)}</div>
+                                                    <div className="dashboard-cash-row__status">
+                                                        {openCashValidatedKeys == null
+                                                            ? t("page.finance_cash.status_open")
+                                                            : openCashValidatedKeys.has(itemValidationKey("payment", row.id))
+                                                              ? t("enum.charts_status.validated")
+                                                              : t("patient.detail.tab.payment.status_need_validation")}
+                                                    </div>
                                                 </div>
-                                                <div className="schedule-day-time-meta">
-                                                    {tp("dashboard.reminders.in_minutes", { minutes: u.minutes_until })}
-                                                    {" · "}
-                                                    {appointmentKindLabel(u.kind)}
-                                                </div>
-                                            </div>
-                                        </Link>
-                                    ))
+                                            </Link>
+                                        );
+                                    })
                                 )}
                             </div>
                         </div>
@@ -835,7 +962,7 @@ export function DashboardPage() {
                                 </div>
                             ) : (
                                 heuteAppointments.map((r) => {
-                                    const name = patientNameById.get(r.patient_id) ?? t("appointment.calendar.patient_fallback");
+                                    const name = patientById.get(r.patient_id)?.name ?? t("appointment.calendar.patient_fallback");
                                     const tone = appointmentIsEmergencyMarked(r) ? "yellow" : r.status === "CONFIRMED" ? "blue" : "green";
                                     return (
                                         <div key={r.id} className="dashboard-timeline-row">
@@ -926,7 +1053,7 @@ function StatCard({ label, value, icon, accent, sub, trend = "neutral" }: StatCa
                 </span>
                 {label}
             </div>
-            <div className="kpi-val">{value}</div>
+            <div className={kpiValueSizeClass(value)}>{value}</div>
             {sub ? (
                 <div className="kpi-delta">
                     <span

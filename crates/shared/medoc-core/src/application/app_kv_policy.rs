@@ -1,5 +1,5 @@
 //! Single source of truth for which `app_kv` keys exist and which RBAC permission guards writes.
-//! Used by [`crate::commands::app_kv_commands`] and the LAN HTTP API (`lan_server::http`).
+//! Used by medoc-practice `commands::admin::app_kv` and the LAN HTTP API (`lan_server::http`).
 
 const APPOINTMENT_DRAFT_PREFIX: &str = "appointment.draft.v1.";
 
@@ -20,11 +20,13 @@ pub fn read_permission_for_app_kv_key(key: &str) -> Option<&'static str> {
             | "practice.calendar-workflows.v1"
             | "practice.header_privacy.v1"
             | "invoice.practice.v1"
+            | "documents.locale.v1"
+            | "documents.header_layout.v1"
     ) {
         return Some("dashboard.read");
     }
     // F32: every signed-in role sees the work plan (work-time page, calendar);
-    // writing it still needs `staff.write`.
+    // writing it needs `staff.plan.update` (team area, edit level).
     if key.starts_with("staff.work_plan.v1.") && permission_for_app_kv_key(key).is_some() {
         return Some("dashboard.read");
     }
@@ -36,7 +38,9 @@ pub fn permission_for_app_kv_key(key: &str) -> Option<&'static str> {
         return is_safe_appointment_draft_id(draft_id).then_some("appointment.write");
     }
     if let Some(staff_id) = key.strip_prefix("staff.work_plan.v1.") {
-        return is_safe_appointment_draft_id(staff_id).then_some("staff.write");
+        // Work plans are team planning, not account administration: an
+        // office manager with team "edit" may change them.
+        return is_safe_appointment_draft_id(staff_id).then_some("staff.plan.update");
     }
     match key {
         "practice.work_hours.v1" | "practice.blockedTimes.v1" | "practice.header_privacy.v1" => {
@@ -47,14 +51,15 @@ pub fn permission_for_app_kv_key(key: &str) -> Option<&'static str> {
         | "export.formats.v1"
         | "practice.logo.v1"
         | "invoice.practice.v1"
-        | "documents.locale.v1" => Some("ops.system"),
+        | "documents.locale.v1"
+        | "documents.header_layout.v1" => Some("ops.system"),
         // Whoever can change an appointment can change how the calendar behaves,
         // and that row syncs to the other device.
         "practice.calendar-workflows.v1" => Some("appointment.write"),
         "lan.server.config.v1" | "practice.timezone.v1" => Some("ops.system"),
         "pairing.enabled.v1"
         | "network.hidden.v1"
-        | "sync.deployment.v1"
+        | crate::infrastructure::database::sync_registry::APP_KV_DEPLOYMENT_KEY
         | "company.portal.config.v1" => Some("ops.system"),
         key if key.starts_with("onboarding.progress.v1.") => Some("dashboard.read"),
         _ => None,
@@ -104,7 +109,7 @@ mod tests {
         );
         assert_eq!(
             permission_for_app_kv_key("staff.work_plan.v1.seed-rez-001"),
-            Some("staff.write")
+            Some("staff.plan.update")
         );
         assert_eq!(
             read_permission_for_app_kv_key("staff.work_plan.v1.bad id"),
@@ -186,13 +191,25 @@ mod tests {
             permission_for_app_kv_key("documents.locale.v1"),
             Some("ops.system")
         );
+        assert_eq!(
+            permission_for_app_kv_key("documents.header_layout.v1"),
+            Some("ops.system")
+        );
+        assert_eq!(
+            read_permission_for_app_kv_key("documents.header_layout.v1"),
+            Some("dashboard.read")
+        );
+        assert_eq!(
+            read_permission_for_app_kv_key("documents.locale.v1"),
+            Some("dashboard.read")
+        );
     }
 
     #[test]
     fn staff_work_plan_prefix_whitelisted() {
         assert_eq!(
             permission_for_app_kv_key("staff.work_plan.v1.seed-physician-001"),
-            Some("staff.write")
+            Some("staff.plan.update")
         );
         assert!(permission_for_app_kv_key("staff.work_plan.v1.").is_none());
     }

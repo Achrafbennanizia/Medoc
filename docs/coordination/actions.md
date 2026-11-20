@@ -1,10 +1,41 @@
 # Action ledger
 
-**Last updated:** 2026-11-10 (sync maintenance)
+**Last updated:** 2026-11-20 (ui-prefs anti-regression harden)
 
 ## Now
 
-- Rebuild and restart both devices so the sync changes load.
+- Live check: set language once (pins locale into file) + Appearance → refresh holds; other instance independent.
+
+## Done (2026-11-20 — ui-prefs anti-regression harden)
+
+- Boot: hydrate file before i18n import; disk locale authority blocks LS rehydrate clobber.
+- Awaited/queued `persistUiPrefs`; Appearance save also pins locale; calendar sync writes file.
+- Regression tests: Rust 4 PASS; Vitest file-wins-over-LS 2 PASS.
+
+## Done (2026-11-20 — ui-prefs appearance persistence)
+
+- Root cause: Appearance + locale lived in shared-origin `localStorage` (both Vite instances), so refresh raced back to English/defaults.
+- Added `{app_data_dir}/config/ui-prefs.json` (`get_ui_prefs` / `set_ui_prefs`), hydrated on boot + after login; saves from Appearance/`setLocale`.
+- `cargo test -p medoc-practice --lib commands::system::ui_prefs` **PASS** (2). Rebuilt `target-inst2/debug/medoc`; restarted both instances.
+
+## Done (2026-11-20 — document export locale consistency)
+
+- Chart PDF: finish 4-locale labels; remove leftover `de` boolean branches.
+- Invoice: stop forcing `locale="de"`; chrome + footer + payment terms follow `documents.locale.v1`.
+- Client: HTML print uses `documentLocale()`; hydrate KV→LS after login; rehydrate mirrors document LS.
+- Regression: invoice chrome × locales; chart labels × 4; Vitest Rx/cert/receipt × 4.
+
+## Done (2026-11-20 — PDF i18n all locales)
+
+- Chart/report chrome: `pdf/i18n.rs` phrases for all four locales (was de/en only).
+- Cash-book + period-report labels via `pick(de,en,fr,ar)`.
+- Receipt money Intl tags for `fr` / `ar`.
+- Tests: Vitest 16 PASS; Rust phrase + chart chrome + receipt 4-locale PASS.
+
+## Done (2026-11-20 — daily hours compliance)
+
+- Daily precaution scan (`runDailyAppointmentHoursComplianceIfDue`) + non-working reason labels in notifications.
+- Background: once per local day (poll 15m + visibility); hours-changed events force a full re-scan.
 
 ## Done (2026-11-10 — sync maintenance)
 

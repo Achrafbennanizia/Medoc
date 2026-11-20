@@ -6,9 +6,9 @@ use medoc_core::application::auth_service::{authenticate, LoginRequest};
 use medoc_core::application::authorize::{authorize, Caller, IDLE_TIMEOUT};
 use medoc_core::error::AppError;
 use medoc_core::infrastructure::crypto;
-use medoc_core::infrastructure::database::audit_repo;
 use medoc_core::infrastructure::database::connection::{run_migrations, test_memory_pool};
-use medoc_core::infrastructure::database::device_session_repo;
+use medoc_core::infrastructure::database::repos::admin::audit as audit_repo;
+use medoc_core::infrastructure::database::repos::admin::device_session as device_session_repo;
 
 async fn pool() -> sqlx::SqlitePool {
     std::env::set_var("MEDOC_AUDIT_KEY", "k9-medoc-test-audit-key-32bytes!");
@@ -120,10 +120,12 @@ async fn stale_device_session_is_unauthorized() {
     device_session_repo::insert(&pool, "sess-old", "doc-2", "Desk", None, None)
         .await
         .expect("session");
-    sqlx::query("UPDATE device_session SET last_seen_at = '2000-01-01 00:00:00' WHERE id = 'sess-old'")
-        .execute(&pool)
-        .await
-        .expect("age");
+    sqlx::query(
+        "UPDATE device_session SET last_seen_at = '2000-01-01 00:00:00' WHERE id = 'sess-old'",
+    )
+    .execute(&pool)
+    .await
+    .expect("age");
     let err = authorize(
         &pool,
         &Caller {

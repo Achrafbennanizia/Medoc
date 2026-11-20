@@ -93,6 +93,18 @@ export function DbSetupGate({ children }: { children: ReactNode }) {
                         ? t("db.setup.unlock_body")
                         : t("db.setup.provision_body")}
                 </p>
+                {!status.needsUnlock && (status.recoveryChecklist?.length ?? 0) > 0 ? (
+                    <div className="rounded-lg border border-outline-variant bg-surface-container-low p-3">
+                        <p className="text-label text-on-surface mb-2">
+                            {t("db.setup.recovery_checklist_title")}
+                        </p>
+                        <ul className="list-disc pl-5 space-y-1 text-body-sm text-on-surface-variant">
+                            {status.recoveryChecklist!.map((line) => (
+                                <li key={line}>{line}</li>
+                            ))}
+                        </ul>
+                    </div>
+                ) : null}
                 <Input
                     type="password"
                     autoComplete="new-password"

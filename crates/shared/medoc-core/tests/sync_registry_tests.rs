@@ -50,7 +50,10 @@ async fn snapshot_and_payload_skip_denied_columns() {
     .expect("staff");
     let mut tx = pool.begin().await.expect("tx");
     // staff is DeviceLocal — row_json is None
-    assert!(row_json(&mut tx, "staff", "s1").await.expect("json").is_none());
+    assert!(row_json(&mut tx, "staff", "s1")
+        .await
+        .expect("json")
+        .is_none());
     sqlx::query("INSERT INTO patient (id, name, date_of_birth, sex, insurance_number, status) VALUES ('p1', 'A', '1990-01-01', 'MALE', 'INS-1', 'ACTIVE')")
         .execute(&mut *tx)
         .await
@@ -149,10 +152,11 @@ async fn update_sets_updated_at() {
     .execute(&pool)
     .await
     .expect("update exam");
-    let after: String = sqlx::query_scalar("SELECT updated_at FROM examination WHERE id = 'exam-ts-1'")
-        .fetch_one(&pool)
-        .await
-        .expect("after");
+    let after: String =
+        sqlx::query_scalar("SELECT updated_at FROM examination WHERE id = 'exam-ts-1'")
+            .fetch_one(&pool)
+            .await
+            .expect("after");
     assert!(!after.is_empty());
     assert_ne!(after, "2000-01-01T00:00:00Z");
 }

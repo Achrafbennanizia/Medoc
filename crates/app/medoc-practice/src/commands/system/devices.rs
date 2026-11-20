@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use tauri::{AppHandle, Manager, State};
 
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::error::AppError;
 use crate::infrastructure::devices::{dicom, gdt, host_integration, scanner};
 use crate::infrastructure::{dpia, payment, update, vvt};
@@ -127,11 +127,7 @@ pub fn scanner_attach(
     let root = PathBuf::from(&archive_root);
     let target = root.join(id);
     medoc_core::infrastructure::fs_guard::ensure_inside(&root, &target)?;
-    let p = scanner::attach_to_patient(
-        &PathBuf::from(src),
-        &root,
-        id,
-    )?;
+    let p = scanner::attach_to_patient(&PathBuf::from(src), &root, id)?;
     Ok(p.display().to_string())
 }
 
@@ -171,11 +167,7 @@ pub fn scanner_attach_contract(
     let root = PathBuf::from(&archive_root);
     let target = root.join(id);
     medoc_core::infrastructure::fs_guard::ensure_inside(&root, &target)?;
-    let p = scanner::attach_to_contract(
-        &PathBuf::from(src),
-        &root,
-        id,
-    )?;
+    let p = scanner::attach_to_contract(&PathBuf::from(src), &root, id)?;
     Ok(p.display().to_string())
 }
 
@@ -223,40 +215,11 @@ pub fn current_app_version(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::error::AppError;
-
-    #[test]
-    fn scanner_disabled_returns_feature_disabled() {
-        assert!(!medoc_core::mvp_security::SCANNER_ENABLED);
-        assert!(!medoc_core::mvp_security::GDT_ENABLED);
-        assert!(!medoc_core::mvp_security::DICOM_ENABLED);
-    }
 
     #[test]
     fn scanner_attach_rejects_dotdot_id() {
         let err = medoc_core::infrastructure::fs_guard::safe_id("../x").unwrap_err();
         assert!(matches!(err, AppError::Validation(_)));
     }
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_devices_commands {
-    () => {
-        $crate::commands::devices_commands::generate_vvt,
-        $crate::commands::devices_commands::generate_dpia,
-        $crate::commands::devices_commands::parse_gdt_file,
-        $crate::commands::devices_commands::inspect_dicom_file,
-        $crate::commands::devices_commands::scanner_list_recent,
-        $crate::commands::devices_commands::open_system_scan_utility,
-        $crate::commands::devices_commands::open_native_print_dialog,
-        $crate::commands::devices_commands::scanner_attach,
-        $crate::commands::devices_commands::scanner_attach_contract,
-        $crate::commands::devices_commands::scanner_attach_contract_app_data,
-        $crate::commands::devices_commands::pick_contract_pdf_file,
-        $crate::commands::devices_commands::process_payment,
-        $crate::commands::devices_commands::evaluate_update_payload,
-        $crate::commands::devices_commands::current_app_version,
-    };
 }

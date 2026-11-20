@@ -1,11 +1,11 @@
 //! Tauri commands for balance-sheet (BalanceSheet) wizard snapshots (FA-FIN-09/10).
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::domain::entities::balance_sheet_snapshot::{
     BalanceSheetSnapshot, CreateBalanceSheetSnapshot,
 };
 use crate::error::AppError;
-use crate::infrastructure::database::balance_sheet_snapshot_repo;
+use crate::infrastructure::database::repos::billing::balance_sheet_snapshot as balance_sheet_snapshot_repo;
 use medoc_core::application::documents::finance_schema;
 use medoc_core::application::documents::issue::IssuedPdf;
 use medoc_core::application::documents::period_report::{
@@ -120,18 +120,4 @@ pub async fn reprint_period_report(
 ) -> Result<IssuedPdf, AppError> {
     let session = rbac::require_authenticated(&session_state)?;
     period_report::reprint_snapshot(&pool, &session, &snapshot_id).await
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_balance_sheet_snapshot_commands {
-    () => {
-        $crate::commands::balance_sheet_snapshot_commands::list_balance_sheet_snapshots,
-        $crate::commands::balance_sheet_snapshot_commands::get_balance_sheet_snapshot,
-        $crate::commands::balance_sheet_snapshot_commands::create_balance_sheet_snapshot,
-        $crate::commands::balance_sheet_snapshot_commands::delete_balance_sheet_snapshot,
-        $crate::commands::balance_sheet_snapshot_commands::compute_period_report,
-        $crate::commands::balance_sheet_snapshot_commands::create_period_report,
-        $crate::commands::balance_sheet_snapshot_commands::reprint_period_report,
-    };
 }

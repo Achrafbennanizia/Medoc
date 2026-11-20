@@ -1,4 +1,5 @@
-import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
+import type { z } from "zod";
+import { practiceSystem } from "@/systems/practice-host/adapters/practice-transport";
 import { CreateCertificateSchema, parseOrThrow } from "@/lib/schemas";
 
 export interface Certificate {
@@ -17,18 +18,7 @@ export interface Certificate {
     issuing_physician_id?: string | null;
 }
 
-export interface CreateCertificate {
-    patient_id: string;
-    physician_id: string;
-    kind: string;
-    body_text: string;
-    valid_from: string;
-    valid_until: string;
-    icd10_code?: string | null;
-    first_or_follow_up?: "FIRST" | "FOLLOW_UP" | null;
-    employer?: string | null;
-    issuing_physician_id?: string | null;
-}
+export type CreateCertificate = z.input<typeof CreateCertificateSchema>;
 
 export const listCertificates = (patientId: string) =>
     practiceSystem.invoke<Certificate[]>("list_certificates", { patient_id: patientId });

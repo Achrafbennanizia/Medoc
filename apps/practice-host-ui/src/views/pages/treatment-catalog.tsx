@@ -261,7 +261,7 @@ export function TreatmentCatalogPage() {
     if (status === "loading") return <PageLoading label={t("page.treatment_catalog.loading")} />;
     if (status === "error" && loadError) {
         return (
-            <div className="products-page practice-workspace-page animate-fade-in">
+            <div className="products-page practice-workspace-page animate-fade-in--sticky-safe">
                 <AdministrationPageHeader title={t("page.treatment_catalog.title")} />
                 <PageLoadError message={loadError} onRetry={() => void reload()} />
             </div>
@@ -423,7 +423,7 @@ export function TreatmentCatalogPage() {
     })();
 
     return (
-        <div className="products-page practice-workspace-page animate-fade-in">
+        <div className="products-page practice-workspace-page animate-fade-in--sticky-safe">
             <AdministrationPageHeader
                 title={t("page.treatment_catalog.title")}
                 subtitle={t("page.treatment_catalog.subtitle")}

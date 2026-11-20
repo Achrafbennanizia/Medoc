@@ -4,10 +4,11 @@ use sqlx::SqlitePool;
 use tauri::State;
 
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::domain::entities::DocumentTemplateUser;
 use crate::error::AppError;
-use crate::infrastructure::database::{audit_repo, document_template_repo};
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
+use crate::infrastructure::database::repos::practice::document_template as document_template_repo;
 
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state))]
@@ -29,12 +30,4 @@ pub async fn list_document_templates_for_kind(
     .await
     .ok();
     Ok(rows)
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_document_template_commands {
-    () => {
-        $crate::commands::document_template_commands::list_document_templates_for_kind,
-    };
 }

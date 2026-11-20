@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { amountEquivalentPerMonth, contractActiveToday, type ContractItem } from "./contract-domain";
+import { localIsoDate } from "./utils";
 
 describe("contract-domain", () => {
     it("year to month equivalent", () => {
@@ -22,7 +23,7 @@ describe("contract-domain", () => {
         expect(version.unlimited).toBe(false);
         const vPast: ContractItem = { ...version, periodUntil: "2000-01-01" };
         const t = new Date();
-        const ymd = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
+        const ymd = localIsoDate(t);
         expect(contractActiveToday(version)).toBe(ymd >= "2020-01-01" && ymd <= "2040-12-31");
         expect(contractActiveToday(vPast)).toBe(false);
     });

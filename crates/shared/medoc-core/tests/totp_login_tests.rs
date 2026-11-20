@@ -4,7 +4,8 @@
 use medoc_core::application::auth_service::{authenticate, LoginRequest};
 use medoc_core::infrastructure::crypto;
 use medoc_core::infrastructure::database::connection::{run_migrations, test_memory_pool};
-use medoc_core::infrastructure::database::{device_session_repo, staff_repo};
+use medoc_core::infrastructure::database::repos::admin::device_session as device_session_repo;
+use medoc_core::infrastructure::database::repos::admin::staff as staff_repo;
 use medoc_core::infrastructure::totp;
 
 async fn pool() -> sqlx::SqlitePool {
@@ -130,7 +131,9 @@ async fn password_change_bumps_the_token_and_ends_other_sessions() {
         .expect("end");
 
     assert_eq!(
-        staff_repo::token_version(&pool, "doc-1").await.expect("version"),
+        staff_repo::token_version(&pool, "doc-1")
+            .await
+            .expect("version"),
         1
     );
     let ended: Option<String> =

@@ -73,10 +73,6 @@ export function ExportPickerDialog(props: ExportPickerChartProps) {
     return <ChartExportPickerInner {...props} />;
 }
 
-/** @deprecated Alias — same surface as ExportPickerDialog (Chart). */
-export const ChartExportDialog = ExportPickerDialog;
-export type ChartExportDialogProps = ExportPickerChartProps;
-
 function extForFormat(f: ChartExportFileFormat): string {
     return f;
 }

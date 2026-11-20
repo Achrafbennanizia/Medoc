@@ -2,9 +2,10 @@
 
 use chrono::NaiveDate;
 use medoc_core::domain::entities::patient::CreatePatient;
-use medoc_core::domain::enums::Sex;
 use medoc_core::domain::entities::treatment::CreateExamination;
-use medoc_core::infrastructure::database::{chart_repo, patient_repo};
+use medoc_core::domain::enums::Sex;
+use medoc_core::infrastructure::database::repos::clinical::chart as chart_repo;
+use medoc_core::infrastructure::database::repos::clinical::patient as patient_repo;
 use medoc_e2e::harness::SyncMesh;
 use medoc_sync::merge::{apply_remote_entry_phased, ConflictPolicy};
 
@@ -143,14 +144,16 @@ async fn later_edit_wins_on_both_devices_for_examination() {
     )
     .await
     .expect("apply master");
-    let on_b: String = sqlx::query_scalar("SELECT chief_complaint FROM examination WHERE id = 'exam-mesh-1'")
-        .fetch_one(&mesh.replica_b)
-        .await
-        .expect("B");
-    let on_m: String = sqlx::query_scalar("SELECT chief_complaint FROM examination WHERE id = 'exam-mesh-1'")
-        .fetch_one(&mesh.main.pool)
-        .await
-        .expect("M");
+    let on_b: String =
+        sqlx::query_scalar("SELECT chief_complaint FROM examination WHERE id = 'exam-mesh-1'")
+            .fetch_one(&mesh.replica_b)
+            .await
+            .expect("B");
+    let on_m: String =
+        sqlx::query_scalar("SELECT chief_complaint FROM examination WHERE id = 'exam-mesh-1'")
+            .fetch_one(&mesh.main.pool)
+            .await
+            .expect("M");
     assert_eq!(on_b, "new");
     assert_eq!(on_m, "new");
 }
@@ -202,13 +205,12 @@ async fn release_examination_for_billing_reaches_replica_b() {
             .any(|e| e.entity_table == "examination" && e.entity_id == exam.id && e.op == "UPDATE"),
         "missing examination UPDATE: {entries:?}"
     );
-    let released: Option<String> = sqlx::query_scalar(
-        "SELECT released_by_physician_id FROM examination WHERE id = ?1",
-    )
-    .bind(&exam.id)
-    .fetch_one(&mesh.replica_b)
-    .await
-    .expect("row");
+    let released: Option<String> =
+        sqlx::query_scalar("SELECT released_by_physician_id FROM examination WHERE id = ?1")
+            .bind(&exam.id)
+            .fetch_one(&mesh.replica_b)
+            .await
+            .expect("row");
     assert_eq!(released.as_deref(), Some("seed-physician-001"));
 }
 
@@ -253,7 +255,7 @@ async fn set_cash_verified_for_ids_reaches_replica_b() {
     )
     .await
     .expect("patient");
-    let pay = medoc_core::infrastructure::database::payment_repo::create(
+    let pay = medoc_core::infrastructure::database::repos::billing::payment::create(
         &mesh.replica_a,
         &medoc_core::domain::entities::payment::CreatePayment {
             patient_id: created.id.clone(),
@@ -268,7 +270,7 @@ async fn set_cash_verified_for_ids_reaches_replica_b() {
     )
     .await
     .expect("payment");
-    medoc_core::infrastructure::database::payment_repo::set_cash_verified_for_ids(
+    medoc_core::infrastructure::database::repos::billing::payment::set_cash_verified_for_ids(
         &mesh.replica_a,
         &[pay.id.clone()],
         1,
@@ -325,9 +327,12 @@ async fn reassign_or_reject_clinical_ownership_reaches_replica_b() {
     .await
     .expect("apt");
     let apt_id = "apt-reassign-1".to_string();
-    medoc_core::infrastructure::database::staff_repo::delete(&mesh.replica_a, "extra-phys")
-        .await
-        .expect("delete staff");
+    medoc_core::infrastructure::database::repos::admin::staff::delete(
+        &mesh.replica_a,
+        "extra-phys",
+    )
+    .await
+    .expect("delete staff");
     let wanted = push_pull_apply_all(&mut mesh).await;
     assert!(
         wanted
@@ -368,7 +373,7 @@ async fn delete_for_patient_reaches_replica_b() {
     .execute(&mesh.replica_a)
     .await
     .expect("hint");
-    medoc_core::infrastructure::database::chart_next_appointment_repo::delete_for_patient(
+    medoc_core::infrastructure::database::repos::clinical::chart_next_appointment::delete_for_patient(
         &mesh.replica_a,
         &created.id,
     )
@@ -376,7 +381,9 @@ async fn delete_for_patient_reaches_replica_b() {
     .expect("delete hint");
     let wanted = push_pull_apply_all(&mut mesh).await;
     assert!(
-        wanted.iter().any(|e| e.entity_table == "chart_next_appointment_hint" && e.op == "DELETE"),
+        wanted
+            .iter()
+            .any(|e| e.entity_table == "chart_next_appointment_hint" && e.op == "DELETE"),
         "missing hint DELETE: {wanted:?}"
     );
 }
@@ -384,7 +391,7 @@ async fn delete_for_patient_reaches_replica_b() {
 #[tokio::test]
 async fn insert_comment_reaches_replica_b() {
     let mut mesh = SyncMesh::connect().await;
-    let task = medoc_core::infrastructure::database::practice_task_repo::insert(
+    let task = medoc_core::infrastructure::database::repos::scheduling::practice_task::insert(
         &mesh.replica_a,
         &medoc_core::domain::entities::practice_task::CreatePracticeTask {
             patient_id: None,
@@ -402,14 +409,15 @@ async fn insert_comment_reaches_replica_b() {
     )
     .await
     .expect("task");
-    let comment = medoc_core::infrastructure::database::practice_task_repo::insert_comment(
-        &mesh.replica_a,
-        &task.id,
-        "seed-physician-001",
-        "hello replica",
-    )
-    .await
-    .expect("comment");
+    let comment =
+        medoc_core::infrastructure::database::repos::scheduling::practice_task::insert_comment(
+            &mesh.replica_a,
+            &task.id,
+            "seed-physician-001",
+            "hello replica",
+        )
+        .await
+        .expect("comment");
     let wanted = push_pull_apply_all(&mut mesh).await;
     assert!(
         wanted
@@ -450,7 +458,7 @@ async fn attachment_file_reaches_replica_b() {
     let dir = std::env::temp_dir().join(format!("medoc-att-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&dir).expect("tmpdir");
     let bytes = b"mesh-attachment-bytes";
-    let row = medoc_core::infrastructure::database::chart_attachment_repo::create(
+    let row = medoc_core::infrastructure::database::repos::clinical::chart_attachment::create(
         &mesh.replica_a,
         &dir,
         &chart_id,
@@ -495,11 +503,12 @@ async fn attachment_file_reaches_replica_b() {
         .await
         .expect("bytes on B");
     assert_eq!(stored, bytes);
-    let name: String = sqlx::query_scalar("SELECT display_name FROM chart_attachment WHERE id = ?1")
-        .bind(&row.id)
-        .fetch_one(&mesh.replica_b)
-        .await
-        .expect("row on B");
+    let name: String =
+        sqlx::query_scalar("SELECT display_name FROM chart_attachment WHERE id = ?1")
+            .bind(&row.id)
+            .fetch_one(&mesh.replica_b)
+            .await
+            .expect("row on B");
     assert_eq!(name, "scan.pdf");
 }
 
@@ -574,7 +583,10 @@ async fn catalog_item_reaches_replica_b() {
             .any(|e| e.entity_table == "treatment_catalog" && e.entity_id == row.id),
         "{entries:?}"
     );
-    assert_eq!(count_id(&mesh.replica_b, "treatment_catalog", &row.id).await, 1);
+    assert_eq!(
+        count_id(&mesh.replica_b, "treatment_catalog", &row.id).await,
+        1
+    );
 }
 
 #[tokio::test]
@@ -597,7 +609,10 @@ async fn document_template_reaches_replica_b() {
             .any(|e| e.entity_table == "document_template" && e.entity_id == row.id),
         "{entries:?}"
     );
-    assert_eq!(count_id(&mesh.replica_b, "document_template", &row.id).await, 1);
+    assert_eq!(
+        count_id(&mesh.replica_b, "document_template", &row.id).await,
+        1
+    );
 }
 
 #[tokio::test]
@@ -619,13 +634,16 @@ async fn supplier_master_reaches_replica_b() {
             .any(|e| e.entity_table == "supplier_master" && e.entity_id == row.id),
         "{entries:?}"
     );
-    assert_eq!(count_id(&mesh.replica_b, "supplier_master", &row.id).await, 1);
+    assert_eq!(
+        count_id(&mesh.replica_b, "supplier_master", &row.id).await,
+        1
+    );
 }
 
 #[tokio::test]
 async fn product_reaches_replica_b() {
     let mut mesh = SyncMesh::connect().await;
-    let row = medoc_core::infrastructure::database::product_repo::create(
+    let row = medoc_core::infrastructure::database::repos::practice::product::create(
         &mesh.replica_a,
         &medoc_core::domain::entities::product::CreateProduct {
             name: "Mesh Product".into(),
@@ -651,7 +669,7 @@ async fn product_reaches_replica_b() {
 #[tokio::test]
 async fn purchase_order_reaches_replica_b() {
     let mut mesh = SyncMesh::connect().await;
-    let row = medoc_core::infrastructure::database::purchase_order_repo::create(
+    let row = medoc_core::infrastructure::database::repos::practice::purchase_order::create(
         &mesh.replica_a,
         &medoc_core::domain::entities::purchase_order::CreatePurchaseOrder {
             supplier: "Acme".into(),
@@ -675,16 +693,19 @@ async fn purchase_order_reaches_replica_b() {
             .any(|e| e.entity_table == "purchase_order" && e.entity_id == row.id),
         "{entries:?}"
     );
-    assert_eq!(count_id(&mesh.replica_b, "purchase_order", &row.id).await, 1);
+    assert_eq!(
+        count_id(&mesh.replica_b, "purchase_order", &row.id).await,
+        1
+    );
 }
 
 #[tokio::test]
 async fn contract_reaches_replica_b() {
     let mut mesh = SyncMesh::connect().await;
     let id = uuid::Uuid::new_v4().to_string();
-    medoc_core::infrastructure::database::contract_repo::upsert(
+    medoc_core::infrastructure::database::repos::billing::contract::upsert(
         &mesh.replica_a,
-        &medoc_core::infrastructure::database::contract_repo::ContractRow {
+        &medoc_core::infrastructure::database::repos::billing::contract::ContractRow {
             id: id.clone(),
             designation: "Lease".into(),
             partner: "Lessor".into(),
@@ -712,7 +733,7 @@ async fn contract_reaches_replica_b() {
 #[tokio::test]
 async fn day_close_protocol_reaches_replica_b() {
     let mut mesh = SyncMesh::connect().await;
-    let row = medoc_core::infrastructure::database::day_close_protocol_repo::create(
+    let row = medoc_core::infrastructure::database::repos::billing::day_close_protocol::create(
         &mesh.replica_a,
         &medoc_core::domain::entities::day_close_protocol::CreateDayCloseProtocol {
             as_of_date: "2099-01-02".into(),
@@ -736,13 +757,16 @@ async fn day_close_protocol_reaches_replica_b() {
             .any(|e| e.entity_table == "day_close_protocol" && e.entity_id == row.id),
         "{entries:?}"
     );
-    assert_eq!(count_id(&mesh.replica_b, "day_close_protocol", &row.id).await, 1);
+    assert_eq!(
+        count_id(&mesh.replica_b, "day_close_protocol", &row.id).await,
+        1
+    );
 }
 
 #[tokio::test]
 async fn balance_sheet_snapshot_reaches_replica_b() {
     let mut mesh = SyncMesh::connect().await;
-    let row = medoc_core::infrastructure::database::balance_sheet_snapshot_repo::create(
+    let row = medoc_core::infrastructure::database::repos::billing::balance_sheet_snapshot::create(
         &mesh.replica_a,
         &medoc_core::domain::entities::balance_sheet_snapshot::CreateBalanceSheetSnapshot {
             period: "2099-01".into(),
@@ -787,9 +811,9 @@ async fn invoice_document_reaches_replica_b() {
     .await
     .expect("patient");
     let doc_id = uuid::Uuid::new_v4().to_string();
-    medoc_core::infrastructure::database::invoice_document_repo::insert_with_audit_trail(
+    medoc_core::infrastructure::database::repos::billing::invoice_document::insert_with_audit_trail(
         &mesh.replica_a,
-        &medoc_core::infrastructure::database::invoice_document_repo::InvoiceDocumentRow {
+        &medoc_core::infrastructure::database::repos::billing::invoice_document::InvoiceDocumentRow {
             id: doc_id.clone(),
             patient_id: patient.id.clone(),
             document_number: "RE-MESH-1".into(),
@@ -809,7 +833,10 @@ async fn invoice_document_reaches_replica_b() {
             .any(|e| e.entity_table == "invoice_document" && e.entity_id == doc_id),
         "{entries:?}"
     );
-    assert_eq!(count_id(&mesh.replica_b, "invoice_document", &doc_id).await, 1);
+    assert_eq!(
+        count_id(&mesh.replica_b, "invoice_document", &doc_id).await,
+        1
+    );
 }
 
 #[tokio::test]

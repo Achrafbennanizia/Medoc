@@ -11,12 +11,42 @@ use std::io::{Cursor, Write};
 
 use super::core::{M_LEFT, M_RIGHT};
 
+/// Where the practice logo sits on the letterhead.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum LogoPlacement {
+    /// Beside the practice name.
+    #[default]
+    Side,
+    /// Above the practice name.
+    Top,
+}
+
+impl LogoPlacement {
+    pub fn parse(raw: &str) -> Self {
+        match raw.trim().to_ascii_lowercase().as_str() {
+            "top" => Self::Top,
+            _ => Self::Side,
+        }
+    }
+}
+
 /// `showOnDocuments` in `practice.logo.v1`. Missing means the logo is printed.
 pub fn logo_visible_on_documents(raw: &str) -> bool {
     serde_json::from_str::<serde_json::Value>(raw.trim())
         .ok()
         .and_then(|value| value.get("showOnDocuments").and_then(|flag| flag.as_bool()))
         .unwrap_or(true)
+}
+
+/// `placement` in `practice.logo.v1`. Missing or unknown means beside the name.
+pub fn logo_placement(raw: &str) -> LogoPlacement {
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(raw.trim()) else {
+        return LogoPlacement::default();
+    };
+    let Some(text) = value.get("placement").and_then(|flag| flag.as_str()) else {
+        return LogoPlacement::default();
+    };
+    LogoPlacement::parse(text)
 }
 
 /// Max logo box on the letterhead (points).
@@ -42,6 +72,7 @@ pub struct PdfLogo {
     pub data: Vec<u8>,
     pub display_w: f64,
     pub display_h: f64,
+    pub placement: LogoPlacement,
 }
 
 impl PdfLogo {
@@ -54,11 +85,16 @@ impl PdfLogo {
         if let Some((_, rest)) = b64.split_once("base64,") {
             b64 = rest.trim();
         }
+        if !logo_visible_on_documents(raw) {
+            return None;
+        }
         let bytes = STANDARD.decode(b64).ok()?;
         if bytes.is_empty() || bytes.len() > 4_000_000 {
             return None;
         }
-        Self::from_image_bytes(&bytes)
+        let mut logo = Self::from_image_bytes(&bytes)?;
+        logo.placement = logo_placement(raw);
+        Some(logo)
     }
 
     pub fn from_image_bytes(bytes: &[u8]) -> Option<Self> {
@@ -84,6 +120,7 @@ impl PdfLogo {
             data,
             display_w,
             display_h,
+            placement: LogoPlacement::Side,
         })
     }
 
@@ -110,12 +147,13 @@ impl PdfLogo {
         }
     }
 
-    /// Right bound for practice text when logo is on the right (RTL).
+    /// Right bound for practice text. A side logo only narrows the block when
+    /// it sits on the right (RTL). A top logo leaves the full text width.
     pub fn practice_text_right_cap(&self, rtl: bool) -> i32 {
-        if rtl {
+        if self.placement == LogoPlacement::Side && rtl {
             M_RIGHT - self.display_w.round() as i32 - LOGO_GAP
         } else {
-            M_RIGHT - 200
+            M_RIGHT
         }
     }
 }
@@ -238,17 +276,35 @@ mod tests {
         let logo = PdfLogo::from_kv_json(&json).expect("logo");
         assert_eq!(logo.width_px, 16);
         assert_eq!(logo.height_px, 16);
+        assert_eq!(logo.placement, LogoPlacement::Side);
+        let top_json = format!(
+            r#"{{"mime":"image/png","data":"{b64}","placement":"top","showOnDocuments":true}}"#
+        );
+        assert_eq!(
+            PdfLogo::from_kv_json(&top_json).expect("top").placement,
+            LogoPlacement::Top
+        );
+        let hidden = format!(r#"{{"mime":"image/png","data":"{b64}","showOnDocuments":false}}"#);
+        assert!(PdfLogo::from_kv_json(&hidden).is_none());
         assert!(logo.display_h <= LOGO_MAX_HEIGHT);
         assert!(logo.x_for_side(false) < logo.x_for_side(true));
     }
 
     #[test]
     fn a_missing_flag_shows_the_logo_and_false_hides_it() {
-        assert!(logo_visible_on_documents(r#"{"mime":"image/png","data":"aa"}"#));
+        assert!(logo_visible_on_documents(
+            r#"{"mime":"image/png","data":"aa"}"#
+        ));
         assert!(!logo_visible_on_documents(
             r#"{"mime":"image/png","data":"aa","showOnDocuments":false}"#
         ));
         assert!(logo_visible_on_documents("not-json"));
+        assert_eq!(logo_placement(r#"{"placement":"top"}"#), LogoPlacement::Top);
+        assert_eq!(
+            logo_placement(r#"{"placement":"side"}"#),
+            LogoPlacement::Side
+        );
+        assert_eq!(logo_placement("{}"), LogoPlacement::Side);
     }
 
     #[test]

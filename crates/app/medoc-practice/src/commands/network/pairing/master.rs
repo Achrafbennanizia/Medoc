@@ -6,7 +6,7 @@ use medoc_sync::pairing::{self as pairing, PairingDecideResult, PairingDecision,
 use sqlx::SqlitePool;
 use tauri::State;
 
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::commands::rbac_state::require;
 use crate::error::AppError as TauriAppError;
 

@@ -112,7 +112,9 @@ pub async fn find_in_range(
 ) -> Result<Vec<Appointment>, AppError> {
     let parse = |d: &str| chrono::NaiveDate::parse_from_str(d.trim(), "%Y-%m-%d");
     let (Ok(f), Ok(t)) = (parse(from), parse(to)) else {
-        return Err(AppError::Validation("Date must be in yyyy-MM-dd format".into()));
+        return Err(AppError::Validation(
+            "Date must be in yyyy-MM-dd format".into(),
+        ));
     };
     if t < f || (t - f).num_days() > MAX_APPOINTMENT_RANGE_DAYS {
         return Err(AppError::Validation(format!(
@@ -175,7 +177,11 @@ pub async fn move_many(
             if j == i || d2 != date || b.physician_id != a.physician_id {
                 return false;
             }
-            if b.status == "CANCELLED" || b.status == "NO_SHOW" || a.status == "CANCELLED" || a.status == "NO_SHOW" {
+            if b.status == "CANCELLED"
+                || b.status == "NO_SHOW"
+                || a.status == "CANCELLED"
+                || a.status == "NO_SHOW"
+            {
                 return false;
             }
             let s2 = conflict::time_to_minutes(t2) as i64;
@@ -183,7 +189,9 @@ pub async fn move_many(
         });
         let blocks = a.status != "CANCELLED" && a.status != "NO_SHOW";
         if blocks && (clash_static || clash_moved) {
-            return Err(AppError::Conflict(conflict::physician_slot_conflict_message(date, time)));
+            return Err(AppError::Conflict(
+                conflict::physician_slot_conflict_message(date, time),
+            ));
         }
     }
     for (a, date, time) in &moved {
@@ -196,8 +204,13 @@ pub async fn move_many(
         .bind(&a.id)
         .execute(&mut *tx)
         .await?;
-        crate::infrastructure::database::recorded_write::record_in_tx(&mut tx, "appointment", &a.id, "UPDATE")
-            .await?;
+        crate::infrastructure::database::recorded_write::record_in_tx(
+            &mut tx,
+            "appointment",
+            &a.id,
+            "UPDATE",
+        )
+        .await?;
     }
     let mut out = Vec::with_capacity(moved.len());
     for (a, _, _) in &moved {
@@ -230,7 +243,16 @@ pub async fn create(pool: &SqlitePool, data: &CreateAppointment) -> Result<Appoi
         }
     };
     // Check for time conflict (F65: overlapping intervals, not only equal start)
-    if check_conflict(pool, &data.date, &data.time, &data.physician_id, None, duration).await? {
+    if check_conflict(
+        pool,
+        &data.date,
+        &data.time,
+        &data.physician_id,
+        None,
+        duration,
+    )
+    .await?
+    {
         return Err(AppError::Conflict(
             conflict::physician_slot_conflict_message(&data.date, &data.time),
         ));
@@ -353,7 +375,10 @@ pub async fn update(
     .bind(time)
     .bind(&kind)
     .bind(&status)
-    .bind(crate::domain::serde_util::patch_text(&data.notes, existing.notes.as_deref()))
+    .bind(crate::domain::serde_util::patch_text(
+        &data.notes,
+        existing.notes.as_deref(),
+    ))
     .bind(crate::domain::serde_util::patch_text(
         &data.chief_complaint,
         existing.chief_complaint.as_deref(),

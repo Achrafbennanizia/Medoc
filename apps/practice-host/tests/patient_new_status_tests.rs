@@ -3,7 +3,8 @@
 use medoc_lib::domain::entities::appointment::{CreateAppointment, UpdateAppointment};
 use medoc_lib::domain::enums::{AppointmentKind, AppointmentStatus};
 use medoc_lib::infrastructure::database::connection::{run_migrations, test_memory_pool};
-use medoc_lib::infrastructure::database::{appointment_repo, patient_repo};
+use medoc_lib::infrastructure::database::repos::clinical::patient as patient_repo;
+use medoc_lib::infrastructure::database::repos::scheduling::appointment as appointment_repo;
 
 #[tokio::test]
 async fn new_patient_stays_new_after_create_appointment() {

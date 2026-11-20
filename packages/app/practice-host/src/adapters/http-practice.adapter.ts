@@ -43,7 +43,6 @@ const LAN_COMMAND_ROUTES: Partial<
     get_session: { method: "GET", path: "/api/v1/me" },
     get_own_profile: { method: "GET", path: "/api/v1/me" },
     login: { method: "POST", path: "/api/v1/auth/login" },
-    logout: { method: "POST", path: "/api/v1/auth/login" }, // no-op over HTTP; session is JWT-only
     get_app_kv: {
         method: "GET",
         path: (args) => `/api/v1/app-kv?key=${encodeURIComponent(String(args.key ?? ""))}`,
@@ -97,7 +96,7 @@ export class HttpPracticeAdapter implements PracticeSystemPort {
             if (command === "login") {
                 init.body = JSON.stringify({
                     email: args?.email,
-                    password: args?.password ?? args?.password,
+                    password: args?.password,
                     totp_code: args?.totp_code ?? null,
                 });
             } else if (command === "set_app_kv") {

@@ -131,7 +131,7 @@ export const NAV_ITEM_DEFINITIONS: NavItemDefinition[] = [
         : []),
     { to: "/tickets", labelKey: "nav.practice_tickets", visibility: { kind: "roles", roles: ["PHYSICIAN", "RECEPTION"] } },
     ...(PRESCRIPTIONS_CERTIFICATES_MENU_ENABLED
-        ? [{ to: "/prescriptions", labelKey: "nav.prescriptions", visibility: { kind: "action", action: "patient.read_medical" } } as NavItemDefinition]
+        ? [{ to: "/prescriptions", labelKey: "nav.prescriptions", visibility: { kind: "anyOf", actions: ["patient.read_medical", "patient.read_documents"] } } as NavItemDefinition]
         : []),
     { to: "/finance", labelKey: "nav.finance", visibility: { kind: "action", action: "finance.read" } },
     {
@@ -187,8 +187,8 @@ export const ROUTE_VISIBILITY: Record<string, NavVisibility> = {
     // TODO(deferred-roles): balance-sheet — was ["PHYSICIAN", "TAX_ADVISOR"]
     "balance-sheet": { kind: "roles", roles: ["PHYSICIAN"] },
     "balance-sheet/new": { kind: "roles", roles: ["PHYSICIAN"] },
-    "prescriptions": { kind: "action", action: "patient.read_medical" },
-    "certificates": { kind: "action", action: "patient.read_medical" },
+    "prescriptions": { kind: "anyOf", actions: ["patient.read_medical", "patient.read_documents"] },
+    "certificates": { kind: "anyOf", actions: ["patient.read_medical", "patient.read_documents"] },
     "services": { kind: "anyOf", actions: FINANCE_READ_OR_RECEPTION },
     "services/new": { kind: "action", action: "finance.write" },
     "products": { kind: "roles", roles: [...ACTIVE_ROLE_WIRES] },

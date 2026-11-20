@@ -1,7 +1,7 @@
 //! Replicate owner staff credentials to member devices for local login.
 
 use medoc_core::error::AppError;
-use medoc_core::infrastructure::database::app_kv_repo;
+use medoc_core::infrastructure::database::repos::admin::app_kv as app_kv_repo;
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 

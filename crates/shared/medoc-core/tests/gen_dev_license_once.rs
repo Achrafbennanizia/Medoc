@@ -41,17 +41,15 @@ async fn device_id_from_app_db(app_dir: &std::path::Path) -> Result<Option<Strin
     }
     let key = medoc_core::infrastructure::database::db_key::ensure_sqlcipher_key(app_dir, false)
         .map_err(|e| format!("key: {e}"))?;
-    let pool = medoc_core::infrastructure::database::sqlcipher::open_encrypted_pool(
-        &db_path, key, false,
-    )
-    .await
-    .map_err(|e| format!("open: {e}"))?;
-    let id: Option<String> = sqlx::query_scalar(
-        "SELECT value FROM app_kv WHERE key = 'sync.device_id.v1'",
-    )
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| format!("read: {e}"))?;
+    let pool =
+        medoc_core::infrastructure::database::sqlcipher::open_encrypted_pool(&db_path, key, false)
+            .await
+            .map_err(|e| format!("open: {e}"))?;
+    let id: Option<String> =
+        sqlx::query_scalar("SELECT value FROM app_kv WHERE key = 'sync.device_id.v1'")
+            .fetch_optional(&pool)
+            .await
+            .map_err(|e| format!("read: {e}"))?;
     pool.close().await;
     Ok(id.filter(|s| !s.trim().is_empty()))
 }

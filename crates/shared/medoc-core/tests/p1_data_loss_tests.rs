@@ -4,18 +4,16 @@
 use std::sync::Mutex;
 
 use medoc_core::infrastructure::backup;
-use medoc_core::infrastructure::database::audit_repo;
 use medoc_core::infrastructure::database::connection;
 use medoc_core::infrastructure::database::migrations::run_english_schema_upgrade;
+use medoc_core::infrastructure::database::repos::admin::audit as audit_repo;
+use medoc_core::infrastructure::database::repos::admin::staff as staff_repo;
 use medoc_core::infrastructure::database::sqlcipher;
-use medoc_core::infrastructure::database::staff_repo;
 use sqlx::SqlitePool;
 use zeroize::Zeroizing;
 
-const RIGHT_KEY_HEX: &str =
-    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-const WRONG_KEY_HEX: &str =
-    "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210";
+const RIGHT_KEY_HEX: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+const WRONG_KEY_HEX: &str = "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210";
 
 fn right_key() -> [u8; 32] {
     hex_key(RIGHT_KEY_HEX)
@@ -84,12 +82,16 @@ async fn wrong_key_leaves_the_database_file_and_its_rows() {
 
     std::env::set_var("MEDOC_DB_KEY", WRONG_KEY_HEX);
     let opened = connection::open_pool_with_migrations(&dir).await;
-    assert!(opened.is_err(), "a wrong key must not open the practice database");
+    assert!(
+        opened.is_err(),
+        "a wrong key must not open the practice database"
+    );
     assert!(db_path.exists(), "a wrong key must not quarantine medoc.db");
 
-    let pool = sqlcipher::open_encrypted_pool(&db_path, Zeroizing::new(right_key().to_vec()), false)
-        .await
-        .expect("original key still opens the file");
+    let pool =
+        sqlcipher::open_encrypted_pool(&db_path, Zeroizing::new(right_key().to_vec()), false)
+            .await
+            .expect("original key still opens the file");
     assert_eq!(marker_value(&pool).await, "keep-me");
     pool.close().await;
     std::env::set_var("MEDOC_DB_KEY", RIGHT_KEY_HEX);
@@ -143,10 +145,14 @@ async fn plaintext_backup_is_removed_after_encryption() {
         .await
         .expect("encrypt");
     let backup = db_path.with_extension("db.plain-backup");
-    assert!(!backup.exists(), "plaintext sibling must be deleted after encryption");
-    let pool = sqlcipher::open_encrypted_pool(&db_path, Zeroizing::new(right_key().to_vec()), false)
-        .await
-        .expect("encrypted file opens");
+    assert!(
+        !backup.exists(),
+        "plaintext sibling must be deleted after encryption"
+    );
+    let pool =
+        sqlcipher::open_encrypted_pool(&db_path, Zeroizing::new(right_key().to_vec()), false)
+            .await
+            .expect("encrypted file opens");
     assert_eq!(marker_value(&pool).await, "plain-row");
     pool.close().await;
 }
@@ -289,13 +295,15 @@ async fn staff_delete_keeps_another_staff_members_sick_leave() {
     staff_repo::delete(&pool, &removed)
         .await
         .expect("delete the author");
-    let kept: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM sick_leave_certificate WHERE id = 'keep-leave'",
-    )
-    .fetch_one(&pool)
-    .await
-    .unwrap();
-    assert_eq!(kept, 1, "sick leave owned by another staff member must stay");
+    let kept: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM sick_leave_certificate WHERE id = 'keep-leave'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        kept, 1,
+        "sick leave owned by another staff member must stay"
+    );
     pool.close().await;
     std::env::remove_var("MEDOC_DEV_SEED");
 }

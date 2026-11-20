@@ -1,4 +1,8 @@
-import type { PracticeTask, PracticeTaskStatus } from "@/systems/practice-host/controllers/practice-task.controller";
+import type {
+    PracticeTask,
+    PracticeTaskStatus,
+} from "@/systems/practice-host/controllers/practice-task.controller";
+import { taskWorkflowTrack } from "@/systems/practice-host/controllers/practice-task.controller";
 import type { Staff } from "@/models/types";
 import { allowed, type PermissionOverride, type Role } from "@/lib/rbac";
 
@@ -8,14 +12,25 @@ export function taskStatusVariant(status: PracticeTaskStatus): "default" | "prim
         case "BACK":
             return "warning";
         case "IN_PROGRESS":
+        case "VIEWED":
             return "primary";
         case "DONE_RECEPTION":
             return "default";
         case "VALIDATED":
+        case "DONE":
             return "success";
         default:
             return "default";
     }
+}
+
+const VERIFY_FULFILL_STATUSES = ["OPEN", "IN_PROGRESS", "BACK"] as const;
+const SIMPLE_FULFILL_STATUSES = ["OPEN", "VIEWED"] as const;
+
+function fulfillStatusesFor(task: PracticeTask): readonly string[] {
+    return taskWorkflowTrack(task.kind) === "simple"
+        ? SIMPLE_FULFILL_STATUSES
+        : VERIFY_FULFILL_STATUSES;
 }
 
 export function assigneeLabel(
@@ -45,7 +60,7 @@ function isPoolTask(a: PracticeTask): boolean {
 }
 
 export function canFulfillAsReception(a: PracticeTask, userId: string): boolean {
-    if (!["OPEN", "IN_PROGRESS", "BACK"].includes(a.status)) return false;
+    if (!fulfillStatusesFor(a).includes(a.status)) return false;
     if (a.assignee_user_id && a.assignee_user_id.trim() !== "") {
         return a.assignee_user_id === userId;
     }
@@ -53,14 +68,16 @@ export function canFulfillAsReception(a: PracticeTask, userId: string): boolean 
 }
 
 export function canFulfillAsPhysician(a: PracticeTask, userId: string): boolean {
-    return a.assignee_user_id === userId && ["OPEN", "IN_PROGRESS", "BACK"].includes(a.status);
+    return a.assignee_user_id === userId && fulfillStatusesFor(a).includes(a.status);
 }
 
 export function canValidateAsPhysician(a: PracticeTask, userId: string): boolean {
+    if (taskWorkflowTrack(a.kind) === "simple") return false;
     return a.created_by === userId && a.status === "DONE_RECEPTION";
 }
 
 export function canValidateAsReception(a: PracticeTask, userId: string): boolean {
+    if (taskWorkflowTrack(a.kind) === "simple") return false;
     return a.created_by === userId && a.status === "DONE_RECEPTION";
 }
 
@@ -72,7 +89,7 @@ export function userCanViewTask(
 ): boolean {
     if (opts.canAdmin) return true;
     const uid = userId.trim();
-    if (a.created_by.trim() === uid && a.status !== "VALIDATED") return true;
+    if (a.created_by.trim() === uid && a.status !== "VALIDATED" && a.status !== "DONE") return true;
     const assignee = a.assignee_user_id?.trim();
     if (assignee && assignee === uid) return true;
     return opts.isReception && isPoolTask(a);

@@ -12,12 +12,8 @@ import {
     syncSetDeployment,
     type SyncStatusSnapshot,
 } from "@/systems/practice-host/controllers/sync.controller";
-import {
-    lanServerStart,
-    lanServerStatus,
-    lanServerStop,
-    type LanServerStatusPayload,
-} from "@/systems/practice-host/controllers/settings-page.controller";
+import { lanSystem } from "@/systems/lan/adapters/tauri-lan.adapter";
+import type { LanServerStatusPayload } from "@/systems/practice-host/controllers/settings-page.controller";
 import { pairingMasterInfo, type PairingMasterInfo } from "@/systems/practice-host/controllers/pairing.controller";
 import {
     acknowledgeAuditChainBreak,
@@ -100,7 +96,7 @@ function ServerlessMasterLanCompact() {
 
     const refresh = useCallback(async () => {
         try {
-            setStatus(await lanServerStatus());
+            setStatus(await lanSystem.status());
         } catch (e) {
             toast(tp("settings.deployment.toast.lan_status", { message: errorMessage(e) }), "warning");
         }
@@ -115,7 +111,7 @@ function ServerlessMasterLanCompact() {
     const start = async () => {
         setBusy(true);
         try {
-            setStatus(await lanServerStart());
+            setStatus(await lanSystem.start());
             toast(t("settings.deployment.toast.https_started"), "success");
         } catch (e) {
             const raw = errorMessage(e);
@@ -134,7 +130,7 @@ function ServerlessMasterLanCompact() {
     const stop = async () => {
         setBusy(true);
         try {
-            await lanServerStop();
+            await lanSystem.stop();
             await refresh();
             toast(t("settings.deployment.toast.https_stopped"), "info");
         } catch (e) {

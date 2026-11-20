@@ -81,6 +81,8 @@ export type ImportActivationResult = {
     clusterId?: string;
     deviceFingerprint?: string;
     requiresAppReload: boolean;
+    /** After activation, Bridge B passphrase wrap is still required. */
+    needsBridgeBPassphrase?: boolean;
 };
 
 export const ONBOARDING_LICENSE_PENDING_KEY = "medoc.onboarding.pending_license";

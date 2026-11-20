@@ -1,9 +1,10 @@
 //! Dental invoice (Liquidation) in the structure of **Anlage 2 GOZ**.
 //!
-//! Columns: Datum | Region/Zahn | Nr. | Leistungsbeschreibung | Anz. | Faktor | Betrag EUR,
+//! Columns: Datum | Region/Zahn | Nr. | Leistungsbeschreibung | Anz. | Faktor | Betrag.
+//! The practice currency is printed after each amount, not in the column title.
 //! grouped into GOZ fees, GOÄ fees, § 9 expenses (material, external lab),
 //! each with a subtotal; then net/VAT per rate (UStG § 14 Abs. 4 Nr. 7–8)
-//! and the amount due. The document language is always German.
+//! and the amount due. Chrome labels follow `Invoice.locale` (`de`|`en`|`fr`|`ar`).
 //!
 //! The model is (de)serialisable so the issued invoice can be stored
 //! verbatim in `issued_document.payload_json` and re-rendered later.
@@ -22,10 +23,11 @@ where
 }
 
 use super::core::{
-    emit_pdf_document, format_date_dmy, format_eur, PageBuilder, PdfDocMeta, M_BOTTOM, M_LEFT,
-    M_RIGHT,
+    emit_pdf_document, format_date_dmy, format_eur, pdf_locale, PageBuilder, PdfDocMeta, M_BOTTOM,
+    M_LEFT, M_RIGHT,
 };
 use super::goz::{compute_totals, FACTOR_JUSTIFICATION_THRESHOLD};
+use super::i18n::{t, tr, trf, Phrase};
 use super::letterhead::{emit_letterhead, Letterhead, MetaRow};
 use super::logo::PdfLogo;
 use super::metrics::wrap_to_width;
@@ -51,13 +53,13 @@ impl FeeSchedule {
         matches!(self, FeeSchedule::Goz | FeeSchedule::Goae)
     }
 
-    fn heading(self) -> &'static str {
+    fn heading(self, locale: &str) -> &'static str {
         match self {
-            FeeSchedule::Goz => "Honorar nach GOZ",
-            FeeSchedule::Goae => "Honorar nach GOÄ",
-            FeeSchedule::Material => "Auslagen nach § 9 GOZ – Material",
-            FeeSchedule::Lab => "Auslagen nach § 9 GOZ – Fremdlabor",
-            FeeSchedule::Other => "Sonstige Positionen",
+            FeeSchedule::Goz => tr(locale, "invoice.fees_under_goz"),
+            FeeSchedule::Goae => tr(locale, "invoice.fees_under_goae"),
+            FeeSchedule::Material => tr(locale, "invoice.expenses_material"),
+            FeeSchedule::Lab => tr(locale, "invoice.expenses_lab"),
+            FeeSchedule::Other => tr(locale, "invoice.other_items"),
         }
     }
 
@@ -193,7 +195,7 @@ pub struct Invoice {
     pub watermark: Option<String>,
     #[serde(skip)]
     pub logo: Option<PdfLogo>,
-    /// Kept for API compatibility; GOZ invoices are always German.
+    /// Document language (`de`|`en`|`fr`|`ar`). Filled by the issuer from Settings.
     #[serde(default, deserialize_with = "null_as_default")]
     pub locale: String,
     #[serde(default, deserialize_with = "null_as_default")]
@@ -225,9 +227,9 @@ impl Invoice {
     }
 }
 
-/// "12,94" (German decimal comma, thousands dot, no currency).
+/// "12,94 EUR" (German decimal comma, thousands dot, practice currency).
 pub fn fmt_amount(cents: i64) -> String {
-    format_eur(cents).trim_end_matches(" EUR").to_string()
+    format_eur(cents)
 }
 
 fn fmt_factor(f: f64) -> String {
@@ -251,22 +253,24 @@ const X_AMOUNT_R: i32 = M_RIGHT;
 const ROW_FS: i32 = 8;
 const ROW_STEP: i32 = 10;
 
-fn emit_table_header(pb: &mut PageBuilder) {
+fn emit_table_header(pb: &mut PageBuilder, locale: &str) {
     pb.table_header_band(M_LEFT, pb.y + 2, M_RIGHT - M_LEFT);
-    pb.text(X_DATE + 2, 8, true, "Datum");
-    pb.text(X_REGION, 8, true, "Region");
-    pb.text(X_NR, 8, true, "Nr.");
-    pb.text(X_DESC, 8, true, "Leistungsbeschreibung");
-    pb.text_right(X_QTY_R, 8, true, "Anz.");
-    pb.text_right(X_FACTOR_R, 8, true, "Faktor");
-    pb.text_right(X_AMOUNT_R - 2, 8, true, "Betrag EUR");
+    pb.text(X_DATE + 2, 8, true, tr(locale, "invoice.date"));
+    pb.text(X_REGION, 8, true, tr(locale, "invoice.tooth_region"));
+    pb.text(X_NR, 8, true, tr(locale, "invoice.no"));
+    pb.text(X_DESC, 8, true, tr(locale, "invoice.service_description"));
+    pb.text_right(X_QTY_R, 8, true, tr(locale, "invoice.qty"));
+    pb.text_right(X_FACTOR_R, 8, true, tr(locale, "invoice.factor"));
+    pb.text_right(X_AMOUNT_R - 2, 8, true, tr(locale, "invoice.amount"));
     pb.advance(10);
     pb.hline(M_LEFT, M_RIGHT);
     pb.advance(11);
 }
 
-/// All text lines of the description column for one invoice line.
-fn description_lines(line: &InvoiceLine) -> Vec<(String, bool)> {
+/// All text lines of the description column for one invoice line. The
+/// legal sub-lines (analog billing, expense kind, receipt, justification,
+/// agreement) follow the document language — they were always German.
+fn description_lines(line: &InvoiceLine, locale: &str) -> Vec<(String, bool)> {
     let w = f64::from(DESC_W);
     let mut out: Vec<(String, bool)> = wrap_to_width(&line.description, ROW_FS, false, w)
         .into_iter()
@@ -278,13 +282,13 @@ fn description_lines(line: &InvoiceLine) -> Vec<(String, bool)> {
         }
     };
     if let Some(orig) = line.analog_of.as_deref().filter(|s| !s.trim().is_empty()) {
-        sub(format!("entsprechend Nr. {orig} gem. § 6 Abs. 1 GOZ"));
+        sub(trf(locale, "invoice.analog_of", &[("nr", orig)]));
     }
     if let Some(m) = line.material.as_deref().filter(|s| !s.trim().is_empty()) {
-        sub(format!("Art der Auslage: {m}"));
+        sub(trf(locale, "invoice.material_kind", &[("material", m)]));
     }
     if line.receipt_attached {
-        sub("Beleg liegt bei.".into());
+        sub(tr(locale, "invoice.receipt_attached").into());
     }
     if let Some(reason) = line
         .diagnosis_reason
@@ -292,9 +296,9 @@ fn description_lines(line: &InvoiceLine) -> Vec<(String, bool)> {
         .filter(|s| !s.trim().is_empty())
     {
         let label = if line.factor.unwrap_or(0.0) > FACTOR_JUSTIFICATION_THRESHOLD {
-            "Begründung (§ 10 Abs. 3 GOZ)"
+            tr(locale, "invoice.justification")
         } else {
-            "Hinweis"
+            tr(locale, "invoice.note")
         };
         sub(format!("{label}: {reason}"));
     }
@@ -303,18 +307,18 @@ fn description_lines(line: &InvoiceLine) -> Vec<(String, bool)> {
         .as_deref()
         .filter(|s| !s.trim().is_empty())
     {
-        sub(format!("Vereinbarung gem. § 2 Abs. 1 und 2 GOZ: {a}"));
+        sub(trf(locale, "invoice.agreement", &[("ref", a)]));
     }
     out
 }
 
-fn emit_line(pb: &mut PageBuilder, line: &InvoiceLine) {
-    let desc = description_lines(line);
+fn emit_line(pb: &mut PageBuilder, line: &InvoiceLine, locale: &str) {
+    let desc = description_lines(line, locale);
     let height = desc.len() as i32 * ROW_STEP + 4;
     // Whole row must fit — otherwise new page with repeated header.
     if pb.y - height < M_BOTTOM + 6 {
         pb.break_page();
-        emit_table_header(pb);
+        emit_table_header(pb, locale);
     }
     let top = pb.y;
     let date = line
@@ -374,8 +378,12 @@ fn emit_sum_row(pb: &mut PageBuilder, label: &str, cents: i64, bold: bool, rule:
 /// first — the issuing service does this before allocating the number.
 pub fn render_goz_invoice(inv: &Invoice) -> Result<Vec<u8>, AppError> {
     let cancellation = inv.kind == InvoiceKind::Cancellation;
+    let locale = pdf_locale(&inv.locale);
+    let rtl = inv.rtl || super::i18n::is_rtl(locale);
     let totals = compute_totals(inv);
     let mut pb = PageBuilder::new();
+    pb.locale = locale;
+    pb.rtl = rtl;
     pb.watermark = inv.watermark.clone();
 
     // ---- Letterhead -------------------------------------------------------
@@ -398,33 +406,38 @@ pub fn render_goz_invoice(inv: &Invoice) -> Result<Vec<u8>, AppError> {
         }
     }
 
+    let invoice_no_label = if cancellation {
+        tr(locale, "invoice.cancellation_no")
+    } else {
+        t(locale, Phrase::InvoiceNo)
+    };
     let mut meta = vec![
+        MetaRow::new(invoice_no_label, &inv.number),
         MetaRow::new(
-            if cancellation {
-                "Storno-Nr."
-            } else {
-                "Rechnungs-Nr."
-            },
-            &inv.number,
+            tr(locale, "invoice.invoice_date"),
+            format_date_dmy(&inv.date),
         ),
-        MetaRow::new("Rechnungsdatum", format_date_dmy(&inv.date)),
     ];
     if !cancellation {
         if let Some(d) = inv.due_date.as_deref().filter(|d| !d.trim().is_empty()) {
-            meta.push(MetaRow::new("Zahlbar bis", format_date_dmy(d)));
+            meta.push(MetaRow::new(
+                tr(locale, "invoice.due_by"),
+                format_date_dmy(d),
+            ));
         }
     }
     if let Some(p) = inv.service_period() {
-        meta.push(MetaRow::new("Leistungszeitraum", p));
+        meta.push(MetaRow::new(tr(locale, "invoice.service_period"), p));
     }
     if !inv.patient_name.trim().is_empty() {
+        let born = tr(locale, "invoice.born");
         let dob = inv
             .patient_birth_date
             .as_deref()
-            .map(|d| format!(", geb. {}", format_date_dmy(d)))
+            .map(|d| format!(", {born} {}", format_date_dmy(d)))
             .unwrap_or_default();
         meta.push(MetaRow::new(
-            "Behandelte Person",
+            tr(locale, "invoice.treated_person"),
             format!("{}{dob}", inv.patient_name),
         ));
     }
@@ -433,7 +446,7 @@ pub fn render_goz_invoice(inv: &Invoice) -> Result<Vec<u8>, AppError> {
         .as_deref()
         .filter(|s| !s.trim().is_empty())
     {
-        meta.push(MetaRow::new("Behandler/in", c));
+        meta.push(MetaRow::new(t(locale, Phrase::Clinician), c));
     }
 
     let mut recipient = vec![inv.recipient_name.clone()];
@@ -445,8 +458,8 @@ pub fn render_goz_invoice(inv: &Invoice) -> Result<Vec<u8>, AppError> {
         address_lines: &recipient,
         show_sender_hint: true,
         logo: inv.logo.as_ref(),
-        rtl: false,
-        locale: "de",
+        rtl,
+        locale,
         ..Default::default()
     };
     emit_letterhead(&mut pb, &lh);
@@ -464,8 +477,12 @@ pub fn render_goz_invoice(inv: &Invoice) -> Result<Vec<u8>, AppError> {
             inv.practice_address.join(", ")
         ));
         let tax: Vec<String> = [
-            inv.tax_number.as_deref().map(|t| format!("Steuer-Nr. {t}")),
-            inv.vat_id.as_deref().map(|v| format!("USt-IdNr. {v}")),
+            inv.tax_number
+                .as_deref()
+                .map(|tax| format!("{} {tax}", t(locale, Phrase::TaxNo))),
+            inv.vat_id
+                .as_deref()
+                .map(|vat| format!("{} {vat}", t(locale, Phrase::VatId))),
         ]
         .into_iter()
         .flatten()
@@ -480,11 +497,15 @@ pub fn render_goz_invoice(inv: &Invoice) -> Result<Vec<u8>, AppError> {
     pb.footer_lines.extend(footer);
 
     let title = if cancellation {
-        "Stornorechnung"
+        tr(locale, "invoice.cancellation_invoice")
     } else {
-        "Rechnung"
+        tr(locale, "invoice.invoice")
     };
-    pb.set_continuation(&inv.practice_name, &format!("{title} {}", inv.number), "de");
+    pb.set_continuation(
+        &inv.practice_name,
+        &format!("{title} {}", inv.number),
+        locale,
+    );
 
     // ---- Title --------------------------------------------------------------
     pb.text(M_LEFT, 16, true, title);
@@ -495,9 +516,9 @@ pub fn render_goz_invoice(inv: &Invoice) -> Result<Vec<u8>, AppError> {
         .iter()
         .any(|l| l.fee_schedule == FeeSchedule::Goae);
     let basis = match (has_goz, has_goae) {
-        (true, true) => "Liquidation nach GOZ und GOÄ",
-        (true, false) => "Liquidation nach der Gebührenordnung für Zahnärzte (GOZ)",
-        (false, true) => "Liquidation nach der Gebührenordnung für Ärzte (GOÄ)",
+        (true, true) => tr(locale, "invoice.billing_goz_goae"),
+        (true, false) => tr(locale, "invoice.billing_goz"),
+        (false, true) => tr(locale, "invoice.billing_goae"),
         _ => "",
     };
     if !basis.is_empty() {
@@ -509,20 +530,24 @@ pub fn render_goz_invoice(inv: &Invoice) -> Result<Vec<u8>, AppError> {
         let date = inv
             .cancels_date
             .as_deref()
-            .map(|d| format!(" vom {}", format_date_dmy(d)))
+            .map(|d| format!(" {} {}", tr(locale, "invoice.dated"), format_date_dmy(d)))
             .unwrap_or_default();
         pb.wrapped(
             M_LEFT,
             9,
             false,
-            &format!("Diese Stornorechnung hebt die Rechnung Nr. {orig}{date} vollständig auf."),
+            &trf(
+                locale,
+                "invoice.cancellation_text",
+                &[("orig", orig), ("date", &date)],
+            ),
             M_RIGHT - M_LEFT,
         );
     }
     pb.advance(4);
 
     // ---- Table, grouped by schedule ---------------------------------------
-    emit_table_header(&mut pb);
+    emit_table_header(&mut pb, locale);
     for schedule in FeeSchedule::ORDER {
         let lines: Vec<&InvoiceLine> = inv
             .lines
@@ -533,16 +558,20 @@ pub fn render_goz_invoice(inv: &Invoice) -> Result<Vec<u8>, AppError> {
             continue;
         }
         pb.ensure_space(30);
-        pb.text(M_LEFT, 8, true, schedule.heading());
+        pb.text(M_LEFT, 8, true, schedule.heading(locale));
         pb.advance(11);
         let mut sum = 0;
         for l in lines {
-            emit_line(&mut pb, l);
+            emit_line(&mut pb, l, locale);
             sum += l.amount_cents;
         }
         emit_sum_row(
             &mut pb,
-            &format!("Zwischensumme {}", short_label(schedule)),
+            &format!(
+                "{} {}",
+                tr(locale, "invoice.subtotal"),
+                short_label(schedule, locale)
+            ),
             sum,
             false,
             true,
@@ -558,21 +587,31 @@ pub fn render_goz_invoice(inv: &Invoice) -> Result<Vec<u8>, AppError> {
     pb.hline(M_LEFT + 250, M_RIGHT);
     pb.advance(13);
     let total_label = if cancellation {
-        "Stornobetrag"
+        tr(locale, "invoice.cancellation_amount")
     } else {
-        "Rechnungsbetrag"
+        tr(locale, "invoice.invoice_total")
     };
     if totals.vat_groups.is_empty() {
         emit_sum_row(&mut pb, total_label, totals.gross, true, false);
     } else {
-        emit_sum_row(&mut pb, "Nettobetrag", totals.net, false, false);
+        emit_sum_row(
+            &mut pb,
+            tr(locale, "invoice.net_amount"),
+            totals.net,
+            false,
+            false,
+        );
         for (rate, net, tax) in &totals.vat_groups {
             let rate_s = fmt_factor(*rate as f64 / 100.0)
                 .trim_end_matches(",0")
                 .to_string();
             emit_sum_row(
                 &mut pb,
-                &format!("zzgl. {rate_s} % USt auf {}", fmt_amount(*net)),
+                &trf(
+                    locale,
+                    "invoice.vat_line",
+                    &[("rate", &rate_s), ("net", &fmt_amount(*net))],
+                ),
                 *tax,
                 false,
                 false,
@@ -593,18 +632,18 @@ pub fn render_goz_invoice(inv: &Invoice) -> Result<Vec<u8>, AppError> {
             let text = if totals.vat_groups.is_empty() {
                 n.to_string()
             } else {
-                format!("Positionen ohne USt-Ausweis: {n}")
+                trf(locale, "invoice.items_without_vat", &[("notice", n)])
             };
             pb.wrapped(M_LEFT, 9, false, &text, width);
         }
     }
     if !cancellation {
-        if let Some(t) = inv
+        if let Some(terms) = inv
             .payment_terms_text
             .as_deref()
             .filter(|s| !s.trim().is_empty())
         {
-            pb.wrapped(M_LEFT, 9, false, t, width);
+            pb.wrapped(M_LEFT, 9, false, terms, width);
         }
         // § 286 Abs. 3 S. 1 Hs. 2 BGB: a consumer only falls into default
         // 30 days after receipt if the invoice says so.
@@ -612,7 +651,7 @@ pub fn render_goz_invoice(inv: &Invoice) -> Result<Vec<u8>, AppError> {
             M_LEFT,
             9,
             false,
-            "Hinweis gem. § 286 Abs. 3 BGB: Sie kommen spätestens in Verzug, wenn Sie nicht innerhalb von 30 Tagen nach Fälligkeit und Zugang dieser Rechnung leisten.",
+            tr(locale, "invoice.default_notice_bgb_286"),
             width,
         );
         // Payment details in the body, not only in the footer, so the
@@ -623,9 +662,10 @@ pub fn render_goz_invoice(inv: &Invoice) -> Result<Vec<u8>, AppError> {
                 M_LEFT,
                 9,
                 false,
-                &format!(
-                    "Bitte überweisen Sie den Rechnungsbetrag unter Angabe der Rechnungsnummer {} auf folgendes Konto:",
-                    inv.number
+                &trf(
+                    locale,
+                    "invoice.transfer_request",
+                    &[("number", &inv.number)],
                 ),
                 width,
             );
@@ -654,19 +694,19 @@ pub fn render_goz_invoice(inv: &Invoice) -> Result<Vec<u8>, AppError> {
             title: format!("{title} {}", inv.number),
             subject: Some(inv.number.clone()),
             author: Some(inv.practice_name.clone()),
-            locale: "de".into(),
+            locale: locale.into(),
         },
         &images,
     )
 }
 
-fn short_label(s: FeeSchedule) -> &'static str {
+fn short_label(s: FeeSchedule, locale: &str) -> &'static str {
     match s {
         FeeSchedule::Goz => "GOZ",
         FeeSchedule::Goae => "GOÄ",
-        FeeSchedule::Material => "Material",
-        FeeSchedule::Lab => "Fremdlabor",
-        FeeSchedule::Other => "Sonstiges",
+        FeeSchedule::Material => tr(locale, "invoice.materials"),
+        FeeSchedule::Lab => tr(locale, "invoice.external_lab"),
+        FeeSchedule::Other => tr(locale, "invoice.other"),
     }
 }
 
@@ -781,6 +821,7 @@ mod tests {
             "Steuer-Nr. 12/345/67890",
             "Begr\\374ndung",
             "Leistungszeitraum",
+            "12,94 EUR",
         ] {
             assert!(s.contains(needle), "missing {needle}");
         }
@@ -846,5 +887,65 @@ mod tests {
         let pages = s.matches("/Type /Page ").count();
         assert!(pages >= 3);
         assert_eq!(s.matches("(Leistungsbeschreibung)").count(), pages);
+    }
+
+    #[test]
+    fn invoice_chrome_follows_document_locale() {
+        let markers = [
+            ("de", "Rechnung", "Leistungsbeschreibung", "Rechnungsbetrag"),
+            ("en", "Invoice", "Service description", "Invoice total"),
+            (
+                "fr",
+                "Facture",
+                "Description des prestations",
+                "Montant de la facture",
+            ),
+        ];
+        for (locale, title, desc, total) in markers {
+            let mut inv = sample();
+            inv.locale = locale.into();
+            let s = String::from_utf8_lossy(&render_goz_invoice(&inv).unwrap()).into_owned();
+            assert!(s.contains(title), "locale={locale} missing title {title}");
+            assert!(s.contains(desc), "locale={locale} missing desc {desc}");
+            assert!(s.contains(total), "locale={locale} missing total {total}");
+        }
+        let mut ar = sample();
+        ar.locale = "ar".into();
+        ar.rtl = true;
+        let pdf = render_goz_invoice(&ar).unwrap();
+        let s = String::from_utf8_lossy(&pdf);
+        assert!(
+            s.contains("+NotoNaskhArabic") || s.contains("/F3 "),
+            "ar invoice missing arabic font"
+        );
+        assert!(s.contains("/Lang (ar)"), "ar invoice /Lang");
+    }
+
+    #[test]
+    fn legal_sub_lines_follow_the_document_language() {
+        let mut inv = sample();
+        inv.locale = "fr".into();
+        inv.watermark = Some("ENTWURF".into());
+        let s = String::from_utf8_lossy(&render_goz_invoice(&inv).unwrap()).into_owned();
+        assert!(s.contains("Justificatif joint."), "receipt line in French");
+        assert!(s.contains("Justification \\(\\247 10 al. 3 GOZ\\)"), "justification in French");
+        assert!(!s.contains("Beleg liegt bei"), "no German sub-line");
+        assert!(!s.contains("Begr\\374ndung"), "no German justification");
+        assert!(s.contains("(BROUILLON)"), "German watermark word localised");
+    }
+
+    #[test]
+    fn invoice_carries_a_document_id() {
+        let inv = sample();
+        let uid = "4f1c2b8e-1111-4222-8333-944455556666";
+        let pdf = super::super::core::with_document_uid(uid, || render_goz_invoice(&inv)).unwrap();
+        assert_eq!(super::super::core::document_uid_of(&pdf).as_deref(), Some(uid));
+        let s = String::from_utf8_lossy(&pdf);
+        assert!(s.contains(&format!("Dokument-ID: {uid}")), "id printed in the footer");
+        assert!(s.contains("/ID [<4F1C2B8E111142228333944455556666>"));
+        // Without a fixed id every render still gets one.
+        let other = render_goz_invoice(&inv).unwrap();
+        assert!(super::super::core::document_uid_of(&other).is_some());
+        assert_ne!(super::super::core::document_uid_of(&other).as_deref(), Some(uid));
     }
 }

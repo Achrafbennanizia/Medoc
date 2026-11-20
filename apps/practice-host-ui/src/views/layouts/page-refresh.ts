@@ -3,8 +3,11 @@ import { useEffect, useRef } from "react";
 /** Shell broadcasts this so the open page reloads its data without unloading the document. */
 export const PAGE_REFRESH_EVENT = "medoc-page-refresh";
 
-/** Background reload of the open page. */
+/** Reload of the page that is on screen. */
 export const PAGE_REFRESH_MS = 5_000;
+
+/** Reload while the window is in the background. */
+export const PAGE_REFRESH_HIDDEN_MS = 3 * 60 * 1000;
 
 export function usePageRefresh(onRefresh: () => void) {
     const ref = useRef(onRefresh);

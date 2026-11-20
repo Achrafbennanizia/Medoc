@@ -67,3 +67,10 @@ export const PATIENT_CHART_WORKFLOW_HEADER_BUTTONS_ENABLED = false;
  * `docs/coordination/todos-deferred-ui-blinds.md`.
  */
 export const CHART_QUEUE_DECLINE_ENABLED = false;
+
+/**
+ * Settings → System: drag-and-drop PDF header table.
+ * Hide until the table places fields reliably and the printed header matches it.
+ * See `docs/coordination/todos-deferred-ui-blinds.md`.
+ */
+export const PDF_HEADER_DESIGNER_ENABLED = false;

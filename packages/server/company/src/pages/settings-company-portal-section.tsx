@@ -1,11 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import {
-    companyPortalBillingPortalUrl,
-    companyPortalPing,
-    getCompanyPortalConfig,
-    setCompanyPortalConfig,
-    type CompanyPortalConfig,
-} from "@/systems/practice-host/controllers/settings-page.controller";
+import { companySystem } from "@/systems/company-portal/adapters/tauri-company.adapter";
+import type { CompanyPortalConfig } from "@/systems/practice-host/controllers/settings-page.controller";
 import { Button } from "@/views/components/ui/button";
 import { Input } from "@/views/components/ui/input";
 import { useToastStore } from "@/views/components/ui/toast-store";
@@ -31,7 +26,7 @@ export function SettingsCompanyPortalSection({ embedded = false }: { embedded?: 
 
     const refresh = useCallback(async () => {
         try {
-            const c = await getCompanyPortalConfig();
+            const c = await companySystem.getConfig();
             setCfg({
                 base_url: (c.base_url ?? "").trim(),
                 practice_slug: (c.practice_slug ?? "").trim(),
@@ -49,7 +44,7 @@ export function SettingsCompanyPortalSection({ embedded = false }: { embedded?: 
     const saveCfg = async () => {
         setBusy(true);
         try {
-            await setCompanyPortalConfig(cfg);
+            await companySystem.setConfig(cfg);
             toast(t("page.company.portal.toast.saved"), "success");
             await refresh();
         } catch (e) {
@@ -62,7 +57,7 @@ export function SettingsCompanyPortalSection({ embedded = false }: { embedded?: 
     const ping = async () => {
         setPingBusy(true);
         try {
-            const j = await companyPortalPing();
+            const j = await companySystem.ping();
             setDemoMode(j._demo === true);
             toast(formatTpl(t("page.company.portal.toast.ping_ok"), { preview: JSON.stringify(j).slice(0, 120) }), "success");
         } catch (e) {
@@ -75,7 +70,7 @@ export function SettingsCompanyPortalSection({ embedded = false }: { embedded?: 
     const openBilling = async () => {
         setBillingBusy(true);
         try {
-            const url = await companyPortalBillingPortalUrl();
+            const url = await companySystem.billingPortalUrl();
             window.open(url, "_blank", "noopener,noreferrer");
         } catch (e) {
             toast(formatTpl(t("page.company.portal.toast.billing_err"), { error: errorMessage(e) }), "error");

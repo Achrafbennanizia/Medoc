@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { readListSnapshot, writeListSnapshot } from "@/lib/list-snapshot";
-import { PAGE_REFRESH_MS } from "../layouts/page-refresh";
+import { PAGE_REFRESH_EVENT } from "../layouts/page-refresh";
 import { format, parseISO } from "date-fns";
 import type { Locale as DateFnsLocale } from "date-fns";
 import { Link } from "react-router-dom";
@@ -25,7 +25,7 @@ import {
     type StatisticsOverview,
 } from "@/systems/practice-host/controllers/statistics.controller";
 import type { LabelValue, MonthBucket } from "../../models/types";
-import { errorMessage, formatCurrency } from "@/lib/utils";
+import { errorMessage, formatCurrency, kpiValueSizeClass } from "@/lib/utils";
 // TODO(later): restore Analytics Export/Import — see docs/coordination/todos-deferred-ui-blinds.md
 // import { buildStatisticsReportBundle } from "@/lib/report-export";
 // import { ReportExportToolbar } from "../components/report-export-toolbar";
@@ -795,7 +795,7 @@ function StatOverviewCard({ label, value, icon, accent, sub, trend = "neutral" }
                 </span>
                 {label}
             </div>
-            <div className="kpi-val">{value}</div>
+            <div className={kpiValueSizeClass(value)}>{value}</div>
             {sub ? (
                 <div className="kpi-delta">
                     <span
@@ -980,8 +980,9 @@ export function StatisticsPage() {
     }, [reloadToken]);
 
     useEffect(() => {
-        const id = window.setInterval(() => setReloadToken((n) => n + 1), PAGE_REFRESH_MS);
-        return () => window.clearInterval(id);
+        const onRefresh = () => setReloadToken((n) => n + 1);
+        window.addEventListener(PAGE_REFRESH_EVENT, onRefresh);
+        return () => window.removeEventListener(PAGE_REFRESH_EVENT, onRefresh);
     }, []);
 
     useEffect(() => {
@@ -1177,7 +1178,7 @@ export function StatisticsPage() {
                             </p>
                 <div
                     className="dashboard-kpis"
-                    style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}
+                    style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}
                 >
                     {stats.patients_total != null && (
                         <StatOverviewCard
@@ -1282,7 +1283,7 @@ export function StatisticsPage() {
 
                 <div
                     className="dashboard-kpis"
-                    style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, marginTop: 16 }}
+                    style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16, marginTop: 16 }}
                 >
                     <StatOverviewCard
                         label={t("page.statistics.kpi.appointments_last_month")}
@@ -1328,7 +1329,7 @@ export function StatisticsPage() {
 
                 <div
                     className="dashboard-kpis"
-                    style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, marginTop: 16 }}
+                    style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16, marginTop: 16 }}
                 >
                     <StatOverviewCard
                         label={tp("page.statistics.kpi.revenue_sum", { period: periodLabel })}

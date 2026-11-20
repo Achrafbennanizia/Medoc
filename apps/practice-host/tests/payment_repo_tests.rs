@@ -4,7 +4,7 @@ use medoc_lib::domain::entities::payment::{CreatePayment, UpdatePayment};
 use medoc_lib::domain::enums::PaymentMethod;
 use medoc_lib::error::AppError;
 use medoc_lib::infrastructure::database::connection::{run_migrations, test_memory_pool};
-use medoc_lib::infrastructure::database::payment_repo;
+use medoc_lib::infrastructure::database::repos::billing::payment as payment_repo;
 
 async fn migrated_pool() -> sqlx::SqlitePool {
     let pool = test_memory_pool().await.expect("encrypted memory pool");
@@ -163,7 +163,7 @@ async fn ensure_open_booking_for_billable_treatment_sets_release_and_outstanding
             .await
             .expect("payment row");
     assert_eq!(z.0, "OUTSTANDING");
-    assert!(z.1 <= 0.005);
+    assert!(z.1 <= medoc_core::domain::services::pricing::PAYMENT_BOOKING_TOLERANCE_EUR);
     assert!(
         z.2.contains("Füllung") && !z.2.contains("open billing") && !z.2.contains("FA-LEIST"),
         "description should be the service name without billing boilerplate: {}",
@@ -239,7 +239,7 @@ async fn ensure_open_booking_for_billable_examination_sets_release_and_outstandi
     .await
     .expect("payment row");
     assert_eq!(z.0, "OUTSTANDING");
-    assert!(z.1 <= 0.005);
+    assert!(z.1 <= medoc_core::domain::services::pricing::PAYMENT_BOOKING_TOLERANCE_EUR);
     assert_eq!(z.2, Some(45.0));
 }
 
@@ -351,7 +351,7 @@ async fn update_fields_caps_replacement_amount_against_other_rows() {
 #[tokio::test]
 async fn create_fulfills_open_booking_in_place_and_closes_billing_task() {
     use medoc_lib::domain::entities::practice_task::CreatePracticeTask;
-    use medoc_lib::infrastructure::database::practice_task_repo;
+    use medoc_lib::infrastructure::database::repos::scheduling::practice_task as practice_task_repo;
 
     let pool = migrated_pool().await;
     let patient_id = "t-fulfill-pat".to_string();

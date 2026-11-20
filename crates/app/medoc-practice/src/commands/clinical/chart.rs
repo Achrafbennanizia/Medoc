@@ -1,5 +1,5 @@
 use crate::application::rbac::{self, Role};
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::domain::entities::anamnesis_form::SaveAnamnesisForm;
 use crate::domain::entities::dental_finding::CreateDentalFinding;
 use crate::domain::entities::treatment::{
@@ -7,7 +7,8 @@ use crate::domain::entities::treatment::{
 };
 use crate::domain::entities::{AnamnesisForm, DentalFinding, PatientChart};
 use crate::error::AppError;
-use crate::infrastructure::database::{audit_repo, chart_repo};
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
+use crate::infrastructure::database::repos::clinical::chart as chart_repo;
 use sqlx::SqlitePool;
 use tauri::State;
 
@@ -157,7 +158,9 @@ pub async fn set_treatment_billing(
         Some(&format!(
             "goz_nr={} factor={}",
             t.goz_nr.as_deref().unwrap_or("-"),
-            t.factor.map(|f| f.to_string()).unwrap_or_else(|| "-".into())
+            t.factor
+                .map(|f| f.to_string())
+                .unwrap_or_else(|| "-".into())
         )),
     )
     .await
@@ -365,29 +368,4 @@ pub async fn export_discharge_leaflet_pdf(
 ) -> Result<medoc_core::application::documents::issue::IssuedPdf, AppError> {
     let session = rbac::require(&session_state, "patient.read_medical")?;
     crate::application::chart::pdf_export::export_discharge_leaflet_pdf(&pool, &session, args).await
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_chart_commands {
-    () => {
-        $crate::commands::chart_commands::get_chart,
-        $crate::commands::chart_commands::update_dental_finding,
-        $crate::commands::chart_commands::list_dental_findings,
-        $crate::commands::chart_commands::list_treatments,
-        $crate::commands::chart_commands::list_examinations,
-        $crate::commands::chart_commands::save_anamnesis_form,
-        $crate::commands::chart_commands::get_anamnesis_form,
-        $crate::commands::chart_commands::create_examination,
-        $crate::commands::chart_commands::create_treatment,
-        $crate::commands::chart_commands::update_treatment,
-        $crate::commands::chart_commands::delete_treatment,
-        $crate::commands::chart_commands::release_treatment_for_billing,
-        $crate::commands::chart_commands::set_treatment_billing,
-        $crate::commands::chart_commands::release_examination_for_billing,
-        $crate::commands::chart_commands::update_examination,
-        $crate::commands::chart_commands::delete_examination,
-        $crate::commands::chart_commands::export_chart_pdf,
-        $crate::commands::chart_commands::export_discharge_leaflet_pdf,
-    };
 }

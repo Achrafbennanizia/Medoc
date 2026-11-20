@@ -110,7 +110,7 @@ async fn prescription_and_certificate_forward_migrations_add_columns() {
 #[tokio::test]
 async fn prescription_amvv_fields_round_trip() {
     use medoc_lib::domain::entities::prescription::CreatePrescription;
-    use medoc_lib::infrastructure::database::prescription_repo;
+    use medoc_lib::infrastructure::database::repos::clinical::prescription as prescription_repo;
 
     let pool = test_memory_pool().await.expect("encrypted memory pool");
     run_migrations(&pool).await.expect("migrations");
@@ -168,7 +168,7 @@ async fn prescription_amvv_fields_round_trip() {
 async fn certificate_extended_fields_round_trip() {
     use chrono::NaiveDate;
     use medoc_lib::domain::entities::certificate::CreateCertificate;
-    use medoc_lib::infrastructure::database::certificate_repo;
+    use medoc_lib::infrastructure::database::repos::clinical::certificate as certificate_repo;
 
     let pool = test_memory_pool().await.expect("encrypted memory pool");
     run_migrations(&pool).await.expect("migrations");

@@ -4,7 +4,7 @@ import { useT, useTParams } from "@/lib/i18n";
 import type { TreatmentCatalogItem, PatientChart, Examination, DentalFinding } from "@/models/types";
 import { parseExaminationV1 } from "@/lib/examination";
 import type { ExaminationSubmit } from "@/views/components/examination-composer";
-import { formatDateTime } from "@/lib/utils";
+import { formatCurrency, formatDateTime } from "@/lib/utils";
 import { ChartInlineEditPanelShell, ConfirmOrInline } from "@/views/components/chart-confirm-presentation";
 import { ExaminationComposer } from "@/views/components/examination-composer";
 import { Button } from "@/views/components/ui/button";
@@ -141,7 +141,7 @@ export function PatientDetailExaminationTab({
                                                             : ""}
                                                         {clinicalServiceLabel(u.service_name ?? "")}
                                                         {u.total_cost != null && Number.isFinite(u.total_cost)
-                                                            ? ` · ${u.total_cost.toFixed(2)} €`
+                                                            ? ` · ${formatCurrency(u.total_cost)}`
                                                             : ""}
                                                     </div>
                                                 ) : null}

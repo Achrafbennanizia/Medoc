@@ -1,4 +1,5 @@
 import type { Product } from "@/models/types";
+import { parseEuroInput } from "@/lib/utils";
 
 export type ProductForm = {
     name: string;
@@ -59,7 +60,7 @@ export function parseForm(
     return {
         name: f.name.trim(),
         category: f.category.trim(),
-        price: Number(String(f.price).replace(",", ".")),
+        price: parseEuroInput(String(f.price)) ?? Number.NaN,
         stock: amount,
         min_stock: stockUi ? Math.trunc(Number(f.min_stock)) : (fallback?.min_stock ?? 0),
         description: f.description.trim() || undefined,
@@ -68,7 +69,7 @@ export function parseForm(
 
 export function formValid(f: ProductForm, opts?: { stockUi?: boolean }): boolean {
     if (!f.name.trim() || !f.category.trim()) return false;
-    const price = Number(String(f.price).replace(",", "."));
+    const price = parseEuroInput(String(f.price)) ?? Number.NaN;
     if (!Number.isFinite(price) || price < 0) return false;
     if (opts?.stockUi !== false) {
         if (!Number.isFinite(Number(f.stock)) || !Number.isFinite(Number(f.min_stock))) return false;

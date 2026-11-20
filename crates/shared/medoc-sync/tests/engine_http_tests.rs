@@ -1079,7 +1079,10 @@ async fn large_outbox_drains_in_pages() {
         "app_kv",
         "huge.key",
         "INSERT",
-        &format!(r#"{{"key":"huge.key","value":"{}"}}"#, "x".repeat(13 * 1024 * 1024)),
+        &format!(
+            r#"{{"key":"huge.key","value":"{}"}}"#,
+            "x".repeat(13 * 1024 * 1024)
+        ),
     )
     .await
     .expect("huge");
@@ -1109,7 +1112,10 @@ async fn large_outbox_drains_in_pages() {
         .await
         .unwrap()
         .len();
-    assert!(remaining < 520, "paged push should drain most rows, leftover {remaining}");
+    assert!(
+        remaining < 520,
+        "paged push should drain most rows, leftover {remaining}"
+    );
     let failed: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM sync_outbox WHERE fail_reason = 'ENTRY_TOO_LARGE'",
     )

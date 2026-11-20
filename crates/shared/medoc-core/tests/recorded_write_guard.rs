@@ -1,6 +1,6 @@
 //! H2: every repo write of a synced table goes through `record_in_tx`.
 
-use medoc_core::infrastructure::database::sync_registry::{synced_tables, TABLES, SyncClass};
+use medoc_core::infrastructure::database::sync_registry::{synced_tables, SyncClass, TABLES};
 use regex::Regex;
 use std::fs;
 use std::path::Path;
@@ -28,12 +28,12 @@ fn command_and_service_writes_are_recorded() {
 
 fn scan_and_assert(roots: &[std::path::PathBuf], skip_app_kv: bool) {
     let synced: Vec<&str> = synced_tables().collect();
-    let sql_re = Regex::new(
-        r#"(?i)(INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+["']?([a-z_][a-z0-9_]*)"#,
-    )
-    .expect("sql re");
-    let fn_re = Regex::new(r"(?m)^(?:\s*(?:pub(?:\([^)]+\))?\s+)?)?(?:async\s+)?fn\s+([A-Za-z0-9_]+)")
-        .expect("fn re");
+    let sql_re =
+        Regex::new(r#"(?i)(INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+["']?([a-z_][a-z0-9_]*)"#)
+            .expect("sql re");
+    let fn_re =
+        Regex::new(r"(?m)^(?:\s*(?:pub(?:\([^)]+\))?\s+)?)?(?:async\s+)?fn\s+([A-Za-z0-9_]+)")
+            .expect("fn re");
     let mut offenders = Vec::new();
     for root in roots {
         visit_rs(root, &mut |path, src| {

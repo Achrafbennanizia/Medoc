@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://medoc.local/schemas/vendor-recovery.share.v2.schema.json",
+  "title": "vendor-recovery.share.v2",
+  "description": "Vendor half of Bridge C. Sealed with ephemeral X25519 ECDH + HKDF + XChaCha20-Poly1305 with AAD (not crypto_box_seal).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "kind",
+    "cluster_id",
+    "device_fingerprint",
+    "recovery_policy_version",
+    "key_id",
+    "kcv",
+    "vendor_recovery_pubkey",
+    "ephemeral_pubkey",
+    "nonce",
+    "ciphertext",
+    "aad",
+    "created_at"
+  ],
+  "properties": {
+    "version": { "type": "integer", "const": 2 },
+    "kind": { "type": "string", "const": "vendor-recovery.share.v2" },
+    "cluster_id": { "type": "string" },
+    "device_fingerprint": {
+      "type": "string",
+      "description": "Mint-time fingerprint from share header (new-hardware safe)"
+    },
+    "recovery_policy_version": { "type": "integer", "const": 2 },
+    "key_id": { "type": "string", "description": "Hex 8-byte id of vendor recovery pubkey" },
+    "kcv": { "type": "string", "description": "Base64 16-byte key-check value for db_key" },
+    "vendor_recovery_pubkey": {
+      "type": "string",
+      "description": "Base64 X25519 public key"
+    },
+    "ephemeral_pubkey": {
+      "type": "string",
+      "description": "Base64 ephemeral X25519 public key used for ECDH"
+    },
+    "nonce": { "type": "string", "description": "Base64 24-byte XChaCha20 nonce" },
+    "ciphertext": {
+      "type": "string",
+      "description": "Base64 XChaCha20-Poly1305 of 32-byte vendor_share"
+    },
+    "aad": {
+      "type": "string",
+      "description": "Base64 AAD: medoc-vendor-share-v2 || cluster_id || fingerprint || key_id || policy"
+    },
+    "created_at": { "type": "string", "format": "date-time" }
+  }
+}

@@ -1,7 +1,9 @@
-import { translateLocale, translateLocaleParams, translatePluralUnit, useLocale, isRtlLocale } from "@/lib/i18n";
+import { translateLocale, translateLocaleParams, translatePluralUnit } from "@/lib/i18n";
+import { documentLocaleForI18n } from "@/lib/document-locale";
 import type { Certificate } from "@/systems/practice-host/controllers/certificate.controller";
 import type { Prescription } from "@/systems/practice-host/controllers/prescription.controller";
-import { escapeHtml, formatDate, formatCurrency } from "@/lib/utils";
+import { escapeHtml, formatDate, formatCurrency, formatWrittenDay, inclusiveCalendarDays } from "@/lib/utils";
+import { practiceCurrency } from "@/lib/practice-currency";
 import { csvCell } from "@/lib/export-delimited";
 import type {
     Patient,
@@ -15,11 +17,8 @@ import { getInvoicePracticeFromStorage } from "@/lib/invoice-service-item";
 import { buildClinicalTemplateHeaderLines } from "@/lib/clinical-document-pdf";
 import { emptyDocumentTemplatePayloadV1, type PracticeFieldKey } from "@/lib/document-template-schema";
 import { loadPracticeHeaderPrivacy } from "@/lib/practice-header-privacy";
-import {
-    formatPaymentReferenceLine,
-    paymentStatusDisplay,
-    paymentMethodLabel,
-} from "@/lib/payment-booking";
+import { formatPaymentReferenceLine } from "@/lib/payment-booking";
+import { paymentMethodLabel, paymentStatusDisplay } from "@/lib/finance-order-labels";
 import type { ClinicalDocumentSource } from "@/systems/practice-host/controllers/document.controller";
 import {
     buildCertificatePdfLayout,
@@ -30,65 +29,10 @@ import {
     type ClinicalPdfLayout,
 } from "@/lib/clinical-pdf-layout";
 
-const docT = (key: string) => translateLocale(useLocale.getState().locale, key);
+/** Always use the document language (Settings / UI sync), never a divergent UI-only locale. */
+const docT = (key: string) => translateLocale(documentLocaleForI18n(), key);
 const docTp = (key: string, params: Record<string, string | number>) =>
-    translateLocaleParams(useLocale.getState().locale, key, params);
-
-function htmlLangDir(): { lang: string; dir: string } {
-    const loc = useLocale.getState().locale;
-    return { lang: loc, dir: isRtlLocale(loc) ? "rtl" : "ltr" };
-}
-
-const PRACTICE_LOGO_LS_KEY = "medoc-practice-logo-v1";
-
-/** Sync logo cache for HTML print (Settings also writes this when saving). */
-export function cachePracticeLogoForPrint(mime: string, dataBase64: string, showOnDocuments = true): void {
-    try {
-        localStorage.setItem(
-            PRACTICE_LOGO_LS_KEY,
-            JSON.stringify({ mime, data: dataBase64, showOnDocuments }),
-        );
-    } catch {
-        /* ignore */
-    }
-}
-
-function practiceLogoDataUrl(): string | null {
-    try {
-        const raw = localStorage.getItem(PRACTICE_LOGO_LS_KEY);
-        if (!raw) return null;
-        const j = JSON.parse(raw) as { mime?: string; data?: string; showOnDocuments?: boolean };
-        if (j.showOnDocuments === false) return null;
-        if (!j.mime || !j.data) return null;
-        return `data:${j.mime};base64,${j.data}`;
-    } catch {
-        return null;
-    }
-}
-
-function printLetterheadHtml(): string {
-    const logo = practiceLogoDataUrl();
-    if (!logo) {
-        // No uploaded logo → classic print template (no logo chrome).
-        return "";
-    }
-    const { dir } = htmlLangDir();
-    return `<div class="letterhead" style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px;flex-direction:${dir === "rtl" ? "row-reverse" : "row"}">
-      <img class="practice-logo" src="${logo}" alt="" />
-      <div class="letterhead-spacer" style="flex:1"></div>
-    </div>`;
-}
-
-function printDocChromeCss(): string {
-    return `.practice-logo{height:48px;width:auto;max-width:120px;object-fit:contain}`;
-}
-
-function prescriptionStatusLabel(status: string): string {
-    const s = status.trim();
-    if (s === "ISSUED") return docT("enum.prescription_status.issued");
-    if (s === "DRAFT") return docT("enum.prescription_status.draft");
-    return s || "—";
-}
+    translateLocaleParams(documentLocaleForI18n(), key, params);
 
 function csvRow(cells: string[]): string {
     return cells.map((c) => csvCell(c, ";")).join(";");
@@ -115,14 +59,6 @@ function practiceHeaderLinesForExport(): string[] {
     const tpl = emptyDocumentTemplatePayloadV1();
     tpl.header.fieldsToShow = CLINICAL_HEADER_FIELDS;
     return buildClinicalTemplateHeaderLines(tpl, practice, loadPracticeHeaderPrivacy());
-}
-
-function formatPrescriptionDate(iso: string): string {
-    const d = iso.trim().slice(0, 10);
-    if (d.length >= 10 && d[4] === "-") {
-        return `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}`;
-    }
-    return formatDate(iso);
 }
 
 function clinicianSignatureBlock(): string[] {
@@ -177,33 +113,11 @@ export function suggestReceiptExportBasename(z: Payment): string {
     return `Receipt_${day}_${z.id.slice(0, 8)}`;
 }
 
-/** @deprecated Use suggestCertificateExportBasename */
-export function suggestCertificateHtmlFilename(a: Certificate): string {
-    return `${suggestCertificateExportBasename(a)}.html`;
-}
-
-/** @deprecated Use suggestPrescriptionExportBasename */
-export function suggestPrescriptionHtmlFilename(r: Prescription): string {
-    return `${suggestPrescriptionExportBasename(r)}.html`;
-}
-
-/** @deprecated Use suggestPrescriptionComboExportBasename */
-export function suggestPrescriptionComboHtmlFilename(items: Prescription[]): string {
-    return `${suggestPrescriptionComboExportBasename(items)}.html`;
-}
-
-/** @deprecated Use suggestReceiptExportBasename */
-export function suggestReceiptHtmlFilename(z: Payment): string {
-    return `${suggestReceiptExportBasename(z)}.html`;
-}
-
 function certificatePdfLines(a: Certificate, patient: Patient | null): string[] {
     const from = formatDate(a.valid_from);
     const until = formatDate(a.valid_until);
     const issued = formatDate(a.issued_at);
-    const t0 = new Date(`${a.valid_from.slice(0, 10)}T12:00:00`);
-    const t1 = new Date(`${a.valid_until.slice(0, 10)}T12:00:00`);
-    const days = Math.max(1, Math.round((t1.getTime() - t0.getTime()) / 86_400_000) + 1);
+    const days = inclusiveCalendarDays(a.valid_from, a.valid_until);
     const firstOrFollowUp =
         (a.first_or_follow_up ?? "FIRST") === "FOLLOW_UP"
             ? docT("document.print.certificate_followup")
@@ -212,7 +126,7 @@ function certificatePdfLines(a: Certificate, patient: Patient | null): string[] 
     const dob = patient ? formatDate(patient.date_of_birth) : "—";
     const icd = (a.icd10_code ?? "").trim() || "—";
     const dobPart = patient ? docTp("document.print.certificate_dob_part", { dob }) : "";
-    const unit = translatePluralUnit(useLocale.getState().locale, "document.print.day_unit", days);
+    const unit = translatePluralUnit(documentLocaleForI18n(), "document.print.day_unit", days);
     const lines: string[] = [
         ...practiceHeaderLinesForExport(),
         "",
@@ -297,15 +211,22 @@ export function bundleCertificateExport(a: Certificate, patient: Patient | null)
     };
 }
 
+function prescriptionTypeLabel(raw: string): string {
+    const code = (raw.trim() || "PRIVAT").toUpperCase();
+    const key = `prescription.kind.${code}`;
+    const label = docT(key);
+    return label === key ? code : label;
+}
+
 function prescriptionPdfLinesSingle(r: Prescription, patient: Patient | null): string[] {
-    const kind = (r.prescription_type ?? "PRIVAT").trim() || "PRIVAT";
+    const kind = prescriptionTypeLabel(r.prescription_type ?? "PRIVAT");
     const autIdem = r.aut_idem !== false;
     return [
         ...practiceHeaderLinesForExport(),
         "",
         docTp("document.print.prescription_heading", { type: kind }),
         docTp("document.print.prescription_number", { number: r.id.slice(0, 8).toUpperCase() }),
-        docTp("document.print.prescription_date", { date: formatPrescriptionDate(r.issued_at) }),
+        docTp("document.print.prescription_date", { date: formatWrittenDay(r.issued_at) }),
         "",
         docT("document.print.patient_info"),
         docTp("document.print.name_line", { name: patient?.name ?? "—" }),
@@ -389,7 +310,7 @@ function prescriptionPdfLinesCombo(items: Prescription[], patient: Patient | nul
         ...practiceHeaderLinesForExport(),
         "",
         title,
-        docTp("document.print.prescription_date", { date: formatPrescriptionDate(first.issued_at) }),
+        docTp("document.print.prescription_date", { date: formatWrittenDay(first.issued_at) }),
         "",
         docT("document.print.patient_info"),
         docTp("document.print.name_line", { name: patient?.name ?? "—" }),
@@ -532,9 +453,9 @@ export function bundleReceiptExport(
             "Patient",
             "DateOfBirth",
             "PaymentDate",
-            "StandardPriceEUR",
-            "PriceEUR",
-            "AmountPaidEUR",
+            `StandardPrice${practiceCurrency()}`,
+            `Price${practiceCurrency()}`,
+            `AmountPaid${practiceCurrency()}`,
             "PaymentMethod",
             "Status",
             "Assignment",
@@ -554,6 +475,7 @@ export function bundleReceiptExport(
         ])}\n`;
     const jsonObj = {
         documentKind: "receipt",
+        currency: practiceCurrency(),
         patient: { id: patient.id, name: patient.name, date_of_birth: patient.date_of_birth },
         payment: {
             id: z.id,
@@ -571,176 +493,11 @@ export function bundleReceiptExport(
     const jsonText = `${JSON.stringify(jsonObj, null, 2)}\n`;
     const xmlText =
         `<?xml version="1.0" encoding="UTF-8"?>\n<receiptExport xmlns="urn:medoc:export:clinical-doc:1">\n`
+        + `  <currency>${escapeHtml(practiceCurrency())}</currency>\n`
         + `  <standardPrice>${escapeHtml(prices.standardPrice != null ? prices.standardPrice.toFixed(2) : "")}</standardPrice>\n`
         + `  <price>${escapeHtml(prices.billedPrice != null ? prices.billedPrice.toFixed(2) : "")}</price>\n`
         + `  <amountPaid>${escapeHtml(z.amount.toFixed(2))}</amountPaid>\n`
         + `  <assignment>${escapeHtml(referenceLine)}</assignment>\n`
         + `</receiptExport>\n`;
     return { source: { kind: "receipt", sourceId: z.id }, pdfBodyLines, pdfLayout, csvText, jsonText, xmlText };
-}
-
-/**
- * @deprecated Prints a different document than the issued PDF (no number,
- * no practice header). Print the PDF from `issue_clinical_document` instead.
- */
-export function buildCertificatePrintHtml(a: Certificate, patient: Patient | null): string {
-    const title = escapeHtml(`Certificate ${a.id}`);
-    const kind = escapeHtml(a.kind);
-    const patientLine = escapeHtml(patient?.name ?? a.patient_id);
-    const dob = patient ? escapeHtml(formatDate(patient.date_of_birth)) : "";
-    const span = `${escapeHtml(formatDate(a.valid_from))} – ${escapeHtml(formatDate(a.valid_until))}`;
-    const issuedOn = escapeHtml(formatDate(a.issued_at));
-    const bodyHtml = escapeHtml(a.body_text);
-    return `<!doctype html><html lang="${htmlLangDir().lang}" dir="${htmlLangDir().dir}"><head><meta charset="utf-8"/><title>${title}</title>
-            <style>body{font-family:Helvetica,Arial,sans-serif;padding:2cm;color:#000}
-            h1{font-size:18pt}.row{margin:0.3cm 0}.label{display:inline-block;width:4cm;color:#555}
-            .body{margin:1cm 0;white-space:pre-wrap}
-            .practice-logo{height:48px;width:auto;max-width:120px;object-fit:contain}</style></head><body>
-            ${printLetterheadHtml()}
-            <h1>${kind}</h1>
-            <div class="row"><span class="label">${escapeHtml(docT("document.print.patient"))}:</span>${patientLine}</div>
-            <div class="row"><span class="label">${escapeHtml(docT("document.print.date_of_birth"))}:</span>${dob}</div>
-            <div class="row"><span class="label">${escapeHtml(docT("document.print.valid"))}</span>${span}</div>
-            <div class="row"><span class="label">${escapeHtml(docT("document.print.issued"))}</span>${issuedOn}</div>
-            <hr/>
-            <div class="body">${bodyHtml}</div>
-            <p style="margin-top:3cm">______________________<br/>${docT("document.print.signature")}</p>
-            </body></html>`;
-}
-
-function prescriptionSectionBlock(r: Prescription): string {
-    return `<section class="rx">
-            <div class="row"><span class="label">${escapeHtml(docT("document.print.medication"))}:</span><strong>${escapeHtml(r.medication)}</strong></div>
-            ${r.active_ingredient?.trim() ? `<div class="row"><span class="label">${escapeHtml(docT("document.print.active_ingredient"))}:</span>${escapeHtml(r.active_ingredient)}</div>` : ""}
-            <div class="row"><span class="label">${escapeHtml(docT("document.print.dosage"))}:</span>${escapeHtml(r.dosage)}</div>
-            <div class="row"><span class="label">${escapeHtml(docT("document.print.duration"))}:</span>${escapeHtml(r.duration)}</div>
-            ${r.instructions?.trim() ? `<div class="row"><span class="label">${escapeHtml(docT("document.print.notes"))}:</span>${escapeHtml(r.instructions)}</div>` : ""}
-        </section>`;
-}
-
-/** Single prescription — table layout (Chart / compact view). */
-/**
- * @deprecated Prints a different document than the issued PDF (no number,
- * no practice header). Print the PDF from `issue_clinical_document` instead.
- */
-export function buildPrescriptionPrintHtml(r: Prescription, patient: Patient | null): string {
-    const med = escapeHtml(r.medication);
-    const wirk = escapeHtml((r.active_ingredient ?? "").trim() || "—");
-    const dos = escapeHtml(r.dosage);
-    const duration = escapeHtml(r.duration);
-    const hin = escapeHtml((r.instructions ?? "").trim() || "—");
-    const patientLine = escapeHtml(patient?.name ?? "");
-    const dob = patient ? escapeHtml(formatDate(patient.date_of_birth)) : "";
-    const issuedOn = escapeHtml(formatDate(r.issued_at));
-    const statusLabel = escapeHtml(prescriptionStatusLabel(r.status));
-    const rxTitle = escapeHtml(docT("document.print.prescription_title"));
-    return `<!doctype html><html lang="${htmlLangDir().lang}" dir="${htmlLangDir().dir}"><head><meta charset="utf-8"/><title>${rxTitle}</title>
-            <style>
-              body{font-family:Helvetica,Arial,sans-serif;padding:24px;color:#111;line-height:1.45}
-              h1{font-size:20px;margin:0 0 16px}
-              table{border-collapse:collapse;width:100%;margin:16px 0;font-size:13px}
-              th,td{border:1px solid #ccc;padding:8px 10px;text-align:left;vertical-align:top}
-              th{background:#f4f4f4;font-weight:600;width:34%}
-              .muted{color:#555;font-size:11px;margin-top:28px}
-            ${printDocChromeCss()}</style></head><body>
-            ${printLetterheadHtml()}
-            <h1>${rxTitle}</h1>
-            <table aria-label="${escapeHtml(docT("document.print.prescription_master_aria"))}">
-              <tbody>
-                <tr><th scope="row">${escapeHtml(docT("document.print.patient"))}</th><td>${patientLine}</td></tr>
-                <tr><th scope="row">${escapeHtml(docT("document.print.date_of_birth"))}</th><td>${dob}</td></tr>
-                <tr><th scope="row">${escapeHtml(docT("document.print.issued_on"))}</th><td>${issuedOn}</td></tr>
-                <tr><th scope="row">${escapeHtml(docT("common.status"))}</th><td>${statusLabel}</td></tr>
-                <tr><th scope="row">${escapeHtml(docT("document.print.medication"))}</th><td>${med}</td></tr>
-                <tr><th scope="row">${escapeHtml(docT("document.print.active_ingredient"))}</th><td>${wirk}</td></tr>
-                <tr><th scope="row">${escapeHtml(docT("document.print.dosage"))}</th><td>${dos}</td></tr>
-                <tr><th scope="row">${escapeHtml(docT("document.print.duration"))}</th><td>${duration}</td></tr>
-                <tr><th scope="row">${escapeHtml(docT("document.print.notes"))}</th><td>${hin}</td></tr>
-              </tbody>
-            </table>
-            <p style="margin-top:48px">______________________<br/><span style="font-size:12px">${docT("document.print.signature")}</span></p>
-            <p class="muted">${escapeHtml(docT("document.print.printed_from"))}</p>
-            </body></html>`;
-}
-
-/** Multiple prescriptions on one printout (prescription overview). */
-/**
- * @deprecated Prints a different document than the issued PDF (no number,
- * no practice header). Print the PDF from `issue_clinical_document` instead.
- */
-export function buildPrescriptionsComboPrintHtml(items: Prescription[], patient: Patient | null): string {
-    if (items.length === 0) {
-        return `<!doctype html><html lang="${htmlLangDir().lang}" dir="${htmlLangDir().dir}"><head><meta charset="utf-8"/><title>${escapeHtml(docT("document.print.prescription_title"))}</title></head><body>
-            ${printLetterheadHtml()}<p>${docT("document.print.no_prescription")}</p></body></html>`;
-    }
-    const first = items[0]!;
-    const title =
-        items.length === 1
-            ? docT("document.print.prescription_title")
-            : docTp("document.print.prescription_combo_title", { count: items.length });
-    const date = formatDate(first.issued_at);
-    const patientLine = escapeHtml(patient?.name ?? "");
-    const dob = patient ? escapeHtml(formatDate(patient.date_of_birth)) : "";
-    const body = items.map(prescriptionSectionBlock).join("");
-    return `<!doctype html><html lang="${htmlLangDir().lang}" dir="${htmlLangDir().dir}"><head><meta charset="utf-8"/><title>${escapeHtml(title)}</title>
-            <style>body{font-family:Helvetica,Arial,sans-serif;padding:2cm;color:#000}
-            h1{font-size:18pt;margin-bottom:0.4cm}h2{font-size:13pt;margin:0.4cm 0 0.2cm;color:#333}
-            .row{margin:0.25cm 0}.label{display:inline-block;width:4cm;color:#555}
-            .rx{border-top:1px solid #ddd;padding-top:0.4cm;margin-top:0.4cm}
-            .rx:first-of-type{border-top:none;margin-top:0;padding-top:0} ${printDocChromeCss()}</style>
-            </head><body>
-            <h1>${escapeHtml(title)}</h1>
-            <div class="row"><span class="label">${escapeHtml(docT("document.print.patient"))}:</span>${patientLine}</div>
-            <div class="row"><span class="label">${escapeHtml(docT("document.print.date_of_birth"))}:</span>${dob}</div>
-            <div class="row"><span class="label">${escapeHtml(docT("document.print.date"))}:</span>${escapeHtml(date)}</div>
-            <hr/>
-            ${body}
-            <p style="margin-top:3cm">______________________<br/>${docT("document.print.signature")}</p>
-            </body></html>`;
-}
-
-/**
- * @deprecated Prints a different document than the issued PDF (no number,
- * no practice header). Print the PDF from `issue_clinical_document` instead.
- */
-export function buildReceiptPrintHtml(
-    z: Payment,
-    patient: Patient,
-    treatments: Treatment[],
-    examinations: Examination[],
-): string {
-    const referenceLine = escapeHtml(formatPaymentReferenceLine(z, treatments, examinations, docT, docTp));
-    const kind = escapeHtml(paymentMethodLabel(z.payment_method, docT));
-    const stat = escapeHtml(paymentStatusDisplay(z.status, docT).label);
-    const bet = escapeHtml(`${z.amount.toFixed(2)} EUR`);
-    const quando = escapeHtml(formatDate(z.created_at));
-    const beschr = escapeHtml((z.description ?? "").trim() || "—");
-    const pname = escapeHtml(patient.name);
-    const dob = escapeHtml(formatDate(patient.date_of_birth));
-    const receiptTitle = escapeHtml(docT("document.print.receipt_title"));
-    return `<!doctype html><html lang="${htmlLangDir().lang}" dir="${htmlLangDir().dir}"><head><meta charset="utf-8"/><title>${receiptTitle}</title>
-            <style>
-              body{font-family:Helvetica,Arial,sans-serif;padding:28px;color:#111;line-height:1.45}
-              h1{font-size:18px;margin:0 0 6px}
-              table{border-collapse:collapse;width:100%;margin:18px 0;font-size:13px}
-              th,td{border:1px solid #ccc;padding:8px 10px;text-align:left}
-              th{background:#f4f4f4;width:38%}
-              .muted{color:#555;font-size:11px;margin-top:24px}
-            ${printDocChromeCss()}</style></head><body>
-            ${printLetterheadHtml()}
-            <h1>${escapeHtml(docT("document.print.receipt_title"))}</h1>
-            <table>
-              <tbody>
-                <tr><th scope="row">${escapeHtml(docT("document.print.patient"))}</th><td>${pname}</td></tr>
-                <tr><th scope="row">${escapeHtml(docT("document.print.date_of_birth"))}</th><td>${dob}</td></tr>
-                <tr><th scope="row">${escapeHtml(docT("document.print.payment_date"))}</th><td>${quando}</td></tr>
-                <tr><th scope="row">${escapeHtml(docT("document.print.amount"))}</th><td><strong>${bet}</strong></td></tr>
-                <tr><th scope="row">${escapeHtml(docT("document.print.payment_method"))}</th><td>${kind}</td></tr>
-                <tr><th scope="row">${escapeHtml(docT("common.status"))}</th><td>${stat}</td></tr>
-                <tr><th scope="row">${escapeHtml(docT("document.print.assignment"))}</th><td>${referenceLine}</td></tr>
-                <tr><th scope="row">${escapeHtml(docT("document.print.description"))}</th><td>${beschr}</td></tr>
-              </tbody>
-            </table>
-            <p class="muted">${escapeHtml(docT("document.print.printed_from"))}</p>
-            </body></html>`;
 }

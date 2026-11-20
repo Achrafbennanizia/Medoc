@@ -19,7 +19,7 @@
 **Current state (2026-11-07):** Flag is off. Password login succeeds for enrolled and unenrolled physicians. Settings IPC, login UI, and the network-reset code field stay commented. `start_totp_enrollment_login` / `confirm_totp_enrollment_login` remain registered and return "Two-factor authentication is currently disabled". Stored `totp_secret` rows are left in place.
 
 1. Set `TOTP_2FA_ENABLED = true` in `mvp_security.rs` and `mvp-security-config.ts`. The `authenticate` branch already checks the flag, so enrolled accounts and unenrolled physicians are gated again.
-2. Uncomment the settings IPC in `register.rs` (`get_totp_status`, `start_totp_enrollment`, `confirm_totp_enrollment`, `deactivate_totp`) and raise `EXPECTED_INVOKE_COMMAND_COUNT`.
+2. Uncomment the settings IPC in `register.rs` (`get_totp_status`, `start_totp_enrollment`, `confirm_totp_enrollment`, `deactivate_totp`).
 3. Restore `totp.controller.ts`, the login enroll/verify steps, and the security-settings panel.
 4. Restore the network-reset TOTP reauth in `cluster.rs` (the block under `validate_cluster_reset_reauth`).
 5. **Tests** — remove `#[ignore]` from `apps/practice-host/tests/totp_tests.rs`. Restore `require_totp_enabled_ok_when_on`, `enrolled_physician_without_code_is_rejected`, and `unenrolled_physician_must_enroll`. Flip the `auth_session_audit_tests` const assert back to `TOTP_2FA_ENABLED`.

@@ -8,10 +8,9 @@
 use axum::extract::{Extension, State};
 use axum::http::StatusCode;
 use axum::Json;
-use medoc_core::application::rbac::Role;
 use medoc_core::error::AppError;
+use medoc_core::infrastructure::database::repos::admin::license as license_repo;
 use medoc_core::infrastructure::license::{self, LicenseStatus};
-use medoc_core::infrastructure::license_repo;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use tracing::info;
@@ -27,8 +26,23 @@ pub struct ActivateBody {
     pub token: String,
 }
 
-fn require_authenticated(claims: &jwt::LanClaims) -> Result<(), AppError> {
-    Role::parse(&claims.role).ok_or(AppError::Forbidden)?;
+/// Re-checks the staff row (active account, overrides, access profile).
+async fn require(
+    pool: &sqlx::SqlitePool,
+    claims: &jwt::LanClaims,
+    action: &str,
+) -> Result<(), AppError> {
+    medoc_core::application::authorize::authorize(
+        pool,
+        &medoc_core::application::authorize::Caller {
+            user_id: claims.sub.clone(),
+            idle_for: None,
+            device_session_id: None,
+        },
+        action,
+        None,
+    )
+    .await?;
     Ok(())
 }
 
@@ -73,7 +87,7 @@ pub async fn status(
     State(state): State<LanHttpState>,
     Extension(claims): Extension<jwt::LanClaims>,
 ) -> Result<Json<Value>, ApiError> {
-    require_authenticated(&claims)?;
+    require(&state.pool, &claims, "dashboard.read").await?;
     let status = license_repo::current_status(&state.pool).await?;
     Ok(Json(to_client_status(&status)))
 }
@@ -83,7 +97,9 @@ pub async fn activate(
     Extension(claims): Extension<jwt::LanClaims>,
     Json(body): Json<ActivateBody>,
 ) -> Result<Json<Value>, ApiError> {
-    require_authenticated(&claims)?;
+    // Replacing the practice licence is system administration. It used to
+    // need only a valid login, so a reception account could swap it.
+    require(&state.pool, &claims, "ops.system").await?;
     let device_id = license_repo::ensure_device_id(&state.pool).await?;
     let status = license::verify(body.token.trim(), &device_id);
     if !status.valid {
@@ -110,17 +126,7 @@ pub async fn clear(
     State(state): State<LanHttpState>,
     Extension(claims): Extension<jwt::LanClaims>,
 ) -> Result<StatusCode, ApiError> {
-    medoc_core::application::authorize::authorize(
-        &state.pool,
-        &medoc_core::application::authorize::Caller {
-            user_id: claims.sub.clone(),
-            idle_for: None,
-            device_session_id: None,
-        },
-        "ops.system",
-        None,
-    )
-    .await?;
+    require(&state.pool, &claims, "ops.system").await?;
     license_repo::clear(&state.pool).await?;
     Ok(StatusCode::NO_CONTENT)
 }

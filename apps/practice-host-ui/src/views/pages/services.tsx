@@ -393,7 +393,7 @@ export function ServicesPage() {
     })();
 
     return (
-        <div className="services-page practice-workspace-page animate-fade-in">
+        <div className="services-page practice-workspace-page animate-fade-in--sticky-safe">
             <AdministrationPageHeader
                 showBack={canGoAdministration}
                 title={t("services.page.title")}

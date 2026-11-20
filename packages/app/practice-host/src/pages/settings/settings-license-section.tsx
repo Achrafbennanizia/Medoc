@@ -1,5 +1,5 @@
+import { companySystem } from "@/systems/company-portal/adapters/tauri-company.adapter";
 import {
-    companyPortalBillingPortalUrl,
     openSubscriptionPortal,
     type LicenseStatus,
 } from "@/systems/practice-host/controllers/settings-page.controller";
@@ -165,7 +165,7 @@ export function SettingsLicenseSection({
                             variant="secondary"
                             onClick={async () => {
                                 try {
-                                    const url = await companyPortalBillingPortalUrl();
+                                    const url = await companySystem.billingPortalUrl();
                                     window.open(url, "_blank", "noopener,noreferrer");
                                 } catch {
                                     toast(t("v1.billing.manufacturer_portal_hint"), "info");

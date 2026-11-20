@@ -59,13 +59,18 @@ async fn appointment_status_accepts_in_progress() {
 async fn legacy_database_gets_widened_status_checks_and_keeps_rows() {
     use medoc_core::infrastructure::database::migrations::run_legacy_embedded_migrations;
     let pool = test_memory_pool().await.expect("pool");
-    run_legacy_embedded_migrations(&pool).await.expect("legacy schema");
+    run_legacy_embedded_migrations(&pool)
+        .await
+        .expect("legacy schema");
     let old_sql: String =
         sqlx::query_scalar("SELECT sql FROM sqlite_master WHERE name = 'patient'")
             .fetch_one(&pool)
             .await
             .unwrap();
-    assert!(!old_sql.contains("ARCHIVED"), "precondition: legacy CHECK lacks ARCHIVED");
+    assert!(
+        !old_sql.contains("ARCHIVED"),
+        "precondition: legacy CHECK lacks ARCHIVED"
+    );
 
     for sql in [
         "INSERT INTO staff (id, name, email, password_hash, role) VALUES ('st-1','Doc','doc@x.de','h','PHYSICIAN')",
@@ -91,10 +96,11 @@ async fn legacy_database_gets_widened_status_checks_and_keeps_rows() {
         .await
         .expect("IN_PROGRESS after upgrade");
 
-    let fks: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM pragma_foreign_key_list('appointment')")
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+    let fks: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM pragma_foreign_key_list('appointment')")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert!(fks >= 2, "appointment keeps its foreign keys");
     let orphan = sqlx::query(
         "INSERT INTO appointment (id, date, time, kind, status, patient_id, physician_id)
@@ -102,7 +108,10 @@ async fn legacy_database_gets_widened_status_checks_and_keeps_rows() {
     )
     .execute(&pool)
     .await;
-    assert!(orphan.is_err(), "foreign keys still enforced after the rebuild");
+    assert!(
+        orphan.is_err(),
+        "foreign keys still enforced after the rebuild"
+    );
     let rows: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM appointment WHERE id = 'a-1'")
         .fetch_one(&pool)
         .await
@@ -116,7 +125,7 @@ async fn legacy_database_gets_widened_status_checks_and_keeps_rows() {
 
 #[tokio::test]
 async fn payment_status_rejects_unknown_value_and_reopening() {
-    use medoc_core::infrastructure::database::payment_repo;
+    use medoc_core::infrastructure::database::repos::billing::payment as payment_repo;
     let pool = test_memory_pool().await.expect("pool");
     run_migrations(&pool).await.expect("migrate");
     sqlx::query(
@@ -133,10 +142,16 @@ async fn payment_status_rejects_unknown_value_and_reopening() {
     .execute(&pool)
     .await
     .unwrap();
-    assert!(payment_repo::update_status(&pool, "pay-1", "WHATEVER").await.is_err());
-    payment_repo::update_status(&pool, "pay-1", "PAID").await.expect("OUTSTANDING -> PAID");
+    assert!(payment_repo::update_status(&pool, "pay-1", "WHATEVER")
+        .await
+        .is_err());
+    payment_repo::update_status(&pool, "pay-1", "PAID")
+        .await
+        .expect("OUTSTANDING -> PAID");
     assert!(
-        payment_repo::update_status(&pool, "pay-1", "OUTSTANDING").await.is_err(),
+        payment_repo::update_status(&pool, "pay-1", "OUTSTANDING")
+            .await
+            .is_err(),
         "PAID cannot be reopened"
     );
 }
@@ -164,11 +179,14 @@ async fn partially_paid_payment_cannot_be_deleted() {
     }
     use medoc_core::infrastructure::database::repos::billing::payment as pay;
     assert!(pay::delete_if_pending(&pool, "pay-part").await.is_err());
-    pay::delete_if_pending(&pool, "pay-open").await.expect("open payment deletes");
-    let left: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM payment WHERE id IN ('pay-open','pay-part')")
-        .fetch_one(&pool)
+    pay::delete_if_pending(&pool, "pay-open")
         .await
-        .unwrap();
+        .expect("open payment deletes");
+    let left: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM payment WHERE id IN ('pay-open','pay-part')")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(left, 1);
 }
 
@@ -177,8 +195,11 @@ async fn unknown_product_delete_is_not_found() {
     use medoc_core::infrastructure::database::connection::{run_migrations, test_memory_pool};
     let pool = test_memory_pool().await.unwrap();
     run_migrations(&pool).await.unwrap();
-    let err = medoc_core::infrastructure::database::repos::practice::product::delete(&pool, "no-such-product")
-        .await
-        .expect_err("unknown product");
+    let err = medoc_core::infrastructure::database::repos::practice::product::delete(
+        &pool,
+        "no-such-product",
+    )
+    .await
+    .expect_err("unknown product");
     assert!(matches!(err, medoc_core::error::AppError::NotFound(_)));
 }

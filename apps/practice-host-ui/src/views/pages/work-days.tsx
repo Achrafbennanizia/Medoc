@@ -10,7 +10,8 @@ import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "../../models/store/auth-store";
 import type { Absence } from "../../models/types";
 import { errorMessage, formatDate } from "@/lib/utils";
-import { useDateFnsLocale, useT } from "@/lib/i18n";
+import { useDateFnsLocale, useT, useTParams } from "@/lib/i18n";
+import { notifyAppointmentsOutsideWorkHours } from "@/lib/appointment-hours-compliance-notify";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { ConfirmDialog } from "../components/ui/dialog";
@@ -49,11 +50,26 @@ const WEEKDAY_KEYS = [
 
 export function WorkDaysPage() {
     const t = useT();
+    const tp = useTParams();
     const dateFnsLocale = useDateFnsLocale();
     const toast = useToastStore((s) => s.add);
     const session = useAuthStore((s) => s.session);
     const role = parseRole(session?.role);
     const canWrite = role ? allowed("administration.practice_planning.write", role) : false;
+
+    const runHoursComplianceCheck = useCallback(async () => {
+        try {
+            const { violations } = await notifyAppointmentsOutsideWorkHours({ t, tp });
+            if (violations.length > 0) {
+                toast(
+                    tp("app.notifications.outside_hours_toast", { count: violations.length }),
+                    "warning",
+                );
+            }
+        } catch {
+            /* best-effort */
+        }
+    }, [t, tp, toast]);
 
     const [rows, setRows] = useState<Absence[]>([]);
     const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -62,7 +78,7 @@ export function WorkDaysPage() {
     const [calYear, setCalYear] = useState(() => new Date().getFullYear());
     const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
 
-    const [kind, setKind] = useState("Urlaub");
+    const [kind, setKind] = useState("Leave");
     const [comment, setComment] = useState("");
     const [fromDay, setFromTag] = useState("");
     const [toDay, setUntilTag] = useState("");
@@ -134,7 +150,7 @@ export function WorkDaysPage() {
     };
 
     const resetForm = () => {
-        setKind("Urlaub");
+        setKind("Leave");
         setComment("");
         setFromTag("");
         setUntilTag("");
@@ -183,6 +199,7 @@ export function WorkDaysPage() {
             }
             resetForm();
             await reload();
+            void runHoursComplianceCheck();
         } catch (e) {
             toast(`${t("common.error_prefix")} ${errorMessage(e)}`, "error");
         }
@@ -196,6 +213,7 @@ export function WorkDaysPage() {
             setDeleteId(null);
             if (editingId === deleteId) resetForm();
             await reload();
+            void runHoursComplianceCheck();
         } catch (e) {
             toast(`${t("common.error_prefix")} ${errorMessage(e)}`, "error");
         }
@@ -205,7 +223,7 @@ export function WorkDaysPage() {
     if (status === "error" && loadError) return <PageLoadError message={loadError} onRetry={() => void reload()} />;
 
     return (
-        <div className="practice-workspace-page animate-fade-in">
+        <div className="practice-workspace-page animate-fade-in--sticky-safe">
             <AdministrationPageHeader
                 titleLevel="h1"
                 title={t("page.workDays.title")}
@@ -261,18 +279,27 @@ export function WorkDaysPage() {
                                 c.iso >= fromDay &&
                                 c.iso <= toDay &&
                                 c.inMonth;
+                            const booked = c.inMonth && rows.some((r) => c.iso >= r.from_day && c.iso <= r.to_day);
+                            const bookedLabel = booked
+                                ? rows
+                                      .filter((r) => c.iso >= r.from_day && c.iso <= r.to_day)
+                                      .map((r) => r.kind)
+                                      .join(", ")
+                                : "";
                             return (
                                 <button
                                     key={`${c.iso}-${c.d}-${c.inMonth}`}
                                     type="button"
-                                    className="btn btn-ghost"
+                                    className={`btn btn-ghost work-days-cal-day${booked ? " work-days-cal-day--absence" : ""}`}
+                                    title={bookedLabel || undefined}
+                                    aria-label={bookedLabel ? `${c.d}, ${bookedLabel}` : String(c.d)}
                                     style={{
                                         minHeight: 36,
                                         padding: 4,
                                         fontSize: 12,
                                         opacity: c.inMonth ? 1 : 0.35,
                                         border: selFrom || selUntil ? "2px solid var(--accent)" : inRange ? "1px solid var(--accent-soft)" : undefined,
-                                        background: inRange ? "var(--accent-soft)" : undefined,
+                                        background: booked ? undefined : inRange ? "var(--accent-soft)" : undefined,
                                     }}
                                     onClick={() => pickDay(c.iso)}
                                 >

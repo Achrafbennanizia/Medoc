@@ -12,6 +12,11 @@ export function appointmentIsEmergencyMarked(t: AppointmentKindNotes): boolean {
 
 const APPOINTMENT_DURATION_RE = /Duration:\s*(\d+)\s*min/i;
 
+/** Cancelled and no-show rows do not occupy the schedule. */
+export function appointmentCountsAsPlanned(t: Pick<TCalRow, "status">): boolean {
+    return t.status !== "CANCELLED" && t.status !== "NO_SHOW";
+}
+
 /** Reads duration from `appointment.notes` (`Duration: N min`). */
 export function parseAppointmentDurationMin(notes: string | null | undefined, fallback = 30): number {
     const m = APPOINTMENT_DURATION_RE.exec(notes ?? "");

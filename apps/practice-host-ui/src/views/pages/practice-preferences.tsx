@@ -143,14 +143,14 @@ export function PracticePreferencesPage() {
 
     if (!hydrated) {
         return (
-            <div className="practice-workspace-page animate-fade-in">
+            <div className="practice-workspace-page animate-fade-in--sticky-safe">
                 <AdministrationPageHeader titleLevel="h1" title={t("page.practice_preferences.title")} subtitle={t("page.practice_preferences.loading")} />
             </div>
         );
     }
 
     return (
-        <div className="practice-workspace-page animate-fade-in">
+        <div className="practice-workspace-page animate-fade-in--sticky-safe">
             <AdministrationPageHeader titleLevel="h1" title={t("page.practice_preferences.title")} />
 
             <div className="card card-pad">

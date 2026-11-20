@@ -11,7 +11,7 @@ import { listPurchaseOrders, updatePurchaseOrderStatus } from "@/systems/practic
 import type { OrderStatus, PurchaseOrder } from "@/systems/practice-host/controllers/purchase-order.controller";
 import { parseRole, allowed, canReadFinance } from "@/lib/rbac";
 import { useAuthStore } from "../../models/store/auth-store";
-import { errorMessage, formatCurrency, formatDate } from "@/lib/utils";
+import { errorMessage, formatCurrency, formatDate, kpiValueSizeClass } from "@/lib/utils";
 import {
     orderStatusDisplay,
     vorgangText,
@@ -119,6 +119,7 @@ const FinanceKpiCard: FC<FinanceKpiCardProps> = ({ label, value, sub, subTone, i
         <div className={`finance-kpi finance-kpi--${tone}`}>
             <div className="finance-kpi__label">
                 <span
+                    className="finance-kpi__icon"
                     style={{
                         background: iconBg,
                         color: iconColor,
@@ -127,9 +128,9 @@ const FinanceKpiCard: FC<FinanceKpiCardProps> = ({ label, value, sub, subTone, i
                 >
                     <Ic size={14} />
                 </span>
-                {label}
+                <span className="finance-kpi__label-text">{label}</span>
             </div>
-            <div className="finance-kpi__val">{value}</div>
+            <div className={kpiValueSizeClass(value, "finance-kpi__val")}>{value}</div>
             {sub ? (
                 <div className="finance-kpi__foot">
                     <span
@@ -466,8 +467,8 @@ export function FinancePage() {
     };
 
     return (
-        <div className="finance-page animate-fade-in--sticky-safe" style={{ gap: 0 }}>
-            <div className="finance-page__sticky">
+        <div className="finance-page animate-fade-in" style={{ gap: 0 }}>
+            <div className="finance-page__head">
                 <WorkspacePageHeader
                     title={t("page.finance.title")}
                     subtitle={tp("page.finance.subtitle", {
@@ -616,7 +617,7 @@ export function FinancePage() {
                 ) : (
                     <div className="card finance-tx-table-card tbl-data-card card--overflow-visible">
                         <div className="tbl-scroll finance-tx__scroll" ref={scrollRef} onScroll={onTxScroll}>
-                            <table className="tbl tbl-finance-tx">
+                            <table className="tbl tbl-finance-tx" data-tbl-no-autosize>
                                 <colgroup>
                                     <col className="fin-tx-col-date" />
                                     <col className="fin-tx-col-vorgang" />

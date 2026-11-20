@@ -2,10 +2,27 @@
 use crate::domain::entities::practice_task::{
     CreatePracticeTask, PracticeTask, PracticeTaskComment, UpdatePracticeTaskAdmin,
 };
+use crate::domain::services::pricing::MONEY_ZERO_EUR;
 use crate::error::AppError;
 use sqlx::SqlitePool;
 
-const ACTIVE_STATUSES: &str = "'OPEN','IN_PROGRESS','BACK'";
+/// Open for assignee action: verify `OPEN|IN_PROGRESS|BACK` + simple `OPEN|VIEWED`.
+const ACTIVE_STATUSES: &str = "'OPEN','IN_PROGRESS','BACK','VIEWED'";
+
+async fn practice_money_code(pool: &SqlitePool) -> String {
+    let raw =
+        crate::infrastructure::database::repos::admin::app_kv::get(pool, "invoice.practice.v1")
+            .await
+            .ok()
+            .flatten()
+            .unwrap_or_default();
+    if let Ok(value) = serde_json::from_str::<serde_json::Value>(&raw) {
+        if let Some(code) = value.get("currency").and_then(|c| c.as_str()) {
+            crate::infrastructure::pdf::set_document_currency(code);
+        }
+    }
+    crate::infrastructure::pdf::document_currency()
+}
 
 /// Chat-like visibility: creator, named assignee, or (Reception only) shared pool rows.
 const VISIBILITY_WHERE: &str = "
@@ -85,12 +102,19 @@ pub async fn insert_in_tx(
     .bind(data.total_cost)
     .execute(&mut **tx)
     .await?;
-    crate::infrastructure::database::recorded_write::record_in_tx(tx, "practice_task", &id, "INSERT")
-        .await?;
-    Ok(sqlx::query_as::<_, PracticeTask>("SELECT * FROM practice_task WHERE id = ?1")
-        .bind(&id)
-        .fetch_one(&mut **tx)
-        .await?)
+    crate::infrastructure::database::recorded_write::record_in_tx(
+        tx,
+        "practice_task",
+        &id,
+        "INSERT",
+    )
+    .await?;
+    Ok(
+        sqlx::query_as::<_, PracticeTask>("SELECT * FROM practice_task WHERE id = ?1")
+            .bind(&id)
+            .fetch_one(&mut **tx)
+            .await?,
+    )
 }
 
 /// FA-AUFG-02 — automatic billing task after B/U + service.
@@ -182,8 +206,7 @@ async fn clinical_line_already_fully_paid(
     treatment_id: Option<&str>,
     examination_id: Option<&str>,
 ) -> Result<bool, AppError> {
-    const EPS: f64 = 1e-6;
-    let Some(target) = total_cost.filter(|g| g.is_finite() && *g > EPS) else {
+    let Some(target) = total_cost.filter(|g| g.is_finite() && *g > MONEY_ZERO_EUR) else {
         return Ok(false);
     };
     let paid: f64 = if let Some(bid) = treatment_id {
@@ -209,7 +232,7 @@ async fn clinical_line_already_fully_paid(
     } else {
         return Ok(false);
     };
-    Ok(paid + EPS >= target)
+    Ok(paid + MONEY_ZERO_EUR >= target)
 }
 
 /// FA-AUFG-02 / G18 — idempotent auto-task after billable B/U save.
@@ -254,13 +277,11 @@ pub async fn ensure_billing_task_for_clinical_line(
         return Ok(());
     }
     let ln = service_name.unwrap_or("").trim();
-    let title = if ln.is_empty() {
-        "Record payment".to_string()
-    } else {
-        format!("Record payment: {ln}")
-    };
+    let title = ln.to_string();
+    let money = practice_money_code(pool).await;
     let body = match total_cost.filter(|g| g.is_finite() && *g > 0.0) {
-        Some(g) => format!("{title} ({:.2} €)", g),
+        Some(g) if ln.is_empty() => format!("({g:.2} {money})"),
+        Some(g) => format!("{ln} ({g:.2} {money})"),
         None => title.clone(),
     };
     let task = insert_billing_for_clinical_line(
@@ -307,11 +328,9 @@ pub async fn list_for_user(
            status IN ({ACTIVE_STATUSES})
            AND ({VISIBILITY_WHERE})
          ) OR (
-           created_by = ?1 AND status != 'VALIDATED'
+           created_by = ?1 AND status NOT IN ('VALIDATED','DONE')
          )
-         ORDER BY
-           CASE status WHEN 'BACK' THEN 0 WHEN 'OPEN' THEN 1 WHEN 'IN_PROGRESS' THEN 2 WHEN 'DONE_RECEPTION' THEN 3 ELSE 4 END,
-           datetime(updated_at) DESC
+         ORDER BY datetime(created_at) DESC
          LIMIT ?3"
     );
     sqlx::query_as::<_, PracticeTask>(&sql)
@@ -334,7 +353,7 @@ pub async fn count_open_for_user(
          WHERE (
            status IN ({ACTIVE_STATUSES}) AND ({VISIBILITY_WHERE})
          ) OR (
-           created_by = ?1 AND status != 'VALIDATED'
+           created_by = ?1 AND status NOT IN ('VALIDATED','DONE')
          )"
     );
     let row: (i64,) = sqlx::query_as(&count_sql)
@@ -353,9 +372,9 @@ pub async fn list_inbox_reception(
     sqlx::query_as::<_, PracticeTask>(
         "SELECT * FROM practice_task
          WHERE assignee_role = 'RECEPTION'
-           AND status IN ('OPEN','IN_PROGRESS','BACK')
+           AND status IN ('OPEN','IN_PROGRESS','BACK','VIEWED')
          ORDER BY
-           CASE status WHEN 'BACK' THEN 0 WHEN 'OPEN' THEN 1 ELSE 2 END,
+           CASE status WHEN 'BACK' THEN 0 WHEN 'OPEN' THEN 1 WHEN 'VIEWED' THEN 1 ELSE 2 END,
            datetime(created_at) DESC
          LIMIT ?1",
     )
@@ -374,9 +393,9 @@ pub async fn list_inbox_physician(
     sqlx::query_as::<_, PracticeTask>(
         "SELECT * FROM practice_task
          WHERE assignee_user_id = ?1
-           AND status IN ('OPEN','IN_PROGRESS','BACK')
+           AND status IN ('OPEN','IN_PROGRESS','BACK','VIEWED')
          ORDER BY
-           CASE status WHEN 'BACK' THEN 0 WHEN 'OPEN' THEN 1 ELSE 2 END,
+           CASE status WHEN 'BACK' THEN 0 WHEN 'OPEN' THEN 1 WHEN 'VIEWED' THEN 1 ELSE 2 END,
            datetime(created_at) DESC
          LIMIT ?2",
     )
@@ -398,9 +417,9 @@ pub async fn list_outgoing_reception(
          WHERE created_by = ?1
            AND assignee_user_id IS NOT NULL
            AND assignee_user_id != ''
-           AND status IN ('OPEN','IN_PROGRESS','BACK')
+           AND status IN ('OPEN','IN_PROGRESS','BACK','VIEWED')
          ORDER BY
-           CASE status WHEN 'BACK' THEN 0 WHEN 'OPEN' THEN 1 ELSE 2 END,
+           CASE status WHEN 'BACK' THEN 0 WHEN 'OPEN' THEN 1 WHEN 'VIEWED' THEN 1 ELSE 2 END,
            datetime(created_at) DESC
          LIMIT ?2",
     )
@@ -435,9 +454,9 @@ pub async fn list_pending_validation(
 pub async fn count_open_for_reception(pool: &SqlitePool, user_id: &str) -> Result<i64, AppError> {
     let row: (i64,) = sqlx::query_as(
         "SELECT COUNT(DISTINCT id) FROM practice_task
-         WHERE (assignee_role = 'RECEPTION' AND status IN ('OPEN','IN_PROGRESS','BACK'))
+         WHERE (assignee_role = 'RECEPTION' AND status IN ('OPEN','IN_PROGRESS','BACK','VIEWED'))
             OR (created_by = ?1 AND assignee_user_id IS NOT NULL AND assignee_user_id != ''
-                AND status IN ('OPEN','IN_PROGRESS','BACK'))
+                AND status IN ('OPEN','IN_PROGRESS','BACK','VIEWED'))
             OR (created_by = ?1 AND status = 'DONE_RECEPTION')",
     )
     .bind(user_id)
@@ -453,7 +472,7 @@ pub async fn count_open_for_physician(
 ) -> Result<i64, AppError> {
     let row: (i64,) = sqlx::query_as(
         "SELECT COUNT(DISTINCT id) FROM practice_task
-         WHERE (assignee_user_id = ?1 AND status IN ('OPEN','IN_PROGRESS','BACK'))
+         WHERE (assignee_user_id = ?1 AND status IN ('OPEN','IN_PROGRESS','BACK','VIEWED'))
             OR (created_by = ?1 AND status = 'DONE_RECEPTION')",
     )
     .bind(physician_id)
@@ -516,7 +535,15 @@ pub async fn list_all_admin(pool: &SqlitePool, limit: i64) -> Result<Vec<Practic
     .map_err(Into::into)
 }
 
-const TASK_STATUSES: &[&str] = &["OPEN", "IN_PROGRESS", "DONE_RECEPTION", "VALIDATED", "BACK"];
+const TASK_STATUSES: &[&str] = &[
+    "OPEN",
+    "IN_PROGRESS",
+    "DONE_RECEPTION",
+    "VALIDATED",
+    "BACK",
+    "VIEWED",
+    "DONE",
+];
 
 pub async fn update_admin(
     pool: &SqlitePool,

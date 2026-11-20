@@ -2,8 +2,9 @@ import { treatmentCatalogCategoryLabel } from "@/lib/treatment-catalog-categorie
 import { useT, useTParams } from "@/lib/i18n";
 import { Fragment } from "react";
 import type { Treatment } from "@/models/types";
-import { formatDate, formatDateTime } from "@/lib/utils";
+import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { isReleasedForBilling } from "@/lib/billing-open-booking";
+import { treatmentLineLabel } from "@/lib/clinical-service-label";
 import {
     TreatmentChartComposerPanel,
     type TreatmentChartComposerPanelProps,
@@ -149,7 +150,7 @@ export function PatientDetailTreatmentTab({
                                                             ? treatmentCatalogCategoryLabel(t, b.category)
                                                             : b.kind}
                                                     </td>
-                                                    <td>{b.service_name || b.description || b.kind}</td>
+                                                    <td>{treatmentLineLabel(b)}</td>
                                                     <td>
                                                         {b.session_number != null
                                                             ? tp("patient.detail.tab.treatment.session_nr", { number: b.session_number })
@@ -159,7 +160,7 @@ export function PatientDetailTreatmentTab({
                                                     {showClinicalPrices ? (
                                                         <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                                                             {b.total_cost != null && Number.isFinite(b.total_cost)
-                                                                ? `${b.total_cost.toFixed(2)} €`
+                                                                ? formatCurrency(b.total_cost)
                                                                 : emDash}
                                                         </td>
                                                     ) : null}

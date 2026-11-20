@@ -17,7 +17,10 @@ use medoc_core::domain::entities::treatment::{
     CreateExamination, CreateTreatment, UpdateExamination, UpdateTreatment,
 };
 use medoc_core::domain::enums::Sex;
-use medoc_core::infrastructure::database::{app_kv_repo, chart_repo, connection, patient_repo};
+use medoc_core::infrastructure::database::connection;
+use medoc_core::infrastructure::database::repos::admin::app_kv as app_kv_repo;
+use medoc_core::infrastructure::database::repos::clinical::chart as chart_repo;
+use medoc_core::infrastructure::database::repos::clinical::patient as patient_repo;
 use sqlx::SqlitePool;
 
 const SERVERLESS_DEPLOYMENT_JSON: &str = r#"{"schemaVersion":1,"mode":"serverless_peer","role":"REPLICA","masterBaseUrl":"","masterCertSha256":"","masterAccessToken":"","deviceLabel":"E2E"}"#;
@@ -271,7 +274,7 @@ async fn release_treatment_for_billing_records_update() {
 async fn mark_all_read_records_each_id() {
     let pool = fresh_pool().await;
     enable_serverless(&pool).await;
-    medoc_core::infrastructure::database::in_app_notification_repo::insert(
+    medoc_core::infrastructure::database::repos::practice::in_app_notification::insert(
         &pool,
         "seed-physician-001",
         "INFO",
@@ -281,7 +284,7 @@ async fn mark_all_read_records_each_id() {
     )
     .await
     .expect("n1");
-    medoc_core::infrastructure::database::in_app_notification_repo::insert(
+    medoc_core::infrastructure::database::repos::practice::in_app_notification::insert(
         &pool,
         "seed-physician-001",
         "INFO",
@@ -292,12 +295,13 @@ async fn mark_all_read_records_each_id() {
     .await
     .expect("n2");
     let before = outbox_count(&pool, "in_app_notification").await;
-    let n = medoc_core::infrastructure::database::in_app_notification_repo::mark_all_read(
-        &pool,
-        "seed-physician-001",
-    )
-    .await
-    .expect("mark");
+    let n =
+        medoc_core::infrastructure::database::repos::practice::in_app_notification::mark_all_read(
+            &pool,
+            "seed-physician-001",
+        )
+        .await
+        .expect("mark");
     assert!(n >= 2);
     assert_eq!(
         outbox_count(&pool, "in_app_notification").await,

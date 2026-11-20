@@ -1,6 +1,7 @@
-//! Characterization: IPC command registry integrity (TASK 3.3 guard extension).
+//! The IPC registry is the handler list in `register.rs`.
+//! These tests fail when a command is registered twice, or when a command the
+//! desktop UI relies on disappears from that list.
 
-use medoc_practice::commands::register::EXPECTED_INVOKE_COMMAND_COUNT;
 use std::collections::HashSet;
 
 const REGISTER_RS: &str = include_str!("../src/commands/register.rs");
@@ -69,11 +70,6 @@ fn invoke_handlers_unique_and_match_documented_count() {
         names.len(),
         unique.len(),
         "duplicate IPC handler entries in register.rs"
-    );
-    assert_eq!(
-        names.len(),
-        EXPECTED_INVOKE_COMMAND_COUNT,
-        "update EXPECTED_INVOKE_COMMAND_COUNT and medoc_invoke_handler when adding IPC"
     );
 }
 

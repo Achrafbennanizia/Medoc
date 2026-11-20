@@ -103,7 +103,11 @@ export function HelpPage({ embedded = false }: HelpPageProps = {}) {
                     </div>
                 </Card>
             )}
-            <AboutAppDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
+            <AboutAppDialog
+                open={aboutOpen}
+                onClose={() => setAboutOpen(false)}
+                appVersion={import.meta.env.VITE_APP_VERSION}
+            />
         </div>
     );
 }

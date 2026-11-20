@@ -16,7 +16,8 @@ import {
     type WorkTimeActiveSession,
     type WorkTimeWeekOverview,
 } from "@/systems/practice-host/controllers/work-time.controller";
-import { hydrateWorkPlanStore, loadWorkPlanStore, weekDaysMonFirst, weekStartMonday, ymd, type WorkPlanStore } from "@/lib/staff-work-plan";
+import { hydrateWorkPlanStore, loadWorkPlanStore, weekDaysMonFirst, weekStartMonday, type WorkPlanStore } from "@/lib/staff-work-plan";
+import { localIsoDate } from "@/lib/utils";
 import { buildWeekBarDays, formatWorkMinutes, liveElapsedMinutes, weekBarScaleMinutes } from "@/lib/work-time-ui";
 import { errorMessage } from "@/lib/utils";
 import { useDateFnsLocale, useT, useTParams } from "@/lib/i18n";
@@ -41,8 +42,8 @@ export function WorkTimeTrackingPage() {
     );
 
     const weekStart = useMemo(() => weekStartMonday(weekAnchor), [weekAnchor]);
-    const weekStartYmd = useMemo(() => ymd(weekStart), [weekStart]);
-    const weekDays = useMemo(() => weekDaysMonFirst(weekStart).map((d) => ymd(d)), [weekStart]);
+    const weekStartYmd = useMemo(() => localIsoDate(weekStart), [weekStart]);
+    const weekDays = useMemo(() => weekDaysMonFirst(weekStart).map((d) => localIsoDate(d)), [weekStart]);
     const [weeklyRules, setWeeklyRules] = useState<WorkPlanStore["weeklyRules"]>(
         () => loadWorkPlanStore().weeklyRules,
     );

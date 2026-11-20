@@ -451,9 +451,16 @@ pub async fn run_english_schema_upgrade(pool: &SqlitePool) -> Result<(), AppErro
         .await
         .map_err(AppError::Database)?;
     if violations > 0 {
-        return Err(AppError::Internal(format!(
-            "foreign_key_check reported {violations} violations after English schema upgrade"
-        )));
+        // Existing practice databases can already contain orphan rows
+        // (practice_task, work_time_session, work_time_preference). Those
+        // rows predate this upgrade. Aborting here leaves the app unable
+        // to open a database the previous build already used.
+        tracing::warn!(
+            target: "medoc::system",
+            event = "ENGLISH_SCHEMA_FK_ORPHANS",
+            violations,
+            hint = "Startup continues. Orphan rows still reference a missing parent."
+        );
     }
     Ok(())
 }

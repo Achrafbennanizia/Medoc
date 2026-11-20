@@ -14,7 +14,7 @@ use sqlx::SqlitePool;
 use std::path::Path;
 
 use crate::error::AppError;
-use crate::infrastructure::database::patient_repo;
+use crate::infrastructure::database::repos::clinical::patient as patient_repo;
 use crate::log_migration;
 
 #[derive(Debug, Serialize, Clone)]
@@ -39,8 +39,8 @@ pub async fn import_patients(
     csv_path: &Path,
     dry_run: bool,
 ) -> Result<ImportReport, AppError> {
-    let bytes = std::fs::read(csv_path)
-        .map_err(|e| AppError::Internal(format!("Cannot read CSV: {e}")))?;
+    let bytes =
+        std::fs::read(csv_path).map_err(|e| AppError::Internal(format!("Cannot read CSV: {e}")))?;
     let content = decode_csv_bytes(&bytes);
 
     let mut report = ImportReport {
@@ -60,11 +60,7 @@ pub async fn import_patients(
         .headers()
         .map_err(|e| AppError::Validation(format!("CSV header: {e}")))?
         .clone();
-    let col = |english: &str| {
-        headers
-            .iter()
-            .position(|c| c.trim() == english)
-    };
+    let col = |english: &str| headers.iter().position(|c| c.trim() == english);
     if col("name").is_none() || col("date_of_birth").is_none() {
         return Err(AppError::Validation(
             "CSV header must contain at least 'name' and 'date_of_birth'".into(),
@@ -242,7 +238,10 @@ mod csv_split_tests {
     #[test]
     fn quoted_fields_and_guard_round_trip() {
         let f = split_semicolon_csv("\"Muster; Max\";1990-01-01;'+49 30 123;\"a \"\"b\"\"\"");
-        assert_eq!(f, vec!["Muster; Max", "1990-01-01", "'+49 30 123", "a \"b\""]);
+        assert_eq!(
+            f,
+            vec!["Muster; Max", "1990-01-01", "'+49 30 123", "a \"b\""]
+        );
         assert_eq!(unguard_csv_cell(&f[2]), "+49 30 123");
         assert_eq!(unguard_csv_cell("'Text"), "'Text");
     }

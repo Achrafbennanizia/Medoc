@@ -131,6 +131,7 @@ fn workflow_practice_task_transitions() {
     assert!(workflow_transitions::practice_task_status_transition(
         "OPEN",
         "IN_PROGRESS",
+        "BILLING",
         Role::Reception,
         Some("RECEPTION"),
         None,
@@ -143,6 +144,7 @@ fn workflow_practice_task_transitions() {
     assert!(workflow_transitions::practice_task_status_transition(
         "DONE_RECEPTION",
         "VALIDATED",
+        "BILLING",
         Role::Physician,
         Some("RECEPTION"),
         None,
@@ -156,6 +158,7 @@ fn workflow_practice_task_transitions() {
     assert!(workflow_transitions::practice_task_status_transition(
         "DONE_RECEPTION",
         "VALIDATED",
+        "BILLING",
         Role::Physician,
         None,
         Some("seed-physician-001"),
@@ -168,6 +171,7 @@ fn workflow_practice_task_transitions() {
     assert!(workflow_transitions::practice_task_status_transition(
         "VALIDATED",
         "OPEN",
+        "BILLING",
         Role::Physician,
         Some("RECEPTION"),
         None,
@@ -180,6 +184,7 @@ fn workflow_practice_task_transitions() {
     assert!(workflow_transitions::practice_task_status_transition(
         "OPEN",
         "VALIDATED",
+        "BILLING",
         Role::Reception,
         Some("RECEPTION"),
         None,
@@ -192,6 +197,7 @@ fn workflow_practice_task_transitions() {
     assert!(workflow_transitions::practice_task_status_transition(
         "OPEN",
         "VALIDATED",
+        "BILLING",
         Role::Physician,
         Some("RECEPTION"),
         None,
@@ -199,6 +205,91 @@ fn workflow_practice_task_transitions() {
         "seed-physician-001",
         false,
         true,
+    )
+    .is_ok());
+}
+
+#[test]
+fn workflow_practice_task_simple_track() {
+    use medoc_lib::application::rbac::Role;
+    assert_eq!(
+        workflow_transitions::practice_task_workflow_track("TICKET"),
+        "simple"
+    );
+    assert_eq!(
+        workflow_transitions::practice_task_workflow_track("APPOINTMENT"),
+        "simple"
+    );
+    assert_eq!(
+        workflow_transitions::practice_task_workflow_track("BILLING"),
+        "verify"
+    );
+    // OPEN → VIEWED → DONE for ticket assignee (physician).
+    assert!(workflow_transitions::practice_task_status_transition(
+        "OPEN",
+        "VIEWED",
+        "TICKET",
+        Role::Physician,
+        None,
+        Some("seed-physician-001"),
+        "seed-rez-001",
+        "seed-physician-001",
+        false,
+        false,
+    )
+    .is_ok());
+    assert!(workflow_transitions::practice_task_status_transition(
+        "VIEWED",
+        "DONE",
+        "TICKET",
+        Role::Physician,
+        None,
+        Some("seed-physician-001"),
+        "seed-rez-001",
+        "seed-physician-001",
+        false,
+        false,
+    )
+    .is_ok());
+    // Simple track has no creator validation step.
+    assert!(workflow_transitions::practice_task_status_transition(
+        "VIEWED",
+        "VALIDATED",
+        "APPOINTMENT",
+        Role::Physician,
+        Some("RECEPTION"),
+        None,
+        "seed-physician-001",
+        "seed-physician-001",
+        false,
+        false,
+    )
+    .is_err());
+    assert!(workflow_transitions::practice_task_status_transition(
+        "DONE",
+        "OPEN",
+        "APPOINTMENT",
+        Role::Reception,
+        Some("RECEPTION"),
+        None,
+        "seed-physician-001",
+        "seed-rez-001",
+        false,
+        false,
+    )
+    .is_err());
+    // Reception pool: APPOINTMENT OPEN → VIEWED.
+    assert!(workflow_transitions::practice_task_status_transition(
+        "OPEN",
+        "VIEWED",
+        "APPOINTMENT",
+        Role::Reception,
+        Some("RECEPTION"),
+        None,
+        "seed-physician-001",
+        "seed-rez-001",
+        false,
+        false,
     )
     .is_ok());
 }

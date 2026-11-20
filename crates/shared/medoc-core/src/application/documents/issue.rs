@@ -2,7 +2,9 @@
 //! registry (hash), audit and reprints.
 //!
 //! Rules enforced here (not in the UI):
-//! * RBAC per document kind (certificates/prescriptions: physicians only).
+//! * RBAC per document kind (issuing certificates and prescriptions stays with
+//!   the physician). A document that is already generated and `ISSUED` can be
+//!   opened by reception.
 //! * Practice identity comes from the database, never from the request.
 //! * Every issued document gets a gap-free yearly number from
 //!   `document_sequence`, is stored verbatim in `issued_document` with the
@@ -20,15 +22,18 @@ use serde_json::Value;
 use sqlx::SqlitePool;
 
 use super::practice_profile::{
-    document_locale, logo_hidden_on_documents, practice_logo, PracticeProfile,
+    localized_vat_notice, logo_hidden_on_documents, practice_logo, resolve_document_locale,
+    PracticeProfile,
 };
 use crate::application::auth_service::Session;
 use crate::application::rbac::{effective_allowed, Role};
 use crate::error::AppError;
-use crate::infrastructure::database::issued_document_repo::{
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
+use crate::infrastructure::database::repos::billing::invoice_document as invoice_document_repo;
+use crate::infrastructure::database::repos::billing::issued_document::{
     self as repo, sha256_hex, IssuedDocument,
 };
-use crate::infrastructure::database::{audit_repo, invoice_document_repo, sync_outbox};
+use crate::infrastructure::database::sync_outbox;
 use crate::infrastructure::pdf::{
     is_pdf_renderable, render_clinical_layout_with_logo, render_goz_invoice, render_report_pdf,
     unit_fee_cents, validate_invoice, ClinicalPdfLayout, FeeSchedule, Invoice, InvoiceKind,
@@ -104,20 +109,28 @@ impl DocKind {
                 "patient.write_medical"
             }
             DocKind::ChartExtract => "patient.read",
-            DocKind::Invoice | DocKind::Cancellation | DocKind::Receipt => "finance.write",
-            DocKind::DailyReport => "finance.day_close.write",
-            DocKind::Report => "finance.read",
+            DocKind::Invoice => "billing.create",
+            // A cancellation voids an issued invoice.
+            DocKind::Cancellation => "billing.cancel",
+            DocKind::Receipt => "cash.create",
+            DocKind::DailyReport => "cash.day_close",
+            DocKind::Report => "reports.read",
         }
     }
 
     /// Permission required for an (unnumbered, watermarked) preview.
     pub fn preview_permission(self) -> &'static str {
         match self {
+            // Frontdesk prints AU / Rx / leaflets; medical *issue* stays write_medical.
             DocKind::Certificate | DocKind::Prescription | DocKind::DischargeLeaflet => {
-                "patient.read_medical"
+                "patient.read_documents"
             }
             DocKind::ChartExtract => "patient.read",
-            _ => "finance.read",
+            DocKind::Invoice | DocKind::Cancellation => "billing.read",
+            // Reception takes payments (`finance.write`); `cash.read` alone legacy-maps to
+            // physician-only `finance.read` and blocked receipt preview for frontdesk.
+            DocKind::Receipt | DocKind::DailyReport => "finance.write",
+            DocKind::Report => "reports.read",
         }
     }
 
@@ -138,6 +151,18 @@ pub fn require_permission(session: &Session, action: &str) -> Result<(), AppErro
     } else {
         Err(AppError::Forbidden)
     }
+}
+
+/// An issued document is the verified copy. Reception may open it. Issuing a
+/// new one still needs the kind's own permission.
+fn can_open_issued(session: &Session, kind: DocKind) -> bool {
+    let Some(role) = Role::parse(&session.role) else {
+        return false;
+    };
+    let overrides = &session.permission_overrides;
+    effective_allowed(kind.issue_permission(), role, overrides)
+        || effective_allowed(kind.preview_permission(), role, overrides)
+        || effective_allowed("patient.read_documents", role, overrides)
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -162,9 +187,23 @@ pub(crate) fn year_now() -> i32 {
 }
 
 /// Rejects any string in the payload that the PDF fonts cannot render.
+///
+/// The fonts now cover Latin (all of Europe), Greek, Cyrillic and Arabic;
+/// emoji, invisible and exotic space characters are normalised instead of
+/// rejected. What remains (e.g. CJK) is logged with the exact characters.
 fn check_renderable(v: &Value) -> Result<(), AppError> {
     let ok = match v {
-        Value::String(s) => is_pdf_renderable(s),
+        Value::String(s) => {
+            let ok = is_pdf_renderable(s);
+            if !ok {
+                let chars: String = crate::infrastructure::pdf::unrenderable_chars(s)
+                    .iter()
+                    .map(|c| format!("U+{:04X} ", *c as u32))
+                    .collect();
+                tracing::warn!(event = "PDF_UNSUPPORTED_CHARACTERS", chars = %chars.trim());
+            }
+            ok
+        }
         Value::Array(a) => return a.iter().try_for_each(check_renderable),
         Value::Object(o) => return o.values().try_for_each(check_renderable),
         _ => true,
@@ -216,6 +255,18 @@ pub(crate) async fn after_insert(
         sync_outbox::record_or_noop(pool, "issued_document", &doc.id, "INSERT", &body).await
     {
         tracing::warn!(event = "ISSUED_DOCUMENT_OUTBOX_FAILED", error = %e);
+    }
+    // The first print-log row, so the PDF's hash verifies on every device.
+    if let Err(e) = sync_outbox::record_or_noop(
+        pool,
+        "issued_document_print",
+        &repo::original_print_id(&doc.id),
+        "INSERT",
+        "",
+    )
+    .await
+    {
+        tracing::warn!(event = "ISSUED_DOCUMENT_PRINT_OUTBOX_FAILED", error = %e);
     }
     let details = format!(
         "nr={} sha256={} patient={}",
@@ -370,7 +421,10 @@ fn apply_server_fields(
         obj.insert("signatureLines".into(), serde_json::json!(sig));
     }
     obj.insert("locale".into(), Value::String(locale.to_string()));
-    obj.insert("rtl".into(), Value::Bool(locale == "ar"));
+    obj.insert(
+        "rtl".into(),
+        Value::Bool(crate::infrastructure::pdf::i18n::is_rtl(locale)),
+    );
     obj.remove("logoKvJson");
     obj.remove("watermark");
     obj.remove("documentNumber");
@@ -470,22 +524,30 @@ pub async fn issue_clinical_document(
         ids.dedup();
         args.source_id = ids.join(",");
     }
-    if args.preview {
-        require_permission(session, kind.preview_permission())?;
+    let copy_variant = normalize_copy_variant(kind, args.copy_variant.as_deref())?;
+    let role = Role::parse(&session.role).ok_or(AppError::Unauthorized)?;
+    let permitted = if args.preview {
+        effective_allowed(
+            kind.preview_permission(),
+            role,
+            &session.permission_overrides,
+        )
     } else {
-        require_permission(session, kind.issue_permission())?;
+        effective_allowed(kind.issue_permission(), role, &session.permission_overrides)
+    };
+    if !permitted {
+        return open_issued_copy(pool, session, kind, &args.source_id, copy_variant).await;
     }
     let patient_id = load_clinical_source(pool, kind, &args.source_id).await?;
-    let copy_variant = normalize_copy_variant(kind, args.copy_variant.as_deref())?;
     let profile = PracticeProfile::load(pool).await?;
     profile.require_complete()?;
     let mut layout: Value = serde_json::from_str(&args.layout_json)
         .map_err(|e| AppError::Validation(format!("PDF-Layout: {e}")))?;
-    let locale = layout
+    let requested = layout
         .get("locale")
         .and_then(|v| v.as_str())
-        .and_then(crate::infrastructure::pdf::known_pdf_locale)
-        .unwrap_or(document_locale(pool).await);
+        .map(str::to_string);
+    let locale = resolve_document_locale(pool, requested.as_deref()).await;
     let logo = practice_logo(pool).await;
     apply_server_fields(&mut layout, &profile, locale, copy_variant)?;
     if matches!(kind, DocKind::Certificate | DocKind::Prescription) {
@@ -498,8 +560,11 @@ pub async fn issue_clinical_document(
 
     if args.preview {
         layout["watermark"] = Value::String(
-            crate::infrastructure::pdf::i18n::t(locale, crate::infrastructure::pdf::i18n::Phrase::Draft)
-                .into(),
+            crate::infrastructure::pdf::i18n::t(
+                locale,
+                crate::infrastructure::pdf::i18n::Phrase::Draft,
+            )
+            .into(),
         );
         let bytes = render_layout_value(&layout, logo.as_ref())?;
         return Ok(IssuedPdf {
@@ -524,9 +589,12 @@ pub async fn issue_clinical_document(
     let doc = immediate_tx!(pool, |conn| {
         let number = repo::next_number(conn, kind.prefix(), year_now()).await?;
         layout["documentNumber"] = Value::String(number.clone());
-        let bytes = render_layout_value(&layout, logo.as_ref())?;
+        let doc_id = crate::infrastructure::pdf::new_document_uid();
+        let bytes = crate::infrastructure::pdf::with_document_uid(&doc_id, || {
+            render_layout_value(&layout, logo.as_ref())
+        })?;
         let doc = IssuedDocument {
-            id: uuid::Uuid::new_v4().to_string(),
+            id: doc_id.clone(),
             kind: kind.as_db().into(),
             document_number: number,
             source_table: Some(
@@ -693,12 +761,7 @@ fn normalize_line_object(line: &mut Value) {
     }
     let raw_date = first_text(
         map,
-        &[
-            "treatment_date",
-            "date",
-            "service_date",
-            "created_at",
-        ],
+        &["treatment_date", "date", "service_date", "created_at"],
     );
     if let Some(date) = raw_date.as_deref().and_then(normalize_iso_date) {
         map.insert("treatment_date".into(), Value::String(date));
@@ -757,7 +820,9 @@ fn normalize_invoice_value(value: Value) -> Value {
     value
 }
 
-fn deserialize_invoice_flex<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Invoice, D::Error> {
+fn deserialize_invoice_flex<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Invoice, D::Error> {
     let value = Value::deserialize(deserializer)?;
     serde_json::from_value(normalize_invoice_value(value)).map_err(serde::de::Error::custom)
 }
@@ -787,16 +852,16 @@ async fn complete_invoice_from_db(
     let bank = profile.bank_lines();
     inv.bank_details = if bank.is_empty() { None } else { Some(bank) };
     inv.practice_lines = profile.letterhead_lines();
-    inv.footer_lines = profile.footer_lines("de");
-    if inv
-        .vat_notice
-        .as_deref()
-        .map(str::trim)
-        .unwrap_or("")
-        .is_empty()
-    {
-        inv.vat_notice = Some(profile.vat_notice());
-    }
+    // The language the UI asked for (Settings language when none was sent).
+    let requested = inv.locale.clone();
+    let locale = resolve_document_locale(pool, Some(requested.as_str())).await;
+    inv.locale = locale.into();
+    inv.rtl = crate::infrastructure::pdf::i18n::is_rtl(locale);
+    inv.footer_lines = profile.footer_lines(locale);
+    inv.vat_notice = Some(match inv.vat_notice.as_deref() {
+        Some(n) if !n.trim().is_empty() => localized_vat_notice(n, locale),
+        _ => profile.vat_notice_for(locale),
+    });
     if inv
         .payment_terms_text
         .as_deref()
@@ -804,7 +869,7 @@ async fn complete_invoice_from_db(
         .unwrap_or("")
         .is_empty()
     {
-        inv.payment_terms_text = Some(profile.payment_terms_text());
+        inv.payment_terms_text = Some(profile.payment_terms_text_for(locale));
     }
     let (name, dob, address): (String, String, Option<String>) = sqlx::query_as(
         "SELECT name, CAST(date_of_birth AS TEXT), address FROM patient WHERE id = ?1",
@@ -816,7 +881,11 @@ async fn complete_invoice_from_db(
     if inv.recipient_name.trim().is_empty() {
         inv.recipient_name = name.clone();
     }
-    if inv.recipient_address.iter().all(|line| line.trim().is_empty()) {
+    if inv
+        .recipient_address
+        .iter()
+        .all(|line| line.trim().is_empty())
+    {
         inv.recipient_address = address
             .unwrap_or_default()
             .split(['\n', '\r'])
@@ -828,8 +897,6 @@ async fn complete_invoice_from_db(
     inv.patient_name = name;
     inv.patient_birth_date = Some(dob.chars().take(10).collect());
     inv.logo = practice_logo(pool).await;
-    inv.locale = "de".into();
-    inv.rtl = false;
     // § 10 Abs. 1 GOZ: due on receipt of a correct invoice; the practice
     // grants the payment term printed on the invoice.
     if inv.date.trim().is_empty() {
@@ -865,7 +932,12 @@ fn fill_service_dates_from_invoice(inv: &mut Invoice) {
         let current = line.treatment_date.as_deref().unwrap_or("");
         line.treatment_date = Some(normalize_iso_date(current).unwrap_or_else(|| date.clone()));
         if line.description.trim().is_empty() {
-            if let Some(nr) = line.goz_nr.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()) {
+            if let Some(nr) = line
+                .goz_nr
+                .as_ref()
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+            {
                 line.description = nr.to_string();
             }
         }
@@ -889,7 +961,7 @@ fn euros_to_cents(euros: f64) -> Option<i64> {
     if cents > i64::MAX as f64 {
         return None;
     }
-    Some(cents as i64)
+    Some(crate::domain::services::pricing::euros_to_cents(euros))
 }
 
 fn opt_blank(value: &Option<String>) -> bool {
@@ -929,12 +1001,22 @@ fn fill_line_from_source(line: &mut InvoiceLine, src: &InvoiceSourceRow, invoice
         }
     }
     if opt_blank(&line.tooth_nr) {
-        if let Some(teeth) = src.teeth.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()) {
+        if let Some(teeth) = src
+            .teeth
+            .as_ref()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+        {
             line.tooth_nr = Some(teeth.to_string());
         }
     }
     if opt_blank(&line.material) {
-        if let Some(material) = src.material.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()) {
+        if let Some(material) = src
+            .material
+            .as_ref()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+        {
             line.material = Some(material.to_string());
         }
     }
@@ -945,7 +1027,10 @@ fn fill_line_from_source(line: &mut InvoiceLine, src: &InvoiceSourceRow, invoice
         .as_ref()
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty());
-    let points = src.points.and_then(|p| u32::try_from(p).ok()).filter(|p| *p > 0);
+    let points = src
+        .points
+        .and_then(|p| u32::try_from(p).ok())
+        .filter(|p| *p > 0);
     let factor = src.factor.filter(|f| f.is_finite() && *f > 0.0);
     if opt_blank(&line.goz_nr) {
         if let (Some(nr), Some(pts), Some(fac)) = (goz_nr, points, factor) {
@@ -989,7 +1074,12 @@ async fn hydrate_invoice_lines(
 ) -> Result<(), AppError> {
     let invoice_date = inv.date.clone();
     for line in &mut inv.lines {
-        let Some(r) = line.source_ref.as_deref().map(str::trim).filter(|s| !s.is_empty()) else {
+        let Some(r) = line
+            .source_ref
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+        else {
             continue;
         };
         let Some((table, id)) = r.split_once(':') else {
@@ -1045,7 +1135,12 @@ async fn check_invoice_sources(
     patient_id: &str,
 ) -> Result<(), AppError> {
     for line in &inv.lines {
-        let Some(r) = line.source_ref.as_deref().map(str::trim).filter(|s| !s.is_empty()) else {
+        let Some(r) = line
+            .source_ref
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+        else {
             continue;
         };
         let (table, id) = r
@@ -1086,7 +1181,10 @@ async fn check_invoice_sources(
         if let Some(number) = dup {
             return Err(AppError::validation_code_params(
                 "error.invoice.already_invoiced",
-                &[("service", line.description.as_str()), ("number", number.as_str())],
+                &[
+                    ("service", line.description.as_str()),
+                    ("number", number.as_str()),
+                ],
             ));
         }
     }
@@ -1149,9 +1247,13 @@ pub async fn issue_invoice(
     fill_service_dates_from_invoice(&mut invoice);
 
     if preview {
-        invoice.number = WATERMARK_PREVIEW.into();
+        let draft = crate::infrastructure::pdf::i18n::t(
+            &invoice.locale,
+            crate::infrastructure::pdf::i18n::Phrase::Draft,
+        );
+        invoice.number = draft.into();
         validate_invoice(&invoice)?;
-        invoice.watermark = Some(WATERMARK_PREVIEW.into());
+        invoice.watermark = Some(draft.into());
         let bytes = render_goz_invoice(&invoice)?;
         return Ok(IssuedPdf {
             document_id: None,
@@ -1168,9 +1270,12 @@ pub async fn issue_invoice(
         invoice.number = repo::next_number(conn, DocKind::Invoice.prefix(), year_now()).await?;
         // Validation failure rolls back → the number is not consumed (gap-free).
         validate_invoice(&invoice)?;
-        let bytes = render_goz_invoice(&invoice)?;
+        let doc_id = crate::infrastructure::pdf::new_document_uid();
+        let bytes = crate::infrastructure::pdf::with_document_uid(&doc_id, || {
+            render_goz_invoice(&invoice)
+        })?;
         let doc = IssuedDocument {
-            id: uuid::Uuid::new_v4().to_string(),
+            id: doc_id.clone(),
             kind: DocKind::Invoice.as_db().into(),
             document_number: invoice.number.clone(),
             source_table: Some("patient".into()),
@@ -1227,20 +1332,33 @@ pub async fn cancel_invoice(
     inv.cancels_number = Some(original.document_number.clone());
     inv.cancels_date = Some(inv.date.clone());
     inv.date = chrono::Local::now().format("%Y-%m-%d").to_string();
-    inv.note = Some(format!("Grund der Stornierung: {}", reason.trim()));
+    // Same language as the invoice it cancels.
+    let original_locale = inv.locale.clone();
+    let locale = resolve_document_locale(pool, Some(original_locale.as_str())).await;
+    inv.locale = locale.into();
+    inv.rtl = crate::infrastructure::pdf::i18n::is_rtl(locale);
+    inv.note = Some(crate::infrastructure::pdf::i18n::trf(
+        locale,
+        "invoice.cancellation_reason",
+        &[("reason", reason.trim())],
+    ));
     inv.due_date = None;
     for l in &mut inv.lines {
         l.amount_cents = -l.amount_cents.abs();
     }
+    let profile = PracticeProfile::load(pool).await?;
+    inv.footer_lines = profile.footer_lines(locale);
     inv.logo = practice_logo(pool).await;
 
     let issued_at = now_iso();
     let (doc, bytes, total) = immediate_tx!(pool, |conn| {
         inv.number = repo::next_number(conn, DocKind::Cancellation.prefix(), year_now()).await?;
         validate_invoice(&inv)?;
-        let bytes = render_goz_invoice(&inv)?;
+        let doc_id = crate::infrastructure::pdf::new_document_uid();
+        let bytes =
+            crate::infrastructure::pdf::with_document_uid(&doc_id, || render_goz_invoice(&inv))?;
         let doc = IssuedDocument {
-            id: uuid::Uuid::new_v4().to_string(),
+            id: doc_id.clone(),
             kind: DocKind::Cancellation.as_db().into(),
             document_number: inv.number.clone(),
             source_table: Some("issued_document".into()),
@@ -1260,6 +1378,14 @@ pub async fn cancel_invoice(
         Ok((doc, bytes, inv.total_cents()))
     })?;
     after_insert(pool, session, &doc, "CANCEL_DOCUMENT").await;
+    // The original invoice is now CANCELLED. Only the cancellation used to be
+    // replicated, so other devices kept the original as open and could dun
+    // the patient for an invoice that no longer exists.
+    if let Err(e) =
+        sync_outbox::record_or_noop(pool, "issued_document", &original.id, "UPDATE", "").await
+    {
+        tracing::warn!(event = "ISSUED_DOCUMENT_OUTBOX_FAILED", error = %e);
+    }
     mirror_into_invoice_documents(pool, session, &doc, total).await;
     Ok(IssuedPdf {
         document_id: Some(doc.id),
@@ -1279,9 +1405,9 @@ pub fn report_permission(report_kind: Option<&str>) -> &'static str {
     match report_kind.unwrap_or("finance") {
         "audit" => "audit.read",
         "compliance" => "ops.system",
-        "statistics" => "statistics.read",
-        "daily_report" => "finance.day_close.write",
-        _ => "finance.read",
+        "statistics" => "reports.statistics",
+        "daily_report" => "cash.day_close",
+        _ => "reports.read",
     }
 }
 
@@ -1310,19 +1436,19 @@ pub async fn issue_report(
     input.practice_name = profile.name.trim().to_string();
     input.practice_address = profile.document_address_lines();
     input.logo = practice_logo(pool).await;
-    let locale = input
-        .locale
-        .as_deref()
-        .and_then(crate::infrastructure::pdf::known_pdf_locale)
-        .unwrap_or(document_locale(pool).await);
+    let requested = input.locale.clone();
+    let locale = resolve_document_locale(pool, requested.as_deref()).await;
     input.locale = Some(locale.into());
     // Same three footer lines as the invoice: practice and chamber, tax number, bank.
     input.footer_lines = profile.footer_lines(locale);
 
     if preview {
         input.watermark = Some(
-            crate::infrastructure::pdf::i18n::t(locale, crate::infrastructure::pdf::i18n::Phrase::Draft)
-                .into(),
+            crate::infrastructure::pdf::i18n::t(
+                locale,
+                crate::infrastructure::pdf::i18n::Phrase::Draft,
+            )
+            .into(),
         );
         input.document_number = None;
         let bytes = render_report_pdf(&input)?;
@@ -1345,9 +1471,11 @@ pub async fn issue_report(
         let number = repo::next_number(conn, kind.prefix(), year_now()).await?;
         input.document_number = Some(number.clone());
         input.watermark = None;
-        let bytes = render_report_pdf(&input)?;
+        let doc_id = crate::infrastructure::pdf::new_document_uid();
+        let bytes =
+            crate::infrastructure::pdf::with_document_uid(&doc_id, || render_report_pdf(&input))?;
         let doc = IssuedDocument {
-            id: uuid::Uuid::new_v4().to_string(),
+            id: doc_id.clone(),
             kind: kind.as_db().into(),
             document_number: number,
             source_table: source_id.as_ref().map(|_| "day_close".to_string()),
@@ -1396,9 +1524,10 @@ where
     let issued_at = now_iso();
     let (doc, bytes) = immediate_tx!(pool, |conn| {
         let number = repo::next_number(conn, kind.prefix(), year_now()).await?;
-        let bytes = render(&number)?;
+        let doc_id = crate::infrastructure::pdf::new_document_uid();
+        let bytes = crate::infrastructure::pdf::with_document_uid(&doc_id, || render(&number))?;
         let doc = IssuedDocument {
-            id: uuid::Uuid::new_v4().to_string(),
+            id: doc_id.clone(),
             kind: kind.as_db().into(),
             document_number: number,
             source_table: Some("patient".into()),
@@ -1430,6 +1559,21 @@ where
 // Reprints / verification
 // ===========================================================================
 
+/// Open the stored issued copy. A missing or cancelled document stays closed.
+async fn open_issued_copy(
+    pool: &SqlitePool,
+    session: &Session,
+    kind: DocKind,
+    source_id: &str,
+    copy_variant: &str,
+) -> Result<IssuedPdf, AppError> {
+    let existing = repo::find_by_source(pool, kind.as_db(), source_id, copy_variant).await?;
+    match existing.filter(|doc| doc.status == "ISSUED") {
+        Some(doc) => reprint(pool, session, &doc).await,
+        None => Err(AppError::Forbidden),
+    }
+}
+
 /// Render a stored document again with a "KOPIE" watermark.
 pub async fn reprint(
     pool: &SqlitePool,
@@ -1438,40 +1582,57 @@ pub async fn reprint(
 ) -> Result<IssuedPdf, AppError> {
     let kind = DocKind::from_db(&doc.kind)
         .ok_or_else(|| AppError::validation_code("error.documents.unknown_kind"))?;
-    require_permission(session, kind.issue_permission())?;
+    if doc.status == "ISSUED" {
+        if !can_open_issued(session, kind) {
+            return Err(AppError::Forbidden);
+        }
+    } else {
+        require_permission(session, kind.issue_permission())?;
+    }
     let hide_logo = logo_hidden_on_documents(pool).await;
     let logo = practice_logo(pool).await;
-    let bytes = match kind {
-        DocKind::Invoice | DocKind::Cancellation => {
-            let mut inv: Invoice = serde_json::from_str(&doc.payload_json)
-                .map_err(|e| AppError::Internal(format!("stored invoice: {e}")))?;
-            inv.watermark = Some(WATERMARK_COPY.into());
-            inv.logo = logo;
-            render_goz_invoice(&inv)?
-        }
-        DocKind::Certificate | DocKind::Prescription | DocKind::Receipt => {
-            let mut v: Value = serde_json::from_str(&doc.payload_json)
-                .map_err(|e| AppError::Internal(format!("stored layout: {e}")))?;
-            v["watermark"] = Value::String(WATERMARK_COPY.into());
-            if hide_logo {
-                if let Some(obj) = v.as_object_mut() {
-                    obj.remove("logoKvJson");
-                }
+    // The copy carries the id of the original (`issued_document.id`).
+    let bytes = {
+        let _uid_scope = crate::infrastructure::pdf::DocumentUidScope::enter(&doc.id);
+        match kind {
+            DocKind::Invoice | DocKind::Cancellation => {
+                let mut inv: Invoice = serde_json::from_str(&doc.payload_json)
+                    .map_err(|e| AppError::Internal(format!("stored invoice: {e}")))?;
+                inv.watermark = Some(WATERMARK_COPY.into()); // localised by the renderer
+                inv.logo = logo;
+                render_goz_invoice(&inv)?
             }
-            render_layout_value(&v, logo.as_ref())?
-        }
-        DocKind::DailyReport | DocKind::Report => {
-            let mut input: ReportPdfInput = serde_json::from_str(&doc.payload_json)
-                .map_err(|e| AppError::Internal(format!("stored report: {e}")))?;
-            input.watermark = Some(WATERMARK_COPY.into());
-            input.logo = logo.clone();
-            render_report_pdf(&input)?
-        }
-        DocKind::ChartExtract | DocKind::DischargeLeaflet => {
-            // Not reproducible from stored data; issue a new extract instead.
-            return Err(AppError::validation_code(
-                "error.documents.reprint_not_supported",
-            ));
+            DocKind::Certificate | DocKind::Prescription | DocKind::Receipt => {
+                let mut v: Value = serde_json::from_str(&doc.payload_json)
+                    .map_err(|e| AppError::Internal(format!("stored layout: {e}")))?;
+                v["watermark"] = Value::String(WATERMARK_COPY.into());
+                if hide_logo {
+                    if let Some(obj) = v.as_object_mut() {
+                        obj.remove("logoKvJson");
+                    }
+                }
+                render_layout_value(&v, logo.as_ref())?
+            }
+            DocKind::DailyReport | DocKind::Report => {
+                let mut input: ReportPdfInput = serde_json::from_str(&doc.payload_json)
+                    .map_err(|e| AppError::Internal(format!("stored report: {e}")))?;
+                let locale = input.locale.clone().unwrap_or_else(|| "de".into());
+                input.watermark = Some(
+                    crate::infrastructure::pdf::i18n::t(
+                        &locale,
+                        crate::infrastructure::pdf::i18n::Phrase::Copy,
+                    )
+                    .into(),
+                );
+                input.logo = logo.clone();
+                render_report_pdf(&input)?
+            }
+            DocKind::ChartExtract | DocKind::DischargeLeaflet => {
+                // Not reproducible from stored data; issue a new extract instead.
+                return Err(AppError::validation_code(
+                    "error.documents.reprint_not_supported",
+                ));
+            }
         }
     };
     let sha = sha256_hex(&bytes);
@@ -1584,9 +1745,15 @@ mod tests {
         assert_eq!(args.invoice.recipient_name, "Ada");
         assert_eq!(args.invoice.recipient_address, vec!["Street 1".to_string()]);
         assert_eq!(args.invoice.lines[0].amount_cents, 1000);
-        assert_eq!(args.invoice.lines[0].treatment_date.as_deref(), Some("2026-01-02"));
+        assert_eq!(
+            args.invoice.lines[0].treatment_date.as_deref(),
+            Some("2026-01-02")
+        );
         assert_eq!(args.invoice.lines[0].fee_schedule, FeeSchedule::Other);
-        assert_eq!(args.invoice.lines[0].source_ref.as_deref(), Some("treatment:t1"));
+        assert_eq!(
+            args.invoice.lines[0].source_ref.as_deref(),
+            Some("treatment:t1")
+        );
     }
 
     #[test]
@@ -1608,6 +1775,57 @@ mod tests {
         assert_eq!(args.invoice.date, "2026-06-02");
         assert_eq!(args.invoice.lines[0].description, "Untersuchung");
         assert_eq!(args.invoice.lines[0].amount_cents, 1294);
-        assert_eq!(args.invoice.lines[0].treatment_date.as_deref(), Some("2026-06-02"));
+        assert_eq!(
+            args.invoice.lines[0].treatment_date.as_deref(),
+            Some("2026-06-02")
+        );
+    }
+
+    #[test]
+    fn reception_can_open_an_issued_document() {
+        let reception = Session {
+            user_id: "r".into(),
+            name: "Reception".into(),
+            email: "r@example.org".into(),
+            role: "RECEPTION".into(),
+            permission_overrides: vec![],
+            device_session_id: None,
+            token_version: 0,
+        };
+        assert!(can_open_issued(&reception, DocKind::Prescription));
+        assert!(can_open_issued(&reception, DocKind::Certificate));
+        assert!(can_open_issued(&reception, DocKind::Report));
+        let outsider = Session {
+            role: "TAX_ADVISOR".into(),
+            ..reception
+        };
+        assert!(!can_open_issued(&outsider, DocKind::Prescription));
+    }
+
+    #[test]
+    fn reception_may_preview_clinical_and_receipt_pdfs() {
+        use crate::application::rbac::{effective_allowed, Role};
+        let role = Role::Reception;
+        let ov: &[crate::domain::rbac::PermissionOverride] = &[];
+        assert!(effective_allowed(
+            DocKind::Certificate.preview_permission(),
+            role,
+            ov
+        ));
+        assert!(effective_allowed(
+            DocKind::Prescription.preview_permission(),
+            role,
+            ov
+        ));
+        assert!(effective_allowed(
+            DocKind::Receipt.preview_permission(),
+            role,
+            ov
+        ));
+        assert!(!effective_allowed(
+            DocKind::Certificate.issue_permission(),
+            role,
+            ov
+        ));
     }
 }

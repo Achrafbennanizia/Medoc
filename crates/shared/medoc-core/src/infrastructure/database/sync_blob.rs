@@ -20,7 +20,11 @@ fn hex_encode(bytes: &[u8]) -> String {
     out
 }
 
-pub async fn put_verified(pool: &SqlitePool, claimed_sha256: &str, bytes: &[u8]) -> Result<(), AppError> {
+pub async fn put_verified(
+    pool: &SqlitePool,
+    claimed_sha256: &str,
+    bytes: &[u8],
+) -> Result<(), AppError> {
     let actual = sha256_hex(bytes);
     if actual != claimed_sha256.trim().to_ascii_lowercase() {
         return Err(AppError::Validation("blob hash mismatch".into()));

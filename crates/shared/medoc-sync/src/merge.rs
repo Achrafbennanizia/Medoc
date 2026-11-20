@@ -1,5 +1,5 @@
 use medoc_core::error::AppError;
-use medoc_core::infrastructure::database::patient_repo;
+use medoc_core::infrastructure::database::repos::clinical::patient as patient_repo;
 use sqlx::{Connection, SqlitePool};
 
 use crate::repo::{mark_applied, was_applied, OutboxEntry};
@@ -95,7 +95,7 @@ async fn apply_remote_entry_inner(
             )
             .await?
         }
-        "DELETE" => apply_delete(pool, entry).await?,
+        "DELETE" => apply_delete(pool, entry, admin_pull).await?,
         _ => {
             return Err(AppError::Validation(format!(
                 "unknown sync op: {}",
@@ -117,6 +117,18 @@ async fn apply_remote_entry_inner(
                 error = %e
             );
         }
+    }
+    // Remote practice_task INSERT: ensure assignee notifications exist locally
+    // when the origin did not sync a PRACTICE_TASK_ASSIGNED row (or it lagged).
+    if applied
+        && entry.entity_table == "practice_task"
+        && entry.op.eq_ignore_ascii_case("INSERT")
+    {
+        medoc_core::application::practice_task_sync_notify::ensure_assignee_notifications_after_remote_insert(
+            pool,
+            &entry.entity_id,
+        )
+        .await;
     }
     Ok(applied)
 }
@@ -141,7 +153,7 @@ pub async fn force_apply_payload(
     };
     match op {
         "DELETE" => {
-            apply_delete(pool, &entry).await?;
+            apply_delete_checked(pool, &entry, true, false).await?;
         }
         _ => {
             apply_upsert(
@@ -157,6 +169,21 @@ pub async fn force_apply_payload(
         }
     }
     Ok(())
+}
+
+/// Calendar rows and the practice profile follow the main device on a pull.
+fn replica_takes_main_row(table: &str, entity_id: &str) -> bool {
+    table == "appointment"
+        || (table == "app_kv"
+            && matches!(
+                entity_id,
+                "invoice.practice.v1"
+                    | "practice.work_hours.v1"
+                    | "practice.blockedTimes.v1"
+                    | "practice.calendar-workflows.v1"
+                    | "practice.preferences.v1"
+                    | "practice.preferences-appointment.v1"
+            ))
 }
 
 async fn apply_upsert(
@@ -176,6 +203,19 @@ async fn apply_upsert(
         ));
     };
 
+    if !admin_pull && !force && is_master_only_table(&entry.entity_table) {
+        // Access rights are decided on the main device. A replica (or a mesh
+        // peer) must not be able to grant a login more rights by pushing a row.
+        tracing::warn!(
+            target: "medoc::sync",
+            event = "SYNC_MASTER_ONLY_ROW_REJECTED",
+            table = %entry.entity_table,
+            id = %entry.entity_id,
+            from_device = %entry.device_id,
+        );
+        return Ok(true);
+    }
+
     let exists: i64 = if entry.entity_table == "app_kv" {
         sqlx::query_scalar("SELECT COUNT(*) FROM app_kv WHERE key = ?1")
             .bind(&entry.entity_id)
@@ -193,23 +233,93 @@ async fn apply_upsert(
             .map_err(AppError::Database)?
     };
 
+    if exists == 0 && !force {
+        if let Some(reason) =
+            older_than_tombstone(pool, &entry.entity_table, &entry.entity_id, obj).await?
+        {
+            // The row was deleted after this edit was made (offline edit of a
+            // row another device removed). Applying it would bring it back on
+            // this device only, so devices would disagree.
+            tracing::debug!(
+                target: "medoc::sync",
+                event = "SKIP_EDIT_OF_DELETED_ROW",
+                table = %entry.entity_table,
+                id = %entry.entity_id,
+                reason,
+            );
+            return Ok(true);
+        }
+    }
+
     let mut logical_wins = false;
-    if !force && exists > 0 && policy == ConflictPolicy::LastWriteWins {
-        if let Some(remote_hlc) = crate::hlc::payload_hlc(obj) {
-            crate::hlc::observe_clock(pool, remote_hlc).await?;
+    let now_ms = chrono::Utc::now().timestamp_millis();
+    let mut hlc_to_save = crate::hlc::payload_hlc(obj);
+    // Every incoming stamp advances this device's clock — new rows, rows taken
+    // from the main device and forced rows included. Otherwise a replica whose
+    // wall clock runs behind stamps its next edit of a freshly copied row
+    // *older* than the copy, and the main device drops that edit. The observed
+    // value is capped at real time so a fast peer clock cannot drag this
+    // device's clock into the future.
+    if let Some(remote_hlc) = hlc_to_save {
+        // Only the main device caps stamps (it is the reference clock and
+        // rewrites incoming replica stamps once, in `ingest_push`). A replica
+        // takes the main device's stamps as they are: capping them at its own
+        // — possibly slow — clock made its next edit look older than the copy.
+        let observed = if !admin_pull && remote_hlc.wall_ms > now_ms {
+            crate::hlc::Hlc {
+                wall_ms: now_ms,
+                counter: remote_hlc.counter,
+            }
+        } else {
+            remote_hlc
+        };
+        crate::hlc::observe_clock(pool, observed).await?;
+    }
+    // The main device owns the shared calendar and the practice profile.
+    // A replica demo seed stamps a newer `updated_at`, which used to hide
+    // the main device's appointments and currency.
+    // A calendar edit on this device that has not reached the main device yet
+    // is not overwritten by the main device's copy (the push may have failed
+    // while the pull went through); normal conflict rules decide instead.
+    let take_main = admin_pull
+        && replica_takes_main_row(&entry.entity_table, &entry.entity_id)
+        && !has_pending_local_edit(pool, local_device_id, &entry.entity_table, &entry.entity_id)
+            .await?;
+    if !take_main && !force && exists > 0 && policy == ConflictPolicy::LastWriteWins {
+        if let Some(remote_hlc) = hlc_to_save {
             if let Some(local_hlc) =
                 crate::hlc::load_row(pool, &entry.entity_table, &entry.entity_id).await?
             {
-                match remote_hlc.wall_ms.cmp(&local_hlc.wall_ms).then(remote_hlc.counter.cmp(&local_hlc.counter)) {
+                let remote_cmp = if admin_pull {
+                    remote_hlc
+                } else {
+                    bounded_hlc(remote_hlc, local_hlc, now_ms)
+                };
+                hlc_to_save = Some(remote_cmp);
+                match remote_cmp
+                    .wall_ms
+                    .cmp(&local_hlc.wall_ms)
+                    .then(remote_cmp.counter.cmp(&local_hlc.counter))
+                {
                     std::cmp::Ordering::Greater => logical_wins = true,
                     std::cmp::Ordering::Less => return Ok(true),
                     std::cmp::Ordering::Equal if !admin_pull => return Ok(true),
                     std::cmp::Ordering::Equal => logical_wins = true,
                 }
+            } else if !admin_pull && remote_hlc.wall_ms > now_ms {
+                hlc_to_save = Some(crate::hlc::Hlc {
+                    wall_ms: now_ms,
+                    counter: remote_hlc.counter,
+                });
             }
         }
     }
-    if !force && exists > 0 && policy == ConflictPolicy::LastWriteWins && !logical_wins {
+    if !take_main
+        && !force
+        && exists > 0
+        && policy == ConflictPolicy::LastWriteWins
+        && !logical_wins
+    {
         let remote_ts = obj.get("updated_at").and_then(parse_ts);
         let local_ts = load_local_updated_at(pool, &entry.entity_table, &entry.entity_id).await?;
         match (local_ts, remote_ts) {
@@ -241,7 +351,11 @@ async fn apply_upsert(
             }
             (None, Some(_)) => {}
             (_, None) => {
-                if !admin_pull {
+                // A stamped change is decided by its stamp; only an unstamped
+                // change without `updated_at` from a replica stays unprovable.
+                // Before, a stamped row of a table without `updated_at` (and
+                // no local stamp yet) was skipped forever.
+                if !admin_pull && crate::hlc::payload_hlc(obj).is_none() {
                     tracing::debug!(
                         target: "medoc::sync",
                         event = "SKIP_MISSING_REMOTE_UPDATED_AT",
@@ -254,9 +368,6 @@ async fn apply_upsert(
         }
     }
 
-    if let Some(remote_hlc) = crate::hlc::payload_hlc(obj) {
-        crate::hlc::save_row(pool, &entry.entity_table, &entry.entity_id, remote_hlc).await?;
-    }
     if entry.entity_table == "app_kv" {
         if !apply_app_kv(pool, &entry.entity_id, obj).await? {
             // Device-local key: skipped on purpose; report as handled so the
@@ -264,16 +375,153 @@ async fn apply_upsert(
             return Ok(true);
         }
     } else if exists == 0 {
-        insert_from_json(pool, &entry.entity_table, &entry.entity_id, obj).await?;
+        match insert_from_json(pool, &entry.entity_table, &entry.entity_id, obj).await {
+            Ok(()) => {}
+            Err(err) if is_unique_error(&err) => {
+                // A different local row holds the same unique value. Nothing is
+                // overwritten; the admin resolves it from the problems list.
+                crate::problems::record_incoming(
+                    pool,
+                    entry,
+                    crate::problems::kind::UNIQUE_CONFLICT,
+                    admin_pull,
+                    &err.to_string(),
+                )
+                .await;
+                return Ok(true);
+            }
+            Err(err) => return Err(err),
+        }
+        // A newer re-creation: the old delete no longer applies to this row.
+        clear_tombstone(pool, &entry.entity_table, &entry.entity_id).await?;
     } else {
         update_from_json(pool, &entry.entity_table, &entry.entity_id, obj).await?;
+    }
+    // Saved only after the row is written. Saving it first meant a failed
+    // write left the remote stamp behind; the retry then compared equal to
+    // itself and was dropped as "already seen".
+    if let Some(mut remote_hlc) = hlc_to_save {
+        if !admin_pull && remote_hlc.wall_ms > now_ms && (exists == 0 || take_main || force) {
+            // No local stamp was compared: do not store a future one either.
+            remote_hlc.wall_ms = now_ms;
+        }
+        crate::hlc::save_row(pool, &entry.entity_table, &entry.entity_id, remote_hlc).await?;
     }
     Ok(true)
 }
 
+fn hlc_order(a: crate::hlc::Hlc, b: crate::hlc::Hlc) -> std::cmp::Ordering {
+    a.wall_ms.cmp(&b.wall_ms).then(a.counter.cmp(&b.counter))
+}
+
+/// `Some(reason)` when a tombstone proves this edit is older than the delete.
+/// Without a usable stamp on either side the edit is applied, as before.
+async fn older_than_tombstone(
+    pool: &SqlitePool,
+    table: &str,
+    id: &str,
+    obj: &serde_json::Map<String, serde_json::Value>,
+) -> Result<Option<&'static str>, AppError> {
+    let deleted_at: Option<String> = sqlx::query_scalar(
+        "SELECT deleted_at FROM sync_tombstone WHERE entity_table = ?1 AND entity_id = ?2",
+    )
+    .bind(table)
+    .bind(id)
+    .fetch_optional(pool)
+    .await
+    .map_err(AppError::Database)?;
+    let Some(deleted_at) = deleted_at else {
+        return Ok(None);
+    };
+    // The delete's clock stamp is kept on the row's HLC slot.
+    if let (Some(remote), Some(delete)) = (
+        crate::hlc::payload_hlc(obj),
+        crate::hlc::load_row(pool, table, id).await?,
+    ) {
+        return Ok((hlc_order(remote, delete) != std::cmp::Ordering::Greater)
+            .then_some("hlc_not_after_delete"));
+    }
+    if let (Some(edited), Some(deleted)) = (
+        obj.get("updated_at").and_then(parse_ts),
+        parse_ts_str(&deleted_at),
+    ) {
+        return Ok((edited <= deleted).then_some("edited_before_delete"));
+    }
+    Ok(None)
+}
+
+async fn clear_tombstone(pool: &SqlitePool, table: &str, id: &str) -> Result<(), AppError> {
+    sqlx::query("DELETE FROM sync_tombstone WHERE entity_table = ?1 AND entity_id = ?2")
+        .bind(table)
+        .bind(id)
+        .execute(pool)
+        .await
+        .map_err(AppError::Database)?;
+    Ok(())
+}
+
+async fn has_pending_local_edit(
+    pool: &SqlitePool,
+    local_device_id: &str,
+    table: &str,
+    id: &str,
+) -> Result<bool, AppError> {
+    let n: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM sync_outbox
+         WHERE device_id = ?1 AND entity_table = ?2 AND entity_id = ?3
+           AND delivered_at IS NULL AND (fail_reason IS NULL OR fail_reason = '')",
+    )
+    .bind(local_device_id)
+    .bind(table)
+    .bind(id)
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::Database)?;
+    Ok(n > 0)
+}
+
+/// Main device only: an incoming stamp ahead of this clock is rewritten to
+/// now, once, before the row is applied and relayed. Every device then holds
+/// the same stamp for the same version.
+pub(crate) fn clamp_future_hlc(payload_json: &str, now_ms: i64) -> String {
+    let Ok(mut value) = serde_json::from_str::<serde_json::Value>(payload_json) else {
+        return payload_json.to_string();
+    };
+    let Some(obj) = value.as_object_mut() else {
+        return payload_json.to_string();
+    };
+    let Some(hlc) = crate::hlc::payload_hlc(obj) else {
+        return payload_json.to_string();
+    };
+    if hlc.wall_ms <= now_ms {
+        return payload_json.to_string();
+    }
+    obj.insert(
+        "syncHlc".to_string(),
+        serde_json::Value::String(crate::hlc::format_hlc(crate::hlc::Hlc {
+            wall_ms: now_ms,
+            counter: hlc.counter,
+        })),
+    );
+    serde_json::to_string(&value).unwrap_or_else(|_| payload_json.to_string())
+}
+
+/// Tables only the main device may write through sync (access control).
+fn is_master_only_table(table: &str) -> bool {
+    medoc_core::infrastructure::database::sync_registry::is_master_only_table(table)
+}
+
+/// `updated_at` of the local row, when the column exists and parses.
+pub(crate) async fn local_row_updated_at(
+    pool: &SqlitePool,
+    table: &str,
+    id: &str,
+) -> Result<Option<chrono::DateTime<chrono::FixedOffset>>, AppError> {
+    load_local_updated_at(pool, table, id).await
+}
+
 /// Reads `updated_at` from the existing local row, if any. Returns `None`
-/// for app_kv (no timestamp tracked per row at field level), missing rows,
-/// or any parse error: the caller falls back to legacy master-wins.
+/// for a missing row or any parse error: the caller falls back to master-wins.
 async fn load_local_updated_at(
     pool: &SqlitePool,
     table: &str,
@@ -333,15 +581,27 @@ fn parse_ts_str(s: &str) -> Option<chrono::DateTime<chrono::FixedOffset>> {
     None
 }
 
-/// How far a replica clock may sit behind the master and still count as "now".
-const CLOCK_SKEW: chrono::Duration = chrono::Duration::minutes(2);
+/// A fast peer clock is compared as `now` when this device's stamp is not
+/// itself ahead of `now`. Two stamps that are both ahead keep their order.
+fn bounded_hlc(remote: crate::hlc::Hlc, local: crate::hlc::Hlc, now_ms: i64) -> crate::hlc::Hlc {
+    if remote.wall_ms > now_ms && local.wall_ms <= now_ms {
+        crate::hlc::Hlc {
+            wall_ms: now_ms,
+            counter: remote.counter,
+        }
+    } else {
+        remote
+    }
+}
 
-/// A replica clock a couple of minutes off must not decide the row.
-/// Stamps inside `[now - 2 minutes, future)` are rewritten to `now`.
-/// An older offline edit stays as written, so it still loses to a newer local row.
+/// A peer clock ahead of this device must not outrank a row written at the
+/// real current time. A stamp behind `now` stays as written, so an older
+/// edit cannot be promoted over a newer local row. When the local row is
+/// itself ahead of `now`, both stamps keep their order.
 pub(crate) fn clamp_future_updated_at(
     payload_json: &str,
     now: chrono::DateTime<chrono::Utc>,
+    local_updated_at: Option<chrono::DateTime<chrono::FixedOffset>>,
 ) -> String {
     let Ok(mut value) = serde_json::from_str::<serde_json::Value>(payload_json) else {
         return payload_json.to_string();
@@ -349,14 +609,18 @@ pub(crate) fn clamp_future_updated_at(
     let Some(obj) = value.as_object_mut() else {
         return payload_json.to_string();
     };
-    let Some(remote) = obj.get("updated_at").and_then(|v| v.as_str()).and_then(parse_ts_str) else {
+    let Some(remote) = obj
+        .get("updated_at")
+        .and_then(|v| v.as_str())
+        .and_then(parse_ts_str)
+    else {
         return payload_json.to_string();
     };
-    let earliest = (now - CLOCK_SKEW).fixed_offset();
-    if remote < earliest {
+    let now_fixed = now.fixed_offset();
+    if local_updated_at.is_some_and(|local| local > now_fixed) {
         return payload_json.to_string();
     }
-    if remote == now.fixed_offset() {
+    if remote <= now_fixed {
         return payload_json.to_string();
     }
     obj.insert(
@@ -428,8 +692,34 @@ async fn apply_app_kv(
     Ok(true)
 }
 
-async fn apply_delete(pool: &SqlitePool, entry: &OutboxEntry) -> Result<bool, AppError> {
+async fn apply_delete(
+    pool: &SqlitePool,
+    entry: &OutboxEntry,
+    from_main: bool,
+) -> Result<bool, AppError> {
+    apply_delete_checked(pool, entry, from_main, true).await
+}
+
+/// `check_order`: skip a delete that is older than the local row's last edit.
+/// Reconcile (`force_apply_payload`) passes `false`: the main device's table
+/// state is authoritative there.
+async fn apply_delete_checked(
+    pool: &SqlitePool,
+    entry: &OutboxEntry,
+    from_main: bool,
+    check_order: bool,
+) -> Result<bool, AppError> {
     let table = sanitize_table(&entry.entity_table)?;
+    if !from_main && is_master_only_table(table) {
+        tracing::warn!(
+            target: "medoc::sync",
+            event = "SYNC_MASTER_ONLY_DELETE_REJECTED",
+            table = %table,
+            id = %entry.entity_id,
+            from_device = %entry.device_id,
+        );
+        return Ok(true);
+    }
     // Device-local settings are never deleted (or tombstoned) by a peer.
     if table == "app_kv"
         && medoc_core::infrastructure::database::sync_registry::deny_app_kv_key(&entry.entity_id)
@@ -441,6 +731,42 @@ async fn apply_delete(pool: &SqlitePool, entry: &OutboxEntry) -> Result<bool, Ap
         );
         return Ok(true);
     }
+    let delete_hlc = serde_json::from_str::<serde_json::Value>(&entry.payload_json)
+        .ok()
+        .and_then(|v| v.as_object().and_then(crate::hlc::payload_hlc));
+    if check_order {
+        if let (Some(remote), Some(local)) = (
+            delete_hlc,
+            crate::hlc::load_row(pool, table, &entry.entity_id).await?,
+        ) {
+            if hlc_order(local, remote) == std::cmp::Ordering::Greater {
+                // The row was edited after the delete was issued: the edit
+                // wins, and it reaches the deleting device the normal way.
+                tracing::info!(
+                    target: "medoc::sync",
+                    event = "SKIP_STALE_DELETE",
+                    table = %table,
+                    id = %entry.entity_id,
+                    from_device = %entry.device_id,
+                );
+                return Ok(true);
+            }
+        }
+    }
+    let applied = apply_delete_rows(pool, table, entry).await?;
+    // Remember the delete's stamp: a later, older edit of the same row is
+    // then recognised and not re-inserted.
+    if let Some(remote) = delete_hlc {
+        crate::hlc::save_row(pool, table, &entry.entity_id, remote).await?;
+    }
+    Ok(applied)
+}
+
+async fn apply_delete_rows(
+    pool: &SqlitePool,
+    table: &str,
+    entry: &OutboxEntry,
+) -> Result<bool, AppError> {
     // Patient erasure already runs its own transaction (children, then the row).
     // The tombstone is written only after that commits, so a failed delete does
     // not leave a tombstone for a row that is still there. A retry is safe:
@@ -448,6 +774,20 @@ async fn apply_delete(pool: &SqlitePool, entry: &OutboxEntry) -> Result<bool, Ap
     if table == "patient" {
         patient_repo::delete_row(pool, &entry.entity_id).await?;
         insert_tombstone(pool, table, &entry.entity_id, &entry.device_id).await?;
+        // Erasing a patient record is audited on every device it reaches,
+        // not only where it was started.
+        if let Err(e) = medoc_core::infrastructure::database::repos::admin::audit::create(
+            pool,
+            "sync",
+            "DELETE",
+            "patient",
+            Some(&entry.entity_id),
+            Some(&format!("erased by sync from device {}", entry.device_id)),
+        )
+        .await
+        {
+            tracing::warn!(target: "medoc::sync", event = "SYNC_ERASE_AUDIT_FAILED", error = %e);
+        }
         return Ok(true);
     }
     match delete_entry_deferred(pool, table, entry).await {
@@ -627,7 +967,7 @@ async fn insert_from_json(
         if (k == "id" && known.iter().any(|c| c == "id") && id_col == "id")
             || k == id_col
             || !keep_known_column(&known, k)
-            || crate::repo::snapshot_denied_column(table, k)
+            || crate::repo::deny_column(table, k)
         {
             continue;
         }
@@ -636,7 +976,11 @@ async fn insert_from_json(
     }
     let placeholders: Vec<String> = (1..=binds.len()).map(|i| format!("?{i}")).collect();
     let sql = format!(
-        "INSERT OR REPLACE INTO {table} ({}) VALUES ({})",
+        // Plain INSERT. `INSERT OR REPLACE` resolved a clash on *another*
+        // unique column by deleting that other row: a patient registered on
+        // two devices with the same insurance number silently deleted the
+        // local patient — and, through ON DELETE CASCADE, the chart.
+        "INSERT INTO {table} ({}) VALUES ({})",
         cols.join(", "),
         placeholders.join(", ")
     );
@@ -657,7 +1001,7 @@ async fn apply_staff_without_secrets(
     for (k, version) in obj {
         if k == "id"
             || k == "password_hash"
-            || crate::repo::snapshot_denied_column("staff", k)
+            || crate::repo::deny_column("staff", k)
             || !keep_known_column(&known, k)
         {
             continue;
@@ -690,7 +1034,7 @@ async fn update_from_json(
         if k == "id"
             || k == id_col
             || !keep_known_column(&known, k)
-            || crate::repo::snapshot_denied_column(table, k)
+            || crate::repo::deny_column(table, k)
         {
             continue;
         }
@@ -702,9 +1046,21 @@ async fn update_from_json(
         return Ok(());
     }
     let key = medoc_core::infrastructure::database::sync_registry::key_expr(table);
+    // Skip the write when every column already holds the incoming value.
+    // Append-only tables (cash book, reminders, saved reports) reject any
+    // UPDATE in a trigger; the echo of a row this device wrote itself used to
+    // fail there eight times before being dropped.
+    let same: Vec<String> = sets
+        .iter()
+        .map(|set| {
+            let (col, param) = set.split_once(" = ").unwrap_or((set.as_str(), ""));
+            format!("{col} IS {param}")
+        })
+        .collect();
     let sql = format!(
-        "UPDATE {table} SET {} WHERE {key} = ?{idx}",
-        sets.join(", ")
+        "UPDATE {table} SET {} WHERE {key} = ?{idx} AND NOT ({})",
+        sets.join(", "),
+        same.join(" AND ")
     );
     binds.push(Some(id.to_string()));
     execute_write(pool, &sql, &binds).await
@@ -777,11 +1133,21 @@ pub(crate) async fn restore_foreign_keys(
     }
 }
 
+/// UNIQUE (not primary key: the row was checked absent) constraint violation.
+fn is_unique_error(err: &AppError) -> bool {
+    match err {
+        AppError::Database(sqlx::Error::Database(db)) => {
+            db.code().is_some_and(|code| code == "2067")
+                || db.message().contains("UNIQUE constraint failed")
+        }
+        _ => false,
+    }
+}
+
 fn is_foreign_key_error(err: &AppError) -> bool {
     match err {
         AppError::Database(sqlx::Error::Database(db)) => {
-            db.code().is_some_and(|code| code == "787")
-                || db.message().contains("FOREIGN KEY")
+            db.code().is_some_and(|code| code == "787") || db.message().contains("FOREIGN KEY")
         }
         _ => false,
     }
@@ -876,16 +1242,25 @@ mod tests {
             .unwrap()
             .with_timezone(&chrono::Utc);
         let fast = r#"{"name":"Fast","updated_at":"2099-06-01T12:02:00Z"}"#;
-        let clamped = super::clamp_future_updated_at(fast, now);
+        let clamped = super::clamp_future_updated_at(fast, now, None);
         let value: serde_json::Value = serde_json::from_str(&clamped).unwrap();
         assert_eq!(value["updated_at"], "2099-06-01T12:00:00.000Z");
         assert_eq!(value["name"], "Fast");
         let older = r#"{"name":"Older","updated_at":"2099-06-01T11:00:00Z"}"#;
-        assert_eq!(super::clamp_future_updated_at(older, now), older);
+        assert_eq!(super::clamp_future_updated_at(older, now, None), older);
         let slow = r#"{"name":"Slow","updated_at":"2099-06-01T11:58:30Z"}"#;
-        let clamped_slow = super::clamp_future_updated_at(slow, now);
-        let slow_value: serde_json::Value = serde_json::from_str(&clamped_slow).unwrap();
-        assert_eq!(slow_value["updated_at"], "2099-06-01T12:00:00.000Z");
-        assert_eq!(slow_value["name"], "Slow");
+        assert_eq!(
+            super::clamp_future_updated_at(slow, now, None),
+            slow,
+            "a stamp behind now must stay behind, so it cannot leap over a newer local row"
+        );
+        let local_ahead = chrono::DateTime::parse_from_rfc3339("2099-07-01T00:00:00Z")
+            .unwrap()
+            .fixed_offset();
+        assert_eq!(
+            super::clamp_future_updated_at(fast, now, Some(local_ahead)),
+            fast,
+            "two stamps ahead of this clock keep their own order"
+        );
     }
 }

@@ -97,12 +97,12 @@ pub async fn clear_for_patient(
     let mut tx = pool.begin().await?;
     let sections: Vec<String> = match section_or_item {
         Some(s) => vec![s.to_string()],
-        None => sqlx::query_scalar(
-            "SELECT section_or_item FROM chart_validation WHERE patient_id = ?1",
-        )
-        .bind(patient_id)
-        .fetch_all(&mut *tx)
-        .await?,
+        None => {
+            sqlx::query_scalar("SELECT section_or_item FROM chart_validation WHERE patient_id = ?1")
+                .bind(patient_id)
+                .fetch_all(&mut *tx)
+                .await?
+        }
     };
     for section in &sections {
         let key = crate::infrastructure::database::sync_registry::chart_validation_key(

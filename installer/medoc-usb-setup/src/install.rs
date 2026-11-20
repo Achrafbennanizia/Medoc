@@ -84,7 +84,11 @@ pub fn run_lan_server_install(root: &Path) -> Result<(), AppError> {
     Ok(())
 }
 
-fn run_installer(path: &Path, silent: bool, role: InstallRole) -> Result<Option<PathBuf>, AppError> {
+fn run_installer(
+    path: &Path,
+    silent: bool,
+    role: InstallRole,
+) -> Result<Option<PathBuf>, AppError> {
     if path.extension().and_then(|e| e.to_str()) == Some("app") {
         let dest = install_macos_app_bundle(path, bundle_file_name(role))?;
         return Ok(Some(dest));

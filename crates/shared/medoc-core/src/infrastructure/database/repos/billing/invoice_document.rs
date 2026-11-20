@@ -88,10 +88,11 @@ pub async fn insert_with_audit_trail(
 
 pub async fn delete_for_patient(pool: &SqlitePool, patient_id: &str) -> Result<u64, AppError> {
     let mut tx = pool.begin().await?;
-    let ids: Vec<String> = sqlx::query_scalar("SELECT id FROM invoice_document WHERE patient_id = ?1")
-        .bind(patient_id)
-        .fetch_all(&mut *tx)
-        .await?;
+    let ids: Vec<String> =
+        sqlx::query_scalar("SELECT id FROM invoice_document WHERE patient_id = ?1")
+            .bind(patient_id)
+            .fetch_all(&mut *tx)
+            .await?;
     for id in &ids {
         crate::infrastructure::database::recorded_write::record_in_tx(
             &mut tx,

@@ -20,15 +20,18 @@ import {
     parseISO,
     startOfWeek,
 } from "date-fns";
+import { resolveAppointmentsDeepLink } from "@/lib/appointments-deep-link";
 import { listAppointmentsInRange, moveAppointments, createAppointment, deleteAppointment, updateAppointment } from "@/systems/practice-host/controllers/appointment.controller";
 import {
     eachIsoDate,
     mergeAppointmentsInSpan,
+    replaceAppointmentsInSpan,
     monthGridRangeForView,
     practiceYearRange,
     rangeIsCovered,
 } from "@/lib/appointment-visible-range";
 import { useDateFnsLocale, useT, useTParams } from "@/lib/i18n";
+import { practiceTodayYmd } from "@/lib/practice-timezone";
 import { usePageRefresh } from "../layouts/page-refresh";
 import { listPatientsByIds } from "@/systems/practice-host/controllers/patient.controller";
 import { listPhysicians, type PhysicianSummary } from "@/systems/practice-host/controllers/staff.controller";
@@ -110,7 +113,7 @@ import {
     appointmentKindFilterOptions,
     appointmentCalendarWeekDays,
     appointmentCountsAsPlanned,
-    appointmentTimeToMinutes,
+    timeToMinutes,
     APPOINTMENT_DEFAULT_DUR_MIN,
     APPOINTMENT_PX_PER_MIN,
     APPOINTMENT_STATUS_BADGE,
@@ -137,8 +140,6 @@ const APPT_DRAG_TRAVEL_PX = 5;
  * press again and drag without the drawer stealing focus.
  */
 const APPT_DRAWER_OPEN_DELAY_MS = 320;
-
-const timeToMinutes = appointmentTimeToMinutes;
 
 function absenceStamp(rows: Absence[]): string {
     return rows.map((row) => `${row.id}\0${row.from_day}\0${row.to_day}\0${row.from_time ?? ""}\0${row.to_time ?? ""}\0${row.kind}`).join("\n");
@@ -296,7 +297,11 @@ export function AppointmentsPage() {
                 physiciansLoadedRef.current ? Promise.resolve(null) : listPhysicians(),
             ]);
             for (const day of eachIsoDate(from, to)) coveredDaysRef.current.add(day);
-            setAppointments((prev) => mergeAppointmentsInSpan(prev, appts, from, to));
+            setAppointments((prev) =>
+                force
+                    ? replaceAppointmentsInSpan(prev, appts, from, to)
+                    : mergeAppointmentsInSpan(prev, appts, from, to),
+            );
             if (patientRows.length > 0) {
                 for (const row of patientRows) knownPatientIdsRef.current.add(row.id);
                 setPatients((prev) => {
@@ -670,16 +675,53 @@ export function AppointmentsPage() {
     }, [ctxMenu]);
 
     useEffect(() => {
+        const dateParam = searchParams.get("date");
+        const viewParam = searchParams.get("view");
+        const editId = searchParams.get("edit")?.trim() || "";
         const patientId = searchParams.get("patient_id");
         const openNew = searchParams.get("new");
+
+        const clearParams = (...keys: string[]) => {
+            setSearchParams(
+                (prev) => {
+                    const p = new URLSearchParams(prev);
+                    for (const key of keys) p.delete(key);
+                    return p;
+                },
+                { replace: true },
+            );
+        };
+
+        // Deep links: honor view=week|day|month before applying date (do not force day for week).
+        const deep = resolveAppointmentsDeepLink({ viewParam, dateParam });
+        if (deep) {
+            setView(deep.view);
+            setDayOffset(deep.dayOffset);
+            setWeekOffset(deep.weekOffset);
+            if (deep.applyMonthOffset && dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+                const target = parseISO(dateParam);
+                if (!Number.isNaN(target.getTime())) {
+                    setMonthOffset(calendarMonthOffsetFromToday(target));
+                }
+            }
+        }
+
+        if (editId) {
+            goNewAppointment({ id: editId, date: dateParam || undefined });
+            clearParams("edit", "date", "patient_id", "new", "view");
+            return;
+        }
+
         if (patientId && openNew === "1") {
-            goNewAppointment({ patient_id: patientId, date: selectedDayIso });
-            setSearchParams((prev) => {
-                const p = new URLSearchParams(prev);
-                p.delete("patient_id");
-                p.delete("new");
-                return p;
-            }, { replace: true });
+            goNewAppointment({ patient_id: patientId, date: dateParam || selectedDayIso });
+            clearParams("patient_id", "new", "date", "view");
+            return;
+        }
+
+        if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+            clearParams("date", "view");
+        } else if (viewParam) {
+            clearParams("view");
         }
     }, [searchParams, setSearchParams, goNewAppointment, selectedDayIso]);
 
@@ -725,7 +767,7 @@ export function AppointmentsPage() {
         () => baseFilteredAppointments.filter(appointmentCountsAsPlanned).length,
         [baseFilteredAppointments],
     );
-    const heuteIso = format(new Date(), "yyyy-MM-dd");
+    const heuteIso = practiceTodayYmd();
     const heutePlannedCount = useMemo(
         () =>
             baseFilteredAppointments.filter((x) => x.date === heuteIso && appointmentCountsAsPlanned(x)).length,
@@ -1650,6 +1692,7 @@ export function AppointmentsPage() {
                             emptyHasFilters={tagViewHasActiveFilters}
                             onEmptyCreate={() => goNewAppointment({ date: selectedDayIso })}
                             onEmptyResetFilters={tagViewHasActiveFilters ? resetFilters : undefined}
+                            absences={absences}
                             nowMin={() => {
                                 const n = new Date();
                                 return n.getHours() * 60 + n.getMinutes();
@@ -1673,6 +1716,7 @@ export function AppointmentsPage() {
                             physicianToneMap={physicianToneMap}
                             patientLoadSettings={monthCalPatientLoad}
                             practiceCfg={practicePlanCfg}
+                            absences={absences}
                             onPickDay={(iso) => {
                                 jumpToIsoDate(iso);
                                 setView("day");
@@ -1689,6 +1733,7 @@ export function AppointmentsPage() {
                             onAppointmentDragStart={beginAppointmentDrag}
                             snapLabel={appointmentDaySnapLabel}
                             onClearSnapLabel={() => setAppointmentDaySnapLabel(null)}
+                            absences={absences}
                             clickSuppressUntilRef={suppressApptClickUntilRef}
                             onHeaderDay={(iso) => {
                                 jumpToIsoDate(iso);
@@ -1730,7 +1775,7 @@ export function AppointmentsPage() {
                         onCancel={() => setEmergencyConfirmOpen(false)}
                         destructive
                         onConfirm={() => {
-                            const todayIso = format(new Date(), "yyyy-MM-dd");
+                            const todayIso = practiceTodayYmd();
                             setDayOffset(0);
                             setWeekOffset(0);
                             setMonthOffset(0);

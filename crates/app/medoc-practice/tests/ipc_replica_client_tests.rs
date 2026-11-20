@@ -5,10 +5,10 @@ mod support;
 use chrono::NaiveDate;
 use medoc_core::domain::entities::patient::CreatePatient;
 use medoc_core::domain::enums::Sex;
-use medoc_core::infrastructure::database::patient_repo;
-use medoc_practice::commands::company_portal_commands::apply_serverless_role_from_license_code;
-use medoc_practice::commands::lan_commands::lan_listen_block_reason;
-use medoc_practice::commands::staff_commands::reject_staff_writes_on_replica;
+use medoc_core::infrastructure::database::repos::clinical::patient as patient_repo;
+use medoc_practice::commands::admin::staff::reject_staff_writes_on_replica;
+use medoc_practice::commands::network::company_portal::apply_serverless_role_from_license_code;
+use medoc_practice::commands::network::lan::lan_listen_block_reason;
 use medoc_sync::deployment::{DeploymentMode, DeviceRole};
 use medoc_sync::engine::SyncEngine;
 use serial_test::serial;
@@ -103,5 +103,7 @@ async fn replica_cannot_create_staff() {
     let err = reject_staff_writes_on_replica(&pool)
         .await
         .expect_err("replica staff write");
-    assert!(err.to_string().contains("Staff accounts are managed on the main device."));
+    assert!(err
+        .to_string()
+        .contains("Staff accounts are managed on the main device."));
 }

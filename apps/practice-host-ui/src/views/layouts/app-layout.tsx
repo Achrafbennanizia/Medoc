@@ -1,4 +1,4 @@
-import { Fragment, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { Fragment, memo, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../models/store/auth-store";
@@ -15,10 +15,11 @@ import { useT, useTParams, useLocale, translateLocale, applyDocumentLocale } fro
 import { breadcrumbKeysForPath } from "@/lib/breadcrumb-keys";
 import type { Patient } from "../../models/types";
 import { ExportPreviewHost } from "../components/export-preview-host";
+import { TableColumnEstimatorHost } from "../components/table-column-estimator-host";
 import { shouldShowPracticeSetupWizard } from "@/lib/practice-completeness";
 import { PracticeSetupWizard } from "../components/practice-setup-wizard";
 import { useDesktopChromeMode } from "../components/desktop-chrome";
-import { errorMessage } from "@/lib/utils";
+import { errorMessage, initialsFromName } from "@/lib/utils";
 import { useToastStore } from "../components/ui/toast-store";
 import { ConfirmDialog, Dialog } from "../components/ui/dialog";
 import { Button } from "../components/ui/button";
@@ -28,7 +29,8 @@ import { filterCommandsForRole } from "@/lib/command-palette-data";
 import { CommandPalette } from "../components/command-palette";
 import { AboutAppDialog, RoleSwitchDialog } from "../components/app-help-dialogs";
 import { OnboardingCoachmark } from "../components/onboarding-coachmark";
-import { PAGE_REFRESH_EVENT, PAGE_REFRESH_MS } from "./page-refresh";
+import { PAGE_REFRESH_EVENT, PAGE_REFRESH_HIDDEN_MS, PAGE_REFRESH_MS } from "./page-refresh";
+import { syncExchangeQueues } from "@/systems/practice-host/controllers/sync.controller";
 import { ONBOARDING_COACHMARK_ENABLED } from "@/lib/v1-ui-flags";
 import { NotificationsPopover } from "../components/notifications-popover";
 import { probeBackgroundServers } from "@/systems/practice-host/controllers/connectivity.controller";
@@ -43,6 +45,12 @@ import { RouteOutletGuard } from "../components/route-outlet-guard";
 import { PageLoading } from "../components/ui/page-status";
 import { applyAppearanceFromSettings, isNetworkHiddenInSettings, loadClientSettings } from "@/lib/client-settings";
 import { practiceCurrency, subscribePracticeCurrency } from "@/lib/practice-currency";
+import {
+    hydratePracticeTimezoneFromAppKv,
+    practiceTimezone,
+    subscribePracticeTimezone,
+} from "@/lib/practice-timezone";
+import { getAppKv } from "@/systems/practice-host/controllers/app-kv.controller";
 import { setNetworkHidden } from "@/systems/practice-host/controllers/cluster.controller";
 import {
     hydrateInvoicePracticeFromAppKv,
@@ -106,6 +114,78 @@ function measureSidebarAccountMenuWidthPx(labels: string[]): number {
     const chrome = 16 + 24; /* popover horizontal padding + row horizontal padding */
     const raw = wordPx + 2 + chrome;
     return Math.min(typeof window !== "undefined" ? window.innerWidth - 24 : raw, Math.max(140, raw));
+}
+
+function queuesForPath(pathname: string): string[] | null {
+    if (pathname === "/") return ["patients", "appointments", "charts", "orders"];
+    if (pathname.startsWith("/appointments")) return ["appointments"];
+    if (pathname.startsWith("/patients")) return ["patients"];
+    if (pathname.startsWith("/charts")) return ["charts"];
+    if (
+        pathname.startsWith("/finance")
+        || pathname.startsWith("/balance-sheet")
+        || pathname.startsWith("/statistics")
+    ) {
+        return ["finance"];
+    }
+    if (pathname.startsWith("/purchase-orders") || pathname.startsWith("/products")) return ["orders"];
+    if (pathname.startsWith("/tickets") || pathname.startsWith("/administration/tasks")) return ["tasks"];
+    if (
+        pathname.includes("/work-time")
+        || pathname.includes("/work-hours")
+        || pathname.includes("/work-days")
+        || pathname.includes("/work-plan")
+    ) {
+        return ["work_time"];
+    }
+    // Settings and the other screens share the practice and parameters queues.
+    return ["practice", "parameters"];
+}
+
+const AppRouteOutlet = memo(function AppRouteOutlet({
+    currency,
+    timeZone,
+    loadingLabel,
+}: {
+    currency: string;
+    timeZone: string;
+    loadingLabel: string;
+}) {
+    // Remount routes when practice currency or time zone changes so money labels,
+    // "today" highlights, and day-close buckets pick up the new settings immediately.
+    const outletKey = `${currency}:${timeZone}`;
+    return (
+        <Suspense fallback={<PageLoading label={loadingLabel} />}>
+            <RouteOutletGuard>
+                <Outlet key={outletKey} />
+            </RouteOutletGuard>
+        </Suspense>
+    );
+});
+
+function QueueExchangeBar({ pathname }: { pathname: string }) {
+    const t = useT();
+    const queues = queuesForPath(pathname);
+    const key = queues?.join(",") ?? "";
+    const [busy, setBusy] = useState(false);
+    useEffect(() => {
+        if (!queues) {
+            setBusy(false);
+            return;
+        }
+        let cancelled = false;
+        setBusy(true);
+        syncExchangeQueues(queues)
+            .catch(() => undefined)
+            .finally(() => {
+                if (!cancelled) setBusy(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [key]);
+    if (!busy) return null;
+    return <div className="queue-exchange-bar" role="status" aria-label={t("common.loading")} />;
 }
 
 export function AppLayout() {
@@ -198,7 +278,7 @@ export function AppLayout() {
         }
         return acc;
     }, [visibleByTo]);
-    const initials = (session?.name ?? "MD").split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase();
+    const initials = initialsFromName(session?.name ?? "MD");
     const profileRoleLine = useMemo(() => {
         const r = session?.role;
         if (r === "PHYSICIAN") return t("app.role_label.PHYSICIAN");
@@ -466,15 +546,24 @@ export function AppLayout() {
     }, []);
 
     useEffect(() => {
-        const id = window.setInterval(() => {
-            if (document.visibilityState === "hidden") return;
-            const el = document.activeElement;
-            if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) return;
-            if (el instanceof HTMLElement && el.isContentEditable) return;
-            if (document.querySelector("[role='dialog'], dialog[open]")) return;
-            window.dispatchEvent(new Event(PAGE_REFRESH_EVENT));
-        }, PAGE_REFRESH_MS);
-        return () => window.clearInterval(id);
+        let id = 0;
+        const arm = () => {
+            window.clearInterval(id);
+            const hidden = document.visibilityState === "hidden";
+            id = window.setInterval(() => {
+                const el = document.activeElement;
+                if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) return;
+                if (el instanceof HTMLElement && el.isContentEditable) return;
+                if (document.querySelector("[role='dialog'], dialog[open]")) return;
+                window.dispatchEvent(new Event(PAGE_REFRESH_EVENT));
+            }, hidden ? PAGE_REFRESH_HIDDEN_MS : PAGE_REFRESH_MS);
+        };
+        arm();
+        document.addEventListener("visibilitychange", arm);
+        return () => {
+            window.clearInterval(id);
+            document.removeEventListener("visibilitychange", arm);
+        };
     }, []);
 
     useEffect(() => {
@@ -491,6 +580,14 @@ export function AppLayout() {
                 await migrateInvoicePracticeLocalStorageToAppKv();
                 await hydrateInvoicePracticeFromAppKv();
                 await hydratePracticeHeaderPrivacy();
+                await hydratePracticeTimezoneFromAppKv(() => getAppKv("practice.timezone.v1"));
+                const { hydrateDocumentLocaleFromAppKv } = await import("@/lib/document-locale");
+                await hydrateDocumentLocaleFromAppKv();
+                const { hydrateUiPrefsFromDisk } = await import(
+                    "@/systems/practice-host/controllers/ui-prefs.controller"
+                );
+                await hydrateUiPrefsFromDisk(sessionUserId);
+                applyAppearanceFromSettings(loadClientSettings());
             } catch (e) {
                 toast(tp("app.layout.practice_sync_error", { message: errorMessage(e) }), "warning");
             }
@@ -504,6 +601,7 @@ export function AppLayout() {
     }, [sessionUserId]);
 
     const practiceCurrencyCode = useSyncExternalStore(subscribePracticeCurrency, practiceCurrency, practiceCurrency);
+    const practiceTimeZoneId = useSyncExternalStore(subscribePracticeTimezone, practiceTimezone, practiceTimezone);
     const [idleMinutes, setIdleMinutes] = useState(() => loadClientSettings().security?.idleLogoutMinutes ?? 0);
     useEffect(() => {
         const sync = () => setIdleMinutes(loadClientSettings().security?.idleLogoutMinutes ?? 0);
@@ -620,8 +718,13 @@ export function AppLayout() {
             const labels = [t("nav.settings")];
             if (BREAK_GLASS_ENABLED && session?.role === "PHYSICIAN") labels.push(t("app.layout.break_glass.emergency_access"));
             labels.push(t("auth.logout"));
-            const widthPx = measureSidebarAccountMenuWidthPx(labels);
-            let left = r.left;
+            const measured = measureSidebarAccountMenuWidthPx(labels);
+            // Match the user-card width so the menu stays anchored (esp. RTL / Arabic labels).
+            const widthPx = Math.max(measured, Math.round(r.width));
+            const rtl =
+                typeof document !== "undefined" &&
+                getComputedStyle(document.documentElement).direction === "rtl";
+            let left = rtl ? r.right - widthPx : r.left;
             if (typeof window !== "undefined") {
                 left = Math.max(8, Math.min(left, window.innerWidth - widthPx - 8));
             }
@@ -950,12 +1053,15 @@ export function AppLayout() {
                         type="button"
                         className="btn btn-subtle"
                         style={{
-                            padding: "4px 8px 4px 4px",
+                            paddingBlock: 4,
+                            paddingInlineStart: 4,
+                            paddingInlineEnd: 8,
                             fontSize: 12,
                             borderRadius: 999,
                             display: "inline-flex",
                             alignItems: "center",
                             gap: 6,
+                            flexShrink: 0,
                         }}
                         aria-haspopup="menu"
                         aria-expanded={userMenuOpen && userMenuAnchor === "topbar"}
@@ -1189,17 +1295,19 @@ export function AppLayout() {
                     className={`app-main${isDashboardRoute || isAppointmentsCalendarRoute ? " app-main--fill-y" : " app-main--scroll-y"}`}
                     aria-label={t("app.title")}
                 >
-                    <Suspense fallback={<PageLoading label={t("common.loading")} />}>
-                        <RouteOutletGuard>
-                            <Outlet key={practiceCurrencyCode} />
-                        </RouteOutletGuard>
-                    </Suspense>
+                    <QueueExchangeBar pathname={location.pathname} />
+                    <AppRouteOutlet
+                        currency={practiceCurrencyCode}
+                        timeZone={practiceTimeZoneId}
+                        loadingLabel={t("common.loading")}
+                    />
                 </main>
             </div>
             </div>
 
             {ONBOARDING_COACHMARK_ENABLED ? <OnboardingCoachmark role={session?.role} /> : null}
             <ExportPreviewHost />
+            <TableColumnEstimatorHost />
             <PracticeSetupWizard open={practiceSetupOpen} onClose={() => setPracticeSetupOpen(false)} />
 
             <Dialog

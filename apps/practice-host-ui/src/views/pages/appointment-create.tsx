@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, startOfWeek, endOfWeek } from "date-fns";
 import { createAppointment, deleteAppointment, getAppointment, listAppointments, updateAppointment } from "@/systems/practice-host/controllers/appointment.controller";
 import { useDateFnsLocale, useT, useTParams } from "@/lib/i18n";
+import { practiceTodayYmd } from "@/lib/practice-timezone";
 import { listPatients } from "@/systems/practice-host/controllers/patient.controller";
 import { getChart, listDentalFindings } from "@/systems/practice-host/controllers/chart.controller";
 import { listPhysicians, type PhysicianSummary } from "@/systems/practice-host/controllers/staff.controller";
@@ -34,7 +35,16 @@ import {
     firstBookableAppointmentSlot,
 } from "@/lib/appointment-slot-grid";
 import { parseToothacheTeethFromChiefComplaintPart, sortFdiTeeth, splitChiefComplaintParts } from "@/lib/dental";
-import { APPOINTMENT_KIND_VALUES, type Patient, type Appointment, type Absence, type DentalFinding } from "../../models/types";
+import {
+    APPOINTMENT_KIND_VALUES,
+    APPOINTMENT_STATUS_VALUES,
+    type AppointmentKind,
+    type AppointmentStatus,
+    type Patient,
+    type Appointment,
+    type Absence,
+    type DentalFinding,
+} from "../../models/types";
 import { Button } from "../components/ui/button";
 import { Card, CardHeader } from "../components/ui/card";
 import { Input, Select, Textarea } from "../components/ui/input";
@@ -120,13 +130,20 @@ function buildChiefComplaintPayload(tags: string[], toothacheTeeth: string[]): s
         .join("; ");
 }
 
-function normalizeKind(raw: string | null): string {
+function normalizeKind(raw: string | null): AppointmentKind {
     if (!raw) return "CHECKUP";
     if (raw === "NOTFALL" || raw === "EMERGENCY") return "TREATMENT";
     if (raw === "ROUTINE") return "CHECKUP";
     const allowed = APPOINTMENT_KIND_VALUES as readonly string[];
-    if (allowed.includes(raw)) return raw;
+    if (allowed.includes(raw)) return raw as AppointmentKind;
     return "CHECKUP";
+}
+
+function normalizeStatus(raw: string | null | undefined): AppointmentStatus {
+    if (raw && (APPOINTMENT_STATUS_VALUES as readonly string[]).includes(raw)) {
+        return raw as AppointmentStatus;
+    }
+    return "PLANNED";
 }
 
 export function AppointmentCreatePage() {
@@ -154,7 +171,7 @@ export function AppointmentCreatePage() {
     const hasPatientParam = searchParams.has("patient_id");
     const hasKindParam = searchParams.has("kind");
     const hasTimeParam = searchParams.has("time");
-    const dateInit = searchParams.get("date") ?? format(new Date(), "yyyy-MM-dd");
+    const dateInit = searchParams.get("date") ?? practiceTodayYmd();
     const patientInit = searchParams.get("patient_id") ?? "";
     const kindInit = searchParams.get("kind") ?? "";
     const timeInitRaw = searchParams.get("time");
@@ -182,7 +199,7 @@ export function AppointmentCreatePage() {
     const [durationMin, setDurationMin] = useState("");
     const durationLocked = useRef(isEdit);
     const loadedAppointmentRef = useRef<Appointment | null>(null);
-    const [statusPreference, setStatusPreference] = useState<string>(() =>
+    const [statusPreference, setStatusPreference] = useState<AppointmentStatus>(() =>
         defaultCreateAppointmentStatus(loadClientSettings()),
     );
     const [patientError, setPatientError] = useState("");
@@ -218,8 +235,8 @@ export function AppointmentCreatePage() {
     }, []);
 
     const effectivePracticeCfg = useMemo(
-        () => resolveBookingWorkHoursForPhysician(practiceCfg, physicianId || null),
-        [practiceCfg, physicianId],
+        () => resolveBookingWorkHoursForPhysician(practiceCfg, physicianId || null, date),
+        [practiceCfg, physicianId, date],
     );
 
     const slotStep = useMemo(() => Math.max(5, Number(effectivePracticeCfg.slotMin) || 30), [effectivePracticeCfg.slotMin]);
@@ -349,7 +366,7 @@ export function AppointmentCreatePage() {
                 if (hasKindParam) {
                     setKind(normalizeKind(kindInit));
                 } else if (d.kind) {
-                    setKind(d.kind);
+                    setKind(normalizeKind(d.kind));
                 }
                 if (Array.isArray(d.chiefComplaintTags)) setChiefComplaintTags(d.chiefComplaintTags);
                 if (Array.isArray(d.toothacheTeeth)) {
@@ -362,7 +379,7 @@ export function AppointmentCreatePage() {
                     durationLocked.current = true;
                     setDurationMin(d.durationMin);
                 }
-                if (d.statusPreference) setStatusPreference(d.statusPreference);
+                if (d.statusPreference) setStatusPreference(normalizeStatus(d.statusPreference));
             } catch {
                 /* ignore */
             } finally {
@@ -661,7 +678,6 @@ export function AppointmentCreatePage() {
                         if (!previous) return;
                         try {
                             await updateAppointment(editId, {
-                                patient_id: previous.patient_id,
                                 physician_id: previous.physician_id,
                                 date: previous.date,
                                 time: previous.time,
@@ -960,8 +976,8 @@ export function AppointmentCreatePage() {
                                 onChange={(e) => setPhysicianId(e.target.value)}
                                 options={[{ value: "", label: physicians.length ? t("appointment.create.doctor_pick") : t("appointment.create.doctor_empty") }, ...physicians.map((a) => ({ value: a.id, label: a.name }))]}
                             />
-                            <Select id="tc-kind" label={t("appointment.create.treatment_type")} value={kind} onChange={(e) => setKind(e.target.value)} options={treatmentOptions} />
-                            <Select id="tc-status" label={t("appointment.create.status")} value={statusPreference} onChange={(e) => setStatusPreference(e.target.value)} options={statusOptions} />
+                            <Select id="tc-kind" label={t("appointment.create.treatment_type")} value={kind} onChange={(e) => setKind(normalizeKind(e.target.value))} options={treatmentOptions} />
+                            <Select id="tc-status" label={t("appointment.create.status")} value={statusPreference} onChange={(e) => setStatusPreference(normalizeStatus(e.target.value))} options={statusOptions} />
                             <TagInput label={t("appointment.create.complaints")} value={chiefComplaintTags} onChange={setChiefComplaintTags} suggestions={chiefComplaintSuggestions} />
                             {chiefComplaintTags.includes(TOOTHACHE_TAG) || chiefComplaintTags.includes(TOOTHACHE_TAG_LEGACY) ? (
                                 <DentalToothPickerMini

@@ -32,8 +32,10 @@ pub async fn create(pool: &SqlitePool, data: &CreateProduct) -> Result<Product, 
     .bind(data.min_stock)
     .execute(&mut *tx)
     .await?;
-    crate::infrastructure::database::recorded_write::record_in_tx(&mut tx, "product", &id, "INSERT")
-        .await?;
+    crate::infrastructure::database::recorded_write::record_in_tx(
+        &mut tx, "product", &id, "INSERT",
+    )
+    .await?;
     tx.commit().await?;
 
     Ok(

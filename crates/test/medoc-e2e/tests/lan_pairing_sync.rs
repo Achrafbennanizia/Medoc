@@ -20,7 +20,7 @@ async fn lan_health_and_ping_are_public() {
 }
 
 async fn enroll_seed_physician_totp(pool: &sqlx::SqlitePool) {
-    use medoc_core::infrastructure::database::staff_repo;
+    use medoc_core::infrastructure::database::repos::admin::staff as staff_repo;
     use medoc_core::infrastructure::totp;
     let (secret, _) = totp::generate_enrollment("ahmed@practice.de").expect("totp enroll");
     staff_repo::set_totp_pending_secret(pool, "seed-physician-001", &secret)

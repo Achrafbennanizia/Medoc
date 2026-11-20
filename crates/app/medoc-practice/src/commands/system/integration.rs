@@ -4,7 +4,7 @@ use sqlx::SqlitePool;
 use tauri::State;
 
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::error::AppError;
 use crate::infrastructure::{notifications, telematik};
 
@@ -53,15 +53,4 @@ pub fn send_kim_message(
 ) -> Result<(), AppError> {
     rbac::require(&session_state, "patient.write_medical")?;
     telematik::kim_send(&msg)
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_integration_commands {
-    () => {
-        $crate::commands::integration_commands::list_upcoming_appointments,
-        $crate::commands::integration_commands::validate_eprescription,
-        $crate::commands::integration_commands::submit_eprescription,
-        $crate::commands::integration_commands::send_kim_message,
-    };
 }

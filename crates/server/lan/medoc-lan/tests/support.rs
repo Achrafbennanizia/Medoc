@@ -14,8 +14,8 @@ use chrono::{TimeZone, Utc};
 use ed25519_dalek::{Signer, SigningKey};
 use http_body_util::BodyExt;
 use medoc_core::infrastructure::database::connection;
+use medoc_core::infrastructure::database::repos::admin::license as license_repo;
 use medoc_core::infrastructure::license::{encrypt_v2_for_device, LicenseV2, VENDOR_PUBKEY};
-use medoc_core::infrastructure::license_repo;
 use medoc_core::infrastructure::logging::brute_force::BruteForceTracker;
 use medoc_lan::LanSystemFactory;
 use medoc_sync::deployment::{DeploymentMode, DeviceRole, SyncDeploymentConfig};
@@ -46,7 +46,7 @@ pub fn ensure_test_env() {
         );
         let audit_dir = std::env::temp_dir().join("medoc-lan-test-audit");
         let _ = std::fs::create_dir_all(&audit_dir);
-        medoc_core::infrastructure::database::audit_repo::init_audit_hmac_key(&audit_dir)
+        medoc_core::infrastructure::database::repos::admin::audit::init_audit_hmac_key(&audit_dir)
             .expect("init audit hmac key for LAN tests");
     });
 }

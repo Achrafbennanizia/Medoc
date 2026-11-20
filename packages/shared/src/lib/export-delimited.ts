@@ -1,6 +1,7 @@
 /** Parse / stringify delimiter-separated text for export preview & re-export after sorting. */
 
 import { collatorLocale, useLocale } from "./i18n";
+import { parseEuroInput } from "./utils";
 
 /**
  * Neutralise spreadsheet formula injection (OWASP "CSV injection"): a cell
@@ -87,10 +88,9 @@ export function sortGridRows(rows: string[][], columnIndex: number, direction: "
         const vb = b[columnIndex] ?? "";
         const sa = String(va).trim();
         const sb = String(vb).trim();
-        const na = Number(sa.replace(/\s/g, "").replace(",", "."));
-        const nb = Number(sb.replace(/\s/g, "").replace(",", "."));
-        const bothNumeric =
-            sa !== "" && sb !== "" && Number.isFinite(na) && Number.isFinite(nb) && !Number.isNaN(na) && !Number.isNaN(nb);
+        const na = parseEuroInput(sa);
+        const nb = parseEuroInput(sb);
+        const bothNumeric = na != null && nb != null;
         if (bothNumeric && na !== nb) return mult * (na - nb);
         return mult * String(va).localeCompare(String(vb), collatorLocale(useLocale.getState().locale), { numeric: true, sensitivity: "base" });
     });

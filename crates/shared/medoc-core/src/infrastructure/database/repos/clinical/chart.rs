@@ -4,6 +4,7 @@ use crate::domain::entities::treatment::{
     CreateExamination, CreateTreatment, Examination, Treatment, UpdateExamination, UpdateTreatment,
 };
 use crate::domain::entities::{AnamnesisForm, DentalFinding, PatientChart};
+use crate::domain::services::pricing::PAYMENT_BOOKING_TOLERANCE_EUR;
 use crate::error::AppError;
 use sqlx::SqlitePool;
 
@@ -68,10 +69,10 @@ pub async fn ensure_chart_for_patient(
         "INSERT INTO patient_chart (id, patient_id, updated_at)
          VALUES (?1, ?2, strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
     )
-        .bind(&chart_id)
-        .bind(patient_id)
-        .execute(&mut *tx)
-        .await?;
+    .bind(&chart_id)
+    .bind(patient_id)
+    .execute(&mut *tx)
+    .await?;
     crate::infrastructure::database::recorded_write::record_in_tx(
         &mut tx,
         "patient_chart",
@@ -463,10 +464,9 @@ pub async fn delete_treatment(pool: &SqlitePool, id: &str) -> Result<(), AppErro
     .bind(id)
     .fetch_all(&mut *tx)
     .await?;
-    if linked
-        .iter()
-        .any(|(_, amount, status)| *amount > 0.005 || status != "OUTSTANDING")
-    {
+    if linked.iter().any(|(_, amount, status)| {
+        *amount > PAYMENT_BOOKING_TOLERANCE_EUR || status != "OUTSTANDING"
+    }) {
         return Err(AppError::Conflict(
             "Payment already started for this line; create a correction instead".into(),
         ));
@@ -479,11 +479,18 @@ pub async fn delete_treatment(pool: &SqlitePool, id: &str) -> Result<(), AppErro
         .bind(pid)
         .execute(&mut *tx)
         .await?;
-        crate::infrastructure::database::recorded_write::record_in_tx(&mut tx, "payment", pid, "UPDATE")
-            .await?;
-    }
-    crate::infrastructure::database::recorded_write::record_in_tx(&mut tx, "treatment", id, "DELETE")
+        crate::infrastructure::database::recorded_write::record_in_tx(
+            &mut tx, "payment", pid, "UPDATE",
+        )
         .await?;
+    }
+    crate::infrastructure::database::recorded_write::record_in_tx(
+        &mut tx,
+        "treatment",
+        id,
+        "DELETE",
+    )
+    .await?;
     let n = sqlx::query("DELETE FROM treatment WHERE id = ?1")
         .bind(id)
         .execute(&mut *tx)
@@ -556,10 +563,9 @@ pub async fn delete_examination(pool: &SqlitePool, id: &str) -> Result<(), AppEr
     .bind(id)
     .fetch_all(&mut *tx)
     .await?;
-    if linked
-        .iter()
-        .any(|(_, amount, status)| *amount > 0.005 || status != "OUTSTANDING")
-    {
+    if linked.iter().any(|(_, amount, status)| {
+        *amount > PAYMENT_BOOKING_TOLERANCE_EUR || status != "OUTSTANDING"
+    }) {
         return Err(AppError::Conflict(
             "Payment already started for this line; create a correction instead".into(),
         ));
@@ -572,11 +578,18 @@ pub async fn delete_examination(pool: &SqlitePool, id: &str) -> Result<(), AppEr
         .bind(pid)
         .execute(&mut *tx)
         .await?;
-        crate::infrastructure::database::recorded_write::record_in_tx(&mut tx, "payment", pid, "UPDATE")
-            .await?;
-    }
-    crate::infrastructure::database::recorded_write::record_in_tx(&mut tx, "examination", id, "DELETE")
+        crate::infrastructure::database::recorded_write::record_in_tx(
+            &mut tx, "payment", pid, "UPDATE",
+        )
         .await?;
+    }
+    crate::infrastructure::database::recorded_write::record_in_tx(
+        &mut tx,
+        "examination",
+        id,
+        "DELETE",
+    )
+    .await?;
     let n = sqlx::query("DELETE FROM examination WHERE id = ?1")
         .bind(id)
         .execute(&mut *tx)
@@ -704,7 +717,7 @@ pub async fn list_charts_to_validate(
          FROM patient_chart pa
          INNER JOIN patient p ON p.id = pa.patient_id
          WHERE pa.status IN ('DRAFT', 'IN_PROGRESS')
-         ORDER BY datetime(pa.updated_at) ASC",
+         ORDER BY datetime(pa.updated_at) DESC",
     )
     .fetch_all(pool)
     .await?;
@@ -836,21 +849,52 @@ pub async fn set_treatment_billing(
 ) -> Result<Treatment, AppError> {
     let schedule = data.fee_schedule.trim().to_lowercase();
     if !["goz", "goae", "material", "lab", "other"].contains(&schedule.as_str()) {
-        return Err(AppError::validation_code("error.treatment.invalid_fee_schedule"));
+        return Err(AppError::validation_code(
+            "error.treatment.invalid_fee_schedule",
+        ));
     }
     if matches!(schedule.as_str(), "goz" | "goae") {
-        if data.goz_nr.as_deref().map(str::trim).unwrap_or("").is_empty() || data.points.is_none() {
-            return Err(AppError::validation_code("error.treatment.goz_nr_and_points_required"));
+        if data
+            .goz_nr
+            .as_deref()
+            .map(str::trim)
+            .unwrap_or("")
+            .is_empty()
+            || data.points.is_none()
+        {
+            return Err(AppError::validation_code(
+                "error.treatment.goz_nr_and_points_required",
+            ));
         }
         let f = data.factor.unwrap_or(0.0);
         if !(1.0..=10.0).contains(&f) {
-            return Err(AppError::validation_code("error.treatment.factor_out_of_range"));
+            return Err(AppError::validation_code(
+                "error.treatment.factor_out_of_range",
+            ));
         }
-        if f > 2.3 && data.factor_reason.as_deref().map(str::trim).unwrap_or("").is_empty() {
-            return Err(AppError::validation_code("error.treatment.factor_reason_required"));
+        if f > 2.3
+            && data
+                .factor_reason
+                .as_deref()
+                .map(str::trim)
+                .unwrap_or("")
+                .is_empty()
+        {
+            return Err(AppError::validation_code(
+                "error.treatment.factor_reason_required",
+            ));
         }
-        if f > 3.5 && data.agreement_ref.as_deref().map(str::trim).unwrap_or("").is_empty() {
-            return Err(AppError::validation_code("error.treatment.agreement_required"));
+        if f > 3.5
+            && data
+                .agreement_ref
+                .as_deref()
+                .map(str::trim)
+                .unwrap_or("")
+                .is_empty()
+        {
+            return Err(AppError::validation_code(
+                "error.treatment.agreement_required",
+            ));
         }
     }
     let n = sqlx::query(
@@ -864,8 +908,18 @@ pub async fn set_treatment_billing(
     .bind(data.factor)
     .bind(data.factor_reason.as_deref().map(str::trim))
     .bind(data.quantity.unwrap_or(1).max(1))
-    .bind(data.analog_of.as_deref().map(str::trim).filter(|s| !s.is_empty()))
-    .bind(data.agreement_ref.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(
+        data.analog_of
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
+    .bind(
+        data.agreement_ref
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
     .bind(&data.treatment_id)
     .execute(pool)
     .await?
