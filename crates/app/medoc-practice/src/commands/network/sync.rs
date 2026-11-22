@@ -7,6 +7,7 @@ use medoc_sync::cluster::services::{
     sync_staff_from_stored_admin_endpoint,
 };
 use medoc_sync::deployment::SyncDeploymentConfig;
+use medoc_sync::durable_queue::record_or_spool;
 use medoc_sync::engine::{SyncEngine, SyncPullResult, SyncRunReport};
 use medoc_sync::reconcile::{self, ReconcileReport};
 use medoc_sync::repo::SyncStatusSnapshot;
@@ -191,8 +192,7 @@ pub async fn enqueue_local_sync(
         Ok(s) => s,
         Err(_) => return,
     };
-    let _ = medoc_sync::repo::sync_record_or_noop(pool, entity_table, entity_id, op, &payload_json)
-        .await;
+    let _ = record_or_spool(pool, entity_table, entity_id, op, &payload_json).await;
 }
 
 /// Healthy replicas poll twice a second. Each failed cycle doubles the wait, up to 30s.

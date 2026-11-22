@@ -94,11 +94,18 @@ pub fn sign_outgoing(entries: &[OutboxEntry]) -> SignedBatch {
 }
 
 /// Push / exchange request body: the entries plus their signatures.
+/// The entries are journaled to disk first (`durable_queue`) until the receiver confirms them.
 pub fn signed_body(
     from_device_id: &str,
     field: &str,
     entries: &[OutboxEntry],
 ) -> serde_json::Value {
+    let channel = if field == "packets" {
+        crate::durable_queue::SendChannel::Exchange
+    } else {
+        crate::durable_queue::SendChannel::Push
+    };
+    crate::durable_queue::journal_send(channel, entries);
     let batch = sign_outgoing(entries);
     serde_json::json!({
         "fromDeviceId": from_device_id,
@@ -106,6 +113,19 @@ pub fn signed_body(
         "signer": batch.signer,
         "signatures": batch.signatures,
     })
+}
+
+/// Exchange request body: signed packets plus the caller's acknowledgement and queue filter.
+pub fn exchange_body(
+    from_device_id: &str,
+    packets: &[OutboxEntry],
+    ack_through_seq: i64,
+    queues: &[String],
+) -> serde_json::Value {
+    let mut body = signed_body(from_device_id, "packets", packets);
+    body["ackThroughSeq"] = ack_through_seq.into();
+    body["queues"] = serde_json::json!(queues);
+    body
 }
 
 /// Check a received batch before any entry is applied.

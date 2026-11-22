@@ -280,9 +280,8 @@ impl SyncEngine {
 
     /// Push one page queue, or every queue when `only` is `None`.
     ///
-    /// Each queue is its own request. A 400 on the orders queue leaves the
-    /// tasks queue free to move. Accepted rows are marked by id, so an older
-    /// undelivered row in another queue is not treated as delivered.
+    /// Each queue is its own request: a 400 on one leaves the others free. Accepted rows are
+    /// marked by id, so an undelivered row in another queue is not treated as delivered.
     pub async fn push_queues(
         pool: &SqlitePool,
         only: Option<&[String]>,
@@ -396,6 +395,7 @@ impl SyncEngine {
                     );
                     break;
                 }
+                crate::durable_queue::confirm_send(crate::durable_queue::SendChannel::Push);
                 let result: SyncPushResult = resp
                     .json()
                     .await
@@ -1783,9 +1783,8 @@ async fn post_exchange(
     queues: &[String],
 ) -> Result<SyncExchangePage, AppError> {
     let url = crate::paths::api_url(&target.base_url, crate::paths::SYNC_EXCHANGE);
-    let mut body = crate::entry_signature::signed_body(from_device_id, "packets", packets);
-    body["ackThroughSeq"] = ack_through_seq.into();
-    body["queues"] = serde_json::json!(queues);
+    let body =
+        crate::entry_signature::exchange_body(from_device_id, packets, ack_through_seq, queues);
     let resp = target
         .client
         .post(&url)
@@ -1797,6 +1796,7 @@ async fn post_exchange(
     if !resp.status().is_success() {
         return Err(http_status_error("sync exchange", resp).await);
     }
+    crate::durable_queue::confirm_send(crate::durable_queue::SendChannel::Exchange);
     resp.json()
         .await
         .map_err(|e| AppError::Internal(format!("sync exchange decode: {e}")))

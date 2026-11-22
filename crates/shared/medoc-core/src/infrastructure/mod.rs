@@ -13,6 +13,7 @@ pub mod crypto;
 pub mod database;
 pub mod devices;
 pub mod dpia;
+pub mod durable_cache;
 pub mod fs_guard;
 pub mod gdpr;
 pub mod install_plan;

@@ -39,11 +39,11 @@ use crate::discovery::LanBeaconPayload;
 use crate::jwt;
 
 pub mod access;
+pub mod app_kv_lww;
 pub mod eprescription;
 pub mod license;
 pub mod observability;
 pub mod pairing;
-pub mod app_kv_lww;
 pub mod sync;
 pub mod sync_bodies;
 

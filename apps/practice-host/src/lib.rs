@@ -76,6 +76,8 @@ pub fn run() {
                 .map(|h| h.join("medoc-data"))
                 .unwrap_or_else(|| std::path::PathBuf::from("./medoc-data"));
             std::fs::create_dir_all(&data_dir).ok();
+            // Crash-safe queues (offline changes, changes being sent): docs/architecture/serverless-sync.md.
+            infrastructure::durable_cache::init(data_dir.join("cache"));
             match logging::init(&data_dir) {
                 Ok(guards) => {
                     Box::leak(Box::new(guards));
@@ -302,6 +304,8 @@ pub fn run() {
                             auto_app.clone(),
                             auto_pool.clone(),
                         );
+                        // Before the first sync: restore changes a crash or power cut left in the queue files.
+                        commands::network::reconnect_update_check::recover_queues(&auto_pool).await;
                         commands::network::sync::spawn_replica_offline_sync_loop(auto_pool.clone());
                         // F150: started once (was twice: two threads pushing the same changes).
                         commands::network::sync::spawn_shared_change_sync_thread(auto_pool.clone());

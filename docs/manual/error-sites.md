@@ -218,6 +218,7 @@
 | `MD-STF-101` | backend-text | {} cannot exceed "{}" for this role | `crates/shared/medoc-core/src/application/access_control.rs` |
 | `MD-STF-102` | backend-text | {action} cannot be granted to this role | `crates/shared/medoc-core/src/infrastructure/database/repos/admin/staff_permission.rs` |
 | `MD-APP-104` | backend-text | {field} must be zero or more | `crates/shared/medoc-core/src/domain/services/pricing.rs` |
+| `MD-APP-129` | backend-text | {KEY_ENV} must be hex | `crates/shared/medoc-core/src/infrastructure/durable_cache.rs` |
 | `MD-APT-100` | backend-text | A new appointment starts as PLANNED or CONFIRMED | `crates/shared/medoc-core/src/infrastructure/database/repos/scheduling/appointment.rs` |
 | `MD-STF-103` | backend-text | Access rights are managed on the main device. | `crates/shared/medoc-core/src/application/access_control.rs` |
 | `MD-STF-104` | backend-text | Action must not be empty. | `crates/shared/medoc-core/src/infrastructure/database/repos/admin/staff_permission.rs` |
@@ -240,6 +241,7 @@
 | `MD-SEC-101` | backend-text | Authenticator code required | `crates/shared/medoc-core/src/application/totp_service.rs` |
 | `MD-SYN-101` | backend-text | blob hash mismatch | `crates/shared/medoc-core/src/infrastructure/database/sync_blob.rs` |
 | `MD-SEC-102` | backend-text | Break-glass access is currently disabled | `crates/shared/medoc-core/src/mvp_security.rs` |
+| `MD-APP-130` | backend-text | cache name not allowed: {name} | `crates/shared/medoc-core/src/infrastructure/durable_cache.rs` |
 | `MD-SYN-102` | backend-text | cbor decode: {e} | `crates/shared/medoc-sync/src/net/wire.rs` |
 | `MD-SYN-103` | backend-text | cipher frame length invalid | `crates/shared/medoc-sync/src/net/channel.rs` |
 | `MD-SYN-104` | backend-text | cipher read timed out | `crates/shared/medoc-sync/src/net/channel.rs` |
@@ -363,6 +365,7 @@
 | `MD-CLU-138` | backend-text | Nonce: {e} | `crates/shared/medoc-sync/src/cluster/activation.rs` |
 | `MD-NTF-101` | backend-text | Notification kind and title are required. | `crates/app/medoc-practice/src/commands/practice/in_app_notification.rs` |
 | `MD-TSK-100` | backend-text | Notification user is not a staff account on this device. | `crates/shared/medoc-core/src/application/practice_task_notify.rs`<br>`crates/shared/medoc-core/src/infrastructure/database/repos/practice/in_app_notification.rs` |
+| `MD-APP-131` | backend-text | offline cache not allowed: {name} | `crates/app/medoc-practice/src/commands/system/offline_cache.rs` |
 | `MD-SUP-100` | backend-text | Passphrases do not match. | `crates/app/medoc-practice/src/commands/admin/db_setup.rs` |
 | `MD-SEC-107` | backend-text | Password policy: {msg} | `crates/shared/medoc-core/src/infrastructure/crypto/mod.rs` |
 | `MD-LIC-109` | backend-text | Password required (min. 8 characters). | `crates/app/medoc-practice/src/commands/network/company_portal.rs` |

@@ -9,6 +9,7 @@ import { isLanClientOnly } from "@/systems/practice-host/lib/deployment-config";
 import type { PracticeSystemPort } from "../ports/practice-system.port";
 import { HttpPracticeAdapter } from "./http-practice.adapter";
 import { TauriPracticeAdapter } from "./tauri-practice.adapter";
+import { hydrateOfflineWrites } from "./offline-write-queue";
 
 const DEPLOYMENT_MODE_KEY = "medoc.deployment.mode.v1";
 
@@ -40,6 +41,11 @@ export function createPracticeSystem(): PracticeSystemPort {
     }
     cachedLan = lan;
     cached = lan ? new HttpPracticeAdapter() : new TauriPracticeAdapter();
+    if (cached instanceof HttpPracticeAdapter) {
+        // Writes a crash or shutdown left in the cache file go out as soon as the main device answers.
+        const adapter = cached;
+        void hydrateOfflineWrites().then((n) => (n > 0 ? adapter.replayQueued() : 0));
+    }
     return cached;
 }
 

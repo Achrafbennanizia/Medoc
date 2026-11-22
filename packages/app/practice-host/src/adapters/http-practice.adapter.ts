@@ -118,7 +118,8 @@ export class HttpPracticeAdapter implements PracticeSystemPort {
         } catch (e) {
             if (!QUEUEABLE.has(command) || !isOfflineError(e)) throw e;
             const key = String(args?.key ?? "");
-            enqueueWrite({ command: command as QueuedWrite["command"], key, value: args?.value as string | undefined });
+            // Resolves once the write is on disk, so a shutdown right after cannot lose it.
+            await enqueueWrite({ command: command as QueuedWrite["command"], key, value: args?.value as string | undefined });
             return undefined as T;
         }
     }

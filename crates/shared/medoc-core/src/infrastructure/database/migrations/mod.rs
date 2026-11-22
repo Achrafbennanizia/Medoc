@@ -1,8 +1,8 @@
 //! Schema evolution: SQLx file migrations, legacy ALTER paths, sync DDL, demo seed.
 
 mod cluster_tables;
-mod english_schema_upgrade;
 mod contract_activation_columns;
+mod english_schema_upgrade;
 mod goz_billing_columns;
 mod issued_documents;
 mod legacy_embedded;

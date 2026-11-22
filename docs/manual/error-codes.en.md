@@ -34,6 +34,8 @@ Every error message shows a code such as MD-PAY-004. Search it here to see what 
 | `MD-APP-102` | MeDoc is already running (database in use). Open the existing window instead of starting a second copy. | Needs your input | The change conflicts with existing data (duplicate or competing edit). | Use a different value, or reload and apply your change again. |
 | `MD-APP-103` | The practice already has accounts. | Needs your input | The change conflicts with existing data (duplicate or competing edit). | Use a different value, or reload and apply your change again. |
 | `MD-APP-104` | … must be zero or more | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
+| `MD-APP-129` | … must be hex _(technical check, shown in English)_ | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
+| `MD-APP-130` | cache name not allowed: … _(technical check, shown in English)_ | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-APP-105` | CSV header must contain at least 'name' and 'date_of_birth' _(technical check, shown in English)_ | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
 | `MD-APP-106` | CSV header: … _(technical check, shown in English)_ | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
 | `MD-APP-107` | Database is locked — enter passphrase to unlock. | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
@@ -45,6 +47,7 @@ Every error message shows a code such as MD-PAY-004. Search it here to see what 
 | `MD-APP-114` | Name and a valid e-mail are required. | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-APP-115` | No compatible scan program found (e.g. simple-scan). Please install one or place files manually in the watch folder. | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-APP-116` | No update available | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
+| `MD-APP-131` | offline cache not allowed: … _(technical check, shown in English)_ | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-APP-117` | Path has no file name | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-APP-118` | Path is outside the allowed folder | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-APP-119` | Path must not contain .. | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |

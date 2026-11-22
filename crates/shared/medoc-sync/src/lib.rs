@@ -7,6 +7,7 @@
 
 pub mod cluster;
 pub mod deployment;
+pub mod durable_queue;
 pub mod engine;
 pub mod entry_signature;
 pub mod hlc;

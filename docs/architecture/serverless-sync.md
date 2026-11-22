@@ -173,13 +173,28 @@ reconcile). Every flavor uses the same chain:
 | 6. Update check on reconnect | `reconnect_update_check.rs` | The first successful contact after an offline period (or after start) pushes all queued changes, pulls until caught up, then compares row digests with the main device and repairs any difference. Result: `sync.update_check.last.v1`, shown in Settings → Deployment. If it does not finish, it runs again on the next contact. |
 | 7. Anti-entropy | `reconcile.rs` (hourly + step 6) | Digest buckets catch any row a hook missed or a crash lost. |
 
+### Crash-safe queue files
+
+Queues that must survive a crash or a hard power-off are encrypted files in `<data dir>/cache/`
+(`medoc-core/src/infrastructure/durable_cache.rs`): XChaCha20-Poly1305 with a key in the OS keychain,
+written to `<name>.tmp`, flushed (`fsync`) and renamed over `<name>.mdc`, so a power cut leaves the old or
+the new file, never a torn one. An unreadable file is set aside as `<name>.corrupt`.
+
+| File | Holds | Deleted when |
+|------|-------|--------------|
+| `sync-spool` | Changes the outbox could not take (database busy/locked, disk error); before, they were dropped | moved into the outbox (next successful write, every sync cycle, start) |
+| `sync-send-push`, `sync-send-exchange` | The entries of the request being sent | the receiver answers 2xx; at start, entries missing from the outbox are put back and sent again (duplicates are dropped by `sync_applied`) |
+| `lan-offline-writes` | The LAN client's offline setting writes (`offline-write-queue.ts`, `offline_cache_*` commands) | every queued write was answered 2xx (or 409: a newer value exists) |
+
+In the plain web client (browser, no desktop shell) the LAN queue stays in browser storage.
+
 ### Flavors
 
 | Flavor | Offline storage | On reconnect |
 |--------|-----------------|--------------|
 | Main app | its own database (authoritative) | serves push/pull/exchange; exchanges its queue with every reachable replica |
 | Replica app | its own database + `sync_outbox` | steps 3–6 |
-| LAN web client (no local database) | `offline-write-queue.ts`: setting writes that could not be sent, one per key, with the edit time | replayed in order on the browser `online` event and after the next successful request, with `editedAt`; the server keeps the newer write (`app_kv_lww.rs`, 409 for an older queued write) |
+| LAN client (no local database) | `offline-write-queue.ts`: setting writes that could not be sent, one per key, with the edit time; encrypted cache file in the desktop app, browser storage on the web | replayed in order on the browser `online` event and after the next successful request, with `editedAt`; the server keeps the newer write (`app_kv_lww.rs`, 409 for an older queued write) |
 
 ### Limits
 

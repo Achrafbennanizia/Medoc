@@ -7,6 +7,7 @@ pub mod export;
 pub mod integration;
 pub mod logging;
 pub mod menu;
+pub mod offline_cache;
 pub mod ops;
 pub mod report_pdf;
 pub mod subscription;

@@ -37,6 +37,7 @@ pub struct UpdateCheckReport {
 
 /// Call after every sync attempt. A success that follows an offline period starts the check.
 pub fn note_link(pool: &SqlitePool, connected: bool) {
+    drain_spool_in_background(pool);
     if !connected {
         OFFLINE.store(true, Ordering::SeqCst);
         return;
@@ -52,6 +53,26 @@ pub fn note_link(pool: &SqlitePool, connected: bool) {
             OFFLINE.store(true, Ordering::SeqCst);
         }
         RUNNING.store(false, Ordering::SeqCst);
+    });
+}
+
+/// At start, before the first sync: restore what a crash or power cut left in the queue files.
+pub async fn recover_queues(pool: &SqlitePool) {
+    if let Err(e) = medoc_sync::durable_queue::recover(pool).await {
+        tracing::warn!(target: "medoc::sync", event = "SYNC_QUEUE_RECOVER_FAILED", error = %e);
+    }
+}
+
+/// Changes the outbox could not take wait in the spool file; move them in on every cycle.
+fn drain_spool_in_background(pool: &SqlitePool) {
+    static DRAINING: AtomicBool = AtomicBool::new(false);
+    if DRAINING.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let pool = pool.clone();
+    tauri::async_runtime::spawn(async move {
+        let _ = medoc_sync::durable_queue::drain_spool(&pool).await;
+        DRAINING.store(false, Ordering::SeqCst);
     });
 }
 
