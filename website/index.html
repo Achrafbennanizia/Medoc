@@ -1,24 +1,58 @@
 <!doctype html>
-<html lang="en">
+<html lang="fr" dir="ltr">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="icon" type="image/png" href="./medoc-icon.png" />
-    <link rel="apple-touch-icon" href="./medoc-icon.png" />
-    <link rel="preconnect" href="https://fonts.bunny.net" />
-    <link href="https://fonts.bunny.net/css?family=outfit:400,500,600,700|syne:700,800" rel="stylesheet" />
-    <style>
-      html,
-      body {
-        font-family: Outfit, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        font-size: 16px;
-        line-height: 1.5;
-      }
-    </style>
+    <title>Logiciel cabinet dentaire au Maroc · MeDoc</title>
     <meta
       name="description"
-      content="MeDoc is clinic software for licensed dental staff. Charts, calendar, and billing stay on the practice computers. Reception books the day; only physicians open the medical record."
+      content="Dossiers patients, schéma dentaire, rendez-vous, ordonnances et encaissements pour cabinets dentaires. Chiffré sur vos propres ordinateurs, fonctionne sans internet, en français, arabe, anglais et allemand."
     />
+    <meta name="theme-color" content="#0b7f63" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="MeDoc" />
+    <meta property="og:title" content="Logiciel cabinet dentaire au Maroc · MeDoc" />
+    <meta property="og:description" content="Dossier patient, schéma dentaire, agenda, ordonnances et facture marocaine. Données chiffrées sur vos ordinateurs, fonctionne sans internet." />
+    <meta property="og:image" content="./product/overview.jpg" />
+    <meta property="og:locale" content="fr_MA" />
+    <meta property="og:locale:alternate" content="ar_MA" />
+    <meta property="og:locale:alternate" content="en_GB" />
+    <meta property="og:locale:alternate" content="de_DE" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "MeDoc",
+        "applicationCategory": "BusinessApplication",
+        "applicationSubCategory": "Dental practice management",
+        "operatingSystem": "Windows 10+, macOS 12+, Ubuntu 22.04",
+        "inLanguage": ["fr", "ar", "en", "de"],
+        "offers": {
+          "@type": "AggregateOffer",
+          "priceCurrency": "MAD",
+          "lowPrice": "24900",
+          "highPrice": "34900",
+          "priceSpecification": { "@type": "PriceSpecification", "valueAddedTaxIncluded": false }
+        }
+      }
+    </script>
+    <link rel="icon" type="image/png" href="./medoc-icon.png" />
+    <link rel="apple-touch-icon" href="./medoc-icon.png" />
+    <script>
+      // Apply theme and text direction before first paint (no flash).
+      (function () {
+        var d = document.documentElement, t = null, l = null;
+        // Preferences live in first-party cookies (see src/prefs.ts).
+        var c = function (n) { var m = document.cookie.match(new RegExp("(?:^|; )" + n + "=([^;]*)")); return m ? decodeURIComponent(m[1]) : null; };
+        try { t = c("medoc_theme"); l = c("medoc_lang"); } catch (e) {}
+        var q = new URLSearchParams(location.search).get("lang");
+        if (q) l = q;
+        if (t === "light" || t === "dark") d.dataset.theme = t;
+        else if (matchMedia("(prefers-color-scheme: dark)").matches) d.dataset.theme = "dark";
+        if (l === "ar") { d.lang = "ar"; d.dir = "rtl"; } else if (l === "en" || l === "de" || l === "fr") d.lang = l;
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
