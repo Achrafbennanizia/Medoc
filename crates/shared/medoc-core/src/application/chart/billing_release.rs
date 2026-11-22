@@ -2,7 +2,8 @@
 
 use crate::domain::entities::treatment::{Examination, Treatment};
 use crate::error::AppError;
-use crate::infrastructure::database::{audit_repo, chart_repo};
+use crate::infrastructure::database::recorded_write::audit_in_tx;
+use crate::infrastructure::database::repos::clinical::chart as chart_repo;
 use sqlx::SqlitePool;
 
 pub async fn release_treatment_for_billing(
@@ -10,18 +11,21 @@ pub async fn release_treatment_for_billing(
     user_id: &str,
     treatment_id: &str,
 ) -> Result<Treatment, AppError> {
-    let b = chart_repo::release_treatment_for_billing(pool, treatment_id, user_id).await?;
-    audit_repo::create(
-        pool,
+    let mut tx = pool.begin().await?;
+    chart_repo::release_treatment_for_billing_in_tx(&mut tx, treatment_id, user_id).await?;
+    audit_in_tx(
+        &mut tx,
         user_id,
         "FREIGABE_BILLING",
         "Treatment",
         Some(treatment_id),
         None,
     )
-    .await
-    .ok();
-    Ok(b)
+    .await?;
+    tx.commit().await?;
+    chart_repo::find_treatment_by_id(pool, treatment_id)
+        .await?
+        .ok_or_else(|| AppError::Internal("Treatment not readable after release".into()))
 }
 
 pub async fn release_examination_for_billing(
@@ -29,16 +33,19 @@ pub async fn release_examination_for_billing(
     user_id: &str,
     examination_id: &str,
 ) -> Result<Examination, AppError> {
-    let u = chart_repo::release_examination_for_billing(pool, examination_id, user_id).await?;
-    audit_repo::create(
-        pool,
+    let mut tx = pool.begin().await?;
+    chart_repo::release_examination_for_billing_in_tx(&mut tx, examination_id, user_id).await?;
+    audit_in_tx(
+        &mut tx,
         user_id,
         "FREIGABE_BILLING",
         "Examination",
         Some(examination_id),
         None,
     )
-    .await
-    .ok();
-    Ok(u)
+    .await?;
+    tx.commit().await?;
+    chart_repo::find_examination_by_id(pool, examination_id)
+        .await?
+        .ok_or_else(|| AppError::Internal("Examination not readable after release".into()))
 }

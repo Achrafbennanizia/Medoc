@@ -2,7 +2,7 @@
  * TODO(deferred-security): 2FA IPC client unwired — re-enable with TOTP_2FA_ENABLED.
  * See docs/coordination/todos-deferred-security-features.md.
  *
- * import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
+ * import { practiceSystem } from "@/systems/practice-host/adapters/practice-transport";
  *
  * export type TotpEnrollment = {
  *     secret_base32: string;

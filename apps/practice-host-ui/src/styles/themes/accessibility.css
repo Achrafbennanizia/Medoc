@@ -1,0 +1,9 @@
+/*
+ * themes/accessibility — Settings → Appearance → Accessibility & comfort (display-preferences.ts).
+ * Loaded last so these overrides win. Each mode is one `data-*` attribute on <html>.
+ */
+/* Manifest: the files below hold the rules, in cascade order. Add rules to the file named after
+   the component that uses them, not here. */
+@import "accessibility/base/accessibility.css";
+@import "accessibility/ui/button.css";
+@import "accessibility/ui/status-badge.css";

@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use super::entities::{Cluster, Device, License, SeatUsage};
 use super::enums::{DeviceStatus, PairingStatus, SeatRole};
-use super::ports::{reserve_seat_atomic, DeviceRepo, LicenseRepo, SqliteClusterRepos};
+use super::ports::{reserve_seat_atomic, SqliteClusterRepos};
 use crate::schema::ensure_sync_tables;
 
 fn sample_license(cluster_id: &str) -> License {
@@ -154,6 +154,54 @@ async fn incomplete_identity_not_counted_in_seat_usage() {
         .expect("update");
     let usage = repos.seat_usage(&cluster_id).await.expect("usage");
     assert_eq!(usage.total_used, 0);
+    reserve_seat_atomic(&pool, &cluster_id, SeatRole::Member, 5, 2, 5)
+        .await
+        .expect("incomplete devices must not fill the cluster");
+}
+
+#[tokio::test]
+async fn revoked_certificate_frees_the_seat() {
+    let pool = fresh_pool().await;
+    let cluster_id = Uuid::new_v4().to_string();
+    let repos = SqliteClusterRepos { pool: &pool };
+    repos
+        .save(&sample_license(&cluster_id))
+        .await
+        .expect("license");
+    let mut device = sample_device(
+        &cluster_id,
+        "fp-revoked",
+        SeatRole::Member,
+        DeviceStatus::Active,
+    );
+    device.device_id = "fp-revoked".into();
+    device.seat_cert = Some(b"seat-cert".to_vec());
+    repos.upsert(&device).await.expect("upsert");
+    sqlx::query(
+        "INSERT INTO pairing_request (id, device_id, slave_pubkey, slave_label, status, fingerprint)
+         VALUES ('req-revoked', 'fp-revoked', '', 'Tablet', 'REVOKED', 'fp-revoked')",
+    )
+    .execute(&pool)
+    .await
+    .expect("pairing");
+
+    let usage = repos.seat_usage(&cluster_id).await.expect("usage");
+    assert_eq!(usage.total_used, 0);
+    let status: String =
+        sqlx::query_scalar("SELECT device_status FROM sync_device WHERE device_id = 'fp-revoked'")
+            .fetch_one(&pool)
+            .await
+            .expect("status");
+    assert_eq!(status, "REVOKED");
+    let cert: Option<Vec<u8>> =
+        sqlx::query_scalar("SELECT seat_cert FROM sync_device WHERE device_id = 'fp-revoked'")
+            .fetch_one(&pool)
+            .await
+            .expect("cert");
+    assert!(cert.is_none());
+    reserve_seat_atomic(&pool, &cluster_id, SeatRole::Member, 5, 2, 5)
+        .await
+        .expect("revoked certificate must free the seat");
 }
 
 #[test]
@@ -162,6 +210,141 @@ fn seat_budget_from_basis_edition() {
     let b = seat_budget_from_edition("BASIS");
     assert_eq!(b.max_total, 2);
     assert_eq!(b.max_admin, 1);
+}
+
+#[tokio::test]
+async fn repeat_coupling_replaces_the_inbox_row() {
+    use super::services::create_join_request;
+    use crate::pairing;
+    use medoc_core::infrastructure::database::repos::admin::audit::init_audit_hmac_key;
+
+    let audit_dir =
+        std::env::temp_dir().join(format!("medoc-coupling-inbox-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&audit_dir).expect("audit dir");
+    init_audit_hmac_key(&audit_dir).expect("audit key");
+
+    let pool = fresh_pool().await;
+    let first = create_join_request(
+        &pool,
+        "fp-coupling",
+        SeatRole::Member,
+        b"",
+        None,
+        Some("Reception"),
+        Some("10.1.1.8"),
+    )
+    .await
+    .expect("first coupling");
+    let second = create_join_request(
+        &pool,
+        "fp-coupling",
+        SeatRole::Member,
+        b"",
+        None,
+        Some("Reception"),
+        Some("10.1.1.9"),
+    )
+    .await
+    .expect("second coupling");
+    assert_ne!(first.session_id, second.session_id);
+
+    let rows = pairing::list_all(&pool).await.expect("inbox");
+    assert_eq!(
+        rows.len(),
+        1,
+        "older coupling request must not stay in the inbox"
+    );
+    assert_eq!(rows[0].id, second.session_id);
+    assert_eq!(rows[0].status, "PENDING");
+    assert_eq!(rows[0].requester_ip, "10.1.1.9");
+    assert!(rows[0].cluster_sas);
+
+    let pending = super::services::list_pending_requests(&pool)
+        .await
+        .expect("pending");
+    assert_eq!(pending.len(), 1);
+    assert_eq!(pending[0].id, second.session_id);
+}
+
+#[tokio::test]
+async fn rotated_device_key_replaces_the_pending_sas_row() {
+    use super::services::create_join_request;
+    use crate::pairing;
+    use medoc_core::infrastructure::database::repos::admin::audit::init_audit_hmac_key;
+
+    let audit_dir =
+        std::env::temp_dir().join(format!("medoc-coupling-rotate-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&audit_dir).expect("audit dir");
+    init_audit_hmac_key(&audit_dir).expect("audit key");
+
+    let pool = fresh_pool().await;
+    let first = create_join_request(
+        &pool,
+        "fp-before-reinstall",
+        SeatRole::Member,
+        b"transcript-before",
+        None,
+        Some("Reception"),
+        Some("10.1.1.8"),
+    )
+    .await
+    .expect("first coupling");
+    sqlx::query(
+        "INSERT INTO pairing_request (id, device_id, slave_pubkey, slave_label, status, transport, hostname)
+         VALUES ('kept-accepted', 'fp-other-device', '', 'Reception', 'ACCEPTED', 'cluster', 'Reception')",
+    )
+    .execute(&pool)
+    .await
+    .expect("accepted row");
+
+    let second = create_join_request(
+        &pool,
+        "fp-after-reinstall",
+        SeatRole::Member,
+        b"transcript-after",
+        None,
+        Some("Reception"),
+        Some("10.1.1.8"),
+    )
+    .await
+    .expect("second coupling");
+    assert_ne!(first.session_id, second.session_id);
+
+    let rows = pairing::list_all(&pool).await.expect("inbox");
+    let pending: Vec<_> = rows.iter().filter(|row| row.status == "PENDING").collect();
+    assert_eq!(pending.len(), 1, "the previous SAS must leave the inbox");
+    assert_eq!(pending[0].id, second.session_id);
+    assert!(
+        rows.iter().any(|row| row.id == "kept-accepted"),
+        "an already accepted device with the same name stays"
+    );
+}
+
+#[tokio::test]
+async fn reject_pending_request_leaves_the_inbox() {
+    let pool = fresh_pool().await;
+    sqlx::query(
+        "INSERT INTO pairing_request (id, device_id, slave_pubkey, slave_label, status, pairing_state)
+         VALUES ('req-reject', 'fp-reject', '', 'Chair', 'PENDING', 'JOIN_REQUESTED')",
+    )
+    .execute(&pool)
+    .await
+    .expect("insert");
+    super::repo::reject_pairing_request(&pool, "req-reject", "admin")
+        .await
+        .expect("reject");
+    let row: (String, String) = sqlx::query_as(
+        "SELECT status, COALESCE(pairing_state, '') FROM pairing_request WHERE id = 'req-reject'",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("row");
+    assert_eq!(row.0, "REJECTED");
+    assert_eq!(row.1, "REJECTED");
+    let pending = super::services::list_pending_requests(&pool)
+        .await
+        .expect("pending");
+    assert!(pending.iter().all(|p| p.id != "req-reject"));
 }
 
 #[tokio::test]

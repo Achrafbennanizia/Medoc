@@ -1,13 +1,79 @@
-import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
-import type { InvoiceInput } from "@/systems/practice-host/controllers/invoice.controller";
+import { moneyToInvoiceCents } from "@/lib/invoice-service-item";
+import { practiceSystem } from "@/systems/practice-host/adapters/practice-transport";
+import type { InvoiceInput, InvoiceLineInput } from "@/systems/practice-host/controllers/invoice.controller";
+import type { IssuedPdf } from "@/systems/practice-host/controllers/document.controller";
 
 export const INVOICE_HISTORY_MAX = 200;
+
+/** Derived on the server from linked payments (`source_ref`). */
+export type InvoicePaymentState =
+    | "OPEN"
+    | "PARTIAL"
+    | "PAID"
+    | "OVERDUE"
+    | "CANCELLED"
+    | "CANCELLATION"
+    | "UNLINKED"
+    | "LEGACY";
 
 export type SavedInvoice = {
     id: string;
     createdAt: string;
     patientId: string;
     invoice: InvoiceInput;
+    /** INVOICE | CANCELLATION (registry); missing for legacy imports. */
+    kind?: "INVOICE" | "CANCELLATION";
+    /** Registry status: ISSUED | CANCELLED. */
+    status?: "ISSUED" | "CANCELLED";
+    paymentState?: InvoicePaymentState;
+    totalCents?: number;
+    paidCents?: number;
+    openCents?: number;
+    dueDate?: string | null;
+    cancelsNumber?: string | null;
+    cancelledByNumber?: string | null;
+    reminderLevel?: number;
+    nextReminderLevel?: number | null;
+    lastReminderNumber?: string | null;
+    lastReminderPayBy?: string | null;
+};
+
+/** Row of `list_invoice_status` (camelCase from the server). */
+export type InvoiceStatusRow = {
+    documentId: string;
+    documentNumber: string;
+    kind: "INVOICE" | "CANCELLATION";
+    status: "ISSUED" | "CANCELLED";
+    patientId: string | null;
+    patientName: string;
+    recipientName: string;
+    date: string;
+    dueDate: string | null;
+    totalCents: number;
+    paidCents: number;
+    openCents: number;
+    paymentState: InvoicePaymentState;
+    cancelsNumber: string | null;
+    cancelledByNumber: string | null;
+    reminderLevel: number;
+    lastReminderNumber: string | null;
+    lastReminderPayBy: string | null;
+    nextReminderLevel: number | null;
+    issuedAt: string;
+    invoice: unknown;
+};
+
+export type PaymentReminderRow = {
+    id: string;
+    invoiceDocumentId: string;
+    invoiceNumber: string;
+    level: 1 | 2 | 3;
+    documentNumber: string;
+    openCents: number;
+    feeCents: number;
+    payBy: string;
+    issuedBy: string;
+    issuedAt: string;
 };
 
 export type InvoiceDocumentListRow = {
@@ -36,6 +102,30 @@ function asOptionalString(value: unknown): string | null {
     return typeof value === "string" && value.trim() ? value : null;
 }
 
+function firstString(row: Record<string, unknown>, ...keys: string[]): string {
+    for (const key of keys) {
+        const value = row[key];
+        if (typeof value === "string") return value;
+    }
+    return "";
+}
+
+function firstNumber(row: Record<string, unknown>, ...keys: string[]): number {
+    for (const key of keys) {
+        const value = row[key];
+        if (typeof value === "number" && Number.isFinite(value)) return value;
+    }
+    return 0;
+}
+
+function firstOptionalNumber(row: Record<string, unknown>, ...keys: string[]): number | null {
+    for (const key of keys) {
+        const value = row[key];
+        if (typeof value === "number" && Number.isFinite(value)) return value;
+    }
+    return null;
+}
+
 /** Fill missing fields from older SQLite / localStorage invoice payloads. */
 export function normalizeInvoiceInput(
     raw: unknown,
@@ -46,16 +136,53 @@ export function normalizeInvoiceInput(
     const lines = Array.isArray(linesRaw)
         ? linesRaw
               .filter((x): x is Record<string, unknown> => x != null && typeof x === "object")
-              .map((line) => ({
-                  description: typeof line.description === "string" ? line.description : "",
-                  amount_cents: typeof line.amount_cents === "number" && Number.isFinite(line.amount_cents) ? line.amount_cents : 0,
-              }))
+              // Keep every stored field (GOZ number, factor, tooth, source_ref …);
+              // dropping them made the read view and reprints incomplete.
+              .map((line) => {
+                  const description = firstString(
+                      line,
+                      "description",
+                      "label",
+                      "text",
+                      "service",
+                      "service_name",
+                      "serviceName",
+                  );
+                  const cents = firstNumber(line, "amount_cents", "amountCents");
+                  const euros = firstNumber(line, "total_cost", "totalCost", "amount", "price");
+                  const amount_cents = cents > 0 ? Math.round(cents) : euros > 0 ? moneyToInvoiceCents(euros) : 0;
+                  const goz = firstString(line, "goz_nr", "gozNr");
+                  const schedule = firstString(line, "fee_schedule", "feeSchedule");
+                  const fee_schedule = schedule || (goz ? "goz" : "other");
+                  const treatment = firstString(
+                      line,
+                      "treatment_date",
+                      "treatmentDate",
+                      "date",
+                      "service_date",
+                      "serviceDate",
+                      "created_at",
+                      "createdAt",
+                  ).slice(0, 10);
+                  const source = firstString(line, "source_ref", "sourceRef");
+                  return {
+                      ...(line as Partial<InvoiceLineInput>),
+                      description,
+                      amount_cents,
+                      fee_schedule,
+                      goz_nr: goz || null,
+                      treatment_date: treatment || null,
+                      source_ref: source || null,
+                      factor: firstOptionalNumber(line, "factor"),
+                      points: firstOptionalNumber(line, "points"),
+                  } as InvoiceLineInput;
+              })
         : [];
     return {
         number: typeof o.number === "string" && o.number.trim() ? o.number : (fallback.number ?? ""),
         date: typeof o.date === "string" && o.date.trim() ? o.date : (fallback.date ?? ""),
-        recipient_name: typeof o.recipient_name === "string" ? o.recipient_name : "",
-        recipient_address: asStringArray(o.recipient_address),
+        recipient_name: firstString(o, "recipient_name", "recipientName"),
+        recipient_address: asStringArray(o.recipient_address ?? o.recipientAddress),
         practice_name: typeof o.practice_name === "string" ? o.practice_name : "",
         practice_address: asStringArray(o.practice_address),
         lines,
@@ -96,12 +223,87 @@ function parseLegacy(raw: string | null): SavedInvoice[] {
     }
 }
 
+/** Line sum (net). Prefer `SavedInvoice.totalCents` (gross, from the server). */
 export function sumInvoiceEur(inv: InvoiceInput): number {
     const cents = (inv.lines ?? []).reduce((s, l) => s + (l.amount_cents ?? 0), 0);
     return Math.round(cents) / 100;
 }
 
+function fromStatusRow(r: InvoiceStatusRow): SavedInvoice {
+    return {
+        id: r.documentId,
+        createdAt: r.issuedAt,
+        patientId: r.patientId ?? "",
+        invoice: normalizeInvoiceInput(r.invoice, { number: r.documentNumber, date: r.date }),
+        kind: r.kind,
+        status: r.status,
+        paymentState: r.paymentState,
+        totalCents: r.totalCents,
+        paidCents: r.paidCents,
+        openCents: r.openCents,
+        dueDate: r.dueDate,
+        cancelsNumber: r.cancelsNumber,
+        cancelledByNumber: r.cancelledByNumber,
+        reminderLevel: r.reminderLevel,
+        nextReminderLevel: r.nextReminderLevel,
+        lastReminderNumber: r.lastReminderNumber,
+        lastReminderPayBy: r.lastReminderPayBy,
+    };
+}
+
+export async function listInvoiceStatus(filter?: {
+    patientId?: string;
+    openOnly?: boolean;
+    limit?: number;
+}): Promise<SavedInvoice[]> {
+    const rows = await practiceSystem.invoke<InvoiceStatusRow[]>("list_invoice_status", { filter: filter ?? {} });
+    return rows.map(fromStatusRow);
+}
+
+export async function getInvoiceStatus(documentId: string): Promise<SavedInvoice> {
+    return fromStatusRow(await practiceSystem.invoke<InvoiceStatusRow>("get_invoice_status", { documentId }));
+}
+
+/** Zahlungserinnerung (level 1), 1. Mahnung (2), 2. Mahnung (3). `preview` = draft. */
+export async function issuePaymentReminder(args: {
+    invoiceDocumentId: string;
+    preview?: boolean;
+    feeCents?: number;
+    days?: number;
+}): Promise<IssuedPdf> {
+    return practiceSystem.invoke<IssuedPdf>("issue_payment_reminder", {
+        args: { preview: false, feeCents: 0, ...args },
+    });
+}
+
+export async function listPaymentReminders(invoiceDocumentId: string): Promise<PaymentReminderRow[]> {
+    return practiceSystem.invoke<PaymentReminderRow[]>("list_payment_reminders", { invoiceDocumentId });
+}
+
+export async function paymentReminderCopy(reminderId: string): Promise<IssuedPdf> {
+    return practiceSystem.invoke<IssuedPdf>("payment_reminder_copy", { reminderId });
+}
+
+/**
+ * Invoice history: registry invoices with payment state, plus rows imported
+ * from the old browser history (marked `LEGACY`, not official documents).
+ */
 export async function listInvoiceDocuments(limit?: number): Promise<SavedInvoice[]> {
+    const lim = Math.min(limit ?? INVOICE_HISTORY_MAX, INVOICE_HISTORY_MAX);
+    let registry: SavedInvoice[] = [];
+    try {
+        registry = await listInvoiceStatus({ limit: lim });
+    } catch {
+        registry = [];
+    }
+    const known = new Set(registry.map((r) => r.id));
+    const legacy = (await listLegacyInvoiceDocuments(lim)).filter((r) => !known.has(r.id));
+    return [...registry, ...legacy.map((r) => ({ ...r, paymentState: "LEGACY" as const }))]
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        .slice(0, lim);
+}
+
+async function listLegacyInvoiceDocuments(limit?: number): Promise<SavedInvoice[]> {
     const lim = Math.min(limit ?? INVOICE_HISTORY_MAX, INVOICE_HISTORY_MAX);
     const rows = await practiceSystem.invoke<InvoiceDocumentListRow[]>("list_invoice_documents", {
         limit: lim,
@@ -125,8 +327,9 @@ export async function listInvoiceDocuments(limit?: number): Promise<SavedInvoice
     });
 }
 
+/** Legacy import only (browser history before the registry). The server refuses registry numbers. */
 export async function appendInvoiceDocument(entry: SavedInvoice): Promise<void> {
-    const totalCents = Math.round(sumInvoiceEur(entry.invoice) * 100);
+    const totalCents = moneyToInvoiceCents(sumInvoiceEur(entry.invoice));
     await practiceSystem.invoke<void>("append_invoice_document", {
         input: {
             id: entry.id,
@@ -156,7 +359,7 @@ export async function migrateLegacyInvoiceHistoryFromLocalStorageOnce(): Promise
         }
         return;
     }
-    const existing = await listInvoiceDocuments(INVOICE_HISTORY_MAX);
+    const existing = await listLegacyInvoiceDocuments(INVOICE_HISTORY_MAX);
     const existingIds = new Set(existing.map((e) => e.id));
     for (const e of entries) {
         if (!existingIds.has(e.id)) {

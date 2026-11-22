@@ -16,8 +16,9 @@ import {
     type WorkTimeActiveSession,
     type WorkTimeWeekOverview,
 } from "@/systems/practice-host/controllers/work-time.controller";
-import { loadWorkPlanStore, weekDaysMonFirst, weekStartMonday, ymd } from "@/lib/staff-work-plan";
-import { buildWeekBarDays, formatWorkMinutes, liveElapsedMinutes } from "@/lib/work-time-ui";
+import { hydrateWorkPlanStore, loadWorkPlanStore, weekDaysMonFirst, weekStartMonday, type WorkPlanStore } from "@/lib/staff-work-plan";
+import { localIsoDate } from "@/lib/utils";
+import { buildWeekBarDays, formatWorkMinutes, liveElapsedMinutes, weekBarScaleMinutes } from "@/lib/work-time-ui";
 import { errorMessage } from "@/lib/utils";
 import { useDateFnsLocale, useT, useTParams } from "@/lib/i18n";
 
@@ -41,9 +42,23 @@ export function WorkTimeTrackingPage() {
     );
 
     const weekStart = useMemo(() => weekStartMonday(weekAnchor), [weekAnchor]);
-    const weekStartYmd = useMemo(() => ymd(weekStart), [weekStart]);
-    const weekDays = useMemo(() => weekDaysMonFirst(weekStart).map((d) => ymd(d)), [weekStart]);
-    const weeklyRules = loadWorkPlanStore().weeklyRules;
+    const weekStartYmd = useMemo(() => localIsoDate(weekStart), [weekStart]);
+    const weekDays = useMemo(() => weekDaysMonFirst(weekStart).map((d) => localIsoDate(d)), [weekStart]);
+    const [weeklyRules, setWeeklyRules] = useState<WorkPlanStore["weeklyRules"]>(
+        () => loadWorkPlanStore().weeklyRules,
+    );
+    useEffect(() => {
+        if (!staffId) return;
+        let cancelled = false;
+        void hydrateWorkPlanStore([staffId], { cache: false })
+            .then((s) => {
+                if (!cancelled) setWeeklyRules(s.weeklyRules);
+            })
+            .catch(() => undefined);
+        return () => {
+            cancelled = true;
+        };
+    }, [staffId]);
 
     const refresh = useCallback(async () => {
         try {
@@ -160,7 +175,7 @@ export function WorkTimeTrackingPage() {
                 <CardHeader
                     title={t("page.workTime.week_overview")}
                     action={
-                        <div className="row appointment-nav-controls" dir="ltr" style={{ gap: 6 }}>
+                        <div className="row appointment-nav-controls" dir="ltr" style={{ gap: "var(--space-2)" }}>
                             <Button type="button" variant="ghost" size="sm" onClick={() => setWeekAnchor((d) => subWeeks(d, 1))}>
                                 ←
                             </Button>
@@ -175,11 +190,10 @@ export function WorkTimeTrackingPage() {
                 />
                 <div className="card-pad work-time-week-grid">
                     {weekBars.map((day) => {
-                        const max = Math.max(day.targetMinutes, day.workedMinutes + day.openMinutes, 1);
-                        const targetPct = (day.targetMinutes / max) * 100;
-                        const workedPct = (day.workedMinutes / max) * 100;
-                        const openPct = (day.openMinutes / max) * 100;
-                        const pausePct = (day.pauseMinutes / max) * 100;
+                        const scale = weekBarScaleMinutes(day);
+                        const used = day.workedMinutes + day.openMinutes;
+                        const targetPct = day.targetMinutes > 0 ? (day.targetMinutes / scale) * 100 : 0;
+                        const usedPct = (used / scale) * 100;
                         return (
                             <div key={day.date} className="work-time-week-col">
                                 <div className="work-time-week-label">{day.label}</div>
@@ -192,16 +206,10 @@ export function WorkTimeTrackingPage() {
                                 >
                                     <div className="work-time-week-bar__track">
                                         {day.targetMinutes > 0 ? (
-                                            <div className="work-time-week-bar__target" style={{ width: `${targetPct}%` }} />
+                                            <div className="work-time-week-bar__target" style={{ height: `${targetPct}%` }} />
                                         ) : null}
-                                        {day.workedMinutes > 0 ? (
-                                            <div className="work-time-week-bar__actual" style={{ width: `${workedPct}%` }} />
-                                        ) : null}
-                                        {day.openMinutes > 0 ? (
-                                            <div className="work-time-week-bar__open" style={{ width: `${openPct}%` }} />
-                                        ) : null}
-                                        {day.pauseMinutes > 0 ? (
-                                            <div className="work-time-week-bar__pause" style={{ width: `${pausePct}%` }} />
+                                        {used > 0 ? (
+                                            <div className="work-time-week-bar__actual" style={{ height: `${usedPct}%` }} />
                                         ) : null}
                                     </div>
                                 </div>

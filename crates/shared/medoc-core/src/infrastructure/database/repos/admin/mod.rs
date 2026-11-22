@@ -5,4 +5,5 @@ pub mod brute_force;
 pub mod device_session;
 pub mod license;
 pub mod staff;
+pub mod staff_access;
 pub mod staff_permission;

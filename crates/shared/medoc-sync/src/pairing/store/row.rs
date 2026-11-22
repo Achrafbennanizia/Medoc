@@ -2,8 +2,9 @@
 
 use super::super::types::PairingRequest;
 
-pub(crate) const PAIRING_SELECT: &str =
-    "SELECT id, device_id, slave_pubkey, slave_label,
+pub(crate) const PAIRING_SELECT: &str = "SELECT id, device_id,
+            COALESCE(slave_pubkey, '') AS slave_pubkey,
+            COALESCE(slave_label, '') AS slave_label,
             COALESCE(
                 NULLIF(TRIM(requester_ip), ''),
                 (SELECT NULLIF(TRIM(last_ip), '') FROM sync_device
@@ -13,9 +14,14 @@ pub(crate) const PAIRING_SELECT: &str =
                   LIMIT 1),
                 ''
             ) AS requester_ip,
-            status,
-            allowed_actions_json, activation_token, requested_at, decided_at, decided_by,
-            confirm_pin_hash, confirm_pin_expires_at, confirm_pin_attempts, transport,
+            COALESCE(status, 'PENDING') AS status,
+            COALESCE(allowed_actions_json, '[]') AS allowed_actions_json,
+            activation_token,
+            COALESCE(requested_at, '') AS requested_at,
+            decided_at, decided_by,
+            confirm_pin_hash, confirm_pin_expires_at,
+            COALESCE(confirm_pin_attempts, 0) AS confirm_pin_attempts,
+            COALESCE(transport, 'lan') AS transport,
             pairing_state, handshake_transcript_b64,
             COALESCE(
                 NULLIF(TRIM(hostname), ''),
@@ -84,21 +90,12 @@ impl From<RawRow> for PairingRequest {
 }
 
 fn coupling_code_from_transcript_b64(b64: Option<&str>) -> Option<String> {
-    use crate::cluster::crypto::derive_sas_from_transcript;
-    use base64::engine::general_purpose::{STANDARD, STANDARD_NO_PAD, URL_SAFE, URL_SAFE_NO_PAD};
-    use base64::Engine;
-    let raw = b64?.trim();
-    if raw.is_empty() {
+    use crate::cluster::crypto::{decode_handshake_transcript, derive_sas_from_transcript};
+    let bytes = decode_handshake_transcript(b64?)?;
+    if bytes.is_empty() {
         return None;
     }
-    for engine in [&STANDARD, &STANDARD_NO_PAD, &URL_SAFE, &URL_SAFE_NO_PAD] {
-        if let Ok(bytes) = engine.decode(raw) {
-            if !bytes.is_empty() {
-                return Some(derive_sas_from_transcript(&bytes));
-            }
-        }
-    }
-    None
+    Some(derive_sas_from_transcript(&bytes))
 }
 
 pub(crate) fn is_cluster_sas_state(pairing_state: Option<&str>) -> bool {
@@ -150,9 +147,6 @@ mod tests {
             display_device_label("FINGERPRINT", Some("Clinic-Mac"), "FINGERPRINT"),
             "Clinic-Mac"
         );
-        assert_eq!(
-            display_device_label("FINGERPRINT", None, "FINGERPRINT"),
-            ""
-        );
+        assert_eq!(display_device_label("FINGERPRINT", None, "FINGERPRINT"), "");
     }
 }

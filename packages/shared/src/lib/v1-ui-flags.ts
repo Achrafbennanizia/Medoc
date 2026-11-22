@@ -49,6 +49,13 @@ export const APPOINTMENT_CALL_REMINDER_ENABLED = false;
 export const PATIENT_LIST_CALL_EMAIL_ENABLED = false;
 
 /**
+ * Patient list: "Show archived" checkbox.
+ * Hide until archived-patient browse, restore, and list counts are product-ready.
+ * See `docs/coordination/todos-deferred-ui-blinds.md`.
+ */
+export const PATIENT_LIST_SHOW_ARCHIVED_ENABLED = false;
+
+/**
  * Patient Chart header — Task to reception, Request review, Discharge sheet.
  * Dialogs remain wired in `patient-detail.tsx`; re-enable when sell-ready polish is done.
  */
@@ -60,3 +67,10 @@ export const PATIENT_CHART_WORKFLOW_HEADER_BUTTONS_ENABLED = false;
  * `docs/coordination/todos-deferred-ui-blinds.md`.
  */
 export const CHART_QUEUE_DECLINE_ENABLED = false;
+
+/**
+ * Settings → System: drag-and-drop PDF header table.
+ * Hide until the table places fields reliably and the printed header matches it.
+ * See `docs/coordination/todos-deferred-ui-blinds.md`.
+ */
+export const PDF_HEADER_DESIGNER_ENABLED = false;

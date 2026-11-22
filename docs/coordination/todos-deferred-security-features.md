@@ -1,6 +1,7 @@
 # Deferred security features (TODO)
 
-**Status:** Break-Glass and 2FA disabled; staff cap **1 PHYSICIAN + 4 RECEPTION (5 total)** enforced (2026-06-18).  
+**Status:** Break-Glass and 2FA disabled; staff cap **1 PHYSICIAN + 4 RECEPTION (5 total)** enforced.  
+**2FA turned off again:** 2026-11-07. `TOTP_2FA_ENABLED` is `false`. Login does not ask for an authenticator code, including accounts that already have `totp_secret` stored.  
 **Flags:** `crates/shared/medoc-core/src/mvp_security.rs` (authoritative) · `packages/shared/src/lib/mvp-security-config.ts` (UI mirror).
 
 ## Re-enable Break-Glass
@@ -15,15 +16,14 @@
 
 ## Re-enable 2FA / TOTP
 
-**Current state (2026-07-12):** Fully unwired — IPC commands commented out of `register.rs` (300 handlers), UI removed from login/settings/network-reset, `totp.controller.ts` stubbed. Implementation preserved in block comments.
+**Current state (2026-11-07):** Flag is off. Password login succeeds for enrolled and unenrolled physicians. Settings IPC, login UI, and the network-reset code field stay commented. `start_totp_enrollment_login` / `confirm_totp_enrollment_login` remain registered and return "Two-factor authentication is currently disabled". Stored `totp_secret` rows are left in place.
 
-1. Set `TOTP_2FA_ENABLED = true` in `mvp_security.rs` and `mvp-security-config.ts`.
-2. Uncomment 6 IPC registrations in `register.rs` (+ update `EXPECTED_INVOKE_COMMAND_COUNT` to 306).
-3. Uncomment `auth_service.rs` TOTP branch, `auth.rs` / `staff.rs` command fns + register macros.
-4. Restore `totp.controller.ts`, `login.tsx` enroll/verify steps, `settings-sicherheit-section.tsx` panel.
-5. Restore network-reset TOTP reauth in `verbund.rs` + confirm dialog field.
-6. **E2E** — restore `enroll_seed_arzt_totp` usage; Playwright `totp_code` if needed.
-7. **Tests** — remove `#[ignore]` from `apps/practice-host/tests/totp_tests.rs`.
+1. Set `TOTP_2FA_ENABLED = true` in `mvp_security.rs` and `mvp-security-config.ts`. The `authenticate` branch already checks the flag, so enrolled accounts and unenrolled physicians are gated again.
+2. Uncomment the settings IPC in `register.rs` (`get_totp_status`, `start_totp_enrollment`, `confirm_totp_enrollment`, `deactivate_totp`).
+3. Restore `totp.controller.ts`, the login enroll/verify steps, and the security-settings panel.
+4. Restore the network-reset TOTP reauth in `cluster.rs` (the block under `validate_cluster_reset_reauth`).
+5. **Tests** — remove `#[ignore]` from `apps/practice-host/tests/totp_tests.rs`. Restore `require_totp_enabled_ok_when_on`, `enrolled_physician_without_code_is_rejected`, and `unenrolled_physician_must_enroll`. Flip the `auth_session_audit_tests` const assert back to `TOTP_2FA_ENABLED`.
+6. **E2E** — `enroll_seed_physician_totp` already no-ops while the flag is false. Playwright `totp_code` if the login UI returns.
 
 ## Staff limit (change or wire to license)
 

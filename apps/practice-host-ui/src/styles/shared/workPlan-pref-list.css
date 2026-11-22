@@ -1,0 +1,61 @@
+/* From styles/pages/work-plan-rules.css (cascade position kept by its import there). */
+.workPlan-pref-cascade-empty strong {
+  color: var(--fg-1);
+}
+
+.workPlan-pref-card {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.workPlan-pref-card .card-pad {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+@media (max-width: 520px) {
+  .workPlan-pref-card .card-head {
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+}
+
+.workPlan-pref-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: min(220px, 34vh);
+  overflow-y: auto;
+  border: 1px solid var(--line-1);
+  border-radius: 8px;
+  background: var(--bg-0);
+}
+.workPlan-pref-list__empty {
+  padding: 12px 10px;
+  color: var(--fg-3);
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 0;
+  list-style: none;
+}
+
+.workPlan-preset-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.workPlan-preset-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line-1);
+  background: var(--bg-0);
+  font-size: 12.5px;
+}
+
+.workPlan-preset-chip strong {
+  font-weight: 700;
+  color: var(--fg-1);
+}

@@ -1,0 +1,70 @@
+/* From styles/features/settings-sections.css (cascade position kept by its import there). */
+@layer components {
+  .settings-nav-muted {
+    padding: var(--space-1) var(--space-3) var(--space-half);
+    font-size: 11px;
+    font-weight: 650;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--fg-4);
+  }
+  .settings-field-label .req {
+    color: var(--red);
+    font-weight: 700;
+    margin-left: 2px;
+  }
+  .settings-row-clickable {
+    cursor: pointer;
+    text-align: start;
+    width: 100%;
+    border: none;
+    background: transparent;
+    font: inherit;
+    color: inherit;
+    padding: var(--card-pad-y) var(--card-pad-x);
+    border-top: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    min-width: 0;
+    transition: background var(--motion-fast) var(--ease-out);
+  }
+  .settings-row-clickable:hover {
+    background: color-mix(in oklab, var(--fg) 4.5%, transparent);
+  }
+  .settings-row-clickable:active {
+    background: color-mix(in oklab, var(--fg) 7%, transparent);
+  }
+  .settings-row-clickable:focus-visible {
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: -2px;
+  }
+  .settings-row-clickable__label {
+    text-align: start;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+  .settings-subcard > .settings-row-clickable:first-of-type {
+    border-top: none;
+  }
+  .settings-row-muted {
+    font-size: var(--text-caption);
+    color: var(--fg-3);
+    margin-top: 2px;
+    line-height: 1.35;
+    word-break: break-word;
+  }
+  .settings-pill-green {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 4px 10px;
+    border-radius: var(--radius-pill);
+    font-size: 12px;
+    font-weight: 650;
+    background: color-mix(in oklab, var(--green) 14%, transparent);
+    color: color-mix(in oklab, var(--green) 92%, var(--fg));
+    border: 1px solid color-mix(in oklab, var(--green) 28%, var(--line));
+  }
+}

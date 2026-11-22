@@ -1,0 +1,249 @@
+/* From styles/responsive/shell-breakpoints.css (cascade position kept by its import there). */
+@media (max-width: 760px) {
+  .topbar-actions {
+    gap: 6px !important;
+  }
+  .topbar-actions .tb-chip {
+    order: 2;
+  }
+  .topbar-actions .icon-btn,
+  .topbar-actions > div {
+    order: 3;
+  }
+}
+
+@media (max-width: 1200px) {
+  .dashboard-main-split {
+    /* Columns: features/dashboard.css (@container dashboard). Only the height behaviour stays here. */
+    min-height: auto;
+  }
+  .dashboard-col-primary,
+  .dashboard-col-secondary {
+    display: flex;
+    flex-direction: column;
+  }
+  .dashboard-approval-row {
+    grid-template-columns: auto 1fr auto !important;
+    grid-template-areas:
+      "avatar content date"
+      ". content actions";
+    align-items: start !important;
+  }
+  .dashboard-approval-row > :nth-child(1) { grid-area: avatar; }
+  .dashboard-approval-row > :nth-child(2) { grid-area: content; }
+  .dashboard-approval-row > :nth-child(3) { grid-area: date; justify-self: end; }
+  .dashboard-approval-row > :nth-child(4) { grid-area: actions; justify-self: end; }
+  .dashboard-approval-actions {
+    flex-wrap: nowrap !important;
+  }
+  .dashboard-approval-title-row {
+    flex-wrap: wrap;
+  }
+  .dashboard-approval-title-row > b {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .schedule-toolbar {
+    width: 100%;
+    margin-left: 0;
+    justify-content: flex-start;
+  }
+  .schedule-workspace {
+    grid-template-columns: 1fr;
+  }
+  .schedule-sidepanel {
+    position: static;
+  }
+  .week-timeline-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .row {
+    flex-wrap: wrap;
+  }
+  .login-root__panels {
+    grid-template-columns: 1fr;
+  }
+  .login-kind {
+    padding: 32px 24px;
+    min-height: auto;
+  }
+  .card-head {
+    flex-wrap: wrap;
+    gap: var(--space-3);
+  }
+  .kpi-val {
+    font-size: clamp(1rem, 0.45rem + 6cqi, 1.5rem);
+  }
+  .kpi-val.kpi-val--long {
+    font-size: clamp(0.9rem, 0.35rem + 5cqi, 1.25rem);
+  }
+  .kpi-val.kpi-val--xl {
+    font-size: clamp(0.82rem, 0.3rem + 4.5cqi, 1.1rem);
+  }
+  .split.settings-shell {
+    grid-template-columns: 1fr !important;
+  }
+  .settings-nav {
+    position: static;
+    top: auto;
+  }
+  .settings-highlight-card {
+    margin: 12px !important;
+    padding: 12px !important;
+  }
+  .settings-highlight-head {
+    align-items: flex-start !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+  }
+  .settings-license-grid {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+    align-items: start !important;
+  }
+  .settings-license-grid > div {
+    min-width: 0;
+  }
+  .settings-license-actions {
+    justify-content: stretch !important;
+  }
+  .settings-license-actions .btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+  .settings-migration-steps {
+    justify-content: flex-start !important;
+    gap: 8px !important;
+  }
+  .settings-migration-actions {
+    justify-content: stretch !important;
+  }
+  .settings-migration-actions .btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+  .patients-grid-head {
+    display: none !important;
+  }
+  .patients-grid-row {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+    padding: calc(var(--tbl-td-pad-y) + 2px) var(--card-pad-x) !important;
+  }
+  .patients-grid-row > * {
+    min-width: 0;
+  }
+  .patients-table {
+    overflow: hidden;
+    width: 100%;
+    min-width: 0;
+  }
+  .dashboard-kpis {
+    grid-template-columns: 1fr !important;
+  }
+  .dashboard-card-list {
+    overflow: visible;
+  }
+  .dashboard-page {
+    display: flex;
+    overflow: visible;
+  }
+  .dashboard-approval-row {
+    grid-template-columns: auto minmax(0, 1fr) !important;
+    grid-template-areas:
+      "avatar content"
+      "date actions";
+    gap: 8px 10px !important;
+  }
+  .dashboard-approval-row > :nth-child(3) {
+    justify-self: start !important;
+    font-size: 13px !important;
+  }
+  .dashboard-approval-row > :nth-child(4) {
+    justify-self: end !important;
+    min-width: 0;
+  }
+  .dashboard-approval-actions .btn {
+    padding: 8px 12px !important;
+  }
+  .dashboard-order-meta {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+  .dashboard-order-meta-grid {
+    width: 100%;
+    justify-content: space-between;
+    gap: 12px !important;
+    flex-wrap: wrap;
+  }
+  .dashboard-timeline-row {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+  .schedule-toolbar {
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+  .schedule-filter {
+    min-width: 0;
+    flex: 1 1 170px;
+  }
+  .schedule-primary-action {
+    width: 100%;
+    justify-content: center;
+  }
+  .week-timeline-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-height: 820px) {
+  :root {
+    --dash-title-size: clamp(22px, 2.2vh, 27px);
+    --dash-kpi-size: clamp(22px, 3vh, 30px);
+    --dash-card-title-size: clamp(13px, 1.55vh, 15px);
+    --dash-body-size: clamp(12.5px, 1.3vh, 14px);
+    --dash-meta-size: clamp(11.5px, 1.1vh, 12.5px);
+  }
+  .kpi {
+    min-height: 88px;
+  }
+  .dashboard-approval-row,
+  .dashboard-order-row,
+  .dashboard-timeline-row {
+    min-height: 52px;
+    padding-top: var(--space-2);
+    padding-bottom: var(--space-2);
+  }
+}
+
+@media (max-height: 700px) {
+  :root {
+    --card-pad-y: clamp(8px, 1.1vh, 10px);
+    --dash-title-size: clamp(20px, 2vh, 24px);
+    --dash-kpi-size: clamp(20px, 2.6vh, 26px);
+    --dash-card-title-size: clamp(12.5px, 1.35vh, 14px);
+    --dash-body-size: clamp(12px, 1.15vh, 13px);
+    --dash-meta-size: clamp(11px, 1vh, 12px);
+  }
+  .dashboard-page {
+    gap: var(--space-3);
+  }
+  .dashboard-main-split {
+    gap: 12px !important;
+  }
+  .dashboard-col-primary,
+  .dashboard-col-secondary {
+    gap: 10px !important;
+  }
+  .dashboard-approval-row,
+  .dashboard-order-row,
+  .dashboard-timeline-row {
+    min-height: 48px;
+  }
+}

@@ -1,0 +1,101 @@
+/* From styles/features/settings.css (cascade position kept by its import there). */
+@layer components {
+  .select-menu.select-menu--portal.settings-timezone-menu {
+    max-height: none;
+    padding: 6px 6px 14px;
+    box-sizing: border-box;
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+  .settings-timezone-menu .select-option {
+    width: 100%;
+    box-sizing: border-box;
+    text-align: start;
+    white-space: nowrap;
+  }
+  .settings-row b {
+    font-size: var(--text-callout);
+    letter-spacing: -0.01em;
+  }
+  .settings-row input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    min-width: 16px;
+    min-height: 16px;
+  }
+  .settings-page {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--space-5) + var(--space-1));
+    padding-bottom: var(--space-8);
+  }
+  .settings-page-head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+  .settings-page-breadcrumb {
+    font-size: var(--text-caption);
+    color: var(--fg-3);
+    letter-spacing: 0.01em;
+  }
+  /* With two-column shell (nav left) the duplicate "menu" row under the heading is omitted. */
+  @media (min-width: 1201px) {
+    .settings-page-breadcrumb {
+      display: none;
+    }
+  }
+  .settings-nav-card {
+    padding: calc(var(--space-2) + var(--space-1));
+    border-radius: var(--radius-card);
+    background: var(--surface-sidebar-canvas);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-sm);
+  }
+  .settings-nav-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-half);
+  }
+  .settings-nav-btn {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--space-2) + var(--space-half));
+    width: 100%;
+    min-width: 0;
+    text-align: start;
+    padding: var(--space-3);
+    border: none;
+    border-radius: var(--radius-ctl);
+    background: transparent;
+    color: var(--fg-2);
+    font-size: var(--text-body-sm);
+    font-weight: 500;
+    cursor: pointer;
+    transition:
+      background var(--motion-fast) var(--ease-out),
+      color var(--motion-fast) var(--ease-out),
+      transform var(--motion-fast) var(--ease-out);
+  }
+  .settings-nav-btn:hover {
+    background: color-mix(in oklab, var(--fg) 4%, transparent);
+    color: var(--fg);
+  }
+  .settings-nav-btn:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+  .settings-nav-btn svg {
+    flex-shrink: 0;
+    opacity: 0.88;
+  }
+  .settings-nav-btn.active {
+    background: color-mix(in oklab, var(--accent) 14%, transparent);
+    color: var(--accent-ink);
+  }
+  .settings-nav-btn.active svg {
+    opacity: 1;
+    color: var(--accent-ink);
+  }
+}

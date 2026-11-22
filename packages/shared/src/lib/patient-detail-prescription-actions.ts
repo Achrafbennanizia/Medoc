@@ -14,6 +14,7 @@ import { prescriptionLinesToTemplateItems } from "@/lib/medications";
 import { t, translateLocaleParams, useLocale } from "@/lib/i18n";
 import { PATIENT_DETAIL_TOAST_UNDO_MS, type ChartSavePending } from "@/lib/patient-detail-utils";
 import { errorMessage } from "@/lib/utils";
+import { withAllergyConfirmation, type ConfirmAllergy } from "@/lib/with-allergy-confirmation";
 
 function tp(key: string, params: Record<string, string | number>): string {
     return translateLocaleParams(useLocale.getState().locale, key, params);
@@ -37,6 +38,8 @@ export type PatientDetailPrescriptionActionsCtx = {
     userId: string;
     onReload: () => void | Promise<void>;
     toast: PatientDetailPrescriptionToast;
+    /** Allergy warning (MD-RXP-001): resolves `true` when the doctor issues anyway. */
+    confirmAllergy: ConfirmAllergy;
 };
 
 export async function persistPatientPrescriptions(
@@ -50,7 +53,7 @@ export async function persistPatientPrescriptions(
         for (const line of queue) {
             const merged = [line.instructions, shared].filter((s) => s.trim()).join(" · ");
             const quantityN = Number.parseInt(line.quantity.trim(), 10);
-            const r = await createPrescription({
+            const r = await withAllergyConfirmation((allergy_override) => createPrescription({
                 patient_id: ctx.patientId,
                 physician_id: ctx.userId,
                 medication: line.medication.trim(),
@@ -66,13 +69,19 @@ export async function persistPatientPrescriptions(
                 prescription_type: line.prescription_type,
                 icd10_code: line.icd10_code.trim() || null,
                 prescribing_physician_id: ctx.userId,
-            });
+                allergy_override,
+            }), ctx.confirmAllergy);
+            if (!r) break;
             createdIds.push(r.id);
         }
+        if (createdIds.length === 0) {
+            await ctx.onReload();
+            return;
+        }
         ctx.toast(
-            queue.length === 1
+            createdIds.length === 1
                 ? t("patient.detail.toast.prescription_saved_one")
-                : tp("patient.detail.toast.prescriptions_saved_count", { count: queue.length }),
+                : tp("patient.detail.toast.prescriptions_saved_count", { count: createdIds.length }),
             "success",
             {
                 durationMs: PATIENT_DETAIL_TOAST_UNDO_MS,

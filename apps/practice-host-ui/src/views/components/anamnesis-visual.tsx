@@ -10,9 +10,9 @@ function EntryList({ entries }: { entries: [string, string][] }) {
         return <p style={{ margin: 0, fontSize: 13, color: "var(--fg-4)", fontStyle: "italic" }}>{t("anamnesis.visual.empty")}</p>;
     }
     return (
-        <dl style={{ display: "flex", flexDirection: "column", gap: 10, margin: 0 }}>
+        <dl style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)", margin: 0 }}>
             {rows.map(([k, version]) => (
-                <div key={k} className="row" style={{ alignItems: "flex-start", gap: 12, justifyContent: "space-between" }}>
+                <div key={k} className="row" style={{ alignItems: "flex-start", gap: "var(--space-3)", justifyContent: "space-between" }}>
                     <dt style={{ color: "var(--fg-3)", fontSize: 12, fontWeight: 600, minWidth: 140 }}>{anamnesisLabelFor(k, t)}</dt>
                     <dd style={{ margin: 0, textAlign: "end", flex: 1, fontSize: 13.5, color: "var(--fg)" }}>{version}</dd>
                 </div>
@@ -85,7 +85,7 @@ export function AnamnesisVisualFlat({ data }: { data: AnamnesisV1 }) {
         ["health_insurance", data.health_insurance ?? ""],
     ];
     return (
-        <div className="col" style={{ gap: 16 }}>
+        <div className="col" style={{ gap: "var(--space-4)" }}>
             <Card className="card-pad">
                 <CardHeader title={t("anamnesis.visual.insurance_title")} />
                 <EntryList entries={insuranceFields} />

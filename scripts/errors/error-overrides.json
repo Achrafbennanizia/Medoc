@@ -1,0 +1,25 @@
+{
+  "kinds": {},
+  "codedKinds": {
+    "error.app.unauthorized": "auth",
+    "error.app.forbidden": "permission",
+    "error.app.rate_limited": "auth",
+    "error.app.totp_required": "auth",
+    "error.app.totp_enrollment_required": "auth",
+    "error.app.not_found": "not_found",
+    "error.app.conflict": "conflict",
+    "error.app.validation": "validation",
+    "error.app.database": "system",
+    "error.app.internal": "system",
+    "error.app.unknown": "system",
+    "error.boundary.crash": "system",
+    "error.app.network": "connectivity",
+    "error.app.timeout": "connectivity",
+    "error.app.offline": "connectivity",
+    "error.app.feature_disabled": "state",
+    "error.prescription.allergy_conflict": "validation",
+    "error.sync.change_signature_invalid": "integrity",
+    "error.sync.change_signer_unknown": "integrity",
+    "error.sync.unsigned_changes": "state"
+  }
+}

@@ -29,6 +29,17 @@ pub struct SyncPeer {
     pub last_seen_at: Option<String>,
 }
 
+/// Live initial-copy banner for this device.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct InitialCopyStatus {
+    /// `replica` while this device is copying, `master` while it is sending.
+    pub side: String,
+    pub device_label: String,
+    pub done: i64,
+    pub total: i64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SyncStatusSnapshot {
@@ -38,30 +49,13 @@ pub struct SyncStatusSnapshot {
     pub pending_outbox: i64,
     pub peers: Vec<SyncPeer>,
     pub vectors: HashMap<String, i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub initial_copy: Option<InitialCopyStatus>,
+    /// Changes waiting for an admin (see `medoc_sync::problems`).
+    #[serde(default)]
+    pub open_problems: i64,
 }
 
-/// Allow-listed entity tables that flow through the outbox.
-///
-/// Order is parent-before-child. A full snapshot is queued in this order
-/// and applied with foreign keys on, so a child row emitted before its
-/// parent fails the FK check and is dropped. Keep in sync with
-/// `merge::sanitize_table`.
-pub const SYNCED_TABLES: &[&str] = &[
-    "staff",
-    "patient",
-    "service_item",
-    "app_kv",
-    "patient_chart",
-    "appointment",
-    "absence",
-    "anamnesis_form",
-    "dental_finding",
-    "examination",
-    "treatment",
-    "prescription",
-    "certificate",
-    "payment",
-    "in_app_notification",
-    "practice_ticket",
-    "practice_task",
-];
+pub use medoc_core::infrastructure::database::sync_registry::{
+    deny_column, is_synced_table, synced_tables,
+};

@@ -1,4 +1,5 @@
 import { deleteAppKvRaw, getAppKvRaw, setAppKvRaw } from "@/systems/practice-host/controllers/app-kv.controller";
+import { removeLocalStorageKey } from "@/lib/remove-local-storage-key";
 
 /** SQLite `app_kv` key — mirrors `app_kv_policy::APPOINTMENT_DRAFT_PREFIX`. */
 export const APPOINTMENT_DRAFT_KV_PREFIX = "appointment.draft.v1." as const;
@@ -73,12 +74,7 @@ function loadLegacyDraftFromLocalStorage(draftId: string): AppointmentDraft | nu
 }
 
 export function stripLegacyAppointmentDraftLocalStorage(draftId: string): void {
-    if (!draftId || typeof window === "undefined") return;
-    try {
-        window.localStorage.removeItem(legacyLsKey(draftId));
-    } catch {
-        /* ignore */
-    }
+    if (draftId) removeLocalStorageKey(legacyLsKey(draftId));
 }
 
 export async function getAppointmentDraftFromBackend(draftId: string): Promise<AppointmentDraft | null> {

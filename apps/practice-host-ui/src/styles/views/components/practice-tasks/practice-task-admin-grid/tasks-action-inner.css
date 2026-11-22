@@ -1,0 +1,78 @@
+/* From styles/features/tasks-orders.css (cascade position kept by its import there). */
+@layer components {
+  .tasks-td-updated {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    font-size: 12.5px;
+  }
+  .tasks-td-title {
+    overflow: hidden;
+    min-width: 0;
+  }
+  .tasks-meta-sub {
+    display: block;
+    margin-top: var(--space-1);
+    font-size: 11.5px;
+    color: var(--fg-3);
+    line-height: 1.35;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .tasks-title {
+    display: block;
+    font-weight: 600;
+    line-height: 1.35;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .tasks-body-sub {
+    display: block;
+    margin-top: 2px;
+    font-size: 11.5px;
+    color: var(--fg-3);
+    line-height: 1.35;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .tasks-td-patient,
+  .tasks-td-assignee,
+  .tasks-td-kind {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .tasks-td-kind {
+    font-size: 12.5px;
+  }
+  .tasks-td-status {
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+  .tasks-td-status .badge {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .tasks-td-action {
+    white-space: nowrap;
+    text-align: end;
+    vertical-align: middle;
+    padding-inline-start: var(--space-2);
+    padding-inline-end: var(--card-pad-x);
+  }
+  .tasks-action-inner {
+    display: flex;
+    justify-content: end;
+    align-items: center;
+    width: 100%;
+  }
+  .tasks-action-inner .btn {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    justify-content: center;
+  }
+}

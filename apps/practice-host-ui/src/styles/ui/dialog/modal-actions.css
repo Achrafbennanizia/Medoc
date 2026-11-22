@@ -1,0 +1,126 @@
+/* From styles/components/overlays.css (cascade position kept by its import there). */
+@layer components {
+  .empty-state-graphic-wrap--float {
+    animation: emptyStateFloat 4s var(--ease-in-out) infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .empty-state-graphic-wrap--float { animation: none; }
+  }
+  .schedule-day-empty-card {
+    max-width: 520px;
+    margin: 0 auto;
+  }
+  .schedule-day-empty-inline {
+    max-width: 520px;
+    margin: 0 auto;
+    padding: 16px var(--card-pad-x) 24px;
+  }
+  .schedule-day-empty-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    justify-content: center;
+    padding: 8px 0 20px;
+  }
+  .modal-ic { width: 56px; height: 56px; border-radius: 14px; display: grid; place-items: center; margin: 0 auto 14px; }
+  .modal-body { padding: 28px 28px 22px; text-align: center; }
+  .modal-body h3 { margin: 0 0 6px; font-size: 18px; font-weight: 600; letter-spacing: -0.015em; }
+  .modal-body p { margin: 0; color: var(--fg-3); font-size: 13.5px; line-height: 1.5; }
+  .modal-actions {
+    display: flex;
+    gap: 1px;
+    background: var(--line);
+    border-top: 1px solid var(--line);
+  }
+  .modal-actions button {
+    flex: 1;
+    background: var(--bg-elev);
+    padding: 16px 14px;
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--fg);
+    transition: background 120ms ease;
+  }
+  .modal-actions button:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--fg) 4%, var(--bg-elev));
+  }
+  .modal-actions button.destructive {
+    color: var(--red);
+    font-weight: 600;
+  }
+  .modal-actions button.primary {
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .modal-actions .btn {
+    flex: 1;
+    justify-content: center;
+    min-height: 52px;
+    margin: 0;
+    border-radius: 0;
+    font-size: 15px;
+    font-weight: 500;
+    box-shadow: none;
+  }
+  .modal-actions .btn-ghost {
+    background: var(--bg-elev);
+    color: var(--fg);
+    border: none;
+  }
+  .modal-actions .btn-ghost:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--fg) 4%, var(--bg-elev));
+    transform: none;
+  }
+  .modal-actions .btn-accent {
+    background: var(--bg-elev);
+    color: var(--accent);
+    font-weight: 600;
+    border: none;
+  }
+  .modal-actions .btn-accent:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--fg) 4%, var(--bg-elev));
+    transform: none;
+  }
+  .modal-actions .btn-danger {
+    background: var(--bg-elev) !important;
+    color: var(--red) !important;
+    border: none !important;
+    font-weight: 600;
+  }
+  .modal-actions .btn-danger:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--fg) 4%, var(--bg-elev)) !important;
+    transform: none;
+  }
+  .modal-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--line);
+    gap: var(--space-3);
+  }
+  .modal-title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+  }
+  .modal-header-actions {
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+  .modal-body-pad {
+    padding: 16px 20px;
+  }
+  .modal-body-pad--flush {
+    padding: 0;
+  }
+
+  /* Form dialogs (ticket / task / forward): left-aligned full-width fields */
+  .modal.modal--form {
+    width: min(440px, calc(100vw - 32px));
+  }
+  .modal.modal--form .modal-body-pad {
+    padding: 18px 20px 12px;
+  }
+}

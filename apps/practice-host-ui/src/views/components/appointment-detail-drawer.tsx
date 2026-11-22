@@ -29,14 +29,36 @@ import {
     splitChiefComplaintParts,
 } from "@/lib/dental";
 import { DentalToothPickerMini } from "./dental-tooth-picker-mini";
+import { canTransition, statusAllows, statusDescriptionKey, statusLabelKey } from "@/lib/status/status-registry";
+
+/** F64: workflow steps map 1:1 onto `AppointmentStatus`; "Active" is `IN_PROGRESS`. */
+const APPOINTMENT_DRAWER_STEPS: Appointment["status"][] = ["PLANNED", "CONFIRMED", "IN_PROGRESS", "COMPLETED"];
 
 function appointmentDrawerActiveStep(status: Appointment["status"]): number {
     if (status === "COMPLETED") return 3;
+    if (status === "IN_PROGRESS") return 2;
     if (status === "CONFIRMED") return 1;
     if (status === "PLANNED") return 0;
     if (status === "CANCELLED" || status === "NO_SHOW") return -1;
     return 0;
 }
+
+/** Main forward step for each status (workflow order; cancel / no-show are separate buttons). */
+const APPOINTMENT_PRIMARY_NEXT: Partial<Record<string, Appointment["status"]>> = {
+    PLANNED: "CONFIRMED",
+    CONFIRMED: "IN_PROGRESS",
+    IN_PROGRESS: "COMPLETED",
+    CANCELLED: "PLANNED",
+    NO_SHOW: "PLANNED",
+};
+
+/** Verb labels for the action buttons (status names are nouns). */
+const APPOINTMENT_ACTION_LABEL: Partial<Record<string, string>> = {
+    CONFIRMED: "appointment.drawer.confirm",
+    IN_PROGRESS: "appointment.drawer.start",
+    COMPLETED: "appointment.drawer.finish",
+    PLANNED: "appointment.drawer.reopen",
+};
 
 export type AppointmentDetailDrawerProps = {
     appointment: Appointment;
@@ -64,6 +86,8 @@ export function AppointmentDetailDrawer({
     onPhone,
 }: AppointmentDetailDrawerProps) {
     const t = useT();
+    const nextCandidate = APPOINTMENT_PRIMARY_NEXT[appointment.status];
+    const primaryNext = nextCandidate && canTransition("appointment", appointment.status, nextCandidate) ? nextCandidate : null;
     const tp = useTParams();
     const dateFnsLocale = useDateFnsLocale();
     const titleId = useId();
@@ -148,8 +172,7 @@ export function AppointmentDetailDrawer({
                                         className={`appointment-workflow-node ${i <= active ? "on" : ""} ${i === active ? "current" : ""}`}
                                         title={label}
                                         onClick={() => {
-                                            const map: Appointment["status"][] = ["PLANNED", "CONFIRMED", "CONFIRMED", "COMPLETED"];
-                                            onStatusChange(appointment.id, map[i]!);
+                                            onStatusChange(appointment.id, APPOINTMENT_DRAWER_STEPS[i]!);
                                         }}
                                     >
                                         {i === 0 ? <CheckIcon size={14} /> : i === 1 ? <EyeIcon size={14} /> : i === 2 ? <BoltIcon size={14} /> : <ShieldCheckIcon size={14} />}
@@ -216,21 +239,35 @@ export function AppointmentDetailDrawer({
                                 </button>
                             </>
                         ) : null}
-                        <button type="button" className="btn btn-subtle" onClick={onEdit}>
-                            <EditIcon size={14} />
-                            {t("appointment.drawer.edit")}
-                        </button>
+                        {statusAllows("appointment", appointment.status, "edit") ? (
+                            <button type="button" className="btn btn-subtle" onClick={onEdit}>
+                                <EditIcon size={14} />
+                                {t("appointment.drawer.edit")}
+                            </button>
+                        ) : null}
                     </div>
                 </div>
                 <div className="appointment-drawer-panel-foot">
+                    {/* Actions come from the status registry: only transitions the backend accepts are offered. */}
                     <div className="appointment-drawer-footer row">
-                        {appointment.status === "PLANNED" ? (
-                            <button type="button" className="btn btn-accent" onClick={() => onStatusChange(appointment.id, "CONFIRMED")}>{t("appointment.drawer.confirm")}</button>
+                        {primaryNext ? (
+                            <button
+                                type="button"
+                                className="btn btn-accent"
+                                onClick={() => onStatusChange(appointment.id, primaryNext)}
+                                title={t(statusDescriptionKey("appointment", primaryNext))}
+                            >
+                                {t(APPOINTMENT_ACTION_LABEL[primaryNext] ?? statusLabelKey("appointment", primaryNext))}
+                            </button>
                         ) : null}
-                        {appointment.status === "CONFIRMED" ? (
-                            <button type="button" className="btn btn-accent" onClick={() => onStatusChange(appointment.id, "COMPLETED")}>{t("appointment.drawer.finish")}</button>
+                        {canTransition("appointment", appointment.status, "NO_SHOW") && appointment.status !== "NO_SHOW" ? (
+                            <button type="button" className="btn btn-subtle" onClick={() => onStatusChange(appointment.id, "NO_SHOW")}>
+                                {t("appointment.drawer.no_show")}
+                            </button>
                         ) : null}
-                        <button type="button" className="btn btn-subtle danger" onClick={onStornieren}>{t("appointment.drawer.cancel")}</button>
+                        {canTransition("appointment", appointment.status, "CANCELLED") && appointment.status !== "CANCELLED" ? (
+                            <button type="button" className="btn btn-subtle danger" onClick={onStornieren}>{t("appointment.drawer.cancel")}</button>
+                        ) : null}
                     </div>
                 </div>
             </div>

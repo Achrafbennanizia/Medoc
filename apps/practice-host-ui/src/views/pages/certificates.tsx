@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, CardHeader } from "../components/ui/card";
+import { DataTable } from "../components/ui/data-table";
 import { Button } from "../components/ui/button";
 import { PatientComboField } from "../components/patient-combo-field";
 import { Dialog, ConfirmDialog } from "../components/ui/dialog";
@@ -149,7 +150,7 @@ export function CertificatesPage() {
     }
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-5)" }} className="animate-fade-in">
             <WorkspacePageHeader
                 title={t("page.certificates.title")}
                 actions={
@@ -188,35 +189,31 @@ export function CertificatesPage() {
                 <EmptyState icon="📄" title={t("page.certificates.empty")} />
             ) : (
                 <div className="card tbl-data-card">
-                    <div className="tbl-scroll">
-                    <table className="tbl tbl-fluid">
-                        <thead>
-                            <tr>
-                                <th>{t("common.type")}</th>
-                                <th>{t("page.patient_detail.certificate.field.icd")}</th>
-                                <th>{t("common.valid_from")}</th>
-                                <th>{t("common.valid_until")}</th>
-                                <th>{t("common.issued")}</th>
-                                <th>{t("common.actions")}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {certificates.map((a) => (
-                                <tr key={a.id}>
-                                    <td>{a.kind}</td>
-                                    <td>{a.icd10_code?.trim() || "—"}</td>
-                                    <td>{formatDate(a.valid_from)}</td>
-                                    <td>{formatDate(a.valid_until)}</td>
-                                    <td>{formatDate(a.issued_at)}</td>
-                                    <td className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
+                    <DataTable
+                        label={t("page.certificates.title")}
+                        rows={certificates}
+                        getRowId={(a) => a.id}
+                        columns={[
+                            { id: "kind", header: t("common.type"), truncate: true, text: (a) => a.kind, cell: (a) => <span className="data-table__primary">{a.kind}</span> },
+                            { id: "icd", header: t("page.patient_detail.certificate.field.icd"), width: "7rem", hideBelow: "sm", cell: (a) => a.icd10_code?.trim() || "—" },
+                            { id: "from", header: t("common.valid_from"), width: "7rem", hideBelow: "md", cell: (a) => formatDate(a.valid_from) },
+                            { id: "until", header: t("common.valid_until"), width: "7rem", hideBelow: "md", cell: (a) => formatDate(a.valid_until) },
+                            { id: "issued", header: t("common.issued"), width: "7rem", cell: (a) => formatDate(a.issued_at) },
+                            {
+                                id: "actions",
+                                header: t("common.actions"),
+                                srOnlyHeader: true,
+                                width: "11rem",
+                                align: "end",
+                                cell: (a) => (
+                                    <div className="data-table__actions">
                                         <Button size="sm" onClick={() => openCertificateExport(a)}>{t("common.export")}</Button>
                                         <Button size="sm" variant="danger" onClick={() => setDeleteId(a.id)}>{t("common.delete")}</Button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                    </div>
+                                    </div>
+                                ),
+                            },
+                        ]}
+                    />
                 </div>
             )}
 

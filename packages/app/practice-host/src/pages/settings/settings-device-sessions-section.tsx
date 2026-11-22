@@ -278,7 +278,7 @@ export function SettingsDeviceSessionsSection() {
                 className="settings-device-session-investigate-dialog"
                 footer={
                     investigation && !investigation.session.is_current ? (
-                        <div className="row" style={{ gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                        <div className="row" style={{ gap: "var(--space-2)", flexWrap: "wrap", justifyContent: "flex-end" }}>
                             {investigation.session.is_trusted ? (
                                 <Button
                                     type="button"

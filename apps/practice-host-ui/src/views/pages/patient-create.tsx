@@ -1,7 +1,7 @@
 import { useT, useTParams } from "@/lib/i18n";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { createPatient } from "@/systems/practice-host/controllers/patient.controller";
+import { createPatient, deletePatient } from "@/systems/practice-host/controllers/patient.controller";
 import { saveAnamnesisForm } from "@/systems/practice-host/controllers/chart.controller";
 import { useFormDirtyStore } from "../../models/store/form-dirty-store";
 import { errorMessage } from "@/lib/utils";
@@ -11,13 +11,14 @@ import { Input, Select, Textarea } from "../components/ui/input";
 import { FormSection } from "../components/ui/form-section";
 import { Dialog, ConfirmDialog } from "../components/ui/dialog";
 import { useToastStore } from "../components/ui/toast-store";
+import type { Sex } from "@/models/types";
 import { WorkspacePageHeader } from "../components/administration-page-header";
 
 type FormState = {
     last_name: string;
     first_name: string;
     date_of_birth: string;
-    sex: string;
+    sex: Sex;
     phone: string;
     email: string;
     address: string;
@@ -208,7 +209,16 @@ export function PatientCreatePage() {
             }
 
             setDirty(false);
-            toast(t("page.patient_create.toast.created"));
+            const createdId = patient.id;
+            toast(t("page.patient_create.toast.created"), "success", {
+                onUndo: async () => {
+                    try {
+                        await deletePatient(createdId);
+                    } catch (err) {
+                        toast(tp("common.error_with_message", { message: errorMessage(err) }), "error");
+                    }
+                },
+            });
             navigate("/patients");
         } catch (e) {
             toast(tp("page.patient_create.toast.error", { message: errorMessage(e) }));
@@ -311,7 +321,7 @@ export function PatientCreatePage() {
                             id="sex"
                             label={t("page.patient_create.field.gender")}
                             value={form.sex}
-                            onChange={(e) => set("sex", e.target.value)}
+                            onChange={(e) => set("sex", e.target.value as Sex)}
                             options={[
                                 { value: "MALE", label: t("patient.gender.MALE") },
                                 { value: "FEMALE", label: t("patient.gender.FEMALE") },
@@ -369,11 +379,11 @@ export function PatientCreatePage() {
                         <Textarea id="psy" label={t("page.patient_create.field.psychiatric")} value={form.mental} onChange={(e) => set("mental", e.target.value)} rows={2} />
                     </FormSection>
 
-                    <details open className="card card-pad" style={{ marginTop: 16, border: "1px solid var(--line)" }}>
+                    <details open className="card card-pad" style={{ marginTop: "var(--space-4)", border: "1px solid var(--line)" }}>
                         <summary style={{ cursor: "pointer", fontWeight: 600, fontSize: 15, padding: "4px 0" }}>
                             {t("page.patient_create.med_allergies_collapse")}
                         </summary>
-                        <div style={{ marginTop: 12 }}>
+                        <div style={{ marginTop: "var(--space-3)" }}>
                             <FormSection title={t("page.patient_create.section.medication")}>
                                 <Textarea id="med" label={t("page.patient_create.field.regular_meds")} value={form.medications} onChange={(e) => set("medications", e.target.value)} rows={2} />
                                 <Textarea id="intake-notes" label={t("page.patient_create.field.intake_notes")} value={form.dosing} onChange={(e) => set("dosing", e.target.value)} rows={2} />
@@ -401,7 +411,7 @@ export function PatientCreatePage() {
                 ) : null}
 
                 <div id="pc-actions" className="patient-create-sticky">
-                    <div className="row" style={{ justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+                    <div className="row" style={{ justifyContent: "flex-end", gap: "var(--space-2)", flexWrap: "wrap" }}>
                         <Button type="button" variant="danger" onClick={() => navigate("/patients")}>
                             {t("common.cancel")}
                         </Button>

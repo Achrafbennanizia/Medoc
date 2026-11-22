@@ -32,4 +32,7 @@ pub struct CreateBalanceSheetSnapshot {
     /// contracts, expenses, master data, …). Stored verbatim as a string so the
     /// schema does not have to evolve every time the wizard adds a field.
     pub payload: serde_json::Value,
+    /// Document language for the issued report (client UI language unless pinned).
+    #[serde(default)]
+    pub locale: Option<String>,
 }

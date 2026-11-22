@@ -37,6 +37,17 @@ pub struct UpdateAbsence {
     pub to_time: Option<String>,
 }
 
+/// F126: both days must be real `yyyy-MM-dd` dates and the range not inverted.
+fn validate_absence_range(from_day: &str, to_day: &str) -> Result<(), AppError> {
+    let parse = |d: &str| chrono::NaiveDate::parse_from_str(d.trim(), "%Y-%m-%d");
+    match (parse(from_day), parse(to_day)) {
+        (Ok(from), Ok(to)) if to >= from => Ok(()),
+        _ => Err(AppError::validation_code(
+            "error.master.date_range_required",
+        )),
+    }
+}
+
 pub async fn list_absences(pool: &SqlitePool) -> Result<Vec<Absence>, AppError> {
     let rows = sqlx::query_as::<_, Absence>(
         "SELECT * FROM absence ORDER BY from_day DESC, created_at DESC",
@@ -47,6 +58,7 @@ pub async fn list_absences(pool: &SqlitePool) -> Result<Vec<Absence>, AppError> 
 }
 
 pub async fn create_absence(pool: &SqlitePool, data: &CreateAbsence) -> Result<Absence, AppError> {
+    // sync: recorded by caller record_absence
     if data.kind.trim().is_empty() {
         return Err(AppError::validation_code("error.master.type_required"));
     }
@@ -55,6 +67,7 @@ pub async fn create_absence(pool: &SqlitePool, data: &CreateAbsence) -> Result<A
             "error.master.date_range_required",
         ));
     }
+    validate_absence_range(&data.from_day, &data.to_day)?;
     let id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
         "INSERT INTO absence (id, kind, comment, from_day, to_day, from_time, to_time)
@@ -102,6 +115,7 @@ pub async fn update_absence(
     id: &str,
     data: &UpdateAbsence,
 ) -> Result<Absence, AppError> {
+    // sync: recorded by caller record_absence
     let existing = find_absence_by_id(pool, id).await?;
     let kind = data
         .kind
@@ -140,6 +154,7 @@ pub async fn update_absence(
             "error.master.date_range_required",
         ));
     }
+    validate_absence_range(&from_day, &to_day)?;
     let from_time = match &data.from_time {
         None => existing.from_time.clone(),
         Some(s) => {
@@ -194,7 +209,10 @@ pub async fn delete_absence(pool: &SqlitePool, id: &str) -> Result<(), AppError>
         "absence",
         id,
         "DELETE",
-        &format!("{{\"id\":{}}}", serde_json::to_string(id).unwrap_or_else(|_| "\"\"".into())),
+        &format!(
+            "{{\"id\":{}}}",
+            serde_json::to_string(id).unwrap_or_else(|_| "\"\"".into())
+        ),
     )
     .await?;
     Ok(())
@@ -202,8 +220,10 @@ pub async fn delete_absence(pool: &SqlitePool, id: &str) -> Result<(), AppError>
 
 async fn record_absence(pool: &SqlitePool, row: &Absence, op: &str) -> Result<(), AppError> {
     let body = serde_json::to_string(row).unwrap_or_else(|_| format!("{{\"id\":\"{}\"}}", row.id));
-    crate::infrastructure::database::sync_outbox::record_or_noop(pool, "absence", &row.id, op, &body)
-        .await
+    crate::infrastructure::database::sync_outbox::record_or_noop(
+        pool, "absence", &row.id, op, &body,
+    )
+    .await
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -250,6 +270,7 @@ pub async fn create_document_template(
     pool: &SqlitePool,
     data: &CreateDocumentTemplate,
 ) -> Result<DocumentTemplate, AppError> {
+    // sync: recorded by caller record_or_noop
     let kind = match normalize_document_template_kind(&data.kind) {
         Some(k) => k.to_string(),
         None => {
@@ -271,7 +292,16 @@ pub async fn create_document_template(
         .bind(&payload_str)
         .execute(pool)
         .await?;
-    find_document_template_by_id(pool, &id).await
+    let row = find_document_template_by_id(pool, &id).await?;
+    crate::infrastructure::database::sync_outbox::record_or_noop(
+        pool,
+        "document_template",
+        &id,
+        "INSERT",
+        &serde_json::to_string(&row).unwrap_or_else(|_| format!("{{\"id\":\"{id}\"}}")),
+    )
+    .await?;
+    Ok(row)
 }
 
 pub async fn find_document_template_by_id(
@@ -290,6 +320,7 @@ pub async fn update_document_template(
     id: &str,
     data: &UpdateDocumentTemplate,
 ) -> Result<DocumentTemplate, AppError> {
+    // sync: recorded by caller record_or_noop
     let existing = find_document_template_by_id(pool, id).await?;
     let title = data
         .title
@@ -317,6 +348,7 @@ pub async fn update_document_template(
 }
 
 pub async fn delete_document_template(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
+    // sync: recorded by caller record_or_noop
     let r = sqlx::query("DELETE FROM document_template WHERE id = ?1")
         .bind(id)
         .execute(pool)
@@ -338,6 +370,16 @@ pub struct TreatmentCatalogItem {
     pub sort_order: i64,
     pub active: i64,
     pub created_at: NaiveDateTime,
+    /// GOZ defaults copied onto new treatment lines.
+    #[sqlx(default)]
+    #[serde(default)]
+    pub fee_schedule: Option<String>,
+    #[sqlx(default)]
+    #[serde(default)]
+    pub goz_nr: Option<String>,
+    #[sqlx(default)]
+    #[serde(default)]
+    pub points: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -373,6 +415,10 @@ pub async fn create_treatment_catalog_item(
     pool: &SqlitePool,
     data: &CreateTreatmentCatalogItem,
 ) -> Result<TreatmentCatalogItem, AppError> {
+    if let Some(c) = data.default_cost {
+        crate::domain::services::pricing::require_non_negative_amount(c, "Default cost")?;
+    }
+    // sync: recorded by caller record_or_noop
     if data.category.trim().is_empty() || data.name.trim().is_empty() {
         return Err(AppError::validation_code(
             "error.master.category_name_required",
@@ -391,11 +437,21 @@ pub async fn create_treatment_catalog_item(
     .bind(sort)
     .execute(pool)
     .await?;
-    sqlx::query_as::<_, TreatmentCatalogItem>("SELECT * FROM treatment_catalog WHERE id = ?1")
-        .bind(&id)
-        .fetch_one(pool)
-        .await
-        .map_err(AppError::from)
+    let row =
+        sqlx::query_as::<_, TreatmentCatalogItem>("SELECT * FROM treatment_catalog WHERE id = ?1")
+            .bind(&id)
+            .fetch_one(pool)
+            .await
+            .map_err(AppError::from)?;
+    crate::infrastructure::database::sync_outbox::record_or_noop(
+        pool,
+        "treatment_catalog",
+        &id,
+        "INSERT",
+        &serde_json::to_string(&row).unwrap_or_else(|_| format!("{{\"id\":\"{id}\"}}")),
+    )
+    .await?;
+    Ok(row)
 }
 
 pub async fn update_treatment_catalog_item(
@@ -403,6 +459,10 @@ pub async fn update_treatment_catalog_item(
     id: &str,
     data: &UpdateTreatmentCatalogItem,
 ) -> Result<TreatmentCatalogItem, AppError> {
+    if let Some(c) = data.default_cost {
+        crate::domain::services::pricing::require_non_negative_amount(c, "Default cost")?;
+    }
+    // sync: recorded by caller record_or_noop
     if data.category.trim().is_empty() || data.name.trim().is_empty() {
         return Err(AppError::validation_code(
             "error.master.category_name_required",
@@ -410,7 +470,7 @@ pub async fn update_treatment_catalog_item(
     }
     let sort = data.sort_order.unwrap_or(0);
     let r = sqlx::query(
-        "UPDATE treatment_catalog SET category = ?1, name = ?2, default_cost = ?3, sort_order = ?4 WHERE id = ?5 AND active = 1",
+        "UPDATE treatment_catalog SET category = ?1, name = ?2, default_cost = ?3, sort_order = ?4, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?5 AND active = 1",
     )
     .bind(data.category.trim())
     .bind(data.name.trim())
@@ -430,7 +490,8 @@ pub async fn update_treatment_catalog_item(
 }
 
 pub async fn delete_treatment_catalog_item(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
-    let r = sqlx::query("UPDATE treatment_catalog SET active = 0 WHERE id = ?1")
+    // sync: recorded by caller record_or_noop
+    let r = sqlx::query("UPDATE treatment_catalog SET active = 0, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?1")
         .bind(id)
         .execute(pool)
         .await?;
@@ -513,6 +574,7 @@ pub async fn create_supplier_master(
     pool: &SqlitePool,
     data: &CreateSupplierMaster,
 ) -> Result<SupplierMasterRow, AppError> {
+    // sync: recorded by caller record_or_noop
     let name = data.name.trim();
     if name.is_empty() {
         return Err(AppError::validation_code(
@@ -529,22 +591,32 @@ pub async fn create_supplier_master(
     .bind(sort)
     .execute(pool)
     .await?;
-    sqlx::query_as::<_, SupplierMasterRow>("SELECT * FROM supplier_master WHERE id = ?1")
+    let row = sqlx::query_as::<_, SupplierMasterRow>("SELECT * FROM supplier_master WHERE id = ?1")
         .bind(&id)
         .fetch_one(pool)
         .await
-        .map_err(AppError::from)
+        .map_err(AppError::from)?;
+    crate::infrastructure::database::sync_outbox::record_or_noop(
+        pool,
+        "supplier_master",
+        &id,
+        "INSERT",
+        &serde_json::to_string(&row).unwrap_or_else(|_| format!("{{\"id\":\"{id}\"}}")),
+    )
+    .await?;
+    Ok(row)
 }
 
 pub async fn delete_supplier_master(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
-    let r = sqlx::query("UPDATE supplier_master SET active = 0 WHERE id = ?1")
+    // sync: recorded by caller record_or_noop
+    let r = sqlx::query("UPDATE supplier_master SET active = 0, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?1")
         .bind(id)
         .execute(pool)
         .await?;
     if r.rows_affected() == 0 {
         return Err(AppError::NotFound("Supplier".into()));
     }
-    sqlx::query("UPDATE supplier_pharma_template SET active = 0 WHERE supplier_id = ?1")
+    sqlx::query("UPDATE supplier_pharma_template SET active = 0, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE supplier_id = ?1")
         .bind(id)
         .execute(pool)
         .await?;
@@ -566,6 +638,7 @@ pub async fn create_pharma_consultant_master(
     pool: &SqlitePool,
     data: &CreatePharmaConsultantMaster,
 ) -> Result<PharmaConsultantMasterRow, AppError> {
+    // sync: recorded by caller record_or_noop
     let name = data.name.trim();
     if name.is_empty() {
         return Err(AppError::validation_code(
@@ -592,14 +665,15 @@ pub async fn create_pharma_consultant_master(
 }
 
 pub async fn delete_pharma_consultant_master(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
-    let r = sqlx::query("UPDATE pharma_consultant_master SET active = 0 WHERE id = ?1")
+    // sync: recorded by caller record_or_noop
+    let r = sqlx::query("UPDATE pharma_consultant_master SET active = 0, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?1")
         .bind(id)
         .execute(pool)
         .await?;
     if r.rows_affected() == 0 {
         return Err(AppError::NotFound("Kontakt".into()));
     }
-    sqlx::query("UPDATE supplier_pharma_template SET active = 0 WHERE pharma_consultant_id = ?1")
+    sqlx::query("UPDATE supplier_pharma_template SET active = 0, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE pharma_consultant_id = ?1")
         .bind(id)
         .execute(pool)
         .await?;
@@ -672,6 +746,7 @@ pub async fn create_supplier_pharma_template(
     pool: &SqlitePool,
     data: &CreateSupplierPharmaTemplate,
 ) -> Result<SupplierPharmaTemplateRow, AppError> {
+    // sync: recorded by caller record_or_noop
     let lid = data.supplier_id.trim();
     let pid = data.pharma_consultant_id.trim();
     let prid = data.product_id.trim();
@@ -720,7 +795,7 @@ pub async fn create_supplier_pharma_template(
     if let Some((eid, active)) = existing {
         if active == 0 {
             sqlx::query(
-                "UPDATE supplier_pharma_template SET active = 1, sort_order = ?2 WHERE id = ?1",
+                "UPDATE supplier_pharma_template SET active = 1, sort_order = ?2, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?1",
             )
             .bind(&eid)
             .bind(data.sort_order.unwrap_or(0))
@@ -746,7 +821,8 @@ pub async fn create_supplier_pharma_template(
 }
 
 pub async fn delete_supplier_pharma_template(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
-    let r = sqlx::query("UPDATE supplier_pharma_template SET active = 0 WHERE id = ?1")
+    // sync: recorded by caller record_or_noop
+    let r = sqlx::query("UPDATE supplier_pharma_template SET active = 0, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?1")
         .bind(id)
         .execute(pool)
         .await?;
@@ -754,4 +830,14 @@ pub async fn delete_supplier_pharma_template(pool: &SqlitePool, id: &str) -> Res
         return Err(AppError::NotFound("Template".into()));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod absence_range_tests {
+    #[test]
+    fn inverted_or_unparsable_absence_is_rejected() {
+        assert!(super::validate_absence_range("2026-11-10", "2026-11-09").is_err());
+        assert!(super::validate_absence_range("10.11.2026", "2026-11-12").is_err());
+        assert!(super::validate_absence_range("2026-11-10", "2026-11-10").is_ok());
+    }
 }

@@ -3,15 +3,14 @@
 //! - `POST /api/v1/eprescriptions/validate` — JWT — pure validation (PZN/KVNR/LANR).
 //! - `POST /api/v1/eprescriptions/submit` — JWT — same stub as Tauri (`telematik::submit_via_ti`).
 
-use axum::extract::Extension;
+use axum::extract::{Extension, State};
 use axum::Json;
-use medoc_core::application::rbac::Role;
-use medoc_core::error::AppError;
+use medoc_core::application::authorize::{authorize, Caller};
 use medoc_core::infrastructure::telematik::{self, EPrescription};
 use serde::Deserialize;
 use serde_json::{json, Value};
 
-use super::ApiError;
+use super::{ApiError, LanHttpState};
 use crate::jwt;
 
 #[derive(Deserialize)]
@@ -36,11 +35,6 @@ fn default_quantity() -> u32 {
     1
 }
 
-fn require_authenticated(claims: &jwt::LanClaims) -> Result<(), AppError> {
-    Role::parse(&claims.role).ok_or(AppError::Forbidden)?;
-    Ok(())
-}
-
 fn to_rx(body: EPrescriptionBody) -> EPrescription {
     let issued = if body.issued_at.trim().is_empty() {
         chrono::Utc::now().date_naive().to_string()
@@ -61,10 +55,26 @@ fn to_rx(body: EPrescriptionBody) -> EPrescription {
 
 /// Validate without TI — mirrors Tauri `validate_eprescription`.
 pub async fn validate(
+    State(state): State<LanHttpState>,
     Extension(claims): Extension<jwt::LanClaims>,
     Json(body): Json<EPrescriptionBody>,
 ) -> Result<Json<Value>, ApiError> {
-    require_authenticated(&claims)?;
+    if !medoc_core::mvp_security::EPRESCRIPTION_ENABLED {
+        return Err(ApiError::from(
+            medoc_core::error::AppError::FeatureDisabled("eprescription".into()),
+        ));
+    }
+    authorize(
+        &state.pool,
+        &Caller {
+            user_id: claims.sub.clone(),
+            idle_for: None,
+            device_session_id: None,
+        },
+        "patient.write_medical",
+        Some(body.patient_id.as_str()),
+    )
+    .await?;
     let rx = to_rx(body);
     telematik::validate(&rx)?;
     Ok(Json(json!({
@@ -78,10 +88,26 @@ pub async fn validate(
 
 /// Submit via TI stub — mirrors Tauri `submit_eprescription` (not implemented without connector).
 pub async fn submit(
+    State(state): State<LanHttpState>,
     Extension(claims): Extension<jwt::LanClaims>,
     Json(body): Json<EPrescriptionBody>,
 ) -> Result<Json<Value>, ApiError> {
-    require_authenticated(&claims)?;
+    if !medoc_core::mvp_security::EPRESCRIPTION_ENABLED {
+        return Err(ApiError::from(
+            medoc_core::error::AppError::FeatureDisabled("eprescription".into()),
+        ));
+    }
+    authorize(
+        &state.pool,
+        &Caller {
+            user_id: claims.sub.clone(),
+            idle_for: None,
+            device_session_id: None,
+        },
+        "patient.write_medical",
+        Some(body.patient_id.as_str()),
+    )
+    .await?;
     let rx = to_rx(body);
     let token = telematik::submit_via_ti(&rx)?;
     Ok(Json(json!({

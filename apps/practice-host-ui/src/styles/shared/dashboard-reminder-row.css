@@ -1,0 +1,73 @@
+/* From styles/features/dashboard.css (cascade position kept by its import there). */
+@layer components {
+  .dashboard-approval-row,
+  .dashboard-order-row,
+  .dashboard-timeline-row {
+    padding: var(--card-pad-y) var(--card-pad-x);
+    min-height: clamp(52px, 7vh, 78px);
+  }
+  .dashboard-page .card-title {
+    font-size: var(--dash-card-title-size);
+  }
+  .dashboard-page .card-sub {
+    font-size: var(--dash-meta-size);
+  }
+  .dashboard-page .dashboard-approval-row b,
+  .dashboard-page .dashboard-order-row b {
+    font-size: var(--dash-body-size) !important;
+    line-height: 1.2;
+  }
+  .dashboard-page .dashboard-name-text {
+    font-size: var(--dash-body-size);
+    line-height: 1.2;
+  }
+  .dashboard-page .dashboard-meta-text {
+    font-size: var(--dash-meta-size);
+  }
+  .dashboard-page .dashboard-timeline-row {
+    display: grid;
+    grid-template-columns: 120px 1fr auto;
+    gap: var(--space-4);
+    align-items: center;
+    border-bottom: 1px solid var(--line);
+  }
+  .dashboard-reminder-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding: var(--card-pad-y) var(--card-pad-x);
+    border-bottom: 1px solid var(--line);
+    text-align: start;
+    text-decoration: none;
+    color: inherit;
+    cursor: pointer;
+    transition: background var(--motion-fast) var(--ease-out);
+  }
+  .dashboard-reminder-row:last-child {
+    border-bottom: 0;
+  }
+  .dashboard-reminder-row:hover,
+  .dashboard-reminder-row:focus-visible {
+    background: color-mix(in oklab, var(--fg) 2.5%, transparent);
+  }
+  .dashboard-reminder-row:focus-visible {
+    outline: 2px solid color-mix(in oklab, var(--accent) 45%, var(--line));
+    outline-offset: -2px;
+  }
+  .dashboard-reminder-row__patient {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: start;
+    gap: var(--space-2);
+  }
+  .dashboard-reminder-row__when {
+    flex-shrink: 0;
+    text-align: end;
+  }
+  .dashboard-reminder-row__time {
+    display: block;
+    margin-top: 2px;
+  }
+}

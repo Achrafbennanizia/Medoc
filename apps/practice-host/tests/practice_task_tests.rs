@@ -6,11 +6,16 @@ use medoc_lib::domain::entities::practice_task::CreatePracticeTask;
 use medoc_lib::domain::services::workflow_transitions;
 use medoc_lib::error::AppError;
 use medoc_lib::infrastructure::database::connection::{run_migrations, test_memory_pool};
-use medoc_lib::infrastructure::database::{in_app_notification_repo, practice_task_repo};
+use medoc_lib::infrastructure::database::repos::practice::in_app_notification as in_app_notification_repo;
+use medoc_lib::infrastructure::database::repos::scheduling::practice_task as practice_task_repo;
 
 async fn migrated_pool() -> sqlx::SqlitePool {
     let pool = test_memory_pool().await.expect("pool");
     run_migrations(&pool).await.expect("migrations");
+    sqlx::query("DELETE FROM in_app_notification WHERE id LIKE 'seed-notif-%'")
+        .execute(&pool)
+        .await
+        .expect("clear demo inbox");
     pool
 }
 
@@ -94,6 +99,7 @@ async fn physician_to_reception_fulfillment_and_validation_flow() {
     workflow_transitions::practice_task_status_transition(
         &a.status,
         "IN_PROGRESS",
+        &a.kind,
         Role::Reception,
         a.assignee_role.as_deref(),
         a.assignee_user_id.as_deref(),
@@ -111,6 +117,7 @@ async fn physician_to_reception_fulfillment_and_validation_flow() {
     workflow_transitions::practice_task_status_transition(
         &mid.status,
         "DONE_RECEPTION",
+        &mid.kind,
         Role::Reception,
         mid.assignee_role.as_deref(),
         mid.assignee_user_id.as_deref(),
@@ -135,6 +142,7 @@ async fn physician_to_reception_fulfillment_and_validation_flow() {
     workflow_transitions::practice_task_status_transition(
         &done.status,
         "VALIDATED",
+        &done.kind,
         Role::Physician,
         done.assignee_role.as_deref(),
         done.assignee_user_id.as_deref(),
@@ -305,6 +313,7 @@ async fn g_21_physician_to_rez_flow_inbox_notify_and_pending_validation() {
     workflow_transitions::practice_task_status_transition(
         &created.status,
         "IN_PROGRESS",
+        &created.kind,
         Role::Reception,
         created.assignee_role.as_deref(),
         created.assignee_user_id.as_deref(),
@@ -322,6 +331,7 @@ async fn g_21_physician_to_rez_flow_inbox_notify_and_pending_validation() {
     workflow_transitions::practice_task_status_transition(
         &mid.status,
         "DONE_RECEPTION",
+        &mid.kind,
         Role::Reception,
         mid.assignee_role.as_deref(),
         mid.assignee_user_id.as_deref(),
@@ -407,6 +417,7 @@ async fn physician_back_notifies_reception_and_stays_visible_until_validated() {
     workflow_transitions::practice_task_status_transition(
         &done.status,
         "BACK",
+        &done.kind,
         Role::Physician,
         done.assignee_role.as_deref(),
         done.assignee_user_id.as_deref(),
@@ -470,6 +481,7 @@ fn workflow_task_rejects_invalid_transition() {
     assert!(workflow_transitions::practice_task_status_transition(
         "OPEN",
         "VALIDATED",
+        "BILLING",
         Role::Reception,
         Some("RECEPTION"),
         None,
@@ -482,6 +494,7 @@ fn workflow_task_rejects_invalid_transition() {
     let err = workflow_transitions::practice_task_status_transition(
         "DONE_RECEPTION",
         "OPEN",
+        "BILLING",
         Role::Physician,
         Some("RECEPTION"),
         None,
@@ -588,4 +601,75 @@ async fn direct_task_visible_only_to_creator_and_assignee() {
         .await
         .expect("any rez pool");
     assert!(any_rez.iter().any(|a| a.id == pool_task.id));
+}
+
+#[tokio::test]
+async fn inbox_lists_newest_task_first_after_take_over() {
+    let pool = migrated_pool().await;
+    let patient_id = seed_patient(&pool).await;
+    let older = practice_task_repo::insert(
+        &pool,
+        &CreatePracticeTask {
+            patient_id: Some(patient_id.clone()),
+            kind: "OTHER".into(),
+            title: "Older".into(),
+            body: None,
+            assignee_role: Some("RECEPTION".into()),
+            assignee_user_id: None,
+            treatment_id: None,
+            examination_id: None,
+            service_name: None,
+            total_cost: None,
+        },
+        "seed-physician-001",
+    )
+    .await
+    .expect("older");
+    let newer = practice_task_repo::insert(
+        &pool,
+        &CreatePracticeTask {
+            patient_id: Some(patient_id),
+            kind: "OTHER".into(),
+            title: "Newer".into(),
+            body: None,
+            assignee_role: Some("RECEPTION".into()),
+            assignee_user_id: None,
+            treatment_id: None,
+            examination_id: None,
+            service_name: None,
+            total_cost: None,
+        },
+        "seed-physician-001",
+    )
+    .await
+    .expect("newer");
+    // Far-future stamps beat migration seed rows under LIMIT, while still ordering older < newer.
+    sqlx::query(
+        "UPDATE practice_task SET created_at = '2090-01-01T00:00:00Z', status = 'IN_PROGRESS' WHERE id = ?1",
+    )
+    .bind(&older.id)
+    .execute(&pool)
+    .await
+    .expect("age older");
+    sqlx::query("UPDATE practice_task SET created_at = '2099-01-01T00:00:00Z' WHERE id = ?1")
+        .bind(&newer.id)
+        .execute(&pool)
+        .await
+        .expect("age newer");
+    let rows = practice_task_repo::list_for_user(&pool, "seed-rez-001", true, 50)
+        .await
+        .expect("inbox");
+    let ids: Vec<&str> = rows.iter().map(|row| row.id.as_str()).collect();
+    let newer_at = ids
+        .iter()
+        .position(|id| *id == newer.id)
+        .expect("newer stays listed");
+    let older_at = ids
+        .iter()
+        .position(|id| *id == older.id)
+        .expect("taken task stays listed");
+    assert!(
+        newer_at < older_at,
+        "newest task is first, take-over does not drop it"
+    );
 }

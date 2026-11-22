@@ -1,11 +1,10 @@
 import type { Sex, Patient } from "@/models/types";
 
-/** Semicolon-separated CSV row cell escaping (aligned with `migration.rs` import). */
+import { csvCell } from "@/lib/export-delimited";
+
+/** Semicolon CSV cell (aligned with `migration.rs` import) + formula-injection guard. */
 function escapeSemicolonField(raw: string): string {
-    if (raw.includes(";") || raw.includes("\r") || raw.includes("\n") || raw.includes('"')) {
-        return `"${raw.replace(/"/g, '""')}"`;
-    }
-    return raw;
+    return csvCell(raw, ";");
 }
 
 function sexToImportLetter(g: Sex): string {

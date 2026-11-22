@@ -5,7 +5,6 @@ import {
     certificateKindSelectOptions,
     illnessSuggestionLabels,
 } from "@/lib/certificate-composer";
-import { MEDICATION_SUGGESTIONS } from "@/lib/medications";
 import { formatDate } from "@/lib/utils";
 import { PlusIcon } from "@/lib/icons";
 import { prescriptionStatusDisplay } from "@/lib/patient-detail-utils";
@@ -18,10 +17,11 @@ import { EmptyState } from "@/views/components/ui/empty-state";
 import { FormSection } from "@/views/components/ui/form-section";
 import { Input, Select, Textarea } from "@/views/components/ui/input";
 import { useT, useTParams } from "@/lib/i18n";
+import { MedicationDatalist } from "@/views/components/medication-presets/medication-datalist";
 
 export type PatientDetailPrescriptionTabPanelProps = Omit<
     ReturnType<typeof usePatientDetailPrescriptionTab>,
-    "flushChartSaveConfirm"
+    "flushChartSaveConfirm" | "allergyDialog"
 >;
 
 export function PatientDetailPrescriptionTabPanel(props: PatientDetailPrescriptionTabPanelProps) {
@@ -110,7 +110,7 @@ export function PatientDetailPrescriptionTabPanel(props: PatientDetailPrescripti
     return (
     <div id="panel-prescription" role="tabpanel" aria-labelledby="tab-prescription">
     <Card className="card-pad card--overflow-visible">
-        <div className="chart-payment-modus" role="tablist" aria-label={t("page.patient_detail.prescription.view_aria")} style={{ marginBottom: 16 }}>
+        <div className="chart-payment-modus" role="tablist" aria-label={t("page.patient_detail.prescription.view_aria")} style={{ marginBottom: "var(--space-4)" }}>
             <button
                 type="button"
                 role="tab"
@@ -156,7 +156,7 @@ export function PatientDetailPrescriptionTabPanel(props: PatientDetailPrescripti
             ) : null}
         />
         {!canWriteMedical ? (
-            <p className="text-body" style={{ color: "var(--fg-3)", marginBottom: 16 }}>
+            <p className="text-body" style={{ color: "var(--fg-3)", marginBottom: "var(--space-4)" }}>
                 {t("page.patient_detail.prescription.readonly_hint")}
             </p>
         ) : null}
@@ -226,10 +226,10 @@ export function PatientDetailPrescriptionTabPanel(props: PatientDetailPrescripti
                                     style={{
                                         maxHeight: 200,
                                         overflowY: "auto",
-                                        marginTop: 8,
+                                        marginTop: "var(--space-2)",
                                         display: "flex",
                                         flexDirection: "column",
-                                        gap: 4,
+                                        gap: "var(--space-1)",
                                     }}
                                 >
                                     {prescriptionPickFiltered.length === 0 ? (
@@ -263,7 +263,7 @@ export function PatientDetailPrescriptionTabPanel(props: PatientDetailPrescripti
                                         style={{
                                             fontSize: 12.5,
                                             marginTop: 0,
-                                            marginBottom: 12,
+                                            marginBottom: "var(--space-3)",
                                             padding: "8px 10px",
                                             borderRadius: 8,
                                             background: "var(--accent-soft)",
@@ -276,7 +276,7 @@ export function PatientDetailPrescriptionTabPanel(props: PatientDetailPrescripti
                                     </p>
                                 ) : null}
                                 {prescriptionLines.length > 0 ? (
-                                    <div style={{ overflowX: "auto", marginBottom: 12 }}>
+                                    <div style={{ overflowX: "auto", marginBottom: "var(--space-3)" }}>
                                         <table className="tbl">
                                             <thead>
                                                 <tr>
@@ -343,21 +343,17 @@ export function PatientDetailPrescriptionTabPanel(props: PatientDetailPrescripti
                                     </div>
                                 ) : null}
 
-                                <datalist id="ak-prescription-med-dl">
-                                    {MEDICATION_SUGGESTIONS.map((s) => (
-                                        <option key={s.label} value={s.label} />
-                                    ))}
-                                </datalist>
+                                <MedicationDatalist id="ak-prescription-med-dl" />
                                 <div
                                     style={{
                                         border: "1px solid var(--line)",
                                         borderRadius: 10,
-                                        padding: 12,
+                                        padding: "var(--space-3)",
                                         background: "rgba(0,0,0,0.02)",
-                                        marginBottom: 12,
+                                        marginBottom: "var(--space-3)",
                                     }}
                                 >
-                                    <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>{t("page.patient_detail.prescription.add_line_title")}</div>
+                                    <div style={{ fontWeight: 600, fontSize: 13, marginBottom: "var(--space-2)" }}>{t("page.patient_detail.prescription.add_line_title")}</div>
                                     {prescriptionDraftErr ? (
                                         <p style={{ color: "var(--red)", fontSize: 12, margin: "0 0 8px" }}>{prescriptionDraftErr}</p>
                                     ) : null}
@@ -396,7 +392,7 @@ export function PatientDetailPrescriptionTabPanel(props: PatientDetailPrescripti
                                         value={prescriptionDraft.instructions}
                                         onChange={(e) => setPrescriptionDraft({ ...prescriptionDraft, instructions: e.target.value })}
                                     />
-                                    <div className="row" style={{ justifyContent: "flex-end", marginTop: 8 }}>
+                                    <div className="row" style={{ justifyContent: "flex-end", marginTop: "var(--space-2)" }}>
                                         <Button type="button" size="sm" variant="secondary" onClick={addPrescriptionDraftLine}>
                                             {t("page.patient_detail.prescription.add_line_btn")}
                                         </Button>
@@ -525,7 +521,7 @@ export function PatientDetailPrescriptionTabPanel(props: PatientDetailPrescripti
                                                 <td
                                                     colSpan={6}
                                                     style={{
-                                                        padding: 12,
+                                                        padding: "var(--space-3)",
                                                         verticalAlign: "top",
                                                         background: "var(--bg-elev)",
                                                     }}
@@ -743,7 +739,7 @@ export function PatientDetailPrescriptionTabPanel(props: PatientDetailPrescripti
             ) : null}
         />
         {!canWriteMedical ? (
-            <p className="text-body" style={{ color: "var(--fg-3)", marginBottom: 16 }}>
+            <p className="text-body" style={{ color: "var(--fg-3)", marginBottom: "var(--space-4)" }}>
                 {t("page.patient_detail.certificate.readonly_hint")}
             </p>
         ) : null}
@@ -813,10 +809,10 @@ export function PatientDetailPrescriptionTabPanel(props: PatientDetailPrescripti
                                     style={{
                                         maxHeight: 200,
                                         overflowY: "auto",
-                                        marginTop: 8,
+                                        marginTop: "var(--space-2)",
                                         display: "flex",
                                         flexDirection: "column",
-                                        gap: 4,
+                                        gap: "var(--space-1)",
                                     }}
                                 >
                                     {certificatePickFiltered.length === 0 ? (
@@ -850,7 +846,7 @@ export function PatientDetailPrescriptionTabPanel(props: PatientDetailPrescripti
                                         style={{
                                             fontSize: 12.5,
                                             marginTop: 0,
-                                            marginBottom: 12,
+                                            marginBottom: "var(--space-3)",
                                             padding: "8px 10px",
                                             borderRadius: 8,
                                             background: "var(--accent-soft)",
@@ -872,9 +868,9 @@ export function PatientDetailPrescriptionTabPanel(props: PatientDetailPrescripti
                                     onChange={(e) => setCertificateForm({ ...certificateForm, kind: e.target.value })}
                                     options={certificateKindSelectOptions(t)}
                                 />
-                                <div className="row" style={{ gap: 16, flexWrap: "wrap", marginTop: 8 }}>
+                                <div className="row" style={{ gap: "var(--space-4)", flexWrap: "wrap", marginTop: "var(--space-2)" }}>
                                     <span style={{ fontSize: 13, fontWeight: 600 }}>{t("page.patient_detail.certificate.certification")}</span>
-                                    <label className="row" style={{ gap: 6, fontSize: 13 }}>
+                                    <label className="row" style={{ gap: "var(--space-2)", fontSize: 13 }}>
                                         <input
                                             type="radio"
                                             name="ak-cert-first-follow"
@@ -883,7 +879,7 @@ export function PatientDetailPrescriptionTabPanel(props: PatientDetailPrescripti
                                         />
                                         {t("page.patient_detail.certificate.first_cert")}
                                     </label>
-                                    <label className="row" style={{ gap: 6, fontSize: 13 }}>
+                                    <label className="row" style={{ gap: "var(--space-2)", fontSize: 13 }}>
                                         <input
                                             type="radio"
                                             name="ak-cert-first-follow"

@@ -1,0 +1,101 @@
+/* From styles/features/catalog-staff.css (cascade position kept by its import there). */
+@layer components {
+  /* Neue Payment: patient combobox (single field) — same stacking as .select-menu */
+  .patient-combo-field__list.select-menu {
+    max-height: min(280px, 45vh);
+    z-index: 500;
+  }
+
+  /* Administration master-detail: list + side panel (products, services, catalogs, contracts, …) */
+  /* Workspace layout (list beside detail, stacking, sticky detail): layout/master-detail.css. */
+  /* Sticky + own scroll for the detail panel: layout/master-detail.css (single owner). */
+  .products-workspace__detail .products-detail-card--empty,
+  .services-workspace__detail .products-detail-card--empty {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  .products-workspace__detail .products-detail-card--empty p,
+  .services-workspace__detail .products-detail-card--empty p {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .products-workspace__list,
+  .services-workspace__list {
+    container-type: inline-size;
+    container-name: administration-master-list;
+    width: 100%;
+    max-width: none;
+    justify-self: stretch;
+  }
+  .products-table-card,
+  .services-table-card {
+    max-height: none;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    overflow: visible;
+    box-sizing: border-box;
+  }
+  .products-workspace__list .card.products-table-card,
+  .services-workspace__list .card.services-table-card,
+  .products-workspace__list .card.tbl-data-card.tbl-scroll,
+  .services-workspace__list .card.tbl-data-card.tbl-scroll {
+    overflow: visible;
+  }
+  .products-workspace__list .tbl-scroll,
+  .services-workspace__list .tbl-scroll {
+    overflow: visible;
+    width: 100%;
+  }
+    .products-workspace__list .tbl.tbl-fluid {
+    table-layout: fixed;
+    width: 100%;
+    min-width: 0;
+  }
+  /* Treatment catalog (and similar fluid admin lists): last col compact, name/category fill */
+  .products-workspace__list .tbl.tbl-fluid th:nth-child(1),
+  .products-workspace__list .tbl.tbl-fluid td:nth-child(1) {
+    width: 32%;
+  }
+  .products-workspace__list .tbl.tbl-fluid th:nth-child(2),
+  .products-workspace__list .tbl.tbl-fluid td:nth-child(2) {
+    width: 48%;
+  }
+  .products-workspace__list .tbl.tbl-fluid th:nth-child(3),
+  .products-workspace__list .tbl.tbl-fluid td:nth-child(3),
+  .products-workspace__list .tbl.tbl-fluid th:last-child,
+  .products-workspace__list .tbl.tbl-fluid td:last-child {
+    width: 20%;
+    white-space: nowrap;
+  }
+  /* Flexible row height: wrap at words (not mid-glyph); columns use % so table fills the card */
+  .products-workspace__list .tbl.tbl-fluid {
+    width: 100% !important;
+    max-width: none;
+  }
+  .products-workspace__list .tbl.tbl-fluid th,
+  .products-workspace__list .tbl.tbl-fluid td {
+    overflow: hidden;
+    text-overflow: unset;
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-break: normal;
+    max-width: none;
+    vertical-align: top;
+    line-height: 1.35;
+  }
+  .products-workspace__list .tbl.tbl-fluid thead th {
+    vertical-align: bottom;
+    white-space: normal;
+  }
+  .products-workspace__list .tbl.tbl-fluid td .pill {
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+    overflow: visible;
+    text-overflow: unset;
+    white-space: nowrap;
+    vertical-align: middle;
+    box-sizing: border-box;
+  }
+}

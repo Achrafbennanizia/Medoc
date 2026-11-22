@@ -9,9 +9,6 @@ vi.mock("@/systems/practice-host/controllers/chart.controller", () => ({
     listTreatments: vi.fn(),
     listExaminations: vi.fn(),
 }));
-vi.mock("@/systems/practice-host/controllers/invoice.controller", () => ({
-    allocateReceiptNumber: vi.fn(),
-}));
 vi.mock("@/systems/practice-host/controllers/practice.controller", () => ({
     listTreatmentCatalog: vi.fn(async () => []),
 }));
@@ -28,7 +25,6 @@ vi.mock("@/lib/invoice-service-item", () => ({
 
 import { getPatient } from "@/systems/practice-host/controllers/patient.controller";
 import { getChart, listTreatments, listExaminations } from "@/systems/practice-host/controllers/chart.controller";
-import { allocateReceiptNumber } from "@/systems/practice-host/controllers/invoice.controller";
 import { buildReceiptExportForPayment, isReceiptExportReady, receiptPracticeReadiness } from "./receipt-export-flow";
 
 const z: Payment = {
@@ -46,6 +42,8 @@ const z: Payment = {
 
 describe("receipt-export-flow (GAP-11)", () => {
     beforeEach(() => {
+        // German practice documents (explicit: the fallback now follows the UI language, not German).
+        localStorage.setItem("medoc-documents-locale-v1", "de");
         vi.mocked(getPatient).mockResolvedValue({
             id: "p-1",
             name: "Lena Hoffmann",
@@ -56,7 +54,6 @@ describe("receipt-export-flow (GAP-11)", () => {
         vi.mocked(getChart).mockResolvedValue({ id: "chart-1" } as never);
         vi.mocked(listTreatments).mockResolvedValue([]);
         vi.mocked(listExaminations).mockResolvedValue([]);
-        vi.mocked(allocateReceiptNumber).mockResolvedValue("Q-2026-0001");
     });
 
     it("isReceiptExportReady when practice name + addr present", () => {
@@ -67,13 +64,23 @@ describe("receipt-export-flow (GAP-11)", () => {
     it("buildReceiptExportForPayment returns receipt bundle", async () => {
         const payload = await buildReceiptExportForPayment(z);
         expect(payload.kind).toBe("receipt");
-        expect(payload.exportPreviewTitle).toContain("Lena Hoffmann");
         expect(payload.bundle.pdfLayout?.kind).toBe("receipt");
-        const totals = payload.bundle.pdfLayout?.totals ?? [];
-        expect(totals.map((row) => row.label)).toEqual(
-            expect.arrayContaining(["Standard price", "Price", "Amount paid", "Total"]),
-        );
-        expect(allocateReceiptNumber).toHaveBeenCalled();
+        // No client-side number: the server issues QU-… and stores the hash.
+        expect(payload.bundle.source).toEqual({ kind: "receipt", sourceId: "z-1" });
+        const layout = payload.bundle.pdfLayout;
+        const totals = layout?.totals ?? [];
+        expect(layout?.documentTitle).toBe("Quittung");
+        expect(layout?.tables[0]?.headers).toHaveLength(3);
+        expect(totals.find((row) => row.total)?.label).toBe("Erhaltener Betrag");
+        expect(totals.map((row) => row.label)).not.toContain("Rechnungsbetrag");
+        expect(totals.map((row) => row.label)).not.toContain("Noch offen");
+        const closing = (layout?.closingParagraphs ?? []).join("\n");
+        expect(closing).not.toMatch(/Zahlbar|überweisen|Payable|Please transfer/);
+        expect(closing).toContain("Betrag dankend erhalten.");
+    });
+
+    it("refuses receipts for unpaid payments", async () => {
+        await expect(buildReceiptExportForPayment({ ...z, status: "OUTSTANDING" } as Payment)).rejects.toThrow(/paid payment/);
     });
 
     it("buildReceiptExportForPayment throws when practice not ready", async () => {

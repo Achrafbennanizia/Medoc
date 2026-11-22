@@ -14,8 +14,9 @@ import {
     maskPracticeExportToken,
     type PracticeHeaderPrivacyV1,
 } from "@/lib/practice-header-privacy";
-import { translateLocale, useLocale } from "@/lib/i18n";
+import { SUPPORTED_LOCALES, translateLocale } from "@/lib/i18n";
 import { isolateLtrPhone } from "@/lib/arabic-numerals";
+import { docT, docTp } from "./document-translate";
 
 const HEADER_ORDER: PracticeFieldKey[] = [
     "name",
@@ -69,14 +70,14 @@ export function buildClinicalTemplateHeaderLines(
             case "phone": {
                 const t = (practice.phone ?? "").trim();
                 if (!t) break;
-                const tel = translateLocale(useLocale.getState().locale, "document.print.phone");
+                const tel = docT("document.print.phone");
                 lines.push(`${tel} ${privacy.tel ? isolateLtrPhone(t) : maskPracticeExportToken(t)}`);
                 break;
             }
             case "fax": {
                 const t = (practice.fax ?? "").trim();
                 if (!t) break;
-                const fax = translateLocale(useLocale.getState().locale, "document.print.fax");
+                const fax = docT("document.print.fax");
                 lines.push(`${fax} ${privacy.fax ? isolateLtrPhone(t) : maskPracticeExportToken(t)}`);
                 break;
             }
@@ -89,26 +90,26 @@ export function buildClinicalTemplateHeaderLines(
             case "email": {
                 const t = (practice.email ?? "").trim();
                 if (!t) break;
-                lines.push(`Email ${privacy.email ? t : maskPracticeExportToken(t)}`);
+                lines.push(`${docT("document.print.email")} ${privacy.email ? t : maskPracticeExportToken(t)}`);
                 break;
             }
             case "kv": {
                 const t = (practice.kv_number ?? "").trim();
                 if (!t) break;
-                lines.push(`Health insurance no. ${privacy.kv ? t : maskPracticeExportToken(t)}`);
+                lines.push(`${docT("document.print.kv_number_label")} ${privacy.kv ? t : maskPracticeExportToken(t)}`);
                 break;
             }
             case "tax": {
                 const ust = (practice.vat_id ?? "").trim();
-                if (ust) lines.push(`VAT ID ${privacy.vat ? ust : maskPracticeExportToken(ust)}`);
+                if (ust) lines.push(`${docT("document.print.vat_id_label")} ${privacy.vat ? ust : maskPracticeExportToken(ust)}`);
                 const st = (practice.tax_number ?? "").trim();
-                if (st) lines.push(`Tax no. ${privacy.tax ? st : maskPracticeExportToken(st)}`);
+                if (st) lines.push(`${docT("document.print.tax_no_label")} ${privacy.tax ? st : maskPracticeExportToken(st)}`);
                 break;
             }
             case "hours": {
                 const t = (practice.opening_hours ?? "").trim();
                 if (!t) break;
-                lines.push(`Hrs: ${privacy.hours ? t : maskPracticeExportToken(t)}`);
+                lines.push(`${docT("document.print.opening_hours_label")}: ${privacy.hours ? t : maskPracticeExportToken(t)}`);
                 break;
             }
             case "clinician": {
@@ -116,7 +117,7 @@ export function buildClinicalTemplateHeaderLines(
                 if (!n) break;
                 const title = (practice.professional_title ?? "").trim();
                 const label = title ? `${n}, ${title}` : n;
-                lines.push(`Clinician: ${privacy.clinician ? label : maskPracticeExportToken(label)}`);
+                lines.push(`${docT("document.print.clinician")}: ${privacy.clinician ? label : maskPracticeExportToken(label)}`);
                 break;
             }
             case "zanr": {
@@ -138,13 +139,13 @@ export function buildClinicalTemplateHeaderLines(
                 if (!iban && !bic && !bank) break;
                 if (iban) lines.push(`IBAN: ${privacy.bank ? iban : maskPracticeExportToken(iban)}`);
                 if (bic) lines.push(`BIC: ${privacy.bank ? bic : maskPracticeExportToken(bic)}`);
-                if (bank) lines.push(`Bank: ${privacy.bank ? bank : maskPracticeExportToken(bank)}`);
+                if (bank) lines.push(`${docT("document.print.bank_label")}: ${privacy.bank ? bank : maskPracticeExportToken(bank)}`);
                 break;
             }
             case "chamber": {
                 const t = (practice.chamber ?? "").trim();
                 if (!t) break;
-                lines.push(`Chamber: ${t}`);
+                lines.push(`${docT("document.print.chamber_label")}: ${t}`);
                 break;
             }
             case "kzv": {
@@ -155,18 +156,18 @@ export function buildClinicalTemplateHeaderLines(
             }
             case "payment_terms": {
                 const days = practice.payment_terms_days ?? 14;
-                if (days > 0) lines.push(`Payment terms: ${days} days`);
+                if (days > 0) lines.push(docTp("document.print.payment_terms", { days }));
                 break;
             }
             case "vat_notice": {
-                const t = (practice.vat_exemption_notice ?? "").trim();
+                const t = localizedVatNotice(practice.vat_exemption_notice);
                 if (t) lines.push(t);
                 break;
             }
             case "emergency_phone": {
                 const t = (practice.emergency_phone ?? "").trim();
                 if (!t) break;
-                lines.push(`Emergency: ${isolateLtrPhone(t)}`);
+                lines.push(`${docT("document.print.emergency_label")}: ${isolateLtrPhone(t)}`);
                 break;
             }
             default:
@@ -175,6 +176,34 @@ export function buildClinicalTemplateHeaderLines(
     }
 
     return lines;
+}
+
+/**
+ * VAT notice in the document language. The default notice is stored in the
+ * UI language Settings was first saved in; a stored default (any language)
+ * is replaced by the document language's default, custom text stays.
+ */
+export function localizedVatNotice(stored: string | null | undefined): string {
+    const text = (stored ?? "").trim();
+    const norm = (s: string) => s.trim().replace(/\.$/, "").replace(/\s+/g, " ").toLowerCase();
+    const defaults = [
+        ...SUPPORTED_LOCALES.flatMap((l) => [
+            translateLocale(l, "settings.practice.vat_exemption_default"),
+            translateLocale(l, "document.print.vat_exempt_default"),
+        ]),
+        // Defaults stored by earlier versions.
+        "Umsatzsteuerbefreit gem. § 4 Nr. 14 UStG",
+        "Umsatzsteuerfrei gem. § 4 Nr. 14 UStG",
+        "VAT exempt pursuant to § 4 No. 14 UStG",
+        "VAT-exempt under § 4 No. 14 UStG",
+        "Exonéré de TVA conformément au § 4 n° 14 UStG",
+        "Exonéré de TVA selon § 4 n° 14 UStG",
+        "معفى من ضريبة القيمة المضافة وفق § 4 رقم 14 UStG",
+    ];
+    if (!text || defaults.some((d) => norm(d) === norm(text))) {
+        return docT("settings.practice.vat_exemption_default");
+    }
+    return text;
 }
 
 /**

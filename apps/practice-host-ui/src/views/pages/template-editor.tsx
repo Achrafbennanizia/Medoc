@@ -13,15 +13,11 @@ import { Button } from "../components/ui/button";
 import { Input, Select, Textarea } from "../components/ui/input";
 import { ConfirmDialog } from "../components/ui/dialog";
 import { useToastStore } from "../components/ui/toast-store";
-import { MEDICATION_SUGGESTIONS } from "@/lib/medications";
 import { ILLNESS_SUGGESTION_KEYS, parseCertificateTemplatePayload, buildCertificateTemplatePayload } from "@/lib/certificate-composer";
 import type { DocumentTemplate } from "../../models/types";
 import { normalizeDocumentTemplateKind } from "../../models/types";
+import { useMedicationSuggestions } from "@/lib/use-medication-suggestions";
 
-const MEDICATIONS_RAW =
-    MEDICATION_SUGGESTIONS.length > 0
-        ? MEDICATION_SUGGESTIONS.map((s) => ({ value: s.label, label: s.label }))
-        : null;
 
 
 type PrescriptionItem = { medication: string; dosage: string; description: string };
@@ -47,6 +43,7 @@ export type TemplateEditorPanelProps =
  */
 export function TemplateEditorPanel(props: TemplateEditorPanelProps) {
     const t = useT();
+    const medicationSuggestions = useMedicationSuggestions();
     const { canWrite, onClose, onSaved } = props;
     const editingId = props.editingId;
     const newTemplateKind = "newTemplateKind" in props ? props.newTemplateKind : null;
@@ -57,8 +54,11 @@ export function TemplateEditorPanel(props: TemplateEditorPanelProps) {
     const [title, setTitle] = useState("");
     const [prescriptionItems, setPrescriptionItems] = useState<PrescriptionItem[]>([]);
     const medicationsOptions = useMemo(
-        () => MEDICATIONS_RAW ?? [{ value: "", label: t("template.editor.med_no_suggestions") }],
-        [t],
+        () =>
+            medicationSuggestions.length > 0
+                ? medicationSuggestions.map((s) => ({ value: s.label, label: s.label }))
+                : [{ value: "", label: t("template.editor.med_no_suggestions") }],
+        [t, medicationSuggestions],
     );
     const illnessSuggestions = useMemo(
         () => ILLNESS_SUGGESTION_KEYS.map((k) => t(k)),
@@ -234,10 +234,18 @@ export function TemplateEditorPanel(props: TemplateEditorPanelProps) {
             const payload = buildPayload();
             if (editingId !== null) {
                 await updateDocumentTemplate(editingId, { title: title.trim(), payload });
-                toast(t("template.editor.toast.saved"));
+                toast(t("template.editor.toast.saved"), "success");
             } else {
-                await createDocumentTemplate({ kind, title: title.trim(), payload });
-                toast(t("template.editor.toast.created"));
+                const created = await createDocumentTemplate({ kind, title: title.trim(), payload });
+                toast(t("template.editor.toast.created"), "success", {
+                    onUndo: async () => {
+                        try {
+                            await deleteDocumentTemplate(created.id);
+                        } catch (err) {
+                            toast(`${t("common.error_prefix")} ${errorMessage(err)}`, "error");
+                        }
+                    },
+                });
             }
             setBaselineSig(currentSig);
             setGlobalDirty(false);
@@ -254,9 +262,18 @@ export function TemplateEditorPanel(props: TemplateEditorPanelProps) {
 
     const removeTemplate = async () => {
         if (editingId === null) return;
+        const snapshot = { kind, title: title.trim(), payload: buildPayload() };
         try {
             await deleteDocumentTemplate(editingId);
-            toast(t("template.editor.toast.deleted"));
+            toast(t("template.editor.toast.deleted"), "success", {
+                onUndo: async () => {
+                    try {
+                        await createDocumentTemplate(snapshot);
+                    } catch (err) {
+                        toast(`${t("common.error_prefix")} ${errorMessage(err)}`, "error");
+                    }
+                },
+            });
             setDeleteOpen(false);
             setBaselineSig(null);
             setGlobalDirty(false);
@@ -304,7 +321,7 @@ export function TemplateEditorPanel(props: TemplateEditorPanelProps) {
 
             {kind === "PRESCRIPTION" ? (
                 <>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3" style={{ marginTop: 12 }}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3" style={{ marginTop: "var(--space-3)" }}>
                         <Select
                             label={t("page.prescriptions.col.medication")}
                             value={medPick}
@@ -316,12 +333,12 @@ export function TemplateEditorPanel(props: TemplateEditorPanelProps) {
                     </div>
                     <Textarea label={t("common.description")} value={description} onChange={(e) => setDescription(e.target.value)} rows={2} disabled={!canWrite} />
                     {canWrite ? (
-                        <Button type="button" variant="secondary" style={{ marginTop: 8 }} onClick={addPrescriptionLine}>
+                        <Button type="button" variant="secondary" style={{ marginTop: "var(--space-2)" }} onClick={addPrescriptionLine}>
                             {t("common.add")}
                         </Button>
                     ) : null}
-                    <div style={{ marginTop: 16, border: "1px solid var(--line)", borderRadius: 8, padding: 12 }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>{t("template.editor.lines_title")}</div>
+                    <div style={{ marginTop: "var(--space-4)", border: "1px solid var(--line)", borderRadius: 8, padding: "var(--space-3)" }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: "var(--space-2)" }}>{t("template.editor.lines_title")}</div>
                         {prescriptionItems.length === 0 ? (
                             <p style={{ color: "var(--fg-3)", fontSize: 13 }}>{t("template.editor.lines_empty")}</p>
                         ) : (
@@ -330,7 +347,7 @@ export function TemplateEditorPanel(props: TemplateEditorPanelProps) {
                                     <li
                                         key={`${it.medication}-${idx}`}
                                         className="row"
-                                        style={{ justifyContent: "space-between", gap: 8, padding: "6px 0", borderBottom: "1px solid var(--line)" }}
+                                        style={{ justifyContent: "space-between", gap: "var(--space-2)", padding: "6px 0", borderBottom: "1px solid var(--line)" }}
                                     >
                                         <span style={{ fontSize: 13 }}>
                                             {it.medication} — {it.dosage || t("common.em_dash")}
@@ -376,7 +393,7 @@ export function TemplateEditorPanel(props: TemplateEditorPanelProps) {
             )}
 
             {canWrite ? (
-                <div className="row" style={{ justifyContent: "flex-end", gap: 8, marginTop: 20, flexWrap: "wrap" }}>
+                <div className="row" style={{ justifyContent: "flex-end", gap: "var(--space-2)", marginTop: "var(--space-5)", flexWrap: "wrap" }}>
                     {editingId !== null ? (
                         <Button type="button" variant="danger" onClick={() => setDeleteOpen(true)}>
                             {t("common.delete")}
@@ -400,7 +417,7 @@ export function TemplateEditorPanel(props: TemplateEditorPanelProps) {
                     </Button>
                 </div>
             ) : (
-                <p style={{ color: "var(--fg-3)", marginTop: 16 }}>{t("common.read_only")}</p>
+                <p style={{ color: "var(--fg-3)", marginTop: "var(--space-4)" }}>{t("common.read_only")}</p>
             )}
         </div>
     );

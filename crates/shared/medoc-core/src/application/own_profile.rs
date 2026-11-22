@@ -3,7 +3,7 @@
 
 use crate::domain::entities::staff::{Staff, UpdateOwnProfile, UpdateStaff};
 use crate::error::AppError;
-use crate::infrastructure::database::staff_repo;
+use crate::infrastructure::database::repos::admin::staff as staff_repo;
 use serde::Serialize;
 use sqlx::SqlitePool;
 

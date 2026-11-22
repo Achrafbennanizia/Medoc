@@ -1,6 +1,6 @@
 # Serverless peer sync
 
-**Last updated:** 2026-05-26  
+**Last updated:** 2026-11-22  
 **Crate:** `app/crates/medoc-sync`  
 **HTTP surface:** `POST/GET /api/v1/sync/{push,pull,status}` and
 `/api/v1/pairing/{request,status,master-info,decide,revoke,pending,peers}` on
@@ -115,7 +115,6 @@ caller that persists; cargo unit tests use a deterministic dev seed.
 - `sync_get_status`
 - `sync_set_deployment`
 - `sync_run_now` — replica push + pull
-- `sync_record_change` — optional explicit outbox append
 - `pairing_list_pending`, `pairing_decide`, `pairing_revoke`, `pairing_master_info` — master inbox
 - `pairing_scan_lan`, `pairing_submit_request`, `pairing_check_status`,
   `pairing_persist_token` — replica scan/request flow
@@ -157,6 +156,38 @@ payload (`obj["updated_at"]`). Timestamp ties break by lexicographic
 Tests live in `medoc_sync::engine::tests` —
 `master_does_not_overwrite_newer_replica_row` and
 `newer_master_push_overwrites_older_replica_row`.
+
+## Lost-update protection (all devices, online and offline)
+
+**Pattern:** transactional outbox + store-and-forward, idempotent consumer, hybrid-logical-clock
+last-writer-wins (LWW register per row), signed change envelopes, and anti-entropy (digest
+reconcile). Every flavor uses the same chain:
+
+| Step | Where | What prevents a lost update |
+|------|-------|-----------------------------|
+| 1. Capture | `sync_outbox` (`record_or_noop` / `record_in_tx`), `watch.rs` scan | Every local write is stored on the device first, also while offline. The watcher queues rows whose `updated_at` moved without the hook. |
+| 2. Order | `hlc.rs` (`syncHlc` in each payload) | Changes compare by HLC, not by wall clock, so a device with a slow clock cannot overwrite a newer change it has already seen. Ties: higher `device_id`. |
+| 3. Sign | `entry_signature.rs` | When a device sends (= when it is online again) it signs every change with its Ed25519 device key: device, seq, table, id, op, time and payload hash. |
+| 4. Verify | LAN `/sync/push`, `/sync/exchange` (`sync_bodies::verify_signed`) | The receiver checks every signature before applying anything. Keys are pinned per device (pairing key, else first use, `sync_device_key`). Altered, forged or re-keyed batches are refused: `MD-SYN-001`, `MD-SYN-002`. Unsigned batches from older versions are accepted until the main device sets `sync.require_signed_entries.v1 = 1` (`MD-SYN-003`). |
+| 5. Apply | `merge.rs` | LWW by HLC; `sync_applied` makes a replayed change a no-op (idempotent), so a retry after a lost response never duplicates. |
+| 6. Update check on reconnect | `reconnect_update_check.rs` | The first successful contact after an offline period (or after start) pushes all queued changes, pulls until caught up, then compares row digests with the main device and repairs any difference. Result: `sync.update_check.last.v1`, shown in Settings → Deployment. If it does not finish, it runs again on the next contact. |
+| 7. Anti-entropy | `reconcile.rs` (hourly + step 6) | Digest buckets catch any row a hook missed or a crash lost. |
+
+### Flavors
+
+| Flavor | Offline storage | On reconnect |
+|--------|-----------------|--------------|
+| Main app | its own database (authoritative) | serves push/pull/exchange; exchanges its queue with every reachable replica |
+| Replica app | its own database + `sync_outbox` | steps 3–6 |
+| LAN web client (no local database) | `offline-write-queue.ts`: setting writes that could not be sent, one per key, with the edit time | replayed in order on the browser `online` event and after the next successful request, with `editedAt`; the server keeps the newer write (`app_kv_lww.rs`, 409 for an older queued write) |
+
+### Limits
+
+- LWW is per row: two people editing different fields of the same record offline keep the later
+  record as a whole. Field-level merge would need per-field clocks in the payload.
+- The LAN web client can only queue what it can write over HTTP today (practice settings). It does
+  not cache patient data in the browser on purpose (no unencrypted health data in browser storage).
+- Pull and exchange responses are protected by the pinned TLS connection, not by entry signatures.
 
 ## Mesh sync (BEST-EFFORT, behind `unstable_mesh`)
 

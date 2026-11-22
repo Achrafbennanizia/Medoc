@@ -1,0 +1,39 @@
+/* From styles/features/patient-dental.css (cascade position kept by its import there). */
+@layer components {
+  /* New Patient: step strip */
+  .patient-create-steps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .patient-create-step {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.05);
+    color: var(--fg-3);
+  }
+  .patient-create-step.is-active {
+    background: var(--accent-soft);
+    color: var(--accent-ink);
+  }
+  .patient-create-sticky {
+    margin-top: 16px;
+  }
+  .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: var(--line); border-radius: var(--radius-card); overflow: hidden; border: 1px solid var(--line); }
+  .cal-head { background: var(--bg-elev); padding: 10px 12px; font-size: 11px; font-weight: 600; color: var(--fg-3); letter-spacing: 0.03em; text-transform: uppercase; }
+  .cal-cell { background: var(--bg-elev); min-height: 92px; padding: 7px 8px; display: flex; flex-direction: column; gap: 4px; cursor: pointer; transition: background 120ms ease; }
+  .cal-cell:hover { background: color-mix(in oklab, var(--fg) 4.5%, var(--bg-elev)); }
+  .cal-cell.dim { color: var(--fg-4); background: color-mix(in oklab, var(--fg) 5%, var(--bg)); }
+  .cal-cell.today .cal-num { background: var(--accent); color: var(--text-on-accent); width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 12px; }
+  .cal-num { font-size: 12px; font-weight: 600; align-self: flex-end; color: var(--fg-2); }
+  .cal-evt { font-size: 11px; padding: 3px 7px; border-radius: 6px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cal-evt.green  { background: var(--green-soft);  color: var(--green-ink); }
+  .cal-evt.blue   { background: var(--blue-soft);   color: var(--blue-ink); }
+  .cal-evt.orange { background: var(--orange-soft); color: var(--orange-ink); }
+  .cal-evt.accent { background: var(--accent-soft); color: var(--accent-ink); }
+  .cal-evt.purple { background: var(--purple-soft); color: var(--purple-ink); }
+  .cal-evt.grey { background: color-mix(in oklab, var(--fg) 7%, var(--bg-elev)); color: var(--fg-3); }
+}

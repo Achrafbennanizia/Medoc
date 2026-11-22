@@ -1,0 +1,63 @@
+/* From styles/themes/dark-overrides.css (cascade position kept by its import there). */
+html[data-theme="dark"] .settings-switch--on {
+  background: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line-strong));
+}
+/* When main sidebar is dark: Settings sub-nav like .glass .sb-item */
+html[data-sidebar-tone="dark"] .settings-nav-card {
+  background: var(--surface-sidebar-canvas);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.94);
+}
+html[data-sidebar-tone="dark"] .settings-nav-btn {
+  color: rgba(255, 255, 255, 0.92);
+}
+html[data-sidebar-tone="dark"] .settings-nav-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+html[data-sidebar-tone="dark"] .settings-nav-btn.active {
+  background: color-mix(in oklab, var(--accent) 38%, rgba(255, 255, 255, 0.12));
+  color: #fff;
+}
+html[data-sidebar-tone="dark"] .settings-nav-btn.active svg {
+  color: #fff;
+}
+html[data-sidebar-tone="dark"] .settings-nav-muted {
+  color: rgba(255, 255, 255, 0.62);
+}
+html[data-sidebar-tone="dark"] .settings-nav-sep {
+  background: rgba(255, 255, 255, 0.1);
+}
+html[data-theme="dark"] .settings-row,
+html[data-theme="dark"] .settings-subcard .card-head {
+  border-color: var(--line);
+}
+html[data-theme="dark"] .settings-row-clickable:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+html[data-theme="dark"] .settings-row-clickable:active {
+  background: rgba(255, 255, 255, 0.08);
+}
+html[data-theme="dark"] .tab:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+html[data-theme="dark"] .tab[aria-selected="true"] {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--fg);
+}
+html[data-theme="dark"] .select-menu {
+  background: var(--bg-elev);
+  border-color: var(--line-strong);
+}
+html[data-theme="dark"] .select-option:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+html[data-theme="dark"] .kpi-delta.up {
+  color: color-mix(in oklab, var(--green) 52%, #f4fff8);
+}
+html[data-theme="dark"] .kpi-delta.down {
+  color: color-mix(in oklab, var(--red) 68%, #fff);
+}

@@ -1,0 +1,68 @@
+/* From styles/features/catalog-staff.css (cascade position kept by its import there). */
+@layer components {
+  .contracts-td-amount__stack {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-end;
+    line-height: 1.25;
+  }
+  .contracts-td-amount__value { font-weight: 650; font-variant-numeric: tabular-nums; }
+  .contracts-td-amount__interval { font-size: 12px; color: var(--fg-3); }
+  .contracts-td-term__range { display: inline-flex; flex-wrap: wrap; gap: 0 var(--space-1); font-variant-numeric: tabular-nums; }
+  .contracts-td-term__sep { color: var(--fg-4); }
+  .tbl.data-table tbody .contracts-row--inactive td { color: var(--fg-3); }
+  .tbl.data-table tbody .contracts-row--inactive .data-table__primary { text-decoration: line-through; text-decoration-color: var(--fg-4); }
+  .contracts-status-row { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+  .contracts-cost-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: var(--space-3); }
+  .contracts-activation { display: flex; flex-direction: column; gap: var(--space-2); }
+  .contracts-activation__hint { margin: 0; font-size: 12px; line-height: 1.45; }
+  .contracts-activation__row { display: flex; align-items: flex-end; gap: var(--space-2); flex-wrap: wrap; }
+  .contracts-activation__row .ui-field-wrap { flex: 1 1 10rem; min-width: 0; }  /* Reference also shown in the detail panel — hide when the list is narrow */
+  @container administration-master-list (max-width: 920px) {
+    .contracts-workspace .contracts-col-ref,
+    .contracts-workspace .contracts-td-ref,
+    .contracts-workspace thead th:nth-child(5) {
+      display: none;
+    }
+  }
+  .contracts-workspace .staff-workspace__detail .products-detail-card,
+  .contracts-workspace .staff-workspace__detail .products-detail-card--empty {
+    min-width: 0;
+  }
+  .charts-queue-actions {
+    display: flex;
+    justify-content: end;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: nowrap;
+    width: 100%;
+  }
+  .charts-queue-actions .charts-queue-remove-btn {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .products-read-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  @media (max-width: 520px) {
+    .products-read-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+  .products-detail-card--empty {
+    min-height: 120px;
+    display: flex;
+    align-items: center;
+  }
+  .staff-workspace__detail .products-detail-card--empty,
+  .staff-workspace__detail .products-detail-card--empty p {
+    width: 100%;
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-break: normal;
+  }
+}

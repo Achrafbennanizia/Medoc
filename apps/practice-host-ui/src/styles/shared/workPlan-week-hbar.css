@@ -1,0 +1,61 @@
+/* From styles/pages/work-plan.css (cascade position kept by its import there). */
+.workPlan-week-hbar {
+  min-width: 0;
+  min-height: 40px;
+  padding: 2px;
+  border-radius: 4px;
+  border: 1px solid var(--line-1);
+  background: var(--card);
+  box-sizing: border-box;
+}
+.workPlan-week-hbar__track {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  height: 100%;
+  min-height: 34px;
+}
+.workPlan-week-hbar__prefs {
+  position: relative;
+  flex: 1 1 18px;
+  min-height: 16px;
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.03) 0%,
+    rgba(0, 0, 0, 0.02) 50%,
+    rgba(0, 0, 0, 0.04) 100%
+  );
+  border-radius: 3px;
+}
+.workPlan-hor-seg {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  border-radius: 2px;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+.workPlan-week-hbar__eins {
+  position: relative;
+  flex: 0 0 14px;
+  min-height: 12px;
+}
+.workPlan-block-h {
+  position: absolute;
+  left: 0;
+  margin: 0;
+  padding: 0 2px;
+  border: 1px solid;
+  border-radius: 2px;
+  cursor: grab;
+  font-size: 7.5px;
+  line-height: 1.1;
+  overflow: hidden;
+  text-align: start;
+  color: var(--fg-1);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px;
+  box-sizing: border-box;
+}

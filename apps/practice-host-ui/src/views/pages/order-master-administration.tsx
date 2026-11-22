@@ -17,6 +17,7 @@ import type { SupplierPharmaTemplate, SupplierMaster, PharmaConsultantMaster, Pr
 import { countProductsWithName, errorMessage, productSelectLabel } from "@/lib/utils";
 import { useT, useTParams , useCollatorLocale} from "@/lib/i18n";
 import { Button } from "../components/ui/button";
+import { DataTable } from "../components/ui/data-table";
 import { Card, CardHeader } from "../components/ui/card";
 import { Input, Select } from "../components/ui/input";
 import { ConfirmDialog } from "../components/ui/dialog";
@@ -254,7 +255,7 @@ export function OrderMasterAdministrationPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div className="card card-pad">
                     <h2 className="text-title" style={{ margin: "0 0 12px" }}>{t("page.orderMaster.suppliers")}</h2>
-                    <div className="row" style={{ gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+                    <div className="row" style={{ gap: "var(--space-2)", flexWrap: "wrap", marginBottom: "var(--space-3)" }}>
                         <div style={{ flex: "1 1 200px", minWidth: 0 }}>
                             <Input
                                 id="bs-lief-new"
@@ -272,9 +273,9 @@ export function OrderMasterAdministrationPage() {
                     {suppliers.length === 0 ? (
                         <p style={{ color: "var(--fg-3)", fontSize: 13 }}>{t("page.orderMaster.empty_entries")}</p>
                     ) : (
-                        <ul style={{ margin: 0, paddingInlineStart: 18, color: "var(--fg-2)" }}>
+                        <ul style={{ margin: 0, paddingInlineStart: "var(--space-4)", color: "var(--fg-2)" }}>
                             {suppliers.map((r) => (
-                                <li key={r.id} style={{ marginBottom: 6, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                                <li key={r.id} style={{ marginBottom: "var(--space-2)", display: "flex", alignItems: "center", gap: "var(--space-2)", flexWrap: "wrap" }}>
                                     <span>{r.name}</span>
                                     {canWrite ? (
                                         <Button type="button" variant="danger" size="sm" onClick={() => { setDeleteKind("lief"); setDeleteId(r.id); }} aria-label={t("common.remove")}>
@@ -289,7 +290,7 @@ export function OrderMasterAdministrationPage() {
 
                 <div className="card card-pad">
                     <h2 className="text-title" style={{ margin: "0 0 12px" }}>{t("page.orderMaster.contacts")}</h2>
-                    <div className="row" style={{ gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+                    <div className="row" style={{ gap: "var(--space-2)", flexWrap: "wrap", marginBottom: "var(--space-3)" }}>
                         <div style={{ flex: "1 1 200px", minWidth: 0 }}>
                             <Input
                                 id="bs-contact-new"
@@ -307,9 +308,9 @@ export function OrderMasterAdministrationPage() {
                     {kontakte.length === 0 ? (
                         <p style={{ color: "var(--fg-3)", fontSize: 13 }}>{t("page.orderMaster.empty_entries")}</p>
                     ) : (
-                        <ul style={{ margin: 0, paddingInlineStart: 18, color: "var(--fg-2)" }}>
+                        <ul style={{ margin: 0, paddingInlineStart: "var(--space-4)", color: "var(--fg-2)" }}>
                             {kontakte.map((r) => (
-                                <li key={r.id} style={{ marginBottom: 6, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                                <li key={r.id} style={{ marginBottom: "var(--space-2)", display: "flex", alignItems: "center", gap: "var(--space-2)", flexWrap: "wrap" }}>
                                     <span>{r.name}</span>
                                     {canWrite ? (
                                         <Button type="button" variant="danger" size="sm" onClick={() => { setDeleteKind("contact"); setDeleteId(r.id); }} aria-label={t("common.remove")}>
@@ -347,7 +348,7 @@ export function OrderMasterAdministrationPage() {
                         }
                     />
                     {creatingProduct ? (
-                        <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: 12 }}>
+                        <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
                             <ProductFormFields
                                 form={productCreateForm}
                                 setForm={setProductCreateForm}
@@ -357,7 +358,7 @@ export function OrderMasterAdministrationPage() {
                                 suppliers={suppliers}
                                 pharma_consultant={kontakte}
                             />
-                            <div className="row" style={{ justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+                            <div className="row" style={{ justifyContent: "flex-end", gap: "var(--space-2)", flexWrap: "wrap" }}>
                                 <Button type="button" variant="ghost" onClick={cancelCreateProduct} disabled={productCreateBusy}>
                                     {t("page.orderMaster.product_cancel")}
                                 </Button>
@@ -397,7 +398,7 @@ export function OrderMasterAdministrationPage() {
                         disabled={!canWrite || contactOptions.length === 0}
                     />
                 </div>
-                <div style={{ marginTop: 12, maxWidth: 560 }}>
+                <div style={{ marginTop: "var(--space-3)", maxWidth: 560 }}>
                     <Select
                         id="bs-combo-prod"
                         label={t("page.orderMaster.product_label")}
@@ -407,7 +408,7 @@ export function OrderMasterAdministrationPage() {
                         disabled={!canWrite || productOptions.length === 0}
                     />
                 </div>
-                <div className="row" style={{ gap: 10, marginTop: 12 }}>
+                <div className="row" style={{ gap: "var(--space-3)", marginTop: "var(--space-3)" }}>
                     <Button
                         type="button"
                         onClick={() => void addTemplate()}
@@ -418,50 +419,54 @@ export function OrderMasterAdministrationPage() {
                 </div>
 
                 {templates.length > 0 ? (
-                    <div style={{ overflowX: "auto", marginTop: 16 }} className="tbl-scroll">
-                        <table className="tbl tbl-fluid">
-                            <thead>
-                                <tr>
-                                    <th>{t("common.supplier")}</th>
-                                    <th>{t("page.orderMaster.col.contact")}</th>
-                                    <th>{t("page.orderMaster.col.product")}</th>
-                                    <th style={{ width: 100 }}>{t("page.orderMaster.col.action")}</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {templates.map((version) => (
-                                    <tr key={version.id}>
-                                        <td>{version.supplier_name}</td>
-                                        <td>{version.pharma_consultant_name}</td>
-                                        <td>
-                                            {version.product_active === 0 ? (
-                                                <span style={{ color: "var(--fg-3)" }} title={t("page.orderMaster.product_inactive_title")}>
-                                                    {tp("page.orderMaster.product_inactive", { name: version.product_name })}
-                                                </span>
-                                            ) : (
-                                                <span>
-                                                    {version.product_name} · {version.product_category}
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td>
-                                            {canWrite ? (
-                                                <Button
-                                                    type="button"
-                                                    variant="danger"
-                                                    size="sm"
-                                                    onClick={() => { setDeleteKind("template"); setDeleteId(version.id); }}
-                                                >
-                                                    <TrashIcon size={14} /> {t("common.remove")}
-                                                </Button>
-                                            ) : (
-                                                "—"
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                    <div style={{ marginTop: "var(--space-4)" }}>
+                        <DataTable
+                            label={t("page.orderMaster.save_combo")}
+                            rows={templates}
+                            getRowId={(v) => v.id}
+                            columns={[
+                                { id: "supplier", header: t("common.supplier"), width: "26%", truncate: true, text: (v) => v.supplier_name, cell: (v) => v.supplier_name },
+                                { id: "contact", header: t("page.orderMaster.col.contact"), width: "24%", truncate: true, hideBelow: "sm", text: (v) => v.pharma_consultant_name, cell: (v) => v.pharma_consultant_name },
+                                {
+                                    id: "product",
+                                    header: t("page.orderMaster.col.product"),
+                                    truncate: true,
+                                    text: (v) => `${v.product_name} · ${v.product_category}`,
+                                    cell: (v) =>
+                                        v.product_active === 0 ? (
+                                            <span className="data-table__muted" title={t("page.orderMaster.product_inactive_title")}>
+                                                {tp("page.orderMaster.product_inactive", { name: v.product_name })}
+                                            </span>
+                                        ) : (
+                                            <span>
+                                                {v.product_name} · {v.product_category}
+                                            </span>
+                                        ),
+                                },
+                                {
+                                    id: "action",
+                                    header: t("page.orderMaster.col.action"),
+                                    width: "8.5rem",
+                                    align: "end",
+                                    cell: (v) =>
+                                        canWrite ? (
+                                            <Button
+                                                type="button"
+                                                variant="danger"
+                                                size="sm"
+                                                onClick={() => {
+                                                    setDeleteKind("template");
+                                                    setDeleteId(v.id);
+                                                }}
+                                            >
+                                                <TrashIcon size={14} /> {t("common.remove")}
+                                            </Button>
+                                        ) : (
+                                            "—"
+                                        ),
+                                },
+                            ]}
+                        />
                     </div>
                 ) : (
                     <p style={{ color: "var(--fg-3)", fontSize: 13, marginBottom: 0 }}>{t("page.orderMaster.no_combos")}</p>

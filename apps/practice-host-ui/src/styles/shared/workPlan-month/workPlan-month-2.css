@@ -1,0 +1,32 @@
+/* From styles/pages/work-plan.css (cascade position kept by its import there). */
+.workPlan-cal-embed .workPlan-week-head__dow {
+  font-size: 9.5px;
+}
+.workPlan-cal-embed .workPlan-week-head__date {
+  font-size: 10.5px;
+  margin-top: 1px;
+}
+.workPlan-month--embed {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+.workPlan-month--embed .workPlan-month__cell {
+  min-height: 56px;
+  padding: 3px 3px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  text-align: start;
+}
+.workPlan-month--embed .workPlan-month__num {
+  font-size: 11.5px;
+}
+.workPlan-month--embed .workPlan-month__grid {
+  min-width: 0;
+}
+/* Month view WorkPlan: cells like Appointment prototype (higher min height) */
+.staff-workPlan-page .workPlan-month-cal.cal .cal-cell,
+.schedule-page .appointments-month-cal.cal .cal-cell {
+  min-height: 120px;
+}

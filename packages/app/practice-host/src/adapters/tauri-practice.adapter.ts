@@ -7,5 +7,3 @@ export class TauriPracticeAdapter implements PracticeSystemPort {
         return tauriInvoke<T>(command, args);
     }
 }
-
-export { practiceSystem, createPracticeSystem, resetPracticeTransportCache } from "./practice-transport";

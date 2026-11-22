@@ -15,8 +15,13 @@ export const PatientDetailPrescriptionTab = forwardRef<PatientDetailPrescription
             () => ({ flushChartSaveConfirm: state.flushChartSaveConfirm }),
             [state.flushChartSaveConfirm],
         );
-        const { flushChartSaveConfirm: _flushHandler, ...panelProps } = state;
+        const { flushChartSaveConfirm: _flushHandler, allergyDialog, ...panelProps } = state;
         void _flushHandler;
-        return <PatientDetailPrescriptionTabPanel {...panelProps} />;
+        return (
+            <>
+                {allergyDialog}
+                <PatientDetailPrescriptionTabPanel {...panelProps} />
+            </>
+        );
     },
 );

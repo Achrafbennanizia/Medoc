@@ -3,7 +3,7 @@ import { type Dispatch, type ReactNode, type SetStateAction } from "react";
 import type { Treatment, Examination, Payment, PaymentMethod } from "@/models/types";
 import { itemValidationKey, type ValidationRecord } from "@/lib/chart-validation";
 import { ShieldCheckIcon } from "@/lib/icons";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate, parseEuroInput } from "@/lib/utils";
 import {
     paymentMethodSelectOptions,
     PAYMENT_EUR_EPS,
@@ -14,13 +14,12 @@ import {
     paymentCountsTowardPaid,
     paymentHistoryForTreatment,
     paymentHistoryForExamination,
-    paymentStatusDisplay,
-    paymentMethodLabel,
     parsePaymentLinkValue,
     maxNewPaymentTreatment,
     maxNewPaymentExamination,
     type PaymentAssignmentSummaryRow,
 } from "@/lib/payment-booking";
+import { paymentMethodLabel, paymentStatusDisplay } from "@/lib/finance-order-labels";
 import { ChartEditFormOrInline, ChartInlineEditPanelShell, ConfirmOrInline } from "@/views/components/chart-confirm-presentation";
 import { Badge } from "@/views/components/ui/badge";
 import { Button } from "@/views/components/ui/button";
@@ -76,6 +75,7 @@ export type PatientDetailPaymentTabProps = {
     itemValidation: Partial<Record<string, ValidationRecord>>;
     onPrintReceipt: (z: Payment) => void | Promise<void>;
     onPrintReceiptFromSummeRow: (row: PaymentAssignmentSummaryRow) => void;
+    onIssueInvoice: (kind: "treatment" | "examination", lineId: string) => void;
     onSubmitSavePaymentNew: () => void | Promise<void>;
     onSavePaymentEdit: () => void | Promise<void>;
     onDeletePayment: () => void | Promise<void>;
@@ -117,6 +117,7 @@ export function PatientDetailPaymentTab({
     itemValidation,
     onPrintReceipt: handlePrintReceipt,
     onPrintReceiptFromSummeRow: handlePrintReceiptFromSummeRow,
+    onIssueInvoice,
     onSubmitSavePaymentNew: submitSavePaymentNew,
     onSavePaymentEdit,
     onDeletePayment,
@@ -132,6 +133,19 @@ export function PatientDetailPaymentTab({
     const t = useT();
     const tp = useTParams();
     const emDash = t("common.em_dash");
+    const paymentNeedsValidation = (paymentId: string) =>
+        !itemValidation[itemValidationKey("payment", paymentId)];
+    const renderPaymentStatus = (status: string, needsValidation: boolean) => {
+        const st = paymentStatusDisplay(status, t);
+        return (
+            <span style={{ display: "inline-flex", flexWrap: "wrap", gap: "var(--space-1)", alignItems: "center" }}>
+                <Badge variant={st.variant}>{st.label}</Badge>
+                {needsValidation ? (
+                    <Badge variant="warning">{t("patient.detail.tab.payment.status_need_validation")}</Badge>
+                ) : null}
+            </span>
+        );
+    };
     const requireReleasedHint = tp("patient.detail.tab.payment.release_required", {
         entity: t("patient.detail.tab.payment.entity.treatment"),
     });
@@ -174,19 +188,19 @@ export function PatientDetailPaymentTab({
                         && paymentCountsTowardPaid(x.status),
                 )
                 .reduce((s, x) => s + x.amount, 0);
-            const cur = Number(String(paymentEditForm.amount).replace(",", "."));
+            const cur = parseEuroInput(String(paymentEditForm.amount)) ?? Number.NaN;
             const curOk = Number.isFinite(cur) && cur > 0 ? cur : 0;
             const totalPaid = otherPaid + curOk;
             openAfter = gesamtLive != null && gesamtLive > 0 ? Math.max(0, gesamtLive - totalPaid) : null;
             histBlock = (
-                <div style={{ marginTop: 12 }}>
+                <div style={{ marginTop: "var(--space-3)" }}>
                     <div
                         style={{
                             fontSize: 11,
                             letterSpacing: "0.04em",
                             color: "var(--fg-3)",
                             textTransform: "uppercase",
-                            marginBottom: 6,
+                            marginBottom: "var(--space-2)",
                         }}
                     >
                         {t("patient.detail.tab.payment.history_same_line")}
@@ -194,14 +208,13 @@ export function PatientDetailPaymentTab({
                     {hist.length > 0 ? (
                         <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.55 }}>
                             {hist.map((h) => {
-                                const hs = paymentStatusDisplay(h.status, t);
                                 return (
                                     <li key={h.id} style={{ opacity: h.id === z.id ? 1 : 0.85 }}>
                                         {formatDate(h.created_at)}
                                         {" · "}
-                                        {h.amount.toFixed(2)} €
+                                        {formatCurrency(h.amount)}
                                         {" · "}
-                                        <Badge variant={hs.variant}>{hs.label}</Badge>
+                                        {renderPaymentStatus(h.status, paymentNeedsValidation(h.id))}
                                         {h.id === z.id ? t("patient.detail.tab.payment.this_booking") : null}
                                     </li>
                                 );
@@ -213,14 +226,14 @@ export function PatientDetailPaymentTab({
         } else if (z.examination_id && pid) {
             const histU = paymentHistoryForExamination(payments, pid, z.examination_id);
             histBlock = (
-                <div style={{ marginTop: 12 }}>
+                <div style={{ marginTop: "var(--space-3)" }}>
                     <div
                         style={{
                             fontSize: 11,
                             letterSpacing: "0.04em",
                             color: "var(--fg-3)",
                             textTransform: "uppercase",
-                            marginBottom: 6,
+                            marginBottom: "var(--space-2)",
                         }}
                     >
                         {t("patient.detail.tab.payment.history_title")}
@@ -228,14 +241,13 @@ export function PatientDetailPaymentTab({
                     {histU.length > 0 ? (
                         <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.55 }}>
                             {histU.map((h) => {
-                                const hs = paymentStatusDisplay(h.status, t);
                                 return (
                                     <li key={h.id}>
                                         {formatDate(h.created_at)}
                                         {" · "}
-                                        {h.amount.toFixed(2)} €
+                                        {formatCurrency(h.amount)}
                                         {" · "}
-                                        <Badge variant={hs.variant}>{hs.label}</Badge>
+                                        {renderPaymentStatus(h.status, paymentNeedsValidation(h.id))}
                                         {h.id === z.id ? t("patient.detail.tab.payment.this_booking") : null}
                                     </li>
                                 );
@@ -249,13 +261,13 @@ export function PatientDetailPaymentTab({
             <>
                 <div
                     className="rounded-lg px-4 py-3"
-                    style={{ border: "1px solid var(--line)", background: "var(--surface)", marginBottom: 12 }}
+                    style={{ border: "1px solid var(--line)", background: "var(--surface)", marginBottom: "var(--space-3)" }}
                 >
                     <div style={{ fontSize: 11, letterSpacing: "0.04em", color: "var(--fg-3)", textTransform: "uppercase" }}>
                         {t("patient.detail.tab.payment.assignment")}
                     </div>
-                    <div style={{ fontSize: 15, fontWeight: 600, marginTop: 6 }}>{reference}</div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" style={{ marginTop: 12, fontSize: 14 }}>
+                    <div style={{ fontSize: 15, fontWeight: 600, marginTop: "var(--space-2)" }}>{reference}</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" style={{ marginTop: "var(--space-3)", fontSize: 14 }}>
                         <div>
                             <div style={{ fontSize: 12, color: "var(--fg-3)" }}>{t("patient.detail.tab.payment.cost_should")}</div>
                             <div style={{ fontWeight: 700 }}>
@@ -284,7 +296,7 @@ export function PatientDetailPaymentTab({
                         onChange={(e) => setPaymentEditForm({ ...paymentEditForm, amount: e.target.value })}
                         onBlur={(e) => {
                             if (paymentEditMaxAmountEur == null) return;
-                            const n = Number(String(e.target.value).replace(",", "."));
+                            const n = parseEuroInput(e.target.value) ?? Number.NaN;
                             if (!Number.isFinite(n) || n <= 0) return;
                             if (n > paymentEditMaxAmountEur + PAYMENT_EUR_EPS) {
                                 setPaymentEditForm((p) => ({
@@ -408,7 +420,7 @@ export function PatientDetailPaymentTab({
                     <div
                         id="ak-payment-new-panel"
                         className="chart-inline-panel"
-                        style={{ marginBottom: 20 }}
+                        style={{ marginBottom: "var(--space-5)" }}
                         role="region"
                         aria-label={t("patient.detail.tab.payment.new_aria")}
                     >
@@ -430,7 +442,7 @@ export function PatientDetailPaymentTab({
                                 {t("common.close")}
                             </Button>
                         </div>
-                        <div className="chart-inline-panel-body" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                        <div className="chart-inline-panel-body" style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
                             {treatments.length + examinations.length === 0 ? (
                                 <p style={{ margin: 0, fontSize: 13, color: "var(--fg-3)" }}>
                                     {t("patient.detail.tab.payment.new_no_clinical")}
@@ -502,7 +514,7 @@ export function PatientDetailPaymentTab({
                                         const paidSum = sumPaymentsForTreatment(payments, pid, paymentNewForm.linkId);
                                         const openNow =
                                             gesamt != null && gesamt > 0 ? Math.max(0, gesamt - paidSum) : null;
-                                        const amountN = Number(String(paymentNewForm.amount).replace(",", "."));
+                                        const amountN = parseEuroInput(String(paymentNewForm.amount)) ?? Number.NaN;
                                         const add = Number.isFinite(amountN) && amountN > 0 ? amountN : 0;
                                         const openAfter =
                                             gesamt != null && gesamt > 0 ? Math.max(0, gesamt - paidSum - add) : null;
@@ -524,7 +536,7 @@ export function PatientDetailPaymentTab({
                                                             letterSpacing: "0.04em",
                                                             color: "var(--fg-3)",
                                                             textTransform: "uppercase",
-                                                            marginBottom: 10,
+                                                            marginBottom: "var(--space-3)",
                                                         }}
                                                     >
                                                         {t("patient.detail.tab.payment.cost_section_treatment")}
@@ -559,7 +571,7 @@ export function PatientDetailPaymentTab({
                                                             letterSpacing: "0.04em",
                                                             color: "var(--fg-3)",
                                                             textTransform: "uppercase",
-                                                            marginBottom: 6,
+                                                            marginBottom: "var(--space-2)",
                                                         }}
                                                     >
                                                         {t("patient.detail.tab.payment.history_for_line")}
@@ -567,14 +579,13 @@ export function PatientDetailPaymentTab({
                                                     {hist.length > 0 ? (
                                                         <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.55 }}>
                                                             {hist.map((h) => {
-                                                                const hs = paymentStatusDisplay(h.status, t);
                                                                 return (
                                                                     <li key={h.id}>
                                                                         {formatDate(h.created_at)}
                                                                         {" · "}
-                                                                        {h.amount.toFixed(2)} €
+                                                                        {formatCurrency(h.amount)}
                                                                         {" · "}
-                                                                        <Badge variant={hs.variant}>{hs.label}</Badge>
+                                                                        {renderPaymentStatus(h.status, paymentNeedsValidation(h.id))}
                                                                     </li>
                                                                 );
                                                             })}
@@ -585,7 +596,7 @@ export function PatientDetailPaymentTab({
                                                         </p>
                                                     )}
                                                 </div>
-                                                <div className="row" style={{ gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+                                                <div className="row" style={{ gap: "var(--space-3)", flexWrap: "wrap", alignItems: "center" }}>
                                                     <span style={{ fontSize: 13, color: "var(--fg-3)" }}>{t("patient.detail.tab.payment.case_after_save")}</span>
                                                     <Badge variant={previewCase === "PAID" ? "success" : previewCase === "PARTIALLY_PAID" ? "warning" : "default"}>
                                                         {previewCase === "PAID"
@@ -612,7 +623,7 @@ export function PatientDetailPaymentTab({
                                                         letterSpacing: "0.04em",
                                                         color: "var(--fg-3)",
                                                         textTransform: "uppercase",
-                                                        marginBottom: 8,
+                                                        marginBottom: "var(--space-2)",
                                                     }}
                                                 >
                                                     {t("patient.detail.tab.payment.examination_no_target")}
@@ -638,7 +649,7 @@ export function PatientDetailPaymentTab({
                                                         letterSpacing: "0.04em",
                                                         color: "var(--fg-3)",
                                                         textTransform: "uppercase",
-                                                        marginBottom: 6,
+                                                        marginBottom: "var(--space-2)",
                                                     }}
                                                 >
                                                     {t("patient.detail.tab.payment.history_title")}
@@ -646,14 +657,13 @@ export function PatientDetailPaymentTab({
                                                 {histU.length > 0 ? (
                                                     <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.55 }}>
                                                         {histU.map((h) => {
-                                                            const hs = paymentStatusDisplay(h.status, t);
                                                             return (
                                                                 <li key={h.id}>
                                                                     {formatDate(h.created_at)}
                                                                     {" · "}
-                                                                    {h.amount.toFixed(2)} €
+                                                                    {formatCurrency(h.amount)}
                                                                     {" · "}
-                                                                    {hs.label}
+                                                                    {renderPaymentStatus(h.status, paymentNeedsValidation(h.id))}
                                                                 </li>
                                                             );
                                                         })}
@@ -680,7 +690,7 @@ export function PatientDetailPaymentTab({
                                     onChange={(e) => setPaymentNewForm({ ...paymentNewForm, amount: e.target.value })}
                                     onBlur={(e) => {
                                         if (paymentNewMaxAmountEur == null) return;
-                                        const n = Number(String(e.target.value).replace(",", "."));
+                                        const n = parseEuroInput(e.target.value) ?? Number.NaN;
                                         if (!Number.isFinite(n) || n <= 0) return;
                                         if (n > paymentNewMaxAmountEur + PAYMENT_EUR_EPS) {
                                             setPaymentNewForm((p) => ({
@@ -718,7 +728,7 @@ export function PatientDetailPaymentTab({
                                 onChange={(e) => setPaymentNewForm({ ...paymentNewForm, description: e.target.value })}
                             />
                         </div>
-                        <div className="chart-inline-panel-actions" style={{ flexWrap: "wrap", gap: 10 }}>
+                        <div className="chart-inline-panel-actions" style={{ flexWrap: "wrap", gap: "var(--space-3)" }}>
                             {paymentNewForm.linkKind === "treatment"
                             && paymentNewMaxAmountEur != null
                             && paymentNewMaxAmountEur <= PAYMENT_EUR_EPS ? (
@@ -774,7 +784,13 @@ export function PatientDetailPaymentTab({
                             </thead>
                             <tbody>
                                 {paymentZuordnungSummaries.map((row) => {
-                                    const st = paymentStatusDisplay(row.status, t);
+                                    const needsValidation = payments.some((z) => {
+                                        if (!id || z.patient_id !== id) return false;
+                                        const onLine = row.kind === "treatment"
+                                            ? z.treatment_id === row.lineId
+                                            : z.examination_id === row.lineId;
+                                        return onLine && paymentNeedsValidation(z.id);
+                                    });
                                     return (
                                         <tr key={row.key}>
                                             <td>
@@ -793,17 +809,38 @@ export function PatientDetailPaymentTab({
                                                 {row.offen != null ? formatCurrency(row.offen) : emDash}
                                             </td>
                                             <td>
-                                                <Badge variant={st.variant}>{st.label}</Badge>
+                                                {renderPaymentStatus(row.status, needsValidation)}
                                             </td>
                                             <td className="payment-td-actions">
                                                 <PaymentRowActionsMenu
                                                     ariaLabel={t("common.actions")}
                                                     actions={[
-                                                        {
-                                                            id: "receipt",
-                                                            label: t("patient.detail.tab.payment.receipt"),
-                                                            onClick: () => handlePrintReceiptFromSummeRow(row),
-                                                        },
+                                                        ...((() => {
+                                                            const openForInvoice = row.offen != null
+                                                                ? row.offen > PAYMENT_EUR_EPS
+                                                                : row.status === "OUTSTANDING" || row.status === "PARTIALLY_PAID";
+                                                            const linked = row.kind === "treatment"
+                                                                ? treatments.some((b) => b.id === row.lineId)
+                                                                : examinations.some((u) => u.id === row.lineId);
+                                                            return openForInvoice && linked;
+                                                        })()
+                                                            ? [
+                                                                {
+                                                                    id: "invoice",
+                                                                    label: t("patient.detail.tab.payment.invoice"),
+                                                                    onClick: () => onIssueInvoice(row.kind, row.lineId),
+                                                                } satisfies PaymentRowAction,
+                                                            ]
+                                                            : []),
+                                                        ...(row.status === "PAID" || row.status === "PARTIALLY_PAID"
+                                                            ? [
+                                                                {
+                                                                    id: "receipt",
+                                                                    label: t("patient.detail.tab.payment.receipt"),
+                                                                    onClick: () => handlePrintReceiptFromSummeRow(row),
+                                                                } satisfies PaymentRowAction,
+                                                            ]
+                                                            : []),
                                                         ...(canFinanceWrite
                                                             && (row.offen == null || row.offen > PAYMENT_EUR_EPS)
                                                             ? [
@@ -854,7 +891,6 @@ export function PatientDetailPaymentTab({
                         </thead>
                         <tbody>
                             {paymentsHistorisch.flatMap((z) => {
-                                const st = paymentStatusDisplay(z.status, t);
                                 const referenceLine = formatPaymentReferenceLine(z, treatments, examinations, t, tp);
                                 let reference = emDash;
                                 if (z.treatment_id) {
@@ -888,9 +924,9 @@ export function PatientDetailPaymentTab({
                                             </div>
                                         </td>
                                         <td>
-                                            <Badge variant={st.variant}>{st.label}</Badge>
+                                            {renderPaymentStatus(z.status, paymentNeedsValidation(z.id))}
                                         </td>
-                                        <td className="payment-td-num">{z.amount.toFixed(2)} €</td>
+                                        <td className="payment-td-num">{formatCurrency(z.amount)}</td>
                                         <td className="payment-td-actions">
                                             {(() => {
                                                 const canEditPayment =
@@ -899,13 +935,31 @@ export function PatientDetailPaymentTab({
                                                 const validated = Boolean(
                                                     itemValidation[itemValidationKey("payment", z.id)],
                                                 );
-                                                const actions: PaymentRowAction[] = [
-                                                    {
+                                                const actions: PaymentRowAction[] = [];
+                                                const invoiceKind = z.treatment_id
+                                                    ? "treatment"
+                                                    : z.examination_id
+                                                        ? "examination"
+                                                        : null;
+                                                const invoiceLineId = z.treatment_id ?? z.examination_id ?? "";
+                                                if (
+                                                    invoiceKind
+                                                    && invoiceLineId
+                                                    && (z.status === "OUTSTANDING" || z.status === "PARTIALLY_PAID")
+                                                ) {
+                                                    actions.push({
+                                                        id: "invoice",
+                                                        label: t("patient.detail.tab.payment.invoice"),
+                                                        onClick: () => onIssueInvoice(invoiceKind, invoiceLineId),
+                                                    });
+                                                }
+                                                if (z.status === "PAID" || z.status === "PARTIALLY_PAID") {
+                                                    actions.push({
                                                         id: "receipt",
                                                         label: t("patient.detail.tab.payment.receipt"),
                                                         onClick: () => handlePrintReceipt(z),
-                                                    },
-                                                ];
+                                                    });
+                                                }
                                                 if (canViewClinical) {
                                                     actions.push(
                                                         validated

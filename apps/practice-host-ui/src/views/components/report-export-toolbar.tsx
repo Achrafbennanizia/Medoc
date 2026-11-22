@@ -76,7 +76,7 @@ export function ReportExportToolbar({
         <>
             <div
                 className={["page-toolbar__filters row", className].filter(Boolean).join(" ")}
-                style={{ gap: 8, flexWrap: "wrap", alignItems: "center" }}
+                style={{ gap: "var(--space-2)", flexWrap: "wrap", alignItems: "center" }}
             >
                 <Button
                     type="button"

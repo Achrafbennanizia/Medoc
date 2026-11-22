@@ -2,8 +2,9 @@ import { treatmentCatalogCategoryLabel } from "@/lib/treatment-catalog-categorie
 import { useT, useTParams } from "@/lib/i18n";
 import { Fragment } from "react";
 import type { Treatment } from "@/models/types";
-import { formatDate, formatDateTime } from "@/lib/utils";
+import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { isReleasedForBilling } from "@/lib/billing-open-booking";
+import { treatmentLineLabel } from "@/lib/clinical-service-label";
 import {
     TreatmentChartComposerPanel,
     type TreatmentChartComposerPanelProps,
@@ -62,7 +63,7 @@ export function PatientDetailTreatmentTab({
 
     return (
         <div id="panel-treatment" role="tabpanel" aria-labelledby="tab-treatment">
-            <div className="col" style={{ gap: 20 }}>
+            <div className="col" style={{ gap: "var(--space-5)" }}>
                 <Card className="card-pad card--overflow-visible">
                     <CardHeader
                         title={t("patient.detail.tab.treatment.title")}
@@ -102,7 +103,7 @@ export function PatientDetailTreatmentTab({
                         <TreatmentChartComposerPanel {...treatmentComposerCommon} />
                     ) : null}
                     {treatments.length === 0 ? (
-                        <p style={{ color: "var(--fg-3)", marginTop: 4 }}>{t("patient.detail.tab.treatment.empty")}</p>
+                        <p style={{ color: "var(--fg-3)", marginTop: "var(--space-1)" }}>{t("patient.detail.tab.treatment.empty")}</p>
                     ) : (
                         <div className="treatment-groups-scroll">
                             <table className="tbl tbl-treatment-groups">
@@ -128,7 +129,7 @@ export function PatientDetailTreatmentTab({
                                                         <td
                                                             colSpan={showClinicalPrices ? 9 : 8}
                                                             style={{
-                                                                padding: 12,
+                                                                padding: "var(--space-3)",
                                                                 verticalAlign: "top",
                                                                 background: "var(--bg-elev)",
                                                             }}
@@ -149,7 +150,7 @@ export function PatientDetailTreatmentTab({
                                                             ? treatmentCatalogCategoryLabel(t, b.category)
                                                             : b.kind}
                                                     </td>
-                                                    <td>{b.service_name || b.description || b.kind}</td>
+                                                    <td>{treatmentLineLabel(b)}</td>
                                                     <td>
                                                         {b.session_number != null
                                                             ? tp("patient.detail.tab.treatment.session_nr", { number: b.session_number })
@@ -159,7 +160,7 @@ export function PatientDetailTreatmentTab({
                                                     {showClinicalPrices ? (
                                                         <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                                                             {b.total_cost != null && Number.isFinite(b.total_cost)
-                                                                ? `${b.total_cost.toFixed(2)} €`
+                                                                ? formatCurrency(b.total_cost)
                                                                 : emDash}
                                                         </td>
                                                     ) : null}

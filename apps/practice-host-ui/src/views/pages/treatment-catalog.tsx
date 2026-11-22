@@ -16,6 +16,7 @@ import {
 } from "@/lib/treatment-catalog-categories";
 import { useT, useCollatorLocale } from "@/lib/i18n";
 import { Button } from "../components/ui/button";
+import { DataTable } from "../components/ui/data-table";
 import { Input } from "../components/ui/input";
 import { Select } from "../components/ui/input";
 import { Card, CardHeader } from "../components/ui/card";
@@ -147,7 +148,17 @@ export function TreatmentCatalogPage() {
                 name: name.trim(),
                 default_cost: price != null && Number.isFinite(price) ? price : null,
             });
-            toast(t("page.treatment_catalog.toast.saved"));
+            toast(t("page.treatment_catalog.toast.saved"), "success", {
+                onUndo: async () => {
+                    try {
+                        await deleteTreatmentCatalogItem(created.id);
+                        setSelected((current) => (current?.id === created.id ? null : current));
+                        await reload();
+                    } catch (err) {
+                        toast(errorMessage(err), "error");
+                    }
+                },
+            });
             setName("");
             setCost("");
             setCreating(false);
@@ -167,16 +178,32 @@ export function TreatmentCatalogPage() {
             toast(t("page.treatment_catalog.toast.validation"), "error");
             return;
         }
+        const previous = selected;
         setEditBusy(true);
         try {
             const price = cost.trim() === "" ? null : Number(cost.replace(",", "."));
-            const updated = await updateTreatmentCatalogItem(selected.id, {
+            const updated = await updateTreatmentCatalogItem(previous.id, {
                 category: kat,
                 name: name.trim(),
                 default_cost: price != null && Number.isFinite(price) ? price : null,
-                sort_order: selected.sort_order,
+                sort_order: previous.sort_order,
             });
-            toast(t("page.treatment_catalog.toast.entry_saved"));
+            toast(t("page.treatment_catalog.toast.entry_saved"), "success", {
+                onUndo: async () => {
+                    try {
+                        const restored = await updateTreatmentCatalogItem(previous.id, {
+                            category: previous.category,
+                            name: previous.name,
+                            default_cost: previous.default_cost,
+                            sort_order: previous.sort_order,
+                        });
+                        setSelected(restored);
+                        await reload();
+                    } catch (err) {
+                        toast(errorMessage(err), "error");
+                    }
+                },
+            });
             setDetailEdit(false);
             setSelected(updated);
             await reload();
@@ -189,10 +216,26 @@ export function TreatmentCatalogPage() {
 
     const handleDelete = async () => {
         if (!deleteId || !canWrite) return;
+        const row = rows.find((item) => item.id === deleteId) ?? null;
         setBusy(true);
         try {
             await deleteTreatmentCatalogItem(deleteId);
-            toast(t("page.treatment_catalog.toast.deactivated"));
+            toast(t("page.treatment_catalog.toast.deactivated"), "success", {
+                onUndo: async () => {
+                    if (!row) return;
+                    try {
+                        await createTreatmentCatalogItem({
+                            category: row.category,
+                            name: row.name,
+                            default_cost: row.default_cost,
+                            sort_order: row.sort_order,
+                        });
+                        await reload();
+                    } catch (err) {
+                        toast(errorMessage(err), "error");
+                    }
+                },
+            });
             setSelected((s) => (s?.id === deleteId ? null : s));
             setDeleteId(null);
             setDetailEdit(false);
@@ -219,7 +262,7 @@ export function TreatmentCatalogPage() {
     if (status === "loading") return <PageLoading label={t("page.treatment_catalog.loading")} />;
     if (status === "error" && loadError) {
         return (
-            <div className="products-page practice-workspace-page animate-fade-in">
+            <div className="products-page practice-workspace-page animate-fade-in--sticky-safe">
                 <AdministrationPageHeader title={t("page.treatment_catalog.title")} />
                 <PageLoadError message={loadError} onRetry={() => void reload()} />
             </div>
@@ -227,7 +270,7 @@ export function TreatmentCatalogPage() {
     }
 
     const readField = (label: string, value: string | number | null | undefined) => (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-1)" }}>
             <span className="kpi-label-mini">{label}</span>
             <span style={{ fontSize: 14, color: "var(--fg-2)" }}>{value === null || value === undefined || value === "" ? "—" : value}</span>
         </div>
@@ -246,7 +289,7 @@ export function TreatmentCatalogPage() {
                             </Button>
                         }
                     />
-                    <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: 12 }}>
+                    <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3" style={{ alignItems: "flex-start" }}>
                             <Select
                                 label={t("page.treatment_catalog.field.category")}
@@ -274,7 +317,7 @@ export function TreatmentCatalogPage() {
                                 disabled={!canWrite}
                             />
                         </div>
-                        <div className="row" style={{ justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+                        <div className="row" style={{ justifyContent: "flex-end", gap: "var(--space-2)", flexWrap: "wrap" }}>
                             <Button type="button" variant="ghost" onClick={cancelCreate} disabled={createBusy}>
                                 {t("common.cancel")}
                             </Button>
@@ -298,7 +341,7 @@ export function TreatmentCatalogPage() {
                             </Button>
                         }
                     />
-                    <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: 12 }}>
+                    <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3" style={{ alignItems: "flex-start" }}>
                             <Select
                                 label={t("page.treatment_catalog.field.category")}
@@ -323,7 +366,7 @@ export function TreatmentCatalogPage() {
                                 placeholder={t("page.treatment_catalog.field.optional_ph")}
                             />
                         </div>
-                        <div className="row" style={{ justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+                        <div className="row" style={{ justifyContent: "flex-end", gap: "var(--space-2)", flexWrap: "wrap" }}>
                             <Button type="button" variant="ghost" onClick={cancelEdit} disabled={editBusy}>
                                 {t("common.cancel")}
                             </Button>
@@ -344,7 +387,7 @@ export function TreatmentCatalogPage() {
                         subtitle={t("page.treatment_catalog.entry.subtitle")}
                         action={
                             canWrite ? (
-                                <div className="row" style={{ gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                                <div className="row" style={{ gap: "var(--space-2)", flexWrap: "wrap", justifyContent: "flex-end" }}>
                                     <Button type="button" size="sm" variant="secondary" onClick={startEdit}>
                                         <EditIcon size={14} /> {t("common.edit")}
                                     </Button>
@@ -356,7 +399,7 @@ export function TreatmentCatalogPage() {
                         }
                     />
                     <div className="card-pad" style={{ paddingTop: 0 }}>
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }} className="products-read-grid">
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-4)" }} className="products-read-grid">
                             {readField(
                                 t("page.treatment_catalog.field.category"),
                                 treatmentCatalogCategoryLabel(t, r.category),
@@ -381,7 +424,7 @@ export function TreatmentCatalogPage() {
     })();
 
     return (
-        <div className="products-page practice-workspace-page animate-fade-in">
+        <div className="products-page practice-workspace-page animate-fade-in--sticky-safe">
             <AdministrationPageHeader
                 title={t("page.treatment_catalog.title")}
                 subtitle={t("page.treatment_catalog.subtitle")}
@@ -407,37 +450,20 @@ export function TreatmentCatalogPage() {
                             />
                         </Card>
                     ) : (
-                        <div className="card products-table-card tbl-data-card tbl-scroll">
-                            <table className="tbl tbl-fluid">
-                                <thead>
-                                    <tr>
-                                        <th scope="col">{t("page.treatment_catalog.col.category")}</th>
-                                        <th scope="col">{t("page.treatment_catalog.col.name")}</th>
-                                        <th scope="col" style={{ textAlign: "end" }}>{t("page.treatment_catalog.col.standard")}</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {sorted.map((r) => {
-                                        const isSel = !creating && selected?.id === r.id;
-                                        return (
-                                            <tr
-                                                key={r.id}
-                                                className={isSel ? "products-row--selected" : undefined}
-                                                onClick={() => selectRow(r)}
-                                                style={{ cursor: "pointer" }}
-                                            >
-                                                <td>{treatmentCatalogCategoryLabel(t, r.category)}</td>
-                                                <td>
-                                                    <span style={{ fontWeight: 600, color: "var(--fg-2)" }}>{r.name}</span>
-                                                </td>
-                                                <td style={{ textAlign: "end", fontVariantNumeric: "tabular-nums" }}>
-                                                    {r.default_cost != null ? formatCurrency(r.default_cost) : "—"}
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
+                        <div className="card products-table-card tbl-data-card">
+                            <DataTable
+                                label={t("page.treatment_catalog.title")}
+                                rows={sorted}
+                                getRowId={(r) => r.id}
+                                selectedId={creating ? null : selected?.id ?? null}
+                                onRowActivate={selectRow}
+                                rowLabel={(r) => r.name}
+                                columns={[
+                                    { id: "category", header: t("page.treatment_catalog.col.category"), width: "30%", truncate: true, hideBelow: "sm", text: (r) => treatmentCatalogCategoryLabel(t, r.category), cell: (r) => treatmentCatalogCategoryLabel(t, r.category) },
+                                    { id: "name", header: t("page.treatment_catalog.col.name"), truncate: true, text: (r) => r.name, cell: (r) => <span className="data-table__primary">{r.name}</span> },
+                                    { id: "standard", header: t("page.treatment_catalog.col.standard"), width: "8rem", numeric: true, cell: (r) => (r.default_cost != null ? formatCurrency(r.default_cost) : "—") },
+                                ]}
+                            />
                         </div>
                     )}
                 </div>

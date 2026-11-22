@@ -60,17 +60,13 @@ function buildTemplatesDatalistRows(
     return rows;
 }
 
-function todayISO(): string {
-    return localYmd();
-}
-
 function validateForm(f: PurchaseOrderCreateDraft, anzahlProducts: number, t: (key: string) => string): string | null {
     const quantity = Number(f.quantity);
     if (!f.supplierId.trim()) return t("page.purchase_order.create.validation.supplier_required");
     if (anzahlProducts < 1) return t("page.purchase_order.create.validation.products_required");
     if (!f.itemProductId.trim()) return t("page.purchase_order.create.validation.article_required");
     if (!Number.isFinite(quantity) || quantity <= 0) return t("page.purchase_order.create.validation.quantity_positive");
-    if (f.expected_on && f.expected_on < todayISO()) return t("page.purchase_order.create.validation.date_past");
+    if (f.expected_on && f.expected_on < localYmd()) return t("page.purchase_order.create.validation.date_past");
     return null;
 }
 
@@ -408,7 +404,7 @@ export function PurchaseOrderCreatePage() {
                         id="bc-erw"
                         label={t("common.expected_on")}
                         type="date"
-                        min={todayISO()}
+                        min={localYmd()}
                         value={form.expected_on}
                         onChange={(e) => setForm((f) => ({ ...f, expected_on: e.target.value }))}
                     />

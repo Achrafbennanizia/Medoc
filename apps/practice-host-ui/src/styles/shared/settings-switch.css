@@ -1,0 +1,91 @@
+/* From styles/features/settings-sections.css (cascade position kept by its import there). */
+@layer components {
+  .settings-serverless-lan,
+  .settings-serverless-replica {
+    min-width: 0;
+  }
+  .settings-system-embed {
+    margin-top: var(--space-3);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-card);
+    overflow: hidden;
+    background: color-mix(in oklab, var(--bg-elev) 92%, var(--bg));
+  }
+  .settings-system-embed__body {
+    max-height: min(70vh, 640px);
+    overflow: auto;
+  }
+  .settings-confirm-table-wrap {
+    overflow: visible;
+  }
+  .tbl.tbl-settings-confirm tbody tr:has(.settings-confirm-select-cell [aria-expanded="true"]) {
+    position: relative;
+    z-index: 2;
+  }
+  .settings-confirm-select-cell {
+    overflow: visible;
+    vertical-align: middle;
+  }
+  .settings-confirm-select-cell .ui-field-wrap {
+    margin: 0;
+  }
+  .settings-confirm-select-cell .select-wrap {
+    min-width: 0;
+  }
+  .settings-confirm-select-cell .select-menu {
+    z-index: 30;
+  }
+  .settings-subcard:has(.settings-confirm-table-wrap) {
+    overflow: visible;
+  }
+  .settings-switch {
+    position: relative;
+    width: calc(var(--space-8) + var(--space-4));
+    height: calc(var(--space-3) + var(--space-4));
+    flex-shrink: 0;
+    border-radius: var(--radius-pill);
+    border: 1px solid color-mix(in oklab, var(--fg) 14%, var(--line-strong));
+    background: color-mix(in oklab, var(--fg) 9%, var(--bg-elev));
+    cursor: pointer;
+    transition:
+      background var(--motion-fast) var(--ease-out),
+      border-color var(--motion-fast) var(--ease-out),
+      transform var(--motion-fast) var(--ease-out);
+  }
+  .settings-switch:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+  .settings-switch:focus-visible {
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+  }
+  .settings-switch__thumb {
+    position: absolute;
+    top: 50%;
+    inset-inline-start: 3px;
+    width: calc(var(--space-5) - 2px);
+    height: calc(var(--space-5) - 2px);
+    border-radius: 50%;
+    background: #fff;
+    border: 1px solid color-mix(in oklab, var(--fg) 12%, transparent);
+    box-shadow: var(--shadow-thumb);
+    transform: translateY(-50%);
+    transition:
+      transform var(--motion-fast) var(--ease-out),
+      inset-inline-start var(--motion-fast) var(--ease-out),
+      inset-inline-end var(--motion-fast) var(--ease-out);
+  }
+  .settings-switch--on {
+    background: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 55%, var(--line-strong));
+  }
+  .settings-switch--on .settings-switch__thumb {
+    inset-inline-start: auto;
+    inset-inline-end: 3px;
+    transform: translateY(-50%);
+  }
+  .settings-switch:disabled {
+    opacity: 0.48;
+    cursor: not-allowed;
+  }
+}

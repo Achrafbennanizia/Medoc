@@ -5,9 +5,10 @@ use sqlx::SqlitePool;
 use tauri::State;
 
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::error::AppError;
-use crate::infrastructure::database::{audit_repo, chart_validation_repo};
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
+use crate::infrastructure::database::repos::clinical::chart_validation as chart_validation_repo;
 
 #[derive(Debug, Serialize)]
 pub struct ChartValidationRowDto {
@@ -130,15 +131,4 @@ pub async fn clear_chart_validation(
     )
     .await?;
     Ok(())
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_chart_validation_commands {
-    () => {
-        $crate::commands::chart_validation_commands::list_chart_validation,
-        $crate::commands::chart_validation_commands::set_chart_section_validated,
-        $crate::commands::chart_validation_commands::set_chart_item_validated,
-        $crate::commands::chart_validation_commands::clear_chart_validation,
-    };
 }

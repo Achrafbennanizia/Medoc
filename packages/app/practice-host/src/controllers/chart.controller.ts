@@ -1,6 +1,9 @@
-import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
+import type { z } from "zod";
+import { practiceSystem } from "@/systems/practice-host/adapters/practice-transport";
 import type { ChartExportSectionsState } from "@/lib/chart-export";
+import type { IssuedPdf } from "@/systems/practice-host/controllers/document.controller";
 import type { ChartAttachmentRowDto } from "@/lib/chart-attachments";
+import { documentLocale } from "@/lib/document-locale";
 import {
     CreateTreatmentSchema,
     CreateExaminationSchema,
@@ -25,13 +28,9 @@ export async function listDentalFindings(chartId: string): Promise<DentalFinding
     return practiceSystem.invoke<DentalFinding[]>("list_dental_findings", { chart_id: chartId });
 }
 
-export async function createDentalFinding(data: {
-    chart_id: string;
-    tooth_number: number;
-    finding: string;
-    diagnosis?: string | null;
-    notes?: string | null;
-}): Promise<DentalFinding> {
+export async function createDentalFinding(
+    data: z.input<typeof CreateDentalFindingSchema>,
+): Promise<DentalFinding> {
     const safe = parseOrThrow(CreateDentalFindingSchema, data);
     return practiceSystem.invoke<DentalFinding>("update_dental_finding", { data: safe });
 }
@@ -48,23 +47,40 @@ export async function saveAnamnesisForm(data: {
     return practiceSystem.invoke<AnamnesisForm>("save_anamnesis_form", { data });
 }
 
-export async function exportChartPdf(patientId: string, sections?: ChartExportSectionsState): Promise<string> {
-    return practiceSystem.invoke<string>("export_chart_pdf", {
-        args: sections !== undefined ? { patientId, sections } : { patientId },
+/**
+ * Chart extract PDF. `preview: true` → watermarked, unnumbered, not registered.
+ * Otherwise the extract gets an AK number, its SHA-256 is stored and audited.
+ */
+export async function exportChartPdf(
+    patientId: string,
+    sections: ChartExportSectionsState | undefined,
+    preview: boolean,
+): Promise<IssuedPdf> {
+    return practiceSystem.invoke<IssuedPdf>("export_chart_pdf", {
+        args: {
+            patientId,
+            preview,
+            ...(sections !== undefined ? { sections } : {}),
+            // Server-written parts (headings, labels, footer) follow the same language as the UI text.
+            locale: documentLocale(),
+        },
     });
 }
 
-/** FA-DOK-08 — discharge leaflet / aftercare (PDF, base64). */
+/** FA-DOK-08 — discharge leaflet / aftercare (numbered unless `preview`). */
 export async function exportDischargeLeafletPdf(args: {
     patientId: string;
     additionalNotes?: string | null;
     referralNotes?: string | null;
-}): Promise<string> {
-    return practiceSystem.invoke<string>("export_discharge_leaflet_pdf", {
+    preview?: boolean;
+}): Promise<IssuedPdf> {
+    return practiceSystem.invoke<IssuedPdf>("export_discharge_leaflet_pdf", {
         args: {
             patientId: args.patientId,
             additionalNotes: args.additionalNotes ?? undefined,
             referralNotes: args.referralNotes ?? undefined,
+            preview: args.preview ?? false,
+            locale: documentLocale(),
         },
     });
 }
@@ -77,49 +93,23 @@ export async function listExaminations(chartId: string): Promise<Examination[]> 
     return practiceSystem.invoke<Examination[]>("list_examinations", { chart_id: chartId });
 }
 
-export async function createTreatment(data: {
-    chart_id: string;
-    kind: string;
-    description?: string | null;
-    teeth?: string | null;
-    material?: string | null;
-    notes?: string | null;
-    category?: string | null;
-    service_name?: string | null;
-    treatment_number?: string | null;
-    session_number?: number | null;
-    treatment_status?: string | null;
-    total_cost?: number | null;
-    appointment_required?: boolean | null;
-    treatment_date?: string | null;
-}): Promise<Treatment> {
+export async function createTreatment(
+    data: z.input<typeof CreateTreatmentSchema>,
+): Promise<Treatment> {
     const safe = parseOrThrow(CreateTreatmentSchema, data);
     return practiceSystem.invoke<Treatment>("create_treatment", { data: safe });
 }
 
-export async function createExamination(data: {
-    chart_id: string;
-    chief_complaint?: string | null;
-    results?: string | null;
-    diagnosis?: string | null;
-    examination_number?: string | null;
-    category?: string | null;
-    service_name?: string | null;
-    total_cost?: number | null;
-}): Promise<Examination> {
+export async function createExamination(
+    data: z.input<typeof CreateExaminationSchema>,
+): Promise<Examination> {
     const safe = parseOrThrow(CreateExaminationSchema, data);
     return practiceSystem.invoke<Examination>("create_examination", { data: safe });
 }
 
-export async function updateExamination(data: {
-    id: string;
-    chief_complaint?: string | null;
-    results?: string | null;
-    diagnosis?: string | null;
-    category?: string | null;
-    service_name?: string | null;
-    total_cost?: number | null;
-}): Promise<Examination> {
+export async function updateExamination(
+    data: z.input<typeof UpdateExaminationSchema>,
+): Promise<Examination> {
     const safe = parseOrThrow(UpdateExaminationSchema, data);
     return practiceSystem.invoke<Examination>("update_examination", { data: safe });
 }
@@ -128,22 +118,9 @@ export async function deleteExamination(id: string): Promise<void> {
     return practiceSystem.invoke<void>("delete_examination", { id });
 }
 
-export async function updateTreatment(data: {
-    id: string;
-    kind: string;
-    description?: string | null;
-    teeth?: string | null;
-    material?: string | null;
-    notes?: string | null;
-    category?: string | null;
-    service_name?: string | null;
-    treatment_number?: string | null;
-    session_number?: number | null;
-    treatment_status?: string | null;
-    total_cost?: number | null;
-    appointment_required?: boolean | null;
-    treatment_date?: string | null;
-}): Promise<Treatment> {
+export async function updateTreatment(
+    data: z.input<typeof UpdateTreatmentSchema>,
+): Promise<Treatment> {
     const safe = parseOrThrow(UpdateTreatmentSchema, data);
     return practiceSystem.invoke<Treatment>("update_treatment", { data: safe });
 }
@@ -210,4 +187,19 @@ export async function openChartAttachmentExternally(id: string, withApp?: string
 
 export async function duplicateChartAttachment(id: string): Promise<ChartAttachmentRowDto> {
     return practiceSystem.invoke<ChartAttachmentRowDto>("duplicate_chart_attachment", { id });
+}
+
+/** GOZ billing data of a treatment line (physician). Server validates factor rules. */
+export async function setTreatmentBilling(data: {
+    treatment_id: string;
+    fee_schedule: "goz" | "goae" | "material" | "lab" | "other";
+    goz_nr?: string | null;
+    points?: number | null;
+    factor?: number | null;
+    factor_reason?: string | null;
+    quantity?: number | null;
+    analog_of?: string | null;
+    agreement_ref?: string | null;
+}): Promise<Treatment> {
+    return practiceSystem.invoke<Treatment>("set_treatment_billing", { data });
 }

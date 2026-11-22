@@ -8,7 +8,6 @@ use crate::domain::entities::purchase_order::{
     STATUS_OPEN,
 };
 use crate::error::AppError;
-use chrono::Datelike;
 use sqlx::SqlitePool;
 
 const SELECT_COLUMNS: &str = "id, order_number, supplier, pharma_consultant, item, status, \
@@ -31,26 +30,17 @@ pub async fn find_all(pool: &SqlitePool) -> Result<Vec<PurchaseOrder>, AppError>
 /// Generate the next free order number for the current year/month, e.g.
 /// `B-2026-04-0007`. Cheap to compute (one indexed COUNT(*) per call) and
 /// never decreases, so audits stay legible.
+/// Local fallback (main device / standalone). Replicas get their number from
+/// the main device before calling [`create`] (see the desktop command).
 async fn next_order_number(pool: &SqlitePool) -> Result<String, AppError> {
-    let now = chrono::Local::now().date_naive();
-    let prefix = format!("B-{:04}-{:02}-", now.year(), now.month());
-    let pattern = format!("{prefix}%");
-    let max_seq: Option<String> = sqlx::query_scalar(
-        "SELECT MAX(order_number) FROM purchase_order WHERE order_number LIKE ?1",
+    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+    crate::infrastructure::database::number_sequence::allocate_styled(
+        pool,
+        "B",
+        &today,
+        crate::infrastructure::database::number_sequence::NumberStyle::Monthly,
     )
-    .bind(&pattern)
-    .fetch_one(pool)
-    .await?;
-    let next = match max_seq.as_deref() {
-        Some(prev) => prev
-            .rsplit('-')
-            .next()
-            .and_then(|s| s.parse::<u32>().ok())
-            .map(|n| n + 1)
-            .unwrap_or(1),
-        None => 1,
-    };
-    Ok(format!("{prefix}{:04}", next))
+    .await
 }
 
 pub async fn create(
@@ -77,11 +67,12 @@ pub async fn create(
         _ => next_order_number(pool).await?,
     };
     let id = uuid::Uuid::new_v4().to_string();
+    let mut tx = pool.begin().await?;
     sqlx::query(
         "INSERT INTO purchase_order
             (id, order_number, supplier, pharma_consultant, item, status,
-             expected_on, quantity, unit, remark, total_amount, created_by)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+             expected_on, quantity, unit, remark, total_amount, created_by, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
     )
     .bind(&id)
     .bind(&order_number)
@@ -110,8 +101,16 @@ pub async fn create(
     )
     .bind(data.total_amount)
     .bind(created_by)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
+    crate::infrastructure::database::recorded_write::record_in_tx(
+        &mut tx,
+        "purchase_order",
+        &id,
+        "INSERT",
+    )
+    .await?;
+    tx.commit().await?;
 
     fetch_by_id(pool, &id).await
 }
@@ -130,25 +129,67 @@ pub async fn update_status(
         status,
     )?;
     let delivered = if status == STATUS_DELIVERED {
-        Some(chrono::Utc::now().date_naive().to_string())
+        let tz = crate::domain::practice_time::practice_tz(pool).await;
+        Some(
+            chrono::Utc::now()
+                .with_timezone(&tz)
+                .date_naive()
+                .to_string(),
+        )
     } else {
         None
     };
+    let mut tx = pool.begin().await?;
+    // F81: on the transition to DELIVERED (never again after), add the ordered
+    // quantity to the stock of the active product with the same name.
+    if status == STATUS_DELIVERED && cur.status != STATUS_DELIVERED {
+        let product_ids: Vec<String> = sqlx::query_scalar(
+            "SELECT id FROM product WHERE active = 1 AND LOWER(TRIM(name)) = LOWER(TRIM(?1))",
+        )
+        .bind(&cur.item)
+        .fetch_all(&mut *tx)
+        .await?;
+        if product_ids.len() == 1 {
+            sqlx::query(
+                "UPDATE product SET stock = COALESCE(stock, 0) + ?1,
+                 updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?2",
+            )
+            .bind(cur.quantity)
+            .bind(&product_ids[0])
+            .execute(&mut *tx)
+            .await?;
+            crate::infrastructure::database::recorded_write::record_in_tx(
+                &mut tx,
+                "product",
+                &product_ids[0],
+                "UPDATE",
+            )
+            .await?;
+        }
+    }
     let result = sqlx::query(
         "UPDATE purchase_order
             SET status = ?1,
                 delivered_on = COALESCE(?2, delivered_on),
-                updated_at = CURRENT_TIMESTAMP
+                updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
           WHERE id = ?3",
     )
     .bind(status)
     .bind(delivered)
     .bind(id)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound("PurchaseOrder".into()));
     }
+    crate::infrastructure::database::recorded_write::record_in_tx(
+        &mut tx,
+        "purchase_order",
+        id,
+        "UPDATE",
+    )
+    .await?;
+    tx.commit().await?;
     fetch_by_id(pool, id).await
 }
 
@@ -186,6 +227,13 @@ pub async fn update(
         binds.push(data.item.as_ref().map(|s| s.trim().to_string()));
     }
     if let Some(m) = data.quantity {
+        // F84: keep the total in step with the quantity (unit price = old total / old
+        // quantity). SET expressions read the old column values, so order is irrelevant.
+        sets.push(
+            "total_amount = CASE WHEN total_amount IS NULL OR quantity <= 0 THEN total_amount \
+             ELSE ROUND(total_amount * CAST(? AS REAL) / quantity, 2) END",
+        );
+        binds.push(Some(m.to_string()));
         sets.push("quantity = ?");
         binds.push(Some(m.to_string()));
     }
@@ -230,25 +278,43 @@ pub async fn update(
         return fetch_by_id(pool, id).await;
     }
 
-    sets.push("updated_at = CURRENT_TIMESTAMP");
+    sets.push("updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')");
     let sql = format!("UPDATE purchase_order SET {} WHERE id = ?", sets.join(", "));
     let mut q = sqlx::query(&sql);
     for version in &binds {
         q = q.bind(version);
     }
     q = q.bind(id);
-    let result = q.execute(pool).await?;
+    let mut tx = pool.begin().await?;
+    let result = q.execute(&mut *tx).await?;
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound("PurchaseOrder".into()));
     }
+    crate::infrastructure::database::recorded_write::record_in_tx(
+        &mut tx,
+        "purchase_order",
+        id,
+        "UPDATE",
+    )
+    .await?;
+    tx.commit().await?;
     fetch_by_id(pool, id).await
 }
 
 pub async fn delete(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
+    let mut tx = pool.begin().await?;
+    crate::infrastructure::database::recorded_write::record_in_tx(
+        &mut tx,
+        "purchase_order",
+        id,
+        "DELETE",
+    )
+    .await?;
     let result = sqlx::query("DELETE FROM purchase_order WHERE id = ?1")
         .bind(id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
+    tx.commit().await?;
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound("PurchaseOrder".into()));
     }

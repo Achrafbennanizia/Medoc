@@ -1,4 +1,4 @@
-import { useT, useTParams } from "@/lib/i18n";
+import { useT } from "@/lib/i18n";
 import { useCallback, useEffect, useState } from "react";
 import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "@/models/store/auth-store";
@@ -9,14 +9,16 @@ import {
     listPaymentsPaged,
     paymentMonthlyBreakdown,
 } from "@/systems/practice-host/controllers/payment.controller";
-import { listBalanceSheetSnapshots, deleteBalanceSheetSnapshot, type BalanceSheetSnapshot } from "@/systems/practice-host/controllers/balance-sheet-snapshot.controller";
+import { listBalanceSheetSnapshots, type BalanceSheetSnapshot } from "@/systems/practice-host/controllers/balance-sheet-snapshot.controller";
+import { issuedPdfBytes, reprintIssuedDocument } from "@/systems/practice-host/controllers/document.controller";
+import { reprintPeriodReport } from "@/systems/practice-host/controllers/balance-sheet-snapshot.controller";
+import { openExportPreview } from "@/models/store/export-preview-store";
 import type { BalanceSheet, Payment } from "../../models/types";
 import { paymentStatusDisplay } from "@/lib/finance-order-labels";
-import { errorMessage, formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
+import { errorMessage, formatCurrency, formatDate, formatDateTime, kpiValueSizeClass } from "@/lib/utils";
 import { buildBalanceSheetReportBundle } from "@/lib/report-export";
 import { ReportExportToolbar } from "../components/report-export-toolbar";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
-import { ConfirmDialog } from "../components/ui/dialog";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { useToastStore } from "../components/ui/toast-store";
@@ -29,14 +31,12 @@ import { Link } from "react-router-dom";
  */
 export function BalanceSheetPage() {
     const t = useT();
-    const tp = useTParams();
     const role = parseRole(useAuthStore((s) => s.session?.role));
     const canBackAdministration = role != null && allowed("administration.read", role);
     const [balance_sheet, setBalanceSheet] = useState<BalanceSheet | null>(null);
     const [byMonth, setByMonth] = useState<[string, { income: number; outstanding: number; cancelled: number }][]>([]);
     const [recentPayments, setRecentPayments] = useState<Payment[]>([]);
     const [snapshots, setSnapshots] = useState<BalanceSheetSnapshot[]>([]);
-    const [snapshotDeleteId, setSnapshotDeleteId] = useState<string | null>(null);
     const [loadError, setLoadError] = useState<string | null>(null);
     const [status, setStatus] = useState<"loading" | "ready">("loading");
     const [reloadToken, setReloadToken] = useState(0);
@@ -75,16 +75,36 @@ export function BalanceSheetPage() {
         };
     }, [reloadToken]);
 
-    async function handleDeleteSnapshot() {
-        if (!snapshotDeleteId) return;
+    function snapshotDocumentId(payload: string): string | null {
         try {
-            await deleteBalanceSheetSnapshot(snapshotDeleteId);
-            setSnapshots((list) => list.filter((s) => s.id !== snapshotDeleteId));
-            toast(t("balanceSheet.toast.snapshot_deleted"), "success");
+            let parsed: unknown = JSON.parse(payload);
+            if (typeof parsed === "string") parsed = JSON.parse(parsed);
+            if (parsed == null || typeof parsed !== "object") return null;
+            const row = parsed as { documentId?: unknown; document_id?: unknown };
+            const id = row.documentId ?? row.document_id;
+            return typeof id === "string" && id.trim() ? id : null;
+        } catch {
+            return null;
+        }
+    }
+
+    /** Saved reports are final (numbered BE document); this prints a copy. */
+    async function openSnapshotPdf(snap: BalanceSheetSnapshot) {
+        try {
+            const documentId = snapshotDocumentId(snap.payload);
+            const pdf = documentId
+                ? await reprintIssuedDocument(documentId).catch(() => reprintPeriodReport(snap.id))
+                : await reprintPeriodReport(snap.id);
+            openExportPreview({
+                format: "pdf",
+                title: `${snap.label} ${pdf.documentNumber ?? ""}`.trim(),
+                hint: t("page.balance_sheet_new.pdf_hint_copy"),
+                suggestedFilename: `${t("page.balance_sheet_new.pdf_filename")}-${(pdf.documentNumber ?? snap.id).replace(/[^\w.-]+/g, "_")}-${t("page.balance_sheet_new.pdf_file_copy")}.pdf`,
+                binaryBody: issuedPdfBytes(pdf),
+                context: { kind: "period_report", format: "pdf", entityId: snap.id, documentNumber: pdf.documentNumber },
+            });
         } catch (e) {
-            toast(tp("balanceSheet.toast.delete_failed", { message: errorMessage(e) }), "error");
-        } finally {
-            setSnapshotDeleteId(null);
+            toast(errorMessage(e), "error");
         }
     }
 
@@ -102,8 +122,12 @@ export function BalanceSheetPage() {
         return <PageLoading label={t("balanceSheet.loading")} />;
     }
 
+    const incomePaidLabel = formatCurrency(balance_sheet.income);
+    const outstandingLabel = formatCurrency(balance_sheet.outstanding);
+    const cancelledLabel = formatCurrency(balance_sheet.cancelled);
+
     return (
-        <div className="practice-workspace-page animate-fade-in">
+        <div className="practice-workspace-page animate-fade-in--sticky-safe">
             <AdministrationPageHeader
                 showBack={canBackAdministration}
                 title={t("balanceSheet.title")}
@@ -124,21 +148,21 @@ export function BalanceSheetPage() {
             <div
                 style={{
                     display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-                    gap: 16,
+                    gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+                    gap: "var(--space-4)",
                 }}
             >
                 <Card className="kpi">
                     <CardHeader title={t("balanceSheet.kpi.income_paid")} />
-                    <p className="kpi-val" style={{ color: "var(--accent-green)" }}>{formatCurrency(balance_sheet.income)}</p>
+                    <p className={kpiValueSizeClass(incomePaidLabel)} style={{ color: "var(--accent-green)" }}>{incomePaidLabel}</p>
                 </Card>
                 <Card className="kpi">
                     <CardHeader title={t("balanceSheet.kpi.pending")} />
-                    <p className="kpi-val" style={{ color: "var(--accent-yellow)" }}>{formatCurrency(balance_sheet.outstanding)}</p>
+                    <p className={kpiValueSizeClass(outstandingLabel)} style={{ color: "var(--accent-yellow)" }}>{outstandingLabel}</p>
                 </Card>
                 <Card className="kpi">
                     <CardHeader title={t("balanceSheet.kpi.cancelled")} />
-                    <p className="kpi-val" style={{ color: "var(--fg-3)" }}>{formatCurrency(balance_sheet.cancelled)}</p>
+                    <p className={kpiValueSizeClass(cancelledLabel)} style={{ color: "var(--fg-3)" }}>{cancelledLabel}</p>
                 </Card>
             </div>
 
@@ -147,14 +171,14 @@ export function BalanceSheetPage() {
                 {byMonth.length === 0 ? (
                     <p className="text-body text-on-surface-variant">{t("balanceSheet.no_payments_yet")}</p>
                 ) : (
-                    <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 10 }} role="list" aria-label={t("balanceSheet.monthly_aria")}>
+                    <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: "var(--space-3)" }} role="list" aria-label={t("balanceSheet.monthly_aria")}>
                         {byMonth.map(([month, version]) => (
                             <li key={month}>
-                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "var(--space-3)" }}>
                                     <span style={{ fontVariantNumeric: "tabular-nums", color: "var(--fg-3)", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 13 }}>{month}</span>
                                     <span style={{ color: "var(--accent-green)", fontWeight: 600 }}>{formatCurrency(version.income)}</span>
                                 </div>
-                                <div style={{ marginTop: 6, height: 8, background: "var(--line)", borderRadius: 6 }}>
+                                <div style={{ marginTop: "var(--space-2)", height: 8, background: "var(--line)", borderRadius: 6 }}>
                                     <div
                                         className="bar"
                                         style={{ width: `${(version.income / max) * 100}%` }}
@@ -197,8 +221,8 @@ export function BalanceSheetPage() {
                                         {formatCurrency(s.balance_cents / 100)}
                                     </td>
                                     <td>
-                                        <Button size="sm" variant="danger" onClick={() => setSnapshotDeleteId(s.id)}>
-                                            {t("common.delete")}
+                                        <Button size="sm" variant="secondary" onClick={() => void openSnapshotPdf(s)}>
+                                            {t("balanceSheet.pdf_copy")}
                                         </Button>
                                     </td>
                                 </tr>
@@ -208,16 +232,6 @@ export function BalanceSheetPage() {
                     </div>
                 )}
             </Card>
-
-            <ConfirmDialog
-                open={!!snapshotDeleteId}
-                onClose={() => setSnapshotDeleteId(null)}
-                onConfirm={handleDeleteSnapshot}
-                title={t("balanceSheet.delete_title")}
-                message={t("balanceSheet.delete_message")}
-                confirmLabel={t("common.delete")}
-                danger
-            />
 
             <Card className="card-pad">
                 <CardHeader title={t("balanceSheet.recent_payments")} />

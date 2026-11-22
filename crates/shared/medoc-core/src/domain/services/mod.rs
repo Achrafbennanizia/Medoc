@@ -1,4 +1,6 @@
 //! Domain services — authoritative business rules (commands/repos delegate here).
+pub mod allergen_groups;
+pub mod allergy_conflict;
 pub mod conflict;
 pub mod device_session_peer;
 pub mod device_session_risk;

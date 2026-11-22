@@ -1,0 +1,83 @@
+/* From styles/features/administration.css (cascade position kept by its import there). */
+@layer components {
+  .administration-menu-page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--page-stack-gap);
+  }
+  /*
+   * Sticky admin title + back (menus and sub-menus). Parent must use
+   * `.animate-fade-in--sticky-safe` — `fadeUp` transform breaks sticky.
+   *
+   * Bleed into `.app-main` padding so scrolling table/body content cannot peek
+   * through the padded scrollport gap above the stuck header.
+   */
+  .workspace-page__sticky-chrome {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-sticky);
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+    /* Bottom: clear gap between the header's divider and the first card (was 4 px, read as a double line). */
+    margin: calc(-1 * var(--main-padding)) calc(-1 * var(--main-padding)) var(--space-3);
+    padding: calc(var(--main-padding) + 2px) var(--main-padding) 12px;
+    background: var(--bg);
+    box-shadow: 0 1px 0 color-mix(in oklab, var(--line) 80%, transparent);
+  }
+  /* Cover overscroll / sub-pixel gaps above the stuck plate */
+  .workspace-page__sticky-chrome::before {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    bottom: 100%;
+    height: var(--main-padding);
+    background: var(--bg);
+    pointer-events: none;
+  }
+  .workspace-page__sticky-chrome .page-head {
+    margin: 0;
+  }
+  /* Back control: content-width only (flex parents stretch children by default). */
+  .workspace-page-back-button,
+  .administration-back-button {
+    align-self: flex-start;
+    width: fit-content;
+    max-width: 100%;
+    text-decoration: none;
+  }
+  /* Workspace pages: back above title (Personalverwaltung pattern). */
+  .workspace-page__head-row,
+  .administration-page__head-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: clamp(12px, 2vw, 20px);
+    width: 100%;
+  }
+  .workspace-page__head-actions,
+  .administration-page__head-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    flex-shrink: 0;
+    margin-inline-start: auto;
+  }
+  .workspace-page__eyebrow {
+    margin-bottom: var(--space-1);
+  }
+  .workspace-page__subtitle .page-sub,
+  .administration-page__subtitle .page-sub {
+    max-width: 40rem;
+    margin-top: var(--space-2);
+    line-height: 1.55;
+  }
+  .workspace-page__subtitle .page-sub:first-child,
+  .administration-page__subtitle .page-sub:first-child {
+    margin-top: var(--space-2);
+  }
+}

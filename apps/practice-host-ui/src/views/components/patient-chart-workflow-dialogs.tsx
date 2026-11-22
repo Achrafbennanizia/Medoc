@@ -7,6 +7,7 @@ import {
 } from "@/systems/practice-host/controllers/practice-task.controller";
 import { listPhysicians, listStaff, type PhysicianSummary } from "@/systems/practice-host/controllers/staff.controller";
 import { errorMessage } from "@/lib/utils";
+import { CANONICAL_TICKET_TITLE_EN } from "@/lib/practice-task-display";
 import type { Role } from "@/lib/rbac";
 import { Button } from "./ui/button";
 import { Dialog } from "./ui/dialog";
@@ -94,11 +95,11 @@ export function PatientChartWorkflowDialogs(props: {
         }
         setBusy(true);
         try {
-            const title = body.length > 80 ? `${body.slice(0, 77)}…` : body;
+            // Title is the kind label (English canonical); message lives only in body.
             await createPracticeTask({
                 patientId,
-                kind: "OTHER",
-                title,
+                kind: "TICKET",
+                title: CANONICAL_TICKET_TITLE_EN,
                 body,
                 assigneeUserId: ticketPhysicianId,
             });
@@ -176,38 +177,36 @@ export function PatientChartWorkflowDialogs(props: {
                 open={mode === "ticket"}
                 onClose={onClose}
                 title={t("patient.chart.workflow.ticket_title")}
+                className="modal--form"
                 footer={(
-                    <div className="modal-actions">
+                    <>
                         <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>
                             {t("common.cancel")}
                         </Button>
                         <Button type="button" variant="primary" onClick={() => void submitTicket()} disabled={busy || !!loadErr}>
                             {busy ? t("common.sending") : t("common.send")}
                         </Button>
-                    </div>
+                    </>
                 )}
             >
-                {loadErr ? <p className="page-sub" style={{ color: "var(--danger)" }}>{loadErr}</p> : null}
-                <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                    <label className="stack" style={{ gap: 6 }}>
-                        <span className="text-sm text-muted">{t("patient.chart.workflow.recipient")}</span>
-                        <Select
-                            value={ticketPhysicianId}
-                            onChange={(e) => setTicketPhysicianId(e.target.value)}
-                            disabled={physicians.length === 0}
-                            options={physicians.map((a) => ({ value: a.id, label: a.name }))}
-                        />
-                    </label>
-                    <label className="stack" style={{ gap: 6 }}>
-                        <span className="text-sm text-muted">{t("patient.chart.workflow.message")}</span>
-                        <Textarea
-                            rows={4}
-                            value={ticketBody}
-                            onChange={(e) => setTicketBody(e.target.value)}
-                            placeholder={t("patient.chart.workflow.message_ph")}
-                        />
-                    </label>
-                    <p className="page-sub" style={{ margin: 0 }}>
+                <div className="chart-workflow-form">
+                    {loadErr ? <p className="chart-workflow-form__hint" style={{ color: "var(--danger)" }}>{loadErr}</p> : null}
+                    <Select
+                        label={t("patient.chart.workflow.recipient")}
+                        value={ticketPhysicianId}
+                        onChange={(e) => setTicketPhysicianId(e.target.value)}
+                        disabled={physicians.length === 0}
+                        options={physicians.map((a) => ({ value: a.id, label: a.name }))}
+                        menuPortal
+                    />
+                    <Textarea
+                        label={t("patient.chart.workflow.message")}
+                        rows={4}
+                        value={ticketBody}
+                        onChange={(e) => setTicketBody(e.target.value)}
+                        placeholder={t("patient.chart.workflow.message_ph")}
+                    />
+                    <p className="chart-workflow-form__hint">
                         {t("patient.chart.workflow.message_private")}
                     </p>
                 </div>
@@ -217,60 +216,57 @@ export function PatientChartWorkflowDialogs(props: {
                 open={mode === "task"}
                 onClose={onClose}
                 title={t("patient.chart.workflow.task_title")}
+                className="modal--form"
                 footer={(
-                    <div className="modal-actions">
+                    <>
                         <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>
                             {t("common.cancel")}
                         </Button>
                         <Button type="button" variant="primary" onClick={() => void submitTask()} disabled={busy}>
                             {busy ? t("common.sending") : t("common.create_task")}
                         </Button>
-                    </div>
+                    </>
                 )}
             >
-                <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                    <p className="page-sub" style={{ margin: 0 }}>
+                <div className="chart-workflow-form">
+                    <p className="chart-workflow-form__hint">
                         {t("patient.chart.workflow.pool_hint")}
                     </p>
-                    <label className="stack" style={{ gap: 6 }}>
-                        <span className="text-sm text-muted">{t("patient.chart.workflow.recipient")}</span>
-                        <Select
-                            value={taskRezId || "__pool__"}
-                            onChange={(e) => setTaskRezId(e.target.value === "__pool__" ? "" : e.target.value)}
-                            options={[
-                                { value: "__pool__", label: t("patient.chart.workflow.task_pool") },
-                                ...reception.map((r) => ({ value: r.id, label: r.name })),
-                            ]}
-                        />
-                    </label>
-                    <label className="stack" style={{ gap: 6 }}>
-                        <span className="text-sm text-muted">{t("common.type")}</span>
-                        <Select
-                            value={taskKind}
-                            onChange={(e) => setTaskKind(e.target.value as PracticeTaskKind)}
-                            options={TASK_KIND_KEYS.map((value) => ({
-                                value,
-                                label: t(`patient.chart.workflow.task_kind.${value.toLowerCase()}`),
-                            }))}
-                        />
-                    </label>
-                    <label className="stack" style={{ gap: 6 }}>
-                        <span className="text-sm text-muted">{t("common.title_field")} *</span>
+                    <Select
+                        label={t("patient.chart.workflow.recipient")}
+                        value={taskRezId || "__pool__"}
+                        onChange={(e) => setTaskRezId(e.target.value === "__pool__" ? "" : e.target.value)}
+                        options={[
+                            { value: "__pool__", label: t("patient.chart.workflow.task_pool") },
+                            ...reception.map((r) => ({ value: r.id, label: r.name })),
+                        ]}
+                        menuPortal
+                    />
+                    <Select
+                        label={t("common.type")}
+                        value={taskKind}
+                        onChange={(e) => setTaskKind(e.target.value as PracticeTaskKind)}
+                        options={TASK_KIND_KEYS.map((value) => ({
+                            value,
+                            label: t(`patient.chart.workflow.task_kind.${value.toLowerCase()}`),
+                        }))}
+                        menuPortal
+                    />
+                    <label className="ui-field-wrap">
+                        <span className="ui-field-label">{t("common.title_field")} *</span>
                         <input
-                            className="input"
+                            className="input-edit"
                             value={taskTitle}
                             onChange={(e) => setTaskTitle(e.target.value)}
                             placeholder={t("patient.chart.workflow.subject_ph")}
                         />
                     </label>
-                    <label className="stack" style={{ gap: 6 }}>
-                        <span className="text-sm text-muted">{t("common.description")}</span>
-                        <Textarea
-                            rows={3}
-                            value={taskBody}
-                            onChange={(e) => setTaskBody(e.target.value)}
-                        />
-                    </label>
+                    <Textarea
+                        label={t("common.description")}
+                        rows={3}
+                        value={taskBody}
+                        onChange={(e) => setTaskBody(e.target.value)}
+                    />
                 </div>
             </Dialog>
 
@@ -278,27 +274,28 @@ export function PatientChartWorkflowDialogs(props: {
                 open={mode === "forward"}
                 onClose={onClose}
                 title={t("patient.chart.workflow.forward_title")}
+                className="modal--form"
                 footer={(
-                    <div className="modal-actions">
+                    <>
                         <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>
                             {t("common.cancel")}
                         </Button>
                         <Button type="button" variant="primary" onClick={() => void submitForward()} disabled={busy || !!loadErr}>
                             {busy ? t("common.sending") : t("common.notify")}
                         </Button>
-                    </div>
+                    </>
                 )}
             >
-                {loadErr ? <p className="page-sub" style={{ color: "var(--danger)" }}>{loadErr}</p> : null}
-                <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                    <p className="page-sub" style={{ margin: 0 }}>
+                <div className="chart-workflow-form">
+                    {loadErr ? <p className="chart-workflow-form__hint" style={{ color: "var(--danger)" }}>{loadErr}</p> : null}
+                    <p className="chart-workflow-form__hint">
                         {t("patient.chart.workflow.forward_hint")}
                     </p>
-                    <div className="stack" style={{ gap: 8 }}>
+                    <div className="stack" style={{ gap: "var(--space-2)" }}>
                         {physicians
                             .filter((a) => a.id !== currentUserId)
                             .map((a) => (
-                                <label key={a.id} className="row" style={{ gap: 8, alignItems: "center" }}>
+                                <label key={a.id} className="row" style={{ gap: "var(--space-2)", alignItems: "center" }}>
                                     <input
                                         type="checkbox"
                                         checked={Boolean(forwardIds[a.id])}
@@ -308,10 +305,12 @@ export function PatientChartWorkflowDialogs(props: {
                                 </label>
                             ))}
                     </div>
-                    <label className="stack" style={{ gap: 6 }}>
-                        <span className="text-sm text-muted">{t("patient.chart.workflow.forward_note")}</span>
-                        <Textarea rows={3} value={forwardNote} onChange={(e) => setForwardNote(e.target.value)} />
-                    </label>
+                    <Textarea
+                        label={t("patient.chart.workflow.forward_note")}
+                        rows={3}
+                        value={forwardNote}
+                        onChange={(e) => setForwardNote(e.target.value)}
+                    />
                 </div>
             </Dialog>
         </>

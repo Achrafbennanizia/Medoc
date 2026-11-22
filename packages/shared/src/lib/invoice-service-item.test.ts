@@ -1,10 +1,25 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+const getAppKv = vi.fn();
+const setAppKv = vi.fn();
+
+vi.mock("@/systems/practice-host/controllers/app-kv.controller", () => ({
+    getAppKv: (...args: unknown[]) => getAppKv(...args),
+    setAppKv: (...args: unknown[]) => setAppKv(...args),
+}));
+
 import {
     buildInvoiceHeaderAddressLines,
+    getInvoicePracticeFromStorage,
+    hydrateInvoicePracticeFromAppKv,
     parseInvoicePracticeJson,
+    saveInvoicePracticeToStorage,
     type InvoicePractice,
 } from "./invoice-service-item";
+import { practiceCurrency } from "./practice-currency";
 import { DEFAULT_PRACTICE_HEADER_PRIVACY } from "./practice-header-privacy";
+
+const PRACTICE_LS = "medoc-invoice-practice-v1";
 
 const practice: InvoicePractice = {
     name: "Clinic",
@@ -14,6 +29,16 @@ const practice: InvoicePractice = {
     opening_hours: "Mon–Fri 08:00–18:00",
     chamber: "Berlin",
 };
+
+afterEach(() => {
+    getAppKv.mockReset();
+    setAppKv.mockReset();
+    try {
+        localStorage.removeItem(PRACTICE_LS);
+    } catch {
+        /* ignore */
+    }
+});
 
 describe("buildInvoiceHeaderAddressLines", () => {
     it("labels KV as health insurance, not site number", () => {
@@ -47,5 +72,21 @@ describe("parseInvoicePracticeJson", () => {
         });
         expect(leftover.chamber).toBeUndefined();
         expect(leftover.vat_id).toBeUndefined();
+    });
+});
+
+describe("hydrateInvoicePracticeFromAppKv currency race", () => {
+    it("does not clobber a currency saved while app_kv is still loading", async () => {
+        setAppKv.mockResolvedValue(undefined);
+        getAppKv.mockImplementation(async () => {
+            // Settings wrote MAD locally while an older EUR hydrate was in flight.
+            await saveInvoicePracticeToStorage({ ...practice, currency: "MAD" });
+            return JSON.stringify({ ...practice, currency: "EUR" });
+        });
+
+        const hydrated = await hydrateInvoicePracticeFromAppKv();
+        expect(hydrated?.currency).toBe("MAD");
+        expect(getInvoicePracticeFromStorage().currency).toBe("MAD");
+        expect(practiceCurrency()).toBe("MAD");
     });
 });

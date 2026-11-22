@@ -1,6 +1,6 @@
-import { Fragment, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../models/store/auth-store";
 import { useUiPreferencesStore } from "../../models/store/ui-preferences-store";
 import { checkSession, logout, touchSession } from "@/systems/practice-host/controllers/auth.controller";
@@ -15,10 +15,11 @@ import { useT, useTParams, useLocale, translateLocale, applyDocumentLocale } fro
 import { breadcrumbKeysForPath } from "@/lib/breadcrumb-keys";
 import type { Patient } from "../../models/types";
 import { ExportPreviewHost } from "../components/export-preview-host";
+import { TableColumnEstimatorHost } from "../components/table-column-estimator-host";
 import { shouldShowPracticeSetupWizard } from "@/lib/practice-completeness";
 import { PracticeSetupWizard } from "../components/practice-setup-wizard";
 import { useDesktopChromeMode } from "../components/desktop-chrome";
-import { errorMessage } from "@/lib/utils";
+import { errorMessage, initialsFromName } from "@/lib/utils";
 import { useToastStore } from "../components/ui/toast-store";
 import { ConfirmDialog, Dialog } from "../components/ui/dialog";
 import { Button } from "../components/ui/button";
@@ -28,7 +29,7 @@ import { filterCommandsForRole } from "@/lib/command-palette-data";
 import { CommandPalette } from "../components/command-palette";
 import { AboutAppDialog, RoleSwitchDialog } from "../components/app-help-dialogs";
 import { OnboardingCoachmark } from "../components/onboarding-coachmark";
-import { PAGE_REFRESH_EVENT, PAGE_REFRESH_MS } from "./page-refresh";
+import { PAGE_REFRESH_EVENT, PAGE_REFRESH_HIDDEN_MS, PAGE_REFRESH_MS } from "./page-refresh";
 import { ONBOARDING_COACHMARK_ENABLED } from "@/lib/v1-ui-flags";
 import { NotificationsPopover } from "../components/notifications-popover";
 import { probeBackgroundServers } from "@/systems/practice-host/controllers/connectivity.controller";
@@ -37,13 +38,22 @@ import { useDismissibleLayer } from "../components/ui/use-dismissible-layer";
 import { UserAccountMenuDropdown } from "../components/user-account-menu";
 import { SyncStatusBadge } from "../components/sync-status-badge";
 import { AuditChainBanner } from "../components/audit-chain-banner";
+import { InitialCopyBanner } from "../components/initial-copy-banner";
 import { BreakGlassBanner } from "../components/break-glass-banner";
-import { RouteOutletGuard } from "../components/route-outlet-guard";
-import { PageLoading } from "../components/ui/page-status";
+import { applyAppearanceFromSettings, isNetworkHiddenInSettings, loadClientSettings } from "@/lib/client-settings";
+import { practiceCurrency, subscribePracticeCurrency } from "@/lib/practice-currency";
+import {
+    hydratePracticeTimezoneFromAppKv,
+    practiceTimezone,
+    subscribePracticeTimezone,
+} from "@/lib/practice-timezone";
+import { getAppKv } from "@/systems/practice-host/controllers/app-kv.controller";
+import { setNetworkHidden } from "@/systems/practice-host/controllers/cluster.controller";
 import {
     hydrateInvoicePracticeFromAppKv,
     migrateInvoicePracticeLocalStorageToAppKv,
 } from "@/lib/invoice-service-item";
+import { hydratePracticeHeaderPrivacy } from "@/lib/practice-header-privacy";
 import { buildSyncNativeMenuPayload, MEDOC_PENDING_APPOINTMENT_MENU_KEY } from "@/lib/native-go-menu";
 import { syncNativeMenu } from "@/systems/practice-host/controllers/native-menu.controller";
 import { workTimeGetPreference, workTimeSetPreference } from "@/systems/practice-host/controllers/work-time.controller";
@@ -55,56 +65,15 @@ import { OPEN_HELP_EVENT } from "@/views/components/ui/toast-store";
 import { useIdleLock } from "@/hooks/use-idle-lock";
 import { useNotificationCenter } from "@/systems/practice-host/notifications/notification-center";
 import { useNotificationPolling } from "@/systems/practice-host/notifications/use-notification-polling";
-const MEDOC_UI_ZOOM_KEY = "medoc-ui-zoom";
-const MEDOC_SIDEBAR_RAIL_PREF_KEY = "medoc-sidebar-rail-pref";
-
-type SidebarRailPref = "full" | "icons";
-
-function readSidebarRailPref(): SidebarRailPref {
-    try {
-        const version = localStorage.getItem(MEDOC_SIDEBAR_RAIL_PREF_KEY);
-        return version === "icons" ? "icons" : "full";
-    } catch {
-        return "full";
-    }
-}
-
-function readStoredUiZoom(): number {
-    try {
-        const s = sessionStorage.getItem(MEDOC_UI_ZOOM_KEY);
-        const n = s ? parseFloat(s) : 1;
-        return Number.isFinite(n) && n >= 0.5 && n <= 2 ? Math.round(n * 100) / 100 : 1;
-    } catch {
-        return 1;
-    }
-}
-
-function clampUiZoom(z: number): number {
-    const r = Math.round(z * 100) / 100;
-    return Math.min(2, Math.max(0.5, r));
-}
-
-type SidebarAccountPopoverFixed = { left: number; bottom: number; width: number };
-
-function measureSidebarAccountMenuWidthPx(labels: string[]): number {
-    if (typeof document === "undefined") return 168;
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return 168;
-    ctx.font = "500 13px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
-    let maxWord = 0;
-    for (const lab of labels) {
-        for (const word of lab.split(/\s+/)) {
-            if (!word) continue;
-            maxWord = Math.max(maxWord, ctx.measureText(word).width);
-        }
-    }
-    // Largest word + 2 px horizontal padding (1 px each side); floor at readable minimum for tap targets.
-    const wordPx = Math.ceil(maxWord);
-    const chrome = 16 + 24; /* popover horizontal padding + row horizontal padding */
-    const raw = wordPx + 2 + chrome;
-    return Math.min(typeof window !== "undefined" ? window.innerWidth - 24 : raw, Math.max(140, raw));
-}
+import { drawsOwnWindowControls } from "@/views/components/resolve-desktop-chrome-mode";
+import { WindowControls } from "@/views/components/window-controls";
+import { useMainVisibleHeight } from "@/hooks/use-main-visible-height";
+import { useGlobalShortcuts } from "@/hooks/use-global-shortcuts";
+import { AppRouteOutlet } from "./shell/app-route-outlet";
+import { measureSidebarAccountMenuWidthPx, type SidebarAccountPopoverFixed } from "./shell/account-menu-width";
+import { QueueExchangeBar } from "./shell/queue-exchange-bar";
+import { useSidebarRail } from "./shell/use-sidebar-rail";
+import { useUiZoom } from "./shell/use-ui-zoom";
 
 export function AppLayout() {
     const session = useAuthStore((s) => s.session);
@@ -142,10 +111,8 @@ export function AppLayout() {
     const [practiceSetupOpen, setPracticeSetupOpen] = useState(() => shouldShowPracticeSetupWizard());
     const [aboutOpen, setAboutOpen] = useState(false);
     const [aboutVersion, setAboutVersion] = useState("");
-    const [uiZoom, setUiZoom] = useState(readStoredUiZoom);
-    const [sidebarRailPref, setSidebarRailPref] = useState<SidebarRailPref>(() =>
-        typeof window !== "undefined" ? readSidebarRailPref() : "full",
-    );
+    const { zoomIn, zoomOut, zoomReset } = useUiZoom();
+    const { rail: sidebarRailPref, toggleRail } = useSidebarRail();
     const [userMenuAnchor, setUserMenuAnchor] = useState<"sidebar" | "topbar">("sidebar");
     const userMenuAnchorRef = useRef(userMenuAnchor);
     const userMenuRef = useRef<HTMLDivElement>(null);
@@ -195,7 +162,7 @@ export function AppLayout() {
         }
         return acc;
     }, [visibleByTo]);
-    const initials = (session?.name ?? "MD").split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase();
+    const initials = initialsFromName(session?.name ?? "MD");
     const profileRoleLine = useMemo(() => {
         const r = session?.role;
         if (r === "PHYSICIAN") return t("app.role_label.PHYSICIAN");
@@ -209,11 +176,13 @@ export function AppLayout() {
     const notifUnread = useNotificationCenter((st) => st.unreadCount);
     const refreshNotifications = useNotificationCenter((st) => st.refresh);
     const notifDelivery = useMemo(() => ({ toast: (m: string, type: "info" | "warning" | "error") => toast(m, type) }), [toast]);
-    useNotificationPolling({ userId: session?.user_id, role: session?.role, t, tp, delivery: notifDelivery });
+    const notifUserId = session?.user_id;
+    const notifRole = session?.role ?? "";
+    useNotificationPolling({ userId: notifUserId, role: notifRole, t, tp, delivery: notifDelivery });
     const refreshInAppUnread = useCallback(async () => {
-        if (!session?.user_id) return;
-        await refreshNotifications({ userId: session.user_id, role: session.role ?? "", t, tp }, notifDelivery);
-    }, [session?.user_id, session?.role, refreshNotifications, t, tp, notifDelivery]);
+        if (!notifUserId) return;
+        await refreshNotifications({ userId: notifUserId, role: notifRole, t, tp }, notifDelivery);
+    }, [notifUserId, notifRole, refreshNotifications, t, tp, notifDelivery]);
 
     const refreshNavBadges = useCallback(async () => {
         const role = session?.role;
@@ -241,7 +210,12 @@ export function AppLayout() {
         }
     }, [session?.role]);
 
-    const handleMacWindowDrag = useMacWindowDrag(desktopChrome === "mac-overlay");
+    // Every desktop mode uses the unified top bar as its drag region (threshold drag, double-click maximize).
+    const handleMacWindowDrag = useMacWindowDrag(desktopChrome !== "browser");
+    /** Main scroll area — its visible height sizes sticky detail panels (see useMainVisibleHeight). */
+    const mainRef = useRef<HTMLElement | null>(null);
+    useMainVisibleHeight(mainRef);
+    useGlobalShortcuts();
 
     useEffect(() => {
         void refreshNavBadges();
@@ -272,28 +246,6 @@ export function AppLayout() {
     useEffect(() => {
         applyDocumentLocale(locale);
     }, [locale]);
-
-    useEffect(() => {
-        document.documentElement.style.zoom = String(uiZoom);
-        try {
-            sessionStorage.setItem(MEDOC_UI_ZOOM_KEY, String(uiZoom));
-        } catch {
-            /* ignore */
-        }
-    }, [uiZoom]);
-
-    useEffect(() => {
-        if (sidebarRailPref === "icons") {
-            document.documentElement.dataset.sidebarRail = "icons";
-        } else {
-            delete document.documentElement.dataset.sidebarRail;
-        }
-        try {
-            localStorage.setItem(MEDOC_SIDEBAR_RAIL_PREF_KEY, sidebarRailPref);
-        } catch {
-            /* ignore */
-        }
-    }, [sidebarRailPref]);
 
     useEffect(() => {
         const mq = window.matchMedia("(min-width: 900px)");
@@ -362,20 +314,19 @@ export function AppLayout() {
                 return;
             }
 
-            const step = 0.1;
             if (e.code === "Equal" || e.code === "NumpadAdd") {
                 e.preventDefault();
-                setUiZoom((z) => clampUiZoom(z + step));
+                zoomIn();
                 return;
             }
             if (e.code === "Minus" || e.code === "NumpadSubtract") {
                 e.preventDefault();
-                setUiZoom((z) => clampUiZoom(z - step));
+                zoomOut();
                 return;
             }
             if (e.code === "Digit0" || e.code === "Numpad0") {
                 e.preventDefault();
-                setUiZoom(1);
+                zoomReset();
                 return;
             }
 
@@ -390,7 +341,7 @@ export function AppLayout() {
         };
         window.addEventListener("keydown", onKey);
         return () => window.removeEventListener("keydown", onKey);
-    }, [navigate, location.pathname]);
+    }, [navigate, location.pathname, zoomIn, zoomOut, zoomReset]);
 
     useEffect(() => {
         const typing = (el: EventTarget | null) => {
@@ -467,14 +418,28 @@ export function AppLayout() {
     }, [clear, navigate]);
 
     useEffect(() => {
-        const id = window.setInterval(() => {
-            const el = document.activeElement;
-            if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) return;
-            if (el instanceof HTMLElement && el.isContentEditable) return;
-            if (document.querySelector("[role='dialog'], dialog[open]")) return;
-            window.dispatchEvent(new Event(PAGE_REFRESH_EVENT));
-        }, PAGE_REFRESH_MS);
-        return () => window.clearInterval(id);
+        applyAppearanceFromSettings(loadClientSettings());
+    }, []);
+
+    useEffect(() => {
+        let id = 0;
+        const arm = () => {
+            window.clearInterval(id);
+            const hidden = document.visibilityState === "hidden";
+            id = window.setInterval(() => {
+                const el = document.activeElement;
+                if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) return;
+                if (el instanceof HTMLElement && el.isContentEditable) return;
+                if (document.querySelector("[role='dialog'], dialog[open]")) return;
+                window.dispatchEvent(new Event(PAGE_REFRESH_EVENT));
+            }, hidden ? PAGE_REFRESH_HIDDEN_MS : PAGE_REFRESH_MS);
+        };
+        arm();
+        document.addEventListener("visibilitychange", arm);
+        return () => {
+            window.clearInterval(id);
+            document.removeEventListener("visibilitychange", arm);
+        };
     }, []);
 
     useEffect(() => {
@@ -490,11 +455,29 @@ export function AppLayout() {
             try {
                 await migrateInvoicePracticeLocalStorageToAppKv();
                 await hydrateInvoicePracticeFromAppKv();
+                await hydratePracticeHeaderPrivacy();
+                await hydratePracticeTimezoneFromAppKv(() => getAppKv("practice.timezone.v1"));
+                const { hydrateDocumentLocaleFromAppKv } = await import("@/lib/document-locale");
+                await hydrateDocumentLocaleFromAppKv();
+                const { hydrateUiPrefsFromDisk } = await import(
+                    "@/systems/practice-host/controllers/ui-prefs.controller"
+                );
+                await hydrateUiPrefsFromDisk(sessionUserId);
+                applyAppearanceFromSettings(loadClientSettings());
             } catch (e) {
                 toast(tp("app.layout.practice_sync_error", { message: errorMessage(e) }), "warning");
             }
         })();
     }, [sessionUserId, toast, tp]);
+
+    useEffect(() => {
+        if (!sessionUserId) return;
+        if (!isNetworkHiddenInSettings(loadClientSettings())) return;
+        void setNetworkHidden(true).catch(() => undefined);
+    }, [sessionUserId]);
+
+    const practiceCurrencyCode = useSyncExternalStore(subscribePracticeCurrency, practiceCurrency, practiceCurrency);
+    const practiceTimeZoneId = useSyncExternalStore(subscribePracticeTimezone, practiceTimezone, practiceTimezone);
 
     useIdleLock(Boolean(session), {
         onWarn: (secondsLeft) =>
@@ -595,8 +578,13 @@ export function AppLayout() {
             const labels = [t("nav.settings")];
             if (BREAK_GLASS_ENABLED && session?.role === "PHYSICIAN") labels.push(t("app.layout.break_glass.emergency_access"));
             labels.push(t("auth.logout"));
-            const widthPx = measureSidebarAccountMenuWidthPx(labels);
-            let left = r.left;
+            const measured = measureSidebarAccountMenuWidthPx(labels);
+            // Match the user-card width so the menu stays anchored (esp. RTL / Arabic labels).
+            const widthPx = Math.max(measured, Math.round(r.width));
+            const rtl =
+                typeof document !== "undefined" &&
+                getComputedStyle(document.documentElement).direction === "rtl";
+            let left = rtl ? r.right - widthPx : r.left;
             if (typeof window !== "undefined") {
                 left = Math.max(8, Math.min(left, window.innerWidth - widthPx - 8));
             }
@@ -726,7 +714,6 @@ export function AppLayout() {
                             return;
                         }
                         if (p.kind === "app" && typeof p.action === "string") {
-                            const step = 0.1;
                             if (p.action === "reload") {
                                 window.location.reload();
                                 return;
@@ -738,15 +725,15 @@ export function AppLayout() {
                                 return;
                             }
                             if (p.action === "zoom_in") {
-                                setUiZoom((z) => clampUiZoom(z + step));
+                                zoomIn();
                                 return;
                             }
                             if (p.action === "zoom_out") {
-                                setUiZoom((z) => clampUiZoom(z - step));
+                                zoomOut();
                                 return;
                             }
                             if (p.action === "zoom_reset") {
-                                setUiZoom(1);
+                                zoomReset();
                                 return;
                             }
                             if (p.action === "print") {
@@ -789,9 +776,10 @@ export function AppLayout() {
             disposed = true;
             unlisten?.();
         };
-    }, [navigate, location.pathname, locale, tp]);
+    }, [navigate, location.pathname, locale, tp, zoomIn, zoomOut, zoomReset]);
 
-    const isMacUnifiedChrome = desktopChrome === "mac-overlay";
+    /** Brand + toolbar in the title-bar row: macOS (traffic lights), Windows and Linux (own buttons). */
+    const isMacUnifiedChrome = desktopChrome !== "browser";
 
     const sidebarBrandRow = (
         <div className="app-sidebar-brand-row">
@@ -814,7 +802,7 @@ export function AppLayout() {
                         openCommandPalette();
                         return;
                     }
-                    setSidebarRailPref((p) => (p === "icons" ? "full" : "icons"));
+                    toggleRail();
                 }}
             >
                 <span className="app-sidebar-brand-mark" aria-hidden>
@@ -833,7 +821,7 @@ export function AppLayout() {
             <button type="button" className="icon-btn mobile-nav-trigger" aria-label={t("app.layout.mobile_nav_open_aria")} onClick={() => setMobileNavOpen(true)}>
                 <MenuIcon size={18} />
             </button>
-            <div className="crumb">
+            <div className="crumb" title={breadcrumbs.join(" › ")}>
                 {breadcrumbs.map((c, i) => (
                     <Fragment key={`${c}-${i}`}>
                         {i > 0 && (
@@ -851,7 +839,7 @@ export function AppLayout() {
                     marginInlineStart: "auto",
                     display: "flex",
                     alignItems: "center",
-                    gap: 8,
+                    gap: "var(--space-2)",
                 }}
             >
                 <button type="button" className="input focus-ring topbar-search-trigger" onClick={openCommandPalette}>
@@ -926,12 +914,15 @@ export function AppLayout() {
                         type="button"
                         className="btn btn-subtle"
                         style={{
-                            padding: "4px 8px 4px 4px",
+                            paddingBlock: "var(--space-1)",
+                            paddingInlineStart: "var(--space-1)",
+                            paddingInlineEnd: "var(--space-2)",
                             fontSize: 12,
                             borderRadius: 999,
                             display: "inline-flex",
                             alignItems: "center",
-                            gap: 6,
+                            gap: "var(--space-2)",
+                            flexShrink: 0,
                         }}
                         aria-haspopup="menu"
                         aria-expanded={userMenuOpen && userMenuAnchor === "topbar"}
@@ -991,6 +982,7 @@ export function AppLayout() {
                 {t("a11y.skip_to_main")}
             </a>
 
+            <InitialCopyBanner />
             <AuditChainBanner
                 canAcknowledge={
                     !!session &&
@@ -1021,6 +1013,7 @@ export function AppLayout() {
                 >
                     <div className="app-window-chrome__brand glass">{sidebarBrandRow}</div>
                     <div className="app-window-chrome__toolbar topbar-mac-content-row">{topbarToolbar}</div>
+                    {drawsOwnWindowControls(desktopChrome) ? <WindowControls platform={desktopChrome} /> : null}
                 </header>
             ) : null}
             <aside className="glass app-sidebar" data-open={mobileNavOpen ? "true" : "false"}>
@@ -1159,22 +1152,25 @@ export function AppLayout() {
                     </div>
                 ) : null}
                 <main
+                    ref={mainRef}
                     id="main-content"
                     tabIndex={-1}
                     className={`app-main${isDashboardRoute || isAppointmentsCalendarRoute ? " app-main--fill-y" : " app-main--scroll-y"}`}
                     aria-label={t("app.title")}
                 >
-                    <Suspense fallback={<PageLoading label={t("common.loading")} />}>
-                        <RouteOutletGuard>
-                            <Outlet />
-                        </RouteOutletGuard>
-                    </Suspense>
+                    <QueueExchangeBar pathname={location.pathname} />
+                    <AppRouteOutlet
+                        currency={practiceCurrencyCode}
+                        timeZone={practiceTimeZoneId}
+                        loadingLabel={t("common.loading")}
+                    />
                 </main>
             </div>
             </div>
 
             {ONBOARDING_COACHMARK_ENABLED ? <OnboardingCoachmark role={session?.role} /> : null}
             <ExportPreviewHost />
+            <TableColumnEstimatorHost />
             <PracticeSetupWizard open={practiceSetupOpen} onClose={() => setPracticeSetupOpen(false)} />
 
             <Dialog
@@ -1216,7 +1212,7 @@ export function AppLayout() {
                     </>
                 }
             >
-                <p style={{ color: "var(--fg-3)", fontSize: 14, marginBottom: 12 }}>
+                <p style={{ color: "var(--fg-3)", fontSize: 14, marginBottom: "var(--space-3)" }}>
                     {t("app.layout.break_glass.body")}
                 </p>
                 <Select

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
     DEFAULT_PRACTICE_PREFERENCES,
@@ -31,7 +31,7 @@ function MonthCalColorField({
     const t = useT();
     const tp = useTParams();
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
             <span className="input-label" style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-2)" }}>{label}</span>
             <div className="practice-month-cal-color-catalog" role="group" aria-label={tp("common.colors_for", { label })}>
                 {colorCatalog.map(({ label: catLabel, hex }) => (
@@ -46,8 +46,8 @@ function MonthCalColorField({
                     />
                 ))}
             </div>
-            <div className="row" style={{ gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                <label className="row" style={{ gap: 8, alignItems: "center" }}>
+            <div className="row" style={{ gap: "var(--space-3)", alignItems: "center", flexWrap: "wrap" }}>
+                <label className="row" style={{ gap: "var(--space-2)", alignItems: "center" }}>
                     <span style={{ fontSize: 12, color: "var(--fg-3)" }}>{t("common.custom_color")}</span>
                     <input
                         type="color"
@@ -70,6 +70,7 @@ export function PracticePreferencesPage() {
     const toast = useToastStore((s) => s.add);
     const { canWritePracticePlanning } = useRbac();
     const [prefs, setPrefs] = useState<PracticePreferences>(DEFAULT_PRACTICE_PREFERENCES);
+    const savedPrefsRef = useRef<PracticePreferences>(DEFAULT_PRACTICE_PREFERENCES);
     const [hydrated, setHydrated] = useState(false);
 
     const colorCatalog = useMemo(
@@ -89,7 +90,10 @@ export function PracticePreferencesPage() {
 
     useEffect(() => {
         void loadPracticePreferencesFromKv()
-            .then((version) => setPrefs(version))
+            .then((version) => {
+                savedPrefsRef.current = version;
+                setPrefs(version);
+            })
             .catch(() => {
                 /* keep defaults */
             })
@@ -103,10 +107,23 @@ export function PracticePreferencesPage() {
                 ...prefs,
                 monthCalendarPatientLoad: normalizeMonthCalendarPatientLoad(prefs.monthCalendarPatientLoad),
             };
+            const previous = savedPrefsRef.current;
             await savePracticePreferences(normalized);
             const next = await loadPracticePreferencesFromKv();
+            savedPrefsRef.current = next;
             setPrefs(next);
-            toast(t("page.practice_preferences.toast.saved"));
+            toast(t("page.practice_preferences.toast.saved"), "success", {
+                onUndo: async () => {
+                    try {
+                        await savePracticePreferences(previous);
+                        const restored = await loadPracticePreferencesFromKv();
+                        savedPrefsRef.current = restored;
+                        setPrefs(restored);
+                    } catch (err) {
+                        toast(tp("common.save_failed", { message: errorMessage(err) }), "error");
+                    }
+                },
+            });
         } catch (e: unknown) {
             toast(tp("common.save_failed", { message: errorMessage(e) }), "error");
         }
@@ -126,14 +143,14 @@ export function PracticePreferencesPage() {
 
     if (!hydrated) {
         return (
-            <div className="practice-workspace-page animate-fade-in">
+            <div className="practice-workspace-page animate-fade-in--sticky-safe">
                 <AdministrationPageHeader titleLevel="h1" title={t("page.practice_preferences.title")} subtitle={t("page.practice_preferences.loading")} />
             </div>
         );
     }
 
     return (
-        <div className="practice-workspace-page animate-fade-in">
+        <div className="practice-workspace-page animate-fade-in--sticky-safe">
             <AdministrationPageHeader titleLevel="h1" title={t("page.practice_preferences.title")} />
 
             <div className="card card-pad">
@@ -186,11 +203,11 @@ export function PracticePreferencesPage() {
 
             <div className="card card-pad">
                 <h2 className="text-title" style={{ marginTop: 0 }}>{t("page.practice_preferences.month_cal_title")}</h2>
-                <p className="page-sub" style={{ marginTop: -6, marginBottom: 16, maxWidth: 52 * 16 }}>
+                <p className="page-sub" style={{ marginTop: 0, marginBottom: "var(--space-4)", maxWidth: 52 * 16 }}>
                     {t("page.practice_preferences.month_cal_intro")}
                 </p>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
                         <Input
                             id="pref-month-few-max"
                             type="number"
@@ -221,7 +238,7 @@ export function PracticePreferencesPage() {
                             {tp("page.practice_preferences.high_hint", { count: ml.mediumMax })}
                         </p>
                     </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-5)" }}>
                         <MonthCalColorField
                             label={t("page.practice_preferences.color.few")}
                             valueHex={ml.colorFew}
@@ -244,7 +261,7 @@ export function PracticePreferencesPage() {
                 </div>
             </div>
 
-            <div className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
+            <div className="row" style={{ justifyContent: "flex-end", gap: "var(--space-2)" }}>
                 <Button type="button" variant="secondary" onClick={() => navigate("/administration/practice-planning")}>{t("common.back")}</Button>
                 {canWritePracticePlanning ? (
                     <Button type="button" onClick={save}>{t("common.save")}</Button>

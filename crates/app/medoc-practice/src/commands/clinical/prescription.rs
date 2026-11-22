@@ -1,12 +1,17 @@
 use sqlx::SqlitePool;
 use tauri::State;
 
+use crate::application::prescription_allergy_check::{
+    check_prescription_allergies, override_detail,
+};
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::domain::entities::prescription::{CreatePrescription, UpdatePrescription};
 use crate::domain::entities::Prescription;
+use crate::domain::services::allergy_conflict::AllergyConflict;
 use crate::error::AppError;
-use crate::infrastructure::database::{audit_repo, prescription_repo};
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
+use crate::infrastructure::database::repos::clinical::prescription as prescription_repo;
 
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state, patient_id))]
@@ -19,7 +24,11 @@ pub async fn list_prescriptions(
         &session_state,
         &["patient.read_medical", "patient.read_documents"],
     )?;
-    let r = prescription_repo::find_for_patient(&pool, &patient_id).await?;
+    let mut r = prescription_repo::find_for_patient(&pool, &patient_id).await?;
+    let role = rbac::Role::parse(&session.role).ok_or(AppError::Unauthorized)?;
+    if !rbac::effective_allowed("patient.read_medical", role, &session.permission_overrides) {
+        r.retain(|row| row.status == "ISSUED");
+    }
     audit_repo::create(
         &pool,
         &session.user_id,
@@ -41,6 +50,14 @@ pub async fn create_prescription(
     data: CreatePrescription,
 ) -> Result<Prescription, AppError> {
     let session = rbac::require(&session_state, "patient.write_medical")?;
+    let confirmed = check_prescription_allergies(
+        &pool,
+        &data.patient_id,
+        &data.medication,
+        data.active_ingredient.as_deref(),
+        data.allergy_override,
+    )
+    .await?;
     let r = prescription_repo::create(&pool, &data).await?;
     audit_repo::create(
         &pool,
@@ -52,6 +69,7 @@ pub async fn create_prescription(
     )
     .await
     .ok();
+    audit_allergy_override(&pool, &session.user_id, &r.id, confirmed).await;
     Ok(r)
 }
 
@@ -63,7 +81,19 @@ pub async fn update_prescription(
     data: UpdatePrescription,
 ) -> Result<Prescription, AppError> {
     let session = rbac::require(&session_state, "patient.write_medical")?;
+    let existing = prescription_repo::find_by_id(&pool, &data.id)
+        .await?
+        .ok_or(AppError::NotFound("Prescription".into()))?;
+    let confirmed = check_prescription_allergies(
+        &pool,
+        &existing.patient_id,
+        &data.medication,
+        data.active_ingredient.as_deref(),
+        data.allergy_override,
+    )
+    .await?;
     let r = prescription_repo::update(&pool, &data).await?;
+    audit_allergy_override(&pool, &session.user_id, &r.id, confirmed).await;
     audit_repo::create(
         &pool,
         &session.user_id,
@@ -99,13 +129,28 @@ pub async fn delete_prescription(
     Ok(())
 }
 
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_prescription_commands {
-    () => {
-        $crate::commands::prescription_commands::list_prescriptions,
-        $crate::commands::prescription_commands::create_prescription,
-        $crate::commands::prescription_commands::update_prescription,
-        $crate::commands::prescription_commands::delete_prescription,
-    };
+/// The doctor issued a prescription despite the allergy warning: keep who, what and why.
+async fn audit_allergy_override(
+    pool: &SqlitePool,
+    user_id: &str,
+    prescription_id: &str,
+    confirmed: Option<AllergyConflict>,
+) {
+    let Some(conflict) = confirmed else { return };
+    tracing::warn!(
+        target: "medoc::clinical",
+        event = "PRESCRIPTION_ALLERGY_OVERRIDE",
+        prescription_id,
+        "prescription issued despite allergy warning"
+    );
+    audit_repo::create(
+        pool,
+        user_id,
+        "ALLERGY_OVERRIDE",
+        "Prescription",
+        Some(prescription_id),
+        Some(&override_detail(&conflict)),
+    )
+    .await
+    .ok();
 }

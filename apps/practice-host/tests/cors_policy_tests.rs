@@ -57,7 +57,7 @@ async fn company_rejects_any_origin() {
     std::fs::create_dir_all(&dir).unwrap();
     let db_path = dir.join("company.db");
     std::env::set_var("MEDOC_AUDIT_KEY", "k9-medoc-test-audit-key-32bytes!");
-    medoc_lib::infrastructure::database::audit_repo::init_audit_hmac_key(&dir).unwrap();
+    medoc_lib::infrastructure::database::repos::admin::audit::init_audit_hmac_key(&dir).unwrap();
     let pool = init_company_db(&db_path).await.unwrap();
     let app = build_company_router(pool).await;
 

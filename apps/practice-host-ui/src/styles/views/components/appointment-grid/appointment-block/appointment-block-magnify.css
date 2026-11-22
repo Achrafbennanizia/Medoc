@@ -1,0 +1,55 @@
+/*
+ * Appointment block — hover magnify (appointment-block-magnify.ts).
+ * On hover the block grows to its detail size, so the container queries in appointment-appt-block-4.css
+ * show all three lines (time · duration, patient, treatment) and the status, and it scales by the
+ * user's hover size (Settings → Appearance, --appointment-card-hover-scale). It grows from its top
+ * start corner and shifts to stay inside the calendar. When the pointer leaves, it returns to its own size.
+ * Not while dragging, and not with hover magnify turned off.
+ */
+.appointment-appt-block {
+  --appointment-magnify-min-h: 104px;
+  --appointment-magnify-min-w: 216px;
+  min-height: 0;
+  min-width: 0;
+  transition:
+    transform 180ms cubic-bezier(0.2, 0.8, 0.25, 1),
+    min-height 180ms cubic-bezier(0.2, 0.8, 0.25, 1),
+    min-width 180ms cubic-bezier(0.2, 0.8, 0.25, 1),
+    box-shadow 160ms ease,
+    z-index 0s;
+}
+html:not([data-appointment-card-hover="off"])
+  body:not(.appointment-calendar-dragging)
+  .appointment-appt-block:hover:not(.appointment-appt-block--dragging):not(.appointment-appt-block--drag-source-hidden) {
+  min-height: var(--appointment-magnify-min-h);
+  min-width: var(--appointment-magnify-min-w);
+  max-width: none;
+  transform-origin: left top;
+  transform:
+    translate(var(--appointment-magnify-shift-x, 0px), var(--appointment-magnify-shift-y, 0px))
+    scale(var(--appointment-card-hover-scale));
+  z-index: 50 !important;
+}
+html[dir="rtl"]:not([data-appointment-card-hover="off"])
+  body:not(.appointment-calendar-dragging)
+  .appointment-appt-block:hover:not(.appointment-appt-block--dragging):not(.appointment-appt-block--drag-source-hidden) {
+  transform-origin: right top;
+}
+/* The week view hides the status pill for space; the magnified block has room for it. */
+.appointment-appt-block--week:hover:not(.appointment-appt-block--dragging) > .appointment-appt-block-shell > .sr-only {
+  position: static;
+  width: auto;
+  height: auto;
+  margin: 0;
+  clip: auto;
+  clip-path: none;
+  white-space: nowrap;
+  align-self: flex-start;
+  font-size: 10.5px;
+  color: var(--fg-2);
+}
+@media (prefers-reduced-motion: reduce) {
+  .appointment-appt-block {
+    transition: none;
+  }
+}

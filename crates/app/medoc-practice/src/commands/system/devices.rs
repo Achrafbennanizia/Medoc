@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use tauri::{AppHandle, Manager, State};
 
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::error::AppError;
 use crate::infrastructure::devices::{dicom, gdt, host_integration, scanner};
 use crate::infrastructure::{dpia, payment, update, vvt};
@@ -35,6 +35,9 @@ pub fn parse_gdt_file(
     session_state: State<'_, SessionState>,
     path: String,
 ) -> Result<gdt::GdtRecord, AppError> {
+    if !medoc_core::mvp_security::GDT_ENABLED {
+        return Err(AppError::FeatureDisabled("gdt".into()));
+    }
     rbac::require(&session_state, "patient.write")?;
     gdt::parse_file(&PathBuf::from(path))
 }
@@ -45,6 +48,9 @@ pub fn inspect_dicom_file(
     session_state: State<'_, SessionState>,
     path: String,
 ) -> Result<dicom::DicomFileInfo, AppError> {
+    if !medoc_core::mvp_security::DICOM_ENABLED {
+        return Err(AppError::FeatureDisabled("dicom".into()));
+    }
     rbac::require(&session_state, "patient.write")?;
     dicom::inspect(&PathBuf::from(path))
 }
@@ -56,6 +62,9 @@ pub fn scanner_list_recent(
     folder: String,
     limit: Option<usize>,
 ) -> Result<Vec<scanner::ScannedDocument>, AppError> {
+    if !medoc_core::mvp_security::SCANNER_ENABLED {
+        return Err(AppError::FeatureDisabled("scanner".into()));
+    }
     let session = rbac::require_authenticated(&session_state)?;
     let role = rbac::Role::parse(&session.role).ok_or(AppError::Forbidden)?;
     if !rbac::allowed("patient.write", role)
@@ -71,6 +80,9 @@ pub fn scanner_list_recent(
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(session_state))]
 pub fn open_system_scan_utility(session_state: State<'_, SessionState>) -> Result<(), AppError> {
+    if !medoc_core::mvp_security::SCANNER_ENABLED {
+        return Err(AppError::FeatureDisabled("scanner".into()));
+    }
     let session = rbac::require_authenticated(&session_state)?;
     let role = rbac::Role::parse(&session.role).ok_or(AppError::Forbidden)?;
     if !rbac::allowed("patient.write", role)
@@ -107,12 +119,15 @@ pub fn scanner_attach(
     archive_root: String,
     patient_id: String,
 ) -> Result<String, AppError> {
+    if !medoc_core::mvp_security::SCANNER_ENABLED {
+        return Err(AppError::FeatureDisabled("scanner".into()));
+    }
     rbac::require(&session_state, "patient.write")?;
-    let p = scanner::attach_to_patient(
-        &PathBuf::from(src),
-        &PathBuf::from(archive_root),
-        &patient_id,
-    )?;
+    let id = medoc_core::infrastructure::fs_guard::safe_id(&patient_id)?;
+    let root = PathBuf::from(&archive_root);
+    let target = root.join(id);
+    medoc_core::infrastructure::fs_guard::ensure_inside(&root, &target)?;
+    let p = scanner::attach_to_patient(&PathBuf::from(src), &root, id)?;
     Ok(p.display().to_string())
 }
 
@@ -123,7 +138,11 @@ pub fn scanner_attach_contract_app_data(
     src: String,
     contract_id: String,
 ) -> Result<String, AppError> {
+    if !medoc_core::mvp_security::SCANNER_ENABLED {
+        return Err(AppError::FeatureDisabled("scanner".into()));
+    }
     rbac::require(&session_state, "administration.contracts.write")?;
+    let _ = medoc_core::infrastructure::fs_guard::safe_id(&contract_id)?;
     let root = dirs::home_dir()
         .map(|h| h.join("medoc-data"))
         .unwrap_or_else(|| PathBuf::from("./medoc-data"));
@@ -140,12 +159,15 @@ pub fn scanner_attach_contract(
     archive_root: String,
     contract_id: String,
 ) -> Result<String, AppError> {
+    if !medoc_core::mvp_security::SCANNER_ENABLED {
+        return Err(AppError::FeatureDisabled("scanner".into()));
+    }
     rbac::require(&session_state, "administration.contracts.write")?;
-    let p = scanner::attach_to_contract(
-        &PathBuf::from(src),
-        &PathBuf::from(archive_root),
-        &contract_id,
-    )?;
+    let id = medoc_core::infrastructure::fs_guard::safe_id(&contract_id)?;
+    let root = PathBuf::from(&archive_root);
+    let target = root.join(id);
+    medoc_core::infrastructure::fs_guard::ensure_inside(&root, &target)?;
+    let p = scanner::attach_to_contract(&PathBuf::from(src), &root, id)?;
     Ok(p.display().to_string())
 }
 
@@ -191,23 +213,13 @@ pub fn current_app_version(
     Ok(update::current_version())
 }
 
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_devices_commands {
-    () => {
-        $crate::commands::devices_commands::generate_vvt,
-        $crate::commands::devices_commands::generate_dpia,
-        $crate::commands::devices_commands::parse_gdt_file,
-        $crate::commands::devices_commands::inspect_dicom_file,
-        $crate::commands::devices_commands::scanner_list_recent,
-        $crate::commands::devices_commands::open_system_scan_utility,
-        $crate::commands::devices_commands::open_native_print_dialog,
-        $crate::commands::devices_commands::scanner_attach,
-        $crate::commands::devices_commands::scanner_attach_contract,
-        $crate::commands::devices_commands::scanner_attach_contract_app_data,
-        $crate::commands::devices_commands::pick_contract_pdf_file,
-        $crate::commands::devices_commands::process_payment,
-        $crate::commands::devices_commands::evaluate_update_payload,
-        $crate::commands::devices_commands::current_app_version,
-    };
+#[cfg(test)]
+mod tests {
+    use crate::error::AppError;
+
+    #[test]
+    fn scanner_attach_rejects_dotdot_id() {
+        let err = medoc_core::infrastructure::fs_guard::safe_id("../x").unwrap_err();
+        assert!(matches!(err, AppError::Validation(_)));
+    }
 }

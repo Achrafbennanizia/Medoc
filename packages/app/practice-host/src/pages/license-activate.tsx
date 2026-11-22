@@ -17,6 +17,7 @@ import {
 } from "@/systems/practice-host/lib/license-device-role";
 import { activateLicense, currentLicenseStatus, type LicenseStatus } from "@/systems/practice-host/controllers/settings-page.controller";
 import { Button } from "@/views/components/ui/button";
+import { LocaleSwitcher } from "@/views/components/locale-switcher";
 import { errorMessage } from "@/lib/utils";
 import { useToastStore } from "@/views/components/ui/toast-store";
 
@@ -78,14 +79,18 @@ function MainLicenseForm(props: { onActivated?: () => void; onBack: () => void }
         void reload();
     }, [reload]);
 
+    const reasonText = (reason: string) =>
+        reason.startsWith("error.") ? errorMessage(reason) : reason;
+
     const activate = async () => {
-        if (!token.trim()) {
+        const value = token.trim();
+        if (!value) {
             toast(t("license.activate.token_required"), "error");
             return;
         }
         setBusy(true);
         try {
-            const result = await activateLicense(token.trim());
+            const result = await activateLicense(value);
             setStatus(result);
             if (result.valid) {
                 toast(t("license.activate.success"), "success");
@@ -93,7 +98,7 @@ function MainLicenseForm(props: { onActivated?: () => void; onBack: () => void }
                 clearLicenseDeviceRole();
                 props.onActivated?.();
             } else {
-                toast(tp("license.activate.invalid", { reason: result.reason ?? "?" }), "error");
+                toast(tp("license.activate.invalid", { reason: reasonText(result.reason ?? "?") }), "error");
             }
         } catch (e) {
             const msg = errorMessage(e);
@@ -115,8 +120,8 @@ function MainLicenseForm(props: { onActivated?: () => void; onBack: () => void }
                 style={{
                     border: "1px solid var(--border)",
                     borderRadius: 8,
-                    padding: 12,
-                    marginTop: 12,
+                    padding: "var(--space-3)",
+                    marginTop: "var(--space-3)",
                 }}
                 aria-label={t("license.activate.active_aria")}
             >
@@ -133,8 +138,8 @@ function MainLicenseForm(props: { onActivated?: () => void; onBack: () => void }
             style={{
                 border: "1px solid var(--border)",
                 borderRadius: 8,
-                padding: 12,
-                marginTop: 12,
+                padding: "var(--space-3)",
+                marginTop: "var(--space-3)",
             }}
         >
             <p className="card-sub" style={{ marginTop: 0 }}>
@@ -145,7 +150,7 @@ function MainLicenseForm(props: { onActivated?: () => void; onBack: () => void }
                 <code>v2.&lt;base64&gt;.&lt;base64&gt;</code> {t("license.activate.token_hint")}
                 <code>&lt;json&gt;.&lt;sig&gt;</code>.
             </p>
-            <label htmlFor="license-token" className="card-sub" style={{ display: "block", marginBottom: 4 }}>
+            <label htmlFor="license-token" className="card-sub" style={{ display: "block", marginBottom: "var(--space-1)" }}>
                 {t("license.activate.token_label")}
             </label>
             <textarea
@@ -158,7 +163,7 @@ function MainLicenseForm(props: { onActivated?: () => void; onBack: () => void }
                     width: "100%",
                     fontFamily: "monospace",
                     wordBreak: "break-all",
-                    padding: 8,
+                    padding: "var(--space-2)",
                     borderRadius: 6,
                     border: "1px solid var(--border)",
                 }}
@@ -166,10 +171,10 @@ function MainLicenseForm(props: { onActivated?: () => void; onBack: () => void }
             />
             {status?.reason ? (
                 <p className="card-sub" style={{ color: "var(--text-danger)" }}>
-                    {tp("license.activate.last_error", { reason: status.reason })}
+                    {tp("license.activate.last_error", { reason: reasonText(status.reason) })}
                 </p>
             ) : null}
-            <div className="row" style={{ marginTop: 12, gap: 8, flexWrap: "wrap" }}>
+            <div className="row" style={{ marginTop: "var(--space-3)", gap: "var(--space-2)", flexWrap: "wrap" }}>
                 <Button
                     type="button"
                     loading={busy}
@@ -190,7 +195,7 @@ function SecondaryJoinPanel(props: { onActivated?: () => void; onBack: () => voi
     const t = useT();
 
     return (
-        <section style={{ marginTop: 12 }}>
+        <section style={{ marginTop: "var(--space-3)" }}>
             <p className="card-sub">{t("license.activate.device_role.secondary_intro")}</p>
             <ClusterJoinFlow onComplete={props.onActivated} onBack={props.onBack} />
         </section>
@@ -213,7 +218,15 @@ export function LicenseActivatePage(props: { onActivated?: () => void }) {
 
     return (
         <main className="card-pad license-activate-page" style={{ maxWidth: 720, margin: "32px auto" }}>
-            <h1 className="card-title">{t("license.activate.title")}</h1>
+            <div className="row" style={{ alignItems: "center", justifyContent: "space-between", gap: "var(--space-3)", flexWrap: "wrap" }}>
+                <h1 className="card-title" style={{ margin: 0 }}>
+                    {t("license.activate.title")}
+                </h1>
+                <LocaleSwitcher />
+            </div>
+            <p className="card-sub" style={{ marginTop: "var(--space-2)" }}>
+                {t("login.build")} {import.meta.env.VITE_APP_VERSION ?? "—"}
+            </p>
 
             {step === "choose" ? <DeviceRoleChooser onSelect={chooseRole} /> : null}
             {step === "main" ? <MainLicenseForm onActivated={props.onActivated} onBack={goBackToChoose} /> : null}

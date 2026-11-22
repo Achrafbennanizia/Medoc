@@ -38,8 +38,8 @@ pub async fn seed_master_license(pool: &SqlitePool) {
     use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine};
     use chrono::{TimeZone, Utc};
     use ed25519_dalek::{Signer, SigningKey};
+    use medoc_core::infrastructure::database::repos::admin::license as license_repo;
     use medoc_core::infrastructure::license::{encrypt_v2_for_device, LicenseV2, VENDOR_PUBKEY};
-    use medoc_core::infrastructure::license_repo;
 
     const VENDOR_KEY_HEX: &str = "8762be1a9a0963f36d98d47c0de6a73a0124b77d3268c170365824a6045d2fbf";
 

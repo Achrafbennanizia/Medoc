@@ -1,4 +1,4 @@
-import { translateLocale, translateLocaleParams, useLocale, bcp47ForLocale, type Locale } from "@/lib/i18n";
+import { translateLocale, translateLocaleParams, useLocale, type Locale } from "@/lib/i18n";
 import type { BalanceSheet, StatisticsOverview, Payment } from "@/models/types";
 import type { BalanceSheetSnapshot } from "@/systems/practice-host/controllers/balance-sheet-snapshot.controller";
 import type { PurchaseOrder } from "@/systems/practice-host/controllers/purchase-order.controller";
@@ -13,9 +13,14 @@ import {
 } from "@/lib/invoice-service-item";
 import { finishExportWithSettings } from "@/lib/export";
 import { renderReportPdf, type ReportPdfInput } from "@/systems/practice-host/controllers/report.controller";
+import { issueReportPdf, pdfBase64ToBytes, type IssuedPdf } from "@/systems/practice-host/controllers/document.controller";
+import type { ExportContext } from "@/lib/save-download";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
-import { parseDelimitedGrid } from "@/lib/export-delimited";
+import { practiceCurrency } from "@/lib/practice-currency";
+import { paymentMethodLabel } from "@/lib/finance-order-labels";
+import { csvCell, csvSafeCell, parseDelimitedGrid } from "@/lib/export-delimited";
 import { localYmd } from "./practice-clock";
+import { escapeHtml } from "./escape-html";
 
 export type ReportExportFormat = "pdf" | "csv" | "json" | "xml";
 
@@ -39,16 +44,19 @@ export interface ReportBundle {
     generatedAt: string;
     summary: ReportSummaryRow[];
     sections: ReportSection[];
+    /** Server permission + numbering class. Defaults to "finance". */
+    reportKind?: ReportPdfInput["reportKind"];
 }
 
 function escapeCsvCell(version: string | number): string {
-    return `"${String(version).replace(/"/g, '""')}"`;
+    return `"${csvSafeCell(String(version)).replace(/"/g, '""')}"`;
 }
 
+/** Screen hint only: the server replaces practice name/address with its master data. */
 function practiceContext(): { practiceName: string; practiceAddress: string[] } {
     const practice = getInvoicePracticeFromStorage();
     return {
-        practiceName: practice.name?.trim() || "Dental practice",
+        practiceName: practice.name?.trim() || "",
         practiceAddress: buildInvoiceHeaderAddressLinesForExport(practice),
     };
 }
@@ -60,6 +68,7 @@ function toReportPdfInput(bundle: ReportBundle): ReportPdfInput {
         generatedAt: bundle.generatedAt,
         practiceName: ctx.practiceName,
         practiceAddress: ctx.practiceAddress,
+        reportKind: bundle.reportKind ?? "finance",
         summary: bundle.summary.map((r) => ({ label: r.label, value: r.value })),
         sections: bundle.sections.map((s) => ({
             title: s.title,
@@ -111,31 +120,23 @@ export function reportBundleToJson(bundle: ReportBundle): string {
     );
 }
 
-function xmlEscape(s: string): string {
-    return s
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;");
-}
-
 export function reportBundleToXml(bundle: ReportBundle): string {
     const summaryXml = bundle.summary
-        .map((r) => `    <row label="${xmlEscape(r.label)}" value="${xmlEscape(r.value)}" />`)
+        .map((r) => `    <row label="${escapeHtml(r.label)}" value="${escapeHtml(r.value)}" />`)
         .join("\n");
     const sectionsXml = bundle.sections
         .map((sec) => {
-            const headerXml = sec.headers.map((h) => `      <col>${xmlEscape(h)}</col>`).join("\n");
+            const headerXml = sec.headers.map((h) => `      <col>${escapeHtml(h)}</col>`).join("\n");
             const rowsXml = sec.rows
                 .map((row) => {
-                    const cells = row.map((c) => `        <cell>${xmlEscape(c)}</cell>`).join("\n");
+                    const cells = row.map((c) => `        <cell>${escapeHtml(c)}</cell>`).join("\n");
                     return `      <row>\n${cells}\n      </row>`;
                 })
                 .join("\n");
-            return `  <section title="${xmlEscape(sec.title)}">\n    <headers>\n${headerXml}\n    </headers>\n    <rows>\n${rowsXml}\n    </rows>\n  </section>`;
+            return `  <section title="${escapeHtml(sec.title)}">\n    <headers>\n${headerXml}\n    </headers>\n    <rows>\n${rowsXml}\n    </rows>\n  </section>`;
         })
         .join("\n");
-    return `<?xml version="1.0" encoding="UTF-8"?>\n<medocReport version="1" title="${xmlEscape(bundle.docTitle)}" generatedAt="${xmlEscape(bundle.generatedAt)}">\n  <summary>\n${summaryXml}\n  </summary>\n${sectionsXml}\n</medocReport>`;
+    return `<?xml version="1.0" encoding="UTF-8"?>\n<medocReport version="1" title="${escapeHtml(bundle.docTitle)}" generatedAt="${escapeHtml(bundle.generatedAt)}">\n  <summary>\n${summaryXml}\n  </summary>\n${sectionsXml}\n</medocReport>`;
 }
 
 export function reportFilename(bundle: ReportBundle, format: ReportExportFormat): string {
@@ -144,21 +145,42 @@ export function reportFilename(bundle: ReportBundle, format: ReportExportFormat)
     return `${base}.${ext}`;
 }
 
+/** Preview only (watermark "ENTWURF", no number, no audit entry). */
 export async function buildReportPdfBytes(bundle: ReportBundle): Promise<Uint8Array> {
     return renderReportPdf(toReportPdfInput(bundle));
+}
+
+/** Final report PDF: numbered (BE-YYYY-…), hashed and audited on the server. */
+export async function issueReportBundlePdf(bundle: ReportBundle): Promise<{ issued: IssuedPdf; bytes: Uint8Array }> {
+    const issued = await issueReportPdf(toReportPdfInput(bundle), { preview: false });
+    return { issued, bytes: pdfBase64ToBytes(issued.pdfBase64) };
+}
+
+export function reportExportContext(
+    bundle: ReportBundle,
+    format: ReportExportFormat,
+    documentNumber?: string | null,
+): ExportContext {
+    return {
+        kind: `report.${bundle.reportKind ?? "finance"}`,
+        format,
+        entityId: null,
+        documentNumber: documentNumber ?? null,
+    };
 }
 
 export async function exportReportBundle(bundle: ReportBundle, format: ReportExportFormat): Promise<void> {
     const filename = reportFilename(bundle, format);
     if (format === "pdf") {
-        const bytes = await buildReportPdfBytes(bundle);
+        const { issued, bytes } = await issueReportBundlePdf(bundle);
         await finishExportWithSettings({
             format: "pdf",
-            title: bundle.exportTitle,
+            title: `${bundle.exportTitle} ${issued.documentNumber ?? ""}`.trim(),
             hint: bundle.hint,
             suggestedFilename: filename,
             mime: "application/pdf",
             binaryBody: bytes,
+            context: reportExportContext(bundle, "pdf", issued.documentNumber),
         });
         return;
     }
@@ -170,6 +192,7 @@ export async function exportReportBundle(bundle: ReportBundle, format: ReportExp
             suggestedFilename: filename,
             mime: "text/csv;charset=utf-8",
             textBody: reportBundleToCsv(bundle),
+            context: reportExportContext(bundle, "csv"),
         });
         return;
     }
@@ -181,6 +204,7 @@ export async function exportReportBundle(bundle: ReportBundle, format: ReportExp
             suggestedFilename: filename,
             mime: "application/json;charset=utf-8",
             textBody: reportBundleToJson(bundle),
+            context: reportExportContext(bundle, "json"),
         });
         return;
     }
@@ -191,6 +215,7 @@ export async function exportReportBundle(bundle: ReportBundle, format: ReportExp
         suggestedFilename: filename,
         mime: "application/xml;charset=utf-8",
         textBody: reportBundleToXml(bundle),
+        context: reportExportContext(bundle, "xml"),
     });
 }
 
@@ -201,7 +226,7 @@ function periodLabel(period: Period, locale: Locale): string {
 }
 
 function todayLocalized(locale: Locale): string {
-    return new Date().toLocaleDateString(bcp47ForLocale(locale));
+    return formatDate(new Date().toISOString(), locale);
 }
 
 /** Statistics page — full overview including income section. */
@@ -211,9 +236,12 @@ export function buildStatisticsReportBundle(stats: StatisticsOverview, period: P
     const pl = periodLabel(period, loc);
     const dateStamp = localYmd();
     const detailRows: string[][] = [];
-    detailRows.push([tr("export.report.patients_total"), String(stats.patients_total)]);
-    detailRows.push([tr("export.report.products_low_stock"), String(stats.products_low)]);
-    detailRows.push([tr("export.report.income_current_month"), formatCurrency(stats.income_current_month, loc)]);
+    // F106: sections the role may not see are left out of the report.
+    if (stats.patients_total != null) detailRows.push([tr("export.report.patients_total"), String(stats.patients_total)]);
+    if (stats.products_low != null) detailRows.push([tr("export.report.products_low_stock"), String(stats.products_low)]);
+    if (stats.income_current_month != null) {
+        detailRows.push([tr("export.report.income_current_month"), formatCurrency(stats.income_current_month, loc)]);
+    }
     for (const m of stats.new_patients_per_month) {
         detailRows.push([`${tr("export.report.new_patients")} ${m.month}`, String(m.value)]);
     }
@@ -262,14 +290,18 @@ export function buildStatisticsReportBundle(stats: StatisticsOverview, period: P
 
     return {
         docTitle: tr("export.report.statistics_doc_title"),
+        reportKind: "statistics",
         exportTitle: tr("export.report.statistics_export_title"),
         hint: tr("export.report.statistics_hint").replace("{period}", pl),
         suggestedBasename: `medoc-statistics-${period}-${dateStamp}`,
         generatedAt: todayLocalized(loc),
         summary: [
             { label: tr("export.report.period"), value: pl },
-            { label: tr("export.report.income_current_month"), value: formatCurrency(stats.income_current_month, loc) },
-            { label: tr("export.report.patients_total"), value: String(stats.patients_total) },
+            {
+                label: tr("export.report.income_current_month"),
+                value: stats.income_current_month != null ? formatCurrency(stats.income_current_month, loc) : "—",
+            },
+            { label: tr("export.report.patients_total"), value: stats.patients_total != null ? String(stats.patients_total) : "—" },
         ],
         sections: [
             {
@@ -319,6 +351,7 @@ export function buildBalanceSheetReportBundle(
 
     return {
         docTitle: tr("export.report.balance_doc_title"),
+        reportKind: "finance",
         exportTitle: tr("export.report.balance_export_title"),
         hint: tr("export.report.balance_hint"),
         suggestedBasename: `medoc-balanceSheet-${dateStamp}`,
@@ -361,17 +394,6 @@ export interface FinanceKpiSnapshot {
     profitMtd: number;
 }
 
-function paymentMethodLabelFin(kind: string, tr: (key: string) => string): string {
-    const map: Record<string, string> = {
-        CASH: "enum.payment_method.cash",
-        CARD: "enum.payment_method.card",
-        BANK_TRANSFER: "enum.payment_method.bank_transfer",
-        INVOICE: "enum.payment_method.invoice",
-    };
-    const key = map[kind];
-    return key ? tr(key) : kind;
-}
-
 function financeTransactionText(z: Payment, tr: (key: string) => string): string {
     const reference = z.treatment_id
         ? tr("export.report.treatment")
@@ -403,7 +425,7 @@ export function buildFinanceReportBundle(
                 tr("export.report.payment"),
                 financeTransactionText(z, tr),
                 patientNames.get(z.patient_id) ?? dash,
-                paymentMethodLabelFin(z.payment_method, tr),
+                paymentMethodLabel(z.payment_method, tr),
                 z.status,
                 formatCurrency(z.amount),
             ];
@@ -422,6 +444,7 @@ export function buildFinanceReportBundle(
 
     return {
         docTitle: tr("export.report.finance_doc_title"),
+        reportKind: "finance",
         exportTitle: tr("export.report.finance_export_title"),
         hint: tp("export.report.finance_hint", { filter: filterLabel }),
         suggestedBasename: `medoc-finance-${dateStamp}`,
@@ -479,6 +502,7 @@ export function buildComplianceReportBundle(
         }));
         return {
             docTitle: tr("export.report.vvt_doc_title"),
+            reportKind: "compliance",
             exportTitle: tr("export.report.compliance_export_title"),
             hint: tr("export.report.vvt_hint"),
             suggestedBasename: `medoc-vvt-${dateStamp}`,
@@ -503,6 +527,7 @@ export function buildComplianceReportBundle(
         ]);
         return {
             docTitle: tr("export.report.dpia_doc_title"),
+            reportKind: "compliance",
             exportTitle: tr("export.report.compliance_export_title"),
             hint: tr("export.report.dpia_hint"),
             suggestedBasename: `medoc-dpia-${dateStamp}`,
@@ -540,6 +565,7 @@ export function buildComplianceReportBundle(
     const r = data as LogRetentionReport;
     return {
         docTitle: tr("export.report.retention_doc_title"),
+        reportKind: "compliance",
         exportTitle: tr("export.report.compliance_export_title"),
         hint: tr("export.report.retention_hint"),
         suggestedBasename: `medoc-retention-${dateStamp}`,
@@ -587,7 +613,8 @@ export function buildAuditReportBundleFromCsv(csvText: string, totalHint?: numbe
         r[2] ?? "",
     ]);
     return {
-        docTitle: "Audit log — full export",
+        docTitle: "Audit-Log (Gesamtexport)",
+        reportKind: "audit",
         exportTitle: "Export audit log",
         hint: "Full audit trail · PDF with practice letterhead or CSV/JSON/XML.",
         suggestedBasename: `medoc-audit-${dateStamp}`,
@@ -611,10 +638,10 @@ export function financeTransactionsToLegacyCsv(
     rows: FinanceTxRow[],
     patientNames: Map<string, string>,
 ): string {
-    const loc = useLocale.getState().locale;
-    const tr = (key: string) => translateLocale(loc, key);
-    const esc = (s: string) => (/[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
-    const header = ["Date", "Type", "Transaction", "Counterparty", "Payment method", "Status", "Amount_EUR", "Note"];
+    // F151: the label helpers take the translator; the legacy CSV stays English.
+    const tr = (key: string) => translateLocale("en", key);
+    const esc = (s: string) => csvCell(s, ",");
+    const header = ["Date", "Type", "Transaction", "Counterparty", "Payment method", "Status", `Amount_${practiceCurrency()}`, "Note"];
     const lines = [header.map(esc).join(",")];
     for (const r of rows) {
         if (r.kind === "payment") {
@@ -625,7 +652,7 @@ export function financeTransactionsToLegacyCsv(
                     "Payment",
                     financeTransactionText(z, tr),
                     patientNames.get(z.patient_id) ?? "—",
-                    paymentMethodLabelFin(z.payment_method, tr),
+                    paymentMethodLabel(z.payment_method, tr),
                     z.status,
                     z.amount.toFixed(2).replace(".", ","),
                     (z.description ?? "").replace(/\r?\n/g, " ").trim(),

@@ -1,6 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { createPayment } from "@/systems/practice-host/controllers/payment.controller";
-import { billingReleaseErrorDe } from "@/lib/billing-release";
 import { tauriInvoke } from "@/services/tauri.service";
 
 vi.mock("@/services/tauri.service", () => ({
@@ -13,7 +12,7 @@ describe("N3 FA-LEIST-05 release → Payment (IPC contract)", () => {
     });
 
     it("create_payment rejects treatment link without physician release", async () => {
-        const msg = billingReleaseErrorDe("Treatment");
+        const msg = "Treatment is not yet released for billing.";
         expect(msg).toMatch(/not yet released for billing/);
         vi.mocked(tauriInvoke).mockRejectedValueOnce(new Error(msg));
         await expect(

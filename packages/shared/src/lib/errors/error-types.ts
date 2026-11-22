@@ -43,6 +43,14 @@ export type ErrorCatalogEntry = {
     readonly severity: ErrorSeverity;
     /** Retrying the same action can succeed without changing input (network, transient system errors). */
     readonly retryable: boolean;
+    /** Raw message template for backend / UI text errors (`{name}` / `{}` placeholders). */
+    readonly template?: string;
+    /** Where the error comes from: coded key (default), backend text, disabled feature, UI. */
+    readonly origin?: "backend-text" | "feature" | "ui";
+    /** A localized message exists under `key` in every locale. */
+    readonly translated?: boolean;
+    /** Feature id for `FEATURE_DISABLED` entries. */
+    readonly feature?: string;
 };
 
 /** Fully resolved error ready for display. */

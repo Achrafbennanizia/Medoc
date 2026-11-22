@@ -1,7 +1,7 @@
 //! FA-AKTE-14/15 — validation queue list/count/validate + forward enqueue.
 
-use medoc_lib::infrastructure::database::chart_repo;
 use medoc_lib::infrastructure::database::connection::{run_migrations, test_memory_pool};
+use medoc_lib::infrastructure::database::repos::clinical::chart as chart_repo;
 
 async fn migrated_pool() -> sqlx::SqlitePool {
     let pool = test_memory_pool().await.expect("pool");

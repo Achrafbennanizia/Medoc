@@ -1,0 +1,64 @@
+/* From styles/features/settings-sections.css (cascade position kept by its import there). */
+@layer components {
+  .settings-device-session-item.is-suspected {
+    background: color-mix(in oklab, var(--orange) 4%, transparent);
+  }
+  .settings-device-session-item.is-trusted {
+    background: color-mix(in oklab, var(--blue) 3%, transparent);
+  }
+  .settings-device-session-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-ctl);
+    background: color-mix(in oklab, var(--fg) 5%, transparent);
+    color: var(--fg-3);
+    flex-shrink: 0;
+  }
+  .settings-device-session-icon.is-current {
+    background: color-mix(in oklab, var(--green) 12%, transparent);
+    color: color-mix(in oklab, var(--green) 90%, var(--fg));
+  }
+  .settings-device-session-icon.is-suspected {
+    background: color-mix(in oklab, var(--orange) 12%, transparent);
+    color: color-mix(in oklab, var(--orange) 90%, var(--fg));
+  }
+  .settings-device-session-icon.is-trusted {
+    background: color-mix(in oklab, var(--blue) 12%, transparent);
+    color: color-mix(in oklab, var(--blue) 90%, var(--fg));
+  }
+  .settings-device-session-body {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .settings-device-session-title-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+  .settings-device-session-meta {
+    margin-top: var(--space-1);
+    font-size: 12px;
+    color: var(--fg-3);
+    line-height: 1.4;
+    word-break: break-word;
+  }
+  .settings-device-session-reasons {
+    margin: 8px 0 0;
+    padding-left: 18px;
+    font-size: 12px;
+    color: color-mix(in oklab, var(--orange) 80%, var(--fg-2));
+    line-height: 1.45;
+  }
+  .settings-device-session-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--space-2);
+    flex-shrink: 0;
+    margin-inline-start: auto;
+  }
+}

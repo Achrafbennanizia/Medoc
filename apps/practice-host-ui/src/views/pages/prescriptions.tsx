@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Card, CardHeader } from "../components/ui/card";
+import { DataTable } from "../components/ui/data-table";
+import { StatusBadge } from "../components/ui/status-badge";
 import { Button } from "../components/ui/button";
 import { Input, Textarea, Select } from "../components/ui/input";
 import { Dialog, ConfirmDialog } from "../components/ui/dialog";
@@ -32,13 +34,17 @@ import {
 } from "@/lib/document-print-html";
 import { PackageIcon, SearchIcon } from "@/lib/icons";
 import {
-    MEDICATION_SUGGESTIONS,
-    findSuggestion,
     emptyPrescriptionLine,
     parsePrescriptionTemplatePayload,
     templateItemsToLines,
     type PrescriptionLine,
 } from "@/lib/medications";
+import { MedicationDatalist } from "../components/medication-presets/medication-datalist";
+import { applyMedicationSuggestion } from "@/lib/apply-medication-suggestion";
+import { buildPrescriptionQueue, isPrescriptionLineStarted } from "@/lib/build-prescription-queue";
+import { validatePrescriptionLine } from "@/lib/validate-prescription-line";
+import { withAllergyConfirmation } from "@/lib/with-allergy-confirmation";
+import { useAllergyConfirmation } from "../components/prescription-allergy/use-allergy-confirmation";
 
 /**
  * Prescription management (FA-REZ-01..05).
@@ -50,6 +56,7 @@ export function PrescriptionsPage() {
     const session = useAuthStore((s) => s.session);
     const eprescriptionLive = localCapability("eprescription")?.available ?? false;
     const toast = useToastStore((s) => s.add);
+    const { confirmAllergy, allergyDialog } = useAllergyConfirmation();
     const [searchParams, setSearchParams] = useSearchParams();
     const [patients, setPatients] = useState<Patient[]>([]);
     const [patientsLoading, setPatientsLoading] = useState(true);
@@ -175,25 +182,10 @@ export function PrescriptionsPage() {
         }));
     }
 
-    function pickMedication(label: string) {
-        const sugg = findSuggestion(label);
-        setDraft((prev) => ({
-            ...prev,
-            medication: label,
-            active_ingredient: prev.active_ingredient || sugg?.active_ingredient || "",
-            dosage: prev.dosage || sugg?.dosage || "",
-        }));
-    }
-
-    function validateLine(line: PrescriptionLine): string | null {
-        if (!line.medication.trim()) return t("page.prescriptions.validation.med_required");
-        if (!line.dosage.trim()) return t("page.prescriptions.validation.dosage_required");
-        if (!line.duration.trim()) return t("page.prescriptions.validation.duration_required");
-        return null;
-    }
+    const pickMedication = (label: string) => setDraft((prev) => applyMedicationSuggestion(prev, label));
 
     function handleAddLine() {
-        const err = validateLine(draft);
+        const err = validatePrescriptionLine(draft, t);
         if (err) {
             setDraftError(err);
             return;
@@ -209,21 +201,16 @@ export function PrescriptionsPage() {
 
     async function handleCreate() {
         if (!selectedPatient || !session) return;
-        const queue: PrescriptionLine[] = [...lines];
-        if (validateLine(draft) === null) {
-            queue.push({ ...draft });
-        }
-        if (queue.length === 0) {
-            setDraftError(t("page.prescriptions.validation.min_one_line"));
-            return;
-        }
+        const { lines: queue, error: queueError } = buildPrescriptionQueue(lines, draft, t, tp);
+        setDraftError(queueError);
+        if (!queue) return;
         setCreating(true);
         let okCount = 0;
         const created: Prescription[] = [];
         try {
             for (const line of queue) {
                 const merged = [line.instructions, sharedInstructions].filter((s) => s.trim()).join(" · ");
-                const r = await createPrescription({
+                const r = await withAllergyConfirmation((allergy_override) => createPrescription({
                     patient_id: selectedPatient,
                     physician_id: session.user_id,
                     medication: line.medication.trim(),
@@ -231,10 +218,13 @@ export function PrescriptionsPage() {
                     dosage: line.dosage.trim(),
                     duration: line.duration.trim(),
                     instructions: merged.trim() || null,
-                });
+                    allergy_override,
+                }), confirmAllergy);
+                if (!r) break;
                 created.push(r);
                 okCount += 1;
             }
+            if (okCount === 0) return;
             toast(okCount === 1 ? t("page.prescriptions.toast.created_one") : tp("page.prescriptions.toast.created_many", { count: okCount }));
             setShowCreate(false);
             resetCreateForm();
@@ -379,7 +369,7 @@ export function PrescriptionsPage() {
                     total: prescriptions.length,
                 })}
                 actions={
-                    <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                    <div className="row" style={{ gap: "var(--space-2)", flexWrap: "wrap" }}>
                         <div className="input" style={{ width: "min(220px, 100%)", flex: "1 1 220px" }}>
                             <input
                                 placeholder={t("page.prescriptions.filter_placeholder")}
@@ -396,7 +386,7 @@ export function PrescriptionsPage() {
                 }
             />
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "var(--space-4)" }}>
                 <div className="card kpi"><div className="kpi-label">{t("page.prescriptions.kpi.issued_7d")}</div><div className="kpi-val">{kpi.weekCount}</div></div>
                 <div className="card kpi"><div className="kpi-label">{t("page.prescriptions.kpi.pending")}</div><div className="kpi-val">{kpi.pending}</div></div>
                 <div className="card kpi"><div className="kpi-label">{t("page.prescriptions.kpi.issued_pct")}</div><div className="kpi-val">{kpi.pct}%</div></div>
@@ -440,38 +430,40 @@ export function PrescriptionsPage() {
                 />
             ) : (
                 <div className="card tbl-data-card">
-                    <div className="tbl-scroll">
-                    <table className="tbl tbl-fluid">
-                        <thead>
-                            <tr>
-                                <th>{t("page.prescriptions.col.medication")}</th><th>{t("page.prescriptions.col.pzn")}</th><th>{t("page.prescriptions.col.type")}</th><th>{t("page.prescriptions.col.dosage")}</th><th>{t("page.prescriptions.col.duration")}</th><th>{t("page.prescriptions.col.date")}</th><th>{t("page.prescriptions.col.status")}</th><th>{t("page.prescriptions.col.actions")}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {filteredPrescriptions.map((r) => (
-                                <tr key={r.id}>
-                                    <td>{r.medication}</td>
-                                    <td>{r.pzn?.trim() || "—"}</td>
-                                    <td>{r.prescription_type?.trim() || "—"}</td>
-                                    <td>{r.dosage}</td>
-                                    <td>{r.duration}</td>
-                                    <td>{formatDate(r.issued_at)}</td>
-                                    <td>{r.status}</td>
-                                    <td className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
+                    <DataTable
+                        label={t("page.prescriptions.title")}
+                        rows={filteredPrescriptions}
+                        getRowId={(r) => r.id}
+                        columns={[
+                            { id: "medication", header: t("page.prescriptions.col.medication"), truncate: true, text: (r) => r.medication, cell: (r) => <span className="data-table__primary">{r.medication}</span> },
+                            { id: "pzn", header: t("page.prescriptions.col.pzn"), width: "7rem", hideBelow: "lg", cell: (r) => r.pzn?.trim() || "—" },
+                            { id: "type", header: t("page.prescriptions.col.type"), width: "8rem", truncate: true, hideBelow: "lg", text: (r) => r.prescription_type ?? "", cell: (r) => r.prescription_type?.trim() || "—" },
+                            { id: "dosage", header: t("page.prescriptions.col.dosage"), width: "14%", truncate: true, hideBelow: "md", text: (r) => r.dosage, cell: (r) => r.dosage },
+                            { id: "duration", header: t("page.prescriptions.col.duration"), width: "8rem", truncate: true, hideBelow: "md", text: (r) => r.duration, cell: (r) => r.duration },
+                            { id: "date", header: t("page.prescriptions.col.date"), width: "7rem", cell: (r) => formatDate(r.issued_at) },
+                            { id: "status", header: t("page.prescriptions.col.status"), width: "8.5rem", cell: (r) => <StatusBadge entity="prescription" status={r.status} /> },
+                            {
+                                id: "actions",
+                                header: t("page.prescriptions.col.actions"),
+                                srOnlyHeader: true,
+                                width: eprescriptionLive ? "17rem" : "11rem",
+                                align: "end",
+                                cell: (r) => (
+                                    <div className="data-table__actions">
                                         <Button size="sm" onClick={() => handlePrint(r)}>{t("page.prescriptions.export")}</Button>
                                         {eprescriptionLive ? (
                                             <Button size="sm" variant="ghost" onClick={() => openEPrescriptionDialog(r)}>{t("page.prescriptions.eprescription")}</Button>
                                         ) : null}
                                         <Button size="sm" variant="danger" onClick={() => setDeleteId(r.id)}>{t("common.delete")}</Button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                    </div>
+                                    </div>
+                                ),
+                            },
+                        ]}
+                    />
                 </div>
             )}
 
+            {allergyDialog}
             <Dialog
                 open={showCreate}
                 onClose={() => { if (!creating) { setShowCreate(false); resetCreateForm(); } }}
@@ -480,28 +472,24 @@ export function PrescriptionsPage() {
                     <Button variant="ghost" onClick={() => { setShowCreate(false); resetCreateForm(); }} disabled={creating}>{t("common.cancel")}</Button>
                     <Button
                         onClick={() => void handleCreate()}
-                        disabled={creating || (lines.length === 0 && validateLine(draft) !== null)}
+                        disabled={creating || (lines.length === 0 && !isPrescriptionLineStarted(draft))}
                     >
                         {creating
                             ? t("page.prescriptions.saving")
-                            : lines.length + (validateLine(draft) === null ? 1 : 0) > 1
-                                ? tp("page.prescriptions.create_many", { count: lines.length + (validateLine(draft) === null ? 1 : 0) })
+                            : lines.length + (isPrescriptionLineStarted(draft) ? 1 : 0) > 1
+                                ? tp("page.prescriptions.create_many", { count: lines.length + (isPrescriptionLineStarted(draft) ? 1 : 0) })
                                 : t("page.prescriptions.create_one")}
                     </Button>
                 </>}
             >
-                <datalist id="rez-med-suggestions">
-                    {MEDICATION_SUGGESTIONS.map((s) => (
-                        <option key={s.label} value={s.label} />
-                    ))}
-                </datalist>
+                <MedicationDatalist id="rez-med-suggestions" />
 
-                <p style={{ fontSize: 12, color: "var(--fg-3)", marginTop: 0, marginBottom: 8 }}>
+                <p style={{ fontSize: 12, color: "var(--fg-3)", marginTop: 0, marginBottom: "var(--space-2)" }}>
                     {t("page.prescriptions.create_hint")}
                 </p>
 
                 {templates.length > 0 ? (
-                    <div style={{ marginBottom: 12 }}>
+                    <div style={{ marginBottom: "var(--space-3)" }}>
                         <Select
                             id="rez-template"
                             label={t("page.prescriptions.template_select")}
@@ -518,9 +506,10 @@ export function PrescriptionsPage() {
                     </div>
                 ) : null}
 
-                <div style={{ border: "1px solid var(--line)", borderRadius: 8, padding: 12 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>{t("page.prescriptions.new_line")}</div>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                <div style={{ border: "1px solid var(--line)", borderRadius: 8, padding: "var(--space-3)" }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, marginBottom: "var(--space-2)" }}>{t("page.prescriptions.new_line")}</div>
+                    {draftError ? <p role="alert" className="ui-field-error-msg">{draftError}</p> : null}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-2)" }}>
                         <Input
                             id="rez-med"
                             label={t("page.prescriptions.field.medication")}
@@ -528,7 +517,6 @@ export function PrescriptionsPage() {
                             placeholder={t("page.prescriptions.field.medication_ph")}
                             value={draft.medication}
                             onChange={(e) => pickMedication(e.target.value)}
-                            error={draftError && !draft.medication.trim() ? draftError : undefined}
                         />
                         <Input
                             id="rez-wirk"
@@ -542,7 +530,6 @@ export function PrescriptionsPage() {
                             value={draft.dosage}
                             onChange={(e) => setDraft({ ...draft, dosage: e.target.value })}
                             placeholder={t("page.prescriptions.field.dosage_ph")}
-                            error={draftError && !draft.dosage.trim() ? draftError : undefined}
                         />
                         <Input
                             id="rez-dau"
@@ -550,7 +537,6 @@ export function PrescriptionsPage() {
                             value={draft.duration}
                             onChange={(e) => setDraft({ ...draft, duration: e.target.value })}
                             placeholder={t("page.prescriptions.field.duration_ph")}
-                            error={draftError && !draft.duration.trim() ? draftError : undefined}
                         />
                     </div>
                     <Textarea
@@ -560,7 +546,7 @@ export function PrescriptionsPage() {
                         onChange={(e) => setDraft({ ...draft, instructions: e.target.value })}
                         rows={2}
                     />
-                    <div className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
+                    <div className="row" style={{ justifyContent: "flex-end", gap: "var(--space-2)" }}>
                         <Button type="button" variant="secondary" onClick={handleAddLine} disabled={creating}>
                             {t("page.prescriptions.add_line")}
                         </Button>
@@ -575,8 +561,8 @@ export function PrescriptionsPage() {
                     rows={2}
                 />
 
-                <div style={{ marginTop: 12, border: "1px solid var(--line)", borderRadius: 8, padding: 12 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>
+                <div style={{ marginTop: "var(--space-3)", border: "1px solid var(--line)", borderRadius: 8, padding: "var(--space-3)" }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, marginBottom: "var(--space-2)" }}>
                         {tp("page.prescriptions.lines_title", { count: lines.length })}
                     </div>
                     {lines.length === 0 ? (
@@ -589,7 +575,7 @@ export function PrescriptionsPage() {
                                 <li
                                     key={`${line.medication}-${idx}`}
                                     className="row"
-                                    style={{ justifyContent: "space-between", gap: 8, padding: "6px 0", borderBottom: "1px solid var(--line)" }}
+                                    style={{ justifyContent: "space-between", gap: "var(--space-2)", padding: "6px 0", borderBottom: "1px solid var(--line)" }}
                                 >
                                     <div style={{ fontSize: 13 }}>
                                         <strong>{line.medication}</strong>
@@ -635,7 +621,7 @@ export function PrescriptionsPage() {
                 <p style={{ fontSize: 12, color: "var(--fg-3)", margin: "0 0 8px" }}>
                     {t("page.prescriptions.eprescription_hint")}
                 </p>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-2)" }}>
                     <Input id="er-kvnr" label={t("page.prescriptions.field.kvnr")} value={eRez.kvnr} onChange={(e) => setERez({ ...eRez, kvnr: e.target.value })} placeholder={t("page.prescriptions.placeholder.kvnr")} />
                     <Input id="er-pzn" label={t("page.prescriptions.field.pzn")} value={eRez.pzn} onChange={(e) => setERez({ ...eRez, pzn: e.target.value })} placeholder="12345678" />
                     <Input id="er-lanr" label={t("page.prescriptions.field.lanr")} value={eRez.lanr} onChange={(e) => setERez({ ...eRez, lanr: e.target.value })} placeholder="123456789" />

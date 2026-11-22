@@ -1,0 +1,199 @@
+/* From styles/layout/shell-chrome.css (cascade position kept by its import there). */
+@layer components {
+  /* Route lazy-load placeholder */
+  .route-fallback {
+    padding: var(--space-8);
+    display: flex;
+    justify-content: center;
+  }
+  /* Root: only layout chrome lives in .app-shell (2-col grid). Overlays/toasts/dialogs stay siblings so they cannot steal grid cells. */
+  .app {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    min-width: var(--app-viewport-min-width);
+    height: var(--app-dvh);
+    max-height: var(--app-dvh);
+    min-height: 0;
+    overflow: hidden;
+    background: var(--app-backdrop);
+  }
+  /* Tauri: full height + drag region / frameless title bar (`DesktopWindowFrame`). */
+  html.tauri-frameless,
+  html.tauri-frameless body,
+  html.tauri-macos-traffic,
+  html.tauri-macos-traffic body {
+    height: 100%;
+    overflow: hidden;
+  }
+  html.tauri-frameless #root,
+  html.tauri-macos-traffic #root {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: 100%;
+    min-height: var(--app-dvh);
+  }
+  html.tauri-frameless #root .desktop-app-frame,
+  html.tauri-macos-traffic #root .desktop-app-frame {
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .desktop-app-frame {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+  }
+  .desktop-drag-shim {
+    flex-shrink: 0;
+    align-self: stretch;
+    width: 100%;
+    min-width: 0;
+    height: var(--desktop-chrome-drag-height, 32px);
+    min-height: var(--desktop-chrome-drag-height, 32px);
+    max-height: var(--desktop-chrome-drag-height, 32px);
+    box-sizing: border-box;
+    cursor: default;
+    user-select: none;
+    -webkit-user-select: none;
+    background: transparent;
+    -webkit-app-region: drag;
+    app-region: drag;
+  }
+  .desktop-titlebar {
+    flex-shrink: 0;
+    display: flex;
+    align-items: stretch;
+    align-self: stretch;
+    width: 100%;
+    min-width: 0;
+    height: var(--desktop-chrome-drag-height, 32px);
+    min-height: var(--desktop-chrome-drag-height, 32px);
+    background: var(--bg-elev);
+    border-bottom: 1px solid var(--line-strong);
+    color: var(--fg-2);
+    user-select: none;
+  }
+  html.tauri-frameless .desktop-titlebar.desktop-titlebar--frameless-invisible {
+    background: transparent;
+    border-bottom: none;
+    color: var(--fg-2);
+  }
+  .desktop-titlebar__drag {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    padding-left: max(12px, env(safe-area-inset-left, 0px));
+    padding-right: 8px;
+  }
+  .desktop-titlebar__title {
+    font-size: 12.5px;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    color: var(--fg-2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .desktop-titlebar__controls {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+  }
+  .desktop-titlebar__btn {
+    width: 44px;
+    min-width: 44px;
+    display: grid;
+    place-items: center;
+    border: none;
+    padding: 0;
+    margin: 0;
+    background: transparent;
+    color: var(--fg-2);
+    cursor: pointer;
+    transition:
+      background var(--motion-fast) var(--ease-out),
+      color var(--motion-fast) var(--ease-out);
+  }
+  .desktop-titlebar__btn:hover {
+    background: color-mix(in oklab, var(--fg) 8%, transparent);
+    color: var(--fg);
+  }
+  .desktop-titlebar__btn--close:hover {
+    background: color-mix(in oklab, var(--red) 88%, var(--fg));
+    color: #fff;
+  }
+  .desktop-app-frame__body {
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .desktop-app-frame__fill {
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  html.tauri-frameless .desktop-app-frame__fill .app,
+  html.tauri-frameless .desktop-app-frame__fill .login-root,
+  html.tauri-frameless .desktop-app-frame__fill .onboarding-page,
+  html.tauri-frameless .desktop-app-frame__fill .route-fallback,
+  html.tauri-macos-traffic .desktop-app-frame__fill .app,
+  html.tauri-macos-traffic .desktop-app-frame__fill .login-root,
+  html.tauri-macos-traffic .desktop-app-frame__fill .onboarding-page,
+  html.tauri-macos-traffic .desktop-app-frame__fill .route-fallback {
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+  }
+  html.tauri-frameless .app,
+  html.tauri-macos-traffic .app {
+    height: 100%;
+    max-height: 100%;
+  }
+  html.tauri-frameless .login-root,
+  html.tauri-macos-traffic .login-root,
+  html.tauri-frameless .onboarding-page,
+  html.tauri-macos-traffic .onboarding-page {
+    min-height: 0;
+    height: 100%;
+    max-height: 100%;
+  }
+  html.tauri-frameless .session-gate-loading,
+  html.tauri-macos-traffic .session-gate-loading {
+    min-height: 0 !important;
+    flex: 1 1 auto;
+  }
+  html.tauri-macos-traffic .topbar.topbar--mac-traffic:not(.app-window-chrome) {
+    /* Legacy single-column topbar (non-unified shell). Unified chrome uses `.app-window-chrome`. */
+    position: relative;
+    isolation: isolate;
+    align-items: stretch;
+    min-height: var(--desktop-chrome-drag-height, 32px);
+    padding: 6px 0;
+    background: transparent !important;
+    border-bottom: none !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    -webkit-app-region: drag;
+    app-region: drag;
+    cursor: default;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+}

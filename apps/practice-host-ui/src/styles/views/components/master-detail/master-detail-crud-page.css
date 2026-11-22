@@ -1,0 +1,16 @@
+/* views/components/master-detail/master-detail-crud-page.tsx + read-field.tsx — form and read view of a
+   list / detail editing page (Predefined medications, Predefined prescriptions). */
+@layer components {
+  .master-detail-form { display: flex; flex-direction: column; gap: var(--space-3); padding-top: 0; }
+  .master-detail-form__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+    gap: var(--space-3);
+  }
+  .master-detail-form__wide { grid-column: 1 / -1; }
+  .master-detail-form__actions { justify-content: flex-end; gap: var(--space-2); flex-wrap: wrap; }
+  .master-detail-read { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr)); gap: var(--space-4); }
+  .master-detail-read__field { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+  .master-detail-read__field--wide { grid-column: 1 / -1; }
+  .master-detail-read__value { font-size: 14px; color: var(--fg-2); line-height: 1.4; overflow-wrap: anywhere; }
+}

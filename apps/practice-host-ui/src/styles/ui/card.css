@@ -1,0 +1,69 @@
+/* From styles/layout/shell-chrome.css (cascade position kept by its import there). */
+@layer components {
+  .glass-bright { background: rgba(255,255,255,0.9); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid var(--line-strong); border-radius: 18px; }
+  .card { background: var(--bg-elev); border-radius: var(--radius-card); box-shadow: var(--shadow-sm); overflow: hidden; }
+  .card-elevated { background: var(--bg-elev); border-radius: var(--radius-card); box-shadow: var(--shadow-md); overflow: hidden; }
+  /* Custom Select (.select-wrap) / absolutely positioned menus: do not clip at card edge */
+  .card:has(.select-wrap),
+  .card:has(.chart-attachments-wrap),
+  .card-elevated:has(.select-wrap) {
+    overflow: visible;
+  }
+  /* Default .card overflow would clip .select-menu (absolute) — use on panels that contain custom Select. */
+  .card.card--overflow-visible,
+  .card-elevated.card--overflow-visible {
+    overflow: visible;
+  }
+  .card-pad { padding: var(--card-pad-y) var(--card-pad-x); }
+  /*
+   * Design system — surfaces & rhythm (MeDoc)
+   * Nutzen: Token statt Einzel-Pixel; Karten = .card / .card-elevated; Typ = .page-title / .card-sub.
+   */
+  .ds-stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--main-stack-gap);
+    min-width: 0;
+  }
+  .ds-stack-tight {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    min-width: 0;
+  }
+  .ds-stack-loose {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+    min-width: 0;
+  }
+  .ds-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+  .ds-muted {
+    color: var(--fg-3);
+    font-size: var(--text-caption);
+    line-height: 1.45;
+  }
+  .ds-divider {
+    height: 1px;
+    background: var(--line);
+    border: none;
+    margin: var(--space-3) 0;
+  }
+  /* Outlet: seitlicher Innenrand & vertikaler Rhythmus (siehe .app-main) */
+  .app-main {
+    padding: var(--main-padding);
+    display: flex;
+    flex-direction: column;
+    gap: var(--main-stack-gap);
+    overflow-x: hidden;
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+  }
+}

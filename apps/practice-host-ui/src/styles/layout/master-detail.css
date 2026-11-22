@@ -1,39 +1,17 @@
 /*
- * layout/master-detail — Administration sub-pages (Products, Services, Catalogs, Contracts, …).
- * List on the start side, detail panel on the end side. On wide screens the detail panel stays in view
- * while the page scrolls (sticky) and scrolls its own content when it is taller than the viewport.
+ * layout/master-detail — Administration sub-pages (Products, Services, Catalogs, Contracts, Staff, Templates, …).
+ * Single owner of the list + detail layout. Feature files style the cards inside; never the layout.
+ *
+ * Layout: "sidebar" flex pattern. The list takes the space (grow 999) but never drops below 55 % of the
+ * row; the detail keeps ~30 % (17–24rem) beside it. When both no longer fit, the detail wraps under the
+ * list and fills the row. No media queries and no vw/vh: media queries ignore CSS zoom (text size, ⌘+),
+ * so at 150 % the old `@media (max-width: 1100px)` rules never fired and the list was squeezed to 0 px.
+ *
+ * Sticky detail: height comes from `--main-visible-height`, measured from <main> by the app shell
+ * (ResizeObserver), so a long panel always ends inside the window and its scroll bar reaches the last field.
  */
-@layer components {
-  .products-workspace,
-  .services-workspace {
-    --master-detail-top: 0px;
-  }
-  @container administration-master-detail (min-width: 881px) {
-    .products-workspace__detail,
-    .services-workspace__detail,
-    .staff-workspace__detail {
-      position: sticky;
-      top: var(--master-detail-top, 0px);
-      align-self: start;
-      max-height: calc(100dvh - var(--app-chrome-offset) - 2 * var(--main-padding));
-      overflow-y: auto;
-      overflow-x: hidden;
-      overscroll-behavior: contain;
-      scrollbar-gutter: stable;
-      border-radius: var(--radius-card);
-    }
-    .products-workspace__list,
-    .services-workspace__list {
-      align-self: start;
-    }
-  }
-  @media (max-width: 1100px) {
-    .products-workspace__detail,
-    .services-workspace__detail,
-    .staff-workspace__detail {
-      position: static;
-      max-height: none;
-      overflow: visible;
-    }
-  }
-}
+/* Manifest: the files below hold the rules, in cascade order. Add rules to the file named after
+   the component that uses them, not here. */
+@import "../shared/products-workspace/products-workspace-2.css";
+@import "../views/components/master-detail/master-detail-crud-page.css";
+@import "../views/components/prescription-presets/preset-lines-editor.css";

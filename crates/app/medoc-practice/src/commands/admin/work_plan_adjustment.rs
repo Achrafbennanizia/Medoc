@@ -6,7 +6,7 @@ use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::error::AppError;
 use tauri::State;
 
@@ -51,6 +51,13 @@ pub async fn insert_cut_range_adjustment(
     .execute(pool)
     .await
     .map_err(AppError::Database)?;
+    medoc_core::infrastructure::database::recorded_write::record_row(
+        pool,
+        "work_plan_adjustment",
+        &id,
+        "INSERT",
+    )
+    .await?;
     Ok(id)
 }
 
@@ -59,12 +66,24 @@ pub async fn deactivate_adjustments_for_source(
     source: &str,
     source_id: &str,
 ) -> Result<(), AppError> {
-    sqlx::query("UPDATE work_plan_adjustment SET active = 0 WHERE source = ?1 AND source_id = ?2")
-        .bind(source)
-        .bind(source_id)
-        .execute(pool)
-        .await
-        .map_err(AppError::Database)?;
+    let ids: Vec<String> = sqlx::query_scalar(
+        "UPDATE work_plan_adjustment SET active = 0, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+         WHERE source = ?1 AND source_id = ?2 AND active = 1 RETURNING id",
+    )
+    .bind(source)
+    .bind(source_id)
+    .fetch_all(pool)
+    .await
+    .map_err(AppError::Database)?;
+    for id in ids {
+        medoc_core::infrastructure::database::recorded_write::record_row(
+            pool,
+            "work_plan_adjustment",
+            &id,
+            "UPDATE",
+        )
+        .await?;
+    }
     Ok(())
 }
 
@@ -121,11 +140,4 @@ pub async fn list_work_plan_adjustments(
             },
         )
         .collect())
-}
-
-#[macro_export]
-macro_rules! register_work_plan_adjustment_commands {
-    () => {
-        $crate::commands::work_plan_adjustment_commands::list_work_plan_adjustments,
-    };
 }

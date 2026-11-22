@@ -69,9 +69,6 @@ export function appointmentCalendarWeekdayLabelKeys(cfg: PracticeWorkHoursConfig
     return appointmentCalendarColumnDayKeys(cfg).map((key) => WEEKDAY_I18N_KEYS[key]);
 }
 
-/** @deprecated Prefer {@link appointmentCalendarColumnCount} with practice config. */
-export const APPOINTMENT_CALENDAR_WORKING_DAYS = 5;
-
 export function isAppointmentCalendarWorkingDay(date: Date, cfg?: PracticeWorkHoursConfig): boolean {
     if (!cfg) {
         const dow = date.getDay();

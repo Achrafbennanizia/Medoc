@@ -1,0 +1,185 @@
+/* From styles/pages/patient-chart-panels.css (cascade position kept by its import there). */
+.tab-badge.warn {
+  background: #f59e0b;
+  color: #fff;
+}
+.tab-badge.ok {
+  background: #16a34a;
+  color: #fff;
+}
+.tab-badge.muted {
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--fg-3);
+}
+.examination-quadrants {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+@media (max-width: 700px) {
+  .examination-quadrants {
+    grid-template-columns: 1fr;
+  }
+}
+.appointment-create-split {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(280px, 1.1fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+@media (max-width: 960px) {
+  .appointment-create-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* PatientChart — Attachments (Upload-Zone + Kartenraster) */
+.chart-attachments-dropzone {
+  border: 1.5px dashed color-mix(in oklab, var(--blue) 38%, var(--line-strong));
+  border-radius: var(--radius-card);
+  background: color-mix(in oklab, var(--fg) 3.5%, var(--bg-elev));
+  padding: clamp(20px, 3vw, 28px);
+  transition: border-color var(--motion-ui) var(--ease-out), background var(--motion-ui) var(--ease-out);
+}
+.chart-attachments-dropzone--active {
+  border-color: var(--blue);
+  background: color-mix(in oklab, var(--blue) 10%, var(--bg-elev));
+}
+.chart-attachments-dropzone--disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+.chart-attachments-dropzone__title {
+  font-size: 16px;
+  font-weight: 650;
+  color: var(--fg);
+  letter-spacing: -0.02em;
+}
+.chart-attachments-dropzone__hint {
+  font-size: 12.5px;
+  color: var(--fg-3);
+  line-height: 1.45;
+  max-width: 420px;
+}
+.chart-attachments-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-4);
+}
+.attachment-card {
+  border-radius: 14px;
+  overflow: visible;
+  border: 1px solid var(--line);
+  background: var(--bg-elev);
+  box-shadow: var(--shadow-sm);
+}
+.attachment-card__preview {
+  position: relative;
+  min-height: 132px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 14px 14px 0 0;
+}
+.attachment-card__badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--fg-2);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+.attachment-card__preview-body {
+  width: 100%;
+  height: 132px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-3);
+}
+.attachment-card__thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 8px;
+  display: block;
+}
+.attachment-card__footer {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: 12px 12px 14px;
+  background: var(--bg-elev);
+  border-top: 1px solid var(--line);
+}
+.attachment-card__title-input {
+  margin: 0 !important;
+  padding: 4px 6px !important;
+  font-weight: 600 !important;
+  font-size: 13.5px !important;
+  border-radius: 8px !important;
+  width: 100%;
+}
+.attachment-card__sub {
+  font-size: 11.5px;
+  color: var(--fg-3);
+}
+.attachment-card__more {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  color: var(--fg-3);
+  background: transparent;
+  border: 1px solid transparent;
+}
+.attachment-card__more:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--fg-2);
+}
+.attachment-card__menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 500;
+  min-width: 200px;
+  padding: var(--space-2);
+  border-radius: 12px;
+  background: var(--bg-elev);
+  border: 1px solid var(--line-strong);
+  box-shadow: var(--shadow-md);
+}
+.attachment-card__menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  text-align: start;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--fg-2);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+.attachment-card__menu-item:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+.attachment-card__menu-item--danger {
+  color: var(--red);
+}
+.attachment-card__menu-item--danger:hover {
+  background: var(--red-soft);
+}

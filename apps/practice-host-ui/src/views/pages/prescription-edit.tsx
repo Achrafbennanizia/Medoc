@@ -193,7 +193,7 @@ export function PrescriptionEditPage() {
                         value={instructions}
                         onChange={(e) => setInstructions(e.target.value)}
                     />
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" style={{ marginTop: 8 }}>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" style={{ marginTop: "var(--space-2)" }}>
                         <Input
                             id="re-edit-pzn"
                             label={t("page.prescriptions.col.pzn")}
@@ -248,7 +248,7 @@ export function PrescriptionEditPage() {
                             <option key={c} value={c} />
                         ))}
                     </datalist>
-                    <label className="row" style={{ gap: 8, alignItems: "center", marginTop: 8, fontSize: 13 }}>
+                    <label className="row" style={{ gap: "var(--space-2)", alignItems: "center", marginTop: "var(--space-2)", fontSize: 13 }}>
                         <input
                             type="checkbox"
                             checked={autIdem}
@@ -256,7 +256,7 @@ export function PrescriptionEditPage() {
                         />
                         {t("page.prescriptions.field.aut_idem_no_subst")}
                     </label>
-                    <div className="row" style={{ justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
+                    <div className="row" style={{ justifyContent: "flex-end", gap: "var(--space-2)", marginTop: "var(--space-2)" }}>
                         <Button variant="ghost" onClick={() => navigate(`/patients/${patientId}#prescription`)} disabled={saving}>
                             {t("common.cancel")}
                         </Button>

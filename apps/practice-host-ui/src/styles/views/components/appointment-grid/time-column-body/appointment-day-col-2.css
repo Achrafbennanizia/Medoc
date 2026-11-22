@@ -1,0 +1,75 @@
+/* From styles/pages/appointments-calendar.css (cascade position kept by its import there). */
+.patients-no-results__suggest {
+  color: var(--fg-2);
+  font-size: 13px;
+  margin: 12px auto 0;
+}
+.patients-no-results__suggest span {
+  color: var(--fg-3);
+}
+.patients-no-results__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+  justify-content: center;
+}
+.appointment-day-col__closed {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: color-mix(in oklab, var(--fg) 7%, var(--bg-elev));
+  border-block: 1px solid color-mix(in oklab, var(--fg) 5%, transparent);
+  pointer-events: none;
+  z-index: 1;
+}
+.appointment-day-col--today .appointment-day-col__closed {
+  background: color-mix(in oklab, var(--fg) 8%, color-mix(in oklab, var(--accent) 6%, var(--bg-elev)));
+}
+.appointment-day-col--today {
+  background: color-mix(in oklab, var(--accent) 10%, var(--bg-elev));
+}
+.appointment-day-col--weekend {
+  background: color-mix(in oklab, var(--fg) 3%, var(--bg-elev));
+}
+.appointment-hour-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 1px solid var(--line);
+  pointer-events: none;
+}
+.appointment-now-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--red);
+  z-index: 5;
+  pointer-events: none;
+}
+.appointment-now-dot {
+  position: absolute;
+  inset-inline-start: -2px;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin-top: -5px;
+  border-radius: 999px;
+  background: var(--red);
+  animation: pulseDot 1.6s ease-in-out infinite;
+}
+.appointment-now-pill {
+  position: absolute;
+  inset-inline-end: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--red-soft);
+  color: #9f1239;
+  z-index: 6;
+}

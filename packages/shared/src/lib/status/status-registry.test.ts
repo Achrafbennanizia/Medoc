@@ -5,7 +5,10 @@ import fr from "#shared-locales/fr.json";
 import ar from "#shared-locales/ar.json";
 import { APPOINTMENT_STATUS_VALUES, CHART_STATUS_VALUES, ORDER_STATUS_VALUES, PATIENT_STATUS_VALUES, PAYMENT_STATUS_VALUES } from "../enums.generated";
 import {
+    STATUS_CAPABILITIES,
     STATUS_ENTITY_IDS,
+    statusAllows,
+    statusCapabilityLabelKey,
     STATUS_REGISTRY,
     canTransition,
     nextStatuses,
@@ -27,11 +30,30 @@ describe("status registry", () => {
                     expect(cat[statusLabelKey(id, st.wire)], `${loc}:${id}.${st.wire}`).toBeTruthy();
                     expect(cat[statusDescriptionKey(id, st.wire)], `${loc}:${id}.${st.wire}`).toBeTruthy();
                 }
+                for (const st of STATUS_REGISTRY[id].states) {
+                    for (const c of st.can) expect(STATUS_CAPABILITIES).toContain(c);
+                }
                 for (const f of STATUS_REGISTRY[id].flags ?? []) {
                     expect(cat[statusFlagLabelKey(id, f)], `${loc}:${id} flag ${f}`).toBeTruthy();
                 }
             }
         }
+    });
+
+    it("translates every capability", () => {
+        for (const [loc, cat] of Object.entries(LOCALES)) {
+            for (const c of STATUS_CAPABILITIES) expect(cat[statusCapabilityLabelKey(c)], `${loc}:${c}`).toBeTruthy();
+        }
+    });
+
+    it("drives app reactions from the status", () => {
+        expect(statusAllows("appointment", "PLANNED", "reschedule")).toBe(true);
+        expect(statusAllows("appointment", "IN_PROGRESS", "reschedule")).toBe(false);
+        expect(statusAllows("appointment", "COMPLETED", "reschedule")).toBe(false);
+        expect(statusAllows("payment", "PAID", "edit")).toBe(false);
+        expect(statusAllows("payment", "OUTSTANDING", "delete")).toBe(true);
+        expect(canTransition("appointment", "CONFIRMED", "IN_PROGRESS")).toBe(true);
+        expect(canTransition("appointment", "CANCELLED", "PLANNED")).toBe(true);
     });
 
     it("only references known statuses in transitions and initial", () => {

@@ -20,25 +20,28 @@ import {
     parseISO,
     startOfWeek,
 } from "date-fns";
-import { listAppointmentsPaged, deleteAppointment, updateAppointment } from "@/systems/practice-host/controllers/appointment.controller";
+import { resolveAppointmentsDeepLink } from "@/lib/appointments-deep-link";
+import { listAppointmentsInRange, moveAppointments, createAppointment, deleteAppointment, updateAppointment } from "@/systems/practice-host/controllers/appointment.controller";
+import {
+    eachIsoDate,
+    mergeAppointmentsInSpan,
+    replaceAppointmentsInSpan,
+    monthGridRangeForView,
+    practiceYearRange,
+    rangeIsCovered,
+} from "@/lib/appointment-visible-range";
 import { useDateFnsLocale, useT, useTParams } from "@/lib/i18n";
+import { practiceTodayYmd } from "@/lib/practice-timezone";
 import { usePageRefresh } from "../layouts/page-refresh";
 import { listPatientsByIds } from "@/systems/practice-host/controllers/patient.controller";
 import { listPhysicians, type PhysicianSummary } from "@/systems/practice-host/controllers/staff.controller";
-import { LAZY_PAGE_SIZE, mergeUniqueById } from "@/lib/lazy-list";
 import { listAbsences } from "@/systems/practice-host/controllers/practice.controller";
 import { errorMessage } from "@/lib/utils";
 import { MEDOC_PENDING_APPOINTMENT_MENU_KEY } from "@/lib/native-go-menu";
 import { CALENDAR_EMERGENCY_TOOLBAR_UI_ENABLED } from "@/lib/settings-ui-flags";
 import { DismissibleNotice } from "../components/ui/dismissible-notice";
 import { appointmentIsEmergencyMarked, parseAppointmentDurationMin } from "@/lib/appointment-domain";
-import {
-    DEFAULT_CLIENT_SETTINGS,
-    loadClientSettings,
-    mergeClientSettingsPatch,
-    readAppointmentsDefaultView,
-    saveClientSettings,
-} from "@/lib/client-settings";
+import { loadClientSettings, readAppointmentsDefaultView } from "@/lib/client-settings";
 import { CALENDAR_WORKFLOWS_CHANGED_EVENT } from "@/lib/practice-calendar-workflows-sync";
 import {
     DEFAULT_MONTH_CAL_PATIENT_LOAD,
@@ -89,6 +92,7 @@ import {
     type AppointmentDragState,
 } from "../components/appointment-week-day-grid";
 import { WorkspacePageHeader } from "../components/administration-page-header";
+import { statusAllows, statusLabelKey } from "@/lib/status/status-registry";
 import {
     // AmbulanceIcon, — calendar: emergency toolbar temporarily disabled
     ChevronLeftIcon,
@@ -111,7 +115,6 @@ import {
     appointmentKindFilterOptions,
     appointmentCalendarWeekDays,
     appointmentCountsAsPlanned,
-    appointmentTimeToMinutes,
     APPOINTMENT_DEFAULT_DUR_MIN,
     APPOINTMENT_PX_PER_MIN,
     APPOINTMENT_STATUS_BADGE,
@@ -139,7 +142,9 @@ const APPT_DRAG_TRAVEL_PX = 5;
  */
 const APPT_DRAWER_OPEN_DELAY_MS = 320;
 
-const timeToMinutes = appointmentTimeToMinutes;
+function absenceStamp(rows: Absence[]): string {
+    return rows.map((row) => `${row.id}\0${row.from_day}\0${row.to_day}\0${row.from_time ?? ""}\0${row.to_time ?? ""}\0${row.kind}`).join("\n");
+}
 
 export function AppointmentsPage() {
     const t = useT();
@@ -157,8 +162,6 @@ export function AppointmentsPage() {
     const [appointmentBufferMin, setAppointmentBufferMin] = useState(0);
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
-    const loadSeq = useRef(0);
-    const silentLoadInflight = useRef(false);
     const [monthCalPatientLoad, setMonthCalPatientLoad] = useState<MonthCalendarPatientLoadPrefs>(() => ({
         ...DEFAULT_MONTH_CAL_PATIENT_LOAD,
     }));
@@ -176,6 +179,7 @@ export function AppointmentsPage() {
     const [filterStatus, setFilterStatus] = useState("");
     const [filterPhysicianIds, setFilterPhysicianIds] = useState<string[]>([]);
     const [quickSearch, setQuickSearch] = useState("");
+    const [debouncedQuickSearch, setDebouncedQuickSearch] = useState("");
     const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);
     const filterPopoverWrapRef = useRef<HTMLDivElement | null>(null);
     const filterPopoverPanelRef = useRef<HTMLDivElement | null>(null);
@@ -267,77 +271,91 @@ export function AppointmentsPage() {
         [t],
     );
 
-    const load = useCallback(async (opts?: { silent?: boolean }) => {
-        const silent = opts?.silent === true;
-        if (silent && silentLoadInflight.current) return;
-        const seq = silent ? loadSeq.current : ++loadSeq.current;
-        if (silent) silentLoadInflight.current = true;
+    const coveredDaysRef = useRef(new Set<string>());
+    const knownPatientIdsRef = useRef(new Set<string>());
+    const physiciansLoadedRef = useRef(false);
+    const visibleRange = useMemo(
+        () => monthGridRangeForView(view, monthOffset, weekOffset, dayOffset),
+        [view, monthOffset, weekOffset, dayOffset],
+    );
+
+    const fetchSpan = useCallback(async (
+        from: string,
+        to: string,
+        opts?: { silent?: boolean; force?: boolean },
+    ) => {
+        const force = opts?.force === true;
+        if (!force && rangeIsCovered(coveredDaysRef.current, from, to)) return;
+        const silent = opts?.silent === true || appointmentsRef.current.length > 0;
         if (!silent) {
             setLoading(true);
             setLoadError(null);
         }
         try {
-            // Full practice year (± look-ahead) — paged so density stays manageable.
-            const today = new Date();
-            const from = new Date(today.getFullYear(), today.getMonth() - 11, 1);
-            const to = new Date(today.getFullYear(), today.getMonth() + 3, 0);
-            const ymd = (d: Date) =>
-                `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-            let page = 1;
-            let total = Infinity;
-            let appts: Awaited<ReturnType<typeof listAppointmentsPaged>>["items"] = [];
-            while (appts.length < total) {
-                const resp = await listAppointmentsPaged({
-                    page,
-                    pageSize: LAZY_PAGE_SIZE,
-                    filter: { dateFrom: ymd(from), dateTo: ymd(to) },
-                });
-                total = resp.total;
-                appts = mergeUniqueById(appts, resp.items);
-                if (resp.items.length === 0 || page * resp.pageSize >= total) break;
-                page += 1;
-                if (page > 100) break;
-            }
-            const patientIds = [...new Set(appts.map((a) => a.patient_id).filter(Boolean))];
-            const [p, a] = await Promise.all([
-                patientIds.length ? listPatientsByIds(patientIds) : Promise.resolve([]),
-                listPhysicians(),
+            const appts = await listAppointmentsInRange(from, to);
+            const missingPatientIds = [...new Set(appts.map((row) => row.patient_id).filter(Boolean))]
+                .filter((id) => !knownPatientIdsRef.current.has(id));
+            const [patientRows, physicianRows] = await Promise.all([
+                missingPatientIds.length ? listPatientsByIds(missingPatientIds) : Promise.resolve([]),
+                physiciansLoadedRef.current ? Promise.resolve(null) : listPhysicians(),
             ]);
-            if (loadSeq.current !== seq) return;
-            setAppointments(appts);
-            setPatients(p);
-            setPhysicians(a);
-            try {
-                setAbsences(await listAbsences());
-            } catch {
-                setAbsences([]);
+            for (const day of eachIsoDate(from, to)) coveredDaysRef.current.add(day);
+            setAppointments((prev) =>
+                force
+                    ? replaceAppointmentsInSpan(prev, appts, from, to)
+                    : mergeAppointmentsInSpan(prev, appts, from, to),
+            );
+            if (patientRows.length > 0) {
+                for (const row of patientRows) knownPatientIdsRef.current.add(row.id);
+                setPatients((prev) => {
+                    const seen = new Set(prev.map((row) => row.id));
+                    return prev.concat(patientRows.filter((row) => !seen.has(row.id)));
+                });
             }
-            try {
-                setPracticePlanCfg(await loadPracticeWorkHoursConfig());
-            } catch {
-                setPracticePlanCfg(readPracticeWorkHoursConfig());
-            }
-            try {
-                const prefs = await loadPracticePreferencesFromKv();
-                setAppointmentBufferMin(Math.max(0, Number.parseInt(String(prefs.bufferMin ?? "0"), 10) || 0));
-                setCalendarDragEnabled(prefs.calendarDragDropEnabled !== false);
-            } catch {
-                setAppointmentBufferMin(0);
+            if (physicianRows) {
+                physiciansLoadedRef.current = true;
+                setPhysicians(physicianRows);
             }
         } catch (e) {
-            if (loadSeq.current !== seq || silent) return;
+            if (silent) return;
             setLoadError(errorMessage(e));
-            setAppointments([]);
-            setPatients([]);
-            setPhysicians([]);
-            setAbsences([]);
+            if (appointmentsRef.current.length === 0) {
+                setAppointments([]);
+                setPatients([]);
+                setPhysicians([]);
+            }
         } finally {
-            if (silent) silentLoadInflight.current = false;
-            if (!silent && loadSeq.current === seq) setLoading(false);
+            if (!silent) setLoading(false);
         }
     }, []);
 
-    useEffect(() => { void load(); }, [load]);
+    const load = useCallback(async (opts?: { silent?: boolean; force?: boolean }) => {
+        const force = opts?.force !== false;
+        await fetchSpan(visibleRange.from, visibleRange.to, {
+            silent: opts?.silent === true || (force && appointmentsRef.current.length > 0),
+            force,
+        });
+    }, [fetchSpan, visibleRange.from, visibleRange.to]);
+
+    useEffect(() => { void load({ force: false }); }, [load]);
+
+    useEffect(() => {
+        const q = quickSearch.trim();
+        if (q.length < 2) {
+            setDebouncedQuickSearch(q);
+            return;
+        }
+        const timer = window.setTimeout(() => setDebouncedQuickSearch(q), 200);
+        return () => window.clearTimeout(timer);
+    }, [quickSearch]);
+
+    useEffect(() => {
+        const q = debouncedQuickSearch.trim();
+        if (q.length < 2) return;
+        const year = practiceYearRange();
+        if (rangeIsCovered(coveredDaysRef.current, year.from, year.to)) return;
+        void fetchSpan(year.from, year.to, { silent: true, force: false });
+    }, [debouncedQuickSearch, fetchSpan]);
 
     usePageRefresh(() => {
         void load({ silent: true });
@@ -345,7 +363,6 @@ export function AppointmentsPage() {
 
     useEffect(() => {
         const onWorkflows = () => {
-            setView(readAppointmentsDefaultView());
             setCalendarWorkflowsRev((n) => n + 1);
         };
         window.addEventListener(CALENDAR_WORKFLOWS_CHANGED_EVENT, onWorkflows);
@@ -368,17 +385,22 @@ export function AppointmentsPage() {
     useEffect(() => {
         const refreshMonthCalPrefs = () => {
             void loadPracticePreferencesFromKv().then((p) => {
-                setMonthCalPatientLoad(p.monthCalendarPatientLoad);
-                setAppointmentBufferMin(Math.max(0, Number.parseInt(String(p.bufferMin ?? "0"), 10) || 0));
+                const nextBuf = Math.max(0, Number.parseInt(String(p.bufferMin ?? "0"), 10) || 0);
+                setMonthCalPatientLoad((prev) => (JSON.stringify(prev) === JSON.stringify(p.monthCalendarPatientLoad) ? prev : p.monthCalendarPatientLoad));
+                setAppointmentBufferMin((prev) => (prev === nextBuf ? prev : nextBuf));
                 setCalendarDragEnabled(p.calendarDragDropEnabled !== false);
             });
         };
         const refreshPracticePlan = () => {
             void loadPracticeWorkHoursConfig()
-                .then(setPracticePlanCfg)
+                .then((cfg) => {
+                    setPracticePlanCfg((prev) => (JSON.stringify(prev) === JSON.stringify(cfg) ? prev : cfg));
+                })
                 .catch((e) => toast(tp("appointments.page.toast_work_hours", { message: errorMessage(e) }), "warning"));
             void listAbsences()
-                .then(setAbsences)
+                .then((rows) => {
+                    setAbsences((prev) => (absenceStamp(prev) === absenceStamp(rows) ? prev : rows));
+                })
                 .catch(() => setAbsences([]));
         };
         refreshMonthCalPrefs();
@@ -396,43 +418,63 @@ export function AppointmentsPage() {
                 .catch(() => setPracticePlanCfg(readPracticeWorkHoursConfig()));
         };
         window.addEventListener(PRACTICE_WORK_HOURS_CHANGED_EVENT, onCfgChanged);
-        const poll = window.setInterval(() => {
-            refreshMonthCalPrefs();
-            void listAbsences().then(setAbsences).catch(() => {});
-        }, 500);
         return () => {
             document.removeEventListener("visibilitychange", onVis);
             window.removeEventListener(PRACTICE_WORK_HOURS_CHANGED_EVENT, onCfgChanged);
-            window.clearInterval(poll);
         };
     }, [location.pathname, toast, tp]);
-
-    useEffect(() => {
-        const cur = loadClientSettings();
-        const w = cur.workflows ?? DEFAULT_CLIENT_SETTINGS.workflows!;
-        if (w.appointmentsDefaultView === view) return;
-        saveClientSettings(mergeClientSettingsPatch(cur, { workflows: { ...w, appointmentsDefaultView: view } }));
-    }, [view]);
 
     const handleDelete = async () => {
         if (!deleteId) return;
         const id = deleteId;
+        const row = appointments.find((item) => item.id === id) ?? null;
         await deleteAppointment(id);
-        toast(t("appointments.page.toast_deleted"));
+        toast(t("appointments.page.toast_deleted"), "success", {
+            onUndo: async () => {
+                if (!row) return;
+                try {
+                    const restored = await createAppointment({
+                        date: row.date,
+                        time: row.time,
+                        kind: row.kind,
+                        patient_id: row.patient_id,
+                        physician_id: row.physician_id,
+                        notes: row.notes,
+                        chief_complaint: row.chief_complaint,
+                    });
+                    if (row.status !== "PLANNED") {
+                        await updateAppointment(restored.id, { status: row.status });
+                    }
+                    await load();
+                } catch (err) {
+                    toast(errorMessage(err), "error");
+                }
+            },
+        });
         setDeleteId(null);
         setDrawerAppointment((d) => (d?.id === id ? null : d));
         void load();
     };
 
     const handleStornieren = async (id: string) => {
+        const previousStatus = appointments.find((item) => item.id === id)?.status ?? "PLANNED";
         try {
             await updateAppointment(id, { status: "CANCELLED" });
-            toast(t("appointments.page.toast_storno"));
+            toast(t("appointments.page.toast_storno"), "success", {
+                onUndo: async () => {
+                    try {
+                        await updateAppointment(id, { status: previousStatus });
+                        await load();
+                    } catch (err) {
+                        toast(errorMessage(err), "error");
+                    }
+                },
+            });
             setDrawerAppointment((d) => (d?.id === id ? null : d));
             setCtxMenu(null);
             await load();
         } catch (e) {
-            toast(errorMessage(e));
+            toast(errorMessage(e), "error");
         }
     };
 
@@ -464,14 +506,14 @@ export function AppointmentsPage() {
     );
 
     const displayAppointments = useMemo(() => {
-        const q = quickSearch.trim().toLowerCase();
+        const q = debouncedQuickSearch.trim().toLowerCase();
         if (!q) return baseFilteredAppointments;
         return baseFilteredAppointments.filter((t) => {
             const hay = `${patientNameById.get(t.patient_id) ?? ""} ${t.kind} ${t.status} ${t.date} ${t.time}`
                 .toLowerCase();
             return hay.includes(q);
         });
-    }, [baseFilteredAppointments, quickSearch, patientNameById]);
+    }, [baseFilteredAppointments, debouncedQuickSearch, patientNameById]);
 
     const selectedDayDate = useMemo(() => addDays(new Date(), dayOffset), [dayOffset]);
     const selectedDayIso = format(selectedDayDate, "yyyy-MM-dd");
@@ -555,7 +597,7 @@ export function AppointmentsPage() {
     }, [view, toast, goNewAppointment, selectedDayIso, t]);
 
     useEffect(() => {
-        const q = quickSearch.trim().toLowerCase();
+        const q = debouncedQuickSearch.trim().toLowerCase();
         if (q.length < 2) return;
         const match = baseFilteredAppointments.find((term) => {
             const name = (patientNameById.get(term.patient_id) ?? "").toLowerCase();
@@ -566,7 +608,7 @@ export function AppointmentsPage() {
         const d = parseISO(match.date);
         const off = differenceInCalendarDays(d, new Date());
         setDayOffset(off);
-    }, [quickSearch, baseFilteredAppointments, patientNameById]);
+    }, [debouncedQuickSearch, baseFilteredAppointments, patientNameById]);
 
     useLayoutEffect(() => {
         if (!filterPopoverOpen) {
@@ -583,11 +625,20 @@ export function AppointmentsPage() {
             setFilterPopoverFixed({ top, left, width });
         };
         update();
-        window.addEventListener("resize", update);
-        document.addEventListener("scroll", update, true);
+        let frame = 0;
+        const schedule = () => {
+            if (frame) return;
+            frame = window.requestAnimationFrame(() => {
+                frame = 0;
+                update();
+            });
+        };
+        window.addEventListener("resize", schedule);
+        document.addEventListener("scroll", schedule, true);
         return () => {
-            window.removeEventListener("resize", update);
-            document.removeEventListener("scroll", update, true);
+            window.removeEventListener("resize", schedule);
+            document.removeEventListener("scroll", schedule, true);
+            if (frame) window.cancelAnimationFrame(frame);
         };
     }, [filterPopoverOpen]);
 
@@ -637,16 +688,53 @@ export function AppointmentsPage() {
     }, [ctxMenu]);
 
     useEffect(() => {
+        const dateParam = searchParams.get("date");
+        const viewParam = searchParams.get("view");
+        const editId = searchParams.get("edit")?.trim() || "";
         const patientId = searchParams.get("patient_id");
         const openNew = searchParams.get("new");
+
+        const clearParams = (...keys: string[]) => {
+            setSearchParams(
+                (prev) => {
+                    const p = new URLSearchParams(prev);
+                    for (const key of keys) p.delete(key);
+                    return p;
+                },
+                { replace: true },
+            );
+        };
+
+        // Deep links: honor view=week|day|month before applying date (do not force day for week).
+        const deep = resolveAppointmentsDeepLink({ viewParam, dateParam });
+        if (deep) {
+            setView(deep.view);
+            setDayOffset(deep.dayOffset);
+            setWeekOffset(deep.weekOffset);
+            if (deep.applyMonthOffset && dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+                const target = parseISO(dateParam);
+                if (!Number.isNaN(target.getTime())) {
+                    setMonthOffset(calendarMonthOffsetFromToday(target));
+                }
+            }
+        }
+
+        if (editId) {
+            goNewAppointment({ id: editId, date: dateParam || undefined });
+            clearParams("edit", "date", "patient_id", "new", "view");
+            return;
+        }
+
         if (patientId && openNew === "1") {
-            goNewAppointment({ patient_id: patientId, date: selectedDayIso });
-            setSearchParams((prev) => {
-                const p = new URLSearchParams(prev);
-                p.delete("patient_id");
-                p.delete("new");
-                return p;
-            }, { replace: true });
+            goNewAppointment({ patient_id: patientId, date: dateParam || selectedDayIso });
+            clearParams("patient_id", "new", "date", "view");
+            return;
+        }
+
+        if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+            clearParams("date", "view");
+        } else if (viewParam) {
+            clearParams("view");
         }
     }, [searchParams, setSearchParams, goNewAppointment, selectedDayIso]);
 
@@ -692,7 +780,7 @@ export function AppointmentsPage() {
         () => baseFilteredAppointments.filter(appointmentCountsAsPlanned).length,
         [baseFilteredAppointments],
     );
-    const heuteIso = format(new Date(), "yyyy-MM-dd");
+    const heuteIso = practiceTodayYmd();
     const heutePlannedCount = useMemo(
         () =>
             baseFilteredAppointments.filter((x) => x.date === heuteIso && appointmentCountsAsPlanned(x)).length,
@@ -760,6 +848,10 @@ export function AppointmentsPage() {
                 return;
             }
             if (updates.length === 0) return;
+            const rollback = updates.flatMap((update) => {
+                const row = appointments.find((item) => item.id === update.id);
+                return row ? [{ id: row.id, date: row.date, time: row.time }] : [];
+            });
             const schedErr = validateAppointmentSchedulingUpdates(
                 appointments,
                 updates,
@@ -772,21 +864,59 @@ export function AppointmentsPage() {
                 toast(schedErr, "error");
                 return;
             }
-            const moved = updates.find((u) => u.id === id);
-            let snap: { iso: string; startMin: number } | undefined;
-            if (moved?.data.time) {
-                const ustr = moved.data.time as string;
-                const dstr = (moved.data.date as string | undefined) ?? date;
-                snap = { iso: dstr, startMin: timeToMinutes(ustr) };
-            }
+            const placedAt = new Date().toISOString();
+            setAppointments((prev) => prev.map((row) => {
+                const update = updates.find((item) => item.id === row.id);
+                if (!update) return row;
+                const nextDate = typeof update.data.date === "string" ? update.data.date : row.date;
+                const nextTime = typeof update.data.time === "string" ? update.data.time : row.time;
+                return { ...row, date: nextDate, time: nextTime, updated_at: placedAt };
+            }));
             try {
-                for (const u of updates) {
-                    await updateAppointment(u.id, u.data);
+                // F70: pure date/time moves go through one all-or-nothing call.
+                const pureMoves = updates.every((u) =>
+                    Object.keys(u.data).every((k) => k === "date" || k === "time"),
+                );
+                if (pureMoves) {
+                    const byId = new Map(appointments.map((a) => [a.id, a]));
+                    await moveAppointments(
+                        updates.map((u) => {
+                            const cur = byId.get(u.id);
+                            return {
+                                id: u.id,
+                                date: (u.data.date as string | undefined) ?? cur?.date ?? date,
+                                time: (u.data.time as string | undefined) ?? cur?.time ?? "",
+                            };
+                        }),
+                    );
+                } else {
+                    for (const u of updates) {
+                        await updateAppointment(u.id, u.data);
+                    }
                 }
-                toast(updates.length > 1 ? tp("appointments.page.toast_moved_many", { count: updates.length }) : t("appointments.page.toast_moved"));
+                toast(
+                    updates.length > 1 ? tp("appointments.page.toast_moved_many", { count: updates.length }) : t("appointments.page.toast_moved"),
+                    "success",
+                    {
+                        onUndo: async () => {
+                            try {
+                                for (const prev of rollback) {
+                                    await updateAppointment(prev.id, { date: prev.date, time: prev.time });
+                                }
+                                await load();
+                            } catch (err) {
+                                toast(errorMessage(err), "error");
+                            }
+                        },
+                    },
+                );
                 await load();
-                if (snap) setAppointmentDaySnapLabel(snap);
+                // Do not re-show hour-rail snap after drop (stays under the card).
             } catch (e) {
+                setAppointments((prev) => prev.map((row) => {
+                    const old = rollback.find((item) => item.id === row.id);
+                    return old ? { ...row, date: old.date, time: old.time } : row;
+                }));
                 toast(errorMessage(e));
             }
         },
@@ -824,8 +954,6 @@ export function AppointmentsPage() {
         }, APPT_DRAWER_OPEN_DELAY_MS);
     }, [cancelPendingDrawerOpen]);
 
-    /** Drag disabled in settings → a press is just a click (drawer opens on click as usual). */
-    const noAppointmentDrag = useCallback(() => {}, []);
     const beginAppointmentDrag = useCallback(
         (
             next: AppointmentDragState,
@@ -1152,6 +1280,7 @@ export function AppointmentsPage() {
                 if (!prev || prev.id !== dragId) {
                     clearAppointmentDragSession();
                     document.body.classList.remove("appointment-calendar-dragging");
+                    setAppointmentDaySnapLabel(null);
                     setDragState(null);
                     return;
                 }
@@ -1182,6 +1311,7 @@ export function AppointmentsPage() {
                 clearAppointmentDragSession();
                 document.body.classList.remove("appointment-calendar-dragging");
                 lastDragDateNavAtRef.current = 0;
+                setAppointmentDaySnapLabel(null);
                 setDragState(null);
             };
 
@@ -1195,12 +1325,48 @@ export function AppointmentsPage() {
                 clearAppointmentDragSession();
                 document.body.classList.remove("appointment-calendar-dragging");
                 lastDragDateNavAtRef.current = 0;
+                setAppointmentDaySnapLabel(null);
+                setDragState(null);
                 dragTrackingTeardownRef.current = null;
             };
         },
         [cancelPendingDrawerOpen, commitDrag, dayStartMin, dayEndMin, scheduleDrawerOpen, t, toast],
     );
-    const appointmentDragStart = calendarDragEnabled ? beginAppointmentDrag : noAppointmentDrag;
+    /** Explain (once per press-and-move) why a locked appointment did not move. */
+    const lockedDragHintRef = useRef<{ id: string; x: number; y: number; status: string } | null>(null);
+    /**
+     * Drag & drop gate: the setting (Settings → Workflows) AND the appointment's status must allow moving.
+     * In-progress, completed, cancelled and no-show appointments stay where they are (status registry).
+     */
+    const appointmentDragStart = useCallback<typeof beginAppointmentDrag>(
+        (next, el, singleDay, pointer) => {
+            if (!calendarDragEnabled) return;
+            const ap = appointmentsRef.current.find((x) => x.id === next.id);
+            if (ap && !statusAllows("appointment", ap.status, "reschedule")) {
+                lockedDragHintRef.current = { id: ap.id, x: pointer.clientX, y: pointer.clientY, status: ap.status };
+                return;
+            }
+            beginAppointmentDrag(next, el, singleDay, pointer);
+        },
+        [calendarDragEnabled, beginAppointmentDrag],
+    );
+    useEffect(() => {
+        const onMove = (e: MouseEvent) => {
+            const h = lockedDragHintRef.current;
+            if (!h || Math.abs(e.clientX - h.x) + Math.abs(e.clientY - h.y) < 8) return;
+            lockedDragHintRef.current = null;
+            toast(tp("appointment.drag.locked", { status: t(statusLabelKey("appointment", h.status)) }), "info");
+        };
+        const onUp = () => {
+            lockedDragHintRef.current = null;
+        };
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("mouseup", onUp);
+        return () => {
+            window.removeEventListener("mousemove", onMove);
+            window.removeEventListener("mouseup", onUp);
+        };
+    }, [t, tp, toast]);
 
     useEffect(() => {
         return () => {
@@ -1220,7 +1386,8 @@ export function AppointmentsPage() {
 
     const patchAppointmentLocal = useCallback(
         (id: string, patch: Record<string, unknown>) => {
-            setAppointments((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } as TCalEvent : x)));
+            const stamped = { updated_at: new Date().toISOString(), ...patch };
+            setAppointments((prev) => prev.map((x) => (x.id === id ? { ...x, ...stamped } as TCalEvent : x)));
             setDrawerAppointment((dt) => (dt?.id === id ? { ...dt, ...patch } as TCalEvent : dt));
         },
         [],
@@ -1228,16 +1395,28 @@ export function AppointmentsPage() {
 
     const onDrawerStatus = useCallback(
         async (id: string, status: TCalEvent["status"]) => {
+            const previousStatus = appointments.find((item) => item.id === id)?.status;
             try {
                 await updateAppointment(id, { status });
                 patchAppointmentLocal(id, { status });
-                toast(tp("appointments.page.toast_status", { status: status.replace(/_/g, " ") }));
+                toast(tp("appointments.page.toast_status", { status: status.replace(/_/g, " ") }), "success", {
+                    onUndo: previousStatus
+                        ? async () => {
+                              try {
+                                  await updateAppointment(id, { status: previousStatus });
+                                  await load();
+                              } catch (err) {
+                                  toast(errorMessage(err), "error");
+                              }
+                          }
+                        : undefined,
+                });
                 await load();
             } catch (e) {
-                toast(errorMessage(e));
+                toast(errorMessage(e), "error");
             }
         },
-        [load, toast, patchAppointmentLocal, tp],
+        [appointments, load, toast, patchAppointmentLocal, tp],
     );
 
     useEffect(() => {
@@ -1430,7 +1609,7 @@ export function AppointmentsPage() {
                                   </div>
                               </div>
                               <div className="menu-sep" />
-                              <div className="row" style={{ gap: 8, justifyContent: "flex-end" }}>
+                              <div className="row" style={{ gap: "var(--space-2)", justifyContent: "flex-end" }}>
                                   <button type="button" className="btn btn-ghost" onClick={() => resetFilters()}>
                                       {t("common.reset")}
                                   </button>
@@ -1558,6 +1737,7 @@ export function AppointmentsPage() {
                             emptyHasFilters={tagViewHasActiveFilters}
                             onEmptyCreate={() => goNewAppointment({ date: selectedDayIso })}
                             onEmptyResetFilters={tagViewHasActiveFilters ? resetFilters : undefined}
+                            absences={absences}
                             nowMin={() => {
                                 const n = new Date();
                                 return n.getHours() * 60 + n.getMinutes();
@@ -1568,7 +1748,7 @@ export function AppointmentsPage() {
                     ) : displayAppointments.length === 0 ? (
                         <div className="card">
                             <EmptyState icon="🔍" title={t("appointments.page.empty_no_match")} description={t("appointments.page.empty_no_match_desc")} />
-                            <div style={{ textAlign: "center", paddingBottom: 24 }}>
+                            <div style={{ textAlign: "center", paddingBottom: "var(--space-6)" }}>
                                 <button type="button" className="btn btn-accent" onClick={resetFilters}>{t("common.reset_filters")}</button>
                             </div>
                         </div>
@@ -1581,6 +1761,7 @@ export function AppointmentsPage() {
                             physicianToneMap={physicianToneMap}
                             patientLoadSettings={monthCalPatientLoad}
                             practiceCfg={practicePlanCfg}
+                            absences={absences}
                             onPickDay={(iso) => {
                                 jumpToIsoDate(iso);
                                 setView("day");
@@ -1597,6 +1778,7 @@ export function AppointmentsPage() {
                             onAppointmentDragStart={appointmentDragStart}
                             snapLabel={appointmentDaySnapLabel}
                             onClearSnapLabel={() => setAppointmentDaySnapLabel(null)}
+                            absences={absences}
                             clickSuppressUntilRef={suppressApptClickUntilRef}
                             onHeaderDay={(iso) => {
                                 jumpToIsoDate(iso);
@@ -1638,7 +1820,7 @@ export function AppointmentsPage() {
                         onCancel={() => setEmergencyConfirmOpen(false)}
                         destructive
                         onConfirm={() => {
-                            const todayIso = format(new Date(), "yyyy-MM-dd");
+                            const todayIso = practiceTodayYmd();
                             setDayOffset(0);
                             setWeekOffset(0);
                             setMonthOffset(0);

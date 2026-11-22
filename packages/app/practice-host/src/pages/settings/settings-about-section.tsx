@@ -77,12 +77,12 @@ export function SettingsAboutSection() {
                     <b>{t("settings.about.app_version")}</b>
                     <div className="card-sub">MeDoc {appVersion}</div>
                     {updateInfo?.update_available ? (
-                        <div className="card-sub" style={{ marginTop: 6 }}>
+                        <div className="card-sub" style={{ marginTop: "var(--space-2)" }}>
                             {tp("settings.about.update_available", { version: updateInfo.latest_version })}
                         </div>
                     ) : null}
                 </div>
-                <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                <div className="row" style={{ gap: "var(--space-2)", flexWrap: "wrap" }}>
                     <Button
                         variant="ghost"
                         type="button"
@@ -109,7 +109,7 @@ export function SettingsAboutSection() {
                     {updateInfo.release_notes}
                 </p>
             ) : null}
-            <div className="settings-row" style={{ flexWrap: "wrap", gap: 12, alignItems: "flex-start" }}>
+            <div className="settings-row" style={{ flexWrap: "wrap", gap: "var(--space-3)", alignItems: "flex-start" }}>
                 <div>
                     <b>{t("settings.about.product_info")}</b>
                     <div className="card-sub">{t("settings.about.product_info_sub")}</div>

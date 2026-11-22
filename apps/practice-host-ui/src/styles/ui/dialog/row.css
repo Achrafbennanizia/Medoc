@@ -1,0 +1,65 @@
+/* From styles/components/utilities.css (cascade position kept by its import there). */
+@layer components {
+  .btn-compact-sm {
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    min-height: 30px;
+    border-radius: 8px;
+  }
+  .row { display: flex; align-items: center; gap: 12px; }
+  .row--justify-end { justify-content: flex-end; width: 100%; }
+  .row--ms-auto { margin-inline-start: auto; }
+  .row--actions-end {
+    justify-content: flex-end;
+    margin-inline-start: auto;
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .row[style*="justify-content: flex-end"],
+  .row[style*="justify-content:flex-end"] {
+    width: 100%;
+  }
+  .col { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .spacer { flex: 1; }
+  .bar { background: var(--accent); border-radius: 6px 6px 2px 2px; transition: all 220ms ease; }
+  @keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes popIn   { from { opacity: 0; transform: translateY(10px) scale(.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  @keyframes fadeUp  { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes spin    { to { transform: rotate(360deg); } }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes fieldErrorShake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-4px); }
+    40% { transform: translateX(3px); }
+    60% { transform: translateX(-2px); }
+    80% { transform: translateX(1px); }
+  }
+  @keyframes skeletonShimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+  @keyframes emptyStateFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+  }
+  .animate-fade-in  { animation: fadeUp var(--motion-ui) var(--ease-out) both; }
+  /* Opacity only: `fadeUp` sets `transform` on the animated element, which breaks `position: sticky` for in-page sidebars (Statistiken, Settings). */
+  .animate-fade-in--sticky-safe { animation: fadeIn var(--motion-ui) var(--ease-out) both; }
+  .animate-scale-in { animation: popIn var(--motion-ui) var(--ease-out) both; }
+  .animate-slide-up { animation: slideUp var(--motion-ui) var(--ease-out) both; }
+  .animate-spin     { animation: spin 700ms linear infinite; }
+  /* Page-level enter (e.g. future route shell) */
+  .animate-page-in { animation: fadeUp var(--motion-page) var(--ease-out) both; }
+  .skeleton-shimmer {
+    background: linear-gradient(
+      110deg,
+      color-mix(in oklab, var(--fg) 6%, var(--bg-elev)) 0%,
+      color-mix(in oklab, var(--fg) 10%, var(--bg-elev)) 40%,
+      color-mix(in oklab, var(--fg) 6%, var(--bg-elev)) 80%
+    );
+    background-size: 200% 100%;
+    animation: skeletonShimmer 1.2s var(--ease-in) infinite;
+    border-radius: var(--radius-sm);
+  }
+}

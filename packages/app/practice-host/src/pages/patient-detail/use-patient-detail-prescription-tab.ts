@@ -21,7 +21,6 @@ import {
 } from "@/lib/document-print-html";
 import {
     emptyPrescriptionLine,
-    findSuggestion,
     parsePrescriptionTemplatePayload,
     templateItemsToLines,
     type PrescriptionLine,
@@ -48,6 +47,10 @@ import { useToastStore } from "@/views/components/ui/toast-store";
 import type { HtmlExportDocumentKind } from "@/views/components/export-picker-dialog";
 import type { ClinicalDocumentExportBundle } from "@/lib/document-print-html";
 import { useT, useTParams } from "@/lib/i18n";
+import { applyMedicationSuggestion } from "@/lib/apply-medication-suggestion";
+import { buildPrescriptionQueue } from "@/lib/build-prescription-queue";
+import { withAllergyConfirmation } from "@/lib/with-allergy-confirmation";
+import { useAllergyConfirmation } from "@/views/components/prescription-allergy/use-allergy-confirmation";
 import { errorMessage } from "@/lib/utils";
 import { localYmd } from "@/lib/practice-clock";
 
@@ -85,9 +88,10 @@ export function usePatientDetailPrescriptionTab({
     const toast = useToastStore((s) => s.add) as PatientDetailPrescriptionToast;
     const t = useT();
     const tp = useTParams();
+    const { confirmAllergy, allergyDialog } = useAllergyConfirmation();
     const actionsCtx: PatientDetailPrescriptionActionsCtx = useMemo(
-        () => ({ patientId, userId, onReload, toast }),
-        [patientId, userId, onReload, toast],
+        () => ({ patientId, userId, onReload, toast, confirmAllergy }),
+        [patientId, userId, onReload, toast, confirmAllergy],
     );
 
     const [prescriptionCertificateSub, setPrescriptionCertificateSub] = useState<"prescription" | "certificate">("prescription");
@@ -232,28 +236,11 @@ export function usePatientDetailPrescriptionTab({
         }
     };
 
+    /** Every line is checked, template lines included, so an incomplete one is named here. */
     const buildPrescriptionQueueFromComposer = (): PrescriptionLine[] | null => {
-        const hasDraft =
-            prescriptionDraft.medication.trim()
-            || prescriptionDraft.dosage.trim()
-            || prescriptionDraft.duration.trim()
-            || prescriptionDraft.active_ingredient.trim()
-            || prescriptionDraft.instructions.trim();
-        const out = [...prescriptionLines];
-        if (hasDraft) {
-            const err = validatePrescriptionLine(prescriptionDraft, t);
-            if (err) {
-                setPrescriptionDraftErr(err);
-                return null;
-            }
-            out.push({ ...prescriptionDraft });
-        }
-        if (out.length === 0) {
-            setPrescriptionDraftErr(t("patient.detail.toast.prescription_line_required"));
-            return null;
-        }
-        setPrescriptionDraftErr(null);
-        return out;
+        const queue = buildPrescriptionQueue(prescriptionLines, prescriptionDraft, t, tp);
+        setPrescriptionDraftErr(queue.error);
+        return queue.lines;
     };
 
     const submitPrescriptionComposer = async () => {
@@ -364,26 +351,21 @@ export function usePatientDetailPrescriptionTab({
             instructions: prescriptionEdit.instructions,
         };
         try {
-            await updatePrescription({
+            const saved = await withAllergyConfirmation((allergy_override) => updatePrescription({
                 id: rid,
                 medication: prescriptionEditForm.medication.trim(),
                 active_ingredient: prescriptionEditForm.active_ingredient.trim() || null,
                 dosage: prescriptionEditForm.dosage.trim(),
                 duration: prescriptionEditForm.duration.trim(),
                 instructions: prescriptionEditForm.instructions.trim() || null,
-            });
+                allergy_override,
+            }), confirmAllergy);
+            if (!saved) return;
             toast(t("patient.detail.toast.prescription_saved"), "success", {
                 durationMs: PATIENT_DETAIL_TOAST_UNDO_MS,
                 onUndo: async () => {
                     try {
-                        await updatePrescription({
-                            id: rid,
-                            medication: prevSnap.medication,
-                            active_ingredient: prevSnap.active_ingredient,
-                            dosage: prevSnap.dosage,
-                            duration: prevSnap.duration,
-                            instructions: prevSnap.instructions,
-                        });
+                        await withAllergyConfirmation((allergy_override) => updatePrescription({ id: rid, ...prevSnap, allergy_override }), confirmAllergy);
                         await onReload();
                     } catch (e) {
                         toast(tp("common.error_with_message", { message: errorMessage(e) }), "error");
@@ -510,15 +492,7 @@ export function usePatientDetailPrescriptionTab({
         setPrescriptionLines((prev) => prev.map((row, j) => (j === idx ? { ...row, ...part } : row)));
     };
 
-    const pickMedForPrescriptionDraft = (label: string) => {
-        const sugg = findSuggestion(label);
-        setPrescriptionDraft((prev) => ({
-            ...prev,
-            medication: label,
-            active_ingredient: prev.active_ingredient || sugg?.active_ingredient || "",
-            dosage: prev.dosage || sugg?.dosage || "",
-        }));
-    };
+    const pickMedForPrescriptionDraft = (label: string) => setPrescriptionDraft((prev) => applyMedicationSuggestion(prev, label));
 
     const addPrescriptionDraftLine = () => {
         const err = validatePrescriptionLine(prescriptionDraft, t);
@@ -597,6 +571,7 @@ export function usePatientDetailPrescriptionTab({
         prescriptionEditForm,
         setPrescriptionEditForm,
         prescriptionWizardStep,
+        allergyDialog,
         prescriptionWizardPanelRef,
         prescriptionComposerKind,
         prescriptionLines,

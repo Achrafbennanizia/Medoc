@@ -1,0 +1,66 @@
+/* From styles/themes/dark-overrides.css (cascade position kept by its import there). */
+/* ---- Dark theme: light-bound surfaces → semantic tokens (`data-theme`, client-settings) ---- */
+html[data-theme="dark"] .topbar {
+  background: color-mix(in oklab, var(--bg) 82%, transparent);
+  border-bottom-color: var(--line-strong);
+}
+/* Dark + mac overlay: legacy single-column topbar stays transparent; unified chrome uses sidebar canvas gradient. */
+html.tauri-macos-traffic[data-theme="dark"] .topbar.topbar--mac-traffic:not(.app-window-chrome) {
+  background: transparent;
+  border-bottom: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+html.tauri-unified[data-theme="dark"] .app-shell.app-shell--mac-unified > .app-window-chrome {
+  background: linear-gradient(
+    105deg,
+    var(--surface-sidebar-canvas) 0%,
+    var(--surface-sidebar-canvas) 38%,
+    color-mix(in oklab, var(--bg) 90%, var(--surface-sidebar-canvas)) 62%,
+    color-mix(in oklab, var(--bg) 84%, var(--surface-sidebar-canvas)) 100%
+  );
+  border-bottom: 1px solid var(--line);
+}
+html.tauri-unified[data-theme="dark"] .app-window-chrome__brand,
+html.tauri-unified[data-theme="dark"] .app-window-chrome__toolbar {
+  background: transparent;
+}
+html[data-theme="dark"] .btn-subtle {
+  background: var(--bg-elev);
+  border-color: var(--line-strong);
+}
+html[data-theme="dark"] .btn-subtle:hover {
+  background: color-mix(in oklab, var(--fg) 7%, var(--bg-elev));
+}
+html[data-theme="dark"] .btn-subtle.chart-payment-toolbar__cta {
+  background: color-mix(in oklab, var(--fg) 5%, var(--bg-elev));
+  border-color: color-mix(in oklab, var(--accent) 38%, var(--line-strong));
+  color: var(--fg);
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--accent) 14%, transparent),
+    0 2px 16px color-mix(in oklab, var(--accent) 22%, transparent);
+}
+html[data-theme="dark"] .btn-subtle.chart-payment-toolbar__cta:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--accent) 14%, var(--bg-elev));
+  border-color: color-mix(in oklab, var(--accent) 48%, var(--line-strong));
+}
+html[data-theme="dark"] .btn-ghost {
+  background: rgba(255, 255, 255, 0.06);
+}
+html[data-theme="dark"] .btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+html[data-theme="dark"] .input,
+html[data-theme="dark"] .input-edit {
+  background: var(--bg-elev);
+  border-color: var(--line-strong);
+  color: var(--fg);
+}
+html[data-theme="dark"] .tag-input-shell,
+html[data-theme="dark"] .appointment-drawer-chips,
+html[data-theme="dark"] .appointment-drawer-note {
+  background: var(--bg-elev);
+  border-color: var(--line-strong);
+  color: var(--fg);
+}

@@ -1,12 +1,22 @@
 import { useMemo, useState } from "react";
 import { useT } from "@/lib/i18n";
-import { ERROR_CATALOG, errorDomainLabelKey, errorKindActionKey, errorKindCauseKey } from "@/lib/errors";
+import { ERROR_CATALOG, errorDomainLabelKey, errorKindActionKey, errorKindCauseKey, type ErrorCatalogEntry } from "@/lib/errors";
 import { Select } from "@/views/components/ui/input";
 import { matchesQuery, type HelpSectionProps } from "./help-search";
 
 /** Strip `{param}` placeholders so manual rows read naturally. */
 function genericMessage(text: string): string {
-    return text.replace(/\{\w+\}/g, "…");
+    return text.replace(/\{\w*\}/g, "…");
+}
+
+/** Message shown in the manual for any catalog entry (coded, backend text, disabled feature, UI). */
+function manualMessage(e: ErrorCatalogEntry, t: (k: string) => string): string {
+    if (e.origin === "feature") {
+        const name = t(`errors.feature.${e.feature}`);
+        return t("error.app.feature_disabled").replace("{feature}", name);
+    }
+    if (e.origin && !e.translated) return e.template ?? e.code;
+    return t(e.key);
 }
 
 /** Error manual rendered from the catalog: code, message, why, what to do — in the active language. */
@@ -17,7 +27,7 @@ export function HelpErrorCodes({ query }: HelpSectionProps) {
     const rows = ERROR_CATALOG.filter(
         (e) =>
             (!domain || e.domain === domain) &&
-            matchesQuery(query, e.code, e.key, t(e.key), t(errorDomainLabelKey(e.domain)), t(errorKindCauseKey(e.kind))),
+            matchesQuery(query, e.code, e.key, e.template, manualMessage(e, t), t(errorDomainLabelKey(e.domain)), t(errorKindCauseKey(e.kind))),
     );
     const exact = query.trim().toUpperCase();
 
@@ -54,7 +64,7 @@ export function HelpErrorCodes({ query }: HelpSectionProps) {
                             </span>
                             {e.retryable ? <span className="pill grey">{t("errors.retryable")}</span> : null}
                         </header>
-                        <p className="help-error__message">{genericMessage(t(e.key))}</p>
+                        <p className="help-error__message">{genericMessage(manualMessage(e, t))}</p>
                         <dl className="help-error__details">
                             <dt>{t("help.errors.cause")}</dt>
                             <dd>{t(errorKindCauseKey(e.kind))}</dd>

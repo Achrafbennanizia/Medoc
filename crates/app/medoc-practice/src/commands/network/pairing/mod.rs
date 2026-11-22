@@ -29,20 +29,3 @@ pub use types::{
     PairingMasterInfo, PairingPersistTokenPayload, PairingScanPayload, PairingSubmitPayload,
     PairingSubmitResult,
 };
-
-#[macro_export]
-macro_rules! register_pairing_commands {
-    () => {
-        $crate::commands::network::pairing::master::pairing_list_pending,
-        $crate::commands::network::pairing::master::pairing_list_all,
-        $crate::commands::network::pairing::master::pairing_decide,
-        $crate::commands::network::pairing::replica::pairing_confirm_pin,
-        $crate::commands::network::pairing::master::pairing_revoke,
-        $crate::commands::network::pairing::master::pairing_master_info,
-        $crate::commands::network::pairing::discovery_lan::pairing_scan_lan,
-        $crate::commands::network::pairing::discovery_ble::pairing_scan_bluetooth,
-        $crate::commands::network::pairing::replica::pairing_submit_request,
-        $crate::commands::network::pairing::replica::pairing_check_status,
-        $crate::commands::network::pairing::replica::pairing_persist_token,
-    };
-}

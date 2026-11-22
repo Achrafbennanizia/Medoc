@@ -1,0 +1,64 @@
+/* From styles/pages/appointments-calendar.css (cascade position kept by its import there). */
+.appointment-day-col {
+  position: relative;
+  border-top: 1px solid var(--line);
+  background: var(--bg-elev);
+  min-height: calc(var(--appointment-hour-row, 5.25rem) * var(--appointment-slot-count, 11));
+  overflow: visible;
+  z-index: 0;
+}
+.appointment-day-body-grid .appointment-day-col {
+  overflow: visible;
+}
+/* Hovered / dragged cards must paint above neighboring opaque day columns. */
+.appointment-day-col:has(.appointment-appt-block:hover:not(.appointment-appt-block--dragging)),
+.appointment-day-col:has(.appointment-appt-block--dragging),
+.appointment-day-col:has(.appointment-appt-block--drag-ghost),
+.appointment-day-col:has(.appointment-appt-block--hover-front) {
+  z-index: 20;
+}
+.appointment-day-col__absence {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: color-mix(in oklab, var(--red) 22%, transparent);
+  animation: absenceBlink 1.4s ease-in-out infinite;
+}
+@keyframes absenceBlink {
+  0%, 100% { background-color: color-mix(in oklab, var(--red) 14%, transparent); }
+  50% { background-color: color-mix(in oklab, var(--red) 42%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .appointment-day-col__absence,
+  .work-days-cal-day--absence,
+  .cal-cell--absence {
+    animation: none;
+  }
+}
+.btn.work-days-cal-day--absence {
+  background: color-mix(in oklab, var(--red) 18%, var(--bg-elev));
+  color: var(--red);
+  font-weight: 700;
+  animation: absenceBlink 1.4s ease-in-out infinite;
+}
+.cal-cell--absence {
+  box-shadow: inset 0 0 0 2px color-mix(in oklab, var(--red) 55%, transparent);
+  animation: absenceBlink 1.4s ease-in-out infinite;
+}
+.patients-no-results {
+  max-width: 560px;
+  margin-inline: auto;
+  text-align: center;
+}
+.patients-no-results__title {
+  font-size: 18px;
+  margin: 0;
+}
+.patients-no-results__desc {
+  color: var(--fg-3);
+  font-size: 14px;
+  margin: 8px auto 0;
+  max-width: 36em;
+}

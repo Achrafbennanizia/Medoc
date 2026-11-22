@@ -60,17 +60,31 @@ pub async fn load_license(pool: &SqlitePool) -> Result<Option<License>, AppError
         return Ok(None);
     };
 
-    Ok(Some(License {
+    let max_total = max_total as u32;
+    let max_admin = max_admin as u32;
+    let stored_member = max_member as u32;
+    // Professional used to store 3 member seats. The cap is 5; rewrite the
+    // row so an already-activated practice can pair the remaining seats.
+    let max_member = if max_total >= 5 && stored_member < 5 {
+        5
+    } else {
+        stored_member
+    };
+    let license = License {
         cluster_id,
         license_ref,
         signing_key_enc,
-        max_total: max_total as u32,
-        max_admin: max_admin as u32,
-        max_member: max_member as u32,
+        max_total,
+        max_admin,
+        max_member,
         activated_at: activated_at.parse().map_err(|e: chrono::ParseError| {
             AppError::Internal(format!("license.activated_at: {e}"))
         })?,
-    }))
+    };
+    if max_member != stored_member {
+        save_license(pool, &license).await?;
+    }
+    Ok(Some(license))
 }
 
 pub async fn save_license(pool: &SqlitePool, license: &License) -> Result<(), AppError> {
@@ -99,29 +113,81 @@ pub async fn save_license(pool: &SqlitePool, license: &License) -> Result<(), Ap
     Ok(())
 }
 
+/// A row occupies a license seat only while it is a real, still-paired device.
+/// Incomplete identities (no fingerprint or no key) and revoked certificates do not.
+pub(crate) const OCCUPIED_SEAT_SQL: &str = "
+    device_status IN ('PENDING','ACTIVE')
+    AND fingerprint IS NOT NULL AND TRIM(fingerprint) != ''
+    AND pubkey IS NOT NULL AND length(pubkey) = 32
+    AND pubkey != X'0000000000000000000000000000000000000000000000000000000000000000'
+";
+
+/// Same device, matched by device id or fingerprint. Empty strings never match.
+const PAIRING_DEVICE_MATCH_SQL: &str = "
+    (
+        TRIM(p.device_id) != ''
+        AND (
+            TRIM(p.device_id) = TRIM(sync_device.device_id)
+            OR TRIM(p.device_id) = TRIM(IFNULL(sync_device.fingerprint, ''))
+        )
+    )
+    OR (
+        TRIM(IFNULL(p.fingerprint, '')) != ''
+        AND (
+            TRIM(p.fingerprint) = TRIM(IFNULL(sync_device.fingerprint, ''))
+            OR TRIM(p.fingerprint) = TRIM(sync_device.device_id)
+        )
+    )
+";
+
+/// Pairing revoke used to leave `sync_device` ACTIVE, so the seat stayed taken
+/// after every certificate was revoked.
+pub(crate) async fn release_revoked_pairing_seats<'e, E>(executor: E) -> Result<(), AppError>
+where
+    E: sqlx::Executor<'e, Database = sqlx::Sqlite>,
+{
+    let sql = format!(
+        "UPDATE sync_device SET device_status = 'REVOKED', seat_cert = NULL
+         WHERE COALESCE(is_local, 0) = 0
+           AND device_status IN ('PENDING','ACTIVE')
+           AND EXISTS (
+                SELECT 1 FROM pairing_request p
+                 WHERE p.status = 'REVOKED' AND ({PAIRING_DEVICE_MATCH_SQL})
+           )
+           AND NOT EXISTS (
+                SELECT 1 FROM pairing_request p
+                 WHERE p.status = 'ACCEPTED' AND ({PAIRING_DEVICE_MATCH_SQL})
+           )"
+    );
+    sqlx::query(&sql)
+        .execute(executor)
+        .await
+        .map_err(AppError::Database)?;
+    Ok(())
+}
+
 pub async fn seat_usage(pool: &SqlitePool, cluster_id: &str) -> Result<SeatUsage, AppError> {
     ensure(pool).await?;
+    release_revoked_pairing_seats(&*pool).await?;
     let license = load_license(pool).await?;
     let (max_total, max_admin, max_member) = license
         .map(|l| (l.max_total, l.max_admin, l.max_member))
         .unwrap_or((10, 3, 7));
 
-    let row: (i64, i64, i64) = sqlx::query_as(
+    let sql = format!(
         "SELECT
             COALESCE(SUM(CASE WHEN seat_role = 'ADMIN' THEN 1 ELSE 0 END), 0),
             COALESCE(SUM(CASE WHEN seat_role = 'MEMBER' THEN 1 ELSE 0 END), 0),
             COALESCE(COUNT(*), 0)
          FROM sync_device
          WHERE cluster_id = ?1
-           AND device_status IN ('PENDING','ACTIVE')
-           AND fingerprint IS NOT NULL AND TRIM(fingerprint) != ''
-           AND pubkey IS NOT NULL AND length(pubkey) = 32
-           AND pubkey != X'0000000000000000000000000000000000000000000000000000000000000000'",
-    )
-    .bind(cluster_id)
-    .fetch_one(pool)
-    .await
-    .map_err(AppError::Database)?;
+           AND {OCCUPIED_SEAT_SQL}"
+    );
+    let row: (i64, i64, i64) = sqlx::query_as(&sql)
+        .bind(cluster_id)
+        .fetch_one(pool)
+        .await
+        .map_err(AppError::Database)?;
 
     Ok(SeatUsage {
         admin_used: row.0 as u32,
@@ -322,13 +388,46 @@ pub async fn set_device_status(
     status: DeviceStatus,
 ) -> Result<(), AppError> {
     ensure(pool).await?;
-    sqlx::query("UPDATE sync_device SET device_status = ?1 WHERE fingerprint = ?2")
-        .bind(status.as_str())
-        .bind(fingerprint)
-        .execute(pool)
-        .await
-        .map_err(AppError::Database)?;
+    let key = fingerprint.trim();
+    if key.is_empty() {
+        return Err(AppError::validation_code("error.pairing.device_id_empty"));
+    }
+    // Cluster rows are keyed by fingerprint; LAN pairing stores the same id
+    // in device_id and may leave fingerprint empty.
+    sqlx::query(
+        "UPDATE sync_device SET device_status = ?1
+         WHERE COALESCE(is_local, 0) = 0
+           AND (fingerprint = ?2 OR device_id = ?2)",
+    )
+    .bind(status.as_str())
+    .bind(key)
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?;
     Ok(())
+}
+
+/// Address already belongs to an accepted replica or an active cluster device.
+pub async fn is_known_peer_ip(pool: &SqlitePool, ip: &str) -> Result<bool, AppError> {
+    ensure(pool).await?;
+    let ip = crate::pairing::canonical_ip_str(ip);
+    if ip.is_empty() {
+        return Ok(false);
+    }
+    let n: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM (
+            SELECT 1 AS hit FROM pairing_request
+             WHERE status = 'ACCEPTED' AND TRIM(requester_ip) = ?1
+            UNION ALL
+            SELECT 1 AS hit FROM sync_device
+             WHERE device_status = 'ACTIVE' AND TRIM(COALESCE(last_ip, '')) = ?1
+         )",
+    )
+    .bind(&ip)
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::Database)?;
+    Ok(n > 0)
 }
 
 pub async fn is_blocklisted(pool: &SqlitePool, fingerprint: &str) -> Result<bool, AppError> {
@@ -383,25 +482,66 @@ pub async fn create_pairing_session(
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .unwrap_or("");
+    let mut tx = pool.begin().await.map_err(AppError::Database)?;
+    let fingerprint = session.fingerprint.trim();
+    if fingerprint.is_empty() {
+        sqlx::query("DELETE FROM pairing_request WHERE id = ?1")
+            .bind(&session.id)
+            .execute(&mut *tx)
+            .await
+            .map_err(AppError::Database)?;
+    } else {
+        // A repeat coupling from the same device must replace the previous inbox
+        // row. The device_id unique index would otherwise reject the insert, and
+        // the master inbox would keep the old request.
+        sqlx::query(
+            "DELETE FROM pairing_request WHERE id = ?1 OR device_id = ?2 OR fingerprint = ?2",
+        )
+        .bind(&session.id)
+        .bind(fingerprint)
+        .execute(&mut *tx)
+        .await
+        .map_err(AppError::Database)?;
+    }
+    // A reinstall rotates the device key, so the fingerprint no longer matches
+    // the previous pending row. That row would keep showing its old SAS.
+    if !label.is_empty() {
+        sqlx::query(
+            "DELETE FROM pairing_request
+              WHERE status = 'PENDING'
+                AND COALESCE(transport, 'lan') = 'cluster'
+                AND id != ?1
+                AND (
+                    TRIM(COALESCE(hostname, '')) = ?2
+                    OR TRIM(COALESCE(slave_label, '')) = ?2
+                )",
+        )
+        .bind(&session.id)
+        .bind(label)
+        .execute(&mut *tx)
+        .await
+        .map_err(AppError::Database)?;
+    }
     sqlx::query(
         "INSERT INTO pairing_request (
-            id, device_id, slave_pubkey, slave_label, requester_ip, status,
+            id, device_id, slave_pubkey, slave_label, requester_ip, transport, status,
             pairing_state, sas_hash, requested_role, expires_at, fingerprint, hostname, requested_at
-         ) VALUES (?1, ?2, '', ?3, '', 'PENDING', ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+         ) VALUES (?1, ?2, '', ?3, '', 'cluster', 'PENDING', ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
     )
     .bind(&session.id)
-    .bind(&session.fingerprint)
+    .bind(fingerprint)
     .bind(label)
     .bind(session.state.as_str())
     .bind(&session.sas_hash)
     .bind(session.requested_role.as_str())
     .bind(session.expires_at.to_rfc3339())
-    .bind(&session.fingerprint)
+    .bind(fingerprint)
     .bind(&session.hostname)
     .bind(session.created_at.to_rfc3339())
-    .execute(pool)
+    .execute(&mut *tx)
     .await
     .map_err(AppError::Database)?;
+    tx.commit().await.map_err(AppError::Database)?;
     Ok(())
 }
 
@@ -455,11 +595,11 @@ pub async fn store_slave_pubkey(
         "UPDATE pairing_request SET slave_pubkey = ?1
          WHERE id = ?2 OR device_id = ?2 OR fingerprint = ?2",
     )
-        .bind(encoded)
-        .bind(session_id)
-        .execute(pool)
-        .await
-        .map_err(AppError::Database)?;
+    .bind(encoded)
+    .bind(session_id)
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?;
     Ok(())
 }
 
@@ -513,7 +653,6 @@ pub async fn load_handshake_transcript(
     pool: &SqlitePool,
     session_id: &str,
 ) -> Result<Option<Vec<u8>>, AppError> {
-    use base64::{engine::general_purpose::STANDARD, Engine};
     ensure(pool).await?;
     let row: Option<(Option<String>,)> =
         sqlx::query_as("SELECT handshake_transcript_b64 FROM pairing_request WHERE id = ?1")
@@ -524,17 +663,11 @@ pub async fn load_handshake_transcript(
     let Some((Some(b64),)) = row else {
         return Ok(None);
     };
-    let trimmed = b64.trim();
-    if trimmed.is_empty() {
-        return Ok(None);
+    match crate::cluster::crypto::decode_handshake_transcript(&b64) {
+        Some(bytes) => Ok(Some(bytes)),
+        None if b64.trim().is_empty() => Ok(None),
+        None => Err(AppError::Internal("handshake_transcript_b64 decode".into())),
     }
-    STANDARD
-        .decode(trimmed)
-        .or_else(|_| base64::engine::general_purpose::STANDARD_NO_PAD.decode(trimmed))
-        .or_else(|_| base64::engine::general_purpose::URL_SAFE.decode(trimmed))
-        .or_else(|_| base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(trimmed))
-        .map(Some)
-        .map_err(|e| AppError::Internal(format!("handshake_transcript_b64 decode: {e}")))
 }
 
 pub async fn find_active_device_by_hostname(
@@ -616,19 +749,45 @@ pub async fn load_pairing_session(
                 .and_then(SeatRole::parse)
                 .unwrap_or(SeatRole::Member),
             hostname: r.6,
-            expires_at: r
-                .5
-                .unwrap_or_default()
-                .parse()
-                .map_err(|e: chrono::ParseError| {
-                    AppError::Internal(format!("pairing.expires_at: {e}"))
-                })?,
-            created_at: r.7.parse().map_err(|e: chrono::ParseError| {
-                AppError::Internal(format!("pairing.created_at: {e}"))
-            })?,
+            expires_at: parse_sync_timestamp(r.5.as_deref().unwrap_or(""), "pairing.expires_at")?,
+            created_at: parse_sync_timestamp(&r.7, "pairing.created_at")?,
         })
     })
     .transpose()
+}
+
+/// Mark a pending coupling rejected. The inbox reads `status`, not only
+/// `pairing_state`; updating the state alone left the Reject button in place.
+pub async fn reject_pairing_request(
+    pool: &SqlitePool,
+    id: &str,
+    decided_by: &str,
+) -> Result<(), AppError> {
+    ensure(pool).await?;
+    let now = Utc::now().to_rfc3339();
+    let updated = sqlx::query(
+        "UPDATE pairing_request SET
+            status = 'REJECTED',
+            pairing_state = 'REJECTED',
+            activation_token = NULL,
+            confirm_pin_hash = NULL,
+            confirm_pin_expires_at = NULL,
+            confirm_pin_attempts = 0,
+            decided_at = ?1,
+            decided_by = ?2
+         WHERE id = ?3 AND status = 'PENDING'",
+    )
+    .bind(&now)
+    .bind(decided_by)
+    .bind(id)
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?
+    .rows_affected();
+    if updated == 0 {
+        return Err(AppError::NotFound("Pairing session not found".into()));
+    }
+    Ok(())
 }
 
 pub async fn update_pairing_state(
@@ -698,16 +857,11 @@ pub async fn list_pending_pairing(
                     .and_then(SeatRole::parse)
                     .unwrap_or(SeatRole::Member),
                 hostname: r.6,
-                expires_at: r
-                    .5
-                    .unwrap_or_default()
-                    .parse()
-                    .map_err(|e: chrono::ParseError| {
-                        AppError::Internal(format!("pairing.expires_at: {e}"))
-                    })?,
-                created_at: r.7.parse().map_err(|e: chrono::ParseError| {
-                    AppError::Internal(format!("pairing.created_at: {e}"))
-                })?,
+                expires_at: parse_sync_timestamp(
+                    r.5.as_deref().unwrap_or(""),
+                    "pairing.expires_at",
+                )?,
+                created_at: parse_sync_timestamp(&r.7, "pairing.created_at")?,
             })
         })
         .collect()

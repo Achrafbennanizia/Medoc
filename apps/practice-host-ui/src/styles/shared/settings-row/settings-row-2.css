@@ -1,0 +1,71 @@
+/* From styles/features/settings.css (cascade position kept by its import there). */
+@layer components {
+  .audit-chain-banner.app-notice,
+  .break-glass-banner.app-notice {
+    flex-shrink: 0;
+    width: 100%;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    box-shadow: none;
+    padding: 10px 16px;
+  }
+  /* ---- Settings (Settings) — token-driven + BEM (playbook checklist) ---- */
+  .settings-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    min-width: 0;
+    padding: var(--card-pad-y) var(--card-pad-x);
+    border-top: 1px solid var(--line);
+  }
+  /* Rows with an option bar: label takes the room, the bar keeps its natural one-line width; when both no
+     longer fit side by side, the bar moves under the label instead of squeezing its options onto two lines.
+     Scoped to option-bar rows: applied to every row it also hit vertical rows (inline flex-direction:
+     column), where an 18rem basis became an 18rem-tall gap, and pushed Edit buttons onto their own line. */
+  .settings-row:has(> :is(.seg, .settings-lang-seg, .settings-density-seg, .settings-font-seg):last-child):not([style*="column"]) {
+    flex-wrap: wrap;
+  }
+  .settings-row:has(> :is(.seg, .settings-lang-seg, .settings-density-seg, .settings-font-seg):last-child):not([style*="column"]) > :first-child {
+    flex: 1 1 18rem;
+    min-width: 0;
+  }
+  .settings-row:not([style*="column"]) > :is(.seg, .settings-lang-seg, .settings-density-seg, .settings-font-seg):last-child:not(:first-child) {
+    flex: 0 0 auto;
+    max-width: 100%;
+    margin-inline-start: auto;
+  }
+  /* Action group (Edit / Save · Cancel) beside its label: the global `.row[style*=justify-content…]`
+     rule (utilities.css) makes such rows 100 % wide, which pushed every Edit button onto its own line. */
+  .settings-row:not([style*="column"]) > .row:last-child:not(:first-child),
+  .settings-row > .row > .row:last-child:not(:first-child) {
+    width: auto;
+    margin-inline-start: auto;
+    flex: 0 1 auto;
+  }
+  .settings-row--wrap {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .settings-row > .ui-field-wrap:has(.settings-timezone-select) {
+    flex: 0 0 auto;
+    min-width: 0;
+    max-width: 100%;
+    margin-bottom: 0;
+  }
+  .settings-timezone-select.select-trigger {
+    width: max-content;
+    max-width: 100%;
+    min-width: 0;
+  }
+  .settings-timezone-select.select-trigger .select-trigger-label {
+    flex: 0 0 auto;
+    width: auto;
+    text-align: start;
+    white-space: nowrap;
+    overflow: visible;
+    display: block;
+    -webkit-line-clamp: unset;
+  }
+}

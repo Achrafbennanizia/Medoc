@@ -1,4 +1,4 @@
-import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
+import { practiceSystem } from "@/systems/practice-host/adapters/practice-transport";
 
 /** Whitelisted keys (mirror of `permission_for` in `app_kv_commands.rs`). */
 export type AppKvKey =
@@ -11,8 +11,19 @@ export type AppKvKey =
     | "export.formats.v1"
     | "practice.logo.v1"
     | "invoice.practice.v1"
+    /** Language of official documents (`de` default). Write: ops.system. */
+    | "documents.locale.v1"
+    /** Practice-wide pinned document language ("" = follow each user's UI language). Write: ops.system. */
+    | "documents.locale.pinned.v1"
+    /** Ordered PDF letterhead fields. Write: ops.system. */
+    | "documents.header_layout.v1"
+    | "practice.timezone.v1"
     /** LAN host configuration (same key as backend `APP_KV_KEY`). */
-    | "lan.server.config.v1";
+    | "lan.server.config.v1"
+    | "practice.header_privacy.v1"
+    /** Work plan: shared settings + one slice per staff id (`app_kv_policy.rs`). */
+    | "staff.work_plan.v1.settings"
+    | `staff.work_plan.v1.${string}`;
 
 export const getAppKv = (key: AppKvKey) =>
     practiceSystem.invoke<string | null>("get_app_kv", { key });

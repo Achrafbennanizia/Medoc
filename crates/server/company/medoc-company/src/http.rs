@@ -195,13 +195,7 @@ async fn register_practice(
     }
 
     let (plan_name, monthly_fee_cents, max_users) = plan_details(&body.plan);
-    let raw_key = format!(
-        "sk_live_{}",
-        base64::Engine::encode(
-            &base64::engine::general_purpose::URL_SAFE_NO_PAD,
-            uuid::Uuid::new_v4().as_bytes()
-        )
-    );
+    let raw_key = mint_practice_api_key();
     let api_hash = api_key::hash_api_key(&raw_key)
         .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "hash").into_response())?;
 
@@ -337,4 +331,29 @@ async fn billing_attach(Json(body): Json<AttachBody>) -> Result<Json<serde_json:
         return Err((StatusCode::BAD_REQUEST, "invalid token").into_response());
     }
     Ok(Json(json!({ "_demo": true, "attached": true })))
+}
+
+/// Practice credential minted at registration. Random, and not a payment-provider key.
+fn mint_practice_api_key() -> String {
+    format!(
+        "medoc_{}",
+        base64::Engine::encode(
+            &base64::engine::general_purpose::URL_SAFE_NO_PAD,
+            uuid::Uuid::new_v4().as_bytes()
+        )
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::mint_practice_api_key;
+
+    #[test]
+    fn practice_api_keys_are_not_payment_provider_secrets() {
+        let key = mint_practice_api_key();
+        assert!(key.starts_with("medoc_"));
+        assert!(!key.starts_with("sk_"));
+        assert!(!key.starts_with("rk_"));
+        assert!(key.len() > "medoc_".len());
+    }
 }

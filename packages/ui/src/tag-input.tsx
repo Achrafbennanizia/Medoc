@@ -34,7 +34,7 @@ export function TagInput({ label, value, onChange, placeholder, suggestions = []
     }, [draft, suggestions, value]);
 
     return (
-        <div style={{ marginBottom: 8 }}>
+        <div style={{ marginBottom: "var(--space-2)" }}>
             <label htmlFor={inputId} className="form-label">
                 {label}
             </label>
@@ -71,7 +71,7 @@ export function TagInput({ label, value, onChange, placeholder, suggestions = []
                 />
             </div>
             {sugFiltered.length > 0 ? (
-                <div className="tag-suggestions" style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+                <div className="tag-suggestions" style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)", marginTop: "var(--space-2)" }}>
                     {sugFiltered.map((s) => (
                         <button key={s} type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: "4px 10px" }} onClick={() => add(s)}>
                             + {s}
@@ -80,7 +80,7 @@ export function TagInput({ label, value, onChange, placeholder, suggestions = []
                 </div>
             ) : null}
             {error ? (
-                <p role="alert" style={{ fontSize: 11.5, color: "var(--red)", marginTop: 6 }}>
+                <p role="alert" style={{ fontSize: 11.5, color: "var(--red)", marginTop: "var(--space-2)" }}>
                     {error}
                 </p>
             ) : null}

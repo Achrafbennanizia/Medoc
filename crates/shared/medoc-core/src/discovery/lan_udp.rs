@@ -36,48 +36,84 @@ fn discovery_targets(discovery_port: u16) -> Vec<SocketAddr> {
     version
 }
 
-/// Broadcast discovery probe and collect JSON beacon replies for `listen_window`.
+async fn send_probes(socket: &UdpSocket, targets: &[SocketAddr]) {
+    for t in targets {
+        let _ = socket.send_to(DISCOVER_PROBE, *t).await;
+    }
+}
+
+/// Interval between probe bursts. Wi-Fi drops broadcast frames regularly; one probe was not enough.
+const PROBE_INTERVAL: Duration = Duration::from_millis(500);
+
+/// Broadcast discovery probes and collect JSON beacon replies for `listen_window`.
+///
+/// Probes are re-sent every [`PROBE_INTERVAL`] to every broadcast target (global + each LAN interface),
+/// and a failed receive (e.g. ICMP "port unreachable" from a host without MeDoc) no longer ends the scan.
 pub async fn scan_lan_hosts(
     discovery_port: u16,
+    listen_window: Duration,
+    label_filter: Option<&str>,
+) -> std::io::Result<Vec<(SocketAddr, LanBeaconPayload)>> {
+    scan_lan_hosts_on_ports(&[discovery_port], listen_window, label_filter).await
+}
+
+/// Same as [`scan_lan_hosts`] but probes several discovery ports at once (configured + defaults), so a host
+/// that runs on a non-default port — or an older build on the legacy port — is still found.
+pub async fn scan_lan_hosts_on_ports(
+    discovery_ports: &[u16],
     listen_window: Duration,
     label_filter: Option<&str>,
 ) -> std::io::Result<Vec<(SocketAddr, LanBeaconPayload)>> {
     let socket = UdpSocket::bind("0.0.0.0:0").await?;
     socket.set_broadcast(true)?;
 
-    let targets = discovery_targets(discovery_port);
-    for t in &targets {
-        let _ = socket.send_to(DISCOVER_PROBE, *t).await;
+    let mut targets: Vec<SocketAddr> = Vec::new();
+    for port in discovery_ports {
+        for t in discovery_targets(*port) {
+            if !targets.contains(&t) {
+                targets.push(t);
+            }
+        }
     }
+    send_probes(&socket, &targets).await;
 
-    let deadline = tokio::time::Instant::now() + listen_window;
+    let start = tokio::time::Instant::now();
+    let deadline = start + listen_window;
+    let mut next_probe = start + PROBE_INTERVAL;
     let mut buf = [0u8; 4096];
     let mut out: Vec<(SocketAddr, LanBeaconPayload)> = Vec::new();
     let mut seen_ids: HashSet<String> = HashSet::new();
 
     loop {
-        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
-        if remaining.is_zero() {
+        let now = tokio::time::Instant::now();
+        if now >= deadline {
             break;
         }
-        match tokio::time::timeout(remaining, socket.recv_from(&mut buf)).await {
+        if now >= next_probe {
+            send_probes(&socket, &targets).await;
+            next_probe = now + PROBE_INTERVAL;
+        }
+        let wait = deadline.min(next_probe).saturating_duration_since(now);
+        match tokio::time::timeout(wait, socket.recv_from(&mut buf)).await {
             Ok(Ok((n, peer))) => {
-                if let Some(payload) = parse_beacon_line(&buf[..n]) {
-                    if payload.schema != SCHEMA {
+                let Some(payload) = parse_beacon_line(&buf[..n]) else {
+                    continue;
+                };
+                if payload.schema != SCHEMA {
+                    continue;
+                }
+                if let Some(f) = label_filter {
+                    if !payload.label.to_lowercase().contains(&f.to_lowercase()) {
                         continue;
                     }
-                    if let Some(f) = label_filter {
-                        if !payload.label.to_lowercase().contains(&f.to_lowercase()) {
-                            continue;
-                        }
-                    }
-                    if seen_ids.insert(payload.instance_id.clone()) {
-                        out.push((peer, payload));
-                    }
+                }
+                if seen_ids.insert(payload.instance_id.clone()) {
+                    out.push((peer, payload));
                 }
             }
-            Ok(Err(_)) => break,
-            Err(_) => break,
+            // Transient per-packet errors (ICMP unreachable, interface flaps): keep listening.
+            Ok(Err(_)) => tokio::time::sleep(Duration::from_millis(20)).await,
+            Err(_) => {} // wait elapsed → loop re-probes or ends
         }
     }
 

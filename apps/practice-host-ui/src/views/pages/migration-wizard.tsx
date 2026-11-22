@@ -97,7 +97,7 @@ export function MigrationWizardPage({ embedded = false, onEmbeddedExit }: Migrat
                 subtitle={t("page.migration.intro")}
             />
 
-            <div className="row" style={{ gap: 8, flexWrap: "wrap" }} aria-hidden>
+            <div className="row" style={{ gap: "var(--space-2)", flexWrap: "wrap" }} aria-hidden>
                 {Array.from({ length: STEP_COUNT }, (_, i) => (
                     <span
                         key={i}
@@ -114,31 +114,31 @@ export function MigrationWizardPage({ embedded = false, onEmbeddedExit }: Migrat
             </div>
 
             <Card>
-                <div style={{ padding: 16, paddingTop: 14 }}>
+                <div style={{ padding: "var(--space-4)", paddingTop: "var(--space-4)" }}>
                     <CardHeader title={titles[step] ?? ""} />
-                    <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 8 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)", marginTop: "var(--space-2)" }}>
                         <p style={{ margin: 0, color: "var(--fg-2)", fontSize: 14, lineHeight: 1.6 }}>{bodies[step]}</p>
                         <ul
                             style={{
                                 margin: 0,
-                                paddingInlineStart: 20,
+                                paddingInlineStart: "var(--space-5)",
                                 fontSize: 13,
                                 color: "var(--fg-2)",
                                 lineHeight: 1.55,
                                 display: "flex",
                                 flexDirection: "column",
-                                gap: 6,
+                                gap: "var(--space-2)",
                             }}
                         >
                             {((STEP_FOCUS_KEY_GROUPS[step] ?? []) as readonly string[]).map((key) => (
                                 <li key={key}>{t(key)}</li>
                             ))}
                         </ul>
-                        <label className="row" style={{ gap: 10, alignItems: "flex-start", cursor: "pointer" }}>
+                        <label className="row" style={{ gap: "var(--space-3)", alignItems: "flex-start", cursor: "pointer" }}>
                             <input type="checkbox" checked={stepComplete} onChange={toggleCheck} />
                             <span style={{ fontSize: 14 }}>{t("page.migration.check_confirm")}</span>
                         </label>
-                        <div className="row" style={{ gap: 10, marginTop: 8 }}>
+                        <div className="row" style={{ gap: "var(--space-3)", marginTop: "var(--space-2)" }}>
                             <Button type="button" variant="ghost" onClick={back} disabled={step === 0}>
                                 {t("page.migration.back")}
                             </Button>
@@ -241,33 +241,33 @@ function DeviceFilePanel() {
 
     return (
         <Card>
-            <div style={{ padding: 16, paddingTop: 14 }}>
+            <div style={{ padding: "var(--space-4)", paddingTop: "var(--space-4)" }}>
                 <CardHeader title={t("migration.device.import_title")} />
                 <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--fg-3)" }}>
                     {t("migration.device.stubs_hint")}
                 </p>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 12 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-4)", marginTop: "var(--space-3)" }}>
                     <div>
                         <Input id="gdt-path" label={t("migration.device.gdt_file")} value={gdtPath} onChange={(e) => setGdtPath(e.target.value)} placeholder="/Users/…/export.gdt" />
-                        <div className="row" style={{ marginTop: 8 }}><Button type="button" onClick={() => void runGdt()} disabled={gdtBusy} loading={gdtBusy}>{t("migration.device.gdt_check")}</Button></div>
+                        <div className="row" style={{ marginTop: "var(--space-2)" }}><Button type="button" onClick={() => void runGdt()} disabled={gdtBusy} loading={gdtBusy}>{t("migration.device.gdt_check")}</Button></div>
                         {gdt ? (
-                            <pre style={{ marginTop: 8, fontSize: 12, maxHeight: 200, overflow: "auto", background: "var(--surface-2)", padding: 8, borderRadius: 6 }}>{JSON.stringify(gdt, null, 2)}</pre>
+                            <pre style={{ marginTop: "var(--space-2)", fontSize: 12, maxHeight: 200, overflow: "auto", background: "var(--surface-2)", padding: "var(--space-2)", borderRadius: 6 }}>{JSON.stringify(gdt, null, 2)}</pre>
                         ) : null}
                     </div>
                     <div>
                         <Input id="dicom-path" label={t("migration.device.dicom_file")} value={dicomPath} onChange={(e) => setDicomPath(e.target.value)} placeholder="/Users/…/image.dcm" />
-                        <div className="row" style={{ marginTop: 8 }}><Button type="button" onClick={() => void runDicom()} disabled={dicomBusy} loading={dicomBusy}>{t("migration.device.dicom_check")}</Button></div>
+                        <div className="row" style={{ marginTop: "var(--space-2)" }}><Button type="button" onClick={() => void runDicom()} disabled={dicomBusy} loading={dicomBusy}>{t("migration.device.dicom_check")}</Button></div>
                         {dicom ? (
-                            <p style={{ fontSize: 12, marginTop: 8 }}><b>{dicom.is_dicom ? t("migration.device.dicom_ok") : t("migration.device.dicom_no_sig")}</b> · {dicom.size_bytes} Bytes</p>
+                            <p style={{ fontSize: 12, marginTop: "var(--space-2)" }}><b>{dicom.is_dicom ? t("migration.device.dicom_ok") : t("migration.device.dicom_no_sig")}</b> · {dicom.size_bytes} Bytes</p>
                         ) : null}
                     </div>
                 </div>
-                <div style={{ marginTop: 16 }}>
+                <div style={{ marginTop: "var(--space-4)" }}>
                     <Input id="scan-folder" label={t("migration.device.scan_folder")} value={scanFolder} onChange={(e) => setScanFolder(e.target.value)} placeholder="/Users/…/scans" />
                     <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--fg-3)", lineHeight: 1.45 }}>
                         {t("migration.device.scanner_folder_hint")}
                     </p>
-                    <div className="row" style={{ marginTop: 8, gap: 8, flexWrap: "wrap" }}>
+                    <div className="row" style={{ marginTop: "var(--space-2)", gap: "var(--space-2)", flexWrap: "wrap" }}>
                         <Button
                             type="button"
                             variant="secondary"
@@ -287,11 +287,11 @@ function DeviceFilePanel() {
                     </div>
                     {docs.length > 0 ? (
                         <>
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 12 }}>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-2)", marginTop: "var(--space-3)" }}>
                                 <Input id="scan-archive" label={t("migration.device.archive_root")} value={attachRoot} onChange={(e) => setAttachRoot(e.target.value)} placeholder="/Users/…/charts" />
                                 <Input id="scan-pid" label={t("migration.device.patient_id")} value={attachPatient} onChange={(e) => setAttachPatient(e.target.value)} placeholder={t("migration.device.patient_id_placeholder")} />
                             </div>
-                            <ul style={{ listStyle: "none", padding: 0, marginTop: 12 }}>
+                            <ul style={{ listStyle: "none", padding: 0, marginTop: "var(--space-3)" }}>
                                 {docs.map((d) => (
                                     <li key={d.path} className="row" style={{ justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid var(--line)" }}>
                                         <span style={{ fontSize: 13 }}>{d.path} <span style={{ color: "var(--fg-3)" }}>({d.bytes} Bytes)</span></span>

@@ -1,4 +1,5 @@
 import { t } from "@/lib/i18n";
+import { reportClientEvent } from "@/lib/client-log";
 import { Component, type ErrorInfo, type ReactNode } from "react";
 
 interface Props {
@@ -20,6 +21,12 @@ export class ErrorBoundary extends Component<Props, State> {
 
     componentDidCatch(error: Error, info: ErrorInfo) {
         console.error("[medoc] uncaught render error", error, info);
+        reportClientEvent({
+            level: "error",
+            code: "MD-UIX-RENDER",
+            message: error.message,
+            context: { component: info.componentStack?.split("\n").find((l) => l.trim())?.trim() ?? "" },
+        });
     }
 
     private handleReload = () => {

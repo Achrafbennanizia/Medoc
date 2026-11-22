@@ -6,7 +6,6 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-
 import {
     pairingCheckStatus,
     pairingConfirmPin,
@@ -21,15 +20,17 @@ import {
 import { Button } from "@/views/components/ui/button";
 import { Input } from "@/views/components/ui/input";
 import { errorMessage, formatTpl } from "@/lib/utils";
+import { isCompletePairingCode, normalizePairingCodeInput, PAIRING_CODE_LENGTH } from "@/lib/pairing-code";
 import { useToastStore } from "@/views/components/ui/toast-store";
 import { useT } from "@/lib/i18n";
+import { PAGE_REFRESH_EVENT } from "@/views/layouts/page-refresh";
 
 type Phase = "scan" | "request" | "waiting" | "pin" | "accepted" | "rejected";
 type Transport = "lan" | "bluetooth";
 
 const POLL_INTERVAL_MS = 2000;
 
-export function PairingScanPage() {
+export function PairingScanPage({ onPaired }: { onPaired?: () => void } = {}) {
     const toast = useToastStore((s) => s.add);
     const t = useT();
     const [phase, setPhase] = useState<Phase>("scan");
@@ -46,6 +47,16 @@ export function PairingScanPage() {
     const [pinInput, setPinInput] = useState("");
     const [pinBusy, setPinBusy] = useState(false);
     const pollRef = useRef<number | null>(null);
+    const enteredApp = useRef(false);
+
+    const enterApp = useCallback(() => {
+        if (enteredApp.current) return;
+        enteredApp.current = true;
+        onPaired?.();
+        window.dispatchEvent(new Event(PAGE_REFRESH_EVENT));
+        window.setTimeout(() => window.dispatchEvent(new Event(PAGE_REFRESH_EVENT)), 600);
+        if (!onPaired) window.location.reload();
+    }, [onPaired]);
 
     const transportLabel = transport === "bluetooth" ? "Bluetooth" : "LAN";
 
@@ -71,7 +82,7 @@ export function PairingScanPage() {
             const masters =
                 transport === "bluetooth"
                     ? await pairingScanBluetooth(3)
-                    : await pairingScanLan(2);
+                    : await pairingScanLan(4);
             setHits(masters);
             if (masters.length === 0) {
                 toast(
@@ -112,6 +123,7 @@ export function PairingScanPage() {
                             await pairingPersistToken(snap.activationToken);
                             setPhase("accepted");
                             toast(t("page.lan.pairing_scan.toast.accepted"), "success");
+                            enterApp();
                         } catch (e) {
                             toast(
                                 formatTpl(t("page.lan.pairing_scan.toast.save_token_err"), {
@@ -137,13 +149,13 @@ export function PairingScanPage() {
             void tick();
             pollRef.current = window.setInterval(() => void tick(), POLL_INTERVAL_MS);
         },
-        [toast, t],
+        [toast, t, enterApp],
     );
 
     const submitPin = async () => {
         if (!submission || !selected) return;
-        const digits = pinInput.replace(/\D/g, "");
-        if (digits.length !== 4) {
+        const digits = normalizePairingCodeInput(pinInput);
+        if (!isCompletePairingCode(digits)) {
             toast(t("page.lan.pairing_scan.toast.pin_required"), "error");
             return;
         }
@@ -159,6 +171,7 @@ export function PairingScanPage() {
                 await pairingPersistToken(snap.activationToken);
                 setPhase("accepted");
                 toast(t("page.lan.pairing_scan.toast.complete"), "success");
+                enterApp();
             }
         } catch (e) {
             toast(
@@ -216,14 +229,7 @@ export function PairingScanPage() {
         return (
             <main className="card-pad" style={{ maxWidth: 640, margin: "32px auto" }}>
                 <h1 className="card-title">{t("page.lan.pairing_scan.title.accepted")}</h1>
-                <p>{t("page.lan.pairing_scan.body.accepted")}</p>
-                <p className="card-sub">
-                    {t("page.lan.pairing_scan.activation_token")}{" "}
-                    <code>{snapshot?.activationToken?.slice(0, 32)}…</code>
-                </p>
-                <Button type="button" onClick={() => window.location.reload()}>
-                    {t("page.lan.pairing_scan.reload")}
-                </Button>
+                <p role="status">{t("page.lan.pairing_scan.body.accepted")}</p>
             </main>
         );
     }
@@ -257,21 +263,21 @@ export function PairingScanPage() {
                     label={t("page.lan.pairing_scan.label.pin")}
                     inputMode="numeric"
                     autoComplete="one-time-code"
-                    maxLength={4}
-                    placeholder="0000"
+                    maxLength={PAIRING_CODE_LENGTH}
+                    placeholder={"0".repeat(PAIRING_CODE_LENGTH)}
                     value={pinInput}
-                    onChange={(e) => setPinInput(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                    onChange={(e) => setPinInput(normalizePairingCodeInput(e.target.value))}
                 />
                 <Button
                     type="button"
-                    style={{ marginTop: 12 }}
+                    style={{ marginTop: "var(--space-3)" }}
                     loading={pinBusy}
                     disabled={pinBusy || pinInput.length !== 4}
                     onClick={() => void submitPin()}
                 >
                     {t("page.lan.pairing_scan.finish")}
                 </Button>
-                <div className="row" style={{ gap: 8, marginTop: 12 }}>
+                <div className="row" style={{ gap: "var(--space-2)", marginTop: "var(--space-3)" }}>
                     <Button type="button" variant="ghost" onClick={resetPairing}>
                         {t("common.cancel")}
                     </Button>
@@ -305,7 +311,7 @@ export function PairingScanPage() {
                     {t("page.lan.pairing_scan.status")} <strong>{snapshot?.status ?? "PENDING"}</strong>
                 </p>
                 <p className="card-sub">{t("page.lan.pairing_scan.mitm_hint")}</p>
-                <div className="row" style={{ gap: 8, marginTop: 16 }}>
+                <div className="row" style={{ gap: "var(--space-2)", marginTop: "var(--space-4)" }}>
                     <Button type="button" variant="ghost" onClick={resetPairing}>
                         {t("common.cancel")}
                     </Button>
@@ -322,8 +328,8 @@ export function PairingScanPage() {
                         {t("page.lan.pairing_scan.title")}
                     </h1>
                     <p className="card-sub">{t("page.lan.pairing_scan.subtitle")}</p>
-                    <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
-                        <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <div style={{ display: "flex", gap: "var(--space-3)", marginTop: "var(--space-2)" }}>
+                        <label style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
                             <input
                                 type="radio"
                                 name="pairing-transport"
@@ -332,7 +338,7 @@ export function PairingScanPage() {
                             />
                             {t("page.lan.pairing_scan.transport.lan")}
                         </label>
-                        <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                        <label style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
                             <input
                                 type="radio"
                                 name="pairing-transport"
@@ -350,22 +356,22 @@ export function PairingScanPage() {
                 </Button>
             </header>
 
-            <section style={{ marginTop: 12 }}>
+            <section style={{ marginTop: "var(--space-3)" }}>
                 <h2 className="card-sub" style={{ margin: 0 }}>
                     {formatTpl(t("page.lan.pairing_scan.found_masters"), { count: hits.length })}
                 </h2>
                 {hits.length === 0 ? (
                     <p className="card-sub">{t("page.lan.pairing_scan.no_hits")}</p>
                 ) : (
-                    <ul style={{ marginTop: 8, paddingLeft: 0, listStyle: "none" }}>
+                    <ul style={{ marginTop: "var(--space-2)", paddingLeft: 0, listStyle: "none" }}>
                         {hits.map((h) => (
                             <li
                                 key={h.instanceId}
                                 style={{
                                     border: "1px solid var(--border)",
                                     borderRadius: 8,
-                                    padding: 12,
-                                    marginBottom: 8,
+                                    padding: "var(--space-3)",
+                                    marginBottom: "var(--space-2)",
                                     background:
                                         selected?.instanceId === h.instanceId
                                             ? "var(--surface-accent)"
@@ -373,7 +379,7 @@ export function PairingScanPage() {
                                 }}
                             >
                                 <label
-                                    style={{ display: "flex", gap: 12, cursor: "pointer", alignItems: "center" }}
+                                    style={{ display: "flex", gap: "var(--space-3)", cursor: "pointer", alignItems: "center" }}
                                 >
                                     <input
                                         type="radio"
@@ -398,7 +404,7 @@ export function PairingScanPage() {
                 )}
             </section>
 
-            <section style={{ marginTop: 16 }}>
+            <section style={{ marginTop: "var(--space-4)" }}>
                 <h2 className="card-sub" style={{ margin: 0 }}>
                     {t("page.lan.pairing_scan.manual_title")}
                 </h2>
@@ -423,7 +429,7 @@ export function PairingScanPage() {
                 />
             </section>
 
-            <section style={{ marginTop: 16 }}>
+            <section style={{ marginTop: "var(--space-4)" }}>
                 <Input
                     id="slave-label"
                     label={t("page.lan.pairing_scan.label.device")}
@@ -433,7 +439,7 @@ export function PairingScanPage() {
                 />
                 <Button
                     type="button"
-                    style={{ marginTop: 12 }}
+                    style={{ marginTop: "var(--space-3)" }}
                     loading={submitBusy}
                     disabled={submitBusy || (!selected && !manualUrl.trim())}
                     onClick={() => void submit()}

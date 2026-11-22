@@ -1,17 +1,17 @@
 // License & update commands.
 
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::error::AppError;
-use crate::infrastructure::database::audit_repo;
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
+use crate::infrastructure::database::repos::admin::license as license_repo;
 use crate::infrastructure::license::{self, LicenseStatus};
-use crate::infrastructure::license_repo;
 use crate::infrastructure::perf;
 use crate::log_system;
 use medoc_sync::cluster::services::ClusterResetMode;
 use serde::Serialize;
 use sqlx::SqlitePool;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, State};
 
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state, token))]
@@ -47,19 +47,35 @@ pub async fn activate_license(
     // Do not require `ops.system` — a broken audit chain would block first-time activation.
     rbac::require_authenticated(&session_state)?;
     let device_id = license_repo::ensure_device_id(&pool).await?;
-    let status = license::verify(&token, &device_id);
+    let resolved =
+        crate::commands::network::company_portal::resolve_onboarding_license_key(&pool, &token)
+            .await?;
+    let mut status = license::verify(&resolved, &device_id);
     if !status.valid {
         log_system!(
             warn,
             event = "LICENSE_ACTIVATE_REJECTED",
             reason = status.reason.as_deref().unwrap_or(""),
         );
+        if let Some(code) = license::user_license_error_code(status.reason.as_deref().unwrap_or(""))
+        {
+            status.reason = Some(code.to_string());
+        }
         return Ok(status);
     }
     match status.format.as_deref() {
-        Some("v2") => license_repo::store_v2(&pool, token.trim()).await?,
-        Some("v1") => license_repo::store_v1(&pool, token.trim()).await?,
+        Some("v2") => license_repo::store_v2(&pool, resolved.trim()).await?,
+        Some("v1") => license_repo::store_v1(&pool, resolved.trim()).await?,
         _ => {}
+    }
+    let rebound = resolved.trim() != token.trim();
+    if let Some(code) = crate::commands::network::company_portal::deployment_code_for_pasted_license(
+        &token, rebound,
+    ) {
+        let _ = crate::commands::network::company_portal::apply_serverless_role_from_license_code(
+            &pool, &code,
+        )
+        .await;
     }
     log_system!(
         info,
@@ -92,10 +108,7 @@ pub async fn clear_license(
 
     crate::commands::app_lifecycle::stop_network_services(&app).await;
 
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| AppError::Internal(format!("App data directory: {e}")))?;
+    let app_data_dir = crate::commands::app_data_dir(&app)?;
 
     medoc_sync::cluster::services::wipe_desktop_network_state(
         &pool,
@@ -324,21 +337,4 @@ pub fn list_detected_photo_viewer_apps(
 ) -> Result<Vec<crate::infrastructure::photo_viewer_scan::DetectedPhotoViewerApp>, AppError> {
     rbac::require_authenticated(&session_state)?;
     Ok(crate::infrastructure::photo_viewer_scan::detect_photo_viewer_apps())
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_system_commands {
-    () => {
-        $crate::commands::system_commands::verify_license,
-        $crate::commands::system_commands::activate_license,
-        $crate::commands::system_commands::current_license_status,
-        $crate::commands::system_commands::clear_license,
-        $crate::commands::system_commands::check_for_updates,
-        $crate::commands::system_commands::install_available_update,
-        $crate::commands::system_commands::list_detected_photo_viewer_apps,
-        $crate::commands::system_commands::system_health_check,
-        $crate::commands::system_commands::get_perf_threshold_ms,
-        $crate::commands::system_commands::set_perf_threshold_ms,
-    };
 }

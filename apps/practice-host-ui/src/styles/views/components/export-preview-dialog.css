@@ -1,0 +1,67 @@
+/* From styles/components/overlays.css (cascade position kept by its import there). */
+@layer components {
+  .export-preview-dialog-inner {
+    min-height: 0;
+  }
+  .export-preview-scroll {
+    max-height: min(42vh, 420px);
+    overflow: auto;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: var(--surface-1, #fafafa);
+  }
+  .export-preview-tbl {
+    margin: 0;
+  }
+  .export-preview-sort-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: none;
+    font: inherit;
+    font-weight: 600;
+    color: inherit;
+    cursor: pointer;
+    text-align: start;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .export-preview-sort-btn:hover {
+    color: var(--accent);
+  }
+  .export-preview-pre {
+    max-height: min(42vh, 420px);
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin: 0 !important;
+  }
+  .export-preview-pdf-wrap {
+    min-height: 200px;
+    height: min(48vh, 480px);
+    max-height: min(48vh, 480px);
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    background: var(--surface-2, #f4f4f5);
+  }
+  .export-preview-pdf-frame {
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: block;
+  }
+
+  /** Chart export: two columns; preview column grows into viewport-relative space below header/footer. */
+  .chart-export-dialog-layout {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-5);
+    align-items: stretch;
+    flex: 1 1 auto;
+    min-height: min(520px, 58vh);
+  }
+}

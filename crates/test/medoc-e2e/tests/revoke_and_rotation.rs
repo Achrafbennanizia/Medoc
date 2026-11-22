@@ -13,7 +13,7 @@
 //!   public `POST /api/v1/pairing/request` rejects with 403.
 
 use axum::http::StatusCode;
-use medoc_core::infrastructure::database::app_kv_repo;
+use medoc_core::infrastructure::database::repos::admin::app_kv as app_kv_repo;
 use medoc_e2e::harness::{slave_pubkey_b64, slave_signing_key, LanHarness};
 use medoc_sync::pairing::{ACTIVATION_TOKEN_PREFIX, APP_KV_PAIRING_ENABLED};
 

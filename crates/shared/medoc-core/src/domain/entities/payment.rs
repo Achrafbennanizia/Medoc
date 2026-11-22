@@ -18,6 +18,9 @@ pub struct Payment {
     /// Day-close / cash check: manually confirmed (0/1).
     pub cash_verified: i64,
     pub created_at: NaiveDateTime,
+    #[serde(default)]
+    #[sqlx(default)]
+    pub updated_at: Option<String>,
 }
 
 /// Only outstanding / partially paid payments may be edited.

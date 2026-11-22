@@ -1,0 +1,69 @@
+/* From styles/pages/appointments-calendar.css (cascade position kept by its import there). */
+.appointment-day-body-grid .appointment-appt-block--day {
+  max-width: calc((100% - 8px) / var(--appointment-card-hover-scale, 1));
+}
+.appointment-appt-block--day:hover:not(.appointment-appt-block--dragging),
+.appointment-appt-block--day.appointment-appt-block--hover-front {
+  z-index: 50 !important;
+}
+html[data-appointment-card-hover="off"] .appointment-appt-block:hover:not(.appointment-appt-block--dragging) {
+  transform: translateY(-1px);
+  z-index: 6;
+  box-shadow: 0 1px 3px rgba(10, 12, 16, 0.06);
+}
+@media (prefers-reduced-motion: reduce) {
+  .appointment-appt-block {
+    transition: none;
+  }
+  .appointment-appt-block:hover:not(.appointment-appt-block--dragging) {
+    transform: none;
+  }
+}
+.appointment-appt-block--dragging {
+  cursor: grabbing;
+  top: var(--appointment-drag-top, 0px) !important;
+  z-index: 40 !important;
+  box-shadow: 0 6px 20px rgba(10, 12, 16, 0.14), 0 0 0 2px var(--accent);
+  transition: none !important;
+  will-change: top;
+  contain: layout style paint;
+}
+body.appointment-calendar-dragging .appointment-appt-block:not(.appointment-appt-block--dragging) {
+  pointer-events: none;
+}
+.appointment-day-col--drag-target {
+  background: color-mix(in oklab, var(--accent) 14%, var(--bg-elev));
+  box-shadow: inset 0 0 0 2px color-mix(in oklab, var(--accent) 45%, transparent);
+}
+.appointment-appt-block--drag-source-hidden {
+  opacity: 0.28 !important;
+  pointer-events: none !important;
+}
+.appointment-appt-block--drag-ghost {
+  transition: none !important;
+  will-change: transform;
+  contain: layout style paint;
+}
+body.appointment-calendar-dragging .appointment-appt-block:not(.appointment-appt-block--dragging):not(.appointment-appt-block--drag-source-hidden):hover {
+  transform: none;
+}
+.appointment-appt-block--dragging.appointment-appt-block--drag-invalid {
+  box-shadow: 0 6px 20px rgba(10, 12, 16, 0.12), 0 0 0 2px #e5484d;
+}
+.appointment-appt-block--cancelled {
+  opacity: 0.55;
+}
+.appointment-appt-block--cancelled .appointment-appt-block-name,
+.appointment-appt-block--cancelled .appointment-appt-block-type,
+.appointment-appt-block--cancelled .appointment-appt-block-duration,
+.appointment-appt-block--cancelled .appointment-appt-status-pill {
+  text-decoration: line-through;
+}
+.appointment-appt-block--green,
+.appointment-appt-block--blue,
+.appointment-appt-block--accent,
+.appointment-appt-block--orange,
+.appointment-appt-block--purple {
+  background: var(--bg-elev);
+  color: var(--fg);
+}

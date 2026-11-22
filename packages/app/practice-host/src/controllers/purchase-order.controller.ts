@@ -1,4 +1,5 @@
-import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
+import type { z } from "zod";
+import { practiceSystem } from "@/systems/practice-host/adapters/practice-transport";
 import type { OrderStatus } from "@/models/types";
 import { CreatePurchaseOrderSchema, UpdatePurchaseOrderSchema, parseOrThrow } from "@/lib/schemas";
 
@@ -23,29 +24,10 @@ export interface PurchaseOrder {
     updated_at: string;
 }
 
-export interface CreatePurchaseOrder {
-    supplier: string;
-    item: string;
-    expected_on?: string | null;
-    quantity: number;
-    unit?: string | null;
-    remark?: string | null;
-    order_number?: string | null;
-    pharma_consultant?: string | null;
-    total_amount?: number | null;
-}
+export type CreatePurchaseOrder = z.input<typeof CreatePurchaseOrderSchema>;
 
-/** Patch DTO. Each field is optional; only provided fields are updated. */
-export interface UpdatePurchaseOrder {
-    supplier?: string;
-    item?: string;
-    quantity?: number;
-    unit?: string | null;
-    expected_on?: string | null;
-    remark?: string | null;
-    order_number?: string | null;
-    pharma_consultant?: string | null;
-}
+/** Patch. Each field is optional; only provided fields are updated. */
+export type UpdatePurchaseOrder = z.input<typeof UpdatePurchaseOrderSchema>;
 
 export const listPurchaseOrders = () =>
     practiceSystem.invoke<PurchaseOrder[]>("list_purchase_orders");

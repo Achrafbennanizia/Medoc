@@ -11,6 +11,7 @@ import type { PatientDetailPrescriptionTabHandle } from "./patient-detail-prescr
 import { useT, useTParams } from "@/lib/i18n";
 import { useToastStore } from "@/views/components/ui/toast-store";
 import { errorMessage } from "@/lib/utils";
+import type { AllergyConflictInfo } from "@/lib/with-allergy-confirmation";
 
 export type UsePatientDetailChartSaveArgs = {
     chartSaveConfirm: ChartSavePending | null;
@@ -51,7 +52,12 @@ export function usePatientDetailChartSave({
                 case "certificate_finalize_template": {
                     if (await prescriptionTabRef.current?.flushChartSaveConfirm(p)) break;
                     if (!patientId || !sessionUserId) break;
-                    const ctx = { patientId, userId: sessionUserId, onReload: load, toast };
+                    // No prescription tab to ask in: an allergy match is not issued, only reported.
+                    const confirmAllergy = async (c: AllergyConflictInfo) => {
+                        toast(tp("error.prescription.allergy_conflict", c), "error");
+                        return false;
+                    };
+                    const ctx = { patientId, userId: sessionUserId, onReload: load, toast, confirmAllergy };
                     const noop = {
                         setComposerBusy: () => {},
                         clearPending: () => {},

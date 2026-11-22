@@ -1,0 +1,64 @@
+/* From styles/components/overlays.css (cascade position kept by its import there). */
+@layer components {
+  .emergency-confirm-dialog .ios-confirm-body .confirm-icon {
+    width: 56px;
+    height: 56px;
+    margin: 0 auto 14px;
+    border-radius: 14px;
+    background: color-mix(in oklab, var(--red-soft) 85%, #fff);
+    color: var(--red);
+  }
+  .emergency-confirm-dialog .ios-confirm-body .confirm-icon svg {
+    width: 32px;
+    height: 32px;
+  }
+  .empty-state-root {
+    padding: 48px 24px 40px;
+    text-align: center;
+    color: var(--fg-3);
+  }
+  .empty-state-emoji {
+    font-size: 40px;
+    line-height: 1;
+    margin-bottom: var(--space-4);
+  }
+  .empty-state-graphic-wrap {
+    display: flex;
+    justify-content: center;
+    margin-bottom: var(--space-4);
+  }
+  .empty-state-icon-calendar {
+    display: grid;
+    place-items: center;
+    width: 72px;
+    height: 72px;
+    border-radius: 20px;
+    background: linear-gradient(145deg, var(--blue-soft) 0%, color-mix(in oklab, var(--accent-soft) 85%, var(--blue-soft)) 100%);
+    color: var(--blue-ink);
+    border: 1px solid color-mix(in oklab, #0a84ff 18%, var(--line));
+    box-shadow: 0 1px 0 rgba(10, 12, 16, 0.06);
+  }
+  .empty-state-title {
+    font-weight: 700;
+    font-size: 17px;
+    letter-spacing: -0.02em;
+    color: var(--fg);
+  }
+  .empty-state-desc {
+    margin-top: var(--space-2);
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--fg-3);
+    max-width: 32em;
+    margin-inline-start: auto;
+    margin-inline-end: auto;
+  }
+  .empty-state-actions {
+    margin-top: var(--space-3);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    justify-content: center;
+    align-items: center;
+  }
+}

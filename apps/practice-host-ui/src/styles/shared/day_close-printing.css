@@ -1,0 +1,26 @@
+/* From styles/pages/patient-chart-panels.css (cascade position kept by its import there). */
+/* DayClose: print — protocol detail only, no chrome and no list */
+@media print {
+  body.day_close-printing .app-sidebar,
+  body.day_close-printing .app-sidebar-backdrop,
+  body.day_close-printing .app-window-chrome,
+  body.day_close-printing .topbar,
+  body.day_close-printing .day_close-no-print,
+  body.day_close-printing .day_close-protocol-list {
+    display: none !important;
+  }
+  body.day_close-printing .products-workspace {
+    display: block !important;
+  }
+  body.day_close-printing .products-workspace__detail {
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+  body.day_close-printing #main-content {
+    padding: 0 !important;
+  }
+  body.day_close-printing .day_close-read-print {
+    box-shadow: none !important;
+    border: none !important;
+  }
+}

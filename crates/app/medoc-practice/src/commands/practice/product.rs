@@ -1,9 +1,10 @@
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::domain::entities::product::{CreateProduct, UpdateProduct};
 use crate::domain::entities::Product;
 use crate::error::AppError;
-use crate::infrastructure::database::{audit_repo, product_repo};
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
+use crate::infrastructure::database::repos::practice::product as product_repo;
 use sqlx::SqlitePool;
 use tauri::State;
 
@@ -82,15 +83,4 @@ pub async fn delete_product(
     .await
     .ok();
     Ok(())
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_product_commands {
-    () => {
-        $crate::commands::product_commands::list_products,
-        $crate::commands::product_commands::create_product,
-        $crate::commands::product_commands::update_product,
-        $crate::commands::product_commands::delete_product,
-    };
 }

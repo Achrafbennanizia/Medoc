@@ -1,0 +1,64 @@
+/* From styles/features/finance-payments.css (cascade position kept by its import there). */
+@layer components {
+  /* Patient chart + Finance: payments — fixed columns, alignment like header row */
+  .tbl.tbl-payment-chart,
+  .tbl.tbl-finance-payment {
+    table-layout: fixed;
+  }
+  .tbl.tbl-payment-chart thead th,
+  .tbl.tbl-payment-chart tbody td,
+  .tbl.tbl-finance-payment thead th,
+  .tbl.tbl-finance-payment tbody td {
+    overflow: hidden;
+  }
+  .tbl.tbl-payment-chart .payment-td-clip,
+  .tbl.tbl-finance-payment .payment-td-clip {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .tbl.tbl-payment-chart .payment-th-num,
+  .tbl.tbl-payment-chart .payment-td-num,
+  .tbl.tbl-finance-payment .payment-th-num,
+  .tbl.tbl-finance-payment .payment-td-num {
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .tbl.tbl-payment-chart .payment-td-actions,
+  .tbl.tbl-finance-payment .payment-td-actions {
+    overflow: visible;
+    text-align: center;
+    vertical-align: middle;
+  }
+  .tbl.tbl-payment-chart tbody td.payment-td-actions,
+  .tbl.tbl-finance-payment tbody td.payment-td-actions {
+    overflow: visible;
+  }
+  .tbl.tbl-payment-chart .payment-actions-inner,
+  .tbl.tbl-finance-payment .payment-actions-inner {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .payment-row-actions-menu {
+    position: relative;
+    display: inline-flex;
+    justify-content: flex-end;
+    margin-inline-start: auto;
+  }
+  .payment-row-actions-menu__trigger {
+    width: 30px;
+    height: 30px;
+    flex-shrink: 0;
+  }
+  .payment-row-actions-menu__panel {
+    min-width: 168px;
+    background: var(--bg-elev, #fff);
+    border-radius: 14px;
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--line);
+    overflow: hidden;
+  }
+}

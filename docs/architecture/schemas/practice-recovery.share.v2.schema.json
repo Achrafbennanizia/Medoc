@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://medoc.local/schemas/practice-recovery.share.v2.schema.json",
+  "title": "practice-recovery.share.v2",
+  "description": "Cleartext Bridge C practice share for the printed recovery sheet. Not sealed under the practice passphrase.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "kind",
+    "cluster_id",
+    "device_fingerprint",
+    "recovery_policy_version",
+    "key_id",
+    "kcv",
+    "share",
+    "created_at"
+  ],
+  "properties": {
+    "version": { "type": "integer", "const": 2 },
+    "kind": { "type": "string", "const": "practice-recovery.share.v2" },
+    "cluster_id": {
+      "type": "string",
+      "description": "Base64 (original) of 16-byte cluster UUID bytes"
+    },
+    "device_fingerprint": {
+      "type": "string",
+      "description": "Mint-time base32(sha256(device_pubkey)); used for display/AAD binding, not from current machine"
+    },
+    "recovery_policy_version": { "type": "integer", "const": 2 },
+    "key_id": {
+      "type": "string",
+      "description": "Hex of 8-byte vendor recovery key id (matches vendor share)"
+    },
+    "kcv": {
+      "type": "string",
+      "description": "Base64 of 16-byte HKDF(db_key, info=medoc-kcv-v1) truncate"
+    },
+    "share": {
+      "type": "string",
+      "description": "Base64 of 32-byte random practice_share (also printed as BIP39)"
+    },
+    "bip39": {
+      "type": "string",
+      "description": "Optional space-separated BIP39 word list encoding the same 32 bytes"
+    },
+    "created_at": { "type": "string", "format": "date-time" }
+  }
+}

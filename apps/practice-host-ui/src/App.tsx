@@ -87,6 +87,8 @@ const AdministrationContractsPage = lazy(async () => ({
     default: (await import("./views/pages/administration-contracts")).AdministrationContractsPage,
 }));
 const TreatmentCatalogPage = lazy(async () => ({ default: (await import("./views/pages/treatment-catalog")).TreatmentCatalogPage }));
+const MedicationPresetsPage = lazy(async () => ({ default: (await import("./views/pages/medication-presets")).MedicationPresetsPage }));
+const PrescriptionPresetsPage = lazy(async () => ({ default: (await import("./views/pages/prescription-presets")).PrescriptionPresetsPage }));
 const SickLeaveCertificateFormPage = lazy(async () => ({
     default: (await import("./views/pages/sick-leave-certificate-administration")).SickLeaveCertificateFormPage,
 }));
@@ -275,6 +277,8 @@ export default function App() {
                     <Route path="administration/templates/editor/:id" element={<RoleRoute routePath="administration/templates/editor"><TemplateEditorPage /></RoleRoute>} />
                     <Route path="administration/templates/editor" element={<RoleRoute routePath="administration/templates/editor"><TemplateEditorPage /></RoleRoute>} />
                     <Route path="administration/treatment-catalog" element={<RoleRoute routePath="administration/treatment-catalog"><TreatmentCatalogPage /></RoleRoute>} />
+                    <Route path="administration/medications" element={<RoleRoute routePath="administration/medications"><MedicationPresetsPage /></RoleRoute>} />
+                    <Route path="administration/prescription-presets" element={<RoleRoute routePath="administration/prescription-presets"><PrescriptionPresetsPage /></RoleRoute>} />
                     <Route path="administration/order-master" element={<RoleRoute routePath="administration/order-master"><OrderMasterAdministrationPage /></RoleRoute>} />
                     <Route
                         path="administration/finance-reports"

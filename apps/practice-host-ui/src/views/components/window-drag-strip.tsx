@@ -1,3 +1,4 @@
+import type React from "react";
 import { useT } from "@/lib/i18n";
 import { useMacWindowDrag } from "@/lib/mac-window-drag";
 import { useDesktopChromeMode } from "./desktop-chrome";
@@ -17,5 +18,18 @@ export function WindowDragStrip() {
                 {t("login.brand")}
             </span>
         </header>
+    );
+}
+
+/**
+ * Full-window screen shown before the app shell exists (setup, license, pairing, loading, errors).
+ * Puts the drag strip on top and centres the content below it — content itself is never draggable.
+ */
+export function PreShellScreen({ children, className }: { children: React.ReactNode; className?: string }) {
+    return (
+        <div className={["pre-shell-screen", className].filter(Boolean).join(" ")}>
+            <WindowDragStrip />
+            <div className="pre-shell-screen__body">{children}</div>
+        </div>
     );
 }

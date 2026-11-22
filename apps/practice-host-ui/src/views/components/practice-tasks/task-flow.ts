@@ -3,7 +3,8 @@
  *
  *   BACK ─┐
  *         ▼
- *   OPEN → IN_PROGRESS → DONE_RECEPTION ──(creator)──▶ VALIDATED
+ *   verify track: OPEN → IN_PROGRESS → DONE_RECEPTION ──(creator)──▶ VALIDATED
+ *   simple track (TICKET / APPOINTMENT): OPEN → VIEWED → DONE
  *            ▲   │              │
  *            └───┘ (reopen)     └──(creator returns)──▶ BACK
  *
@@ -53,6 +54,19 @@ export function taskCanMove(from: PracticeTaskStatus, to: PracticeTaskStatus): b
     return canTransition("practice_task", from, to);
 }
 
-export function taskNextStatuses(current: PracticeTaskStatus): PracticeTaskStatus[] {
-    return nextStatuses("practice_task", current) as PracticeTaskStatus[];
+/** Statuses of each workflow track (mirrors `practice_task_workflow_track` in workflow_transitions.rs). */
+const TRACK_STATUSES: Record<"simple" | "verify", ReadonlySet<string>> = {
+    simple: new Set(["OPEN", "VIEWED", "DONE"]),
+    verify: new Set(["OPEN", "IN_PROGRESS", "DONE_RECEPTION", "VALIDATED", "BACK"]),
+};
+
+/** `TICKET` / `APPOINTMENT` tasks use the simple track (OPEN → VIEWED → DONE); all others verify. */
+export function taskTrack(kind: string | null | undefined): "simple" | "verify" {
+    const k = String(kind ?? "").trim().toUpperCase();
+    return k === "TICKET" || k === "APPOINTMENT" ? "simple" : "verify";
+}
+
+export function taskNextStatuses(current: PracticeTaskStatus, track: "simple" | "verify" = "verify"): PracticeTaskStatus[] {
+    const allowed = TRACK_STATUSES[track];
+    return (nextStatuses("practice_task", current) as PracticeTaskStatus[]).filter((s, i) => i === 0 || allowed.has(s));
 }

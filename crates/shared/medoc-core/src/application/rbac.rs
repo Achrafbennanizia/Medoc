@@ -15,6 +15,7 @@
 // `application::rbac` shim re-exports them next to the matrix below so
 // `crate::application::rbac::require(…)` keeps working at every call site.
 
+use crate::domain::access;
 use crate::domain::rbac::PermissionOverride;
 
 // `Role` itself lives in `domain::rbac` so lower layers (e.g. `domain::services`) can
@@ -34,20 +35,120 @@ pub const PATIENT_READ_MEDICAL: &str = "patient.read_medical";
 pub const PATIENT_WRITE_MEDICAL: &str = "patient.write_medical";
 
 /// Permission matrix from `config/rbac.yaml` (generated at build time).
+///
+/// A scoped action from the access catalogue (`cash.create` …) is not in the
+/// matrix; it answers as its legacy name does, or by the role's default
+/// profile when it has none. Callers that check a role without a session
+/// (LAN app-kv, tests) therefore keep working with the new names.
 pub fn allowed(action: &str, role: Role) -> bool {
+    if let Some(rule) = access::rule(action) {
+        if rule.kind == access::ActionKind::Scoped {
+            if rule.legacy.is_empty() {
+                return access::rule_allows(&access::default_levels(role), rule);
+            }
+            return rule
+                .legacy
+                .iter()
+                .any(|legacy| rbac_matrix_allowed(legacy, role));
+        }
+    }
     rbac_matrix_allowed(action, role)
 }
 
-/// FA-PERS-07: Role matrix, overridden by explicit per-user ALLOW/DENY rows.
+/// True when `config/rbac.yaml` grants the action to at least one role, or
+/// the access catalogue ([`crate::domain::access::ACTION_RULES`]) knows it.
+pub fn is_known_action(action: &str) -> bool {
+    access::rule(action).is_some() || in_matrix(action)
+}
+
+/// True when `config/rbac.yaml` itself grants the action to some role.
+pub fn is_matrix_action(action: &str) -> bool {
+    in_matrix(action)
+}
+
+fn in_matrix(action: &str) -> bool {
+    [
+        Role::Physician,
+        Role::Reception,
+        Role::TaxAdvisor,
+        Role::PharmaConsultant,
+    ]
+    .into_iter()
+    .any(|role| rbac_matrix_allowed(action, role))
+}
+
+/// FA-PERS-07 + access profiles.
+///
+/// Order, first match wins:
+/// 1. an explicit ALLOW/DENY entry in `overrides`. Hand-set per-person
+///    overrides come first, then the entries compiled from the person's
+///    access profile (see `application::access_control::session_overrides`);
+/// 2. a scoped action (`cash.create` …) without such an entry — i.e. the
+///    person has no profile — decides exactly as its legacy name did before,
+///    or by the role's default profile when it has no legacy name;
+/// 3. the role matrix from `config/rbac.yaml`.
 pub fn effective_allowed(action: &str, role: Role, overrides: &[PermissionOverride]) -> bool {
-    for o in overrides {
-        if o.action == action {
-            return match o.effect.as_str() {
-                "ALLOW" => true,
-                "DENY" => false,
-                _ => allowed(action, role),
-            };
+    if let Some(o) = overrides.iter().find(|o| o.action == action) {
+        match o.effect.as_str() {
+            "ALLOW" => return true,
+            "DENY" => return false,
+            _ => {}
+        }
+    }
+    if let Some(rule) = access::rule(action) {
+        if rule.kind == access::ActionKind::Scoped {
+            if rule.legacy.is_empty() {
+                return access::rule_allows(&access::default_levels(role), rule);
+            }
+            // Legacy rules carry no fallback of their own, so this terminates.
+            return rule
+                .legacy
+                .iter()
+                .any(|legacy| effective_allowed(legacy, role, overrides));
         }
     }
     allowed(action, role)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_known_action;
+
+    #[test]
+    fn unknown_override_action_is_rejected() {
+        assert!(is_known_action("patient.read"));
+        assert!(is_known_action("cash.create"));
+        assert!(!is_known_action("not.a.real.action"));
+    }
+
+    #[test]
+    fn without_a_profile_scoped_actions_follow_their_legacy_name() {
+        use super::{allowed, effective_allowed, Role};
+        for role in [Role::Physician, Role::Reception] {
+            assert_eq!(
+                effective_allowed("cash.create", role, &[]),
+                allowed("finance.write", role)
+            );
+            assert_eq!(
+                effective_allowed("cash.day_close", role, &[]),
+                allowed("finance.day_close.write", role)
+            );
+            assert_eq!(
+                effective_allowed("billing.read", role, &[]),
+                allowed("finance.read", role)
+            );
+        }
+    }
+
+    #[test]
+    fn a_legacy_deny_also_blocks_its_scoped_names() {
+        use super::{effective_allowed, Role};
+        use crate::domain::rbac::PermissionOverride;
+        let deny = vec![PermissionOverride {
+            action: "finance.write".into(),
+            effect: "DENY".into(),
+        }];
+        assert!(!effective_allowed("cash.create", Role::Physician, &deny));
+        assert!(!effective_allowed("billing.cancel", Role::Physician, &deny));
+    }
 }

@@ -8,6 +8,7 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { WorkspacePageHeader } from "../components/administration-page-header";
 import { HelpAbout } from "../components/help/help-about";
+import { HelpAccessGuide } from "../components/help/help-access-guide";
 import { HelpErrorCodes } from "../components/help/help-error-codes";
 import { HelpGettingStarted } from "../components/help/help-getting-started";
 import { HelpRecentErrors } from "../components/help/help-recent-errors";
@@ -19,7 +20,7 @@ export type HelpPageProps = {
     embedded?: boolean;
 };
 
-const TABS = ["start", "shortcuts", "statuses", "errors", "recent", "about"] as const;
+const TABS = ["start", "shortcuts", "statuses", "access", "errors", "recent", "about"] as const;
 type HelpTab = (typeof TABS)[number];
 
 function isTab(v: string | null): v is HelpTab {
@@ -101,7 +102,7 @@ export function HelpPage({ embedded = false }: HelpPageProps = {}) {
     );
 
     return (
-        <div className={`help-center ${embedded ? "" : "practice-workspace-page "}animate-fade-in`}>
+        <div className={`help-center ${embedded ? "" : "practice-workspace-page "}animate-fade-in--sticky-safe`}>
             <WorkspacePageHeader
                 titleLevel="h1"
                 title={t("page.help.title")}
@@ -163,9 +164,10 @@ export function HelpPage({ embedded = false }: HelpPageProps = {}) {
                 {tab === "start" ? <HelpGettingStarted query={query} /> : null}
                 {tab === "shortcuts" ? <HelpShortcuts query={query} /> : null}
                 {tab === "statuses" ? <HelpStatusGuide query={query} /> : null}
+                {tab === "access" ? <HelpAccessGuide query={query} /> : null}
                 {tab === "errors" ? <HelpErrorCodes query={query} /> : null}
                 {tab === "recent" ? <HelpRecentErrors /> : null}
-                {tab === "about" ? <HelpAbout links={routeLinks} /> : null}
+                {tab === "about" ? <HelpAbout links={routeLinks} onOpenRecentErrors={() => update({ tab: "recent" })} /> : null}
             </section>
         </div>
     );

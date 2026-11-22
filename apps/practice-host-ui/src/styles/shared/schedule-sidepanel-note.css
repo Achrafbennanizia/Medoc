@@ -1,0 +1,63 @@
+/* From styles/features/schedule.css (cascade position kept by its import there). */
+@layer components {
+  .quick-calendar-reset:hover {
+    background: var(--accent-soft);
+    border-color: color-mix(in oklab, var(--accent) 45%, transparent);
+    color: var(--accent-ink);
+  }
+  .schedule-reset-btn,
+  .schedule-add-btn {
+    width: 100%;
+    justify-content: center;
+    min-height: 42px;
+    border-radius: 14px;
+  }
+  .schedule-reset-btn {
+    margin-top: 4px;
+  }
+  .schedule-sidepanel-note {
+    margin-top: 12px;
+    border-radius: 12px;
+    padding: 10px 12px;
+    background: rgba(14,160,126,0.09);
+    color: var(--accent-ink);
+    font-size: 12.5px;
+    line-height: 1.35;
+  }
+  .schedule-sidepanel-note {
+    margin-top: 10px;
+    border-radius: 10px;
+    padding: 8px 10px;
+    background: rgba(14,160,126,0.08);
+    color: var(--accent-ink);
+    font-size: 12px;
+    line-height: 1.35;
+  }
+  .schedule-main {
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .month-view-topbar {
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .month-view-period {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 4px 6px;
+    background: var(--bg-elev);
+  }
+  .month-view-period-label {
+    min-width: 140px;
+    text-align: center;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    text-transform: capitalize;
+  }
+}

@@ -99,6 +99,18 @@ const SERVICES_HUB: AdministrationTocHubDef = {
             requires: "administration/treatment-catalog",
         },
         {
+            titleKey: "page.administration_services.link_medications_title",
+            descKey: "page.administration_services.link_medications_desc",
+            href: "/administration/medications",
+            requires: "administration/medications",
+        },
+        {
+            titleKey: "page.administration_services.link_prescription_presets_title",
+            descKey: "page.administration_services.link_prescription_presets_desc",
+            href: "/administration/prescription-presets",
+            requires: "administration/prescription-presets",
+        },
+        {
             titleKey: "page.administration_services.link_templates_title",
             descKey: "page.administration_services.link_templates_desc",
             href: "/administration/templates",

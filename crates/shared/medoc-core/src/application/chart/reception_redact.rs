@@ -57,6 +57,7 @@ mod tests {
             notes: Some("diagnosis leak".into()),
             total_cost: Some(80.0),
             created_at: NaiveDateTime::default(),
+            updated_at: None,
             category: None,
             session_number: None,
             treatment_status: None,
@@ -64,6 +65,14 @@ mod tests {
             treatment_date: None,
             released_by_physician_id: None,
             released_at: None,
+            fee_schedule: None,
+            goz_nr: None,
+            points: None,
+            factor: None,
+            factor_reason: None,
+            quantity: None,
+            analog_of: None,
+            agreement_ref: None,
         }
     }
 
@@ -78,6 +87,7 @@ mod tests {
             diagnosis: Some("SECRET".into()),
             total_cost: Some(50.0),
             created_at: NaiveDateTime::default(),
+            updated_at: None,
             category: None,
             released_by_physician_id: None,
             released_at: None,

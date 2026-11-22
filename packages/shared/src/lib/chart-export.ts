@@ -13,6 +13,8 @@ import { listPrescriptions, type Prescription } from "@/systems/practice-host/co
 import { listPaymentsForPatient } from "@/systems/practice-host/controllers/payment.controller";
 import type { ChartAttachmentRowDto } from "./chart-attachments";
 import type { Patient, PatientChart, DentalFinding, Treatment, Examination, Payment } from "@/models/types";
+import { localIsoDate } from "@/lib/utils";
+import { escapeHtml } from "./escape-html";
 
 /**
  * Normative / de-facto patterns for exports (information model, no certification):
@@ -21,7 +23,7 @@ import type { Patient, PatientChart, DentalFinding, Treatment, Examination, Paym
  * – HL7 FHIR R4 — Bundle (type collection/document) + Composition for document-style assembly
  *   (@see https://www.hl7.org/fhir/R4/documents.html , https://www.hl7.org/fhir/R4/composition.html )
  * – EU GDPR Art. 20 — structured, common, machine-readable formats (incl. JSON, XML, CSV)
- *   (@see https://gdpr-info.eu/kind-20-gdpr/ )
+ *   (@see https://gdpr-info.eu/art-20-gdpr/ )
  * – ISO 22600:2014 — privilege/access context reflected in filtered export data
  *   (practice: RBAC on creation)
  */
@@ -46,13 +48,13 @@ export const CHART_EXPORT_STANDARDS_REFS: {
         display: "HL7 FHIR R4 — Composition resource",
     },
     {
-        reference: "https://gdpr-info.eu/kind-20-gdpr/",
+        reference: "https://gdpr-info.eu/art-20-gdpr/",
         display: "GDPR Article 20 — structured, commonly used, machine-readable format",
     },
 ];
 
-/** LOINC 11506-3 — Progress note (als allgemeiner klinischer Verlaufs-/Akten-Container). */
-export const LOINC_PROGRESS_NOTE = "11506-3";
+/** LOINC 34133-9: Summary of episode note (record extract handed to the patient). */
+export const LOINC_SUMMARY_OF_EPISODE = "34133-9";
 
 export type ChartExportFileFormat = "pdf" | "json" | "xml" | "csv";
 
@@ -84,9 +86,12 @@ export const CHART_EXPORT_SECTION_META: {
     { key: "treatments", needsMedical: true },
     { key: "examinations", needsMedical: true },
     { key: "dental_findings", needsMedical: true },
-    { key: "prescriptions", needsMedical: false, needsDocuments: true },
-    { key: "certificate", needsMedical: false, needsDocuments: true },
-    { key: "attachments", needsMedical: false },
+    // Must match `apply_section_permissions` in medoc-core chart/pdf_export.rs:
+    // prescriptions and certificates contain diagnoses (patient.read_medical),
+    // attachments need patient.read_documents.
+    { key: "prescriptions", needsMedical: true },
+    { key: "certificate", needsMedical: true },
+    { key: "attachments", needsMedical: false, needsDocuments: true },
     { key: "payments", needsMedical: false, needsFinance: true },
     { key: "audit", needsMedical: false, needsAuditRead: true },
 ];
@@ -127,18 +132,21 @@ export function slugPatientName(name: string): string {
     return s || "Patient";
 }
 
-/** Suggestions: ISO-like unique first, then readable. */
+/**
+ * Filename suggestions. No patient names: file names end up in download
+ * folders, mail subjects and cloud sync logs (GDPR Art. 5(1)(c), data minimisation).
+ * Local time, so the name matches the date printed on the document.
+ */
 export function suggestChartExportFilenames(patient: Patient, ext: string): string[] {
     const id8 = patient.id.replace(/-/g, "").slice(0, 8);
     const d = new Date();
-    const ymd = d.toISOString().slice(0, 10).replace(/-/g, "");
-    const hms = d.toTimeString().slice(0, 8).replace(/:/g, "");
-    const isoCompact = d.toISOString().replace(/\D/g, "").slice(0, 14);
-    const slug = slugPatientName(patient.name);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const ymd = localIsoDate(d).replaceAll("-", "");
+    const hms = `${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
     return [
-        `MeDoc-Chart-${id8}-${ymd}-${hms}.${ext}`,
-        `PatientChart-${slug}-${id8}.${ext}`,
-        `Chart-Export-${patient.id}-${isoCompact}.${ext}`,
+        `MeDoc-Akte-${id8}-${ymd}-${hms}.${ext}`,
+        `Patientenakte-${id8}-${ymd}.${ext}`,
+        `Akte-Export-${id8}-${ymd}T${hms}.${ext}`,
     ];
 }
 
@@ -235,10 +243,18 @@ function newUuid(): string {
 }
 
 function mapGenderAdministrativeToFhir(g: string): string {
-    const u = g.toUpperCase();
-    if (u === "MALE" || u === "MALE") return "male";
-    if (u === "FEMALE" || u === "FEMALE") return "female";
-    return "unknown";
+    // FHIR AdministrativeGender: male | female | other | unknown.
+    // German "divers" maps to "other" (KBV Base profile uses the same mapping).
+    switch ((g ?? "").toUpperCase()) {
+        case "MALE":
+            return "male";
+        case "FEMALE":
+            return "female";
+        case "DIVERSE":
+            return "other";
+        default:
+            return "unknown";
+    }
 }
 
 /** FHIR R4 Patient subset — interoperability wrapper only (no full validation profile). */
@@ -259,16 +275,8 @@ export function toFhirPatientResource(p: Patient): Record<string, unknown> {
     };
 }
 
-function xhtmlDivEscape(s: string): string {
-    return s
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;");
-}
-
 function narrativeDivFromText(body: string): string {
-    const parts = body.split("\n").map((p) => (p.trim() === "" ? "<br/>" : `<p>${xhtmlDivEscape(p)}</p>`));
+    const parts = body.split("\n").map((p) => (p.trim() === "" ? "<br/>" : `<p>${escapeHtml(p)}</p>`));
     return `<div xmlns="http://www.w3.org/1999/xhtml">${parts.join("")}</div>`;
 }
 
@@ -282,8 +290,11 @@ export function buildFhirInteropBundle(
     sec: ChartExportSectionsState,
 ): Record<string, unknown> {
     const bundleId = newUuid();
-    const patientRef = "Patient/medoc-patient-1";
-    const compositionId = "medoc-composition-1";
+    // In a Bundle, references must resolve against entry.fullUrl. Use urn:uuid
+    // for both and reference the same URN (FHIR R4 Bundle §2.36.4.1).
+    const compositionUuid = newUuid();
+    const patientUuid = newUuid();
+    const patientRef = `urn:uuid:${patientUuid}`;
     const patientIncluded = Boolean(sec.patient && medocDomainPayload.patient);
     const patient = patientIncluded ? toFhirPatientResource(snap.patient) : null;
 
@@ -317,7 +328,7 @@ export function buildFhirInteropBundle(
 
     const composition: Record<string, unknown> = {
         resourceType: "Composition",
-        id: compositionId,
+        id: compositionUuid,
         meta: {
             profile: [`${CHART_EXPORT_PROFILE_URI}#composition`],
         },
@@ -326,8 +337,8 @@ export function buildFhirInteropBundle(
             coding: [
                 {
                     system: "http://loinc.org",
-                    code: LOINC_PROGRESS_NOTE,
-                    display: "Progress note",
+                    code: LOINC_SUMMARY_OF_EPISODE,
+                    display: "Summary of episode note",
                 },
             ],
             text: translateLocale(useLocale.getState().locale, "export.chart.fhir_text"),
@@ -336,6 +347,7 @@ export function buildFhirInteropBundle(
             ? { reference: patientRef, display: snap.patient.name }
             : undefined,
         date: snap.exportMeta.generatedAt,
+        // Composition.author is 1..*; a display-only reference is allowed.
         author: [{ display: `${snap.exportMeta.app} export` }],
         title: translateLocale(useLocale.getState().locale, "export.chart.fhir_title"),
         confidentiality: {
@@ -355,12 +367,12 @@ export function buildFhirInteropBundle(
     }
 
     const entry: { fullUrl: string; resource: Record<string, unknown> }[] = [
-        { fullUrl: `urn:uuid:${compositionId}`, resource: composition },
+        { fullUrl: `urn:uuid:${compositionUuid}`, resource: composition },
     ];
     if (patient && patientIncluded) {
         entry.push({
-            fullUrl: `urn:uuid:${patient.id}`,
-            resource: { ...patient, id: "medoc-patient-1" },
+            fullUrl: patientRef,
+            resource: { ...patient, id: patientUuid },
         });
     }
 
@@ -371,7 +383,10 @@ export function buildFhirInteropBundle(
             profile: [CHART_EXPORT_PROFILE_URI],
             lastUpdated: snap.exportMeta.generatedAt,
         },
-        type: "collection",
+        // "document" requires Composition first + identifier + timestamp (bdl-9..11).
+        // Only valid when the patient (Composition.subject) is included.
+        type: patientIncluded ? "document" : "collection",
+        identifier: { system: "urn:ietf:rfc:3986", value: `urn:uuid:${bundleId}` },
         timestamp: snap.exportMeta.generatedAt,
         entry,
     };
@@ -426,11 +441,11 @@ export function buildChartExportXmlInterop(interop: Record<string, unknown>): st
     ];
     const dm = interop.documentManifest as Record<string, unknown> | undefined;
     if (dm) {
-        lines.push(`    <ExportProfile>${xmlEscape(String(dm.exportProfile ?? ""))}</ExportProfile>`);
-        lines.push(`    <SchemaVersion>${xmlEscape(String(dm.schemaVersion ?? ""))}</SchemaVersion>`);
-        lines.push(`    <GeneratedAt>${xmlEscape(String(dm.generatedAt ?? ""))}</GeneratedAt>`);
-        lines.push(`    <ConformanceDisclaimer>${xmlEscape(String(dm.conformanceDisclaimer ?? ""))}</ConformanceDisclaimer>`);
-        lines.push(`    <GdprNote>${xmlEscape(String(dm.gdprNote ?? ""))}</GdprNote>`);
+        lines.push(`    <ExportProfile>${escapeHtml(String(dm.exportProfile ?? ""))}</ExportProfile>`);
+        lines.push(`    <SchemaVersion>${escapeHtml(String(dm.schemaVersion ?? ""))}</SchemaVersion>`);
+        lines.push(`    <GeneratedAt>${escapeHtml(String(dm.generatedAt ?? ""))}</GeneratedAt>`);
+        lines.push(`    <ConformanceDisclaimer>${escapeHtml(String(dm.conformanceDisclaimer ?? ""))}</ConformanceDisclaimer>`);
+        lines.push(`    <GdprNote>${escapeHtml(String(dm.gdprNote ?? ""))}</GdprNote>`);
         const refs = dm.standardsAlignment as unknown[] | undefined;
         if (Array.isArray(refs)) {
             lines.push("    <StandardsAlignment>");
@@ -439,8 +454,8 @@ export function buildChartExportXmlInterop(interop: Record<string, unknown>): st
                     const o = r as Record<string, unknown>;
                     lines.push(
                         "      <Ref " +
-                            `display="${xmlEscape(String(o.display ?? ""))}" ` +
-                            `reference="${xmlEscape(String(o.reference ?? ""))}" />`,
+                            `display="${escapeHtml(String(o.display ?? ""))}" ` +
+                            `reference="${escapeHtml(String(o.reference ?? ""))}" />`,
                     );
                 }
             }
@@ -474,7 +489,7 @@ export function buildChartExportCsvFromInterop(interop: Record<string, unknown>)
         ["Meta", "exportProfile", String((interop.documentManifest as { exportProfile?: string })?.exportProfile ?? "")],
         ["Meta", "schemaVersion", String((interop.documentManifest as { schemaVersion?: string })?.schemaVersion ?? "")],
         ["Meta", "fhirBundleTypeHint", "Bundle.type=collection (HL7 FHIR R4 informative)"],
-        ["Meta", "compositionLoinc", LOINC_PROGRESS_NOTE],
+        ["Meta", "compositionLoinc", LOINC_SUMMARY_OF_EPISODE],
     ];
     const dm = interop.documentManifest as { standardsAlignment?: { display?: string; reference?: string }[] } | undefined;
     if (dm?.standardsAlignment) {
@@ -526,14 +541,6 @@ function parseCsvSemicolonLine(line: string): string[] {
     return out;
 }
 
-function xmlEscape(s: string): string {
-    return s
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;");
-}
-
 function xmlTagKey(k: string): string {
     const t = k.replace(/[^a-zA-Z0-9_-]/g, "_");
     return t.match(/^[A-Za-z_]/) ? t : `_${t}`;
@@ -565,7 +572,7 @@ export function buildChartExportXml(data: Record<string, unknown>): string {
             lines.push(`${pad}</${safeTag}>`);
             return;
         }
-        lines.push(`${pad}<${safeTag}>${xmlEscape(String(val))}</${safeTag}>`);
+        lines.push(`${pad}<${safeTag}>${escapeHtml(String(val))}</${safeTag}>`);
     };
     for (const [k, version] of Object.entries(data)) {
         walk(k, version, 1);

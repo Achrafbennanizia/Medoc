@@ -13,16 +13,11 @@ import {
     type WorkTimeTeamOverview,
 } from "@/systems/practice-host/controllers/work-time.controller";
 import { formatWorkMinutes } from "@/lib/work-time-ui";
-import { weekStartMonday, ymd } from "@/lib/staff-work-plan";
+import { weekStartMonday } from "@/lib/staff-work-plan";
+import { localIsoDate } from "@/lib/utils";
 import { errorMessage } from "@/lib/utils";
 import { useCollatorLocale, useDateFnsLocale, useT, useTParams } from "@/lib/i18n";
-
-function statusLabel(status: string, t: (key: string) => string): string {
-    if (status === "RUNNING") return t("page.workTime.status.active");
-    if (status === "PAUSED") return t("page.workTime.status.paused");
-    if (status === "AUS") return t("page.workTime.status.off");
-    return status;
-}
+import { workTimeStatusLabel } from "@/lib/work-time-status-label";
 
 function statusTone(status: string): string {
     if (status === "RUNNING") return "running";
@@ -42,7 +37,7 @@ export function WorkTimeTeamPage() {
     const [error, setError] = useState<string | null>(null);
     const [query, setQuery] = useState("");
 
-    const weekStartYmd = useMemo(() => ymd(weekStartMonday(weekAnchor)), [weekAnchor]);
+    const weekStartYmd = useMemo(() => localIsoDate(weekStartMonday(weekAnchor)), [weekAnchor]);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -94,7 +89,7 @@ export function WorkTimeTeamPage() {
     if (error && !overview) return <PageLoadError message={error} onRetry={() => void load()} />;
 
     return (
-        <div className="practice-workspace-page animate-fade-in work-time-team-page">
+        <div className="practice-workspace-page animate-fade-in--sticky-safe work-time-team-page">
             <AdministrationPageHeader
                 title={t("page.workTime.team.title")}
                 subtitle={t("page.workTime.team.subtitle")}
@@ -203,7 +198,7 @@ function TeamMemberRow({
             </td>
             <td>
                 <span className={`work-time-team-status work-time-team-status--${tone}`}>
-                    {statusLabel(row.status, t)}
+                    {workTimeStatusLabel(row.status, t)}
                 </span>
             </td>
             <td className="work-time-team-table__num">{formatWorkMinutes(row.todayMinutes)}</td>

@@ -4,7 +4,7 @@ use std::path::Path;
 
 use chrono::{Duration, Utc};
 use medoc_core::error::AppError;
-use medoc_core::infrastructure::database::app_kv_repo;
+use medoc_core::infrastructure::database::repos::admin::app_kv as app_kv_repo;
 use medoc_core::infrastructure::install_plan::{
     DiscoverMode, InstallComponent, InstallPlan, InstallRole, PendingInstallPlanSidecar,
     PlanActivationMode, ProvisioningWindowState, APP_KV_INSTALL_PLAN_PENDING,

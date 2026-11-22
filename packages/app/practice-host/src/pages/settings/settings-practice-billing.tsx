@@ -37,12 +37,12 @@ export const SettingsPracticeBillingSection: FC<SettingsPracticeBillingProps> = 
 
     return (
         <>
-            <div className="settings-row" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
+            <div className="settings-row" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: "var(--space-3)" }}>
                 <div style={{ flex: "1 1 200px", minWidth: 0 }}>
                     <b>{t("settings.practice.billing_title")}</b>
                     <div className="settings-row-muted">{t("settings.practice.billing_hint")}</div>
                 </div>
-                <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end", flex: "0 1 auto" }}>
+                <div className="row" style={{ gap: "var(--space-2)", flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end", flex: "0 1 auto" }}>
                     {editing ? (
                         <>
                             <Button type="button" onClick={onSave}>
@@ -61,7 +61,7 @@ export const SettingsPracticeBillingSection: FC<SettingsPracticeBillingProps> = 
             </div>
             {editing ? (
                 <div className="card-pad" style={{ borderTop: "1px solid var(--line-strong)", paddingTop: "var(--space-3)" }}>
-                    <p className="card-sub" style={{ marginBottom: 12, fontWeight: 600 }}>
+                    <p className="card-sub" style={{ marginBottom: "var(--space-3)", fontWeight: 600 }}>
                         {t("settings.practice.billing_section_provider")}
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -151,7 +151,7 @@ export const SettingsPracticeBillingSection: FC<SettingsPracticeBillingProps> = 
                         <Input
                             id="px-vat-notice"
                             label={t("settings.practice.billing_vat_exempt")}
-                            value={practice.vat_exemption_notice ?? t("settings.practice.billing_vat_exempt_default")}
+                            value={practice.vat_exemption_notice ?? t("settings.practice.vat_exemption_default")}
                             onChange={(e: ChangeEvent<HTMLInputElement>) =>
                                 set({ vat_exemption_notice: e.target.value })
                             }

@@ -1,7 +1,7 @@
 //! TOTP lifecycle (enrollment teardown) — shared by desktop IPC and future HTTP surfaces.
 
 use crate::error::AppError;
-use crate::infrastructure::database::staff_repo;
+use crate::infrastructure::database::repos::admin::staff as staff_repo;
 use crate::infrastructure::totp;
 use sqlx::SqlitePool;
 

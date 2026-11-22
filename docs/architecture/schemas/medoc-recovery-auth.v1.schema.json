@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://medoc.local/schemas/medoc-recovery-auth.v1.schema.json",
+  "title": "medoc-recovery-auth.v1",
+  "description": "Process/audit control only. Signed attestation that ops may assist a named cluster. NOT a cryptographic unlock gate — holders of the vendor recovery private key can skip this ticket.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "kind",
+    "cluster_id",
+    "device_fingerprint",
+    "customer_ref",
+    "issued_at",
+    "nonce",
+    "signature"
+  ],
+  "properties": {
+    "version": { "type": "integer", "const": 1 },
+    "kind": { "type": "string", "const": "medoc-recovery-auth.v1" },
+    "cluster_id": {
+      "type": "string",
+      "description": "UUID string form of the cluster id"
+    },
+    "device_fingerprint": { "type": "string" },
+    "customer_ref": {
+      "type": "string",
+      "description": "Contract / CRM reference; not a secret"
+    },
+    "issued_at": { "type": "string", "format": "date-time" },
+    "nonce": {
+      "type": "string",
+      "description": "Base64 random 16+ bytes"
+    },
+    "device_id": {
+      "type": "string",
+      "description": "Optional sync.device_id.v1 UUID when known"
+    },
+    "signature": {
+      "type": "string",
+      "description": "Base64 Ed25519 detached signature (vendor license signing key). Audit only."
+    }
+  }
+}

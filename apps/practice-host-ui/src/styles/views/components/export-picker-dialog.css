@@ -1,0 +1,65 @@
+/* From styles/components/overlays.css (cascade position kept by its import there). */
+@layer components {
+  .chart-export-dialog-form-col {
+    flex: 1 1 320px;
+    min-width: 280px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+  .chart-export-dialog-preview-col {
+    flex: 1 1 300px;
+    min-width: 260px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    min-height: clamp(320px, 56vh, 620px);
+    max-height: min(calc(var(--app-dvh) * 0.78), calc(var(--app-dvh) * 0.92 - 216px));
+  }
+  .chart-export-pdf-preview-box {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface-2);
+  }
+  .chart-export-pdf-preview-box iframe {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    border: none;
+  }
+  .chart-export-pdf-preview-box > p {
+    margin: 0;
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-5);
+    text-align: center;
+    min-height: 120px;
+  }
+
+  .confirm-body { padding: 24px 24px 18px; text-align: center; }
+  .confirm-icon { width: 52px; height: 52px; border-radius: 12px; background: var(--red-soft); color: var(--red); display: grid; place-items: center; margin: 0 auto 12px; }
+  .confirm-title { margin: 0 0 6px; font-size: 28px; font-weight: 700; letter-spacing: -0.02em; }
+  .confirm-text { margin: 0; color: var(--fg-3); font-size: 13.5px; line-height: 1.45; }
+
+  /* iOS-style alert sheet (ConfirmDialog + IosConfirmActions) */
+  .modal--ios-confirm {
+    width: min(304px, 86vw);
+    max-width: min(304px, 86vw);
+    border-radius: 14px;
+    border: 1px solid color-mix(in oklab, var(--line-strong) 72%, #fff);
+    box-shadow:
+      0 0 0 0.5px rgba(10, 12, 16, 0.06),
+      0 24px 80px rgba(10, 12, 16, 0.28);
+  }
+  .modal--ios-confirm .modal-body-pad {
+    padding: 0;
+  }
+}

@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use tauri::{AppHandle, Manager, State};
 
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::error::AppError;
 use crate::infrastructure::{backup, gdpr, migration, retention};
 
@@ -21,13 +21,15 @@ pub struct BackupInfo {
 }
 
 #[tauri::command]
-#[tracing::instrument(level = "info", skip(pool, session_state))]
+#[tracing::instrument(level = "info", skip(app, pool, session_state))]
 pub async fn create_backup(
+    app: AppHandle,
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
 ) -> Result<BackupInfo, AppError> {
     rbac::require(&session_state, "ops.backup")?;
-    let path = backup::create(&pool).await?;
+    let app_dir = crate::commands::app_data_dir(&app)?;
+    let path = backup::create_with_app_dir(&pool, Some(&app_dir)).await?;
     let size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
     Ok(BackupInfo {
         path: path.display().to_string(),
@@ -54,12 +56,15 @@ pub fn list_backups(session_state: State<'_, SessionState>) -> Result<Vec<Backup
 
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(session_state, path))]
-pub fn validate_backup(
+pub async fn validate_backup(
+    app: AppHandle,
     session_state: State<'_, SessionState>,
     path: String,
 ) -> Result<bool, AppError> {
     rbac::require(&session_state, "ops.backup")?;
-    backup::validate(&PathBuf::from(path))
+    let app_dir = crate::commands::app_data_dir(&app)?;
+    let key = crate::infrastructure::database::db_key::ensure_sqlcipher_key(&app_dir, false)?;
+    backup::validate_open(&PathBuf::from(path), &key).await
 }
 
 #[derive(Debug, Serialize)]
@@ -71,21 +76,29 @@ pub struct RestoreBackupResult {
 }
 
 #[tauri::command]
-#[tracing::instrument(level = "info", skip(app, pool, session_state, path))]
+#[tracing::instrument(level = "info", skip(app, session_state, path))]
 pub async fn restore_backup(
     app: AppHandle,
-    pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
     path: String,
 ) -> Result<RestoreBackupResult, AppError> {
     rbac::require(&session_state, "ops.backup")?;
-    let app_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| AppError::Internal(format!("App data directory: {e}")))?;
-    let report = backup::restore_from_backup(&pool, &app_dir, &PathBuf::from(path)).await?;
+    if let Some(control) = app.try_state::<crate::commands::network::lan::LanServerControl>() {
+        crate::commands::network::lan::stop_lan_listener(&control).await;
+    }
+    let app_dir = crate::commands::app_data_dir(&app)?;
+    let report = {
+        let pool = app.state::<SqlitePool>();
+        backup::restore_from_backup(pool.inner(), &app_dir, &PathBuf::from(path)).await?
+    };
+    let reopened = crate::infrastructure::database::connection::reopen_app_pool(&app_dir).await?;
+    // The command's State guard is already dropped. Swap the managed pool so
+    // the next command uses the restored file without restarting the process.
+    #[allow(deprecated)]
+    let _closed = app.unmanage::<SqlitePool>();
+    app.manage(reopened);
     Ok(RestoreBackupResult {
-        requires_app_restart: report.requires_app_restart,
+        requires_app_restart: false,
         restored_from: report.restored_from.display().to_string(),
         pre_restore_backup_created: report.pre_restore_backup_created,
     })
@@ -98,8 +111,19 @@ pub async fn dsgvo_export_patient(
     session_state: State<'_, SessionState>,
     patient_id: String,
 ) -> Result<Value, AppError> {
-    rbac::require(&session_state, "ops.dsgvo")?;
-    gdpr::export_patient(&pool, &patient_id).await
+    let session = rbac::require(&session_state, "ops.dsgvo")?;
+    let export = gdpr::export_patient(&pool, &patient_id).await?;
+    // Art. 15 disclosures are themselves processing → audit them.
+    crate::infrastructure::database::repos::admin::audit::create(
+        &pool,
+        &session.user_id,
+        "DSGVO_EXPORT",
+        "Patient",
+        Some(&patient_id),
+        None,
+    )
+    .await?;
+    Ok(export)
 }
 
 #[tauri::command]
@@ -111,10 +135,7 @@ pub async fn dsgvo_erase_patient(
     patient_id: String,
 ) -> Result<gdpr::ErasureReport, AppError> {
     rbac::require(&session_state, "ops.dsgvo")?;
-    let app_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| AppError::Internal(format!("App data directory: {e}")))?;
+    let app_dir = crate::commands::app_data_dir(&app)?;
     gdpr::erase_patient(&pool, &patient_id, &app_dir).await
 }
 
@@ -162,25 +183,7 @@ pub fn enforce_log_retention(
     session_state: State<'_, SessionState>,
 ) -> Result<retention::RetentionReport, AppError> {
     rbac::require(&session_state, "ops.system")?;
-    let log_dir = dirs::home_dir()
-        .map(|h| h.join("medoc-data").join("logs"))
-        .unwrap_or_else(|| PathBuf::from("./medoc-data/logs"));
+    // F53: the directory logging::init writes to (app data dir), not ~/medoc-data.
+    let log_dir = medoc_core::infrastructure::logging::log_dir()?.to_path_buf();
     retention::enforce(&log_dir)
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_ops_commands {
-    () => {
-        $crate::commands::ops_commands::create_backup,
-        $crate::commands::ops_commands::list_backups,
-        $crate::commands::ops_commands::validate_backup,
-        $crate::commands::ops_commands::restore_backup,
-        $crate::commands::ops_commands::dsgvo_export_patient,
-        $crate::commands::ops_commands::dsgvo_erase_patient,
-        $crate::commands::ops_commands::import_patients_csv,
-        $crate::commands::ops_commands::pick_patients_csv_file,
-        $crate::commands::ops_commands::pick_backup_file,
-        $crate::commands::ops_commands::enforce_log_retention,
-    };
 }

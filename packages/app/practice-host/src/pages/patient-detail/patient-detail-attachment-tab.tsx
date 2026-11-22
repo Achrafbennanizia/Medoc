@@ -20,7 +20,7 @@ export type PatientDetailAttachmentTabProps = {
     onRequestValidate: (attachmentId: string, label: string) => void;
     onRevokeValidation: (attachmentId: string, shortLabel: string) => void;
     formatAddedAt: (iso: string) => string;
-    onScannerClick: () => void;
+    onScannerClick?: () => void;
 };
 
 export function PatientDetailAttachmentTab({

@@ -1,4 +1,5 @@
-import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
+import type { z } from "zod";
+import { practiceSystem } from "@/systems/practice-host/adapters/practice-transport";
 import type { PermissionOverride, Staff, Role } from "@/models/types";
 import { CreateStaffSchema, UpdateStaffSchema, UpdateOwnProfileSchema, parseOrThrow } from "@/lib/schemas";
 
@@ -17,7 +18,7 @@ export async function getOwnProfile(): Promise<OwnProfileDto> {
     return practiceSystem.invoke<OwnProfileDto>("get_own_profile");
 }
 
-export async function updateOwnProfile(data: Record<string, unknown>): Promise<OwnProfileDto> {
+export async function updateOwnProfile(data: z.input<typeof UpdateOwnProfileSchema>): Promise<OwnProfileDto> {
     const safe = parseOrThrow(UpdateOwnProfileSchema, data);
     return practiceSystem.invoke<OwnProfileDto>("update_own_profile", { data: safe });
 }
@@ -51,17 +52,12 @@ export async function getStaff(id: string): Promise<Staff> {
     return practiceSystem.invoke<Staff>("get_staff", { id });
 }
 
-export async function createStaff(data: {
-    name: string;
-    email: string;
-    password: string;
-    role: string;
-}): Promise<Staff> {
+export async function createStaff(data: z.input<typeof CreateStaffSchema>): Promise<Staff> {
     const safe = parseOrThrow(CreateStaffSchema, data);
     return practiceSystem.invoke<Staff>("create_staff", { data: safe });
 }
 
-export async function updateStaff(id: string, data: Record<string, unknown>): Promise<Staff> {
+export async function updateStaff(id: string, data: z.input<typeof UpdateStaffSchema>): Promise<Staff> {
     const safe = parseOrThrow(UpdateStaffSchema, data);
     return practiceSystem.invoke<Staff>("update_staff", { id, data: safe });
 }

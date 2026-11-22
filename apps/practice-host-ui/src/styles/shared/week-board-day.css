@@ -1,0 +1,71 @@
+/* From styles/features/schedule.css (cascade position kept by its import there). */
+@layer components {
+  .week-timeline-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .week-board-head {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr) 40px;
+    align-items: stretch;
+    gap: 6px;
+    margin-bottom: 8px;
+    min-width: 0;
+  }
+  .week-board-head > .icon-btn {
+    align-self: center;
+  }
+  .week-board-days {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(2.35rem, 1fr));
+    gap: 4px;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
+    scrollbar-width: thin;
+  }
+  .week-board-day {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-width: 0;
+    text-align: center;
+    border-radius: 10px;
+    padding: 6px 2px;
+    font: inherit;
+    cursor: pointer;
+  }
+  .week-board-day-week {
+    font-size: clamp(10px, 1.35vw, 12px);
+    font-weight: 600;
+    line-height: 1.15;
+    color: var(--fg-2);
+    text-transform: capitalize;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+  }
+  .week-board-day-num {
+    font-size: clamp(14px, 2vw, 17px);
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: var(--fg);
+  }
+  .week-board-day.today .week-board-day-week,
+  .week-board-day.today .week-board-day-num {
+    color: #0d9488;
+    text-decoration: none;
+  }
+  .week-board-day.today .week-board-day-num {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+}

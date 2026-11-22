@@ -1,28 +1,29 @@
+import { ContractsOverview } from "../components/master-detail/contracts-overview";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdministrationPageHeader } from "../components/administration-page-header";
 import { Button } from "../components/ui/button";
-import { Badge } from "../components/ui/badge";
 import { DataTable, type DataTableColumn } from "../components/ui/data-table";
+import { StatusBadge } from "../components/ui/status-badge";
 import { Card, CardHeader } from "../components/ui/card";
 import { ConfirmDialog, Dialog } from "../components/ui/dialog";
 import { FormSection } from "../components/ui/form-section";
 import { Input, Select } from "../components/ui/input";
 import { useToastStore } from "../components/ui/toast-store";
-import { parseEuroInput } from "@/lib/day-close";
-import { errorMessage, formatCurrency } from "@/lib/utils";
+import { errorMessage, formatCurrency, localIsoDate, parseEuroInput } from "@/lib/utils";
 import {
     CONTRACT_INTERVAL_OPTIONS,
     type ContractInterval,
     type ContractItem,
     amountEquivalentPerMonth,
-    todayYmd,
-    contractActiveToday,
+    contractCostToDate,
+    contractStatus,
 } from "@/lib/contract-domain";
 import {
     deleteContractOnBackend,
     listContractsFromBackend,
     migrateLegacyContractsFromLocalStorageOnce,
     openContractDocument,
+    setContractActive,
     upsertContractOnBackend,
 } from "@/systems/practice-host/controllers/contract.controller";
 import { pickContractPdfFile, openSystemScanUtility, scannerAttachContractAppData, scannerListRecent } from "@/systems/practice-host/controllers/system.controller";
@@ -187,7 +188,13 @@ export function AdministrationContractsPage() {
         if (selected) setForm(formFromContract(selected));
     };
 
-    const contractItemFromForm = (f: FormState, id: string, createdAt: string, documentPath: string | null): ContractItem => {
+    const contractItemFromForm = (
+        f: FormState,
+        id: string,
+        createdAt: string,
+        documentPath: string | null,
+        prev?: ContractItem,
+    ): ContractItem => {
         const b = f.amount.trim() === "" ? 0 : parseEuroInput(f.amount)!;
         return {
             id,
@@ -200,6 +207,8 @@ export function AdministrationContractsPage() {
             periodUntil: f.termModus === "fixed_term" ? f.periodUntil : null,
             createdAt,
             documentPath,
+            active: prev?.active !== false,
+            deactivatedAt: prev?.active === false ? prev.deactivatedAt ?? null : null,
         };
     };
 
@@ -222,7 +231,7 @@ export function AdministrationContractsPage() {
 
     const handleUpdate = () => {
         if (!selected || !validate(form)) return;
-        const row = contractItemFromForm(form, selected.id, selected.createdAt, selected.documentPath);
+        const row = contractItemFromForm(form, selected.id, selected.createdAt, selected.documentPath, selected);
         void (async () => {
             try {
                 await upsertContractOnBackend(row);
@@ -326,7 +335,7 @@ export function AdministrationContractsPage() {
         })();
     };
 
-    const asOfDate = useMemo(() => todayYmd(), []);
+    const asOfDate = useMemo(() => localIsoDate(new Date()), []);
 
     const formatTerm = (version: ContractItem): string => {
         if (version.unlimited) return t("page.administration.contracts.fmt.unlimited");
@@ -347,6 +356,44 @@ export function AdministrationContractsPage() {
         return `${formatCurrency(amount)} / ${t(`page.administration.contracts.interval_short.${interval}`)}`;
     };
 
+    const renderAmountCell = (amount: number, interval: ContractInterval) => {
+        if (amount <= 0) {
+            return <span className="contracts-td-amount__value">{t("page.administration.contracts.fmt.variable")}</span>;
+        }
+        return (
+            <span className="contracts-td-amount__stack">
+                <span className="contracts-td-amount__value">{formatCurrency(amount)}</span>
+                <span className="contracts-td-amount__interval">
+                    / {t(`page.administration.contracts.interval_short.${interval}`)}
+                </span>
+            </span>
+        );
+    };
+
+    const renderTermCell = (version: ContractItem) => {
+        if (version.unlimited) {
+            return t("page.administration.contracts.fmt.unlimited");
+        }
+        if (version.periodFrom && version.periodUntil) {
+            return (
+                <span className="contracts-td-term__range">
+                    <span className="contracts-td-term__date">{version.periodFrom}</span>
+                    <span className="contracts-td-term__sep" aria-hidden>
+                        –
+                    </span>
+                    <span className="contracts-td-term__date">{version.periodUntil}</span>
+                </span>
+            );
+        }
+        if (version.periodFrom) {
+            return tp("page.administration.contracts.fmt.from", { date: version.periodFrom });
+        }
+        if (version.periodUntil) {
+            return tp("page.administration.contracts.fmt.until", { date: version.periodUntil });
+        }
+        return t("common.em_dash");
+    };
+
     const formatMonthlyRef = (version: ContractItem): string => {
         if (version.amount <= 0) return t("common.em_dash");
         const m = amountEquivalentPerMonth(version.amount, version.interval);
@@ -354,11 +401,83 @@ export function AdministrationContractsPage() {
     };
 
     const readField = (label: string, value: string) => (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-1)" }}>
             <span className="kpi-label-mini">{label}</span>
             <span style={{ fontSize: 14, color: "var(--fg-2)" }}>{value || t("common.em_dash")}</span>
         </div>
     );
+
+    /** Activate / deactivate (status registry `contract`). Deactivation stops costs after the chosen day. */
+    const [deactivateDay, setDeactivateDay] = useState(() => localIsoDate(new Date()));
+    const [activationBusy, setActivationBusy] = useState(false);
+    const toggleActive = async (c: ContractItem, nextActive: boolean) => {
+        if (!canWrite) return;
+        setActivationBusy(true);
+        try {
+            const updated = await setContractActive(c, nextActive, nextActive ? undefined : deactivateDay);
+            setContracts((list) => list.map((x) => (x.id === updated.id ? updated : x)));
+            setSelected(updated);
+            toast(
+                nextActive
+                    ? t("page.administration.contracts.toast.activated")
+                    : tp("page.administration.contracts.toast.deactivated", { date: updated.deactivatedAt ?? deactivateDay }),
+                "success",
+            );
+        } catch (e) {
+            toast(errorMessage(e), "error");
+        } finally {
+            setActivationBusy(false);
+        }
+    };
+
+    const contractColumns: DataTableColumn<ContractItem>[] = [
+        {
+            id: "name",
+            header: t("page.administration.contracts.col.designation_partner"),
+            truncate: true,
+            text: (c) => `${c.designation} · ${c.partner}`,
+            cell: (c) => (
+                <div className="contracts-cell-name">
+                    <span className="contracts-cell-name__icon" aria-hidden title={c.documentPath ? t("page.administration.contracts.title_with_doc") : undefined}>
+                        {c.documentPath ? "📎" : "📄"}
+                    </span>
+                    <span className="data-table__stack">
+                        <span className="data-table__primary">{c.designation}</span>
+                        <span className="data-table__secondary">{c.partner}</span>
+                    </span>
+                </div>
+            ),
+        },
+        {
+            id: "amount",
+            header: t("page.administration.contracts.col.amount_interval"),
+            width: "9rem",
+            numeric: true,
+            cell: (c) => renderAmountCell(c.amount, c.interval),
+        },
+        {
+            id: "term",
+            header: t("page.administration.contracts.col.runtime"),
+            width: "12.5rem",
+            // Hidden while the table is narrow (beside the always-visible detail), so the name keeps room.
+            hideBelow: "md",
+            cell: (c) => renderTermCell(c),
+        },
+        {
+            id: "status",
+            header: t("page.administration.contracts.col.status"),
+            width: "9.5rem",
+            cell: (c) => <StatusBadge entity="contract" status={contractStatus(c)} />,
+        },
+        {
+            id: "cost",
+            header: t("page.administration.contracts.col.cost_to_date"),
+            width: "9rem",
+            numeric: true,
+            hideBelow: "lg",
+            cell: (c) => (c.amount > 0 ? formatCurrency(contractCostToDate(c)) : t("common.em_dash")),
+        },
+    ];
 
     const formBody = (
         <>
@@ -457,9 +576,9 @@ export function AdministrationContractsPage() {
                             </Button>
                         )}
                     />
-                    <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: 12 }}>
+                    <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
                         {formBody}
-                        <div className="row" style={{ justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+                        <div className="row" style={{ justifyContent: "flex-end", gap: "var(--space-2)", flexWrap: "wrap" }}>
                             <Button type="button" variant="ghost" onClick={cancelCreate}>
                                 {t("common.cancel")}
                             </Button>
@@ -483,9 +602,9 @@ export function AdministrationContractsPage() {
                             </Button>
                         )}
                     />
-                    <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: 12 }}>
+                    <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
                         {formBody}
-                        <div className="row" style={{ justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+                        <div className="row" style={{ justifyContent: "flex-end", gap: "var(--space-2)", flexWrap: "wrap" }}>
                             <Button type="button" variant="ghost" onClick={cancelEdit}>
                                 {t("common.cancel")}
                             </Button>
@@ -499,14 +618,13 @@ export function AdministrationContractsPage() {
         }
         if (selected) {
             const version = selected;
-            const active = contractActiveToday(version);
             return (
                 <Card className="products-detail-card">
                     <CardHeader
                         title={version.designation}
                         subtitle={t("page.administration.contracts.detail.contract")}
                         action={(
-                            <div className="row" style={{ gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                            <div className="row" style={{ gap: "var(--space-2)", flexWrap: "wrap", justifyContent: "flex-end" }}>
                                 {canWrite ? (
                                     <>
                                         <Button type="button" size="sm" variant="secondary" onClick={startEdit}>
@@ -520,24 +638,73 @@ export function AdministrationContractsPage() {
                             </div>
                         )}
                     />
-                    <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: 12 }}>
+                    <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
                         {readField(t("page.administration.contracts.read.partner"), version.partner)}
                         {readField(t("page.administration.contracts.read.amount_interval"), formatAmountLine(version.amount, version.interval))}
                         {readField(t("page.administration.contracts.read.runtime"), formatTerm(version))}
-                        <div className="row" style={{ gap: 8, alignItems: "center" }}>
-                            <span className="page-sub" style={{ fontSize: 12, margin: 0 }}>{t("page.administration.contracts.detail.status_today")}</span>
-                            {active ? <Badge variant="success">{t("page.administration.contracts.badge.active")}</Badge> : <Badge variant="warning">{t("page.administration.contracts.badge.inactive")}</Badge>}
+                        <div className="contracts-status-row">
+                            <span className="kpi-label-mini">{t("page.administration.contracts.detail.status_today")}</span>
+                            <StatusBadge entity="contract" status={contractStatus(version)} />
                         </div>
+                        <div className="contracts-cost-grid">
+                            {readField(t("page.administration.contracts.detail.cost_to_date"), version.amount > 0 ? formatCurrency(contractCostToDate(version)) : t("common.em_dash"))}
+                            {version.active === false && version.deactivatedAt
+                                ? readField(t("page.administration.contracts.detail.deactivated_on"), version.deactivatedAt)
+                                : null}
+                        </div>
+                        {canWrite ? (
+                            <FormSection title={t("page.administration.contracts.section.activation")}>
+                                {version.active === false ? (
+                                    <div className="contracts-activation">
+                                        <p className="page-sub contracts-activation__hint">{t("page.administration.contracts.activation.inactive_hint")}</p>
+                                        <Button type="button" size="sm" disabled={activationBusy} loading={activationBusy} onClick={() => void toggleActive(version, true)}>
+                                            {t("page.administration.contracts.btn.activate")}
+                                        </Button>
+                                    </div>
+                                ) : (
+                                    <div className="contracts-activation">
+                                        <p className="page-sub contracts-activation__hint">{t("page.administration.contracts.activation.active_hint")}</p>
+                                        <div className="contracts-activation__row">
+                                            <Input
+                                                type="date"
+                                                label={t("page.administration.contracts.activation.deactivate_on")}
+                                                value={deactivateDay}
+                                                min={(!version.unlimited && version.periodFrom) || undefined}
+                                                onChange={(e) => setDeactivateDay(e.target.value)}
+                                            />
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="secondary"
+                                                disabled={activationBusy || !deactivateDay}
+                                                loading={activationBusy}
+                                                onClick={() => void toggleActive(version, false)}
+                                            >
+                                                {t("page.administration.contracts.btn.deactivate")}
+                                            </Button>
+                                        </div>
+                                        {version.amount > 0 && deactivateDay ? (
+                                            <p className="page-sub contracts-activation__hint">
+                                                {tp("page.administration.contracts.activation.cost_preview", {
+                                                    amount: formatCurrency(contractCostToDate({ ...version, active: false, deactivatedAt: deactivateDay }, deactivateDay)),
+                                                    date: deactivateDay,
+                                                })}
+                                            </p>
+                                        ) : null}
+                                    </div>
+                                )}
+                            </FormSection>
+                        ) : null}
                         {readField(t("page.administration.contracts.detail.reference"), formatMonthlyRef(version))}
                         <FormSection title={t("page.administration.contracts.doc.section")}>
                             <p className="page-sub" style={{ margin: 0, fontSize: 12, lineHeight: 1.45 }}>
                                 {t("page.administration.contracts.doc.hint")}
                             </p>
                             {version.documentPath ? (
-                                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
                                     <span className="kpi-label-mini">{t("page.administration.contracts.doc.path_label")}</span>
                                     <span style={{ fontSize: 12, color: "var(--fg-2)", wordBreak: "break-all" }}>{version.documentPath}</span>
-                                    <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                                    <div className="row" style={{ gap: "var(--space-2)", flexWrap: "wrap" }}>
                                         <Button type="button" size="sm" variant="secondary" onClick={() => void tryOpenContractDocument()}>
                                             {t("page.administration.contracts.btn.open_doc")}
                                         </Button>
@@ -552,7 +719,7 @@ export function AdministrationContractsPage() {
                                 <p className="page-sub" style={{ margin: 0, fontSize: 12 }}>{t("page.administration.contracts.doc.empty")}</p>
                             )}
                             {canWrite ? (
-                                <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                                <div className="row" style={{ gap: "var(--space-2)", flexWrap: "wrap" }}>
                                     <Button
                                         type="button"
                                         size="sm"
@@ -582,79 +749,11 @@ export function AdministrationContractsPage() {
                 </Card>
             );
         }
-        return (
-            <Card className="card-pad products-detail-card products-detail-card--empty">
-                <p style={{ margin: 0, color: "var(--fg-3)", fontSize: 14, lineHeight: 1.5 }}>
-                    {t("page.administration.contracts.empty_detail")}
-                </p>
-            </Card>
-        );
+        return <ContractsOverview contracts={contracts} onCreate={canWrite ? openCreate : undefined} />;
     })();
 
-    const contractColumns: DataTableColumn<ContractItem>[] = [
-        {
-            id: "doc",
-            header: t("page.administration.contracts.title_with_doc"),
-            srOnlyHeader: true,
-            width: "2.75rem",
-            align: "center",
-            cell: (v) => (
-                <span className="data-table__muted" title={v.documentPath ? t("page.administration.contracts.title_with_doc") : undefined}>
-                    {v.documentPath ? "📎" : "📄"}
-                </span>
-            ),
-        },
-        {
-            id: "designation",
-            header: t("page.administration.contracts.col.designation_partner"),
-            truncate: true,
-            text: (v) => `${v.designation} · ${v.partner}`,
-            cell: (v) => (
-                <div className="data-table__stack">
-                    <span className="data-table__primary">{v.designation}</span>
-                    <span className="data-table__secondary">{v.partner}</span>
-                </div>
-            ),
-        },
-        {
-            id: "amount",
-            header: t("page.administration.contracts.col.amount_interval"),
-            width: "9.5rem",
-            numeric: true,
-            cell: (v) => <strong>{formatAmountLine(v.amount, v.interval)}</strong>,
-        },
-        {
-            id: "term",
-            header: t("page.administration.contracts.col.runtime"),
-            width: "11rem",
-            truncate: true,
-            hideBelow: "sm",
-            text: (v) => formatTerm(v),
-            cell: (v) => <span className="data-table__secondary">{formatTerm(v)}</span>,
-        },
-        {
-            id: "status",
-            header: t("page.administration.contracts.col.status"),
-            width: "8.5rem",
-            cell: (v) =>
-                contractActiveToday(v) ? (
-                    <Badge variant="success">{t("page.administration.contracts.badge.active")}</Badge>
-                ) : (
-                    <Badge variant="warning">{t("page.administration.contracts.badge.outside")}</Badge>
-                ),
-        },
-        {
-            id: "ref",
-            header: t("page.administration.contracts.col.reference"),
-            width: "8.5rem",
-            numeric: true,
-            hideBelow: "md",
-            cell: (v) => <span className="data-table__secondary">{formatMonthlyRef(v)}</span>,
-        },
-    ];
-
     return (
-        <div className="administration-menu-page practice-workspace-page animate-fade-in">
+        <div className="administration-menu-page practice-workspace-page animate-fade-in--sticky-safe">
             <AdministrationPageHeader
                 title={t("page.administration.contracts.title")}
                 subtitle={t("page.administration.contracts.subtitle")}
@@ -670,22 +769,22 @@ export function AdministrationContractsPage() {
             {!hydrated ? (
                 <p className="page-sub" style={{ margin: 0 }}>{t("page.administration.contracts.loading")}</p>
             ) : (
-                <div className="products-workspace">
-                    <div className="products-workspace__list">
-                        <div className="card products-table-card">
+                <div className="staff-workspace contracts-workspace">
+                    <div className="staff-workspace__list">
+                        <div className="card staff-table-card contracts-table-card">
                             <DataTable
                                 label={t("page.administration.contracts.title")}
                                 columns={contractColumns}
                                 rows={contracts}
-                                getRowId={(v) => v.id}
+                                getRowId={(c) => c.id}
                                 selectedId={creating ? null : selected?.id ?? null}
                                 onRowActivate={selectRow}
+                                rowClassName={(c) => (contractStatus(c) === "INACTIVE" ? "contracts-row--inactive" : undefined)}
                                 emptyLabel={t("page.administration.contracts.empty_table")}
-                                minWidth="40rem"
                             />
                         </div>
                     </div>
-                    <div className="products-workspace__detail">{sidePanel}</div>
+                    <div className="staff-workspace__detail">{sidePanel}</div>
                 </div>
             )}
 
@@ -702,7 +801,7 @@ export function AdministrationContractsPage() {
                     </Button>
                 )}
             >
-                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
                     <p className="page-sub" style={{ margin: 0, fontSize: 13 }}>
                         {tp("page.administration.contracts.scan.intro", { name: selected?.designation ?? "" })}
                     </p>
@@ -713,7 +812,7 @@ export function AdministrationContractsPage() {
                         onChange={(e) => setScanFolder(e.target.value)}
                         placeholder={t("page.administration.contracts.field.scan_folder_ph")}
                     />
-                    <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                    <div className="row" style={{ gap: "var(--space-2)", flexWrap: "wrap" }}>
                         <Button
                             type="button"
                             variant="secondary"
@@ -743,7 +842,7 @@ export function AdministrationContractsPage() {
                                     style={{
                                         justifyContent: "space-between",
                                         alignItems: "center",
-                                        gap: 8,
+                                        gap: "var(--space-2)",
                                         padding: "8px 0",
                                         borderBottom: "1px solid var(--line)",
                                     }}

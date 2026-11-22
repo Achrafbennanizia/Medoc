@@ -1,4 +1,5 @@
 import { useT } from "@/lib/i18n";
+import { minutesToTime } from "@/lib/utils";
 
 type TimeSlotPickerProps = {
     value: string;
@@ -19,7 +20,7 @@ function slotsFromRange(startHour: number, endHour: number, step: number): strin
     for (let h = startHour; h <= endHour; h++) {
         for (let m = 0; m < 60; m += step) {
             if (h === endHour && m > 0) break;
-            out.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+            out.push(minutesToTime(h * 60 + m));
         }
     }
     return out;
@@ -47,7 +48,7 @@ export function TimeSlotPicker({
         );
     }
     return (
-        <div role="group" aria-label={t("a11y.pick_time")} className="time-slot-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(72px, 1fr))", gap: 8 }}>
+        <div role="group" aria-label={t("a11y.pick_time")} className="time-slot-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(72px, 1fr))", gap: "var(--space-2)" }}>
             {list.map((slot) => {
                 const busy = busyKeys?.has(`${selectedDate}|${slot}`) ?? false;
                 const active = value === slot;

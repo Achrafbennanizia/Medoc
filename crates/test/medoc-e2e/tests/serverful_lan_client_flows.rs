@@ -9,13 +9,13 @@
 //!
 //! Coverage gaps closed here:
 //!
-//! - RECEPTION JWT *can* read `/api/v1/patients` (`patient.read` allowed)
-//!   but *cannot* fetch the company portal endpoints (`ops.system`).
+//! - RECEPTION JWT *cannot* fetch the company portal endpoints (`ops.system`).
+//!   Chart and appointment lists are not served over LAN HTTP.
 //! - RECEPTION JWT *cannot* decide pairing requests (admin-only).
 //! - PHYSICIAN JWT (with `ops.system`) *can* list pending pairing requests.
 //! - JWT must not be accepted on `/api/v1/sync/*` (activation token only).
 //! - Activation token must not be accepted on `/api/v1/me` (JWT only).
-//! - `/api/v1/appointments?date=` query parses and returns array.
+//! - `/api/v1/appointments` is not registered.
 //! - `/api/v1/app-kv` GET on a whitelisted key.
 //! - Login brute-force lockout on repeated bad password.
 
@@ -47,13 +47,8 @@ async fn reception_jwt_reads_patients_but_not_company_endpoints() {
     let mut lan = LanHarness::new().await;
     let rez = rez_jwt(&lan);
 
-    let (status, body) = lan.json("GET", "/api/v1/patients", None, Some(&rez)).await;
-    assert_eq!(
-        status,
-        StatusCode::OK,
-        "RECEPTION may patient.read: {body:?}"
-    );
-    assert!(body.is_array());
+    let (status, _) = lan.json("GET", "/api/v1/patients", None, Some(&rez)).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
 
     let (status, _) = lan
         .json("GET", "/api/v1/company/summary", None, Some(&rez))
@@ -141,14 +136,10 @@ async fn jwt_is_not_accepted_on_sync_routes_only_activation_token() {
     let (status, _) = lan
         .json("GET", "/api/v1/sync/status", None, Some(&physician))
         .await;
-    // The `verify_activation_for_path` middleware only fires for `mt2.*`
-    // tokens; plain JWT passes through and `master_license::require_master_license`
-    // is satisfied by the seeded license — so JWT IS accepted here (legacy
-    // path retained for backwards-compat). Spec: legacy JWT still works on
-    // /sync/status. If this assumption breaks the test surfaces it.
-    assert!(
-        matches!(status, StatusCode::OK | StatusCode::FORBIDDEN),
-        "JWT path on /sync/status returned unexpected status {status}"
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "staff JWT is not a device activation token"
     );
 }
 
@@ -165,8 +156,11 @@ async fn appointment_query_param_parses_and_returns_array() {
             Some(&physician),
         )
         .await;
-    assert_eq!(status, StatusCode::OK, "appointments ?date=: {body:?}");
-    assert!(body.is_array());
+    assert_eq!(
+        status,
+        StatusCode::NOT_FOUND,
+        "appointments route: {body:?}"
+    );
 }
 
 #[tokio::test]
@@ -299,7 +293,7 @@ async fn me_route_requires_jwt_not_activation_token() {
 #[tokio::test]
 async fn protected_route_without_bearer_returns_401_with_json_error() {
     let mut lan = LanHarness::new().await;
-    let (status, body) = lan.json("GET", "/api/v1/patients", None, None).await;
+    let (status, body) = lan.json("GET", "/api/v1/me", None, None).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
     assert!(
         body["error"].is_string(),

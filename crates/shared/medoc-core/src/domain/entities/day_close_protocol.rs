@@ -21,6 +21,52 @@ pub struct DayCloseProtocol {
     #[serde(default)]
     pub note: Option<String>,
     pub recorded_at: NaiveDateTime,
+    // ---- Server-computed closing (NULL on protocols recorded before) ----
+    #[sqlx(default)]
+    #[serde(default)]
+    pub status: Option<String>,
+    #[sqlx(default)]
+    #[serde(default)]
+    pub period_from: Option<String>,
+    #[sqlx(default)]
+    #[serde(default)]
+    pub opening_cents: Option<i64>,
+    #[sqlx(default)]
+    #[serde(default)]
+    pub cash_receipts_cents: Option<i64>,
+    #[sqlx(default)]
+    #[serde(default)]
+    pub cash_movements_cents: Option<i64>,
+    #[sqlx(default)]
+    #[serde(default)]
+    pub expected_cents: Option<i64>,
+    #[sqlx(default)]
+    #[serde(default)]
+    pub counted_cents: Option<i64>,
+    #[sqlx(default)]
+    #[serde(default)]
+    pub variance_cents: Option<i64>,
+    #[sqlx(default)]
+    #[serde(default)]
+    pub card_cents: Option<i64>,
+    #[sqlx(default)]
+    #[serde(default)]
+    pub card_terminal_cents: Option<i64>,
+    #[sqlx(default)]
+    #[serde(default)]
+    pub transfer_cents: Option<i64>,
+    #[sqlx(default)]
+    #[serde(default)]
+    pub receipt_count: Option<i64>,
+    #[sqlx(default)]
+    #[serde(default)]
+    pub closed_by_name: Option<String>,
+    #[sqlx(default)]
+    #[serde(default)]
+    pub document_number: Option<String>,
+    #[sqlx(default)]
+    #[serde(default)]
+    pub corrects_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

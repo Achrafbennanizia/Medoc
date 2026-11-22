@@ -1,5 +1,5 @@
+import { companySystem } from "@/systems/company-portal/adapters/tauri-company.adapter";
 import {
-    companyPortalBillingPortalUrl,
     openSubscriptionPortal,
     type LicenseStatus,
 } from "@/systems/practice-host/controllers/settings-page.controller";
@@ -115,7 +115,7 @@ export function SettingsLicenseSection({
         <>
             <section className="settings-subcard settings-license-hero-wrap" style={{ overflow: "hidden", padding: 0 }}>
                 <div className="settings-license-hero">
-                    <div className="row" style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                    <div className="row" style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "var(--space-2)" }}>
                         <span className="settings-pill-accent">{portalFetchBusy ? "…" : licenseStatus?.valid ? t("settings.license.status_active") : t("settings.license.inactive")}</span>
                         <span style={{ fontSize: 12, color: "var(--fg-3)" }}>{t("settings.license.plan_label")}</span>
                     </div>
@@ -159,13 +159,13 @@ export function SettingsLicenseSection({
                         ) : null}
                     </div>
                     {LICENSE_BILLING_CONNECTORS_ENABLED ? (
-                    <div className="row" style={{ gap: 10, marginTop: 16, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                    <div className="row" style={{ gap: "var(--space-3)", marginTop: "var(--space-4)", flexWrap: "wrap", justifyContent: "flex-end" }}>
                         <Button
                             type="button"
                             variant="secondary"
                             onClick={async () => {
                                 try {
-                                    const url = await companyPortalBillingPortalUrl();
+                                    const url = await companySystem.billingPortalUrl();
                                     window.open(url, "_blank", "noopener,noreferrer");
                                 } catch {
                                     toast(t("v1.billing.manufacturer_portal_hint"), "info");
@@ -196,7 +196,7 @@ export function SettingsLicenseSection({
                 <div className="card-head">
                     <div className="card-title">{t("settings.license.usage_title")}</div>
                 </div>
-                <div className="card-pad" style={{ display: "grid", gap: 16 }}>
+                <div className="card-pad" style={{ display: "grid", gap: "var(--space-4)" }}>
                     <div>
                         <div className="row" style={{ justifyContent: "space-between", fontSize: 13 }}>
                             <span>{t("settings.license.active_handlers")}</span>
@@ -267,7 +267,11 @@ export function SettingsLicenseSection({
                 <div className="settings-row">
                     <div>
                         <b>{t("settings.license.kbv_approval")}</b>
-                        <div className="settings-row-muted">{t("settings.license.kbv_until")}</div>
+                        <div className="settings-row-muted">
+                            {activeV1?.expiresAt
+                                ? formatDateShort(activeV1.expiresAt)
+                                : t("common.dash")}
+                        </div>
                     </div>
                     <span className="settings-pill-green">{t("settings.license.status_active")}</span>
                 </div>
@@ -291,7 +295,7 @@ export function SettingsLicenseSection({
                         onChange={(e) => onLicenseTokenChange(e.target.value)}
                         placeholder={t("settings.license.import_ph")}
                     />
-                    <div className="row" style={{ marginTop: 12, gap: 8, flexWrap: "wrap" }}>
+                    <div className="row" style={{ marginTop: "var(--space-3)", gap: "var(--space-2)", flexWrap: "wrap" }}>
                         <Button
                             type="button"
                             variant="secondary"

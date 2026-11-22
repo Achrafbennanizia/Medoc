@@ -6,13 +6,13 @@ use sqlx::SqlitePool;
 use tauri::State;
 
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::error::AppError;
 use crate::infrastructure::company_portal::config::load_company_portal_config;
 use crate::infrastructure::company_portal::{
     attach_payment_method_remote, post_billing_portal_url,
 };
-use crate::infrastructure::database::audit_repo;
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
 use crate::log_system;
 
 #[derive(Debug, Serialize)]
@@ -112,15 +112,6 @@ pub async fn attach_payment_method(
         attach_payment_method_remote(&cfg, &request.provider_token).await?;
     }
     Ok(())
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_subscription_commands {
-    () => {
-        $crate::commands::subscription_commands::open_subscription_portal,
-        $crate::commands::subscription_commands::attach_payment_method,
-    };
 }
 
 #[cfg(test)]

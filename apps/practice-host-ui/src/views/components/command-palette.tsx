@@ -83,7 +83,7 @@ export function CommandPalette({ open, onClose, commands, onNavigate }: Props) {
                 <div
                     className="input"
                     style={{
-                        marginBottom: 12,
+                        marginBottom: "var(--space-3)",
                         borderRadius: "var(--radius-ctl)",
                     }}
                 >
@@ -142,7 +142,7 @@ export function CommandPalette({ open, onClose, commands, onNavigate }: Props) {
                                             textAlign: "start",
                                             display: "flex",
                                             alignItems: "center",
-                                            gap: 10,
+                                            gap: "var(--space-3)",
                                             padding: "10px 12px",
                                             fontSize: 13.5,
                                             fontWeight: 500,

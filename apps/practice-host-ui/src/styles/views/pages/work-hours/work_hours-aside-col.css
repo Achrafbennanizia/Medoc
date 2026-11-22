@@ -1,0 +1,68 @@
+/* From styles/features/administration.css (cascade position kept by its import there). */
+@layer components {
+  /* Working hours (Administration): week grid + side defaults — full window width */
+  .work_hours-page {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    align-self: stretch;
+  }
+  .work_hours-layout-split {
+    display: grid;
+    gap: var(--space-4);
+    align-items: start;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 960px) {
+    .work_hours-layout-split {
+      grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+      gap: var(--space-4);
+    }
+  }
+  .work_hours-aside-col {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    min-width: 0;
+  }
+  /* Beside the hours (two columns): stays in view and ends above the window bottom, scrolling itself. */
+  @media (min-width: 960px) {
+    .work_hours-aside-col {
+      position: sticky;
+      top: var(--space-2);
+      max-height: var(--side-panel-max-height, none);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;
+    }
+  }
+  .work_hours-week-grid {
+    display: grid;
+    gap: var(--space-3);
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 700px) {
+    .work_hours-week-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @media (min-width: 1100px) {
+    .work_hours-week-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+  .work_hours-day-card {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: var(--space-4);
+    background: var(--bg-elev);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    box-shadow: var(--shadow-sm);
+    transition:
+      border-color var(--motion-fast) var(--ease-out),
+      box-shadow var(--motion-fast) var(--ease-out),
+      opacity var(--motion-fast) var(--ease-out);
+  }
+}

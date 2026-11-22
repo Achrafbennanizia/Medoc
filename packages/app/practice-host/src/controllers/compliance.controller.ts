@@ -1,4 +1,4 @@
-import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
+import { practiceSystem } from "@/systems/practice-host/adapters/practice-transport";
 
 /** ──────── GDPR Art. 30 — record of processing activities ──────── */
 export interface ProcessingActivity {

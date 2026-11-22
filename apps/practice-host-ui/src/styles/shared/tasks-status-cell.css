@@ -1,0 +1,65 @@
+/* From styles/features/tasks-orders.css (cascade position kept by its import there). */
+@layer components {
+  .tasks-status-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-1);
+    min-width: 0;
+    max-width: 100%;
+    position: relative;
+    z-index: 1;
+  }
+  .tasks-status-cell:has([aria-expanded="true"]),
+  .tasks-status-cell:has(.select-wrap--menu-portal-open) {
+    z-index: 40;
+  }
+  .tasks-status-cell .ui-field-wrap {
+    margin-bottom: 0;
+    width: 100%;
+    min-width: 0;
+  }
+  .tasks-status-cell .select-wrap {
+    width: 100%;
+    max-width: 100%;
+  }
+  .tasks-status-select.select-trigger {
+    min-height: 34px;
+    padding-top: var(--space-2);
+    padding-bottom: var(--space-2);
+    font-size: 12.5px;
+    box-sizing: border-box;
+  }
+  .tasks-status-select.select-trigger .select-trigger-label {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    -webkit-line-clamp: unset;
+    -webkit-box-orient: unset;
+  }
+  .tasks-status-cell .select-menu,
+  .tasks-status-select-menu.select-menu--portal {
+    inset-inline-start: 0;
+    inset-inline-end: auto;
+    width: max-content;
+    min-width: 100%;
+    max-width: min(14rem, calc(100vw - 48px));
+    max-height: none;
+    overflow: visible;
+  }
+  .tasks-status-cell .select-menu .select-option {
+    white-space: nowrap;
+  }
+  @media (max-width: 720px) {
+    .tasks-action-label {
+      display: none;
+    }
+  }
+  .practice-task-form-fields {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    max-width: 720px;
+  }
+}

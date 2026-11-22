@@ -6,7 +6,6 @@
     "workspaces": [
         "apps/practice-host-ui",
         "apps/practice-host",
-        "apps/lan-web-client",
         "packages/shared",
         "packages/ui",
         "packages/app/practice-host",
@@ -17,12 +16,14 @@
     "scripts": {
         "dev": "npm run dev -w medoc",
         "build": "npm run build -w medoc",
+        "build:replica": "VITE_MEDOC_FLAVOR=replica npm run build -w medoc",
         "lint": "npm run lint -w medoc",
         "test": "npm run test -w medoc",
         "test:mvp-coverage": "npm run test:mvp-coverage -w medoc",
         "check": "npm run check -w medoc",
         "i18n:verify": "node scripts/i18n-verify-parity.mjs",
         "css:tokens": "node scripts/check-css-custom-properties.mjs",
+        "check:size": "node scripts/check-file-size.mjs",
         "manuals": "node scripts/generate-manuals.mjs",
         "manuals:check": "node scripts/generate-manuals.mjs --check",
         "i18n:scan": "node scripts/i18n-scan-hardcoded.mjs",
@@ -33,8 +34,8 @@
         "i18n:merge-pass4": "node scripts/i18n-merge-pass4-chunks.mjs && node scripts/i18n-apply-translation-patches.mjs",
         "i18n:extract": "node scripts/extract-i18n-catalog.mjs",
         "tauri": "npm run tauri -w medoc-tauri-host --",
-        "dev:lan-web": "npm run dev -w medoc-lan-web-client",
-        "build:lan-web": "npm run build -w medoc-lan-web-client",
+        "tauri:build": "npm run tauri -w medoc-tauri-host -- build",
+        "tauri:build:replica": "VITE_MEDOC_FLAVOR=replica npm run tauri -w medoc-tauri-host -- build --features replica --config tauri.replica.conf.json",
         "dev:website": "npm run dev -w medoc-product-website"
     }
 }

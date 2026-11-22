@@ -1,0 +1,186 @@
+/* From styles/features/patient-dental.css (cascade position kept by its import there). */
+@layer components {
+  .dental-odontogram__center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: max-content;
+    grid-column: 2;
+  }
+  .dental-odontogram__chart {
+    width: max-content;
+    min-width: max-content;
+    display: grid;
+    grid-template-columns: max-content 2px max-content;
+    grid-template-rows: auto 2px auto;
+    align-items: stretch;
+    column-gap: 0;
+  }
+  .dental-odontogram__quad {
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    align-items: flex-end;
+    gap: 5px;
+    width: max-content;
+    min-width: max-content;
+    overflow: visible;
+  }
+  .dental-odontogram__quad--ur {
+    grid-column: 1;
+    grid-row: 1;
+    justify-content: flex-end;
+    padding: 2px 12px 8px 4px;
+  }
+  .dental-odontogram__quad--ul {
+    grid-column: 3;
+    grid-row: 1;
+    justify-content: flex-start;
+    padding: 2px 4px 8px 12px;
+  }
+  .dental-odontogram__quad--lr {
+    grid-column: 1;
+    grid-row: 3;
+    justify-content: flex-end;
+    padding: 8px 12px 2px 4px;
+  }
+  .dental-odontogram__quad--ll {
+    grid-column: 3;
+    grid-row: 3;
+    justify-content: flex-start;
+    padding: 8px 4px 2px 12px;
+  }
+  .dental-odontogram__quad--gap { gap: 6px; }
+  .dental-odontogram__quad--gap-sm { gap: 5px; }
+  .dental-odontogram__vline {
+    grid-column: 2;
+    grid-row: 1 / -1;
+    width: 2px;
+    justify-self: center;
+    background: var(--fg);
+    opacity: 0.82;
+    border-radius: 1px;
+  }
+  .dental-odontogram__hline {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    height: 2px;
+    align-self: center;
+    background: var(--fg);
+    opacity: 0.82;
+    border-radius: 1px;
+  }
+  .dental-odontogram__axis {
+    flex: 0 0 auto;
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1;
+    color: var(--fg);
+    letter-spacing: 0.02em;
+    user-select: none;
+    unicode-bidi: isolate;
+  }
+  .dental-odontogram__axis--top,
+  .dental-odontogram__axis--bottom {
+    text-align: center;
+    padding-block: 2px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    width: 100%;
+  }
+  .dental-odontogram__axis-glyph {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1em;
+    line-height: 1;
+    letter-spacing: 0;
+    direction: ltr;
+    unicode-bidi: isolate;
+    text-align: center;
+  }
+  .dental-odontogram__axis--top::after,
+  .dental-odontogram__axis--bottom::before {
+    content: "";
+    display: block;
+    width: 2px;
+    height: 8px;
+    margin-inline: auto;
+    background: var(--fg);
+    opacity: 0.82;
+    border-radius: 1px;
+  }
+  .dental-odontogram__axis--start,
+  .dental-odontogram__axis--end {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.1em;
+    padding-inline: 2px;
+    gap: 2px;
+  }
+  .dental-odontogram__axis--start {
+    grid-column: 1;
+  }
+  .dental-odontogram__axis--end {
+    grid-column: 3;
+  }
+  .dental-odontogram__axis--start::after,
+  .dental-odontogram__axis--end::before {
+    content: "";
+    display: block;
+    width: 8px;
+    height: 2px;
+    background: var(--fg);
+    opacity: 0.82;
+    border-radius: 1px;
+  }
+  .dental-odontogram--chart {
+    margin-top: 4px;
+    margin-inline: auto;
+  }
+  .dental-odontogram--picker {
+    margin-top: 8px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .dental-odontogram--picker .dental-odontogram__center {
+    min-width: 0;
+    width: 100%;
+  }
+  .dental-odontogram--picker .dental-odontogram__chart {
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr) 2px minmax(0, 1fr);
+  }
+  .dental-odontogram--picker .dental-odontogram__quad {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    gap: 2px;
+  }
+  .dental-odontogram--picker .dental-odontogram__quad--ur,
+  .dental-odontogram--picker .dental-odontogram__quad--lr {
+    padding-inline: 2px 8px;
+  }
+  .dental-odontogram--picker .dental-odontogram__quad--ul,
+  .dental-odontogram--picker .dental-odontogram__quad--ll {
+    padding-inline: 8px 2px;
+  }
+  .dental-odontogram--picker .dental-mini-tooth-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .dental-odontogram--picker .dental-mini-tooth-svg {
+    width: 100%;
+    height: auto;
+    max-height: 36px;
+  }
+}

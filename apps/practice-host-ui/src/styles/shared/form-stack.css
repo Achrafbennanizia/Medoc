@@ -1,0 +1,65 @@
+/* From styles/components/data-controls.css (cascade position kept by its import there). */
+@layer components {
+  [dir="rtl"] .app-breadcrumbs .breadcrumb-sep {
+    transform: scaleX(-1);
+  }
+  [dir="rtl"] .command-palette-option {
+    text-align: start;
+  }
+  [dir="rtl"] .page-toolbar {
+    direction: rtl;
+  }
+  [dir="rtl"] .tbl th,
+  [dir="rtl"] .tbl td {
+    text-align: center;
+  }
+  [dir="rtl"] .form-label,
+  [dir="rtl"] .ui-field-label {
+    text-align: start;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+  [dir="rtl"] form,
+  [dir="rtl"] .form-stack,
+  [dir="rtl"] .ui-field-wrap,
+  [dir="rtl"] .ui-field-hint,
+  [dir="rtl"] .ui-field-error-msg,
+  [dir="rtl"] .practice-task-form-fields,
+  [dir="rtl"] .practice-setup-wizard,
+  [dir="rtl"] .settings-page {
+    direction: rtl;
+    text-align: start;
+  }
+  [dir="rtl"] .input-edit,
+  [dir="rtl"] .input input,
+  [dir="rtl"] textarea,
+  [dir="rtl"] select {
+    direction: rtl;
+    text-align: start;
+    unicode-bidi: isolate;
+  }
+  [dir="rtl"] label {
+    text-align: start;
+  }
+  [dir="rtl"] input[type="tel"],
+  [dir="rtl"] input[type="email"],
+  [dir="rtl"] input[type="url"],
+  [dir="rtl"] input[type="number"],
+  [dir="rtl"] .phone-text {
+    direction: ltr;
+    text-align: left;
+    unicode-bidi: isolate;
+  }
+  [dir="rtl"] .select-trigger,
+  [dir="rtl"] .select-trigger-label,
+  [dir="rtl"] .select-option {
+    text-align: start;
+  }
+  [dir="rtl"] .modal-actions,
+  [dir="rtl"] .ios-confirm-actions {
+    flex-direction: row-reverse;
+  }
+  [dir="rtl"] .time-slot-grid {
+    direction: rtl;
+  }
+}

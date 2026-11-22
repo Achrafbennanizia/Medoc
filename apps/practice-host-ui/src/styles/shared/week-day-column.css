@@ -1,0 +1,73 @@
+/* From styles/features/schedule.css (cascade position kept by its import there). */
+@layer components {
+  .week-board-scroll {
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: visible;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 calc(-1 * var(--card-pad-x, 16px));
+    padding: 0 var(--card-pad-x, 16px);
+    scrollbar-width: thin;
+  }
+  .week-board-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: max(100%, 31rem);
+  }
+  .week-board-row {
+    display: grid;
+    grid-template-columns: 52px repeat(7, minmax(2.75rem, 1fr)) 36px;
+    gap: 6px;
+    min-height: 26px;
+    align-items: center;
+    min-width: max(100%, 31rem);
+  }
+  .week-board-cell {
+    min-height: 24px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
+    gap: 3px;
+    padding: 2px 0;
+  }
+  .week-day-column {
+    text-align: start;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: var(--bg-elev);
+    padding: 10px;
+    min-height: 200px;
+    cursor: pointer;
+    position: relative;
+  }
+  .week-day-column.today {
+    border-color: var(--accent);
+  }
+  .week-day-slots {
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    top: 56px;
+    bottom: 10px;
+    background-image: repeating-linear-gradient(to bottom, rgba(0,0,0,0.08) 0, rgba(0,0,0,0.08) 1px, transparent 1px, transparent 16px);
+    opacity: 0.4;
+    pointer-events: none;
+    border-radius: 8px;
+  }
+  .week-event-pill {
+    position: relative;
+    z-index: 1;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+    padding: 3px 6px;
+  }
+}

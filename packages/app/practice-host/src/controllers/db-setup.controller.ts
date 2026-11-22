@@ -3,6 +3,8 @@ import { practiceSystem } from "@/systems/practice-host/adapters/practice-transp
 export type DbSetupStatus = {
     needsPassphraseSetup: boolean;
     needsUnlock: boolean;
+    /** Safe-bridge checklist lines when Bridge B setup is required. */
+    recoveryChecklist?: string[];
 };
 
 export async function getDbSetupStatus(): Promise<DbSetupStatus> {

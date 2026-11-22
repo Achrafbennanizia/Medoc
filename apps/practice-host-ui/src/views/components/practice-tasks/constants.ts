@@ -7,6 +7,7 @@ export const PRACTICE_TASK_KINDS: readonly { value: PracticeTaskKind; labelKey: 
     { value: "PRINT", labelKey: "practice.tasks.kind.print" },
     { value: "MASTER_DATA", labelKey: "practice.tasks.kind.master_data" },
     { value: "OTHER", labelKey: "practice.tasks.kind.other" },
+    { value: "TICKET", labelKey: "practice.tasks.kind.ticket" },
 ];
 
 export const PRACTICE_TASK_STATUSES: readonly { value: PracticeTaskStatus; labelKey: string }[] = [
@@ -15,6 +16,8 @@ export const PRACTICE_TASK_STATUSES: readonly { value: PracticeTaskStatus; label
     { value: "IN_PROGRESS", labelKey: "practice.tasks.status.in_processing" },
     { value: "DONE_RECEPTION", labelKey: "practice.tasks.status.done_reception" },
     { value: "VALIDATED", labelKey: "practice.tasks.status.validated" },
+    { value: "VIEWED", labelKey: "practice.tasks.status.viewed" },
+    { value: "DONE", labelKey: "practice.tasks.status.done" },
 ];
 
 /**
@@ -26,15 +29,19 @@ export function selectableTaskStatuses(opts: {
     current: PracticeTaskStatus;
     canAdminStatus: boolean;
     canFulfillStatus: boolean;
+    track?: "simple" | "verify";
 }): readonly { value: PracticeTaskStatus; labelKey: string }[] {
     if (opts.canAdminStatus) {
-        if (opts.current === "VALIDATED") return PRACTICE_TASK_STATUSES.filter((s) => s.value === "VALIDATED");
+        if (opts.current === "VALIDATED" || opts.current === "DONE") {
+            return PRACTICE_TASK_STATUSES.filter((s) => s.value === opts.current);
+        }
         return PRACTICE_TASK_STATUSES;
     }
     const allowedValues = new Set<PracticeTaskStatus>([opts.current]);
     if (opts.canFulfillStatus) {
-        for (const next of taskNextStatuses(opts.current)) {
-            if (next === "IN_PROGRESS" || next === "DONE_RECEPTION" || next === "OPEN") allowedValues.add(next);
+        // Only transitions the backend allows from the current status on this task's track.
+        for (const next of taskNextStatuses(opts.current, opts.track ?? "verify")) {
+            if (next !== "VALIDATED" && next !== "BACK") allowedValues.add(next);
         }
     }
     return PRACTICE_TASK_STATUSES.filter((s) => allowedValues.has(s.value));

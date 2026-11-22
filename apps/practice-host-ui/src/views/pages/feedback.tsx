@@ -65,9 +65,9 @@ export function FeedbackPage() {
             </DismissibleNotice>
 
             <Card>
-                <div style={{ padding: 16, paddingTop: 14 }}>
+                <div style={{ padding: "var(--space-4)", paddingTop: "var(--space-4)" }}>
                     <CardHeader title={t("page.feedback.form_title")} />
-                    <form onSubmit={(e) => void submit(e)} style={{ display: "flex", flexDirection: "column", gap: 4, maxWidth: 560, marginTop: 8 }}>
+                    <form onSubmit={(e) => void submit(e)} style={{ display: "flex", flexDirection: "column", gap: "var(--space-1)", maxWidth: 560, marginTop: "var(--space-2)" }}>
                     <Select
                         label={t("page.feedback.field_category")}
                         value={category}
@@ -93,7 +93,7 @@ export function FeedbackPage() {
                         onChange={(e) => setRef(e.target.value)}
                         placeholder={t("page.feedback.field_ref_ph")}
                     />
-                    <div className="row" style={{ gap: 10, marginTop: 12 }}>
+                    <div className="row" style={{ gap: "var(--space-3)", marginTop: "var(--space-3)" }}>
                         <Button type="submit" disabled={submitting} loading={submitting}>{t("page.feedback.submit")}</Button>
                         <Button type="button" variant="ghost" onClick={() => navigate("/help")}>
                             {t("page.feedback.back_help")}

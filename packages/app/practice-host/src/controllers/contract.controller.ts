@@ -1,5 +1,6 @@
-import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
+import { practiceSystem } from "@/systems/practice-host/adapters/practice-transport";
 import type { ContractItem } from "@/lib/contract-domain";
+import { localYmd } from "@/lib/practice-clock";
 
 export type ContractDto = {
     id: string;
@@ -12,6 +13,8 @@ export type ContractDto = {
     period_until: string | null;
     created_at: string;
     document_path?: string | null;
+    active?: boolean;
+    deactivated_at?: string | null;
 };
 
 function dtoToItem(d: ContractDto): ContractItem {
@@ -26,6 +29,8 @@ function dtoToItem(d: ContractDto): ContractItem {
         periodUntil: d.period_until,
         createdAt: d.created_at,
         documentPath: d.document_path ?? null,
+        active: d.active !== false,
+        deactivatedAt: d.deactivated_at ?? null,
     };
 }
 
@@ -41,7 +46,20 @@ function itemToDto(version: ContractItem): ContractDto {
         period_until: version.periodUntil,
         created_at: version.createdAt,
         document_path: version.documentPath,
+        active: version.active !== false,
+        deactivated_at: version.active === false ? version.deactivatedAt ?? null : null,
     };
+}
+
+/** Activate / deactivate. Deactivation stops costs after `onDay` (default: today). */
+export async function setContractActive(c: ContractItem, active: boolean, onDay?: string): Promise<ContractItem> {
+    const next: ContractItem = {
+        ...c,
+        active,
+        deactivatedAt: active ? null : onDay ?? localYmd(),
+    };
+    await upsertContractOnBackend(next);
+    return next;
 }
 
 export async function listContractsFromBackend(): Promise<ContractItem[]> {

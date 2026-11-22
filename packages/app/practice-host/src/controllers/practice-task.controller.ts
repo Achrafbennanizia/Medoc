@@ -1,18 +1,33 @@
-import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
+import { practiceSystem } from "@/systems/practice-host/adapters/practice-transport";
+
+import {
+    taskWorkflowTrack as taskWorkflowTrackShared,
+    type PracticeTaskWorkflowTrack,
+} from "@/lib/practice-task-workflow-track";
 
 export type PracticeTaskKind =
     | "BILLING"
     | "APPOINTMENT"
     | "PRINT"
     | "MASTER_DATA"
-    | "OTHER";
+    | "OTHER"
+    | "TICKET";
 
 export type PracticeTaskStatus =
     | "OPEN"
     | "IN_PROGRESS"
     | "DONE_RECEPTION"
     | "VALIDATED"
-    | "BACK";
+    | "BACK"
+    | "VIEWED"
+    | "DONE";
+
+export type { PracticeTaskWorkflowTrack };
+
+/** Workflow track derived from kind (no DB column). */
+export function taskWorkflowTrack(kind: PracticeTaskKind | string): PracticeTaskWorkflowTrack {
+    return taskWorkflowTrackShared(kind);
+}
 
 export type PracticeTask = {
     id: string;

@@ -6,7 +6,35 @@ use sqlx::sqlite::SqlitePool;
 
 use crate::error::AppError;
 
-pub(super) async fn ensure_sync_replication_tables(pool: &SqlitePool) -> Result<(), AppError> {
+/// Pending update packets for this device. Each row points at one outbox entry
+/// and names the screen queue (`patients`, `appointments`, …) it belongs to.
+pub async fn ensure_packet_queue(pool: &SqlitePool) -> Result<(), AppError> {
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS sync_packet_queue (
+            id TEXT PRIMARY KEY,
+            device_id TEXT NOT NULL,
+            queue_name TEXT NOT NULL,
+            seq INTEGER NOT NULL,
+            outbox_id TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(device_id, seq)
+        )",
+    )
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?;
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_sync_packet_queue_pending
+         ON sync_packet_queue(device_id, seq)",
+    )
+    .execute(pool)
+    .await
+    .map_err(AppError::Database)?;
+    Ok(())
+}
+
+pub async fn ensure_sync_replication_tables(pool: &SqlitePool) -> Result<(), AppError> {
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS sync_device (
             device_id TEXT PRIMARY KEY,
@@ -54,6 +82,14 @@ pub(super) async fn ensure_sync_replication_tables(pool: &SqlitePool) -> Result<
     .execute(pool)
     .await
     .map_err(AppError::Database)?;
+    let _ = sqlx::query("ALTER TABLE sync_outbox ADD COLUMN fail_reason TEXT")
+        .execute(pool)
+        .await;
+    // Initial-copy rows are written for one joining replica. Other devices
+    // skip them instead of downloading the whole practice again.
+    let _ = sqlx::query("ALTER TABLE sync_outbox ADD COLUMN snapshot_for TEXT")
+        .execute(pool)
+        .await;
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS sync_applied (
             source_device_id TEXT NOT NULL,
@@ -120,5 +156,6 @@ pub(super) async fn ensure_sync_replication_tables(pool: &SqlitePool) -> Result<
     .execute(pool)
     .await
     .map_err(AppError::Database)?;
+    ensure_packet_queue(pool).await?;
     Ok(())
 }

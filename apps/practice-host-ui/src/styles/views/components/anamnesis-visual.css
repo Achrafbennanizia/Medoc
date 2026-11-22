@@ -1,0 +1,90 @@
+/* From styles/features/patient-dental.css (cascade position kept by its import there). */
+@layer components {
+  .examination-composer .seg {
+    direction: inherit;
+  }
+  .examination-composer .examination-doc-tooth-btn {
+    width: 100%;
+    text-align: start;
+    padding: 8px 10px;
+    border-radius: 8px;
+  }
+
+  /* Chart · anamnesis overview: vertical option list — same tokens as segment controls (.seg) */
+  .chart-section-eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--fg-4);
+    margin: 0 0 10px;
+  }
+  .anamnesis-opt-list {
+    gap: 8px !important;
+  }
+  .anamnesis-acc-item {
+    border-radius: 14px;
+    border: 1px solid var(--line-strong);
+    background: var(--bg-elev);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+    transition:
+      border-color var(--motion-fast) var(--ease-out),
+      box-shadow var(--motion-fast) var(--ease-out);
+  }
+  .anamnesis-acc-item.is-open {
+    border-color: color-mix(in oklab, var(--accent) 42%, var(--line-strong));
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--accent) 16%, transparent),
+      0 4px 18px color-mix(in oklab, var(--accent) 12%, transparent);
+  }
+  .anamnesis-acc-item + .anamnesis-acc-item {
+    margin-top: 0;
+  }
+  .anamnesis-acc-trigger {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 13px 16px;
+    border: none;
+    background: color-mix(in oklab, var(--fg) 4%, var(--bg-elev));
+    font: inherit;
+    font-weight: 600;
+    font-size: 14px;
+    text-align: start;
+    cursor: pointer;
+    color: var(--fg);
+    transition:
+      background var(--motion-fast) var(--ease-out),
+      color var(--motion-fast) var(--ease-out);
+  }
+  .anamnesis-acc-trigger:hover {
+    background: color-mix(in oklab, var(--fg) 7%, var(--bg-elev));
+  }
+  .anamnesis-acc-item.is-open .anamnesis-acc-trigger {
+    background: var(--accent);
+    color: var(--text-on-accent);
+  }
+  .anamnesis-acc-item.is-open .anamnesis-acc-trigger:hover {
+    background: color-mix(in oklab, var(--accent) 88%, var(--fg));
+    color: var(--text-on-accent);
+  }
+  .anamnesis-acc-chev {
+    font-size: 12px;
+    color: var(--fg-3);
+    transition: transform 180ms ease;
+    flex-shrink: 0;
+  }
+  .anamnesis-acc-item.is-open .anamnesis-acc-chev {
+    transform: rotate(90deg);
+    color: var(--text-on-accent);
+    opacity: 0.92;
+  }
+  .anamnesis-acc-body {
+    padding: 12px 16px 16px;
+    border-top: 1px solid var(--line);
+    background: color-mix(in oklab, var(--fg) 3.5%, var(--bg-elev));
+  }
+}

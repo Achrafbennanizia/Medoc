@@ -8,7 +8,7 @@
  *
  * `mod` renders as ⌘ on macOS and Ctrl elsewhere.
  */
-export type ShortcutGroup = "global" | "navigation" | "view" | "calendar" | "dialogs";
+export type ShortcutGroup = "global" | "create" | "navigation" | "view" | "calendar" | "dialogs";
 
 export type ShortcutDef = {
     readonly id: string;
@@ -16,16 +16,41 @@ export type ShortcutDef = {
     /** Key chords; each chord is a list of keys pressed together. Alternatives are separate chords. */
     readonly chords: readonly (readonly string[])[];
     readonly labelKey: string;
+    /** Keys are pressed one after another (G, then D), not together. */
+    readonly sequence?: boolean;
 };
 
-export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = ["global", "navigation", "calendar", "view", "dialogs"];
+export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = ["global", "create", "navigation", "calendar", "view", "dialogs"];
+
+/** Go-to sequences: press G, then the letter (within 1.5 s). Handled by `useGlobalShortcuts`. */
+export const GO_TO_SEQUENCES: readonly { key: string; route: string; routeKey: string; labelKey: string }[] = [
+    { key: "d", route: "/", routeKey: "", labelKey: "help.shortcuts.go_dashboard" },
+    { key: "a", route: "/appointments", routeKey: "appointments", labelKey: "help.shortcuts.go_appointments" },
+    { key: "p", route: "/patients", routeKey: "patients", labelKey: "help.shortcuts.go_patients" },
+    { key: "t", route: "/tickets", routeKey: "tickets", labelKey: "help.shortcuts.go_tasks" },
+    { key: "f", route: "/finance", routeKey: "finance", labelKey: "help.shortcuts.go_finance" },
+    { key: "s", route: "/settings", routeKey: "settings", labelKey: "help.shortcuts.go_settings" },
+    { key: "h", route: "/help", routeKey: "help", labelKey: "help.shortcuts.help" },
+];
 
 export const SHORTCUTS: readonly ShortcutDef[] = [
     { id: "palette", group: "global", chords: [["mod", "K"], ["mod", "Shift", "P"]], labelKey: "help.shortcuts.cmdk" },
-    { id: "new-appointment", group: "global", chords: [["mod", "N"]], labelKey: "help.shortcuts.new_appointment" },
+    { id: "new-appointment", group: "create", chords: [["mod", "N"]], labelKey: "help.shortcuts.new_appointment" },
     { id: "help", group: "global", chords: [["?"]], labelKey: "help.shortcuts.help" },
     { id: "reload", group: "global", chords: [["mod", "R"]], labelKey: "help.shortcuts.reload" },
+    { id: "shortcut-list", group: "global", chords: [["mod", "/"]], labelKey: "help.shortcuts.list" },
+    { id: "settings", group: "global", chords: [["mod", ","]], labelKey: "help.shortcuts.go_settings" },
+    { id: "search", group: "global", chords: [["/"]], labelKey: "help.shortcuts.focus_search" },
+    { id: "new-patient", group: "create", chords: [["mod", "Shift", "N"]], labelKey: "help.shortcuts.new_patient" },
+    { id: "new-task", group: "create", chords: [["mod", "Shift", "T"]], labelKey: "help.shortcuts.new_task" },
     { id: "nav-n", group: "navigation", chords: [["Alt", "1…9"]], labelKey: "help.shortcuts.nav_n" },
+    ...GO_TO_SEQUENCES.map((g) => ({
+        id: `go-${g.key}`,
+        group: "navigation" as const,
+        chords: [["G", g.key.toUpperCase()]] as const,
+        labelKey: g.labelKey,
+        sequence: true,
+    })),
     { id: "tab", group: "navigation", chords: [["Tab"], ["Shift", "Tab"]], labelKey: "help.shortcuts.tab" },
     { id: "cal-day", group: "calendar", chords: [["D"]], labelKey: "help.shortcuts.cal_day" },
     { id: "cal-week", group: "calendar", chords: [["W"]], labelKey: "help.shortcuts.cal_week" },

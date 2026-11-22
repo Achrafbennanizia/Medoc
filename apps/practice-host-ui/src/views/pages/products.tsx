@@ -1,5 +1,7 @@
+import { ProductsOverview } from "../components/master-detail/products-overview";
+import { isLowStock } from "@/lib/is-low-stock";
 import { useT, useTParams , useCollatorLocale} from "@/lib/i18n";
-import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { listProducts, createProduct, deleteProduct, updateProduct } from "@/systems/practice-host/controllers/product.controller";
 import {
@@ -12,6 +14,7 @@ import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "../../models/store/auth-store";
 import type { SupplierMaster, PharmaConsultantMaster, Product } from "../../models/types";
 import { Button } from "../components/ui/button";
+import { DataTable } from "../components/ui/data-table";
 import { Card, CardHeader } from "../components/ui/card";
 import { ConfirmDialog } from "../components/ui/dialog";
 import { Badge } from "../components/ui/badge";
@@ -161,7 +164,18 @@ export function ProductsPage() {
                     product_id: created.id,
                 });
             }
-            toast(t("products.toast.created"), "success");
+            const createdId = created.id;
+            toast(t("products.toast.created"), "success", {
+                onUndo: async () => {
+                    try {
+                        await deleteProduct(createdId);
+                        setSelected((current) => (current?.id === createdId ? null : current));
+                        void load();
+                    } catch (err) {
+                        toast(errorMessage(err), "error");
+                    }
+                },
+            });
             setCreateForm(emptyForm());
             setCreating(false);
             const returnTo = searchParams.get("returnTo");
@@ -192,13 +206,14 @@ export function ProductsPage() {
 
     const handleUpdate = async () => {
         if (!selected || !formValid(editForm, stockFormOpts) || !canWrite) return;
+        const previous = selected;
         setSaveBusy(true);
         try {
             const p = parseForm(editForm, {
                 ...stockFormOpts,
-                stockFallback: { stock: selected.stock, min_stock: selected.min_stock },
+                stockFallback: { stock: previous.stock, min_stock: previous.min_stock },
             });
-            const updated = await updateProduct(selected.id, {
+            const updated = await updateProduct(previous.id, {
                 name: p.name,
                 category: p.category,
                 price: p.price,
@@ -209,7 +224,25 @@ export function ProductsPage() {
             setProducts((list) => list.map((x) => (x.id === updated.id ? updated : x)));
             setSelected(updated);
             setDetailEdit(false);
-            toast(t("products.toast.saved"), "success");
+            toast(t("products.toast.saved"), "success", {
+                onUndo: async () => {
+                    try {
+                        const restored = await updateProduct(previous.id, {
+                            name: previous.name,
+                            category: previous.category,
+                            price: previous.price,
+                            stock: previous.stock,
+                            min_stock: previous.min_stock,
+                            description: previous.description,
+                        });
+                        setProducts((list) => list.map((x) => (x.id === restored.id ? restored : x)));
+                        setSelected(restored);
+                        setEditForm(toForm(restored));
+                    } catch (err) {
+                        toast(errorMessage(err), "error");
+                    }
+                },
+            });
         } catch (e) {
             toast(errorMessage(e), "error");
         } finally {
@@ -220,9 +253,27 @@ export function ProductsPage() {
     const handleDelete = async () => {
         if (!deleteId) return;
         const id = deleteId;
+        const row = products.find((item) => item.id === id) ?? (selected?.id === id ? selected : null);
         try {
             await deleteProduct(id);
-            toast(t("products.toast.deleted"), "success");
+            toast(t("products.toast.deleted"), "success", {
+                onUndo: async () => {
+                    if (!row) return;
+                    try {
+                        await createProduct({
+                            name: row.name,
+                            description: row.description ?? undefined,
+                            category: row.category,
+                            price: row.price,
+                            stock: row.stock,
+                            min_stock: row.min_stock,
+                        });
+                        void load();
+                    } catch (err) {
+                        toast(errorMessage(err), "error");
+                    }
+                },
+            });
             setDeleteId(null);
             setSelected((s) => (s?.id === id ? null : s));
             setDetailEdit(false);
@@ -253,7 +304,7 @@ export function ProductsPage() {
     }, [products, sortLocale]);
 
     const readField = (label: string, value: string | number | null | undefined) => (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-1)" }}>
             <span className="kpi-label-mini">{label}</span>
             <span style={{ fontSize: 14, color: "var(--fg-2)", lineHeight: 1.4 }}>{value === null || value === undefined || value === "" ? t("common.em_dash") : value}</span>
         </div>
@@ -272,7 +323,7 @@ export function ProductsPage() {
                             </Button>
                         }
                     />
-                    <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: 12 }}>
+                    <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
                         <ProductFormFields
                             form={createForm}
                             setForm={setCreateForm}
@@ -282,7 +333,7 @@ export function ProductsPage() {
                             suppliers={suppliers}
                             pharma_consultant={pharma_consultant}
                         />
-                        <div className="row" style={{ justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+                        <div className="row" style={{ justifyContent: "flex-end", gap: "var(--space-2)", flexWrap: "wrap" }}>
                             <Button type="button" variant="ghost" onClick={cancelCreate} disabled={createBusy}>
                                 {t("common.cancel")}
                             </Button>
@@ -301,7 +352,7 @@ export function ProductsPage() {
                         title={selected.name}
                         subtitle={detailEdit ? t("products.detail.edit_sub") : t("products.detail.read_sub")}
                         action={canWrite && !detailEdit ? (
-                            <div className="row" style={{ gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                            <div className="row" style={{ gap: "var(--space-2)", flexWrap: "wrap", justifyContent: "flex-end" }}>
                                 <Button type="button" size="sm" variant="secondary" onClick={() => { setDetailEdit(true); setEditForm(toForm(selected)); }}>
                                     <EditIcon size={14} />
                                     {" "}
@@ -315,9 +366,9 @@ export function ProductsPage() {
                     />
                     <div className="card-pad" style={{ paddingTop: 0 }}>
                         {detailEdit && canWrite ? (
-                            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
                                 <ProductFormFields form={editForm} setForm={setEditForm} idPrefix="prod-edit" categorySuggestions={categorySuggestions} />
-                                <div className="row" style={{ justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+                                <div className="row" style={{ justifyContent: "flex-end", gap: "var(--space-2)", flexWrap: "wrap" }}>
                                     <Button type="button" variant="ghost" onClick={cancelEdit} disabled={saveBusy}>
                                         {t("common.cancel")}
                                     </Button>
@@ -327,7 +378,7 @@ export function ProductsPage() {
                                 </div>
                             </div>
                         ) : (
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }} className="products-read-grid">
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-4)" }} className="products-read-grid">
                                 {readField(t("common.name"), selected.name)}
                                 {readField(t("common.category"), selected.category)}
                                 {readField(t("common.price_eur"), formatCurrency(selected.price))}
@@ -344,19 +395,11 @@ export function ProductsPage() {
                 </Card>
             );
         }
-        return (
-            <Card className="card-pad products-detail-card products-detail-card--empty">
-                <p style={{ margin: 0, color: "var(--fg-3)", fontSize: 14, lineHeight: 1.5 }}>
-                    {canWrite
-                        ? t("products.panel_empty_write")
-                        : t("products.panel_empty_read")}
-                </p>
-            </Card>
-        );
+        return <ProductsOverview products={products} onCreate={canWrite ? openCreate : undefined} />;
     })();
 
     return (
-        <div className="products-page practice-workspace-page animate-fade-in">
+        <div className="products-page practice-workspace-page animate-fade-in--sticky-safe">
             <AdministrationPageHeader
                 showBack={canGoAdministration}
                 title={t("products.page.title")}
@@ -386,64 +429,51 @@ export function ProductsPage() {
                                 />
                             </Card>
                         ) : (
-                            <div className="card products-table-card tbl-data-card tbl-scroll">
-                                <table className="tbl products-tbl">
-                                    <thead>
-                                        <tr>
-                                            <th scope="col">{t("common.name")}</th>
-                                            <th scope="col">{t("common.category")}</th>
-                                            <th scope="col" style={{ textAlign: "end" }}>{t("common.price")}</th>
-                                            {PRODUCT_STOCK_UI_ENABLED ? (
-                                                <th scope="col" style={{ textAlign: "end" }}>{t("common.stock")}</th>
-                                            ) : null}
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {productsSorted.map((p) => {
-                                            const isSel = !creating && selected?.id === p.id;
-                                            const pick = () => selectRow(p);
-                                            const onRowKeyDown = (e: KeyboardEvent) => {
-                                                if (e.key === "Enter" || e.key === " ") {
-                                                    e.preventDefault();
-                                                    pick();
-                                                }
-                                            };
-                                            return (
-                                                <tr
-                                                    key={p.id}
-                                                    className={isSel ? "products-row--selected" : undefined}
-                                                    tabIndex={0}
-                                                    onClick={() => pick()}
-                                                    onKeyDown={onRowKeyDown}
-                                                    style={{ cursor: "pointer" }}
-                                                    aria-label={tp("common.row_show_aria", { entity: t("products.entity"), name: p.name })}
-                                                >
-                                                    <td>
-                                                        <span style={{ fontWeight: 600, color: "var(--fg-2)" }}>{p.name}</span>
-                                                        {!p.active ? (
-                                                            <span style={{ marginInlineStart: 8, display: "inline-block" }}>
-                                                                <Badge variant="warning">{t("common.inactive")}</Badge>
-                                                            </span>
-                                                        ) : null}
-                                                    </td>
-                                                    <td>{p.category}</td>
-                                                    <td style={{ textAlign: "end", fontVariantNumeric: "tabular-nums" }}>{formatCurrency(p.price)}</td>
-                                                    {PRODUCT_STOCK_UI_ENABLED ? (
-                                                        <td style={{ textAlign: "end" }}>
-                                                            {p.stock <= p.min_stock ? (
-                                                                <Badge variant="error">
-                                                                    {tp("common.stock_low", { stock: p.stock, min: p.min_stock })}
-                                                                </Badge>
-                                                            ) : (
-                                                                <span className="text-on-surface" style={{ fontVariantNumeric: "tabular-nums" }}>{p.stock}</span>
-                                                            )}
-                                                        </td>
+                            <div className="card products-table-card tbl-data-card">
+                                <DataTable
+                                    label={t("products.entity")}
+                                    rows={productsSorted}
+                                    getRowId={(p) => p.id}
+                                    selectedId={creating ? null : selected?.id ?? null}
+                                    onRowActivate={selectRow}
+                                    rowLabel={(p) => tp("common.row_show_aria", { entity: t("products.entity"), name: p.name })}
+                                    columns={[
+                                        {
+                                            id: "name",
+                                            header: t("common.name"),
+                                            truncate: true,
+                                            text: (p) => p.name,
+                                            cell: (p) => (
+                                                <>
+                                                    <span className="data-table__primary">{p.name}</span>
+                                                    {!p.active ? (
+                                                        <span className="data-table__badge-after">
+                                                            <Badge variant="warning">{t("common.inactive")}</Badge>
+                                                        </span>
                                                     ) : null}
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
+                                                </>
+                                            ),
+                                        },
+                                        { id: "category", header: t("common.category"), width: "26%", truncate: true, hideBelow: "sm", text: (p) => p.category ?? "", cell: (p) => p.category },
+                                        { id: "price", header: t("common.price"), width: "8rem", numeric: true, cell: (p) => formatCurrency(p.price) },
+                                        ...(PRODUCT_STOCK_UI_ENABLED
+                                            ? [
+                                                  {
+                                                      id: "stock",
+                                                      header: t("common.stock"),
+                                                      width: "9rem",
+                                                      numeric: true,
+                                                      cell: (p: (typeof productsSorted)[number]) =>
+                                                          isLowStock(p) ? (
+                                                              <Badge variant="error">{tp("common.stock_low", { stock: p.stock, min: p.min_stock })}</Badge>
+                                                          ) : (
+                                                              p.stock
+                                                          ),
+                                                  },
+                                              ]
+                                            : []),
+                                    ]}
+                                />
                             </div>
                         )}
                     </div>

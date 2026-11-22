@@ -21,7 +21,8 @@ pub use join_client::{
     JoinOutcome, SasConfirmOutcome,
 };
 pub use join_handler::{
-    handle_cluster_connection, handle_join_connection, spawn_cluster_connection_handler,
+    handle_cluster_connection, handle_cluster_connection_until, handle_join_connection,
+    spawn_cluster_connection_handler, spawn_cluster_connection_handler_until,
 };
 pub use listener::{bind_cluster_listener, DEFAULT_CLUSTER_PORT};
 pub use transport::{

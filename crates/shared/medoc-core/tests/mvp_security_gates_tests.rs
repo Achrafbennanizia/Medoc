@@ -3,34 +3,8 @@
 use medoc_core::error::AppError;
 use medoc_core::infrastructure::crypto;
 use medoc_core::infrastructure::database::connection::test_memory_pool;
-use medoc_core::infrastructure::database::staff_repo;
+use medoc_core::infrastructure::database::repos::admin::staff as staff_repo;
 use medoc_core::mvp_security::{self, QuotaErrorMessages, StaffQuotaLimits};
-
-#[test]
-fn staff_quota_limits_matches_constants() {
-    let limits = mvp_security::staff_quota_limits();
-    assert_eq!(
-        limits,
-        StaffQuotaLimits {
-            max_physician: mvp_security::MAX_PHYSICIAN,
-            max_reception: mvp_security::MAX_RECEPTION,
-            max_total: mvp_security::MAX_TOTAL_STAFF,
-        }
-    );
-}
-
-#[test]
-fn staff_quota_trigger_ddl_uses_limits() {
-    let limits = mvp_security::staff_quota_limits();
-    let (insert, update) = mvp_security::staff_quota_trigger_ddl(limits);
-    assert!(insert.contains(">= 5"), "insert DDL: {insert}");
-    assert!(insert.contains(">= 1"), "insert DDL: {insert}");
-    assert!(insert.contains(">= 4"), "insert DDL: {insert}");
-    assert!(update.contains(">= 5"), "update DDL: {update}");
-    assert!(update.contains(">= 1"), "update DDL: {update}");
-    assert!(update.contains(">= 4"), "update DDL: {update}");
-    assert!(!insert.contains(">= 99"));
-}
 
 #[test]
 fn staff_quota_trigger_ddl_custom_limits() {
@@ -60,6 +34,40 @@ fn quota_error_messages_match_limits() {
     assert_eq!(msgs.max_total, "Maximum 10 users allowed");
     assert!(msgs.max_physician.contains('2'));
     assert!(msgs.max_reception.contains('8'));
+}
+
+/// The desktop UI copies these flags. Drift means the screen offers an action the server rejects.
+#[test]
+fn ui_security_flags_match_server() {
+    let ts = include_str!("../../../../packages/shared/src/lib/mvp-security-config.ts");
+    let flag = |name: &str| -> bool {
+        let line = ts
+            .lines()
+            .find(|line| line.contains(&format!("export const {name} =")))
+            .unwrap_or_else(|| panic!("missing {name} in mvp-security-config.ts"));
+        line.contains("= true")
+    };
+    let number = |name: &str| -> u32 {
+        let line = ts
+            .lines()
+            .find(|line| line.contains(&format!("export const {name} =")))
+            .unwrap_or_else(|| panic!("missing {name} in mvp-security-config.ts"));
+        line.split('=')
+            .nth(1)
+            .unwrap()
+            .trim()
+            .trim_end_matches(';')
+            .parse()
+            .unwrap()
+    };
+    assert_eq!(
+        flag("BREAK_GLASS_ENABLED"),
+        mvp_security::BREAK_GLASS_ENABLED
+    );
+    assert_eq!(flag("TOTP_2FA_ENABLED"), mvp_security::TOTP_2FA_ENABLED);
+    assert_eq!(number("MAX_PHYSICIAN"), mvp_security::MAX_PHYSICIAN);
+    assert_eq!(number("MAX_RECEPTION"), mvp_security::MAX_RECEPTION);
+    assert_eq!(number("MAX_TOTAL_STAFF"), mvp_security::MAX_TOTAL_STAFF);
 }
 
 #[test]

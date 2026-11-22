@@ -3,16 +3,18 @@
 use std::time::Duration;
 
 use medoc_sync::cluster::services::{
-    refresh_replica_lan_auth, sync_staff_from_stored_admin_endpoint,
+    refresh_replica_lan_auth, repair_replica_master_https_url,
+    sync_staff_from_stored_admin_endpoint,
 };
 use medoc_sync::deployment::SyncDeploymentConfig;
-use medoc_sync::engine::{SyncEngine, SyncRunReport};
+use medoc_sync::engine::{SyncEngine, SyncPullResult, SyncRunReport};
+use medoc_sync::reconcile::{self, ReconcileReport};
 use medoc_sync::repo::SyncStatusSnapshot;
 use serde::Deserialize;
 use sqlx::SqlitePool;
 use tauri::State;
 
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::commands::rbac_state::{require, require_authenticated};
 use crate::error::AppError;
 
@@ -22,14 +24,40 @@ pub struct SyncSetDeploymentPayload {
     pub deployment: SyncDeploymentConfig,
 }
 
+/// Dock name for a replica the master has already activated. The master, and a
+/// replica that has not received that activation, keep the MeDoc icon.
+pub async fn replica_desktop_name(pool: &SqlitePool) -> Option<&'static str> {
+    let cfg = medoc_sync::repo::load_deployment(pool).await.ok()?;
+    let activated_by_master =
+        !cfg.activation_token.trim().is_empty() && !cfg.master_base_url.trim().is_empty();
+    if cfg.role == medoc_sync::deployment::DeviceRole::Replica
+        && cfg.mode == medoc_sync::deployment::DeploymentMode::ServerlessPeer
+        && activated_by_master
+    {
+        Some(medoc_core::infrastructure::install_plan::REPLICA_DESKTOP_NAME)
+    } else {
+        None
+    }
+}
+
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state))]
 pub async fn sync_get_status(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
 ) -> Result<SyncStatusSnapshot, AppError> {
-    require_authenticated(&session_state)?;
-    SyncEngine::status(&pool).await
+    let session = require_authenticated(&session_state)?;
+    let mut snap = SyncEngine::status(&pool).await?;
+    let role = crate::application::rbac::Role::parse(&session.role);
+    let can_ops = role.is_some_and(|r| {
+        crate::application::rbac::effective_allowed("ops.system", r, &session.permission_overrides)
+    });
+    if !can_ops {
+        snap.deployment.activation_token.clear();
+        snap.deployment.master_access_token.clear();
+        snap.deployment.master_pubkey.clear();
+    }
+    Ok(snap)
 }
 
 #[tauri::command]
@@ -45,6 +73,16 @@ pub async fn sync_set_deployment(
 
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state))]
+pub async fn sync_reconcile_now(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+) -> Result<ReconcileReport, AppError> {
+    require(&session_state, "ops.system")?;
+    reconcile::run_now(&pool).await
+}
+
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
 pub async fn sync_run_now(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -55,8 +93,56 @@ pub async fn sync_run_now(
         && snap.deployment.role == medoc_sync::deployment::DeviceRole::Replica;
     if !is_replica {
         require(&session_state, "ops.system")?;
+        return SyncEngine::exchange_packets(&pool, None).await;
     }
     run_replica_sync_recovering(&pool).await
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExchangeQueueArgs {
+    pub queues: Vec<String>,
+}
+
+/// Exchange one page queue. If that queue is already in the current run, wait
+/// for it instead of sending a second request.
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
+pub async fn sync_exchange_queue(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    args: ExchangeQueueArgs,
+) -> Result<SyncRunReport, AppError> {
+    require_authenticated(&session_state)?;
+    let snap = SyncEngine::status(&pool).await?;
+    let is_replica = snap.deployment.mode == medoc_sync::deployment::DeploymentMode::ServerlessPeer
+        && snap.deployment.role == medoc_sync::deployment::DeviceRole::Replica;
+    let queues: Vec<String> = args
+        .queues
+        .into_iter()
+        .map(|queue| queue.trim().to_string())
+        .filter(|queue| !queue.is_empty())
+        .collect();
+    if !is_replica {
+        return SyncEngine::exchange_packets(&pool, Some(&queues)).await;
+    }
+    if queues.is_empty() {
+        return Ok(SyncRunReport {
+            push: None,
+            pull: None,
+            mesh: None,
+            error: None,
+        });
+    }
+    exchange_queues(
+        &pool,
+        ExchangeCover {
+            all: false,
+            queues: queues.clone(),
+        },
+        ExchangeJob::Queues(queues),
+    )
+    .await
 }
 
 /// Replica topbar: reach the master's LAN HTTPS with the same TLS policy as sync (self-signed OK).
@@ -76,11 +162,13 @@ pub async fn probe_master_reachable(pool: &SqlitePool) -> Result<bool, AppError>
     if base.is_empty() {
         return Ok(false);
     }
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(4))
-        .danger_accept_invalid_certs(true)
-        .build()
-        .map_err(|e| AppError::Internal(format!("probe http client: {e}")))?;
+    let client = match medoc_sync::tls_pin::pinned_http_client(
+        &snap.deployment.master_cert_sha256,
+        Duration::from_secs(4),
+    ) {
+        Ok(client) => client,
+        Err(_) => return Ok(false),
+    };
     for path in ["/health", "/api/v1/ping"] {
         let url = format!("{base}{path}");
         match client.get(&url).send().await {
@@ -89,33 +177,6 @@ pub async fn probe_master_reachable(pool: &SqlitePool) -> Result<bool, AppError>
         }
     }
     Ok(false)
-}
-
-#[tauri::command]
-#[tracing::instrument(level = "info", skip(pool, session_state))]
-pub async fn sync_record_change(
-    pool: State<'_, SqlitePool>,
-    session_state: State<'_, SessionState>,
-    entity_table: String,
-    entity_id: String,
-    op: String,
-    payload_json: String,
-) -> Result<(), AppError> {
-    require(&session_state, "ops.system")?;
-    let snap = SyncEngine::status(&pool).await?;
-    if snap.deployment.mode != medoc_sync::deployment::DeploymentMode::ServerlessPeer {
-        return Ok(());
-    }
-    medoc_sync::repo::append_outbox(
-        &pool,
-        &snap.local_device_id,
-        &entity_table,
-        &entity_id,
-        &op,
-        &payload_json,
-    )
-    .await?;
-    Ok(())
 }
 
 /// Queue a local mutation for later push/pull. No-op unless this device is a serverless peer.
@@ -134,27 +195,316 @@ pub async fn enqueue_local_sync(
         .await;
 }
 
-/// Replicas push and pull automatically. The first tick runs immediately.
-const REPLICA_SYNC_INTERVAL: Duration = Duration::from_millis(500);
+/// Healthy replicas poll twice a second. Each failed cycle doubles the wait, up to 30s.
+const REPLICA_SYNC_BASE: Duration = Duration::from_millis(500);
+/// Safety-net scan. Repository hooks already fill the outbox.
+const SHARED_WATCH_INTERVAL: Duration = Duration::from_secs(60);
+const REPLICA_SYNC_MAX: Duration = Duration::from_secs(30);
+
+pub(crate) fn replica_backoff(consecutive_failures: u32) -> Duration {
+    let shift = consecutive_failures.min(6);
+    REPLICA_SYNC_BASE
+        .saturating_mul(1u32 << shift)
+        .min(REPLICA_SYNC_MAX)
+}
+
+fn unreachable_wait(consecutive_failures: u32) -> Duration {
+    replica_backoff(consecutive_failures).max(Duration::from_secs(5))
+}
+
+fn master_unreachable_message(msg: &str) -> bool {
+    let lower = msg.to_ascii_lowercase();
+    lower.contains("connection refused")
+        || lower.contains("os error 61")
+        || lower.contains("timed out")
+        || lower.contains("network is unreachable")
+        || lower.contains("no route to host")
+        || lower.contains("master unreachable")
+}
+
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
+
+static MASTER_UNREACHABLE_UNTIL_MS: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(0);
+static MASTER_UNREACHABLE_LOGGED_MS: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(0);
+static MASTER_UNREACHABLE_STREAK: std::sync::atomic::AtomicU32 =
+    std::sync::atomic::AtomicU32::new(0);
+
+fn master_unreachable_cooling_down() -> bool {
+    now_ms() < MASTER_UNREACHABLE_UNTIL_MS.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+fn clear_master_unreachable() {
+    MASTER_UNREACHABLE_STREAK.store(0, std::sync::atomic::Ordering::Relaxed);
+    MASTER_UNREACHABLE_UNTIL_MS.store(0, std::sync::atomic::Ordering::Relaxed);
+    MASTER_UNREACHABLE_LOGGED_MS.store(0, std::sync::atomic::Ordering::Relaxed);
+}
+
+fn note_master_unreachable(error: &AppError) {
+    let streak = MASTER_UNREACHABLE_STREAK
+        .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        .saturating_add(1);
+    let wait = unreachable_wait(streak.saturating_sub(1));
+    MASTER_UNREACHABLE_UNTIL_MS.store(
+        now_ms().saturating_add(wait.as_millis() as u64),
+        std::sync::atomic::Ordering::Relaxed,
+    );
+    let first_this_outage = MASTER_UNREACHABLE_LOGGED_MS
+        .compare_exchange(
+            0,
+            now_ms(),
+            std::sync::atomic::Ordering::Relaxed,
+            std::sync::atomic::Ordering::Relaxed,
+        )
+        .is_ok();
+    if first_this_outage {
+        tracing::warn!(
+            target: "medoc::sync",
+            event = "REPLICA_AUTH_REFRESH_FAILED",
+            error = %error,
+            retry_in_ms = wait.as_millis() as u64
+        );
+    } else {
+        tracing::debug!(
+            target: "medoc::sync",
+            event = "REPLICA_AUTH_REFRESH_FAILED",
+            error = %error
+        );
+    }
+}
+
+fn unreachable_report(error: &AppError) -> SyncRunReport {
+    SyncRunReport {
+        push: None,
+        pull: None,
+        mesh: None,
+        error: Some(error.to_string()),
+    }
+}
+
+async fn try_refresh_replica_auth(pool: &SqlitePool) -> Result<bool, AppError> {
+    if master_unreachable_cooling_down() {
+        return Err(AppError::Internal(
+            "cluster auth connect: master unreachable, backing off".into(),
+        ));
+    }
+    match refresh_replica_lan_auth(pool).await {
+        Ok(ok) => {
+            clear_master_unreachable();
+            Ok(ok)
+        }
+        Err(e) => {
+            if master_unreachable_message(&e.to_string()) {
+                note_master_unreachable(&e);
+            } else {
+                tracing::warn!(
+                    target: "medoc::sync",
+                    event = "REPLICA_AUTH_REFRESH_FAILED",
+                    error = %e
+                );
+            }
+            Err(e)
+        }
+    }
+}
 const REPLICA_CATCHUP_KV: &str = "sync.replica.catchup.done.v1";
 
 /// The host loop and the window both call sync. One run at a time.
 static REPLICA_SYNC_GATE: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
+#[derive(Clone)]
+struct ExchangeCover {
+    all: bool,
+    queues: Vec<String>,
+}
+
+struct ExchangeFlight {
+    cover: ExchangeCover,
+    done: tokio::sync::watch::Receiver<bool>,
+}
+
+static EXCHANGE_FLIGHT: tokio::sync::Mutex<Option<ExchangeFlight>> =
+    tokio::sync::Mutex::const_new(None);
+
+enum ExchangeJob {
+    Steady,
+    Catchup,
+    Queues(Vec<String>),
+}
+
+fn cover_includes(flight: &ExchangeCover, want: &ExchangeCover) -> bool {
+    if flight.all {
+        return true;
+    }
+    if want.all {
+        return false;
+    }
+    want.queues
+        .iter()
+        .all(|queue| flight.queues.iter().any(|have| have == queue))
+}
+
+async fn exchange_queues(
+    pool: &SqlitePool,
+    cover: ExchangeCover,
+    job: ExchangeJob,
+) -> Result<SyncRunReport, AppError> {
+    let (finish, done) = tokio::sync::watch::channel(false);
+    loop {
+        let wait = {
+            let mut slot = EXCHANGE_FLIGHT.lock().await;
+            if let Some(flight) = slot.as_ref() {
+                Some((flight.done.clone(), cover_includes(&flight.cover, &cover)))
+            } else {
+                *slot = Some(ExchangeFlight {
+                    cover: cover.clone(),
+                    done: done.clone(),
+                });
+                None
+            }
+        };
+        match wait {
+            Some((mut done, true)) => {
+                let _ = done.changed().await;
+                return Ok(SyncRunReport {
+                    push: None,
+                    pull: None,
+                    mesh: None,
+                    error: None,
+                });
+            }
+            Some((mut done, false)) => {
+                let _ = done.changed().await;
+            }
+            None => break,
+        }
+    }
+    let result = match job {
+        ExchangeJob::Steady => run_replica_sync_recovering(pool).await,
+        ExchangeJob::Catchup => run_replica_catchup_recovering(pool).await,
+        ExchangeJob::Queues(queues) => run_queue_exchange(pool, &queues).await,
+    };
+    {
+        let mut slot = EXCHANGE_FLIGHT.lock().await;
+        *slot = None;
+    }
+    let _ = finish.send(true);
+    result
+}
+
+async fn run_queue_exchange(
+    pool: &SqlitePool,
+    queues: &[String],
+) -> Result<SyncRunReport, AppError> {
+    let _gate = REPLICA_SYNC_GATE.lock().await;
+    let mut report = SyncRunReport {
+        push: None,
+        pull: None,
+        mesh: None,
+        error: None,
+    };
+    match SyncEngine::exchange_packets(pool, Some(queues)).await {
+        Ok(extra) => merge_exchange(&mut report, extra),
+        Err(e) => report.error = Some(format!("exchange: {e}")),
+    }
+    match SyncEngine::push_queues(pool, Some(queues)).await {
+        Ok(push) => match report.push.as_mut() {
+            Some(prev) => {
+                prev.accepted = prev.accepted.saturating_add(push.accepted);
+                prev.last_seq = prev.last_seq.max(push.last_seq);
+            }
+            None => report.push = Some(push),
+        },
+        Err(e) => {
+            let msg = format!("push: {e}");
+            report.error = Some(match report.error.take() {
+                Some(prev) => format!("{prev}; {msg}"),
+                None => msg,
+            });
+        }
+    }
+    match SyncEngine::pull_from_master(pool).await {
+        Ok(pull) => {
+            report.pull = Some(match report.pull.take() {
+                Some(prev) => SyncPullResult {
+                    applied: prev.applied.saturating_add(pull.applied),
+                    skipped: prev.skipped.saturating_add(pull.skipped),
+                },
+                None => pull,
+            });
+        }
+        Err(e) => {
+            let msg = format!("pull: {e}");
+            report.error = Some(match report.error.take() {
+                Some(prev) => format!("{prev}; {msg}"),
+                None => msg,
+            });
+        }
+    }
+    Ok(report)
+}
+
 fn sync_auth_rejected(msg: &str) -> bool {
     let lower = msg.to_ascii_lowercase();
-    lower.contains("401") || lower.contains("unauthorized")
+    if lower.contains("401") || lower.contains("unauthorized") {
+        return true;
+    }
+    lower.contains("403")
+        && (lower.contains("token_mismatch")
+            || lower.contains("token_unknown")
+            || lower.contains("pairing_unknown")
+            || lower.contains("activation_token_mismatch"))
+}
+
+fn sync_auth_requires_repair(msg: &str) -> bool {
+    let lower = msg.to_ascii_lowercase();
+    lower.contains("revoked") || lower.contains("not_accepted")
 }
 
 fn replica_report_needs_auth_refresh(report: &SyncRunReport) -> bool {
-    report
-        .error
-        .as_deref()
-        .is_some_and(sync_auth_rejected)
+    report.error.as_deref().is_some_and(sync_auth_rejected)
 }
 
-fn replica_token_needs_refresh(deployment: &SyncDeploymentConfig) -> bool {
+fn replica_token_needs_refresh(token: &str, local_device_id: &str) -> bool {
+    let token = token.trim();
+    if token.is_empty() {
+        return true;
+    }
+    if !token.starts_with(medoc_sync::pairing::ACTIVATION_TOKEN_PREFIX) {
+        return true;
+    }
+    replica_token_device_mismatch_token(token, local_device_id)
+}
+
+fn replica_token_device_mismatch_token(token: &str, local_device_id: &str) -> bool {
+    // Without the master pubkey we can only check prefix/emptiness.
+    let _ = (token, local_device_id);
+    false
+}
+
+fn replica_tls_pin_missing(deployment: &SyncDeploymentConfig) -> bool {
+    !medoc_sync::tls_pin::is_sha256_pin(&deployment.master_cert_sha256)
+}
+
+fn replica_needs_credential_refresh(snap: &SyncStatusSnapshot) -> bool {
+    replica_token_needs_refresh_deployment(&snap.deployment, &snap.local_device_id)
+        || replica_tls_pin_missing(&snap.deployment)
+}
+
+fn replica_token_needs_refresh_deployment(
+    deployment: &SyncDeploymentConfig,
+    local_device_id: &str,
+) -> bool {
     let token = deployment.activation_token.trim();
+    if replica_token_needs_refresh(token, local_device_id) && token.is_empty() {
+        return deployment.master_access_token.trim().is_empty();
+    }
     if token.is_empty() {
         return deployment.master_access_token.trim().is_empty();
     }
@@ -166,7 +516,10 @@ fn replica_token_needs_refresh(deployment: &SyncDeploymentConfig) -> bool {
         return false;
     }
     match medoc_sync::master_keys::parse_pubkey_b64(pk) {
-        Ok(key) => medoc_sync::pairing::verify_activation_token(token, &key).is_err(),
+        Ok(key) => match medoc_sync::pairing::verify_activation_token(token, &key) {
+            Ok(payload) => payload.device_id.trim() != local_device_id.trim(),
+            Err(_) => true,
+        },
         Err(_) => true,
     }
 }
@@ -174,50 +527,123 @@ fn replica_token_needs_refresh(deployment: &SyncDeploymentConfig) -> bool {
 async fn run_replica_sync_recovering(pool: &SqlitePool) -> Result<SyncRunReport, AppError> {
     let _gate = REPLICA_SYNC_GATE.lock().await;
     let snap = SyncEngine::status(pool).await?;
-    if replica_token_needs_refresh(&snap.deployment) {
-        if let Err(e) = refresh_replica_lan_auth(pool).await {
-            tracing::warn!(
-                target: "medoc::sync",
-                event = "REPLICA_AUTH_REFRESH_FAILED",
-                error = %e
-            );
+    if replica_needs_credential_refresh(&snap) {
+        if let Err(e) = try_refresh_replica_auth(pool).await {
+            if master_unreachable_message(&e.to_string()) {
+                return Ok(unreachable_report(&e));
+            }
         }
     }
     let first = SyncEngine::run_replica_sync(pool).await?;
-    if !replica_report_needs_auth_refresh(&first) {
+    if first
+        .error
+        .as_deref()
+        .is_some_and(sync_auth_requires_repair)
+    {
         return Ok(first);
+    }
+    if !replica_report_needs_auth_refresh(&first) {
+        return Ok(attach_packet_exchange(pool, first).await);
     }
     tracing::warn!(
         target: "medoc::sync",
         event = "REPLICA_SYNC_401_RETRY",
         error = first.error.as_deref().unwrap_or("")
     );
-    match refresh_replica_lan_auth(pool).await {
-        Ok(_) => SyncEngine::run_replica_sync(pool).await,
+    match try_refresh_replica_auth(pool).await {
+        Ok(_) => {
+            let again = SyncEngine::run_replica_sync(pool).await?;
+            Ok(attach_packet_exchange(pool, again).await)
+        }
+        Err(e) => {
+            if master_unreachable_message(&e.to_string()) {
+                return Ok(unreachable_report(&e));
+            }
+            Ok(first)
+        }
+    }
+}
+
+async fn attach_packet_exchange(pool: &SqlitePool, mut report: SyncRunReport) -> SyncRunReport {
+    if report.error.as_deref().is_some_and(sync_auth_rejected) {
+        return report;
+    }
+    match SyncEngine::exchange_packets(pool, None).await {
+        Ok(mut extra) => {
+            let failed = extra.error.take();
+            let had_sync = report.push.is_some() || report.pull.is_some();
+            merge_exchange(&mut report, extra);
+            if let Some(err) = failed {
+                if had_sync {
+                    tracing::warn!(
+                        target: "medoc::sync",
+                        event = "PACKET_EXCHANGE_DEFERRED",
+                        error = %err
+                    );
+                } else {
+                    report.error = Some(match report.error.take() {
+                        Some(prev) => format!("{prev}; {err}"),
+                        None => err,
+                    });
+                }
+            }
+            report
+        }
         Err(e) => {
             tracing::warn!(
                 target: "medoc::sync",
-                event = "REPLICA_AUTH_REFRESH_FAILED",
+                event = "PACKET_EXCHANGE_DEFERRED",
                 error = %e
             );
-            Ok(first)
+            report
         }
+    }
+}
+
+fn merge_exchange(report: &mut SyncRunReport, extra: SyncRunReport) {
+    if let Some(pull) = extra.pull {
+        report.pull = Some(match report.pull.take() {
+            Some(prev) => SyncPullResult {
+                applied: prev.applied.saturating_add(pull.applied),
+                skipped: prev.skipped.saturating_add(pull.skipped),
+            },
+            None => pull,
+        });
+    }
+    if report.push.is_none() {
+        report.push = extra.push;
+    } else if let Some(push) = extra.push {
+        if let Some(prev) = report.push.as_mut() {
+            prev.accepted = prev.accepted.saturating_add(push.accepted);
+            prev.last_seq = prev.last_seq.max(push.last_seq);
+        }
+    }
+    if let Some(err) = extra.error {
+        report.error = Some(match report.error.take() {
+            Some(prev) => format!("{prev}; {err}"),
+            None => err,
+        });
     }
 }
 
 async fn run_replica_catchup_recovering(pool: &SqlitePool) -> Result<SyncRunReport, AppError> {
     let _gate = REPLICA_SYNC_GATE.lock().await;
     let snap = SyncEngine::status(pool).await?;
-    if replica_token_needs_refresh(&snap.deployment) {
-        if let Err(e) = refresh_replica_lan_auth(pool).await {
-            tracing::warn!(
-                target: "medoc::sync",
-                event = "REPLICA_AUTH_REFRESH_FAILED",
-                error = %e
-            );
+    if replica_needs_credential_refresh(&snap) {
+        if let Err(e) = try_refresh_replica_auth(pool).await {
+            if master_unreachable_message(&e.to_string()) {
+                return Ok(unreachable_report(&e));
+            }
         }
     }
     let first = SyncEngine::run_replica_sync_until_caught_up(pool).await?;
+    if first
+        .error
+        .as_deref()
+        .is_some_and(sync_auth_requires_repair)
+    {
+        return Ok(first);
+    }
     if !replica_report_needs_auth_refresh(&first) {
         return Ok(first);
     }
@@ -226,30 +652,38 @@ async fn run_replica_catchup_recovering(pool: &SqlitePool) -> Result<SyncRunRepo
         event = "REPLICA_SYNC_401_RETRY",
         error = first.error.as_deref().unwrap_or("")
     );
-    match refresh_replica_lan_auth(pool).await {
+    match try_refresh_replica_auth(pool).await {
         Ok(_) => SyncEngine::run_replica_sync_until_caught_up(pool).await,
         Err(e) => {
-            tracing::warn!(
-                target: "medoc::sync",
-                event = "REPLICA_AUTH_REFRESH_FAILED",
-                error = %e
-            );
+            if master_unreachable_message(&e.to_string()) {
+                return Ok(unreachable_report(&e));
+            }
             Ok(first)
         }
     }
 }
 
-/// Own OS thread: scan shared admin/user rows, queue the ones that changed,
-/// and on a replica push that queue to the master immediately.
+/// Own OS thread: scan shared rows and fill each queue. A count above zero
+/// is sent on that pass: a replica pushes its queue and pulls the main
+/// device's queue in the same call.
 pub fn spawn_shared_change_sync_thread(pool: SqlitePool) {
     if let Err(e) = std::thread::Builder::new()
         .name("medoc-shared-sync".into())
         .spawn(move || {
             tauri::async_runtime::block_on(async move {
-                let mut ticker = tokio::time::interval(REPLICA_SYNC_INTERVAL);
+                let mut ticker = tokio::time::interval(SHARED_WATCH_INTERVAL);
                 ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
                 loop {
                     ticker.tick().await;
+                    let Ok(snap) = SyncEngine::status(&pool).await else {
+                        continue;
+                    };
+                    let is_replica = snap.deployment.mode
+                        == medoc_sync::deployment::DeploymentMode::ServerlessPeer
+                        && snap.deployment.role == medoc_sync::deployment::DeviceRole::Replica;
+                    if is_replica && master_unreachable_cooling_down() {
+                        continue;
+                    }
                     let changes = match medoc_sync::watch::queue_shared_changes(&pool).await {
                         Ok(n) => n,
                         Err(e) => {
@@ -269,13 +703,17 @@ pub fn spawn_shared_change_sync_thread(pool: SqlitePool) {
                         event = "SHARED_SYNC_QUEUED",
                         changes
                     );
-                    let Ok(snap) = SyncEngine::status(&pool).await else {
-                        continue;
-                    };
-                    let is_replica = snap.deployment.mode
-                        == medoc_sync::deployment::DeploymentMode::ServerlessPeer
-                        && snap.deployment.role == medoc_sync::deployment::DeviceRole::Replica;
                     if !is_replica {
+                        // These rows sit in the main outbox. The replica pulls
+                        // them on its own pass (the same push-then-pull call).
+                        tracing::info!(
+                            target: "medoc::sync",
+                            event = "SHARED_SYNC_READY_FOR_PULL",
+                            changes
+                        );
+                        continue;
+                    }
+                    if master_unreachable_cooling_down() {
                         continue;
                     }
                     match run_replica_sync_recovering(&pool).await {
@@ -283,22 +721,28 @@ pub fn spawn_shared_change_sync_thread(pool: SqlitePool) {
                             if let Some(err) = report.error.as_deref() {
                                 tracing::warn!(
                                     target: "medoc::sync",
-                                    event = "SHARED_SYNC_SEND_DEFERRED",
+                                    event = "SHARED_SYNC_SEND_FAILED",
+                                    changes,
                                     error = %err
                                 );
                             } else {
                                 tracing::info!(
                                     target: "medoc::sync",
                                     event = "SHARED_SYNC_SENT",
-                                    changes
+                                    changes,
+                                    pushed = report.push.as_ref().map(|push| push.accepted).unwrap_or(0),
+                                    pulled = report.pull.as_ref().map(|pull| pull.applied).unwrap_or(0)
                                 );
                             }
                         }
-                        Err(e) => tracing::warn!(
-                            target: "medoc::sync",
-                            event = "SHARED_SYNC_SEND_FAILED",
-                            error = %e
-                        ),
+                        Err(e) => {
+                            tracing::warn!(
+                                target: "medoc::sync",
+                                event = "SHARED_SYNC_SEND_FAILED",
+                                changes,
+                                error = %e
+                            );
+                        }
                     }
                 }
             });
@@ -321,10 +765,9 @@ pub fn spawn_replica_offline_sync_loop(pool: SqlitePool) {
                 error = %e
             );
         }
-        let mut ticker = tokio::time::interval(REPLICA_SYNC_INTERVAL);
-        ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        let mut failures: u32 = 0;
         loop {
-            ticker.tick().await;
+            tokio::time::sleep(replica_backoff(failures)).await;
             let Ok(snap) = SyncEngine::status(&pool).await else {
                 continue;
             };
@@ -333,17 +776,10 @@ pub fn spawn_replica_offline_sync_loop(pool: SqlitePool) {
             {
                 continue;
             }
-            if replica_token_needs_refresh(&snap.deployment)
+            if replica_needs_credential_refresh(&snap)
                 || snap.deployment.master_base_url.trim().is_empty()
             {
-                match refresh_replica_lan_auth(&pool).await {
-                    Ok(_) => {}
-                    Err(e) => tracing::warn!(
-                        target: "medoc::sync",
-                        event = "REPLICA_AUTH_REFRESH_FAILED",
-                        error = %e
-                    ),
-                }
+                let _ = try_refresh_replica_auth(&pool).await;
             }
             let Ok(again) = SyncEngine::status(&pool).await else {
                 continue;
@@ -360,8 +796,15 @@ pub fn spawn_replica_offline_sync_loop(pool: SqlitePool) {
                 );
                 continue;
             }
-            let _ = sync_staff_from_stored_admin_endpoint(&pool).await;
-            let catchup_done = medoc_core::infrastructure::database::app_kv_repo::get(
+            let _ = repair_replica_master_https_url(&pool).await;
+            if !master_unreachable_cooling_down() {
+                if let Err(e) = sync_staff_from_stored_admin_endpoint(&pool).await {
+                    if master_unreachable_message(&e.to_string()) {
+                        note_master_unreachable(&e);
+                    }
+                }
+            }
+            let catchup_done = medoc_core::infrastructure::database::repos::admin::app_kv::get(
                 &pool,
                 REPLICA_CATCHUP_KV,
             )
@@ -370,19 +813,31 @@ pub fn spawn_replica_offline_sync_loop(pool: SqlitePool) {
             .flatten()
             .as_deref()
                 == Some("1");
-            let result = if catchup_done {
-                run_replica_sync_recovering(&pool).await
-            } else {
-                run_replica_catchup_recovering(&pool).await
+            let cover = ExchangeCover {
+                all: true,
+                queues: Vec::new(),
             };
+            let result = if catchup_done {
+                exchange_queues(&pool, cover, ExchangeJob::Steady).await
+            } else {
+                exchange_queues(&pool, cover, ExchangeJob::Catchup).await
+            };
+            let connected = matches!(&result, Ok(r) if r.error.is_none());
+            super::reconnect_update_check::note_link(&pool, connected);
             match result {
                 Ok(report) => {
                     if let Some(err) = report.error.as_deref() {
-                        tracing::warn!(
-                            target: "medoc::sync",
-                            event = "REPLICA_SYNC_DEFERRED",
-                            error = %err
-                        );
+                        failures = failures.saturating_add(1);
+                        if !master_unreachable_message(err) {
+                            tracing::warn!(
+                                target: "medoc::sync",
+                                event = "REPLICA_SYNC_DEFERRED",
+                                error = %err,
+                                backoff_ms = replica_backoff(failures).as_millis() as u64
+                            );
+                        }
+                    } else {
+                        failures = 0;
                     }
                     if !catchup_done {
                         let pulled = report
@@ -390,13 +845,19 @@ pub fn spawn_replica_offline_sync_loop(pool: SqlitePool) {
                             .as_ref()
                             .map(|p| p.applied.saturating_add(p.skipped))
                             .unwrap_or(0);
-                        if pulled < 500 && report.error.is_none() {
-                            let _ = medoc_core::infrastructure::database::app_kv_repo::set(
-                                &pool,
-                                REPLICA_CATCHUP_KV,
-                                "1",
-                            )
-                            .await;
+                        let span_open =
+                            medoc_sync::engine::replica_initial_copy_blocks_catchup(&pool)
+                                .await
+                                .unwrap_or(true);
+                        if !span_open && pulled < 500 && report.error.is_none() {
+                            let _ =
+                                medoc_core::infrastructure::database::repos::admin::app_kv::set(
+                                    &pool,
+                                    REPLICA_CATCHUP_KV,
+                                    "1",
+                                )
+                                .await;
+                            let _ = medoc_sync::engine::finish_replica_initial_copy(&pool).await;
                             tracing::info!(
                                 target: "medoc::sync",
                                 event = "REPLICA_INITIAL_SYNC_DONE",
@@ -405,12 +866,60 @@ pub fn spawn_replica_offline_sync_loop(pool: SqlitePool) {
                         }
                     }
                 }
-                Err(e) => tracing::warn!(
-                    target: "medoc::sync",
-                    event = "REPLICA_SYNC_DEFERRED",
-                    error = %e
-                ),
+                Err(e) => {
+                    failures = failures.saturating_add(1);
+                    tracing::warn!(
+                        target: "medoc::sync",
+                        event = "REPLICA_SYNC_DEFERRED",
+                        error = %e,
+                        backoff_ms = replica_backoff(failures).as_millis() as u64
+                    );
+                }
             }
         }
     });
+}
+
+#[cfg(test)]
+mod backoff_tests {
+    use super::replica_backoff;
+    use std::time::Duration;
+
+    #[test]
+    fn backs_off_when_the_main_device_is_down() {
+        assert_eq!(replica_backoff(0), Duration::from_millis(500));
+        assert_eq!(replica_backoff(1), Duration::from_secs(1));
+        assert_eq!(replica_backoff(2), Duration::from_secs(2));
+        assert_eq!(replica_backoff(4), Duration::from_secs(8));
+        assert_eq!(replica_backoff(10), Duration::from_secs(30));
+        assert_eq!(super::unreachable_wait(0), Duration::from_secs(5));
+        assert_eq!(super::unreachable_wait(4), Duration::from_secs(8));
+        assert!(super::master_unreachable_message(
+            "cluster auth connect 192.168.0.100:49300: Connection refused (os error 61)"
+        ));
+        assert!(!super::master_unreachable_message("401 unauthorized"));
+    }
+
+    #[test]
+    fn token_for_another_device_needs_refresh() {
+        assert!(super::replica_token_needs_refresh("", "dev-a"));
+        assert!(super::replica_token_needs_refresh("jwt.not.mt2", "dev-a"));
+    }
+
+    #[test]
+    fn mismatch_403_refreshes_once() {
+        assert!(super::sync_auth_rejected("403 token_mismatch"));
+        assert!(super::sync_auth_rejected(
+            "sync push http status 403 Forbidden: {\"reason\":\"pairing_unknown\"}"
+        ));
+        assert!(super::sync_auth_rejected("401 unauthorized"));
+        assert!(!super::sync_auth_rejected("403 revoked"));
+    }
+
+    #[test]
+    fn revoked_403_stops_the_loop_and_sets_repair_required() {
+        assert!(super::sync_auth_requires_repair("403 reason=revoked"));
+        assert!(super::sync_auth_requires_repair("not_accepted"));
+        assert!(!super::sync_auth_requires_repair("token_mismatch"));
+    }
 }

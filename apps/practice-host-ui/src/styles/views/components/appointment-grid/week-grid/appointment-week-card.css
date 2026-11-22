@@ -1,0 +1,78 @@
+/* From styles/pages/appointments-calendar.css (cascade position kept by its import there). */
+[data-appointment-week-canvas].appointment-drag-nav-edge-left::before,
+[data-appointment-day-canvas].appointment-drag-nav-edge-left::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 4px;
+  background: var(--accent);
+  box-shadow: 0 0 12px color-mix(in oklab, var(--accent) 55%, transparent);
+  pointer-events: none;
+  z-index: 12;
+  animation: appointmentDragNavPulse 0.9s ease-in-out infinite;
+}
+[data-appointment-week-canvas].appointment-drag-nav-edge-right::after,
+[data-appointment-day-canvas].appointment-drag-nav-edge-right::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  width: 4px;
+  background: var(--accent);
+  box-shadow: 0 0 12px color-mix(in oklab, var(--accent) 55%, transparent);
+  pointer-events: none;
+  z-index: 12;
+  animation: appointmentDragNavPulse 0.9s ease-in-out infinite;
+}
+@keyframes appointmentDragNavPulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+.appointment-week-card--workweek .appointment-week-body-grid {
+  grid-template-columns: minmax(3rem, 3.5rem) repeat(var(--appointment-calendar-cols, 5), minmax(0, 1fr));
+}
+.appointment-week-card--workweek .appointment-week-dow-short {
+  font-size: clamp(9px, 0.85vw, 11px);
+}
+.appointment-week-card--workweek .appointment-week-dow-num {
+  font-size: clamp(13px, 1.35vw, 17px);
+}
+.appointment-week-card--workweek .appointment-appt-block--week {
+  /* density classes own padding */
+}
+.appointment-week-card--workweek .appointment-appt-block-time-col {
+  min-width: 0;
+}
+
+.appointment-week-calendar .appointment-hour-label {
+  height: var(--appointment-hour-row, 5.25rem);
+  box-sizing: border-box;
+}
+.appointment-week-hours {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: 3;
+  background: linear-gradient(90deg, var(--bg-elev) 70%, transparent);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.appointment-week-hours-stack {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  min-height: 100%;
+  flex: 1;
+  min-height: 0;
+}
+.appointment-hour-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-3);
+  text-align: end;
+  padding-inline-end: 8px;
+  box-sizing: border-box;
+  border-top: 1px solid var(--line);
+}

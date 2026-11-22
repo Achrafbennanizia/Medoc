@@ -1,0 +1,67 @@
+/* From styles/pages/work-plan-rules.css (cascade position kept by its import there). */
+.workPlan-preset-new {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--line-1);
+}
+
+.workPlan-weekly-details {
+  border: 1px solid var(--line-1);
+  border-radius: 8px;
+  padding: 0 10px 8px;
+  background: var(--bg-0);
+}
+
+.workPlan-weekly-summary {
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 14px;
+  padding: 10px 4px;
+  list-style: none;
+  color: var(--fg-1);
+}
+
+.workPlan-weekly-summary::-webkit-details-marker {
+  display: none;
+}
+
+.workPlan-weekly-table-wrap {
+  overflow-x: auto;
+}
+
+.workPlan-weekly-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.workPlan-weekly-table th,
+.workPlan-weekly-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line-1);
+  text-align: start;
+  vertical-align: middle;
+}
+
+.workPlan-weekly-table th {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fg-4);
+}
+
+.workPlan-col {
+  position: relative;
+  border-right: 1px solid var(--line-1);
+  min-width: 0;
+  min-height: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--line-1) 0,
+    var(--line-1) 1px,
+    transparent 1px,
+    transparent calc(30 * 1.25px * 2)
+  );
+}

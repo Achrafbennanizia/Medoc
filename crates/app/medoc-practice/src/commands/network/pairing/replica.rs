@@ -8,7 +8,7 @@ use medoc_sync::pairing::{PairingRequest, ACTIVATION_TOKEN_PREFIX};
 use sqlx::SqlitePool;
 use tauri::{Manager, State};
 
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::error::AppError as TauriAppError;
 
 use super::support::{build_http_client, ensure_local_device_id, into_tauri};
@@ -29,7 +29,7 @@ pub async fn pairing_submit_request(
     let slave_sk = master_keys::load_or_create().map_err(into_tauri)?;
     let slave_pubkey = master_keys::pubkey_b64(&slave_sk);
 
-    let client = build_http_client();
+    let client = build_http_client(&payload.master_cert_sha256).map_err(into_tauri)?;
     let base = payload.master_base_url.trim_end_matches('/').to_string();
 
     let info: serde_json::Value = client
@@ -113,7 +113,8 @@ pub async fn pairing_confirm_pin(
 ) -> Result<PairingRequest, TauriAppError> {
     let base = payload.master_base_url.trim_end_matches('/');
     let url = format!("{base}/api/v1/pairing/confirm/{}", payload.request_id);
-    let resp = build_http_client()
+    let resp = build_http_client(&payload.master_cert_sha256)
+        .map_err(into_tauri)?
         .post(&url)
         .json(&serde_json::json!({ "pin": payload.pin.trim() }))
         .send()
@@ -138,7 +139,8 @@ pub async fn pairing_check_status(
 ) -> Result<PairingRequest, TauriAppError> {
     let base = payload.master_base_url.trim_end_matches('/');
     let url = format!("{base}/api/v1/pairing/status/{}", payload.request_id);
-    let resp = build_http_client()
+    let resp = build_http_client(&payload.master_cert_sha256)
+        .map_err(into_tauri)?
         .get(&url)
         .send()
         .await
@@ -176,8 +178,8 @@ pub async fn pairing_persist_token(
     SyncEngine::set_deployment(&pool, cfg)
         .await
         .map_err(into_tauri)?;
-    if let Some(ctrl) = app.try_state::<crate::commands::lan_commands::LanServerControl>() {
-        crate::commands::lan_commands::auto_start_replica_sync_lan(&app, (*pool).clone(), &ctrl)
+    if let Some(ctrl) = app.try_state::<crate::commands::network::lan::LanServerControl>() {
+        crate::commands::network::lan::auto_start_replica_sync_lan(&app, (*pool).clone(), &ctrl)
             .await;
     }
     Ok(())

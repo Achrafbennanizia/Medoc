@@ -54,8 +54,6 @@ MeDoc runs primarily **on-device**. Clinical and practice data live in an encryp
 | 2 | **LAN** | HTTPS API for practice LAN clients / sync | `medoc-lan-server` (also embeddable) | same `medoc.db` |
 | 3 | **Company** | Vendor / company portal HTTP API | `medoc-company-server` | `company.db` |
 
-Plus a **browser-only LAN web client** (`apps/lan-web-client`) that talks HTTPS to the LAN server — no Tauri, no local SQLite.
-
 ### Deployment modes (practice)
 
 | Mode | Data | Typical use |
@@ -116,7 +114,6 @@ See [`packages/README.md`](packages/README.md), [`docs/README-frontend.md`](docs
 | Service | Default |
 |---------|---------|
 | Vite practice UI | `http://localhost:1420` |
-| LAN web client | `http://localhost:1421` |
 | LAN HTTPS API | `https://127.0.0.1:8787` |
 | Company HTTP API | port **9797** (`/v1/*`) |
 
@@ -140,8 +137,7 @@ Medoc/
 ├── apps/
 │   ├── practice-host/          Tauri binary crate `medoc` (npm: medoc-tauri-host)
 │   │                           tauri.conf.json, icons, Rust src, integration tests
-│   ├── practice-host-ui/       React + Vite shell (npm: medoc); src-tauri → ../practice-host
-│   └── lan-web-client/         Browser client → LAN HTTPS (no Tauri)
+│   └── practice-host-ui/       React + Vite shell (npm: medoc); src-tauri → ../practice-host
 ├── crates/
 │   ├── app/medoc-practice/     Practice IPC / commands
 │   ├── server/lan/             medoc-lan + medoc-lan-server
@@ -365,6 +361,7 @@ Useful optional vars:
 | `MEDOC_VENDOR_SEED` | License crypto material (licensing docs) |
 | `MEDOC_LAN_JWT_SECRET` | Override LAN JWT secret |
 | `MEDOC_COMPANY_API_BASE` / `MEDOC_COMPANY_API_KEY` | Company server client config |
+| `STRIPE_SECRET_KEY` | Stripe live secret. Leave empty in git. No built-in fallback. |
 
 ```bash
 npm ci
@@ -422,13 +419,6 @@ cargo run -p medoc-lan-server
 
 ```bash
 cargo run -p medoc-company-server
-```
-
-### LAN web client
-
-```bash
-npm run dev:lan-web         # http://localhost:1421
-npm run build:lan-web
 ```
 
 ### USB kit / keygen / OS installers

@@ -18,6 +18,8 @@
  * - "Now" is {@link clockNow}. Never call `new Date()` for business logic in views.
  */
 import { useEffect, useState } from "react";
+import { pad2 } from "./pad2";
+import { createListenerSet } from "./create-listener-set";
 
 const NAIVE_DATETIME = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?)$/;
 const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -30,11 +32,7 @@ const OFFSET_NOISE_MS = 1_500;
 
 let offsetMs = 0;
 let lastSampleAt = 0;
-const listeners = new Set<() => void>();
-
-function pad2(n: number): string {
-    return String(n).padStart(2, "0");
-}
+const listeners = createListenerSet();
 
 /** Current instant corrected by the host clock offset (LAN client / replica). Desktop host: offset 0. */
 export function clockNow(): Date {
@@ -70,21 +68,18 @@ export function recordHostClockSample(serverTimeIso: string, sentAtMs: number, r
     lastSampleAt = receivedAtMs;
     if (applied === offsetMs) return;
     offsetMs = applied;
-    listeners.forEach((fn) => fn());
+    listeners.notify();
 }
 
 /** Test / sign-out hook. */
 export function resetPracticeClock(): void {
     offsetMs = 0;
     lastSampleAt = 0;
-    listeners.forEach((fn) => fn());
+    listeners.notify();
 }
 
 export function subscribePracticeClock(fn: () => void): () => void {
-    listeners.add(fn);
-    return () => {
-        listeners.delete(fn);
-    };
+    return listeners.subscribe(fn);
 }
 
 /**

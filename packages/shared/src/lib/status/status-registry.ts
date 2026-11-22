@@ -1,177 +1,292 @@
 /**
- * Status registry — the single, typed definition of every status an item can have in MeDoc.
+ * Status registry — the single, typed definition of every status an item can have in MeDoc and of how the
+ * app reacts to it. The status guide (Help → Status guide, `docs/manual/status-guide.*.md`) is generated
+ * from this file, so documentation cannot drift from behaviour.
  *
- * Design rules (see docs/manual/status-manual.md, generated from this file):
- * 1. A **status** is a persisted lifecycle state with a wire value stored in SQLite. Nothing else is a status.
- * 2. A **flag** is a derived, non-exclusive marker (e.g. "rescheduled", "overdue"). Flags are shown *next to*
- *    the status, never instead of it (the old calendar replaced CONFIRMED with "Changed" / "In treatment").
- * 3. Each status belongs to exactly one **phase** — the sort and colour semantics are derived from it, so
- *    lists order consistently everywhere: action needed → in progress → awaiting review → done → closed.
- * 4. Transitions mirror `crates/shared/medoc-core/src/domain/services/workflow_transitions.rs`. The UI must
- *    only offer transitions listed here; the backend stays authoritative.
- * 5. Adding a status: add the wire value to `config/enums.yaml` (when backend-enforced), add it here with
- *    phase + transitions, add `status.<entity>.<state>.label|description` in all four locales, run
- *    `node scripts/generate-manuals.mjs`. The registry test fails when any of that is missing.
+ * Rules:
+ * 1. A **status** is one lifecycle state. A **flag** is a derived marker shown next to it ("rescheduled",
+ *    "overdue") and never replaces it.
+ * 2. Every status has a **phase** (sort + colour semantics): needs attention → to do → in progress →
+ *    awaiting review → done → closed. Lists order by phase everywhere.
+ * 3. Every status declares its **capabilities** — what the app lets you do in that state. Views ask
+ *    `statusAllows(entity, status, "edit")` instead of hard-coding status lists.
+ * 4. Transitions mirror the backend (`crates/shared/medoc-core/src/domain/status.rs`,
+ *    `domain/services/workflow_transitions.rs`). The backend stays authoritative.
+ * 5. `derived` entities are computed by the app (not chosen by a person); their `next` lists describe
+ *    what can happen automatically.
+ * 6. Adding a status: add it here (phase, tone, next, can), add `status.<entity>.<state>.label|description`
+ *    in all four locales, run `npm run manuals`. `status-registry.test.ts` fails when anything is missing.
  */
 
-/** Lifecycle phase — drives ordering and colour. Order of this list == list sort order. */
 export const STATUS_PHASES = ["attention", "todo", "active", "review", "done", "closed"] as const;
 export type StatusPhase = (typeof STATUS_PHASES)[number];
 
-/** Visual tone (maps to `.pill` colour classes and badge variants). */
 export type StatusTone = "neutral" | "info" | "progress" | "warning" | "success" | "danger" | "muted";
 
+/** What the app allows while an item is in a status (its reaction to the status). */
+export const STATUS_CAPABILITIES = ["edit", "delete", "reschedule", "bill", "print", "remind", "reopen", "hidden"] as const;
+export type StatusCapability = (typeof STATUS_CAPABILITIES)[number];
+
 export type StatusDefinition = {
-    /** Persisted wire value (UPPER_SNAKE). */
     readonly wire: string;
     readonly phase: StatusPhase;
     readonly tone: StatusTone;
-    /** No further transitions possible. */
     readonly terminal: boolean;
-    /** Wire values reachable from here (business rule, RBAC applied separately). */
     readonly next: readonly string[];
-};
-
-export type StatusEntity = {
-    readonly id: StatusEntityId;
-    /** Where the value lives (manual + audits). */
-    readonly source: string;
-    /** First state of a newly created item. */
-    readonly initial: string;
-    readonly states: readonly StatusDefinition[];
-    /** Derived markers that are NOT statuses. */
-    readonly flags?: readonly string[];
+    readonly can: readonly StatusCapability[];
 };
 
 export type StatusEntityId =
     | "appointment"
     | "patient"
+    | "patient_list"
     | "patient_chart"
+    | "treatment"
+    | "prescription"
+    | "certificate"
+    | "sick_leave"
     | "payment"
+    | "invoice"
     | "purchase_order"
+    | "contract"
+    | "catalog_item"
+    | "day_close"
     | "practice_task"
     | "practice_ticket"
     | "feedback"
-    | "prescription"
     | "device_trust"
+    | "device_provisioning"
     | "pairing"
-    | "work_session";
+    | "work_session"
+    | "connection";
 
-function s(wire: string, phase: StatusPhase, tone: StatusTone, next: readonly string[] = []): StatusDefinition {
-    return { wire, phase, tone, terminal: next.length === 0, next };
+export type StatusEntity = {
+    readonly id: StatusEntityId;
+    /** Where the value lives (manual + audits). */
+    readonly source: string;
+    readonly initial: string;
+    /** Computed by the app, not picked by a person. */
+    readonly derived?: boolean;
+    readonly states: readonly StatusDefinition[];
+    readonly flags?: readonly string[];
+};
+
+function s(
+    wire: string,
+    phase: StatusPhase,
+    tone: StatusTone,
+    next: readonly string[] = [],
+    can: readonly StatusCapability[] = [],
+): StatusDefinition {
+    return { wire, phase, tone, terminal: next.length === 0, next, can };
 }
 
 export const STATUS_REGISTRY: Readonly<Record<StatusEntityId, StatusEntity>> = {
     appointment: {
         id: "appointment",
-        source: "appointment.status (config/enums.yaml · AppointmentStatus)",
+        source: "appointment.status · domain/status.rs AppointmentStatus",
         initial: "PLANNED",
         states: [
-            s("PLANNED", "todo", "info", ["CONFIRMED", "COMPLETED", "CANCELLED", "NO_SHOW"]),
-            s("CONFIRMED", "active", "progress", ["COMPLETED", "CANCELLED", "NO_SHOW"]),
-            s("COMPLETED", "done", "success"),
-            s("NO_SHOW", "closed", "warning"),
-            s("CANCELLED", "closed", "muted"),
+            s("PLANNED", "todo", "info", ["CONFIRMED", "COMPLETED", "CANCELLED", "NO_SHOW"], ["edit", "delete", "reschedule", "remind"]),
+            s("CONFIRMED", "todo", "progress", ["IN_PROGRESS", "COMPLETED", "CANCELLED", "NO_SHOW"], ["edit", "reschedule", "remind"]),
+            s("IN_PROGRESS", "active", "progress", ["COMPLETED"], ["edit"]),
+            s("COMPLETED", "done", "success", [], ["bill", "print"]),
+            s("NO_SHOW", "closed", "warning", ["PLANNED"], ["reopen"]),
+            s("CANCELLED", "closed", "muted", ["PLANNED"], ["reopen", "delete"]),
         ],
         flags: ["rescheduled", "emergency"],
     },
     patient: {
         id: "patient",
-        source: "patient.status (config/enums.yaml · PatientStatus)",
+        source: "patient.status · domain/status.rs PatientStatus",
         initial: "NEW",
         states: [
-            s("NEW", "todo", "info", ["ACTIVE", "VALIDATED", "READONLY"]),
-            s("ACTIVE", "active", "progress", ["VALIDATED", "READONLY"]),
-            s("VALIDATED", "done", "success", ["ACTIVE", "READONLY"]),
-            s("READONLY", "closed", "muted"),
+            s("NEW", "todo", "info", ["ACTIVE", "VALIDATED", "READONLY", "ARCHIVED"], ["edit", "delete"]),
+            s("ACTIVE", "active", "progress", ["VALIDATED", "READONLY", "ARCHIVED"], ["edit", "bill"]),
+            s("VALIDATED", "done", "success", ["READONLY", "ARCHIVED"], ["edit", "bill", "print"]),
+            s("READONLY", "closed", "muted", ["ARCHIVED"], ["print"]),
+            s("ARCHIVED", "closed", "muted", ["ACTIVE"], ["reopen", "hidden"]),
+        ],
+    },
+    patient_list: {
+        id: "patient_list",
+        source: "Patients page tabs · patient_repo::filter_counts / patient-status-filter.ts",
+        initial: "NEW_PATIENT",
+        derived: true,
+        states: [
+            s("NEW_PATIENT", "todo", "info", ["IN_TREATMENT"]),
+            s("IN_TREATMENT", "active", "progress", ["CLOSED"]),
+            s("CLOSED", "done", "success"),
+            s("INVOICE_OPEN", "attention", "warning"),
+            s("CHART_OPEN", "attention", "info"),
         ],
     },
     patient_chart: {
         id: "patient_chart",
-        source: "patient_chart.status (config/enums.yaml · ChartStatus)",
+        source: "patient_chart.status · workflow_transitions.rs (forward / validate / decline)",
         initial: "DRAFT",
         states: [
-            s("DRAFT", "todo", "neutral", ["IN_PROGRESS", "VALIDATED", "DECLINED"]),
-            s("IN_PROGRESS", "review", "progress", ["VALIDATED", "DECLINED"]),
-            s("DECLINED", "attention", "danger", ["IN_PROGRESS", "VALIDATED"]),
-            s("VALIDATED", "done", "success", ["IN_PROGRESS"]),
-            s("READONLY", "closed", "muted"),
+            s("DRAFT", "todo", "neutral", ["IN_PROGRESS", "VALIDATED", "DECLINED"], ["edit"]),
+            s("IN_PROGRESS", "review", "progress", ["VALIDATED", "DECLINED"], ["edit"]),
+            s("DECLINED", "attention", "danger", ["DRAFT", "IN_PROGRESS"], ["edit"]),
+            s("VALIDATED", "done", "success", ["IN_PROGRESS"], ["bill", "print"]),
+            s("READONLY", "closed", "muted", [], ["print"]),
         ],
     },
-    payment: {
-        id: "payment",
-        source: "payment.status (config/enums.yaml · PaymentStatus)",
-        initial: "OUTSTANDING",
+    treatment: {
+        id: "treatment",
+        source: "treatment.treatment_status",
+        initial: "PLANNED",
         states: [
-            s("OUTSTANDING", "todo", "warning", ["PARTIALLY_PAID", "PAID", "CANCELLED"]),
-            s("PARTIALLY_PAID", "active", "progress", ["PAID", "CANCELLED"]),
-            s("PAID", "done", "success"),
-            s("CANCELLED", "closed", "muted"),
-        ],
-    },
-    purchase_order: {
-        id: "purchase_order",
-        source: "purchase_order.status (config/enums.yaml · OrderStatus)",
-        initial: "OPEN",
-        states: [
-            s("OPEN", "todo", "info", ["IN_TRANSIT", "DELIVERED", "CANCELLED"]),
-            s("IN_TRANSIT", "active", "progress", ["DELIVERED", "CANCELLED"]),
-            s("DELIVERED", "done", "success"),
-            s("CANCELLED", "closed", "muted"),
-        ],
-        flags: ["overdue"],
-    },
-    practice_task: {
-        id: "practice_task",
-        source: "practice_task.status (workflow_transitions.rs · TASK_STATUSES)",
-        initial: "OPEN",
-        states: [
-            s("BACK", "attention", "danger", ["OPEN", "IN_PROGRESS"]),
-            s("OPEN", "todo", "warning", ["IN_PROGRESS"]),
-            s("IN_PROGRESS", "active", "progress", ["DONE_RECEPTION", "OPEN"]),
-            s("DONE_RECEPTION", "review", "info", ["VALIDATED", "BACK"]),
-            s("VALIDATED", "done", "success"),
-        ],
-    },
-    practice_ticket: {
-        id: "practice_ticket",
-        source: "practice_ticket.status (workflow_transitions.rs)",
-        initial: "OPEN",
-        states: [
-            s("OPEN", "todo", "warning", ["IN_PROGRESS", "DONE"]),
-            s("IN_PROGRESS", "active", "progress", ["DONE", "OPEN"]),
-            s("DONE", "done", "success"),
-        ],
-    },
-    feedback: {
-        id: "feedback",
-        source: "feedback.status (config/enums.yaml · FeedbackStatus)",
-        initial: "OPEN",
-        states: [
-            s("OPEN", "todo", "warning", ["IN_PROGRESS", "DONE"]),
-            s("IN_PROGRESS", "active", "progress", ["DONE", "OPEN"]),
-            s("DONE", "done", "success"),
+            s("PLANNED", "todo", "info", ["IN_PROGRESS", "COMPLETED", "CANCELLED"], ["edit", "delete", "reschedule"]),
+            s("IN_PROGRESS", "active", "progress", ["COMPLETED", "DISCONTINUED"], ["edit"]),
+            s("COMPLETED", "done", "success", [], ["bill", "print"]),
+            s("DISCONTINUED", "closed", "warning", [], ["bill", "print"]),
+            s("CANCELLED", "closed", "muted", [], []),
         ],
     },
     prescription: {
         id: "prescription",
         source: "prescription.status",
-        initial: "DRAFT",
-        states: [s("DRAFT", "todo", "neutral", ["ISSUED"]), s("ISSUED", "done", "success")],
+        initial: "ISSUED",
+        states: [
+            s("DRAFT", "todo", "neutral", ["ISSUED"], ["edit", "delete"]),
+            s("ISSUED", "done", "success", ["REPLACED"], ["edit", "print"]),
+            s("REPLACED", "closed", "muted", [], ["hidden"]),
+        ],
+    },
+    certificate: {
+        id: "certificate",
+        source: "issued_document.status (certificates, letters, invoices)",
+        initial: "ISSUED",
+        states: [s("ISSUED", "done", "success", ["CANCELLED"], ["print"]), s("CANCELLED", "closed", "muted", [], ["print"])],
+    },
+    sick_leave: {
+        id: "sick_leave",
+        source: "sick_leave_certificate.status",
+        initial: "ACTIVE",
+        states: [s("ACTIVE", "active", "progress", ["ENDED"], ["edit", "print"]), s("ENDED", "closed", "muted", [], ["print"])],
+    },
+    payment: {
+        id: "payment",
+        source: "payment.status · domain/status.rs PaymentStatus",
+        initial: "OUTSTANDING",
+        states: [
+            s("OUTSTANDING", "todo", "warning", ["PARTIALLY_PAID", "PAID", "CANCELLED"], ["edit", "delete", "remind"]),
+            s("PARTIALLY_PAID", "active", "progress", ["PAID", "CANCELLED"], ["edit", "delete", "remind"]),
+            s("PAID", "done", "success", [], ["print"]),
+            s("CANCELLED", "closed", "muted", [], []),
+        ],
+    },
+    invoice: {
+        id: "invoice",
+        source: "receivables.rs status_row (derived from linked payments and due date)",
+        initial: "OPEN",
+        derived: true,
+        states: [
+            s("OVERDUE", "attention", "danger", ["PAID", "CANCELLED"], ["remind", "print"]),
+            s("UNLINKED", "attention", "warning", [], ["print"]),
+            s("OPEN", "todo", "info", ["PARTIAL", "PAID", "OVERDUE", "CANCELLED"], ["print"]),
+            s("PARTIAL", "active", "progress", ["PAID", "OVERDUE", "CANCELLED"], ["print"]),
+            s("PAID", "done", "success", [], ["print"]),
+            s("CANCELLED", "closed", "muted", [], ["print"]),
+            s("CANCELLATION", "closed", "muted", [], ["print"]),
+            s("LEGACY", "closed", "muted", [], ["print"]),
+        ],
+    },
+    purchase_order: {
+        id: "purchase_order",
+        source: "purchase_order.status · workflow_transitions.rs",
+        initial: "OPEN",
+        states: [
+            s("OPEN", "todo", "info", ["IN_TRANSIT", "DELIVERED", "CANCELLED"], ["edit", "delete"]),
+            s("IN_TRANSIT", "active", "progress", ["DELIVERED", "CANCELLED"], ["edit"]),
+            s("DELIVERED", "done", "success", [], ["print"]),
+            s("CANCELLED", "closed", "muted", [], []),
+        ],
+        flags: ["overdue"],
+    },
+    contract: {
+        id: "contract",
+        source: "Administration → Contracts (activation + start/end dates)",
+        initial: "ACTIVE",
+        states: [
+            s("NOT_STARTED", "todo", "info", ["ACTIVE", "INACTIVE"], ["edit", "delete"]),
+            s("ACTIVE", "active", "success", ["INACTIVE", "EXPIRED"], ["edit"]),
+            s("INACTIVE", "closed", "warning", ["ACTIVE"], ["edit", "reopen", "delete"]),
+            s("EXPIRED", "closed", "muted", ["ACTIVE"], ["edit", "reopen"]),
+        ],
+    },
+    catalog_item: {
+        id: "catalog_item",
+        source: "product.active / treatment_catalog.active",
+        initial: "ACTIVE",
+        states: [s("ACTIVE", "active", "success", ["INACTIVE"], ["edit", "bill"]), s("INACTIVE", "closed", "muted", ["ACTIVE"], ["edit", "reopen", "hidden"])],
+    },
+    day_close: {
+        id: "day_close",
+        source: "day_close_protocol",
+        initial: "FINAL",
+        states: [s("FINAL", "done", "success", ["CORRECTED"], ["print"]), s("CORRECTED", "closed", "info", [], ["print"])],
+    },
+    practice_task: {
+        id: "practice_task",
+        source: "practice_task.status · workflow_transitions.rs (verify + simple track)",
+        initial: "OPEN",
+        states: [
+            s("BACK", "attention", "danger", ["OPEN", "IN_PROGRESS"], ["edit"]),
+            s("OPEN", "todo", "warning", ["IN_PROGRESS", "VIEWED"], ["edit", "delete"]),
+            s("VIEWED", "active", "progress", ["DONE", "OPEN"], ["edit"]),
+            s("IN_PROGRESS", "active", "progress", ["DONE_RECEPTION", "OPEN"], ["edit"]),
+            s("DONE_RECEPTION", "review", "info", ["VALIDATED", "BACK"], []),
+            s("VALIDATED", "done", "success", [], []),
+            s("DONE", "done", "success", [], []),
+        ],
+    },
+    practice_ticket: {
+        id: "practice_ticket",
+        source: "practice_ticket.status (legacy tickets)",
+        initial: "OPEN",
+        states: [
+            s("OPEN", "todo", "warning", ["IN_PROGRESS", "DONE"], ["edit"]),
+            s("IN_PROGRESS", "active", "progress", ["DONE", "OPEN"], ["edit"]),
+            s("DONE", "done", "success", [], []),
+        ],
+    },
+    feedback: {
+        id: "feedback",
+        source: "feedback.status",
+        initial: "OPEN",
+        states: [
+            s("OPEN", "todo", "warning", ["IN_PROGRESS", "DONE"], ["edit"]),
+            s("IN_PROGRESS", "active", "progress", ["DONE", "OPEN"], ["edit"]),
+            s("DONE", "done", "success", [], []),
+        ],
     },
     device_trust: {
         id: "device_trust",
-        source: "device_session.trust_status",
+        source: "device_session trust flags",
         initial: "UNCHECKED",
         states: [
-            s("SUSPECTED", "attention", "danger", ["TRUSTED", "UNCHECKED"]),
-            s("UNCHECKED", "todo", "warning", ["TRUSTED", "SUSPECTED"]),
-            s("TRUSTED", "done", "success", ["SUSPECTED"]),
+            s("SUSPECTED", "attention", "danger", ["TRUSTED", "UNCHECKED"], ["delete"]),
+            s("UNCHECKED", "todo", "warning", ["TRUSTED", "SUSPECTED"], ["delete"]),
+            s("TRUSTED", "done", "success", ["SUSPECTED"], ["delete"]),
+        ],
+    },
+    device_provisioning: {
+        id: "device_provisioning",
+        source: "provisioning_state.device_status",
+        initial: "PENDING",
+        states: [
+            s("PENDING", "todo", "warning", ["ACTIVE", "BLOCKED"]),
+            s("ACTIVE", "done", "success", ["REVOKED", "BLOCKED"]),
+            s("BLOCKED", "attention", "danger", ["ACTIVE"], ["reopen"]),
+            s("REVOKED", "closed", "muted"),
         ],
     },
     pairing: {
         id: "pairing",
-        source: "pairing_request.status (sync_tables.rs CHECK)",
+        source: "pairing_request.status",
         initial: "PENDING",
         states: [
             s("PENDING", "todo", "warning", ["ACCEPTED", "REJECTED"]),
@@ -183,12 +298,23 @@ export const STATUS_REGISTRY: Readonly<Record<StatusEntityId, StatusEntity>> = {
     },
     work_session: {
         id: "work_session",
-        source: "work_time_session.status (rust_only.rs CHECK)",
+        source: "work_time_session.status",
         initial: "RUNNING",
         states: [
-            s("RUNNING", "active", "success", ["PAUSED", "ENDED"]),
-            s("PAUSED", "todo", "warning", ["RUNNING", "ENDED"]),
-            s("ENDED", "closed", "muted"),
+            s("RUNNING", "active", "success", ["PAUSED", "ENDED"], ["edit"]),
+            s("PAUSED", "todo", "warning", ["RUNNING", "ENDED"], ["edit"]),
+            s("ENDED", "closed", "muted", [], ["edit"]),
+        ],
+    },
+    connection: {
+        id: "connection",
+        source: "Top bar connectivity + replica outbox (connectivity.controller.ts, sync-status-badge.tsx)",
+        initial: "ONLINE",
+        derived: true,
+        states: [
+            s("OFFLINE", "attention", "danger", ["ONLINE"]),
+            s("SYNC_PENDING", "active", "warning", ["ONLINE", "OFFLINE"]),
+            s("ONLINE", "done", "success", ["SYNC_PENDING", "OFFLINE"]),
         ],
     },
 };
@@ -202,6 +328,8 @@ const LEGACY_WIRE: Readonly<Record<string, string>> = {
     BESTAETIGT: "CONFIRMED",
     ABGESCHLOSSEN: "COMPLETED",
     STORNIERT: "CANCELLED",
+    ABGEBROCHEN: "DISCONTINUED",
+    DONE_TREATMENT: "COMPLETED",
 };
 
 export function normalizeStatusWire(raw: string | null | undefined): string {
@@ -214,12 +342,10 @@ export function statusDefinition(entity: StatusEntityId, wire: string | null | u
     return STATUS_REGISTRY[entity].states.find((st) => st.wire === w) ?? null;
 }
 
-/** i18n key for the short label, e.g. `status.appointment.no_show.label`. */
 export function statusLabelKey(entity: StatusEntityId, wire: string): string {
     return `status.${entity}.${normalizeStatusWire(wire).toLowerCase()}.label`;
 }
 
-/** i18n key for the one-sentence meaning (tooltips, status manual). */
 export function statusDescriptionKey(entity: StatusEntityId, wire: string): string {
     return `status.${entity}.${normalizeStatusWire(wire).toLowerCase()}.description`;
 }
@@ -228,7 +354,15 @@ export function statusFlagLabelKey(entity: StatusEntityId, flag: string): string
     return `status.${entity}.flag.${flag}`;
 }
 
-/** Can the item move from `from` to `to`? (same → same is a no-op and allowed). */
+export function statusCapabilityLabelKey(cap: StatusCapability): string {
+    return `status.capability.${cap}`;
+}
+
+/** Does the app allow `cap` while the item is in `wire`? Unknown statuses allow nothing. */
+export function statusAllows(entity: StatusEntityId, wire: string | null | undefined, cap: StatusCapability): boolean {
+    return statusDefinition(entity, wire)?.can.includes(cap) ?? false;
+}
+
 export function canTransition(entity: StatusEntityId, from: string, to: string): boolean {
     const a = normalizeStatusWire(from);
     const b = normalizeStatusWire(to);
@@ -245,7 +379,6 @@ export function nextStatuses(entity: StatusEntityId, current: string): string[] 
     return [cur, ...order.filter((w) => reachable.has(w))];
 }
 
-/** Sort rank: phase first, then registry order within the phase. Unknown statuses sink to the end. */
 export function statusRank(entity: StatusEntityId, wire: string | null | undefined): number {
     const def = statusDefinition(entity, wire);
     if (!def) return STATUS_PHASES.length * 100;
@@ -254,13 +387,11 @@ export function statusRank(entity: StatusEntityId, wire: string | null | undefin
     return phase * 100 + idx;
 }
 
-/** Does this status still need someone to act? (attention / todo / active / review) */
 export function statusIsOpen(entity: StatusEntityId, wire: string | null | undefined): boolean {
     const def = statusDefinition(entity, wire);
     return def != null && def.phase !== "done" && def.phase !== "closed";
 }
 
-/** Legacy pill colour class used across tables (`.pill.<class>`). */
 export function statusPillClass(tone: StatusTone): string {
     switch (tone) {
         case "success":
@@ -278,7 +409,6 @@ export function statusPillClass(tone: StatusTone): string {
     }
 }
 
-/** Badge variant for `<Badge>` (packages/ui). */
 export function statusBadgeVariant(tone: StatusTone): "default" | "primary" | "warning" | "success" | "error" {
     switch (tone) {
         case "success":

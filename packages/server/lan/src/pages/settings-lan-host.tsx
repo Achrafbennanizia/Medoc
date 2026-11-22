@@ -1,14 +1,9 @@
-import { useCallback, useEffect, useState, type ChangeEvent, type ReactNode } from "react";
-import {
-    lanServerGetConfig,
-    lanServerScan,
-    lanServerSetConfig,
-    lanServerStart,
-    lanServerStatus,
-    lanServerStop,
-    type LanDiscoveryHitDto,
-    type LanServerConfigV1,
-    type LanServerStatusPayload,
+import { useCallback, useEffect, useState, type ChangeEvent } from "react";
+import { lanSystem } from "@/systems/lan/adapters/tauri-lan.adapter";
+import type {
+    LanDiscoveryHitDto,
+    LanServerConfigV1,
+    LanServerStatusPayload,
 } from "@/systems/practice-host/controllers/settings-page.controller";
 import {
     EMPTY_LAN_CLIENT_CONFIG,
@@ -19,10 +14,12 @@ import {
 } from "@/systems/lan/lib/lan-client-config";
 import { resetPracticeTransportCache } from "@/systems/practice-host/adapters/practice-transport";
 import { Button } from "@/views/components/ui/button";
+import { DataTable } from "@/views/components/ui/data-table";
 import { Input } from "@/views/components/ui/input";
 import { useToastStore } from "@/views/components/ui/toast-store";
 import { useT } from "@/lib/i18n";
-import { errorMessage, formatTpl } from "@/lib/utils";
+import { errorMessage, formatTpl, masterDeviceUnreachable } from "@/lib/utils";
+import { Mono } from "@/views/components/ui/mono";
 
 /** Inline switch matching Settings — duplicated minimally to avoid exporting private helper from settings.tsx */
 function Switch({
@@ -57,12 +54,6 @@ const DEFAULT_CFG: LanServerConfigV1 = {
     autoStartWithApp: false,
 };
 
-function Mono({ children }: { children: ReactNode }) {
-    return (
-        <code style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 12 }}>{children}</code>
-    );
-}
-
 export function SettingsLanHostSection({ embedded = false }: { embedded?: boolean } = {}) {
     const toast = useToastStore((s) => s.add);
     const t = useT();
@@ -77,7 +68,7 @@ export function SettingsLanHostSection({ embedded = false }: { embedded?: boolea
 
     const refresh = useCallback(async () => {
         try {
-            const [c, s] = await Promise.all([lanServerGetConfig(), lanServerStatus()]);
+            const [c, s] = await Promise.all([lanSystem.getConfig(), lanSystem.status()]);
             setCfg({
                 schemaVersion: c.schemaVersion ?? 1,
                 bindAddr: c.bindAddr ?? DEFAULT_CFG.bindAddr,
@@ -105,7 +96,7 @@ export function SettingsLanHostSection({ embedded = false }: { embedded?: boolea
     const saveCfg = async () => {
         setBusy(true);
         try {
-            await lanServerSetConfig(cfg);
+            await lanSystem.setConfig(cfg);
             toast(t("page.lan.host.toast.config_saved"), "success");
             await refresh();
         } catch (e) {
@@ -118,11 +109,21 @@ export function SettingsLanHostSection({ embedded = false }: { embedded?: boolea
     const start = async () => {
         setBusy(true);
         try {
-            const s = await lanServerStart();
+            const s = await lanSystem.start();
             setStatus(s);
             toast(t("page.lan.host.toast.started"), "success");
         } catch (e) {
-            toast(formatTpl(t("page.lan.host.toast.start_err"), { error: errorMessage(e) }), "error");
+            const raw = errorMessage(e);
+            const lower = raw.toLowerCase();
+            if (lower.includes("lan listen is disabled") || lower.includes("do not run a lan server")) {
+                return;
+            }
+            toast(
+                masterDeviceUnreachable(raw)
+                    ? t("page.lan.cluster_join.toast.connect_failed")
+                    : formatTpl(t("page.lan.host.toast.start_err"), { error: raw }),
+                "error",
+            );
         } finally {
             setBusy(false);
         }
@@ -131,7 +132,7 @@ export function SettingsLanHostSection({ embedded = false }: { embedded?: boolea
     const stop = async () => {
         setBusy(true);
         try {
-            await lanServerStop();
+            await lanSystem.stop();
             await refresh();
             toast(t("page.lan.host.toast.stopped"), "success");
         } catch (e) {
@@ -144,7 +145,7 @@ export function SettingsLanHostSection({ embedded = false }: { embedded?: boolea
     const scan = async () => {
         setScanBusy(true);
         try {
-            const h = await lanServerScan(scanFilter.trim() || undefined);
+            const h = await lanSystem.scan(scanFilter.trim() || undefined);
             setHits(h);
             toast(
                 h.length
@@ -205,7 +206,7 @@ export function SettingsLanHostSection({ embedded = false }: { embedded?: boolea
                             : t("page.lan.host.status_stopped")}
                     </div>
                     {running && status?.tlsCertSha256 ? (
-                        <div className="card-sub" style={{ marginTop: 8 }}>
+                        <div className="card-sub" style={{ marginTop: "var(--space-2)" }}>
                             <b>{t("page.lan.host.cert_sha256")}</b> <Mono>{status.tlsCertSha256}</Mono>
                         </div>
                     ) : null}
@@ -219,7 +220,7 @@ export function SettingsLanHostSection({ embedded = false }: { embedded?: boolea
                         </ul>
                     ) : null}
                 </div>
-                <div className="row" style={{ gap: 8 }}>
+                <div className="row" style={{ gap: "var(--space-2)" }}>
                     <Button type="button" variant="secondary" loading={busy} disabled={busy || running} onClick={() => void start()}>
                         {t("page.lan.host.server_start")}
                     </Button>
@@ -229,7 +230,7 @@ export function SettingsLanHostSection({ embedded = false }: { embedded?: boolea
                 </div>
             </div>
 
-            <div className="card-head" style={{ marginTop: 8 }}>
+            <div className="card-head" style={{ marginTop: "var(--space-2)" }}>
                 <div>
                     <div className="card-title">{t("page.lan.host.config_section")}</div>
                     <div className="card-sub">
@@ -237,7 +238,7 @@ export function SettingsLanHostSection({ embedded = false }: { embedded?: boolea
                     </div>
                 </div>
             </div>
-            <div className="card-pad" style={{ display: "grid", gap: 12, maxWidth: 520 }}>
+            <div className="card-pad" style={{ display: "grid", gap: "var(--space-3)", maxWidth: 520 }}>
                 <Input
                     id="lan-bind"
                     label={t("page.lan.host.label_bind")}
@@ -282,13 +283,13 @@ export function SettingsLanHostSection({ embedded = false }: { embedded?: boolea
                 </Button>
             </div>
 
-            <div className="card-head" style={{ marginTop: 12 }}>
+            <div className="card-head" style={{ marginTop: "var(--space-3)" }}>
                 <div>
                     <div className="card-title">{t("page.lan.host.scan_section")}</div>
                     <div className="card-sub">{t("page.lan.host.scan_hint")}</div>
                 </div>
             </div>
-            <div className="card-pad" style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "flex-end" }}>
+            <div className="card-pad" style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-3)", alignItems: "flex-end" }}>
                 <div style={{ flex: "1 1 220px" }}>
                     <Input
                         id="lan-scan-filter"
@@ -304,40 +305,33 @@ export function SettingsLanHostSection({ embedded = false }: { embedded?: boolea
             </div>
             {hits.length ? (
                 <div className="card-pad" style={{ paddingTop: 0 }}>
-                    <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
-                        <thead>
-                            <tr>
-                                <th align="left">{t("page.lan.host.col_source")}</th>
-                                <th align="left">{t("page.lan.host.col_https")}</th>
-                                <th align="left">{t("page.lan.host.col_label")}</th>
-                                <th align="left">{t("page.lan.host.col_version")}</th>
-                                <th align="left" />
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {hits.map((h) => (
-                                <tr key={`${h.instanceId}-${h.fromAddr}`}>
-                                    <td>{h.fromAddr}</td>
-                                    <td>{h.httpPort}</td>
-                                    <td>{h.label}</td>
-                                    <td>{h.version}</td>
-                                    <td>
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            onClick={() => applyDiscoveryHit(h)}
-                                        >
-                                            {t("page.lan.host.scan_as_client")}
-                                        </Button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                    <DataTable
+                        label={t("page.lan.host.scan_btn")}
+                        rows={hits}
+                        getRowId={(h) => `${h.instanceId}-${h.fromAddr}`}
+                        columns={[
+                            { id: "source", header: t("page.lan.host.col_source"), width: "28%", truncate: true, text: (h) => h.fromAddr, cell: (h) => <span className="tbl-col-mono">{h.fromAddr}</span> },
+                            { id: "https", header: t("page.lan.host.col_https"), width: "6rem", numeric: true, cell: (h) => h.httpPort },
+                            { id: "label", header: t("page.lan.host.col_label"), truncate: true, text: (h) => h.label ?? "", cell: (h) => h.label },
+                            { id: "version", header: t("page.lan.host.col_version"), width: "6.5rem", hideBelow: "sm", cell: (h) => h.version },
+                            {
+                                id: "action",
+                                header: t("page.lan.host.scan_as_client"),
+                                srOnlyHeader: true,
+                                width: "11rem",
+                                align: "end",
+                                cell: (h) => (
+                                    <Button type="button" variant="ghost" size="sm" onClick={() => applyDiscoveryHit(h)}>
+                                        {t("page.lan.host.scan_as_client")}
+                                    </Button>
+                                ),
+                            },
+                        ]}
+                    />
                 </div>
             ) : null}
 
-            <div className="card-head" style={{ marginTop: 16 }}>
+            <div className="card-head" style={{ marginTop: "var(--space-4)" }}>
                 <div>
                     <div className="card-title">{t("page.lan.host.client_section")}</div>
                     <div className="card-sub">
@@ -351,7 +345,7 @@ export function SettingsLanHostSection({ embedded = false }: { embedded?: boolea
                     </div>
                 </div>
             </div>
-            <div className="card-pad" style={{ display: "grid", gap: 12, maxWidth: 520 }}>
+            <div className="card-pad" style={{ display: "grid", gap: "var(--space-3)", maxWidth: 520 }}>
                 <div className="settings-row">
                     <div>
                         <b>{t("page.lan.host.client_mode")}</b>
@@ -382,7 +376,7 @@ export function SettingsLanHostSection({ embedded = false }: { embedded?: boolea
                     }
                     placeholder={t("page.lan.host.client_jwt_ph")}
                 />
-                <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                <div className="row" style={{ gap: "var(--space-2)", flexWrap: "wrap" }}>
                     <Button type="button" variant="secondary" onClick={() => setShowLanToken((version) => !version)}>
                         {showLanToken ? t("page.lan.host.hide_token") : t("page.lan.host.show_token")}
                     </Button>
@@ -395,14 +389,14 @@ export function SettingsLanHostSection({ embedded = false }: { embedded?: boolea
                 </p>
             </div>
 
-            <div className="settings-highlight-card" style={{ marginTop: 14 }}>
+            <div className="settings-highlight-card" style={{ marginTop: "var(--space-4)" }}>
                 <div className="card-title" style={{ fontSize: 14 }}>
                     {t("page.lan.host.api_headline")}
                 </div>
-                <p className="card-sub" style={{ marginTop: 8, lineHeight: 1.55 }}>
+                <p className="card-sub" style={{ marginTop: "var(--space-2)", lineHeight: 1.55 }}>
                     {t("page.lan.host.api_routes")}
                 </p>
-                <p className="card-sub" style={{ marginTop: 8, lineHeight: 1.55 }}>
+                <p className="card-sub" style={{ marginTop: "var(--space-2)", lineHeight: 1.55 }}>
                     {t("page.lan.host.api_headless")}
                 </p>
             </div>
@@ -420,7 +414,7 @@ export function SettingsLanHostSection({ embedded = false }: { embedded?: boolea
 
     return (
         <>
-            <div className="card-head" style={{ marginTop: 16 }}>
+            <div className="card-head" style={{ marginTop: "var(--space-4)" }}>
                 <div>{heading}</div>
             </div>
             {body}

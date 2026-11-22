@@ -146,7 +146,8 @@ export type ChartAttachmentsPanelProps = {
     onRequestValidate: (attachmentId: string, label: string) => void;
     onRevokeValidation: (attachmentId: string, shortLabel: string) => void;
     formatAddedAt: (iso: string) => string;
-    onScannerClick: () => void;
+    /** F143: omitted while the scanner integration is unavailable; the button is then hidden. */
+    onScannerClick?: () => void;
 };
 
 export function ChartAttachmentsPanel({
@@ -203,7 +204,7 @@ export function ChartAttachmentsPanel({
     };
 
     return (
-        <div className="chart-attachments-wrap col" style={{ gap: 16 }}>
+        <div className="chart-attachments-wrap col" style={{ gap: "var(--space-4)" }}>
             <CardHeader title={panelTitle} subtitle={subtitle} />
             <input
                 id={fileInputId}
@@ -236,15 +237,15 @@ export function ChartAttachmentsPanel({
                 onDragLeave={() => setDragOver(false)}
                 onDrop={canManageAttachments ? onDrop : (e) => { e.preventDefault(); setDragOver(false); }}
             >
-                <div className="chart-attachments-dropzone__inner col" style={{ alignItems: "center", gap: 12 }}>
+                <div className="chart-attachments-dropzone__inner col" style={{ alignItems: "center", gap: "var(--space-3)" }}>
                     <UploadCircleIcon size={44} />
-                    <div className="col" style={{ alignItems: "center", gap: 4, textAlign: "center" }}>
+                    <div className="col" style={{ alignItems: "center", gap: "var(--space-1)", textAlign: "center" }}>
                         <span className="chart-attachments-dropzone__title">{t("chart.attachments.upload_title")}</span>
                         <span className="chart-attachments-dropzone__hint">
                             {t("chart.attachments.upload_hint")}
                         </span>
                     </div>
-                    <div className="row" style={{ gap: 10, flexWrap: "wrap", justifyContent: "center" }}>
+                    <div className="row" style={{ gap: "var(--space-3)", flexWrap: "wrap", justifyContent: "center" }}>
                         <Button
                             type="button"
                             size="sm"
@@ -263,9 +264,11 @@ export function ChartAttachmentsPanel({
                         >
                             <PlusIcon size={14} /> {t("chart.attachments.photo_camera")}
                         </Button>
-                        <Button type="button" size="sm" variant="secondary" disabled={!canManageAttachments} onClick={onScannerClick}>
-                            <BoltIcon size={14} /> {t("chart.attachments.scanner")}
-                        </Button>
+                        {onScannerClick ? (
+                            <Button type="button" size="sm" variant="secondary" disabled={!canManageAttachments} onClick={onScannerClick}>
+                                <BoltIcon size={14} /> {t("chart.attachments.scanner")}
+                            </Button>
+                        ) : null}
                     </div>
                 </div>
             </div>
@@ -399,7 +402,7 @@ export function ChartAttachmentsPanel({
                     </>
                 }
             >
-                <div className="col" style={{ gap: 8 }}>
+                <div className="col" style={{ gap: "var(--space-2)" }}>
                     <label className="text-caption text-on-surface-variant" htmlFor="attachment-kind-select-panel">
                         {t("chart.attachments.category")}
                     </label>

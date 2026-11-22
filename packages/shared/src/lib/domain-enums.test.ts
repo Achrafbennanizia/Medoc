@@ -1,11 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-    CHART_STATUS_VALUES,
     ORDER_STATUS_VALUES,
     FEEDBACK_CATEGORY_VALUES,
     FEEDBACK_STATUS_VALUES,
     SEX_VALUES,
-    PATIENT_STATUS_VALUES,
     ROLE_VALUES,
     APPOINTMENT_KIND_VALUES,
     APPOINTMENT_STATUS_VALUES,
@@ -13,10 +11,8 @@ import {
     PAYMENT_STATUS_VALUES,
 } from "@/models/types";
 import {
-    ChartStatusSchema,
     FeedbackCategorySchema,
     SexSchema,
-    PatientStatusSchema,
     RoleSchema,
     AppointmentKindSchema,
     AppointmentStatusSchema,
@@ -51,18 +47,6 @@ describe("canonical domain enums ↔ Zod", () => {
         expect(APPOINTMENT_STATUS_VALUES).toContain("NO_SHOW");
         expect(AppointmentStatusSchema.parse("NO_SHOW")).toBe("NO_SHOW");
         expect(AppointmentStatusSchema.safeParse("NICHTERSCHIENEN").success).toBe(false);
-    });
-
-    it("PatientStatus", () => {
-        for (const version of PATIENT_STATUS_VALUES) {
-            expect(PatientStatusSchema.parse(version)).toBe(version);
-        }
-    });
-
-    it("ChartStatus", () => {
-        for (const version of CHART_STATUS_VALUES) {
-            expect(ChartStatusSchema.parse(version)).toBe(version);
-        }
     });
 
     it("PaymentMethod (INVOICE not VERSICHERUNG)", () => {

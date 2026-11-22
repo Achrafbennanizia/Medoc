@@ -1,0 +1,63 @@
+/* From styles/features/finance-payments.css (cascade position kept by its import there). */
+@layer components {
+  .finance-tx-v2 {
+    font-size: 11.5px;
+    color: var(--fg-3);
+    margin-top: 2px;
+  }
+  /* Finance transactions — % columns that always fit the card (no min-width scroller) */
+  .tbl.tbl-finance-tx {
+    table-layout: fixed;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+  .fin-tx-col-date { width: 12%; }
+  .fin-tx-col-vorgang { width: 34%; }
+  .fin-tx-col-gegenpartei { width: 20%; }
+  .fin-tx-col-amount { width: 14%; }
+  .fin-tx-col-status { width: 20%; }
+  .fin-tx-row--clickable,
+  .tbl.tbl-finance-tx tbody tr.fin-tx-row {
+    cursor: pointer;
+  }
+  .tbl.tbl-finance-tx tbody tr.fin-tx-row--selected td {
+    background: color-mix(in oklab, var(--accent) 6%, transparent);
+  }
+  .tbl.tbl-finance-tx .fin-tx-td-date {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    font-size: 13px;
+  }
+  .tbl.tbl-finance-tx .fin-tx-td-vorgang,
+  .tbl.tbl-finance-tx .fin-tx-td-gegenpartei {
+    min-width: 0;
+    overflow: hidden;
+  }
+  .tbl.tbl-finance-tx .fin-tx-td-gegenpartei .payment-td-clip {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .tbl.tbl-finance-tx .fin-tx-td-status {
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .finance-tx-status-cell .ui-field-wrap {
+    margin-bottom: 0;
+    width: 100%;
+    min-width: 0;
+  }
+  .finance-tx-status-cell .select-wrap {
+    width: 100%;
+    max-width: 100%;
+  }
+  .finance-tx-status-cell .finance-payment-status-select.select-trigger {
+    min-height: 36px;
+    padding-top: 7px;
+    padding-bottom: 7px;
+    font-size: 13px;
+    width: 100%;
+  }
+}

@@ -1,0 +1,7 @@
+/* From styles/features/settings.css (cascade position kept by its import there). */
+@layer components {
+  .settings-system-block--deployment {
+    border-top: none;
+    padding-top: var(--space-3);
+  }
+}

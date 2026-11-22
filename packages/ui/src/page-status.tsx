@@ -31,7 +31,7 @@ export function PageLoading({ label }: { label?: string }) {
     const text = label ?? t("common.loading");
     return (
         <div
-            style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "64px 20px", gap: 12, color: "var(--fg-3)" }}
+            style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "64px 20px", gap: "var(--space-3)", color: "var(--fg-3)" }}
             role="status"
             aria-live="polite"
             aria-busy="true"

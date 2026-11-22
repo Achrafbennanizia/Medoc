@@ -1,9 +1,11 @@
 import { type CSSProperties, type Dispatch, type SetStateAction, useMemo } from "react";
 import { addMonths, format, startOfWeek } from "date-fns";
-import type { Appointment } from "@/models/types";
+import type { Absence, Appointment } from "@/models/types";
+import { absenceCoversIso } from "@/lib/appointment-availability";
 import { useDateFnsLocale, useT, useTParams } from "@/lib/i18n";
 import type { PhysicianSummary } from "@/systems/practice-host/controllers/staff.controller";
 import type { PracticeWorkHoursConfig } from "@/lib/practice-planning";
+import { practiceTodayYmd } from "@/lib/practice-timezone";
 import {
     monthCalPatientLoadAccentHex,
     monthCalPatientLoadTier,
@@ -26,6 +28,7 @@ export type AppointmentMonthCalendarProps = {
     physicianToneMap: Map<string, AppointmentDoctorTone>;
     patientLoadSettings: MonthCalendarPatientLoadPrefs;
     practiceCfg: PracticeWorkHoursConfig;
+    absences: Absence[];
     onPickDay: (iso: string) => void;
 };
 
@@ -37,6 +40,7 @@ export function AppointmentMonthCalendar({
     physicianToneMap,
     patientLoadSettings,
     practiceCfg,
+    absences,
     onPickDay,
 }: AppointmentMonthCalendarProps) {
     const t = useT();
@@ -57,15 +61,16 @@ export function AppointmentMonthCalendar({
         () => ({ "--appointment-calendar-cols": columnCount } as CSSProperties),
         [columnCount],
     );
-    const todayIso = format(new Date(), "yyyy-MM-dd");
-    const byDate = appointments.reduce<Record<string, Appointment[]>>((acc, t) => {
-        (acc[t.date] ||= []).push(t);
+    const todayIso = practiceTodayYmd();
+    const countByDate = useMemo(() => {
+        const acc: Record<string, number> = {};
+        for (const row of appointments) acc[row.date] = (acc[row.date] ?? 0) + 1;
         return acc;
-    }, {});
+    }, [appointments]);
     return (
         <div className="card card-pad appointment-month-view appointment-month-view--workweek fade-up" style={gridStyle}>
             <div className="month-view-topbar">
-                <div className="row month-view-period appointment-nav-controls" dir="ltr" style={{ gap: 8, fontWeight: 600, alignItems: "center" }}>
+                <div className="row month-view-period appointment-nav-controls" dir="ltr" style={{ gap: "var(--space-2)", fontWeight: 600, alignItems: "center" }}>
                     <button type="button" className="icon-btn" aria-label={t("appointment.calendar.month_prev")} onClick={() => onMonthChange((o) => o - 1)}><ChevronLeftIcon size={16} /></button>
                     <span className="month-view-period-label">{format(first, "MMMM yyyy", { locale: dateFnsLocale })}</span>
                     <button type="button" className="icon-btn" aria-label={t("appointment.calendar.month_next")} onClick={() => onMonthChange((o) => o + 1)}><ChevronRightIcon size={16} /></button>
@@ -78,9 +83,8 @@ export function AppointmentMonthCalendar({
                 {monthCells.map((date, idx) => {
                     const inMonth = date.getMonth() === m;
                     const iso = format(date, "yyyy-MM-dd");
-                    const events = [...(byDate[iso] ?? [])].sort((a, b) => a.time.localeCompare(b.time));
                     const isTodayCell = iso === todayIso;
-                    const appointmentCount = events.length;
+                    const appointmentCount = countByDate[iso] ?? 0;
                     const loadTier = appointmentCount > 0 ? monthCalPatientLoadTier(appointmentCount, patientLoadSettings) : null;
                     const loadHex =
                         loadTier != null ? monthCalPatientLoadAccentHex(loadTier, patientLoadSettings) : null;
@@ -92,7 +96,7 @@ export function AppointmentMonthCalendar({
                             key={idx}
                             role="button"
                             tabIndex={0}
-                            className={`cal-cell ${inMonth ? "" : "dim"} ${isTodayCell ? "today" : ""}`}
+                            className={`cal-cell ${inMonth ? "" : "dim"} ${isTodayCell ? "today" : ""} ${inMonth && absenceCoversIso(absences, iso) ? "cal-cell--absence" : ""}`}
                             onClick={() => onPickDay(iso)}
                             onKeyDown={(e) => {
                                 if (e.key === "Enter" || e.key === " ") {

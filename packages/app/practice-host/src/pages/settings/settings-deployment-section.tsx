@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
     DEFAULT_SYNC_DEPLOYMENT,
     type DeploymentMode,
@@ -11,12 +11,8 @@ import {
     syncSetDeployment,
     type SyncStatusSnapshot,
 } from "@/systems/practice-host/controllers/sync.controller";
-import {
-    lanServerStart,
-    lanServerStatus,
-    lanServerStop,
-    type LanServerStatusPayload,
-} from "@/systems/practice-host/controllers/settings-page.controller";
+import { lanSystem } from "@/systems/lan/adapters/tauri-lan.adapter";
+import type { LanServerStatusPayload } from "@/systems/practice-host/controllers/settings-page.controller";
 import { pairingMasterInfo, type PairingMasterInfo } from "@/systems/practice-host/controllers/pairing.controller";
 import {
     acknowledgeAuditChainBreak,
@@ -32,6 +28,7 @@ import {
 } from "@/systems/practice-host/adapters/practice-transport";
 import { isLanClientActive, saveLanClientConfig } from "@/systems/lan/lib/lan-client-config";
 import { SettingsPairingInbox } from "@/systems/practice-host/pages/settings/settings-pairing-inbox";
+import { SettingsReconcileButton } from "./settings-reconcile-button";
 import {
     SYSTEM_LEGACY_DEPLOYMENT_MODES_ENABLED,
     SYSTEM_MESH_SYNC_ENABLED,
@@ -40,10 +37,11 @@ import {
 import { Button } from "@/views/components/ui/button";
 import { DismissibleNotice } from "@/views/components/ui/dismissible-notice";
 import { Input, Select } from "@/views/components/ui/input";
-import { errorMessage } from "@/lib/utils";
+import { errorMessage, masterDeviceUnreachable } from "@/lib/utils";
 import { useReplicaSyncStatusStore } from "@/models/store/replica-sync-status-store";
 import { useToastStore } from "@/views/components/ui/toast-store";
 import { useT, useTParams } from "@/lib/i18n";
+import { Mono } from "@/views/components/ui/mono";
 
 const MODE_OPTIONS = (t: (key: string) => string): { value: DeploymentMode; label: string; hint: string }[] => [
     {
@@ -76,12 +74,9 @@ const ROLE_OPTIONS = (t: (key: string) => string): { value: DeviceRole; label: s
     },
 ];
 
-function Mono({ children }: { children: ReactNode }) {
-    return (
-        <code style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 12, wordBreak: "break-all" }}>
-            {children}
-        </code>
-    );
+function lanHostBlocked(message: string): boolean {
+    const lower = message.toLowerCase();
+    return lower.includes("lan listen is disabled") || lower.includes("do not run a lan server");
 }
 
 function ServerlessMasterLanCompact() {
@@ -89,11 +84,12 @@ function ServerlessMasterLanCompact() {
     const t = useT();
     const tp = useTParams();
     const [status, setStatus] = useState<LanServerStatusPayload | null>(null);
+    const [hostBlocked, setHostBlocked] = useState(false);
     const [busy, setBusy] = useState(false);
 
     const refresh = useCallback(async () => {
         try {
-            setStatus(await lanServerStatus());
+            setStatus(await lanSystem.status());
         } catch (e) {
             toast(tp("settings.deployment.toast.lan_status", { message: errorMessage(e) }), "warning");
         }
@@ -108,10 +104,17 @@ function ServerlessMasterLanCompact() {
     const start = async () => {
         setBusy(true);
         try {
-            setStatus(await lanServerStart());
+            setStatus(await lanSystem.start());
             toast(t("settings.deployment.toast.https_started"), "success");
         } catch (e) {
-            toast(tp("settings.deployment.toast.start_error", { message: errorMessage(e) }), "error");
+            const raw = errorMessage(e);
+            if (lanHostBlocked(raw)) {
+                setHostBlocked(true);
+            } else if (masterDeviceUnreachable(raw)) {
+                toast(t("page.lan.cluster_join.toast.connect_failed"), "error");
+            } else {
+                toast(tp("settings.deployment.toast.start_error", { message: raw }), "error");
+            }
         } finally {
             setBusy(false);
         }
@@ -120,7 +123,7 @@ function ServerlessMasterLanCompact() {
     const stop = async () => {
         setBusy(true);
         try {
-            await lanServerStop();
+            await lanSystem.stop();
             await refresh();
             toast(t("settings.deployment.toast.https_stopped"), "info");
         } catch (e) {
@@ -131,6 +134,7 @@ function ServerlessMasterLanCompact() {
     };
 
     const running = status?.running ?? false;
+    const hostingDisabled = hostBlocked || status?.hostingDisabled === true;
 
     return (
         <div className="settings-serverless-lan">
@@ -140,7 +144,9 @@ function ServerlessMasterLanCompact() {
                     <div className="card-sub">
                         {running
                             ? tp("settings.deployment.lan_running", { port: status?.httpPort ?? "—" })
-                            : t("settings.deployment.lan_stopped")}
+                            : hostingDisabled
+                              ? t("settings.deployment.lan_host_elsewhere")
+                              : t("settings.deployment.lan_stopped")}
                     </div>
                     {running && status?.suggestedBaseUrls?.length ? (
                         <ul style={{ margin: "8px 0 0", paddingLeft: 18, fontSize: 13, color: "var(--fg-2)" }}>
@@ -152,17 +158,17 @@ function ServerlessMasterLanCompact() {
                         </ul>
                     ) : null}
                     {running && status?.tlsCertSha256 ? (
-                        <div className="card-sub" style={{ marginTop: 8 }}>
+                        <div className="card-sub" style={{ marginTop: "var(--space-2)" }}>
                             <b>{t("settings.deployment.tls_sha256")}</b> <Mono>{status.tlsCertSha256}</Mono>
                         </div>
                     ) : null}
                 </div>
-                <div className="row" style={{ gap: 8, flexShrink: 0 }}>
+                <div className="row" style={{ gap: "var(--space-2)", flexShrink: 0 }}>
                     {running ? (
                         <Button type="button" variant="secondary" size="sm" loading={busy} disabled={busy} onClick={() => void stop()}>
                             {t("settings.deployment.https_stop")}
                         </Button>
-                    ) : (
+                    ) : hostingDisabled ? null : (
                         <Button type="button" size="sm" loading={busy} disabled={busy} onClick={() => void start()}>
                             {t("settings.deployment.https_start")}
                         </Button>
@@ -315,7 +321,9 @@ export function SettingsDeploymentSection({
                 report.mesh && report.mesh.errors.length > 0
                     ? ` Mesh: ${report.mesh.errors.join("; ")}`
                     : "";
-            if (report.error) {
+            if (report.error && masterDeviceUnreachable(report.error)) {
+                setLastSyncError(null);
+            } else if (report.error) {
                 setLastSyncError(report.error);
                 toast(tp("settings.deployment.toast.sync_partial", { error: report.error, meshHint }), "warning");
             } else {
@@ -332,13 +340,20 @@ export function SettingsDeploymentSection({
             }
             await reload();
         } catch (e) {
-            toast(errorMessage(e), "error");
+            const raw = errorMessage(e);
+            if (masterDeviceUnreachable(raw)) {
+                setLastSyncError(null);
+            } else {
+                toast(raw, "error");
+            }
         } finally {
             setSyncBusy(false);
         }
     };
 
+
     const isMaster = cfg.role === "MASTER";
+    const savedIsMaster = status?.deployment.role === "MASTER";
     const isReplica = cfg.role === "REPLICA";
     const isPaired = Boolean(cfg.activationToken?.trim());
     const modeOptions = MODE_OPTIONS(t);
@@ -461,7 +476,7 @@ export function SettingsDeploymentSection({
                 </div>
             ) : null}
             {!SYSTEM_SERVERLESS_FOCUS_ENABLED ? (
-                <p className="card-sub" style={{ marginTop: 4 }}>
+                <p className="card-sub" style={{ marginTop: "var(--space-1)" }}>
                     {visibleModes.find((o) => o.value === cfg.mode)?.hint}
                 </p>
             ) : null}
@@ -475,11 +490,11 @@ export function SettingsDeploymentSection({
                     onChange={(e) => setCfg((c) => ({ ...c, role: e.target.value as DeviceRole }))}
                 />
             </div>
-            <p className="card-sub" style={{ marginTop: 4 }}>
+            <p className="card-sub" style={{ marginTop: "var(--space-1)" }}>
                 {roleOptions.find((o) => o.value === cfg.role)?.hint}
             </p>
 
-            <div className="settings-row" style={{ marginTop: 8 }}>
+            <div className="settings-row" style={{ marginTop: "var(--space-2)" }}>
                 <Input
                     id="device-label"
                     label={t("settings.deployment.device_label")}
@@ -489,15 +504,15 @@ export function SettingsDeploymentSection({
                 />
             </div>
 
-            {isMaster ? (
+            {isMaster && savedIsMaster ? (
                 <>
                     <ServerlessMasterLanCompact />
                     {masterInfo ? (
                         <div
                             className="card-sub"
                             style={{
-                                marginTop: 8,
-                                padding: 10,
+                                marginTop: "var(--space-2)",
+                                padding: "var(--space-3)",
                                 borderRadius: 8,
                                 background: "var(--surface-accent)",
                             }}
@@ -532,19 +547,19 @@ export function SettingsDeploymentSection({
                             {isPaired ? (
                                 <>
                                     {cfg.masterBaseUrl ? (
-                                        <div className="card-sub" style={{ marginTop: 6 }}>
+                                        <div className="card-sub" style={{ marginTop: "var(--space-2)" }}>
                                             Master-URL: <Mono>{cfg.masterBaseUrl}</Mono>
                                         </div>
                                     ) : null}
                                     {cfg.masterDeviceId ? (
-                                        <div className="card-sub" style={{ marginTop: 4 }}>
+                                        <div className="card-sub" style={{ marginTop: "var(--space-1)" }}>
                                             Master-Device-ID: <Mono>{cfg.masterDeviceId}</Mono>
                                         </div>
                                     ) : null}
                                 </>
                             ) : null}
                         </div>
-                        <div className="col" style={{ gap: 8, alignItems: "flex-end" }}>
+                        <div className="col" style={{ gap: "var(--space-2)", alignItems: "flex-end" }}>
                             {isPaired ? (
                                 <>
                                     <Button
@@ -557,6 +572,7 @@ export function SettingsDeploymentSection({
                                     >
                                         {t("settings.deployment.sync_now")}
                                     </Button>
+                                    {canRepairAuditChain ? <SettingsReconcileButton small onDone={reload} /> : null}
                                     <Button
                                         type="button"
                                         variant="ghost"
@@ -589,7 +605,7 @@ export function SettingsDeploymentSection({
 
             {!SYSTEM_SERVERLESS_FOCUS_ENABLED && cfg.mode === "serverless_peer" && isReplica ? (
                 <>
-                    <div className="settings-row" style={{ marginTop: 8 }}>
+                    <div className="settings-row" style={{ marginTop: "var(--space-2)" }}>
                         <Input
                             id="master-url"
                             label={t("settings.deployment.master_url")}
@@ -600,7 +616,7 @@ export function SettingsDeploymentSection({
                         />
                     </div>
                     {SYSTEM_MESH_SYNC_ENABLED ? (
-                        <label style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 8 }}>
+                        <label style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", marginTop: "var(--space-2)" }}>
                             <input
                                 type="checkbox"
                                 checked={cfg.unstableMesh}
@@ -613,7 +629,7 @@ export function SettingsDeploymentSection({
             ) : null}
 
             {status ? (
-                <div className="card-sub" style={{ marginTop: 12 }}>
+                <div className="card-sub" style={{ marginTop: "var(--space-3)" }}>
                     {t("settings.deployment.device_id")} <Mono>{status.localDeviceId}</Mono>
                     {status.pendingOutbox > 0 ? (
                         <>
@@ -626,7 +642,7 @@ export function SettingsDeploymentSection({
                 </div>
             ) : null}
 
-            {isReplica && lastSyncError ? (
+            {isReplica && lastSyncError && !masterDeviceUnreachable(lastSyncError) ? (
                 <DismissibleNotice
                     variant="warning"
                     role="status"
@@ -637,7 +653,7 @@ export function SettingsDeploymentSection({
                 />
             ) : null}
 
-            <div className="row" style={{ marginTop: 12, gap: 8, flexWrap: "wrap" }}>
+            <div className="row" style={{ marginTop: "var(--space-3)", gap: "var(--space-2)", flexWrap: "wrap" }}>
                 <Button type="button" loading={busy} disabled={busy} onClick={() => void save()}>
                     {t("common.save")}
                 </Button>
@@ -652,6 +668,7 @@ export function SettingsDeploymentSection({
                         {t("settings.deployment.sync_now")}
                     </Button>
                 ) : null}
+                {isReplica && isPaired && canRepairAuditChain ? <SettingsReconcileButton onDone={reload} /> : null}
             </div>
 
             {showPairingInbox && isMaster ? (

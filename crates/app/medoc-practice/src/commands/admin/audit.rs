@@ -1,9 +1,9 @@
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::commands::list_params::{ListParams, ListResponse, SortDir};
 use crate::domain::entities::AuditLog;
 use crate::error::AppError;
-use crate::infrastructure::database::audit_repo;
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
 use sqlx::SqlitePool;
 use tauri::State;
 
@@ -42,24 +42,33 @@ pub async fn list_audit_logs_paged(
     })
 }
 
-/// Export all audit log entries as a CSV byte stream. CSV fields are RFC-4180
-/// quoted so that arbitrary user/entity strings round-trip safely.
+/// F107: one CSV cell. Text that a spreadsheet would run as a formula
+/// (`=`, `+`, `-`, `@`, tab, CR at the start) gets a leading `'`; then the
+/// usual quoting for separators, quotes and line breaks.
+pub fn csv_cell(s: &str) -> String {
+    let neutral = if s.starts_with(['=', '+', '-', '@', '\t', '\r']) {
+        format!("'{s}")
+    } else {
+        s.to_string()
+    };
+    if neutral.contains([',', '"', '\n', '\r']) {
+        format!("\"{}\"", neutral.replace('"', "\"\""))
+    } else {
+        neutral
+    }
+}
+
+/// Export all audit log entries as CSV. Cells go through [`csv_cell`].
 #[tauri::command]
 pub async fn export_audit_csv(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
 ) -> Result<Vec<u8>, AppError> {
-    rbac::require(&session_state, "audit.read")?;
+    let session = rbac::require(&session_state, "audit.read")?;
     let rows = audit_repo::find_all(&pool, i64::MAX).await?;
-    let mut out = String::new();
+    let mut out = String::from("\u{FEFF}");
     out.push_str("id,created_at,user_id,action,entity,entity_id,details,under_break_glass,break_glass_reason,hmac\n");
-    let esc = |s: &str| -> String {
-        if s.contains(',') || s.contains('"') || s.contains('\n') {
-            format!("\"{}\"", s.replace('"', "\"\""))
-        } else {
-            s.to_string()
-        }
-    };
+    let esc = csv_cell;
     for r in rows {
         out.push_str(&format!(
             "{},{},{},{},{},{},{},{},{},{}\n",
@@ -75,15 +84,29 @@ pub async fn export_audit_csv(
             esc(&r.hmac),
         ));
     }
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "EXPORT_CSV",
+        "AuditLog",
+        None,
+        Some("scope=all"),
+    )
+    .await?;
     Ok(out.into_bytes())
 }
 
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_audit_commands {
-    () => {
-        $crate::commands::audit_commands::list_audit_logs,
-        $crate::commands::audit_commands::list_audit_logs_paged,
-        $crate::commands::audit_commands::export_audit_csv,
-    };
+#[cfg(test)]
+mod csv_cell_tests {
+    #[test]
+    fn audit_export_neutralizes_formulas() {
+        assert_eq!(
+            super::csv_cell("=HYPERLINK(\"x\")"),
+            "\"'=HYPERLINK(\"\"x\"\")\""
+        );
+        assert_eq!(super::csv_cell("+1"), "'+1");
+        assert_eq!(super::csv_cell("@SUM(A1)"), "'@SUM(A1)");
+        assert_eq!(super::csv_cell("plain"), "plain");
+        assert_eq!(super::csv_cell("a,b"), "\"a,b\"");
+    }
 }

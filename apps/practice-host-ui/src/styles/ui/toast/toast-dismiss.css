@@ -1,0 +1,64 @@
+/* From styles/components/toast.css (cascade position kept by its import there). */
+@layer components {
+  .page-load-error__message { color: var(--red); margin: 0; font-size: 13.5px; }
+  .page-load-error__code {
+    font-size: 12px;
+    color: var(--fg-2);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .toast-dismiss {
+    opacity: 0.72;
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    margin: 0;
+    border-radius: 8px;
+    line-height: 0;
+    color: inherit;
+  }
+  .toast-dismiss:hover { opacity: 1; background: color-mix(in oklab, var(--fg) 8%, transparent); }
+  .toast-dismiss svg { display: block; }
+  .toast-dismiss:focus-visible,
+  .toast-undo:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .toast-undo {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-inline-start: auto;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+    color: var(--text-on-accent, #fff);
+    padding: 6px 12px;
+    border-radius: var(--radius-pill);
+    background: var(--accent);
+    line-height: 1.2;
+  }
+  .toast-undo:hover { filter: brightness(0.97); }
+  .toast-info-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--blue);
+    flex-shrink: 0;
+  }
+  .toast-warning-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--orange);
+    flex-shrink: 0;
+  }
+  .toast-progress-track {
+    height: 2px;
+    background: color-mix(in oklab, var(--fg) 8%, transparent);
+  }
+}

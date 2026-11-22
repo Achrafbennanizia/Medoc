@@ -1,0 +1,15 @@
+/* From styles/pages/appointments-cards.css (cascade position kept by its import there). */
+.appointment-ctx-menu {
+  min-width: 220px;
+  animation: popIn 120ms ease both;
+  z-index: 1100;
+}
+.appointment-ctx-title {
+  font-weight: 700;
+  padding: 8px 10px 0;
+}
+.appointment-ctx-sub {
+  font-size: 12px;
+  color: var(--fg-3);
+  padding: 2px 10px 8px;
+}

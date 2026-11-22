@@ -1,0 +1,53 @@
+/* From styles/features/tasks-orders.css (cascade position kept by its import there). */
+@layer components {
+  .tbl.tbl-finance-v2 thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--bg-elev);
+  }
+  .tbl.tbl-finance-v2 tbody td {
+    padding: 14px 16px;
+  }
+  .tbl tbody tr:hover td { background: rgba(0,0,0,0.02); }
+  .tbl tbody tr:last-child td { border-bottom: 0; }
+
+  /* Treatments: groups by B.Nummer (multiple tbody) */
+  .tbl.tbl-treatment-groups tbody.treatment-grp td { border-bottom: 1px solid var(--line); }
+  .tbl.tbl-treatment-groups tbody.treatment-grp tr:last-child td { border-bottom: 0; }
+  .tbl.tbl-treatment-groups tbody.treatment-grp + tbody.treatment-grp tr:first-child td {
+    border-top: 2px solid var(--line-strong);
+  }
+  .treatment-groups-scroll {
+    overflow-x: auto;
+    overflow-y: visible;
+  }
+  .tbl.tbl-treatment-groups .treatment-th-actions,
+  .tbl.tbl-treatment-groups .treatment-td-actions {
+    width: 52px;
+    overflow: visible;
+    text-align: center;
+    vertical-align: middle;
+  }
+
+  /* Prescriptions + certificates (patient Chart) */
+  .prescription-certificate-table-scroll {
+    overflow-x: auto;
+    overflow-y: visible;
+  }
+  .tbl.tbl-prescription-chart .prescription-th-actions,
+  .tbl.tbl-prescription-chart .prescription-td-actions,
+  .tbl.tbl-certificate-chart .certificate-th-actions,
+  .tbl.tbl-certificate-chart .certificate-td-actions {
+    width: 52px;
+    overflow: visible;
+    text-align: center;
+    vertical-align: middle;
+  }
+  .tbl.tbl-prescription-chart tbody td.prescription-td-actions,
+  .tbl.tbl-certificate-chart tbody td.certificate-td-actions {
+    overflow: visible;
+  }
+
+  /* Patient header: full width; grid on top (profile left / tooth mini right); contact row below */
+}

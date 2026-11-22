@@ -8,10 +8,13 @@ import { loadClientSettings } from "@/lib/client-settings";
 import { clockNowMs } from "@/lib/practice-clock";
 import { compareNotices, type Notice, type NoticeCategory, type NoticeContext, type NoticeSource } from "./notice";
 import { DEFAULT_NOTICE_SOURCES } from "./notice-sources";
+import { playNotificationChime, sendOsNotification } from "./notification-delivery";
 
 const READ_KEY_PREFIX = "medoc-notice-read-v1:";
 const SEEN_KEY_PREFIX = "medoc-notice-seen-v1:";
 const READ_TTL_MS = 14 * 86_400_000;
+/** Marks that the first refresh for a user happened (even when it found nothing). */
+const SEEN_INIT = "__init__";
 
 type ReadMap = Record<string, number>;
 
@@ -62,44 +65,36 @@ export function setNoticeSources(next: readonly NoticeSource[]): void {
     sources = next;
 }
 
-function sendSystemNotification(n: Notice): void {
-    if (typeof window === "undefined" || typeof window.Notification === "undefined") return;
-    const show = () => {
-        try {
-            new window.Notification(n.title, { body: n.body, tag: n.id });
-        } catch {
-            /* webview without Notification support */
-        }
-    };
-    if (window.Notification.permission === "granted") show();
-    else if (window.Notification.permission === "default") {
-        void window.Notification.requestPermission().then((p) => {
-            if (p === "granted") show();
-        });
-    }
-}
-
-/** Deliver notices that appeared since the last refresh, honoring Settings → Notifications. */
+/**
+ * Deliver notices that appeared since the last refresh, honouring Settings → Notifications:
+ * `push` → OS notification centre, `sound` → chime, `criticalWarnings` → in-app alert for critical ones.
+ * The first refresh after sign-in only records what exists (no flood of old items).
+ */
 function deliverNew(fresh: Notice[], delivery?: NotificationDelivery): void {
     if (!currentUser) return;
     const seenKey = SEEN_KEY_PREFIX + currentUser;
     const seen = loadMap(seenKey);
-    const firstRun = Object.keys(seen).length === 0;
+    const firstRun = seen[SEEN_INIT] == null;
     const prefs = loadClientSettings().notifications ?? {};
     const now = clockNowMs();
+    const visible = typeof document === "undefined" || document.visibilityState === "visible";
+    let chimed = false;
     for (const n of fresh) {
         if (seen[n.id]) continue;
         seen[n.id] = now;
-        if (firstRun || !n.unread) continue; // do not flood on first load / already-read rows
-        if (prefs.push !== false && (typeof document === "undefined" || document.visibilityState !== "visible")) {
-            sendSystemNotification(n);
+        if (firstRun || !n.unread) continue;
+        if (prefs.push !== false) void sendOsNotification(n, prefs.sound !== false);
+        if (prefs.sound !== false && visible && !chimed) {
+            playNotificationChime(n.severity, prefs.soundVolume ?? 0.6);
+            chimed = true;
         }
         if (n.severity === "critical" && prefs.criticalWarnings !== false) {
             delivery?.toast(`${n.title} — ${n.body}`, "error");
-        } else if (prefs.push !== false && n.severity === "warning") {
+        } else if (visible && n.severity === "warning") {
             delivery?.toast(n.title, "warning");
         }
     }
+    seen[SEEN_INIT] = now;
     saveMap(seenKey, seen);
 }
 

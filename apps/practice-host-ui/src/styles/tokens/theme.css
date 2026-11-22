@@ -12,8 +12,22 @@
   --bp-md: 900px;
   --bp-lg: 1200px;
   /* Width floor is 0 so narrow viewports and 200% zoom can reflow (WCAG 1.4.10). */
+  /* Window height in CSS px. CSS zoom on <html> (text size / ⌘+) does not rescale vh/dvh in WebKit, so
+     100dvh is too tall when zoomed; display-preferences.ts publishes --app-zoom to correct it. */
+  --app-dvh: calc(100dvh / var(--app-zoom, 1));
+  /* App backdrop: a soft glow of the selected accent from the top-left, a fainter one top-right, then the
+     page colour. Follows every accent preset (both glows use --accent). Strength is per theme. */
+  --accent-fade-strength: 8%;
+  --accent-fade-soft: 4%;
+  --app-backdrop:
+    radial-gradient(1200px 640px at -10% -10%, color-mix(in oklab, var(--accent) var(--accent-fade-strength), transparent), transparent 62%),
+    radial-gradient(900px 520px at 110% 6%, color-mix(in oklab, var(--accent) var(--accent-fade-soft), transparent), transparent 60%),
+    var(--bg);
   --app-viewport-min-width: 0px;
-  --app-viewport-min-height: 800px;
+  /* 0, not 800px: the native window already enforces minHeight 800 (tauri.conf.json). With text size or
+     zoom > 100 % (CSS zoom on <html>) an 800 CSS-px minimum is taller than the window, and the bottom of
+     every page was cut off under overflow:hidden. */
+  --app-viewport-min-height: 0px;
   --font-inter: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-system: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-source-sans: 'Source Sans 3', 'Segoe UI', sans-serif;
@@ -188,6 +202,9 @@
  * (Light / Dark / System incl. OS preference). Accent hex stays inline from `applyAccentPresetToDocument`.
  */
 html[data-theme="dark"] {
+  /* Dark surfaces need more pigment for the same visible glow. */
+  --accent-fade-strength: 16%;
+  --accent-fade-soft: 8%;
   color-scheme: dark;
   --bg: #0c0e13;
   --bg-elev: #131820;

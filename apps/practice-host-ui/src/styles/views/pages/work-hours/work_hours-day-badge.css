@@ -1,0 +1,65 @@
+/* From styles/features/administration.css (cascade position kept by its import there). */
+@layer components {
+  .work_hours-day-card--inactive {
+    opacity: 0.78;
+    background: color-mix(in oklab, var(--fg) 2.5%, var(--bg-elev));
+  }
+  .work_hours-day-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+  }
+  .work_hours-day-name {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--fg);
+  }
+  .work_hours-day-badge {
+    flex-shrink: 0;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .work_hours-day-badge--on {
+    background: color-mix(in oklab, var(--accent) 16%, var(--panel));
+    color: var(--accent);
+    border: 1px solid color-mix(in oklab, var(--accent) 28%, var(--line));
+  }
+  .work_hours-day-badge--off {
+    background: color-mix(in oklab, var(--fg) 7%, var(--panel));
+    color: var(--fg-3);
+    border: 1px solid var(--line);
+  }
+  .administration-toc-table-card {
+    max-height: none;
+    overflow-x: hidden;
+    overflow-y: visible;
+  }
+  .page-head--administration-toc {
+    align-items: flex-start;
+  }
+  .page-sub--administration-toc {
+    max-width: 560px;
+    margin-top: var(--space-1);
+  }
+  /* Real columns so CATEGORY / SUMMARY headers line up with body cells. */
+  .administration-toc-table {
+    table-layout: fixed;
+    width: 100%;
+    min-width: 0;
+  }
+  .administration-toc-col-icon {
+    width: 3rem;
+  }
+  .administration-toc-col-category {
+    width: 32%;
+  }
+  .administration-toc-col-summary {
+    width: auto;
+  }
+}

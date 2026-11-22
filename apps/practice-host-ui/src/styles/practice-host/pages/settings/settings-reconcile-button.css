@@ -1,0 +1,7 @@
+/* Last update check next to "Reconcile now" (settings-reconcile-button.tsx). */
+.settings-update-check {
+  align-self: center;
+  font-size: 12px;
+  color: var(--fg-3);
+  padding-inline-start: var(--space-1);
+}

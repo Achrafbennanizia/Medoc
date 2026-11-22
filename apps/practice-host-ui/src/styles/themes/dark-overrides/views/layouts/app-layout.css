@@ -1,0 +1,61 @@
+/* From styles/themes/dark-overrides.css (cascade position kept by its import there). */
+html[data-theme="dark"] .tb-chip {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--fg-2);
+}
+html[data-theme="dark"] .tb-chip.live {
+  background: color-mix(in oklab, var(--green) 34%, var(--bg-elev));
+  color: #bbf7d0;
+  border-color: color-mix(in oklab, var(--green) 48%, transparent);
+}
+html[data-theme="dark"] .tb-chip.offline {
+  background: color-mix(in oklab, var(--red) 30%, var(--bg-elev));
+  color: #fecaca;
+  border-color: color-mix(in oklab, var(--red) 42%, transparent);
+}
+html[data-theme="dark"] .tb-chip.update {
+  background: color-mix(in oklab, var(--blue) 32%, var(--bg-elev));
+  color: #bfdbfe;
+  border-color: color-mix(in oklab, var(--blue) 45%, transparent);
+}
+html[data-theme="dark"] .appointment-workflow-node {
+  color: var(--fg);
+  background: var(--surface-2);
+  border-color: var(--line-strong);
+}
+html[data-theme="dark"] .appointment-workflow-node.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--text-on-accent);
+}
+html[data-theme="dark"] .appointment-workflow-node.on .ui-icon {
+  color: #ffffff;
+  stroke: currentColor;
+}
+html[data-theme="dark"] .appointment-workflow-node:not(.on) .ui-icon {
+  color: var(--fg);
+  stroke: currentColor;
+}
+html[data-theme="dark"] .appointment-appt-status-pill--active {
+  color: #86efac;
+}
+html[data-theme="dark"] .appointment-appt-status-pill--done {
+  color: var(--accent-ink);
+}
+html[data-theme="dark"] .appointment-appt-status-pill--cancel {
+  color: #fecaca;
+}
+html[data-theme="dark"] .appointment-appt-status-pill--edit {
+  color: #fde68a;
+}
+html[data-theme="dark"] .appointment-appt-block-emergency-ic {
+  color: #fb923c;
+}
+html[data-theme="dark"] .appointment-appt-block--week.appointment-appt-status-surface--active .appointment-appt-block-time,
+html[data-theme="dark"] .appointment-appt-block--week.appointment-appt-status-surface--active .appointment-appt-block-name {
+  color: #86efac;
+}
+html[data-theme="dark"] .appointment-appt-block--week.appointment-appt-status-surface--active .appointment-appt-block-duration,
+html[data-theme="dark"] .appointment-appt-block--week.appointment-appt-status-surface--active .appointment-appt-block-type {
+  color: color-mix(in oklab, #86efac 70%, var(--fg-3));
+}

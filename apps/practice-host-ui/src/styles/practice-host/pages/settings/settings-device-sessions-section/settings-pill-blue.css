@@ -1,0 +1,82 @@
+/* From styles/features/settings-sections.css (cascade position kept by its import there). */
+@layer components {
+  .settings-pill-green::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    flex-shrink: 0;
+  }
+  .settings-pill-blue {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 4px 10px;
+    border-radius: var(--radius-pill);
+    font-size: 12px;
+    font-weight: 650;
+    background: var(--accent-soft);
+    color: var(--accent-ink);
+    border: 1px solid color-mix(in oklab, var(--accent) 28%, var(--line));
+  }
+  .settings-pill-blue::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    flex-shrink: 0;
+  }
+  .settings-pill-trusted {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 4px 10px;
+    border-radius: var(--radius-pill);
+    font-size: 12px;
+    font-weight: 650;
+    background: color-mix(in oklab, var(--blue) 14%, transparent);
+    color: color-mix(in oklab, var(--blue) 92%, var(--fg));
+    border: 1px solid color-mix(in oklab, var(--blue) 28%, var(--line));
+  }
+  .settings-pill-trusted::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--blue);
+    flex-shrink: 0;
+  }
+  .settings-pill-gray {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: var(--radius-pill);
+    font-size: 12px;
+    font-weight: 600;
+    background: color-mix(in oklab, var(--fg) 5%, transparent);
+    color: var(--fg-3);
+    border: 1px solid var(--line);
+  }
+  .settings-pill-orange {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 4px 10px;
+    border-radius: var(--radius-pill);
+    font-size: 12px;
+    font-weight: 650;
+    background: color-mix(in oklab, var(--orange) 14%, transparent);
+    color: color-mix(in oklab, var(--orange) 92%, var(--fg));
+    border: 1px solid color-mix(in oklab, var(--orange) 28%, var(--line));
+  }
+  .settings-pill-orange::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--orange);
+    flex-shrink: 0;
+  }
+}

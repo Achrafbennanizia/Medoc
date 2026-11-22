@@ -1,0 +1,71 @@
+/* From styles/features/auth-onboarding.css (cascade position kept by its import there). */
+@layer components {
+  .tb-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 99px; background: rgba(0,0,0,0.045); color: var(--fg-2); font-size: 12px; font-weight: 500; border: 1px solid transparent; }
+  .tb-chip.live { background: var(--green-soft); color: var(--green-ink); }
+  .tb-chip.offline { background: var(--red-soft); color: var(--red-ink); }
+  .tb-chip.update { background: var(--blue-soft); color: var(--blue-ink); cursor: pointer; }
+  .sb-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; color: var(--fg-2); font-size: 13.5px; font-weight: 500; cursor: pointer; transition: background 120ms ease, color 120ms ease; width: 100%; text-align: start; }
+  .sb-item:hover { background: rgba(0,0,0,0.045); color: var(--fg); }
+  .sb-item.active { background: color-mix(in oklab, var(--accent) 14%, transparent); color: var(--accent-ink); }
+  .sb-item .count { margin-inline-start: auto; font-size: 11px; font-weight: 600; background: rgba(0,0,0,0.05); padding: 1px 7px; border-radius: 999px; }
+  .sb-item.active .count { background: var(--accent); color: var(--text-on-accent); }
+  .sb-group-label { font-size: 11px; color: var(--fg-4); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; padding: 14px 12px 6px; }
+  .login-root { min-height: var(--app-dvh); background: var(--app-backdrop); }
+  .login-root__panels {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    min-height: var(--app-dvh);
+    width: 100%;
+  }
+  .login-brand-row {
+    gap: var(--space-3);
+    align-items: center;
+  }
+  .login-brand-mark {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    min-height: 34px;
+    max-width: 34px;
+    max-height: 34px;
+    flex-shrink: 0;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent-mark-from, var(--accent)), var(--accent-mark-to, var(--accent)));
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .login-brand-mark .ui-icon {
+    color: #fff;
+  }
+  .login-brand-text {
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+  }
+  .login-brand-text__sub {
+    opacity: 0.6;
+    font-weight: 400;
+  }
+  .login-password-toggle {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    min-height: 28px;
+    flex-shrink: 0;
+  }
+  .login-password-toggle .ui-icon {
+    display: block;
+  }
+  .onboarding-page {
+    min-height: 100%;
+    height: 100%;
+    min-height: var(--app-dvh);
+    display: flex;
+    flex-direction: column;
+    background: var(--app-backdrop);
+    box-sizing: border-box;
+  }
+}

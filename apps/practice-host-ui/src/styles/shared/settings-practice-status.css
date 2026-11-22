@@ -1,0 +1,17 @@
+/* From styles/features/settings-sections.css (cascade position kept by its import there). */
+@layer components {
+  .settings-practice-status {
+    font-size: 13px;
+    color: var(--fg-3);
+  }
+  .settings-practice-status--dirty {
+    color: var(--fg-2);
+    font-weight: 600;
+  }
+  .settings-chevron {
+    color: var(--fg-4);
+    display: inline-flex;
+    align-items: center;
+    line-height: 0;
+  }
+}

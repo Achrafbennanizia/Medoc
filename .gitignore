@@ -43,6 +43,14 @@ app/test-results/
 
 # Rust workspace target (repo root)
 target/
+# Local install/build dir (`cargo build --target-dir target-inst2`)
+target-inst2/
+
+# Local scratch: source dumps, recovery demo kits, alternate cargo targets
+.tmp/
+
+# Multi-instance local data (DBs, TLS keys, logs, pids) — never commit
+.medoc-instances/
 
 # Local dev toolchain/cache (never commit — exceeds GitHub size limits)
 .dev-home/
@@ -56,3 +64,6 @@ app/coverage/
 app/target/coverage/
 *.profraw
 
+
+# Local code dumps (not source)
+crates/shared/medoc-core.txt

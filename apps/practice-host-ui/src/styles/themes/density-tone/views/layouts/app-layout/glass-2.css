@@ -1,0 +1,18 @@
+/* From styles/themes/density-tone.css (cascade position kept by its import there). */
+html[data-density="compact"] .page-title {
+  font-size: clamp(18px, 2vh, 22px);
+}
+html[data-density="compact"] .glass {
+  padding: 14px 12px 12px;
+  gap: var(--space-1);
+}
+html[data-density="spacious"] {
+  font-size: 15px;
+  --density-scale: 1.15;
+  --card-pad-x: clamp(18px, 2.2vw, 26px);
+  --card-pad-y: clamp(16px, 2vh, 22px);
+}
+html[data-density="spacious"] .glass {
+  padding: 20px 16px 16px;
+  gap: var(--space-2);
+}

@@ -8,13 +8,39 @@ use medoc_core::error::AppError;
 
 type HmacSha256 = Hmac<Sha256>;
 
-pub const SAS_LEN: usize = 4;
+/// Six digits: one guess in 1,000,000 (was four: 1 in 10,000). Both devices derive it from the
+/// handshake, so main and replica must run the same version to pair.
+pub const SAS_LEN: usize = 6;
+const SAS_MODULUS: u32 = 1_000_000;
+
+/// Decode a stored handshake. Writers do not share one alphabet, so the four
+/// standard engines are tried in order. An empty string is `None`. A decode
+/// that yields no bytes is kept only when every alphabet that accepts the
+/// input is empty.
+pub fn decode_handshake_transcript(raw: &str) -> Option<Vec<u8>> {
+    use base64::engine::general_purpose::{STANDARD, STANDARD_NO_PAD, URL_SAFE, URL_SAFE_NO_PAD};
+    use base64::Engine;
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let mut blank = None;
+    for engine in [&STANDARD, &STANDARD_NO_PAD, &URL_SAFE, &URL_SAFE_NO_PAD] {
+        if let Ok(bytes) = engine.decode(trimmed) {
+            if !bytes.is_empty() {
+                return Some(bytes);
+            }
+            blank.get_or_insert(bytes);
+        }
+    }
+    blank
+}
 
 /// Derive a 4-digit SAS from the Noise handshake transcript hash (channel-bound).
 pub fn derive_sas_from_transcript(transcript: &[u8]) -> String {
     let digest = Sha256::digest(transcript);
-    let n = u32::from_be_bytes([digest[0], digest[1], digest[2], digest[3]]) % 10_000;
-    format!("{n:04}")
+    let n = u32::from_be_bytes([digest[0], digest[1], digest[2], digest[3]]) % SAS_MODULUS;
+    format!("{n:0width$}", width = SAS_LEN)
 }
 
 /// First 8 bytes of SHA-256 as hex (logs only — never the raw handshake).
@@ -82,7 +108,7 @@ mod tests {
         let a = derive_sas_from_transcript(t);
         let b = derive_sas_from_transcript(t);
         assert_eq!(a, b);
-        assert_eq!(a.len(), 4);
+        assert_eq!(a.len(), SAS_LEN);
         assert!(a.chars().all(|c| c.is_ascii_digit()));
     }
 
@@ -97,14 +123,22 @@ mod tests {
     #[test]
     fn sas_hash_roundtrip() {
         let key = b"test-hmac-key-32-bytes-long!!!!!";
-        let hash = hash_sas("sess-1", "4829", key);
-        assert!(verify_sas("sess-1", "4829", &hash, key));
-        assert!(!verify_sas("sess-1", "0000", &hash, key));
+        let hash = hash_sas("sess-1", "482913", key);
+        assert!(verify_sas("sess-1", "482913", &hash, key));
+        assert!(!verify_sas("sess-1", "000000", &hash, key));
+    }
+
+    #[test]
+    fn sas_is_six_digits_and_rejects_the_old_length() {
+        let sas = derive_sas_from_transcript(b"noise-xx");
+        assert_eq!(sas.len(), 6);
+        assert!(sas.chars().all(|c| c.is_ascii_digit()));
+        assert_eq!(normalise_sas_input("4829"), None);
     }
 
     #[test]
     fn sas_input_accepts_eastern_arabic_digits() {
-        assert_eq!(normalise_sas_input("٤٨٢٩").as_deref(), Some("4829"));
-        assert_eq!(normalise_sas_input("۴۸۲۹").as_deref(), Some("4829"));
+        assert_eq!(normalise_sas_input("٤٨٢٩١٣").as_deref(), Some("482913"));
+        assert_eq!(normalise_sas_input("۴۸۲۹۱۳").as_deref(), Some("482913"));
     }
 }

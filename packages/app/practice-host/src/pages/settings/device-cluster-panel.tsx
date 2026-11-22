@@ -90,7 +90,7 @@ export function DeviceClusterPanel({ embedded }: { embedded?: boolean }) {
                     </Button>
                 </div>
                 {status?.localFingerprint ? (
-                    <p className="card-sub" style={{ marginTop: 8 }}>
+                    <p className="card-sub" style={{ marginTop: "var(--space-2)" }}>
                         {t("settings.device_cluster.local_fingerprint")}{" "}
                         <code>{status.localFingerprint}</code>
                     </p>
@@ -188,8 +188,12 @@ export function DeviceClusterPanel({ embedded }: { embedded?: boolean }) {
                             variant="secondary"
                             disabled={busy}
                             onClick={async () => {
-                                await clusterRejectRequest(req.id);
-                                await reload();
+                                try {
+                                    await clusterRejectRequest(req.id);
+                                    await reload();
+                                } catch (e) {
+                                    toast(errorMessage(e), "error");
+                                }
                             }}
                         >
                             {t("settings.device_cluster.reject")}
@@ -213,7 +217,11 @@ export function DeviceClusterPanel({ embedded }: { embedded?: boolean }) {
                             type="button"
                             size="sm"
                             variant="secondary"
-                            onClick={() => void clusterRevokeDevice(d.fingerprint).then(reload)}
+                            onClick={() =>
+                                void clusterRevokeDevice(d.fingerprint)
+                                    .then(reload)
+                                    .catch((e: unknown) => toast(errorMessage(e), "error"))
+                            }
                         >
                             {t("settings.device_cluster.revoke")}
                         </Button>

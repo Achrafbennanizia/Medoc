@@ -1,0 +1,88 @@
+/* From styles/features/settings-sections.css (cascade position kept by its import there). */
+@layer components {
+  .settings-device-session-investigate {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+  .settings-device-session-investigate-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: var(--space-2) var(--space-3);
+    margin: 0;
+  }
+  .settings-device-session-investigate-grid dt {
+    font-size: 11px;
+    font-weight: 650;
+    color: var(--fg-3);
+    margin: 0 0 2px;
+  }
+  .settings-device-session-investigate-grid dd {
+    margin: 0;
+    font-size: 13px;
+    color: var(--fg);
+  }
+  .settings-device-session-investigate-label {
+    margin: 0 0 6px;
+    font-size: 12px;
+    font-weight: 650;
+    color: var(--fg-2);
+  }
+  .settings-device-session-investigate-ua {
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-ctl);
+    background: color-mix(in oklab, var(--fg) 4%, transparent);
+    border: 1px solid var(--line);
+    font-size: 11px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 120px;
+    overflow: auto;
+  }
+  .settings-device-session-audit-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    max-height: 180px;
+    overflow: auto;
+  }
+  .settings-device-session-audit-list li {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 10px;
+    font-size: 12px;
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid var(--line);
+  }
+  .settings-device-session-audit-action {
+    font-weight: 650;
+    color: var(--fg-2);
+  }
+  .settings-device-session-audit-details {
+    grid-column: 1 / -1;
+    color: var(--fg-3);
+    word-break: break-word;
+  }
+  .settings-device-sessions-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    padding: var(--space-3) var(--card-pad-x);
+    border-top: 1px solid var(--line);
+    background: color-mix(in oklab, var(--fg) 2%, transparent);
+  }
+  .settings-device-sessions-foot-hint {
+    flex: 1 1 200px;
+    margin: 0;
+    font-size: 12px;
+    color: var(--fg-3);
+    line-height: 1.4;
+  }
+}

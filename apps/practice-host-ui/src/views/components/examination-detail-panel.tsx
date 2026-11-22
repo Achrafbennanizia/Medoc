@@ -75,7 +75,7 @@ export function ExaminationDetailPanel({ examination }: { examination: Examinati
                 >
                     {t("patient.detail.tab.examination.summary_title")}
                 </div>
-                <div style={{ fontWeight: 700, fontSize: 15, marginTop: 6 }}>{diagnosis || emDash}</div>
+                <div style={{ fontWeight: 700, fontSize: 15, marginTop: "var(--space-2)" }}>{diagnosis || emDash}</div>
                 {plan ? (
                     <p style={{ margin: "10px 0 0", fontSize: 13, lineHeight: 1.45, whiteSpace: "pre-line" }}>
                         <strong>{t("patient.detail.tab.examination.plan_prefix")}</strong> {plan}
@@ -90,17 +90,17 @@ export function ExaminationDetailPanel({ examination }: { examination: Examinati
             <div className="grid grid-cols-1 md:grid-cols-2 gap-0" style={{ fontSize: 13 }}>
                 <div
                     style={{
-                        padding: 14,
+                        padding: "var(--space-4)",
                         borderBottom: "1px solid var(--line)",
                         borderRight: "1px solid var(--line)",
                     }}
                 >
-                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: 6 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: "var(--space-2)" }}>
                         {t("patient.detail.tab.examination.chief_complaint")}
                     </div>
                     <p style={{ margin: 0, whiteSpace: "pre-line" }}>{detail.chiefComplaint || emDash}</p>
                     {detail.painVas ? (
-                        <div style={{ marginTop: 8, color: "var(--fg-3)" }}>
+                        <div style={{ marginTop: "var(--space-2)", color: "var(--fg-3)" }}>
                             {tp("patient.detail.tab.examination.vas_line", {
                                 vas: detail.painVas,
                                 location: detail.painLocation || emDash,
@@ -108,8 +108,8 @@ export function ExaminationDetailPanel({ examination }: { examination: Examinati
                         </div>
                     ) : null}
                 </div>
-                <div style={{ padding: 14, borderBottom: "1px solid var(--line)" }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: 6 }}>
+                <div style={{ padding: "var(--space-4)", borderBottom: "1px solid var(--line)" }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: "var(--space-2)" }}>
                         {t("patient.detail.tab.examination.extraoral")}
                     </div>
                     <p style={{ margin: "4px 0" }}>
@@ -124,12 +124,12 @@ export function ExaminationDetailPanel({ examination }: { examination: Examinati
                 </div>
                 <div
                     style={{
-                        padding: 14,
+                        padding: "var(--space-4)",
                         borderBottom: "1px solid var(--line)",
                         borderRight: "1px solid var(--line)",
                     }}
                 >
-                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: 6 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: "var(--space-2)" }}>
                         {t("patient.detail.tab.examination.intraoral")}
                     </div>
                     <p style={{ margin: "4px 0" }}>
@@ -142,8 +142,8 @@ export function ExaminationDetailPanel({ examination }: { examination: Examinati
                         {t("patient.detail.tab.examination.intraoral.gingiva")} {detail.intraoral.gingiva || emDash}
                     </p>
                 </div>
-                <div style={{ padding: 14, borderBottom: "1px solid var(--line)" }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: 6 }}>
+                <div style={{ padding: "var(--space-4)", borderBottom: "1px solid var(--line)" }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: "var(--space-2)" }}>
                         {t("patient.detail.tab.examination.periodontal")}
                     </div>
                     <p style={{ margin: "4px 0" }}>
@@ -158,8 +158,8 @@ export function ExaminationDetailPanel({ examination }: { examination: Examinati
                         })}
                     </p>
                 </div>
-                <div style={{ padding: 14, borderRight: "1px solid var(--line)" }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: 6 }}>
+                <div style={{ padding: "var(--space-4)", borderRight: "1px solid var(--line)" }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: "var(--space-2)" }}>
                         {t("patient.detail.tab.examination.function")}
                     </div>
                     <p style={{ margin: "4px 0" }}>
@@ -170,12 +170,12 @@ export function ExaminationDetailPanel({ examination }: { examination: Examinati
                     </p>
                     <p style={{ margin: "4px 0", whiteSpace: "pre-line" }}>{detail.function.notes || ""}</p>
                 </div>
-                <div style={{ padding: 14, borderRight: "1px solid var(--line)" }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: 6 }}>
+                <div style={{ padding: "var(--space-4)", borderRight: "1px solid var(--line)" }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: "var(--space-2)" }}>
                         {t("patient.detail.tab.examination.tooth_notes")}
                     </div>
                     {toothEntries.length > 0 ? (
-                        <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 6 }}>
+                        <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
                             {toothEntries.map(([tooth, note]) => (
                                 <li key={tooth}>
                                     <strong>{tp("examination.composer.tooth_label", { tooth })}</strong>
@@ -187,8 +187,8 @@ export function ExaminationDetailPanel({ examination }: { examination: Examinati
                         <p style={{ margin: 0 }}>{emDash}</p>
                     )}
                 </div>
-                <div style={{ padding: 14 }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: 6 }}>
+                <div style={{ padding: "var(--space-4)" }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: "var(--space-2)" }}>
                         {t("patient.detail.tab.examination.imaging")}
                     </div>
                     <p style={{ margin: "4px 0" }}>

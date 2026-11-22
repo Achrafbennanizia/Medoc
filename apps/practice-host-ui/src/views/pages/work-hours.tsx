@@ -14,8 +14,9 @@ import {
     isValidSlotMinutes,
     validatePracticeWorkPlan,
 } from "@/lib/practice-work-hours-validation";
+import { notifyAppointmentsOutsideWorkHours } from "@/lib/appointment-hours-compliance-notify";
 import { errorMessage, formatTpl } from "@/lib/utils";
-import { useT } from "@/lib/i18n";
+import { useT, useTParams } from "@/lib/i18n";
 import { useRbac } from "@/lib/use-rbac";
 import { listPhysicians, type PhysicianSummary } from "@/systems/practice-host/controllers/staff.controller";
 
@@ -83,6 +84,7 @@ export function WorkHoursPage() {
     const navigate = useNavigate();
     const toast = useToastStore((s) => s.add);
     const tr = useT();
+    const tp = useTParams();
     const { canWritePracticePlanning } = useRbac();
     const [storedCfg, setStoredCfg] = useState<PracticeWorkHoursConfig | null>(null);
     const [selectedProfile, setSelectedProfile] = useState<string>(PRACTICE_PROFILE_KEY);
@@ -97,6 +99,7 @@ export function WorkHoursPage() {
     const remoteCfg = usePracticeWorkHoursStore((s) => s.config);
     const remoteCfgAt = usePracticeWorkHoursStore((s) => s.lastFetchedAt);
     const [saving, setSaving] = useState(false);
+    const [storedInvalid, setStoredInvalid] = useState(false);
 
     const applySliceToForm = useCallback((slice: ScheduleBaseline) => {
         setPlan(clonePlan(slice.plan));
@@ -107,16 +110,24 @@ export function WorkHoursPage() {
 
     useEffect(() => {
         let cancelled = false;
-        void loadPracticeWorkHoursConfig().then((parsed) => {
-            if (cancelled) return;
-            setStoredCfg(parsed);
-            setSelectedProfile(PRACTICE_PROFILE_KEY);
-            const s = sliceForProfile(parsed, PRACTICE_PROFILE_KEY);
-            applySliceToForm(s);
-            setHasOwnSavedProfile(s.hasOwnSavedProfile);
-            setDefaultPhysicianId((parsed.defaultPhysicianId ?? "").trim());
-            setEditing(false);
-        });
+        void loadPracticeWorkHoursConfig()
+            .then((parsed) => {
+                if (cancelled) return;
+                setStoredInvalid(false);
+                setStoredCfg(parsed);
+                setSelectedProfile(PRACTICE_PROFILE_KEY);
+                const s = sliceForProfile(parsed, PRACTICE_PROFILE_KEY);
+                applySliceToForm(s);
+                setHasOwnSavedProfile(s.hasOwnSavedProfile);
+                setDefaultPhysicianId((parsed.defaultPhysicianId ?? "").trim());
+                setEditing(false);
+            })
+            .catch((e) => {
+                if (cancelled) return;
+                if (e instanceof Error && e.message === "Stored work hours are invalid") {
+                    setStoredInvalid(true);
+                }
+            });
         void listPhysicians()
             .then((list) => {
                 if (!cancelled) setPhysicians(list);
@@ -146,7 +157,7 @@ export function WorkHoursPage() {
     );
 
     const readStat = (label: string, value: string) => (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-1)" }}>
             <span className="kpi-label-mini">{label}</span>
             <span style={{ fontSize: 14, color: "var(--fg-2)", lineHeight: 1.4 }}>{value || "—"}</span>
         </div>
@@ -216,7 +227,33 @@ export function WorkHoursPage() {
             setStoredCfg(nextCfg);
             setHasOwnSavedProfile(true);
             setEditing(false);
-            toast(tr("page.work_hours.toast_saved"));
+            toast(tr("page.work_hours.toast_saved"), "success", {
+                onUndo: async () => {
+                    try {
+                        await savePracticeWorkHoursConfig(prev);
+                        usePracticeWorkHoursStore.getState().setConfig(prev);
+                        setStoredCfg(prev);
+                        void notifyAppointmentsOutsideWorkHours({ practiceCfg: prev, t: tr, tp }).catch(() => undefined);
+                    } catch (err) {
+                        toast(`${tr("page.work_hours.toast_save_failed")} ${errorMessage(err)}`, "error");
+                    }
+                },
+            });
+            try {
+                const { violations } = await notifyAppointmentsOutsideWorkHours({
+                    practiceCfg: nextCfg,
+                    t: tr,
+                    tp,
+                });
+                if (violations.length > 0) {
+                    toast(
+                        tp("app.notifications.outside_hours_toast", { count: violations.length }),
+                        "warning",
+                    );
+                }
+            } catch {
+                /* schedule saved; compliance notify is best-effort */
+            }
         } catch (e) {
             toast(`${tr("page.work_hours.toast_save_failed")} ${errorMessage(e)}`, "error");
         } finally {
@@ -260,7 +297,12 @@ export function WorkHoursPage() {
             : (physicians.find((x) => x.id === selectedProfile)?.name ?? selectedProfile);
 
     return (
-        <div className="work_hours-page practice-workspace-page animate-fade-in">
+        <div className="work_hours-page practice-workspace-page animate-fade-in--sticky-safe">
+            {storedInvalid ? (
+                <p role="alert" style={{ color: "var(--danger, #b42318)", margin: "0 0 12px" }}>
+                    {tr("page.work_hours.stored_invalid")}
+                </p>
+            ) : null}
             <AdministrationPageHeader
                 title={tr("page.work_hours.title")}
                 subtitle={
@@ -268,7 +310,7 @@ export function WorkHoursPage() {
                         <p className="page-sub" style={{ marginTop: 0 }}>
                             {formatTpl(tr("page.work_hours.active_days"), { count: activeDays })}
                         </p>
-                        <p className="page-sub" style={{ marginTop: 4 }}>
+                        <p className="page-sub" style={{ marginTop: "var(--space-1)" }}>
                             {editing ? tr("page.work_hours.subtitle_editing") : tr("page.work_hours.subtitle_readonly")}
                         </p>
                     </>
@@ -297,10 +339,10 @@ export function WorkHoursPage() {
 
             <div className="card card-pad">
                 <h2 className="text-title" style={{ marginTop: 0 }}>{tr("page.work_hours.clinician_section_title")}</h2>
-                <p className="page-sub" style={{ marginTop: 4, marginBottom: 14 }}>
+                <p className="page-sub" style={{ marginTop: "var(--space-1)", marginBottom: "var(--space-4)" }}>
                     {tr("page.work_hours.clinician_section_hint")}
                 </p>
-                <div className="row" style={{ gap: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
+                <div className="row" style={{ gap: "var(--space-4)", flexWrap: "wrap", alignItems: "flex-end" }}>
                     <div style={{ flex: "1 1 220px", minWidth: 200 }}>
                         <Select
                             id="work_hours-profile"
@@ -326,20 +368,23 @@ export function WorkHoursPage() {
                                 ]}
                                 onChange={(e) => setDefaultPhysicianId(e.target.value)}
                             />
-                            <p style={{ fontSize: 11.5, color: "var(--fg-3)", marginTop: 6, marginBottom: 0 }}>
+                            <p style={{ fontSize: 11.5, color: "var(--fg-3)", marginTop: "var(--space-2)", marginBottom: 0 }}>
                                 {tr("page.work_hours.default_physician_hint")}
                             </p>
                         </div>
                     ) : null}
                 </div>
                 {!hasOwnSavedProfile && selectedProfile !== PRACTICE_PROFILE_KEY ? (
-                    <p style={{ fontSize: 12.5, color: "var(--accent)", marginTop: 12, marginBottom: 0 }}>
+                    <p style={{ fontSize: 12.5, color: "var(--accent)", marginTop: "var(--space-3)", marginBottom: 0 }}>
                         {tr("page.work_hours.inherits_practice")}
                     </p>
                 ) : null}
-                <p style={{ fontSize: 12.5, color: "var(--fg-3)", marginTop: 10, marginBottom: 0 }}>
-                    {tr("page.work_hours.editing_profile_rubric").replace("{name}", profileLabel)}
-                </p>
+                {/* "You are editing: …" only while editing — in read-only mode it repeated the selected profile. */}
+                {editing ? (
+                    <p style={{ fontSize: 12.5, color: "var(--fg-3)", marginTop: "var(--space-3)", marginBottom: 0 }}>
+                        {tr("page.work_hours.editing_profile_rubric").replace("{name}", profileLabel)}
+                    </p>
+                ) : null}
             </div>
 
             <div className="work_hours-layout-split">
@@ -359,8 +404,7 @@ export function WorkHoursPage() {
                                         </span>
                                     </div>
                                     {!editing ? (
-                                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                                            <span className="kpi-label-mini">{tr("page.work_hours.readonly_hours")}</span>
+                                        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
                                             {row.active ? (
                                                 (row.segments ?? []).map((seg, idx) => (
                                                     <span key={`${d.key}-ro-${idx}`} style={{ fontSize: 14, color: "var(--fg-2)" }}>
@@ -386,7 +430,7 @@ export function WorkHoursPage() {
                                                 onChange={(e) => setPlan((prev) => ({ ...prev, [d.key]: { ...prev[d.key], active: e.target.value === "1" } }))}
                                             />
                                             {(row.segments ?? []).map((seg, idx) => (
-                                                <div key={`${d.key}-seg-${idx}`} className="row" style={{ gap: 8, alignItems: "end", flexWrap: "wrap" }}>
+                                                <div key={`${d.key}-seg-${idx}`} className="row" style={{ gap: "var(--space-2)", alignItems: "end", flexWrap: "wrap" }}>
                                                     <Input
                                                         id={`${d.key}-from-${idx}`}
                                                         type="time"
@@ -427,7 +471,7 @@ export function WorkHoursPage() {
                     <div className="card card-pad">
                         <h2 className="text-title" style={{ marginTop: 0 }}>{tr("page.work_hours.section_defaults")}</h2>
                         {!editing ? (
-                            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
                                 {readStat(tr("page.work_hours.pause_from"), breakFrom)}
                                 {readStat(tr("page.work_hours.pause_to"), breakUntil)}
                                 {readStat(tr("page.work_hours.slot_label"), slotMin)}
@@ -437,7 +481,7 @@ export function WorkHoursPage() {
                                 )}
                             </div>
                         ) : (
-                            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
                                 <Input id="pause-from" type="time" label={tr("page.work_hours.pause_from")} value={breakFrom} onChange={(e) => setPauseFrom(e.target.value)} />
                                 <Input id="pause-until" type="time" label={tr("page.work_hours.pause_to")} value={breakUntil} onChange={(e) => setPauseUntil(e.target.value)} />
                                 <Input id="slot-min" type="number" min={10} step={5} label={tr("page.work_hours.slot_label")} value={slotMin} onChange={(e) => setSlotMin(e.target.value)} />
@@ -448,7 +492,7 @@ export function WorkHoursPage() {
 
                     <div className="card card-pad">
                         <h2 className="text-title" style={{ marginTop: 0 }}>{tr("page.work_hours.section_closures")}</h2>
-                        <p style={{ fontSize: 12.5, color: "var(--fg-3)", marginTop: 8 }}>
+                        <p style={{ fontSize: 12.5, color: "var(--fg-3)", marginTop: "var(--space-2)" }}>
                             {tr("page.work_hours.closures_hint")}
                         </p>
                         <Button type="button" variant="secondary" onClick={() => navigate("/administration/special-blocked-times")}>

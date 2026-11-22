@@ -1,6 +1,6 @@
 import { useCallback, useMemo, type Dispatch, type SetStateAction } from "react";
 import { useNavigate } from "react-router-dom";
-import { deletePatient, updatePatient } from "@/systems/practice-host/controllers/patient.controller";
+import { deletePatient, restorePatient, updatePatient } from "@/systems/practice-host/controllers/patient.controller";
 import {
     createTreatment,
     createExamination,
@@ -15,6 +15,7 @@ import { persistPlanNextAppointmentToBackend } from "@/systems/practice-host/con
 import { mergeQuickIntoAnamnesisJson, parseAnamnesisV1 } from "@/lib/anamnesis";
 import { clearPatientScopedBrowserStorage } from "@/lib/patient-browser-storage";
 import {
+    previewNextYearNumber,
     treatmentContinueLabel,
     treatmentToUpdatePayload,
     PATIENT_DETAIL_TOAST_UNDO_MS,
@@ -29,6 +30,7 @@ import {
     planNextHasContent,
     type PlanNextAppointmentV2,
 } from "@/lib/plan-next-appointment";
+import { parseEuroInput } from "@/lib/utils";
 import { previewNextExaminationNumber, dentalFindingUpsertsFromExamination } from "@/lib/examination";
 import type {
     Treatment,
@@ -225,8 +227,7 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
             const maxS = same.reduce((acc, b) => Math.max(acc, b.session_number ?? 0), 0);
             sessionNumberNum = maxS + 1;
         }
-        const gRaw = treatmentForm.total_cost.trim().replace(",", ".");
-        const g = gRaw === "" ? NaN : Number(gRaw);
+        const g = parseEuroInput(treatmentForm.total_cost);
         const payload = {
             kind: treatmentForm.service_name.trim(),
             description: treatmentForm.service_name.trim(),
@@ -508,9 +509,36 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
 
     const handleDeleteTreatmentRow = async () => {
         if (!treatmentDeleteId) return;
+        const row = treatments.find((b) => b.id === treatmentDeleteId) ?? null;
         try {
             await deleteTreatment(treatmentDeleteId);
-            toast(t("patient.detail.toast.treatment_deleted"));
+            toast(t("patient.detail.toast.treatment_deleted"), "success", {
+                durationMs: PATIENT_DETAIL_TOAST_UNDO_MS,
+                onUndo: async () => {
+                    if (!row) return;
+                    try {
+                        await createTreatment({
+                            chart_id: row.chart_id,
+                            kind: row.kind,
+                            description: row.description,
+                            teeth: row.teeth,
+                            material: row.material,
+                            notes: row.notes,
+                            category: row.category ?? null,
+                            service_name: row.service_name ?? null,
+                            treatment_number: row.treatment_number ?? null,
+                            session_number: row.session_number ?? null,
+                            treatment_status: row.treatment_status ?? null,
+                            total_cost: row.total_cost ?? null,
+                            appointment_required: (row.appointment_required ?? 0) === 1,
+                            treatment_date: row.treatment_date ?? null,
+                        });
+                        await load();
+                    } catch (err) {
+                        toast(tp("common.error_with_message", { message: errorMessage(err) }), "error");
+                    }
+                },
+            });
             setTreatmentDeleteId(null);
             await load();
         } catch (e) {
@@ -520,9 +548,30 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
 
     const handleDeleteExaminationRow = async () => {
         if (!unterDeleteId) return;
+        const row = examinations.find((item) => item.id === unterDeleteId) ?? null;
         try {
             await deleteExamination(unterDeleteId);
-            toast(t("patient.detail.toast.examination_deleted"));
+            toast(t("patient.detail.toast.examination_deleted"), "success", {
+                durationMs: PATIENT_DETAIL_TOAST_UNDO_MS,
+                onUndo: async () => {
+                    if (!row) return;
+                    try {
+                        await createExamination({
+                            chart_id: row.chart_id,
+                            chief_complaint: row.chief_complaint,
+                            results: row.results,
+                            diagnosis: row.diagnosis,
+                            examination_number: row.examination_number ?? null,
+                            category: row.category ?? null,
+                            service_name: row.service_name ?? null,
+                            total_cost: row.total_cost ?? null,
+                        });
+                        await load();
+                    } catch (err) {
+                        toast(tp("common.error_with_message", { message: errorMessage(err) }), "error");
+                    }
+                },
+            });
             setUnterDeleteId(null);
             await load();
         } catch (e) {
@@ -536,7 +585,16 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
         try {
             await deletePatient(patientId);
             clearPatientScopedBrowserStorage(patientId);
-            toast(t("patient.detail.toast.chart_deleted"));
+            toast(t("patient.detail.toast.chart_deleted"), "success", {
+                durationMs: PATIENT_DETAIL_TOAST_UNDO_MS,
+                onUndo: async () => {
+                    try {
+                        await restorePatient(patientId);
+                    } catch (err) {
+                        toast(tp("common.error_with_message", { message: errorMessage(err) }), "error");
+                    }
+                },
+            });
             setPatientDeleteOpen(false);
             navigate("/patients");
         } catch (e) {
@@ -579,21 +637,10 @@ export function usePatientDetailClinicalActions(args: UsePatientDetailClinicalAc
         return order.map((key) => map.get(key)!);
     }, [treatments]);
 
-    const generateNewTreatmentNumber = useCallback(() => {
-        const year = new Date().getFullYear();
-        const prefix = `B-${year}-`;
-        let max = 0;
-        for (const b of treatments) {
-            const n = (b.treatment_number ?? "").trim();
-            if (!n.startsWith(prefix)) continue;
-            const tail = n.slice(prefix.length);
-            const m = /^(\d+)/.exec(tail);
-            if (!m) continue;
-            const version = Number.parseInt(m[1], 10);
-            if (Number.isFinite(version) && version > max) max = version;
-        }
-        return `${prefix}${String(max + 1).padStart(3, "0")}`;
-    }, [treatments]);
+    const generateNewTreatmentNumber = useCallback(
+        () => previewNextYearNumber("B", treatments.map((b) => b.treatment_number)),
+        [treatments],
+    );
 
     const applyContinueFromTreatment = useCallback(
         (treatmentId: string) => {

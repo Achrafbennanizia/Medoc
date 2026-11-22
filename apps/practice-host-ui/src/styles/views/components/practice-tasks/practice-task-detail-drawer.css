@@ -1,0 +1,66 @@
+/* From styles/pages/appointments-cards.css (cascade position kept by its import there). */
+.appointment-drawer-meta-row > div {
+  min-width: 0;
+}
+.appointment-drawer-meta-row .appointment-drawer-eyebrow {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.appointment-drawer-meta-val {
+  margin-top: 6px;
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 1.35;
+}
+/* Ticket / task workflow strip — column count matches step count (3 simple / 4 verify). */
+.appointment-workflow-simple {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px 12px;
+  margin-top: 12px;
+  padding: 4px 2px 2px;
+}
+.appointment-workflow-simple--3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.appointment-workflow-simple--4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.appointment-workflow-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.appointment-workflow-node {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 2px solid var(--line-strong);
+  background: var(--bg-elev);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 1;
+  color: var(--fg-2);
+  transition: all 220ms ease;
+}
+.appointment-workflow-node .ui-icon {
+  color: inherit;
+}
+.appointment-workflow-node.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--text-on-accent);
+}
+.appointment-workflow-node.current {
+  box-shadow: 0 0 0 4px rgba(14, 160, 126, 0.18);
+}
+.appointment-workflow-node--next {
+  border-color: color-mix(in oklab, var(--accent) 55%, var(--line-strong));
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 16%, transparent);
+}

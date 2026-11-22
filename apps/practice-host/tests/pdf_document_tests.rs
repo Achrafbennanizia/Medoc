@@ -1,9 +1,9 @@
 //! Integration tests for GOZ invoice, Chart, and clinical document PDF markers.
 
-use medoc_lib::infrastructure::clinical_pdf_layout::{
+use medoc_lib::infrastructure::clinical_text_format::format_examination_for_chart_table;
+use medoc_lib::infrastructure::pdf::clinical_layout::{
     render_clinical_layout, ClinicalPdfLayout, LabelValue, PdfTableSpec, TableColumnLayout,
 };
-use medoc_lib::infrastructure::clinical_text_format::format_examination_for_chart_table;
 use medoc_lib::infrastructure::pdf::{
     render, render_chart_blocks, render_report_pdf, ChartPdfBlock, ChartPdfTable, Invoice,
     InvoiceLine, ReportPdfInput, ReportPdfSection, ReportPdfSummaryRow,
@@ -22,6 +22,7 @@ fn sample_line(description: &str, amount_cents: i64) -> InvoiceLine {
         vat_percent: None,
         material: None,
         diagnosis_reason: None,
+        ..Default::default()
     }
 }
 
@@ -45,10 +46,18 @@ fn test_invoice_goz_has_required_fields() {
         logo: None,
         locale: "en".into(),
         rtl: false,
+        ..Default::default()
     };
     let pdf = render(&inv).expect("render");
     let s = String::from_utf8_lossy(&pdf);
-    for needle in ["GOZ", "Factor", "IBAN", "VAT-exempt", "Payable within"] {
+    for needle in [
+        "GOZ",
+        "Faktor",
+        "IBAN",
+        "VAT-exempt",
+        "Payable within",
+        "Rechnungsbetrag",
+    ] {
         assert!(s.contains(needle), "missing {needle}");
     }
 }
@@ -73,6 +82,7 @@ fn test_invoice_without_goz_still_works() {
         logo: None,
         locale: "en".into(),
         rtl: false,
+        ..Default::default()
     };
     let pdf = render(&inv).expect("render");
     assert!(pdf.starts_with(b"%PDF-1.4"));
@@ -94,7 +104,7 @@ fn test_chart_pdf_has_practice_header() {
     let s = String::from_utf8_lossy(&pdf);
     assert!(s.contains("Practice"));
     assert!(s.contains("BSNR"));
-    assert!(s.contains("Page"));
+    assert!(s.contains("Seite 1 von 1"));
 }
 
 #[test]
@@ -111,6 +121,7 @@ fn test_clinical_certificate_layout_markers() {
         label_value_rows: vec![LabelValue {
             label: "Validity period".into(),
             value: "01.01.2026 until 07.01.2026".into(),
+            ..Default::default()
         }],
         two_column: None,
         tables: vec![],
@@ -121,6 +132,7 @@ fn test_clinical_certificate_layout_markers() {
         footer_meta_lines: vec![LabelValue {
             label: "Issue date".into(),
             value: "19.05.2026".into(),
+            ..Default::default()
         }],
         clinician_professional_title: None,
         clinician_zanr: None,
@@ -128,6 +140,7 @@ fn test_clinical_certificate_layout_markers() {
         logo_kv_json: None,
         locale: Some("en".into()),
         rtl: false,
+        ..Default::default()
     };
     let pdf = render_clinical_layout(&doc).expect("certificate pdf");
     let s = String::from_utf8_lossy(&pdf);
@@ -136,8 +149,8 @@ fn test_clinical_certificate_layout_markers() {
         assert!(s.contains(needle), "missing {needle}");
     }
     assert!(
-        s.contains("\\304") || s.contains("00C4") || s.contains("MEDICAL CERTIFICATE"),
-        "expected WinAnsi or UTF-16 encoding for Ä in title"
+        s.contains("(MEDICAL CERTIFICATE)"),
+        "title must be a WinAnsi literal"
     );
 }
 
@@ -188,6 +201,7 @@ fn test_clinical_receipt_table_layout() {
         meta_lines: vec![LabelValue {
             label: "Receipt-Nr.".into(),
             value: "Q-001".into(),
+            ..Default::default()
         }],
         address_lines: vec!["Max Sample".into()],
         document_title: "PATIENT RECEIPT".into(),
@@ -196,6 +210,7 @@ fn test_clinical_receipt_table_layout() {
         label_value_rows: vec![LabelValue {
             label: "Patient".into(),
             value: "Max Sample".into(),
+            ..Default::default()
         }],
         two_column: None,
         tables: vec![PdfTableSpec {
@@ -209,10 +224,12 @@ fn test_clinical_receipt_table_layout() {
             LabelValue {
                 label: "Fee".into(),
                 value: "50,00 €".into(),
+                ..Default::default()
             },
             LabelValue {
                 label: "Total".into(),
                 value: "50,00 €".into(),
+                ..Default::default()
             },
         ],
         closing_paragraphs: vec![],
@@ -224,6 +241,7 @@ fn test_clinical_receipt_table_layout() {
         logo_kv_json: None,
         locale: Some("en".into()),
         rtl: false,
+        ..Default::default()
     };
     let pdf = render_clinical_layout(&doc).expect("receipt pdf");
     let s = String::from_utf8_lossy(&pdf);
@@ -284,12 +302,19 @@ fn test_financial_report_pdf_markers() {
             title: "Monthly trend".into(),
             headers: vec!["Month".into(), "Income".into()],
             rows: vec![vec!["2026-05".into(), "8.500,00".into()]],
+            column_weights: None,
         }],
+        ..Default::default()
     };
     let pdf = render_report_pdf(&input).expect("report pdf");
     let s = String::from_utf8_lossy(&pdf);
     assert!(pdf.starts_with(b"%PDF"));
-    for needle in ["Balance report", "Summary", "Monthly trend", "Page"] {
+    for needle in [
+        "Balance report",
+        "Zusammenfassung",
+        "Monthly trend",
+        "Seite 1 von 1",
+    ] {
         assert!(s.contains(needle), "missing {needle}");
     }
 }

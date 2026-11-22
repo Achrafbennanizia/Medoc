@@ -1,0 +1,64 @@
+/* From styles/features/schedule.css (cascade position kept by its import there). */
+@layer components {
+  .schedule-header {
+    align-items: flex-start;
+    gap: 14px;
+  }
+  .schedule-toolbar {
+    margin-inline-start: auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+  .schedule-view-seg {
+    flex: 0 0 auto;
+  }
+  .schedule-quick-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .schedule-filter {
+    min-width: 150px;
+    margin-bottom: -8px;
+  }
+  .schedule-filter-status {
+    min-width: 160px;
+  }
+  .schedule-primary-action {
+    white-space: nowrap;
+  }
+  .schedule-toolbar .btn,
+  .schedule-toolbar .seg {
+    min-height: 36px;
+  }
+  .schedule-page {
+    min-height: 0;
+  }
+  /* Shared with Dashboard „Heute“-Tagesliste */
+  .schedule-day-time-primary {
+    font-size: clamp(16px, 2.2vh, 20px);
+    font-weight: 700;
+    line-height: 1.05;
+  }
+  .schedule-day-time-meta {
+    font-size: var(--dash-meta-size);
+    color: var(--fg-3);
+    margin-top: 2px;
+  }
+  .schedule-day-name {
+    font-size: var(--dash-body-size);
+    font-weight: 700;
+    line-height: 1.2;
+  }
+  .schedule-day-age {
+    font-weight: 500;
+    color: var(--fg-3);
+  }
+}

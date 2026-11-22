@@ -1,0 +1,65 @@
+/* From styles/features/help-center.css (cascade position kept by its import there). */
+@layer components {
+  .help-card {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-card);
+    background: var(--bg-elev);
+    padding: var(--space-4) var(--card-pad-x);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-width: 0;
+  }
+  .help-card__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-2); }
+  .help-card__title { margin: 0; font-size: 15px; font-weight: 700; }
+  .help-card__meta, .help-card__foot { margin: 0; color: var(--fg-3); font-size: 12.5px; }
+  .help-chip-row { display: inline-flex; flex-wrap: wrap; gap: var(--space-1); }
+  .help-shortcut-list { margin: 0; display: flex; flex-direction: column; }
+  .help-shortcut-row {
+    display: grid;
+    grid-template-columns: minmax(8rem, auto) 1fr;
+    gap: var(--space-3);
+    align-items: center;
+    padding-block: var(--space-2);
+    border-top: 1px solid var(--line);
+  }
+  .help-shortcut-row:first-child { border-top: 0; }
+  .help-shortcut-row__keys { display: flex; flex-wrap: wrap; gap: var(--space-1); margin: 0; }
+  .help-shortcut-row__label { margin: 0; font-size: 13.5px; }
+  .help-chord { display: inline-flex; align-items: center; gap: 3px; }
+  .help-chord__or { color: var(--fg-4); padding-inline: 2px; }
+  .help-chord__key { display: inline-flex; align-items: center; gap: 3px; }
+  .help-chord__then { color: var(--fg-4); font-size: 11px; padding-inline: 1px; }
+  .help-error-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+  .help-error {
+    border: 1px solid var(--line);
+    border-inline-start: 3px solid var(--orange);
+    border-radius: var(--radius-card);
+    background: var(--bg-elev);
+    padding: var(--space-3) var(--card-pad-x);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    scroll-margin-block: 120px;
+  }
+  .help-error--warning { border-inline-start-color: var(--yellow, var(--orange)); }
+  .help-error--critical { border-inline-start-color: var(--red); }
+  .help-error--match { box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent) 45%, transparent); }
+  .help-error__head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+  .help-error__code { font: 700 13px/1 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--fg); }
+  .help-error__domain { color: var(--fg-3); font-size: 12.5px; }
+  .help-error__message { margin: 0; font-weight: 600; }
+  .help-error__details {
+    margin: 0;
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: var(--space-1) var(--space-3);
+    font-size: 13px;
+  }
+  .help-error__details dt { color: var(--fg-3); font-weight: 600; }
+  .help-error__details dd { margin: 0; }
+  @media (max-width: 560px) {
+    .help-error__details { grid-template-columns: 1fr; }
+    .help-shortcut-row { grid-template-columns: 1fr; gap: var(--space-1); }
+  }
+}

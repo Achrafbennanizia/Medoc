@@ -23,6 +23,10 @@ pub enum AppError {
     #[error("Conflict: {0}")]
     Conflict(String),
 
+    /// Integration or product surface is switched off (D5/D6).
+    #[error("Feature disabled: {0}")]
+    FeatureDisabled(String),
+
     #[error("Validation error: {0}")]
     Validation(String),
 
@@ -83,11 +87,18 @@ impl AppError {
             AppError::Unauthorized => "error.app.unauthorized".into(),
             AppError::RateLimited(secs) => format!("error.app.rate_limited|seconds={secs}"),
             AppError::Forbidden => "error.app.forbidden".into(),
-            AppError::NotFound(resource) => {
-                format!("error.app.not_found|resource={}", sanitize_param(resource))
-            }
+            AppError::NotFound(resource) => format!(
+                "error.app.not_found|resource={}",
+                not_found_entity_key(resource)
+                    .map(str::to_string)
+                    .unwrap_or_else(|| sanitize_param(resource))
+            ),
             AppError::Conflict(detail) => {
                 format!("error.app.conflict|detail={}", sanitize_param(detail))
+            }
+            AppError::FeatureDisabled(feature) => {
+                // Machine code kept for existing clients (`ipcErrorCode`); UI maps it to error.app.feature_disabled.
+                format!("FEATURE_DISABLED|feature={}", sanitize_param(feature))
             }
             AppError::TotpRequired => "error.app.totp_required".into(),
             AppError::TotpEnrollmentRequired => "error.app.totp_enrollment_required".into(),
@@ -107,10 +118,10 @@ impl AppError {
     /// HTTP status for REST surfaces (LAN / company servers). One mapping for every router.
     pub fn http_status(&self) -> u16 {
         match self {
-            AppError::Unauthorized | AppError::TotpRequired | AppError::TotpEnrollmentRequired => 401,
-            AppError::Forbidden => 403,
+            AppError::Unauthorized | AppError::TotpRequired => 401,
+            AppError::Forbidden | AppError::TotpEnrollmentRequired => 403,
             AppError::NotFound(_) => 404,
-            AppError::Conflict(_) => 409,
+            AppError::Conflict(_) | AppError::FeatureDisabled(_) => 409,
             AppError::RateLimited(_) => 429,
             AppError::Validation(_) | AppError::ValidationCode(_) => 400,
             AppError::Database(_) | AppError::Internal(_) => 500,
@@ -118,12 +129,60 @@ impl AppError {
     }
 }
 
-/// `|` and `=` delimit params on the wire; keep free text from breaking the token.
-fn sanitize_param(raw: &str) -> String {
-    raw.replace('|', "/").replace('=', ":").replace(['\n', '\r'], " ")
+/// Map the resource names used across the code base (English, legacy German, table names) to the
+/// translated entity key the UI renders (`error.entity.*`). Unknown names pass through as text.
+pub fn not_found_entity_key(resource: &str) -> Option<&'static str> {
+    if resource.starts_with("error.entity.") {
+        return None;
+    }
+    let norm: String = resource
+        .trim()
+        .to_ascii_lowercase()
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .collect();
+    Some(match norm.as_str() {
+        "patient" | "patientnotfound" => "error.entity.patient",
+        "patientchart" => "error.entity.patient_chart",
+        "appointment" => "error.entity.appointment",
+        "task" => "error.entity.task",
+        "ticket" => "error.entity.ticket",
+        "staff" | "physician" => "error.entity.staff",
+        "payment" | "cashmovement" => "error.entity.payment",
+        "treatment" => "error.entity.treatment",
+        "examination" => "error.entity.examination",
+        "prescription" => "error.entity.prescription",
+        "certificate" => "error.entity.certificate",
+        "document" | "documenttemplate" | "template" => "error.entity.document",
+        "invoice" | "reminder" => "error.entity.invoice",
+        "daycloseprotocol" => "error.entity.day_close",
+        "balancesheetsnapshot" => "error.entity.balance_sheet",
+        "contract" | "contractfilenotfound" | "keinvertragsdokument" => "error.entity.contract",
+        "product" | "katalogeintrag" | "serviceitem" => "error.entity.catalog_item",
+        "purchaseorder" => "error.entity.purchase_order",
+        "supplier" | "kontakt" => "error.entity.supplier",
+        "absence" => "error.entity.absence",
+        "notification" => "error.entity.notification",
+        "chartattachment" | "attachmentsdatei" | "scannerdatei" | "blob" => {
+            "error.entity.chart_attachment"
+        }
+        "berechtigungsoverride" => "error.entity.permission",
+        "pairingsessionnotfound" | "pairingrequest" => "error.entity.pairing",
+        "syncproblem" => "error.entity.sync_problem",
+        _ => return None,
+    })
 }
 
-fn correlation_ref() -> String {
+/// `|` and `=` delimit params on the wire; keep free text from breaking the token.
+fn sanitize_param(raw: &str) -> String {
+    raw.replace('|', "/")
+        .replace('=', ":")
+        .replace(['\n', '\r'], " ")
+}
+
+/// Short random reference shown to the user (`ref=…`) and written into the log line, so support can find
+/// the exact failure in errors.log. Also used as the operation id of `logging::op_span`.
+pub fn correlation_ref() -> String {
     uuid::Uuid::new_v4().simple().to_string()[..8].to_uppercase()
 }
 
@@ -155,8 +214,26 @@ mod wire_tests {
     }
 
     #[test]
+    fn not_found_uses_translated_entity_keys() {
+        assert_eq!(
+            AppError::NotFound("Patient".into()).wire_code(),
+            "error.app.not_found|resource=error.entity.patient"
+        );
+        assert_eq!(
+            AppError::NotFound("Katalogeintrag".into()).wire_code(),
+            "error.app.not_found|resource=error.entity.catalog_item"
+        );
+        assert_eq!(
+            AppError::NotFound("Gizmo".into()).wire_code(),
+            "error.app.not_found|resource=Gizmo"
+        );
+    }
+
+    #[test]
     fn coded_errors_pass_through() {
-        let wire = AppError::validation_code_params("error.payment.overpayment_treatment", &[("max", 5)]).wire_code();
+        let wire =
+            AppError::validation_code_params("error.payment.overpayment_treatment", &[("max", 5)])
+                .wire_code();
         assert_eq!(wire, "error.payment.overpayment_treatment|max=5");
         assert_eq!(AppError::Forbidden.http_status(), 403);
     }

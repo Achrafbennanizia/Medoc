@@ -1,0 +1,359 @@
+/* From styles/features/device-pairing.css (cascade position kept by its import there). */
+@layer components {
+  .pairing-inbox-slot {
+    border-top: 1px solid var(--line);
+    padding-top: var(--space-4);
+  }
+  .pairing-inbox-slot > .settings-system-block {
+    border-top: none;
+    padding: 0;
+  }
+  .pairing-inbox__heading {
+    flex: 1;
+    min-width: 0;
+  }
+  .pairing-inbox__title-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .pairing-inbox__title {
+    text-wrap: balance;
+  }
+  .pairing-inbox__intro,
+  .pairing-inbox__hint,
+  .pairing-inbox__empty,
+  .pairing-inbox__toggle-label,
+  .pairing-inbox__name,
+  .pairing-inbox__chip {
+    text-wrap: pretty;
+  }
+  .pairing-inbox__intro {
+    margin-top: var(--space-1);
+  }
+  .pairing-inbox__count-num,
+  .pairing-inbox__pin-digits {
+    font-variant-numeric: tabular-nums;
+  }
+  .pairing-inbox__refresh {
+    flex-shrink: 0;
+    min-height: 40px;
+  }
+  .pairing-inbox__toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: color-mix(in oklab, var(--fg) 3%, var(--bg-elev));
+  }
+  .pairing-inbox__toggle--off {
+    background: color-mix(in oklab, var(--fg) 5%, var(--bg-elev));
+  }
+  .pairing-inbox__toggle--off .pairing-inbox__toggle-label {
+    color: var(--fg-2);
+  }
+  .pairing-inbox__toggle-label {
+    margin: 0;
+    min-width: 0;
+    font-size: var(--text-callout);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--fg);
+  }
+  .pairing-inbox__identity,
+  .pairing-inbox__card {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--bg-elev);
+  }
+  .pairing-inbox__identity {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-3);
+  }
+  .pairing-inbox__kv {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  .pairing-inbox__k {
+    font-size: var(--text-caption);
+    font-weight: 600;
+    color: var(--fg-3);
+    letter-spacing: 0.01em;
+  }
+  .pairing-inbox__v {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+  .pairing-inbox__mono {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.01em;
+    color: var(--fg);
+  }
+  .pairing-inbox__icon-btn {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    margin-inline-start: auto;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-ctl);
+    background: var(--bg-elev);
+    color: var(--fg-2);
+    cursor: pointer;
+    transition-property: background-color, border-color, color, transform;
+    transition-duration: var(--motion-fast);
+    transition-timing-function: var(--ease-out);
+  }
+  .pairing-inbox__icon-btn:hover {
+    background: color-mix(in oklab, var(--fg) 5%, var(--bg-elev));
+    color: var(--fg);
+  }
+  .pairing-inbox__icon-btn:active:not(:disabled) {
+    transform: scale(0.96);
+  }
+  .pairing-inbox__icon-btn:focus-visible {
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+  }
+  .pairing-inbox__list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .pairing-inbox__card {
+    padding: var(--space-2) var(--space-3);
+    border-inline-start: 3px solid var(--line-strong);
+    box-shadow: var(--shadow-sm);
+    animation: pairing-inbox-in var(--motion-ui) var(--ease-out);
+    transition-property: border-color, background-color, box-shadow;
+    transition-duration: var(--motion-fast);
+    transition-timing-function: var(--ease-out);
+  }
+  .pairing-inbox__card--pending {
+    border-color: color-mix(in oklab, var(--orange) 28%, var(--line));
+    border-inline-start-color: var(--orange);
+    background: color-mix(in oklab, var(--orange-soft) 62%, var(--bg-elev));
+  }
+  .pairing-inbox__card--pin {
+    border-color: color-mix(in oklab, var(--blue) 28%, var(--line));
+    border-inline-start-color: var(--blue);
+    background: color-mix(in oklab, var(--blue-soft) 55%, var(--bg-elev));
+  }
+  .pairing-inbox__card--accepted {
+    border-inline-start-color: var(--green);
+  }
+  .pairing-inbox__card--rejected {
+    border-inline-start-color: var(--red);
+  }
+  .pairing-inbox__card--revoked {
+    border-inline-start-color: var(--fg-3);
+  }
+  .pairing-inbox__card-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+  .pairing-inbox__who {
+    min-width: 0;
+    flex: 1;
+  }
+  .pairing-inbox__name {
+    display: block;
+    font-size: var(--text-callout);
+    letter-spacing: -0.01em;
+  }
+  .pairing-inbox__when {
+    margin-top: 2px;
+    font-size: var(--text-caption);
+    color: var(--fg-3);
+  }
+  .pairing-inbox__meta {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin-top: var(--space-2);
+  }
+  .pairing-inbox__kv--inline {
+    display: grid;
+    grid-template-columns: minmax(6.5rem, max-content) minmax(0, 1fr);
+    align-items: start;
+    column-gap: var(--space-2);
+  }
+  .pairing-inbox__kv--inline .pairing-inbox__k {
+    padding-top: var(--space-2);
+  }
+  .pairing-inbox__mono--wrap {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+    word-break: break-all;
+  }
+  .pairing-inbox__pin {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-3);
+    margin-top: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border-radius: 8px;
+    background: var(--bg-elev);
+    border: 1px solid color-mix(in oklab, var(--blue) 24%, var(--line));
+  }
+  .pairing-inbox__pin-label {
+    font-size: var(--text-caption);
+    font-weight: 600;
+    color: var(--fg-3);
+  }
+  .pairing-inbox__pin-digits {
+    display: flex;
+    gap: 0.35em;
+    font-size: 1.25rem;
+    font-weight: 700;
+    letter-spacing: 0;
+    line-height: 1;
+    color: var(--fg);
+  }
+  .pairing-inbox__hint {
+    margin-top: var(--space-2);
+  }
+  .pairing-inbox__actions {
+    margin-top: var(--space-2);
+    border: none;
+    padding: 0;
+  }
+  .pairing-inbox__actions legend {
+    padding: 0;
+    font-size: var(--text-caption);
+    font-weight: 600;
+    color: var(--fg-3);
+  }
+  .pairing-inbox__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+  }
+  .pairing-inbox__chip {
+    min-height: 32px;
+    padding: 4px 10px;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--line);
+    background: var(--bg-elev);
+    color: var(--fg-2);
+    font-size: var(--text-chip);
+    font-weight: 600;
+    line-height: 1.3;
+    text-align: start;
+    cursor: pointer;
+    transition-property: background-color, border-color, color, transform;
+    transition-duration: var(--motion-fast);
+    transition-timing-function: var(--ease-out);
+  }
+  .pairing-inbox__chip:hover {
+    border-color: color-mix(in oklab, var(--accent) 40%, var(--line));
+    color: var(--fg);
+  }
+  .pairing-inbox__chip:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+  .pairing-inbox__chip:focus-visible {
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+  }
+  .pairing-inbox__chip--on {
+    background: var(--accent-soft);
+    border-color: color-mix(in oklab, var(--accent) 45%, var(--line));
+    color: var(--accent-ink);
+  }
+  .pairing-inbox__footer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+  }
+  .pairing-inbox__more {
+    align-self: flex-start;
+    min-height: 36px;
+    padding: 6px 2px;
+    border: none;
+    background: transparent;
+    color: var(--accent-ink);
+    font-size: var(--text-caption);
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+    transition-property: color, transform;
+    transition-duration: var(--motion-fast);
+    transition-timing-function: var(--ease-out);
+  }
+  .pairing-inbox__more:hover {
+    color: var(--accent);
+  }
+  .pairing-inbox__more:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+  .pairing-inbox__more:focus-visible {
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+    border-radius: var(--radius-sm);
+  }
+  .pairing-inbox__empty {
+    margin: 0;
+    padding: var(--space-5) var(--space-4);
+    border: 1px dashed var(--line-strong);
+    border-radius: 12px;
+    text-align: center;
+    color: var(--fg-3);
+    font-size: var(--text-caption);
+  }
+  .pairing-inbox__skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .pairing-inbox__skeleton span:not(.sr-only) {
+    display: block;
+    height: 52px;
+    border-radius: 12px;
+    background: color-mix(in oklab, var(--fg) 6%, var(--bg-elev));
+    animation: pairing-inbox-pulse 1.2s var(--ease-in-out) infinite;
+  }
+  .pairing-inbox__skeleton span:not(.sr-only):last-child {
+    height: 40px;
+    width: 70%;
+  }
+  @keyframes pairing-inbox-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}

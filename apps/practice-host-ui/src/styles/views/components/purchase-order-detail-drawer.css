@@ -1,0 +1,65 @@
+/* From styles/pages/appointments-cards.css (cascade position kept by its import there). */
+.appointment-drawer-section .dental-tooth-picker-mini {
+  margin-top: 8px;
+  width: 100%;
+}
+.purchase-order-drawer-workflow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.purchase-order-drawer-workflow .btn {
+  flex: 1 1 0;
+  min-width: 5.5rem;
+  justify-content: center;
+}
+.purchase-order-drawer-overdue-hint {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  color: var(--red);
+  line-height: 1.4;
+}
+.purchase-order-drawer-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+.purchase-order-drawer-edit-item {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.purchase-order-drawer-edit-item > :first-child {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.purchase-order-drawer-edit-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.purchase-order-drawer-save-error {
+  color: var(--red);
+  font-size: 12.5px;
+  margin: 0;
+  padding: 6px 10px;
+  background: var(--red-soft);
+  border-radius: 6px;
+}
+.appointment-drawer-meta-val--pre {
+  white-space: pre-wrap;
+}
+.appointment-drawer-meta-val--mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+}
+.appointment-drawer-footer {
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}

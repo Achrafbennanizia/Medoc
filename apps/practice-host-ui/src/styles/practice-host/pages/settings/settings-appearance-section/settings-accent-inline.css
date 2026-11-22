@@ -1,0 +1,67 @@
+/* From styles/features/settings-sections.css (cascade position kept by its import there). */
+@layer components {
+  .settings-row--accent .settings-accent-inline {
+    flex: 1 1 auto;
+    min-width: min(100%, 17.5rem);
+  }
+  @media (max-width: 440px) {
+    .settings-row--accent .settings-accent-inline {
+      justify-content: start;
+      width: 100%;
+    }
+    [dir="rtl"] .settings-row--accent .settings-accent-inline {
+      justify-content: end;
+    }
+  }
+  .settings-accent-inline__swatch {
+    /* Per-swatch token set inline — never use global --accent for the ring
+       (default mint + border/box-shadow transitions made the wrong color look selected). */
+    --swatch-color: var(--accent);
+    width: 32px;
+    height: 32px;
+    margin: 0;
+    padding: 0;
+    border-radius: 50%;
+    border: 2px solid color-mix(in oklab, var(--fg) 14%, transparent);
+    cursor: pointer;
+    flex-shrink: 0;
+    box-shadow: var(--shadow-sm), inset 0 1px 0 color-mix(in oklab, #fff 22%, transparent);
+    /* Transform only — animating border/ring through the previous --accent looked wrong */
+    transition: transform var(--motion-fast) var(--ease-out);
+  }
+  .settings-accent-inline__swatch:hover:not(.is-selected) {
+    border-color: color-mix(in oklab, var(--fg) 28%, transparent);
+    transform: scale(1.05);
+  }
+  .settings-accent-inline__swatch:focus-visible {
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: 2px;
+  }
+  .settings-accent-inline__swatch.is-selected {
+    border-color: color-mix(in oklab, var(--swatch-color) 55%, var(--fg));
+    box-shadow:
+      0 0 0 2px var(--bg-elev),
+      0 0 0 4px color-mix(in oklab, var(--swatch-color) 42%, transparent),
+      var(--shadow-sm),
+      inset 0 1px 0 color-mix(in oklab, #fff 22%, transparent);
+  }
+  .settings-accent-inline__swatch:active:not(:disabled) {
+    transform: scale(0.96);
+  }
+  .settings-serverless-sync-error {
+    margin-top: var(--space-3);
+  }
+  .settings-shell {
+    align-items: start;
+  }
+  .settings-nav {
+    position: sticky;
+    top: var(--layout-sticky-below-chrome);
+  }
+  .settings-nav-sep {
+    margin: var(--space-2) var(--space-1);
+    height: 1px;
+    background: var(--line);
+    opacity: 0.85;
+  }
+}

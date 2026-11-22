@@ -140,7 +140,7 @@ export function SickLeaveCertificateFormPage() {
     if (loadError && records.length === 0) return <PageLoadError message={loadError} onRetry={() => void load()} />;
 
     return (
-        <div className="practice-workspace-page animate-fade-in">
+        <div className="practice-workspace-page animate-fade-in--sticky-safe">
             <AdministrationPageHeader
                 title={t("page.sick_leave_certificate.title")}
                 subtitle={t("page.sick_leave_certificate.subtitle")}
@@ -149,7 +149,7 @@ export function SickLeaveCertificateFormPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" style={{ alignItems: "start" }}>
                 <Card>
                     <CardHeader title={t("page.sick_leave_certificate.form.new")} />
-                    <div className="card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    <div className="card-pad" style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
                         <Select
                             id="kb-staff"
                             label={t("page.sick_leave_certificate.label.staff")}
@@ -165,7 +165,7 @@ export function SickLeaveCertificateFormPage() {
                             <input
                                 type="file"
                                 accept=".pdf,.jpg,.jpeg,.png,.webp"
-                                style={{ display: "block", marginTop: 4 }}
+                                style={{ display: "block", marginTop: "var(--space-1)" }}
                                 onChange={(e) => setFile(e.target.files?.[0] ?? null)}
                             />
                             {file ? <span style={{ color: "var(--fg-3)" }}>{file.name}</span> : null}
@@ -178,7 +178,7 @@ export function SickLeaveCertificateFormPage() {
 
                 <Card>
                     <CardHeader title={t("page.sick_leave_certificate.entries")} />
-                    <div className="card-pad" style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 480, overflow: "auto" }}>
+                    <div className="card-pad" style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", maxHeight: 480, overflow: "auto" }}>
                         {records.length === 0 ? (
                             <p style={{ margin: 0, color: "var(--fg-3)" }}>{t("page.sick_leave_certificate.empty")}</p>
                         ) : (
@@ -205,10 +205,10 @@ export function SickLeaveCertificateFormPage() {
             </div>
 
             {selected ? (
-                <div style={{ marginTop: 16 }}>
+                <div style={{ marginTop: "var(--space-4)" }}>
                 <Card>
                     <CardHeader title={t("page.sick_leave_certificate.detail")} />
-                    <div className="card-pad" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div className="card-pad" style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
                         <p style={{ margin: 0 }}>
                             <strong>{t("page.sick_leave_certificate.period")}</strong> {selected.dateFrom}
                             {selected.dateTo ? ` – ${selected.dateTo}` : ""}

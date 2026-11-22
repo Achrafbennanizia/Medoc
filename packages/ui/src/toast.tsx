@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useT } from "@/lib/i18n";
 import { OPEN_HELP_EVENT, useToastStore, type Toast as ToastItem } from "./toast-store";
-import { CheckIcon, XIcon } from "@/lib/icons";
+import { XIcon } from "@/lib/icons";
 
 function ToastRow({
     toast,
     remove,
-    stackPointerInside,
+    paused,
 }: {
     toast: ToastItem;
     remove: (id: string) => void;
-    stackPointerInside: boolean;
+    paused: boolean;
 }) {
     const t = useT();
     const isError = toast.type === "error";
@@ -18,67 +18,55 @@ function ToastRow({
     const role = isError ? "alert" : "status";
 
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+    const closedRef = useRef(false);
     const remainingRef = useRef(toast.durationMs);
-    const endAtRef = useRef(0);
-    const pausedRef = useRef(false);
+    const startedRef = useRef<number | null>(null);
+    const onUndoRef = useRef(toast.onUndo);
+    onUndoRef.current = toast.onUndo;
 
-    const armTimer = useCallback(() => {
-        clearTimeout(timeoutRef.current);
-        if (pausedRef.current || stackPointerInside) return;
-        const delay = remainingRef.current;
-        endAtRef.current = Date.now() + delay;
-        timeoutRef.current = setTimeout(() => {
-            remove(toast.id);
-        }, delay + 400);
-    }, [remove, toast.id, stackPointerInside]);
-
-    useEffect(() => {
-        remainingRef.current = toast.durationMs;
-        pausedRef.current = false;
-        armTimer();
-        return () => clearTimeout(timeoutRef.current);
-    }, [toast.durationMs, armTimer]);
-
-    useEffect(() => {
-        if (stackPointerInside) {
+    const finish = useCallback(
+        (runUndo: boolean) => {
+            if (closedRef.current) return;
+            closedRef.current = true;
             clearTimeout(timeoutRef.current);
-            remainingRef.current = Math.max(0, endAtRef.current - Date.now());
-        } else if (!pausedRef.current) {
-            armTimer();
-        }
-    }, [stackPointerInside, armTimer]);
+            if (runUndo) void onUndoRef.current?.();
+            remove(toast.id);
+        },
+        [remove, toast.id],
+    );
 
-    const handleUndo = () => {
-        toast.onUndo?.();
-        remove(toast.id);
-    };
-
-    const onPointerEnter = () => {
-        if (pausedRef.current) return;
-        pausedRef.current = true;
-        clearTimeout(timeoutRef.current);
-        remainingRef.current = Math.max(0, endAtRef.current - Date.now());
-    };
-
-    const onPointerLeave = () => {
-        if (!pausedRef.current) return;
-        pausedRef.current = false;
-        if (!stackPointerInside) armTimer();
-    };
+    useEffect(() => {
+        if (closedRef.current || paused) return;
+        startedRef.current = Date.now();
+        timeoutRef.current = setTimeout(() => finish(false), remainingRef.current);
+        return () => {
+            clearTimeout(timeoutRef.current);
+            if (startedRef.current != null) {
+                remainingRef.current = Math.max(0, remainingRef.current - (Date.now() - startedRef.current));
+                startedRef.current = null;
+            }
+        };
+    }, [paused, finish]);
 
     return (
         <div
-            className={`toast-item ${toast.type} animate-slide-up`}
+            className={`toast-item ${toast.type}${toast.onUndo ? " has-undo" : ""} animate-slide-up`}
             role={role}
             aria-live={live}
             tabIndex={0}
             style={{ ["--toast-dur" as string]: `${toast.durationMs}ms` }}
-            onPointerEnter={onPointerEnter}
-            onPointerLeave={onPointerLeave}
         >
             <div className="toast-item-inner">
-                {toast.type === "success" && <CheckIcon aria-hidden />}
-                {toast.type === "error" && <XIcon aria-hidden />}
+                <button
+                    type="button"
+                    onClick={() => finish(false)}
+                    aria-label={t("a11y.dismiss_notification")}
+                    className="toast-dismiss"
+                >
+                    <span aria-hidden>
+                        <XIcon size={14} />
+                    </span>
+                </button>
                 {toast.type === "info" && <span className="toast-info-dot" aria-hidden />}
                 {toast.type === "warning" && <span className="toast-warning-dot" aria-hidden />}
                 <span className="toast-message">
@@ -98,18 +86,15 @@ function ToastRow({
                     ) : null}
                 </span>
                 {toast.onUndo ? (
-                    <button type="button" className="toast-undo" onClick={handleUndo}>
-                        {toast.undoLabel}
+                    <button
+                        type="button"
+                        className="toast-undo"
+                        aria-label={toast.undoLabel || t("common.undo")}
+                        onClick={() => finish(true)}
+                    >
+                        {toast.undoLabel || t("common.undo")}
                     </button>
                 ) : null}
-                <button
-                    type="button"
-                    onClick={() => remove(toast.id)}
-                    aria-label={t("a11y.dismiss_notification")}
-                    className="toast-dismiss"
-                >
-                    ×
-                </button>
             </div>
             <div className="toast-progress-track" aria-hidden>
                 <div className="toast-progress-bar" />
@@ -121,7 +106,7 @@ function ToastRow({
 export function ToastContainer() {
     const toasts = useToastStore((s) => s.toasts);
     const remove = useToastStore((s) => s.remove);
-    const stackPointerInside = useToastStore((s) => s.toastStackPointerInside);
+    const paused = useToastStore((s) => s.toastStackPointerInside);
     const setStackPointerInside = useToastStore((s) => s.setToastStackPointerInside);
     const t = useT();
 
@@ -129,20 +114,18 @@ export function ToastContainer() {
 
     return (
         <div
-            className="toast-stack"
+            className={`toast-stack${paused ? " is-paused" : ""}`}
             role="region"
             aria-label={t("a11y.notifications_region")}
-            aria-live="polite"
             onPointerEnter={() => setStackPointerInside(true)}
             onPointerLeave={() => setStackPointerInside(false)}
+            onFocus={() => setStackPointerInside(true)}
+            onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget)) setStackPointerInside(false);
+            }}
         >
             {toasts.map((toast) => (
-                <ToastRow
-                    key={toast.id}
-                    toast={toast}
-                    remove={remove}
-                    stackPointerInside={stackPointerInside}
-                />
+                <ToastRow key={toast.id} toast={toast} remove={remove} paused={paused} />
             ))}
         </div>
     );

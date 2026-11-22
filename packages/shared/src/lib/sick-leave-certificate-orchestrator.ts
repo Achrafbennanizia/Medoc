@@ -1,10 +1,10 @@
 /**
  * Atomic save: persist SickLeaveCertificate via IPC, then cancel matching WorkPlan blocks.
- * Rolls back is not possible for IPC after success — WorkPlan snapshot is restored on localStorage failure.
+ * The IPC save cannot be rolled back after success; when it fails, the staff member's synced work-plan slice is restored.
  */
 import {
-    loadWorkPlanStore,
-    saveWorkPlanStore,
+    hydrateWorkPlanStore,
+    persistWorkPlanSlice,
     type WorkPlanStore,
 } from "./staff-work-plan";
 
@@ -44,7 +44,7 @@ export async function saveSickLeaveCertificateAtomic(
     invokeSave: (input: SickLeaveCertificateSaveInput) => Promise<{ id: string }>,
     input: SickLeaveCertificateSaveInput,
 ): Promise<SickLeaveCertificateSaveResult> {
-    const priorStore = loadWorkPlanStore();
+    const priorStore = await hydrateWorkPlanStore([input.staffId], { cache: false });
     const { store: nextStore, cancelledCount } = cancelWorkPlanBlocksForDateRange(
         priorStore,
         input.staffId,
@@ -52,14 +52,13 @@ export async function saveSickLeaveCertificateAtomic(
         input.dateTo,
     );
 
-    const record = await invokeSave(input);
+    await persistWorkPlanSlice(nextStore, input.staffId);
 
     try {
-        saveWorkPlanStore(nextStore);
+        const record = await invokeSave(input);
+        return { recordId: record.id, cancelledBlockCount: cancelledCount };
     } catch (e) {
-        saveWorkPlanStore(priorStore);
+        await persistWorkPlanSlice(priorStore, input.staffId);
         throw e;
     }
-
-    return { recordId: record.id, cancelledBlockCount: cancelledCount };
 }

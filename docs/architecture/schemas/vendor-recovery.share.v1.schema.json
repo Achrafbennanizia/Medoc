@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://medoc.local/schemas/vendor-recovery.share.v1.schema.json",
+  "title": "vendor-recovery.share.v1 (DEPRECATED)",
+  "description": "Deprecated. crypto_box_seal without AAD. Rejected by medoc-recovery v2. Use vendor-recovery.share.v2.",
+  "deprecated": true,
+  "type": "object"
+}

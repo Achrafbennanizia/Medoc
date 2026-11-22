@@ -1,0 +1,63 @@
+/* From styles/features/dashboard.css (cascade position kept by its import there). */
+@layer components {
+  .form-section-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--form-gap);
+  }
+  .form-stack { display: flex; flex-direction: column; gap: var(--form-gap); }
+  .form-stack--tight { gap: calc(var(--form-gap) * 0.65); }
+  .patients-grid-head {
+    display: grid;
+    grid-template-columns: 1.6fr 1fr 1.3fr 1fr 40px;
+    padding: var(--tbl-td-pad-y) var(--card-pad-x);
+    border-bottom: 1px solid var(--line);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--fg-4);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .patients-grid-row {
+    display: grid;
+    grid-template-columns: 1.6fr 1fr 1.3fr 1fr 40px;
+    padding: calc(var(--tbl-td-pad-y) + 2px) var(--card-pad-x);
+    border-bottom: 1px solid var(--line);
+    align-items: center;
+    cursor: pointer;
+    transition: background var(--motion-fast) var(--ease-out);
+    min-height: var(--row-h);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .patients-grid-row:hover {
+      background: rgba(0, 0, 0, 0.025);
+    }
+  }
+  .split { display: grid; grid-template-columns: 1fr 420px; gap: 20px; align-items: start; }
+  /* Primary + secondary column, weighted 1.25 : 1. Stacks when the *page* (not the window) is narrow:
+     the sidebar, text size and zoom all change the space, so a viewport media query was wrong. */
+  .dashboard-main-split {
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    align-items: stretch;
+    min-height: 0;
+    flex: 1;
+  }
+  @container dashboard (max-width: 52rem) {
+    .dashboard-main-split { grid-template-columns: minmax(0, 1fr); min-height: auto; }
+  }
+  .dashboard-main-split > .col {
+    min-height: 0;
+  }
+  .dashboard-page {
+    container-type: inline-size;
+    container-name: dashboard;
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    gap: var(--space-4);
+    height: 100%;
+    min-height: 0;
+    /* Side by side everything fits; once the columns stack the page scrolls instead of cutting the second. */
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+}

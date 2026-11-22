@@ -26,6 +26,7 @@
 @import "./styles/components/table.css";
 @import "./styles/features/finance-payments.css";
 @import "./styles/features/catalog-staff.css";
+@import "./styles/features/access.css";
 @import "./styles/features/administration.css";
 @import "./styles/features/tasks-orders.css";
 @import "./styles/features/patient-dental.css";
@@ -52,3 +53,4 @@
 @import "./styles/pages/work-plan-rules.css";
 @import "./styles/themes/density-tone.css";
 @import "./styles/themes/dark-overrides.css";
+@import "./styles/themes/accessibility.css";

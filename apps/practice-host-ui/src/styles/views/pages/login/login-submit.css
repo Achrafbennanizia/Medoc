@@ -1,0 +1,104 @@
+/* From styles/features/auth-onboarding.css (cascade position kept by its import there). */
+@layer components {
+  .login-kind::before { content: ''; position: absolute; inset: 0; background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.06) 1px, transparent 0); background-size: 22px 22px; opacity: 0.5; }
+  .login-form-wrap { display: grid; place-items: center; padding: 40px; }
+  .login-form { width: 100%; max-width: 380px; }
+  .login-role-chip {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-ctl);
+    cursor: pointer;
+    transition: all 140ms;
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: var(--space-2);
+    background: var(--bg-elev);
+    width: 100%;
+  }
+  .login-role-chip[aria-pressed="true"] {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent-ink);
+  }
+  /** Primary CTA: Brand/Primary + inverse text (not `background: var(--fg)` — breaks in dark mode) */
+  .login-submit {
+    width: 100%;
+    padding: var(--space-3);
+    border-radius: var(--radius-ctl);
+    background: var(--accent);
+    color: var(--text-on-accent);
+    font-weight: 600;
+    font-size: 14px;
+    transition: all 140ms;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+  }
+  .login-submit:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--accent) 82%, var(--fg));
+    transform: translateY(-1px);
+  }
+  .login-submit:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+    transform: none;
+  }
+  /** Password row: same surface as email field (no light box in dark mode) */
+  .login-password-input-row {
+    background: var(--bg-elev);
+    border: 1px solid var(--line-strong);
+    align-items: center;
+  }
+  .login-password-input-row__field {
+    background: transparent !important;
+    display: inline-block;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    width: auto;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+  /* WebKit/macOS native caps indicator stretches in flex rows — use our own icon. */
+  .login-password-input-row__field::-webkit-caps-lock-indicator {
+    content: none !important;
+    display: none !important;
+  }
+  .login-password-caps {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    min-height: 28px;
+    color: var(--fg-3);
+    pointer-events: none;
+  }
+  .login-password-caps .ui-icon {
+    display: block;
+  }
+  .login-remember-row {
+    margin-bottom: var(--space-4);
+    color: var(--fg-3);
+    font-size: 12.5px;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .login-remember-label {
+    display: inline-flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    cursor: pointer;
+    line-height: 1.35;
+  }
+  .login-remember-label > input[type="checkbox"] {
+    margin-top: 1px;
+  }
+}

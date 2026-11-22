@@ -1,7 +1,7 @@
 //! Integration: apply install_plan writes deployment + locale.
 
-use medoc_core::infrastructure::database::app_kv_repo;
 use medoc_core::infrastructure::database::connection::{run_migrations, test_memory_pool};
+use medoc_core::infrastructure::database::repos::admin::app_kv as app_kv_repo;
 use medoc_core::infrastructure::install_plan::{
     DiscoverMode, InstallPlan, InstallRole, APP_KV_INSTALL_PLAN_PROVISIONING,
 };

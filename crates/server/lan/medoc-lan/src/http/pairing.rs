@@ -15,7 +15,7 @@ use axum::extract::{ConnectInfo, Extension, Path, State};
 use axum::http::{header, StatusCode};
 use axum::Json;
 use medoc_core::error::AppError;
-use medoc_core::infrastructure::database::app_kv_repo;
+use medoc_core::infrastructure::database::repos::admin::app_kv as app_kv_repo;
 use medoc_sync::deployment::APP_KV_DEVICE_ID_KEY;
 use medoc_sync::master_keys;
 use medoc_sync::pairing::{
@@ -104,7 +104,7 @@ pub async fn submit(
         },
     )
     .await?;
-    Ok(Json(req))
+    Ok(Json(req.redact_public_token()))
 }
 
 pub async fn status(
@@ -114,11 +114,11 @@ pub async fn status(
     let row = pairing::load_by_id(&state.pool, &id)
         .await?
         .ok_or(AppError::NotFound("pairing_request".into()))?;
-    Ok(Json(row))
+    Ok(Json(row.redact_public_token()))
 }
 
 pub async fn master_info(State(state): State<LanHttpState>) -> Result<Json<MasterInfo>, ApiError> {
-    let signing_key = master_keys::load_or_create()?;
+    let signing_key = master_keys::align_to_license(&state.pool).await?;
     let master_device_id = app_kv_repo::get(&state.pool, APP_KV_DEVICE_ID_KEY)
         .await?
         .filter(|s| !s.is_empty())
@@ -140,7 +140,7 @@ pub async fn pending(
     State(state): State<LanHttpState>,
     Extension(claims): Extension<jwt::LanClaims>,
 ) -> Result<Json<Vec<PairingRequest>>, ApiError> {
-    require_ops_system(&claims)?;
+    require_ops_system(&state, &claims).await?;
     let rows = pairing::list_pending(&state.pool).await?;
     Ok(Json(rows))
 }
@@ -149,7 +149,7 @@ pub async fn list_all(
     State(state): State<LanHttpState>,
     Extension(claims): Extension<jwt::LanClaims>,
 ) -> Result<Json<Vec<PairingRequest>>, ApiError> {
-    require_ops_system(&claims)?;
+    require_ops_system(&state, &claims).await?;
     let rows = pairing::list_all(&state.pool).await?;
     Ok(Json(rows))
 }
@@ -160,7 +160,7 @@ pub async fn decide(
     Path(id): Path<String>,
     Json(body): Json<PairingDecisionBody>,
 ) -> Result<Json<PairingDecideResult>, ApiError> {
-    require_ops_system(&claims)?;
+    require_ops_system(&state, &claims).await?;
     master_license::require_master_license(&state.pool).await?;
     let master_device_id = master_local_device_id(&state).await?;
     let result = pairing::decide(
@@ -201,7 +201,7 @@ pub async fn revoke(
     Extension(claims): Extension<jwt::LanClaims>,
     Path(device_id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
-    require_ops_system(&claims)?;
+    require_ops_system(&state, &claims).await?;
     master_license::require_master_license(&state.pool).await?;
     let master_device_id = master_local_device_id(&state).await?;
     pairing::revoke(&state.pool, &master_device_id, &device_id, &claims.sub).await?;
@@ -218,21 +218,29 @@ pub async fn peers(
     let signing_key = master_keys::load_or_create()?;
     let payload = pairing::verify_activation_token(token, &signing_key.verifying_key())?;
     require_action(&payload, "pairing.peers")?;
+    let master_device_id_local = master_local_device_id(&state).await?;
     // Revocation gate: if THIS node knows `device_id` as a paired slave and
     // its status is REVOKED, reject. If no row exists at all, this is a
     // mesh-peer scenario (sibling replica fetching the peer list against
     // its own master, not us) — fall back to trusting the master signature
-    // and baked-in actions. Mirrors `sync_http::verify_activation_for_path`.
+    // and baked-in actions. Mirrors `http::sync::verify_activation_for_path`.
     if let Some(req) = pairing::load_by_device(&state.pool, &payload.device_id).await? {
         if req.status == "REVOKED" {
+            return Err(AppError::Forbidden.into());
+        }
+        if req.status != "ACCEPTED" || req.activation_token.as_deref() != Some(token) {
             return Err(AppError::Forbidden.into());
         }
         let live_actions = pairing::slave_actions(&state.pool, &payload.device_id).await?;
         if !live_actions.is_empty() && !live_actions.iter().any(|a| a == "pairing.peers") {
             return Err(AppError::Forbidden.into());
         }
+    } else if payload.master_device_id == master_device_id_local {
+        // We issued this token but no longer know the device (row deleted on
+        // reset/re-pair): treat as revoked, never as a mesh peer.
+        return Err(AppError::Forbidden.into());
     }
-    let master_device_id = master_local_device_id(&state).await?;
+    let master_device_id = master_device_id_local;
     let rows = pairing::list_all(&state.pool).await?;
     let mut peers_list: Vec<PairingPeerEntry> = Vec::new();
     for r in rows {
@@ -274,12 +282,20 @@ async fn master_local_device_id(state: &LanHttpState) -> Result<String, AppError
     Ok(id)
 }
 
-fn require_ops_system(claims: &jwt::LanClaims) -> Result<(), AppError> {
-    use medoc_core::application::rbac::{self, Role};
-    let role = Role::parse(&claims.role).ok_or(AppError::Forbidden)?;
-    if !rbac::allowed("ops.system", role) {
-        return Err(AppError::Forbidden);
-    }
+/// Pairing devices is system administration. Re-checks the staff row so a
+/// deactivated account or a per-person DENY applies before the token expires.
+async fn require_ops_system(state: &LanHttpState, claims: &jwt::LanClaims) -> Result<(), AppError> {
+    medoc_core::application::authorize::authorize(
+        &state.pool,
+        &medoc_core::application::authorize::Caller {
+            user_id: claims.sub.clone(),
+            idle_for: None,
+            device_session_id: None,
+        },
+        "ops.system",
+        None,
+    )
+    .await?;
     Ok(())
 }
 

@@ -1,0 +1,63 @@
+/* From styles/pages/appointments-calendar.css (cascade position kept by its import there). */
+.appointment-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.appointment-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+}
+.appointment-legend-dot--green { background: var(--green); }
+.appointment-legend-dot--blue { background: var(--blue); }
+.appointment-legend-dot--purple { background: var(--purple); }
+.appointment-legend-dot--accent { background: var(--accent); }
+/* Appointment overview: use full main area, scroll only in calendar zones */
+.appointment-page-root {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+/* Do not "push away" top blocks; area goes into .appointment-content-fill */
+.appointment-page-head {
+  flex-shrink: 0;
+  min-width: 0;
+}
+.appointment-page-head > div:first-child {
+  min-width: 0;
+  flex: 1 1 min(0, 100%);
+}
+.appointment-page-head .page-sub {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.appointment-page-head .schedule-toolbar {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+.appointment-content-fill {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-x: clip;
+  overflow-y: hidden;
+}
+.appointment-main-full {
+  min-width: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.appointment-main-full:has(.appointment-day-split) {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}

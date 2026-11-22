@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, startOfWeek, endOfWeek } from "date-fns";
-import { createAppointment, getAppointment, listAppointments, updateAppointment } from "@/systems/practice-host/controllers/appointment.controller";
+import { createAppointment, deleteAppointment, getAppointment, listAppointments, updateAppointment } from "@/systems/practice-host/controllers/appointment.controller";
 import { useDateFnsLocale, useT, useTParams } from "@/lib/i18n";
+import { practiceTodayYmd } from "@/lib/practice-timezone";
 import { listPatients } from "@/systems/practice-host/controllers/patient.controller";
 import { getChart, listDentalFindings } from "@/systems/practice-host/controllers/chart.controller";
 import { listPhysicians, type PhysicianSummary } from "@/systems/practice-host/controllers/staff.controller";
@@ -34,7 +35,16 @@ import {
     firstBookableAppointmentSlot,
 } from "@/lib/appointment-slot-grid";
 import { parseToothacheTeethFromChiefComplaintPart, sortFdiTeeth, splitChiefComplaintParts } from "@/lib/dental";
-import { APPOINTMENT_KIND_VALUES, type Patient, type Appointment, type Absence, type DentalFinding } from "../../models/types";
+import {
+    APPOINTMENT_KIND_VALUES,
+    APPOINTMENT_STATUS_VALUES,
+    type AppointmentKind,
+    type AppointmentStatus,
+    type Patient,
+    type Appointment,
+    type Absence,
+    type DentalFinding,
+} from "../../models/types";
 import { Button } from "../components/ui/button";
 import { Card, CardHeader } from "../components/ui/card";
 import { Input, Select, Textarea } from "../components/ui/input";
@@ -122,13 +132,20 @@ function buildChiefComplaintPayload(tags: string[], toothacheTeeth: string[]): s
         .join("; ");
 }
 
-function normalizeKind(raw: string | null): string {
+function normalizeKind(raw: string | null): AppointmentKind {
     if (!raw) return "CHECKUP";
     if (raw === "NOTFALL" || raw === "EMERGENCY") return "TREATMENT";
     if (raw === "ROUTINE") return "CHECKUP";
     const allowed = APPOINTMENT_KIND_VALUES as readonly string[];
-    if (allowed.includes(raw)) return raw;
+    if (allowed.includes(raw)) return raw as AppointmentKind;
     return "CHECKUP";
+}
+
+function normalizeStatus(raw: string | null | undefined): AppointmentStatus {
+    if (raw && (APPOINTMENT_STATUS_VALUES as readonly string[]).includes(raw)) {
+        return raw as AppointmentStatus;
+    }
+    return "PLANNED";
 }
 
 export function AppointmentCreatePage() {
@@ -156,7 +173,7 @@ export function AppointmentCreatePage() {
     const hasPatientParam = searchParams.has("patient_id");
     const hasKindParam = searchParams.has("kind");
     const hasTimeParam = searchParams.has("time");
-    const dateInit = searchParams.get("date") ?? format(new Date(), "yyyy-MM-dd");
+    const dateInit = searchParams.get("date") ?? practiceTodayYmd();
     const patientInit = searchParams.get("patient_id") ?? "";
     const kindInit = searchParams.get("kind") ?? "";
     const timeInitRaw = searchParams.get("time");
@@ -181,11 +198,10 @@ export function AppointmentCreatePage() {
     const [toothacheTeeth, setToothacheTeeth] = useState<string[]>([]);
     const [chartFindings, setChartFindings] = useState<DentalFinding[]>([]);
     const [notes, setNotes] = useState("");
-    const [durationMin, setDurationMin] = useState(() => {
-        const n = loadClientSettings().workflows?.defaultAppointmentDurationMin;
-        return typeof n === "number" && Number.isFinite(n) && n > 0 ? String(n) : "";
-    });
-    const [statusPreference, setStatusPreference] = useState<string>(() =>
+    const [durationMin, setDurationMin] = useState("");
+    const durationLocked = useRef(isEdit);
+    const loadedAppointmentRef = useRef<Appointment | null>(null);
+    const [statusPreference, setStatusPreference] = useState<AppointmentStatus>(() =>
         defaultCreateAppointmentStatus(loadClientSettings()),
     );
     /** Only an explicit choice is kept in drafts; otherwise Settings → "Automatically confirm" decides. */
@@ -223,8 +239,8 @@ export function AppointmentCreatePage() {
     }, []);
 
     const effectivePracticeCfg = useMemo(
-        () => resolveBookingWorkHoursForPhysician(practiceCfg, physicianId || null),
-        [practiceCfg, physicianId],
+        () => resolveBookingWorkHoursForPhysician(practiceCfg, physicianId || null, date),
+        [practiceCfg, physicianId, date],
     );
 
     const slotStep = useMemo(() => Math.max(5, Number(effectivePracticeCfg.slotMin) || 30), [effectivePracticeCfg.slotMin]);
@@ -291,7 +307,10 @@ export function AppointmentCreatePage() {
             setKind(normalizeKind(kindH));
         }
         const dm = doctorPlan.durationMin.trim();
-        if (dm && /^\d+$/.test(dm)) setDurationMin(dm);
+        if (dm && /^\d+$/.test(dm)) {
+            durationLocked.current = true;
+            setDurationMin(dm);
+        }
         const note = planNextAutofillNote(doctorPlan);
         if (note.trim()) setNotes(note.trim());
         setSearchParams((prev) => {
@@ -351,7 +370,7 @@ export function AppointmentCreatePage() {
                 if (hasKindParam) {
                     setKind(normalizeKind(kindInit));
                 } else if (d.kind) {
-                    setKind(d.kind);
+                    setKind(normalizeKind(d.kind));
                 }
                 if (Array.isArray(d.chiefComplaintTags)) setChiefComplaintTags(d.chiefComplaintTags);
                 if (Array.isArray(d.toothacheTeeth)) {
@@ -360,9 +379,12 @@ export function AppointmentCreatePage() {
                     setToothacheTeeth(sortFdiTeeth([d.toothacheTooth.trim()]));
                 }
                 if (d.notes) setNotes(d.notes);
-                if (d.durationMin) setDurationMin(d.durationMin);
+                if (d.durationMin) {
+                    durationLocked.current = true;
+                    setDurationMin(d.durationMin);
+                }
                 if (d.statusPreference && d.statusTouched) {
-                    setStatusPreference(d.statusPreference);
+                    setStatusPreference(normalizeStatus(d.statusPreference));
                     setStatusTouched(true);
                 }
             } catch {
@@ -382,18 +404,20 @@ export function AppointmentCreatePage() {
         setEditLoaded(false);
         setEditError(null);
         void getAppointment(editId)
-            .then((t) => {
+            .then((row) => {
                 if (cancelled) return;
-                setDate(t.date);
-                setTime(t.time.length >= 5 ? t.time.slice(0, 5) : t.time);
-                setPatientId(t.patient_id);
-                setPhysicianId(t.physician_id);
-                setKind(normalizeKind(t.kind));
-                const { tags: bTags, teeth: bTeeth } = normalizeChiefComplaintTagsFromStored(t.chief_complaint ?? "");
+                loadedAppointmentRef.current = row;
+                setDate(row.date);
+                setTime(row.time.length >= 5 ? row.time.slice(0, 5) : row.time);
+                setPatientId(row.patient_id);
+                setPhysicianId(row.physician_id);
+                setKind(normalizeKind(row.kind));
+                const { tags: bTags, teeth: bTeeth } = normalizeChiefComplaintTagsFromStored(row.chief_complaint ?? "");
                 setChiefComplaintTags(bTags);
                 setToothacheTeeth(bTeeth);
-                const notesRaw = t.notes ?? "";
+                const notesRaw = row.notes ?? "";
                 const durationMatch = /Duration:\s*(\d+)\s*min/i.exec(notesRaw);
+                durationLocked.current = true;
                 if (durationMatch && durationMatch[1]) {
                     setDurationMin(durationMatch[1]);
                 } else {
@@ -405,7 +429,7 @@ export function AppointmentCreatePage() {
                     .filter((s) => s.length > 0 && !/^Duration:/i.test(s) && !/^Priority:/i.test(s))
                     .join(" · ");
                 setNotes(cleanedNotes);
-                setStatusPreference(t.status === "CONFIRMED" ? "CONFIRMED" : "PLANNED");
+                setStatusPreference(row.status === "CONFIRMED" ? "CONFIRMED" : "PLANNED");
                 setEditLoaded(true);
             })
             .catch((e: unknown) => {
@@ -543,11 +567,8 @@ export function AppointmentCreatePage() {
     }, [session, physicians, hasPhysicianParam, physicianInit, practiceCfg.defaultPhysicianId]);
 
     useEffect(() => {
-        setDurationMin((prev) => {
-            const n = Number(prev);
-            if (prev && Number.isFinite(n) && n >= 5) return prev;
-            return String(slotStep);
-        });
+        if (durationLocked.current) return;
+        setDurationMin(String(slotStep));
     }, [slotStep]);
 
     useEffect(() => {
@@ -648,17 +669,36 @@ export function AppointmentCreatePage() {
         try {
             const timeNorm = time.length === 5 ? `${time}:00` : time;
             if (isEdit && editId) {
+                const previous = loadedAppointmentRef.current;
+                // F149: `patient_id` is not updatable and made the strict schema reject every edit.
                 await updateAppointment(editId, {
-                    patient_id: patientId,
                     physician_id: physicianId,
                     date,
                     time: timeNorm,
                     kind: kindSend,
                     chief_complaint: chiefComplaintStr || null,
                     notes: notesPayload ?? null,
+                    duration_minutes: durMin,
                     status: statusPreference || "PLANNED",
                 });
-                toast(t("appointment.create.toast_updated"));
+                toast(t("appointment.create.toast_updated"), "success", {
+                    onUndo: async () => {
+                        if (!previous) return;
+                        try {
+                            await updateAppointment(editId, {
+                                physician_id: previous.physician_id,
+                                date: previous.date,
+                                time: previous.time,
+                                kind: previous.kind,
+                                chief_complaint: previous.chief_complaint,
+                                notes: previous.notes,
+                                status: previous.status,
+                            });
+                        } catch (err) {
+                            toast(errorMessage(err), "error");
+                        }
+                    },
+                });
                 navigate("/appointments");
                 return;
             }
@@ -670,13 +710,23 @@ export function AppointmentCreatePage() {
                 kind: kindSend,
                 chief_complaint: chiefComplaintStr || null,
                 notes: notesPayload ?? null,
+                duration_minutes: durMin,
+                // F67: status in the create itself; a failure is a failed save, not silently dropped.
                 status: statusPreference === "CONFIRMED" ? "CONFIRMED" : "PLANNED",
             });
-            if (statusPreference === "CONFIRMED" && created.status !== "CONFIRMED") {
-                toast(t("appointment.create.toast_confirm_failed"), "warning");
-            } else {
-                toast(t("appointment.create.toast_saved"));
+            if (statusPreference && statusPreference !== "PLANNED" && statusPreference !== "CONFIRMED") {
+                await updateAppointment(created.id, { status: statusPreference });
             }
+            const createdId = created.id;
+            toast(t("appointment.create.toast_saved"), "success", {
+                onUndo: async () => {
+                    try {
+                        await deleteAppointment(createdId);
+                    } catch (err) {
+                        toast(errorMessage(err), "error");
+                    }
+                },
+            });
             await clearAppointmentDraftFromBackend(draftId);
             stripLegacyAppointmentDraftLocalStorage(draftId);
             navigate("/appointments");
@@ -730,7 +780,7 @@ export function AppointmentCreatePage() {
                     aria-label={t("appointment.create.hint_plan_aria")}
                     style={{
                         display: "flex",
-                        gap: 10,
+                        gap: "var(--space-3)",
                         padding: "10px 12px",
                         borderRadius: 10,
                         border: "1px solid var(--accent)",
@@ -742,7 +792,7 @@ export function AppointmentCreatePage() {
                     <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>💡</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 700, fontSize: 12.5 }}>{t("appointment.create.hint_plan_body")}</div>
-                        <div style={{ fontSize: 12.5, marginTop: 4, color: "var(--fg-2)", fontWeight: 500 }}>
+                        <div style={{ fontSize: 12.5, marginTop: "var(--space-1)", color: "var(--fg-2)", fontWeight: 500 }}>
                             {planNextReceptionTeaser(doctorPlan) || planNextAutofillNote(doctorPlan) || "—"}
                         </div>
                     </div>
@@ -761,14 +811,14 @@ export function AppointmentCreatePage() {
             ) : null}
 
             <Card>
-                <div style={{ padding: 16 }}>
+                <div style={{ padding: "var(--space-4)" }}>
                     <CardHeader title={isEdit ? t("appointment.create.card_edit") : t("appointment.create.card_new")} />
-                    <div className="appointment-create-split" style={{ marginTop: 12 }}>
-                        <div className="col" style={{ gap: 14 }}>
+                    <div className="appointment-create-split" style={{ marginTop: "var(--space-3)" }}>
+                        <div className="col" style={{ gap: "var(--space-4)" }}>
                             <div>
-                                <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
+                                <div className="row" style={{ justifyContent: "space-between", marginBottom: "var(--space-2)" }}>
                                     <span style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-3)" }}>{t("appointment.create.calendar")}</span>
-                                    <div className="row appointment-nav-controls" dir="ltr" style={{ gap: 6 }}>
+                                    <div className="row appointment-nav-controls" dir="ltr" style={{ gap: "var(--space-2)" }}>
                                         <button type="button" className="icon-btn" aria-label={t("appointment.calendar.month_prev")} onClick={() => setCalendarMonth((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1))}>
                                             <ChevronLeftIcon size={14} />
                                         </button>
@@ -778,10 +828,10 @@ export function AppointmentCreatePage() {
                                         </button>
                                     </div>
                                 </div>
-                                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, fontSize: 11, color: "var(--fg-4)", textAlign: "center", marginBottom: 4 }}>
+                                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "var(--space-1)", fontSize: 11, color: "var(--fg-4)", textAlign: "center", marginBottom: "var(--space-1)" }}>
                                     {weekdayLabels.map((d) => <span key={d}>{d}</span>)}
                                 </div>
-                                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
+                                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "var(--space-1)" }}>
                                     {calendarDays.map((day) => {
                                         const iso = format(day, "yyyy-MM-dd");
                                         const inM = isSameMonth(day, calendarMonth);
@@ -813,7 +863,7 @@ export function AppointmentCreatePage() {
                                     })}
                                 </div>
                             </div>
-                            <div className="col" style={{ gap: 12 }}>
+                            <div className="col" style={{ gap: "var(--space-3)" }}>
                                 <Input id="tc-date" type="date" label={t("appointment.create.date")} hint={t("appointment.create.date_hint")} value={date} onChange={(e) => setDate(e.target.value)} />
                                 <div>
                                     <span className="form-label form-label--mb-8">{t("appointment.create.time")}</span>
@@ -826,18 +876,18 @@ export function AppointmentCreatePage() {
                                         stepMinutes={slotStep}
                                         emptyLabel={!physicianId ? t("appointment.create.doctor_pick") : undefined}
                                     />
-                                    <p style={{ marginTop: 8, marginBottom: 0, fontSize: 12, color: "var(--fg-3)" }}>
+                                    <p style={{ marginTop: "var(--space-2)", marginBottom: 0, fontSize: 12, color: "var(--fg-3)" }}>
                                         {t("appointment.create.time_hint")}
                                     </p>
                                 </div>
-                                <Select id="tc-duration" label={t("appointment.create.duration")} value={durationMin} onChange={(e) => setDurationMin(e.target.value)} options={durationOptions} />
+                                <Select id="tc-duration" label={t("appointment.create.duration")} value={durationMin} onChange={(e) => { durationLocked.current = true; setDurationMin(e.target.value); }} options={durationOptions} />
                             </div>
                         </div>
 
-                        <div className="col" style={{ gap: 14 }}>
+                        <div className="col" style={{ gap: "var(--space-4)" }}>
                             <div>
                                 <span className="form-label">{t("appointment.create.patient")}</span>
-                                <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                                <div className="row" style={{ gap: "var(--space-2)", flexWrap: "wrap" }}>
                                     <div ref={patientPickerRef} style={{ position: "relative", flex: "1 1 240px", minWidth: 180 }}>
                                         <input
                                             className="input-edit"
@@ -899,7 +949,7 @@ export function AppointmentCreatePage() {
                                                         }}
                                                     >
                                                         <b>{p.name}</b>
-                                                        <span style={{ color: "var(--fg-3)", marginInlineStart: 8 }}>{p.insurance_number}</span>
+                                                        <span style={{ color: "var(--fg-3)", marginInlineStart: "var(--space-2)" }}>{p.insurance_number}</span>
                                                     </button>
                                                 ))}
                                                 <button
@@ -921,9 +971,9 @@ export function AppointmentCreatePage() {
                                         {t("appointment.create.patient_search_records")}
                                     </Button>
                                 </div>
-                                {patientError ? <p className="text-error" style={{ fontSize: 12, marginTop: 6 }}>{patientError}</p> : null}
+                                {patientError ? <p className="text-error" style={{ fontSize: 12, marginTop: "var(--space-2)" }}>{patientError}</p> : null}
                                 {selectedPatient ? (
-                                    <p style={{ fontSize: 12, color: "var(--fg-3)", marginTop: 6 }}>{t("appointment.create.patient_selected")} <b>{selectedPatient.name}</b></p>
+                                    <p style={{ fontSize: 12, color: "var(--fg-3)", marginTop: "var(--space-2)" }}>{t("appointment.create.patient_selected")} <b>{selectedPatient.name}</b></p>
                                 ) : null}
                             </div>
 
@@ -934,9 +984,9 @@ export function AppointmentCreatePage() {
                                 onChange={(e) => setPhysicianId(e.target.value)}
                                 options={[{ value: "", label: physicians.length ? t("appointment.create.doctor_pick") : t("appointment.create.doctor_empty") }, ...physicians.map((a) => ({ value: a.id, label: a.name }))]}
                             />
-                            <Select id="tc-kind" label={t("appointment.create.treatment_type")} value={kind} onChange={(e) => setKind(e.target.value)} options={treatmentOptions} />
+                            <Select id="tc-kind" label={t("appointment.create.treatment_type")} value={kind} onChange={(e) => setKind(normalizeKind(e.target.value))} options={treatmentOptions} />
                             <Select id="tc-status" label={t("appointment.create.status")} value={statusPreference} onChange={(e) => {
-                                    setStatusPreference(e.target.value);
+                                    setStatusPreference(normalizeStatus(e.target.value));
                                     setStatusTouched(true);
                                 }} options={statusOptions} />
                             <TagInput label={t("appointment.create.complaints")} value={chiefComplaintTags} onChange={setChiefComplaintTags} suggestions={chiefComplaintSuggestions} />
@@ -951,7 +1001,7 @@ export function AppointmentCreatePage() {
                         </div>
                     </div>
 
-                    <div className="row" style={{ justifyContent: "flex-end", gap: 10, marginTop: 22, paddingTop: 16, borderTop: "1px solid var(--line)" }}>
+                    <div className="row" style={{ justifyContent: "flex-end", gap: "var(--space-3)", marginTop: "var(--space-5)", paddingTop: "var(--space-4)", borderTop: "1px solid var(--line)" }}>
                         <Button type="button" variant="danger" onClick={() => navigate("/appointments")}>{t("common.cancel")}</Button>
                         <Button
                             type="button"

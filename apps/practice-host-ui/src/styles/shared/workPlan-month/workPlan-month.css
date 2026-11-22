@@ -1,0 +1,61 @@
+/* From styles/pages/work-plan.css (cascade position kept by its import there). */
+.workPlan-block-h__lbl {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.workPlan-block-h__x {
+  flex: 0 0 auto;
+  cursor: pointer;
+  opacity: 0.75;
+  font-size: 10px;
+  line-height: 1;
+  padding: 0 1px;
+}
+.workPlan-week-hint {
+  padding: 0 2px;
+}
+
+.workPlan-month__stackbar {
+  display: flex;
+  width: 100%;
+  min-height: 5px;
+  height: 5px;
+  border-radius: 2px;
+  overflow: hidden;
+  margin: 2px 0 1px;
+}
+.workPlan-month__stackbar--empty {
+  background: var(--line-1);
+  opacity: 0.35;
+}
+.workPlan-month__stackseg {
+  min-width: 2px;
+}
+.workPlan-month__inirow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 4px;
+  font-size: 8.5px;
+  line-height: 1.15;
+  margin-bottom: 2px;
+  max-height: 2.4em;
+  overflow: hidden;
+}
+.workPlan-month__ini {
+  font-weight: 700;
+}
+.workPlan-month__moreini {
+  color: var(--fg-3);
+  font-size: 8px;
+  font-weight: 600;
+}
+.workPlan-cal-embed .workPlan-day-head,
+.workPlan-cal-embed .workPlan-week-head {
+  padding: 3px 4px 5px;
+  font-size: 10.5px;
+  line-height: 1.2;
+  min-width: 0;
+}

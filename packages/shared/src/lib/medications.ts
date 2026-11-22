@@ -10,31 +10,25 @@
  * Note for production: this list is intended as a small demonstrator,
  * not a complete drug database — dosages are free text without validation.
  */
+import { medicationSuggestions } from "./medication-catalog";
+
 export interface MedicationSuggestion {
     label: string;
     /** Optional active substance prefilled when the user picks the suggestion. */
     active_ingredient?: string;
     /** Suggested daily schedule (e.g. "1-0-1") prefilled when picked. */
     dosage?: string;
+    /** Treatment duration (e.g. "5 days") prefilled when picked. */
+    duration?: string;
+    /** Intake instructions prefilled when picked. */
+    instructions?: string;
 }
 
-export const MEDICATION_SUGGESTIONS: MedicationSuggestion[] = [
-    { label: "Amoxicillin 1000 mg", active_ingredient: "Amoxicillin", dosage: "1-0-1" },
-    { label: "Clindamycin 600 mg", active_ingredient: "Clindamycin", dosage: "1-1-1" },
-    { label: "Ibuprofen 400 mg", active_ingredient: "Ibuprofen", dosage: "1-1-1" },
-    { label: "Ibuprofen 600 mg", active_ingredient: "Ibuprofen", dosage: "1-0-1" },
-    { label: "Paracetamol 500 mg", active_ingredient: "Paracetamol", dosage: "1-1-1" },
-    { label: "Novaminsulfon 500 mg", active_ingredient: "Metamizol", dosage: "1-1-1" },
-    { label: "Chlorhexidine 0.2% mouthwash", active_ingredient: "Chlorhexidin", dosage: "Rinse twice daily" },
-    { label: "Dexamethason 4 mg", active_ingredient: "Dexamethason", dosage: "1-0-0" },
-    { label: "Metronidazol 400 mg", active_ingredient: "Metronidazol", dosage: "1-1-1" },
-    { label: "Pantoprazol 20 mg", active_ingredient: "Pantoprazol", dosage: "1-0-0" },
-];
-
+/** The practice's predefined medication with this exact name (case-insensitive), if any. */
 export function findSuggestion(label: string): MedicationSuggestion | undefined {
     const norm = label.trim().toLowerCase();
     if (!norm) return undefined;
-    return MEDICATION_SUGGESTIONS.find((s) => s.label.toLowerCase() === norm);
+    return medicationSuggestions().find((s) => s.label.toLowerCase() === norm);
 }
 
 /** Item used in the cascading "combo" UI for a single Prescription-line. */
@@ -105,6 +99,8 @@ export const emptyPrescriptionLine = (): PrescriptionLine => ({
  */
 export interface TemplatePrescriptionItem {
     medication: string;
+    /** Active substance; compared with the patient's allergies before issuing. */
+    active_ingredient?: string;
     dosage?: string;
     /** Treatment duration / intake duration (template editor may add later). */
     duration?: string;
@@ -113,8 +109,9 @@ export interface TemplatePrescriptionItem {
 
 /**
  * Convert items as stored in a Prescription-Template into the `PrescriptionLine` shape
- * used by the cascading "combo" dialogs. Fills missing `active_ingredient` /
- * `duration` from the curated suggestion list when possible.
+ * used by the cascading "combo" dialogs. Fields the template leaves empty come from the
+ * practice's predefined medication of the same name; nothing is invented, so a line that is
+ * still incomplete is reported by `buildPrescriptionQueue` before issuing.
  */
 export function templateItemsToLines(items: TemplatePrescriptionItem[]): PrescriptionLine[] {
     if (!Array.isArray(items)) return [];
@@ -122,14 +119,14 @@ export function templateItemsToLines(items: TemplatePrescriptionItem[]): Prescri
         .filter((it) => it && typeof it.medication === "string" && it.medication.trim().length > 0)
         .map((it) => {
             const sugg = findSuggestion(it.medication);
-            const durationRaw = (it.duration ?? "").trim();
+            const durationRaw = (it.duration ?? sugg?.duration ?? "").trim();
             return {
                 ...emptyPrescriptionLine(),
                 medication: it.medication.trim(),
-                active_ingredient: sugg?.active_ingredient ?? "",
+                active_ingredient: (it.active_ingredient ?? sugg?.active_ingredient ?? "").trim(),
                 dosage: (it.dosage ?? sugg?.dosage ?? "").trim(),
-                duration: durationRaw || "7 days",
-                instructions: (it.description ?? "").trim(),
+                duration: durationRaw,
+                instructions: (it.description ?? sugg?.instructions ?? "").trim(),
             };
         });
 }
@@ -154,6 +151,7 @@ export function prescriptionLinesToTemplateItems(lines: PrescriptionLine[]): Tem
         .filter((l) => l.medication.trim().length > 0)
         .map((l) => ({
             medication: l.medication.trim(),
+            active_ingredient: l.active_ingredient.trim() || undefined,
             dosage: l.dosage.trim() || undefined,
             duration: l.duration.trim() || undefined,
             description: l.instructions.trim() || undefined,

@@ -1,0 +1,63 @@
+/* From styles/features/patient-dental.css (cascade position kept by its import there). */
+@layer components {
+  .dental-mini-tooth.has-history {
+    border-color: color-mix(in oklab, var(--accent) 48%, var(--line-strong));
+  }
+  .dental-mini-tooth.is-active {
+    background: color-mix(in oklab, var(--accent) 20%, transparent);
+    border-color: var(--accent);
+  }
+  /* Chip-style tab/segment buttons used in Examination composer & similar.
+     Mirrors button visual language but compact for inline tab strips. */
+  .btn-chip {
+    appearance: none;
+    border: 1px solid var(--line);
+    background: var(--bg-elev);
+    color: var(--fg-2);
+    font-size: 12.5px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+  }
+  .btn-chip:hover {
+    background: color-mix(in oklab, var(--fg) 6%, var(--bg-elev));
+  }
+  .btn-chip.is-active {
+    background: var(--accent);
+    border-color: color-mix(in oklab, var(--accent) 55%, var(--line-strong));
+    color: var(--text-on-accent);
+    font-weight: 600;
+    box-shadow: inset 0 1px 0 color-mix(in oklab, var(--text-on-accent) 20%, transparent);
+  }
+  .dental-mini-label {
+    font-size: 8px;
+    color: var(--fg-3);
+    line-height: 1.15;
+    margin-top: 0;
+    padding-bottom: 1px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+    direction: ltr;
+    unicode-bidi: isolate;
+  }
+  .tooth-popover {
+    position: fixed;
+    z-index: 2500;
+    min-width: 220px;
+    max-width: min(320px, calc(100vw - 24px));
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding: 12px 14px;
+    background: var(--surface, #fff);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.06);
+    pointer-events: auto;
+  }
+  .tooth-popover.is-above {
+    box-shadow: 0 -10px 28px rgba(0, 0, 0, 0.12), 0 -4px 12px rgba(0, 0, 0, 0.06);
+  }
+}

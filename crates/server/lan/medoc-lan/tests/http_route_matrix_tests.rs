@@ -150,7 +150,8 @@ async fn lan_http_route_matrix_all_endpoints() {
             path: "/api/v1/auth/login".into(),
             body: Some(serde_json::json!({
                 "email": "ahmed@practice.de",
-                "password": "password123"
+                "password": "password123",
+                "totp_code": "1234"
             })),
             auth: Auth::None,
             expect: &[200],
@@ -191,7 +192,7 @@ async fn lan_http_route_matrix_all_endpoints() {
             path: "/api/v1/patients".into(),
             body: None,
             auth: Auth::Jwt,
-            expect: &[200],
+            expect: &[404],
         },
         Case {
             name: "appointments.list",
@@ -199,7 +200,7 @@ async fn lan_http_route_matrix_all_endpoints() {
             path: format!("/api/v1/appointments?date={today}"),
             body: None,
             auth: Auth::Jwt,
-            expect: &[200],
+            expect: &[404],
         },
         Case {
             name: "app_kv.put",
@@ -259,7 +260,7 @@ async fn lan_http_route_matrix_all_endpoints() {
                 "doctorLanr": "123456789"
             })),
             auth: Auth::Jwt,
-            expect: &[200],
+            expect: &[409],
         },
         Case {
             name: "eprescription.submit_stub",
@@ -275,8 +276,7 @@ async fn lan_http_route_matrix_all_endpoints() {
                 "doctorLanr": "123456789"
             })),
             auth: Auth::Jwt,
-            // TI connector not present — intentional stub failure
-            expect: &[500, 501],
+            expect: &[409],
         },
         Case {
             name: "pairing.pending",
@@ -335,6 +335,7 @@ async fn lan_http_route_matrix_all_endpoints() {
             path: "/api/v1/sync/pull".into(),
             body: Some(serde_json::json!({
                 "deviceId": device_id,
+                "requesterId": device_id,
                 "sinceSeq": 0
             })),
             auth: Auth::Activation,
@@ -379,7 +380,7 @@ async fn lan_http_route_matrix_all_endpoints() {
             path: "/api/v1/patients".into(),
             body: None,
             auth: Auth::None,
-            expect: &[401, 403],
+            expect: &[404],
         },
         // Fresh pairing request + revoke (cleanup path)
         Case {
@@ -502,7 +503,7 @@ async fn lan_http_route_matrix_all_endpoints() {
         .json(
             "POST",
             &format!("/api/v1/pairing/confirm/{request_id}"),
-            Some(&serde_json::json!({ "pin": "0000" })),
+            Some(&serde_json::json!({ "pin": "000000" })),
             None,
         )
         .await;

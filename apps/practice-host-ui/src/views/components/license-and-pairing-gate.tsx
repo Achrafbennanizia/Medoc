@@ -26,6 +26,7 @@ import { LicenseActivatePage } from "@/systems/practice-host/pages/license-activ
 import { PairingScanPage } from "@/systems/lan/pages/pairing-scan";
 import { replicaIsActivated } from "@/lib/replica-activation-gate";
 
+import { PreShellScreen } from "./window-drag-strip";
 type Decision = "loading" | "ok" | "needs-license" | "needs-pairing" | "error";
 
 export function LicenseAndPairingGate({ children }: { children: ReactNode }) {
@@ -78,16 +79,28 @@ export function LicenseAndPairingGate({ children }: { children: ReactNode }) {
         void evaluate();
     }, [evaluate]);
 
+    useEffect(() => {
+        if (decision !== "needs-license" && decision !== "needs-pairing") return;
+        const id = window.setInterval(() => void evaluate(), 2000);
+        return () => window.clearInterval(id);
+    }, [decision, evaluate]);
+
     if (decision === "loading") {
         return (
-            <div className="route-fallback" role="status" aria-live="polite">
-                {t("license.activate.checking")}
-            </div>
+            <PreShellScreen>
+                <div className="route-fallback" role="status" aria-live="polite">
+                    {t("license.activate.checking")}
+                </div>
+            </PreShellScreen>
         );
     }
 
     if (decision === "needs-pairing") {
-        return <PairingScanPage />;
+        return (
+            <PreShellScreen>
+                <PairingScanPage onPaired={() => void evaluate()} />
+            </PreShellScreen>
+        );
     }
 
     if (decision === "needs-license") {
@@ -96,13 +109,15 @@ export function LicenseAndPairingGate({ children }: { children: ReactNode }) {
 
     if (decision === "error") {
         return (
-            <div className="route-fallback" role="alert">
-                <p>{t("license.activate.check_failed")}</p>
-                {errorDetail ? <p className="text-muted">{errorDetail}</p> : null}
-                <button type="button" onClick={() => void evaluate()}>
-                    {t("license.activate.retry")}
-                </button>
-            </div>
+            <PreShellScreen>
+                <div className="route-fallback" role="alert">
+                    <p>{t("license.activate.check_failed")}</p>
+                    {errorDetail ? <p className="text-muted">{errorDetail}</p> : null}
+                    <button type="button" onClick={() => void evaluate()}>
+                        {t("license.activate.retry")}
+                    </button>
+                </div>
+            </PreShellScreen>
         );
     }
 

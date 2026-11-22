@@ -15,24 +15,33 @@ use crate::error::AppError;
 use serde::Deserialize;
 
 use super::core::{
-    emit_multipage_pdf_with_images, table_row_height, truncate_cell, wrap_soft, wrap_text,
-    PageBuilder, CONTENT_WIDTH, M_BOTTOM, M_LEFT, M_RIGHT,
+    emit_pdf_document, pdf_locale, table_row_height, wrap_soft, wrap_text_locale, PageBuilder,
+    PdfDocMeta, CONTENT_WIDTH, M_BOTTOM, M_LEFT, M_RIGHT,
 };
 use super::letterhead::{
-    emit_continuation_header_locale, emit_letterhead, emit_signature_block, Letterhead, MetaRow,
+    emit_continuation_header_locale, emit_letterhead, emit_signature_block, stamp_label,
+    Letterhead, MetaRow,
 };
 use super::logo::PdfLogo;
+use super::metrics::wrap_to_width;
 
 // ===========================================================================
 // Input schemas
 // ===========================================================================
 
 /// A "label: value" row (e.g. "Vers.-Nr.: A123…").
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LabelValue {
     pub label: String,
     pub value: String,
+    /// Medical content (diagnosis, ICD-10, findings). Removed from copies
+    /// that go to third parties (AU employer copy).
+    #[serde(default)]
+    pub confidential: bool,
+    /// Marks the grand-total row (bold, ruled) — replaces label sniffing.
+    #[serde(default)]
+    pub total: bool,
 }
 
 /// Column layout for tables.
@@ -50,7 +59,7 @@ pub enum TableColumnLayout {
     Even,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PdfTableSpec {
     pub title: Option<String>,
@@ -60,7 +69,7 @@ pub struct PdfTableSpec {
     pub column_layout: TableColumnLayout,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DetailRecord {
     pub kind: String,
@@ -69,7 +78,7 @@ pub struct DetailRecord {
 }
 
 /// Two-column box (e.g. patient data left + insurance right).
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TwoColumnBlock {
     pub left_title: Option<String>,
@@ -79,7 +88,7 @@ pub struct TwoColumnBlock {
 }
 
 /// Full input for a clinical document rendering call.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ClinicalPdfLayout {
     /// "certificate" | "prescription" | "receipt" | otherwise default
@@ -158,6 +167,49 @@ pub struct ClinicalPdfLayout {
     /// When true (Arabic), logo is placed top-right.
     #[serde(default)]
     pub rtl: bool,
+
+    /// Which copy is rendered: `patient` (default) | `employer` | `insurer`.
+    /// `employer` strips every `confidential` row and all detail records.
+    #[serde(default)]
+    pub copy_variant: Option<String>,
+
+    /// Registry number printed in the information block (set by the backend).
+    #[serde(default)]
+    pub document_number: Option<String>,
+
+    /// Diagonal watermark ("ENTWURF" for previews, "KOPIE" for reprints).
+    #[serde(default)]
+    pub watermark: Option<String>,
+
+    /// DIN footer lines (tax, bank, chamber) — set by the backend.
+    #[serde(default)]
+    pub footer_lines: Vec<String>,
+}
+
+impl ClinicalPdfLayout {
+    /// Copy of the layout with confidential rows removed when the copy goes
+    /// to a third party (AU-Richtlinie: employer copy without diagnosis).
+    pub fn for_copy_variant(&self) -> ClinicalPdfLayout {
+        let mut out = self.clone();
+        let employer = matches!(out.copy_variant.as_deref(), Some("employer"));
+        if employer {
+            out.label_value_rows.retain(|r| !r.confidential);
+            out.meta_lines.retain(|r| !r.confidential);
+            out.footer_meta_lines.retain(|r| !r.confidential);
+            out.detail_records.clear();
+            out.intro_paragraphs.retain(|p| !p.contains("ICD"));
+        }
+        out
+    }
+
+    fn copy_variant_label(&self, locale: &str) -> Option<&'static str> {
+        match self.copy_variant.as_deref() {
+            Some("employer") => Some(super::i18n::t(locale, super::i18n::Phrase::CopyEmployer)),
+            Some("insurer") => Some(super::i18n::t(locale, super::i18n::Phrase::CopyInsurer)),
+            Some("patient") => Some(super::i18n::t(locale, super::i18n::Phrase::CopyPatient)),
+            _ => None,
+        }
+    }
 }
 
 // ===========================================================================
@@ -168,23 +220,27 @@ pub struct ClinicalPdfLayout {
 fn table_column_xs(layout: TableColumnLayout, ncol: usize) -> Vec<i32> {
     let ncol = ncol.max(1);
     match layout {
-        // Date · Item (receipt no.) · Description — balanced for QU-… numbers
+        // Date · description · amount. A receipt is not the GOZ invoice table.
         TableColumnLayout::Receipt if ncol >= 3 => {
             vec![M_LEFT, M_LEFT + 88, M_LEFT + 250]
         }
+        // Drug, dosage form, dosage, PZN. No pack-size column.
+        TableColumnLayout::Prescription if ncol == 4 => {
+            vec![M_LEFT, M_LEFT + 200, M_LEFT + 320, M_LEFT + 415]
+        }
         TableColumnLayout::Prescription if ncol >= 5 => vec![
             M_LEFT,
-            M_LEFT + 130,
-            M_LEFT + 220,
-            M_LEFT + 295,
-            M_LEFT + 365,
+            M_LEFT + 155,
+            M_LEFT + 255,
+            M_LEFT + 350,
+            M_LEFT + 415,
         ],
         TableColumnLayout::PrescriptionCombo if ncol >= 5 => vec![
             M_LEFT,
-            M_LEFT + 38,
-            M_LEFT + 170,
-            M_LEFT + 290,
-            M_LEFT + 365,
+            M_LEFT + 32,
+            M_LEFT + 210,
+            M_LEFT + 330,
+            M_LEFT + 415,
         ],
         _ => {
             let step = CONTENT_WIDTH / ncol as i32;
@@ -193,14 +249,67 @@ fn table_column_xs(layout: TableColumnLayout, ncol: usize) -> Vec<i32> {
     }
 }
 
-/// Compute max characters per column from the X positions.
-fn column_char_widths(xs: &[i32]) -> Vec<usize> {
+/// True when every non-empty cell of the column is a money/number value
+/// ("120,00 EUR", "-12,94", "1.234,50 €"). Such columns are right-aligned
+/// so decimal places line up.
+fn amount_columns(table: &PdfTableSpec, ncol: usize) -> Vec<bool> {
+    (0..ncol).map(|ci| is_amount_column(table, ci)).collect()
+}
+
+fn is_amount_column(table: &PdfTableSpec, ci: usize) -> bool {
+    let mut any = false;
+    for row in &table.rows {
+        let cell = row.get(ci).map(|s| s.trim()).unwrap_or("");
+        if cell.is_empty() || cell == "—" || cell == "-" {
+            continue;
+        }
+        let code = crate::infrastructure::pdf::document_currency();
+        let core = cell
+            .trim()
+            .trim_end_matches(code.as_str())
+            .trim_end_matches("EUR")
+            .trim_end_matches('€')
+            .trim();
+        // Needs a currency or a decimal comma, so dates ("02.11.2026") and
+        // fee numbers ("0010") stay left-aligned.
+        let money_hint =
+            core.len() != cell.len() || core.rsplit_once(',').is_some_and(|(_, d)| d.len() == 2);
+        let ok = money_hint
+            && core.chars().any(|c| c.is_ascii_digit())
+            && core
+                .chars()
+                .all(|c| c.is_ascii_digit() || matches!(c, '.' | ',' | '-' | '+' | ' ' | '\u{a0}'));
+        if !ok {
+            return false;
+        }
+        any = true;
+    }
+    any
+}
+
+/// Draw one cell, right-aligned inside the column for amount columns.
+fn draw_cell(
+    pb: &mut PageBuilder,
+    x: i32,
+    width: i32,
+    size: i32,
+    bold: bool,
+    s: &str,
+    right: bool,
+) {
+    if right {
+        pb.text_right(x + TABLE_CELL_PAD + width, size, bold, s);
+    } else {
+        pb.text(x + TABLE_CELL_PAD, size, bold, s);
+    }
+}
+
+/// Usable width (pt) per column from the X positions (minus cell padding).
+fn column_pt_widths(xs: &[i32]) -> Vec<i32> {
     let mut w = Vec::with_capacity(xs.len());
     for i in 0..xs.len() {
         let next = xs.get(i + 1).copied().unwrap_or(M_RIGHT);
-        let width_pt = (next - xs[i]).max(20);
-        // At 9 pt Helvetica: ~5 pt per character
-        w.push(((width_pt / 5).max(6)) as usize);
+        w.push((next - xs[i] - 2 * TABLE_CELL_PAD).max(20));
     }
     w
 }
@@ -228,11 +337,25 @@ pub fn render_clinical_layout_with_logo(
     doc: &ClinicalPdfLayout,
     logo_override: Option<&PdfLogo>,
 ) -> Result<Vec<u8>, AppError> {
+    let variant = doc.for_copy_variant();
+    let doc = &variant;
     let owned_logo = doc.logo_kv_json.as_deref().and_then(PdfLogo::from_kv_json);
     let logo = logo_override.or(owned_logo.as_ref());
-    let locale = doc.locale.as_deref().unwrap_or("en");
+    let locale = pdf_locale(doc.locale.as_deref().unwrap_or("de"));
 
     let mut pb = PageBuilder::new();
+    pb.locale = locale;
+    pb.rtl = doc.rtl || super::i18n::is_rtl(locale);
+    pb.watermark = doc.watermark.clone().filter(|w| !w.trim().is_empty());
+    pb.footer_lines = doc.footer_lines.clone();
+    pb.set_continuation(
+        doc.practice_lines
+            .first()
+            .map(|s| s.as_str())
+            .unwrap_or("MeDoc"),
+        &doc.document_title,
+        locale,
+    );
 
     match doc.kind.as_str() {
         "certificate" => render_certificate(&mut pb, doc, logo, locale),
@@ -245,12 +368,49 @@ pub fn render_clinical_layout_with_logo(
 
     let pages = pb.finish();
     let images: Vec<PdfLogo> = logo.cloned().into_iter().collect();
-    emit_multipage_pdf_with_images(
+    emit_pdf_document(
         &pages,
-        &format!("{} {}", doc.kind, doc.document_title),
+        &PdfDocMeta {
+            title: match doc.document_number.as_deref() {
+                Some(n) => format!("{} {n}", doc.document_title),
+                None => doc.document_title.clone(),
+            },
+            subject: doc.document_number.clone(),
+            author: doc.practice_lines.first().cloned(),
+            locale: locale.to_string(),
+        },
         &images,
-        locale,
     )
+}
+
+/// Information-block rows incl. the registry number (if issued).
+fn meta_rows_with_number(doc: &ClinicalPdfLayout, locale: &str) -> Vec<MetaRow> {
+    let mut rows = to_meta_rows(&doc.meta_lines);
+    if let Some(n) = doc
+        .document_number
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+    {
+        // Was "Dokument-Nr." / "Document no." only: French and Arabic
+        // documents printed the English label.
+        let label = if doc.kind == "receipt" {
+            super::i18n::t(locale, super::i18n::Phrase::ReceiptNo)
+        } else {
+            super::i18n::t(locale, super::i18n::Phrase::DocumentNo)
+        };
+        if !rows.iter().any(|r| r.value == n) {
+            rows.insert(0, MetaRow::new(label, n));
+        }
+    }
+    rows
+}
+
+/// Prints the copy-variant line ("Ausfertigung zur Vorlage beim Arbeitgeber").
+fn emit_copy_variant_line(pb: &mut PageBuilder, doc: &ClinicalPdfLayout, locale: &str) {
+    if let Some(label) = doc.copy_variant_label(locale) {
+        pb.text_center(9, true, label);
+        pb.advance(14);
+    }
 }
 
 fn clinical_letterhead<'a>(
@@ -265,15 +425,18 @@ fn clinical_letterhead<'a>(
         address_lines: &doc.address_lines,
         header_right_lines: &doc.header_right_lines,
         show_sender_hint: !doc.address_lines.is_empty(),
-        compact_address: doc.kind == "receipt",
+        // Same letterhead as a prescription: practice block on the left, the
+        // information block in the DIN window, not beside the practice name.
+        compact_address: false,
         logo,
-        rtl: doc.rtl,
+        rtl: doc.rtl || super::i18n::is_rtl(locale),
         locale,
     }
 }
 
 /// Plain preview when the frontend sends `bodyLines` only (no `layoutJson`).
-/// Uses the same letterhead + footer stack as structured clinical exports.
+/// Uses the same letterhead + footer stack as structured clinical exports,
+/// in the practice's current document language.
 pub fn render_plain_preview(
     kind: &str,
     template_name: &str,
@@ -281,6 +444,27 @@ pub fn render_plain_preview(
     body_pt: i32,
     body_lines: &[String],
 ) -> Result<Vec<u8>, AppError> {
+    render_plain_preview_locale(
+        kind,
+        template_name,
+        footer,
+        body_pt,
+        body_lines,
+        super::i18n::default_document_locale(),
+    )
+}
+
+/// [`render_plain_preview`] in an explicit document language.
+pub fn render_plain_preview_locale(
+    kind: &str,
+    template_name: &str,
+    footer: &str,
+    body_pt: i32,
+    body_lines: &[String],
+    locale: &str,
+) -> Result<Vec<u8>, AppError> {
+    let locale = pdf_locale(locale);
+    let rtl = super::i18n::is_rtl(locale);
     let fs = body_pt.clamp(8, 18);
     let wrap_cols = 86usize.saturating_sub((18 - fs) as usize * 2);
 
@@ -305,14 +489,15 @@ pub fn render_plain_preview(
         show_sender_hint: false,
         compact_address: false,
         logo: None,
-        rtl: false,
-        locale: "en",
+        rtl,
+        locale,
     };
     emit_letterhead(&mut pb, &lh);
 
     pb.text(M_LEFT, 14, true, template_name);
     pb.advance(18);
-    pb.text(M_LEFT, 9, false, &format!("Document type: {kind}"));
+    let kind_label = super::i18n::t(locale, super::i18n::Phrase::DocumentType);
+    pb.text(M_LEFT, 9, false, &format!("{kind_label}: {kind}"));
     pb.advance(14);
     pb.hline(M_LEFT, M_RIGHT);
     pb.advance(16);
@@ -335,27 +520,36 @@ pub fn render_plain_preview(
         }
     }
 
-    emit_clinical_privacy_footer(&mut pb, kind, "en");
+    emit_clinical_privacy_footer(&mut pb, kind, locale);
 
+    // This path renders free text without a registry entry → never official.
+    pb.watermark = Some(super::i18n::t(locale, super::i18n::Phrase::Draft).into());
     let pages = pb.finish();
-    emit_multipage_pdf_with_images(&pages, &format!("Preview {template_name}"), &[], "en")
+    let preview = super::i18n::t(locale, super::i18n::Phrase::Preview);
+    emit_pdf_document(
+        &pages,
+        &PdfDocMeta {
+            title: format!("{preview} {template_name}"),
+            locale: locale.to_string(),
+            ..Default::default()
+        },
+        &[],
+    )
 }
 
-fn emit_clinical_privacy_footer(pb: &mut PageBuilder, kind: &str, locale: &str) {
-    if kind == "receipt" {
-        return;
-    }
-    let notice = match locale {
-        "de" => "Vertrauliche Patientendaten gem. § 630f BGB / Art. 9 DSGVO. Weitergabe nur an berechtigte Personen.",
-        "fr" => "Données patient confidentielles (art. 9 RGPD). Divulgation uniquement aux personnes autorisées.",
-        "ar" => "بيانات مريض سرية وفق المادة 9 من اللائحة العامة لحماية البيانات. الإفصاح للمخولين فقط.",
-        _ => "Confidential patient data pursuant to § 630f BGB / Art. 9 GDPR. Disclosure only to authorized parties.",
-    };
+fn emit_clinical_privacy_footer(pb: &mut PageBuilder, _kind: &str, locale: &str) {
+    // Receipts name the patient and the treatment, so they carry the notice too.
+    let notice = super::i18n::t(locale, super::i18n::Phrase::Privacy);
     pb.ensure_space(40);
     pb.advance(12);
     pb.hline(M_LEFT, M_RIGHT);
     pb.advance(10);
-    pb.text(M_LEFT, 7, false, notice);
+    // Wrapped: the French and Arabic notices are longer than one line and
+    // ran past the margin (off the page when mirrored for Arabic).
+    for line in wrap_to_width(notice, 7, false, f64::from(CONTENT_WIDTH)) {
+        pb.text(M_LEFT, 7, false, &line);
+        pb.advance(9);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -370,7 +564,7 @@ fn render_certificate(
 ) {
     // Letterhead — certificates usually go to the patient directly, so
     // address_lines apply
-    let meta_rows = to_meta_rows(&doc.meta_lines);
+    let meta_rows = meta_rows_with_number(doc, locale);
     let lh = clinical_letterhead(doc, &meta_rows, logo, locale);
     emit_letterhead(pb, &lh);
 
@@ -386,9 +580,13 @@ fn render_certificate(
         pb.advance(14);
     }
 
+    emit_copy_variant_line(pb, doc, locale);
     pb.hline(M_LEFT + 100, M_RIGHT - 100);
     pb.advance(16);
 
+    if let Some(ref tc) = doc.two_column {
+        emit_two_column_panel(pb, tc);
+    }
     render_intro(pb, &doc.intro_paragraphs);
     emit_label_value_rows(pb, &doc.label_value_rows);
 
@@ -427,7 +625,7 @@ fn render_prescription(
     logo: Option<&PdfLogo>,
     locale: &str,
 ) {
-    let meta_rows = to_meta_rows(&doc.meta_lines);
+    let meta_rows = meta_rows_with_number(doc, locale);
     let lh = clinical_letterhead(doc, &meta_rows, logo, locale);
     emit_letterhead(pb, &lh);
 
@@ -450,9 +648,7 @@ fn render_prescription(
         emit_two_column_panel(pb, tc);
     }
 
-    emit_label_value_rows(pb, &doc.label_value_rows);
-
-    // Tables (title may already contain "Rp." — avoid double prefix)
+    // "Rp." (the prescribed drugs) comes first, then duration / aut idem / notes.
     if !doc.tables.is_empty() {
         pb.advance(6);
         for table in &doc.tables {
@@ -468,7 +664,10 @@ fn render_prescription(
                 ),
             );
         }
+        pb.advance(6);
     }
+
+    emit_label_value_rows(pb, &doc.label_value_rows);
 
     render_intro(pb, &doc.intro_paragraphs);
 
@@ -491,22 +690,22 @@ fn render_receipt(
     logo: Option<&PdfLogo>,
     locale: &str,
 ) {
-    let meta_rows = to_meta_rows(&doc.meta_lines);
+    let meta_rows = meta_rows_with_number(doc, locale);
     let lh = clinical_letterhead(doc, &meta_rows, logo, locale);
     emit_letterhead(pb, &lh);
 
-    pb.text_center(15, true, &doc.document_title);
+    // Hand-out receipt: title, then the services that were paid for.
+    pb.text(M_LEFT, 16, true, &doc.document_title);
     pb.advance(18);
     if let Some(sub) = doc
         .document_subtitle
         .as_deref()
         .filter(|s| !s.trim().is_empty())
     {
-        pb.text_center(11, false, sub);
+        pb.text(M_LEFT, 9, false, sub);
         pb.advance(14);
     }
-    pb.hline(M_LEFT, M_RIGHT);
-    pb.advance(14);
+    pb.advance(4);
 
     render_intro(pb, &doc.intro_paragraphs);
     emit_label_value_rows(pb, &doc.label_value_rows);
@@ -519,10 +718,13 @@ fn render_receipt(
         doc.document_title.as_str(),
     );
     // Service lines first, then money totals (standard receipt order).
-    for table in &doc.tables {
+    // Amounts carry the practice currency even when the client sent a bare number.
+    let tables = receipt_tables_with_currency(&doc.tables);
+    let totals = receipt_totals_with_currency(&doc.totals);
+    for table in &tables {
         emit_table(pb, table, cont);
     }
-    emit_receipt_totals(pb, &doc.totals);
+    emit_receipt_totals(pb, &totals);
 
     pb.advance(6);
     for p in &doc.closing_paragraphs {
@@ -530,8 +732,6 @@ fn render_receipt(
             pb.paragraph(p, 9, 90, 0);
         }
     }
-
-    emit_default_or_custom_signature(pb, doc);
 }
 
 // ---------------------------------------------------------------------------
@@ -544,7 +744,7 @@ fn render_generic(
     logo: Option<&PdfLogo>,
     locale: &str,
 ) {
-    let meta_rows = to_meta_rows(&doc.meta_lines);
+    let meta_rows = meta_rows_with_number(doc, locale);
     let lh = clinical_letterhead(doc, &meta_rows, logo, locale);
     emit_letterhead(pb, &lh);
 
@@ -627,14 +827,24 @@ fn render_intro(pb: &mut PageBuilder, paragraphs: &[String]) {
 }
 
 fn emit_label_value_rows(pb: &mut PageBuilder, rows: &[LabelValue]) {
+    // Value column starts after the widest label (measured), so long German
+    // labels like "Voraussichtlich bis einschließlich" never overlap the value.
+    let label_col = rows
+        .iter()
+        .map(|r| pb.width(&format!("{}:", r.label), 9, true).ceil() as i32)
+        .max()
+        .unwrap_or(0)
+        .clamp(130, 230)
+        + 12;
+    let value_pt = f64::from(CONTENT_WIDTH - label_col);
     for row in rows {
         pb.ensure_space(36);
         let multiline = row.value.contains('\n');
-        let compact = !multiline && row.value.chars().count() <= 70;
+        let compact = !multiline && pb.width(row.value.trim(), 10, false) <= value_pt;
 
         if compact {
             pb.text(M_LEFT, 9, true, &format!("{}:", row.label));
-            pb.text(M_LEFT + 145, 10, false, row.value.trim());
+            pb.text(M_LEFT + label_col, 10, false, row.value.trim());
             pb.advance(14);
         } else {
             pb.text(M_LEFT, 9, true, &row.label);
@@ -646,7 +856,7 @@ fn emit_label_value_rows(pb: &mut PageBuilder, rows: &[LabelValue]) {
                     pb.advance(6);
                     continue;
                 }
-                for chunk in wrap_text(raw, 84) {
+                for chunk in wrap_text_locale(raw, 84, pb.locale) {
                     pb.ensure_space(30);
                     pb.text(M_LEFT + 4, 10, false, &chunk);
                     pb.advance(12);
@@ -658,8 +868,19 @@ fn emit_label_value_rows(pb: &mut PageBuilder, rows: &[LabelValue]) {
 }
 
 fn emit_two_column_panel(pb: &mut PageBuilder, block: &TwoColumnBlock) {
-    pb.ensure_space(110);
-    let panel_h = 80;
+    let col_pt = f64::from(CONTENT_WIDTH / 2 - 16);
+    let count = |lines: &[String]| -> i32 {
+        lines
+            .iter()
+            .map(|l| wrap_to_width(l, 9, false, col_pt).len() as i32)
+            .sum()
+    };
+    let rows = count(&block.left_lines)
+        .max(count(&block.right_lines))
+        .max(1);
+    // Title band + rows + padding — the box grows with its content.
+    let panel_h = 30 + rows * 11;
+    pb.ensure_space(panel_h + 30);
     let panel_bottom = pb.y - panel_h + 4;
     let title_band_y = pb.y - 12;
 
@@ -674,11 +895,12 @@ fn emit_two_column_panel(pb: &mut PageBuilder, block: &TwoColumnBlock) {
     // Titel
     let prev_y = pb.y;
     pb.y = title_y;
+    let fallback = super::i18n::t(pb.locale, super::i18n::Phrase::Patient);
     pb.text(
         M_LEFT + 8,
         9,
         true,
-        block.left_title.as_deref().unwrap_or("Patient"),
+        block.left_title.as_deref().unwrap_or(fallback),
     );
     if let Some(t) = block.right_title.as_deref() {
         pb.text(mid_x + 4, 9, true, t);
@@ -688,7 +910,7 @@ fn emit_two_column_panel(pb: &mut PageBuilder, block: &TwoColumnBlock) {
     // Linke Spalte
     let mut yl = title_y - 14;
     for line in &block.left_lines {
-        for chunk in wrap_soft(line, 36) {
+        for chunk in wrap_to_width(line, 9, false, col_pt) {
             pb.y = yl;
             pb.text(M_LEFT + 10, 9, false, &chunk);
             yl -= 11;
@@ -698,14 +920,70 @@ fn emit_two_column_panel(pb: &mut PageBuilder, block: &TwoColumnBlock) {
     // Rechte Spalte
     let mut yr = title_y - 14;
     for line in &block.right_lines {
-        for chunk in wrap_soft(line, 36) {
+        for chunk in wrap_to_width(line, 9, false, col_pt) {
             pb.y = yr;
             pb.text(mid_x + 6, 9, false, &chunk);
             yr -= 11;
         }
     }
 
-    pb.y = panel_bottom - 12;
+    pb.y = panel_bottom - 18;
+}
+
+const HEADER_FS: i32 = 8;
+const HEADER_STEP: i32 = 10;
+
+/// Header cells wrap inside their column. A long title occupies extra lines
+/// above the rule, so it cannot paint over the next column or the first data row.
+fn emit_table_headers(
+    pb: &mut PageBuilder,
+    headers: &[String],
+    col_xs: &[i32],
+    col_widths: &[i32],
+    amount_cols: &[bool],
+) {
+    let wrapped: Vec<Vec<String>> = headers
+        .iter()
+        .enumerate()
+        .map(|(ci, h)| {
+            let w = col_widths.get(ci).copied().unwrap_or(60).max(28);
+            let lines = wrap_to_width(h, HEADER_FS, true, f64::from(w));
+            if lines.is_empty() {
+                vec![String::new()]
+            } else {
+                lines
+            }
+        })
+        .collect();
+    let lines = wrapped.iter().map(|w| w.len().max(1)).max().unwrap_or(1);
+    let baseline = pb.y;
+    let row_h = table_row_height(lines, HEADER_STEP, HEADER_FS);
+    pb.fill_table_row_band(M_LEFT, CONTENT_WIDTH, baseline, row_h, HEADER_FS, 0.92);
+    for li in 0..lines {
+        for (ci, chunks) in wrapped.iter().enumerate() {
+            let Some(chunk) = chunks.get(li).filter(|s| !s.is_empty()) else {
+                continue;
+            };
+            let x = col_xs.get(ci).copied().unwrap_or(M_LEFT);
+            let w = col_widths.get(ci).copied().unwrap_or(60);
+            let saved = pb.y;
+            pb.y = baseline - li as i32 * HEADER_STEP;
+            draw_cell(
+                pb,
+                x,
+                w,
+                HEADER_FS,
+                true,
+                chunk,
+                amount_cols.get(ci).copied().unwrap_or(false),
+            );
+            pb.y = saved;
+        }
+    }
+    pb.y = baseline;
+    pb.advance(row_h);
+    pb.hline(M_LEFT, M_RIGHT);
+    pb.advance(8);
 }
 
 fn emit_table(pb: &mut PageBuilder, table: &PdfTableSpec, continuation: (&str, &str)) {
@@ -715,7 +993,7 @@ fn emit_table(pb: &mut PageBuilder, table: &PdfTableSpec, continuation: (&str, &
         .max(table.rows.iter().map(|r| r.len()).max().unwrap_or(0))
         .max(1);
     let col_xs = table_column_xs(table.column_layout, ncol);
-    let col_chars = column_char_widths(&col_xs);
+    let col_widths = column_pt_widths(&col_xs);
 
     if let Some(t) = table.title.as_deref().filter(|s| !s.is_empty()) {
         pb.ensure_space(80);
@@ -726,17 +1004,10 @@ fn emit_table(pb: &mut PageBuilder, table: &PdfTableSpec, continuation: (&str, &
 
     pb.ensure_space(70);
 
-    // Table header — same inset as body cells
-    pb.table_header_band(M_LEFT, pb.y + 2, CONTENT_WIDTH);
-    for (ci, h) in table.headers.iter().enumerate() {
-        let x = col_xs.get(ci).copied().unwrap_or(M_LEFT);
-        pb.text(x + TABLE_CELL_PAD, 9, true, h);
-    }
-    pb.advance(14);
-    pb.hline(M_LEFT, M_RIGHT);
-    pb.advance(10);
+    let amount_cols = amount_columns(table, ncol);
+    emit_table_headers(pb, &table.headers, &col_xs, &col_widths, &amount_cols);
 
-    emit_table_data_rows(pb, table, &col_xs, &col_chars, continuation);
+    emit_table_data_rows(pb, table, &col_xs, &col_widths, continuation);
 }
 
 fn emit_detail_records(pb: &mut PageBuilder, records: &[DetailRecord]) {
@@ -753,7 +1024,12 @@ fn emit_detail_records(pb: &mut PageBuilder, records: &[DetailRecord]) {
         pb.fill_rect(M_LEFT, box_bottom, CONTENT_WIDTH, total_h - 8, 0.97);
 
         pb.advance(2);
-        pb.text(M_LEFT + 6, 9, true, "Type");
+        pb.text(
+            M_LEFT + 6,
+            9,
+            true,
+            super::i18n::t(pb.locale, super::i18n::Phrase::DetailType),
+        );
         pb.advance(12);
         for chunk in wrap_soft(&rec.kind, 80) {
             pb.text(M_LEFT + 6, 9, false, &chunk);
@@ -761,7 +1037,12 @@ fn emit_detail_records(pb: &mut PageBuilder, records: &[DetailRecord]) {
         }
         pb.advance(2);
 
-        pb.text(M_LEFT + 6, 9, true, "Period");
+        pb.text(
+            M_LEFT + 6,
+            9,
+            true,
+            super::i18n::t(pb.locale, super::i18n::Phrase::DetailPeriod),
+        );
         pb.advance(12);
         for chunk in wrap_soft(&rec.period, 80) {
             pb.text(M_LEFT + 6, 9, false, &chunk);
@@ -769,7 +1050,12 @@ fn emit_detail_records(pb: &mut PageBuilder, records: &[DetailRecord]) {
         }
         pb.advance(2);
 
-        pb.text(M_LEFT + 6, 9, true, "Details");
+        pb.text(
+            M_LEFT + 6,
+            9,
+            true,
+            super::i18n::t(pb.locale, super::i18n::Phrase::DetailDetails),
+        );
         pb.advance(12);
         for detail in &rec.details {
             for chunk in wrap_soft(detail, 80) {
@@ -783,36 +1069,68 @@ fn emit_detail_records(pb: &mut PageBuilder, records: &[DetailRecord]) {
 
 /// Uniform cell inset for table headers and body (must match).
 const TABLE_CELL_PAD: i32 = 6;
-/// Uniform padding in receipt totals.
-const RECEIPT_PAD: i32 = 10;
-const RECEIPT_ROW_H: i32 = 16;
 
-fn is_total_label(label: &str) -> bool {
-    let l = label.to_ascii_lowercase();
-    l.contains("gesamt") || l.contains("endbetrag") || l.contains("total")
+/// Grand-total row: explicit `total` flag; label sniffing only as fallback
+/// for layouts that do not set the flag yet.
+fn is_total_row(row: &LabelValue, all: &[LabelValue]) -> bool {
+    if all.iter().any(|r| r.total) {
+        return row.total;
+    }
+    let l = row.label.to_lowercase();
+    l == "total" || l == "gesamt" || l.starts_with("gesamtbetrag") || l.starts_with("endbetrag")
+}
+
+fn receipt_tables_with_currency(tables: &[PdfTableSpec]) -> Vec<PdfTableSpec> {
+    tables
+        .iter()
+        .map(|table| {
+            let mut table = table.clone();
+            let idx = table.headers.len().saturating_sub(1);
+            if table.headers.len() >= 2 {
+                for row in &mut table.rows {
+                    if let Some(cell) = row.get_mut(idx) {
+                        *cell = super::core::ensure_money_currency(cell);
+                    }
+                }
+            }
+            table
+        })
+        .collect()
+}
+
+fn receipt_totals_with_currency(totals: &[LabelValue]) -> Vec<LabelValue> {
+    totals
+        .iter()
+        .map(|row| {
+            let mut row = row.clone();
+            row.value = super::core::ensure_money_currency(&row.value);
+            row
+        })
+        .collect()
 }
 
 fn emit_receipt_totals(pb: &mut PageBuilder, totals: &[LabelValue]) {
     if totals.is_empty() {
         return;
     }
-    pb.ensure_space(24 + totals.len() as i32 * RECEIPT_ROW_H);
-    pb.advance(10);
-    // Separator above the money block (keeps the Total row free of overlapping rules).
-    pb.hline(M_LEFT + 220, M_RIGHT);
-    pb.advance(12);
-
+    // Amount received. The label ends before the amount column; the figure
+    // ends at the right margin. This is not a demand for payment.
+    let label_right = M_LEFT + 390;
+    let amount_right = M_RIGHT - 2;
+    pb.ensure_space(24 + totals.len() as i32 * 14);
+    pb.advance(4);
     for row in totals {
-        let bold = is_total_label(&row.label);
+        let bold = is_total_row(row, totals);
         if bold {
-            pb.advance(2);
-            pb.hline(M_LEFT + 220, M_RIGHT);
-            pb.advance(12);
+            pb.hline(M_LEFT + 250, M_RIGHT);
+            pb.advance(3);
+            pb.hline(M_LEFT + 250, M_RIGHT);
+            pb.advance(13);
         }
-        pb.text(M_LEFT + 220, 10, bold, &format!("{}:", row.label));
         let value = super::core::sanitize_pdf_money(&row.value);
-        pb.text_right(M_RIGHT - RECEIPT_PAD, 10, bold, &value);
-        pb.advance(RECEIPT_ROW_H);
+        pb.text_right(label_right, 9, bold, &row.label);
+        pb.text_right(amount_right, 9, bold, &value);
+        pb.advance(13);
     }
     pb.advance(4);
 }
@@ -822,7 +1140,7 @@ fn emit_table_data_rows(
     pb: &mut PageBuilder,
     table: &PdfTableSpec,
     col_xs: &[i32],
-    col_chars: &[usize],
+    col_widths: &[i32],
     continuation: (&str, &str),
 ) {
     let ncol = table
@@ -831,14 +1149,15 @@ fn emit_table_data_rows(
         .max(table.rows.iter().map(|r| r.len()).max().unwrap_or(0))
         .max(1);
 
+    let amount_cols = amount_columns(table, ncol);
     for (ri, row) in table.rows.iter().enumerate() {
         let mut wrapped: Vec<Vec<String>> = Vec::with_capacity(ncol);
         let mut row_lines = 1usize;
         for ci in 0..ncol {
             let cell = row.get(ci).map(|s| s.as_str()).unwrap_or("");
-            let max_chars = col_chars.get(ci).copied().unwrap_or(20);
-            let clipped = truncate_cell(cell, max_chars.saturating_mul(2));
-            let w = wrap_soft(&clipped, max_chars);
+            let max_pt = col_widths.get(ci).copied().unwrap_or(60);
+            // Wrap by measured width; never truncate clinical content.
+            let w = wrap_to_width(cell, 9, false, f64::from(max_pt));
             row_lines = row_lines.max(w.len().max(1));
             wrapped.push(w);
         }
@@ -848,15 +1167,9 @@ fn emit_table_data_rows(
         let row_height = table_row_height(row_lines, line_step, font_size);
         if pb.y < M_BOTTOM + row_height + 20 {
             pb.break_page();
-            emit_continuation_header_locale(pb, continuation.0, continuation.1, "en");
-            pb.table_header_band(M_LEFT, pb.y + 2, CONTENT_WIDTH);
-            for (ci, h) in table.headers.iter().enumerate() {
-                let x = col_xs.get(ci).copied().unwrap_or(M_LEFT);
-                pb.text(x + TABLE_CELL_PAD, 9, true, h);
-            }
-            pb.advance(14);
-            pb.hline(M_LEFT, M_RIGHT);
-            pb.advance(10);
+            let loc = pb.locale;
+            emit_continuation_header_locale(pb, continuation.0, continuation.1, loc);
+            emit_table_headers(pb, &table.headers, col_xs, col_widths, &amount_cols);
         }
 
         let first_baseline = pb.y;
@@ -882,7 +1195,8 @@ fn emit_table_data_rows(
                 if !chunk.is_empty() {
                     let prev = pb.y;
                     pb.y = first_baseline - li as i32 * line_step;
-                    pb.text(x + TABLE_CELL_PAD, font_size, false, chunk);
+                    let w = col_widths.get(ci).copied().unwrap_or(60);
+                    draw_cell(pb, x, w, font_size, false, chunk, amount_cols[ci]);
                     pb.y = prev;
                 }
             }
@@ -903,7 +1217,7 @@ fn emit_totals_block(pb: &mut PageBuilder, totals: &[LabelValue]) {
     pb.hline(300, M_RIGHT);
     pb.advance(14);
     for row in totals {
-        let bold = is_total_label(&row.label);
+        let bold = is_total_row(row, totals);
         pb.text_right(380, 10, bold, &format!("{}:", row.label));
         pb.text_right(
             M_RIGHT,
@@ -949,7 +1263,8 @@ fn emit_default_or_custom_signature(pb: &mut PageBuilder, doc: &ClinicalPdfLayou
         pb.advance(size + 2);
     }
     pb.advance(4);
-    pb.text(M_LEFT, 8, false, "(Practice stamp)");
+    let stamp = stamp_label(pb.locale);
+    pb.text(M_LEFT, 8, false, stamp);
 
     emit_footer_meta(pb, &doc.footer_meta_lines);
 }
@@ -989,10 +1304,12 @@ mod tests {
             LabelValue {
                 label: "Date".into(),
                 value: "19.04.2026".into(),
+                ..Default::default()
             },
             LabelValue {
                 label: "Document-Nr.".into(),
                 value: "AT-001".into(),
+                ..Default::default()
             },
         ]
     }
@@ -1012,14 +1329,17 @@ mod tests {
                 LabelValue {
                     label: "Patient".into(),
                     value: "Max Sample".into(),
+                    ..Default::default()
                 },
                 LabelValue {
                     label: "Date of birth".into(),
                     value: "01.01.1980".into(),
+                    ..Default::default()
                 },
                 LabelValue {
                     label: "ICD-10".into(),
                     value: "K02.1 — Karies des Dentins".into(),
+                    ..Default::default()
                 },
             ],
             two_column: None,
@@ -1035,6 +1355,7 @@ mod tests {
             logo_kv_json: None,
             locale: None,
             rtl: false,
+            ..Default::default()
         };
         let pdf = render_clinical_layout(&doc).unwrap();
         assert!(pdf.starts_with(b"%PDF-1.4"));
@@ -1077,6 +1398,7 @@ mod tests {
             logo_kv_json: None,
             locale: Some("en".into()),
             rtl: false,
+            ..Default::default()
         };
         let pdf = render_clinical_layout_with_logo(&doc, Some(&logo)).unwrap();
         let text = String::from_utf8_lossy(&pdf);
@@ -1102,6 +1424,7 @@ mod tests {
             label_value_rows: vec![LabelValue {
                 label: "Prescription date".into(),
                 value: "19.04.2026".into(),
+                ..Default::default()
             }],
             two_column: Some(TwoColumnBlock {
                 left_title: Some("Patient".into()),
@@ -1142,9 +1465,88 @@ mod tests {
             logo_kv_json: None,
             locale: None,
             rtl: false,
+            ..Default::default()
         };
         let pdf = render_clinical_layout(&doc).unwrap();
         assert!(pdf.starts_with(b"%PDF-1.4"));
+    }
+
+    /// Long prescription headers wrap onto their own lines. The dose must not
+    /// share a baseline with "Dosierung" or "Packungsgröße".
+    #[test]
+    fn prescription_headers_do_not_share_a_baseline_with_the_dose() {
+        let doc = ClinicalPdfLayout {
+            kind: "prescription".into(),
+            practice_lines: practice(),
+            header_right_lines: vec![],
+            meta_lines: meta(),
+            address_lines: vec![],
+            document_title: "REZEPT".into(),
+            document_subtitle: Some("Privatrezept".into()),
+            intro_paragraphs: vec![],
+            label_value_rows: vec![],
+            two_column: None,
+            tables: vec![PdfTableSpec {
+                title: Some("Rp.".into()),
+                headers: vec![
+                    "Medikament / Wirkstärke".into(),
+                    "Darreichungsform".into(),
+                    "Dosierung".into(),
+                    "PZN".into(),
+                ],
+                rows: vec![vec![
+                    "Ibuprofen 600 mg".into(),
+                    "Tabletten".into(),
+                    "1-0-1".into(),
+                    "12345678".into(),
+                ]],
+                column_layout: TableColumnLayout::Prescription,
+            }],
+            detail_records: vec![],
+            totals: vec![],
+            closing_paragraphs: vec![],
+            signature_lines: vec![],
+            footer_meta_lines: vec![],
+            clinician_professional_title: None,
+            clinician_zanr: None,
+            clinician_bsnr: None,
+            logo_kv_json: None,
+            locale: Some("de".into()),
+            rtl: false,
+            ..Default::default()
+        };
+        let pdf = render_clinical_layout(&doc).unwrap();
+        let text = String::from_utf8_lossy(&pdf);
+        let dose_y = td_y_for(&text, "1-0-1");
+        let header_ys = td_ys_for_font(&text, "/F2 8 Tf");
+        assert!(dose_y.is_some(), "dose must be drawn");
+        assert!(
+            !header_ys.is_empty(),
+            "wrapped headers must be drawn at 8 pt"
+        );
+        let dose_y = dose_y.unwrap();
+        assert!(
+            header_ys.iter().all(|y| *y > dose_y),
+            "header baselines {header_ys:?} must sit above the dose baseline {dose_y}"
+        );
+    }
+
+    fn td_y_for(pdf: &str, literal: &str) -> Option<i32> {
+        pdf.lines().find_map(|line| {
+            let op = super::super::core::text_operand(literal);
+            let needle = format!("{op} Tj");
+            if !line.contains(&needle) {
+                return None;
+            }
+            line.split_whitespace().nth(5).and_then(|y| y.parse().ok())
+        })
+    }
+
+    fn td_ys_for_font(pdf: &str, font: &str) -> Vec<i32> {
+        pdf.lines()
+            .filter(|line| line.contains(font) && line.contains(" Tj"))
+            .filter_map(|line| line.split_whitespace().nth(5).and_then(|y| y.parse().ok()))
+            .collect()
     }
 
     #[test]
@@ -1157,10 +1559,12 @@ mod tests {
                 LabelValue {
                     label: "Receipt-Nr.".into(),
                     value: "QU-2026-0001".into(),
+                    ..Default::default()
                 },
                 LabelValue {
                     label: "Date".into(),
                     value: "19.04.2026".into(),
+                    ..Default::default()
                 },
             ],
             address_lines: vec!["Max Sample".into()],
@@ -1171,10 +1575,12 @@ mod tests {
                 LabelValue {
                     label: "Payment method".into(),
                     value: "Cash".into(),
+                    ..Default::default()
                 },
                 LabelValue {
                     label: "ServiceItem".into(),
                     value: "Checkup".into(),
+                    ..Default::default()
                 },
             ],
             two_column: None,
@@ -1183,6 +1589,7 @@ mod tests {
             totals: vec![LabelValue {
                 label: "Total amount".into(),
                 value: "45,00 €".into(),
+                ..Default::default()
             }],
             closing_paragraphs: vec![
                 "VAT-exempt under § 4 No. 14 UStG.".into(),
@@ -1196,11 +1603,16 @@ mod tests {
             logo_kv_json: None,
             locale: None,
             rtl: false,
+            ..Default::default()
         };
         let pdf = render_clinical_layout(&doc).unwrap();
         assert!(pdf.starts_with(b"%PDF-1.4"));
         let text = String::from_utf8_lossy(&pdf);
         assert!(text.contains("RECEIPT") || text.contains("Receipt") || text.contains("\\321"));
+        assert!(
+            text.contains("45,00 EUR"),
+            "receipt total must show the practice currency"
+        );
     }
 
     #[test]
@@ -1228,6 +1640,7 @@ mod tests {
             logo_kv_json: None,
             locale: None,
             rtl: false,
+            ..Default::default()
         };
         let pdf = render_clinical_layout(&doc).unwrap();
         assert!(pdf.starts_with(b"%PDF-1.4"));
@@ -1269,6 +1682,7 @@ mod tests {
             logo_kv_json: None,
             locale: None,
             rtl: false,
+            ..Default::default()
         };
         let pdf = render_clinical_layout(&doc).unwrap();
         assert!(pdf.starts_with(b"%PDF-1.4"));
@@ -1306,6 +1720,7 @@ mod tests {
             logo_kv_json: None,
             locale: None,
             rtl: false,
+            ..Default::default()
         };
         let pdf = render_clinical_layout(&doc).unwrap();
         assert!(pdf.starts_with(b"%PDF-1.4"));
@@ -1338,6 +1753,7 @@ mod tests {
             totals: vec![LabelValue {
                 label: "Total".into(),
                 value: "100,00 €".into(),
+                ..Default::default()
             }],
             closing_paragraphs: vec![],
             signature_lines: vec![],
@@ -1348,6 +1764,7 @@ mod tests {
             logo_kv_json: None,
             locale: None,
             rtl: false,
+            ..Default::default()
         };
         let pdf = render_clinical_layout(&doc).unwrap();
         let text = String::from_utf8_lossy(&pdf);
@@ -1377,7 +1794,171 @@ mod tests {
         let text = String::from_utf8_lossy(&pdf);
         assert!(pdf.starts_with(b"%PDF-1.4"));
         assert!(text.contains("Standard template"));
-        assert!(text.contains("Page 1 of 1") || text.contains("(Page"));
-        assert!(text.contains("630f") || text.contains("GDPR") || text.contains("DSGVO"));
+        assert!(text.contains("Seite 1 von 1"));
+        assert!(text.contains("630f"));
+        assert!(
+            text.contains("(ENTWURF)"),
+            "free-text preview must be watermarked"
+        );
+    }
+
+    fn au_doc(variant: &str) -> ClinicalPdfLayout {
+        ClinicalPdfLayout {
+            kind: "certificate".into(),
+            practice_lines: practice(),
+            document_title: "ARBEITSUNFÄHIGKEITSBESCHEINIGUNG".into(),
+            label_value_rows: vec![
+                LabelValue {
+                    label: "Arbeitsunfähig seit".into(),
+                    value: "01.06.2026".into(),
+                    ..Default::default()
+                },
+                LabelValue {
+                    label: "Diagnose (ICD-10)".into(),
+                    value: "K04.0 Pulpitis".into(),
+                    confidential: true,
+                    ..Default::default()
+                },
+            ],
+            copy_variant: Some(variant.into()),
+            document_number: Some("AU-2026-000017".into()),
+            locale: Some("de".into()),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn employer_copy_has_no_diagnosis() {
+        let employer =
+            String::from_utf8_lossy(&render_clinical_layout(&au_doc("employer")).unwrap())
+                .into_owned();
+        assert!(!employer.contains("K04.0"));
+        assert!(employer.contains("Arbeitgeber"));
+        assert!(employer.contains("AU-2026-000017"));
+        let patient = String::from_utf8_lossy(&render_clinical_layout(&au_doc("patient")).unwrap())
+            .into_owned();
+        assert!(patient.contains("K04.0"));
+    }
+
+    #[test]
+    fn watermark_is_applied_to_every_page() {
+        let mut doc = au_doc("patient");
+        doc.watermark = Some("KOPIE".into());
+        doc.intro_paragraphs = (0..60).map(|i| format!("Absatz {i} mit Text.")).collect();
+        let pdf = render_clinical_layout(&doc).unwrap();
+        let text = String::from_utf8_lossy(&pdf);
+        let pages = text.matches("/Type /Page ").count();
+        assert!(pages >= 2);
+        assert_eq!(text.matches("(KOPIE) Tj").count(), pages);
+    }
+
+    #[test]
+    fn arabic_receipt_is_the_mirror_of_the_latin_page() {
+        let doc = |locale: &str| ClinicalPdfLayout {
+            kind: "receipt".into(),
+            practice_lines: practice(),
+            address_lines: vec!["Max Sample".into()],
+            document_title: "Rechnung".into(),
+            locale: Some(locale.into()),
+            rtl: locale == "ar",
+            ..Default::default()
+        };
+        let x_of = |locale: &str| -> f64 {
+            let pdf = render_clinical_layout(&doc(locale)).unwrap();
+            let text = String::from_utf8_lossy(&pdf);
+            text.lines()
+                .find_map(|line| {
+                    let pos = line.find("(Rechnung) Tj")?;
+                    let head = line[..pos].split_whitespace().collect::<Vec<_>>();
+                    // BT /F2 16 Tf x y Td
+                    head.get(4)?.parse().ok()
+                })
+                .expect("title")
+        };
+        let de_x = x_of("de");
+        let ar_x = x_of("ar");
+        assert!(
+            (de_x - f64::from(M_LEFT)).abs() < 1.0,
+            "german title x={de_x}"
+        );
+        let width = crate::infrastructure::pdf::core::text_width("Rechnung", 16, true);
+        let expect = f64::from(M_RIGHT - width);
+        assert!(
+            (ar_x - expect).abs() < 1.0,
+            "arabic title x={ar_x}, expected {expect}"
+        );
+        assert!(ar_x > de_x, "arabic title sits on the right");
+    }
+
+    #[test]
+    fn receipt_renders_in_every_supported_language() {
+        let titles = [
+            ("de", "Rechnung", "(Rechnung)", false),
+            ("en", "Invoice", "(Invoice)", false),
+            ("fr", "Facture", "(Facture)", false),
+            ("ar", "فاتورة", "+NotoNaskhArabic", true),
+        ];
+        for (locale, title, marker, unicode) in titles {
+            let doc = ClinicalPdfLayout {
+                kind: "receipt".into(),
+                practice_lines: practice(),
+                address_lines: vec!["Max Sample".into(), "Sample Street 1".into()],
+                document_title: title.into(),
+                document_subtitle: Some("GOZ".into()),
+                document_number: Some("QU-2026-000001".into()),
+                locale: Some(locale.into()),
+                rtl: unicode,
+                totals: vec![LabelValue {
+                    label: if unicode {
+                        "المبلغ المستحق".into()
+                    } else {
+                        "Amount due".into()
+                    },
+                    value: "12,50".into(),
+                    total: true,
+                    ..Default::default()
+                }],
+                ..Default::default()
+            };
+            let pdf = render_clinical_layout(&doc).unwrap();
+            let text = String::from_utf8_lossy(&pdf);
+            assert!(pdf.starts_with(b"%PDF-1.4"), "{locale}");
+            assert!(text.contains(marker), "{locale} missing {marker}");
+            if locale == "en" {
+                assert!(text.contains("Receipt no."), "{locale}");
+                assert!(!text.contains("Invoice no."), "{locale}");
+            }
+            if locale == "de" {
+                assert!(text.contains("Quittungs-Nr."), "{locale}");
+                assert!(!text.contains("Rechnungs-Nr."), "{locale}");
+            }
+            if unicode {
+                assert!(text.contains("/F3 "), "{locale} did not draw arabic glyphs");
+            } else {
+                assert!(
+                    !text.contains("+NotoNaskhArabic"),
+                    "{locale} embedded the arabic font"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn explicit_total_flag_wins_over_label() {
+        let rows = vec![
+            LabelValue {
+                label: "Subtotal".into(),
+                value: "1".into(),
+                ..Default::default()
+            },
+            LabelValue {
+                label: "Zu zahlen".into(),
+                value: "1".into(),
+                total: true,
+                ..Default::default()
+            },
+        ];
+        assert!(!is_total_row(&rows[0], &rows));
+        assert!(is_total_row(&rows[1], &rows));
     }
 }

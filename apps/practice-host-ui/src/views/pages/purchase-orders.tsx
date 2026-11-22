@@ -1,6 +1,9 @@
-import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { readListSnapshot, writeListSnapshot } from "@/lib/list-snapshot";
+import { usePageRefresh } from "../layouts/page-refresh";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "../components/ui/button";
+import { DataTable } from "../components/ui/data-table";
 import { EmptyState } from "../components/ui/empty-state";
 import { Input, Select } from "../components/ui/input";
 import { Badge } from "../components/ui/badge";
@@ -14,19 +17,9 @@ import { errorMessage, formatDate, formatCurrency } from "@/lib/utils";
 import { orderStatusDisplay } from "@/lib/finance-order-labels";
 import { useT, useTParams } from "@/lib/i18n";
 import { WorkspacePageHeader } from "../components/administration-page-header";
-import { localYmd } from "@/lib/practice-clock";
+import { purchaseOrderIsOverdue } from "@/lib/purchase-order-is-overdue";
 
 type StatusFilter = "ALL" | OrderStatus;
-
-function todayISO(): string {
-    return localYmd();
-}
-
-function isOverdue(b: PurchaseOrder): boolean {
-    if (!b.expected_on) return false;
-    if (b.status === "DELIVERED" || b.status === "CANCELLED") return false;
-    return b.expected_on < todayISO();
-}
 
 function statusBadgeReadonly(status: OrderStatus, overdue: boolean, t: (key: string) => string) {
     if (overdue) return <Badge variant="error">{t("page.purchase_orders.status.overdue")}</Badge>;
@@ -50,8 +43,8 @@ export function PurchaseOrdersPage() {
 
     const selectedId = searchParams.get("purchase_order");
 
-    const [rows, setRows] = useState<PurchaseOrder[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [rows, setRows] = useState<PurchaseOrder[]>(() => readListSnapshot<PurchaseOrder[]>("purchase-orders") ?? []);
+    const [loading, setLoading] = useState(() => !readListSnapshot<PurchaseOrder[]>("purchase-orders"));
     const [loadError, setLoadError] = useState<string | null>(null);
 
     const [search, setSearch] = useState("");
@@ -66,6 +59,7 @@ export function PurchaseOrdersPage() {
         try {
             const list = await listPurchaseOrders();
             setRows(list);
+            writeListSnapshot("purchase-orders", list);
             if (initial) setLoadError(null);
         } catch (e) {
             const msg = errorMessage(e);
@@ -76,9 +70,15 @@ export function PurchaseOrdersPage() {
         }
     }, [toast, tp]);
 
+    const ordersHadCache = useRef(readListSnapshot<PurchaseOrder[]>("purchase-orders") !== undefined);
     useEffect(() => {
-        void load({ initial: true });
+        void load({ initial: !ordersHadCache.current });
+        ordersHadCache.current = false;
     }, [load]);
+
+    usePageRefresh(() => {
+        void load({ initial: false });
+    });
 
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase();
@@ -200,100 +200,53 @@ export function PurchaseOrdersPage() {
                 />
             ) : (
                 <div className="card purchase-orders-table-card tbl-data-card card--overflow-visible">
-                    <div className="tbl-scroll">
-                    <table className="tbl tbl-purchase-orders">
-                        <colgroup>
-                            <col className="purchase-orders-col-nr" />
-                            <col className="purchase-orders-col-lief" />
-                            <col className="purchase-orders-col-kind" />
-                            <col className="purchase-orders-col-quantity" />
-                            <col className="purchase-orders-col-erw" />
-                            <col className="purchase-orders-col-price" />
-                            <col className="purchase-orders-col-status" />
-                        </colgroup>
-                        <thead>
-                            <tr>
-                                <th scope="col">{t("page.purchase_orders.col_order_number")}</th>
-                                <th scope="col">{t("page.purchase_orders.col.supplier")}</th>
-                                <th scope="col">{t("page.purchase_orders.col_item")}</th>
-                                <th scope="col">{t("page.purchase_orders.col_quantity")}</th>
-                                <th scope="col">{t("page.purchase_orders.col.eta")}</th>
-                                <th scope="col">{t("page.purchase_orders.col_price")}</th>
-                                <th scope="col">{t("page.purchase_orders.col.status")}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {filtered.map((r) => {
-                                const overdue = isOverdue(r);
-                                const isSelected = selectedId === r.id;
-                                const rowLabel = tp("page.purchase_orders.open_row", {
-                                    label: r.order_number ?? r.id,
-                                });
-                                const onRowKeyDown = (e: KeyboardEvent<HTMLTableRowElement>) => {
-                                    if (e.key === "Enter" || e.key === " ") {
-                                        e.preventDefault();
-                                        openDrawer(r.id);
-                                    }
-                                };
-                                return (
-                                    <tr
-                                        key={r.id}
-                                        className={[
-                                            "purchase-orders-row",
-                                            "purchase-orders-row--clickable",
-                                            isSelected ? "purchase-orders-row--selected" : "",
-                                        ]
-                                            .filter(Boolean)
-                                            .join(" ")}
-                                        tabIndex={0}
-                                        role="button"
-                                        aria-label={rowLabel}
-                                        aria-pressed={isSelected}
-                                        title={t("page.purchase_orders.open_details")}
-                                        onClick={() => openDrawer(r.id)}
-                                        onKeyDown={onRowKeyDown}
-                                    >
-                                        <td className="purchase-orders-td-nr">
-                                            <span className="purchase-orders-nr">{r.order_number ?? "—"}</span>
-                                        </td>
-                                        <td className="purchase-orders-td-lief">
-                                            <span className="purchase-orders-lief-name">{r.supplier}</span>
-                                            {r.pharma_consultant ? (
-                                                <span className="purchase-orders-lief-sub">{r.pharma_consultant}</span>
-                                            ) : null}
-                                        </td>
-                                        <td className="purchase-orders-td-kind">
-                                            <span className="purchase-orders-kind">{r.item}</span>
-                                        </td>
-                                        <td className="purchase-orders-td-quantity">
-                                            {r.quantity}
-                                            {r.unit ? ` ${r.unit}` : ""}
-                                        </td>
-                                        <td className="purchase-orders-td-erw">
-                                            {r.expected_on ? (
-                                                <span className={overdue ? "purchase-orders-erw--late" : undefined}>
-                                                    {formatDate(r.expected_on)}
-                                                </span>
-                                            ) : (
-                                                <span className="page-sub">—</span>
-                                            )}
-                                        </td>
-                                        <td className="purchase-orders-td-price">
-                                            {r.total_amount != null && Number.isFinite(r.total_amount)
-                                                ? formatCurrency(r.total_amount)
-                                                : "—"}
-                                        </td>
-                                        <td className="purchase-orders-td-status">
-                                            <div className="purchase-orders-status-cell">
-                                                {statusBadgeReadonly(r.status, overdue, t)}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                    </div>
+                    <DataTable
+                        label={t("page.purchase_orders.title")}
+                        rows={filtered}
+                        getRowId={(r) => r.id}
+                        selectedId={selectedId}
+                        onRowActivate={(r) => openDrawer(r.id)}
+                        rowLabel={(r) => tp("page.purchase_orders.open_row", { label: r.order_number ?? r.id })}
+                        columns={[
+                            { id: "nr", header: t("page.purchase_orders.col_order_number"), width: "8rem", cell: (r) => <span className="purchase-orders-nr">{r.order_number ?? "—"}</span> },
+                            {
+                                id: "supplier",
+                                header: t("page.purchase_orders.col.supplier"),
+                                width: "22%",
+                                truncate: true,
+                                text: (r) => [r.supplier, r.pharma_consultant].filter(Boolean).join(" · "),
+                                cell: (r) => (
+                                    <span className="data-table__stack">
+                                        <span className="data-table__primary">{r.supplier}</span>
+                                        {r.pharma_consultant ? <span className="data-table__secondary">{r.pharma_consultant}</span> : null}
+                                    </span>
+                                ),
+                            },
+                            { id: "item", header: t("page.purchase_orders.col_item"), truncate: true, text: (r) => r.item, cell: (r) => r.item },
+                            { id: "qty", header: t("page.purchase_orders.col_quantity"), width: "6.5rem", numeric: true, hideBelow: "md", cell: (r) => `${r.quantity}${r.unit ? ` ${r.unit}` : ""}` },
+                            {
+                                id: "eta",
+                                header: t("page.purchase_orders.col.eta"),
+                                width: "7.5rem",
+                                hideBelow: "sm",
+                                cell: (r) =>
+                                    r.expected_on ? (
+                                        <span className={purchaseOrderIsOverdue(r) ? "purchase-orders-erw--late" : undefined}>{formatDate(r.expected_on)}</span>
+                                    ) : (
+                                        <span className="data-table__muted">—</span>
+                                    ),
+                            },
+                            {
+                                id: "price",
+                                header: t("page.purchase_orders.col_price"),
+                                width: "7.5rem",
+                                numeric: true,
+                                hideBelow: "md",
+                                cell: (r) => (r.total_amount != null && Number.isFinite(r.total_amount) ? formatCurrency(r.total_amount) : "—"),
+                            },
+                            { id: "status", header: t("page.purchase_orders.col.status"), width: "9.5rem", cell: (r) => statusBadgeReadonly(r.status, purchaseOrderIsOverdue(r), t) },
+                        ]}
+                    />
                 </div>
             )}
 

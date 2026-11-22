@@ -1,0 +1,67 @@
+/* From styles/pages/appointments-calendar.css (cascade position kept by its import there). */
+/* Date/period prev–label–next: chronological nav stays ← … → in every locale. */
+.appointment-nav-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+.appointment-toolbar-row > .appointment-nav-controls {
+  gap: 10px;
+}
+.appointment-nav-controls .icon-btn svg {
+  transform: none;
+}
+.appointment-toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  min-width: 0;
+  max-width: 100%;
+}
+.appointment-toolbar-row .spacer {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.appointment-toolbar-nav-label {
+  font-weight: 700;
+  font-size: 14px;
+  min-width: 0;
+}
+.appointment-toolbar-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 140px;
+  min-width: 0;
+  max-width: 420px;
+  padding: 0 12px;
+  min-height: 40px;
+  border-radius: 12px;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-elev);
+}
+.appointment-toolbar-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  outline: none;
+}
+.appointment-search-clear {
+  flex-shrink: 0;
+}
+.appointment-doctor-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  font-size: 12px;
+  color: var(--fg-2);
+  max-width: 100%;
+  justify-content: flex-end;
+}

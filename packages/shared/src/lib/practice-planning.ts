@@ -1,4 +1,5 @@
 import { getAppKv, setAppKv } from "@/systems/practice-host/controllers/app-kv.controller";
+import { minutesToTime } from "@/lib/utils";
 import { PRACTICE_WORK_HOURS_CHANGED_EVENT } from "./appointment-calendar-layout";
 
 /**
@@ -69,6 +70,71 @@ const DEFAULT_CFG: PracticeWorkHoursConfig = {
     defaultPhysicianId: undefined,
     physicianSchedules: undefined,
 };
+
+const JS_WEEKDAY_TO_PRACTICE_DAY: readonly PracticeDayKey[] = ["so", "mo", "di", "mi", "do", "fr", "sa"];
+
+/** `HH:MM` from a time input (`08:00` or `08:00:00`). */
+export function practiceHm(value: string): string {
+    const match = /^(\d{1,2}):(\d{2})/.exec(value.trim());
+    if (!match) return value.trim();
+    return `${match[1]!.padStart(2, "0")}:${match[2]}`;
+}
+
+function openSegments(day: PracticeDayPlan | undefined): Array<{ from: string; to: string }> {
+    if (!day?.active) return [];
+    return (day.segments ?? [])
+        .map((segment) => ({ from: practiceHm(segment.from), to: practiceHm(segment.to) }))
+        .filter((segment) => segment.from && segment.to && segment.from < segment.to);
+}
+
+export function practiceDayKeyForDate(date: Date): PracticeDayKey {
+    return JS_WEEKDAY_TO_PRACTICE_DAY[date.getDay()] ?? "mo";
+}
+
+/** Last closing time for that local day, or null when the practice is closed. */
+export function practiceClosingTimeHm(cfg: PracticeWorkHoursConfig, date: Date): string | null {
+    const segments = openSegments(cfg.plan[practiceDayKeyForDate(date)]);
+    if (segments.length === 0) return null;
+    return segments.reduce((latest, segment) => (segment.to > latest ? segment.to : latest), segments[0]!.to);
+}
+
+export function practiceSlotMinutes(cfg: PracticeWorkHoursConfig): number {
+    const minutes = Number.parseInt(cfg.slotMin, 10);
+    if (!Number.isFinite(minutes) || minutes <= 0) return 30;
+    return Math.min(480, Math.max(5, minutes));
+}
+
+/**
+ * Opening-hours line in the active language.
+ * Default plan: `Mon–Thu 08:00–17:00, Fri 08:00–15:00`.
+ * Wrapped in an LTR isolate so the from–to order stays the same in Arabic.
+ */
+export function formatPracticeOpeningHours(
+    cfg: PracticeWorkHoursConfig,
+    dayLabel: (key: PracticeDayKey) => string,
+): string {
+    const groups: Array<{ start: PracticeDayKey; end: PracticeDayKey; hours: string }> = [];
+    for (const key of PRACTICE_DAY_KEYS) {
+        const segments = openSegments(cfg.plan[key]);
+        if (segments.length === 0) continue;
+        const hours = segments.map((segment) => `${segment.from}–${segment.to}`).join(" · ");
+        const previous = groups[groups.length - 1];
+        const previousIndex = previous ? PRACTICE_DAY_KEYS.indexOf(previous.end) : -2;
+        if (previous && previous.hours === hours && PRACTICE_DAY_KEYS.indexOf(key) === previousIndex + 1) {
+            previous.end = key;
+        } else {
+            groups.push({ start: key, end: key, hours });
+        }
+    }
+    if (groups.length === 0) return "";
+    const body = groups
+        .map((group) => {
+            const days = group.start === group.end ? dayLabel(group.start) : `${dayLabel(group.start)}–${dayLabel(group.end)}`;
+            return `${days} ${group.hours}`;
+        })
+        .join(", ");
+    return `\u2066${body}\u2069`;
+}
 
 type PlanParseInput = Record<
     string,
@@ -163,6 +229,9 @@ function parseConfigBlob(raw: string | null | undefined): PracticeWorkHoursConfi
             physicianSchedules,
         };
     } catch {
+        if (raw && raw.trim()) {
+            throw new Error("Stored work hours are invalid");
+        }
         return DEFAULT_CFG;
     }
 }
@@ -173,11 +242,7 @@ function parseConfigBlob(raw: string | null | undefined): PracticeWorkHoursConfi
  * stays in sync with the SQLite source of truth.
  */
 export function readPracticeWorkHoursConfig(): PracticeWorkHoursConfig {
-    try {
-        return parseConfigBlob(localStorage.getItem(PRACTICE_WORK_HOURS_LS_KEY));
-    } catch {
-        return DEFAULT_CFG;
-    }
+    return { ...DEFAULT_CFG, plan: { ...DEFAULT_CFG.plan } };
 }
 
 /**
@@ -190,11 +255,21 @@ export async function loadPracticeWorkHoursConfig(): Promise<PracticeWorkHoursCo
     try {
         const raw = await getAppKv(PRACTICE_KV_KEY);
         if (raw) {
-            try { localStorage.setItem(PRACTICE_WORK_HOURS_LS_KEY, raw); } catch { /* ignore */ }
             return parseConfigBlob(raw);
         }
-    } catch {
-        // backend unreachable — fall through to cache
+        const storage = globalThis.localStorage;
+        if (storage) {
+            const ls = storage.getItem(PRACTICE_WORK_HOURS_LS_KEY);
+            if (ls) {
+                await setAppKv(PRACTICE_KV_KEY, ls);
+                storage.removeItem(PRACTICE_WORK_HOURS_LS_KEY);
+                return parseConfigBlob(ls);
+            }
+        }
+    } catch (e) {
+        if (e instanceof Error && e.message === "Stored work hours are invalid") {
+            throw e;
+        }
     }
     return readPracticeWorkHoursConfig();
 }
@@ -205,7 +280,6 @@ export async function loadPracticeWorkHoursConfig(): Promise<PracticeWorkHoursCo
  */
 export async function savePracticeWorkHoursConfig(cfg: PracticeWorkHoursConfig): Promise<void> {
     const blob = JSON.stringify(cfg);
-    try { localStorage.setItem(PRACTICE_WORK_HOURS_LS_KEY, blob); } catch { /* ignore */ }
     await setAppKv(PRACTICE_KV_KEY, blob);
     if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent(PRACTICE_WORK_HOURS_CHANGED_EVENT, { detail: cfg }));
@@ -233,14 +307,46 @@ export function resolveEffectiveWorkHoursForPhysician(
     };
 }
 
+/** Merge overlapping/adjacent HH:mm segments into a sorted open list. */
+export function unionWorkSegments(
+    a: Array<{ from: string; to: string }> | undefined,
+    b: Array<{ from: string; to: string }> | undefined,
+): Array<{ from: string; to: string }> {
+    const raw = [...(a ?? []), ...(b ?? [])]
+        .map((s) => ({ from: practiceHm(s.from), to: practiceHm(s.to) }))
+        .filter((s) => s.from && s.to && s.from < s.to)
+        .sort((x, y) => x.from.localeCompare(y.from) || x.to.localeCompare(y.to));
+    if (raw.length === 0) return [];
+    const out: Array<{ from: string; to: string }> = [{ ...raw[0]! }];
+    for (let i = 1; i < raw.length; i++) {
+        const next = raw[i]!;
+        const last = out[out.length - 1]!;
+        if (next.from <= last.to) {
+            if (next.to > last.to) last.to = next.to;
+        } else {
+            out.push({ ...next });
+        }
+    }
+    return out;
+}
+
 /**
  * Appointment booking: practice administration hours are the baseline for every open day.
- * A doctor profile may narrow hours on days it marks active; it cannot hide days the
- * practice keeps open (e.g. Saturday enabled in Administration → Arbeitszeiten).
+ * A doctor profile cannot hide practice-open days or times (e.g. Saturday enabled in
+ * Administration → Opening hours, or a later Thursday close). When both are active for a
+ * weekday, open segments are the union — practice extensions stay bookable even if a
+ * stale doctor profile still has shorter hours. A doctor-only active day can still add
+ * hours beyond the practice default.
+ *
+ * Pass `isoDate` when checking a concrete day so break/slot come from the same source as
+ * that day's segments (doctor break only on days the doctor profile marks active; otherwise
+ * practice break). Without a date, doctor break/slot apply whenever a profile exists
+ * (week-level defaults such as slot step on New appointment).
  */
 export function resolveBookingWorkHoursForPhysician(
     cfg: PracticeWorkHoursConfig,
     physicianId: string | null | undefined,
+    isoDate?: string | null,
 ): PracticeWorkHoursConfig {
     const id = typeof physicianId === "string" ? physicianId.trim() : "";
     if (!id) return cfg;
@@ -251,25 +357,33 @@ export function resolveBookingWorkHoursForPhysician(
     for (const key of PRACTICE_DAY_KEYS) {
         const practiceDay = cfg.plan[key];
         const doctorDay = prof.plan[key];
-        if (doctorDay?.active) {
-            mergedPlan[key] = doctorDay;
+        if (practiceDay?.active && doctorDay?.active) {
+            mergedPlan[key] = {
+                active: true,
+                segments: unionWorkSegments(practiceDay.segments, doctorDay.segments),
+            };
         } else if (practiceDay?.active) {
             mergedPlan[key] = practiceDay;
+        } else if (doctorDay?.active) {
+            mergedPlan[key] = doctorDay;
         } else {
             mergedPlan[key] = doctorDay ?? practiceDay ?? mergedPlan[key];
         }
     }
 
+    const dayKey = isoDate?.trim() ? dayKeyFromIsoDate(isoDate) : null;
+    const useDoctorBreakAndSlot = dayKey ? Boolean(prof.plan[dayKey]?.active) : true;
+
     return {
         ...cfg,
         plan: mergedPlan,
-        breakFrom: prof.breakFrom,
-        breakUntil: prof.breakUntil,
-        slotMin: prof.slotMin,
+        breakFrom: useDoctorBreakAndSlot ? prof.breakFrom : cfg.breakFrom,
+        breakUntil: useDoctorBreakAndSlot ? prof.breakUntil : cfg.breakUntil,
+        slotMin: useDoctorBreakAndSlot ? prof.slotMin : cfg.slotMin,
     };
 }
 
-function hmToMinutes(hm: string): number {
+export function hmToMinutes(hm: string): number {
     const [h, m] = hm.split(":").map((n) => Number(n));
     return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0);
 }
@@ -314,9 +428,7 @@ export function isAppointmentSpanBlockedByPracticeConfig(
 ): boolean {
     if (endMin <= startMin) return true;
     for (let m = startMin; m < endMin; m += 1) {
-        const h = Math.floor(m / 60);
-        const mi = m % 60;
-        const hm = `${String(h).padStart(2, "0")}:${String(mi).padStart(2, "0")}`;
+        const hm = minutesToTime(m);
         if (isSlotBlockedByPracticeConfig(cfg, isoDate, hm)) return true;
     }
     return false;
@@ -335,9 +447,7 @@ export function hasAnyAvailableSlot(cfg: PracticeWorkHoursConfig, isoDate: strin
         const segStart = hmToMinutes(seg.from);
         const segEnd = hmToMinutes(seg.to);
         for (let m = segStart; m < segEnd; m += step) {
-            const h = Math.floor(m / 60);
-            const mi = m % 60;
-            const hm = `${String(h).padStart(2, "0")}:${String(mi).padStart(2, "0")}`;
+            const hm = minutesToTime(m);
             if (!isSlotBlockedByPracticeConfig(cfg, isoDate, hm)) return true;
         }
     }

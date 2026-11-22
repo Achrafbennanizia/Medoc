@@ -4,6 +4,7 @@
  * a plain string (`toast(errorMessage(e), "error")`).
  */
 import type { AppErrorInfo } from "./error-types";
+import { extractErrorRef, reportClientEvent } from "../client-log";
 
 export type JournalEntry = {
     readonly at: number;
@@ -21,6 +22,8 @@ const byMessage = new Map<string, string>();
 export function recordError(info: AppErrorInfo): void {
     const route = typeof window !== "undefined" ? window.location.pathname : "";
     entries.unshift({ at: Date.now(), code: info.entry.code, key: info.entry.key, message: info.message, raw: info.raw, route });
+    // Every error the user sees is also written to client.log / errors.log, joined to the backend line by ref.
+    reportClientEvent({ level: "error", code: info.entry.code, message: info.message, route, errorRef: extractErrorRef(info.raw), context: { key: info.entry.key } });
     if (entries.length > MAX) entries.length = MAX;
     byMessage.set(info.message, info.entry.code);
     if (byMessage.size > MAX * 2) {

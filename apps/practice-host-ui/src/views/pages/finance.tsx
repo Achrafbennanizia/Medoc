@@ -11,7 +11,7 @@ import { listPurchaseOrders, updatePurchaseOrderStatus } from "@/systems/practic
 import type { OrderStatus, PurchaseOrder } from "@/systems/practice-host/controllers/purchase-order.controller";
 import { parseRole, allowed, canReadFinance } from "@/lib/rbac";
 import { useAuthStore } from "../../models/store/auth-store";
-import { errorMessage, formatCurrency, formatDate } from "@/lib/utils";
+import { errorMessage, formatCurrency, formatDate, kpiValueSizeClass } from "@/lib/utils";
 import {
     orderStatusDisplay,
     vorgangText,
@@ -33,12 +33,14 @@ import { WorkspacePageHeader } from "../components/administration-page-header";
 import type { DocumentKind } from "@/lib/document-template-schema";
 import { checkPracticeDocumentReadiness } from "@/lib/practice-completeness";
 import { getInvoicePracticeFromStorage } from "@/lib/invoice-service-item";
-import { buildReceiptExportForPayment, RECEIPT_DOCUMENT_KIND } from "@/lib/receipt-export-flow";
+import { buildReceiptExportForPayment, canIssueReceipt, RECEIPT_DOCUMENT_KIND } from "@/lib/receipt-export-flow";
 import type { ClinicalDocumentExportBundle } from "@/lib/document-print-html";
 import type { HtmlExportDocumentKind } from "@/views/components/export-picker-dialog";
 import { HtmlDocumentExportPickerDialog } from "@/views/components/export-picker-dialog";
 import { PracticeReadinessDialog } from "@/views/components/practice-readiness-dialog";
 import { LAZY_PAGE_SIZE, mergeUniqueById } from "@/lib/lazy-list";
+import { readListSnapshot, writeListSnapshot } from "@/lib/list-snapshot";
+import { usePageRefresh } from "../layouts/page-refresh";
 
 import { parseInstant } from "@/lib/practice-clock";
 const PAYMENT_KIND_VALUES = ["CASH", "CARD", "BANK_TRANSFER", "INVOICE"] as const;
@@ -118,6 +120,7 @@ const FinanceKpiCard: FC<FinanceKpiCardProps> = ({ label, value, sub, subTone, i
         <div className={`finance-kpi finance-kpi--${tone}`}>
             <div className="finance-kpi__label">
                 <span
+                    className="finance-kpi__icon"
                     style={{
                         background: iconBg,
                         color: iconColor,
@@ -126,9 +129,9 @@ const FinanceKpiCard: FC<FinanceKpiCardProps> = ({ label, value, sub, subTone, i
                 >
                     <Ic size={14} />
                 </span>
-                {label}
+                <span className="finance-kpi__label-text">{label}</span>
             </div>
-            <div className="finance-kpi__val">{value}</div>
+            <div className={kpiValueSizeClass(value, "finance-kpi__val")}>{value}</div>
             {sub ? (
                 <div className="finance-kpi__foot">
                     <span
@@ -159,27 +162,36 @@ export function FinancePage() {
     const role = parseRole(useAuthStore((s) => s.session?.role));
     const canWritePayment = role != null && allowed("finance.write", role);
     const canUpdateOrderStatus = role != null && allowed("purchase_order.write", role);
-    const [payments, setPayments] = useState<Payment[]>([]);
-    const [paymentTotal, setPaymentTotal] = useState(0);
-    const [paymentPage, setPaymentPage] = useState(0);
+    const financeCache = readListSnapshot<{
+        payments: Payment[];
+        paymentTotal: number;
+        paymentPage: number;
+        orders: PurchaseOrder[];
+        kpi: PaymentFinanceKpis;
+    }>("finance");
+    const [payments, setPayments] = useState<Payment[]>(() => financeCache?.payments ?? []);
+    const [paymentTotal, setPaymentTotal] = useState(() => financeCache?.paymentTotal ?? 0);
+    const [paymentPage, setPaymentPage] = useState(() => financeCache?.paymentPage ?? 0);
     const [paymentsLoadingMore, setPaymentsLoadingMore] = useState(false);
-    const [purchase_orders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
+    const [purchase_orders, setPurchaseOrders] = useState<PurchaseOrder[]>(() => financeCache?.orders ?? []);
     const [patientMap, setPatientMap] = useState<Map<string, string>>(() => new Map());
     const [txTab, setTxTab] = useState<FinanceTxTab>("all");
     const [kindFilter, setKindFilter] = useState<"ALL" | PaymentMethod>("ALL");
     const [selectedTxKey, setSelectedTxKey] = useState<string | null>(null);
     const [statusUpdatingOrderId, setStatusUpdatingOrderId] = useState<string | null>(null);
-    const [listLoading, setListLoading] = useState(true);
+    const [listLoading, setListLoading] = useState(() => !financeCache);
     const [loadError, setLoadError] = useState<string | null>(null);
     const [kpiMtd, setKpiMtd] = useState(() =>
-        kpisFromServer({
-            incomeMtd: 0,
-            incomePrevMtd: 0,
-            cancelledMtd: 0,
-            cancelledPrevMtd: 0,
-            openCount: 0,
-            openSum: 0,
-        }),
+        kpisFromServer(
+            financeCache?.kpi ?? {
+                incomeMtd: 0,
+                incomePrevMtd: 0,
+                cancelledMtd: 0,
+                cancelledPrevMtd: 0,
+                openCount: 0,
+                openSum: 0,
+            },
+        ),
     );
     const [receiptBusyId, setReceiptBusyId] = useState<string | null>(null);
     const [practiceGuardKind, setPracticeGuardKind] = useState<DocumentKind | null>(null);
@@ -274,7 +286,14 @@ export function FinancePage() {
                 const [kpi, b] = await Promise.all([paymentFinanceKpis(), listPurchaseOrders()]);
                 setKpiMtd(kpisFromServer(kpi));
                 setPurchaseOrders(b);
-                await loadPaymentsPage(1, true);
+                const paymentsPage = await loadPaymentsPage(1, true);
+                writeListSnapshot("finance", {
+                    payments: paymentsPage.items,
+                    paymentTotal: paymentsPage.total,
+                    paymentPage: paymentsPage.page,
+                    orders: b,
+                    kpi,
+                });
             } catch (e) {
                 const msg = errorMessage(e);
                 if (isInitial) {
@@ -289,9 +308,15 @@ export function FinancePage() {
         [loadPaymentsPage, toast, tp, setPurchaseOrders],
     );
 
+    const financeHadCache = useRef(financeCache != null);
     useEffect(() => {
-        void load({ initial: true });
+        void load({ initial: !financeHadCache.current });
+        financeHadCache.current = false;
     }, [load]);
+
+    usePageRefresh(() => {
+        void load({ initial: false });
+    });
 
     useEffect(() => {
         if (!filtersReady.current) {
@@ -383,6 +408,11 @@ export function FinancePage() {
             setPracticeGuardKind(RECEIPT_DOCUMENT_KIND);
             return;
         }
+        // A Quittung confirms money received; an open payment gets an invoice instead.
+        if (!canIssueReceipt(z)) {
+            toast(t("page.finance.toast_receipt_unpaid"), "info");
+            return;
+        }
         setReceiptBusyId(z.id);
         try {
             setHtmlDocExport(await buildReceiptExportForPayment(z));
@@ -438,8 +468,8 @@ export function FinancePage() {
     };
 
     return (
-        <div className="finance-page animate-fade-in--sticky-safe" style={{ gap: 0 }}>
-            <div className="finance-page__sticky">
+        <div className="finance-page animate-fade-in" style={{ gap: 0 }}>
+            <div className="finance-page__head">
                 <WorkspacePageHeader
                     title={t("page.finance.title")}
                     subtitle={tp("page.finance.subtitle", {
@@ -588,7 +618,7 @@ export function FinancePage() {
                 ) : (
                     <div className="card finance-tx-table-card tbl-data-card card--overflow-visible">
                         <div className="tbl-scroll finance-tx__scroll" ref={scrollRef} onScroll={onTxScroll}>
-                            <table className="tbl tbl-finance-tx">
+                            <table className="tbl tbl-finance-tx" data-tbl-no-autosize>
                                 <colgroup>
                                     <col className="fin-tx-col-date" />
                                     <col className="fin-tx-col-vorgang" />

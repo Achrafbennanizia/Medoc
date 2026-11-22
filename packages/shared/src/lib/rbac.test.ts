@@ -277,7 +277,7 @@ describe("settingsSectionVisible", () => {
         expect(settingsSectionVisible("security", "RECEPTION")).toBe(false);
         expect(settingsSectionVisible("account", "RECEPTION")).toBe(true);
         expect(settingsSectionVisible("appearance", "RECEPTION")).toBe(true);
-        expect(settingsSectionVisible("workflows", "RECEPTION")).toBe(true);
+        expect(settingsSectionVisible("workflows", "RECEPTION")).toBe(false);
         expect(settingsSectionVisible("about", "RECEPTION")).toBe(true);
     });
 

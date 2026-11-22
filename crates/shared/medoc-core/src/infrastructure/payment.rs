@@ -49,8 +49,8 @@ pub fn process(req: &PaymentRequest) -> Result<PaymentReceipt, AppError> {
     if req.amount_cents <= 0 {
         return Err(AppError::Validation("Amount must be positive".into()));
     }
-    if req.currency != "EUR" {
-        return Err(AppError::Validation("Only EUR supported".into()));
+    if !crate::infrastructure::pdf::is_known_currency(&req.currency) {
+        return Err(AppError::Validation("Unknown currency".into()));
     }
 
     let now = std::time::SystemTime::now()

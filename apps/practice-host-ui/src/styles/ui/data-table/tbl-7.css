@@ -1,0 +1,63 @@
+/* From styles/features/tasks-orders.css (cascade position kept by its import there). */
+@layer components {
+  .tasks-toolbar-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    flex: 0 1 auto;
+  }
+  .tasks-toolbar-filters .ui-field-wrap {
+    width: 200px;
+    max-width: 100%;
+    margin-bottom: 0;
+  }
+
+  /* Practice-Aufgaben admin table — fixed utility cols + flexible title (PurchaseOrders rhythm) */
+  .page-administration-tasks--embedded,
+  #practice-tasks-admin-panel {
+    min-width: 0;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+  .tasks-table-card {
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .tbl.tbl-tasks {
+    table-layout: fixed;
+    width: 100%;
+    min-width: 0;
+  }
+  .tbl.tbl-tasks thead th,
+  .tbl.tbl-tasks tbody td {
+    vertical-align: middle;
+  }
+  .tbl.tbl-tasks tbody td {
+    overflow: hidden;
+    border-bottom: 1px solid var(--line);
+  }
+  .tbl.tbl-tasks tbody tr:last-child td {
+    border-bottom: 0;
+  }
+  .tasks-col-updated { width: 11.5rem; }
+  .tasks-col-patient { width: 9.5rem; }
+  .tasks-col-kind { width: 6.75rem; }
+  .tasks-col-assignee { width: 9.5rem; }
+  .tasks-col-status { width: 11.25rem; }
+  .tasks-col-action { width: 3.75rem; }
+  .tbl.tbl-tasks--compact .tasks-col-updated { width: 11.5rem; }
+  .tbl.tbl-tasks--compact .tasks-col-status { width: 11.25rem; }
+  .tbl.tbl-tasks--compact .tasks-col-action { width: 3.75rem; }
+  .tasks-th-action,
+  .tasks-td-action {
+    overflow: visible;
+    text-align: end;
+  }
+  .tasks-th-status,
+  .tasks-td-status {
+    overflow: visible;
+  }
+}

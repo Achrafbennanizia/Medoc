@@ -1,8 +1,7 @@
 /**
  * LAN system — embedded HTTPS server + UDP discovery (practice network).
- * @see `app/src-tauri/src/systems/lan/`
+ * Call `lanSystem` in `@/systems/lan/adapters/tauri-lan.adapter`.
  */
-import { lanSystem } from "@/systems/lan/adapters/tauri-lan.adapter";
 
 export type LanServerConfigV1 = {
     schemaVersion: number;
@@ -21,6 +20,8 @@ export type LanServerStatusPayload = {
     instanceLabel: string | null;
     suggestedBaseUrls: string[];
     tlsCertSha256: string | null;
+    /** This window must not bind the practice HTTPS server. */
+    hostingDisabled?: boolean;
 };
 
 export type LanDiscoveryHitDto = {
@@ -32,10 +33,3 @@ export type LanDiscoveryHitDto = {
     tls: boolean;
     certSha256: string;
 };
-
-export const lanServerGetConfig = () => lanSystem.getConfig();
-export const lanServerSetConfig = (config: LanServerConfigV1) => lanSystem.setConfig(config);
-export const lanServerStatus = () => lanSystem.status();
-export const lanServerStart = () => lanSystem.start();
-export const lanServerStop = () => lanSystem.stop();
-export const lanServerScan = (labelContains?: string) => lanSystem.scan(labelContains);

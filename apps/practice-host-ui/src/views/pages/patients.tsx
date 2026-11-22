@@ -1,13 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { deletePatient, listPatientsPaged, searchPatients } from "@/systems/practice-host/controllers/patient.controller";
+import { countPatientsByFilter, deletePatient, exportPatientsCsv, listAllPatients, listPatientIdsOpenChart, listPatientsPaged, restorePatient, type PatientFilterCounts } from "@/systems/practice-host/controllers/patient.controller";
 import { listPatientIdsOpenInvoice } from "@/systems/practice-host/controllers/payment.controller";
-import { errorMessage, formatDate } from "@/lib/utils";
+import { errorMessage, formatDate, hueFromId, initialsFromName } from "@/lib/utils";
 import { suggestSimilarTitles } from "@/lib/string-suggest";
 import { useT, useTParams } from "@/lib/i18n";
 import type { Patient } from "../../models/types";
 import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "../../models/store/auth-store";
+import {
+    patientMatchesStatusFilter,
+    patientStatusFilterNeedsClientBucket,
+    patientStatusFilterServerStatus,
+    type PatientStatusFilter,
+} from "@/lib/patient-status-filter";
 import { Badge } from "../components/ui/badge";
 import { EmptyState } from "../components/ui/empty-state";
 import { useToastStore } from "../components/ui/toast-store";
@@ -15,49 +21,55 @@ import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { MoreIcon, PlusIcon, SearchIcon, UsersIcon, XIcon, ExportIcon } from "@/lib/icons";
 import { useDismissibleLayer } from "../components/ui/use-dismissible-layer";
 import { usePageRefresh } from "../layouts/page-refresh";
-import { buildPatientsMigrationCsv } from "@/lib/patient-csv";
 import { DataExportPickerDialog } from "../components/data-export-picker-dialog";
+import type { ExportContext } from "@/lib/save-download";
 import { ConfirmDialog, Dialog } from "../components/ui/dialog";
 import { Button } from "../components/ui/button";
 import { PhoneText } from "../components/ui/phone-text";
 import { WorkspacePageHeader } from "../components/administration-page-header";
-import { PATIENT_LIST_CALL_EMAIL_ENABLED } from "@/lib/v1-ui-flags";
+import { PATIENT_LIST_CALL_EMAIL_ENABLED, PATIENT_LIST_SHOW_ARCHIVED_ENABLED } from "@/lib/v1-ui-flags";
 import { LAZY_PAGE_SIZE, mergeUniqueById } from "@/lib/lazy-list";
 import { localYmd } from "@/lib/practice-clock";
+import { readListSnapshot, writeListSnapshot } from "@/lib/list-snapshot";
 
 import { useClientSettings } from "@/lib/use-client-settings";
 const SEARCH_DEBOUNCE_MS = 250;
+const PATIENT_PAGE_SIZE = Math.min(LAZY_PAGE_SIZE, 50);
+
+type PatientListCache = {
+    items: Patient[];
+    total: number;
+    page: number;
+    counts: PatientFilterCounts | null;
+    invoiceIds: string[];
+};
+
+function patientListCacheKey(query: string, showArchived: boolean, statusFilter: string): string {
+    return `patients:${showArchived}:${statusFilter}:${query}`;
+}
+
+const initialPatientList = readListSnapshot<PatientListCache>(patientListCacheKey("", false, "ALL"));
 
 function patientHasOpenInvoice(openPatientIds: ReadonlySet<string>, patientId: string): boolean {
     return openPatientIds.has(patientId);
 }
 
-/** Stable spread of avatar hues from full id (avoid UUID first-hex clustering). */
-function avatarHueFromId(id: string): number {
-    let h = 2166136261;
-    for (let i = 0; i < id.length; i++) h = Math.imul(h ^ id.charCodeAt(i), 16777619);
-    return Math.abs(h >>> 0) % 360;
-}
-
-type PatientStatusFilter = "ALL" | "IN_TREATMENT" | "NEW_PATIENT" | "INVOICE_OPEN" | "CHART_OPEN" | "CLOSED";
-
 function buildFilterCounts(
     patients: Patient[],
     openPatientIds: ReadonlySet<string>,
+    openChartIds: ReadonlySet<string>,
 ): Record<PatientStatusFilter, number> {
-    const hasOpen = (pid: string) => openPatientIds.has(pid);
     let inTreatment = 0;
     let newPatient = 0;
     let invoiceOpen = 0;
     let chartOpen = 0;
     let closed = 0;
     for (const p of patients) {
-        const inv = hasOpen(p.id);
-        if ((p.status === "ACTIVE" || p.status === "VALIDATED") && !inv) inTreatment += 1;
-        if (p.status === "NEW") newPatient += 1;
-        if (inv) invoiceOpen += 1;
-        if (p.status === "NEW" && !inv) chartOpen += 1;
-        if (p.status === "VALIDATED" || p.status === "READONLY") closed += 1;
+        if (patientMatchesStatusFilter(p, "IN_TREATMENT", openPatientIds, openChartIds)) inTreatment += 1;
+        if (patientMatchesStatusFilter(p, "NEW_PATIENT", openPatientIds, openChartIds)) newPatient += 1;
+        if (patientMatchesStatusFilter(p, "INVOICE_OPEN", openPatientIds, openChartIds)) invoiceOpen += 1;
+        if (patientMatchesStatusFilter(p, "CHART_OPEN", openPatientIds, openChartIds)) chartOpen += 1;
+        if (patientMatchesStatusFilter(p, "CLOSED", openPatientIds, openChartIds)) closed += 1;
     }
     return {
         ALL: patients.length,
@@ -69,10 +81,37 @@ function buildFilterCounts(
     };
 }
 
+/** Load every page for search + optional single status (client buckets need the full set). */
+async function listPatientsComplete(opts: {
+    showArchived: boolean;
+    search?: string;
+    status?: string;
+    includeInsuranceNumber?: boolean;
+}): Promise<Patient[]> {
+    const out: Patient[] = [];
+    const pageSize = 500;
+    for (let page = 1; page <= 1000; page += 1) {
+        const resp = await listPatientsPaged({
+            page,
+            pageSize,
+            search: opts.search,
+            filter: {
+                showArchived: opts.showArchived,
+                includeInsuranceNumber: opts.includeInsuranceNumber !== false,
+                ...(opts.status ? { status: opts.status } : {}),
+            },
+        });
+        out.push(...resp.items);
+        if (resp.items.length === 0 || out.length >= resp.total) break;
+    }
+    return out;
+}
+
 function patientStatusPill(p: Patient, t: (key: string) => string): { label: string; variant: "primary" | "success" | "default" | "warning" } {
     if (p.status === "NEW") return { label: t("patient.pill.new"), variant: "primary" };
     if (p.status === "ACTIVE" || p.status === "VALIDATED") return { label: t("patient.pill.in_treatment"), variant: "success" };
     if (p.status === "READONLY") return { label: t("patient.pill.closed"), variant: "default" };
+    if (p.status === "ARCHIVED") return { label: t("patient.pill.archived"), variant: "default" };
     return { label: p.status, variant: "default" };
 }
 
@@ -82,11 +121,14 @@ export function PatientsPage() {
     const session = useAuthStore((s) => s.session);
     const role = parseRole(session?.role);
     const canDeletePatient = role != null && allowed("patient.write_medical", role, session?.permission_overrides);
+    const canRestorePatient = role != null && allowed("ops.system", role, session?.permission_overrides);
     const canViewMedical = role != null && allowed("patient.read_medical", role, session?.permission_overrides);
     const canCreatePatient = role != null && allowed("patient.write", role, session?.permission_overrides);
-    const [patients, setPatients] = useState<Patient[]>([]);
-    const [patientTotal, setPatientTotal] = useState(0);
-    const [patientPage, setPatientPage] = useState(0);
+    const [patients, setPatients] = useState<Patient[]>(() => initialPatientList?.items ?? []);
+    const [patientTotal, setPatientTotal] = useState(() => initialPatientList?.total ?? 0);
+    /** F57: counts over all patients from the backend; `null` while searching or on error. */
+    const [serverCounts, setServerCounts] = useState<PatientFilterCounts | null>(() => initialPatientList?.counts ?? null);
+    const [patientPage, setPatientPage] = useState(() => initialPatientList?.page ?? 0);
     const [loadingMore, setLoadingMore] = useState(false);
     const [nameDirectory, setNameDirectory] = useState<string[]>([]);
     /** Full directory from last unfiltered list — keeps spellcheck suggestions while searching. */
@@ -94,17 +136,25 @@ export function PatientsPage() {
     const [search, setSearch] = useState("");
     const [debouncedSearch, setDebouncedSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState<PatientStatusFilter>("ALL");
+    const [showArchived, setShowArchived] = useState(false);
     const [actionMenuPatientId, setActionMenuPatientId] = useState<string | null>(null);
-    const [openPaymentPatientIds, setOpenPaymentPatientIds] = useState<ReadonlySet<string>>(() => new Set());
+    /** Patients whose record is still open (draft / in review / declined) — "Record open" tab. */
+    const [openChartPatientIds, setOpenChartPatientIds] = useState<ReadonlySet<string>>(() => new Set());
+    const [openPaymentPatientIds, setOpenPaymentPatientIds] = useState<ReadonlySet<string>>(
+        () => new Set(initialPatientList?.invoiceIds ?? []),
+    );
     const [deleteId, setDeleteId] = useState<string | null>(null);
     const [deleteBusy, setDeleteBusy] = useState(false);
     const [deleteDoneOpen, setDeleteDoneOpen] = useState(false);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(() => !initialPatientList);
     const [loadError, setLoadError] = useState<string | null>(null);
     const [exportPickerOpen, setExportPickerOpen] = useState(false);
+    /** Client-bucket tabs load the full matching set — disable infinite scroll. */
+    const [clientBucketComplete, setClientBucketComplete] = useState(false);
     const actionLayerRef = useRef<HTMLDivElement>(null);
     const listScrollRef = useRef<HTMLDivElement>(null);
     const loadMoreLock = useRef(false);
+    const invoicesFetchedRef = useRef(false);
     const searchLoadTokenRef = useRef(0);
     const silentLoadInflight = useRef(false);
     const navigate = useNavigate();
@@ -133,39 +183,123 @@ export function PatientsPage() {
         const silent = opts?.silent === true;
         if (silent && silentLoadInflight.current) return;
         const token = ++searchLoadTokenRef.current;
+        const q = debouncedSearch.trim();
+        const key = patientListCacheKey(q, showArchived, statusFilter);
+        const snap = readListSnapshot<PatientListCache>(key);
+        if (snap) {
+            setPatients(snap.items);
+            setPatientTotal(snap.total);
+            setPatientPage(snap.page);
+            setServerCounts(snap.counts);
+            if (snap.invoiceIds.length > 0) setOpenPaymentPatientIds(new Set(snap.invoiceIds));
+            setClientBucketComplete(patientStatusFilterNeedsClientBucket(statusFilter));
+            setLoading(false);
+        }
         if (silent) silentLoadInflight.current = true;
-        if (!silent) {
+        if (!silent && !snap) {
             setLoading(true);
             setLoadError(null);
         }
         try {
-            const q = debouncedSearch.trim();
-            const [dataResp, ids] = await Promise.all([
-                q
-                    ? searchPatients(q, { includeInsuranceNumber }).then((items) => ({ items, total: items.length, page: 1, pageSize: items.length || LAZY_PAGE_SIZE }))
-                    : listPatientsPaged({ page: 1, pageSize: LAZY_PAGE_SIZE }),
-                listPatientIdsOpenInvoice().catch(() => [] as string[]),
+            const useClientBucket = patientStatusFilterNeedsClientBucket(statusFilter);
+            const status = patientStatusFilterServerStatus(statusFilter);
+            const refreshInvoices = !invoicesFetchedRef.current || silent || useClientBucket;
+            const [ids, counts, chartIds] = await Promise.all([
+                refreshInvoices
+                    ? listPatientIdsOpenInvoice().catch(() => [] as string[])
+                    : Promise.resolve(null),
+                q ? Promise.resolve(null) : countPatientsByFilter(showArchived).catch(() => null),
+                listPatientIdsOpenChart().catch(() => [] as string[]),
             ]);
+            const openChartSet = new Set(chartIds);
+            setOpenChartPatientIds(openChartSet);
             if (token !== searchLoadTokenRef.current) return;
-            setPatients(dataResp.items);
+            const invoiceIds = ids ?? [...(snap?.invoiceIds ?? [])];
+            const openSet = new Set(invoiceIds);
+            if (ids) {
+                invoicesFetchedRef.current = true;
+                setOpenPaymentPatientIds(openSet);
+            }
+            setServerCounts(counts);
+
+            if (useClientBucket) {
+                // Tab counts are global; page-1 + client filter left lists empty.
+                const all = q
+                    ? await listPatientsComplete({ showArchived, search: q || undefined, includeInsuranceNumber })
+                    : await listAllPatients(showArchived);
+                if (token !== searchLoadTokenRef.current) return;
+                const matched = all.filter((p) => patientMatchesStatusFilter(p, statusFilter, openSet, openChartSet));
+                setPatients(matched);
+                setPatientTotal(matched.length);
+                setPatientPage(1);
+                setClientBucketComplete(true);
+                setLoading(false);
+                const names = matched.map((p) => p.name);
+                if (!q) {
+                    setNameDirectory(names);
+                    setAllPatientNames((prev) => (prev.length > names.length ? prev : names));
+                }
+                writeListSnapshot<PatientListCache>(key, {
+                    items: matched,
+                    total: matched.length,
+                    page: 1,
+                    counts,
+                    invoiceIds,
+                });
+                return;
+            }
+
+            setClientBucketComplete(false);
+            const dataResp = await listPatientsPaged({
+                page: 1,
+                pageSize: PATIENT_PAGE_SIZE,
+                search: q || undefined,
+                filter: { showArchived, includeInsuranceNumber, ...(status ? { status } : {}) },
+            });
+            if (token !== searchLoadTokenRef.current) return;
+            setPatients((prev) => {
+                const rows = !silent || prev.length <= dataResp.items.length
+                    ? dataResp.items
+                    : (() => {
+                        const fresh = new Map(dataResp.items.map((row) => [row.id, row]));
+                        const prevIds = new Set(prev.map((row) => row.id));
+                        const added = dataResp.items.filter((row) => !prevIds.has(row.id));
+                        return added.concat(prev.map((row) => fresh.get(row.id) ?? row));
+                    })();
+                const seen = new Set<string>();
+                return rows.filter((row) => {
+                    if (seen.has(row.id)) return false;
+                    seen.add(row.id);
+                    return true;
+                });
+            });
             setPatientTotal(dataResp.total);
-            setPatientPage(dataResp.page);
-            setOpenPaymentPatientIds(new Set(ids));
+            if (!silent) setPatientPage(dataResp.page);
+            setLoading(false);
             const names = dataResp.items.map((p) => p.name);
             if (!q) {
                 setNameDirectory(names);
-                setAllPatientNames(names);
+                setAllPatientNames((prev) => (prev.length > names.length ? prev : names));
             }
+            writeListSnapshot<PatientListCache>(key, {
+                items: dataResp.items,
+                total: dataResp.total,
+                page: dataResp.page,
+                counts,
+                invoiceIds,
+            });
         } catch (e) {
             if (token !== searchLoadTokenRef.current || silent) return;
-            setLoadError(errorMessage(e));
-            setPatients([]);
-            setOpenPaymentPatientIds(new Set());
+            if (!snap) {
+                setLoadError(errorMessage(e));
+                setPatients([]);
+                setOpenPaymentPatientIds(new Set());
+            }
         } finally {
             if (silent) silentLoadInflight.current = false;
             if (!silent && token === searchLoadTokenRef.current) setLoading(false);
         }
-    }, [debouncedSearch, includeInsuranceNumber]);
+    }, [debouncedSearch, showArchived, statusFilter, includeInsuranceNumber]);
 
     useEffect(() => {
         void load();
@@ -176,15 +310,21 @@ export function PatientsPage() {
         void load({ silent: true });
     });
 
-    const patientsHaveMore = !debouncedSearch.trim() && patientPage * LAZY_PAGE_SIZE < patientTotal;
+    const patientsHaveMore =
+        !clientBucketComplete && patientPage * PATIENT_PAGE_SIZE < patientTotal;
 
     const onListScroll = useCallback(() => {
-        const el = listScrollRef.current;
-        if (!el || !patientsHaveMore || loadingMore || loadMoreLock.current) return;
-        if (el.scrollTop + el.clientHeight < el.scrollHeight - 120) return;
+        if (!patientsHaveMore || loadingMore || loadMoreLock.current || clientBucketComplete) return;
         loadMoreLock.current = true;
         setLoadingMore(true);
-        void listPatientsPaged({ page: patientPage + 1, pageSize: LAZY_PAGE_SIZE })
+        const q = debouncedSearch.trim();
+        const status = patientStatusFilterServerStatus(statusFilter);
+        void listPatientsPaged({
+            page: patientPage + 1,
+            pageSize: PATIENT_PAGE_SIZE,
+            search: q || undefined,
+            filter: { showArchived, includeInsuranceNumber, ...(status ? { status } : {}) },
+        })
             .then((resp) => {
                 setPatientPage(resp.page);
                 setPatientTotal(resp.total);
@@ -200,29 +340,67 @@ export function PatientsPage() {
                 setLoadingMore(false);
                 loadMoreLock.current = false;
             });
-    }, [patientsHaveMore, loadingMore, patientPage, toast, tp]);
+    }, [
+        patientsHaveMore,
+        loadingMore,
+        patientPage,
+        toast,
+        tp,
+        showArchived,
+        debouncedSearch,
+        statusFilter,
+        clientBucketComplete,
+        includeInsuranceNumber,
+    ]);
+
+    useEffect(() => {
+        const anchor = listScrollRef.current;
+        const scroller = anchor?.closest(".app-main");
+        if (!(scroller instanceof HTMLElement)) return;
+        let frame = 0;
+        const onScroll = () => {
+            if (frame) return;
+            frame = window.requestAnimationFrame(() => {
+                frame = 0;
+                if (scroller.scrollTop < 48) return;
+                if (scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 160) onListScroll();
+            });
+        };
+        scroller.addEventListener("scroll", onScroll, { passive: true });
+        return () => {
+            scroller.removeEventListener("scroll", onScroll);
+            if (frame) window.cancelAnimationFrame(frame);
+        };
+    }, [onListScroll, loading, patients.length]);
 
     const filtered = useMemo(() => {
+        const seen = new Set<string>();
         return patients.filter((p) => {
-            if (statusFilter === "ALL") return true;
-            const inv = patientHasOpenInvoice(openPaymentPatientIds, p.id);
-            if (statusFilter === "IN_TREATMENT") return (p.status === "ACTIVE" || p.status === "VALIDATED") && !inv;
-            if (statusFilter === "NEW_PATIENT") return p.status === "NEW";
-            if (statusFilter === "INVOICE_OPEN") return inv;
-            if (statusFilter === "CHART_OPEN") return p.status === "NEW" && !inv;
-            if (statusFilter === "CLOSED") return p.status === "VALIDATED" || p.status === "READONLY";
-            return true;
+            if (seen.has(p.id)) return false;
+            seen.add(p.id);
+            // Client-bucket loads already match; still re-check so invoice updates apply.
+            return patientMatchesStatusFilter(p, statusFilter, openPaymentPatientIds, openChartPatientIds);
         });
-    }, [patients, statusFilter, openPaymentPatientIds]);
+    }, [patients, statusFilter, openPaymentPatientIds, openChartPatientIds]);
 
+    // F57: without a search, counts come from the backend (all patients), not
+    // from the rows loaded so far; search results are complete, so count those.
     const filterCounts = useMemo(
-        () => buildFilterCounts(patients, openPaymentPatientIds),
-        [patients, openPaymentPatientIds],
+        () => serverCounts ?? buildFilterCounts(patients, openPaymentPatientIds, openChartPatientIds),
+        [serverCounts, patients, openPaymentPatientIds, openChartPatientIds],
     );
+    const searching = debouncedSearch.trim().length > 0;
+    const shownTotal = searching ? patients.length : patientTotal;
+    const shownFiltered = searching || !serverCounts ? filtered.length : serverCounts[statusFilter];
 
-    const resolvePatientExport = useCallback(() => {
-        if (filtered.length === 0) return null;
-        const csv = buildPatientsMigrationCsv(filtered);
+    const resolvePatientExport = useCallback(async () => {
+        const q = debouncedSearch.trim();
+        const status = patientStatusFilterServerStatus(statusFilter);
+        const csv = await exportPatientsCsv({
+            search: q || undefined,
+            filter: { showArchived, includeInsuranceNumber, ...(status ? { status } : {}) },
+        });
+        if (!csv.trim() || csv.split("\n").filter((l) => l.trim()).length <= 1) return null;
         const d = localYmd();
         return {
             exportTitle: t("patient.export.title_short"),
@@ -230,11 +408,23 @@ export function PatientsPage() {
             suggestedFilename: `medoc-patients-${d}.csv`,
             textBody: csv,
             mime: "text/csv;charset=utf-8",
+            context: { kind: "patients_migration", format: "csv", entityId: null } satisfies ExportContext,
         };
-    }, [filtered, t]);
+    }, [debouncedSearch, showArchived, statusFilter, t, includeInsuranceNumber]);
 
-    const openPatientExport = () => {
-        if (filtered.length === 0) {
+    const openPatientExport = async () => {
+        // F57: load the remaining pages first so the export covers every patient.
+        if (!searching && patients.length < patientTotal) {
+            try {
+                const all = await listAllPatients(showArchived);
+                setPatients(all);
+                setPatientPage(Math.ceil(all.length / LAZY_PAGE_SIZE));
+            } catch (e) {
+                toast(errorMessage(e), "error");
+                return;
+            }
+        }
+        if (filtered.length === 0 && patientTotal === 0) {
             toast(t("patient.export.toast_empty"), "info");
             return;
         }
@@ -250,11 +440,11 @@ export function PatientsPage() {
     );
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-5)" }} className="animate-fade-in">
             <WorkspacePageHeader
                 titleLevel="h1"
                 title={t("patient.page.title")}
-                subtitle={tp("patient.page.subtitle", { filtered: filtered.length, total: patients.length })}
+                subtitle={tp("patient.page.subtitle", { filtered: shownFiltered, total: shownTotal })}
                 actions={
                     canCreatePatient ? (
                         <button className="btn btn-accent" type="button" onClick={() => navigate("/patients/new")}>
@@ -291,7 +481,7 @@ export function PatientsPage() {
                     <button
                         type="button"
                         className="btn btn-subtle"
-                        onClick={openPatientExport}
+                        onClick={() => void openPatientExport()}
                         disabled={loading || !!loadError || filtered.length === 0}
                         title={t("patient.export.title_attr")}
                         aria-label={t("patient.export.aria")}
@@ -315,6 +505,17 @@ export function PatientsPage() {
                         <span className="seg__count">{filterCounts[f.id as PatientStatusFilter]}</span>
                     </button>
                 ))}
+                {/* TODO(later): restore Show archived — see docs/coordination/todos-deferred-ui-blinds.md */}
+                {PATIENT_LIST_SHOW_ARCHIVED_ENABLED ? (
+                <label style={{ display: "inline-flex", alignItems: "center", gap: "var(--space-2)", marginLeft: 12, fontSize: 13 }}>
+                    <input
+                        type="checkbox"
+                        checked={showArchived}
+                        onChange={(e) => setShowArchived(e.target.checked)}
+                    />
+                    {t("patient.filter.show_archived")}
+                </label>
+                ) : null}
             </div>
 
             {loading ? (
@@ -328,20 +529,20 @@ export function PatientsPage() {
                     description={t("patient.empty.description")}
                 />
             ) : filtered.length === 0 ? (
-                <div className="card card-pad" style={{ maxWidth: 560 }}>
-                    <h3 className="page-title" style={{ fontSize: 18 }}>{t("patient.search.no_results")}</h3>
-                    <p style={{ color: "var(--fg-3)", fontSize: 14, marginTop: 8 }}>
+                <div className="card card-pad patients-no-results">
+                    <h3 className="page-title patients-no-results__title">{t("patient.search.no_results")}</h3>
+                    <p className="patients-no-results__desc">
                         {debouncedSearch.trim()
                             ? tp("patient.search.query_label", { query: debouncedSearch.trim() })
                             : t("patient.search.filter_no_match")}
                     </p>
                     {nameSuggestions.length > 0 ? (
-                        <p style={{ color: "var(--fg-2)", fontSize: 13, marginTop: 12 }}>
-                            <span style={{ color: "var(--fg-3)" }}>{t("palette.suggest_prefix")}</span>{" "}
+                        <p className="patients-no-results__suggest">
+                            <span>{t("palette.suggest_prefix")}</span>{" "}
                             {nameSuggestions.join(" · ")}
                         </p>
                     ) : null}
-                    <div className="row" style={{ gap: 8, marginTop: 18 }}>
+                    <div className="patients-no-results__actions">
                         <button type="button" className="btn btn-subtle" onClick={() => { setSearch(""); setStatusFilter("ALL"); }}>
                             {t("common.reset_filters")}
                         </button>
@@ -353,12 +554,12 @@ export function PatientsPage() {
                     </div>
                 </div>
             ) : (
-                <div className="card patients-table card--overflow-visible tbl-scroll" ref={listScrollRef} onScroll={onListScroll}>
+                <div className="card patients-table card--overflow-visible tbl-scroll" ref={listScrollRef}>
                     <div className="patients-grid-head">
                         <div>{t("patient.table.patient")}</div><div>{t("patient.table.birthdate")}</div><div>{t("patient.table.contact")}</div><div>{t("patient.table.status")}</div><div />
                     </div>
                     {filtered.map((p) => {
-                        const hue = avatarHueFromId(p.id);
+                        const hue = hueFromId(p.id);
                         const pill = patientStatusPill(p, t);
                         const openInv = patientHasOpenInvoice(openPaymentPatientIds, p.id);
                         return (
@@ -367,9 +568,9 @@ export function PatientsPage() {
                                 onClick={() => navigate(`/patients/${p.id}${detailSuffix}`)}
                                 className="patients-grid-row"
                             >
-                                <div className="row" style={{ gap: 12 }}>
+                                <div className="row" style={{ gap: "var(--space-3)" }}>
                                     <div className="av" style={{ background: `linear-gradient(135deg, hsl(${hue} 70% 80%), hsl(${hue} 60% 50%))` }}>
-                                        {p.name.split(" ").map((n) => n[0]).slice(0, 2).join("")}
+                                        {initialsFromName(p.name)}
                                     </div>
                                     <div className="col">
                                         <div style={{ fontWeight: 600, fontSize: 14 }}>{p.name}</div>
@@ -381,7 +582,7 @@ export function PatientsPage() {
                                     <div><PhoneText value={p.phone} /></div>
                                     <div style={{ color: "var(--fg-3)" }}>{p.email || "—"}</div>
                                 </div>
-                                <div className="row" style={{ gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                                <div className="row" style={{ gap: "var(--space-2)", flexWrap: "wrap", alignItems: "center" }}>
                                     {p.status === "NEW" ? (
                                         <span title={t("patient.status.new.explanation")}>
                                             <Badge variant={pill.variant}>{pill.label}</Badge>
@@ -410,8 +611,8 @@ export function PatientsPage() {
                                         <MoreIcon size={16} />
                                     </button>
                                     {actionMenuPatientId === p.id ? (
-                                        <div className="menu-surface" style={{ right: 0, top: "calc(100% + 6px)", bottom: "auto", minWidth: 220 }} role="menu">
-                                            <div className="menu-list" style={{ paddingTop: 8 }}>
+                                        <div className="menu-surface" style={{ insetInlineEnd: 0, top: "calc(100% + 6px)", bottom: "auto", minWidth: 220 }} role="menu">
+                                            <div className="menu-list" style={{ paddingTop: "var(--space-2)" }}>
                                                 <button
                                                     type="button"
                                                     role="menuitem"
@@ -493,7 +694,22 @@ export function PatientsPage() {
                                                         {t("patient.menu.no_contact")}
                                                     </button>
                                                 ) : null}
-                                                {canDeletePatient ? (
+                                                {p.status === "ARCHIVED" && canRestorePatient ? (
+                                                    <button
+                                                        type="button"
+                                                        className="menu-item"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setActionMenuPatientId(null);
+                                                            void restorePatient(p.id)
+                                                                .then(() => load())
+                                                                .catch((err) => toast(errorMessage(err), "error"));
+                                                        }}
+                                                    >
+                                                        {t("patient.restore")}
+                                                    </button>
+                                                ) : null}
+                                                {canDeletePatient && p.status !== "ARCHIVED" ? (
                                                     <button
                                                         type="button"
                                                         className="menu-item danger"
@@ -503,7 +719,7 @@ export function PatientsPage() {
                                                             setDeleteId(p.id);
                                                         }}
                                                     >
-                                                        {t("patient.menu.delete")}
+                                                        {t("patient.menu.archive")}
                                                     </button>
                                                 ) : null}
                                             </div>
@@ -513,6 +729,7 @@ export function PatientsPage() {
                             </div>
                         );
                     })}
+                    {loadingMore ? <div className="patients-grid-row" style={{ color: "var(--fg-3)", fontSize: 13 }}>{t("patient.loading")}</div> : null}
                 </div>
             )}
 
@@ -535,9 +752,9 @@ export function PatientsPage() {
                         }
                     })();
                 }}
-                title={t("patient.delete.confirm_title")}
-                message={t("patient.delete.confirm_message")}
-                confirmLabel={t("common.yes_delete")}
+                title={t("patient.archive.confirm_title")}
+                message={t("patient.archive.confirm_message")}
+                confirmLabel={t("common.yes_archive")}
                 danger
                 loading={deleteBusy}
             />
@@ -547,7 +764,7 @@ export function PatientsPage() {
                 title={t("common.notice")}
                 footer={<Button onClick={() => setDeleteDoneOpen(false)}>{t("common.ok")}</Button>}
             >
-                <p style={{ color: "var(--fg-2)", fontSize: 14, margin: 0 }}>{t("patient.delete.done")}</p>
+                <p style={{ color: "var(--fg-2)", fontSize: 14, margin: 0 }}>{t("patient.archive.done")}</p>
             </Dialog>
             <DataExportPickerDialog
                 open={exportPickerOpen}

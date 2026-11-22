@@ -1,0 +1,63 @@
+/* From styles/features/dashboard.css (cascade position kept by its import there). */
+@layer components {
+  .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+  .page-title {
+    font-size: clamp(22px, 3.2vw, 30px);
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    margin: 0;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .workspace-page__head-row > div:first-child {
+    min-width: 0;
+    flex: 1 1 12rem;
+  }
+  .page-sub { color: var(--fg-3); font-size: 14px; margin-top: 4px; }
+  .page-sub-caps { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--fg-3); }
+  .dashboard-page .page-title { font-size: var(--dash-title-size); }
+  .dashboard-page .page-sub { font-size: clamp(12px, 1.3vh, 14px); }
+  .form-label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--fg-3);
+    margin-bottom: var(--space-2);
+  }
+  .form-label--mb-0 { margin-bottom: 0; }
+  .form-label--mb-8 { margin-bottom: 8px; }
+  .form-label--mb-10 { margin-bottom: 10px; }
+  .form-label--wide { letter-spacing: 0.04em; }
+  .form-overline {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--fg-3);
+    margin-bottom: var(--space-3);
+  }
+  .kpi-label-mini--strong {
+    font-weight: 700;
+  }
+  .kpi-label-mini--block {
+    display: block;
+    margin-bottom: 2px;
+  }
+  .dl-term {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: var(--fg-3);
+    text-transform: uppercase;
+  }
+  .form-section-heading {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--fg-2);
+    margin: 0 0 14px;
+  }
+}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FC } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FC } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { passwordPolicyError } from "@/lib/password-policy";
 import { clearDesktopLicenseClientState } from "@/systems/practice-host/lib/clear-desktop-license-client-state";
@@ -7,11 +7,9 @@ import { useClusterStore } from "@/models/store/cluster-store";
 import { PasswordPolicyHints } from "../components/password-policy-hints";
 import { WorkspacePageHeader } from "../components/administration-page-header";
 import { useUiPreferencesStore } from "../../models/store/ui-preferences-store";
+import { companySystem } from "@/systems/company-portal/adapters/tauri-company.adapter";
 import {
     changePassword,
-    companyPortalFetchFeatureFlags,
-    companyPortalFetchIntegrations,
-    companyPortalFetchSummary,
     type LicenseStatus,
     verifyLicense,
     activateLicense,
@@ -32,7 +30,7 @@ import {
 } from "@/lib/client-settings";
 import {
     DEFAULT_PRACTICE_PREFERENCES,
-    hydratePracticePreferencesFromKv,
+    loadPracticePreferencesFromKv,
     savePracticePreferences,
     type PracticePreferences,
 } from "@/lib/practice-preferences-storage";
@@ -47,7 +45,7 @@ import { Dialog } from "../components/ui/dialog";
 import { SettingsPracticeSection } from "@/systems/practice-host/pages/settings/settings-practice-section";
 import { SettingsNotificationsSection } from "@/systems/practice-host/pages/settings/settings-notifications-section";
 import { SettingsAppearanceSection } from "@/systems/practice-host/pages/settings/settings-appearance-section";
-import { SettingsWorkflowsSection } from "@/systems/practice-host/pages/settings/settings-workflows-section";
+import { SettingsAccessibilitySection } from "@/systems/practice-host/pages/settings/settings-accessibility-section";
 import { SettingsAccountSection } from "@/systems/practice-host/pages/settings/settings-account-section";
 import { SettingsSecuritySection } from "@/systems/practice-host/pages/settings/settings-security-section";
 import { SettingsSystemSection } from "@/systems/practice-host/pages/settings/settings-system-section";
@@ -55,7 +53,7 @@ import { SettingsMigrationSection } from "@/systems/practice-host/pages/settings
 import { SettingsAboutSection } from "@/systems/practice-host/pages/settings/settings-about-section";
 import { SettingsLicenseSection } from "@/systems/practice-host/pages/settings/settings-license-section";
 import { SettingsIntegrationsSection } from "@/systems/practice-host/pages/settings/settings-integrations-section";
-import { StethoscopeIcon, UsersIcon, BellIcon, ShieldIcon, KeyRoundIcon, BoltIcon, DownloadIcon, SunIcon, SlidersHorizontalIcon, SettingsIcon, InfoIcon, ICON_SIZE_LG } from "@/lib/icons";
+import { StethoscopeIcon, UsersIcon, BellIcon, ShieldIcon, KeyRoundIcon, BoltIcon, DownloadIcon, SunIcon, SettingsIcon, InfoIcon, ICON_SIZE_LG } from "@/lib/icons";
 import { errorMessage } from "@/lib/utils";
 
 const SETTINGS_BREADCRUMB_FALLBACK = "settings.breadcrumb_fallback";
@@ -73,7 +71,6 @@ const TAB_QUERY: Record<SettingsSection, string> = {
     integrations: "integrations",
     migration: "migration",
     appearance: "appearance",
-    workflows: "workflows",
     system: "system",
     about: "about",
 };
@@ -100,17 +97,28 @@ export function SettingsPage() {
     const [pwAgeTick, setPwAgeTick] = useState(0);
 
     const [client, setClient] = useState<ClientSettingsV1>(() => loadClientSettings());
+    // Mirror of `client` for persisting outside a state updater (updaters may run twice; side effects
+    // inside them saved twice and could save a stale copy).
+    const clientRef = useRef(client);
+    useLayoutEffect(() => {
+        clientRef.current = client;
+    }, [client]);
     useEffect(() => {
-        const onWorkflows = () => {
+        // Settings stored by anyone else (shared calendar sync, ui-prefs hydrate, another window): show them,
+        // so the next change here starts from the stored state instead of overwriting it with an old copy.
+        const reload = () => {
             const next = loadClientSettings();
+            clientRef.current = next;
             setClient(next);
             applyAppearanceFromSettings(next);
         };
-        window.addEventListener("medoc-calendar-workflows-changed", onWorkflows);
-        return () => window.removeEventListener("medoc-calendar-workflows-changed", onWorkflows);
+        const events = ["medoc-calendar-workflows-changed", "medoc-client-settings"] as const;
+        for (const e of events) window.addEventListener(e, reload);
+        return () => {
+            for (const e of events) window.removeEventListener(e, reload);
+        };
     }, []);
     const [prefs, setPrefs] = useState<PracticePreferences>(() => ({ ...DEFAULT_PRACTICE_PREFERENCES }));
-    const [prefsDirty, setPrefsDirty] = useState(false);
 
     const [oldPw, setOldPw] = useState("");
     const [newPw, setNewPw] = useState("");
@@ -137,7 +145,7 @@ export function SettingsPage() {
     useEffect(() => {
         const t = searchParams.get("tab");
         if (!t) return;
-        if (t === "export") {
+        if (t === "export" || t === "workflows") {
             setActiveSection("system");
             setSearchParams({ tab: TAB_QUERY.system }, { replace: true });
             return;
@@ -148,11 +156,8 @@ export function SettingsPage() {
 
     useEffect(() => {
         let cancelled = false;
-        void hydratePracticePreferencesFromKv().then((version) => {
-            if (!cancelled) {
-                setPrefs(version);
-                setPrefsDirty(false);
-            }
+        void loadPracticePreferencesFromKv().then((version) => {
+            if (!cancelled) setPrefs(version);
         });
         return () => {
             cancelled = true;
@@ -169,7 +174,7 @@ export function SettingsPage() {
             try {
                 // Portal optional (offline / no company host): `null` is intentional, not a silent failure.
                 if (activeSection === "license") {
-                    const sum = await companyPortalFetchSummary().catch(() => null);
+                    const sum = await companySystem.fetchSummary().catch(() => null);
                     const lic = await currentLicenseStatus().catch(() => null);
                     if (!cancelled) {
                         if (sum && typeof sum === "object") setPortalSummary(sum as Record<string, unknown>);
@@ -177,15 +182,15 @@ export function SettingsPage() {
                     }
                 } else if (activeSection === "integrations") {
                     const [sum, integ] = await Promise.all([
-                        companyPortalFetchSummary().catch(() => null),
-                        companyPortalFetchIntegrations().catch(() => null),
+                        companySystem.fetchSummary().catch(() => null),
+                        companySystem.fetchIntegrations().catch(() => null),
                     ]);
                     if (!cancelled) {
                         if (sum && typeof sum === "object") setPortalSummary(sum as Record<string, unknown>);
                         if (integ && typeof integ === "object") setPortalIntegrations(integ as Record<string, unknown>);
                     }
                 } else if (activeSection === "notifications") {
-                    const ff = await companyPortalFetchFeatureFlags().catch(() => null);
+                    const ff = await companySystem.fetchFeatureFlags().catch(() => null);
                     if (!cancelled && ff && typeof ff === "object") setPortalFlags(ff as Record<string, unknown>);
                 }
             } finally {
@@ -198,12 +203,11 @@ export function SettingsPage() {
     }, [activeSection, session?.user_id]);
 
     const persistClientSilent = (updater: (c: ClientSettingsV1) => ClientSettingsV1) => {
-        setClient((c) => {
-            const next = updater(c);
-            saveClientSettings(next);
-            applyAppearanceFromSettings(next);
-            return next;
-        });
+        const next = updater(clientRef.current);
+        clientRef.current = next;
+        setClient(next);
+        saveClientSettings(next);
+        applyAppearanceFromSettings(next);
     };
 
     useEffect(() => {
@@ -292,11 +296,23 @@ export function SettingsPage() {
         }
     }
 
-    const savePrefs = async () => {
+    const setCalendarDragDrop = async (enabled: boolean) => {
+        const previous = prefs.calendarDragDropEnabled;
+        const next = { ...prefs, calendarDragDropEnabled: enabled };
+        setPrefs(next);
         try {
-            await savePracticePreferences(prefs);
-            setPrefsDirty(false);
-            toast(t("settings.prefs.saved"), "success");
+            await savePracticePreferences(next);
+            toast(t("settings.prefs.saved"), "success", {
+                onUndo: async () => {
+                    const rolled = { ...next, calendarDragDropEnabled: previous };
+                    setPrefs(rolled);
+                    try {
+                        await savePracticePreferences(rolled);
+                    } catch (err) {
+                        toast(tp("settings.prefs.save_failed", { message: errorMessage(err) }), "error");
+                    }
+                },
+            });
         } catch (e) {
             toast(tp("settings.prefs.save_failed", { message: errorMessage(e) }), "error");
         }
@@ -322,7 +338,6 @@ export function SettingsPage() {
     ];
 
     const advancedNavAll: Array<{ id: SettingsSection; labelKey: string; icon: FC<{ size?: number }> }> = [
-        { id: "workflows", labelKey: "settings.nav.workflows", icon: SlidersHorizontalIcon },
         { id: "system", labelKey: "settings.nav.system", icon: SettingsIcon },
         { id: "about", labelKey: "settings.nav.about", icon: InfoIcon },
     ];
@@ -408,7 +423,6 @@ export function SettingsPage() {
                     {canSettingsSection(activeSection) && activeSection === "practice" ? (
                         <SettingsPracticeSection
                             sessionUserId={session?.user_id}
-                            onOpenWorkflows={() => setSection("workflows")}
                             canEditPractice={canOpsSystem}
                         />
                     ) : null}
@@ -463,31 +477,20 @@ export function SettingsPage() {
                     ) : null}
 
                     {canSettingsSection(activeSection) && activeSection === "appearance" ? (
-                        <SettingsAppearanceSection
-                            appearance={appearance}
-                            colorSchemePref={colorSchemePref}
-                            resolvedTheme={resolvedTheme}
-                            fontStack={fontStack}
-                            densityLabel={densityLabel}
-                            accentPresetId={accentPresetId}
-                            locale={locale}
-                            onLocaleChange={setLocale}
-                            onPersistClient={persistClientSilent}
-                        />
-                    ) : null}
-
-                    {canSettingsSection(activeSection) && activeSection === "workflows" ? (
-                        <SettingsWorkflowsSection
-                            prefs={prefs}
-                            prefsDirty={prefsDirty}
-                            onPrefsChange={setPrefs}
-                            onPrefsDirty={() => setPrefsDirty(true)}
-                            onSavePrefs={savePrefs}
-                            workflows={wf}
-                            searchPrefs={searchPrefs}
-                            onPersistClient={persistClientSilent}
-                            role={session?.role}
-                        />
+                        <>
+                            <SettingsAppearanceSection
+                                appearance={appearance}
+                                colorSchemePref={colorSchemePref}
+                                resolvedTheme={resolvedTheme}
+                                fontStack={fontStack}
+                                densityLabel={densityLabel}
+                                accentPresetId={accentPresetId}
+                                locale={locale}
+                                onLocaleChange={setLocale}
+                                onPersistClient={persistClientSilent}
+                            />
+                            <SettingsAccessibilitySection appearance={appearance} onPersistClient={persistClientSilent} />
+                        </>
                     ) : null}
 
                     {canSettingsSection(activeSection) && activeSection === "system" ? (
@@ -495,6 +498,10 @@ export function SettingsPage() {
                             canOpsSystem={canLanHost}
                             hideNetwork={isNetworkHiddenInSettings(client)}
                             onPersistClient={persistClientSilent}
+                            calendarDragDropEnabled={prefs.calendarDragDropEnabled}
+                            onCalendarDragDrop={(enabled) => void setCalendarDragDrop(enabled)}
+                            workflows={wf}
+                            searchPrefs={searchPrefs}
                         />
                     ) : null}
 
@@ -524,7 +531,7 @@ export function SettingsPage() {
                     </>
                 )}
             >
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
                     <Input
                         id="old-pw"
                         type="password"

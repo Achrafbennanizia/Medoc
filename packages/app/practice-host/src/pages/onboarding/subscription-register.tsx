@@ -129,7 +129,7 @@ export function SubscriptionRegisterOnboardingPage() {
                 <div className="onboarding-card__scroll">
                     <h1>{t("onboarding.subscription.done_title")}</h1>
                     <p className="card-sub">{t("onboarding.subscription.done_intro")}</p>
-                    <div className="onboarding-fieldset" style={{ marginTop: 16 }}>
+                    <div className="onboarding-fieldset" style={{ marginTop: "var(--space-4)" }}>
                         <p className="onboarding-field">
                             <strong>{t("onboarding.subscription.admin_email")}</strong>
                             <code>{doneResult.adminEmail}</code>
@@ -163,10 +163,10 @@ export function SubscriptionRegisterOnboardingPage() {
                 </p>
 
                 {canSkipToLogin ? (
-                    <div className="onboarding-fieldset" style={{ marginBottom: 16 }}>
+                    <div className="onboarding-fieldset" style={{ marginBottom: "var(--space-4)" }}>
                         <p className="card-sub">{t("onboarding.subscription.skip_to_login_hint")}</p>
                         {loginReadyEmails.length > 0 ? (
-                            <ul className="card-sub" style={{ marginTop: 8 }}>
+                            <ul className="card-sub" style={{ marginTop: "var(--space-2)" }}>
                                 {loginReadyEmails.map((email) => (
                                     <li key={email}>
                                         <code>{email}</code>
@@ -175,7 +175,7 @@ export function SubscriptionRegisterOnboardingPage() {
                             </ul>
                         ) : null}
                         {import.meta.env.DEV ? (
-                            <p className="card-sub" style={{ fontSize: 12, marginTop: 8 }}>
+                            <p className="card-sub" style={{ fontSize: 12, marginTop: "var(--space-2)" }}>
                                 {t("onboarding.subscription.skip_dev_password_hint")}
                             </p>
                         ) : null}
@@ -232,7 +232,7 @@ export function SubscriptionRegisterOnboardingPage() {
                         <>
                             <p className="card-sub">{t("onboarding.subscription.existing_accounts_hint")}</p>
                             {existingAccountEmails.length > 0 ? (
-                                <ul className="card-sub" style={{ marginTop: 8 }}>
+                                <ul className="card-sub" style={{ marginTop: "var(--space-2)" }}>
                                     {existingAccountEmails.map((email) => (
                                         <li key={email}>
                                             <code>{email}</code>
@@ -251,7 +251,7 @@ export function SubscriptionRegisterOnboardingPage() {
                     <span>{t("onboarding.subscription.accept_terms")}</span>
                 </label>
                 {formError ? (
-                    <p className="card-sub" role="alert" style={{ color: "var(--red)", marginTop: 8 }}>
+                    <p className="card-sub" role="alert" style={{ color: "var(--red)", marginTop: "var(--space-2)" }}>
                         {formError}
                     </p>
                 ) : null}

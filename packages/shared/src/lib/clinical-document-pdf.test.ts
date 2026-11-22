@@ -17,7 +17,7 @@ describe("buildClinicalTemplateHeaderLines", () => {
         const tpl = emptyDocumentTemplatePayloadV1();
         tpl.header.fieldsToShow = ["kv", "chamber", "bsnr"];
         const lines = buildClinicalTemplateHeaderLines(tpl, practice, DEFAULT_PRACTICE_HEADER_PRIVACY);
-        expect(lines).toEqual(["Health insurance no. 123456", "BSNR: 987654321", "Chamber: Berlin"]);
+        expect(lines).toEqual(["Health insurance no. 123456", "BSNR: 987654321", "Professional chamber: Berlin"]);
         expect(lines.some((l) => /site no/i.test(l))).toBe(false);
     });
 });

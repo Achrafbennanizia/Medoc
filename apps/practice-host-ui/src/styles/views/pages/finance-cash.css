@@ -1,0 +1,73 @@
+/* From styles/features/finance-payments.css (cascade position kept by its import there). */
+@layer components {
+  .tbl-data-card .tbl thead th:last-child,
+  .tbl-data-card .tbl tbody td:last-child {
+    padding-inline-end: var(--card-pad-x);
+  }
+  .tbl .tbl-th-num,
+  .tbl .tbl-td-num {
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .tbl-data-card .tbl tbody tr:last-child td {
+    padding-bottom: clamp(12px, 1.6vh, 16px);
+  }
+
+  /* Reception: cash receipts — KPI + list (shell via .practice-workspace-page) */
+  .finance-cash-page__kpi {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px 24px;
+    padding: clamp(16px, 2.2vh, 22px) clamp(18px, 2.4vw, 24px);
+    border-top: 3px solid #E69600;
+    box-shadow: var(--shadow-sm);
+  }
+  .finance-cash-page__kpi .kpi-label-mini {
+    display: block;
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--fg-3);
+    margin-bottom: var(--space-2);
+  }
+  .finance-cash-page__kpi-value {
+    font-size: clamp(26px, 3.6vw, 32px);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    color: var(--fg);
+  }
+  .finance-cash-page__kpi-meta {
+    margin-top: var(--space-2);
+    font-size: 13px;
+    color: var(--fg-3);
+  }
+  .finance-cash-page__create {
+    margin: 0;
+  }
+  .finance-cash-page__create .payment-finance-embed {
+    max-height: none;
+    overflow: visible;
+    box-shadow: var(--shadow-md);
+  }
+  .finance-cash-page__create .payment-finance-embed__body,
+  .payment-create-form.card-pad {
+    padding: clamp(14px, 2vh, 20px) var(--card-pad-x) clamp(16px, 2.2vh, 22px);
+  }
+  .finance-cash-page__list {
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+  }
+  .finance-cash-page__list .card-head {
+    padding: clamp(14px, 1.8vh, 18px) var(--card-pad-x);
+  }
+  .finance-cash-page__list-empty {
+    padding: clamp(28px, 4vh, 44px) var(--card-pad-x);
+  }
+  .finance-cash-page__table-wrap {
+    padding: 0;
+  }
+}

@@ -1,0 +1,67 @@
+/* From styles/features/tasks-orders.css (cascade position kept by its import there). */
+@layer components {
+  .practice-task-inbox-card__meta {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 0;
+    flex: 1 1 200px;
+  }
+  .practice-task-inbox-card__title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.35;
+  }
+  .practice-task-inbox-card__sub {
+    margin: 0;
+    font-size: 13px;
+    color: var(--fg-3);
+  }
+  .practice-task-inbox-card__body {
+    margin: 6px 0 0;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  .practice-task-inbox-card_service_item {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: var(--fg-2);
+  }
+  .practice-task-inbox-card__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: flex-end;
+    margin-top: var(--space-4);
+  }
+  .practice-task-inbox-card__notiz {
+    flex: 1 1 180px;
+    min-width: 160px;
+    max-width: 320px;
+  }
+  .practice-task-inbox-card__notiz .ui-field-wrap {
+    margin-bottom: 0;
+  }
+  .practice-task-inbox-card_back {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--line);
+  }
+  .practice-task-admin-toolbar {
+    margin-bottom: 0;
+  }
+  .practice-task-admin-toolbar__search {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .practice-task-admin-toolbar__search .ui-field-wrap {
+    flex: 1;
+    margin-bottom: 0;
+    min-width: 0;
+  }
+}

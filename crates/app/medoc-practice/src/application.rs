@@ -2,7 +2,8 @@
 
 pub use medoc_core::application::{
     app_kv_policy, appointment_hint_fulfillment, audit_chain_guard, auth_service, break_glass,
-    chart, device_session_service, own_profile, practice_task_notify, totp_service,
+    chart, device_session_service, own_profile, practice_task_notify, prescription_allergy_check,
+    totp_service,
 };
 pub use medoc_core::mvp_security;
 

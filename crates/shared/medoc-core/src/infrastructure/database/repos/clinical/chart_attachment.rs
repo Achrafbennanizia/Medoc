@@ -131,9 +131,14 @@ pub async fn create(
         .map_err(|_| AppError::Internal("File size outside supported range".into()))?;
 
     let created = chrono::Utc::now().to_rfc3339();
-    sqlx::query(
-        "INSERT INTO chart_attachment (id, chart_id, display_name, mime_type, size_bytes, rel_storage_path, document_kind, created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+    let sha = crate::infrastructure::database::sync_blob::sha256_hex(bytes);
+    let mut tx = pool.begin().await.map_err(|e| {
+        let _ = std::fs::remove_file(&disk_path);
+        AppError::Database(e)
+    })?;
+    if let Err(e) = sqlx::query(
+        "INSERT INTO chart_attachment (id, chart_id, display_name, mime_type, size_bytes, rel_storage_path, document_kind, created_at, sha256, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
     )
     .bind(&id)
     .bind(chart_id)
@@ -143,12 +148,29 @@ pub async fn create(
     .bind(&rel)
     .bind(document_kind)
     .bind(&created)
-    .execute(pool)
+    .bind(&sha)
+    .execute(&mut *tx)
     .await
-    .map_err(|e| {
+    {
+        let _ = std::fs::remove_file(&disk_path);
+        return Err(AppError::Database(e));
+    }
+    if let Err(e) = crate::infrastructure::database::recorded_write::record_in_tx(
+        &mut tx,
+        "chart_attachment",
+        &id,
+        "INSERT",
+    )
+    .await
+    {
+        let _ = std::fs::remove_file(&disk_path);
+        return Err(e);
+    }
+    tx.commit().await.map_err(|e| {
         let _ = std::fs::remove_file(&disk_path);
         AppError::Database(e)
     })?;
+    crate::infrastructure::database::sync_blob::put_verified(pool, &sha, bytes).await?;
 
     find_by_id(pool, &id)
         .await?
@@ -164,16 +186,27 @@ pub async fn update_display_name(
     if trimmed.is_empty() {
         return Err(AppError::validation_code("error.attachment.label_empty"));
     }
-    let n = sqlx::query("UPDATE chart_attachment SET display_name = ?1 WHERE id = ?2")
-        .bind(trimmed)
-        .bind(id)
-        .execute(pool)
-        .await
-        .map_err(AppError::Database)?
-        .rows_affected();
+    let mut tx = pool.begin().await.map_err(AppError::Database)?;
+    let n = sqlx::query(
+        "UPDATE chart_attachment SET display_name = ?1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?2",
+    )
+    .bind(trimmed)
+    .bind(id)
+    .execute(&mut *tx)
+    .await
+    .map_err(AppError::Database)?
+    .rows_affected();
     if n == 0 {
         return Err(AppError::NotFound("error.entity.chart_attachment".into()));
     }
+    crate::infrastructure::database::recorded_write::record_in_tx(
+        &mut tx,
+        "chart_attachment",
+        id,
+        "UPDATE",
+    )
+    .await?;
+    tx.commit().await.map_err(AppError::Database)?;
     Ok(())
 }
 
@@ -186,16 +219,27 @@ pub async fn update_document_kind(
     if trimmed.is_empty() {
         return Err(AppError::validation_code("error.attachment.doc_type_empty"));
     }
-    let n = sqlx::query("UPDATE chart_attachment SET document_kind = ?1 WHERE id = ?2")
-        .bind(trimmed)
-        .bind(id)
-        .execute(pool)
-        .await
-        .map_err(AppError::Database)?
-        .rows_affected();
+    let mut tx = pool.begin().await.map_err(AppError::Database)?;
+    let n = sqlx::query(
+        "UPDATE chart_attachment SET document_kind = ?1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?2",
+    )
+    .bind(trimmed)
+    .bind(id)
+    .execute(&mut *tx)
+    .await
+    .map_err(AppError::Database)?
+    .rows_affected();
     if n == 0 {
         return Err(AppError::NotFound("error.entity.chart_attachment".into()));
     }
+    crate::infrastructure::database::recorded_write::record_in_tx(
+        &mut tx,
+        "chart_attachment",
+        id,
+        "UPDATE",
+    )
+    .await?;
+    tx.commit().await.map_err(AppError::Database)?;
     Ok(())
 }
 
@@ -207,11 +251,20 @@ pub async fn delete_row_and_file(
     let row = find_by_id(pool, id)
         .await?
         .ok_or_else(|| AppError::NotFound("Chart-Attachment".into()))?;
+    let mut tx = pool.begin().await.map_err(AppError::Database)?;
+    crate::infrastructure::database::recorded_write::record_in_tx(
+        &mut tx,
+        "chart_attachment",
+        id,
+        "DELETE",
+    )
+    .await?;
     sqlx::query("DELETE FROM chart_attachment WHERE id = ?1")
         .bind(id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await
         .map_err(AppError::Database)?;
+    tx.commit().await.map_err(AppError::Database)?;
     let path = absolute_path(app_data_dir, &row.rel_storage_path);
     if path.is_file() {
         let _ = std::fs::remove_file(&path);

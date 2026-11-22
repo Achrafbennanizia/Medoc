@@ -1,4 +1,5 @@
-import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
+import type { z } from "zod";
+import { practiceSystem } from "@/systems/practice-host/adapters/practice-transport";
 import type { Appointment } from "@/models/types";
 import {
     CreateAppointmentSchema,
@@ -17,6 +18,20 @@ export async function listAppointmentsPaged(params?: ListParams): Promise<ListRe
     return practiceSystem.invoke<ListResponse<Appointment>>("list_appointments_paged", { params });
 }
 
+/** F63: every appointment with `fromDate <= date <= toDate` (yyyy-MM-dd), no paging. */
+export async function listAppointmentsInRange(fromDate: string, toDate: string): Promise<Appointment[]> {
+    return practiceSystem.invoke<Appointment[]>("list_appointments_in_range", { fromDate, toDate });
+}
+
+/** F70: move several appointments in one transaction (all or nothing). */
+export async function moveAppointments(
+    changes: { id: string; date: string; time: string }[],
+): Promise<Appointment[]> {
+    const rows = await practiceSystem.invoke<Appointment[]>("move_appointments", { changes });
+    notifyAppointmentsChanged();
+    return rows;
+}
+
 export async function listAppointmentsByDate(date: string): Promise<Appointment[]> {
     return practiceSystem.invoke<Appointment[]>("list_appointments_by_date", { date });
 }
@@ -33,41 +48,25 @@ export function notifyAppointmentsChanged(): void {
 }
 
 /**
- * Create an appointment. Initial status policy lives here (not in pages):
- * explicit `status` wins, otherwise Settings → Workflows → "Automatically confirm new appointments".
- * The backend always inserts PLANNED; CONFIRMED is applied as an allowed transition (PLANNED → CONFIRMED).
- * If that second step fails the created row is returned unchanged (status PLANNED) so the caller can warn.
+ * Create an appointment. Initial status policy lives here (not in pages): an explicit `status` wins,
+ * otherwise Settings → Workflows → "Automatically confirm new appointments" decides.
  */
-export async function createAppointment(data: {
-    date: string;
-    time: string;
-    kind: string;
-    patient_id: string;
-    physician_id: string;
-    /** Free text / duration / internal notes (Rust `CreateAppointment.notes`). */
-    notes?: string | null;
-    chief_complaint?: string | null;
-    status?: "PLANNED" | "CONFIRMED";
-}): Promise<Appointment> {
-    const { status, ...payload } = data;
-    const safe = parseOrThrow(CreateAppointmentSchema, payload);
-    let row = await practiceSystem.invoke<Appointment>("create_appointment", { data: safe });
-    const target = status ?? defaultCreateAppointmentStatus(loadClientSettings());
-    if (target === "CONFIRMED" && row.status !== "CONFIRMED") {
-        try {
-            row = await practiceSystem.invoke<Appointment>("update_appointment", {
-                id: row.id,
-                data: parseOrThrow(UpdateAppointmentSchema, { status: "CONFIRMED" }),
-            });
-        } catch {
-            /* keep PLANNED row; caller decides how to inform the user */
-        }
-    }
+export async function createAppointment(
+    data: z.input<typeof CreateAppointmentSchema>,
+): Promise<Appointment> {
+    const safe = parseOrThrow(CreateAppointmentSchema, {
+        ...data,
+        status: data.status ?? defaultCreateAppointmentStatus(loadClientSettings()),
+    });
+    const row = await practiceSystem.invoke<Appointment>("create_appointment", { data: safe });
     notifyAppointmentsChanged();
     return row;
 }
 
-export async function updateAppointment(id: string, data: Record<string, unknown>): Promise<Appointment> {
+export async function updateAppointment(
+    id: string,
+    data: z.input<typeof UpdateAppointmentSchema>,
+): Promise<Appointment> {
     const safe = parseOrThrow(UpdateAppointmentSchema, data);
     const row = await practiceSystem.invoke<Appointment>("update_appointment", { id, data: safe });
     notifyAppointmentsChanged();

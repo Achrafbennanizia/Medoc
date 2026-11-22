@@ -1,0 +1,16 @@
+/* From styles/components/utilities.css (cascade position kept by its import there). */
+@layer components {
+/*
+ * fit-grid — cards that share a row while each keeps at least 26rem, and stack when the space is smaller.
+ * Intrinsic (no media query), so it reacts to the sidebar, text size and zoom like to the window.
+ * Override the minimum per use with --fit-grid-min.
+ */
+
+  .fit-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--fit-grid-min, 26rem)), 1fr));
+    gap: var(--space-4);
+    align-items: stretch;
+  }
+  .fit-grid > * { min-width: 0; }
+}

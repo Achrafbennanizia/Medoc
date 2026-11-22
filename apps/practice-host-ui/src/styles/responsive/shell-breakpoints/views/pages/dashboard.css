@@ -1,0 +1,6 @@
+/* From styles/responsive/shell-breakpoints.css (cascade position kept by its import there). */
+@media (min-width: 1201px) and (min-height: 860px) {
+  .dashboard-card-list {
+    scrollbar-gutter: stable both-edges;
+  }
+}

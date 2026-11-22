@@ -1,6 +1,1890 @@
 # Phase handoff
 
-**Last phase label:** Shared calendar sync after SAS (2026-10-01)
+**Last phase label:** Fix Practice tasks + Patient records filters (2026-11-20)
+
+### Verified
+
+- **Select:** choosing a portal option called `onChange` twice (explicit value, then a native event that could report the previous controlled value) — now once. Portal menu also mounts while measuring.
+- **Patient records:** IN_TREATMENT / INVOICE_OPEN / CHART_OPEN / CLOSED tabs used page-1 + client filter → empty list while counts stayed >0. Those tabs now load the full matching set.
+- Vitest `patient-status-filter` + prior display tests: **PASS**; `tsc --noEmit`: **0 errors**.
+
+### Remains unverified
+
+- Live click-through on running MeDoc windows. **NOT OBSERVED** (Computer Use permissions off).
+- Full `cargo test --workspace`. **NOT RUN**.
+
+### Required next
+
+1. Practice tasks: pick type/view filters — list must update to matching rows.
+2. Patient records: open each status tab — rows must appear when the count is >0.
+
+---
+
+**Previous last phase label:** UI prefs anti-regression harden (2026-11-20)
+
+### Verified
+
+- Root cause closed: shared-origin `localStorage` no longer wins on boot. Boot order hydrates `ui-prefs.json` **before** importing i18n/client-settings.
+- Zustand rehydrate respects disk locale authority; `setLocale` / `saveClientSettings` await/queue file writes; calendar workflow sync also writes the file.
+- Regression: Rust ui_prefs **4 PASS**; Vitest `ui-prefs.controller.test.ts` **2 PASS** (file wins over polluted LS).
+- Both instances rebuilt/restarted.
+
+### Remains unverified
+
+- Manual UI refresh check after changing language once (to pin locale into file if missing). **NOT OBSERVED**.
+- Full `cargo test --workspace`. **NOT RUN**.
+
+### Required next
+
+1. Live-check: set language + Appearance → refresh → hold; independent per instance.
+2. Continue removing duplicated rules.
+
+---
+
+**Previous last phase label:** One assignee notice (2026-11-20)
+
+### Verified
+
+- A remote practice-task insert fills a missing assignee notification with the same title, body, and payload as a local create, including `service_name`.
+- The gap-fill still skips the creator, skips staff who are not on this device, skips a notice that already exists, and does not write an outbox row.
+- `cargo test -p medoc-core --offline --lib practice_task_sync_notify` **PASS** (1).
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings`. **NOT RUN**.
+
+### Required next
+
+1. Continue removing duplicated rules.
+
+---
+
+**Previous last phase label:** Billing task title (2026-11-20)
+
+### Verified
+
+- A new automatic billing task stores the service name as its title (empty when there is no service). The body is that name, or `Service (12.00 EUR)` / `(12.00 EUR)` when an amount is known. It no longer stores the English sentence `Record payment`.
+- The task list, dashboard, inbox, comments, and billing notifications add the translated “Record payment” heading from `kind` and `service_name`. Older rows that still start with `Record payment`, `Payment erfassen`, or the other stored prefixes still display the same way.
+- A billing task someone typed, whose title is not the service name, stays as written.
+- `cargo check -p medoc-core -p medoc-practice --offline --lib` **PASS**. Vitest finance-order labels and notification display **PASS** (9).
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings`. **NOT RUN**.
+
+### Required next
+
+1. Continue removing duplicated rules.
+
+---
+
+**Previous last phase label:** One app data directory (2026-11-20)
+
+### Verified
+
+- Desktop commands that fail when the app data directory is missing call `commands::app_data_dir`. The cluster watch still falls back to a home path when the directory cannot be resolved.
+- `cargo check -p medoc-practice --offline --lib` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings`. **NOT RUN**.
+
+### Required next
+
+1. Continue removing duplicated rules. Billing tasks still store the English title `Record payment` / `Record payment: {service}`; the client rewrites that prefix. Changing the stored title changes the task list unless the display knows the task kind.
+
+---
+
+**Previous last phase label:** Ticket notice label (2026-11-20)
+
+### Verified
+
+- A practice ticket notice title is the patient name. The client adds the translated heading. The body stays the ticket text.
+- Chart review and ticket creation each load the patient once.
+- `cargo check -p medoc-practice --offline --lib` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings`. **NOT RUN**.
+
+### Required next
+
+1. Continue removing duplicated rules.
+
+---
+
+**Previous last phase label:** Chart and hint notices (2026-11-20)
+
+### Verified
+
+- A fulfilled appointment hint stores the patient name and an empty body. The date and time stay in the payload. The client writes the sentence.
+- A chart review stores the patient name, or the sender when the patient name is empty. The body is only the note.
+- Older English rows still display from their payload.
+- `cargo check -p medoc-core -p medoc-practice --offline --lib` **PASS**. Display vitest **PASS** (3).
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings`. **NOT RUN**.
+
+### Required next
+
+1. Continue removing duplicated rules.
+
+---
+
+**Previous last phase label:** One status notice (2026-11-20)
+
+### Verified
+
+- `status_notice` builds the title, the note, and the payload when a task is completed or returned. An empty note stays empty.
+- `notify_except` writes that notice for every recipient except the person who made the change. A new task uses it too.
+- `cargo check -p medoc-core --offline --lib` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings`. **NOT RUN**.
+
+### Required next
+
+1. Continue removing duplicated rules.
+
+---
+
+**Previous last phase label:** One task notice payload (2026-11-20)
+
+### Verified
+
+- `task_notice_payload` is the JSON for an assigned, completed, or returned task. A completed notice now includes `status`, which the client does not read.
+- `cargo check -p medoc-core --offline --lib` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings`. **NOT RUN**.
+
+### Required next
+
+1. Continue removing duplicated rules.
+
+---
+
+**Previous last phase label:** One task assignee notice (2026-11-20)
+
+### Verified
+
+- `assignee_recipients` chooses the assigned user, or every reception account when the role is reception.
+- `assigned_notice` builds the title, body, and payload for a new task. Creating the task and notifying later both use it.
+- `cargo check -p medoc-core --offline --lib` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings`. **NOT RUN**.
+
+### Required next
+
+1. Continue removing duplicated rules.
+
+---
+
+**Previous last phase label:** Task notice label (2026-11-20)
+
+### Verified
+
+- A task notification title is `notice_label`: the patient name, or the task title when the patient is unknown. The client adds the translated heading.
+- Display vitest **PASS** (3). `cargo check -p medoc-core --offline --lib` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings`. **NOT RUN**.
+
+### Required next
+
+1. Continue removing duplicated rules.
+
+---
+
+**Previous last phase label:** Task notice fallback (2026-11-20)
+
+### Verified
+
+- A completed or returned task with no note stores an empty notification body. The client supplies the translated sentence.
+- Notifications already stored with the old English sentences are still recognized.
+- Display vitest **PASS** (3). `cargo check -p medoc-core --offline --lib` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings`. **NOT RUN**.
+
+### Required next
+
+1. Continue removing duplicated rules.
+
+---
+
+**Previous last phase label:** One invoice cent conversion (2026-11-20)
+
+### Verified
+
+- `moneyToInvoiceCents` is the client conversion from euros to invoice cents. Reading a stored line and appending a legacy invoice both use it.
+- The server still has its own guard in `issue.rs` before `pricing::euros_to_cents`.
+- Related vitest **PASS** (7). Practice-host `tsc --noEmit` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings`. **NOT RUN**.
+
+### Required next
+
+1. Continue removing duplicated rules.
+
+---
+
+**Previous last phase label:** One outside-hours message (2026-11-20)
+
+### Verified
+
+- `outsideHoursItemCopy` builds the title and body for an hours conflict. The stored notification and the later display use it. A time with seconds is stored as `HH:MM`.
+- Related vitest **PASS** (12). Practice-host `tsc --noEmit` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings`. **NOT RUN**.
+
+### Required next
+
+1. Continue removing duplicated rules.
+
+---
+
+**Previous last phase label:** One outside-hours reason (2026-11-20)
+
+### Verified
+
+- `outsideHoursReasonLabel` in `appointment-hours-compliance.ts` is the label for absence, closure, break, and other hours conflicts. The scan notification and the later display both call it.
+- The scan window uses `addCalendarDays`.
+- Related vitest **PASS** (12). Practice-host `tsc --noEmit` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings`. **NOT RUN**.
+
+### Required next
+
+1. Continue removing duplicated rules.
+
+---
+
+**Previous last phase label:** One calendar-day span (2026-11-20)
+
+### Verified
+
+- Inclusive day counts and “add days” use `inclusiveCalendarDays` and `addCalendarDays`. A certificate end date is a calendar day, not a UTC instant.
+- Clinical printouts share `formatWrittenDay` (`DD.MM.YYYY`). The noon workaround used only to format a date is gone.
+- Related vitest **PASS** (16). Practice-host `tsc --noEmit` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings`. **NOT RUN**.
+
+### Required next
+
+1. Continue removing duplicated rules.
+
+---
+
+**Previous last phase label:** One display date (2026-11-20)
+
+### Verified
+
+- `formatDate` uses `parseDisplayDate`. A value `yyyy-MM-dd` stays that calendar day. Any other timestamp goes through `parseDbUtc`.
+- License dates use the same read before they call `formatDate`.
+- Related vitest **PASS** (28). Practice-host `tsc --noEmit` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings`. **NOT RUN**.
+
+### Required next
+
+1. Continue removing duplicated rules.
+
+---
+
+**Previous last phase label:** Database timestamp callers (2026-11-20)
+
+### Verified
+
+- `parseDbUtc` is only defined in `utils.ts`. Day close no longer re-exports it.
+- Notifications, the pairing request time, and the calendar “edited” check read timestamps through it.
+- Related vitest **PASS** (15). Practice-host `tsc --noEmit` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings`. **NOT RUN**.
+
+### Required next
+
+1. Continue removing duplicated rules.
+
+---
+
+**Previous last phase label:** One database timestamp (2026-11-20)
+
+### Verified
+
+- `parseDbUtc` lives in `utils.ts`. `formatDateTime` and `formatDbTime` use it, so a timestamp without a zone is UTC.
+- Cash close rows and the dashboard cash clock use `formatDbTime`. The close form no longer adds the day and month in that time column.
+- Related vitest **PASS** (26). Practice-host `tsc --noEmit` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings`. **NOT RUN**.
+
+### Required next
+
+1. Continue removing duplicated rules.
+
+---
+
+**Previous last phase label:** One payment-counts rule (2026-11-20)
+
+### Verified
+
+- Cash close and the daily report use `paymentCountsTowardPaid` in `payment-booking.ts`. A cancelled payment is left out of cash, posted income, and the report lines.
+- Related vitest **PASS** (15). Practice-host `tsc --noEmit` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings`. **NOT RUN**.
+
+### Required next
+
+1. Continue removing duplicated rules.
+
+---
+
+**Previous last phase label:** One appointment clock parse (2026-11-20)
+
+### Verified
+
+- The calendar uses `timeToMinutes` in `appointment-availability.ts`. An unreadable time is 08:00. The copied parser is gone.
+- Practice-hours validation still returns `NaN` for an unreadable time so it can report `invalid_time`.
+- Related vitest **PASS** (10). Practice-host `tsc --noEmit` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings`. **NOT RUN**.
+
+### Required next
+
+1. Continue removing duplicated rules.
+
+---
+
+**Previous last phase label:** One planned-appointment rule (2026-11-20)
+
+### Verified
+
+- `appointmentCountsAsPlanned` in `appointment-domain.ts` is the check that a cancelled or no-show row does not occupy the schedule. The calendar, the hours scan, and the slot grid call it.
+- The same-time conflict check still skips only `CANCELLED`, matching the server.
+- Related vitest **PASS** (22). Practice-host `tsc --noEmit` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings`. **NOT RUN**.
+
+### Required next
+
+1. Continue removing duplicated rules.
+
+---
+
+**Previous last phase label:** One date and money format (2026-11-20)
+
+### Verified
+
+- License dates and the portal fee use `formatDate` and `formatCurrency`. Report “generated at” stamps, including an import that has none, use `formatDate` as well.
+- A task-drawer check compared a status to `VIEWED` after that status was already excluded. The extra check is gone. Marking a viewed task done is unchanged.
+- Report vitest **PASS** (10). Practice-host `tsc --noEmit` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings`. **NOT RUN**.
+
+### Required next
+
+1. Continue removing duplicated rules.
+
+---
+
+**Previous last phase label:** Euro parser next to currency format (2026-11-20)
+
+### Verified
+
+- `parseEuroInput` lives in `utils.ts` beside `formatCurrency`. Cash close, contracts, payments, treatment cost, product price, and exported-grid sorting call it from there.
+- Related vitest **PASS** (18). Practice-host `tsc --noEmit` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings`. **NOT RUN**.
+
+### Required next
+
+1. Continue removing duplicated rules.
+
+---
+
+**Previous last phase label:** One euro input parser (2026-11-20)
+
+### Verified
+
+- Typed money amounts go through `parseEuroInput` in `day-close.ts`. Payment create and edit, the treatment cost, and the product price use it. `1.234,56` is 1234.56.
+- Related vitest **PASS** (11). Practice-host `tsc --noEmit` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings`. **NOT RUN**.
+
+### Required next
+
+1. Continue removing duplicated rules.
+
+---
+
+**Previous last phase label:** One id hue (2026-11-20)
+
+### Verified
+
+- An id’s avatar color is `hueFromId` in `utils.ts`. Patient avatars and the work-plan lanes use it. The unused `hueForStaff` helper is gone. The work-plan page no longer keeps a second hash.
+- Related vitest **PASS** (10). Practice-host `tsc --noEmit` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings`. **NOT RUN**.
+
+### Required next
+
+1. Continue removing duplicated rules.
+
+---
+
+**Previous last phase label:** One name initial (2026-11-20)
+
+### Verified
+
+- Avatar letters are `initialsFromName` in `utils.ts`. The dashboard, staff list, work plan, patient grid, and the account menu use it. A name uses the first and last word. A single name uses its first two letters. An empty name is `?`.
+- Related vitest **PASS** (6). Practice-host `tsc --noEmit` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings`. **NOT RUN**.
+
+### Required next
+
+1. Continue removing duplicated rules.
+
+---
+
+**Previous last phase label:** One clock label (2026-11-20)
+
+### Verified
+
+- Minutes from midnight become `HH:MM` through `minutesToTime` in `utils.ts`. The work plan, practice hours, compliance scan, and time-slot picker use it. `minToLabel` is gone.
+- `hmToMinutes` in `practice-planning.ts` is the shared clock parse that treats a missing part as 0. The compliance scan uses it.
+- Appointment booking still maps an unreadable time to 08:00. Work-hours validation still returns NaN for an unreadable time so it can report `invalid_time`.
+- Related vitest **PASS** (48). Practice-host `tsc --noEmit` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings`. **NOT RUN**.
+
+### Required next
+
+1. Continue removing duplicated rules.
+
+---
+
+**Previous last phase label:** Local calendar day aliases removed (2026-11-20)
+
+### Verified
+
+- `localIsoDate` is the only local `yyyy-MM-dd` formatter. `ymd`, `formatIsoDate`, `todayYmd`, and `localComplianceIsoDate` are gone. Work plan, calendar range, contracts, cash, invoices, and the period screen call it directly.
+- `ymdInTimeZone` stays. It is the practice time zone, which is a different day.
+- Related vitest **PASS** (28). Practice-host `tsc --noEmit` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings`. **NOT RUN**.
+
+### Required next
+
+1. Continue removing duplicated rules.
+
+---
+
+**Previous last phase label:** One local calendar day (2026-11-20)
+
+### Verified
+
+- A local calendar day `yyyy-MM-dd` is `localIsoDate` in `packages/shared/src/lib/utils.ts`. Work-plan dates, the calendar range, contract “today”, period bounds, compliance stamps, chart and discharge filenames, and the practice-timezone fallback use it.
+- Related vitest **PASS** (38). Practice-host `tsc --noEmit` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings`. **NOT RUN**.
+
+### Required next
+
+1. Continue removing duplicated rules.
+
+---
+
+**Previous last phase label:** One chart number sequence (2026-11-20)
+
+### Verified
+
+- The next `B-{year}-{nnn}` treatment number and the next `U-{year}-{nnn}` examination number both come from `previewNextYearNumber` in `patient-detail-utils.ts`.
+- Unused output aliases `CreatePatientInput` and `CreateAppointmentInput` are removed. Write calls still use `z.input` of the schemas.
+- Related vitest **PASS** (20). Practice-host `tsc --noEmit` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings`. **NOT RUN**.
+
+### Required next
+
+1. Continue removing duplicated rules.
+
+---
+
+**Previous last phase label:** Write payloads follow schemas (2026-11-20)
+
+### Verified
+
+- Practice-host create and update calls take `z.input` of the Zod schema in `packages/shared/src/lib/schemas.ts`. The second handwritten field lists are gone.
+- Appointment kind and status, patient sex, and staff role are the schema enums at the form that sends them. Editing an appointment no longer sends `patient_id` on undo; that field is not in the update schema.
+- `tsc --noEmit` **PASS**. `schemas.test.ts` **PASS** (11).
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings`. **NOT RUN**.
+
+### Required next
+
+1. Continue removing duplicated rules.
+
+---
+
+**Previous last phase label:** Reception pending tasks + note-as-task (2026-11-20)
+
+### Verified
+
+- Reception dashboard left card is **Pending tasks** (`listPracticeTasksForMe`, OPEN/IN_PROGRESS/BACK); click → `/tickets?task=id`. Planned-appointment freigabe removed from that card.
+- Physician **Task for reception** is a practice-task composer (kind/title/body → reception pool); reception no longer sees plan-next controls.
+- Vitest actionable filter + locale parity **13/13 PASS**.
+
+### Remains unverified
+
+- Live GUI send → dashboard → complete → row gone. **NOT OBSERVED**.
+
+### Required next
+
+1. Manual smoke of physician send → reception Pending tasks → Done/Validate.
+
+---
+
+**Previous last phase label:** One treatment line name (2026-11-20)
+
+### Verified
+
+- A treatment’s display name is `treatmentLineLabel` in `clinical-service-label.ts`: service, then description, then kind. Payment links, invoice lines, the receipt price lookup, the continue label, and the treatment table use it.
+- An examination’s display name for payment links and invoice lines is `examinationLineLabel`: service, then diagnosis.
+- A row is released for billing only through `billing-release.ts`. The chart helper passes the row’s two fields into that function. A physician id that is only spaces is not a release.
+- Related vitest **PASS** (20). Practice-host `tsc --noEmit` **PASS**. The dashboard patient lookup is a map of patients, the same shape `taskPatientLabel` already uses.
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings`. **NOT RUN**.
+
+### Required next
+
+1. Continue removing duplicated rules. The practice-host typecheck is green.
+
+---
+
+**Previous last phase label:** One booking tolerance (2026-11-20)
+
+### Verified
+
+- `pricing::PAYMENT_BOOKING_TOLERANCE_EUR` (0.005) is the “a payment has started” cutoff. Payment booking and chart line deletion use it. The practice app uses `PAYMENT_EUR_EPS` for the same cutoff, including the billable-line hint.
+- `pricing::MONEY_ZERO_EUR` (1e-6) is the “treat as zero” cutoff. Payment status and the paid-line check use it.
+- `cargo check -p medoc-core --offline --lib` **PASS**. `billing-open-booking.test.ts` **PASS** (3).
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings`. **NOT RUN**.
+
+### Required next
+
+1. Run the workspace test suite before relying on this for a release build.
+
+---
+
+**Previous last phase label:** One euro-to-cents conversion (2026-11-20)
+
+### Verified
+
+- `pricing::euros_to_cents` is the plain euro-to-cents conversion. Cash closing, the legacy day-close command, contract pro-rata, and delivered purchase orders use it. Invoice lines still use `money_to_invoice_cents`, which can raise a tiny positive amount to 1 cent.
+- `cargo check -p medoc-core -p medoc-practice --offline --lib --tests` **PASS**. `euro_formatting` and `contract_pro_rata` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings`. **NOT RUN**.
+
+### Required next
+
+1. Run the workspace test suite before relying on this for a release build.
+
+---
+
+**Previous last phase label:** One euro rounding function (2026-11-20)
+
+### Verified
+
+- Cent rounding of euro amounts is `pricing::round_money_2`. The payment repository and the balance overview no longer repeat `(n * 100.0).round() / 100.0`.
+- `cargo check -p medoc-core --offline --lib` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings`. **NOT RUN**.
+
+### Required next
+
+1. Run the workspace test suite before relying on this for a release build.
+
+---
+
+**Previous last phase label:** One payment-method label (2026-11-20)
+
+### Verified
+
+- `paymentStatusDisplay` and `paymentMethodLabel` live in `finance-order-labels.ts`. The `payment-booking` copies and `paymentMethodLabelFin` are gone. Finance export uses `enum.payment_method.bankTransfer`, which is the catalog key.
+- `loadPracticePreferences()` and `hydratePracticePreferencesFromKv()` are gone. Settings calls `loadPracticePreferencesFromKv`. `inbox.tsx` is gone; `/inbox` still redirects to `/tickets`.
+- `tsc --noEmit` **PASS**. Label and document-export vitest **PASS** (8).
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings`. **NOT RUN**.
+
+### Required next
+
+1. Run the workspace test suite before relying on this for a release build.
+
+---
+
+**Previous last phase label:** Unused print HTML and deprecated aliases removed (2026-11-20)
+
+### Verified
+
+- The HTML print builders and the `medoc-practice-logo-v1` cache are gone. Practice logo stays in app KV `practice.logo.v1`.
+- Deprecated aliases with no callers are gone: HTML filenames, German invoice/slot/date helpers, untranslated select lists, `ChartExportDialog`, `PatientSexSchema`, the auto-record work-time wrappers, and `deleteBalanceSheetSnapshot`.
+- `apps/practice-host-ui` `tsc --noEmit` **PASS**. Billing and document-export vitest **PASS** (7).
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings`. **NOT RUN**.
+
+### Required next
+
+1. Run the workspace test suite before relying on this for a release build.
+
+---
+
+**Previous last phase label:** Activation + recovery UI locale + build version (2026-11-20)
+
+### Verified
+
+- USB activation app (`medoc-usb-setup`) and recovery UI (`medoc-recovery-ui`): EN/DE/FR/AR switcher; chrome via `ui_i18n`; build line from `CARGO_PKG_VERSION`.
+- Practice license gate: `LocaleSwitcher` + `VITE_APP_VERSION`; Help About passes version.
+- Tests: `ui_i18n` **PASS** in both crates; `cargo check -p medoc-usb-setup -p medoc-recovery` **PASS**.
+
+### Remains unverified
+
+- Live GUI of both egui windows. **NOT OBSERVED**.
+
+### Required next
+
+1. Optional smoke: open USB Setup + Recovery, switch AR/FR, confirm Build line.
+
+---
+
+**Previous last phase label:** Document export locale consistency (chart / Rx / cert / invoice / receipt) (2026-11-20)
+
+### Verified
+
+- Root causes: (1) chart PDF labels were de/en-only leftovers; (2) invoice issuer forced `locale="de"` + German chrome; (3) HTML print (`document-print-html`) used UI `useLocale` while PDF layouts used `documentLocale()`; (4) rehydrate/login did not keep documents LS ↔ KV aligned.
+- Fixes: chart `l()`/`pick` 4-locale + leftover `de` removed; invoice `document_locale` + localized GOZ chrome; HTML builders → `documentLocaleForI18n()`; `hydrateDocumentLocaleFromAppKv` on login; i18n rehydrate mirrors document LS/KV.
+- Tests: `invoice_goz` **8/8 PASS** (incl. locale chrome); chart label locale **PASS**; Vitest document-export-locale + print/receipt **8/8 PASS**; `cargo check -p medoc-core` **PASS**.
+
+### Remains unverified
+
+- Live GUI: switch UI language to FR/AR and export all five documents. **NOT OBSERVED**.
+- Already-issued invoice reprints still return stored bytes (immutable) — by design; new issue/preview follow locale.
+
+### Required next
+
+1. Manual smoke: Settings language de/en/fr/ar → patient chart, Rx, certificate, new invoice, receipt.
+
+---
+
+**Previous last phase label:** Practice currency + timezone UI refresh (2026-11-20)
+
+---
+
+**Previous last phase label:** Arabic PDF shaping + leftover English (2026-11-20)
+
+---
+
+**Previous last phase label:** Safe Bridge Revision v2 (2026-11-20)
+
+### Verified
+
+- ADR v2: Bridge C = printed random practice share (forgotten passphrase); vendor seal = X25519 ECDH + HKDF + XChaCha20-Poly1305 with AAD; KCV + `key_id`; per-device keys; auth ticket audit-only.
+- `medoc-keygen` emits share v2 + printable sheet; verify **PASS**.
+- Rust `medoc-recovery` workspace member: recover A/B/C, write-wrap (no keychain), verify-db on copy, gated export. `smoke-bridges-v2.sh` **PASS**.
+- `db_key` KCV + password-policy wrap + backup sidecars; unit tests **8/8 PASS**.
+
+### Remains unverified
+
+- Live UI Bridge B gate. **NOT OBSERVED**.
+- Full `cargo test --workspace`. **NOT RUN**.
+
+### Required next
+
+1. Dry-run Bridge C with printed sheet on clean app-data.
+2. Confirm backup sidecars when wrap exists.
+
+---
+
+**Previous last phase label:** PDF i18n — all document locales (2026-11-20)
+
+### Verified
+
+- Document locales `de` / `en` / `fr` / `ar` (pin `documents.locale.v1` or follow UI).
+- TS `document.print.*` key parity: **126 keys × 4 locales**.
+- Clinical layouts already used `documentLocale()` + RTL for `ar`.
+- Chart/report chrome now uses full `pdf/i18n.rs` (was de/en only). Cash-book + period-report labels use `pick()` for all four locales.
+- Receipt amount formatting: `en-GB` / `fr-FR` / `ar-EG-u-nu-latn` / `de-DE`.
+- Vitest receipt + clinical PDF + locales **16/16 PASS**. Rust phrase + chart chrome + receipt 4-locale **PASS**.
+
+### Remains unverified
+
+- Live GUI export with document locale `fr` / `ar`. **NOT OBSERVED**.
+- GOZ invoice + payment reminders stay German by design. **INTENTIONAL**.
+
+### Required next
+
+1. Optionally set document language to FR/AR in Settings and print a receipt + chart.
+
+---
+
+**Previous last phase label:** Notification list full i18n (en/de/fr/ar) (2026-11-20)
+
+### Verified
+
+- All displayed in-app notification kinds localize via `localizeInAppNotification` (tasks, plan hint, chart forward, ticket, outside-hours, seed STOCK/SYSTEM/…).
+- Locale catalogs include matching keys; vitest display + i18n **14/14 PASS**. Rust payloads enriched with `patient_name` / dates; `cargo check -p medoc-core -p medoc-practice --lib` **PASS**.
+
+### Remains unverified
+
+- Live language switch while Notifications popover is open. **NOT OBSERVED**.
+
+### Required next
+
+1. Switch UI language and open Notifications to confirm titles/bodies follow locale.
+
+---
+
+**Previous last phase label:** Safe Bridge Architecture + medoc-recovery (2026-11-20)
+
+### Verified
+
+- ADR + JSON schemas under `docs/architecture/safe-bridge-recovery.md` and `docs/architecture/schemas/`.
+- `medoc-keygen` emits Bridge C `practice-recovery.share.v1.json` + `vendor-recovery.share.v1.json` (XOR split); verify proves A db_key == practice⊕vendor and vendor-alone ≠ db_key.
+- `installer/medoc-recovery` CLI: bridges A/B/C, export-key, rehydrate, verify-db, auth-check. Smoke script **PASS**. Rust `db_key` tests **6/6 PASS** including Bridge B C++↔Rust wrap interop.
+- Bridge B mandatory via `bridge_b_passphrase_required` + `DbSetupGate` checklist; `provision_user_passphrase` wraps existing activation key. `cargo check -p medoc-sync -p medoc-practice` **PASS**.
+
+### Remains unverified
+
+- Live onboarding click-path after activation → Bridge B gate. **NOT OBSERVED**.
+- `auth-check` with a real vendor-signed ticket. **NOT RUN** (schema + verifier only).
+- Full `cargo test --workspace`. **NOT RUN** (disk pressure).
+
+### Required next
+
+1. Manually import activation then confirm passphrase gate + checklist.
+2. Mint a sample `medoc-recovery-auth.v1` ticket for ops dry-run of `auth-check`.
+
+---
+
+**Previous last phase label:** Notification list copy + newest-first (2026-11-20)
+
+### Verified
+
+- Notifications list merges tasks + in-app rows and sorts by timestamp **newest → oldest**.
+- Outside-hours copy rewritten (summary + per-appointment); dates formatted for display; body wraps up to 3 lines.
+- Display rehydrates outside-hours text from payload + current locale. Vitest compliance + i18n **19/19 PASS**.
+
+### Remains unverified
+
+- Live popover after a fresh compliance scan. **NOT OBSERVED**.
+
+### Required next
+
+1. Trigger a schedule edit or clear the daily stamp, then open Notifications and confirm order + wording.
+
+---
+
+**Previous last phase label:** Daily appointment↔hours compliance precaution (2026-11-20)
+
+### Verified
+
+- Precaution scan runs at least once per local calendar day via `runDailyAppointmentHoursComplianceIfDue` (localStorage day stamp; stamp only on success).
+- Wired in `PracticeWorkHoursBackground`: on login, every 15 min, and on tab visibility; schedule edits still force `notifyAppointmentsOutsideWorkHours` (bypass day stamp).
+- Non-working classification: `classifyAppointmentHoursBlock` → `absence` | `closure` | `break` | `outside_hours`; notification bodies use reason i18n keys.
+- Vitest: `appointment-hours-compliance.test.ts` **9/9 PASS**; `i18n-locales.test.ts` **10/10 PASS**.
+
+### Remains unverified
+
+- Live UI: next-day (or cleared stamp) login shows Notifications without editing hours. **NOT OBSERVED**.
+
+### Required next
+
+1. Optionally clear `medoc.appointment_hours_compliance.day.v1` in DevTools and confirm one scan + notifications.
+
+---
+
+**Previous last phase label:** Thursday extended hours booking merge (2026-11-20)
+
+### Verified
+
+- Root cause: `resolveBookingWorkHoursForPhysician` replaced practice day segments with a doctor profile’s active day, so a stale shorter doctor Thursday hid practice evening extensions from drag-snap and New appointment slots (calendar still drew practice-open evening).
+- Fix: when practice and doctor days are both active, open segments are the **union** (`unionWorkSegments`). Practice baseline times stay bookable; doctor-only early windows still add.
+- Regression suite `appointment-hours-extended-day.test.ts` covers late Thursday, stale doctor, early Wednesday union, split segments, Saturday omit, closure, holiday, busy evening slot. **25/25 PASS** with drag-snap + slot-grid + compliance.
+
+### Remains unverified
+
+- Live UI drag into Thursday evening after Opening hours save. **NOT OBSERVED**.
+
+### Required next
+
+1. Reload the running app (or restart Vite + MeDoc) and confirm Thursday evening slots + drag.
+
+---
+
+**Previous last phase label:** Blank first-instance webview — Vite IPv6 vs Tauri IPv4 (2026-11-20)
+
+### Verified
+
+- Cause of blank MeDoc window in dev: Vite listened on `[::1]:1420` only; Tauri/`localhost` used `127.0.0.1` → connection refused → empty webview. Proven with `lsof` + IPv4 connect FAIL / IPv6 OK.
+- Fix: default Vite `host` to `127.0.0.1`; `tauri.conf.json` `devUrl` → `http://127.0.0.1:1420`; `tools/dev-tauri.sh` health-checks **IPv4** (`curl -4`) and exits if Vite is not reachable on `127.0.0.1:1420`.
+- After restart, Vite listens on `127.0.0.1:1420`; `curl -4` returns 200.
+
+### Remains unverified
+
+- User Cmd+R / relaunch of the first window after the Vite restart. **NOT OBSERVED** from this agent.
+
+### Required next
+
+1. Reload or relaunch the first MeDoc window so it picks up `http://127.0.0.1:1420`.
+
+---
+
+**Previous last phase label:** Work-hours compliance notifications + two instances (2026-11-20)
+
+### Verified
+
+- After Opening hours, special closures, or holiday/absence saves, the UI scans upcoming appointments and creates in-app notifications: one summary (`APPOINTMENT_OUTSIDE_HOURS_SUMMARY`) plus one per conflict (`APPOINTMENT_OUTSIDE_HOURS`) with `appointment_id` payload.
+- New IPC: `create_in_app_notification`, `dismiss_unread_in_app_notifications_by_kind` (requires `administration.practice_planning.write`).
+- Unit tests for `findAppointmentsOutsideWorkHours` **PASS** (3). `npx tsc --noEmit` **PASS**. `cargo check -p medoc` **PASS**.
+- Instance 1: `tools/dev-tauri.sh` / tauri dev (rebuilt). Instance 2: `MEDOC_INSTANCE=2` binary at `target-inst2/debug/medoc` started (`DB_READY`, `LAN_AUTO_START_SKIP`).
+
+### Remains unverified
+
+- Live UI click-path: save shorter hours → bell shows summary + per-appointment rows. **NOT OBSERVED**.
+- Full `cargo test --workspace`. **NOT RUN**.
+- Fresh `cargo build -p medoc --target-dir target-inst2` hit disk-full; binary was copied from the successful default build instead.
+
+### Required next
+
+1. Manually confirm Notifications after editing Opening hours / special closures / holidays.
+2. Free disk before another full dual-target rebuild if needed.
+
+---
+
+**Previous last phase label:** LAN and company portal call the adapters (2026-11-16)
+
+### Verified
+
+- `lan-server.controller.ts` keeps the LAN config and status types. Settings pages call `lanSystem` in `tauri-lan.adapter.ts`.
+- `company-portal.controller.ts` keeps `CompanyPortalConfig`. Settings pages call `companySystem` in `tauri-company.adapter.ts`. The unused `companyPortalAttachPayment` wrapper is gone. Device-session helpers stay on `device-session.controller.ts`.
+- `apps/practice-host-ui` `tsc --noEmit` **PASS** (exit 0).
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings`. **NOT RUN**.
+
+### Required next
+
+1. Run the workspace test suite before relying on this for a release build.
+
+---
+
+**Previous last phase label:** Cluster repos are one type (2026-11-15)
+
+### Verified
+
+- `LicenseRepo`, `DeviceRepo`, and `PairingRepo` are gone. `SqliteClusterRepos` methods call `cluster::repo`. The unused generic `load_cluster` is gone.
+- `logo_placement` copies the placement string before parsing it, so the JSON value can be dropped.
+- `cargo check -p medoc-sync -p medoc-e2e --offline --tests` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `npx tsc --noEmit`. **NOT RUN**.
+
+### Required next
+
+1. Run the workspace test suite before relying on this for a release build.
+
+---
+
+**Previous last phase label:** Pairing calls the store directly (2026-11-15)
+
+### Verified
+
+- `PairingPersistence` and `SqlitePairingStore` are gone. `medoc_sync::pairing::*` calls `store`.
+- The unused `systems` registry and the test that only checked it was defined are gone.
+- `cargo check -p medoc-sync -p medoc-lan -p medoc-practice --offline --tests` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `npx tsc --noEmit`. **NOT RUN**.
+
+### Required next
+
+1. Run the workspace test suite before relying on this for a release build.
+
+---
+
+**Previous last phase label:** Remove pairing pin wrappers and the IPC identity bridge (2026-11-15)
+
+### Verified
+
+- `generate_confirm_pin` and `generate_confirm_pin_from_transcript` are gone. Random pins call `generate_confirm_pin_random`. A handshake transcript calls `derive_sas_from_transcript`.
+- Pin test **PASS** (1). `cargo check -p medoc-sync --offline --tests` **PASS**.
+
+### Remains unverified
+
+- `npx tsc --noEmit` after deleting `ipc-bridge.ts`, `searchPatients`, and the unrouted onboarding pages. **NOT RUN**.
+- Full `cargo test --workspace`. **NOT RUN**.
+
+### Required next
+
+1. Run the workspace test suite before relying on this for a release build.
+
+---
+
+**Previous last phase label:** One sync route table (2026-11-15)
+
+### Verified
+
+- Sync HTTP paths live in `medoc_sync::paths`. The LAN router, the permission check, and the sync client all use them. Wire-format tests still spell the `/api/v1/...` strings.
+- Route permission test **PASS** (1). `cargo check -p medoc-sync -p medoc-lan --offline --tests` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `npx tsc --noEmit`. **NOT RUN**.
+
+### Required next
+
+1. Run the workspace test suite before relying on this for a release build.
+
+---
+
+**Previous last phase label:** One handshake decoder (2026-11-15)
+
+### Verified
+
+- Handshake base64 is decoded by `decode_handshake_transcript`. Cluster load, pairing confirm, and the coupling code all call it.
+- `snapshot_denied_column` is gone. Merge uses `deny_column`.
+- SAS tests **PASS** (4). `cargo check -p medoc-sync --offline --tests` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `npx tsc --noEmit`. **NOT RUN**.
+
+### Required next
+
+1. Run the workspace test suite before relying on this for a release build.
+
+---
+
+**Previous last phase label:** One hybrid clock and one replica count (2026-11-15)
+
+### Verified
+
+- `tick`, `observe`, `parse_hlc`, and `format_hlc` live in `medoc-core`. `medoc-sync` re-exports them. `sync_row_hlc` is created by `ensure_sync_row_hlc`.
+- `sync.deployment.v1`, `sync.device_id.v1`, and `sync.hlc.v1` are constants in `sync_registry`. The remote-replica count SQL lives in `count_remote_replicas`.
+- Sync clock tests **PASS** (2). `cargo check -p medoc-core -p medoc-sync --offline --tests` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `npx tsc --noEmit`. **NOT RUN**.
+- `MEDOC_INSTANCE` still suffixes the SQLCipher account with a dash and the cluster key with a dot. Left in place because those are different stored keys.
+
+### Required next
+
+1. Run the workspace test suite before relying on this for a release build.
+
+---
+
+**Previous last phase label:** Remove unused ports, shims, and tautological tests (2026-11-15)
+
+### Verified
+
+- Unused second outbox writer is gone. `record_or_noop` still delegates to `recorded_write` and still ignores `payload_json`. Outbox tests **PASS** (6).
+- Unused `StaffRepository`, `DatabasePool`, `SyncReplicationStore`, the cluster PIN wrapper, five page re-export shims, and `*.orig` backups are gone.
+- `domain-enums.test.ts` no longer restates Zod for patient and chart status. **PASS** (8). The clock test parses a stamp instead of comparing two literals. **PASS** (2).
+- `cargo check -p medoc-core -p medoc-sync --offline --tests` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `npx tsc --noEmit`. **NOT RUN**.
+- LAN master-license checks are still per handler, because sync and pairing return different error bodies.
+
+### Required next
+
+1. Run the workspace test suite before relying on this for a release build.
+
+---
+
+**Previous last phase label:** Untangle IPC registry and repository paths (2026-11-15)
+
+### Verified
+
+- Tauri IPC registration is only `commands/register.rs`. The unused per-module `register_*` macros are gone, including the misspelled `regisappt_statistics_commands`. `EXPECTED_INVOKE_COMMAND_COUNT` (stale at 330, list is 346) is gone.
+- Command modules and repository modules have one path each. Flat `*_commands` and `database::*_repo` shims are gone. Call sites import `commands::<domain>::…` and `database::repos::<domain>::…`.
+- `invoke_command_registry_tests` **PASS** (2). `cargo check -p medoc-practice -p medoc-lan -p medoc-sync -p medoc --offline --tests` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`. **NOT RUN**.
+- `npx tsc --noEmit`. **NOT RUN**.
+- LAN master-license checks are still per handler, because sync and pairing return different error bodies.
+
+### Required next
+
+1. Run the workspace test suite before relying on this for a release build.
+
+---
+
+**Previous last phase label:** Dev app launch and license key (2026-11-15)
+
+### Verified
+
+- Debug binary `target-inst2/debug/medoc` is running (pid 76349) with Vite on `http://localhost:1420/`. Log events: `DB_READY`, `LAN_SERVER_STARTED` port 8787, `LOGIN_SUCCESS` for the existing physician session.
+- License for this install (`sync.device_id.v1` = `ce284a1e-82b9-4800-aa83-8f9dea590e86`) was minted with the dev signing key. PRO, 99 users. The v2 token is device-bound. The v1 token is the any-device fallback, valid through 2036-01-01.
+- Startup no longer aborts on 967 pre-existing foreign-key orphans (`practice_task` 837, `work_time_session` 128, `work_time_preference` 2). `medoc.db` stayed the practice file (no quarantine, no new `sqlcipher.key`). Size after migration: 94,392,320 bytes.
+
+### Remains unverified
+
+- The desktop window itself. **NOT OBSERVED**.
+- Pasting the license into onboarding. **NOT OBSERVED**.
+- `WORK_TIME_SWEEP_FAILED` (database locked, code 5) once during startup. The process stayed up.
+
+### Required next
+
+1. Paste the v2 license if the app asks for one.
+2. Leave this debug process running. The September `/Applications/MeDoc.app` quarantines this database.
+
+---
+
+**Previous last phase label:** Practice currency on screens and documents (2026-11-14)
+
+### Verified
+
+- Screen labels that say € or EUR follow Settings → Practice when the currency is not EUR. Amounts already going through `formatCurrency` follow it, including payment history, treatment and examination costs, receipts, and the finance CSV column.
+- Invoice, cash-report, period-report, and chart PDF headings use the practice currency code. Money figures use the same code. `euro_formatting` and `format_eur_groups_thousands` **PASS**. `npx tsc --noEmit` from `apps/practice-host-ui` **PASS** (`TSC_EXIT:0`).
+
+### Remains unverified
+
+- A non-EUR practice on screen and on a printed invoice, receipt, and cash report. **NOT OBSERVED**. Rust document text needs a rebuild.
+
+### Required next
+
+1. Rebuild and restart MeDoc, set a currency other than EUR, and check a payment screen plus an invoice PDF.
+
+---
+
+**Previous last phase label:** Sync queues, task order, page refresh (2026-11-13)
+
+### Verified
+
+- A product delete still applies while a supplier template points at it. `product_delete_applies_while_a_template_still_points_at_it` **PASS**. Each page queue is its own push. Accepted rows are marked by id, so a 400 on the orders queue does not mark the tasks queue delivered.
+- Practice tasks inbox is newest `created_at` first. A task moved to `IN_PROGRESS` stays listed. `inbox_lists_newest_task_first_after_take_over` **PASS**.
+- The open page reloads every 5 seconds. A hidden window reloads every 3 minutes. Opening a data page calls `sync_exchange_queue`. A queue already in the current exchange is not requested again. `npx tsc --noEmit` **PASS**. `cargo check -p medoc` **PASS**. `npm run build -w medoc` **PASS**. `cargo build -p medoc --target-dir target-inst2` **PASS**.
+
+### Remains unverified
+
+- The running windows. **NOT OBSERVED**. Quit both and open the rebuilt binary.
+- The loading bar, and a task push that used to sit behind `DELETE product`. **NOT OBSERVED**.
+
+### Required next
+
+1. Quit both MeDoc windows and open them again.
+
+---
+
+**Previous last phase label:** Patient list, work time, currency, idle lock, hide network (2026-11-10)
+
+### Verified
+
+- Patient lists order by `name, id`. The payment Patient * combo drops duplicate ids and shows the date of birth when two patients share a name.
+- Weekly bars scale to 8 hours when no target is set, and the open session is not added on top of the week summary. `weekBarScaleMinutes` tests **PASS** (3). `day-close` tests **PASS** (9).
+- Logout with “Pause on logout” calls `workTimePause` for that account’s running session. Login resumes that account’s paused session. A new session starts only when auto-start is on and that account has no open session.
+- Settings → Practice stores `currency` on `invoice.practice.v1`. `formatCurrency` and cash amounts follow it. PDF money uses the same code after `PracticeProfile::load`. Default remains EUR. `euro_formatting` and `format_eur_groups_thousands` **PASS**.
+- Auto-lock reads the saved minutes when settings are saved, keyed by user id. Hide network no longer reopens the port when the switch is off, and the network panels stay hidden while it is on.
+- `npx tsc --noEmit` from `apps/practice-host-ui` **PASS** (`TSC_EXIT:0`).
+
+### Remains unverified
+
+- On-screen Patient * list, weekly bars, logout pause, currency change, auto-lock, and hide network. **NOT OBSERVED**. Rust PDF currency needs a rebuild.
+
+### Required next
+
+1. Rebuild and restart MeDoc, then check those six flows in the app.
+
+---
+
+**Previous last phase label:** Practice fax and document logo (2026-11-10)
+
+### Verified
+
+- Settings → Practice has its own fax row. Saving writes `fax` on `invoice.practice.v1`. Reports use `document_address_lines()`, which includes `Fax …`. Invoices and clinical documents already used `letterhead_lines()`.
+- `practice.logo.v1` stores `showOnDocuments`. Missing means show. `practice_logo` returns nothing when the flag is false, and a hidden logo clears `logoKvJson` on preview and reprint. Report PDFs take the same logo. HTML print skips the logo when the cache flag is false.
+- `letterhead_matches_official_form`, `a_missing_flag_shows_the_logo_and_false_hides_it`, and `renders_financial_report_with_summary_and_table` **PASS**. `cargo check -p medoc-practice` **PASS**. `npx tsc --noEmit` from `apps/practice-host-ui` **PASS**. `npm run build -w medoc` **PASS**. `cargo build -p medoc --target-dir target-inst2` **PASS** (1m 30s).
+
+### Remains unverified
+
+- The settings page and a printed PDF in the running app. **NOT OBSERVED**. The processes started at 15:26 still have the previous binary.
+- Push after quit and reopen (the product-delete 400 fix). **NOT OBSERVED**.
+
+### Required next
+
+1. Quit both MeDoc windows and open them again.
+
+---
+
+**Previous last phase label:** Push 400 on product delete (2026-11-10)
+
+### Verified
+
+- The replica outbox starts with `DELETE product` (`seed-prod-007` and the following product ids). The master log for that push is `LAN_SYNC_PUSH_FAILED` foreign key 787, returned as an empty 400. `product_delete_applies_while_a_template_still_points_at_it` **PASS**: the product is removed and the template row stays.
+- Reception can read `practice.header_privacy.v1` and `invoice.practice.v1`. Writing them still requires `ops.system`. `cargo test -p medoc-core --lib -- app_kv_policy::tests` **PASS** (8).
+- `cargo build -p medoc --target-dir target-inst2` **PASS**. The two processes that started at 15:26 are still the previous binary.
+
+### Remains unverified
+
+- Push after quit and reopen. **NOT OBSERVED**.
+
+### Required next
+
+1. Quit both MeDoc windows and open them again.
+
+---
+
+**Previous last phase label:** Day close cash report, cents, and selection lag (2026-11-10)
+
+### Verified
+
+- Cash report and Print on an older closing no longer fail with `error.day_close.no_report`. The first request issues the cash report from the stored figures; the next request reprints it. `older_closing_without_a_stored_report_still_prints` **PASS**. The PDF for counted `12.345` contains `12.35` and not `12.345`.
+- Cash amounts use two digits after a decimal point: `1,234.56 EUR`. `application::documents::cash_book::tests::euro_formatting` **PASS**. `cargo test -p medoc-core --test finance_workflow_tests` **PASS** (5).
+- Typed cash `1,234.50` and `245.500` stay in euros (`1234.5` and `245.5`). `npx vitest run src/lib/day-close.test.ts` from `apps/practice-host-ui` **PASS** (9). `npx tsc --noEmit` **PASS**.
+- Opening a closing that is already recorded skips the full journal reconcile. Cash-checked payments are counted in one query. The detail reload follows the protocol id.
+
+### Remains unverified
+
+- On-screen Cash report, Print, and how fast the day-close page feels after quit and reopen. **NOT OBSERVED**. The Rust binary must be rebuilt.
+
+### Required next
+
+1. Rebuild and restart MeDoc.
+
+---
+
+**Previous last phase label:** Sync logical clock and mesh file pickup (2026-11-10)
+
+### Verified
+
+- A live write keeps a logical stamp ahead of a wall clock that is already behind. `a_live_write_stays_ahead_of_a_slow_wall_clock` **PASS**. `records_on_practice_desktop_when_a_replica_is_registered` **PASS**.
+- When both copies of a row have a logical stamp, the newer stamp wins even if its wall `updated_at` is older. A later wall time with an older logical stamp does not replace it. `a_slow_wall_clock_wins_when_its_logical_stamp_is_newer` **PASS**. Stamps inside the two-minute window are still rewritten to the master clock (`a_future_stamp_is_clamped_to_the_master_clock` **PASS**). An unstamped edit two minutes ahead still beats an unstamped slower edit (`clock_two_minutes_ahead_overwrites_and_a_slow_clock_does_not` **PASS**).
+- A mesh page that skips a missing file records delivery only through the last contiguous sent row. `a_failed_blob_holds_back_that_entry_and_everything_after_it` **PASS** (prefix seq 1 when seq 2 is omitted).
+- A peer watermark that has already moved past a missing file moves back when the bytes exist, and the peer pending list includes that file. `a_peer_past_a_missing_file_sees_it_again_when_the_bytes_arrive` **PASS**. `peer_vector_tracks_mesh_delivery_watermark` **PASS**. The master delivery watermark still leaves the missing row pending (`delivered_watermark_leaves_a_missing_blob_row_pending` **PASS**).
+
+### Remains unverified
+
+- The two running `target-inst2/debug/medoc` processes. They need a rebuild. The practice LAN master was **NOT RUN**.
+- A row queued only by the safety-net watch, or by a full snapshot, keeps its wall `updated_at` as the logical stamp. A slow edit that never passed through the live write hook can still lose to a newer wall stamp.
+- After a missing file is given up, the next mesh page no longer contains that row, so a later cycle can move the watermark past it. The watermark moves back when the bytes arrive.
+
+### Required next
+
+1. Rebuild and restart both devices.
+
+---
+
+**Previous last phase label:** Official header prints each practice line once (2026-11-10)
+
+### Verified
+
+- The practice name, street, city, phone, and BSNR are drawn once. A repeated copy of the name and address under the letterhead is omitted, and a field listed twice in the header payload is kept once. `header_prints_each_practice_line_once` **PASS**. `cargo test -p medoc-core --lib infrastructure::pdf::letterhead::tests` **PASS** (10).
+
+### Remains unverified
+
+- The on-screen document after quit and reopen. The Rust binary must be rebuilt.
+
+### Required next
+
+1. Rebuild and restart MeDoc.
+
+---
+
+**Previous last phase label:** Invoice and receipt are different documents (2026-11-10)
+
+### Verified
+
+- A receipt confirms money already received. Its title is Quittung / Payment receipt, the table is date / service / amount paid, and the closing line is “Betrag dankend erhalten.” It does not say the patient must pay. `buildReceiptExportForPayment returns receipt bundle` **PASS** (8 tests).
+- The receipt number on the PDF is “Quittungs-Nr.” / “Receipt no.”, not the invoice number. `receipt_renders_in_every_supported_language` **PASS**. `cargo test -p medoc-core --lib infrastructure::pdf::clinical_layout::tests` **PASS** (15).
+- Administration → Finance & reports → Invoice lists only assignments that still have an open balance (`buildOpenPaymentLinkSelectOptions`). Paid assignments are left out.
+- Services & billing offers Invoice for an open treatment or examination and opens that invoice form with the patient and line selected. Receipt stays on paid and partially paid rows.
+- `npx tsc --noEmit` in `apps/practice-host-ui` **PASS**.
+
+### Remains unverified
+
+- On-screen invoice and receipt preview after quit and reopen. The Rust binary must be rebuilt.
+- A paid assignment is absent from the invoice dropdown at runtime. **NOT OBSERVED**.
+
+### Required next
+
+1. Rebuild and restart MeDoc so the receipt PDF uses the new layout.
+
+---
+
+**Previous last phase label:** Sync maintenance — blob hold, one schema, slower watch (2026-11-10)
+
+### Verified
+
+- A failed attachment upload keeps that outbox entry and every later entry in the page pending. `a_failed_blob_holds_back_that_entry_and_everything_after_it` **PASS**.
+- `ensure_sync_tables` calls the core replication DDL and only adds `sync_pull_failure`, `sync_watch_seen`, and pairing pin columns. `sync_extras_do_not_rewrite_the_core_replication_tables` **PASS**.
+- The shared-change scan queues a new row, skips a row whose stamp was already seen, and queues a delete. `queues_a_shared_row_once_then_a_later_edit_and_a_delete` **PASS**. It runs every 60 seconds.
+- A naive SQLite timestamp compares equal to the same instant with a `Z` suffix. A stamp two hours later wins. `parse_ts_str_handles_rfc3339_and_sqlite_naive` **PASS**.
+- `cargo check -p medoc-lan` **PASS**. Push and pull log `REPLICA_SEEN_FAILED` when `touch_replica_seen` returns an error. That error path was **NOT RUN**.
+- `medoc-export-fixes 2/` is removed. It was not a workspace member. The applied-patch note below is historical.
+
+### Remains unverified
+
+- The two running `target-inst2/debug/medoc` processes. They need a rebuild.
+- A stamp from 2 minutes behind the master through any time ahead is rewritten to the master's clock (`a_future_stamp_is_clamped_to_the_master_clock` **PASS**). An edit older than that window keeps its stamp. There is no hybrid logical clock.
+- A missing chart file is held for 8 tries, then marked `BLOB_MISSING`. The delivery watermark does not consume that row (`delivered_watermark_leaves_a_missing_blob_row_pending` **PASS**). When the bytes appear, the row is pending again (`a_missing_blob_is_queued_again_when_the_bytes_arrive` **PASS**).
+- Pool cap is 10, acquire timeout 10s (`extra_connection_stops_at_the_acquire_timeout` **PASS**). The practice LAN master was **NOT RUN**.
+
+### Required next
+
+1. Rebuild and restart both devices.
+
+---
+
+**Previous last phase label:** Arabic PDFs mirrored right to left (2026-11-10)
+
+### Verified
+
+- An Arabic document is the mirror of the Latin page: title, address, tables, columns, and the logo. `arabic_receipt_is_the_mirror_of_the_latin_page` **PASS** (German title at x=71, Arabic title flush to the right margin).
+- `cargo test -p medoc-core --lib infrastructure::pdf --offline` **PASS** (67). `cargo build -p medoc --offline` **PASS**.
+- The German GOZ invoice stays left to right (`locale: "de"` in `invoice_goz.rs`).
+
+### Remains unverified
+
+- On-screen Arabic preview after quit and reopen.
+- `npx tsc --noEmit` **NOT RUN**.
+
+### Required next
+
+1. Quit MeDoc and open it again so the new binary loads.
+
+---
+
+**Previous last phase label:** Arabic receipt font and practice-sync lock (2026-11-10)
+
+### Verified
+
+- Arabic preview is no longer rejected. `check_renderable` and GOZ validation use `is_pdf_renderable`. `non_latin_payload_is_rejected` **PASS** (Arabic `محمد` accepted, `中文` still rejected).
+- Receipt titles render for `de` Rechnung, `en` Invoice, `fr` Facture, `ar` فاتورة. Arabic runs use embedded Noto Naskh (`/F3`, `/NotoNaskhArabic`). `receipt_renders_in_every_supported_language` and `arabic_receipt_text_uses_the_embedded_font` **PASS**.
+- `cargo test -p medoc-core --lib infrastructure::pdf --offline` **PASS** (66). `cargo build -p medoc --offline` **PASS** (`dev`, `target-inst2`).
+- SQLCipher pool sets `busy_timeout = 20000` and WAL in `after_connect` (after the key). `app_kv` get/set retry SQLITE_BUSY. Frontend practice sync retries 6 times. Lock behavior at runtime is **NOT OBSERVED** (no second process held the database during this run).
+
+### Remains unverified
+
+- On-screen PDF preview and the settings “فشل مزامنة العيادة” toast after quit and reopen.
+- `npx tsc --noEmit` **NOT RUN**.
+- Cyrillic is still not in the embedded font. The error text mentions it; only Latin and Arabic are covered.
+
+### Required next
+
+1. Quit MeDoc and open it again so the new binary loads.
+
+---
+
+**Previous last phase label:** Prescription columns, right header, receipt as invoice (2026-11-10)
+
+### Verified
+
+- Pack size / quantity removed from the prescription PDF table (4 columns) and the combo form column. `prescription_headers_do_not_share_a_baseline_with_the_dose` **PASS**.
+- Header middots are split onto their own lines. Info block ends on the right margin. `header_splits_middot_fields_onto_their_own_lines` and `header_info_block_aligns_to_the_right_margin` **PASS**. Footer still matches the sample (`footer_matches_sample_document` **PASS**).
+- Patient receipt uses the `01-rechnung.pdf` title, window address, and 7-column fee table.
+- `cargo test -p medoc-core --lib infrastructure::pdf --offline` **PASS** (64). `cargo build -p medoc --offline` **PASS**.
+
+### Remains unverified
+
+- On-screen preview after quit and reopen.
+- `npx tsc --noEmit` **NOT RUN**.
+
+### Required next
+
+1. Quit MeDoc and open it again so the new binary loads.
+
+---
+
+**Previous last phase label:** Patient PDF header, prescription wrap, PDF i18n (2026-11-10)
+
+### Verified
+
+- Prescription table headers wrap inside the column. `prescription_headers_do_not_share_a_baseline_with_the_dose` **PASS**. Dose `1-0-1` sits below every 8 pt header baseline.
+- `cargo test -p medoc-core --lib infrastructure::pdf --offline` **PASS** (62). `letterhead_matches_official_form` **PASS**.
+- `cargo build -p medoc --offline` **PASS** (`dev`, `target-inst2`). Pre-existing `replica_desktop_name` warning.
+- PDF chrome catalog: `crates/shared/medoc-core/src/infrastructure/pdf/i18n.rs` (`de`, `en`, `fr`, `ar`). Document locale follows a pin, otherwise the UI language.
+
+### Remains unverified
+
+- On-screen preview after quit and reopen (binary is rebuilt; the running app still has the old process).
+- `npx tsc --noEmit` after the locale/label edits. **NOT RUN** this pass.
+- Arabic glyphs. Helvetica/WinAnsi stores `?` for Arabic letters (`text_operand_never_emits_utf16_into_content_streams`).
+
+### Understanding delta
+
+- Patient PDF headers are one field per line. Footer lines stay middot-joined, matching the sample PDFs.
+- Clinical preview watermark uses the catalog (`ENTWURF` / `DRAFT` / `BROUILLON` / `مسودة`). GOZ invoice body stays German.
+
+### Required next
+
+1. Quit MeDoc and open it again so the new binary loads.
+2. Embed a Unicode font before Arabic can be drawn on the page.
+
+---
+
+**Previous last phase label:** Official documents patch applied (2026-11-10)
+
+### Verified
+
+- `medoc-export-fixes 2/medoc-export-fixes.patch` applied (symlink duplicates `apps/practice-host-ui/src/lib` and `src-tauri` skipped; those paths alias `packages/shared` and `apps/practice-host`).
+- Rejects merged by hand: audit CSV BOM + session, `documents.locale.v1` on `ops.system`, `issued_document` in `sync_registry` (Numbered), CSV formula unguard, export `context` literals, GOZ fields on `Treatment`.
+- `invoice_sequence.rs` deleted. IPC count **330** (`invoke_command_registry_tests` **PASS** 2).
+- `cargo test -p medoc-core --offline --lib` **PASS** (164). `document_registry_tests` **PASS** (6). `official_pdf_samples` **PASS** (1).
+- `npx tsc --noEmit` in `apps/practice-host-ui` **PASS**. `npx vitest run` **PASS** (383).
+- i18n: 28 keys added to `packages/shared/locales/{de,en,fr,ar}.json`.
+
+### Remains unverified
+
+- Full `cargo test --workspace`.
+- Browser issue/preview of the new PDFs (samples rendered by the Rust test only).
+- Items the package left open: billing input UI, PDF/A embedded fonts, logo alpha, money as cents, telematics, server-side prescription completeness, archive PDF bytes.
+
+### Understanding delta
+
+- Official numbers (`RE`/`ST`/`QU`/…) are allocated in `issued_document` on the MASTER device, not by `allocate_invoice_document_number`.
+- The packaged `register.rs` is an older dump. This tree kept newer handlers (`decline_patient_chart`, `export_patients_csv`, `sync_reconcile_now`, …) and only added the document commands.
+
+### Required next
+
+1. Fill practice tax number, BSNR/ZANR and bank on the MASTER device before issuing.
+2. Billing form for fee schedule / GOZ number / points / factor (backend `set_treatment_billing` is in place).
+3. Parts E remainder and F–K from the previous handoff.
+
+---
+
+**Previous last phase label:** Part E start — F44/F52/F57 + replica `/sync/number` (2026-11-08)
+
+### Verified
+
+- Replica POST `/api/v1/sync/number` with a `sync.push` activation token allocates unique daily numbers: `replica_sync_push_token_can_allocate_document_number` **PASS** (1).
+- F44: GET `/api/v1/appointments` is 404 in `docs/coordination/backend-http-route-matrix-results.md` (Closed, not applicable).
+- F52: CSV crate + quoted `;` + Windows-1252; `create_from_import` (NEW, chart, anamnesis, outbox); skip name+DOB; missing insurance NULL. Tests **PASS** (4) + `migration_import_tests` **PASS** (6).
+- F57: paged search on name/insurance/phone/email, cap 50, `idx_patient_name`, `export_patients_csv`. Tests **PASS** (2). Invoke count **319**.
+- Invoke registry **PASS** (2). `status_check_tests` **PASS** (8) after patient-table rebuild for nullable insurance.
+
+### Remains unverified
+
+- Full `cargo test --workspace`.
+- Parts E remainder: F59, F60, F63–F67, F70, F94, F97, F99, F122 (F62/F126 already in earlier batch).
+- Parts F–K. Browser patients page search/export. Two-process replica numbering (TLS).
+
+### Understanding delta
+
+- `patient.insurance_number` is `Option<String>` so CSV import can store NULL (UNIQUE still applies when set).
+- Patient list IPC `search` replaces the dedicated `search_patients` path on the patients page.
+
+### Required next
+
+1. F59/F69 double-option updates.
+2. F60, F63–F67, F70, F94, F97, F99, F122.
+3. Parts F–K.
+
+---
+
+**Previous last phase label:** workspace PASS (2026-11-08)
+
+### Verified
+
+- `cargo test --workspace --offline --no-fail-fast -- --test-threads=1` **PASS** (EXIT 0).
+- Mesh harness 20 **PASS**. Billing release / cash-verify LWW ties fixed by `next_updated_at`.
+
+### Remains unverified
+
+- Live replica POST `/api/v1/sync/number`. Parts E–K IDs not in this batch.
+
+### Understanding delta
+
+- Same-millisecond INSERT then UPDATE ties under D8; master keeps INSERT and relays an unreleased row. Release/cash-verify stamps are now strictly later.
+
+### Required next
+
+1. Parts E–K remaining IDs.
+
+---
+
+**Previous last phase label:** workspace suite + H2/mesh fixes (2026-11-08)
+
+---
+
+**Previous last phase label:** pasted-diff leftover tests (2026-11-07)
+
+### Verified
+
+- Pasted plan files are in tree (F9, F24, F32, F45–46, F52–53, F62, F74–76, F85, F89, F92, F119, F123, F126, F134, F143–147).
+- F144 `legacy_database_gets_widened_status_checks_and_keeps_rows` **PASS** (appointment count scoped to `id = 'a-1'` because demo seed fills `appointment`).
+- `status_check_tests` **PASS** (8): F62, F74, F75, F92, F144.
+- `sync_outbox_hooks_tests` **PASS** (11): F147 composite `chart_validation` ids; F119 GDPR erase outbox.
+- `sync_registry_tests` **PASS** (4). `staff_delete_fk_tests` **PASS** (3). `recorded_write_guard` **PASS** (2).
+- `invoke_command_registry_tests` **PASS** (2), count **318**. `ipc_sync_pairing_tests` **PASS** (10), including `fresh_pool_has_empty_outbox_outside_serverless_peer`.
+- Earlier this apply: merge F146/F147 **PASS**; vitest `staff-work-plan-sync` **PASS** (3); numbering, wrap v2, F24 port.
+
+### Remains unverified
+
+- `cargo test --workspace`. Live replica POST `/api/v1/sync/number`. Parts E–K IDs not in this batch.
+
+### Understanding delta
+
+- Demo seed in `cfg!(test)` makes global `COUNT(*)` on `appointment`/`payment` unusable in focused tests.
+
+### Required next
+
+1. `cargo test --workspace`.
+2. Parts E–K remaining IDs.
+
+---
+
+**Previous last phase label:** F9/F24/F32/F45–76/F85/F119/F123/F143–147 apply (2026-11-07)
+
+### Verified
+
+- IPC invoke count **318** (`sync_record_change` removed). `invoke_command_registry_tests` **PASS** (2).
+- Number styles Daily/Monthly + legacy floor: `number_sequence_tests` **PASS** (5).
+- H2 command-layer scan: `recorded_write_guard` **PASS** (2).
+- Replica HTTPS URL uses join `master_http_port` (default 8787, not 49300): license_service tests **PASS** (6), including F24 9443.
+- F45 wrap v2 XChaCha20-Poly1305 + v1 upgrade: `db_key` tests **PASS** (3).
+
+### Remains unverified
+
+- `cargo test --workspace`. Extra status/merge/vitest cases from the brief (now landed). Live replica number POST.
+
+### Understanding delta
+
+- Document numbers come from cluster `number_sequence` (DeviceLocal); replicas POST `/api/v1/sync/number`. Composite `chart_validation` keys (`patient_id|section`). GDPR erase records each child DELETE. Scanner button hidden when capability off. Work-plan slice persist per staff.
+
+### Required next
+
+1. `cargo test --workspace`.
+2. Add/run vitest work-plan sync + remaining merge/status tests from the pasted diff.
+3. Parts E–K IDs not in this batch.
+
+---
+
+**Previous last phase label:** Part D hourly reconcile (2026-11-07)
+
+### Verified
+
+- POST `/api/v1/sync/digest`, `/sync/row-hashes`, `/sync/rows` with action `sync.reconcile` (mt2). Staff JWT on digest is **401**.
+- Digest returns 256 buckets (`digest_returns_256_buckets_with_activation_token` **PASS**).
+- `hash_row_json` is key-order stable. IPC `sync_reconcile_now` (`ops.system`), invoke count **319**.
+- Replica hourly hook after a caught-up `run_replica_sync` (outbox empty, pull < 500, no error, 60 min kv).
+- Settings Deployment: Reconcile now. LAN http_sync **13 PASS**. IPC pairing/registry **PASS**.
+- `set_cash_verified_for_ids_reaches_replica_b` isolation **PASS** (1). Earlier batch **FAIL** looks flaky.
+
+### Remains unverified
+
+- Replica end-to-end digest catch-up against a live master (HTTP runner). 429 in-flight lock. Vitest F32 / locales. `cargo test --workspace`.
+
+### Understanding delta
+
+- Reconcile force-applies main rows (skip LWW). Outbox must be empty. `sync.repair.required.v1` blocks. Staff JWT on digest is 401; other `/sync/*` JWT stays 403.
+
+### Required next
+
+1. `cargo test --workspace`.
+2. Parts E–K remaining IDs.
+3. Mesh harness for digest overwrite if the brief still lists it.
+
+---
+
+---
+
+**Previous last phase label:** Part C F22/F34–F56 (2026-11-07)
+
+### Verified
+
+- Staff directory import: `two_receptionists_both_arrive` **PASS**, `tax_advisor_arrives` **PASS**. Export includes all roles, `token_version`, `available`. Missing directory rows set `available = 0`. First PHYSICIAN/RECEPTION fallback removed.
+- `replica_cannot_create_staff` **PASS**.
+- F15–F17 still **PASS** from prior phase.
+
+### Remains unverified
+
+- Harness `set_cash_verified_for_ids_reaches_replica_b` and sibling F34/F35/F68/F96 tests **NOT RUN**.
+- Full `cargo test --workspace`. F5 live pin. F31 blobs. F32 localStorage. H2 guard.
+
+### Understanding delta
+
+- Replica staff writes return `AppError::Validation` with the English sentence (unit `Forbidden` cannot carry a message).
+- `delete_patient` archives; `restore_patient` is a new IPC (`EXPECTED_INVOKE_COMMAND_COUNT` 318).
+
+### Required next
+
+1. Add harness `*_reaches_replica_b` for remaining outbox writes.
+2. F31 blob routes; F32 app_kv migration.
+3. `cargo test --workspace` after disk is stable.
+
+---
+
+**Previous last phase label:** 2FA deferred (2026-11-07)
+
+### Verified
+
+- `TOTP_2FA_ENABLED` is false. `authenticate` skips the authenticator branch while the flag is off.
+- `totp_login_tests` **PASS** (4), `mvp_security_gates_tests` **PASS** (10), `auth_session_audit_tests` **PASS** (1).
+
+### Remains unverified
+
+- Live login click on the master window. The master still fails `foreign_key_check` (967 violations) before the window opens. Replica process was left running from the earlier rebuild.
+
+### Understanding delta
+
+- F27 is no longer active. Stored `totp_secret` rows are kept and ignored until the deferred checklist turns the flag back on.
+
+### Required next
+
+1. Part B remainder: F11, desktop `authorize`, keychain, unlock, scanner hide, live TLS pin.
+2. `cargo test --workspace` before closing P2.
+
+---
+
+**Previous phase label:** Remediation Part A H5–H8 + F27 (2026-11-07)
+
+### Verified
+
+- H5: status CHECK inserts ARCHIVED / DECLINED / IN_PROGRESS **PASS** (`status_check_tests`).
+- H6: unique `allocate_number` **PASS**.
+- H8: JSON password/email redaction **PASS**.
+- F27: `unenrolled_physician_must_enroll` **PASS**. `lan_http_route_matrix_all_endpoints` **PASS**.
+- `medoc-core --lib` **PASS** (125).
+
+### Remains unverified
+
+- H2 `every_synced_write_is_recorded`. Replica `/sync/number` from a second process. `cargo test --workspace`. Frontend tests. Playwright. Parts C–K.
+
+### Required next
+
+1. Part B remainder: F11, desktop `authorize`, keychain, unlock, scanner hide, live TLS pin.
+2. `cargo test --workspace` before closing P2.
+
+---
+
+**Previous phase label:** Remediation P3 TOTP, sessions, export path (2026-11-07)
+
+### Verified (2026-11-07 — authenticator, password generation, export folder)
+
+- An enrolled physician without a current code is rejected. The same account with the current code signs in. `enrolled_physician_without_code_is_rejected` and `enrolled_physician_with_current_code_signs_in` **PASS**.
+- Replacing a password increments `staff.token_version` and ends every other device session. `password_change_bumps_the_token_and_ends_other_sessions` **PASS**. `lan_http_route_matrix_all_endpoints` **PASS** after the middleware started comparing that version.
+- Six failed logins from different addresses lock the account. `different_addresses_still_lock_the_account` **PASS**.
+- An export file whose folder is outside the configured root, or whose name contains `..`, is rejected. `export_rejects_a_folder_outside_the_configured_root` **PASS**.
+- The invoke registry counts 317 commands, including the two enrollment commands. `invoke_handlers_unique_and_match_documented_count` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`, frontend Vitest, and Playwright. **NOT RUN**.
+- Mandatory enrollment for every physician. `TOTP_2FA_ENABLED` is still false.
+- A reception click on the export folder was **NOT OBSERVED**.
+
+### Understanding delta
+
+- A hash upgrade of the same password does not move `token_version`. A real password replace does.
+- Lockout is counted twice: once for the address and once for the account.
+
+### Required next
+
+1. Finish P3: keychain unlock before the pool opens, the scanner path guard, and the setup screen when status fails.
+2. Run `cargo test --workspace` before calling P2 done.
+
+---
+
+**Previous phase label:** Remediation P3 IPC gates (2026-11-07)
+
+### Verified (2026-11-07 — IPC idle and sensitive reads)
+
+- A desktop session older than 30 minutes is cleared. `idle_session_is_cleared` and `fresh_session_stays` **PASS**.
+- `invoice.practice.v1`, `practice.logo.v1`, `export.path.v1`, and `practice.calendar-workflows.v1` require `ops.system` for read and write. `invoice_profile_requires_ops_system` **PASS**. `lan_http_route_matrix_all_endpoints` **PASS**.
+- A DENY on `patient.read_documents` removes attachment names from the chart PDF. `denied_document_permission_hides_attachment_names` **PASS**.
+- An override action outside `config/rbac.yaml` is rejected. `unknown_override_action_is_rejected` **PASS**.
+- Setup is complete only when the stored value is `1`. `setup_is_complete_only_when_the_value_is_one` **PASS**. A joined device cannot create another staff account after that flag is set.
+
+### Remains unverified
+
+- Full `cargo test --workspace`, frontend Vitest, and Playwright. **NOT RUN**.
+- TOTP, password-change session version, lockout per account, the keychain unlock screen, and the export path guard.
+
+### Understanding delta
+
+- `require()` expires idle sessions. It still trusts the role stored at login.
+
+### Required next
+
+1. Finish P3: TOTP for physicians and admins, end other sessions on password change, and the export path guard.
+2. Run `cargo test --workspace` before calling P2 done.
+
+---
+
+**Previous phase label:** Remediation P2 authorize() for LAN (2026-11-07)
+
+### Verified (2026-11-07 — shared authorize)
+
+- `authorize` rejects an idle clock and a device session last seen in 2000. Both return unauthorized. `idle_caller_is_unauthorized` and `stale_device_session_is_unauthorized` **PASS**.
+- An account with `available = 0` does not sign in. `unavailable_account_does_not_sign_in` **PASS**.
+- A DENY override blocks a physician. A `patient.read_medical` call writes one `audit_log` row, action `READ`, for that patient. `deny_override_blocks_a_physician_and_a_read_is_audited` **PASS**.
+- LAN `DELETE /license` and e-prescription validate/submit call `authorize`. `lan_http_route_matrix_all_endpoints` **PASS**. `reception_cannot_delete_the_license_or_submit_a_prescription` **PASS** for the seeded reception account `seed-rez-001`.
+
+### Remains unverified
+
+- Full `cargo test --workspace`, frontend Vitest, and Playwright. **NOT RUN**.
+- F11 has no row in the findings table.
+- Desktop IPC still calls `require()` and does not yet use `authorize()`.
+
+### Understanding delta
+
+- The role on the staff row is the one that is checked. A JWT role is not trusted on its own.
+- Login loads permission overrides into the session. A later `authorize` loads them again.
+
+### Required next
+
+1. P3: route IPC commands through `authorize()`, then TOTP, session version, and the path guard.
+2. Run `cargo test --workspace` before calling P2 done.
+
+---
+
+**Previous phase label:** Remediation P2 noise fingerprint and vendor portal (2026-11-07)
+
+### Verified (2026-11-07 — pairing mint and vendor URL)
+
+- A pending pairing row is not given an activation token. `pending_pairing_is_not_minted` **PASS**.
+- An accepted row whose device key does not match the claimed fingerprint is not minted. `foreign_fingerprint_does_not_match_the_noise_key` **PASS**. A join message with a mismatched key is rejected before the session is stored. `cargo test -p medoc-sync --test cluster_net_loopback -- --test-threads=1` **PASS** (10).
+- Vendor portal fetches send the API key only to `https` URLs, or to `http` on loopback. `vendor_url_accepts_https_and_loopback_http_only` **PASS**. Saving a portal URL uses the same check.
+- Desktop portal summary, integrations, feature flags, and the update manifest require `ops.system`. `cargo check -p medoc-practice` finished with no errors. A reception session was not clicked. **NOT OBSERVED**.
+- The desktop LAN adapter no longer maps patient or appointment lists. Vitest **NOT RUN**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`, frontend Vitest, and Playwright. **NOT RUN**.
+- F11 has no row in the findings table. **NOT STARTED**.
+- B1 `authorize()` (idle, availability, overrides, a READ audit row) is not the LAN check yet.
+
+### Understanding delta
+
+- Replica auth previously minted a token for any pairing row that was not revoked or rejected, including `PENDING`.
+- The join fingerprint is the hash of the 32-byte device key. A different string is refused.
+
+### Required next
+
+1. Decide F11 from the source notes. Do not invent a defect for it.
+2. B1 `authorize()` on the remaining LAN handlers, then P3 for IPC.
+3. Run `cargo test --workspace` before calling P2 done.
+
+---
+
+**Previous phase label:** Remediation P2 sync reasons, role gates, and browser client removal (2026-11-07)
+
+### Verified (2026-11-07 — sync 403 reasons, login role, license and prescription gates)
+
+- Sync push, pull, status, and activation-token checks return JSON `reason`. `cargo test -p medoc-lan --test http_sync_tests -- --test-threads=1` **PASS** (10), including `from_device_mismatch`, `master_license_required`, and `staff_jwt_rejected`.
+- The route matrix pull sends `requesterId` equal to the paired device. `lan_http_route_matrix_all_endpoints` **PASS** (33). A pull without that field was 403 `requester_mismatch`.
+- `TAX_ADVISOR` with a valid password gets `Forbidden`. `tax_advisor_password_does_not_open_a_session` **PASS**. Seeded physician login in the matrix is still 200.
+- `DELETE /api/v1/license` requires `ops.system`. E-prescription validate and submit require `patient.write_medical`. Reception is 403; physician clear is 204 and validate is 200.
+- `apps/lan-web-client` is removed. `GET /api/v1/patients` and `GET /api/v1/appointments` are 404. Related e2e files **PASS**: `serverful_lan_client_flows` (10), `activation_token_rbac` (4), `lan_pairing_sync` (7), `license_and_outbox` (3), `three_replica_conflict_matrix` (1).
+
+### Remains unverified
+
+- Full `cargo test --workspace`, frontend Vitest, and the Playwright job. **NOT RUN**.
+- F11, F38 Noise binding, F132, F135. **NOT STARTED** this pass.
+- Desktop LAN-client mode still routes `list_patients` through `HttpPracticeAdapter` to the removed path. **NOT CHANGED**.
+
+### Understanding delta
+
+- A missing patient or appointment route is 404 before the auth middleware, including for an activation token that used to be allowed to read those lists.
+- Staff JWT never reaches the license check on `/sync/*`. An unlicensed main device returns `master_license_required` only for an mt2 token.
+
+### Required next
+
+1. P2 remainder: F11, bind the Noise fingerprint on mint (F38), portal reads require `ops.system` (F132), portal URL is https-only (F135).
+2. Point the desktop LAN-client adapter off the removed patient and appointment routes, or stop offering that mode for chart reads.
+3. Run `cargo test --workspace` before calling P2 done.
+
+---
+
+**Previous phase label:** Remediation P2 pairing, snapshot secrets, and join URL (2026-11-07)
+
+### Verified (2026-11-07 — pairing token and snapshot secrets)
+
+- Staff snapshot JSON has no `password_hash` or `totp_secret`, and applying it does not replace the stored hash. `snapshot_omits_staff_secrets_and_portal_keys` **PASS**. `company.portal.*` is not loaded into a relay payload.
+- A revoked pairing row is not given a new token. `revoked_device_is_not_reminted` **PASS**. Revoke and block call `clear_device_activation`.
+- Submit and status responses drop `activationToken`. Confirm still returns it. `public_view_drops_the_activation_token` **PASS**.
+- Reset deletes `cluster.join.*`. `wipe_network_kv_clears_license_and_onboarding_keys` **PASS**.
+- Replica deployment uses the port stored at join. `sas_replica_activation_demotes_owner_and_skips_onboarding` **PASS** (`https://192.168.1.10:49300`).
+- A token device id is adopted only when it equals this install’s fingerprint. `align_moves_pending_outbox_onto_the_activation_token_device` **PASS**.
+
+### Required next
+
+1. P2 remainder: bare 403 reasons, `authorize()` on LAN login, licence, e-prescription, patients, and appointments, and dropping the browser client (D1 / F40).
+2. Full `cargo test --workspace` is still **NOT RUN**.
+
+---
+
+**Previous phase label:** Remediation P1 data-loss tests passed; P2 TLS pin started (2026-11-07)
+
+### Verified (2026-11-07 — P1 exit tests and the TLS pin)
+
+- `cargo test -p medoc-core --test p1_data_loss_tests -- --test-threads=1` **PASS** (8): wrong key, rekey, plaintext sibling deleted, backup open, failed English upgrade, in-process restore, staff sick-leave, audit archive.
+- Replica backoff is 500ms, then doubles, and stops at 30s. `backs_off_when_the_main_device_is_down` **PASS**.
+- Sync, master probe, and pairing HTTP clients call `pinned_http_client`. An empty pin returns an error. `tls_pin` tests **PASS** (2). A live mismatched handshake was **NOT RUN**.
+- A newly generated LAN certificate stores `127.0.0.1` as an IP SAN. `certificate_carries_loopback_as_an_ip_san` **PASS**.
+
+### Remains unverified
+
+- Full `cargo test --workspace`, frontend Vitest, and the Playwright job. **NOT RUN**.
+- The restore command was not driven inside a Tauri window. **NOT OBSERVED**.
+- P2 remainder: token stripping, revoke/block, snapshot column deny-list, `authorize()`, dropping the browser client.
+
+### Understanding delta
+
+- Deleting the author of someone else's sick note used to delete that note. The note now stays, and `created_by` moves to another staff row so the foreign key still holds.
+- Peer mesh push no longer accepts any certificate. It uses `sync_device.peer_cert_sha256` and skips the peer when that pin is missing.
+
+### Required next
+
+1. Finish P2: public pairing responses, revoke/block, snapshot deny-list, `authorize()` on LAN handlers, delete the browser client (D1).
+2. Run `cargo test --workspace` before calling a later phase done.
+
+---
+
+**Previous phase label:** Remediation P0 started, P1 and P2 partial (2026-11-06)
+
+### Verified (2026-11-06 — remediation P0 and first data/network fixes)
+
+- `decline_patient_chart` is in `medoc_invoke_handler!`. `EXPECTED_INVOKE_COMMAND_COUNT` is 315. `cargo test -p medoc-practice --test invoke_command_registry_tests` **PASS** (2).
+- `medoc-core` depends on `libsqlite3-sys` `bundled-sqlcipher`. `cargo test -p medoc-core --lib` compiled and the English schema upgrade tests **PASS** (6).
+- Pull assertion in `replica_pull_sees_master_local_writes` matches the current create contract (patient row plus id-only chart and anamnesis). **PASS**.
+- `SyncMesh` creates a patient on replica A and reads it on replica B through the LAN router. `cargo test -p medoc-e2e --test sync_mesh_harness` **PASS**.
+- Relay outbox insert and `sync_applied` commit in one transaction. `replica_push_is_visible_to_a_later_replica_pull` **PASS**.
+- Staff JWT on `POST /api/v1/sync/pull` is 403 `staff_jwt_rejected`. `sync_pull_rejects_staff_jwt` **PASS**. Paired mesh pull still **PASS**.
+- Playwright job is in `.github/workflows/ci.yml`. **NOT RUN** in this session.
+
+### Remains unverified
+
+- Full `cargo test --workspace`, frontend Vitest, and the Playwright job against a live `medoc-server`. **NOT RUN**.
+- Wrong-key quarantine, activation rekey, backup open, restore pool swap, and audit archive have code changes. Dedicated tests for those paths were **NOT RUN**.
+- P2 remainder (TLS pin, backoff, cert SANs, token stripping), P3–P10, and decisions D3–D7 behavior beyond the locked choices. **NOT STARTED** or only the sync-route JWT rejection is in.
+
+### Understanding delta
+
+- The invoke list was already 314 handlers while the constant said 313. Adding `decline_patient_chart` makes 315.
+- F49 is the migration `PRAGMA foreign_keys` running on the pool. The English upgrade and the two rebuild blocks now hold one connection.
+- A staff JWT no longer reaches `/sync/*` or `/pairing/peers`. Pull requires `requesterId` equal to the mt2 device id, and a stored pairing row must be `ACCEPTED` with the same token.
+
+### Required next
+
+1. Run `cargo test --workspace`, `scripts/ci-frontend-test.sh`, and the Playwright job.
+2. Finish P1 restore (stop LAN, install the reopened pool) and add the wrong-key / rekey / archive tests.
+3. Continue P2 from the sync guard: pinned TLS, backoff, and the B1 `authorize()` core.
+
+---
+
+**Previous phase label:** Shared calendar sync after SAS (2026-10-01)
 
 ### Verified (2026-10-01 — replica ↔ master data)
 

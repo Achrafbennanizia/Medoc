@@ -96,7 +96,7 @@ export function TreatmentChartComposerPanel({
                         {treatmentFieldsLocked ? t("treatment.composer.locked_hint") : null}
                     </div>
                 </div>
-                <div className="row" style={{ alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <div className="row" style={{ alignItems: "center", gap: "var(--space-2)", flexWrap: "wrap" }}>
                     {treatmentFieldsLocked ? (
                         <Button type="button" variant="secondary" size="sm" onClick={onUnlockFields}>
                             {t("common.edit")}
@@ -109,7 +109,7 @@ export function TreatmentChartComposerPanel({
             </div>
             <div className="chart-inline-panel-body">
                 {treatmentComposerMode === "continue" && continueTreatmentOptions.length > 0 ? (
-                    <div style={{ marginBottom: 14 }}>
+                    <div style={{ marginBottom: "var(--space-4)" }}>
                         <Select
                             label={t("treatment.composer.continue_from")}
                             value={continueFromTreatmentId || continueTreatmentOptions[0]?.value || ""}
@@ -120,7 +120,7 @@ export function TreatmentChartComposerPanel({
                                 if (version) applyContinueFromTreatment(version);
                             }}
                         />
-                        <p style={{ fontSize: 12, color: "var(--fg-3)", marginTop: 6 }}>
+                        <p style={{ fontSize: 12, color: "var(--fg-3)", marginTop: "var(--space-2)" }}>
                             {t("treatment.composer.continue_hint")}
                         </p>
                     </div>
@@ -136,7 +136,7 @@ export function TreatmentChartComposerPanel({
                         />
                     </div>
                 ) : null}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" style={{ marginTop: 16 }}>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" style={{ marginTop: "var(--space-4)" }}>
                     <Input
                         id="bh-date"
                         type="date"
@@ -169,7 +169,7 @@ export function TreatmentChartComposerPanel({
                             });
                         }}
                     />
-                    <div className="col" style={{ gap: 8 }}>
+                    <div className="col" style={{ gap: "var(--space-2)" }}>
                         <Select
                             label={t("treatment.composer.service_catalog")}
                             value={treatmentForm.serviceCatalogId || ""}
@@ -216,7 +216,7 @@ export function TreatmentChartComposerPanel({
 
                 <details
                     style={{
-                        marginTop: 16,
+                        marginTop: "var(--space-4)",
                         border: "1px solid var(--line)",
                         borderRadius: 10,
                         padding: "10px 14px",

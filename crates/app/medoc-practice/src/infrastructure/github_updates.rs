@@ -10,7 +10,7 @@
 //! app uploads may not include `latest.json`.
 
 use crate::error::AppError;
-use crate::infrastructure::database::app_kv_repo;
+use crate::infrastructure::database::repos::admin::app_kv as app_kv_repo;
 use medoc_core::infrastructure::update;
 use serde::Deserialize;
 use sqlx::SqlitePool;
@@ -171,11 +171,6 @@ pub async fn check_github_updates(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn configured_repo_reads_compile_time_env() {
-        let _ = configured_repo();
-    }
 
     #[test]
     fn absent_release_is_404_or_410() {

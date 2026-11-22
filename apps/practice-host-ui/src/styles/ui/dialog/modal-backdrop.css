@@ -1,0 +1,75 @@
+/* From styles/components/overlays.css (cascade position kept by its import there). */
+@layer components {
+  .appointment-appt-block-tooth {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--accent-ink);
+    letter-spacing: 0.01em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .appointment-appt-block--week .appointment-appt-block-tooth {
+    font-size: 8px;
+  }
+
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-modal);
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: center;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: max(16px, env(safe-area-inset-top, 0px)) 16px max(20px, env(safe-area-inset-bottom, 0px));
+    box-sizing: border-box;
+    isolation: isolate;
+    background: rgba(11, 13, 18, 0.38);
+    -webkit-backdrop-filter: saturate(165%) blur(20px);
+    backdrop-filter: saturate(165%) blur(20px);
+    animation: fadeIn var(--motion-dialog) var(--ease-out) both;
+  }
+  /** Tall dialogs: grid centering clipped overflow; flex + auto margins keeps short dialogs centered and tall ones scrollable. */
+  .modal-backdrop > .modal {
+    margin-top: auto;
+    margin-bottom: auto;
+    flex-shrink: 0;
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    .modal-backdrop {
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+      background: rgba(11, 13, 18, 0.78);
+    }
+  }
+  .modal {
+    background: var(--bg-elev);
+    border-radius: 20px;
+    width: 420px;
+    max-width: min(92vw, 440px);
+    border: 1px solid rgba(255, 255, 255, 0.75);
+    box-shadow:
+      0 0 0 1px rgba(10, 12, 16, 0.04),
+      0 28px 90px rgba(10, 12, 16, 0.38);
+    overflow: hidden;
+    animation: popIn var(--motion-dialog) var(--ease-out) both;
+  }
+  .modal--centered { position: relative; }
+  .modal--centered .modal-close-corner {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 2;
+    background: rgba(255, 255, 255, 0.92);
+    border-radius: 10px;
+    box-shadow: 0 0 0 1px rgba(10, 12, 16, 0.06);
+  }
+  .modal--centered .modal-body {
+    padding-top: 40px;
+  }
+  .modal.emergency-confirm-dialog {
+    width: min(304px, 86vw);
+  }
+}

@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::sync::{Arc, Mutex};
+
 use std::time::Duration;
 
 use mdns_sd::{ServiceDaemon, ServiceEvent, ServiceInfo};
@@ -73,33 +73,40 @@ pub fn scan_admins(timeout: Duration) -> Result<Vec<AdminEndpoint>, AppError> {
 fn scan_mdns_admins(timeout: Duration) -> Result<Vec<AdminEndpoint>, AppError> {
     let daemon = ServiceDaemon::new().map_err(map_mdns)?;
     let receiver = daemon.browse(SERVICE_TYPE).map_err(map_mdns)?;
-    let found: Arc<Mutex<Vec<AdminEndpoint>>> = Arc::new(Mutex::new(Vec::new()));
-    let found2 = Arc::clone(&found);
-    std::thread::spawn(move || {
-        while let Ok(event) = receiver.recv() {
-            if let ServiceEvent::ServiceResolved(info) = event {
+    let deadline = std::time::Instant::now() + timeout;
+    let mut found: Vec<AdminEndpoint> = Vec::new();
+    // Read events on this (blocking) thread until the window closes — no detached thread that outlives
+    // the scan, and the daemon is shut down afterwards (each scan used to leak a daemon + socket + thread).
+    loop {
+        let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+        if remaining.is_zero() {
+            break;
+        }
+        match receiver.recv_timeout(remaining) {
+            Ok(ServiceEvent::ServiceResolved(info)) => {
                 let host = pick_mdns_reachable_host(info.get_addresses().iter().copied());
                 let port = info.get_port();
+                if found.iter().any(|a| a.host == host && a.port == port) {
+                    continue;
+                }
                 let cluster_id = info
                     .get_properties()
                     .get("cluster_id")
                     .map(|version| version.val_str().to_string());
-                if let Ok(mut list) = found2.lock() {
-                    list.push(AdminEndpoint {
-                        host,
-                        port,
-                        instance_name: info.get_fullname().to_string(),
-                        cluster_id,
-                    });
-                }
+                found.push(AdminEndpoint {
+                    host,
+                    port,
+                    instance_name: info.get_fullname().to_string(),
+                    cluster_id,
+                });
             }
+            Ok(_) => {}
+            Err(_) => break,
         }
-    });
-    std::thread::sleep(timeout);
-    let list = found
-        .lock()
-        .map_err(|_| AppError::Internal("mdns lock".into()))?;
-    Ok(list.clone())
+    }
+    let _ = daemon.stop_browse(SERVICE_TYPE);
+    let _ = daemon.shutdown();
+    Ok(found)
 }
 
 /// Same-machine master (second MeDoc window) is often missed by mDNS. Probe TCP.

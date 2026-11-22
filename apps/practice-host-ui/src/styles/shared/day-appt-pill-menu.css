@@ -1,0 +1,64 @@
+/* From styles/features/schedule.css (cascade position kept by its import there). */
+@layer components {
+  .day-appt-list-badges {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    justify-content: flex-end;
+  }
+  .pill.day-appt-severity-pill,
+  .pill.day-appt-list-status {
+    padding: 6px 12px;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    flex-shrink: 0;
+  }
+  .day-appt-pill-actions {
+    position: relative;
+    flex-shrink: 0;
+  }
+  .day-appt-pill-more {
+    width: 32px;
+    height: 32px;
+  }
+  .day-appt-pill-menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 6px);
+    z-index: 30;
+    min-width: 168px;
+    padding: 4px;
+    background: var(--bg-elev);
+    border: 1px solid var(--line-strong);
+    border-radius: 12px;
+    box-shadow: var(--shadow-lg);
+  }
+  .day-appt-pill-menu button {
+    display: block;
+    width: 100%;
+    text-align: start;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 13px;
+    font-weight: 500;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    color: var(--fg);
+  }
+  .day-appt-pill-menu button:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--fg) 6%, transparent);
+  }
+  .day-appt-pill-menu button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .schedule-workspace {
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr);
+    gap: 14px;
+    min-height: 0;
+  }
+}

@@ -19,17 +19,7 @@ import { Button } from "./ui/button";
 import { ConfirmDialog } from "./ui/dialog";
 import { Input, Select, Textarea } from "./ui/input";
 import { useToastStore } from "./ui/toast-store";
-import { localYmd } from "@/lib/practice-clock";
-
-function todayISO(): string {
-    return localYmd();
-}
-
-function isOverdue(b: PurchaseOrder): boolean {
-    if (!b.expected_on) return false;
-    if (b.status === "DELIVERED" || b.status === "CANCELLED") return false;
-    return b.expected_on < todayISO();
-}
+import { purchaseOrderIsOverdue } from "@/lib/purchase-order-is-overdue";
 
 function statusPill(status: OrderStatus, overdue: boolean, t: (key: string) => string): { className: string; label: string } {
     if (overdue) return { className: "pill orange", label: t("page.purchase_orders.status.overdue") };
@@ -103,7 +93,7 @@ export function PurchaseOrderDetailDrawer({
     const [products, setProducts] = useState<Product[]>([]);
 
     const statusOptions = useMemo(() => orderStatusOptions(t), [t]);
-    const overdue = useMemo(() => isOverdue(purchase_order), [purchase_order]);
+    const overdue = useMemo(() => purchaseOrderIsOverdue(purchase_order), [purchase_order]);
     const pill = statusPill(purchase_order.status, overdue, t);
 
     useEffect(() => {

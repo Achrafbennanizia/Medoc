@@ -1,3 +1,4 @@
+import { isCompletePairingCode, normalizePairingCodeInput, PAIRING_CODE_LENGTH } from "@/lib/pairing-code";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -12,10 +13,11 @@ import {
 } from "@/systems/practice-host/controllers/cluster.controller";
 import { useClusterStore } from "@/models/store/cluster-store";
 import { Button } from "@/views/components/ui/button";
-import { errorMessage } from "@/lib/utils";
+import { errorMessage, masterDeviceUnreachable } from "@/lib/utils";
 import { useToastStore } from "@/views/components/ui/toast-store";
 import { rewriteDigitsForMode } from "@/lib/arabic-numerals";
 import { useT } from "@/lib/i18n";
+import { PAGE_REFRESH_EVENT } from "@/views/layouts/page-refresh";
 
 const DEFAULT_PORT = 49300;
 
@@ -78,12 +80,14 @@ export function ClusterJoinFlow({ onComplete, onBack, completeWithAccountSetup =
     }, [scan]);
 
     const finishSuccess = useCallback(async () => {
-        setStatus(await clusterGetStatus());
+        setStatus(await clusterGetStatus().catch(() => null));
         if (completeWithAccountSetup || completeWithLogin) {
             navigate("/login", { replace: true });
             return;
         }
         onComplete?.();
+        window.dispatchEvent(new Event(PAGE_REFRESH_EVENT));
+        window.setTimeout(() => window.dispatchEvent(new Event(PAGE_REFRESH_EVENT)), 600);
     }, [completeWithAccountSetup, completeWithLogin, navigate, onComplete, setStatus]);
 
     const join = async (admin: JoinAdminTarget) => {
@@ -95,7 +99,13 @@ export function ClusterJoinFlow({ onComplete, onBack, completeWithAccountSetup =
             setPhase("sas");
             toast(t("page.lan.cluster_join.toast.request_sent"), "info");
         } catch (e) {
-            toast(`${t("page.lan.cluster_join.toast.connect_failed")} ${errorMessage(e)}`, "error");
+            const raw = errorMessage(e);
+            toast(
+                masterDeviceUnreachable(raw)
+                    ? t("page.lan.cluster_join.toast.connect_failed")
+                    : `${t("page.lan.cluster_join.toast.connect_failed")} ${raw}`,
+                "error",
+            );
         } finally {
             setJoinBusy(false);
         }
@@ -112,21 +122,28 @@ export function ClusterJoinFlow({ onComplete, onBack, completeWithAccountSetup =
     };
 
     const confirmSas = async () => {
-        if (!handle) return;
+        if (!handle || !isCompletePairingCode(digits)) return;
         setJoinBusy(true);
+        setPhase("wait");
         try {
             const result = await clusterSubmitSas(handle, digits, handshakeTranscriptB64);
             if (result.success) {
-                setPhase("wait");
                 toast(t("page.lan.cluster_join.toast.provisioning_done"), "success");
                 await finishSuccess();
             } else if (result.alreadyProvisioned) {
+                setPhase("sas");
                 toast(t("page.lan.cluster_join.toast.already_provisioned"), "error");
             } else {
+                setPhase("sas");
                 toast(t("page.lan.cluster_join.toast.sas_invalid"), "error");
             }
         } catch (e) {
-            toast(errorMessage(e), "error");
+            setPhase("sas");
+            const raw = errorMessage(e);
+            toast(
+                masterDeviceUnreachable(raw) ? t("page.lan.cluster_join.toast.connect_failed") : raw,
+                "error",
+            );
         } finally {
             setJoinBusy(false);
         }
@@ -237,20 +254,21 @@ export function ClusterJoinFlow({ onComplete, onBack, completeWithAccountSetup =
                         {t("page.lan.cluster_join.sas_label")}
                         <input
                             inputMode="numeric"
-                            maxLength={4}
+                            maxLength={PAIRING_CODE_LENGTH}
                             value={digits}
                             onChange={(e) =>
-                                setDigits(
-                                    rewriteDigitsForMode(e.target.value, "western")
-                                        .replace(/\D/g, "")
-                                        .slice(0, 4),
-                                )
+                                setDigits(normalizePairingCodeInput(rewriteDigitsForMode(e.target.value, "western")))
                             }
                         />
                     </label>
                     <div className="onboarding-actions onboarding-actions--row">
-                        <Button type="button" disabled={joinBusy || digits.length !== 4} onClick={() => void confirmSas()}>
-                            {t("common.confirm")}
+                        <Button
+                            type="button"
+                            loading={joinBusy}
+                            disabled={joinBusy || !isCompletePairingCode(digits)}
+                            onClick={() => void confirmSas()}
+                        >
+                            {joinBusy ? t("page.lan.cluster_join.provisioning_wait") : t("common.confirm")}
                         </Button>
                         <Button type="button" variant="secondary" disabled={joinBusy} onClick={resetJoin}>
                             {t("page.lan.cluster_join.cancel")}

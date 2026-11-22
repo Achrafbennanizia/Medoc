@@ -17,6 +17,6 @@ pub use beacon::{
 };
 pub use lan_iface::{
     is_ignored_lan_iface, lan_ipv4_addr_score, pick_private_lan_ipv4, pick_private_lan_ipv4_bind,
-    LanIpv4Bind,
+    practice_lan_ipv4_addrs, LanIpv4Bind,
 };
-pub use lan_udp::{run_discovery_responder, scan_lan_hosts};
+pub use lan_udp::{run_discovery_responder, scan_lan_hosts, scan_lan_hosts_on_ports};

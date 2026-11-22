@@ -2,8 +2,8 @@
  * Shared logic for payment booking: patient-chart services and Finance → new payment.
  */
 import type { Treatment, Examination, Payment } from "@/models/types";
-import { paymentStatusDisplay as paymentStatusDisplayI18N, paymentMethodLabel as paymentMethodLabelI18N } from "@/lib/finance-order-labels";
-import { clinicalServiceLabel } from "@/lib/clinical-service-label";
+import { paymentMethodLabel } from "@/lib/finance-order-labels";
+import { clinicalServiceLabel, examinationLineLabel, treatmentLineLabel } from "@/lib/clinical-service-label";
 
 type TFn = (key: string) => string;
 
@@ -12,25 +12,8 @@ export const PAYMENT_KIND_VALUES = ["CASH", "CARD", "BANK_TRANSFER", "INVOICE"] 
 export function paymentMethodSelectOptions(t: TFn) {
     return PAYMENT_KIND_VALUES.map((value) => ({
         value,
-        label: paymentMethodLabelI18N(value, t),
+        label: paymentMethodLabel(value, t),
     }));
-}
-
-/** @deprecated Use paymentMethodSelectOptions(t) */
-export const PAYMENT_KIND_SELECT = [
-    { value: "CASH", label: "Cash" },
-    { value: "CARD", label: "Card" },
-    { value: "BANK_TRANSFER", label: "Bank transfer" },
-    { value: "INVOICE", label: "Invoice" },
-] as const;
-
-/** Status badge display for payment rows (patient Chart + Finance). */
-export function paymentStatusDisplay(status: string, t: TFn) {
-    return paymentStatusDisplayI18N(status, t);
-}
-
-export function paymentMethodLabel(kind: string, t: TFn): string {
-    return paymentMethodLabelI18N(kind, t);
 }
 
 export function paymentCountsTowardPaid(status: string): boolean {
@@ -446,13 +429,13 @@ export function buildPaymentLinkSelectOptions(
     for (const b of treatments) {
         const bn = (b.treatment_number ?? "").trim();
         const bnr = bn ? tp("payment.link.b_nr", { nr: bn }) : t("payment.link.b_nr_missing");
-        const line = (b.service_name || b.description || b.kind || t("payment.link.treatment")).trim();
+        const line = treatmentLineLabel(b, t("payment.link.treatment"));
         opts.push({ value: `treatment:${b.id}`, label: line ? `${bnr} — ${line}` : bnr });
     }
     for (const u of examinations) {
         const un = (u.examination_number ?? "").trim();
         const unr = un ? tp("payment.link.u_nr", { nr: un }) : t("payment.link.u_nr_missing");
-        const line = (u.service_name || u.diagnosis || t("payment.link.examination")).trim();
+        const line = examinationLineLabel(u, t("payment.link.examination"));
         opts.push({ value: `examination:${u.id}`, label: line ? `${unr} — ${line}` : unr });
     }
     return opts;
@@ -469,7 +452,7 @@ export function formatPaymentReferenceLine(
     if (z.treatment_id) {
         const b = treatments.find((x) => x.id === z.treatment_id);
         const nr = b?.treatment_number?.trim() || "—";
-        const sub = b ? clinicalServiceLabel((b.service_name || b.description || b.kind || "").trim()) : "";
+        const sub = b ? clinicalServiceLabel(treatmentLineLabel(b)) : "";
         const prefix = t && tp
             ? (nr === "—" ? t("payment.link.b_nr_missing") : tp("payment.link.b_nr", { nr }))
             : (nr === "—" ? "B-Nr. —" : `B-Nr. ${nr}`);

@@ -1,0 +1,67 @@
+/* From styles/features/settings-sections.css (cascade position kept by its import there). */
+@layer components {
+  .settings-btn-danger-text {
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 650;
+    color: var(--red);
+    padding: 6px 10px;
+    border-radius: var(--radius-sm);
+    transition: background var(--motion-fast) var(--ease-out);
+  }
+  .settings-btn-danger-text:hover {
+    background: color-mix(in oklab, var(--red) 10%, transparent);
+  }
+  /* Settings › Practice: layout */
+  .settings-practice-intro {
+    margin: 0;
+    max-width: 52em;
+  }
+  .settings-practice-intro--tight {
+    margin-top: var(--space-2);
+  }
+  .settings-practice-fields {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-width: 0;
+  }
+  .settings-practice-section-title {
+    margin: var(--space-1) 0 0;
+    font-size: 13px;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    color: var(--fg-2);
+  }
+  .settings-practice-fields .settings-practice-section-title:first-child {
+    margin-top: 0;
+  }
+  .settings-practice-field-hint {
+    margin: calc(-1 * var(--space-2)) 0 0 !important;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .settings-practice-addr-ta {
+    resize: vertical;
+    min-height: 7.5rem;
+    line-height: 1.45;
+  }
+  .settings-practice-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--line);
+  }
+  .settings-practice-actions--unsaved {
+    padding: var(--space-3) var(--card-pad-x);
+    margin: var(--space-2) calc(-1 * var(--card-pad-x)) 0;
+    border-radius: var(--radius-ctl);
+    border: 1px solid color-mix(in oklab, var(--accent) 22%, var(--line));
+    background: color-mix(in oklab, var(--accent-soft) 70%, var(--bg-elev));
+  }
+}

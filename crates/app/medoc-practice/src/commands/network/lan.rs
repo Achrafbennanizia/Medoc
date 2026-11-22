@@ -10,9 +10,9 @@ use tauri::{AppHandle, Manager, State};
 use tokio::task::JoinHandle;
 
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::error::AppError;
-use crate::infrastructure::database::app_kv_repo;
+use crate::infrastructure::database::repos::admin::app_kv as app_kv_repo;
 use crate::infrastructure::lan_server::{
     discovery, secrets, tls, LanBeaconPayload, LanServerConfigV1, APP_KV_KEY,
 };
@@ -49,6 +49,8 @@ pub struct LanServerStatusPayload {
     pub suggested_base_urls: Vec<String>,
     /// SHA-256 fingerprint of the self-signed LAN certificate (pin on clients).
     pub tls_cert_sha256: Option<String>,
+    /// This process must not bind the practice server (replica or secondary window).
+    pub hosting_disabled: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -61,6 +63,25 @@ pub struct LanDiscoveryHitDto {
     pub version: String,
     pub tls: bool,
     pub cert_sha256: String,
+}
+
+/// Discovery ports to probe: this device's configured LAN port, the product default, and the legacy
+/// pairing port (or `MEDOC_DISCOVERY_PORT`). Used by every LAN scan so they all find the same hosts.
+pub(crate) async fn discovery_ports_to_probe(pool: &SqlitePool) -> Vec<u16> {
+    let mut ports = Vec::new();
+    if let Ok(cfg) = load_or_default_config(pool).await {
+        ports.push(cfg.udp_discovery_port);
+    }
+    ports.push(LanServerConfigV1::default().udp_discovery_port);
+    ports.push(
+        std::env::var("MEDOC_DISCOVERY_PORT")
+            .ok()
+            .and_then(|s| s.parse::<u16>().ok())
+            .unwrap_or(8788),
+    );
+    ports.sort_unstable();
+    ports.dedup();
+    ports
 }
 
 async fn load_or_default_config(pool: &SqlitePool) -> Result<LanServerConfigV1, AppError> {
@@ -130,12 +151,14 @@ pub async fn lan_server_set_config(
 }
 
 #[tauri::command]
-#[tracing::instrument(level = "info", skip(control, session_state))]
-pub fn lan_server_status(
+#[tracing::instrument(level = "info", skip(pool, control, session_state))]
+pub async fn lan_server_status(
+    pool: State<'_, SqlitePool>,
     control: State<'_, LanServerControl>,
     session_state: State<'_, SessionState>,
 ) -> Result<LanServerStatusPayload, AppError> {
     rbac::require(&session_state, "ops.system")?;
+    let hosting_disabled = lan_listen_block_reason(&pool).await.is_some();
     let inner = control.0.lock().unwrap_or_else(|e| e.into_inner());
     let Some(rt) = inner.runtime.as_ref() else {
         return Ok(LanServerStatusPayload {
@@ -146,6 +169,7 @@ pub fn lan_server_status(
             instance_label: None,
             suggested_base_urls: vec![],
             tls_cert_sha256: None,
+            hosting_disabled,
         });
     };
     let urls = local_ipv4_urls(rt.cfg.http_port);
@@ -157,6 +181,7 @@ pub fn lan_server_status(
         instance_label: Some(rt.cfg.instance_label.clone()),
         suggested_base_urls: urls,
         tls_cert_sha256: Some(rt.tls_cert_sha256.clone()),
+        hosting_disabled,
     })
 }
 
@@ -209,15 +234,21 @@ pub async fn start_lan_embedded(
     }
 
     let cfg = load_or_default_config(&pool).await?;
-    let app_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| AppError::Internal(format!("App data directory: {e}")))?;
+    let app_dir = crate::commands::app_data_dir(&app)?;
 
     let jwt_arr = secrets::ensure_jwt_secret_bytes(&app_dir)?;
     let jwt_secret: Arc<[u8; 32]> = Arc::new(jwt_arr);
     let instance_id = secrets::ensure_instance_id(&app_dir)?;
     let tls_identity = tls::ensure_lan_tls_identity(&app_dir)?;
+    medoc_sync::tls_pin::remember_local_pin(&pool, &tls_identity.sha256_fingerprint).await?;
+
+    if let Err(error) = medoc_sync::master_keys::align_to_license(&pool).await {
+        tracing::warn!(
+            target: "medoc::lan",
+            event = "MASTER_SIGNING_KEY_ALIGN_FAILED",
+            %error
+        );
+    }
 
     let brute = Arc::new(BruteForceTracker::new());
     brute
@@ -303,6 +334,7 @@ pub async fn start_lan_embedded(
         instance_label: Some(cfg.instance_label.clone()),
         suggested_base_urls: local_ipv4_urls(cfg.http_port),
         tls_cert_sha256: Some(tls_identity.sha256_fingerprint),
+        hosting_disabled: false,
     })
 }
 
@@ -320,6 +352,13 @@ pub async fn lan_server_start(
 
 /// Called once after DB init: start LAN with the desktop app.
 pub async fn auto_start_if_enabled(app: AppHandle, pool: SqlitePool) {
+    if medoc_sync::pairing::is_network_hidden(&pool)
+        .await
+        .unwrap_or(false)
+    {
+        tracing::info!(target: "medoc::lan", event = "LAN_AUTO_START_SKIP_HIDDEN");
+        return;
+    }
     if lan_listen_block_reason(&pool).await.is_some() {
         tracing::info!(target: "medoc::lan", event = "LAN_AUTO_START_SKIP");
         return;
@@ -372,6 +411,21 @@ pub async fn auto_start_replica_sync_lan(
     tracing::info!(target: "medoc::lan", event = "REPLICA_CLIENT_ONLY_NO_LAN");
 }
 
+/// Stop the embedded LAN listener so a restore can replace `medoc.db`.
+pub async fn stop_lan_listener(control: &LanServerControl) {
+    let rt = {
+        let mut g = control.0.lock().unwrap_or_else(|e| e.into_inner());
+        g.runtime.take()
+    };
+    let Some(rt) = rt else {
+        return;
+    };
+    rt.shutdown.store(true, Ordering::SeqCst);
+    let _ = tokio::time::timeout(Duration::from_secs(6), rt.http_task).await;
+    let _ = tokio::time::timeout(Duration::from_secs(2), rt.udp_task).await;
+    tracing::info!(target: "medoc::lan", event = "LAN_SERVER_STOPPED");
+}
+
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(control, session_state))]
 pub async fn lan_server_stop(
@@ -379,21 +433,7 @@ pub async fn lan_server_stop(
     session_state: State<'_, SessionState>,
 ) -> Result<(), AppError> {
     rbac::require(&session_state, "ops.system")?;
-
-    let rt = {
-        let mut g = control.0.lock().unwrap_or_else(|e| e.into_inner());
-        g.runtime.take()
-    };
-
-    let Some(rt) = rt else {
-        return Ok(());
-    };
-
-    rt.shutdown.store(true, Ordering::SeqCst);
-    let _ = tokio::time::timeout(Duration::from_secs(6), rt.http_task).await;
-    let _ = tokio::time::timeout(Duration::from_secs(2), rt.udp_task).await;
-
-    tracing::info!(target: "medoc::lan", event = "LAN_SERVER_STOPPED");
+    stop_lan_listener(&control).await;
     Ok(())
 }
 
@@ -405,10 +445,10 @@ pub async fn lan_server_scan(
     label_contains: Option<String>,
 ) -> Result<Vec<LanDiscoveryHitDto>, AppError> {
     rbac::require(&session_state, "ops.system")?;
-    let cfg = load_or_default_config(&pool).await?;
-    let hits = discovery::scan_lan_hosts(
-        cfg.udp_discovery_port,
-        Duration::from_millis(2500),
+    let ports = discovery_ports_to_probe(&pool).await;
+    let hits = discovery::scan_lan_hosts_on_ports(
+        &ports,
+        Duration::from_millis(3500),
         label_contains.as_deref(),
     )
     .await
@@ -426,17 +466,4 @@ pub async fn lan_server_scan(
             cert_sha256: p.cert_sha256.clone(),
         })
         .collect())
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_lan_commands {
-    () => {
-        $crate::commands::lan_commands::lan_server_get_config,
-        $crate::commands::lan_commands::lan_server_set_config,
-        $crate::commands::lan_commands::lan_server_status,
-        $crate::commands::lan_commands::lan_server_start,
-        $crate::commands::lan_commands::lan_server_stop,
-        $crate::commands::lan_commands::lan_server_scan,
-    };
 }

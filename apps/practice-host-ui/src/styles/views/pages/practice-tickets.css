@@ -1,0 +1,72 @@
+/* From styles/features/tasks-orders.css (cascade position kept by its import there). */
+@layer components {
+  .purchase_orders-status-select.select-trigger .select-trigger-label {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    -webkit-line-clamp: unset;
+    -webkit-box-orient: unset;
+  }
+  .purchase_orders-status-cell .select-menu {
+    inset-inline-start: auto;
+    inset-inline-end: 0;
+    width: max-content;
+    min-width: 100%;
+    max-width: min(14rem, calc(100vw - 48px));
+    max-height: none;
+    overflow: visible;
+  }
+  .purchase_orders-status-cell .select-menu .select-option {
+    white-space: nowrap;
+  }
+
+  /* Practice-Aufgaben — inbox + admin */
+  .practice-tasks-page {
+    min-width: 0;
+    width: 100%;
+  }
+  .practice-tasks-page__head {
+    gap: var(--space-3);
+  }
+  .practice-tasks-page__head-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    width: 100%;
+  }
+  .practice-tasks-tabs {
+    width: fit-content;
+    max-width: 100%;
+  }
+  .practice-task-inbox-toolbar {
+    margin-bottom: var(--space-3);
+  }
+  .practice-task-inbox-toolbar .page-toolbar__filters {
+    margin-inline-start: 0;
+  }
+  .practice-tasks-inbox-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .practice-task-inbox-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
+    width: 100%;
+    text-align: start;
+    padding: 14px 16px;
+    border-radius: var(--radius-card);
+    border: 1px solid var(--line);
+    background: var(--bg-elev);
+    cursor: pointer;
+    transition:
+      border-color var(--motion-fast) var(--ease-out),
+      box-shadow var(--motion-fast) var(--ease-out),
+      background var(--motion-fast) var(--ease-out);
+  }
+}

@@ -1,5 +1,7 @@
-import { describe, expect, it } from "vitest";
-import { amountsMatch, filterPaymentsForLocalDay, parseEuroInput, sumCashDay, paymentLocalYmd } from "./day-close";
+import { afterEach, describe, expect, it } from "vitest";
+import { amountsMatch, filterPaymentsForLocalDay, filterReceptionCashQueue, sumCashDay, paymentLocalYmd } from "./day-close";
+import { parseEuroInput } from "./utils";
+import { mirrorPracticeTimezoneLocal, PRACTICE_TIMEZONE_LS_KEY } from "./practice-timezone";
 import type { Payment } from "@/models/types";
 
 const base: Omit<Payment, "id" | "created_at" | "amount"> = {
@@ -11,8 +13,24 @@ const base: Omit<Payment, "id" | "created_at" | "amount"> = {
 };
 
 describe("day_close", () => {
+    afterEach(() => {
+        try {
+            localStorage.removeItem(PRACTICE_TIMEZONE_LS_KEY);
+        } catch {
+            /* ignore */
+        }
+    });
+
     it("maps local ymd for ISO datetime", () => {
         expect(paymentLocalYmd("2026-04-26T12:00:00")).toBe("2026-04-26");
+    });
+
+    it("buckets payment calendar days in the practice time zone", () => {
+        // 2026-06-15 22:30 UTC → 2026-06-16 in Berlin, still 2026-06-15 in UTC.
+        mirrorPracticeTimezoneLocal("Europe/Berlin");
+        expect(paymentLocalYmd("2026-06-15 22:30:00")).toBe("2026-06-16");
+        mirrorPracticeTimezoneLocal("UTC");
+        expect(paymentLocalYmd("2026-06-15 22:30:00")).toBe("2026-06-15");
     });
 
         it("sums cash for day", () => {
@@ -22,6 +40,18 @@ describe("day_close", () => {
         ];
         expect(filterPaymentsForLocalDay(z, "2026-04-26")).toHaveLength(2);
         expect(sumCashDay(z, "2026-04-26")).toBe(10);
+    });
+
+    it("shows a payment filled today on an older open booking", () => {
+        const filled: Payment = {
+            ...base,
+            id: "old",
+            amount: 40,
+            created_at: "2026-11-10 09:00:00",
+            updated_at: "2026-11-16T08:30:00Z",
+        };
+        expect(filterReceptionCashQueue([filled], "2026-11-16")).toHaveLength(1);
+        expect(filterReceptionCashQueue([filled], "2026-11-10")).toHaveLength(0);
     });
 
     it("amountsMatch tolerates cent rounding", () => {
@@ -46,6 +76,14 @@ describe("day_close", () => {
 
         it("single dot as decimal when no comma", () => {
             expect(parseEuroInput("12.34")).toBe(12.34);
+            expect(parseEuroInput("245.50")).toBe(245.5);
+            expect(parseEuroInput("245.500")).toBe(245.5);
+            expect(parseEuroInput("12.345")).toBe(12.345);
+        });
+
+        it("parses English thousands with a decimal point", () => {
+            expect(parseEuroInput("1,234.50")).toBe(1234.5);
+            expect(parseEuroInput("1,234.500")).toBe(1234.5);
         });
 
         it("returns null for empty or invalid", () => {

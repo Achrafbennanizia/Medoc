@@ -1,0 +1,64 @@
+/* From styles/pages/appointments-cards.css (cascade position kept by its import there). */
+html[dir="rtl"] .appointment-drawer-panel {
+  box-shadow:
+    12px 0 40px rgba(10, 12, 16, 0.22),
+    0 0 0 1px rgba(10, 12, 16, 0.06);
+  animation-name: slideInLeft;
+}
+html[dir="rtl"] .toast-stack {
+  align-items: flex-start;
+}
+html[dir="rtl"] .toast-progress-bar {
+  transform-origin: right center;
+}
+.appointment-drawer-body-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--card-pad-x);
+  padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  -webkit-overflow-scrolling: touch;
+}
+.appointment-drawer-panel-foot {
+  flex-shrink: 0;
+  padding: max(12px, env(safe-area-inset-bottom, 12px)) var(--card-pad-x) max(16px, env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--line);
+  background: var(--bg-elev);
+  box-shadow: 0 -8px 24px rgba(10, 12, 16, 0.04);
+}
+.appointment-drawer-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.appointment-drawer-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--fg-3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.appointment-drawer-title {
+  margin: 6px 0 4px;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.appointment-drawer-sub {
+  color: var(--fg-3);
+  font-size: 15px;
+}
+.appointment-drawer-section {
+  margin: 0 0 18px;
+}
+.appointment-drawer-section:last-child {
+  margin-bottom: 10px;
+}
+.appointment-drawer-meta-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px 16px;
+  margin: 8px 0 22px;
+}

@@ -26,7 +26,7 @@ use axum::http::StatusCode;
 use chrono::{NaiveDate, Utc};
 use medoc_core::domain::entities::patient::CreatePatient;
 use medoc_core::domain::enums::Sex;
-use medoc_core::infrastructure::database::patient_repo;
+use medoc_core::infrastructure::database::repos::clinical::patient as patient_repo;
 use medoc_e2e::harness::{slave_pubkey_b64, slave_signing_key, LanHarness};
 use medoc_sync::repo::OutboxEntry;
 use std::net::SocketAddr;
@@ -204,7 +204,7 @@ async fn replica_pull_sees_master_local_writes() {
 
     // Master is in `serverless_peer` mode AS MASTER for this test, so its
     // local writes append to `sync_outbox` (see `sync_outbox_hooks_tests`).
-    medoc_core::infrastructure::database::app_kv_repo::set(
+    medoc_core::infrastructure::database::repos::admin::app_kv::set(
         &lan.pool,
         "sync.deployment.v1",
         r#"{"schemaVersion":1,"mode":"serverless_peer","role":"MASTER","masterBaseUrl":"","masterCertSha256":"","masterAccessToken":"","deviceLabel":"E2E Master"}"#,
@@ -253,14 +253,32 @@ async fn replica_pull_sees_master_local_writes() {
         .await;
     assert_eq!(status, StatusCode::OK, "pull: {pull_body:?}");
     let entries = pull_body["entries"].as_array().expect("entries array");
-    assert!(
-        entries.iter().any(|e| e["entityTable"] == "patient"),
-        "expected a patient row in pull: {entries:?}"
-    );
-    assert!(
-        entries.iter().any(|e| e["entityTable"] == "patient_chart"),
-        "expected a patient_chart row in pull (auto-created): {entries:?}"
-    );
+    let patient = entries
+        .iter()
+        .find(|e| e["entityTable"] == "patient" && e["op"] == "INSERT")
+        .unwrap_or_else(|| panic!("expected a patient INSERT in pull: {entries:?}"));
+    let patient_payload: serde_json::Value =
+        serde_json::from_str(patient["payloadJson"].as_str().unwrap_or("{}"))
+            .expect("patient payload json");
+    assert_eq!(patient_payload["name"], "Master Local Write");
+    assert!(patient_payload.get("date_of_birth").is_some());
+
+    // Current create() contract: chart and anamnesis are recorded, and their
+    // payloads carry only ids (full column sync is a later phase).
+    for table in ["patient_chart", "anamnesis_form"] {
+        let row = entries
+            .iter()
+            .find(|e| e["entityTable"] == table && e["op"] == "INSERT")
+            .unwrap_or_else(|| panic!("expected {table} INSERT in pull: {entries:?}"));
+        let payload: serde_json::Value =
+            serde_json::from_str(row["payloadJson"].as_str().unwrap_or("{}"))
+                .expect("payload json");
+        assert!(payload.get("id").is_some(), "{table} payload has id");
+        assert!(
+            payload.get("patient_id").is_some(),
+            "{table} payload has patient_id"
+        );
+    }
 }
 
 #[tokio::test]
@@ -531,7 +549,13 @@ async fn pull_with_unknown_master_device_id_returns_empty_entries() {
         )
         .await;
     assert_eq!(status, StatusCode::OK, "pull body: {body:?}");
-    assert_eq!(body["entries"].as_array().map(|a| a.len()), Some(0));
+    let entries = body["entries"].as_array().expect("entries array");
+    assert!(
+        !entries
+            .iter()
+            .any(|e| e["deviceId"] == "nonexistent-device-xyz"),
+        "must not leak a foreign device outbox: {body:?}"
+    );
 }
 
 #[tokio::test]

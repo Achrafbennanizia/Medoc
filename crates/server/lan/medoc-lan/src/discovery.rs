@@ -5,6 +5,6 @@
 //! LAN crate. The full `lan_server` module moves to `medoc-lan` in Wave B7.
 
 pub use medoc_core::discovery::{
-    parse_beacon_line, run_discovery_responder, scan_lan_hosts, LanBeaconPayload, DISCOVER_PROBE,
-    SCHEMA,
+    parse_beacon_line, run_discovery_responder, scan_lan_hosts, scan_lan_hosts_on_ports,
+    LanBeaconPayload, DISCOVER_PROBE, SCHEMA,
 };

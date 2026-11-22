@@ -1,0 +1,31 @@
+/* From styles/components/table.css (cascade position kept by its import there). */
+@layer components {
+  /* Status badge (packages/ui/src/status-badge.tsx) */
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    max-width: 100%;
+  }
+  .status-badge__flag { font-weight: 500; }
+  .appointment-appt-status-flag {
+    margin-inline-start: var(--space-1);
+    font-size: 0.9em;
+    opacity: 0.85;
+  }
+  .kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.75em;
+    padding: 2px 6px;
+    border-radius: 6px;
+    border: 1px solid var(--line-strong);
+    border-bottom-width: 2px;
+    background: var(--bg-elev);
+    color: var(--fg-2);
+    font: 600 11.5px/1.3 var(--font-ui);
+    font-variant-numeric: tabular-nums;
+  }
+}

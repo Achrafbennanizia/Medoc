@@ -1,4 +1,5 @@
-import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
+import type { z } from "zod";
+import { practiceSystem } from "@/systems/practice-host/adapters/practice-transport";
 import { CreatePrescriptionSchema, UpdatePrescriptionSchema, parseOrThrow } from "@/lib/schemas";
 
 export interface Prescription {
@@ -23,23 +24,7 @@ export interface Prescription {
     prescribing_physician_id?: string | null;
 }
 
-export interface CreatePrescription {
-    patient_id: string;
-    physician_id: string;
-    medication: string;
-    active_ingredient?: string | null;
-    dosage: string;
-    duration: string;
-    instructions?: string | null;
-    pzn?: string | null;
-    dosage_form?: string | null;
-    pack_size?: string | null;
-    quantity?: number | null;
-    aut_idem?: boolean | null;
-    prescription_type?: "PRIVAT" | "KASSE" | "BTM" | null;
-    icd10_code?: string | null;
-    prescribing_physician_id?: string | null;
-}
+export type CreatePrescription = z.input<typeof CreatePrescriptionSchema>;
 
 export const listPrescriptions = (patientId: string) =>
     practiceSystem.invoke<Prescription[]>("list_prescriptions", { patient_id: patientId });
@@ -52,22 +37,7 @@ export const createPrescription = (data: CreatePrescription) => {
 export const deletePrescription = (id: string) =>
     practiceSystem.invoke<void>("delete_prescription", { id });
 
-export interface UpdatePrescription {
-    id: string;
-    medication: string;
-    active_ingredient?: string | null;
-    dosage: string;
-    duration: string;
-    instructions?: string | null;
-    pzn?: string | null;
-    dosage_form?: string | null;
-    pack_size?: string | null;
-    quantity?: number | null;
-    aut_idem?: boolean | null;
-    prescription_type?: "PRIVAT" | "KASSE" | "BTM" | null;
-    icd10_code?: string | null;
-    prescribing_physician_id?: string | null;
-}
+export type UpdatePrescription = z.input<typeof UpdatePrescriptionSchema>;
 
 export const updatePrescription = (data: UpdatePrescription) => {
     const safe = parseOrThrow(UpdatePrescriptionSchema, data);

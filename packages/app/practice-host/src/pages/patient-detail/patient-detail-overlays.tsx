@@ -151,7 +151,7 @@ export function PatientDetailOverlays(props: PatientDetailOverlaysProps) {
                         </>
                     )}
                 >
-                    <div className="col" style={{ gap: 12 }}>
+                    <div className="col" style={{ gap: "var(--space-3)" }}>
                         <p style={{ margin: 0, fontSize: 14, color: "var(--fg-2)" }}>
                             {tp("patient.detail.confirm.attachment_add.message", {
                                 name: deriveAttachmentDisplayName(attachmentAddPending.file),

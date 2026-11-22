@@ -3,12 +3,13 @@
 //! - RBAC enforced via [`rbac::require`] with `purchase_order.read`/`purchase_order.write`.
 //! - Mutations are recorded in the audit log so the inventory trail is auditable.
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::domain::entities::purchase_order::{
     CreatePurchaseOrder, PurchaseOrder, UpdatePurchaseOrder,
 };
 use crate::error::AppError;
-use crate::infrastructure::database::{audit_repo, purchase_order_repo};
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
+use crate::infrastructure::database::repos::practice::purchase_order as purchase_order_repo;
 use sqlx::SqlitePool;
 use tauri::State;
 
@@ -30,6 +31,26 @@ pub async fn create_purchase_order(
     data: CreatePurchaseOrder,
 ) -> Result<PurchaseOrder, AppError> {
     let session = rbac::require(&session_state, "purchase_order.write")?;
+    let mut data = data;
+    // F85: order numbers come from the cluster sequence (main device), not MAX+1.
+    if data
+        .order_number
+        .as_deref()
+        .map(str::trim)
+        .unwrap_or("")
+        .is_empty()
+    {
+        let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+        data.order_number = Some(
+            medoc_sync::numbering::allocate_document_number(
+                pool.inner(),
+                "B",
+                &today,
+                medoc_core::infrastructure::database::number_sequence::NumberStyle::Monthly,
+            )
+            .await?,
+        );
+    }
     let b = purchase_order_repo::create(&pool, &data, &session.user_id).await?;
     audit_repo::create(
         &pool,
@@ -116,16 +137,4 @@ pub async fn delete_purchase_order(
     .await
     .ok();
     Ok(())
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_purchase_order_commands {
-    () => {
-        $crate::commands::purchase_order_commands::list_purchase_orders,
-        $crate::commands::purchase_order_commands::create_purchase_order,
-        $crate::commands::purchase_order_commands::update_purchase_order_status,
-        $crate::commands::purchase_order_commands::update_purchase_order,
-        $crate::commands::purchase_order_commands::delete_purchase_order,
-    };
 }

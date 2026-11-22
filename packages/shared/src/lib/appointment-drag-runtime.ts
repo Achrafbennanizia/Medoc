@@ -118,7 +118,9 @@ export function clearAppointmentDragBlock(): void {
     const el = dragSession.blockEl;
     if (el) {
         el.style.removeProperty("--appointment-drag-top");
-        el.classList.remove("appointment-appt-block--drag-invalid");
+        el.classList.remove("appointment-appt-block--drag-invalid", "appointment-appt-block--time-live");
+        const live = el.querySelector<HTMLElement>(".appointment-appt-block-time-live");
+        if (live) live.textContent = "";
     }
     dragSession.blockEl = null;
 }
@@ -188,20 +190,28 @@ export function paintAppointmentDragVisual(topPx: number, startMin: number, inva
     const el = dragSession.blockEl;
     if (!el) return;
     el.style.setProperty("--appointment-drag-top", `${topPx}px`);
-    const timeNode = el.querySelector<HTMLElement>(".appointment-appt-block-time");
-    if (timeNode) {
-        timeNode.textContent = minutesToTime(startMin).slice(0, 5);
-        timeNode.classList.add("appointment-appt-block-time--drag-live");
-    }
+    // The block is React's: write the live time into its own span, never into React's text node
+    // (that left the drag time on screen after a cancelled drop).
+    const live = el.querySelector<HTMLElement>(".appointment-appt-block-time-live");
+    if (live) live.textContent = minutesToTime(startMin).slice(0, 5);
+    el.classList.add("appointment-appt-block--time-live");
     el.classList.toggle("appointment-appt-block--drag-invalid", invalid);
 }
 
-export function paintAppointmentHourGutterSnap(topPx: number, startMin: number): void {
-    const snap = document.querySelector<HTMLElement>(".appointment-hour-gutter-snap--drag");
-    if (!snap) return;
-    snap.style.top = `${topPx}px`;
-    const label = snap.querySelector<HTMLElement>(".appointment-hour-gutter-snap__time");
-    if (label) label.textContent = minutesToTime(startMin).slice(0, 5);
+type HourGutterSnapListener = (startMin: number) => void;
+
+const hourGutterSnapListeners = new Set<HourGutterSnapListener>();
+
+/** Drag paints the live minute here. The gutter label rerenders from this, in its own scale. */
+export function subscribeAppointmentHourGutterSnap(listener: HourGutterSnapListener): () => void {
+    hourGutterSnapListeners.add(listener);
+    return () => {
+        hourGutterSnapListeners.delete(listener);
+    };
+}
+
+export function paintAppointmentHourGutterSnap(_topPx: number, startMin: number): void {
+    for (const listener of hourGutterSnapListeners) listener(startMin);
 }
 
 export function invalidateAppointmentDragColumnCache(): void {

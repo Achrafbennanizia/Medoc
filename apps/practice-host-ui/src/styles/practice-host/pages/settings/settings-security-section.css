@@ -1,0 +1,66 @@
+/* From styles/features/settings-sections.css (cascade position kept by its import there). */
+@layer components {
+  .company-portal-demo-notice {
+    margin-top: var(--space-3);
+  }
+  .settings-practice-billing-notice {
+    margin: var(--space-3) var(--card-pad-x) var(--space-3);
+  }
+  .settings-serverless-audit-block {
+    margin-bottom: var(--space-3);
+  }
+  .settings-security-stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    min-width: 0;
+  }
+  .settings-security-group {
+    border-top: 1px solid var(--line);
+  }
+  .settings-security-group:first-of-type {
+    border-top: none;
+  }
+  .settings-security-group__title {
+    padding: var(--space-3) var(--card-pad-x) var(--space-1);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--fg-3);
+  }
+  .settings-security-row {
+    align-items: flex-start;
+  }
+  .settings-security-row__controls {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-shrink: 0;
+  }
+  .settings-security-row__controls .ui-field-wrap { min-width: 7.5rem; }
+  .settings-security-row__body {
+    flex: 1 1 200px;
+    min-width: 0;
+  }
+  .settings-security-link-btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .settings-deferred-card {
+    background: color-mix(in oklab, var(--fg) 2%, var(--bg-elev));
+    border-style: dashed;
+  }
+  .settings-deferred-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .settings-deferred-item {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--card-pad-x);
+    border-top: 1px solid var(--line);
+  }
+}

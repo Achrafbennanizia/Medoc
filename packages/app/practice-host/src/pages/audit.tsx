@@ -8,6 +8,7 @@ import { ReportExportToolbar } from "@/views/components/report-export-toolbar";
 import type { AuditLog } from "@/models/types";
 import { totalPages, type ListResponse } from "@/lib/list-params";
 import { Badge } from "@/views/components/ui/badge";
+import { DataTable } from "@/views/components/ui/data-table";
 import { EmptyState } from "@/views/components/ui/empty-state";
 import { PageLoadError, PageLoading } from "@/views/components/ui/page-status";
 import { Button } from "@/views/components/ui/button";
@@ -60,7 +61,7 @@ export function AuditPage() {
     const pages = resp ? totalPages(resp) : 1;
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-5)" }} className="animate-fade-in">
             <WorkspacePageHeader
                 title={t("audit.page.title")}
                 subtitle={tp("audit.page.subtitle", { max: PAGE_SIZE_MAX })}
@@ -68,8 +69,8 @@ export function AuditPage() {
             />
 
             <div className="page-toolbar" style={{ alignItems: "center" }}>
-                <div className="page-toolbar__filters row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                    <label className="row" style={{ gap: 6, alignItems: "center", fontSize: 13, color: "var(--fg-3)", flexShrink: 0 }}>
+                <div className="page-toolbar__filters row" style={{ gap: "var(--space-2)", flexWrap: "wrap", alignItems: "center" }}>
+                    <label className="row" style={{ gap: "var(--space-2)", alignItems: "center", fontSize: 13, color: "var(--fg-3)", flexShrink: 0 }}>
                         {t("audit.page.rows")}
                         <select
                             className="input-edit"
@@ -88,7 +89,7 @@ export function AuditPage() {
                         </select>
                     </label>
                     {BREAK_GLASS_ENABLED ? (
-                    <label className="row" style={{ gap: 6, alignItems: "center", fontSize: 13, color: "var(--fg-3)" }}>
+                    <label className="row" style={{ gap: "var(--space-2)", alignItems: "center", fontSize: 13, color: "var(--fg-3)" }}>
                         <input
                             type="checkbox"
                             checked={breakGlassOnly}
@@ -128,48 +129,40 @@ export function AuditPage() {
                 <EmptyState icon="📋" title={t("audit.page.empty")} />
             ) : (
                 <div className="card tbl-data-card" style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-                    <div className="tbl-scroll">
-                    <table className="tbl tbl-fluid">
-                        <thead>
-                            <tr>
-                                <th>{t("audit.page.col_time")}</th><th>{t("audit.page.col_action")}</th><th>{t("audit.page.col_entity")}</th><th>{t("audit.page.col_details")}</th><th>{t("audit.page.col_emergency")}</th><th>{t("audit.page.col_user")}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {logs.map((l) => (
-                                <tr key={l.id}>
-                                    <td>{formatDateTime(l.created_at)}</td>
-                                    <td><Badge>{l.action}</Badge></td>
-                                    <td>{l.entity}</td>
-                                    <td>{l.details || "–"}</td>
-                                    <td>
-                                        {l.under_break_glass ? (
-                                            <span title={l.break_glass_reason ?? undefined}>
-                                                <Badge variant="warning">{t("audit.page.break_glass_badge")}</Badge>
-                                            </span>
-                                        ) : (
-                                            "–"
-                                        )}
-                                    </td>
-                                    <td
-                                        className="tbl-col-mono"
-                                        title={l.user_id}
-                                    >
-                                        {l.user_id}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                    </div>
+                    <DataTable
+                        label={t("audit.page.title")}
+                        rows={logs}
+                        getRowId={(l) => String(l.id)}
+                        columns={[
+                            { id: "time", header: t("audit.page.col_time"), width: "9.5rem", cell: (l) => formatDateTime(l.created_at) },
+                            { id: "action", header: t("audit.page.col_action"), width: "11rem", cell: (l) => <Badge>{l.action}</Badge> },
+                            { id: "entity", header: t("audit.page.col_entity"), width: "12%", truncate: true, hideBelow: "md", text: (l) => l.entity, cell: (l) => l.entity },
+                            { id: "details", header: t("audit.page.col_details"), truncate: true, text: (l) => l.details ?? "", cell: (l) => l.details || "–" },
+                            {
+                                id: "emergency",
+                                header: t("audit.page.col_emergency"),
+                                width: "9rem",
+                                hideBelow: "md",
+                                cell: (l) =>
+                                    l.under_break_glass ? (
+                                        <span title={l.break_glass_reason ?? undefined}>
+                                            <Badge variant="warning">{t("audit.page.break_glass_badge")}</Badge>
+                                        </span>
+                                    ) : (
+                                        "–"
+                                    ),
+                            },
+                            { id: "user", header: t("audit.page.col_user"), width: "9rem", truncate: true, hideBelow: "sm", text: (l) => l.user_id, cell: (l) => <span className="tbl-col-mono">{l.user_id}</span> },
+                        ]}
+                    />
                     <div
                         className="card-pad row"
-                        style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, borderTop: "1px solid var(--line)" }}
+                        style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "var(--space-3)", borderTop: "1px solid var(--line)" }}
                     >
                         <span style={{ color: "var(--fg-3)", fontSize: 13 }}>
                             {tp("audit.page.page_of", { page, pages })}
                         </span>
-                        <div className="row" style={{ gap: 8 }}>
+                        <div className="row" style={{ gap: "var(--space-2)" }}>
                             <Button size="sm" variant="ghost" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
                                 {t("common.back")}
                             </Button>

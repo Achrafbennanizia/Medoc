@@ -79,7 +79,7 @@ export function ChartScannerImportDialog({ open, busy, onClose, onImport }: Prop
                 </Button>
             )}
         >
-            <div className="col" style={{ gap: 12 }}>
+            <div className="col" style={{ gap: "var(--space-3)" }}>
                 <p className="page-sub" style={{ margin: 0, fontSize: 13 }}>
                     {t("migration.device.scanner_folder_hint")}
                 </p>
@@ -100,7 +100,7 @@ export function ChartScannerImportDialog({ open, busy, onClose, onImport }: Prop
                     }))}
                     onChange={(e) => setDocumentKind(normalizeChartDocumentKind(e.target.value))}
                 />
-                <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                <div className="row" style={{ gap: "var(--space-2)", flexWrap: "wrap" }}>
                     <Button
                         type="button"
                         variant="secondary"
@@ -135,7 +135,7 @@ export function ChartScannerImportDialog({ open, busy, onClose, onImport }: Prop
                                 style={{
                                     justifyContent: "space-between",
                                     alignItems: "center",
-                                    gap: 8,
+                                    gap: "var(--space-2)",
                                     padding: "8px 0",
                                     borderBottom: "1px solid var(--line)",
                                 }}

@@ -1,0 +1,64 @@
+/* From styles/features/auth-onboarding.css (cascade position kept by its import there). */
+@layer components {
+  .license-device-role-grid__cards {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+    margin-top: var(--space-3);
+  }
+  @media (max-width: 640px) {
+    .license-device-role-grid__cards {
+      grid-template-columns: 1fr;
+    }
+  }
+  .license-device-role-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-2);
+    text-align: start;
+    padding: var(--space-4);
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: var(--bg-elev);
+    cursor: pointer;
+    transition:
+      border-color var(--motion-fast) var(--ease-out),
+      box-shadow var(--motion-fast) var(--ease-out),
+      background var(--motion-fast) var(--ease-out);
+  }
+  .license-device-role-card:hover {
+    border-color: var(--line-strong);
+    box-shadow: var(--shadow-sm);
+  }
+  .license-device-role-card:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .license-device-role-card strong {
+    font-size: 15px;
+    color: var(--fg);
+  }
+  .license-device-role-card__badge {
+    display: inline-flex;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 650;
+    letter-spacing: 0.02em;
+    color: var(--accent-ink);
+    background: color-mix(in oklab, var(--accent) 18%, transparent);
+  }
+  .license-device-role-card__badge--muted {
+    color: var(--fg-2);
+    background: color-mix(in oklab, var(--fg) 8%, transparent);
+  }
+  .license-device-role-card--selected {
+    border-color: var(--accent);
+    background: color-mix(in oklab, var(--accent) 6%, var(--bg-elev));
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent) 35%, transparent);
+  }
+  .onboarding-card--wide .license-device-role-grid__cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

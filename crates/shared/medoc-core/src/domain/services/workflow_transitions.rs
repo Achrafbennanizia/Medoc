@@ -22,16 +22,10 @@ fn allowed_transition(current: &str, next: &str, allowed: &[&str]) -> Result<(),
     }
 }
 
-/// FA-TERM-01: Appointment status workflow (see `appointment_commands.rs` doc).
+/// FA-TERM-01: Appointment status workflow. Single source of truth: `domain::status::AppointmentStatus`
+/// (this used to be a second, stricter table that blocked CONFIRMED → IN_PROGRESS and reopening).
 pub fn appointment_status_transition(current: &str, next: &str) -> Result<(), AppError> {
-    let cur = current.trim().to_uppercase();
-    let allowed: &[&str] = match cur.as_str() {
-        "PLANNED" => &["CONFIRMED", "COMPLETED", "CANCELLED", "NO_SHOW"],
-        "CONFIRMED" => &["COMPLETED", "CANCELLED", "NO_SHOW"],
-        "COMPLETED" | "CANCELLED" | "NO_SHOW" | "NICHTERSCHIENEN" => &[],
-        _ => return Ok(()),
-    };
-    allowed_transition(&cur, next, allowed)
+    crate::domain::status::AppointmentStatus::require_transition(current, next).map(|_| ())
 }
 
 /// FA-AKTE-14: reception/physician forward → queue (`IN_PROGRESS`).
@@ -103,20 +97,41 @@ pub fn practice_ticket_status_transition(current: &str, next: &str) -> Result<()
     allowed_transition(&cur, next, allowed)
 }
 
-const TASK_STATUSES: &[&str] = &["OPEN", "IN_PROGRESS", "DONE_RECEPTION", "VALIDATED", "BACK"];
+const TASK_STATUSES: &[&str] = &[
+    "OPEN",
+    "IN_PROGRESS",
+    "DONE_RECEPTION",
+    "VALIDATED",
+    "BACK",
+    "VIEWED",
+    "DONE",
+];
+
+/// Workflow track derived from kind (no DB column): simple vs verify.
+pub fn practice_task_workflow_track(kind: &str) -> &'static str {
+    match kind.trim().to_uppercase().as_str() {
+        "TICKET" | "APPOINTMENT" => "simple",
+        _ => "verify",
+    }
+}
+
+fn task_is_closed(status: &str) -> bool {
+    let s = status.trim().to_uppercase();
+    s == "VALIDATED" || s == "DONE"
+}
 
 fn task_closed() -> AppError {
     AppError::validation_code("error.workflow.task_closed")
 }
 
-/// Admin RBAC: any status change (except out of `VALIDATED`).
+/// Admin RBAC: any status change (except out of a closed terminal status).
 pub fn practice_task_admin_status_transition(current: &str, next: &str) -> Result<(), AppError> {
     let cur = current.trim().to_uppercase();
     let nxt = next.trim().to_uppercase();
     if cur == nxt {
         return Ok(());
     }
-    if cur == "VALIDATED" {
+    if task_is_closed(&cur) {
         return Err(task_closed());
     }
     if !TASK_STATUSES.iter().any(|s| s.eq_ignore_ascii_case(&nxt)) {
@@ -128,11 +143,14 @@ pub fn practice_task_admin_status_transition(current: &str, next: &str) -> Resul
     Ok(())
 }
 
-/// Fulfill RBAC / assignee: `IN_PROGRESS` and `DONE_RECEPTION` (incl. reopen to `OPEN`).
-fn practice_task_fulfill_status_transition(current: &str, next: &str) -> Result<(), AppError> {
+/// Verify track fulfill: `IN_PROGRESS` and `DONE_RECEPTION` (incl. reopen to `OPEN`).
+fn practice_task_verify_fulfill_status_transition(
+    current: &str,
+    next: &str,
+) -> Result<(), AppError> {
     let cur = current.trim().to_uppercase();
     let nxt = next.trim().to_uppercase();
-    if cur == "VALIDATED" {
+    if task_is_closed(&cur) {
         return Err(task_closed());
     }
     let allowed: &[&str] = match cur.as_str() {
@@ -150,12 +168,50 @@ fn practice_task_fulfill_status_transition(current: &str, next: &str) -> Result<
     allowed_transition(&cur, &nxt, allowed)
 }
 
+/// Simple track fulfill: `OPEN → VIEWED → DONE` (reopen VIEWED → OPEN).
+fn practice_task_simple_fulfill_status_transition(
+    current: &str,
+    next: &str,
+) -> Result<(), AppError> {
+    let cur = current.trim().to_uppercase();
+    let nxt = next.trim().to_uppercase();
+    if task_is_closed(&cur) {
+        return Err(task_closed());
+    }
+    let allowed: &[&str] = match cur.as_str() {
+        "OPEN" => &["VIEWED"],
+        "VIEWED" => &["DONE", "OPEN"],
+        "DONE" => &[],
+        _ => {
+            return Err(AppError::validation_code_params(
+                "error.workflow.task_unknown_status",
+                &[("status", &cur)],
+            ))
+        }
+    };
+    allowed_transition(&cur, &nxt, allowed)
+}
+
+fn practice_task_fulfill_status_transition(
+    current: &str,
+    next: &str,
+    kind: &str,
+) -> Result<(), AppError> {
+    if practice_task_workflow_track(kind) == "simple" {
+        practice_task_simple_fulfill_status_transition(current, next)
+    } else {
+        practice_task_verify_fulfill_status_transition(current, next)
+    }
+}
+
 /// FA-AUFG-06: practice task — assignee (REZ pool or named physician) vs. creator (validation).
 /// `rbac_fulfill` / `rbac_admin` mirror `task.status.fulfill` / `task.status.admin`.
+/// Track is derived from `kind` (`TICKET`/`APPOINTMENT` = simple; else verify).
 #[allow(clippy::too_many_arguments)]
 pub fn practice_task_status_transition(
     current: &str,
     next: &str,
+    kind: &str,
     actor_role: Role,
     assignee_role: Option<&str>,
     assignee_user_id: Option<&str>,
@@ -170,9 +226,11 @@ pub fn practice_task_status_transition(
 
     let cur = current.trim().to_uppercase();
     let nxt = next.trim().to_uppercase();
-    if cur == "VALIDATED" {
+    if task_is_closed(&cur) {
         return Err(task_closed());
     }
+
+    let simple = practice_task_workflow_track(kind) == "simple";
 
     let to_reception = assignee_role
         .map(str::trim)
@@ -186,22 +244,26 @@ pub fn practice_task_status_transition(
         Role::Physician if assigned_user.is_some_and(|id| id == actor_user_id) => true,
         _ => false,
     };
-    let is_validator = actor_user_id == created_by.trim();
+    let is_validator = !simple && actor_user_id == created_by.trim();
 
-    // Completed task: creator validates/returns — even if creator was also the assignee.
+    // Verify track: completed task — creator validates/returns (even if also assignee).
     if is_validator && cur == "DONE_RECEPTION" {
         return allowed_transition(&cur, &nxt, &["VALIDATED", "BACK"]);
     }
 
     if is_fulfiller {
-        return practice_task_fulfill_status_transition(current, next);
+        return practice_task_fulfill_status_transition(current, next, kind);
     }
 
     if rbac_fulfill {
-        if nxt != "IN_PROGRESS" && nxt != "DONE_RECEPTION" {
+        if simple {
+            if nxt != "VIEWED" && nxt != "DONE" {
+                return Err(AppError::Unauthorized);
+            }
+        } else if nxt != "IN_PROGRESS" && nxt != "DONE_RECEPTION" {
             return Err(AppError::Unauthorized);
         }
-        return practice_task_fulfill_status_transition(current, next);
+        return practice_task_fulfill_status_transition(current, next, kind);
     }
 
     if is_validator {

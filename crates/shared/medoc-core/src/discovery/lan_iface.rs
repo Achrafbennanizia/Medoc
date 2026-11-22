@@ -127,6 +127,24 @@ pub fn pick_private_lan_ipv4() -> Option<Ipv4Addr> {
     pick_private_lan_ipv4_bind().map(|b| b.ip)
 }
 
+/// Every practice-LAN IPv4 that a certificate should name.
+pub fn practice_lan_ipv4_addrs() -> Vec<Ipv4Addr> {
+    let mut out = Vec::new();
+    for iface in if_addrs::get_if_addrs().unwrap_or_default() {
+        let IfAddr::V4(v4) = iface.addr else {
+            continue;
+        };
+        if candidate_score(&iface.name, v4.ip) < 0 {
+            continue;
+        }
+        if !out.contains(&v4.ip) {
+            out.push(v4.ip);
+        }
+    }
+    out.sort();
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

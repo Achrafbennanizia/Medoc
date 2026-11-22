@@ -98,7 +98,7 @@ export function PracticeTaskCreatePage() {
                         staff={staff}
                         onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
                     />
-                    <div className="row" style={{ gap: 8, marginTop: 16 }}>
+                    <div className="row" style={{ gap: "var(--space-2)", marginTop: "var(--space-4)" }}>
                         <Button type="button" variant="primary" disabled={busy} onClick={() => void save()}>
                             {t("practice.tasks.create.btn")}
                         </Button>

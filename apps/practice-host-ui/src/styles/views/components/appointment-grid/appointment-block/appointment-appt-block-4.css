@@ -1,0 +1,174 @@
+/* From styles/pages/appointments-cards.css (cascade position kept by its import there). */
+.appointment-appt-block-name-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.appointment-appt-block-emergency-ic {
+  flex-shrink: 0;
+  color: #c2410c;
+  display: inline-flex;
+  align-items: center;
+}
+.appointment-appt-block-tooth {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.appointment-appt-status-pill {
+  flex-shrink: 0;
+  align-self: center;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  line-height: 1.2;
+  white-space: nowrap;
+  max-width: 7.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/*
+ * Appointment block — fit to space (week and day view).
+ * The block is a size container (`appointment-appt`, appointments-calendar.css). Content is three lines:
+ *   1. time · duration   2. patient   3. treatment        (+ status pill in the day view)
+ * and the block's own height / width decide how much of it shows, instead of shrinking every font to 8 px:
+ *   ≥ 64 px tall : all three lines            40–63 px : time + patient (two lines)
+ *   26–39 px     : one line, time · patient   < 26 px  : patient only
+ *   < 120 px wide: no duration                < 72 px  : no time (patient only)
+ * Text never goes below 11 px; it grows to 13–14 px when the block is roomy.
+ */
+.appointment-appt-block--fit > .appointment-appt-block-shell {
+  padding: 4px 8px 4px 4px;
+  gap: 6px;
+  align-items: stretch;
+}
+.appointment-appt-block--fit .appointment-appt-block-stripe {
+  border-radius: 999px;
+}
+.appt-fit {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 1px;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.2;
+}
+.appt-fit__meta,
+.appt-fit__name {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.appointment-appt-block-micro-sep {
+  flex-shrink: 0;
+  color: var(--fg-3);
+  font-weight: 600;
+  opacity: 0.7;
+}
+.appt-fit__name .appointment-appt-block-name { font-size: 12.5px; }
+.appt-fit .appointment-appt-block-time { font-size: 11.5px; }
+.appt-fit .appointment-appt-block-duration { font-size: 11px; }
+.appt-fit__type {
+  font-size: 11px;
+  display: block;
+}
+.appt-fit__status {
+  flex-shrink: 0;
+  align-self: flex-start;
+  display: flex;
+}
+.appt-fit__status .appointment-appt-status-pill { font-size: 10.5px; padding: 1px 7px; max-width: 7rem; }
+
+/* Roomy blocks: a little larger type. */
+@container appointment-appt (min-height: 96px) and (min-width: 160px) {
+  .appt-fit { gap: 3px; }
+  .appt-fit .appointment-appt-block-time { font-size: 12.5px; }
+  .appt-fit__name .appointment-appt-block-name { font-size: 14px; }
+  .appt-fit__type { font-size: 12px; }
+}
+/* < 64 px tall: drop the treatment line. */
+@container appointment-appt (max-height: 63px) {
+  .appt-fit__type { display: none; }
+  .appt-fit { justify-content: center; }
+}
+/* < 40 px tall: one line — time · patient. */
+@container appointment-appt (max-height: 39px) {
+  .appointment-appt-block--fit > .appointment-appt-block-shell { padding-block: 2px; align-items: center; }
+  .appt-fit { flex-direction: row; align-items: center; gap: 6px; }
+  .appt-fit__meta { flex: 0 0 auto; }
+  .appt-fit__dur { display: none; }
+  .appt-fit__name { flex: 1 1 auto; }
+  .appt-fit__status { align-self: center; }
+}
+/* < 26 px tall: patient only (time is in the grid; hover magnifies the block to show it). */
+@container appointment-appt (max-height: 25px) {
+  .appointment-appt-block--fit > .appointment-appt-block-shell { padding-block: 0; padding-inline: 3px 5px; }
+  .appt-fit__meta, .appt-fit__status { display: none; }
+  .appt-fit__name .appointment-appt-block-name { font-size: 11px; }
+}
+/* Narrow columns (overlapping appointments share a day). */
+@container appointment-appt (max-width: 119px) {
+  .appt-fit__dur, .appt-fit__status { display: none; }
+}
+@container appointment-appt (max-width: 71px) {
+  .appt-fit__meta { display: none; }
+  .appointment-appt-block--fit > .appointment-appt-block-shell { padding-inline: 2px 3px; gap: 3px; }
+  .appt-fit__name .appointment-appt-block-name { font-size: 11px; }
+}
+
+/* Density: standard (26–40 min) — time stack | stripe | body | pill */
+.appointment-appt-block--density-standard > .appointment-appt-block-shell {
+  padding: 4px 8px 4px 6px;
+  gap: 8px;
+  align-items: stretch;
+}
+.appointment-appt-block--density-standard .appointment-appt-block-time-col {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 2.5rem;
+  overflow: hidden;
+}
+.appointment-appt-block--density-standard .appointment-appt-block-body-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  overflow: hidden;
+}
+.appointment-appt-block--density-standard .appointment-appt-block-time { font-size: 12px; }
+.appointment-appt-block--density-standard .appointment-appt-block-duration { font-size: 10px; }
+.appointment-appt-block--density-standard .appointment-appt-block-name { font-size: 12px; }
+.appointment-appt-block--density-standard .appointment-appt-block-type { font-size: 10px; }
+.appointment-appt-block--density-standard .appointment-appt-status-pill { font-size: 10px; }
+.appointment-appt-block--density-standard.appointment-appt-block--week > .appointment-appt-block-shell {
+  padding: 3px 5px 3px 4px;
+  gap: 5px;
+}
+.appointment-appt-block--density-standard.appointment-appt-block--week .appointment-appt-block-time-col { min-width: 2.1rem; }
+.appointment-appt-block--density-standard.appointment-appt-block--week .appointment-appt-block-time { font-size: 10px; }
+.appointment-appt-block--density-standard.appointment-appt-block--week .appointment-appt-block-duration { font-size: 8px; }
+.appointment-appt-block--density-standard.appointment-appt-block--week .appointment-appt-block-name { font-size: 10.5px; }
+.appointment-appt-block--density-standard.appointment-appt-block--week .appointment-appt-block-type { font-size: 8.5px; }
+
+/* Density: roomy (≥45 min) — stacked hierarchy */
+.appointment-appt-block--density-roomy > .appointment-appt-block-shell {
+  padding: 6px 10px 6px 6px;
+  gap: 8px;
+  align-items: stretch;
+}

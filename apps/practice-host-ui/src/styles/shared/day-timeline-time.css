@@ -1,0 +1,12 @@
+/* From styles/features/schedule.css (cascade position kept by its import there). */
+@layer components {
+  .day-timeline-time {
+    font-size: 11px;
+    color: var(--fg-3);
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    text-align: center;
+    padding: 3px 6px;
+    background: var(--bg-elev);
+  }
+}

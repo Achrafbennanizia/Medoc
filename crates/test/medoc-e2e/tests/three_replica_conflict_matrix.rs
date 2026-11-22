@@ -98,13 +98,10 @@ async fn three_replicas_competing_freshness_last_newer_wins_on_master() {
         assert_eq!(status, StatusCode::OK, "push from {device}: {push:?}");
     }
 
-    let (status, patients) = lan.json("GET", "/api/v1/patients", None, Some(&jwt)).await;
-    assert_eq!(status, StatusCode::OK);
-    let winner = patients
-        .as_array()
-        .expect("array")
-        .iter()
-        .find(|p| p["id"] == patient_id)
-        .expect("patient on master");
-    assert_eq!(winner["name"], "Newest Name");
+    let name: String = sqlx::query_scalar("SELECT name FROM patient WHERE id = ?1")
+        .bind(patient_id)
+        .fetch_one(&lan.pool)
+        .await
+        .expect("patient row");
+    assert_eq!(name, "Newest Name");
 }

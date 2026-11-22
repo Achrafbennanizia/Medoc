@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@/systems/practice-host/adapters/tauri-practice.adapter", () => ({
+vi.mock("@/systems/practice-host/adapters/practice-transport", () => ({
     practiceSystem: { invoke: vi.fn() },
 }));
 
@@ -23,5 +23,12 @@ describe("normalizeInvoiceInput", () => {
     it("accepts a single address string", () => {
         const inv = normalizeInvoiceInput({ recipient_address: "Street 1\nBerlin" });
         expect(inv.recipient_address).toEqual(["Street 1", "Berlin"]);
+    });
+
+    it("keeps GOZ fields and the billed record on each line", () => {
+        const inv = normalizeInvoiceInput({
+            lines: [{ description: "Füllung", amount_cents: 1294, goz_nr: "0010", factor: 2.3, source_ref: "treatment:t1" }],
+        });
+        expect(inv.lines[0]).toMatchObject({ goz_nr: "0010", factor: 2.3, source_ref: "treatment:t1", amount_cents: 1294 });
     });
 });

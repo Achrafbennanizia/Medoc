@@ -55,7 +55,7 @@ async fn configure_replica(
         mode: DeploymentMode::ServerlessPeer,
         role: DeviceRole::Replica,
         master_base_url: master_base_url.to_string(),
-        master_cert_sha256: String::new(),
+        master_cert_sha256: "ab".repeat(32),
         device_label: label.to_string(),
         activation_token: activation_token.to_string(),
         master_pubkey: master_pubkey.to_string(),
@@ -385,6 +385,21 @@ async fn mesh_push_delivers_outbox_entry_to_peer_replica() {
         false,
     )
     .await;
+
+    let dummy_pin = "ab".repeat(32);
+    sqlx::query(
+        "INSERT INTO sync_device (device_id, display_name, role, is_local, peer_base_url, peer_cert_sha256)
+         VALUES (?1, 'Mesh B', 'REPLICA', 0, ?2, ?3)
+         ON CONFLICT(device_id) DO UPDATE SET
+           peer_base_url = excluded.peer_base_url,
+           peer_cert_sha256 = excluded.peer_cert_sha256",
+    )
+    .bind(device_b)
+    .bind(&tcp_b.base_url)
+    .bind(&dummy_pin)
+    .execute(&pool_a)
+    .await
+    .expect("peer pin on A");
 
     let kv_key = "mesh.e2e.delivered";
     let _entry = repo::append_outbox(

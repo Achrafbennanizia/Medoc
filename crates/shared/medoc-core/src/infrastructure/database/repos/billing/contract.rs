@@ -14,11 +14,15 @@ pub struct ContractRow {
     pub period_until: Option<String>,
     pub created_at: String,
     pub document_path: Option<String>,
+    /// 1 = running, 0 = deactivated (cost stops at `deactivated_at`).
+    pub active: i64,
+    pub deactivated_at: Option<String>,
 }
 
 pub async fn find_by_id(pool: &SqlitePool, id: &str) -> Result<Option<ContractRow>, AppError> {
     let row = sqlx::query_as::<_, ContractRow>(
-        "SELECT id, designation, partner, amount, interval, unlimited, period_from, period_until, created_at, document_path
+        "SELECT id, designation, partner, amount, interval, unlimited, period_from, period_until, created_at, document_path,
+                COALESCE(active, 1) AS active, deactivated_at
          FROM contract WHERE id = ?1",
     )
     .bind(id)
@@ -29,7 +33,8 @@ pub async fn find_by_id(pool: &SqlitePool, id: &str) -> Result<Option<ContractRo
 
 pub async fn list_all(pool: &SqlitePool) -> Result<Vec<ContractRow>, AppError> {
     let rows = sqlx::query_as::<_, ContractRow>(
-        "SELECT id, designation, partner, amount, interval, unlimited, period_from, period_until, created_at, document_path
+        "SELECT id, designation, partner, amount, interval, unlimited, period_from, period_until, created_at, document_path,
+                COALESCE(active, 1) AS active, deactivated_at
          FROM contract ORDER BY created_at DESC",
     )
     .fetch_all(pool)
@@ -38,10 +43,13 @@ pub async fn list_all(pool: &SqlitePool) -> Result<Vec<ContractRow>, AppError> {
 }
 
 pub async fn upsert(pool: &SqlitePool, row: &ContractRow) -> Result<(), AppError> {
+    let mut tx = pool.begin().await?;
     sqlx::query(
-        "INSERT INTO contract (id, designation, partner, amount, interval, unlimited, period_from, period_until, created_at, document_path)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+        "INSERT INTO contract (id, designation, partner, amount, interval, unlimited, period_from, period_until, created_at, document_path, active, deactivated_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, strftime('%Y-%m-%dT%H:%M:%fZ','now'))
          ON CONFLICT(id) DO UPDATE SET
+            active = excluded.active,
+            deactivated_at = excluded.deactivated_at,
             designation = excluded.designation,
             partner = excluded.partner,
             amount = excluded.amount,
@@ -49,7 +57,8 @@ pub async fn upsert(pool: &SqlitePool, row: &ContractRow) -> Result<(), AppError
             unlimited = excluded.unlimited,
             period_from = excluded.period_from,
             period_until = excluded.period_until,
-            document_path = excluded.document_path",
+            document_path = excluded.document_path,
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')",
     )
     .bind(&row.id)
     .bind(&row.designation)
@@ -61,17 +70,30 @@ pub async fn upsert(pool: &SqlitePool, row: &ContractRow) -> Result<(), AppError
     .bind(&row.period_until)
     .bind(&row.created_at)
     .bind(&row.document_path)
-    .execute(pool)
+    .bind(row.active)
+    .bind(&row.deactivated_at)
+    .execute(&mut *tx)
     .await?;
+    crate::infrastructure::database::recorded_write::record_in_tx(
+        &mut tx, "contract", &row.id, "UPDATE",
+    )
+    .await?;
+    tx.commit().await?;
     Ok(())
 }
 
 pub async fn delete_by_id(pool: &SqlitePool, id: &str) -> Result<u64, AppError> {
+    let mut tx = pool.begin().await?;
+    crate::infrastructure::database::recorded_write::record_in_tx(
+        &mut tx, "contract", id, "DELETE",
+    )
+    .await?;
     let n = sqlx::query("DELETE FROM contract WHERE id = ?1")
         .bind(id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?
         .rows_affected();
+    tx.commit().await?;
     Ok(n)
 }
 
@@ -96,6 +118,8 @@ pub async fn dev_seed_demo(pool: &SqlitePool) -> Result<(), AppError> {
             period_until: None,
             created_at: now.clone(),
             document_path: None,
+            active: 1,
+            deactivated_at: None,
         },
         ContractRow {
             id: "seed-version-2".into(),
@@ -108,6 +132,8 @@ pub async fn dev_seed_demo(pool: &SqlitePool) -> Result<(), AppError> {
             period_until: None,
             created_at: now.clone(),
             document_path: None,
+            active: 1,
+            deactivated_at: None,
         },
         ContractRow {
             id: "seed-version-3".into(),
@@ -120,6 +146,8 @@ pub async fn dev_seed_demo(pool: &SqlitePool) -> Result<(), AppError> {
             period_until: Some("2027-12-31".into()),
             created_at: now,
             document_path: None,
+            active: 1,
+            deactivated_at: None,
         },
     ] {
         upsert(pool, &row).await?;

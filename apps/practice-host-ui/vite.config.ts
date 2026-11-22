@@ -5,6 +5,24 @@ import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
 
+/**
+ * Cross-origin browser callers must be named in ALLOWED_ORIGINS
+ * (comma-separated, exact origins). "*" is ignored. This bridge has no
+ * login cookie, so Access-Control-Allow-Credentials is never set.
+ */
+function applyCaptureCors(req: IncomingMessage, res: ServerResponse) {
+    const requestOrigin = req.headers.origin;
+    if (typeof requestOrigin !== "string") return;
+    const allowed = (process.env.ALLOWED_ORIGINS ?? "")
+        .split(",")
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0 && entry !== "*");
+    const match = allowed.find((entry) => entry === requestOrigin);
+    if (!match) return;
+    res.setHeader("Vary", "Origin");
+    res.setHeader("Access-Control-Allow-Origin", match);
+}
+
 /** In-memory command queue so screenshot scripts can drive the Tauri webview (same-origin). */
 function medocCaptureBridge(): Plugin {
     let pending: Record<string, unknown> | null = null;
@@ -28,7 +46,6 @@ function medocCaptureBridge(): Plugin {
         const raw = JSON.stringify(body);
         res.statusCode = code;
         res.setHeader("Content-Type", "application/json");
-        res.setHeader("Access-Control-Allow-Origin", "*");
         res.end(raw);
     };
 
@@ -38,7 +55,7 @@ function medocCaptureBridge(): Plugin {
             server.middlewares.use(async (req, res, next) => {
                 const url = req.url?.split("?")[0] ?? "";
                 if (!url.startsWith("/__medoc_capture")) return next();
-                res.setHeader("Access-Control-Allow-Origin", "*");
+                applyCaptureCors(req, res);
                 res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
                 res.setHeader("Access-Control-Allow-Headers", "Content-Type");
                 if (req.method === "OPTIONS") {
@@ -94,7 +111,12 @@ function medocCaptureBridge(): Plugin {
 
 const pkg = JSON.parse(readFileSync(path.join(__dirname, "package.json"), "utf-8")) as { version: string };
 
-const host = process.env.TAURI_DEV_HOST;
+/**
+ * Default to IPv4 loopback. `host: false` / `"localhost"` often binds only
+ * `[::1]` on modern Node/macOS; Tauri's WKWebView then resolves `localhost`
+ * to `127.0.0.1` and loads a blank page. Override with TAURI_DEV_HOST when needed.
+ */
+const host = process.env.TAURI_DEV_HOST || "127.0.0.1";
 const root = __dirname;
 
 /** Path aliases — tiered packages first, app shell last. */
@@ -125,6 +147,8 @@ const medocAliases = [
     { find: "@medoc/system-company", replacement: path.resolve(root, "../../packages/server/company/src") },
     { find: "@", replacement: path.resolve(root, "src") },
 ];
+
+const devPort = Number(process.env.MEDOC_VITE_PORT) || 1420;
 
 export default defineConfig(async () => ({
     plugins: [react(), medocCaptureBridge()],
@@ -205,12 +229,16 @@ export default defineConfig(async () => ({
     },
     clearScreen: false,
     server: {
-        port: 1420,
+        // MEDOC_VITE_PORT: a second, isolated dev server (preview instance) next to the usual one on 1420.
+        port: devPort,
         strictPort: true,
-        host: host || false,
-        hmr: host
-            ? { protocol: "ws", host, port: 1421 }
-            : undefined,
+        // Always bind an explicit host (see host default above).
+        host,
+        hmr: {
+            protocol: "ws",
+            host,
+            port: devPort + 1,
+        },
         watch: {
             ignored: ["**/src-tauri/**"],
         },

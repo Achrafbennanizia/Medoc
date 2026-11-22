@@ -101,6 +101,69 @@ export function planNextAutofillNote(plan: PlanNextAppointmentV2): string {
     return parts.join(" · ").slice(0, 450);
 }
 
+export type PlanNextPracticeTaskLabels = {
+    titleFallback: string;
+    urgencyLabel: (urgency: PlanUrgency) => string;
+    kindLabel: (kind: string) => string;
+    durationLabel: (minutes: string) => string;
+    intervalLabel: (weeks: string) => string;
+    weekdaysLabel: (days: string) => string;
+    internalLabel: (note: string) => string;
+};
+
+/**
+ * Always store English structure in SQLite. UI translates EN → device locale on display
+ * (`displayPracticeTaskBody` / `practiceTaskHeadline`).
+ */
+export const PLAN_NEXT_EN_LABELS: PlanNextPracticeTaskLabels = {
+    titleFallback: "Plan next appointment",
+    urgencyLabel: (urgency) =>
+        urgency === "dringend" ? "Urgent" : urgency === "bald" ? "Soon" : "Routine",
+    kindLabel: (kind) => kind,
+    durationLabel: (minutes) => `Duration: ${minutes} min`,
+    intervalLabel: (weeks) => `Interval: about ${weeks} weeks`,
+    weekdaysLabel: (days) => `Preferred weekdays: ${days}`,
+    internalLabel: (note) => `Internal: ${note}`,
+};
+
+/**
+ * Title + body for a practice task when the physician sends “Note for reception”.
+ * Returns null when the note is empty.
+ */
+export function buildPlanNextPracticeTask(
+    plan: PlanNextAppointmentV2,
+    labels: PlanNextPracticeTaskLabels = PLAN_NEXT_EN_LABELS,
+): { title: string; body: string } | null {
+    if (!planNextHasContent(plan)) return null;
+    const free = plan.freeText.trim();
+    const title = (free || labels.titleFallback).slice(0, 120);
+    const lines: string[] = [];
+    if (plan.urgency !== "routine") {
+        lines.push(labels.urgencyLabel(plan.urgency));
+    }
+    if (plan.appointmentKindHint.trim()) {
+        lines.push(labels.kindLabel(plan.appointmentKindHint.trim()));
+    }
+    if (plan.durationMin.trim()) {
+        lines.push(labels.durationLabel(plan.durationMin.trim()));
+    }
+    if (plan.intervalWeeks.trim()) {
+        lines.push(labels.intervalLabel(plan.intervalWeeks.trim()));
+    }
+    if (plan.preferredWeekdays.trim()) {
+        lines.push(labels.weekdaysLabel(plan.preferredWeekdays.trim()));
+    }
+    if (free && free !== title) {
+        lines.push(free);
+    } else if (free && lines.length === 0) {
+        /* title already carries free text; body can stay empty */
+    }
+    if (plan.internalNote.trim()) {
+        lines.push(labels.internalLabel(plan.internalNote.trim()));
+    }
+    return { title, body: lines.join("\n").slice(0, 2000) };
+}
+
 /** After treatment flagged follow-up Appointment needed: merge hint into saved physician recommendation. */
 export function mergeTreatmentFollowupIntoPlan(
     plan: PlanNextAppointmentV2,

@@ -6,6 +6,9 @@ use serde::{Deserialize, Serialize};
 
 pub const INSTALL_PLAN_SCHEMA_VERSION: u32 = 1;
 
+/// Finder, Dock, and window name for a replica. The master bundle stays `MeDoc`.
+pub const REPLICA_DESKTOP_NAME: &str = "Medoc_replica";
+
 /// Bit flags in [`InstallPlan::flags`]. Human-readable fields remain authoritative.
 pub const FLAG_AUTO_ACTIVATE: u32 = 1 << 0;
 pub const FLAG_CHAIN_MEMBER: u32 = 1 << 1;

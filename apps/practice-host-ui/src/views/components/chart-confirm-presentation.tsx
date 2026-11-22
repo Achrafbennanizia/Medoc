@@ -171,7 +171,7 @@ export function ChartInlineEditPanelShell({
                     <div className={tcls}>{title}</div>
                     {subtitle ? <div className={scls}>{subtitle}</div> : null}
                 </div>
-                <div className="row" style={{ alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <div className="row" style={{ alignItems: "center", gap: "var(--space-2)", flexWrap: "wrap" }}>
                     {headerExtra}
                     <Button type="button" variant="ghost" size="sm" onClick={onClose}>
                         {t("common.close")}

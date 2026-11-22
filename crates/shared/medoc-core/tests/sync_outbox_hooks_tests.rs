@@ -14,10 +14,15 @@ use medoc_core::domain::entities::patient::CreatePatient;
 use medoc_core::domain::entities::practice_task::CreatePracticeTask;
 use medoc_core::domain::entities::prescription::CreatePrescription;
 use medoc_core::domain::enums::{AppointmentKind, Sex};
-use medoc_core::infrastructure::database::{
-    app_kv_repo, appointment_repo, chart_repo, connection, patient_repo, payment_repo,
-    practice_task_repo, practice_ticket_repo, prescription_repo,
-};
+use medoc_core::infrastructure::database::connection;
+use medoc_core::infrastructure::database::repos::admin::app_kv as app_kv_repo;
+use medoc_core::infrastructure::database::repos::billing::payment as payment_repo;
+use medoc_core::infrastructure::database::repos::clinical::chart as chart_repo;
+use medoc_core::infrastructure::database::repos::clinical::patient as patient_repo;
+use medoc_core::infrastructure::database::repos::clinical::prescription as prescription_repo;
+use medoc_core::infrastructure::database::repos::scheduling::appointment as appointment_repo;
+use medoc_core::infrastructure::database::repos::scheduling::practice_task as practice_task_repo;
+use medoc_core::infrastructure::database::repos::scheduling::practice_ticket as practice_ticket_repo;
 use sqlx::SqlitePool;
 
 async fn fresh_pool() -> SqlitePool {
@@ -136,6 +141,8 @@ async fn appointment_lifecycle_emits_three_outbox_rows() {
         notes: None,
         chief_complaint: None,
         physician_id: "seed-physician-001".into(),
+        duration_minutes: None,
+        status: None,
     };
     let t = appointment_repo::create(&pool, &create)
         .await
@@ -152,6 +159,7 @@ async fn appointment_lifecycle_emits_three_outbox_rows() {
             notes: None,
             chief_complaint: None,
             physician_id: None,
+            duration_minutes: None,
         },
     )
     .await
@@ -290,6 +298,7 @@ async fn prescription_create_emits_one_outbox_row() {
             prescription_type: None,
             icd10_code: None,
             prescribing_physician_id: None,
+            allergy_override: false,
         },
     )
     .await
@@ -319,4 +328,76 @@ async fn practice_ticket_insert_emits_one_outbox_row() {
     .expect("insert ticket");
 
     assert_eq!(outbox_count(&pool, "practice_ticket").await, 1);
+}
+
+/// F147: chart_validation has a composite key; writes must not fail when
+/// replication is on, and each row gets its own sync id.
+#[tokio::test]
+async fn chart_validation_rows_record_with_composite_key() {
+    let pool = fresh_pool().await;
+    enable_serverless(&pool).await;
+    let p = patient_repo::create(&pool, &sample_patient("cv"))
+        .await
+        .expect("create patient");
+    use medoc_core::infrastructure::database::repos::clinical::chart_validation as cv;
+    cv::upsert_row(&pool, &p.id, "anamnesis", "2026-11-07T10:00:00Z", None)
+        .await
+        .expect("upsert a");
+    cv::upsert_row(&pool, &p.id, "findings", "2026-11-07T10:00:00Z", None)
+        .await
+        .expect("upsert b");
+    let ids: Vec<String> = sqlx::query_scalar(
+        "SELECT entity_id FROM sync_outbox WHERE entity_table = 'chart_validation' ORDER BY entity_id",
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        ids,
+        vec![format!("{}|anamnesis", p.id), format!("{}|findings", p.id)]
+    );
+    let payload: String = sqlx::query_scalar(
+        "SELECT payload_json FROM sync_outbox WHERE entity_table = 'chart_validation' LIMIT 1",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert!(payload.contains("section_or_item"));
+}
+
+/// F119: GDPR erasure must put the pseudonymised patient and every removed
+/// child row into the outbox so other devices erase too.
+#[tokio::test]
+async fn gdpr_erase_records_patient_and_children() {
+    let pool = fresh_pool().await;
+    enable_serverless(&pool).await;
+    let p = patient_repo::create(&pool, &sample_patient("erase"))
+        .await
+        .expect("create patient");
+    sqlx::query(
+        "INSERT INTO appointment (id, date, time, kind, status, patient_id, physician_id)
+         VALUES ('erase-apt', '2026-11-10', '09:00', 'CHECKUP', 'PLANNED', ?1, 'seed-physician-001')",
+    )
+    .bind(&p.id)
+    .execute(&pool)
+    .await
+    .unwrap();
+    medoc_core::infrastructure::gdpr::erase_patient_records(&pool, &p.id)
+        .await
+        .expect("erase");
+    let apt_deletes: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM sync_outbox WHERE entity_table = 'appointment' AND entity_id = 'erase-apt' AND op = 'DELETE'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(apt_deletes, 1);
+    let patient_updates: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM sync_outbox WHERE entity_table = 'patient' AND entity_id = ?1 AND op = 'UPDATE'",
+    )
+    .bind(&p.id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(patient_updates, 1);
 }

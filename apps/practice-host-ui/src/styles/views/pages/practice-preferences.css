@@ -1,0 +1,70 @@
+/* From styles/pages/appointments-calendar.css (cascade position kept by its import there). */
+.practice-month-cal-color-catalog {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.practice-month-cal-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 2px solid var(--line);
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+.practice-month-cal-swatch:hover {
+  transform: scale(1.06);
+}
+.practice-month-cal-swatch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.fade-up {
+  animation: fadeUp 380ms var(--ease-out) both;
+}
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0.96; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); opacity: 0.96; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes pulseDot {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.2); opacity: 0.85; }
+}
+/* Calendar rows: rem-based, columns: fr (even weekdays) */
+.appointment-week-calendar {
+  --appointment-hour-row: 5.25rem;
+  --appointment-slot-count: 11;
+}
+
+.appointment-week-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 0.5rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+.appointment-week-card.card:has(.appointment-appt-block:hover:not(.appointment-appt-block--dragging)),
+.appointment-week-card.card:has(.appointment-appt-block--dragging),
+.appointment-week-card:has(.appointment-appt-block:hover:not(.appointment-appt-block--dragging)),
+.appointment-week-card:has(.appointment-appt-block--dragging) {
+  overflow: visible;
+}
+.appointment-week-head-grid {
+  display: grid;
+  grid-template-columns: minmax(3.25rem, 4rem) repeat(7, minmax(0, 1fr));
+  gap: 0;
+  margin-bottom: 0.125rem;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.5rem;
+  flex-shrink: 0;
+  width: 100%;
+}

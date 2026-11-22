@@ -191,7 +191,7 @@ export function ExaminationComposer({
     };
 
     return (
-        <div className="col examination-composer" style={{ gap: 16 }}>
+        <div className="col examination-composer" style={{ gap: "var(--space-4)" }}>
             <Textarea
                 id="u-general-note"
                 label={t("examination.composer.general_note")}
@@ -202,7 +202,7 @@ export function ExaminationComposer({
                 disabled={locked}
             />
 
-            <div className="col" style={{ gap: 10 }}>
+            <div className="col" style={{ gap: "var(--space-3)" }}>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{t("examination.composer.dental_section_title")}</div>
                 <p style={{ margin: 0, fontSize: 12.5, color: "var(--fg-3)" }}>{t("examination.composer.dental_hint")}</p>
                 <DentalChart
@@ -217,12 +217,12 @@ export function ExaminationComposer({
                 {selectedTooth ? (
                     <div
                         className="card card-pad col"
-                        style={{ gap: 12, background: "rgba(0,0,0,0.02)", border: "1px solid var(--line)" }}
+                        style={{ gap: "var(--space-3)", background: "rgba(0,0,0,0.02)", border: "1px solid var(--line)" }}
                     >
                         <div style={{ fontWeight: 600, fontSize: 13.5 }}>
                             {tp("examination.composer.tooth_panel_title", { tooth: selectedTooth })}
                         </div>
-                        <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                        <div className="row" style={{ gap: "var(--space-2)", flexWrap: "wrap", alignItems: "center" }}>
                             {DENTAL_STATUS_KEYS.map((k) => (
                                 <button
                                     key={k}
@@ -259,11 +259,11 @@ export function ExaminationComposer({
                 ) : null}
 
                 {documentedTeeth.length > 0 ? (
-                    <div className="col" style={{ gap: 6 }}>
+                    <div className="col" style={{ gap: "var(--space-2)" }}>
                         <div style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-3)" }}>
                             {t("examination.composer.documented_teeth")}
                         </div>
-                        <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 6 }}>
+                        <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
                             {documentedTeeth.map(([tooth, note]) => (
                                 <li key={tooth}>
                                     <button
@@ -296,16 +296,16 @@ export function ExaminationComposer({
             />
 
             {variant === "create" ? (
-                <div className="col" style={{ gap: 8 }}>
+                <div className="col" style={{ gap: "var(--space-2)" }}>
                     <p style={{ margin: 0, fontSize: 12.5, color: "var(--fg-3)" }}>
                         {t("examination.composer.billing_hint")}
                     </p>
                     {catalogService ? (
                         <div
                             className="card card-pad col"
-                            style={{ gap: 10, background: "rgba(0,0,0,0.02)", border: "1px solid var(--line)" }}
+                            style={{ gap: "var(--space-3)", background: "rgba(0,0,0,0.02)", border: "1px solid var(--line)" }}
                         >
-                            <div className="col" style={{ gap: 4 }}>
+                            <div className="col" style={{ gap: "var(--space-1)" }}>
                                 <div style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-3)" }}>
                                     {t("examination.composer.catalog_service")}
                                 </div>
@@ -350,7 +350,7 @@ export function ExaminationComposer({
                 </div>
             ) : null}
 
-            <div className="row" style={{ justifyContent: "flex-end", gap: 8, marginTop: 8, borderTop: "1px solid var(--line)", paddingTop: 12 }}>
+            <div className="row" style={{ justifyContent: "flex-end", gap: "var(--space-2)", marginTop: "var(--space-2)", borderTop: "1px solid var(--line)", paddingTop: "var(--space-3)" }}>
                 <Button type="button" variant="ghost" onClick={onCancel} disabled={busy}>
                     {t("common.cancel")}
                 </Button>

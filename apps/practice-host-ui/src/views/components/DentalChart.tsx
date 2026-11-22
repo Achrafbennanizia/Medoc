@@ -70,7 +70,7 @@ export function DentalChart({
                 key={n}
                 type="button"
                 className={`col ${pulseTooth === n ? "tooth-btn-pulse" : ""}`}
-                style={{ alignItems: "center", gap: 4, opacity: disabled ? 0.65 : undefined }}
+                style={{ alignItems: "center", gap: "var(--space-1)", opacity: disabled ? 0.65 : undefined }}
                 aria-label={tp("dental.tooth_status_aria", { tooth: label, status: dentalStatusLabel(t, stateKey) })}
                 disabled={disabled}
                 onClick={async () => {
@@ -109,7 +109,7 @@ export function DentalChart({
     return (
         <div className="card card-pad">
             {mode === "clinical" ? (
-                <div className="row" style={{ gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+                <div className="row" style={{ gap: "var(--space-2)", flexWrap: "wrap", marginBottom: "var(--space-4)" }}>
                     {DENTAL_STATUS_KEYS.map((k) => (
                             <button
                                 key={k}
@@ -154,7 +154,7 @@ export function DentalChart({
                 </div>
                 <DentalOdontogramAxis slot="end">{t("dental.axis.left")}</DentalOdontogramAxis>
             </div>
-            <div className="card card-pad" style={{ marginTop: 14, background: "rgba(0,0,0,0.015)" }}>
+            <div className="card card-pad" style={{ marginTop: "var(--space-4)", background: "rgba(0,0,0,0.015)" }}>
                 {mode === "picker"
                     ? (selectedTooth
                         ? tp("dental.chart.selected_tooth", { tooth: formatDentalToothLabel(selectedTooth, t) })

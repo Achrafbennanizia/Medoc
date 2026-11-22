@@ -37,17 +37,7 @@ export {
     clearLicense,
 } from "./system.controller";
 
-export {
-    getCompanyPortalConfig,
-    setCompanyPortalConfig,
-    companyPortalFetchSummary,
-    companyPortalFetchIntegrations,
-    companyPortalFetchFeatureFlags,
-    companyPortalBillingPortalUrl,
-    companyPortalAttachPayment,
-    companyPortalPing,
-    type CompanyPortalConfig,
-} from "@/systems/company-portal/controllers/company-portal.controller";
+export type { CompanyPortalConfig } from "@/systems/company-portal/controllers/company-portal.controller";
 
 export {
     investigateMyDeviceSession,

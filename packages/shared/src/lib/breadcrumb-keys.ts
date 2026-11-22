@@ -16,14 +16,17 @@ export function breadcrumbKeysForPath(pathname: string): string[] {
     if (pathname === "/tickets/new") return [APP, "nav.practice_tickets", "breadcrumb.new_task"];
     if (/^\/tickets\/[^/]+\/(edit|bearbeiten)$/.test(pathname)) return [APP, "nav.practice_tickets", "breadcrumb.edit"];
     if (pathname === "/administration") return [APP, "nav.administration"];
-    if (pathname === "/administration/work-days") return [APP, "nav.administration", "breadcrumb.work_days"];
-    if (pathname === "/administration/practice-planning") return [APP, "nav.administration", "palette.cmd.administration-practicePlanning"];
-    if (pathname === "/administration/work-hours") return [APP, "nav.administration", "palette.cmd.administration-work_hours"];
-    if (pathname === "/administration/special-blocked-times") return [APP, "nav.administration", "palette.cmd.administration-special-blockedTimes"];
-    if (pathname === "/administration/practice-preferences") return [APP, "nav.administration", "palette.cmd.administration-preferences"];
-    if (pathname === "/administration/templates") return [APP, "nav.administration", "breadcrumb.templates"];
-    if (pathname === "/administration/treatment-catalog") return [APP, "nav.administration", "breadcrumb.treatment_catalog"];
-    if (pathname === "/administration/order-master") return [APP, "nav.administration", "breadcrumb.order_master"];
+    // Practice planning sub-pages sit under their hub, matching the Back button (administration-hierarchy.ts).
+    if (pathname === "/administration/work-days") return [APP, "nav.administration", "palette.cmd.administration-practice-planning", "breadcrumb.work_days"];
+    if (pathname === "/administration/practice-planning") return [APP, "nav.administration", "palette.cmd.administration-practice-planning"];
+    if (pathname === "/administration/work-hours") return [APP, "nav.administration", "palette.cmd.administration-practice-planning", "page.work_hours.title"];
+    if (pathname === "/administration/special-blocked-times") return [APP, "nav.administration", "palette.cmd.administration-practice-planning", "palette.cmd.administration-special-blocked-times"];
+    if (pathname === "/administration/practice-preferences") return [APP, "nav.administration", "palette.cmd.administration-practice-planning", "palette.cmd.administration-preferences"];
+    if (pathname === "/administration/templates") return [APP, "nav.administration", "breadcrumb.services_catalogs", "breadcrumb.templates"];
+    if (pathname === "/administration/treatment-catalog") return [APP, "nav.administration", "breadcrumb.services_catalogs", "breadcrumb.treatment_catalog"];
+    if (pathname === "/administration/medications") return [APP, "nav.administration", "breadcrumb.services_catalogs", "medication_presets.title"];
+    if (pathname === "/administration/prescription-presets") return [APP, "nav.administration", "breadcrumb.services_catalogs", "prescription_presets.title"];
+    if (pathname === "/administration/order-master") return [APP, "nav.administration", "breadcrumb.stock_orders", "breadcrumb.order_master"];
     if (pathname === "/administration/finance-reports") return [APP, "nav.administration", "breadcrumb.finance_reports"];
     if (pathname === "/administration/team") return [APP, "nav.administration", "breadcrumb.team"];
     if (pathname === "/administration/team/work-time") return [APP, "nav.administration", "breadcrumb.team", "breadcrumb.work_time"];
@@ -42,7 +45,7 @@ export function breadcrumbKeysForPath(pathname: string): string[] {
     }
     if (pathname === "/administration/finance-tools") return [APP, "nav.administration", "breadcrumb.finance_reports", "breadcrumb.invoice_pdf"];
     if (pathname === "/administration/day-close") return [APP, "nav.administration", "breadcrumb.finance_reports", "breadcrumb.daily_close"];
-    if (pathname.startsWith("/administration/templates/editor")) return [APP, "nav.administration", "breadcrumb.templates", "breadcrumb.editor"];
+    if (pathname.startsWith("/administration/templates/editor")) return [APP, "nav.administration", "breadcrumb.services_catalogs", "breadcrumb.templates", "breadcrumb.editor"];
     if (pathname === "/staff/new") return [APP, "nav.administration", "palette.cmd.staff-new"];
     if (pathname === "/staff/work-plan") return [APP, "nav.administration", "nav.staff", "breadcrumb.shift_plan"];
     if (pathname.startsWith("/patients/") && pathname !== "/patients/new") {

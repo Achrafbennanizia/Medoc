@@ -1,0 +1,28 @@
+/* From styles/features/finance-payments.css (cascade position kept by its import there). */
+@layer components {
+  .finance-amt-col .finance-payment-status-select.select-trigger {
+    min-height: 36px;
+    padding-top: 7px;
+    padding-bottom: 7px;
+    font-size: 13px;
+  }
+  .finance-amt-col .select-menu {
+    inset-inline-start: auto;
+    inset-inline-end: 0;
+    width: max-content;
+    min-width: min(100%, 12.5rem);
+    max-width: min(20rem, calc(100vw - 40px));
+  }
+  .finance-amt-col .select-menu .select-option {
+    white-space: nowrap;
+  }
+  /* Table rows: short status labels, one line — full width for assignment stays multi-line (.select-trigger-label). */
+  .finance-amt-col .finance-payment-status-select.select-trigger .select-trigger-label {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    -webkit-line-clamp: unset;
+    -webkit-box-orient: unset;
+  }
+}

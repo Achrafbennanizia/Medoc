@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS staff (
             available BOOLEAN NOT NULL DEFAULT 1,
             totp_secret TEXT,
             totp_enrolled_at TEXT,
+            token_version INTEGER NOT NULL DEFAULT 0,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
@@ -34,7 +35,7 @@ CREATE TABLE IF NOT EXISTS patient (
             phone TEXT,
             email TEXT,
             address TEXT,
-            status TEXT NOT NULL DEFAULT 'NEW' CHECK (status IN ('NEW','ACTIVE','VALIDATED','READONLY')),
+            status TEXT NOT NULL DEFAULT 'NEW' CHECK (status IN ('NEW','ACTIVE','VALIDATED','READONLY','ARCHIVED')),
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
@@ -42,7 +43,7 @@ CREATE TABLE IF NOT EXISTS patient (
 CREATE TABLE IF NOT EXISTS patient_chart (
             id TEXT PRIMARY KEY,
             patient_id TEXT NOT NULL UNIQUE REFERENCES patient(id) ON DELETE CASCADE,
-            status TEXT NOT NULL DEFAULT 'DRAFT' CHECK (status IN ('DRAFT','IN_PROGRESS','VALIDATED','READONLY')),
+            status TEXT NOT NULL DEFAULT 'DRAFT' CHECK (status IN ('DRAFT','IN_PROGRESS','VALIDATED','READONLY','DECLINED')),
             diagnosis TEXT,
             findings TEXT,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -67,7 +68,7 @@ CREATE TABLE IF NOT EXISTS appointment (
             date TEXT NOT NULL,
             time TEXT NOT NULL,
             kind TEXT NOT NULL CHECK (kind IN ('FIRST_VISIT','EXAMINATION','TREATMENT','CHECKUP','CONSULTATION')),
-            status TEXT NOT NULL DEFAULT 'PLANNED' CHECK (status IN ('PLANNED','CONFIRMED','COMPLETED','NO_SHOW','CANCELLED')),
+            status TEXT NOT NULL DEFAULT 'PLANNED' CHECK (status IN ('PLANNED','CONFIRMED','IN_PROGRESS','COMPLETED','NO_SHOW','CANCELLED')),
             notes TEXT,
             chief_complaint TEXT,
             patient_id TEXT NOT NULL REFERENCES patient(id),
@@ -155,7 +156,8 @@ CREATE TABLE IF NOT EXISTS payment (
             examination_id TEXT,
             amount_expected REAL,
             cash_verified INTEGER NOT NULL DEFAULT 0,
-            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT
         );
 
 CREATE TABLE IF NOT EXISTS product (

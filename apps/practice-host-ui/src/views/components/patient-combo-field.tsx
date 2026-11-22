@@ -49,15 +49,41 @@ export function PatientComboField({
 
     useDismissibleLayer({ open, rootRef, onDismiss: () => setOpen(false) });
 
+    const uniquePatients = useMemo(() => {
+        const seen = new Set<string>();
+        const out: Patient[] = [];
+        for (const p of patients) {
+            if (seen.has(p.id)) continue;
+            seen.add(p.id);
+            out.push(p);
+        }
+        return out;
+    }, [patients]);
+
+    const nameCounts = useMemo(() => {
+        const counts = new Map<string, number>();
+        for (const p of uniquePatients) {
+            const key = p.name.trim().toLowerCase();
+            counts.set(key, (counts.get(key) ?? 0) + 1);
+        }
+        return counts;
+    }, [uniquePatients]);
+
     const includeInsuranceNumber = useClientSettings((c) => c.search?.patientIncludeInsuranceNumber !== false);
     const filtered = useMemo(() => {
         if (!query.trim()) {
-            return patients.length > MAX_SHOWN_WHEN_NO_QUERY
-                ? patients.slice(0, MAX_SHOWN_WHEN_NO_QUERY)
-                : [...patients];
+            return uniquePatients.length > MAX_SHOWN_WHEN_NO_QUERY
+                ? uniquePatients.slice(0, MAX_SHOWN_WHEN_NO_QUERY)
+                : [...uniquePatients];
         }
-        return filterPatients(patients, query, { includeInsuranceNumber });
-    }, [patients, query, includeInsuranceNumber]);
+        return filterPatients(uniquePatients, query, { includeInsuranceNumber });
+    }, [uniquePatients, query, includeInsuranceNumber]);
+
+    function optionLabel(p: Patient): string {
+        const shared = (nameCounts.get(p.name.trim().toLowerCase()) ?? 0) > 1;
+        const dob = (p.date_of_birth ?? "").slice(0, 10);
+        return shared && dob ? `${p.name} · ${dob}` : p.name;
+    }
 
     function handleInputChange(version: string) {
         if (disabled) return;
@@ -83,7 +109,7 @@ export function PatientComboField({
     const manyTotal = !query.trim() && patients.length > MAX_SHOWN_WHEN_NO_QUERY;
 
     return (
-        <div ref={rootRef} className="patient-combo-field" style={{ marginBottom: 8 }}>
+        <div ref={rootRef} className="patient-combo-field" style={{ marginBottom: "var(--space-2)" }}>
             <label htmlFor={id} className="form-label">
                 {label}
             </label>
@@ -128,7 +154,7 @@ export function PatientComboField({
                                         onMouseDown={(e) => e.preventDefault()}
                                         onClick={() => pick(p)}
                                     >
-                                        {p.name}
+                                        {optionLabel(p)}
                                     </button>
                                 );
                             })

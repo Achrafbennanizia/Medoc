@@ -110,7 +110,7 @@ async fn prescription_and_certificate_forward_migrations_add_columns() {
 #[tokio::test]
 async fn prescription_amvv_fields_round_trip() {
     use medoc_lib::domain::entities::prescription::CreatePrescription;
-    use medoc_lib::infrastructure::database::prescription_repo;
+    use medoc_lib::infrastructure::database::repos::clinical::prescription as prescription_repo;
 
     let pool = test_memory_pool().await.expect("encrypted memory pool");
     run_migrations(&pool).await.expect("migrations");
@@ -143,6 +143,7 @@ async fn prescription_amvv_fields_round_trip() {
             prescription_type: Some("KASSE".into()),
             icd10_code: Some("K08.1".into()),
             prescribing_physician_id: Some("seed-physician-001".into()),
+            allergy_override: false,
         },
     )
     .await
@@ -168,7 +169,7 @@ async fn prescription_amvv_fields_round_trip() {
 async fn certificate_extended_fields_round_trip() {
     use chrono::NaiveDate;
     use medoc_lib::domain::entities::certificate::CreateCertificate;
-    use medoc_lib::infrastructure::database::certificate_repo;
+    use medoc_lib::infrastructure::database::repos::clinical::certificate as certificate_repo;
 
     let pool = test_memory_pool().await.expect("encrypted memory pool");
     run_migrations(&pool).await.expect("migrations");
@@ -371,6 +372,14 @@ async fn english_upgrade_remaps_app_kv_and_template_json() {
     let pool = test_memory_pool().await.expect("encrypted memory pool");
     run_migrations(&pool).await.expect("baseline schema");
 
+    sqlx::query("DELETE FROM app_kv WHERE key IN ('praxis.preferences.v1','practice.preferences.v1','invoice.practice.v1')")
+        .execute(&pool)
+        .await
+        .expect("clear leftover app_kv");
+    sqlx::query("DELETE FROM app_kv WHERE key IN ('praxis.preferences.v1','practice.preferences.v1','invoice.practice.v1')")
+        .execute(&pool)
+        .await
+        .expect("clear leftover app_kv");
     sqlx::query(
         "INSERT INTO app_kv (key, value) VALUES
          ('praxis.preferences.v1', '{\"pufferMin\":\"7\",\"notfallPuffer\":\"9\"}'),

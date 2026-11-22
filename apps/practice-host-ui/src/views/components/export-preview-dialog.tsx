@@ -9,14 +9,7 @@ import { printHtmlDocument } from "@/lib/print-html";
 import { saveOrDownloadBytes, saveOrDownloadText } from "@/lib/save-download";
 import { useToastStore } from "./ui/toast-store";
 import { errorMessage } from "@/lib/utils";
-
-function escapeHtml(s: string): string {
-    return s
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;");
-}
+import { escapeHtml } from "@/lib/escape-html";
 
 function formatLabel(format: ExportPreviewPayload["format"], t: (key: string) => string): string {
     switch (format) {
@@ -282,7 +275,7 @@ export function ExportPreviewDialog({ payload, onClose }: ExportPreviewDialogPro
                 }
                 const copy = new Uint8Array(payload.binaryBody.byteLength);
                 copy.set(payload.binaryBody);
-                const ok = await saveOrDownloadBytes(name, copy, mimeForSave());
+                const ok = await saveOrDownloadBytes(name, copy, mimeForSave(), payload.context);
                 if (ok) toast(t("common.file_saved"), "success");
             } else {
                 const text = currentTextForSave();
@@ -290,7 +283,7 @@ export function ExportPreviewDialog({ payload, onClose }: ExportPreviewDialogPro
                     toast(t("common.no_content_to_save"), "error");
                     return;
                 }
-                const ok = await saveOrDownloadText(name, text, mimeForSave());
+                const ok = await saveOrDownloadText(name, text, mimeForSave(), payload.context);
                 if (ok) toast(t("common.file_saved"), "success");
             }
         } catch (e) {
@@ -404,8 +397,8 @@ export function ExportPreviewDialog({ payload, onClose }: ExportPreviewDialogPro
                 </>
             }
         >
-            <div className="export-preview-dialog-inner col" style={{ gap: 14 }}>
-                <div className="export-preview-badges row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <div className="export-preview-dialog-inner col" style={{ gap: "var(--space-4)" }}>
+                <div className="export-preview-badges row" style={{ gap: "var(--space-2)", flexWrap: "wrap", alignItems: "center" }}>
                     <span className="pill blue">{formatLabel(payload.format, t)}</span>
                     {payload.hint ? (
                         <span className="text-body text-on-surface-variant" style={{ fontSize: 13 }}>

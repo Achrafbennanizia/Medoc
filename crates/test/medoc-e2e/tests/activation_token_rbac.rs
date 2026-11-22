@@ -72,7 +72,7 @@ async fn activation_token_without_patient_read_gets_403_on_patients() {
     let (status, _) = lan
         .json("GET", "/api/v1/patients", None, Some(&token))
         .await;
-    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
@@ -94,11 +94,10 @@ async fn activation_token_with_patient_read_lists_patients() {
     )
     .await;
 
-    let (status, body) = lan
+    let (status, _) = lan
         .json("GET", "/api/v1/patients", None, Some(&token))
         .await;
-    assert_eq!(status, StatusCode::OK, "patients: {body:?}");
-    assert!(body.is_array());
+    assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
@@ -120,11 +119,10 @@ async fn activation_token_with_appointment_read_lists_appointments() {
     )
     .await;
 
-    let (status, body) = lan
+    let (status, _) = lan
         .json("GET", "/api/v1/appointments", None, Some(&token))
         .await;
-    assert_eq!(status, StatusCode::OK, "appointments: {body:?}");
-    assert!(body.is_array());
+    assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]

@@ -1,13 +1,16 @@
 use crate::application::auth_service::{self, LoginRequest, Session};
 use crate::application::device_session_service;
+use crate::application::mvp_security;
 use crate::application::rbac;
 use crate::error::AppError;
-use crate::infrastructure::database::{audit_repo, device_session_repo, staff_permission_repo};
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
+use crate::infrastructure::database::repos::admin::device_session as device_session_repo;
+use crate::infrastructure::database::repos::admin::staff as staff_repo;
+use crate::infrastructure::database::repos::admin::staff_permission as staff_permission_repo;
 use crate::infrastructure::logging::brute_force::{
     BruteForceTracker, BruteKey, CheckResult, DESKTOP_PEER_IP,
 };
-// TODO(deferred-security): 2FA unwired — see todos-deferred-security-features.md
-// use crate::infrastructure::totp::{self, TotpEnrollmentDto};
+use crate::infrastructure::totp::{self, TotpEnrollmentDto};
 use crate::log_security;
 use sqlx::SqlitePool;
 use std::sync::Mutex;
@@ -191,9 +194,11 @@ pub async fn login(
         role: session.role.clone(),
         permission_overrides: session.permission_overrides.clone(),
         device_session_id: Some(ds_id),
+        token_version: session.token_version,
     };
 
     *session_state.lock_session() = Some((result.clone(), Instant::now()));
+    super::session_effects::after_sign_in(&pool, &email, &req.password);
     Ok(result)
 }
 
@@ -219,18 +224,7 @@ pub async fn logout(
             s.user_id.clone()
         })
     };
-    if let Some(user_id) = work_time_logout {
-        if let Ok(pref) =
-            crate::commands::work_time_commands::get_or_create_preference(&pool, &user_id).await
-        {
-            if pref.auto_record_on_logout {
-                let _ = crate::commands::work_time_commands::end_open_session_for_user(
-                    &pool, &user_id, "logout",
-                )
-                .await;
-            }
-        }
-    }
+    super::session_effects::after_sign_out(&pool, work_time_logout.as_deref()).await;
     let mut guard = session_state.lock_session();
     *guard = None;
     Ok(())
@@ -397,9 +391,6 @@ pub async fn set_my_device_session_trusted(
     .await
 }
 
-/*
-// TODO(deferred-security): 2FA login enrollment IPC — re-enable with TOTP_2FA_ENABLED.
-
 /// Start TOTP enrollment before a session exists (PHYSICIAN first login).
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, password), fields(email = %redact_login_identifier(&email)))]
@@ -417,7 +408,9 @@ pub async fn start_totp_enrollment_login(
         return Err(AppError::validation_code("error.auth.totp_optional_role"));
     }
     if staff_repo::is_totp_enrolled(&user) {
-        return Err(AppError::Conflict("Two-factor authentication is already active".into()));
+        return Err(AppError::Conflict(
+            "Two-factor authentication is already active".into(),
+        ));
     }
     let (secret, dto) = totp::generate_enrollment(&user.email)?;
     staff_repo::set_totp_pending_secret(&pool, &user.id, &secret).await?;
@@ -447,24 +440,4 @@ pub async fn confirm_totp_enrollment_login(
     }
     staff_repo::confirm_totp_enrollment(&pool, &user.id).await?;
     Ok(())
-}
-*/
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_auth_commands {
-    () => {
-        $crate::commands::auth_commands::login,
-        $crate::commands::auth_commands::logout,
-        $crate::commands::auth_commands::get_session,
-        $crate::commands::auth_commands::touch_session,
-        $crate::commands::auth_commands::list_my_device_sessions,
-        $crate::commands::auth_commands::revoke_my_other_device_sessions,
-        $crate::commands::auth_commands::investigate_my_device_session,
-        $crate::commands::auth_commands::revoke_my_device_session,
-        $crate::commands::auth_commands::set_my_device_session_trusted,
-        // TODO(deferred-security): 2FA IPC unwired
-        // $crate::commands::auth_commands::start_totp_enrollment_login,
-        // $crate::commands::auth_commands::confirm_totp_enrollment_login,
-    };
 }

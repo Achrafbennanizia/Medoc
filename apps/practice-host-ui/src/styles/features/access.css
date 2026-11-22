@@ -1,0 +1,5 @@
+/* features/access — role & privileges panel (components/staff/staff-access-panel.tsx) and the
+   Help guide (components/help/help-access-guide.tsx). */
+/* Manifest: the files below hold the rules, in cascade order. Add rules to the file named after
+   the component that uses them, not here. */
+@import "../views/components/help/help-access-guide.css";

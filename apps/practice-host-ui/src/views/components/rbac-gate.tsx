@@ -84,10 +84,10 @@ export function AccessDeniedView({
             <h2 className="page-title" style={{ fontSize: "1.15rem" }}>
                 {title ?? t("rbac.access_denied_title")}
             </h2>
-            <p className="page-sub" style={{ marginTop: 8 }}>
+            <p className="page-sub" style={{ marginTop: "var(--space-2)" }}>
                 {detail ?? t("rbac.access_denied_detail")}
             </p>
-            <p style={{ marginTop: 16 }}>
+            <p style={{ marginTop: "var(--space-4)" }}>
                 <Link to="/" className="btn btn-primary">
                     {t("rbac.to_dashboard")}
                 </Link>

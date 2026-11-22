@@ -71,6 +71,8 @@ pub struct PairingSubmitResult {
 pub struct PairingCheckStatusPayload {
     pub request_id: String,
     pub master_base_url: String,
+    #[serde(default)]
+    pub master_cert_sha256: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -79,6 +81,8 @@ pub struct PairingConfirmPinPayload {
     pub request_id: String,
     pub master_base_url: String,
     pub pin: String,
+    #[serde(default)]
+    pub master_cert_sha256: String,
 }
 
 #[derive(Debug, Deserialize)]

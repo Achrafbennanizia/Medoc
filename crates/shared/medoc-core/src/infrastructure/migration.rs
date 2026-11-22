@@ -1,11 +1,11 @@
-// CSV-based patient import (FA-MIG-01).
+// CSV-based patient import (FA-MIG-01 / F52).
 //
-// Format expected (header row mandatory, semicolon delimiter).
+// Format (header row mandatory, semicolon delimiter, quoting on).
 // English headers only:
 //
 //   name;date_of_birth;sex;insurance_number;phone;email;address
 //
-// `date_of_birth` is parsed as `YYYY-MM-DD` or `DD.MM.YYYY`.
+// `date_of_birth` is `YYYY-MM-DD` or `DD.MM.YYYY`.
 // `sex` accepts M/F/W/D (case-insensitive) and is normalised to MALE/FEMALE/DIVERSE.
 
 use chrono::NaiveDate;
@@ -14,16 +14,24 @@ use sqlx::SqlitePool;
 use std::path::Path;
 
 use crate::error::AppError;
+use crate::infrastructure::database::repos::clinical::patient as patient_repo;
 use crate::log_migration;
+
+#[derive(Debug, Serialize, Clone)]
+pub struct ImportLineError {
+    pub line: u64,
+    pub message: String,
+}
 
 #[derive(Debug, Serialize, Default)]
 pub struct ImportReport {
     pub source: String,
     pub total_rows: u64,
     pub imported: u64,
+    pub skipped_duplicates: u64,
     pub skipped: u64,
     pub failed: u64,
-    pub errors: Vec<String>,
+    pub errors: Vec<ImportLineError>,
 }
 
 pub async fn import_patients(
@@ -31,8 +39,9 @@ pub async fn import_patients(
     csv_path: &Path,
     dry_run: bool,
 ) -> Result<ImportReport, AppError> {
-    let content = std::fs::read_to_string(csv_path)
-        .map_err(|e| AppError::Internal(format!("Cannot read CSV: {e}")))?;
+    let bytes =
+        std::fs::read(csv_path).map_err(|e| AppError::Internal(format!("Cannot read CSV: {e}")))?;
+    let content = decode_csv_bytes(&bytes);
 
     let mut report = ImportReport {
         source: csv_path.display().to_string(),
@@ -41,27 +50,45 @@ pub async fn import_patients(
 
     log_migration!(info, event = "IMPORT_START", source = %report.source, dry_run);
 
-    let mut lines = content.lines();
-    let header = lines.next().unwrap_or("");
-    let cols: Vec<&str> = header.split(';').map(|s| s.trim()).collect();
-    let col = |english: &str| cols.iter().position(|c| *c == english);
+    let mut reader = csv::ReaderBuilder::new()
+        .delimiter(b';')
+        .has_headers(true)
+        .flexible(true)
+        .from_reader(content.as_bytes());
+
+    let headers = reader
+        .headers()
+        .map_err(|e| AppError::Validation(format!("CSV header: {e}")))?
+        .clone();
+    let col = |english: &str| headers.iter().position(|c| c.trim() == english);
     if col("name").is_none() || col("date_of_birth").is_none() {
         return Err(AppError::Validation(
             "CSV header must contain at least 'name' and 'date_of_birth'".into(),
         ));
     }
 
-    for (lineno, raw) in lines.enumerate() {
-        let lineno = lineno + 2; // +1 for header, +1 for 1-based
-        if raw.trim().is_empty() {
+    for (idx, rec) in reader.records().enumerate() {
+        let lineno = (idx + 2) as u64;
+        let rec = match rec {
+            Ok(r) => r,
+            Err(e) => {
+                report.failed += 1;
+                report.total_rows += 1;
+                report.errors.push(ImportLineError {
+                    line: lineno,
+                    message: e.to_string(),
+                });
+                continue;
+            }
+        };
+        if rec.iter().all(|s| s.trim().is_empty()) {
             continue;
         }
         report.total_rows += 1;
-        let fields: Vec<&str> = raw.split(';').collect();
         let get = |english: &str| -> Option<String> {
             col(english)
-                .and_then(|i| fields.get(i))
-                .map(|s| s.trim().to_string())
+                .and_then(|i| rec.get(i))
+                .map(|s| unguard_csv_cell(s.trim()).to_string())
                 .filter(|s| !s.is_empty())
         };
 
@@ -69,7 +96,10 @@ pub async fn import_patients(
             Some(n) => n,
             None => {
                 report.failed += 1;
-                report.errors.push(format!("Row {lineno}: name missing"));
+                report.errors.push(ImportLineError {
+                    line: lineno,
+                    message: "name missing".into(),
+                });
                 continue;
             }
         };
@@ -77,60 +107,61 @@ pub async fn import_patients(
             Some(g) => g,
             None => {
                 report.failed += 1;
-                report
-                    .errors
-                    .push(format!("Row {lineno}: date_of_birth missing"));
+                report.errors.push(ImportLineError {
+                    line: lineno,
+                    message: "date_of_birth missing".into(),
+                });
                 continue;
             }
         };
-        let dob = parse_date(&dob_raw);
-        let dob = match dob {
+        let dob = match parse_date(&dob_raw) {
             Some(d) => d,
             None => {
                 report.failed += 1;
-                report
-                    .errors
-                    .push(format!("Row {lineno}: invalid date '{dob_raw}'"));
+                report.errors.push(ImportLineError {
+                    line: lineno,
+                    message: format!("invalid date '{dob_raw}'"),
+                });
                 continue;
             }
         };
         let sex = normalise_sex(get("sex").as_deref().unwrap_or("D"));
-        let vnr = get("insurance_number").unwrap_or_else(|| format!("UNKNOWN-{lineno}"));
+        let vnr = get("insurance_number");
         let phone = get("phone");
         let email = get("email");
         let address = get("address");
+
+        let exists = patient_repo::name_dob_exists(pool, &name, &dob.to_string()).await?;
+        if exists {
+            report.skipped_duplicates += 1;
+            report.skipped += 1;
+            continue;
+        }
 
         if dry_run {
             report.imported += 1;
             continue;
         }
 
-        let id = uuid::Uuid::new_v4().to_string();
-        let res = sqlx::query(
-            "INSERT INTO patient (id, name, date_of_birth, sex,
-                insurance_number, phone, email, address, status)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'ACTIVE')",
+        match patient_repo::create_from_import(
+            pool,
+            &name,
+            dob,
+            sex,
+            vnr.as_deref(),
+            phone.as_deref(),
+            email.as_deref(),
+            address.as_deref(),
         )
-        .bind(&id)
-        .bind(&name)
-        .bind(dob)
-        .bind(sex)
-        .bind(&vnr)
-        .bind(&phone)
-        .bind(&email)
-        .bind(&address)
-        .execute(pool)
-        .await;
-
-        match res {
+        .await
+        {
             Ok(_) => report.imported += 1,
-            Err(sqlx::Error::Database(db)) if db.is_unique_violation() => {
-                report.skipped += 1;
-                log_migration!(warn, event = "IMPORT_DUPLICATE", line = lineno, name = %name);
-            }
             Err(e) => {
                 report.failed += 1;
-                report.errors.push(format!("Row {lineno}: DB error: {e}"));
+                report.errors.push(ImportLineError {
+                    line: lineno,
+                    message: e.to_string(),
+                });
             }
         }
     }
@@ -139,11 +170,51 @@ pub async fn import_patients(
         event = "IMPORT_COMPLETE",
         source = %report.source,
         imported = report.imported,
-        skipped = report.skipped,
+        skipped = report.skipped_duplicates,
         failed = report.failed,
     );
 
     Ok(report)
+}
+
+fn decode_csv_bytes(bytes: &[u8]) -> String {
+    let text = if let Ok(s) = std::str::from_utf8(bytes) {
+        s.to_string()
+    } else {
+        encoding_rs::WINDOWS_1252.decode(bytes).0.into_owned()
+    };
+    text.strip_prefix('\u{FEFF}').unwrap_or(&text).to_string()
+}
+
+/// Split one `;`-separated line, honouring `"…"` quoting and `""` escapes.
+#[cfg(test)]
+fn split_semicolon_csv(line: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut cur = String::new();
+    let mut in_q = false;
+    let mut chars = line.chars().peekable();
+    while let Some(c) = chars.next() {
+        match (c, in_q) {
+            ('"', true) if chars.peek() == Some(&'"') => {
+                cur.push('"');
+                chars.next();
+            }
+            ('"', true) => in_q = false,
+            ('"', false) if cur.is_empty() => in_q = true,
+            (';', false) => out.push(std::mem::take(&mut cur)),
+            (other, _) => cur.push(other),
+        }
+    }
+    out.push(cur);
+    out
+}
+
+/// Undo the export's formula-injection guard (`'=…`, `'+49…`).
+fn unguard_csv_cell(s: &str) -> &str {
+    match s.strip_prefix('\'') {
+        Some(rest) if rest.starts_with(['=', '+', '-', '@']) => rest,
+        _ => s,
+    }
 }
 
 fn parse_date(s: &str) -> Option<NaiveDate> {
@@ -157,5 +228,21 @@ fn normalise_sex(s: &str) -> &'static str {
         "M" | "MALE" => "MALE",
         "W" | "F" | "FEMALE" => "FEMALE",
         _ => "DIVERSE",
+    }
+}
+
+#[cfg(test)]
+mod csv_split_tests {
+    use super::{split_semicolon_csv, unguard_csv_cell};
+
+    #[test]
+    fn quoted_fields_and_guard_round_trip() {
+        let f = split_semicolon_csv("\"Muster; Max\";1990-01-01;'+49 30 123;\"a \"\"b\"\"\"");
+        assert_eq!(
+            f,
+            vec!["Muster; Max", "1990-01-01", "'+49 30 123", "a \"b\""]
+        );
+        assert_eq!(unguard_csv_cell(&f[2]), "+49 30 123");
+        assert_eq!(unguard_csv_cell("'Text"), "'Text");
     }
 }

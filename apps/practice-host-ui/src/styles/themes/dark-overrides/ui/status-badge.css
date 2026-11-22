@@ -1,0 +1,62 @@
+/* From styles/themes/dark-overrides.css (cascade position kept by its import there). */
+html[data-theme="dark"] .icon-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+html[data-theme="dark"] .icon-btn .dot {
+  border-color: var(--bg);
+}
+html[data-theme="dark"] .pill.grey {
+  background: color-mix(in oklab, var(--fg) 14%, var(--bg-elev));
+  color: var(--fg);
+}
+html[data-theme="dark"] .pill.green {
+  background: color-mix(in oklab, var(--green) 28%, var(--bg-elev));
+  color: var(--green-ink);
+}
+html[data-theme="dark"] .pill.blue {
+  background: color-mix(in oklab, var(--blue) 28%, var(--bg-elev));
+  color: var(--blue-ink);
+}
+html[data-theme="dark"] .pill.orange {
+  background: color-mix(in oklab, var(--orange) 28%, var(--bg-elev));
+  color: var(--orange-ink);
+}
+html[data-theme="dark"] .pill.yellow {
+  background: color-mix(in oklab, var(--yellow) 28%, var(--bg-elev));
+  color: var(--yellow-ink);
+}
+html[data-theme="dark"] .pill.red {
+  background: color-mix(in oklab, var(--red) 28%, var(--bg-elev));
+  color: var(--red-ink);
+}
+html[data-theme="dark"] .pill.purple {
+  background: color-mix(in oklab, var(--purple) 28%, var(--bg-elev));
+  color: var(--purple-ink);
+}
+html[data-theme="dark"] .pill.accent {
+  background: color-mix(in oklab, var(--accent) 28%, var(--bg-elev));
+  color: color-mix(in oklab, var(--accent) 42%, #fff);
+}
+html[data-theme="dark"] .dashboard-wire-pill-status--open {
+  color: #fdba74;
+  background: color-mix(in oklab, var(--orange) 20%, var(--panel));
+}
+html[data-theme="dark"] .dashboard-wire-pill-status--transit {
+  color: #93c5fd;
+  background: color-mix(in oklab, var(--blue) 18%, var(--panel));
+}
+html[data-theme="dark"] .dashboard-wire-pill-status--late,
+html[data-theme="dark"] .appointment-now-pill {
+  color: #fecaca;
+  background: color-mix(in oklab, var(--red) 20%, var(--bg-elev));
+}
+html[data-theme="dark"] .dashboard-wire-icon-btn {
+  color: #fecaca;
+  background: color-mix(in oklab, var(--red) 20%, var(--bg-elev));
+  border-color: color-mix(in oklab, var(--red) 42%, var(--line-strong));
+}
+html[data-theme="dark"] .dashboard-wire-icon-btn:hover:not(:disabled) {
+  color: #fff1f2;
+  background: color-mix(in oklab, var(--red) 28%, var(--bg-elev));
+  border-color: color-mix(in oklab, var(--red) 52%, var(--line-strong));
+}

@@ -1,0 +1,184 @@
+/* From styles/pages/appointments-cards.css (cascade position kept by its import there). */
+.appointment-day-empty {
+  flex: 1;
+  min-height: 0;
+  padding: 24px 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.appointment-mini-month-card .appointment-mini-month-title {
+  font-weight: 700;
+  font-size: 14px;
+  text-transform: capitalize;
+}
+.appointment-mini-cal {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+  text-align: center;
+}
+.appointment-mini-cal-head {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--fg-3);
+  padding: 4px 0;
+}
+.appointment-mini-cal-cell {
+  min-height: 32px;
+  border: 0;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: transparent;
+  cursor: pointer;
+  color: var(--fg);
+}
+.appointment-mini-cal-cell.dim {
+  opacity: 0.25;
+  cursor: default;
+}
+.appointment-mini-cal-cell.today {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.appointment-mini-cal-cell.selected {
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+.appointment-side-h3 {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-3);
+  margin-bottom: 8px;
+}
+.appointment-stat-big {
+  font-size: 36px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+.appointment-stat-big-label {
+  font-size: 13px;
+  color: var(--fg-3);
+  margin-bottom: 12px;
+}
+.appointment-stat-row.appointment-stat-row--day {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--fg-2);
+}
+.appointment-stat-row.appointment-stat-row--day > span {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 4px;
+  min-width: 0;
+}
+.appointment-stat-line-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-3);
+}
+.appointment-stat-line-val {
+  font-size: 15px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+  letter-spacing: -0.02em;
+}
+.appointment-next-card {
+  background: linear-gradient(135deg, var(--accent-soft), var(--bg-elev));
+  border: 1px solid color-mix(in oklab, var(--accent) 28%, transparent);
+}
+.appointment-next-time {
+  font-size: 22px;
+  font-weight: 800;
+}
+.appointment-next-name {
+  font-weight: 700;
+  font-size: 16px;
+}
+.appointment-next-meta {
+  font-size: 12.5px;
+  color: var(--fg-3);
+  margin-top: 6px;
+}
+
+/* Day view: with low window height — compact sidebar, everything reachable via scroll */
+.appointment-day-split.appointment-day-split--compact .appointment-day-sidebar {
+  gap: 8px;
+}
+@container appointment-day-split (max-height: 680px) {
+  .appointment-day-sidebar {
+    gap: 8px;
+  }
+  .appointment-day-sidebar > .card,
+  .appointment-day-split.appointment-day-split--compact .appointment-day-sidebar > .card {
+    flex-shrink: 0;
+  }
+  .appointment-day-sidebar .card-pad,
+  .appointment-day-split.appointment-day-split--compact .appointment-day-sidebar .card-pad {
+    padding: 10px 12px;
+  }
+  .appointment-mini-cal-cell {
+    min-height: 26px;
+    font-size: 11px;
+  }
+  .appointment-mini-cal-head {
+    font-size: 9px;
+    padding: 2px 0;
+  }
+  .appointment-stat-big {
+    font-size: 28px;
+  }
+  .appointment-stat-big-label {
+    margin-bottom: 8px;
+  }
+  .appointment-stat-row.appointment-stat-row--day {
+    padding-top: 10px;
+    gap: 6px;
+  }
+  .appointment-stat-line-val {
+    font-size: 13px;
+  }
+  .appointment-next-time {
+    font-size: 18px;
+  }
+  .appointment-next-name {
+    font-size: 14px;
+  }
+}
+@container appointment-day-split (max-height: 520px) {
+  .appointment-day-split {
+    grid-template-columns: minmax(0, 1fr) minmax(200px, 30%);
+    gap: 12px;
+  }
+  .appointment-mini-month-card .row {
+    margin-bottom: 4px !important;
+  }
+}
+.appointment-day-split.appointment-day-split--compact {
+  gap: 12px;
+}
+.appointment-day-split--compact .appointment-day-sidebar__summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  align-items: start;
+}
+.appointment-day-split--compact .appointment-day-sidebar__summary .appointment-stat-row--day {
+  grid-column: 1 / -1;
+  margin-top: 0;
+  padding-top: 10px;
+}
+.appointment-day-split--compact .appointment-next-card {
+  padding: 10px 12px;
+}

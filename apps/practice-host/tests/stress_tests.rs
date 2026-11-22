@@ -1,7 +1,7 @@
 //! G11 / WAAD 9.4 — lightweight stress harness: 5 parallel logical clients hammering the audit chain.
 
-use medoc_lib::infrastructure::database::audit_repo;
 use medoc_lib::infrastructure::database::connection::test_memory_pool;
+use medoc_lib::infrastructure::database::repos::admin::audit as audit_repo;
 use std::sync::{Arc, Once};
 
 static INIT_AUDIT: Once = Once::new();

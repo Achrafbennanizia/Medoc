@@ -16,7 +16,7 @@ export function ClusterJoinPage() {
             <h1>{t("page.lan.cluster_join.title")}</h1>
             <p className="card-sub">{t("page.lan.cluster_join.subtitle")}</p>
             <ClusterJoinFlow completeWithAccountSetup />
-            <div className="onboarding-actions" style={{ marginTop: 16 }}>
+            <div className="onboarding-actions" style={{ marginTop: "var(--space-4)" }}>
                 <Link to="/onboarding" className="btn btn-subtle">
                     {t("page.lan.cluster_join.back")}
                 </Link>

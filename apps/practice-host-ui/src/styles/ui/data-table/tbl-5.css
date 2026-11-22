@@ -1,0 +1,62 @@
+/* From styles/features/catalog-staff.css (cascade position kept by its import there). */
+@layer components {
+  /* Invoice history is 6 columns. products-tbl widths are the 4-column catalog. */
+  .tbl.tbl-invoice-history {
+    table-layout: fixed;
+    width: 100%;
+    min-width: 0;
+  }
+  .tbl.tbl-invoice-history thead th,
+  .tbl.tbl-invoice-history tbody td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
+    text-align: start;
+  }
+  .tbl.tbl-invoice-history .inv-hist-total {
+    text-align: end;
+    font-variant-numeric: tabular-nums;
+  }
+  .tbl.tbl-invoice-history .inv-hist-status {
+    overflow: visible;
+  }
+  .tbl.tbl-invoice-history .inv-hist-created {
+    font-size: 12px;
+  }
+  .tbl.tbl-invoice-history tbody tr {
+    cursor: pointer;
+  }
+  .inv-hist-col-invoice { width: 20%; }
+  .inv-hist-col-date { width: 14%; }
+  .inv-hist-col-recipient { width: 22%; }
+  .inv-hist-col-total { width: 18%; }
+  .inv-hist-col-status { width: 13%; }
+  .inv-hist-col-created { width: 13%; }
+  tr.products-row--selected td {
+    background: color-mix(in oklab, var(--accent) 10%, transparent);
+  }
+  /* Contracts list: table scrolls with page / horizontally; detail sticks + own scroll. */
+  .contracts-workspace {
+    width: 100%;
+    min-width: 0;
+  }
+  .contracts-workspace .staff-workspace__list {
+    /* Width and min width come from layout/master-detail.css. Table is not viewport-locked; page scroll moves the list */
+    max-height: none;
+    overflow: visible;
+  }
+  /* Contracts (administration-contracts.tsx · DataTable): widths come from the column definitions. */
+  .contracts-workspace .contracts-table-card {
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .contracts-cell-name {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+  .contracts-cell-name__icon { flex: 0 0 auto; color: var(--fg-3); }
+}

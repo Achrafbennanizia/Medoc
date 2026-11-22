@@ -1,11 +1,14 @@
+use super::appointment_relation::{require_own_appointment, require_own_clinician};
 use crate::application::appointment_hint_fulfillment;
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::domain::entities::appointment::{CreateAppointment, UpdateAppointment};
 use crate::domain::entities::Appointment;
 use crate::domain::services::workflow_transitions;
 use crate::error::AppError;
-use crate::infrastructure::database::{appointment_repo, audit_repo, patient_repo};
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
+use crate::infrastructure::database::repos::clinical::patient as patient_repo;
+use crate::infrastructure::database::repos::scheduling::appointment as appointment_repo;
 use sqlx::SqlitePool;
 use tauri::State;
 
@@ -50,6 +53,49 @@ pub async fn list_appointments_paged(
     })
 }
 
+/// F63: all appointments in the visible calendar range (local dates, inclusive).
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
+pub async fn list_appointments_in_range(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    from_date: String,
+    to_date: String,
+) -> Result<Vec<Appointment>, AppError> {
+    rbac::require(&session_state, "appointment.read")?;
+    appointment_repo::find_in_range(&pool, &from_date, &to_date).await
+}
+
+/// F70: drag-move of one or more appointments, all or nothing.
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, changes))]
+pub async fn move_appointments(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    changes: Vec<crate::domain::entities::appointment::AppointmentMove>,
+) -> Result<Vec<Appointment>, AppError> {
+    let session = rbac::require(&session_state, "appointment.write")?;
+    for c in &changes {
+        require_own_appointment(&pool, &session, &c.id).await?;
+    }
+    let moved = appointment_repo::move_many(&pool, &changes).await?;
+    for a in &moved {
+        if let Err(e) = audit_repo::create(
+            &pool,
+            &session.user_id,
+            "UPDATE",
+            "Appointment",
+            Some(&a.id),
+            None,
+        )
+        .await
+        {
+            tracing::warn!(target: "medoc::security", event = "AUDIT_WRITE_FAILED", error = %e);
+        }
+    }
+    Ok(moved)
+}
+
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state))]
 pub async fn get_appointment(
@@ -71,6 +117,7 @@ pub async fn create_appointment(
     data: CreateAppointment,
 ) -> Result<Appointment, AppError> {
     let session = rbac::require(&session_state, "appointment.write")?;
+    require_own_clinician(&session, &data.physician_id)?;
     let t = appointment_repo::create(&pool, &data).await?;
     audit_repo::create(
         &pool,
@@ -103,6 +150,10 @@ pub async fn update_appointment(
     let current = appointment_repo::find_by_id(&pool, &id)
         .await?
         .ok_or(AppError::NotFound("Appointment".into()))?;
+    require_own_clinician(&session, &current.physician_id)?;
+    if let Some(new_clinician) = &data.physician_id {
+        require_own_clinician(&session, new_clinician)?;
+    }
     if let Some(new_status) = &data.status {
         let new_str = serde_json::to_string(new_status)
             .map(|s| s.trim_matches('"').to_uppercase())
@@ -137,6 +188,7 @@ pub async fn delete_appointment(
     id: String,
 ) -> Result<(), AppError> {
     let session = rbac::require(&session_state, "appointment.write")?;
+    require_own_appointment(&pool, &session, &id).await?;
     appointment_repo::delete(&pool, &id).await?;
     audit_repo::create(
         &pool,
@@ -160,18 +212,4 @@ pub async fn list_appointments_by_date(
 ) -> Result<Vec<Appointment>, AppError> {
     rbac::require(&session_state, "appointment.read")?;
     appointment_repo::find_by_date(&pool, &date).await
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_appointment_commands {
-    () => {
-        $crate::commands::appointment_commands::list_appointments,
-        $crate::commands::appointment_commands::list_appointments_paged,
-        $crate::commands::appointment_commands::get_appointment,
-        $crate::commands::appointment_commands::create_appointment,
-        $crate::commands::appointment_commands::update_appointment,
-        $crate::commands::appointment_commands::delete_appointment,
-        $crate::commands::appointment_commands::list_appointments_by_date,
-    };
 }

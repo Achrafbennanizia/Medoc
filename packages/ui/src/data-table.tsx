@@ -37,6 +37,8 @@ export type DataTableProps<T> = {
     readonly selectedId?: string | null;
     readonly onRowActivate?: (row: T) => void;
     readonly rowClassName?: (row: T) => string | undefined;
+    /** Accessible name for an interactive row (e.g. "Show service Filling"). */
+    readonly rowLabel?: (row: T) => string;
     /** Minimum table width before horizontal scrolling kicks in. */
     readonly minWidth?: string;
     readonly className?: string;
@@ -59,6 +61,7 @@ export function DataTable<T>({
     selectedId,
     onRowActivate,
     rowClassName,
+    rowLabel,
     minWidth,
     className,
     maxHeight,
@@ -90,6 +93,9 @@ export function DataTable<T>({
                 aria-label={label}
                 style={minWidth ? { minWidth } : undefined}
                 data-interactive={interactive || undefined}
+                // Widths come from the column definitions; the global text-measuring estimator
+                // (table-column-estimator-host) would add a second pixel <colgroup> and overflow the card.
+                data-tbl-no-autosize=""
             >
                 <colgroup>
                     {columns.map((c) => (
@@ -134,6 +140,7 @@ export function DataTable<T>({
                                         .join(" ")}
                                     tabIndex={interactive ? 0 : undefined}
                                     aria-selected={interactive ? selected : undefined}
+                                    aria-label={rowLabel?.(row)}
                                     onClick={onRowActivate ? () => onRowActivate(row) : undefined}
                                     onKeyDown={interactive ? (e) => onRowKey(e, row) : undefined}
                                 >

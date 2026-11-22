@@ -51,7 +51,7 @@ export function PatientDetailAnamTab({
 
     return (
         <div id="panel-anamnesis" role="tabpanel" aria-labelledby="tab-anamnesis">
-            <div className="col" style={{ gap: 16 }}>
+            <div className="col" style={{ gap: "var(--space-4)" }}>
                 <Card className="card-pad">
                     <CardHeader
                         title={t("patient.detail.tab.anamnesis.title")}
@@ -65,7 +65,7 @@ export function PatientDetailAnamTab({
                                   : t("patient.detail.tab.anamnesis.subtitle_view")
                         }
                         action={(
-                            <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+                            <div className="row" style={{ gap: "var(--space-2)", flexWrap: "wrap" }}>
                                 {canWriteMedical && !anamEditing ? (
                                     <Button size="sm" variant="secondary" type="button" onClick={() => onAnamEditingChange(true)}>
                                         {t("common.edit")}
@@ -87,8 +87,8 @@ export function PatientDetailAnamTab({
                     <label
                         className="row"
                         style={{
-                            marginBottom: 14,
-                            gap: 8,
+                            marginBottom: "var(--space-4)",
+                            gap: "var(--space-2)",
                             alignItems: "center",
                             opacity: anamEditing ? 1 : 0.65,
                             cursor: anamEditing ? "pointer" : "default",
@@ -105,7 +105,7 @@ export function PatientDetailAnamTab({
                     <p style={{ margin: "0 0 14px", fontSize: 12.5, color: "var(--fg-3)", lineHeight: 1.45 }}>
                         {t("patient.detail.tab.anamnesis.fields_hint")}
                     </p>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4" style={{ marginBottom: 20 }}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4" style={{ marginBottom: "var(--space-5)" }}>
                         <Input
                             id="anam-vs"
                             label={t("patient.detail.tab.anamnesis.field.insurance_status")}
@@ -139,7 +139,7 @@ export function PatientDetailAnamTab({
                         />
                     </div>
                     {parsedAnamnesisPreview ? (
-                        <div style={{ borderTop: "1px solid var(--line)", paddingTop: 16 }}>
+                        <div style={{ borderTop: "1px solid var(--line)", paddingTop: "var(--space-4)" }}>
                             <div className="chart-section-eyebrow">{t("patient.detail.anam.overview")}</div>
                             <AnamnesisVisual data={parsedAnamnesisPreview} />
                         </div>

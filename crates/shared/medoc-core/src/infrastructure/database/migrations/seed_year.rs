@@ -9,15 +9,16 @@
 //! - 5 staff (1 dentist PHYSICIAN + 4 front-desk/support RECEPTION — MVP quota)
 //! - Full-year calendar: 3–8 non-overlapping appointments per weekday (durations in notes)
 //!
-//! Skipped under `cfg!(test)` via [`run_demo_year_volume_if_needed`]. Idempotent: `year_v7`.
-//! DBs already marked `year_v3`–`year_v6` only refresh appointments (calendar upgrade).
+//! Skipped under `cfg!(test)` via [`run_demo_year_volume_if_needed`]. Idempotent: `year_v8`.
+//! DBs already marked `year_v3`–`year_v7` only refresh appointments (calendar upgrade).
 
 use chrono::{Datelike, Duration, Local, NaiveDate, Weekday};
 use sqlx::sqlite::SqlitePool;
 
 use crate::error::AppError;
 
-const YEAR_SEED_KV_KEY: &str = "migration.demo_seed.year_v7";
+const YEAR_SEED_KV_KEY: &str = "migration.demo_seed.year_v8";
+const YEAR_SEED_KV_KEY_V7: &str = "migration.demo_seed.year_v7";
 const YEAR_SEED_KV_KEY_V6: &str = "migration.demo_seed.year_v6";
 const YEAR_SEED_KV_KEY_V5: &str = "migration.demo_seed.year_v5";
 const YEAR_SEED_KV_KEY_V4: &str = "migration.demo_seed.year_v4";
@@ -208,30 +209,55 @@ fn weekday_apt_count(day: NaiveDate, min: u32, max: u32) -> u32 {
     min + (n % span as u64) as u32
 }
 
-/// Pack non-overlapping appointments into the day (lunch 12:00–13:00 closed).
+/// Practice hours the calendar enforces (`practice.work_hours.v1`): Mon–Thu 08:00–17:00,
+/// Fri 08:00–15:00, lunch 12:30–13:30. Sat/Sun are closed.
+pub(crate) const OFFICE_OPEN_MIN: u32 = 8 * 60;
+pub(crate) const OFFICE_LUNCH_START_MIN: u32 = 12 * 60 + 30;
+pub(crate) const OFFICE_LUNCH_END_MIN: u32 = 13 * 60 + 30;
+pub(crate) const OFFICE_CLOSE_MIN: u32 = 17 * 60;
+pub(crate) const OFFICE_FRIDAY_CLOSE_MIN: u32 = 15 * 60;
+
+/// `(open, lunch start, lunch end, close)` in minutes from midnight. `None` on Sat/Sun.
+pub(crate) fn office_window(day: NaiveDate) -> Option<(u32, u32, u32, u32)> {
+    match day.weekday() {
+        Weekday::Sat | Weekday::Sun => None,
+        Weekday::Fri => Some((
+            OFFICE_OPEN_MIN,
+            OFFICE_LUNCH_START_MIN,
+            OFFICE_LUNCH_END_MIN,
+            OFFICE_FRIDAY_CLOSE_MIN,
+        )),
+        _ => Some((
+            OFFICE_OPEN_MIN,
+            OFFICE_LUNCH_START_MIN,
+            OFFICE_LUNCH_END_MIN,
+            OFFICE_CLOSE_MIN,
+        )),
+    }
+}
+
+/// Pack non-overlapping appointments into the practice day (lunch 12:30–13:30 closed).
 /// Starts snap to 5-minute marks; each slot gets an explicit duration that fits before the next.
 fn packed_day_slots(day: NaiveDate, count: usize) -> Vec<(String, &'static str, u32)> {
-    const DAY_START: u32 = 8 * 60;
-    const DAY_END: u32 = 17 * 60;
-    const LUNCH_START: u32 = 12 * 60;
-    const LUNCH_END: u32 = 13 * 60;
-    /// Buffer between consecutive appointments (minutes) — UI leaves a 3px visual gap.
+    let Some((day_start, lunch_start, lunch_end, day_end)) = office_window(day) else {
+        return Vec::new();
+    };
+    /// Buffer between consecutive appointments (minutes).
     const BETWEEN_MIN: u32 = 5;
 
     let day_n = day.num_days_from_ce() as u64;
     let mut out = Vec::with_capacity(count);
-    let mut cursor = DAY_START;
+    let mut cursor = day_start;
     let mut slot_i = 0u64;
-    while out.len() < count && cursor < DAY_END {
+    while out.len() < count && cursor < day_end {
         let n = mix(day_n.wrapping_mul(31).wrapping_add(slot_i).wrapping_add(9));
         let kind = *pick(n + 1, APT_KINDS);
         let dur = duration_for_kind(kind, n + 2);
-        // Snap start to a clean 5-minute mark.
         cursor = cursor.div_ceil(5) * 5;
-        if cursor < LUNCH_END && cursor + dur > LUNCH_START {
-            cursor = LUNCH_END;
+        if cursor < lunch_end && cursor + dur > lunch_start {
+            cursor = lunch_end;
         }
-        if cursor + dur > DAY_END {
+        if cursor + dur > day_end {
             break;
         }
         out.push((minutes_to_time(cursor), kind, dur));
@@ -346,8 +372,8 @@ async fn seed_calendar_appointments_tx(
                 let created = format!("{day} {time}:00");
                 sqlx::query(
                     "INSERT OR IGNORE INTO appointment
-                     (id, date, time, kind, status, notes, chief_complaint, patient_id, physician_id, created_at, updated_at)
-                     VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?10)",
+                     (id, date, time, kind, status, notes, chief_complaint, patient_id, physician_id, duration_minutes, created_at, updated_at)
+                     VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?11)",
                 )
                 .bind(format!("seed-yr-apt-{a:05}"))
                 .bind(day.to_string())
@@ -358,6 +384,7 @@ async fn seed_calendar_appointments_tx(
                 .bind(complaint)
                 .bind(&patient_ids[pat_idx])
                 .bind(PHYSICIAN_ID)
+                .bind(i64::from(dur))
                 .bind(&created)
                 .execute(&mut **tx)
                 .await
@@ -420,24 +447,25 @@ pub async fn run_demo_year_volume_if_needed(pool: &SqlitePool) -> Result<(), App
         remap_invalid_demo_tooth_numbers(pool).await?;
         return Ok(());
     }
-    // Existing year_v3–v6 DBs: refresh calendar only (keep clinical/billing volume).
-    let prior = kv_present(pool, YEAR_SEED_KV_KEY_V6).await?
+    // Existing year_v3–v7 DBs: refresh calendar only (keep clinical/billing volume).
+    let prior = kv_present(pool, YEAR_SEED_KV_KEY_V7).await?
+        || kv_present(pool, YEAR_SEED_KV_KEY_V6).await?
         || kv_present(pool, YEAR_SEED_KV_KEY_V5).await?
         || kv_present(pool, YEAR_SEED_KV_KEY_V4).await?
         || kv_present(pool, YEAR_SEED_KV_KEY_V3).await?;
     if prior {
-        tracing::info!("demo year seed v7: refreshing calendar appointments (non-overlapping)");
+        tracing::info!("demo year seed v8: refreshing calendar appointments inside office hours");
         refresh_year_calendar_appointments(pool, Scale::full()).await?;
         remap_invalid_demo_tooth_numbers(pool).await?;
         mark_applied(pool).await?;
-        tracing::info!("demo year seed v7: calendar refresh done");
+        tracing::info!("demo year seed v8: calendar refresh done");
         return Ok(());
     }
-    tracing::info!("demo year seed v7: generating full practice volume");
+    tracing::info!("demo year seed v8: generating full practice volume");
     seed_year_volume(pool, Scale::full()).await?;
     remap_invalid_demo_tooth_numbers(pool).await?;
     mark_applied(pool).await?;
-    tracing::info!("demo year seed v7: done");
+    tracing::info!("demo year seed v8: done");
     Ok(())
 }
 
@@ -795,8 +823,8 @@ async fn seed_year_volume(pool: &SqlitePool, scale: Scale) -> Result<(), AppErro
 
         // Multiple dental findings for a dense tooth-status look (valid FDI only).
         const FDI: [i64; 32] = [
-            18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28, 48, 47, 46, 45, 44,
-            43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38,
+            18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28, 48, 47, 46, 45, 44, 43,
+            42, 41, 31, 32, 33, 34, 35, 36, 37, 38,
         ];
         let finding_count = 1 + (mix(i + 40) % 4);
         for f in 0..finding_count {
@@ -1262,7 +1290,7 @@ async fn seed_year_volume(pool: &SqlitePool, scale: Scale) -> Result<(), AppErro
             for (staff, start_h, end_h) in staff_day {
                 let sid = format!("seed-yr-wt-{wt_n:05}");
                 wt_n += 1;
-                sqlx::query(
+                let wt_res = sqlx::query(
                     "INSERT OR IGNORE INTO work_time_session
                      (id, staff_id, started_at, ended_at, status, auto_recorded, pause_minutes)
                      VALUES (?1,?2,?3,?4,'ENDED',1,?5)",
@@ -1273,8 +1301,14 @@ async fn seed_year_volume(pool: &SqlitePool, scale: Scale) -> Result<(), AppErro
                 .bind(format!("{wt_day} {end_h:02}:{:02}:00", mix(wt_n + 3) % 40))
                 .bind(20i64 + (mix(wt_n) % 40) as i64)
                 .execute(&mut *tx)
-                .await
-                .map_err(AppError::Database)?;
+                .await;
+                match wt_res {
+                    Ok(_) => {}
+                    Err(sqlx::Error::Database(e)) if e.message().contains("no such table") => {
+                        break;
+                    }
+                    Err(e) => return Err(AppError::Database(e)),
+                }
             }
         }
         wt_day += Duration::days(1);
@@ -1300,6 +1334,40 @@ async fn seed_year_volume(pool: &SqlitePool, scale: Scale) -> Result<(), AppErro
 mod tests {
     use super::*;
     use crate::infrastructure::database::connection;
+    use chrono::{NaiveDate, Weekday};
+
+    fn hm_to_min(hm: &str) -> u32 {
+        let (h, m) = hm.split_once(':').expect("HH:MM");
+        h.parse::<u32>().unwrap() * 60 + m.parse::<u32>().unwrap()
+    }
+
+    #[test]
+    fn packed_slots_stay_inside_practice_hours() {
+        let monday = NaiveDate::from_ymd_opt(2026, 11, 16).unwrap();
+        let friday = NaiveDate::from_ymd_opt(2026, 11, 20).unwrap();
+        let sunday = NaiveDate::from_ymd_opt(2026, 11, 15).unwrap();
+        assert!(office_window(sunday).is_none());
+        assert!(packed_day_slots(sunday, 8).is_empty());
+        for day in [monday, friday] {
+            let slots = packed_day_slots(day, 8);
+            assert!(!slots.is_empty(), "{day}");
+            let close = if day.weekday() == Weekday::Fri {
+                OFFICE_FRIDAY_CLOSE_MIN
+            } else {
+                OFFICE_CLOSE_MIN
+            };
+            for (time, _, dur) in &slots {
+                let start = hm_to_min(time);
+                let end = start + dur;
+                assert!(start >= OFFICE_OPEN_MIN, "{day} {time}");
+                assert!(end <= close, "{day} {time}+{dur} ends after close");
+                assert!(
+                    end <= OFFICE_LUNCH_START_MIN || start >= OFFICE_LUNCH_END_MIN,
+                    "{day} {time}+{dur} overlaps the 12:30–13:30 break"
+                );
+            }
+        }
+    }
 
     #[tokio::test]
     async fn year_volume_smoke_scale_fills_tables() {

@@ -1,0 +1,177 @@
+/* From styles/layout/shell-chrome.css (cascade position kept by its import there). */
+@layer components {
+  /* Content panels are never drag regions: only `.login-window-chrome` (WindowDragStrip) moves the window. */
+  .pre-shell-screen {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+    min-height: var(--app-dvh);
+    width: 100%;    background: var(--app-backdrop);
+  }
+  .desktop-app-frame__fill .pre-shell-screen { min-height: 0; height: 100%; flex: 1 1 auto; }
+  .pre-shell-screen__body {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: auto;
+  }
+  .app-shell {
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    width: 100%;
+    overflow: hidden;
+    align-items: stretch;
+  }
+  .app-shell > div:last-child {
+    min-height: 0;
+  }
+  .app-sidebar-backdrop { display: none; }
+  .glass {
+    align-self: stretch;
+    min-height: 0;
+    height: 100%;
+    max-height: 100%;
+    background: var(--surface-sidebar-canvas);
+    backdrop-filter: saturate(180%) blur(24px);
+    -webkit-backdrop-filter: saturate(180%) blur(24px);
+    border-inline-end: 1px solid var(--line);
+    padding: 18px 14px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    color: var(--fg-2);
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  /* Sidebar shell stays fixed height; inner `.app-sidebar-scroll` scrolls — avoids clipping the account popover. */
+  .glass.app-sidebar {
+    overflow: hidden;
+  }
+  .app-sidebar-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .app-sidebar-footer {
+    margin-top: auto;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 4;
+    overflow: visible;
+    padding-top: var(--space-2);
+  }
+  button.app-sidebar-user-card {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    margin: 0;
+    padding: var(--space-2);
+    border-radius: 14px;
+    border: 1px solid var(--border-sidebar-user);
+    background: var(--surface-sidebar-user);
+    color: var(--text-sidebar-user-primary);
+    cursor: pointer;
+    font: inherit;
+    text-align: start;
+    min-width: 0;
+    transition:
+      background var(--motion-fast) var(--ease-out),
+      box-shadow var(--motion-fast) var(--ease-out),
+      transform var(--motion-fast) var(--ease-out),
+      filter var(--motion-fast) var(--ease-out);
+  }
+  button.app-sidebar-user-card > .av,
+  div.app-sidebar-user-card > .av {
+    flex: 0 0 auto;
+  }
+  .app-sidebar-user-lines {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+  }
+  button.app-sidebar-user-card:hover {
+    background: var(--surface-sidebar-user-hover);
+    box-shadow: 0 4px 14px color-mix(in oklab, var(--accent) 18%, transparent);
+    filter: brightness(1.02);
+  }
+  button.app-sidebar-user-card:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  button.app-sidebar-user-card:active:not(:disabled) {
+    transform: scale(0.99);
+  }
+  div.app-sidebar-user-card.app-sidebar-user-card--collapsed-only {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    margin: 0;
+    padding: var(--space-2);
+    border-radius: 14px;
+    border: 1px solid var(--border-sidebar-user);
+    background: var(--surface-sidebar-user);
+    color: var(--text-sidebar-user-primary);
+    cursor: default;
+    font: inherit;
+    text-align: center;
+    box-sizing: border-box;
+    user-select: none;
+  }
+  .app-sidebar-user-card__name {
+    font-weight: 700;
+    font-size: 12.5px;
+    line-height: 1.2;
+    color: var(--text-sidebar-user-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .app-sidebar-user-card__meta {
+    font-size: 10.5px;
+    line-height: 1.2;
+    color: var(--text-sidebar-user-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .app-sidebar-user-lines--narrow-strip {
+    width: 100%;
+    text-align: center;
+  }
+  .app-sidebar-user-lines--narrow-strip > div {
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    font-size: 10px !important;
+    line-height: 1.2 !important;
+    max-height: 2.64em;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .app-sidebar-user-card-chevron {
+    flex-shrink: 0;
+    display: inline-flex;
+    color: var(--text-sidebar-user-secondary);
+    transition: transform 160ms ease;
+  }
+  .app-sidebar-user-card-chevron.is-open {
+    transform: rotate(180deg);
+  }
+}

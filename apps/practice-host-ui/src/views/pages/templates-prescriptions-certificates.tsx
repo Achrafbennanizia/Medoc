@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { listDocumentTemplates, deleteDocumentTemplate } from "@/systems/practice-host/controllers/practice.controller";
 import { allowed, parseRole } from "@/lib/rbac";
@@ -7,6 +7,7 @@ import type { DocumentTemplate } from "../../models/types";
 import { errorMessage } from "@/lib/utils";
 import { useT, useTParams , useCollatorLocale} from "@/lib/i18n";
 import { Button } from "../components/ui/button";
+import { DataTable } from "../components/ui/data-table";
 import { Card, CardHeader } from "../components/ui/card";
 import { ConfirmDialog } from "../components/ui/dialog";
 import { EmptyState } from "../components/ui/empty-state";
@@ -133,7 +134,7 @@ export function TemplatesPrescriptionsCertificatesPage() {
     if (status === "loading") return <PageLoading label={t("page.templates.loading")} />;
     if (status === "error" && loadError) {
         return (
-            <div className="products-page practice-workspace-page animate-fade-in">
+            <div className="products-page practice-workspace-page animate-fade-in--sticky-safe">
                 <AdministrationPageHeader title={t("page.templates.title")} />
                 <PageLoadError message={loadError} onRetry={() => void reload()} />
             </div>
@@ -162,7 +163,7 @@ export function TemplatesPrescriptionsCertificatesPage() {
                         title={editorTitle}
                         subtitle={t("page.templates.editor.subtitle")}
                     />
-                    <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: 12 }}>
+                    <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
                         {editorSpec.type === "new" ? (
                             <TemplateEditorPanel
                                 editingId={null}
@@ -193,7 +194,7 @@ export function TemplatesPrescriptionsCertificatesPage() {
                         subtitle={r.kind === "PRESCRIPTION" ? t("page.templates.detail.prescription") : t("page.templates.detail.certificate")}
                         action={
                             canWrite ? (
-                                <div className="row" style={{ gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                                <div className="row" style={{ gap: "var(--space-2)", flexWrap: "wrap", justifyContent: "flex-end" }}>
                                     <Button
                                         type="button"
                                         size="sm"
@@ -209,7 +210,7 @@ export function TemplatesPrescriptionsCertificatesPage() {
                             ) : null
                         }
                     />
-                    <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: 12 }}>
+                    <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
                         <AdministrationReadField label={t("page.templates.preview")} value={previewPayload(r)} />
                     </div>
                 </Card>
@@ -225,7 +226,7 @@ export function TemplatesPrescriptionsCertificatesPage() {
     })();
 
     return (
-        <div className="products-page practice-workspace-page animate-fade-in">
+        <div className="products-page practice-workspace-page animate-fade-in--sticky-safe">
             <ConfirmDialog
                 open={Boolean(deleteId)}
                 title={t("page.templates.delete.title")}
@@ -264,48 +265,23 @@ export function TemplatesPrescriptionsCertificatesPage() {
                             />
                         </Card>
                     ) : (
-                        <div className="card products-table-card tbl-data-card tbl-scroll">
-                            <table className="tbl products-tbl">
-                                <thead>
-                                    <tr>
-                                        <th scope="col">{t("page.templates.col.title")}</th>
-                                        <th scope="col">{t("page.templates.col.type")}</th>
-                                        <th scope="col">{t("page.templates.col.content")}</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {sorted.map((r) => {
-                                        const isSel = selected?.id === r.id;
-                                        const pickRow = () => {
-                                            setSelected(r);
-                                            closeEditor();
-                                        };
-                                        const rowKeyDown = (e: KeyboardEvent) => {
-                                            if (e.key === "Enter" || e.key === " ") {
-                                                e.preventDefault();
-                                                pickRow();
-                                            }
-                                        };
-                                        return (
-                                            <tr
-                                                key={r.id}
-                                                className={isSel ? "products-row--selected" : undefined}
-                                                tabIndex={0}
-                                                onClick={() => pickRow()}
-                                                onKeyDown={rowKeyDown}
-                                                style={{ cursor: "pointer" }}
-                                                aria-label={tp("page.templates.aria.show", { title: r.title })}
-                                            >
-                                                <td>
-                                                    <span style={{ fontWeight: 600, color: "var(--fg-2)" }}>{r.title}</span>
-                                                </td>
-                                                <td>{r.kind === "PRESCRIPTION" ? t("page.templates.type.prescription") : t("page.templates.type.certificate")}</td>
-                                                <td style={{ color: "var(--fg-3)", fontSize: 13 }}>{previewPayload(r)}</td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
+                        <div className="card products-table-card tbl-data-card">
+                            <DataTable
+                                label={t("page.templates.title")}
+                                rows={sorted}
+                                getRowId={(r) => r.id}
+                                selectedId={selected?.id ?? null}
+                                onRowActivate={(r) => {
+                                    setSelected(r);
+                                    closeEditor();
+                                }}
+                                rowLabel={(r) => tp("page.templates.aria.show", { title: r.title })}
+                                columns={[
+                                    { id: "title", header: t("page.templates.col.title"), width: "34%", truncate: true, text: (r) => r.title, cell: (r) => <span className="data-table__primary">{r.title}</span> },
+                                    { id: "type", header: t("page.templates.col.type"), width: "9rem", cell: (r) => (r.kind === "PRESCRIPTION" ? t("page.templates.type.prescription") : t("page.templates.type.certificate")) },
+                                    { id: "content", header: t("page.templates.col.content"), truncate: true, hideBelow: "sm", text: (r) => previewPayload(r), cell: (r) => <span className="data-table__muted">{previewPayload(r)}</span> },
+                                ]}
+                            />
                         </div>
                     )}
                 </div>

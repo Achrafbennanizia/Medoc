@@ -59,6 +59,8 @@ export function getAdministrationBackTarget(pathnameWithOptionalQuery: string): 
         "/administration/contracts": INVENTORY_HUB,
         "/administration/order-master": INVENTORY_HUB,
         "/administration/treatment-catalog": SERVICES_HUB,
+        "/administration/medications": SERVICES_HUB,
+        "/administration/prescription-presets": SERVICES_HUB,
         "/administration/templates": SERVICES_HUB,
         "/administration/work-days": PRACTICE_HUB,
         "/administration/special-blocked-times": PRACTICE_HUB,

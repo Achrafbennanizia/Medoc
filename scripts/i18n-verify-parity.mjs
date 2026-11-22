@@ -99,14 +99,16 @@ for (const loc of ["en", "fr", "ar"]) {
         if (OK_IDENTICAL.test(v.trim())) continue;
 
         const sameAsDe = v === dv;
-        const hasGerman = UMLAUT.test(v) || DE_SPECIFIC.test(v);
+        // Official German names (fee schedules) keep their umlaut in every language.
+        const vNoProper = v.replace(/GOÄ/g, "GOAE");
+        const hasGerman = UMLAUT.test(vNoProper) || DE_SPECIFIC.test(vNoProper);
         if (!hasGerman) continue;
 
         if (sameAsDe && (UMLAUT.test(dv) || DE_SPECIFIC.test(dv)) && !OK_IDENTICAL.test(dv.trim())) {
             console.error(`[i18n] ${loc}.json still German (identical to de): ${k} => ${v.slice(0, 80)}`);
             failed = true;
             germanHits++;
-        } else if (!sameAsDe && UMLAUT.test(v)) {
+        } else if (!sameAsDe && UMLAUT.test(vNoProper)) {
             console.error(`[i18n] ${loc}.json contains German umlauts: ${k} => ${v.slice(0, 80)}`);
             failed = true;
             germanHits++;

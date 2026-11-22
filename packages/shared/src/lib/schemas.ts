@@ -36,6 +36,15 @@ const optionalText = z
     .optional()
     .transform((version) => (version == null || version === "" ? null : version));
 
+/**
+ * F59/F69 update fields: missing stays missing (backend keeps the value);
+ * `null` or "" is sent as `null` (backend clears it).
+ */
+const patchText = z
+    .union([z.string(), z.null(), z.undefined()])
+    .optional()
+    .transform((v) => (v === undefined ? undefined : v === null || v.trim() === "" ? null : v));
+
 export {
     ChartStatusSchema,
     FeedbackCategorySchema,
@@ -47,9 +56,6 @@ export {
     PaymentMethodSchema,
     PaymentStatusSchema,
 } from "@/lib/schemas.enums.generated";
-/** @deprecated Use {@link SexSchema}. */
-export const PatientSexSchema = SexSchema;
-
 export const CreatePatientSchema = z.object({
     name: nonEmpty("Name is required").max(120),
     date_of_birth: isoDate,
@@ -65,14 +71,15 @@ export const CreatePatientSchema = z.object({
         .transform((version) => (version == null || version === "" ? null : version)),
     address: optionalText,
 });
-export type CreatePatientInput = z.infer<typeof CreatePatientSchema>;
-
 export const UpdatePatientSchema = z
     .object({
         name: z.string().min(1).max(120).optional(),
-        phone: optionalText,
-        email: z.union([z.string().email(), z.literal(""), z.null(), z.undefined()]).optional(),
-        address: optionalText,
+        phone: patchText,
+        email: z
+            .union([z.string().email(), z.literal(""), z.null(), z.undefined()])
+            .optional()
+            .transform((v) => (v === undefined ? undefined : v === null || v === "" ? null : v)),
+        address: patchText,
         status: PatientStatusSchema.optional(),
     })
     .strict();
@@ -85,18 +92,19 @@ export const CreateAppointmentSchema = z.object({
     physician_id: nonEmpty("Provider is required"),
     notes: optionalText,
     chief_complaint: optionalText,
+    duration_minutes: z.number().int().min(5).max(720).optional(),
+    status: z.enum(["PLANNED", "CONFIRMED"]).optional(),
 });
-export type CreateAppointmentInput = z.infer<typeof CreateAppointmentSchema>;
-
 export const UpdateAppointmentSchema = z
     .object({
         date: isoDate.optional(),
         time: isoTime.optional(),
         kind: AppointmentKindSchema.optional(),
         status: AppointmentStatusSchema.optional(),
-        notes: optionalText,
-        chief_complaint: optionalText,
+        notes: patchText,
+        chief_complaint: patchText,
         physician_id: z.string().min(1).optional(),
+        duration_minutes: z.number().int().min(5).max(720).optional(),
     })
     .strict();
 
@@ -226,6 +234,8 @@ export const CreatePrescriptionSchema = z.object({
     prescription_type: z.enum(["PRIVAT", "KASSE", "BTM"]).optional().nullable(),
     icd10_code: optionalText,
     prescribing_physician_id: optionalText,
+    /** The doctor confirmed the allergy warning (MD-RXP-001). */
+    allergy_override: z.boolean().optional(),
 });
 
 export const UpdatePrescriptionSchema = z.object({
@@ -243,6 +253,8 @@ export const UpdatePrescriptionSchema = z.object({
     prescription_type: z.enum(["PRIVAT", "KASSE", "BTM"]).optional().nullable(),
     icd10_code: optionalText,
     prescribing_physician_id: optionalText,
+    /** The doctor confirmed the allergy warning (MD-RXP-001). */
+    allergy_override: z.boolean().optional(),
 });
 
 export const CreateCertificateSchema = z.object({
@@ -336,8 +348,6 @@ export const CreateFeedbackSchema = z.object({
     message: z.string().min(10, "Message too short").max(4000),
     reference: optionalText,
 });
-
-export type UpdateServiceItemInput = z.infer<typeof UpdateServiceItemSchema>;
 
 /**
  * Convert a ZodError into a single human-readable string suitable for toasts.

@@ -1,0 +1,61 @@
+/* From styles/pages/work-plan.css (cascade position kept by its import there). */
+/* Staff — WorkPlan (day / week / month) */
+.staff-workPlan,
+.staff-workPlan-page {
+  min-height: min-content;
+  width: 100%;
+  max-width: 100%;
+}
+
+.workPlan-pref-line {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  background: var(--card);
+  border-bottom: 1px solid var(--line-1);
+  cursor: pointer;
+  text-align: start;
+  font: inherit;
+  color: var(--fg-1);
+}
+.workPlan-pref-line--on,
+.workPlan-pref-line:hover {
+  background: var(--bg-0);
+}
+.workPlan-pref-meta {
+  display: block;
+  font-size: 11.5px;
+  color: var(--fg-3);
+  margin-top: 2px;
+}
+
+.workPlan-filter-bar {
+  padding-bottom: var(--space-1);
+  border-bottom: 1px solid var(--line-1);
+  margin-bottom: var(--space-1);
+}
+.workPlan-filter-bar--compact {
+  padding-bottom: 2px;
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--line-1);
+}
+.workPlan-chips--compact button {
+  padding: 2px 8px;
+  font-size: 11.5px;
+}
+.workPlan-toolbar--slim {
+  padding: 6px 8px !important;
+  gap: 6px 10px !important;
+  flex-wrap: wrap;
+}
+.workPlan-view-filter {
+  padding: 3px 9px !important;
+  font-size: 11.5px !important;
+  line-height: 1.2;
+}
+
+/* Calendar: compact, flexible, no internal scroll containers */
+.workPlan-cal-card {
+  max-width: 100%;
+}

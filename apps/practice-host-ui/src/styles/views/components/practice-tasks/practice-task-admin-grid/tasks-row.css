@@ -1,0 +1,68 @@
+/* From styles/features/tasks-orders.css (cascade position kept by its import there). */
+@layer components {
+  .practice-task-comment {
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: var(--bg-elev);
+  }
+  .practice-task-comment--system {
+    background: color-mix(in oklab, var(--fg) 3%, var(--bg-elev));
+  }
+  .practice-task-comment_head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+  }
+  .practice-task-comment_author {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--fg-2);
+  }
+  .practice-task-comment_time {
+    font-size: 11px;
+    color: var(--fg-4);
+    white-space: nowrap;
+  }
+  .practice-task-comment_body {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--fg);
+    white-space: pre-wrap;
+  }
+  .practice-task-comments_compose {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+  }
+  .practice-task-ticket-fields {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin: 4px 0 8px;
+  }
+  .practice-task-drawer-inline {
+    margin: 12px 0;
+  }
+  .tasks-row--clickable {
+    cursor: pointer;
+  }
+  .tasks-row--clickable:hover td {
+    background: rgba(0, 0, 0, 0.02);
+  }
+  .tasks-row--disabled {
+    cursor: default;
+    opacity: 0.55;
+  }
+  .practice-task-inbox-card__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+}

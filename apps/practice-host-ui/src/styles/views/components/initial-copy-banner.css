@@ -1,0 +1,72 @@
+/* From styles/components/toast.css (cascade position kept by its import there). */
+@layer components {
+  .toast-progress-bar {
+    height: 100%;
+    width: 100%;
+    transform-origin: left center;
+    animation: toast-progress-shrink var(--toast-dur, 3s) linear forwards;
+  }
+  .toast-stack.is-paused .toast-progress-bar { animation-play-state: paused; }
+  .toast-progress-bar.is-determinate {
+    animation: none;
+    transform: none;
+    width: var(--copy-pct, 0%);
+    opacity: 1;
+  }
+  .initial-copy-toast__title,
+  .initial-copy-toast__meta {
+    display: block;
+  }
+  .initial-copy-toast__meta {
+    margin-top: 2px;
+    font-size: 12px;
+    font-weight: 500;
+    opacity: 0.78;
+  }
+  body:has(.initial-copy-toast-host) .toast-stack:not(.initial-copy-toast-host) {
+    top: calc(max(12px, env(safe-area-inset-top, 0px)) + 84px);
+  }
+  .toast-item.success {
+    background: var(--bg-elev);
+    color: var(--fg);
+    border-color: var(--line-strong);
+    box-shadow: var(--shadow-lg);
+  }
+  .toast-item.success .toast-item-inner { background: transparent; color: inherit; }
+  .toast-item.success .toast-message { font-size: 13px; font-weight: 500; }
+  .toast-item.success .toast-dismiss { color: var(--fg-2); opacity: 0.85; }
+  .toast-item.success .toast-dismiss:hover {
+    opacity: 1;
+    background: color-mix(in oklab, var(--fg) 8%, transparent);
+  }
+  .toast-item.success .toast-dismiss:focus-visible,
+  .toast-item.success .toast-undo:focus-visible { outline-color: var(--accent); }
+  .toast-item.success .toast-undo {
+    color: var(--text-on-accent, #fff);
+    background: var(--accent);
+    border: none;
+  }
+  .toast-item.success .toast-undo:hover {
+    background: color-mix(in oklab, var(--accent) 86%, var(--fg));
+    filter: none;
+  }
+  .toast-item.success .toast-progress-track {
+    background: color-mix(in oklab, var(--fg) 8%, transparent);
+  }
+  .toast-item.success .toast-progress-bar { background: var(--accent); }
+  .toast-item.error { background: var(--red-soft); color: var(--red); }
+  .toast-item.error .toast-progress-bar { background: var(--red); }
+  .toast-item.error .toast-dismiss { color: var(--red); }
+  .toast-item.info { background: var(--blue-soft); color: var(--blue-ink); }
+  .toast-item.info .toast-progress-bar { background: var(--blue); }
+  .toast-item.warning { background: var(--orange-soft); color: var(--orange-ink); }
+  .toast-item.warning .toast-progress-bar { background: var(--orange); }
+  @keyframes toast-progress-shrink {
+    from { transform: scaleX(1); }
+    to { transform: scaleX(0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .toast-progress-bar { animation: none; opacity: 0.35; }
+    .toast-progress-bar.is-determinate { opacity: 1; }
+  }
+}

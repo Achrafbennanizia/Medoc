@@ -11,7 +11,8 @@
 //! vendor seed.
 
 use crate::error::AppError;
-use crate::infrastructure::database::app_kv_repo;
+use crate::infrastructure::database::repos::admin::app_kv as app_kv_repo;
+use crate::infrastructure::database::sync_registry::APP_KV_DEVICE_ID_KEY;
 use crate::infrastructure::license::{self, LicenseStatus};
 use sqlx::SqlitePool;
 
@@ -46,19 +47,22 @@ pub async fn clear(pool: &SqlitePool) -> Result<(), AppError> {
 /// Stable per-install device id used for v2 binding and sync device registry.
 /// Reuses the same UUID that `medoc-sync` writes to `sync.device_id.v1`.
 pub async fn ensure_device_id(pool: &SqlitePool) -> Result<String, AppError> {
-    if let Some(existing) = app_kv_repo::get(pool, "sync.device_id.v1")
+    if let Some(existing) = app_kv_repo::get(pool, APP_KV_DEVICE_ID_KEY)
         .await?
-        .filter(|s| !s.is_empty())
+        .filter(|s| !s.trim().is_empty())
     {
         return Ok(existing);
     }
-    if let Some(legacy) = app_kv_repo::get(pool, KEY_DEVICE_ID).await? {
-        if !legacy.is_empty() {
-            return Ok(legacy);
-        }
+    if let Some(legacy) = app_kv_repo::get(pool, KEY_DEVICE_ID)
+        .await?
+        .filter(|s| !s.trim().is_empty())
+    {
+        app_kv_repo::set(pool, APP_KV_DEVICE_ID_KEY, &legacy).await?;
+        return Ok(legacy);
     }
     let id = uuid::Uuid::new_v4().to_string();
     app_kv_repo::set(pool, KEY_DEVICE_ID, &id).await?;
+    app_kv_repo::set(pool, APP_KV_DEVICE_ID_KEY, &id).await?;
     Ok(id)
 }
 
@@ -113,7 +117,7 @@ pub fn mint_copyable_v2_license_for_app_dir(
                     crate::infrastructure::database::connection::init_db_headless(&app_data_dir)
                         .await?;
                 let device_id = ensure_device_id(&pool).await?;
-                app_kv_repo::set(&pool, "sync.device_id.v1", &device_id).await?;
+                app_kv_repo::set(&pool, APP_KV_DEVICE_ID_KEY, &device_id).await?;
                 let envelope = crate::infrastructure::license::mint_dev_v2_license_envelope(
                     &device_id,
                     &customer_id,

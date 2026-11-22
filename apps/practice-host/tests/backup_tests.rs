@@ -2,7 +2,7 @@
 
 use chrono::{Datelike, Duration, Utc};
 use medoc_lib::infrastructure::backup::{enforce_retention_at, parse_backup_timestamp, sign_file};
-use medoc_lib::infrastructure::database::audit_repo;
+use medoc_lib::infrastructure::database::repos::admin::audit as audit_repo;
 use std::path::PathBuf;
 use std::sync::Once;
 use tokio::sync::Mutex;

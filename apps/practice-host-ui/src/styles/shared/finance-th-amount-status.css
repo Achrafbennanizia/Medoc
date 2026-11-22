@@ -1,0 +1,64 @@
+/* From styles/features/finance-payments.css (cascade position kept by its import there). */
+@layer components {
+  .finance-tx-status-cell .finance-payment-status-select.select-trigger .select-trigger-label {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .finance-tx-status-cell .select-menu {
+    inset-inline-start: 0;
+    inset-inline-end: auto;
+    width: max-content;
+    min-width: 100%;
+    max-width: min(14rem, calc(100vw - 48px));
+  }
+  .finance-amt-col {
+    text-align: right;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+  .finance-th-amount-status {
+    vertical-align: bottom;
+    line-height: 1.35;
+  }
+  .finance-th-amount-status__line {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--fg-4);
+  }
+  .finance-th-amount-status__line--sub {
+    margin-top: 2px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--fg-3);
+    letter-spacing: 0.06em;
+  }
+  .finance-payment-status-block {
+    width: 100%;
+    max-width: 280px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 5px;
+  }
+  .finance-payment-status-hint {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--fg-4);
+    line-height: 1.2;
+  }
+  /* Status dropdown: enough width for "Outstanding" / "PartiallyPaid"; menu may be wider than trigger */
+  .finance-amt-col .finance-payment-status-block .select-wrap {
+    width: 100%;
+    max-width: 280px;
+  }
+}

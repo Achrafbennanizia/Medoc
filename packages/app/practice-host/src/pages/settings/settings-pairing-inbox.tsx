@@ -10,6 +10,7 @@ import {
     OPTIONAL_READ_ACTIONS,
     pairingDecide,
     pairingListAll,
+    pairingListPending,
     pairingMasterInfo,
     pairingRevoke,
     type PairingMasterInfo,
@@ -18,7 +19,8 @@ import {
 import { getAppKvRaw, setAppKvRaw } from "@/systems/practice-host/controllers/app-kv.controller";
 import { SettingsSwitch } from "@/views/components/settings-switch";
 import { Button } from "@/views/components/ui/button";
-import { errorMessage, formatDateTime } from "@/lib/utils";
+import { ConfirmDialog } from "@/views/components/ui/dialog";
+import { errorMessage, formatDateTime, parseDbUtc } from "@/lib/utils";
 import { useToastStore } from "@/views/components/ui/toast-store";
 
 const PAIRING_ACTION_KEYS: Record<string, string> = {
@@ -70,9 +72,38 @@ function displayIp(raw: string): string {
 
 function requestedLabel(value: string, locale: Locale): string | null {
     if (!value) return null;
-    const date = new Date(value);
+    const date = parseDbUtc(value);
     if (Number.isNaN(date.getTime())) return null;
     return formatDateTime(value, locale);
+}
+
+function actionsOf(row: PairingRequest): string[] {
+    return Array.isArray(row.allowedActions) ? row.allowedActions : [];
+}
+
+/** Pending coupling rows win so a slow full-list response cannot hide a new request. */
+function mergeInbox(all: PairingRequest[], pending: PairingRequest[]): PairingRequest[] {
+    const byId = new Map<string, PairingRequest>();
+    for (const row of all) {
+        if (row?.id) byId.set(row.id, row);
+    }
+    for (const row of pending) {
+        if (!row?.id) continue;
+        const prev = byId.get(row.id);
+        if (!prev) {
+            byId.set(row.id, { ...row, status: "PENDING" });
+            continue;
+        }
+        byId.set(row.id, {
+            ...row,
+            ...prev,
+            requesterIp: prev.requesterIp?.trim() ? prev.requesterIp : row.requesterIp,
+            slaveLabel: prev.slaveLabel?.trim() ? prev.slaveLabel : row.slaveLabel,
+            couplingCode: row.couplingCode ?? prev.couplingCode,
+            status: "PENDING",
+        });
+    }
+    return [...byId.values()];
 }
 
 function cardTone(row: PairingRequest, awaitingPin: boolean): CardTone {
@@ -114,40 +145,63 @@ export function SettingsPairingInbox({ embedded = false }: { embedded?: boolean 
     const [pairingToggleBusy, setPairingToggleBusy] = useState(false);
     const [actionByRow, setActionByRow] = useState<Record<string, Set<string>>>({});
     const [busy, setBusy] = useState<{ id: string; action: RowAction } | null>(null);
+    const [revokeTarget, setRevokeTarget] = useState<PairingRequest | null>(null);
     /** PIN shown once on master after accept — replica must enter it. */
     const [confirmPinByRow, setConfirmPinByRow] = useState<Record<string, string>>({});
     const [copiedKey, setCopiedKey] = useState<string | null>(null);
     const [listExpanded, setListExpanded] = useState(false);
     const lastError = useRef<string | null>(null);
+    const reloadSeq = useRef(0);
 
     const deviceName = (row: PairingRequest) => {
-        const label = row.slaveLabel.trim();
-        const id = row.deviceId.trim();
+        const label = (row.slaveLabel ?? "").trim();
+        const id = (row.deviceId ?? "").trim();
         return label && label !== id ? label : "";
     };
-    const rowLabel = (row: PairingRequest) => deviceName(row) || row.deviceId.trim();
+    const rowLabel = (row: PairingRequest) => deviceName(row) || (row.deviceId ?? "").trim();
 
     const reload = useCallback(async (mode: "initial" | "manual" | "poll" = "manual") => {
+        const seq = ++reloadSeq.current;
         if (mode !== "poll") setRefreshing(true);
         try {
-            const [list, info, enabledRaw] = await Promise.all([
-                pairingListAll(),
+            const [allResult, pendingResult, info, enabledRaw] = await Promise.all([
+                pairingListAll().then(
+                    (rows) => ({ ok: true as const, rows }),
+                    (error: unknown) => ({ ok: false as const, error }),
+                ),
+                pairingListPending().then(
+                    (rows) => ({ ok: true as const, rows }),
+                    (error: unknown) => ({ ok: false as const, error }),
+                ),
                 pairingMasterInfo().catch(() => null),
                 getAppKvRaw(PAIRING_ENABLED_KEY).catch(() => null),
             ]);
+            if (seq !== reloadSeq.current) return;
+            if (!allResult.ok && !pendingResult.ok) {
+                throw allResult.error;
+            }
+            const list = mergeInbox(
+                allResult.ok ? allResult.rows : [],
+                pendingResult.ok ? pendingResult.rows : [],
+            );
             setPairingEnabled(enabledRaw !== "0" && enabledRaw !== "false");
             setItems(list);
+            setConfirmPinByRow((prev) => {
+                const ids = new Set(list.map((row) => row.id));
+                const next: Record<string, string> = {};
+                for (const [id, pin] of Object.entries(prev)) {
+                    if (ids.has(id)) next[id] = pin;
+                }
+                return next;
+            });
             setMaster(info);
             setActionByRow((prev) => {
                 const next: Record<string, Set<string>> = {};
                 for (const row of list) {
+                    const actions = actionsOf(row);
                     next[row.id] =
                         prev[row.id] ??
-                        new Set(
-                            row.allowedActions.length > 0
-                                ? row.allowedActions
-                                : DEFAULT_ALLOWED_ACTIONS,
-                        );
+                        new Set(actions.length > 0 ? actions : DEFAULT_ALLOWED_ACTIONS);
                 }
                 return next;
             });
@@ -155,6 +209,7 @@ export function SettingsPairingInbox({ embedded = false }: { embedded?: boolean 
             setLoadError(null);
             setLoaded(true);
         } catch (e) {
+            if (seq !== reloadSeq.current) return;
             const message = errorMessage(e);
             setLoadError(message);
             if (mode !== "poll" || lastError.current !== message) {
@@ -169,8 +224,17 @@ export function SettingsPairingInbox({ embedded = false }: { embedded?: boolean 
 
     useEffect(() => {
         void reload("initial");
-        const id = setInterval(() => void reload("poll"), 5000);
-        return () => clearInterval(id);
+        const id = window.setInterval(() => void reload("poll"), 3000);
+        const refreshIfVisible = () => {
+            if (document.visibilityState === "visible") void reload("poll");
+        };
+        window.addEventListener("focus", refreshIfVisible);
+        document.addEventListener("visibilitychange", refreshIfVisible);
+        return () => {
+            window.clearInterval(id);
+            window.removeEventListener("focus", refreshIfVisible);
+            document.removeEventListener("visibilitychange", refreshIfVisible);
+        };
     }, [reload]);
 
     useEffect(() => {
@@ -245,12 +309,12 @@ export function SettingsPairingInbox({ embedded = false }: { embedded?: boolean 
     };
 
     const revoke = async (row: PairingRequest) => {
-        const label = rowLabel(row);
-        if (!confirm(tp("settings.pairing.revoke_confirm", { label }))) return;
+        const key = (row.deviceId ?? "").trim() || row.id;
         setBusy({ id: row.id, action: "revoke" });
         try {
-            await pairingRevoke(row.deviceId);
+            await pairingRevoke(key);
             toast(t("settings.pairing.revoked_toast"), "success");
+            setRevokeTarget(null);
             await reload("manual");
         } catch (e) {
             toast(errorMessage(e), "error");
@@ -373,7 +437,7 @@ export function SettingsPairingInbox({ embedded = false }: { embedded?: boolean 
                         const isPending = row.status === "PENDING";
                         const isAwaitingPin = isPending && (Boolean(row.awaitingPin) || Boolean(confirmPinByRow[row.id]));
                         const isAccepted = row.status === "ACCEPTED";
-                        const displayedPin = row.couplingCode || confirmPinByRow[row.id] || undefined;
+                        const displayedPin = confirmPinByRow[row.id] || row.couplingCode || undefined;
                         const when = requestedLabel(row.requestedAt, locale);
                         const rowBusy = busy?.id === row.id;
                         const codeReady = isPending && Boolean(displayedPin) && !isAwaitingPin;
@@ -418,7 +482,7 @@ export function SettingsPairingInbox({ embedded = false }: { embedded?: boolean 
                                         <div className="pairing-inbox__k">{t("settings.pairing.ip")}</div>
                                         <div className="pairing-inbox__v">
                                             <code className="pairing-inbox__mono pairing-inbox__mono--wrap">
-                                                {displayIp(row.requesterIp) || "—"}
+                                                {displayIp(row.requesterIp ?? "") || "—"}
                                             </code>
                                         </div>
                                     </div>
@@ -426,9 +490,9 @@ export function SettingsPairingInbox({ embedded = false }: { embedded?: boolean 
                                         <div className="pairing-inbox__k">{t("settings.pairing.pubkey")}</div>
                                         <div className="pairing-inbox__v">
                                             <code className="pairing-inbox__mono pairing-inbox__mono--wrap">
-                                                {row.slavePubkey.trim() || "—"}
+                                                {(row.slavePubkey ?? "").trim() || "—"}
                                             </code>
-                                            {row.slavePubkey.trim()
+                                            {(row.slavePubkey ?? "").trim()
                                                 ? copyButton(
                                                       `key-${row.id}`,
                                                       row.slavePubkey,
@@ -513,7 +577,7 @@ export function SettingsPairingInbox({ embedded = false }: { embedded?: boolean 
                                             variant="danger"
                                             loading={rowBusy && busy?.action === "revoke"}
                                             disabled={rowBusy}
-                                            onClick={() => void revoke(row)}
+                                            onClick={() => setRevokeTarget(row)}
                                         >
                                             {t("settings.pairing.revoke")}
                                         </Button>
@@ -536,6 +600,24 @@ export function SettingsPairingInbox({ embedded = false }: { embedded?: boolean 
                         : tp("settings.pairing.show_more", { count: hiddenCount })}
                 </button>
             ) : null}
+            <ConfirmDialog
+                open={revokeTarget != null}
+                danger
+                title={t("settings.pairing.revoke")}
+                message={
+                    revokeTarget
+                        ? tp("settings.pairing.revoke_confirm", { label: rowLabel(revokeTarget) })
+                        : ""
+                }
+                confirmLabel={t("settings.pairing.revoke")}
+                loading={busy?.action === "revoke"}
+                onClose={() => {
+                    if (busy?.action !== "revoke") setRevokeTarget(null);
+                }}
+                onConfirm={() => {
+                    if (revokeTarget) void revoke(revokeTarget);
+                }}
+            />
         </>
     );
 

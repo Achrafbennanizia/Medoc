@@ -1,7 +1,9 @@
 import { useT, useTParams } from "@/lib/i18n";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { listPatients } from "@/systems/practice-host/controllers/patient.controller";
+import { listPatientsByIds } from "@/systems/practice-host/controllers/patient.controller";
+import { readListSnapshot, writeListSnapshot } from "@/lib/list-snapshot";
+import { INBOX_POLL_MS } from "@/lib/inbox-config";
 import { loadTaskTeamDirectory } from "./load-task-team";
 import {
     listPracticeTasksAdmin,
@@ -41,10 +43,10 @@ export function PracticeTaskAdminPanel({ embedded = false, backHref = "/administ
         parsedRole != null && allowed("task.status.admin", parsedRole, session?.permission_overrides);
     const canFulfillStatus =
         parsedRole != null && allowed("task.status.fulfill", parsedRole, session?.permission_overrides);
-    const [rows, setRows] = useState<PracticeTask[]>([]);
+    const [rows, setRows] = useState<PracticeTask[]>(() => readListSnapshot<PracticeTask[]>("practice-tasks-admin") ?? []);
     const [patients, setPatients] = useState<Patient[]>([]);
     const [staff, setStaff] = useState<Staff[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(() => readListSnapshot<PracticeTask[]>("practice-tasks-admin") === undefined);
     const [err, setErr] = useState<string | null>(null);
     const [search, setSearch] = useState("");
     const [filterStatus, setFilterStatus] = useState("");
@@ -54,17 +56,18 @@ export function PracticeTaskAdminPanel({ embedded = false, backHref = "/administ
     const load = useCallback(async () => {
         setErr(null);
         try {
-            const [tasks, pats, team] = await Promise.all([
-                listPracticeTasksAdmin(),
-                listPatients(),
+            const tasks = await listPracticeTasksAdmin();
+            const patientIds = [...new Set(tasks.map((task) => task.patient_id).filter((id): id is string => Boolean(id)))];
+            const [pats, team] = await Promise.all([
+                patientIds.length > 0 ? listPatientsByIds(patientIds) : Promise.resolve([] as Patient[]),
                 loadTaskTeamDirectory(parsedRole, session?.permission_overrides),
             ]);
             setRows(sortTasksByFlow(tasks));
+            writeListSnapshot("practice-tasks-admin", tasks);
             setPatients(pats);
             setStaff(team.filter((m) => m.available !== false));
         } catch (e) {
             setErr(errorMessage(e));
-            setRows([]);
         } finally {
             setLoading(false);
         }
@@ -72,6 +75,8 @@ export function PracticeTaskAdminPanel({ embedded = false, backHref = "/administ
 
     useEffect(() => {
         void load();
+        const id = window.setInterval(() => void load(), INBOX_POLL_MS);
+        return () => window.clearInterval(id);
     }, [load]);
 
     const patientMap = useMemo(() => new Map(patients.map((p) => [p.id, p])), [patients]);
@@ -109,8 +114,8 @@ export function PracticeTaskAdminPanel({ embedded = false, backHref = "/administ
         setRows((prev) => mergeUpdatedTask(prev, updated));
     };
 
-    if (loading) return <PageLoading label={t("practice.tasks.admin.loading")} />;
-    if (err) return <PageLoadError message={err} onRetry={() => void load()} />;
+    if (loading && rows.length === 0) return <PageLoading label={t("practice.tasks.admin.loading")} />;
+    if (err && rows.length === 0) return <PageLoadError message={err} onRetry={() => void load()} />;
 
     return (
         <div

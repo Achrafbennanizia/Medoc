@@ -8,6 +8,7 @@ import {
 } from "@/lib/report-export";
 import { openExportPreview } from "@/models/store/export-preview-store";
 import { translateLocale, useLocale } from "@/lib/i18n";
+import { formatDate } from "@/lib/utils";
 
 function isSummaryRow(version: unknown): version is ReportSummaryRow {
     return (
@@ -51,7 +52,7 @@ export function parseReportBundleJson(text: string): ReportBundle {
         exportTitle: translateLocale(useLocale.getState().locale, "export.report.import_title"),
         hint: translateLocale(useLocale.getState().locale, "export.report.import_hint_json"),
         suggestedBasename: `medoc-import-${base || "report"}`,
-        generatedAt: j.generatedAt ?? new Date().toLocaleDateString("de-DE"),
+        generatedAt: j.generatedAt ?? formatDate(new Date().toISOString()),
         summary,
         sections,
     };
@@ -73,7 +74,7 @@ function parseReportBundleXmlDom(text: string): ReportBundle {
     if (root.tagName !== "medocReport") throw new Error(translateLocale(useLocale.getState().locale, "export.report.import_bad_root"));
     const docTitle = root.getAttribute("title")?.trim();
     if (!docTitle) throw new Error(translateLocale(useLocale.getState().locale, "export.report.import_missing_title_attr"));
-    const generatedAt = root.getAttribute("generatedAt")?.trim() ?? new Date().toLocaleDateString("de-DE");
+    const generatedAt = root.getAttribute("generatedAt")?.trim() ?? formatDate(new Date().toISOString());
 
     const summary: ReportSummaryRow[] = [];
     for (const row of root.querySelectorAll("summary > row")) {
@@ -109,7 +110,7 @@ function parseReportBundleXmlRegex(text: string): ReportBundle {
     const rootMatch = text.match(/<medocReport[^>]*title="([^"]*)"[^>]*generatedAt="([^"]*)"/);
     if (!rootMatch) throw new Error(translateLocale(useLocale.getState().locale, "export.report.import_bad_root"));
     const docTitle = xmlUnescape(rootMatch[1] ?? "");
-    const generatedAt = xmlUnescape(rootMatch[2] ?? new Date().toLocaleDateString("de-DE"));
+    const generatedAt = xmlUnescape(rootMatch[2] ?? formatDate(new Date().toISOString()));
     const summary: ReportSummaryRow[] = [];
     for (const m of text.matchAll(/<row label="([^"]*)" value="([^"]*)"\s*\/>/g)) {
         summary.push({ label: xmlUnescape(m[1] ?? ""), value: xmlUnescape(m[2] ?? "") });

@@ -1,6 +1,7 @@
 import { useT } from "@/lib/i18n";
 import { useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
+import { isReplicaApp } from "@/lib/device-flavor";
 
 import { onboardingSubscriptionStatus, clusterActivateLicense } from "@/systems/practice-host/controllers/cluster.controller";
 import { useClusterStore } from "@/models/store/cluster-store";
@@ -18,8 +19,8 @@ export function LicenseActivateOnboardingPage() {
     const [code, setCode] = useState("");
     const [busy, setBusy] = useState(false);
 
-    const activate = async () => {
-        const trimmed = code.replace(/\s+/g, "").trim();
+    const activate = async (raw?: string) => {
+        const trimmed = (raw ?? code).replace(/\s+/g, "").trim();
         if (!trimmed) {
             toast(t("onboarding.license.paste_key"), "error");
             return;
@@ -52,6 +53,9 @@ export function LicenseActivateOnboardingPage() {
         void activate();
     };
 
+    // The replica app only joins an existing practice (docs/architecture/device-flavors-and-access.md).
+    if (isReplicaApp()) return <Navigate to="/onboarding/join" replace />;
+
     return (
         <OnboardingShell>
             <h1>{t("onboarding.license.title")}</h1>
@@ -71,18 +75,13 @@ export function LicenseActivateOnboardingPage() {
                         style={{ width: "100%", fontFamily: "ui-monospace, monospace", fontSize: 13 }}
                     />
                 </label>
-                {import.meta.env.DEV ? (
-                    <p className="card-sub" style={{ fontSize: 12, color: "var(--fg-3)", marginTop: -8 }}>
-                        {t("onboarding.license.dev_short_code_hint")}
-                    </p>
-                ) : null}
                 <div className="onboarding-actions">
                     <Button type="submit" disabled={busy} loading={busy}>
                         {t("onboarding.license.activate_btn")}
                     </Button>
                 </div>
             </form>
-            <p className="card-sub" style={{ marginTop: 20, marginBottom: 0, textAlign: "center" }}>
+            <p className="card-sub" style={{ marginTop: "var(--space-5)", marginBottom: 0, textAlign: "center" }}>
                 <Link to="/onboarding/join" className="btn btn-subtle" style={{ display: "inline-block" }}>
                     {t("onboarding.cluster.join")}
                 </Link>

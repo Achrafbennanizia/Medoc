@@ -1,0 +1,68 @@
+/* From styles/features/help-center.css (cascade position kept by its import there). */
+@layer components {
+  .help-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
+  .help-step {
+    display: grid;
+    grid-template-columns: 2rem 1fr;
+    gap: var(--space-3);
+    align-items: start;
+    padding: var(--space-3) var(--card-pad-x);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-card);
+    background: var(--bg-elev);
+  }
+  .help-step__num {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .help-step__title { margin: 0 0 var(--space-1); font-size: 14.5px; font-weight: 700; }
+  .help-step__body { margin: 0; color: var(--fg-2); line-height: 1.5; }
+  .help-facts { margin: 0; display: grid; gap: var(--space-2); }
+  .help-facts > div { display: grid; grid-template-columns: 10rem 1fr; gap: var(--space-3); }
+  .help-facts dt { color: var(--fg-3); font-weight: 600; }
+  .help-facts dd { margin: 0; font-variant-numeric: tabular-nums; }
+  /* ── About & support: sub-navigation + live status sections ── */
+  .about-layout {
+    display: grid;
+    grid-template-columns: 13rem minmax(0, 1fr);
+    gap: var(--space-5);
+    align-items: start;
+    container-type: inline-size;
+  }
+  .about-nav {
+    /* Stay in-page under chrome (same pattern as settings-nav); parent must not use transform animations */
+    position: sticky;
+    top: var(--layout-sticky-below-chrome);
+    align-self: start;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    min-width: 0;
+    z-index: var(--z-sticky);
+  }
+  .about-nav ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+  .about-nav__item {
+    width: 100%;
+    text-align: start;
+    padding: 8px 12px;
+    border-radius: var(--radius-ctl);
+    color: var(--fg-2);
+    font-weight: 500;
+    border-inline-start: 3px solid transparent;
+  }
+  .about-nav__item:hover { background: color-mix(in oklab, var(--fg) 5%, transparent); color: var(--fg); }
+  .about-nav__item[aria-current="true"] {
+    color: var(--fg);
+    font-weight: 600;
+    background: var(--accent-soft);
+    border-inline-start-color: var(--accent);
+  }
+  .about-nav__refresh { align-self: flex-start; margin-top: var(--space-2); }
+  .about-nav__stamp { margin: 0; font-size: 12px; }
+}

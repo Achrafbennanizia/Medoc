@@ -1,0 +1,68 @@
+/* From styles/pages/work-plan-rules.css (cascade position kept by its import there). */
+.workPlan-settings-sep {
+  color: var(--fg-3);
+  font-weight: 600;
+}
+
+.workPlan-time-pair {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.workPlan-time-pair__n {
+  width: 3.35rem;
+  min-width: 0;
+  text-align: center;
+}
+.workPlan-time-pair__unit {
+  font-size: 11px;
+  color: var(--fg-3);
+  font-weight: 600;
+}
+
+.workPlan-pref-editing__new {
+  font: inherit;
+  font-size: inherit;
+  color: var(--accent, #0ea07e);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-weight: 600;
+}
+.workPlan-pref-editing__new:hover {
+  color: var(--fg-1);
+}
+
+/* WorkPlan: left panel — what the rules are good for (not just "preference" jargon) */
+.workPlan-rules-callout {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--fg-2);
+  padding: 10px 12px 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--line-1);
+  border-left: 3px solid var(--accent, #3b82f6);
+  background: var(--bg-0);
+  margin: 0 0 4px;
+}
+.workPlan-rules-callout strong {
+  color: var(--fg-1);
+  font-weight: 700;
+}
+
+/* Cascade: visible even when no base rule is selectable yet */
+.workPlan-pref-cascade-empty {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--fg-2);
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px dashed var(--line-1);
+  background: var(--card);
+  margin: 0;
+}

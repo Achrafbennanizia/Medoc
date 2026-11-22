@@ -5,7 +5,7 @@
 -- CHECK (... IN ('FIRST_VISIT','EXAMINATION','TREATMENT','CHECKUP','CONSULTATION'))
 
 -- AppointmentStatus (appointment.status)
--- CHECK (... IN ('PLANNED','CONFIRMED','COMPLETED','NO_SHOW','CANCELLED'))
+-- CHECK (... IN ('PLANNED','CONFIRMED','IN_PROGRESS','COMPLETED','NO_SHOW','CANCELLED'))
 
 -- ChartStatus (patient_chart.status)
 -- CHECK (... IN ('DRAFT','IN_PROGRESS','VALIDATED','DECLINED','READONLY'))
@@ -20,7 +20,7 @@
 -- CHECK (... IN ('OPEN','IN_TRANSIT','DELIVERED','CANCELLED'))
 
 -- PatientStatus (patient.status)
--- CHECK (... IN ('NEW','ACTIVE','VALIDATED','READONLY'))
+-- CHECK (... IN ('NEW','ACTIVE','VALIDATED','READONLY','ARCHIVED'))
 
 -- PaymentMethod (payment.payment_method)
 -- CHECK (... IN ('CASH','CARD','BANK_TRANSFER','INVOICE'))

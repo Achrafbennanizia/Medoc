@@ -1,0 +1,64 @@
+/* From styles/features/schedule.css (cascade position kept by its import there). */
+@layer components {
+  .schedule-day-view-head .pill {
+    flex-shrink: 0;
+    max-width: 100%;
+  }
+  .schedule-day-view-card .dashboard-card-list {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  .schedule-day-pill-list {
+    padding-bottom: 0;
+  }
+  .schedule-day-list {
+    background: var(--bg-elev);
+  }
+  .schedule-day-pill-slot {
+    padding: 0;
+    border-bottom: 1px solid var(--line);
+    background: var(--bg-elev);
+  }
+  .schedule-day-pill-slot:last-child {
+    border-bottom: 0;
+  }
+  .day-appt-list-row {
+    display: grid;
+    grid-template-columns: minmax(52px, 64px) 12px minmax(0, 1fr) auto;
+    gap: 0 14px;
+    align-items: center;
+    padding: 16px var(--card-pad-x);
+    min-height: 76px;
+    --row-tint: transparent;
+    background: linear-gradient(96deg, var(--row-tint) 0%, transparent 58%), var(--bg-elev);
+    transition: background 140ms ease, filter 140ms ease;
+  }
+  .day-appt-list-row--kind-blue { --row-tint: color-mix(in oklab, #2563eb 20%, transparent); }
+  .day-appt-list-row--kind-accent { --row-tint: color-mix(in oklab, var(--accent) 24%, transparent); }
+  .day-appt-list-row--kind-orange { --row-tint: color-mix(in oklab, #ea580c 22%, transparent); }
+  .day-appt-list-row--kind-purple { --row-tint: color-mix(in oklab, #9333ea 20%, transparent); }
+  .day-appt-list-row:hover {
+    background: linear-gradient(96deg, var(--row-tint) 0%, transparent 58%),
+      color-mix(in oklab, var(--fg) 5%, var(--bg-elev));
+  }
+  @media (max-width: 520px) {
+    .day-appt-list-row {
+      grid-template-columns: minmax(48px, 56px) 12px minmax(0, 1fr);
+      grid-template-rows: auto auto;
+    }
+    .day-appt-list-aside {
+      grid-column: 1 / -1;
+      justify-content: space-between;
+      padding-top: 8px;
+      margin-top: 2px;
+      border-top: 1px solid color-mix(in oklab, var(--line) 70%, transparent);
+    }
+  }
+  .day-appt-list-time {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    min-width: 0;
+  }
+}

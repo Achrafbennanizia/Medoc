@@ -1,8 +1,9 @@
 //! Practice calendar (absences) and reusable prescription / certificate templates.
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::error::AppError;
-use crate::infrastructure::database::{audit_repo, practice_repo};
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
+use crate::infrastructure::database::repos::practice::master_data as practice_repo;
 use sqlx::SqlitePool;
 use tauri::State;
 
@@ -392,32 +393,4 @@ pub async fn delete_supplier_pharma_template(
     .await
     .ok();
     Ok(())
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_practice_commands {
-    () => {
-        $crate::commands::practice_commands::list_absences,
-        $crate::commands::practice_commands::create_absence,
-        $crate::commands::practice_commands::update_absence,
-        $crate::commands::practice_commands::delete_absence,
-        $crate::commands::practice_commands::list_document_templates,
-        $crate::commands::practice_commands::create_document_template,
-        $crate::commands::practice_commands::update_document_template,
-        $crate::commands::practice_commands::delete_document_template,
-        $crate::commands::practice_commands::list_treatment_catalog,
-        $crate::commands::practice_commands::create_treatment_catalog_item,
-        $crate::commands::practice_commands::update_treatment_catalog_item,
-        $crate::commands::practice_commands::delete_treatment_catalog_item,
-        $crate::commands::practice_commands::list_supplier_master,
-        $crate::commands::practice_commands::create_supplier_master,
-        $crate::commands::practice_commands::delete_supplier_master,
-        $crate::commands::practice_commands::list_pharma_consultant_master,
-        $crate::commands::practice_commands::create_pharma_consultant_master,
-        $crate::commands::practice_commands::delete_pharma_consultant_master,
-        $crate::commands::practice_commands::list_supplier_pharma_templates,
-        $crate::commands::practice_commands::create_supplier_pharma_template,
-        $crate::commands::practice_commands::delete_supplier_pharma_template,
-    };
 }

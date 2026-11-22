@@ -4,6 +4,12 @@ import {
     type ClientSettingsV1,
 } from "@/lib/client-settings";
 import { SettingsSwitch } from "@/views/components/settings-switch";
+import {
+    ensureOsNotificationPermission,
+    osNotificationsSupported,
+    playNotificationChime,
+    sendOsNotification,
+} from "@/systems/practice-host/notifications/notification-delivery";
 import { useT, useTParams } from "@/lib/i18n";
 import { useRbac } from "@/lib/use-rbac";
 
@@ -31,7 +37,27 @@ export function SettingsNotificationsSection({
      */
     const emailAvailable = portalFlags?.notifications_email_digest_delivery === true;
     const smsAvailable = portalFlags?.notifications_patient_sms_delivery === true;
-    const osSupported = typeof window !== "undefined" && typeof window.Notification !== "undefined";
+    const osSupported = osNotificationsSupported();
+    const soundOn = notifications.sound !== false;
+    const volume = typeof notifications.soundVolume === "number" ? notifications.soundVolume : 0.6;
+    const patch = (next: Partial<NotificationPrefs>) =>
+        onPersistClient((c) =>
+            mergeClientSettingsPatch(c, { notifications: { ...(c.notifications ?? DEFAULT_CLIENT_SETTINGS.notifications!), ...next } }),
+        );
+    const sendTest = async () => {
+        const notice = {
+            id: `test:${Date.now()}`,
+            source: "test",
+            category: "system" as const,
+            severity: "info" as const,
+            title: t("settings.notifications.test_title"),
+            body: t("settings.notifications.test_body"),
+            at: new Date(),
+            unread: true,
+        };
+        if (soundOn) playNotificationChime("info", volume);
+        if (notifications.push !== false) await sendOsNotification(notice, soundOn);
+    };
 
     return (
         <section className="settings-subcard">
@@ -50,14 +76,42 @@ export function SettingsNotificationsSection({
                 <SettingsSwitch
                     ariaLabel={t("settings.notifications.push_aria")}
                     checked={notifications.push !== false}
-                    onChange={() =>
-                        onPersistClient((c) => {
-                            const n = c.notifications ?? DEFAULT_CLIENT_SETTINGS.notifications!;
-                            const cur = n.push !== false;
-                            return mergeClientSettingsPatch(c, { notifications: { ...n, push: !cur } });
-                        })
-                    }
+                    onChange={() => {
+                        const next = notifications.push === false;
+                        patch({ push: next });
+                        if (next) void ensureOsNotificationPermission();
+                    }}
                 />
+            </div>
+            <div className="settings-row">
+                <div>
+                    <b>{t("settings.notifications.sound")}</b>
+                    <div className="card-sub">{t("settings.notifications.sound_detail")}</div>
+                </div>
+                <div className="settings-notification-sound">
+                    {soundOn ? (
+                        <input
+                            type="range"
+                            min={0}
+                            max={1}
+                            step={0.1}
+                            value={volume}
+                            aria-label={t("settings.notifications.volume_aria")}
+                            onChange={(e) => patch({ soundVolume: Number(e.target.value) })}
+                            onMouseUp={() => playNotificationChime("info", volume)}
+                        />
+                    ) : null}
+                    <SettingsSwitch ariaLabel={t("settings.notifications.sound")} checked={soundOn} onChange={() => patch({ sound: !soundOn })} />
+                </div>
+            </div>
+            <div className="settings-row">
+                <div>
+                    <b>{t("settings.notifications.test")}</b>
+                    <div className="card-sub">{t("settings.notifications.test_detail")}</div>
+                </div>
+                <button type="button" className="btn btn-subtle" onClick={() => void sendTest()}>
+                    {t("settings.notifications.test_btn")}
+                </button>
             </div>
             <div className="settings-row">
                 <div>
@@ -115,7 +169,7 @@ export function SettingsNotificationsSection({
                 />
             </div>
             {canOpsSystem && portalFlags && typeof portalFlags === "object" ? (
-                <div className="card-pad" style={{ borderTop: "1px solid var(--line-strong)", paddingTop: 12 }}>
+                <div className="card-pad" style={{ borderTop: "1px solid var(--line-strong)", paddingTop: "var(--space-3)" }}>
                     <div className="card-sub" style={{ margin: 0, fontSize: 12.5 }}>
                         <b>{t("settings.notifications.manufacturer")}</b>{" "}
                         {tp("settings.notifications.manufacturer_detail", {

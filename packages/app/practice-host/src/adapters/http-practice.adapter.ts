@@ -10,6 +10,11 @@ import {
 } from "@/systems/lan/lib/lan-client-config";
 import { formatIpcError } from "@/lib/ipc-errors";
 import type { PracticeSystemPort } from "../ports/practice-system.port";
+import { enqueueWrite, flushQueuedWrites, queuedValue, type QueuedWrite, type ReplayResult } from "./offline-write-queue";
+
+/** Setting writes are kept offline and replayed later (store-and-forward). */
+const QUEUEABLE = new Set(["set_app_kv", "delete_app_kv"]);
+const isOfflineError = (e: unknown) => /^error\.app\.(network|timeout)/.test(e instanceof Error ? e.message : String(e));
 
 type TFn = (key: string) => string;
 type TParamsFn = (key: string, params: Record<string, string | number>) => string;
@@ -76,22 +81,6 @@ const LAN_COMMAND_ROUTES: Partial<
     get_session: { method: "GET", path: "/api/v1/me" },
     get_own_profile: { method: "GET", path: "/api/v1/me" },
     login: { method: "POST", path: "/api/v1/auth/login" },
-    logout: { method: "POST", path: "/api/v1/auth/login" }, // no-op over HTTP; session is JWT-only
-    list_patients: { method: "GET", path: "/api/v1/patients" },
-    list_appointments: {
-        method: "GET",
-        path: (args) => {
-            const date = args.date;
-            return date != null && String(date).length > 0
-                ? `/api/v1/appointments?date=${encodeURIComponent(String(date))}`
-                : "/api/v1/appointments";
-        },
-    },
-    list_appointments_by_date: {
-        method: "GET",
-        path: (args) =>
-            `/api/v1/appointments?date=${encodeURIComponent(String(args.date ?? ""))}`,
-    },
     get_app_kv: {
         method: "GET",
         path: (args) => `/api/v1/app-kv?key=${encodeURIComponent(String(args.key ?? ""))}`,
@@ -118,6 +107,39 @@ export class HttpPracticeAdapter implements PracticeSystemPort {
     }
 
     async invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
+        if (command === "get_app_kv") {
+            const pending = queuedValue(String(args?.key ?? ""));
+            if (pending !== undefined) return pending as T;
+        }
+        try {
+            const out = await this.send<T>(command, args);
+            if (command !== "logout") void this.replayQueued();
+            return out;
+        } catch (e) {
+            if (!QUEUEABLE.has(command) || !isOfflineError(e)) throw e;
+            const key = String(args?.key ?? "");
+            enqueueWrite({ command: command as QueuedWrite["command"], key, value: args?.value as string | undefined });
+            return undefined as T;
+        }
+    }
+
+    /** Send queued offline writes once the main device answers again. */
+    replayQueued(): Promise<number> {
+        return flushQueuedWrites(async (w): Promise<ReplayResult> => {
+            try {
+                await this.send(w.command, { key: w.key, value: w.value, editedAt: w.editedAt });
+                return "sent";
+            } catch (e) {
+                const msg = e instanceof Error ? e.message : String(e);
+                // Not reachable, or signed out: keep the write for the next attempt.
+                if (isOfflineError(e) || /unauthorized|forbidden|LAN HTTP 40[13]\b/i.test(msg)) return "offline";
+                // 409: a newer value is stored (LWW). Other refusals would fail on every replay.
+                return "superseded";
+            }
+        });
+    }
+
+    private async send<T>(command: string, args?: Record<string, unknown>): Promise<T> {
         if (command === "logout") {
             saveLanClientConfig({ ...this.cfg, accessToken: "" });
             return undefined as T;
@@ -145,11 +167,11 @@ export class HttpPracticeAdapter implements PracticeSystemPort {
             if (command === "login") {
                 init.body = JSON.stringify({
                     email: args?.email,
-                    password: args?.password ?? args?.password,
+                    password: args?.password,
                     totp_code: args?.totp_code ?? null,
                 });
             } else if (command === "set_app_kv") {
-                init.body = JSON.stringify({ key: args?.key, value: args?.value });
+                init.body = JSON.stringify({ key: args?.key, value: args?.value, editedAt: args?.editedAt });
             } else {
                 init.body = JSON.stringify(args ?? {});
             }

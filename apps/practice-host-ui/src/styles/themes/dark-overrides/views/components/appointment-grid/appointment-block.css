@@ -1,0 +1,63 @@
+/* From styles/themes/dark-overrides.css (cascade position kept by its import there). */
+html[data-theme="dark"] .appointment-appt-block--week.appointment-appt-status-surface--done .appointment-appt-block-time,
+html[data-theme="dark"] .appointment-appt-block--week.appointment-appt-status-surface--done .appointment-appt-block-name {
+  color: var(--accent-ink);
+}
+html[data-theme="dark"] .appointment-appt-block--week.appointment-appt-status-surface--cancel .appointment-appt-block-time,
+html[data-theme="dark"] .appointment-appt-block--week.appointment-appt-status-surface--cancel .appointment-appt-block-name {
+  color: #fecaca;
+}
+html[data-theme="dark"] .appointment-appt-block--week.appointment-appt-status-surface--cancel .appointment-appt-block-duration,
+html[data-theme="dark"] .appointment-appt-block--week.appointment-appt-status-surface--cancel .appointment-appt-block-type {
+  color: color-mix(in oklab, #fecaca 70%, var(--fg-3));
+}
+html[data-theme="dark"] .appointment-appt-block--week.appointment-appt-status-surface--edit .appointment-appt-block-time,
+html[data-theme="dark"] .appointment-appt-block--week.appointment-appt-status-surface--edit .appointment-appt-block-name,
+html[data-theme="dark"] .appointment-appt-block--week.appointment-appt-status-surface--edit .appointment-appt-block-emergency-ic {
+  color: #fde68a;
+}
+html[data-theme="dark"] .appointment-appt-block--week.appointment-appt-status-surface--edit .appointment-appt-block-duration,
+html[data-theme="dark"] .appointment-appt-block--week.appointment-appt-status-surface--edit .appointment-appt-block-type {
+  color: color-mix(in oklab, #fde68a 70%, var(--fg-3));
+}
+html[data-theme="dark"] .modal {
+  background: var(--bg-elev);
+  border: 1px solid var(--line-strong);
+  box-shadow: var(--shadow-lg);
+}
+html[data-theme="dark"] .modal--centered .modal-close-corner {
+  background: color-mix(in oklab, var(--bg-elev) 90%, var(--fg));
+  box-shadow: 0 0 0 1px var(--line);
+}
+html[data-theme="dark"] .menu-surface {
+  background: var(--bg-elev);
+  border-color: var(--line-strong);
+}
+html[data-theme="dark"] .menu-item:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+html[data-theme="dark"] .sidebar-account-popover__item:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+html[data-theme="dark"] .cal-head,
+html[data-theme="dark"] .cal-cell {
+  background: var(--bg-elev);
+}
+html[data-theme="dark"] .week-day-slots {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.1) 0,
+    rgba(255, 255, 255, 0.1) 1px,
+    transparent 1px,
+    transparent 16px
+  );
+}
+html[data-theme="dark"] .cal-evt.green {
+  color: color-mix(in oklab, var(--green) 48%, var(--fg));
+}
+html[data-theme="dark"] .cal-evt.blue {
+  color: color-mix(in oklab, var(--blue) 52%, var(--fg));
+}
+html[data-theme="dark"] .cal-evt.orange {
+  color: color-mix(in oklab, var(--orange) 48%, var(--fg));
+}

@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { readListSnapshot, writeListSnapshot } from "@/lib/list-snapshot";
+import { PAGE_REFRESH_EVENT } from "../layouts/page-refresh";
 import { format, parseISO } from "date-fns";
 import type { Locale as DateFnsLocale } from "date-fns";
 import { Link } from "react-router-dom";
@@ -31,8 +33,6 @@ import { Card, CardHeader } from "../components/ui/card";
 import { DismissibleNotice } from "../components/ui/dismissible-notice";
 import { Button } from "../components/ui/button";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
-import { NAV_ICONS } from "@/lib/icons";
-import { kpiIconChrome } from "@/lib/kpi-icon-chrome";
 import { WorkspacePageHeader } from "../components/administration-page-header";
 import {
     workTimeGetStatistics,
@@ -46,6 +46,8 @@ import {
     localizeChartRows,
     type StatisticsChartLabelKind,
 } from "@/lib/statistics-chart-labels";
+import { workTimeStatusLabel } from "@/lib/work-time-status-label";
+import { StatCard } from "../components/stat-card";
 
 type Period = "6m" | "12m";
 
@@ -497,13 +499,6 @@ function WorkTimeBarTooltip({
     );
 }
 
-function workTimeStatusLabel(status: string, t: (key: string) => string): string {
-    if (status === "RUNNING") return t("page.workTime.status.active");
-    if (status === "PAUSED") return t("page.workTime.status.paused");
-    if (status === "AUS") return t("page.workTime.status.off");
-    return status;
-}
-
 function WorkTimePersonBar({ members }: { members: WorkTimeTeamMemberRow[] }) {
     const rtl = useChartRtl();
     const chartData = useMemo<WorkTimeBarRow[]>(
@@ -763,56 +758,6 @@ function momPercent(cur: number, prev: number): number | null {
     return ((cur - prev) / prev) * 100;
 }
 
-/** KPI surface aligned with the main Dashboard (`card` + `kpi` + icon chip). */
-interface StatOverviewCardProps {
-    label: string;
-    value: string;
-    icon: string;
-    accent: string;
-    sub?: string;
-    trend?: "positive" | "negative" | "neutral";
-}
-
-function StatOverviewCard({ label, value, icon, accent, sub, trend = "neutral" }: StatOverviewCardProps) {
-    const Ic = NAV_ICONS[icon] ?? NAV_ICONS["/"];
-    const iconChrome = kpiIconChrome(accent);
-    return (
-        <div className="card kpi">
-            <div className="kpi-label">
-                <span
-                    style={{
-                        width: 22,
-                        height: 22,
-                        borderRadius: 7,
-                        display: "grid",
-                        placeItems: "center",
-                        ...iconChrome,
-                    }}
-                >
-                    <Ic size={13} />
-                </span>
-                {label}
-            </div>
-            <div className="kpi-val">{value}</div>
-            {sub ? (
-                <div className="kpi-delta">
-                    <span
-                        className={
-                            trend === "positive"
-                                ? "kpi-delta__trend--positive"
-                                : trend === "negative"
-                                  ? "kpi-delta__trend--negative"
-                                  : ""
-                        }
-                        style={trend === "neutral" ? { color: "var(--fg-3)" } : undefined}
-                    >
-                        {sub}
-                    </span>
-                </div>
-            ) : null}
-        </div>
-    );
-}
 
 function RevenueDevelopmentChart({ data }: { data: MonthBucket[] }) {
     const t = useT();
@@ -952,7 +897,7 @@ export function StatisticsPage() {
     const intlTag = useIntlLocaleTag();
     const dateLocale = useDateFnsLocale();
     const [period, setPeriod] = useState<Period>("6m");
-    const [stats, setStats] = useState<StatisticsOverview | null>(null);
+    const [stats, setStats] = useState<StatisticsOverview | null>(() => readListSnapshot<StatisticsOverview>("statistics-overview") ?? null);
     const [loadError, setLoadError] = useState<string | null>(null);
     const [reloadToken, setReloadToken] = useState(0);
     const [activePanel, setActivePanel] = useState<string>(PANEL_IDS[0]!);
@@ -962,19 +907,26 @@ export function StatisticsPage() {
 
     useEffect(() => {
         let cancelled = false;
-        setLoadError(null);
-        setStats(null);
         getStatisticsOverview()
             .then((s) => {
-                if (!cancelled) setStats(s);
+                if (cancelled) return;
+                writeListSnapshot("statistics-overview", s);
+                setStats(s);
+                setLoadError(null);
             })
             .catch((e) => {
-                if (!cancelled) setLoadError(errorMessage(e));
+                if (!cancelled && !readListSnapshot("statistics-overview")) setLoadError(errorMessage(e));
             });
         return () => {
             cancelled = true;
         };
     }, [reloadToken]);
+
+    useEffect(() => {
+        const onRefresh = () => setReloadToken((n) => n + 1);
+        window.addEventListener(PAGE_REFRESH_EVENT, onRefresh);
+        return () => window.removeEventListener(PAGE_REFRESH_EVENT, onRefresh);
+    }, []);
 
     useEffect(() => {
         if (activePanel !== "sec-workTime") return;
@@ -1169,23 +1121,25 @@ export function StatisticsPage() {
                             </p>
                 <div
                     className="dashboard-kpis"
-                    style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}
+                    style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}
                 >
-                    <StatOverviewCard
-                        label={t("page.statistics.kpi.patients_total")}
-                        value={stats.patients_total.toLocaleString(intlTag)}
-                        icon="Users"
-                        accent="var(--accent)"
-                        sub={patientDeltaPct}
-                        trend={
-                            dash.patientMomPct != null && dash.patientMomPct > 0
-                                ? "positive"
-                                : dash.patientMomPct != null && dash.patientMomPct < 0
-                                    ? "negative"
-                                    : "neutral"
-                        }
-                    />
-                    <StatOverviewCard
+                    {stats.patients_total != null && (
+                        <StatCard
+                            label={t("page.statistics.kpi.patients_total")}
+                            value={(stats.patients_total ?? 0).toLocaleString(intlTag)}
+                            icon="Users"
+                            accent="var(--accent)"
+                            sub={patientDeltaPct}
+                            trend={
+                                dash.patientMomPct != null && dash.patientMomPct > 0
+                                    ? "positive"
+                                    : dash.patientMomPct != null && dash.patientMomPct < 0
+                                        ? "negative"
+                                        : "neutral"
+                            }
+                        />
+                    )}
+                    <StatCard
                         label={t("page.statistics.kpi.new_patients")}
                         value={Math.round(dash.newCur).toLocaleString(intlTag)}
                         icon="Sparkle"
@@ -1193,7 +1147,7 @@ export function StatisticsPage() {
                         sub={newDeltaStr}
                         trend={dash.newDelta > 0 ? "positive" : dash.newDelta < 0 ? "negative" : "neutral"}
                     />
-                    <StatOverviewCard
+                    <StatCard
                         label={
                             lastIncomeMonth
                                 ? tp("page.statistics.kpi.revenue_month", { month: formatMonth(lastIncomeMonth.month, dateLocale) })
@@ -1211,7 +1165,7 @@ export function StatisticsPage() {
                                     : "neutral"
                         }
                     />
-                    <StatOverviewCard
+                    <StatCard
                         label={t("page.statistics.kpi.utilization")}
                         value={dash.occupancyPct != null ? `${Math.round(dash.occupancyPct)} %` : "—"}
                         icon="Calendar"
@@ -1227,13 +1181,15 @@ export function StatisticsPage() {
                     />
                 </div>
 
-                <p className="page-sub" style={{ margin: 0, fontSize: 12.5 }}>
-                    {t("page.statistics.kpi.calendar_month")} <b>{formatCurrency(stats.income_current_month)}</b>
-                    {" "}
-                    <span style={{ color: "var(--fg-4)" }}>
-                        {t("page.statistics.kpi.calendar_month_hint")}
-                    </span>
-                </p>
+                {stats.income_current_month != null && (
+                    <p className="page-sub" style={{ margin: 0, fontSize: 12.5 }}>
+                        {t("page.statistics.kpi.calendar_month")} <b>{formatCurrency(stats.income_current_month ?? 0)}</b>
+                        {" "}
+                        <span style={{ color: "var(--fg-4)" }}>
+                            {t("page.statistics.kpi.calendar_month_hint")}
+                        </span>
+                    </p>
+                )}
 
                 <div className="statistics-overview-charts">
                     <Card>
@@ -1270,9 +1226,9 @@ export function StatisticsPage() {
 
                 <div
                     className="dashboard-kpis"
-                    style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, marginTop: 16 }}
+                    style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16, marginTop: 16 }}
                 >
-                    <StatOverviewCard
+                    <StatCard
                         label={t("page.statistics.kpi.appointments_last_month")}
                         value={Math.round(dash.tCur).toLocaleString(intlTag)}
                         icon="Calendar"
@@ -1286,7 +1242,7 @@ export function StatisticsPage() {
                                     : "neutral"
                         }
                     />
-                    <StatOverviewCard
+                    <StatCard
                         label={t("page.statistics.kpi.punctuality")}
                         value={dash.loyaltyPct != null ? `${dash.loyaltyPct.toFixed(0)} %` : "—"}
                         icon="Sparkle"
@@ -1298,7 +1254,7 @@ export function StatisticsPage() {
                         }
                         trend="neutral"
                     />
-                    <StatOverviewCard
+                    <StatCard
                         label={t("page.statistics.kpi.treatments_last_month")}
                         value={Math.round(dash.treatmentsCur).toLocaleString(intlTag)}
                         icon="/services"
@@ -1316,9 +1272,9 @@ export function StatisticsPage() {
 
                 <div
                     className="dashboard-kpis"
-                    style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, marginTop: 16 }}
+                    style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16, marginTop: 16 }}
                 >
-                    <StatOverviewCard
+                    <StatCard
                         label={tp("page.statistics.kpi.revenue_sum", { period: periodLabel })}
                         value={formatCurrency(trimmedIncome.reduce((s, m) => s + m.value, 0))}
                         icon="/finance"
@@ -1326,7 +1282,7 @@ export function StatisticsPage() {
                         sub={t("page.statistics.kpi.revenue_sum_sub")}
                         trend="neutral"
                     />
-                    <StatOverviewCard
+                    <StatCard
                         label={tp("page.statistics.kpi.appointments_sum", { period: periodLabel })}
                         value={trimmedAppointments.reduce((s, m) => s + m.value, 0).toLocaleString(intlTag)}
                         icon="/appointments"
@@ -1334,15 +1290,17 @@ export function StatisticsPage() {
                         sub={t("page.statistics.kpi.appointments_sum_sub")}
                         trend="neutral"
                     />
-                    <StatOverviewCard
-                        label={t("page.statistics.kpi.low_stock")}
-                        value={stats.products_low.toLocaleString(intlTag)}
-                        icon="Package"
-                        accent={stats.products_low > 0 ? "#FF3B30" : "#FF9500"}
-                        sub={stats.products_low > 0 ? t("page.statistics.kpi.low_stock_alert") : t("page.statistics.kpi.low_stock_ok")}
-                        trend={stats.products_low > 0 ? "negative" : "neutral"}
-                    />
-                    <StatOverviewCard
+                    {stats.products_low != null && (
+                        <StatCard
+                            label={t("page.statistics.kpi.low_stock")}
+                            value={(stats.products_low ?? 0).toLocaleString(intlTag)}
+                            icon="Package"
+                            accent={(stats.products_low ?? 0) > 0 ? "#FF3B30" : "#FF9500"}
+                            sub={(stats.products_low ?? 0) > 0 ? t("page.statistics.kpi.low_stock_alert") : t("page.statistics.kpi.low_stock_ok")}
+                            trend={(stats.products_low ?? 0) > 0 ? "negative" : "neutral"}
+                        />
+                    )}
+                    <StatCard
                         label={tp("page.statistics.kpi.treatments_sum", { period: periodLabel })}
                         value={trimmedTreatments.reduce((s, m) => s + m.value, 0).toLocaleString(intlTag)}
                         icon="/services"
@@ -1358,7 +1316,7 @@ export function StatisticsPage() {
                     <section style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                         <h2 className="statistics-workspace__panel-title">{panelTitle("sec-patients")}</h2>
                         <p className="statistics-workspace__panel-intro">{panelDescription("sec-patients")}</p>
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div className="fit-grid">
                             <ChartCard title={t("page.statistics.chart.patients_kumuliert")} subtitle={t("page.statistics.chart.patients_kumuliert_sub")} hasData={trimmedPatKum.some((m) => m.value > 0)}>
                                 <MonthBar data={trimmedPatKum} color={PALETTE[2]} />
                             </ChartCard>
@@ -1387,7 +1345,7 @@ export function StatisticsPage() {
                     <section style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                         <h2 className="statistics-workspace__panel-title">{panelTitle("sec-disease-patterns")}</h2>
                         <p className="statistics-workspace__panel-intro">{panelIntro("sec-disease-patterns")}</p>
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div className="fit-grid">
                             <ChartCard
                                 title={t("page.statistics.chart.disease_patterns_top")}
                                 hasData={(stats.disease_patterns_top ?? []).length > 0}
@@ -1410,7 +1368,7 @@ export function StatisticsPage() {
                     <section style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                         <h2 className="statistics-workspace__panel-title">{panelTitle("sec-treatments")}</h2>
                         <p className="statistics-workspace__panel-intro">{panelDescription("sec-treatments")}</p>
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div className="fit-grid">
                             <ChartCard title={t("page.statistics.chart.treatments_month")} hasData={trimmedTreatments.some((m) => m.value > 0)}>
                                 <MonthBar data={trimmedTreatments} color={PALETTE[0]} />
                             </ChartCard>
@@ -1440,7 +1398,7 @@ export function StatisticsPage() {
                     <section style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                         <h2 className="statistics-workspace__panel-title">{panelTitle("sec-appointments")}</h2>
                         <p className="statistics-workspace__panel-intro">{panelDescription("sec-appointments")}</p>
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div className="fit-grid">
                             <ChartCard title={t("page.statistics.chart.appointment_utilization")} hasData={trimmedAppointments.some((m) => m.value > 0)}>
                                 <MonthBar data={trimmedAppointments} color={PALETTE[1]} />
                             </ChartCard>
@@ -1469,7 +1427,7 @@ export function StatisticsPage() {
                     <section style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                         <h2 className="statistics-workspace__panel-title">{panelTitle("sec-finance")}</h2>
                         <p className="statistics-workspace__panel-intro">{panelDescription("sec-finance")}</p>
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div className="fit-grid">
                             <ChartCard title={t("page.statistics.chart.revenue_month")} subtitle={t("page.statistics.chart.income_month_sub")} hasData={trimmedIncome.some((m) => m.value > 0)}>
                                 <MonthBar data={trimmedIncome} color={PALETTE[4]} valueFormatter={(version) => formatCurrency(version)} />
                             </ChartCard>

@@ -1,0 +1,70 @@
+/* From styles/features/schedule.css (cascade position kept by its import there). */
+@layer components {
+  .day-appt-list-time-start {
+    font-size: clamp(17px, 2.5vw, 20px);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    color: var(--fg);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .day-appt-list-time-dur {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--fg-3);
+    line-height: 1.2;
+  }
+  /* One wide color stripe like reference (Appointment type). */
+  .day-appt-strip {
+    width: 8px;
+    border-radius: 8px;
+    align-self: stretch;
+    min-height: 52px;
+    justify-self: center;
+    flex-shrink: 0;
+    box-shadow:
+      0 0 0 1px rgba(15, 23, 42, 0.08),
+      0 2px 10px rgba(15, 23, 42, 0.14);
+  }
+  .day-appt-strip--blue {
+    background: linear-gradient(180deg, #93c5fd 0%, #2563eb 38%, #1e40af 100%);
+  }
+  .day-appt-strip--accent {
+    background: linear-gradient(180deg, #99f6e4 0%, #14b8a6 40%, #0f766e 100%);
+  }
+  .day-appt-strip--orange {
+    background: linear-gradient(180deg, #fed7aa 0%, #f97316 42%, #c2410c 100%);
+  }
+  .day-appt-strip--purple {
+    background: linear-gradient(180deg, #e9d5ff 0%, #a855f7 38%, #6b21a8 100%);
+  }
+  .day-appt-list-main {
+    min-width: 0;
+  }
+  .day-appt-list-name {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--fg);
+    line-height: 1.25;
+  }
+  .day-appt-list-meta {
+    margin-top: 4px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--fg-3);
+    line-height: 1.4;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+  .day-appt-list-aside {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 10px;
+    justify-content: flex-end;
+    min-width: 0;
+  }
+}

@@ -1,0 +1,117 @@
+/* From styles/features/auth-onboarding.css (cascade position kept by its import there). */
+@layer components {
+  .login-alt { text-align: center; color: var(--fg-3); font-size: 12.5px; margin: 20px 0; position: relative; }
+  .login-alt::before, .login-alt::after { content: ''; position: absolute; top: 50%; width: 38%; height: 1px; background: var(--line); }
+  .login-alt::before { left: 0; } .login-alt::after { right: 0; }
+  .menu-surface { position: absolute; inset-inline-end: 0; bottom: 100%; margin-bottom: 8px; min-width: 260px; z-index: 40; background: var(--bg-elev); border-radius: 14px; box-shadow: var(--shadow-lg); border: 1px solid var(--line); overflow: hidden; animation: popIn 170ms cubic-bezier(.2,.8,.25,1); }
+  /* Portaled row ⋯ menus — fixed layer above tables/cards (do not use .menu-surface) */
+  .payment-row-actions-menu__panel--portal {
+    z-index: 10050;
+  }
+  /* Topbar / flush controls: open downward instead of overlapping main content */
+  .menu-surface.menu-surface--below {
+    bottom: auto;
+    top: calc(100% + 8px);
+    margin-bottom: 0;
+  }
+  .menu-header { display: flex; align-items: center; gap: 10px; padding: 12px; border-bottom: 1px solid var(--line); }
+  .menu-title { font-size: 13.5px; font-weight: 600; line-height: 1.2; margin: 0; }
+  .menu-subtitle { font-size: 12px; color: var(--fg-3); line-height: 1.2; margin: 2px 0 0; }
+  .menu-label { font-size: 11px; font-weight: 600; color: var(--fg-4); text-transform: uppercase; letter-spacing: 0.04em; padding: 10px 12px 6px; }
+  .menu-list { display: flex; flex-direction: column; padding: 2px 6px 8px; gap: 2px; }
+  .menu-item { display: flex; align-items: center; gap: 10px; width: 100%; height: 36px; border-radius: 8px; padding: 0 8px; font-size: 13.5px; color: var(--fg-2); text-align: start; transition: background 120ms ease, color 120ms ease; }
+  .menu-item:hover { background: rgba(0,0,0,0.045); color: var(--fg); }
+  .menu-item.active { color: var(--accent-ink); background: color-mix(in oklab, var(--accent) 14%, transparent); }
+  .menu-item.danger { color: var(--red); }
+  .menu-sep { height: 1px; background: var(--line); margin: 6px 0; }
+  /* ---- Dismissible in-page notices (hints, banners, callouts) ---- */
+  .app-notice {
+    border-radius: var(--radius-card);
+    border: 1px solid var(--line);
+    background: var(--bg-elev);
+    padding: 12px 14px;
+    box-shadow: var(--shadow-sm);
+  }
+  .app-notice--info {
+    background: color-mix(in oklab, var(--fg) 3%, var(--bg-elev));
+  }
+  .app-notice--warning {
+    background: color-mix(in oklab, var(--warning, #b45309) 8%, var(--surface-1, var(--bg-elev)));
+    border-color: color-mix(in oklab, var(--warning, #b45309) 35%, var(--line));
+  }
+  .app-notice--error {
+    background: color-mix(in oklab, var(--red) 8%, var(--panel, var(--bg-elev)));
+    border-color: color-mix(in oklab, var(--red) 35%, var(--line));
+  }
+  .app-notice--accent {
+    border-color: color-mix(in oklab, var(--accent) 40%, var(--line));
+    background: color-mix(in oklab, var(--accent) 6%, var(--bg-elev));
+  }
+  .app-notice__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
+  .app-notice__head-text {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .app-notice__title {
+    font-size: 12.5px;
+    font-weight: 650;
+    line-height: 1.35;
+    color: var(--fg);
+  }
+  .app-notice__subtitle {
+    margin-top: var(--space-1);
+    font-size: 12px;
+    color: var(--fg-3);
+    line-height: 1.45;
+    max-width: 720px;
+  }
+  .app-notice__close {
+    flex-shrink: 0;
+    margin: -4px -4px 0 0;
+    color: var(--fg-3);
+  }
+  .app-notice__close:hover {
+    color: var(--fg);
+  }
+  .app-notice__body {
+    margin-top: var(--space-2);
+    font-size: 13px;
+    color: var(--fg-2);
+    line-height: 1.45;
+  }
+  .app-notice__body:empty {
+    display: none;
+  }
+  .app-notice__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+  }
+  .app-notice--toolbar {
+    padding: 6px 10px;
+    max-width: 320px;
+    box-shadow: none;
+  }
+  .app-notice--toolbar .app-notice__title {
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .app-notice--toolbar .app-notice__subtitle {
+    font-size: 11.5px;
+    margin-top: 2px;
+  }
+  .app-notice--fixed {
+    position: fixed;
+    bottom: 16px;
+    right: 16px;
+    z-index: 45;
+    max-width: 360px;
+    box-shadow: var(--shadow-lg);
+  }
+}

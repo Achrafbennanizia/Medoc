@@ -11,7 +11,7 @@ use medoc_core::argon2::{Algorithm, Argon2, Params, Version};
 use medoc_core::error::AppError;
 use medoc_core::infrastructure::database::connection;
 use medoc_core::infrastructure::database::db_key;
-use medoc_core::infrastructure::license_repo;
+use medoc_core::infrastructure::database::repos::admin::license as license_repo;
 use sqlx::SqlitePool;
 use uuid::Uuid;
 use zeroize::Zeroizing;
@@ -19,7 +19,7 @@ use zeroize::Zeroizing;
 use crate::cluster::crypto::device_identity::DeviceIdentity;
 use crate::cluster::entities::{Device, License};
 use crate::cluster::enums::{DeviceStatus, SeatRole};
-use crate::cluster::ports::{DeviceRepo, LicenseRepo, SqliteClusterRepos};
+use crate::cluster::ports::SqliteClusterRepos;
 use crate::cluster::seat_budget::seat_budget_from_edition;
 use crate::cluster::services::audit;
 use crate::cluster::services::license_service::{cluster_status, require_owner_activation_device};
@@ -61,6 +61,8 @@ pub struct ActivationSummary {
     pub manifest_removed: bool,
     /// True when SQLCipher rekey closed the live pool — desktop app should reload.
     pub requires_app_reload: bool,
+    /// Bridge B passphrase wrap is still missing — gate must collect it next.
+    pub needs_bridge_b_passphrase: bool,
 }
 
 fn cluster_id_from_bytes(bytes: &[u8]) -> Result<String, AppError> {
@@ -206,6 +208,7 @@ pub async fn import_owner_activation(
             device_fingerprint: fp,
             manifest_removed: false,
             requires_app_reload: false,
+            needs_bridge_b_passphrase: db_key::bridge_b_passphrase_required(app_data_dir),
         });
     }
 
@@ -308,6 +311,7 @@ pub async fn import_owner_activation(
         device_fingerprint: identity.fingerprint,
         manifest_removed,
         requires_app_reload: rekeyed,
+        needs_bridge_b_passphrase: db_key::bridge_b_passphrase_required(app_data_dir),
     })
 }
 

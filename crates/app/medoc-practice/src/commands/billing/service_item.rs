@@ -1,9 +1,10 @@
 use crate::application::rbac::{self, FINANCE_READ_OR_RECEPTION};
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::domain::entities::service_item::{CreateServiceItem, UpdateServiceItem};
 use crate::domain::entities::ServiceItem;
 use crate::error::AppError;
-use crate::infrastructure::database::{audit_repo, service_item_repo};
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
+use crate::infrastructure::database::repos::billing::service_item as service_item_repo;
 use sqlx::SqlitePool;
 use tauri::State;
 
@@ -82,15 +83,4 @@ pub async fn delete_service_item(
     .await
     .ok();
     Ok(())
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_service_item_commands {
-    () => {
-        $crate::commands::service_item_commands::list_services,
-        $crate::commands::service_item_commands::create_service_item,
-        $crate::commands::service_item_commands::update_service_item,
-        $crate::commands::service_item_commands::delete_service_item,
-    };
 }

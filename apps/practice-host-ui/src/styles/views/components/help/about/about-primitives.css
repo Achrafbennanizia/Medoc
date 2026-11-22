@@ -1,0 +1,68 @@
+/* From styles/features/help-center.css (cascade position kept by its import there). */
+@layer components {
+  .about-content { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; }
+  .about-section {
+    scroll-margin-top: var(--space-4);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-card);
+    background: var(--bg-elev);
+    padding: var(--space-4) var(--card-pad-x);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-width: 0;
+  }
+  .about-section__head h2 { margin: 0; font-size: 16px; font-weight: 700; }
+  .about-section__head p { margin: 4px 0 0; }
+  .about-section p { margin: 0; line-height: 1.5; }
+  .about-muted { color: var(--fg-3); font-size: 13px; }
+  .about-status-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+    gap: var(--space-3);
+  }
+  .about-status-card {
+    border: 1px solid var(--line);
+    border-inline-start: 3px solid var(--line-strong, var(--line));
+    border-radius: var(--radius-ctl);
+    padding: var(--space-3);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
+  .about-status-card[data-tone="ok"] { border-inline-start-color: var(--green, #16a34a); }
+  .about-status-card[data-tone="warn"] { border-inline-start-color: var(--orange, #d97706); }
+  .about-status-card[data-tone="problem"] { border-inline-start-color: var(--red, #dc2626); }
+  .about-status-card__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); flex-wrap: wrap; }
+  .about-status-card__title { margin: 0; font-size: 13px; font-weight: 700; color: var(--fg-2); }
+  .about-status-card__summary { font-weight: 600; overflow-wrap: anywhere; }
+  .about-status-card__detail { color: var(--fg-3); font-size: 12.5px; overflow-wrap: anywhere; }
+  .about-status-card__action { margin-top: auto; padding-top: 4px; }
+  .about-peers { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+  .about-peer {
+    display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3);
+    padding: 10px 0; border-top: 1px solid var(--line);
+  }
+  .about-peer__name { font-weight: 600; flex: 1 1 12rem; min-width: 0; overflow-wrap: anywhere; }
+  .about-path { font-size: 12px; overflow-wrap: anywhere; }
+  .about-steps { margin: 0; padding-inline-start: 1.25rem; display: flex; flex-direction: column; gap: 6px; line-height: 1.5; }
+  .about-layout .help-facts > div { grid-template-columns: minmax(8rem, 12rem) minmax(0, 1fr); }
+  .about-layout .help-facts dd { overflow-wrap: anywhere; }
+  /* Narrow: navigation becomes a row of chips above the content. */
+  @container (max-width: 44rem) {
+    .about-layout { grid-template-columns: minmax(0, 1fr); }
+    .about-nav { position: static; flex-direction: row; flex-wrap: wrap; align-items: center; }
+    .about-nav ul { flex-direction: row; flex-wrap: wrap; gap: 6px; }
+    .about-nav__item { width: auto; border-inline-start: 0; border: 1px solid var(--line); white-space: nowrap; }
+    .about-nav__refresh { margin-top: 0; }
+    .about-layout .help-facts > div { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  }
+
+  @media print {
+    .about-nav { display: none !important; }
+    .about-layout { grid-template-columns: 1fr; }
+    .help-center__bar, .help-toolbar__actions { display: none !important; }
+    .help-error, .help-card, .help-step { break-inside: avoid; }
+  }
+}

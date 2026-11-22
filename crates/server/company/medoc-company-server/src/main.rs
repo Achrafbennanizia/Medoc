@@ -81,7 +81,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     std::fs::create_dir_all(&args.data_dir)?;
-    medoc_core::infrastructure::database::audit_repo::init_audit_hmac_key(&args.data_dir)?;
+    match medoc_company::stripe_secret::require_stripe_secret_key() {
+        Ok(_) => tracing::info!(target = "medoc::company", event = "STRIPE_SECRET_PRESENT"),
+        Err(err) => tracing::info!(
+            target = "medoc::company",
+            event = "STRIPE_SECRET_MISSING",
+            detail = %err
+        ),
+    }
+    medoc_core::infrastructure::database::repos::admin::audit::init_audit_hmac_key(&args.data_dir)?;
     let db_path = args.data_dir.join("company.db");
     let pool = medoc_company::db::init_company_db(&db_path).await?;
     let router = medoc_company::http::build_company_router(pool).await;

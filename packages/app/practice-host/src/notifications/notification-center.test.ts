@@ -55,9 +55,10 @@ describe("notification center", () => {
             }),
         ]);
         const toast = vi.fn();
+        // First refresh finds nothing; the next new critical notice must still be delivered
+        // (regression: an empty first load used to suppress every later notification).
         await useNotificationCenter.getState().refresh(ctx, { toast });
-        // first run seeds "seen" only when something exists; seed with a marker notice
-        localStorage.setItem("medoc-notice-seen-v1:u1", JSON.stringify({ seed: Date.now() }));
+        expect(toast).not.toHaveBeenCalled();
         await useNotificationCenter.getState().refresh(ctx, { toast });
         expect(toast).toHaveBeenCalledWith("Alert — dev", "error");
     });

@@ -6,6 +6,11 @@ import { Input, Select } from "./ui/input";
 import type { Patient } from "@/models/types";
 import type { ExportFormat } from "@/models/store/export-preview-store";
 import { exportChartPdf } from "@/systems/practice-host/controllers/chart.controller";
+import {
+    issueClinicalDocument,
+    pdfBase64ToBytes,
+    type CertificateCopyVariant,
+} from "@/systems/practice-host/controllers/document.controller";
 import { useToastStore } from "./ui/toast-store";
 import {
     CHART_EXPORT_SECTION_META,
@@ -31,7 +36,6 @@ import {
 import {
     pickExportDirectory,
     listDocumentTemplatesForKind,
-    previewDocumentPdf,
     type DocumentTemplateDto,
 } from "@/systems/practice-host/controllers/document-template.controller";
 import { finishExportWithSettings } from "@/lib/export";
@@ -47,7 +51,6 @@ import { builtinTemplateFooter, builtinTemplateName, documentKindLabel } from "@
 import { PDF_LAYOUT_TEMPLATE_PICKER_ENABLED } from "@/lib/v1-ui-flags";
 import { parseDelimitedGrid, stripBom } from "@/lib/export-delimited";
 import type { ClinicalDocumentExportBundle } from "@/lib/document-print-html";
-import { composeClinicalDocumentPdfBodyLines } from "@/lib/clinical-document-pdf";
 import { isTauriApp } from "@/lib/save-download";
 import { getInvoicePracticeFromStorage } from "@/lib/invoice-service-item";
 import { checkPracticeDocumentReadiness } from "@/lib/practice-completeness";
@@ -69,10 +72,6 @@ export type ExportPickerChartProps = {
 export function ExportPickerDialog(props: ExportPickerChartProps) {
     return <ChartExportPickerInner {...props} />;
 }
-
-/** @deprecated Alias — same surface as ExportPickerDialog (Chart). */
-export const ChartExportDialog = ExportPickerDialog;
-export type ChartExportDialogProps = ExportPickerChartProps;
 
 function extForFormat(f: ChartExportFileFormat): string {
     return f;
@@ -203,11 +202,10 @@ function ChartExportPickerInner({
             void (async () => {
                 setPreviewBusy(true);
                 try {
-                    const b64 = await exportChartPdf(patientId, secForRust);
-                    const bin = atob(b64);
-                    const bytes = new Uint8Array(bin.length);
-                    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-                    const blob = new Blob([bytes], { type: "application/pdf" });
+                    // Preview: watermark "ENTWURF", no number, no registry/audit entry.
+                    const out = await exportChartPdf(patientId, secForRust, true);
+                    const bytes = pdfBase64ToBytes(out.pdfBase64);
+                    const blob = new Blob([Uint8Array.from(bytes)], { type: "application/pdf" });
                     revokePreview();
                     const url = URL.createObjectURL(blob);
                     previewUrlRef.current = url;
@@ -267,10 +265,9 @@ function ChartExportPickerInner({
         setBusy(true);
         try {
             if (format === "pdf") {
-                const b64 = await exportChartPdf(patientId, secForRust);
-                const bin = atob(b64);
-                const bytes = new Uint8Array(bin.length);
-                for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+                // Final export: AK number, SHA-256 in the registry, audit entry.
+                const issued = await exportChartPdf(patientId, secForRust, false);
+                const bytes = pdfBase64ToBytes(issued.pdfBase64);
                 const fn = name.endsWith(".pdf") ? name : `${name}.pdf`;
                 await finishExportWithSettings({
                     format: "pdf",
@@ -283,6 +280,7 @@ function ChartExportPickerInner({
                     mime: "application/pdf",
                     binaryBody: bytes,
                     folderOverride: destFolder,
+                    context: { kind: "chart", format: "pdf", entityId: patientId, documentNumber: issued.documentNumber },
                 });
             } else {
                 const snap = await loadChartExportSnapshot(patientId, { loadClinical: canViewClinical });
@@ -320,6 +318,7 @@ function ChartExportPickerInner({
                               : "application/json",
                     textBody: text,
                     folderOverride: destFolder,
+                    context: { kind: "chart", format, entityId: patientId },
                 });
             }
             onClose();
@@ -386,7 +385,7 @@ function ChartExportPickerInner({
                     />
                     ) : null}
                     <div>
-                        <div className="text-label" style={{ marginBottom: 8 }}>{t("export.picker.target_path")}</div>
+                        <div className="text-label" style={{ marginBottom: "var(--space-2)" }}>{t("export.picker.target_path")}</div>
                         <p className="text-body" style={{ margin: "0 0 8px", fontSize: 12, wordBreak: "break-word" }}>
                             {resolvedPathLabel}
                         </p>
@@ -405,7 +404,7 @@ function ChartExportPickerInner({
                         ) : null}
                     </div>
                     <div>
-                        <div className="text-label" style={{ marginBottom: 8 }}>{t("export.picker.filename")}</div>
+                        <div className="text-label" style={{ marginBottom: "var(--space-2)" }}>{t("export.picker.filename")}</div>
                         <Input
                             id="export-picker-chart-filename"
                             value={fileName}
@@ -422,7 +421,7 @@ function ChartExportPickerInner({
                     </div>
                     <fieldset style={{ border: "1px solid var(--border-1)", borderRadius: 8, padding: "12px 14px", margin: 0 }}>
                         <legend className="text-label" style={{ padding: "0 6px" }}>{t("export.picker.contents")}</legend>
-                        <div className="col" style={{ gap: 10 }}>
+                        <div className="col" style={{ gap: "var(--space-3)" }}>
                             {CHART_EXPORT_SECTION_META.map((row) => {
                                 const disMed = row.needsMedical && !canViewClinical;
                                 const disDoc = row.needsDocuments && !canReadDocuments;
@@ -434,7 +433,7 @@ function ChartExportPickerInner({
                                         key={row.key}
                                         className="row"
                                         style={{
-                                            gap: 10,
+                                            gap: "var(--space-3)",
                                             alignItems: "flex-start",
                                             cursor: dis ? "not-allowed" : "pointer",
                                             opacity: dis ? 0.5 : 1,
@@ -565,6 +564,12 @@ function HtmlDocumentExportPickerInner({
     const pdfPreviewUrlRef = useRef<string | null>(null);
     const [practiceGuardOpen, setPracticeGuardOpen] = useState(false);
     const practiceReadiness = checkPracticeDocumentReadiness(getInvoicePracticeFromStorage(), templateKind);
+    /** AU copies: the employer copy carries no diagnosis. */
+    const [copyVariant, setCopyVariant] = useState<CertificateCopyVariant>("patient");
+    const source = useMemo(
+        () => ({ ...bundle.source, copyVariant: bundle.source.kind === "certificate" ? copyVariant : undefined }),
+        [bundle.source, copyVariant],
+    );
 
     const builtins = BUILTIN_TEMPLATES_BY_KIND[templateKind];
 
@@ -606,6 +611,20 @@ function HtmlDocumentExportPickerInner({
             displayName: t("export.picker.template_default"),
         };
     }, [tplChoice, builtins, userTpl, t]);
+
+    /**
+     * Templates may add a footer note, but they can no longer
+     * hide legal identity fields (address, tax no., BSNR/ZANR): the server
+     * always writes the practice header and logo from its own master data.
+     */
+    const layoutForIssue = useMemo(() => {
+        const footer = resolvedTpl.payload.footer?.trim();
+        const base = bundle.pdfLayout;
+        return {
+            ...base,
+            closingParagraphs: footer ? [...(base.closingParagraphs ?? []), footer] : base.closingParagraphs,
+        };
+    }, [bundle.pdfLayout, resolvedTpl]);
 
     useEffect(() => {
         if (!open) return;
@@ -668,24 +687,16 @@ function HtmlDocumentExportPickerInner({
             revokePdfPreview();
             return;
         }
-        const { payload, displayName } = resolvedTpl;
         const t = window.setTimeout(() => {
             void (async () => {
                 setPdfPreviewBusy(true);
                 try {
-                    const mergedPdfLines = composeClinicalDocumentPdfBodyLines(payload, bundle.pdfBodyLines);
-                    const b64 = await previewDocumentPdf(
-                        templateKind,
-                        displayName,
-                        payload,
-                        mergedPdfLines,
-                        JSON.stringify(bundle.pdfLayout),
-                    );
-                    const bin = atob(b64);
-                    const bytes = new Uint8Array(bin.length);
-                    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+                    // Preview through the issuing path: same renderer and server-side
+                    // practice data, but watermark "ENTWURF" and no number.
+                    const out = await issueClinicalDocument(source, layoutForIssue, true);
+                    const bytes = pdfBase64ToBytes(out.pdfBase64);
                     revokePdfPreview();
-                    const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+                    const url = URL.createObjectURL(new Blob([Uint8Array.from(bytes)], { type: "application/pdf" }));
                     pdfPreviewUrlRef.current = url;
                     setPdfPreviewUrl(url);
                 } catch (e) {
@@ -699,7 +710,7 @@ function HtmlDocumentExportPickerInner({
         return () => {
             window.clearTimeout(t);
         };
-    }, [open, format, templateKind, bundle.pdfBodyLines, bundle.pdfLayout, resolvedTpl, toast, tp, revokePdfPreview]);
+    }, [open, format, source, layoutForIssue, toast, tp, revokePdfPreview, bundle.pdfBodyLines.length]);
 
     useEffect(() => {
         if (!open) revokePdfPreview();
@@ -750,31 +761,32 @@ function HtmlDocumentExportPickerInner({
         const baseNoExt = clinicalFilenameBase(fileName, suggestedBasename);
         const finalName = clinicalFilenameWithExtension(baseNoExt, format);
         const destFolder = folderOnce?.trim() || null;
-        const { payload, displayName } = resolvedTpl;
+        const ctx = (f: "pdf" | "csv" | "json" | "xml", documentNumber?: string | null) => ({
+            kind: templateKind,
+            format: f,
+            entityId: bundle.source.sourceId,
+            documentNumber: documentNumber ?? null,
+        });
 
         setBusy(true);
         try {
             if (format === "pdf") {
-                const mergedPdfLines = composeClinicalDocumentPdfBodyLines(payload, bundle.pdfBodyLines);
-                const b64 = await previewDocumentPdf(
-                    templateKind,
-                    displayName,
-                    payload,
-                    mergedPdfLines,
-                    JSON.stringify(bundle.pdfLayout),
-                );
-                const bin = atob(b64);
-                const bytes = new Uint8Array(bin.length);
-                for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+                // Official document: number + registry + audit on the server.
+                // Exporting the same record again returns a "KOPIE".
+                const issued = await issueClinicalDocument(source, layoutForIssue, false);
+                const bytes = pdfBase64ToBytes(issued.pdfBase64);
+                const numbered = issued.documentNumber
+                    ? `${baseNoExt}_${issued.documentNumber}${issued.reprint ? "_Kopie" : ""}`
+                    : baseNoExt;
                 await finishExportWithSettings({
                     format: "pdf",
-                    title: exportPreviewTitle,
-                    hint:
-                        hint ?? `${tp("export.picker.pdf_template_hint", { name: displayName })} ${effectiveFormatHint}`,
-                    suggestedFilename: finalName,
+                    title: `${exportPreviewTitle} ${issued.documentNumber ?? ""}`.trim(),
+                    hint: hint ?? (issued.reprint ? "KOPIE" : effectiveFormatHint),
+                    suggestedFilename: clinicalFilenameWithExtension(numbered, "pdf"),
                     mime: mimeClinical("pdf"),
                     binaryBody: bytes,
                     folderOverride: destFolder,
+                    context: ctx("pdf", issued.documentNumber),
                 });
             } else if (format === "csv") {
                 await finishExportWithSettings({
@@ -785,6 +797,7 @@ function HtmlDocumentExportPickerInner({
                     mime: mimeClinical("csv"),
                     textBody: bundle.csvText,
                     folderOverride: destFolder,
+                    context: ctx("csv"),
                 });
             } else if (format === "json") {
                 await finishExportWithSettings({
@@ -795,6 +808,7 @@ function HtmlDocumentExportPickerInner({
                     mime: mimeClinical("json"),
                     textBody: bundle.jsonText,
                     folderOverride: destFolder,
+                    context: ctx("json"),
                 });
             } else {
                 await finishExportWithSettings({
@@ -805,6 +819,7 @@ function HtmlDocumentExportPickerInner({
                     mime: mimeClinical("xml"),
                     textBody: bundle.xmlText,
                     folderOverride: destFolder,
+                    context: ctx("xml"),
                 });
             }
             onClose();
@@ -851,6 +866,19 @@ function HtmlDocumentExportPickerInner({
                         onChange={(e) => setFormat(e.target.value as ExportFileFormat)}
                         options={CLINICAL_EXPORT_FORMAT_OPTS(t)}
                     />
+                    {bundle.source.kind === "certificate" && format === "pdf" ? (
+                        <Select
+                            id="export-picker-clinical-copy"
+                            label={t("export.picker.copy_variant.label")}
+                            value={copyVariant}
+                            onChange={(e) => setCopyVariant(e.target.value as CertificateCopyVariant)}
+                            options={[
+                                { value: "patient", label: t("export.picker.copy_variant.patient") },
+                                { value: "employer", label: t("export.picker.copy_variant.employer") },
+                                { value: "insurer", label: t("export.picker.copy_variant.insurer") },
+                            ]}
+                        />
+                    ) : null}
                     {effectiveFormatHint ? (
                         <p className="text-caption text-on-surface-variant" style={{ margin: "-4px 0 0", fontSize: 12 }}>
                             {effectiveFormatHint}
@@ -866,7 +894,7 @@ function HtmlDocumentExportPickerInner({
                     />
                     ) : null}
                     <div>
-                        <div className="text-label" style={{ marginBottom: 8 }}>{t("export.picker.default_path")}</div>
+                        <div className="text-label" style={{ marginBottom: "var(--space-2)" }}>{t("export.picker.default_path")}</div>
                         <p className="text-body" style={{ margin: "0 0 8px", fontSize: 12, wordBreak: "break-word" }}>
                             {resolvedPathLabel}
                         </p>
@@ -885,7 +913,7 @@ function HtmlDocumentExportPickerInner({
                         ) : null}
                     </div>
                     <div>
-                        <div className="text-label" style={{ marginBottom: 8 }}>{t("export.picker.filename_with_ext")}</div>
+                        <div className="text-label" style={{ marginBottom: "var(--space-2)" }}>{t("export.picker.filename_with_ext")}</div>
                         <Input
                             id="export-picker-clinical-filename"
                             value={fileName}

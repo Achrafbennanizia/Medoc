@@ -17,7 +17,10 @@ use medoc_core::domain::entities::treatment::{
     CreateExamination, CreateTreatment, UpdateExamination, UpdateTreatment,
 };
 use medoc_core::domain::enums::Sex;
-use medoc_core::infrastructure::database::{app_kv_repo, chart_repo, connection, patient_repo};
+use medoc_core::infrastructure::database::connection;
+use medoc_core::infrastructure::database::repos::admin::app_kv as app_kv_repo;
+use medoc_core::infrastructure::database::repos::clinical::chart as chart_repo;
+use medoc_core::infrastructure::database::repos::clinical::patient as patient_repo;
 use sqlx::SqlitePool;
 
 const SERVERLESS_DEPLOYMENT_JSON: &str = r#"{"schemaVersion":1,"mode":"serverless_peer","role":"REPLICA","masterBaseUrl":"","masterCertSha256":"","masterAccessToken":"","deviceLabel":"E2E"}"#;
@@ -205,4 +208,103 @@ async fn treatment_writes_in_practice_desktop_mode_record_no_outbox() {
     assert_eq!(outbox_count(&pool, "treatment").await, 0);
     assert_eq!(outbox_count(&pool, "patient").await, 0);
     assert_eq!(outbox_count(&pool, "patient_chart").await, 0);
+}
+
+#[tokio::test]
+async fn release_examination_for_billing_records_update() {
+    let pool = fresh_pool().await;
+    enable_serverless(&pool).await;
+    let (_p, chart_id) = seed_patient_with_chart(&pool, "release-exam").await;
+    let u = chart_repo::create_examination(
+        &pool,
+        &CreateExamination {
+            chart_id,
+            chief_complaint: Some("pain".into()),
+            results: None,
+            diagnosis: None,
+            examination_number: None,
+            category: None,
+            service_name: None,
+            total_cost: Some(10.0),
+        },
+    )
+    .await
+    .expect("exam");
+    let before = outbox_count(&pool, "examination").await;
+    chart_repo::release_examination_for_billing(&pool, &u.id, "seed-physician-001")
+        .await
+        .expect("release");
+    assert_eq!(outbox_count(&pool, "examination").await, before + 1);
+}
+
+#[tokio::test]
+async fn release_treatment_for_billing_records_update() {
+    let pool = fresh_pool().await;
+    enable_serverless(&pool).await;
+    let (_p, chart_id) = seed_patient_with_chart(&pool, "release-tx").await;
+    let b = chart_repo::create_treatment(
+        &pool,
+        &CreateTreatment {
+            chart_id,
+            kind: "FÜLLUNG".into(),
+            description: None,
+            teeth: None,
+            material: None,
+            notes: None,
+            category: None,
+            service_name: None,
+            treatment_number: None,
+            session_number: None,
+            treatment_status: None,
+            total_cost: Some(20.0),
+            appointment_required: None,
+            treatment_date: None,
+        },
+    )
+    .await
+    .expect("treatment");
+    let before = outbox_count(&pool, "treatment").await;
+    chart_repo::release_treatment_for_billing(&pool, &b.id, "seed-physician-001")
+        .await
+        .expect("release");
+    assert_eq!(outbox_count(&pool, "treatment").await, before + 1);
+}
+
+#[tokio::test]
+async fn mark_all_read_records_each_id() {
+    let pool = fresh_pool().await;
+    enable_serverless(&pool).await;
+    medoc_core::infrastructure::database::repos::practice::in_app_notification::insert(
+        &pool,
+        "seed-physician-001",
+        "INFO",
+        "A",
+        "a",
+        None,
+    )
+    .await
+    .expect("n1");
+    medoc_core::infrastructure::database::repos::practice::in_app_notification::insert(
+        &pool,
+        "seed-physician-001",
+        "INFO",
+        "B",
+        "b",
+        None,
+    )
+    .await
+    .expect("n2");
+    let before = outbox_count(&pool, "in_app_notification").await;
+    let n =
+        medoc_core::infrastructure::database::repos::practice::in_app_notification::mark_all_read(
+            &pool,
+            "seed-physician-001",
+        )
+        .await
+        .expect("mark");
+    assert!(n >= 2);
+    assert_eq!(
+        outbox_count(&pool, "in_app_notification").await,
+        before + n as i64
+    );
 }

@@ -1,0 +1,88 @@
+/* From styles/layout/sidebar.css (cascade position kept by its import there). */
+.app-sidebar-brand-mark {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  background: linear-gradient(135deg, var(--accent-mark-from, var(--accent)), var(--accent-mark-to, var(--accent)));
+  display: grid;
+  place-items: center;
+  color: #fff;
+}
+.app-sidebar-brand-title {
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-size: 14px;
+  line-height: 1.2;
+}
+.app-sidebar-brand-tag {
+  font-size: 11px;
+  color: var(--fg-3);
+  font-weight: 400;
+  line-height: 1.25;
+}
+html[data-sidebar-rail="icons"] .glass.app-sidebar .app-sidebar-brand-hit {
+  justify-content: center;
+  flex: 0 0 auto;
+  padding: var(--space-1);
+}
+.app-sidebar-account-popover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border-radius: 14px;
+  background: var(--bg-elev);
+  border: 1px solid var(--line-strong);
+  box-shadow: var(--shadow-lg);
+  z-index: 60;
+  isolation: isolate;
+}
+.app-sidebar-account-popover.app-sidebar-account-popover--portal {
+  position: fixed !important;
+}
+.app-sidebar-account-popover.app-sidebar-account-popover--inline-footprint {
+  right: auto;
+  box-sizing: border-box;
+}
+.sidebar-account-popover__item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 11px 12px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg);
+  text-align: start;
+  cursor: pointer;
+  line-height: 1.35;
+  transition: background var(--motion-fast) var(--ease-out);
+}
+.sidebar-account-popover__item:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+.sidebar-account-popover__item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.sidebar-account-popover__item--breakglass {
+  background: color-mix(in oklab, var(--red) 11%, transparent);
+  color: var(--red);
+  font-weight: 600;
+}
+.sidebar-account-popover__item--breakglass:hover {
+  background: color-mix(in oklab, var(--red) 18%, transparent);
+}
+.sidebar-account-popover__item--logout {
+  color: var(--fg-2);
+}
+html[data-sidebar-tone="dark"] .app-sidebar-brand-hit:hover {
+  background: rgba(255, 255, 255, 0.06);
+}

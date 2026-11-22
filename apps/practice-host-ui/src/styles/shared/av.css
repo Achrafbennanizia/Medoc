@@ -1,0 +1,19 @@
+/* From styles/components/data-controls.css (cascade position kept by its import there). */
+@layer components {
+  .tabs { display: flex; gap: 2px; align-items: center; }
+  .tab { padding: 8px 14px; border-radius: var(--radius-ctl); font-size: 13px; font-weight: 500; color: var(--fg-3); cursor: pointer; transition: all 120ms ease; }
+  .tab:hover { color: var(--fg); background: rgba(0,0,0,0.04); }
+  .tab[aria-selected="true"] { color: var(--fg); background: rgba(0,0,0,0.055); font-weight: 600; }
+  .ios-row { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--line); transition: background 120ms ease; cursor: pointer; }
+  .ios-row:last-child { border-bottom: 0; }
+  .ios-row:hover { background: rgba(0,0,0,0.025); }
+  .av { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; font-weight: 600; color: #fff; flex: 0 0 auto; font-size: 13px; letter-spacing: -0.01em; }
+  .av-sm { width: 28px; height: 28px; font-size: 11px; }
+  .av-lg { width: 52px; height: 52px; font-size: 17px; }
+  /** Brand/Primary on avatar — "inverse" text via --text-on-accent (not --fg-on-saturated). */
+  .av--accent {
+    background: linear-gradient(135deg, color-mix(in oklab, var(--accent) 52%, var(--text-on-accent)), var(--accent));
+    color: var(--text-on-accent);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.38);
+  }
+}

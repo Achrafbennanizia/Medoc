@@ -1,6 +1,6 @@
 //! Axum HTTPS API — authenticated LAN access (JWT HS256, TLS via `lan_server::tls`).
 //!
-//! **Background / ops:** The embedded host runs in its own Tokio tasks (`lan_commands`) and does not
+//! **Background / ops:** The embedded host runs in its own Tokio tasks (`commands::network::lan`) and does not
 //! block the Tauri UI. Headless: `medoc-server` binary. **Timeouts** prevent hung LAN requests.
 
 #![allow(clippy::result_large_err)] // axum handlers return `Response` as Err
@@ -9,40 +9,43 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use axum::extract::{ConnectInfo, Extension, Query, State};
+use axum::extract::{ConnectInfo, Extension, Path, Query, State};
 use axum::http::{header, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use chrono::Local;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sqlx::SqlitePool;
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::timeout::TimeoutLayer;
 
+use medoc_core::application::access_control::{self, MyAccessDto};
 use medoc_core::application::app_kv_policy;
 use medoc_core::application::auth_service::{self, LoginRequest};
+use medoc_core::application::authorize;
 use medoc_core::application::own_profile::{self, OwnProfileDto};
-use medoc_core::application::rbac::{self, Role};
 use medoc_core::company::{CompanyPortalPort, COMPANY_PORTAL};
 use medoc_core::domain::entities::staff::UpdateOwnProfile;
-use medoc_core::domain::entities::{Appointment, Patient};
 use medoc_core::error::AppError;
 use medoc_core::infrastructure::company_portal::load_company_portal_config;
 use medoc_core::infrastructure::cors_policy::{self, CorsGate};
-use medoc_core::infrastructure::database::{app_kv_repo, appointment_repo, patient_repo};
+use medoc_core::infrastructure::database::repos::admin::app_kv as app_kv_repo;
+use medoc_core::infrastructure::database::repos::admin::staff as staff_repo;
 use medoc_core::infrastructure::logging::brute_force::{BruteForceTracker, BruteKey, CheckResult};
-use medoc_sync::pairing::ActivationTokenPayload;
 
 use crate::discovery::LanBeaconPayload;
 use crate::jwt;
 
+pub mod access;
 pub mod eprescription;
 pub mod license;
+pub mod observability;
 pub mod pairing;
+pub mod app_kv_lww;
 pub mod sync;
+pub mod sync_bodies;
 
 #[derive(Clone)]
 pub struct LanHttpState {
@@ -60,8 +63,15 @@ pub struct ApiError(AppError);
 /// body `{ "error": "<wire token>" }` identical to the Tauri IPC payload, so clients share one resolver).
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        let status = StatusCode::from_u16(self.0.http_status()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
-        (status, Json(json!({ "error": self.0.wire_code() }))).into_response()
+        let status =
+            StatusCode::from_u16(self.0.http_status()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+        // `error` is the contract (wire token, same as IPC). `status` is additive and mirrors the HTTP code
+        // for clients that only see the body (e.g. queued sync problems); the request id is in the header.
+        (
+            status,
+            Json(json!({ "error": self.0.wire_code(), "status": status.as_u16() })),
+        )
+            .into_response()
     }
 }
 
@@ -81,11 +91,6 @@ pub struct LoginBody {
 }
 
 #[derive(Deserialize)]
-pub struct AppointmentsQuery {
-    pub date: Option<String>,
-}
-
-#[derive(Deserialize)]
 pub struct AppKvKeyQuery {
     pub key: String,
 }
@@ -94,16 +99,37 @@ pub struct AppKvKeyQuery {
 pub struct AppKvPutBody {
     pub key: String,
     pub value: String,
+    /// Set when a web client replays a write it queued offline (RFC 3339, time of the edit).
+    #[serde(default, rename = "editedAt")]
+    pub edited_at: Option<String>,
 }
 
-fn require_app_kv_write(claims: &jwt::LanClaims, key: &str) -> Result<(), AppError> {
+/// One authorization path for every JWT route: the staff row is re-read, so a
+/// deactivated account, a per-person DENY or a changed access profile applies
+/// at once — not only after the 8 h token expires. The role baked into the
+/// token is not trusted.
+async fn require_claims(
+    pool: &SqlitePool,
+    claims: &jwt::LanClaims,
+    action: &str,
+) -> Result<(), AppError> {
+    let caller = authorize::Caller {
+        user_id: claims.sub.clone(),
+        idle_for: None,
+        device_session_id: None,
+    };
+    authorize::authorize(pool, &caller, action, None).await?;
+    Ok(())
+}
+
+async fn require_app_kv_write(
+    pool: &SqlitePool,
+    claims: &jwt::LanClaims,
+    key: &str,
+) -> Result<(), AppError> {
     let perm = app_kv_policy::permission_for_app_kv_key(key)
         .ok_or_else(|| AppError::Validation(format!("Unbekannter KV-Key: {key}")))?;
-    let role = Role::parse(&claims.role).ok_or(AppError::Forbidden)?;
-    if !rbac::allowed(perm, role) {
-        return Err(AppError::Forbidden);
-    }
-    Ok(())
+    require_claims(pool, claims, perm).await
 }
 
 #[derive(Serialize)]
@@ -140,11 +166,29 @@ async fn jwt_auth_middleware(
         .strip_prefix("Bearer ")
         .ok_or_else(|| unauthorized("Bearer token required"))?
         .trim();
+    let path = req.uri().path().to_string();
+    let sync_channel = path.contains("/sync/") || path.ends_with("/pairing/peers");
+    if sync_channel && !raw.starts_with(medoc_sync::pairing::ACTIVATION_TOKEN_PREFIX) {
+        let reconcile = path.contains("/sync/digest")
+            || path.contains("/sync/row-hashes")
+            || path.contains("/sync/rows");
+        if reconcile {
+            return Err(unauthorized("staff jwt is not a device activation token"));
+        }
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({
+                "error": "sync routes accept only a paired device activation token",
+                "reason": "staff_jwt_rejected"
+            })),
+        )
+            .into_response());
+    }
     if raw.starts_with(medoc_sync::pairing::ACTIVATION_TOKEN_PREFIX) {
         // Activation-token path (Slice 4): replicas authenticate sync calls
         // with the Ed25519-signed token instead of the legacy JWT.
-        let path = req.uri().path().to_string();
-        let payload = self::sync::verify_activation_for_path(&state, raw, &path).await?;
+        let method = req.method().as_str().to_string();
+        let payload = self::sync::verify_activation_for_path(&state, raw, &path, &method).await?;
         req.extensions_mut().insert(payload);
         return Ok(next.run(req).await);
     }
@@ -157,17 +201,25 @@ async fn jwt_auth_middleware(
         );
         unauthorized("Invalid token")
     })?;
+    let current = staff_repo::token_version(&state.pool, &claims.sub)
+        .await
+        .map_err(|_| unauthorized("Invalid token"))?;
+    if claims.token_version != current {
+        return Err(unauthorized("Invalid token"));
+    }
     req.extensions_mut().insert(claims);
     Ok(next.run(req).await)
 }
 
-fn require_ops_system_claims(claims: &jwt::LanClaims) -> Result<(), AppError> {
-    let role = Role::parse(&claims.role).ok_or(AppError::Forbidden)?;
-    if !rbac::allowed("ops.system", role) {
-        return Err(AppError::Forbidden);
-    }
-    Ok(())
+async fn require_ops_system_claims(
+    pool: &SqlitePool,
+    claims: &jwt::LanClaims,
+) -> Result<(), AppError> {
+    require_claims(pool, claims, "ops.system").await
 }
+
+/// Sign-in and pairing are small interactive calls; sync and blob routes keep the global 120 s.
+const PUBLIC_ROUTE_TIMEOUT_SECS: u64 = 15;
 
 pub fn build_router(state: LanHttpState) -> Router {
     let allowed = cors_policy::lan_allowed_origin_strings(
@@ -189,12 +241,21 @@ pub fn build_router(state: LanHttpState) -> Router {
         .route("/pairing/confirm/{id}", post(self::pairing::confirm))
         .route("/pairing/master-info", get(self::pairing::master_info))
         .route("/pairing/peers", get(self::pairing::peers))
+        // Interactive, small requests: fail fast instead of holding a connection for the global 120 s.
+        .layer(TimeoutLayer::with_status_code(
+            StatusCode::REQUEST_TIMEOUT,
+            Duration::from_secs(PUBLIC_ROUTE_TIMEOUT_SECS),
+        ))
         .with_state(state.clone());
 
     let protected = Router::new()
-        .route("/patients", get(list_patients))
-        .route("/appointments", get(list_appointments))
         .route("/me", get(me_get).patch(me_patch))
+        .route("/me/access", get(me_access_get))
+        .merge(self::access::router())
+        // Staff route (not under `/sync/`, which only takes device tokens).
+        .route("/sync-problems", get(sync_problems_list))
+        .route("/sync-problems/{id}/retry", post(sync_problem_retry))
+        .route("/sync-problems/{id}/dismiss", post(sync_problem_dismiss))
         .route(
             "/app-kv",
             get(app_kv_get).put(app_kv_put).delete(app_kv_delete),
@@ -209,9 +270,30 @@ pub fn build_router(state: LanHttpState) -> Router {
             "/company/billing/portal-session",
             post(company_billing_portal_post),
         )
-        .route("/sync/push", post(self::sync::sync_push))
-        .route("/sync/pull", post(self::sync::sync_pull))
-        .route("/sync/status", get(self::sync::sync_status))
+        .route(medoc_sync::paths::SYNC_PUSH, post(self::sync::sync_push))
+        .route(medoc_sync::paths::SYNC_PULL, post(self::sync::sync_pull))
+        .route(
+            medoc_sync::paths::SYNC_EXCHANGE,
+            post(self::sync::sync_exchange),
+        )
+        .route(
+            medoc_sync::paths::SYNC_DIGEST,
+            post(self::sync::sync_digest),
+        )
+        .route(
+            medoc_sync::paths::SYNC_ROW_HASHES,
+            post(self::sync::sync_row_hashes),
+        )
+        .route(medoc_sync::paths::SYNC_ROWS, post(self::sync::sync_rows))
+        .route(medoc_sync::paths::SYNC_STATUS, get(self::sync::sync_status))
+        .route(
+            medoc_sync::paths::SYNC_NUMBER,
+            post(self::sync::sync_number),
+        )
+        .route(
+            medoc_sync::paths::SYNC_BLOB_ROUTE,
+            get(self::sync::sync_blob_get).put(self::sync::sync_blob_put),
+        )
         .route("/pairing/pending", get(self::pairing::pending))
         .route("/pairing/all", get(self::pairing::list_all))
         .route("/pairing/decide/{id}", post(self::pairing::decide))
@@ -240,6 +322,11 @@ pub fn build_router(state: LanHttpState) -> Router {
             Duration::from_secs(120),
         ))
         .layer(RequestBodyLimitLayer::new(16 * 1024 * 1024))
+        // gzip for clients that send `Accept-Encoding: gzip` (the sync client does). Sync pull/rows pages
+        // are JSON and shrink several-fold; tiny bodies and already-compressed types are skipped.
+        .layer(tower_http::compression::CompressionLayer::new().gzip(true))
+        // Request id, request log line (network.log) and response headers — see observability.rs.
+        .layer(middleware::from_fn(self::observability::request_context))
         .layer(cors_policy::lan_cors_layer(&allowed))
         .layer(middleware::from_fn_with_state(
             cors_gate,
@@ -324,11 +411,15 @@ async fn login(
         .record_success(Some(&state.pool), &brute_key)
         .await;
 
-    let token = jwt::issue_token(
+    let token_version = staff_repo::token_version(&state.pool, &session.user_id)
+        .await
+        .map_err(|e| ApiError(e).into_response())?;
+    let token = jwt::issue_token_versioned(
         state.jwt_secret.as_ref(),
         &session.user_id,
         &session.email,
         &session.role,
+        token_version,
     )
     .map_err(|e| ApiError(e).into_response())?;
 
@@ -354,6 +445,53 @@ async fn me_get(
     Ok(Json(dto))
 }
 
+/// What the signed-in person may do: area levels and allowed actions.
+/// Clients use it to hide what the server would refuse anyway.
+async fn me_access_get(
+    State(state): State<LanHttpState>,
+    Extension(claims): Extension<jwt::LanClaims>,
+) -> Result<Json<MyAccessDto>, ApiError> {
+    require_claims(&state.pool, &claims, "dashboard.read").await?;
+    let dto = access_control::my_access(&state.pool, &claims.sub).await?;
+    Ok(Json(dto))
+}
+
+#[derive(Deserialize)]
+pub struct SyncProblemsQuery {
+    #[serde(default)]
+    pub all: bool,
+}
+
+/// Changes that could not be applied or sent, for the admin to resolve.
+async fn sync_problems_list(
+    State(state): State<LanHttpState>,
+    Extension(claims): Extension<jwt::LanClaims>,
+    Query(q): Query<SyncProblemsQuery>,
+) -> Result<Json<Vec<medoc_sync::problems::SyncProblem>>, ApiError> {
+    require_claims(&state.pool, &claims, "ops.system").await?;
+    Ok(Json(medoc_sync::problems::list(&state.pool, q.all).await?))
+}
+
+async fn sync_problem_retry(
+    State(state): State<LanHttpState>,
+    Extension(claims): Extension<jwt::LanClaims>,
+    Path(id): Path<String>,
+) -> Result<StatusCode, ApiError> {
+    require_claims(&state.pool, &claims, "ops.system").await?;
+    medoc_sync::problems::retry(&state.pool, &id, &claims.sub).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn sync_problem_dismiss(
+    State(state): State<LanHttpState>,
+    Extension(claims): Extension<jwt::LanClaims>,
+    Path(id): Path<String>,
+) -> Result<StatusCode, ApiError> {
+    require_claims(&state.pool, &claims, "ops.system").await?;
+    medoc_sync::problems::dismiss(&state.pool, &id, &claims.sub).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 /// Update own profile — mirrors Tauri `update_own_profile`.
 async fn me_patch(
     State(state): State<LanHttpState>,
@@ -364,60 +502,15 @@ async fn me_patch(
     Ok(Json(OwnProfileDto::from(&updated)))
 }
 
-async fn list_patients(
-    State(state): State<LanHttpState>,
-    req: axum::extract::Request,
-) -> Result<Json<Vec<Patient>>, ApiError> {
-    if req.extensions().get::<ActivationTokenPayload>().is_some() {
-        let rows = patient_repo::find_all(&state.pool).await?;
-        return Ok(Json(rows));
-    }
-    let claims = req
-        .extensions()
-        .get::<jwt::LanClaims>()
-        .cloned()
-        .ok_or(AppError::Unauthorized)?;
-    let role = Role::parse(&claims.role).ok_or(AppError::Forbidden)?;
-    if !rbac::allowed("patient.read", role) {
-        return Err(AppError::Forbidden.into());
-    }
-    let rows = patient_repo::find_all(&state.pool).await?;
-    Ok(Json(rows))
-}
-
-async fn list_appointments(
-    State(state): State<LanHttpState>,
-    Query(q): Query<AppointmentsQuery>,
-    req: axum::extract::Request,
-) -> Result<Json<Vec<Appointment>>, ApiError> {
-    let date = q
-        .date
-        .unwrap_or_else(|| Local::now().format("%Y-%m-%d").to_string());
-    if req.extensions().get::<ActivationTokenPayload>().is_some() {
-        let rows = appointment_repo::find_by_date(&state.pool, &date).await?;
-        return Ok(Json(rows));
-    }
-    let claims = req
-        .extensions()
-        .get::<jwt::LanClaims>()
-        .cloned()
-        .ok_or(AppError::Unauthorized)?;
-    let role = Role::parse(&claims.role).ok_or(AppError::Forbidden)?;
-    if !rbac::allowed("appointment.read", role) {
-        return Err(AppError::Forbidden.into());
-    }
-    let rows = appointment_repo::find_by_date(&state.pool, &date).await?;
-    Ok(Json(rows))
-}
-
-/// Mirrors Tauri `get_app_kv` — any authenticated JWT may read whitelisted keys.
+/// Mirrors Tauri `get_app_kv` — the key's permission applies to reads as well as writes.
 async fn app_kv_get(
     State(state): State<LanHttpState>,
-    Extension(_claims): Extension<jwt::LanClaims>,
+    Extension(claims): Extension<jwt::LanClaims>,
     Query(q): Query<AppKvKeyQuery>,
 ) -> Result<Json<Option<String>>, ApiError> {
-    app_kv_policy::permission_for_app_kv_key(&q.key)
-        .ok_or_else(|| AppError::Validation(format!("Unbekannter KV-Key: {}", q.key)))?;
+    let perm = app_kv_policy::read_permission_for_app_kv_key(&q.key)
+        .ok_or_else(|| AppError::Validation(format!("Unknown KV key: {}", q.key)))?;
+    require_claims(&state.pool, &claims, perm).await?;
     let row = app_kv_repo::get(&state.pool, &q.key).await?;
     Ok(Json(row))
 }
@@ -428,7 +521,11 @@ async fn app_kv_put(
     Extension(claims): Extension<jwt::LanClaims>,
     Json(body): Json<AppKvPutBody>,
 ) -> Result<StatusCode, ApiError> {
-    require_app_kv_write(&claims, &body.key)?;
+    require_app_kv_write(&state.pool, &claims, &body.key).await?;
+    app_kv_policy::validate_app_kv_value(&body.key, &body.value)?;
+    if app_kv_lww::offline_write_is_stale(&state.pool, &body.key, body.edited_at.as_deref()).await {
+        return Ok(StatusCode::CONFLICT);
+    }
     app_kv_repo::set(&state.pool, &body.key, &body.value).await?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -439,7 +536,7 @@ async fn app_kv_delete(
     Extension(claims): Extension<jwt::LanClaims>,
     Query(q): Query<AppKvKeyQuery>,
 ) -> Result<StatusCode, ApiError> {
-    require_app_kv_write(&claims, &q.key)?;
+    require_app_kv_write(&state.pool, &claims, &q.key).await?;
     app_kv_repo::delete(&state.pool, &q.key).await?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -449,7 +546,7 @@ async fn company_summary_get(
     State(state): State<LanHttpState>,
     Extension(claims): Extension<jwt::LanClaims>,
 ) -> Result<Json<Value>, ApiError> {
-    require_ops_system_claims(&claims)?;
+    require_ops_system_claims(&state.pool, &claims).await?;
     let cfg = load_company_portal_config(&state.pool).await;
     let version = COMPANY_PORTAL.fetch_subscription_summary(&cfg).await?;
     Ok(Json(version))
@@ -459,7 +556,7 @@ async fn company_integrations_get(
     State(state): State<LanHttpState>,
     Extension(claims): Extension<jwt::LanClaims>,
 ) -> Result<Json<Value>, ApiError> {
-    require_ops_system_claims(&claims)?;
+    require_ops_system_claims(&state.pool, &claims).await?;
     let cfg = load_company_portal_config(&state.pool).await;
     let version = COMPANY_PORTAL.fetch_integration_statuses(&cfg).await?;
     Ok(Json(version))
@@ -469,7 +566,7 @@ async fn company_feature_flags_get(
     State(state): State<LanHttpState>,
     Extension(claims): Extension<jwt::LanClaims>,
 ) -> Result<Json<Value>, ApiError> {
-    require_ops_system_claims(&claims)?;
+    require_ops_system_claims(&state.pool, &claims).await?;
     let cfg = load_company_portal_config(&state.pool).await;
     let version = COMPANY_PORTAL.fetch_feature_flags(&cfg).await?;
     Ok(Json(version))
@@ -479,7 +576,7 @@ async fn company_billing_portal_post(
     State(state): State<LanHttpState>,
     Extension(claims): Extension<jwt::LanClaims>,
 ) -> Result<Json<Value>, ApiError> {
-    require_ops_system_claims(&claims)?;
+    require_ops_system_claims(&state.pool, &claims).await?;
     let cfg = load_company_portal_config(&state.pool).await;
     let url = COMPANY_PORTAL.post_billing_portal_url(&cfg).await?;
     Ok(Json(json!({ "url": url, "provider": "Vendor portal" })))

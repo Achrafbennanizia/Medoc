@@ -159,7 +159,7 @@ mod tests {
         let (mut t1, mut t2, transcript) = complete_xx_handshake(&kp1, &kp2).expect("hs");
 
         let sas = derive_sas_from_transcript(&transcript);
-        assert_eq!(sas.len(), 4);
+        assert_eq!(sas.len(), crate::cluster::crypto::SAS_LEN);
 
         let frame = encode_frame(&WireMessage::Discover).expect("encode");
         let mut enc = [0u8; 4096];

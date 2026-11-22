@@ -1,0 +1,105 @@
+/* From styles/pages/work-plan.css (cascade position kept by its import there). */
+.workPlan-cal-preface {
+  max-width: 42rem;
+}
+.workPlan-cal-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  max-width: 100%;
+}
+.workPlan-cal-embed {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: visible;
+  border-radius: 8px;
+  border: 1px solid var(--line-1);
+  background: var(--bg-elev);
+  box-sizing: border-box;
+}
+.workPlan-week-matrix-wrap {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+}
+.workPlan-cal-embed .workPlan-grid {
+  min-width: 0 !important;
+  width: 100%;
+  max-width: 100%;
+  grid-template-rows: auto minmax(0, auto) !important;
+  align-content: start;
+}
+.workPlan-grid--week.workPlan-grid--fit {
+  grid-template-columns: 40px repeat(7, minmax(0, 1fr)) !important;
+}
+
+/* Week: person × day matrix, horizontal day beam per cell */
+.workPlan-week-matrix {
+  display: grid;
+  grid-template-columns: minmax(5.75rem, 8.5rem) repeat(7, minmax(4.5rem, 1fr));
+  gap: 3px 3px;
+  align-items: stretch;
+  width: 100%;
+  min-width: min(100%, 44rem);
+  font-size: 11px;
+}
+.workPlan-week-matrix__corner {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--fg-3);
+  padding: 4px 6px 6px;
+  align-self: end;
+  line-height: 1.2;
+}
+.workPlan-week-matrix__dhead {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  text-align: center;
+  padding: 2px 1px 5px;
+  min-width: 0;
+  border-bottom: 1px solid var(--line-1);
+}
+.workPlan-week-matrix__dow {
+  font-size: 9.5px;
+  color: var(--fg-3);
+}
+.workPlan-week-matrix__dnum {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--fg-1);
+  margin-top: 1px;
+  line-height: 1.15;
+}
+.workPlan-week-matrix__rhead {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 4px 6px 4px 4px;
+  min-width: 0;
+  border-right: 1px solid var(--line-1);
+  background: var(--bg-0);
+}
+.workPlan-week-matrix__rinit {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: var(--accent);
+  line-height: 1.2;
+}
+.workPlan-week-matrix__rname {
+  font-size: 10.5px;
+  color: var(--fg-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  line-height: 1.2;
+  margin-top: 1px;
+}

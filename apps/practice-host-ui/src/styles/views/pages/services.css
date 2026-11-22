@@ -1,0 +1,20 @@
+/* From styles/features/catalog-staff.css (cascade position kept by its import there). */
+@layer components {
+  /* Services: same workspace as products */
+
+  .services-read-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  @media (max-width: 520px) {
+    .services-read-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+  .services-detail-card--empty {
+    min-height: 120px;
+    display: flex;
+    align-items: center;
+  }
+
+  /* Administration: table of contents / link menus (card + tbl, like products list) */
+}

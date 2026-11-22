@@ -1,0 +1,64 @@
+/* From styles/features/tasks-orders.css (cascade position kept by its import there). */
+@layer components {
+  .purchase_orders-table-card {
+    overflow: visible;
+  }
+  .purchase_orders-table-card .tbl-scroll {
+    overflow-x: auto;
+    overflow-y: visible;
+  }
+  .tbl.tbl-purchase_orders {
+    table-layout: fixed;
+    width: 100%;
+    min-width: 880px;
+  }
+  .tbl.tbl-purchase_orders thead th {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .tbl.tbl-purchase_orders thead th,
+  .tbl.tbl-purchase_orders tbody td {
+    vertical-align: middle;
+  }
+  .purchase_orders-col-nr { width: 10%; }
+  .purchase_orders-col-lief { width: 16%; }
+  .purchase_orders-col-kind { width: 24%; }
+  .purchase_orders-col-quantity { width: 9%; }
+  .purchase_orders-col-erw { width: 12%; }
+  .purchase_orders-col-price { width: 11%; }
+  .purchase_orders-col-status { width: 18%; }
+  .purchase_orders-row--clickable {
+    cursor: pointer;
+  }
+  tr.purchase_orders-row--selected td {
+    background: color-mix(in oklab, var(--accent) 8%, var(--card));
+  }
+  .purchase_orders-row--clickable:focus-visible {
+    outline: 2px solid color-mix(in oklab, var(--accent) 45%, var(--line));
+    outline-offset: -2px;
+  }
+  .purchase_orders-nr {
+    color: var(--accent-ink);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12.5px;
+    font-variant-numeric: tabular-nums;
+  }
+  .purchase_orders-td-lief {
+    text-align: center;
+  }
+  .purchase_orders-lief-name {
+    display: block;
+    font-weight: 600;
+    line-height: 1.35;
+    text-align: center;
+  }
+  .purchase_orders-lief-sub {
+    display: block;
+    margin-top: 2px;
+    font-size: 11.5px;
+    color: var(--fg-3);
+    line-height: 1.35;
+    text-align: center;
+  }
+}

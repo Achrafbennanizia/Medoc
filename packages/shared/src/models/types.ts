@@ -102,6 +102,8 @@ export interface Appointment {
     chief_complaint: string | null;
     patient_id: string;
     physician_id: string;
+    /** F65: slot length in minutes (30 when unknown). */
+    duration_minutes?: number;
     created_at: string;
     updated_at: string;
 }
@@ -173,6 +175,18 @@ export interface Treatment {
     /** FA-LEIST-05 */
     released_by_physician_id?: string | null;
     released_at?: string | null;
+    /** GOZ billing (Anlage 2 GOZ) — set via `setTreatmentBilling`. */
+    fee_schedule?: "goz" | "goae" | "material" | "lab" | "other" | null;
+    goz_nr?: string | null;
+    points?: number | null;
+    factor?: number | null;
+    /** Justification when factor > 2.3 (§ 10 Abs. 3 GOZ). */
+    factor_reason?: string | null;
+    quantity?: number | null;
+    /** § 6 Abs. 1 GOZ analog billing. */
+    analog_of?: string | null;
+    /** § 2 Abs. 1/2 GOZ agreement (factor > 3.5). */
+    agreement_ref?: string | null;
 }
 
 /** Admin: predefined treatment services for record forms (`treatment_catalog`). */
@@ -184,6 +198,10 @@ export interface TreatmentCatalogItem {
     sort_order: number;
     active: number;
     created_at: string;
+    /** GOZ defaults copied onto new treatment lines. */
+    fee_schedule?: "goz" | "goae" | "material" | "lab" | "other" | null;
+    goz_nr?: string | null;
+    points?: number | null;
 }
 
 /** Admin: master data for orders (`supplier_master` / `pharma_consultant_master`). */
@@ -235,6 +253,8 @@ export interface Payment {
     /** 0/1 — day-end close: payment cash-verified. */
     cash_verified?: number;
     created_at: string;
+    /** Set when a later edit records the money (placeholder fill). */
+    updated_at?: string | null;
 }
 
 export interface BalanceSheet {
@@ -284,6 +304,7 @@ export interface AuditLog {
 export interface DashboardStats {
     patients_total: number | null;
     appointments_today: number | null;
+    revenue_today: number | null;
     revenue_month: number | null;
     products_low: number | null;
 }
@@ -304,7 +325,8 @@ export interface LabelValue {
 /** Aggregated breakdowns powering the rich statistics page. */
 export interface StatisticsOverview {
     // Patients
-    patients_total: number;
+    /** F106: null when the role may not see this section. */
+    patients_total: number | null;
     new_patients_per_month: MonthBucket[];
     patients_cumulative_per_month: MonthBucket[];
     age_groups: LabelValue[];
@@ -324,11 +346,11 @@ export interface StatisticsOverview {
     // Finance
     income_per_month: MonthBucket[];
     revenue_by_payment_method: LabelValue[];
-    income_current_month: number;
+    income_current_month: number | null;
     // Orders
     orders_by_status: LabelValue[];
     orders_per_month: MonthBucket[];
-    products_low: number;
+    products_low: number | null;
 }
 
 /** Practice absences / vacation blocks (`absence` table). */

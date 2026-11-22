@@ -1,0 +1,8 @@
+/* From styles/features/dental-quick.css (cascade position kept by its import there). */
+@layer components {
+  html[data-theme="dark"] .dental-odontogram__vline,
+  html[data-theme="dark"] .dental-odontogram__hline {
+    background: color-mix(in oklab, var(--fg) 55%, var(--line-strong));
+    opacity: 1;
+  }
+}

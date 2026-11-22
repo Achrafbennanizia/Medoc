@@ -8,6 +8,7 @@ import { useToastStore } from "./ui/toast-store";
 import { describeResolvedExportPath, loadExportPathConfig, type ExportPathConfigV1 } from "@/lib/export-settings";
 import { pickExportDirectory } from "@/systems/practice-host/controllers/document-template.controller";
 import { finishExportWithSettings } from "@/lib/export";
+import type { ExportContext } from "@/lib/save-download";
 import { isTauriApp } from "@/lib/save-download";
 import { parseDelimitedGrid } from "@/lib/export-delimited";
 import { errorMessage } from "@/lib/utils";
@@ -21,6 +22,8 @@ export type DataExportPayload = {
     textBody?: string;
     binaryBody?: Uint8Array;
     mime?: string;
+    /** Audit context (EXPORT_FILE entry with SHA-256). Required for patient data. */
+    context: ExportContext;
 };
 
 export type DataExportPickerDialogProps = {
@@ -129,6 +132,7 @@ export function DataExportPickerDialog({
                 textBody: payload.textBody,
                 binaryBody: payload.binaryBody,
                 folderOverride: destFolder,
+                context: { ...payload.context, format },
             });
             onClose();
         } catch (e) {
@@ -170,7 +174,7 @@ export function DataExportPickerDialog({
                         />
                     ) : null}
                     <div>
-                        <div className="text-label" style={{ marginBottom: 8 }}>{t("export.picker.target_path")}</div>
+                        <div className="text-label" style={{ marginBottom: "var(--space-2)" }}>{t("export.picker.target_path")}</div>
                         <p className="text-body" style={{ margin: "0 0 8px", fontSize: 12, wordBreak: "break-word" }}>
                             {resolvedPathLabel}
                         </p>
@@ -189,7 +193,7 @@ export function DataExportPickerDialog({
                         ) : null}
                     </div>
                     <div>
-                        <div className="text-label" style={{ marginBottom: 8 }}>{t("export.picker.filename")}</div>
+                        <div className="text-label" style={{ marginBottom: "var(--space-2)" }}>{t("export.picker.filename")}</div>
                         <Input
                             id="data-export-picker-filename"
                             value={fileName}

@@ -13,6 +13,7 @@ import { Button } from "@/views/components/ui/button";
 import { errorMessage } from "@/lib/utils";
 import { ExportIcon } from "@/lib/icons";
 import { DataExportPickerDialog } from "@/views/components/data-export-picker-dialog";
+import type { ExportContext } from "@/lib/save-download";
 import { PageLoadError, PageLoading } from "@/views/components/ui/page-status";
 import { WorkspacePageHeader } from "@/views/components/administration-page-header";
 import { localYmd } from "@/lib/practice-clock";
@@ -72,6 +73,7 @@ export function LoggingPage() {
             suggestedFilename: `medoc-logs-${localYmd()}.zip`,
             binaryBody: new Uint8Array(bytes),
             mime: "application/zip",
+            context: { kind: "system_logs", format: "zip", entityId: null } satisfies ExportContext,
         };
     }, [t]);
 
@@ -113,7 +115,7 @@ export function LoggingPage() {
         <div className="practice-workspace-page animate-fade-in">
             <WorkspacePageHeader title={t("logging.title")} />
 
-            <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
                 <h3 className="text-title">{t("logging.level_section")}</h3>
                 <p className="text-body text-on-surface-variant">
                     {t("logging.level_section_hint")}
@@ -132,7 +134,7 @@ export function LoggingPage() {
                 </div>
             </div>
 
-            <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
                 <h3 className="text-title">{t("logging.dir_section")}</h3>
                 <p className="text-body font-mono text-on-surface-variant">{logDir}</p>
                 {exampleLogFile ? (
@@ -142,7 +144,7 @@ export function LoggingPage() {
                 ) : null}
             </div>
 
-            <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
                 <h3 className="text-title">{t("logging.export_section")}</h3>
                 <p className="text-body text-on-surface-variant">
                     {t("logging.export_section_hint")}
@@ -152,7 +154,7 @@ export function LoggingPage() {
                 </Button>
             </div>
 
-            <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
                 <h3 className="text-title">{t("logging.audit_integrity")}</h3>
                 <p className="text-body text-on-surface-variant">
                     {t("logging.verify_hint")}

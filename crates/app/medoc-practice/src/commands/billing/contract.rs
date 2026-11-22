@@ -6,9 +6,10 @@ use std::path::Path;
 use tauri::State;
 
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::error::AppError;
-use crate::infrastructure::database::{audit_repo, contract_repo};
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
+use crate::infrastructure::database::repos::billing::contract as contract_repo;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContractDto {
@@ -23,6 +24,16 @@ pub struct ContractDto {
     pub created_at: String,
     #[serde(default)]
     pub document_path: Option<String>,
+    /// Running (true) or deactivated (false). Older clients omit it → treated as running.
+    #[serde(default = "default_true")]
+    pub active: bool,
+    /// Day the contract stopped (YYYY-MM-DD); costs are counted up to and including this day.
+    #[serde(default)]
+    pub deactivated_at: Option<String>,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 fn row_to_dto(r: contract_repo::ContractRow) -> ContractDto {
@@ -37,6 +48,8 @@ fn row_to_dto(r: contract_repo::ContractRow) -> ContractDto {
         period_until: r.period_until,
         created_at: r.created_at,
         document_path: r.document_path,
+        active: r.active != 0,
+        deactivated_at: r.deactivated_at,
     }
 }
 
@@ -45,6 +58,23 @@ fn dto_to_row(d: &ContractDto) -> Result<contract_repo::ContractRow, AppError> {
     if iv != "DAY" && iv != "WEEK" && iv != "MONTH" && iv != "YEAR" {
         return Err(AppError::Validation("Invalid interval".into()));
     }
+    let deactivated_at = if d.active {
+        None
+    } else {
+        let day = d
+            .deactivated_at
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+            .unwrap_or_else(|| chrono::Local::now().format("%Y-%m-%d").to_string());
+        if chrono::NaiveDate::parse_from_str(&day, "%Y-%m-%d").is_err() {
+            return Err(AppError::Validation(
+                "Date must be in yyyy-MM-dd format".into(),
+            ));
+        }
+        Some(day)
+    };
     Ok(contract_repo::ContractRow {
         id: d.id.clone(),
         designation: d.designation.clone(),
@@ -56,6 +86,8 @@ fn dto_to_row(d: &ContractDto) -> Result<contract_repo::ContractRow, AppError> {
         period_until: d.period_until.clone(),
         created_at: d.created_at.clone(),
         document_path: d.document_path.clone(),
+        active: if d.active { 1 } else { 0 },
+        deactivated_at,
     })
 }
 
@@ -185,15 +217,4 @@ pub async fn open_contract_document(
     .await
     .ok();
     Ok(())
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_contract_commands {
-    () => {
-        $crate::commands::contract_commands::list_contracts,
-        $crate::commands::contract_commands::upsert_contract,
-        $crate::commands::contract_commands::delete_contract,
-        $crate::commands::contract_commands::open_contract_document,
-    };
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { getPatient } from "@/systems/practice-host/controllers/patient.controller";
 import {
@@ -37,12 +37,30 @@ import { usePatientDetailValidation } from "./use-patient-detail-validation";
 import { usePatientDetailPaymentActions } from "./use-patient-detail-payment-actions";
 import { PatientDetailOverlays } from "./patient-detail-overlays";
 import type { PatientChartWorkflowMode } from "@/views/components/patient-chart-workflow-dialogs";
-import { PatientDetailAnamTab } from "./patient-detail-anamnesis-tab";
-import { PatientDetailAttachmentTab } from "./patient-detail-attachment-tab";
-import { PatientDetailTreatmentTab } from "./patient-detail-treatment-tab";
-import { PatientDetailExaminationTab } from "./patient-detail-examination-tab";
-import { PatientDetailPaymentTab } from "./patient-detail-payment-tab";
-import { PatientDetailPrescriptionTab, type PatientDetailPrescriptionTabHandle } from "./patient-detail-prescription-tab";
+import { type PatientDetailPrescriptionTabHandle } from "./patient-detail-prescription-tab";
+
+const PatientDetailAnamTab = lazy(async () => ({
+    default: (await import("./patient-detail-anamnesis-tab")).PatientDetailAnamTab,
+}));
+const PatientDetailAttachmentTab = lazy(async () => ({
+    default: (await import("./patient-detail-attachment-tab")).PatientDetailAttachmentTab,
+}));
+const PatientDetailTreatmentTab = lazy(async () => ({
+    default: (await import("./patient-detail-treatment-tab")).PatientDetailTreatmentTab,
+}));
+const PatientDetailExaminationTab = lazy(async () => ({
+    default: (await import("./patient-detail-examination-tab")).PatientDetailExaminationTab,
+}));
+const PatientDetailPaymentTab = lazy(async () => ({
+    default: (await import("./patient-detail-payment-tab")).PatientDetailPaymentTab,
+}));
+const PatientDetailPrescriptionTab = lazy(async () => ({
+    default: (await import("./patient-detail-prescription-tab")).PatientDetailPrescriptionTab,
+}));
+
+function PatientTabSlot({ children }: { children: ReactNode }) {
+    return <Suspense fallback={null}>{children}</Suspense>;
+}
 import type { HtmlExportDocumentKind } from "@/views/components/export-picker-dialog";
 import { itemValidationKey, type ValidationRecord, type ValidationState } from "@/lib/chart-validation";
 import { listPrescriptions, type Prescription } from "@/systems/practice-host/controllers/prescription.controller";
@@ -70,6 +88,7 @@ import { getInvoicePracticeFromStorage } from "@/lib/invoice-service-item";
 import { checkPracticeDocumentReadiness } from "@/lib/practice-completeness";
 import type { DocumentKind } from "@/lib/document-template-schema";
 import { openSystemScanUtility } from "@/systems/practice-host/controllers/system.controller";
+import { localCapability } from "@/lib/integration-capabilities";
 import { buildOpenPaymentLinkSelectOptions } from "@/lib/payment-booking";
 import {
     isPatientChartMissingError,
@@ -264,15 +283,46 @@ export function PatientDetailPage() {
         attachmentsRef.current = attachments;
     }, [attachments]);
 
+    const planPersistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const planPersistSeqRef = useRef(0);
+    useEffect(() => {
+        return () => {
+            if (planPersistTimerRef.current != null) {
+                clearTimeout(planPersistTimerRef.current);
+            }
+        };
+    }, []);
+
     const persistPlanNext = useCallback(
         (next: PlanNextAppointmentV2) => {
             setPlanNext((prev) => {
                 const merged =
                     canViewClinical ? next : { ...next, internalNote: prev.internalNote };
                 if (id) {
-                    void persistPlanNextAppointmentToBackend(id, merged).catch((e) => {
-                        toast(tp("patient.detail.toast.plan_save_failed", { message: errorMessage(e) }), "error");
-                    });
+                    // Debounce: each keystroke used to open a write tx + audit + outbox row,
+                    // which raced SQLITE_BUSY (code 5) under sync / concurrent commands.
+                    if (planPersistTimerRef.current != null) {
+                        clearTimeout(planPersistTimerRef.current);
+                    }
+                    const seq = ++planPersistSeqRef.current;
+                    const patientId = id;
+                    const payload = merged;
+                    planPersistTimerRef.current = setTimeout(() => {
+                        planPersistTimerRef.current = null;
+                        void persistPlanNextAppointmentToBackend(patientId, payload)
+                            .then(() => {
+                                /* ignore stale completions */
+                            })
+                            .catch((e) => {
+                                if (seq !== planPersistSeqRef.current) return;
+                                toast(
+                                    tp("patient.detail.toast.plan_save_failed", {
+                                        message: errorMessage(e),
+                                    }),
+                                    "error",
+                                );
+                            });
+                    }, 450);
                 }
                 return merged;
             });
@@ -317,49 +367,15 @@ export function PatientDetailPage() {
         if (!id) return;
         setPatientLoadError(null);
         setChartLoadError(null);
-        try {
-            const p = await getPatient(id);
-            setPatient(p);
-            setEditForm({ name: p.name, phone: p.phone ?? "", email: p.email ?? "", address: p.address ?? "" });
-        } catch (e) {
-            setPatient(null);
-            setPatientLoadError(errorMessage(e));
-            setChart(null);
-            setFindings([]);
-            setTreatments([]);
-            setExaminations([]);
-            setCatalog([]);
-            return;
-        }
-        setFindings([]);
-        setTreatments([]);
-        setExaminations([]);
-        setCatalog([]);
-        setPrescriptions([]);
-        setCertificates([]);
-        setPayments([]);
-        setAnamnesisJson("");
-        setAnamnesisSign(false);
-        let chartRow: PatientChart | null = null;
-        try {
-            chartRow = await getChart(id);
-            setChart(chartRow);
-            setChartLoadError(null);
-            void refreshAttachments(chartRow.id);
-        } catch (e) {
-            setChart(null);
-            if (isPatientChartMissingError(e)) {
-                setChartLoadError(null);
-            } else {
-                setChartLoadError(errorMessage(e));
-            }
-            return;
-        }
         const sectionFail = (key: string, e: unknown) => {
             toast(tp(key, { message: errorMessage(e) }), "warning");
             return null;
         };
-        const [rez, zPat, att, katRows] = await Promise.all([
+        const patientTask = getPatient(id);
+        const chartTask = getChart(id)
+            .then((row) => ({ ok: true as const, row }))
+            .catch((e: unknown) => ({ ok: false as const, e }));
+        const docsTask = Promise.all([
             canListPatientDocuments
                 ? listPrescriptions(id).catch((e) => {
                       sectionFail("patient.detail.toast.prescription_load_failed", e);
@@ -381,10 +397,35 @@ export function PatientDetailPage() {
                 return [] as TreatmentCatalogItem[];
             }),
         ]);
+        let p;
+        try {
+            p = await patientTask;
+        } catch (e) {
+            setPatient(null);
+            setPatientLoadError(errorMessage(e));
+            setChart(null);
+            return;
+        }
+        setPatient(p);
+        setEditForm({ name: p.name, phone: p.phone ?? "", email: p.email ?? "", address: p.address ?? "" });
+        const [chartOutcome, [rez, zPat, att, katRows]] = await Promise.all([chartTask, docsTask]);
         setPrescriptions(rez);
         setPayments(zPat);
         setCertificates(att);
         setCatalog(katRows);
+        if (!chartOutcome.ok) {
+            setChart(null);
+            if (isPatientChartMissingError(chartOutcome.e)) {
+                setChartLoadError(null);
+            } else {
+                setChartLoadError(errorMessage(chartOutcome.e));
+            }
+            return;
+        }
+        const chartRow = chartOutcome.row;
+        setChart(chartRow);
+        setChartLoadError(null);
+        void refreshAttachments(chartRow.id);
         if (canViewClinical) {
             const [z, bh, u, am] = await Promise.all([
                 listDentalFindings(chartRow.id).catch((e) => {
@@ -663,7 +704,7 @@ export function PatientDetailPage() {
 
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }} className="animate-fade-in">
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-5)" }} className="animate-fade-in">
             <PatientDetailShellHeader
                 patient={patient}
                 validationPendingTotal={validationPendingTotal}
@@ -711,7 +752,7 @@ export function PatientDetailPage() {
                 onGoTab={goTab}
             />
 
-            <div className="chart-workspace" style={{ display: "grid", gridTemplateColumns: "minmax(200px, 220px) 1fr", gap: 20 }}>
+            <div className="chart-workspace" style={{ display: "grid", gridTemplateColumns: "minmax(200px, 220px) 1fr", gap: "var(--space-5)" }}>
                 <PatientDetailChartSubnav
                     activeTab={activeTab}
                     canViewClinical={canViewClinical}
@@ -721,7 +762,7 @@ export function PatientDetailPage() {
                     itemValidation={itemValidation}
                     onSelectTab={goTab}
                 />
-                <div className="col" style={{ gap: 16, minWidth: 0 }}>
+                <div className="col" style={{ gap: "var(--space-4)", minWidth: 0 }}>
                     {chartLoadError ? (
                         <DismissibleNotice variant="error" role="alert" title={t("patient.detail.chart_load_error")}>
                             {chartLoadError}
@@ -729,6 +770,7 @@ export function PatientDetailPage() {
                     ) : null}
 
             {activeTab === "anamnesis" && canViewClinical ? (
+                <PatientTabSlot>
                 <PatientDetailAnamTab
                     validationMaster={validation.master}
                     anamEditing={anamEditing}
@@ -742,9 +784,11 @@ export function PatientDetailPage() {
                     onCancelEdit={cancelAnamnesisEdit}
                     onSave={runSaveAnamnesis}
                 />
+                </PatientTabSlot>
             ) : null}
 
             {activeTab === "examination" && canViewClinical ? (
+                <PatientTabSlot>
                 <PatientDetailExaminationTab
                     chart={chart}
                     findings={findings}
@@ -792,9 +836,11 @@ export function PatientDetailPage() {
                     onSaveEdit={runSaveExaminationEdit}
                     onCreateExamination={handleCreateExamination}
                 />
+                </PatientTabSlot>
             ) : null}
 
             {activeTab === "treatment" && canViewClinical ? (
+                <PatientTabSlot>
                 <PatientDetailTreatmentTab
                     treatmentComposerCommon={treatmentComposerCommon}
                     treatments={treatments}
@@ -885,9 +931,11 @@ export function PatientDetailPage() {
                     onCancelDeleteTreatment={() => setTreatmentDeleteId(null)}
                     onConfirmDeleteTreatment={handleDeleteTreatmentRow}
                 />
+                </PatientTabSlot>
             ) : null}
 
             {activeTab === "prescription" && id && session?.user_id && (
+                <PatientTabSlot>
                 <PatientDetailPrescriptionTab
                     ref={prescriptionTabRef}
                     patientId={id}
@@ -901,8 +949,10 @@ export function PatientDetailPage() {
                     onHtmlDocExport={setHtmlDocExport}
                     ensurePracticeForDocument={ensurePracticeForDocument}
                 />
+                </PatientTabSlot>
             )}
             {activeTab === "attachment" ? (
+                <PatientTabSlot>
                 <PatientDetailAttachmentTab
                     hasAttachments={hasSectionData.attachment}
                     attachments={attachments}
@@ -1002,17 +1052,22 @@ export function PatientDetailPage() {
                     onRevokeValidation={(attachmentId, shortLabel) =>
                         void revokeItemValidationRow(itemValidationKey("attachment", attachmentId), shortLabel)}
                     formatAddedAt={formatDate}
-                    onScannerClick={() => {
-                        void (async () => {
-                            try {
-                                await openSystemScanUtility();
-                                setScannerImportOpen(true);
-                            } catch (e) {
-                                toast(tp("patient.detail.toast.scanner_failed", { message: errorMessage(e) }), "error");
-                            }
-                        })();
-                    }}
+                    onScannerClick={
+                        localCapability("scanner")?.available
+                            ? () => {
+                                  void (async () => {
+                                      try {
+                                          await openSystemScanUtility();
+                                          setScannerImportOpen(true);
+                                      } catch (e) {
+                                          toast(tp("patient.detail.toast.scanner_failed", { message: errorMessage(e) }), "error");
+                                      }
+                                  })();
+                              }
+                            : undefined
+                    }
                 />
+                </PatientTabSlot>
             ) : null}
             {chart && scannerImportOpen ? (
                 <ChartScannerImportDialog
@@ -1040,6 +1095,7 @@ export function PatientDetailPage() {
                 />
             ) : null}
             {activeTab === "payment" && (
+                <PatientTabSlot>
                 <PatientDetailPaymentTab
                     patientId={id}
                     hasPaymentData={hasSectionData.payment}
@@ -1079,6 +1135,11 @@ export function PatientDetailPage() {
                     itemValidation={itemValidation}
                     onPrintReceipt={handlePrintReceipt}
                     onPrintReceiptFromSummeRow={handlePrintReceiptFromSummeRow}
+                    onIssueInvoice={(kind, lineId) => {
+                        if (!id) return;
+                        const q = new URLSearchParams({ patientId: id, link: `${kind}:${lineId}` });
+                        navigate(`/administration/finance-reports/invoice?${q.toString()}`);
+                    }}
                     onSubmitSavePaymentNew={submitSavePaymentNew}
                     onSavePaymentEdit={runSavePaymentEdit}
                     onDeletePayment={handleDeletePaymentRow}
@@ -1103,6 +1164,7 @@ export function PatientDetailPage() {
                     onRevokeItemValidation={revokeItemValidationRow}
                     toast={toast}
                 />
+                </PatientTabSlot>
             )}
                 </div>
             </div>

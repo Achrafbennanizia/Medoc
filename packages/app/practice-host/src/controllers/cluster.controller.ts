@@ -1,3 +1,4 @@
+import { PAIRING_CODE_LENGTH } from "@/lib/pairing-code";
 import { tauriInvoke } from "@/services/tauri.service";
 
 import type { ClusterStatusSnapshot } from "@/models/store/cluster-store";
@@ -81,6 +82,8 @@ export type ImportActivationResult = {
     clusterId?: string;
     deviceFingerprint?: string;
     requiresAppReload: boolean;
+    /** After activation, Bridge B passphrase wrap is still required. */
+    needsBridgeBPassphrase?: boolean;
 };
 
 export const ONBOARDING_LICENSE_PENDING_KEY = "medoc.onboarding.pending_license";
@@ -214,6 +217,11 @@ export async function clusterStartListener(): Promise<void> {
     return tauriInvoke("cluster_start_listener");
 }
 
+/** Close or reopen the practice listen port on this computer. */
+export async function setNetworkHidden(hidden: boolean): Promise<void> {
+    await tauriInvoke("network_set_hidden", { hidden });
+}
+
 export async function clusterListPending(): Promise<PendingRequest[]> {
     return tauriInvoke("cluster_list_pending");
 }
@@ -239,7 +247,7 @@ export async function clusterAcceptRequest(
 function sasDigitsFromPayload(value: unknown): string | null {
     if (typeof value === "string") {
         const d = value.replace(/\D/g, "");
-        return d.length === 4 ? d : null;
+        return d.length === PAIRING_CODE_LENGTH ? d : null;
     }
     if (!value || typeof value !== "object") {
         return null;
@@ -247,8 +255,8 @@ function sasDigitsFromPayload(value: unknown): string | null {
     const rec = value as Record<string, unknown>;
     for (const key of ["digits", "Digits"]) {
         const v = rec[key];
-        if (typeof v === "string" && v.replace(/\D/g, "").length === 4) {
-            return v.replace(/\D/g, "").slice(0, 4);
+        if (typeof v === "string" && v.replace(/\D/g, "").length === PAIRING_CODE_LENGTH) {
+            return v.replace(/\D/g, "");
         }
     }
     return null;

@@ -3,33 +3,41 @@ use crate::domain::entities::Payment;
 use crate::domain::enums::PaymentMethod;
 use crate::domain::services::pricing;
 use crate::error::AppError;
-use crate::infrastructure::database::chart_repo;
-use crate::infrastructure::database::practice_task_repo;
+use crate::infrastructure::database::repos::clinical::chart as chart_repo;
+use crate::infrastructure::database::repos::scheduling::practice_task as practice_task_repo;
 use sqlx::SqlitePool;
 
-/// Allowed tolerance for due/open checks (EUR) — frontend `PAYMENT_EUR_EPS` matches this value.
-const OPEN_BOOKING_TOLERANCE_EUR: f64 = 0.005;
-
-/// Cent rounding like frontend `roundMoney2` (`payment-buchung.ts`).
-#[inline]
-fn round_money2(n: f64) -> f64 {
-    if !n.is_finite() {
-        return n;
+/// Older databases were created before `payment.updated_at` existed. Reads that
+/// decode the column fail with "no column found for name: updated_at" until it is added.
+async fn ensure_payment_updated_at(pool: &SqlitePool) -> Result<(), AppError> {
+    let n: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM pragma_table_info('payment') WHERE name = 'updated_at'",
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::Database)?;
+    if n == 0 {
+        sqlx::query("ALTER TABLE payment ADD COLUMN updated_at TEXT")
+            .execute(pool)
+            .await
+            .map_err(AppError::Database)?;
+        // Row stamps for existing installs are filled by
+        // `ensure_updated_at_on_synced_tables` in rust_only migrations.
     }
-    (n * 100.0).round() / 100.0
+    Ok(())
 }
 
 fn compute_payment_status(amount: f64, erwartet: Option<f64>) -> &'static str {
-    const EPS: f64 = 1e-6;
     // Positive expected remaining/due amount (> 0); values ≤ 0 are ignored.
-    let exp_positive = erwartet.filter(|e| e.is_finite() && *e > EPS);
+    let exp_positive = erwartet.filter(|e| e.is_finite() && *e > pricing::MONEY_ZERO_EUR);
 
-    if amount <= EPS {
+    if amount <= pricing::MONEY_ZERO_EUR {
         // Open placeholder booking or no payment amount posted yet.
         match exp_positive {
             Some(_) => return "OUTSTANDING",
             None => {
-                if matches!(erwartet, Some(e) if e.is_finite() && (-EPS..=EPS).contains(&e)) {
+                if matches!(erwartet, Some(e) if e.is_finite() && (-pricing::MONEY_ZERO_EUR..=pricing::MONEY_ZERO_EUR).contains(&e))
+                {
                     return "PAID";
                 }
                 return "OUTSTANDING";
@@ -38,7 +46,7 @@ fn compute_payment_status(amount: f64, erwartet: Option<f64>) -> &'static str {
     }
     match exp_positive {
         Some(exp) => {
-            if amount + EPS >= exp {
+            if amount + pricing::MONEY_ZERO_EUR >= exp {
                 "PAID"
             } else {
                 "PARTIALLY_PAID"
@@ -49,6 +57,7 @@ fn compute_payment_status(amount: f64, erwartet: Option<f64>) -> &'static str {
 }
 
 async fn refresh_payment_status(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
+    ensure_payment_updated_at(pool).await?;
     let row: Option<(Option<f64>, f64)> = sqlx::query_as(
         "SELECT CAST(amount_expected AS REAL), CAST(amount AS REAL) FROM payment WHERE id = ?1",
     )
@@ -59,11 +68,17 @@ async fn refresh_payment_status(pool: &SqlitePool, id: &str) -> Result<(), AppEr
         return Ok(());
     };
     let st = compute_payment_status(b, erw);
-    sqlx::query("UPDATE payment SET status = ?1 WHERE id = ?2")
+    let mut tx = pool.begin().await?;
+    sqlx::query(
+        "UPDATE payment SET status = ?1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?2",
+    )
         .bind(st)
         .bind(id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
+    crate::infrastructure::database::recorded_write::record_in_tx(&mut tx, "payment", id, "UPDATE")
+        .await?;
+    tx.commit().await?;
     Ok(())
 }
 
@@ -75,7 +90,6 @@ async fn find_zero_amount_open_booking_id(
     treatment_id: Option<&str>,
     examination_id: Option<&str>,
 ) -> Result<Option<String>, AppError> {
-    const EPS: f64 = 1e-6;
     let row: Option<(String,)> = if let Some(bid) = treatment_id {
         sqlx::query_as(
             "SELECT id FROM payment
@@ -87,7 +101,7 @@ async fn find_zero_amount_open_booking_id(
         )
         .bind(patient_id)
         .bind(bid)
-        .bind(EPS)
+        .bind(pricing::MONEY_ZERO_EUR)
         .fetch_optional(pool)
         .await?
     } else if let Some(uid) = examination_id {
@@ -101,7 +115,7 @@ async fn find_zero_amount_open_booking_id(
         )
         .bind(patient_id)
         .bind(uid)
-        .bind(EPS)
+        .bind(pricing::MONEY_ZERO_EUR)
         .fetch_optional(pool)
         .await?
     } else {
@@ -124,6 +138,7 @@ async fn after_payment_may_be_paid(pool: &SqlitePool, payment: &Payment) -> Resu
 }
 
 pub async fn find_all(pool: &SqlitePool) -> Result<Vec<Payment>, AppError> {
+    ensure_payment_updated_at(pool).await?;
     let rows = sqlx::query_as::<_, Payment>("SELECT * FROM payment ORDER BY created_at DESC")
         .fetch_all(pool)
         .await?;
@@ -135,10 +150,13 @@ pub async fn find_all(pool: &SqlitePool) -> Result<Vec<Payment>, AppError> {
 pub struct PaymentListFilter<'a> {
     pub status: Option<&'a str>,
     pub payment_method: Option<&'a str>,
-    /// Inclusive local calendar day `YYYY-MM-DD` (matches `date(created_at)`).
+    /// Inclusive practice-local calendar day `YYYY-MM-DD` (F77: converted to UTC bounds).
     pub date_on: Option<&'a str>,
     pub date_from: Option<&'a str>,
     pub date_to: Option<&'a str>,
+    /// Practice-local day the money was recorded: `created_at` or a later `updated_at`
+    /// (a 0 € booking filled in on a later day).
+    pub active_on: Option<&'a str>,
 }
 
 pub async fn find_paginated(
@@ -148,6 +166,7 @@ pub async fn find_paginated(
     sort_dir_sql: &'static str,
     filter: PaymentListFilter<'_>,
 ) -> Result<(Vec<Payment>, i64), AppError> {
+    ensure_payment_updated_at(pool).await?;
     // sort_dir_sql is whitelisted by callers (ASC|DESC only).
     let mut wheres: Vec<String> = Vec::new();
     let mut binds: Vec<String> = Vec::new();
@@ -186,18 +205,62 @@ pub async fn find_paginated(
         ));
         binds.push(m.to_string());
     }
-    if let Some(d) = filter.date_on {
-        wheres.push(format!("date(created_at) = date(?{})", binds.len() + 1));
-        binds.push(d.to_string());
-    } else {
-        if let Some(d) = filter.date_from {
-            wheres.push(format!("date(created_at) >= date(?{})", binds.len() + 1));
-            binds.push(d.to_string());
-        }
-        if let Some(d) = filter.date_to {
-            wheres.push(format!("date(created_at) <= date(?{})", binds.len() + 1));
-            binds.push(d.to_string());
-        }
+    // F77: `created_at` is UTC; a "day" is the practice-local day.
+    let tz = crate::domain::practice_time::practice_tz(pool).await;
+    let day_start = |ymd: &str| -> Result<String, AppError> {
+        let d = chrono::NaiveDate::parse_from_str(ymd.trim(), "%Y-%m-%d")
+            .map_err(|_| AppError::Validation("Date must be in yyyy-MM-dd format".into()))?;
+        Ok(crate::domain::practice_time::local_day_bounds_utc(d, tz)
+            .0
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string())
+    };
+    let day_end = |ymd: &str| -> Result<String, AppError> {
+        let d = chrono::NaiveDate::parse_from_str(ymd.trim(), "%Y-%m-%d")
+            .map_err(|_| AppError::Validation("Date must be in yyyy-MM-dd format".into()))?;
+        Ok(crate::domain::practice_time::local_day_bounds_utc(d, tz)
+            .1
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string())
+    };
+    if let Some(d) = filter.active_on {
+        let from = day_start(d)?;
+        let to = day_end(d)?;
+        let i = binds.len();
+        wheres.push(format!(
+            "(julianday(created_at) >= julianday(?{a}) AND julianday(created_at) < julianday(?{b}) \
+              OR (updated_at IS NOT NULL AND julianday(updated_at) >= julianday(?{c}) \
+                  AND julianday(updated_at) < julianday(?{d})))",
+            a = i + 1,
+            b = i + 2,
+            c = i + 3,
+            d = i + 4,
+        ));
+        binds.push(from.clone());
+        binds.push(to.clone());
+        binds.push(from);
+        binds.push(to);
+    }
+    let (from, to) = match filter.date_on {
+        Some(d) => (Some(day_start(d)?), Some(day_end(d)?)),
+        None => (
+            filter.date_from.map(day_start).transpose()?,
+            filter.date_to.map(day_end).transpose()?,
+        ),
+    };
+    if let Some(f) = from {
+        wheres.push(format!(
+            "julianday(created_at) >= julianday(?{})",
+            binds.len() + 1
+        ));
+        binds.push(f);
+    }
+    if let Some(t) = to {
+        wheres.push(format!(
+            "julianday(created_at) < julianday(?{})",
+            binds.len() + 1
+        ));
+        binds.push(t);
     }
     let where_sql = if wheres.is_empty() {
         String::new()
@@ -294,26 +357,44 @@ pub async fn monthly_breakdown(
     pool: &SqlitePool,
     months: u32,
 ) -> Result<Vec<PaymentMonthBucket>, AppError> {
-    let months = months.clamp(1, 36) as i64;
-    let rows: Vec<(String, f64, f64, f64)> = sqlx::query_as(
-        "SELECT
-            strftime('%Y-%m', created_at) AS ym,
-            CAST(COALESCE(SUM(CASE WHEN TRIM(UPPER(COALESCE(status,''))) = 'PAID' THEN amount ELSE 0 END), 0) AS REAL),
-            CAST(COALESCE(SUM(CASE WHEN TRIM(UPPER(COALESCE(status,''))) IN ('OUTSTANDING','PARTIALLY_PAID') THEN amount ELSE 0 END), 0) AS REAL),
-            CAST(COALESCE(SUM(CASE WHEN TRIM(UPPER(COALESCE(status,''))) = 'CANCELLED' THEN amount ELSE 0 END), 0) AS REAL)
-         FROM payment
-         WHERE date(created_at) >= date('now', 'localtime', '-' || ?1 || ' months')
-         GROUP BY ym
-         ORDER BY ym DESC
-         LIMIT ?1",
+    use chrono::Datelike;
+    // F77/F105: months are practice-local; `created_at` is UTC.
+    let months = months.clamp(1, 36) as i32;
+    let tz = crate::domain::practice_time::practice_tz(pool).await;
+    let today = chrono::Utc::now().with_timezone(&tz).date_naive();
+    let (mut y, mut m) = (today.year(), today.month() as i32 - (months - 1));
+    while m <= 0 {
+        m += 12;
+        y -= 1;
+    }
+    let (from, _) = crate::domain::practice_time::local_month_bounds_utc(y, m as u32, tz);
+    let rows: Vec<(String, String, f64)> = sqlx::query_as(
+        "SELECT CAST(created_at AS TEXT), TRIM(UPPER(COALESCE(status,''))), CAST(amount AS REAL)
+         FROM payment WHERE julianday(created_at) >= julianday(?1)",
     )
-    .bind(months)
+    .bind(from.format("%Y-%m-%d %H:%M:%S").to_string())
     .fetch_all(pool)
     .await?;
-    Ok(rows
+    let mut buckets: std::collections::BTreeMap<String, (f64, f64, f64)> = Default::default();
+    for (created, status, amount) in rows {
+        let Some(utc) = parse_db_utc(&created) else {
+            continue;
+        };
+        let ym = utc.with_timezone(&tz).format("%Y-%m").to_string();
+        let b = buckets.entry(ym).or_insert((0.0, 0.0, 0.0));
+        match status.as_str() {
+            "PAID" => b.0 += amount,
+            "OUTSTANDING" | "PARTIALLY_PAID" => b.1 += amount,
+            "CANCELLED" => b.2 += amount,
+            _ => {}
+        }
+    }
+    Ok(buckets
         .into_iter()
+        .rev()
+        .take(months as usize)
         .map(
-            |(year_month, income, outstanding, cancelled)| PaymentMonthBucket {
+            |(year_month, (income, outstanding, cancelled))| PaymentMonthBucket {
                 year_month,
                 income,
                 outstanding,
@@ -323,16 +404,34 @@ pub async fn monthly_breakdown(
         .collect())
 }
 
+/// `created_at` as stored: `YYYY-MM-DD HH:MM:SS` (UTC, SQLite CURRENT_TIMESTAMP) or RFC 3339.
+pub fn parse_db_utc(raw: &str) -> Option<chrono::DateTime<chrono::Utc>> {
+    let t = raw.trim();
+    if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(t) {
+        return Some(dt.with_timezone(&chrono::Utc));
+    }
+    for fmt in [
+        "%Y-%m-%d %H:%M:%S%.f",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%dT%H:%M:%S%.f",
+        "%Y-%m-%dT%H:%M:%S",
+    ] {
+        if let Ok(n) = chrono::NaiveDateTime::parse_from_str(t.trim_end_matches('Z'), fmt) {
+            return Some(chrono::DateTime::from_naive_utc_and_offset(n, chrono::Utc));
+        }
+    }
+    None
+}
+
 pub async fn find_by_patient_id(
     pool: &SqlitePool,
     patient_id: &str,
 ) -> Result<Vec<Payment>, AppError> {
+    // Same projection as the finance list (`SELECT *`): works whether or not the
+    // database already has `payment.updated_at` (`Payment.updated_at` is
+    // `#[sqlx(default)]`). Naming the column here failed on older databases.
     let rows = sqlx::query_as::<_, Payment>(
-        "SELECT id, patient_id, CAST(amount AS REAL) AS amount, payment_method, status,
-                service_item_id, description, treatment_id, examination_id,
-                CAST(amount_expected AS REAL) AS amount_expected,
-                COALESCE(cash_verified, 0) AS cash_verified, created_at
-         FROM payment WHERE patient_id = ?1 ORDER BY created_at DESC",
+        "SELECT * FROM payment WHERE patient_id = ?1 ORDER BY created_at DESC",
     )
     .bind(patient_id)
     .fetch_all(pool)
@@ -352,7 +451,60 @@ pub async fn patient_ids_open_invoice(pool: &SqlitePool) -> Result<Vec<String>, 
     Ok(rows.into_iter().map(|r| r.0).collect())
 }
 
+/// A payment on a treatment or examination marks that line released for billing.
+/// Rows saved before the release step, or whose automatic release failed, can then be paid.
+pub async fn ensure_released_for_payment(
+    pool: &SqlitePool,
+    staff_id: &str,
+    data: &CreatePayment,
+) -> Result<(), AppError> {
+    if let Some(id) = data
+        .treatment_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        let row: Option<(Option<String>, Option<String>)> = sqlx::query_as(
+            "SELECT released_by_physician_id, released_at FROM treatment WHERE id = ?1",
+        )
+        .bind(id)
+        .fetch_optional(pool)
+        .await?;
+        if let Some((by, at)) = row {
+            if !crate::domain::services::pricing::is_released_for_billing(
+                by.as_deref(),
+                at.as_deref(),
+            ) {
+                chart_repo::release_treatment_for_billing(pool, id, staff_id).await?;
+            }
+        }
+    }
+    if let Some(id) = data
+        .examination_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        let row: Option<(Option<String>, Option<String>)> = sqlx::query_as(
+            "SELECT released_by_physician_id, released_at FROM examination WHERE id = ?1",
+        )
+        .bind(id)
+        .fetch_optional(pool)
+        .await?;
+        if let Some((by, at)) = row {
+            if !crate::domain::services::pricing::is_released_for_billing(
+                by.as_deref(),
+                at.as_deref(),
+            ) {
+                chart_repo::release_examination_for_billing(pool, id, staff_id).await?;
+            }
+        }
+    }
+    Ok(())
+}
+
 pub async fn create(pool: &SqlitePool, data: &CreatePayment) -> Result<Payment, AppError> {
+    ensure_payment_updated_at(pool).await?;
     let id = uuid::Uuid::new_v4().to_string();
     let payment_method = serde_json::to_string(&data.payment_method)
         .map_err(|e| AppError::Internal(format!("Serialize payment type: {e}")))?
@@ -407,9 +559,8 @@ pub async fn create(pool: &SqlitePool, data: &CreatePayment) -> Result<Payment, 
         )?;
     }
 
-    const EPS: f64 = 1e-6;
-    let is_placeholder = data.amount <= EPS;
-    if data.amount < -EPS {
+    let is_placeholder = data.amount <= pricing::MONEY_ZERO_EUR;
+    if data.amount < -pricing::MONEY_ZERO_EUR {
         return Err(AppError::validation_code("error.payment.amount_invalid"));
     }
     if is_placeholder && data.service_item_id.is_some() {
@@ -418,21 +569,21 @@ pub async fn create(pool: &SqlitePool, data: &CreatePayment) -> Result<Payment, 
         ));
     }
 
-    // When amount is positive: optionally take price from `service_item`.
+    // F79: the entered amount is what was charged. The catalog price is only
+    // the form's initial value; it no longer overwrites a discount or surcharge.
     let amount = if is_placeholder {
         0.0
-    } else if data.amount <= EPS {
-        return Err(AppError::validation_code(
-            "error.payment.amount_must_be_positive",
-        ));
-    } else if let Some(ref lid) = data.service_item_id {
-        let row: Option<(f64,)> =
-            sqlx::query_as("SELECT CAST(price AS REAL) FROM service_item WHERE id = ?1")
-                .bind(lid)
-                .fetch_optional(pool)
-                .await?;
-        row.map(|r| r.0).unwrap_or(data.amount)
     } else {
+        if let Some(ref lid) = data.service_item_id {
+            let exists: Option<i64> =
+                sqlx::query_scalar("SELECT 1 FROM service_item WHERE id = ?1")
+                    .bind(lid)
+                    .fetch_optional(pool)
+                    .await?;
+            if exists.is_none() {
+                return Err(AppError::NotFound("Service item".into()));
+            }
+        }
         data.amount
     };
 
@@ -459,8 +610,8 @@ pub async fn create(pool: &SqlitePool, data: &CreatePayment) -> Result<Payment, 
                 .await
                 .unwrap_or(0.0);
                 // Parity with UI: `Math.max(0, roundMoney2(gesamt - paidSoFar))`
-                let open = round_money2(g - sum_paid).max(0.0);
-                if amount > open + OPEN_BOOKING_TOLERANCE_EUR {
+                let open = pricing::round_money_2(g - sum_paid).max(0.0);
+                if amount > open + pricing::PAYMENT_BOOKING_TOLERANCE_EUR {
                     return Err(AppError::validation_code_params(
                         "error.payment.overpayment_treatment",
                         &[
@@ -497,8 +648,8 @@ pub async fn create(pool: &SqlitePool, data: &CreatePayment) -> Result<Payment, 
                 .fetch_one(pool)
                 .await
                 .unwrap_or(0.0);
-                let open = round_money2(g - sum_paid).max(0.0);
-                if amount > open + OPEN_BOOKING_TOLERANCE_EUR {
+                let open = pricing::round_money_2(g - sum_paid).max(0.0);
+                if amount > open + pricing::PAYMENT_BOOKING_TOLERANCE_EUR {
                     return Err(AppError::validation_code_params(
                         "error.payment.overpayment_examination",
                         &[
@@ -531,7 +682,8 @@ pub async fn create(pool: &SqlitePool, data: &CreatePayment) -> Result<Payment, 
                 status = ?3,
                 service_item_id = ?4,
                 description = COALESCE(?5, description),
-                amount_expected = ?6
+                amount_expected = ?6,
+                updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
              WHERE id = ?7",
         )
         .bind(amount)
@@ -563,8 +715,8 @@ pub async fn create(pool: &SqlitePool, data: &CreatePayment) -> Result<Payment, 
     }
 
     sqlx::query(
-        "INSERT INTO payment (id, patient_id, amount, payment_method, status, service_item_id, description, treatment_id, examination_id, amount_expected, cash_verified)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 0)",
+        "INSERT INTO payment (id, patient_id, amount, payment_method, status, service_item_id, description, treatment_id, examination_id, amount_expected, cash_verified, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 0, strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
     )
     .bind(&id)
     .bind(&data.patient_id)
@@ -606,10 +758,12 @@ async fn refresh_zero_open_booking_from_clinical(
     amount_expected: Option<f64>,
     description: &str,
 ) -> Result<(), AppError> {
+    let mut tx = pool.begin().await?;
     sqlx::query(
         "UPDATE payment SET
             amount_expected = ?1,
-            description = ?2
+            description = ?2,
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
          WHERE id = ?3
            AND amount <= ?4
            AND TRIM(UPPER(COALESCE(status, ''))) IN ('OUTSTANDING', 'PARTIALLY_PAID')",
@@ -617,9 +771,14 @@ async fn refresh_zero_open_booking_from_clinical(
     .bind(amount_expected)
     .bind(description)
     .bind(payment_id)
-    .bind(OPEN_BOOKING_TOLERANCE_EUR)
-    .execute(pool)
+    .bind(pricing::PAYMENT_BOOKING_TOLERANCE_EUR)
+    .execute(&mut *tx)
     .await?;
+    crate::infrastructure::database::recorded_write::record_in_tx(
+        &mut tx, "payment", payment_id, "UPDATE",
+    )
+    .await?;
+    tx.commit().await?;
     Ok(())
 }
 
@@ -654,7 +813,7 @@ pub async fn ensure_open_booking_for_billable_treatment(
     };
     let amount_expected = b
         .total_cost
-        .filter(|g| g.is_finite() && *g > OPEN_BOOKING_TOLERANCE_EUR);
+        .filter(|g| g.is_finite() && *g > pricing::PAYMENT_BOOKING_TOLERANCE_EUR);
     let description = open_booking_description(b.service_name.as_deref(), b.total_cost);
 
     let existing: Option<(String, f64)> = sqlx::query_as(
@@ -669,7 +828,7 @@ pub async fn ensure_open_booking_for_billable_treatment(
     .fetch_optional(pool)
     .await?;
     if let Some((id, amt)) = existing {
-        if amt <= OPEN_BOOKING_TOLERANCE_EUR {
+        if amt <= pricing::PAYMENT_BOOKING_TOLERANCE_EUR {
             refresh_zero_open_booking_from_clinical(pool, &id, amount_expected, &description)
                 .await?;
         }
@@ -725,7 +884,7 @@ pub async fn ensure_open_booking_for_billable_examination(
     };
     let amount_expected = u
         .total_cost
-        .filter(|g| g.is_finite() && *g > OPEN_BOOKING_TOLERANCE_EUR);
+        .filter(|g| g.is_finite() && *g > pricing::PAYMENT_BOOKING_TOLERANCE_EUR);
     let description = open_booking_description(u.service_name.as_deref(), u.total_cost);
 
     let existing: Option<(String, f64)> = sqlx::query_as(
@@ -740,7 +899,7 @@ pub async fn ensure_open_booking_for_billable_examination(
     .fetch_optional(pool)
     .await?;
     if let Some((id, amt)) = existing {
-        if amt <= OPEN_BOOKING_TOLERANCE_EUR {
+        if amt <= pricing::PAYMENT_BOOKING_TOLERANCE_EUR {
             refresh_zero_open_booking_from_clinical(pool, &id, amount_expected, &description)
                 .await?;
         }
@@ -810,6 +969,7 @@ pub async fn ensure_placeholder_for_examination(
 }
 
 pub async fn update_fields(pool: &SqlitePool, data: &UpdatePayment) -> Result<Payment, AppError> {
+    ensure_payment_updated_at(pool).await?;
     let row: Option<(String, Option<String>, Option<String>, String)> = sqlx::query_as(
         "SELECT status, treatment_id, examination_id, patient_id FROM payment WHERE id = ?1",
     )
@@ -857,8 +1017,8 @@ pub async fn update_fields(pool: &SqlitePool, data: &UpdatePayment) -> Result<Pa
                 .fetch_one(pool)
                 .await
                 .unwrap_or(0.0);
-                let max_for_row = round_money2(g - sum_others).max(0.0);
-                if data.amount > max_for_row + OPEN_BOOKING_TOLERANCE_EUR {
+                let max_for_row = pricing::round_money_2(g - sum_others).max(0.0);
+                if data.amount > max_for_row + pricing::PAYMENT_BOOKING_TOLERANCE_EUR {
                     return Err(AppError::validation_code_params(
                         "error.payment.overpayment_edit_treatment",
                         &[("max", &format!("{max_for_row:.2}"))],
@@ -891,8 +1051,8 @@ pub async fn update_fields(pool: &SqlitePool, data: &UpdatePayment) -> Result<Pa
                 .fetch_one(pool)
                 .await
                 .unwrap_or(0.0);
-                let max_for_row = round_money2(g - sum_others).max(0.0);
-                if data.amount > max_for_row + OPEN_BOOKING_TOLERANCE_EUR {
+                let max_for_row = pricing::round_money_2(g - sum_others).max(0.0);
+                if data.amount > max_for_row + pricing::PAYMENT_BOOKING_TOLERANCE_EUR {
                     return Err(AppError::validation_code_params(
                         "error.payment.overpayment_edit_examination",
                         &[("max", &format!("{max_for_row:.2}"))],
@@ -903,7 +1063,8 @@ pub async fn update_fields(pool: &SqlitePool, data: &UpdatePayment) -> Result<Pa
     }
 
     sqlx::query(
-        "UPDATE payment SET amount = ?1, payment_method = ?2, service_item_id = ?3, description = ?4 WHERE id = ?5",
+        "UPDATE payment SET amount = ?1, payment_method = ?2, service_item_id = ?3, description = ?4,
+         updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?5",
     )
     .bind(data.amount)
     .bind(&payment_method)
@@ -936,15 +1097,23 @@ pub async fn delete_if_pending(pool: &SqlitePool, id: &str) -> Result<(), AppErr
         .fetch_optional(pool)
         .await?;
     let st = row.ok_or(AppError::NotFound("Payment".into()))?.0;
-    if st != "OUTSTANDING" && st != "PARTIALLY_PAID" {
+    // F74: a partially paid payment holds money already received; deleting it
+    // loses the booking. Only an untouched OUTSTANDING payment may be deleted.
+    if st != "OUTSTANDING" {
         return Err(AppError::validation_code(
             "error.payment.delete_locked_status",
         ));
     }
-    sqlx::query("DELETE FROM payment WHERE id = ?1")
+    let n = sqlx::query("DELETE FROM payment WHERE id = ?1 AND status = 'OUTSTANDING'")
         .bind(id)
         .execute(pool)
-        .await?;
+        .await?
+        .rows_affected();
+    if n == 0 {
+        return Err(AppError::validation_code(
+            "error.payment.delete_locked_status",
+        ));
+    }
     crate::infrastructure::database::sync_outbox::record_or_noop(
         pool,
         "payment",
@@ -957,7 +1126,18 @@ pub async fn delete_if_pending(pool: &SqlitePool, id: &str) -> Result<(), AppErr
 }
 
 pub async fn update_status(pool: &SqlitePool, id: &str, status: &str) -> Result<Payment, AppError> {
-    sqlx::query("UPDATE payment SET status = ?1 WHERE id = ?2")
+    ensure_payment_updated_at(pool).await?;
+    // F75: only known statuses and allowed transitions.
+    let current: Option<String> = sqlx::query_scalar("SELECT status FROM payment WHERE id = ?1")
+        .bind(id)
+        .fetch_optional(pool)
+        .await?;
+    let current = current.ok_or_else(|| AppError::NotFound("Payment".into()))?;
+    let (_, next) = crate::domain::status::PaymentStatus::require_transition(&current, status)?;
+    let status = next.as_str();
+    sqlx::query(
+        "UPDATE payment SET status = ?1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?2",
+    )
         .bind(status)
         .bind(id)
         .execute(pool)
@@ -1014,14 +1194,31 @@ pub async fn set_cash_verified_for_ids(
     ids: &[String],
     cash_verified: i64,
 ) -> Result<u64, AppError> {
+    ensure_payment_updated_at(pool).await?;
     let mut n = 0u64;
+    let mut tx = pool.begin().await?;
     for id in ids {
-        let r = sqlx::query("UPDATE payment SET cash_verified = ?1 WHERE id = ?2")
+        let prev: Option<String> =
+            sqlx::query_scalar("SELECT CAST(updated_at AS TEXT) FROM payment WHERE id = ?1")
+                .bind(id)
+                .fetch_optional(&mut *tx)
+                .await?;
+        let stamp =
+            crate::infrastructure::database::recorded_write::next_updated_at(prev.as_deref());
+        let r = sqlx::query("UPDATE payment SET cash_verified = ?1, updated_at = ?2 WHERE id = ?3")
             .bind(cash_verified)
+            .bind(&stamp)
             .bind(id)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
-        n = n.saturating_add(r.rows_affected());
+        if r.rows_affected() > 0 {
+            crate::infrastructure::database::recorded_write::record_in_tx(
+                &mut tx, "payment", id, "UPDATE",
+            )
+            .await?;
+            n = n.saturating_add(r.rows_affected());
+        }
     }
+    tx.commit().await?;
     Ok(n)
 }

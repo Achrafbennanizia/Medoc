@@ -1,7 +1,7 @@
 // Integration test for audit CSV export (ISO-compliance report handoff).
 
-use medoc_lib::infrastructure::database::audit_repo;
 use medoc_lib::infrastructure::database::connection::test_memory_pool;
+use medoc_lib::infrastructure::database::repos::admin::audit as audit_repo;
 use std::sync::Once;
 
 static INIT_AUDIT: Once = Once::new();

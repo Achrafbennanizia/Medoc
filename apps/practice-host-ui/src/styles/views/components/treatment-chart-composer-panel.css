@@ -1,0 +1,66 @@
+/* From styles/features/patient-dental.css (cascade position kept by its import there). */
+@layer components {
+  .dental-tooth-label {
+    unicode-bidi: isolate;
+    direction: ltr;
+  }
+  /* Treatments composer: center the tooth-status chart in the panel */
+  .treatment-composer-dental {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+  }
+  .treatment-composer-dental > .card {
+    width: max-content;
+    max-width: 100%;
+    margin-inline: auto;
+  }
+  .treatment-composer-dental .dental-odontogram {
+    margin-inline: auto;
+  }
+  .dental-mini-row {
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: center;
+    gap: 1px;
+    overflow-x: auto;
+    overflow-y: visible;
+    padding-inline: 4px;
+    padding-bottom: 4px;
+    scrollbar-width: thin;
+  }
+  .dental-mini-divider {
+    flex-shrink: 0;
+    height: 1px;
+    background: repeating-linear-gradient(
+      90deg,
+      var(--line-strong) 0 4px,
+      transparent 4px 8px
+    );
+    margin: 4px 0 6px;
+    opacity: 0.85;
+  }
+  .dental-mini-tooth-wrap {
+    flex: 0 0 auto;
+    width: max-content;
+    padding: 1px 1px;
+  }
+  .dental-mini-tooth {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 3px 3px 4px;
+    min-width: 24px;
+    box-sizing: border-box;
+    border: 1.5px solid transparent;
+    background: transparent;
+    cursor: default;
+    border-radius: 6px;
+    transition: background 120ms ease, transform 120ms ease, border-color 120ms ease;
+  }
+  .dental-mini-tooth-wrap:hover .dental-mini-tooth {
+    background: color-mix(in oklab, var(--accent) 12%, transparent);
+    transform: translateY(-1px);
+  }
+}

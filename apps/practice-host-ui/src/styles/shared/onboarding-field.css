@@ -1,0 +1,67 @@
+/* From styles/features/auth-onboarding.css (cascade position kept by its import there). */
+@layer components {
+  @media (max-width: 640px) {
+    .onboarding-page--scroll {
+      padding: 8px 10px;
+    }
+    .onboarding-card__scroll {
+      padding: 20px 18px 8px;
+    }
+    .onboarding-card__footer {
+      padding: 10px 18px 18px;
+    }
+  }
+  .onboarding-card h1 { margin: 0 0 8px; font-size: 1.35rem; font-weight: 600; }
+  .onboarding-card .card-sub { margin: 0 0 20px; }
+  .onboarding-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin-top: var(--space-5);
+  }
+  .onboarding-actions--row {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .onboarding-field {
+    display: block;
+    margin-bottom: var(--space-4);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--fg-2);
+  }
+  .onboarding-field--inline {
+    flex: 1 1 0;
+    min-width: 0;
+    margin-bottom: 0;
+  }
+  .onboarding-path-row .onboarding-field--inline input {
+    margin-top: var(--space-2);
+  }
+  .onboarding-field input,
+  .onboarding-field textarea,
+  .onboarding-field select {
+    display: block;
+    width: 100%;
+    margin-top: var(--space-2);
+    padding: 10px 12px;
+    border-radius: var(--radius-ctl);
+    border: 1px solid var(--line-strong);
+    background: var(--bg);
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--fg);
+  }
+  .license-activate-page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .license-device-role-grid__title {
+    margin: 16px 0 0;
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+}

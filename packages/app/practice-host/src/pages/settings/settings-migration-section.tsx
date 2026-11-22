@@ -18,7 +18,7 @@ export function SettingsMigrationSection({ canMigration }: SettingsMigrationSect
                     <div className="card-sub">{t("settings.migration.subtitle")}</div>
                 </div>
             </div>
-            <div className="card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div className="card-pad" style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
                 <p className="card-sub" style={{ margin: 0 }}>
                     {t("settings.migration.body")}
                 </p>

@@ -1,0 +1,65 @@
+/* From styles/features/auth-onboarding.css (cascade position kept by its import there). */
+@layer components {
+  @media (max-width: 720px) {
+    .onboarding-card--wide .license-device-role-grid__cards {
+      grid-template-columns: 1fr;
+    }
+  }
+  .onboarding-fieldset {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-ctl);
+    padding: 12px 14px 4px;
+    margin: 0 0 14px;
+  }
+  .onboarding-fieldset legend {
+    padding: 0 6px;
+    font-size: 12px;
+    font-weight: 650;
+    color: var(--fg-3);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .onboarding-field--checkbox {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    font-weight: 400;
+    color: var(--fg);
+  }
+  .onboarding-field--checkbox input {
+    width: auto;
+    margin-top: 2px;
+  }
+  .onboarding-path-row {
+    display: flex;
+    gap: var(--space-2);
+    align-items: flex-start;
+    flex-wrap: wrap;
+    margin-top: 0;
+  }
+  .onboarding-path-row input { flex: 1 1 auto; margin-top: 0; min-width: 0; }
+
+  .onboarding-admin-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin: 16px 0;
+    list-style: none;
+    padding: 0;
+  }
+
+  .onboarding-admin-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  .login-kind { background: radial-gradient(1000px 600px at 20% 20%, rgba(14,160,126,0.35), transparent 60%), radial-gradient(900px 600px at 80% 80%, rgba(10,132,255,0.28), transparent 60%), linear-gradient(135deg, #0B3B32 0%, #0F1E2B 100%); color: #fff; padding: 48px 56px; display: flex; flex-direction: column; justify-content: space-between; position: relative; overflow: hidden; min-height: 0; }
+  .login-kind_content {
+    flex-shrink: 0;
+    align-self: stretch;
+  }
+}

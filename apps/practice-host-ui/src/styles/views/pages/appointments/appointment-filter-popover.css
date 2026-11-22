@@ -1,0 +1,112 @@
+/* From styles/pages/appointments-calendar.css (cascade position kept by its import there). */
+/* ——— Appointment overview (calendar prototype) ——— */
+.appointment-page-sub .appointment-heute-accent {
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+.appointment-btn-emergency {
+  color: var(--red) !important;
+}
+.appointment-filter-anchor {
+  position: relative;
+}
+.appointment-filter-badge {
+  margin-inline-start: 6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--text-on-accent);
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.appointment-filter-popover {
+  position: absolute;
+  inset-inline-end: 0;
+  top: calc(100% + 8px);
+  z-index: 80;
+  width: min(320px, 94vw);
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--bg-elev);
+  border: 1px solid var(--line-strong);
+  animation: popIn 160ms ease both;
+  box-shadow: var(--shadow-lg);
+}
+/* Portal to document.body: do not clip by <main overflow:hidden> or flex intermediate containers */
+.appointment-filter-popover--portal {
+  position: fixed;
+  z-index: 2800;
+  right: auto;
+  top: auto;
+  margin: 0;
+}
+.appointment-filter-popover-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.appointment-filter-popover-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--fg-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.appointment-filter-popover-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 8px 4px 12px;
+}
+.appointment-filter-popover-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+  min-width: 0;
+}
+.appointment-filter-popover-select {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+.appointment-filter-check-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.appointment-filter-empty {
+  font-size: 13px;
+  color: var(--fg-3);
+  padding: 6px 0;
+}
+.appointment-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in oklab, var(--accent) 22%, transparent);
+  flex-shrink: 0;
+  max-width: 100%;
+}
+.appointment-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  border: 0;
+  font: inherit;
+}
+.appointment-filter-clear-all {
+  font-size: 13px;
+  padding: 6px 10px;
+}

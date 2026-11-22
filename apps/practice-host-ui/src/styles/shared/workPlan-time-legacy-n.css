@@ -1,0 +1,39 @@
+/* From styles/pages/work-plan-rules.css (cascade position kept by its import there). */
+.workPlan-time-legacy-n {
+  width: 3rem;
+  min-width: 0;
+  padding: 8px 6px;
+  font: inherit;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  border: 1px solid var(--line-1);
+  border-radius: 10px;
+  color: var(--fg-1);
+  background: var(--bg-0);
+  -moz-appearance: textfield;
+}
+.workPlan-time-legacy-n::-webkit-outer-spin-button,
+.workPlan-time-legacy-n::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.workPlan-time-legacy-sep {
+  color: var(--fg-3);
+  font-weight: 600;
+}
+/* Compact rule selection in CardHeader (no second large dropdown in form) */
+.workPlan-header-ruleselect {
+  min-width: 10rem;
+  max-width: min(18rem, 100%);
+  font-size: 13px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+html[data-header-avatar="false"] .topbar .topbar-user-av {
+  display: none !important;
+}
+html[data-kbd-hints="false"] .topbar .ui-kbd-hint {
+  display: none !important;
+}

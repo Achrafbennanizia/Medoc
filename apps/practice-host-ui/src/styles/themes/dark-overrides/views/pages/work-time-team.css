@@ -1,0 +1,191 @@
+/* From styles/themes/dark-overrides.css (cascade position kept by its import there). */
+.work-time-team-page {
+  max-width: 1080px;
+}
+
+.work-time-team-head-actions {
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.work-time-team-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+@media (max-width: 720px) {
+  .work-time-team-kpis {
+    grid-template-columns: 1fr;
+  }
+}
+
+.work-time-team-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: color-mix(in oklab, var(--bg-elev) 88%, var(--accent) 12%);
+}
+
+.work-time-team-kpi--today {
+  background: color-mix(in oklab, var(--bg-elev) 92%, var(--fg) 8%);
+}
+
+.work-time-team-kpi--active {
+  background: color-mix(in oklab, var(--bg-elev) 90%, var(--green) 10%);
+}
+
+.work-time-team-kpi__label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--fg-3);
+}
+
+.work-time-team-kpi__value {
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--fg);
+}
+
+.work-time-team-card.card {
+  overflow: hidden;
+}
+
+.work-time-team-week-nav {
+  gap: var(--space-1);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.work-time-team-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  padding-top: 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.work-time-team-toolbar input[type="search"] {
+  flex: 1;
+  min-width: min(100%, 220px);
+  max-width: 320px;
+}
+
+.work-time-team-toolbar__meta {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-3);
+  white-space: nowrap;
+}
+
+.work-time-team-table-wrap {
+  padding-top: var(--space-3);
+  overflow-x: auto;
+}
+
+.work-time-team-table {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.work-time-team-table th {
+  text-align: start;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: var(--fg-3);
+  padding: 0 12px 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.work-time-team-table td {
+  padding: 12px 12px 12px 0;
+  border-bottom: 1px solid color-mix(in oklab, var(--line) 70%, transparent);
+  vertical-align: middle;
+}
+
+.work-time-team-table tr:last-child td {
+  border-bottom: none;
+}
+
+.work-time-team-table__num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--fg-2);
+  width: 6.5rem;
+}
+
+.work-time-team-table__empty {
+  color: var(--fg-3);
+  text-align: center;
+  padding: 28px 12px !important;
+}
+
+.work-time-team-name {
+  font-weight: 650;
+  color: var(--fg);
+}
+
+.work-time-team-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 650;
+  background: color-mix(in oklab, var(--fg) 8%, var(--bg-elev));
+  color: var(--fg-2);
+}
+
+.work-time-team-status--running {
+  background: color-mix(in oklab, var(--green) 16%, var(--bg-elev));
+  color: var(--green-ink);
+}
+
+.work-time-team-status--paused {
+  background: var(--yellow-soft);
+  color: #92400e;
+}
+
+.work-time-team-row--active {
+  background: color-mix(in oklab, var(--green) 5%, transparent);
+}
+
+.work-time-team-week-cell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 140px;
+  max-width: 220px;
+}
+
+.work-time-team-week-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  color: var(--fg);
+}
+
+.work-time-team-week-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--fg) 8%, var(--bg));
+  overflow: hidden;
+}
+
+.work-time-team-week-bar__fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  min-width: 2px;
+  transition: width 180ms ease;
+}

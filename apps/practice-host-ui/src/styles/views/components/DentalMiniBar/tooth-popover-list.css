@@ -1,0 +1,65 @@
+/* From styles/features/patient-dental.css (cascade position kept by its import there). */
+@layer components {
+  .tooth-popover-title {
+    font-weight: 700;
+    font-size: 14px;
+    margin-bottom: 2px;
+  }
+  .tooth-popover-meta {
+    font-size: 12px;
+    color: var(--fg-3);
+    margin-bottom: 10px;
+  }
+  .tooth-popover-section + .tooth-popover-section {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--line);
+  }
+  .tooth-popover-h {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--fg-4);
+    margin-bottom: 6px;
+  }
+  .tooth-popover-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .tooth-popover-list li {
+    font-size: 12.5px;
+    line-height: 1.35;
+  }
+  .tooth-popover-pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent-ink);
+    font-weight: 600;
+    font-size: 11px;
+    margin-inline-end: 6px;
+  }
+  .tooth-popover-sub {
+    display: block;
+    color: var(--fg-3);
+    font-size: 11.5px;
+    margin-top: 2px;
+  }
+  .tooth-popover-date {
+    display: block;
+    font-size: 10px;
+    color: var(--fg-4);
+    margin-top: 3px;
+  }
+  .tooth-popover-empty {
+    font-size: 12px;
+    color: var(--fg-4);
+    font-style: italic;
+  }
+}

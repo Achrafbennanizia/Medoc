@@ -1,0 +1,66 @@
+/* From styles/components/data-controls.css (cascade position kept by its import there). */
+@layer components {
+  .tbl-scroll {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  /* List pages: use full main-column width on large screens */
+  .app-main > .animate-fade-in,
+  .app-main > .animate-fade-in--sticky-safe {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+  .tbl-data-card {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+  /* Full-width data tables inside cards — consistent on wide viewports */
+  .card .tbl-scroll > .tbl,
+  .card > .tbl.tbl-fluid,
+  .tbl-data-card .tbl {
+    table-layout: fixed;
+    width: 100%;
+  }
+  .card .tbl-scroll > .tbl th,
+  .card .tbl-scroll > .tbl td,
+  .card > .tbl.tbl-fluid th,
+  .card > .tbl.tbl-fluid td,
+  .tbl-data-card .tbl th,
+  .tbl-data-card .tbl td {
+    min-width: 0;
+  }
+  .tbl.tbl-fluid .tbl-col-actions,
+  .tbl.tbl-fluid .tbl-col-actions th,
+  .tbl.tbl-fluid .tbl-col-actions td {
+    overflow: visible;
+    white-space: nowrap;
+    width: 1%;
+  }
+  .tbl.tbl-fluid .tbl-col-mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  @media (max-width: 720px) {
+    .tbl-scroll .tbl.tbl-purchase_orders { min-width: 880px; }
+    .tbl-scroll .tbl.tbl-tasks:not(.tbl-tasks--compact) { min-width: 760px; }
+    .tbl-scroll .tbl.tbl-tasks--compact { min-width: 640px; }
+  }
+  /* Admin catalogs: fill the card; no forced horizontal min-width (wrap instead). */
+  .tbl-scroll .tbl.tbl-staff {
+    width: 100%;
+    min-width: 0;
+    table-layout: fixed;
+  }
+  [dir="rtl"] .app-sidebar {
+    border-inline-end: none;
+    border-inline-start: 1px solid var(--line);
+  }
+}

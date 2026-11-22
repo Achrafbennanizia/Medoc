@@ -81,6 +81,22 @@ function escapeRegExp(value: string): string {
     return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** Display name for a treatment: service, then description, then kind. */
+export function treatmentLineLabel(
+    line: { service_name?: string | null; description?: string | null; kind?: string | null },
+    fallback = "",
+): string {
+    return (line.service_name || line.description || line.kind || fallback).trim();
+}
+
+/** Display name for an examination: service, then diagnosis. */
+export function examinationLineLabel(
+    line: { service_name?: string | null; diagnosis?: string | null },
+    fallback = "",
+): string {
+    return (line.service_name || line.diagnosis || fallback).trim();
+}
+
 /** Replace every English catalog phrase in mixed task/payment copy. */
 export function clinicalServiceLabel(name: string, locale?: Locale): string {
     const trimmed = name.trim();

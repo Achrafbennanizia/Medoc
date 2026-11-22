@@ -41,6 +41,8 @@ export const PALETTE_COMMANDS: PaletteCommand[] = [
     cmd("administration-templates", "administration/templates", "/administration/templates", ["template", "medication", "certificate"]),
     cmd("administration-templates-editor", "administration/templates/editor", "/administration/templates/editor", ["template", "editor", "prescription", "certificate", "edit"]),
     cmd("administration-treatment-catalog", "administration/treatment-catalog", "/administration/treatment-catalog", ["treatment", "catalog", "service_item", "category"]),
+    cmd("administration-medications", "administration/medications", "/administration/medications", ["medication", "template", "prescription"]),
+    cmd("administration-prescription-presets", "administration/prescription-presets", "/administration/prescription-presets", ["prescription", "medication", "template"]),
     cmd("administration-order_master", "administration/order-master", "/administration/order-master", ["supplier", "pharma_consultant", "purchase_order", "master"]),
     cmd("administration-finance-reports", "administration/finance-reports", "/administration/finance-reports", ["balance-sheet", "invoice", "day_close", "reports"]),
     cmd("administration-team", "administration/team", "/administration/team", ["staff", "employees", "work_plan", "shifts", "plan"]),

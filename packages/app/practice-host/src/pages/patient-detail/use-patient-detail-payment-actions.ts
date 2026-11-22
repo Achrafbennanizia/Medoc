@@ -2,15 +2,15 @@ import { useMemo, type Dispatch, type SetStateAction } from "react";
 import type { Treatment, Patient, Examination, Payment, PaymentMethod } from "@/models/types";
 import { createPayment, deletePayment, updatePayment } from "@/systems/practice-host/controllers/payment.controller";
 import type { ClinicalDocumentExportBundle } from "@/lib/document-print-html";
-import { buildReceiptExportForPayment } from "@/lib/receipt-export-flow";
+import { buildReceiptExportForPayment, canIssueReceipt } from "@/lib/receipt-export-flow";
 import type { DocumentKind } from "@/lib/document-template-schema";
 import type { HtmlExportDocumentKind } from "@/views/components/export-picker-dialog";
+import { parseEuroInput } from "@/lib/utils";
 import { PATIENT_DETAIL_TOAST_UNDO_MS } from "@/lib/patient-detail-utils";
 import {
     PAYMENT_EUR_EPS,
     aggregatePaymentsByAssignment,
     buildOpenPaymentLinkSelectOptions,
-    latestPaymentForAssignmentRow,
     maxEditPaymentTreatment,
     maxNewPaymentTreatment,
     maxNewPaymentExamination,
@@ -142,7 +142,7 @@ export function usePatientDetailPaymentActions(args: UsePatientDetailPaymentActi
             toast(t("patient.detail.toast.edit_unlock_first"), "info");
             return;
         }
-        const amount = Number(String(paymentEditForm.amount).replace(",", "."));
+        const amount = parseEuroInput(String(paymentEditForm.amount)) ?? Number.NaN;
         if (!Number.isFinite(amount) || amount <= 0) {
             toast(t("patient.detail.toast.valid_amount_required"), "error");
             return;
@@ -197,7 +197,7 @@ export function usePatientDetailPaymentActions(args: UsePatientDetailPaymentActi
             toast(t("patient.detail.toast.payment_link_required"), "error");
             return;
         }
-        const amount = Number(String(paymentNewForm.amount).replace(",", "."));
+        const amount = parseEuroInput(String(paymentNewForm.amount)) ?? Number.NaN;
         if (!Number.isFinite(amount) || amount <= 0) {
             toast(t("patient.detail.toast.payment_amount_invalid"), "error");
             return;
@@ -260,6 +260,10 @@ export function usePatientDetailPaymentActions(args: UsePatientDetailPaymentActi
 
     const handlePrintReceipt = async (z: Payment) => {
         if (!ensurePracticeForDocument("receipt") || !patient) return;
+        if (!canIssueReceipt(z)) {
+            toast(t("page.finance.toast_receipt_unpaid"), "info");
+            return;
+        }
         try {
             setHtmlDocExport(await buildReceiptExportForPayment(z));
         } catch (e) {
@@ -269,9 +273,19 @@ export function usePatientDetailPaymentActions(args: UsePatientDetailPaymentActi
 
     const handlePrintReceiptFromSummeRow = (row: PaymentAssignmentSummaryRow) => {
         if (!patientId) return;
-        const z = latestPaymentForAssignmentRow(row, payments, patientId);
+        const candidates = payments.filter(
+            (z) =>
+                z.patient_id === patientId
+                && canIssueReceipt(z)
+                && (row.kind === "treatment" ? z.treatment_id === row.lineId : z.examination_id === row.lineId),
+        );
+        const z = candidates.reduce<Payment | null>(
+            (best, rowPayment) =>
+                best == null || String(rowPayment.created_at) > String(best.created_at) ? rowPayment : best,
+            null,
+        );
         if (!z) {
-            toast(t("patient.detail.toast.no_printable_booking"), "info");
+            toast(t("page.finance.toast_receipt_unpaid"), "info");
             return;
         }
         void handlePrintReceipt(z);

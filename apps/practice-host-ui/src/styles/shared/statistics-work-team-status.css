@@ -1,0 +1,63 @@
+/* From styles/pages/patient-file-statistics.css (cascade position kept by its import there). */
+.statistics-work-team-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 650;
+  background: color-mix(in oklab, var(--fg) 8%, var(--bg-elev));
+  color: var(--fg-2);
+}
+.statistics-work-team-status--running {
+  background: color-mix(in oklab, var(--green) 16%, var(--bg-elev));
+  color: var(--green-ink);
+}
+.statistics-work-team-status--paused {
+  background: var(--yellow-soft);
+  color: #92400e;
+}
+.statistics-work-team-week {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 120px;
+}
+.statistics-work-team-bar {
+  height: 5px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--fg) 8%, var(--bg));
+  overflow: hidden;
+}
+.statistics-work-team-bar__fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  min-width: 2px;
+  transition: width 180ms ease;
+}
+.statistics-work-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  padding: 12px 20px 16px;
+  border-top: 1px solid var(--line);
+  background: color-mix(in oklab, var(--bg) 55%, var(--bg-elev));
+}
+.statistics-work-link {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--accent-ink);
+  text-decoration: none;
+}
+.statistics-work-link:hover {
+  text-decoration: underline;
+}
+.statistics-chart-tooltip {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--bg-elev);
+  box-shadow: var(--shadow-md);
+  min-width: 120px;
+}

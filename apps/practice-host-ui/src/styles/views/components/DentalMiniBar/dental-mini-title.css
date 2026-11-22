@@ -1,0 +1,66 @@
+/* From styles/features/patient-dental.css (cascade position kept by its import there). */
+@layer components {
+  .patient-hero-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 12px 16px;
+    justify-content: flex-start;
+  }
+  .patient-hero-main {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+  .dental-mini-bar {
+    position: relative;
+    flex: 0 0 auto;
+    width: max-content;
+    max-width: none;
+    min-width: max-content;
+    overflow: visible;
+  }
+  .dental-mini-bar-inner {
+    box-sizing: border-box;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-card);
+    background: var(--surface-1);
+    padding: 10px 14px 12px;
+    overflow: visible;
+    width: max-content;
+  }
+  .dental-mini-title {
+    display: block;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--fg-3);
+    margin-bottom: 6px;
+  }
+  /* French-chart style cross: H/B vertical + D/G horizontal (patient right on start). */
+  .dental-odontogram {
+    display: grid;
+    grid-template-columns: auto max-content auto;
+    align-items: center;
+    column-gap: 6px;
+    width: max-content;
+    max-width: none;
+    min-width: max-content;
+    /* FDI chart: patient right stays on the visual left in every locale (incl. Arabic RTL). */
+    direction: ltr;
+    unicode-bidi: isolate;
+  }
+  html[dir="rtl"] .dental-mini-title {
+    letter-spacing: 0;
+    text-transform: none;
+    text-align: center;
+  }
+  html[dir="rtl"] .dental-mini-label,
+  html[dir="rtl"] .dental-mini-tooth-num,
+  html[dir="rtl"] .dental-tooth-label {
+    direction: ltr;
+    unicode-bidi: isolate;
+    white-space: nowrap;
+    letter-spacing: 0;
+  }
+}

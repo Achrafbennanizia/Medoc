@@ -11,6 +11,8 @@ import { isTauriApp } from "@/lib/save-download";
 import { parseDelimitedGrid } from "@/lib/export-delimited";
 import {
     buildReportPdfBytes,
+    issueReportBundlePdf,
+    reportExportContext,
     financeTransactionsToLegacyCsv,
     reportBundleToCsv,
     reportBundleToJson,
@@ -203,17 +205,20 @@ export function ReportExportPickerDialog({
                     mime: "text/csv;charset=utf-8",
                     textBody: financeTransactionsToLegacyCsv(legacyCsv.rows, legacyCsv.patientNames),
                     folderOverride: destFolder,
+                    context: reportExportContext(bundle, "csv"),
                 });
             } else if (format === "pdf") {
-                const bytes = await buildReportPdfBytes(bundle);
+                // Preview above used the ENTWURF render; the saved file is issued.
+                const { issued, bytes } = await issueReportBundlePdf(bundle);
                 await finishExportWithSettings({
                     format: "pdf",
-                    title: bundle.exportTitle,
+                    title: `${bundle.exportTitle} ${issued.documentNumber ?? ""}`.trim(),
                     hint: bundle.hint,
                     suggestedFilename: finalName,
                     mime: "application/pdf",
                     binaryBody: bytes,
                     folderOverride: destFolder,
+                    context: reportExportContext(bundle, "pdf", issued.documentNumber),
                 });
             } else if (format === "csv") {
                 await finishExportWithSettings({
@@ -224,6 +229,7 @@ export function ReportExportPickerDialog({
                     mime: "text/csv;charset=utf-8",
                     textBody: reportBundleToCsv(bundle),
                     folderOverride: destFolder,
+                    context: reportExportContext(bundle, "csv"),
                 });
             } else if (format === "json") {
                 await finishExportWithSettings({
@@ -234,6 +240,7 @@ export function ReportExportPickerDialog({
                     mime: "application/json;charset=utf-8",
                     textBody: reportBundleToJson(bundle),
                     folderOverride: destFolder,
+                    context: reportExportContext(bundle, "json"),
                 });
             } else {
                 await finishExportWithSettings({
@@ -244,6 +251,7 @@ export function ReportExportPickerDialog({
                     mime: "application/xml;charset=utf-8",
                     textBody: reportBundleToXml(bundle),
                     folderOverride: destFolder,
+                    context: reportExportContext(bundle, "xml"),
                 });
             }
             onClose();
@@ -289,7 +297,7 @@ export function ReportExportPickerDialog({
                         options={REPORT_FORMAT_OPTS(t)}
                     />
                     {legacyCsv && format === "csv" ? (
-                        <label className="row" style={{ gap: 10, alignItems: "flex-start", cursor: "pointer" }}>
+                        <label className="row" style={{ gap: "var(--space-3)", alignItems: "flex-start", cursor: "pointer" }}>
                             <input
                                 type="checkbox"
                                 checked={useLegacyCsv}
@@ -301,7 +309,7 @@ export function ReportExportPickerDialog({
                         </label>
                     ) : null}
                     <div>
-                        <div className="text-label" style={{ marginBottom: 8 }}>{t("export.picker.target_path")}</div>
+                        <div className="text-label" style={{ marginBottom: "var(--space-2)" }}>{t("export.picker.target_path")}</div>
                         <p className="text-body" style={{ margin: "0 0 8px", fontSize: 12, wordBreak: "break-word" }}>
                             {resolvedPathLabel}
                         </p>
@@ -320,7 +328,7 @@ export function ReportExportPickerDialog({
                         ) : null}
                     </div>
                     <div>
-                        <div className="text-label" style={{ marginBottom: 8 }}>{t("export.picker.filename")}</div>
+                        <div className="text-label" style={{ marginBottom: "var(--space-2)" }}>{t("export.picker.filename")}</div>
                         <Input
                             id="report-export-picker-filename"
                             value={fileName}

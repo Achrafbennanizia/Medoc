@@ -1,0 +1,66 @@
+/* From styles/pages/patient-chart-panels.css (cascade position kept by its import there). */
+/* Inline panels in patient chart (card look, not modal overlays) */
+.chart-inline-panel,
+.prescription-chart-panel {
+  margin-top: var(--space-4);
+  background: var(--bg-elev);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--line);
+  /* overflow: visible so custom .select-menu (absolute) is not clipped */
+  overflow: visible;
+}
+.chart-inline-panel--danger {
+  border-color: color-mix(in srgb, var(--red, #dc2626) 38%, var(--line));
+}
+.chart-inline-panel--danger > .chart-inline-panel-head {
+  background: color-mix(in srgb, var(--red, #dc2626) 6%, transparent);
+}
+.chart-inline-panel-head,
+.prescription-chart-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: clamp(12px, 1.8vh, 16px) var(--card-pad-x);
+  border-bottom: 1px solid var(--line);
+}
+.chart-inline-panel-title,
+.prescription-chart-panel-title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.chart-inline-panel-sub,
+.prescription-chart-panel-sub {
+  color: var(--fg-3);
+  font-size: 13px;
+  margin-top: var(--space-1);
+}
+.chart-inline-panel-body,
+.prescription-chart-panel-body {
+  padding: 16px var(--card-pad-x);
+}
+.chart-inline-panel-actions,
+.prescription-chart-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  padding: 12px var(--card-pad-x) 14px;
+  border-top: 1px solid var(--line);
+}
+
+.tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}

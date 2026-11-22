@@ -2,15 +2,15 @@
 
 use chrono::Utc;
 use medoc_core::error::AppError;
+use medoc_core::infrastructure::database::repos::admin::license as license_repo;
 use medoc_core::infrastructure::license::{self, LicenseStatus};
-use medoc_core::infrastructure::license_repo;
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::cluster::crypto::DeviceIdentity;
 use crate::cluster::entities::{Device, License, SeatUsage};
 use crate::cluster::enums::{DeviceStatus, SeatRole};
-use crate::cluster::ports::{mark_provisioned, DeviceRepo, LicenseRepo, SqliteClusterRepos};
+use crate::cluster::ports::{mark_provisioned, SqliteClusterRepos};
 use crate::cluster::seat_budget::seat_budget_from_edition;
 use crate::master_keys;
 
@@ -50,6 +50,7 @@ pub struct ImportActivationResult {
     pub cluster_id: Option<String>,
     pub device_fingerprint: Option<String>,
     pub requires_app_reload: bool,
+    pub needs_bridge_b_passphrase: bool,
 }
 
 /// Whether the local install may bind the cluster network listener.
@@ -95,11 +96,9 @@ async fn mark_owner_provisioned_if_ready(pool: &SqlitePool) -> Result<(), AppErr
 
 /// Only the cluster owner admin may import CA manifests or activate cluster license.
 pub async fn require_owner_activation_device(pool: &SqlitePool) -> Result<(), AppError> {
+    medoc_core::domain::device::require_can_host()?;
     let status = cluster_status(pool).await?;
-    if status.cluster_id.is_some() && !status.is_owner {
-        return Err(AppError::Forbidden);
-    }
-    if status.provisioned && !status.is_owner {
+    if (status.cluster_id.is_some() || status.provisioned) && !status.is_owner {
         return Err(AppError::Forbidden);
     }
     Ok(())
@@ -118,11 +117,19 @@ pub async fn activate_cluster_license(
     let device_id = license_repo::ensure_device_id(pool).await?;
     let status = license::verify(&license_key, &device_id);
     if !status.valid {
-        return Err(AppError::Validation(
-            status
-                .reason
-                .unwrap_or_else(|| "License key is not valid for this PC.".into()),
-        ));
+        let reason = status
+            .reason
+            .unwrap_or_else(|| "License key is not valid for this PC.".into());
+        tracing::warn!(
+            target: "medoc::system",
+            event = "LICENSE_ACTIVATE_REJECTED",
+            reason = %reason,
+            "license rejected"
+        );
+        if let Some(code) = license::user_license_error_code(&reason) {
+            return Err(AppError::validation_code(code));
+        }
+        return Err(AppError::Validation(reason));
     }
     match status.format.as_deref() {
         Some("v2") => license_repo::store_v2(pool, &license_key).await?,
@@ -227,9 +234,9 @@ pub fn mint_and_activate_usb_owner_license(
                 )
                 .await?;
                 let device_id = license_repo::ensure_device_id(&pool).await?;
-                medoc_core::infrastructure::database::app_kv_repo::set(
+                medoc_core::infrastructure::database::repos::admin::app_kv::set(
                     &pool,
-                    "sync.device_id.v1",
+                    crate::deployment::APP_KV_DEVICE_ID_KEY,
                     &device_id,
                 )
                 .await?;
@@ -249,7 +256,7 @@ pub fn mint_and_activate_usb_owner_license(
 pub async fn enable_lan_auto_start(pool: &SqlitePool) -> Result<(), AppError> {
     const KEY: &str = "lan.server.config.v1";
     let mut cfg = if let Some(raw) =
-        medoc_core::infrastructure::database::app_kv_repo::get(pool, KEY).await?
+        medoc_core::infrastructure::database::repos::admin::app_kv::get(pool, KEY).await?
     {
         serde_json::from_str(&raw).unwrap_or_else(|_| serde_json::json!({}))
     } else {
@@ -272,7 +279,8 @@ pub async fn enable_lan_auto_start(pool: &SqlitePool) -> Result<(), AppError> {
     obj.insert("autoStartWithApp".into(), serde_json::json!(true));
     obj.entry("extraCorsOrigins")
         .or_insert_with(|| serde_json::json!([]));
-    medoc_core::infrastructure::database::app_kv_repo::set(pool, KEY, &cfg.to_string()).await
+    medoc_core::infrastructure::database::repos::admin::app_kv::set(pool, KEY, &cfg.to_string())
+        .await
 }
 
 pub async fn cluster_status(pool: &SqlitePool) -> Result<ClusterStatus, AppError> {
@@ -406,7 +414,7 @@ mod tests {
         let audit_dir =
             std::env::temp_dir().join(format!("medoc-sync-test-audit-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&audit_dir).expect("audit dir");
-        medoc_core::infrastructure::database::audit_repo::init_audit_hmac_key(&audit_dir)
+        medoc_core::infrastructure::database::repos::admin::audit::init_audit_hmac_key(&audit_dir)
             .expect("audit key");
 
         let pool = test_memory_pool().await.expect("pool");
@@ -657,6 +665,16 @@ mod tests {
         crate::cluster::services::store_join_admin_endpoint(&pool, "192.168.1.10", 49300)
             .await
             .expect("admin endpoint");
+        let pin = "ab".repeat(32);
+        crate::cluster::services::store_join_lan_auth(
+            &pool,
+            Some("mt2.pending"),
+            Some("pk"),
+            Some("master-device"),
+            Some(&pin),
+        )
+        .await
+        .expect("lan auth");
 
         let before = cluster_status(&pool).await.expect("before");
         assert!(before.is_owner);
@@ -675,14 +693,28 @@ mod tests {
             .await
             .expect("deployment");
         assert_eq!(snap.deployment.role, crate::deployment::DeviceRole::Replica);
+        // No HTTP port stored from the join reply: default LAN port, never the cluster port.
         assert_eq!(snap.deployment.master_base_url, "https://192.168.1.10:8787");
-        let setup = medoc_core::infrastructure::database::app_kv_repo::get(
+        assert_eq!(snap.deployment.master_cert_sha256, pin);
+        let setup = medoc_core::infrastructure::database::repos::admin::app_kv::get(
             &pool,
             "onboarding.setup_complete.v1",
         )
         .await
         .expect("kv");
         assert_eq!(setup.as_deref(), Some("1"));
+
+        // F24: the main device's LAN port from the join reply wins over the default.
+        crate::cluster::services::store_join_http_port(&pool, Some(9443))
+            .await
+            .expect("store http port");
+        crate::cluster::services::activate_replica_after_sas_confirm(&pool)
+            .await
+            .expect("re-activate");
+        let snap = crate::engine::SyncEngine::status(&pool)
+            .await
+            .expect("deployment");
+        assert_eq!(snap.deployment.master_base_url, "https://192.168.1.10:9443");
 
         std::env::remove_var("MEDOC_CLUSTER_DEVICE_SECRET");
         std::env::remove_var("MEDOC_PAIRING_MASTER_SECRET");

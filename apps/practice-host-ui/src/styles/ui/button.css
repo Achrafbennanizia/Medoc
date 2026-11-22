@@ -1,0 +1,63 @@
+/* From styles/components/primitives.css (cascade position kept by its import there). */
+@layer components {
+  .topbar { position: sticky; top: 0; z-index: 5; flex-shrink: 0; backdrop-filter: saturate(180%) blur(18px); -webkit-backdrop-filter: saturate(180%) blur(18px); background: color-mix(in srgb, var(--bg) 72%, transparent); border-bottom: 1px solid var(--line); padding: 14px var(--main-padding); display: flex; align-items: center; gap: 16px; }
+  .topbar-actions { min-width: 0; }
+  .topbar-actions > .icon-btn,
+  .topbar-actions > div {
+    flex-shrink: 0;
+  }
+  .topbar-search-trigger { flex: 1 1 240px; min-width: 160px; max-width: 420px; }
+  /* One line, always: a deep path (Administration › Services, catalogs & templates › Treatment catalog)
+     shortens its middle crumbs with "…" first, then the current page — it never pushes the search and
+     actions onto a second row. Full path stays in the title tooltip. */
+  .crumb { display: flex; align-items: center; gap: 6px; color: var(--fg-3); font-size: 13px; flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; }
+  .crumb > span:not(:has(svg)), .crumb b { min-width: 2.5em; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; }
+  .crumb > span:not(:has(svg)) { flex-shrink: 4; }
+  /* Root crumbs (MeDoc, Administration) are short and orient the user: keep them whole. */
+  .crumb > span:not(:has(svg)):nth-child(-n + 3) { flex-shrink: 0; }
+  .crumb > span:has(svg) { flex: 0 0 auto; display: inline-flex; }
+  .crumb b { color: var(--fg); font-weight: 600; flex-shrink: 1; }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: calc(8px * var(--density-scale)) calc(14px * var(--density-scale));
+    border-radius: var(--radius-ctl);
+    font-size: 13.5px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    transition:
+      background var(--motion-fast) var(--ease-out),
+      color var(--motion-fast) var(--ease-out),
+      border-color var(--motion-fast) var(--ease-out),
+      box-shadow var(--motion-fast) var(--ease-out),
+      transform var(--motion-fast) var(--ease-out);
+  }
+  .btn:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+  /* Lock SVG icon aspect ratio — flex/grid parents must not stretch glyphs. */
+  .ui-icon {
+    flex-shrink: 0;
+    display: block;
+    align-self: center;
+    justify-self: center;
+    aspect-ratio: 1 / 1;
+    overflow: visible;
+  }
+  .btn-accent {
+    background: var(--accent);
+    color: var(--fg-on-saturated);
+    box-shadow:
+      0 1px 2px color-mix(in oklab, var(--accent) 35%, transparent),
+      inset 0 -1px 0 color-mix(in oklab, var(--fg) 12%, transparent);
+  }
+  .btn-accent:hover {
+    background: color-mix(in oklab, var(--accent) 88%, var(--fg));
+    transform: translateY(-1px);
+  }
+  .btn-accent:active:not(:disabled) { transform: scale(0.98); }
+  .btn-ghost { background: rgba(0,0,0,0.045); color: var(--fg); }
+  .btn-ghost:hover { background: rgba(0,0,0,0.08); }
+  .btn-subtle { background: var(--bg-elev); border: 1px solid var(--line); color: var(--fg-2); }
+}

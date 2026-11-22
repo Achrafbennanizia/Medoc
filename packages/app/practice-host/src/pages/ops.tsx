@@ -191,7 +191,7 @@ export function OpsPage({ embedded = false, onOpenMigration }: OpsPageProps = {}
                 />
             ) : null}
 
-            <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
                 <h3 className="text-title">{t("ops.migration.title")}</h3>
                 <p className="text-body text-on-surface-variant">
                     {t("ops.migration.hint")}
@@ -208,7 +208,7 @@ export function OpsPage({ embedded = false, onOpenMigration }: OpsPageProps = {}
                 </Button>
             </div>
 
-            <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
                 <h3 className="text-title">{t("ops.health.title")}</h3>
                 <p className="text-body text-on-surface-variant">
                     {t("ops.health.hint")}
@@ -225,7 +225,7 @@ export function OpsPage({ embedded = false, onOpenMigration }: OpsPageProps = {}
                     {t("ops.health.run_btn")}
                 </Button>
                 {health && (
-                    <ul className="text-body" style={{ margin: 0, paddingInlineStart: 20, display: "flex", flexDirection: "column", gap: 4 }} aria-live="polite">
+                    <ul className="text-body" style={{ margin: 0, paddingInlineStart: "var(--space-5)", display: "flex", flexDirection: "column", gap: "var(--space-1)" }} aria-live="polite">
                         <li>{tp("ops.health.version", { version: health.version })}</li>
                         <li>{tp("ops.health.db", { status: health.db_ok ? t("ops.health.db_ok") : t("ops.health.db_error"), ms: health.db_latency_ms })}</li>
                         <li>{t("ops.page.audit_chain_label")} {health.audit_chain_ok ? t("ops.page.audit_chain_ok") : tp("ops.page.audit_chain_broken", { at: health.audit_broken_at ?? "" })}</li>
@@ -234,13 +234,13 @@ export function OpsPage({ embedded = false, onOpenMigration }: OpsPageProps = {}
                 )}
             </div>
 
-            <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
                 <h3 className="text-title">{t("ops.perf.title")}</h3>
                 <p className="text-body text-on-surface-variant">
                     {t("ops.perf.hint")}{" "}
                     <code className="px-1">perf.log</code>. {t("ops.perf.default_note")}
                 </p>
-                <div className="row" style={{ flexWrap: "wrap", alignItems: "flex-end", gap: 12 }}>
+                <div className="row" style={{ flexWrap: "wrap", alignItems: "flex-end", gap: "var(--space-3)" }}>
                     <label className="flex flex-col gap-1 text-body" style={{ minWidth: 160 }}>
                         <span className="text-caption text-on-surface-variant">{t("ops.perf.threshold_label")}</span>
                         <input
@@ -280,7 +280,7 @@ export function OpsPage({ embedded = false, onOpenMigration }: OpsPageProps = {}
                 {perfSaved && <p className="text-body text-accent-green">{perfSaved}</p>}
             </div>
 
-            <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
                 <h3 className="text-title">{t("ops.backup.title")}</h3>
                 <p className="text-body text-on-surface-variant">
                     {t("ops.backup.hint")}
@@ -290,7 +290,7 @@ export function OpsPage({ embedded = false, onOpenMigration }: OpsPageProps = {}
                     {t("ops.backup.create_btn")}
                 </Button>
                 {backups.length > 0 && (
-                    <ul className="text-body font-mono" style={{ margin: 0, paddingInlineStart: 20, display: "flex", flexDirection: "column", gap: 4 }}>
+                    <ul className="text-body font-mono" style={{ margin: 0, paddingInlineStart: "var(--space-5)", display: "flex", flexDirection: "column", gap: "var(--space-1)" }}>
                         {backups.slice(0, 5).map((b) => (
                             <li key={b.path}>
                                 {b.path} — {(b.size_bytes / 1024).toFixed(1)} KB
@@ -303,11 +303,11 @@ export function OpsPage({ embedded = false, onOpenMigration }: OpsPageProps = {}
                         ))}
                     </ul>
                 )}
-                <div style={{ borderTop: "1px solid var(--line)", paddingTop: 12, marginTop: 4, display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ borderTop: "1px solid var(--line)", paddingTop: "var(--space-3)", marginTop: "var(--space-1)", display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
                     <p className="text-body text-on-surface-variant" style={{ margin: 0 }}>
                         {t("ops.backup.restore_hint")}
                     </p>
-                    <div className="row" style={{ flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+                    <div className="row" style={{ flexWrap: "wrap", gap: "var(--space-3)", alignItems: "center" }}>
                         <Button type="button" variant="secondary" onClick={() => void chooseBackupForValidate()} disabled={busy || opsBlocked}>
                             {t("ops.backup.choose_file")}
                         </Button>
@@ -342,12 +342,12 @@ export function OpsPage({ embedded = false, onOpenMigration }: OpsPageProps = {}
                 onConfirm={() => void runRestoreBackup()}
             />
 
-            <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
                 <h3 className="text-title">{t("ops.csv.title")}</h3>
                 <p className="text-body text-on-surface-variant">
                     {t("ops.csv.header_hint")}
                 </p>
-                <div className="row" style={{ flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+                <div className="row" style={{ flexWrap: "wrap", gap: "var(--space-3)", alignItems: "center" }}>
                     <Button type="button" variant="secondary" onClick={() => void chooseCsvFile()} disabled={busy || opsBlocked}>
                         {t("ops.csv.choose_file")}
                     </Button>
@@ -363,7 +363,7 @@ export function OpsPage({ embedded = false, onOpenMigration }: OpsPageProps = {}
                     {t("ops.csv.import_btn")}
                 </Button>
                 {report && (
-                    <div className="text-body" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <div className="text-body" style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
                         <div>{tp("ops.csv.total", { count: report.total_rows })}</div>
                         <div>{tp("ops.csv.imported", { count: report.imported })}</div>
                         <div>{tp("ops.page.import_skipped", { count: report.skipped })}</div>
@@ -378,7 +378,7 @@ export function OpsPage({ embedded = false, onOpenMigration }: OpsPageProps = {}
                                             : "",
                                     })}
                                 </summary>
-                                <ul className="font-mono text-label mt-2" style={{ margin: 0, paddingInlineStart: 18 }}>
+                                <ul className="font-mono text-label mt-2" style={{ margin: 0, paddingInlineStart: "var(--space-4)" }}>
                                     {report.errors.slice(0, CSV_ERROR_PREVIEW_LIMIT).map((errLine, i) => (
                                         <li key={i}>{errLine}</li>
                                     ))}

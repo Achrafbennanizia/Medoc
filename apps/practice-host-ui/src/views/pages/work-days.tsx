@@ -10,22 +10,17 @@ import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "../../models/store/auth-store";
 import type { Absence } from "../../models/types";
 import { errorMessage, formatDate } from "@/lib/utils";
-import { useDateFnsLocale, useT } from "@/lib/i18n";
+import { useDateFnsLocale, useT, useTParams } from "@/lib/i18n";
+import { notifyAppointmentsOutsideWorkHours } from "@/lib/appointment-hours-compliance-notify";
 import { Button } from "../components/ui/button";
+import { DataTable } from "../components/ui/data-table";
 import { Input } from "../components/ui/input";
 import { ConfirmDialog } from "../components/ui/dialog";
 import { useToastStore } from "../components/ui/toast-store";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { AdministrationPageHeader } from "../components/administration-page-header";
 import { EditIcon, TrashIcon } from "@/lib/icons";
-
-function pad2(n: number) {
-    return String(n).padStart(2, "0");
-}
-
-function toIsoDate(d: Date) {
-    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-}
+import { localYmd } from "@/lib/practice-clock";
 
 function parseIso(s: string): Date | null {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s.trim());
@@ -49,11 +44,26 @@ const WEEKDAY_KEYS = [
 
 export function WorkDaysPage() {
     const t = useT();
+    const tp = useTParams();
     const dateFnsLocale = useDateFnsLocale();
     const toast = useToastStore((s) => s.add);
     const session = useAuthStore((s) => s.session);
     const role = parseRole(session?.role);
     const canWrite = role ? allowed("administration.practice_planning.write", role) : false;
+
+    const runHoursComplianceCheck = useCallback(async () => {
+        try {
+            const { violations } = await notifyAppointmentsOutsideWorkHours({ t, tp });
+            if (violations.length > 0) {
+                toast(
+                    tp("app.notifications.outside_hours_toast", { count: violations.length }),
+                    "warning",
+                );
+            }
+        } catch {
+            /* best-effort */
+        }
+    }, [t, tp, toast]);
 
     const [rows, setRows] = useState<Absence[]>([]);
     const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -62,7 +72,7 @@ export function WorkDaysPage() {
     const [calYear, setCalYear] = useState(() => new Date().getFullYear());
     const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
 
-    const [kind, setKind] = useState("Urlaub");
+    const [kind, setKind] = useState("Leave");
     const [comment, setComment] = useState("");
     const [fromDay, setFromTag] = useState("");
     const [toDay, setUntilTag] = useState("");
@@ -103,16 +113,16 @@ export function WorkDaysPage() {
         for (let i = 0; i < startPad; i++) {
             const day = prevMonthDays - startPad + i + 1;
             const dt = new Date(calYear, calMonth - 1, day);
-            cells.push({ d: day, iso: toIsoDate(dt), inMonth: false });
+            cells.push({ d: day, iso: localYmd(dt), inMonth: false });
         }
         for (let d = 1; d <= daysInMonth; d++) {
-            cells.push({ d, iso: toIsoDate(new Date(calYear, calMonth, d)), inMonth: true });
+            cells.push({ d, iso: localYmd(new Date(calYear, calMonth, d)), inMonth: true });
         }
         while (cells.length % 7 !== 0 || cells.length < 42) {
             const next = cells.length - (startPad + daysInMonth);
             const day = next + 1;
             const dt = new Date(calYear, calMonth + 1, day);
-            cells.push({ d: day, iso: toIsoDate(dt), inMonth: false });
+            cells.push({ d: day, iso: localYmd(dt), inMonth: false });
         }
         return cells.slice(0, 42);
     }, [calYear, calMonth]);
@@ -134,7 +144,7 @@ export function WorkDaysPage() {
     };
 
     const resetForm = () => {
-        setKind("Urlaub");
+        setKind("Leave");
         setComment("");
         setFromTag("");
         setUntilTag("");
@@ -183,6 +193,7 @@ export function WorkDaysPage() {
             }
             resetForm();
             await reload();
+            void runHoursComplianceCheck();
         } catch (e) {
             toast(`${t("common.error_prefix")} ${errorMessage(e)}`, "error");
         }
@@ -196,6 +207,7 @@ export function WorkDaysPage() {
             setDeleteId(null);
             if (editingId === deleteId) resetForm();
             await reload();
+            void runHoursComplianceCheck();
         } catch (e) {
             toast(`${t("common.error_prefix")} ${errorMessage(e)}`, "error");
         }
@@ -205,7 +217,7 @@ export function WorkDaysPage() {
     if (status === "error" && loadError) return <PageLoadError message={loadError} onRetry={() => void reload()} />;
 
     return (
-        <div className="practice-workspace-page animate-fade-in">
+        <div className="practice-workspace-page animate-fade-in--sticky-safe">
             <AdministrationPageHeader
                 titleLevel="h1"
                 title={t("page.workDays.title")}
@@ -225,7 +237,7 @@ export function WorkDaysPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" style={{ alignItems: "start" }}>
                 <div className="card card-pad">
                     <h2 className="form-section-title" style={{ marginTop: 0 }}>{t("page.workDays.calendar")}</h2>
-                    <div className="row appointment-nav-controls" dir="ltr" style={{ justifyContent: "space-between", marginBottom: 10 }}>
+                    <div className="row appointment-nav-controls" dir="ltr" style={{ justifyContent: "space-between", marginBottom: "var(--space-3)" }}>
                         <Button type="button" variant="ghost" size="sm" onClick={() => {
                             if (calMonth === 0) {
                                 setCalMonth(11);
@@ -246,7 +258,7 @@ export function WorkDaysPage() {
                             ›
                         </Button>
                     </div>
-                    <div className="grid grid-cols-7 gap-1 text-center" style={{ fontSize: 11, color: "var(--fg-3)", marginBottom: 4 }}>
+                    <div className="grid grid-cols-7 gap-1 text-center" style={{ fontSize: 11, color: "var(--fg-3)", marginBottom: "var(--space-1)" }}>
                         {WEEKDAY_KEYS.map((key) => (
                             <div key={key}>{t(key)}</div>
                         ))}
@@ -261,18 +273,27 @@ export function WorkDaysPage() {
                                 c.iso >= fromDay &&
                                 c.iso <= toDay &&
                                 c.inMonth;
+                            const booked = c.inMonth && rows.some((r) => c.iso >= r.from_day && c.iso <= r.to_day);
+                            const bookedLabel = booked
+                                ? rows
+                                      .filter((r) => c.iso >= r.from_day && c.iso <= r.to_day)
+                                      .map((r) => r.kind)
+                                      .join(", ")
+                                : "";
                             return (
                                 <button
                                     key={`${c.iso}-${c.d}-${c.inMonth}`}
                                     type="button"
-                                    className="btn btn-ghost"
+                                    className={`btn btn-ghost work-days-cal-day${booked ? " work-days-cal-day--absence" : ""}`}
+                                    title={bookedLabel || undefined}
+                                    aria-label={bookedLabel ? `${c.d}, ${bookedLabel}` : String(c.d)}
                                     style={{
                                         minHeight: 36,
-                                        padding: 4,
+                                        padding: "var(--space-1)",
                                         fontSize: 12,
                                         opacity: c.inMonth ? 1 : 0.35,
                                         border: selFrom || selUntil ? "2px solid var(--accent)" : inRange ? "1px solid var(--accent-soft)" : undefined,
-                                        background: inRange ? "var(--accent-soft)" : undefined,
+                                        background: booked ? undefined : inRange ? "var(--accent-soft)" : undefined,
                                     }}
                                     onClick={() => pickDay(c.iso)}
                                 >
@@ -281,7 +302,7 @@ export function WorkDaysPage() {
                             );
                         })}
                     </div>
-                    <p style={{ fontSize: 12, color: "var(--fg-3)", marginTop: 10, marginBottom: 0 }}>
+                    <p style={{ fontSize: 12, color: "var(--fg-3)", marginTop: "var(--space-3)", marginBottom: 0 }}>
                         {t("page.workDays.calendar.hint")}
                     </p>
                 </div>
@@ -336,7 +357,7 @@ export function WorkDaysPage() {
                             />
                         </div>
                     </div>
-                    <div className="row" style={{ gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                    <div className="row" style={{ gap: "var(--space-2)", marginTop: "var(--space-2)", flexWrap: "wrap" }}>
                         {canWrite ? (
                             <>
                                 <Button type="button" onClick={() => void submit()}>{editingId ? t("common.save") : t("common.add")}</Button>
@@ -353,43 +374,37 @@ export function WorkDaysPage() {
 
             <div className="card card-pad">
                 <h2 className="form-section-title" style={{ marginTop: 0 }}>{t("page.workDays.entries")}</h2>
-                <div style={{ overflowX: "auto" }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                        <thead>
-                            <tr style={{ textAlign: "start", borderBottom: "1px solid var(--line)" }}>
-                                <th style={{ padding: "8px 6px" }}>{t("page.work_plan.label.from")}</th>
-                                <th style={{ padding: "8px 6px" }}>{t("page.work_plan.label.to")}</th>
-                                <th style={{ padding: "8px 6px" }}>{t("page.workDays.col.time")}</th>
-                                <th style={{ padding: "8px 6px" }}>{t("common.type")}</th>
-                                <th style={{ padding: "8px 6px" }}>{t("page.workDays.field.comment")}</th>
-                                {canWrite ? <th style={{ padding: "8px 6px", width: 88 }}> </th> : null}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {rows.map((r) => (
-                                <tr key={r.id} style={{ borderBottom: "1px solid var(--line)" }}>
-                                    <td style={{ padding: "8px 6px" }}>{formatDate(r.from_day)}</td>
-                                    <td style={{ padding: "8px 6px" }}>{formatDate(r.to_day)}</td>
-                                    <td style={{ padding: "8px 6px", whiteSpace: "nowrap" }}>
-                                        {r.from_time || "—"}
-                                        {" / "}
-                                        {r.to_time || "—"}
-                                    </td>
-                                    <td style={{ padding: "8px 6px" }}>{r.kind}</td>
-                                    <td style={{ padding: "8px 6px", color: "var(--fg-3)" }}>{r.comment || "—"}</td>
-                                    {canWrite ? (
-                                        <td style={{ padding: "8px 6px" }}>
-                                            <div className="row" style={{ gap: 6 }}>
-                                                <button type="button" className="btn btn-ghost" aria-label={t("page.workDays.a11y.edit")} onClick={() => startEdit(r)}><EditIcon /></button>
-                                                <button type="button" className="btn btn-danger" aria-label={t("page.workDays.a11y.delete")} onClick={() => setDeleteId(r.id)}><TrashIcon /></button>
-                                            </div>
-                                        </td>
-                                    ) : null}
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                    {rows.length === 0 ? <p style={{ color: "var(--fg-3)", marginTop: 12 }}>{t("page.workDays.empty")}</p> : null}
+                <div>
+                    <DataTable
+                        label={t("page.workDays.entries")}
+                        emptyLabel={t("page.workDays.empty")}
+                        rows={rows}
+                        getRowId={(r) => r.id}
+                        columns={[
+                            { id: "from", header: t("page.work_plan.label.from"), width: "7.5rem", cell: (r) => formatDate(r.from_day) },
+                            { id: "to", header: t("page.work_plan.label.to"), width: "7.5rem", cell: (r) => formatDate(r.to_day) },
+                            { id: "time", header: t("page.workDays.col.time"), width: "8.5rem", hideBelow: "sm", cell: (r) => `${r.from_time || "—"} / ${r.to_time || "—"}` },
+                            { id: "kind", header: t("common.type"), width: "18%", truncate: true, text: (r) => r.kind, cell: (r) => r.kind },
+                            { id: "comment", header: t("page.workDays.field.comment"), truncate: true, hideBelow: "md", text: (r) => r.comment ?? "", cell: (r) => <span className="data-table__muted">{r.comment || "—"}</span> },
+                            ...(canWrite
+                                ? [
+                                      {
+                                          id: "actions",
+                                          header: t("common.actions"),
+                                          srOnlyHeader: true,
+                                          width: "6.5rem",
+                                          align: "end" as const,
+                                          cell: (r: (typeof rows)[number]) => (
+                                              <div className="data-table__actions">
+                                                  <button type="button" className="btn btn-ghost" aria-label={t("page.workDays.a11y.edit")} onClick={() => startEdit(r)}><EditIcon /></button>
+                                                  <button type="button" className="btn btn-danger" aria-label={t("page.workDays.a11y.delete")} onClick={() => setDeleteId(r.id)}><TrashIcon /></button>
+                                              </div>
+                                          ),
+                                      },
+                                  ]
+                                : []),
+                        ]}
+                    />
                 </div>
             </div>
         </div>

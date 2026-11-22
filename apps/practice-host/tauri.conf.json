@@ -5,7 +5,7 @@
   "build": {
     "beforeDevCommand": "npm run dev -w medoc --prefix ../..",
     "beforeBuildCommand": "npm run build -w medoc --prefix ../..",
-    "devUrl": "http://localhost:1420",
+    "devUrl": "http://127.0.0.1:1420",
     "frontendDist": "../practice-host-ui/dist"
   },
   "app": {

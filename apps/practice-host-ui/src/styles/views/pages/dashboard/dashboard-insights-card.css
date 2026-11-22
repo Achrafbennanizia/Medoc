@@ -1,0 +1,107 @@
+/* From styles/features/dashboard.css (cascade position kept by its import there). */
+@layer components {
+  .dashboard-kpis {
+    min-height: 0;
+  }
+  /** Statistics overview: two chart cards, same breakpoint idea as dashboard split */
+  .statistics-overview-charts {
+    display: grid;
+    /* As many columns as fit at 26rem each; one column when the page is narrow (any reason). */
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr));
+    gap: var(--space-4);
+    margin-top: var(--space-4);
+  }
+  .dashboard-card-fill {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    max-height: 100%;
+  }
+  .dashboard-card-list {
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    /* Space between the head's divider and the first row / message. */
+    padding-top: var(--space-1);
+  }
+  .dashboard-col-primary {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    min-height: 0;
+  }
+  /* Approvals: content height + scroll instead of empty space; orders fills the rest */
+  .dashboard-col-primary > .dashboard-card-fill:first-child {
+    flex: 0 1 auto;
+    flex-shrink: 0;
+    min-height: 0;
+  }
+  .dashboard-col-primary > .dashboard-card-fill:first-child .dashboard-card-list {
+    max-height: min(32vh, 260px);
+  }
+  .dashboard-col-primary > .dashboard-card-fill:last-child {
+    flex: 1 1 0;
+    min-height: 0;
+  }
+  .dashboard-col-secondary {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    min-height: 0;
+  }
+  .dashboard-col-secondary__schedule {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    flex: 1 1 0;
+    /* Grows to its cards' minimum (below) instead of letting them overlap the insights card. */
+    min-height: min-content;
+  }
+  .dashboard-col-secondary__schedule > .dashboard-card-fill {
+    flex: 1 1 0;
+    /* Head + at least two list rows: at 0 the cards were squeezed until the list showed a sliver, its
+       first row cut by the card edge. The page scrolls instead (dashboard-page overflow-y). */
+    min-height: 9.5rem;
+  }
+  .dashboard-insights-card {
+    flex: 0 0 auto;
+    background: linear-gradient(135deg, #0e455c 0%, #0d7d66 100%);
+    color: #fff;
+    border: none;
+  }
+  .dashboard-insights-card__inner {
+    padding: var(--space-6);
+  }
+  .dashboard-insights-card__eyebrow {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    opacity: 0.9;
+  }
+  .dashboard-insights-card__body {
+    margin-top: var(--space-4);
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 1.45;
+    opacity: 0.95;
+  }
+  .dashboard-insights-card__actions {
+    margin-top: var(--space-5);
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+  .dashboard-insights-card__btn-primary {
+    background: #fff;
+    color: #111318;
+    padding: 10px 20px;
+    font-size: 15px;
+    font-weight: 700;
+  }
+  .dashboard-insights-card__btn-secondary {
+    background: rgba(255, 255, 255, 0.16);
+    color: #eaf4f1;
+    padding: 10px 20px;
+    font-size: 15px;
+    font-weight: 700;
+  }
+}

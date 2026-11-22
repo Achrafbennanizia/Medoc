@@ -1,0 +1,71 @@
+/* From styles/pages/appointments-calendar.css (cascade position kept by its import there). */
+.appointment-week-card--workweek .appointment-week-head-grid {
+  grid-template-columns: minmax(3rem, 3.5rem) repeat(var(--appointment-calendar-cols, 5), minmax(0, 1fr));
+}
+.appointment-week-corner {
+  min-height: 3rem;
+}
+.appointment-week-dow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 48px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.appointment-week-dow:hover {
+  background: color-mix(in oklab, var(--accent) 8%, transparent);
+}
+.appointment-week-dow.today {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.appointment-week-dow.weekend {
+  opacity: 0.55;
+}
+.appointment-week-dow-short {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+.appointment-week-dow.today .appointment-week-dow-short,
+.appointment-week-dow.today .appointment-week-dow-num {
+  color: var(--accent-ink);
+}
+.appointment-week-dow-num {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+/* Week grid: height via ResizeObserver (appointments.tsx), no own scroll */
+.appointment-week-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 0.75rem;
+  display: flex;
+  flex-direction: column;
+}
+.appointment-week-body:has(.appointment-appt-block:hover:not(.appointment-appt-block--dragging)),
+.appointment-week-body:has(.appointment-appt-block--dragging) {
+  overflow: visible;
+}
+
+.appointment-week-body-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(3.25rem, 4rem) repeat(7, minmax(0, 1fr));
+  width: 100%;
+  min-width: 0;
+  align-items: stretch;
+  position: relative;
+}

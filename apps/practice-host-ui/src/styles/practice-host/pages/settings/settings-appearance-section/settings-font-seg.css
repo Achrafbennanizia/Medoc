@@ -1,0 +1,182 @@
+/* From styles/features/settings-sections.css (cascade position kept by its import there). */
+@layer components {
+  .settings-density-seg {
+    display: inline-flex;
+    align-items: stretch;
+    padding: 3px;
+    border-radius: var(--radius-pill);
+    background: color-mix(in oklab, var(--fg) 4.5%, transparent);
+    border: 1px solid var(--line);
+    gap: 3px;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    max-width: 100%;
+  }
+  .settings-density-seg__btn {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.125rem;
+    padding: 0 var(--space-3);
+    border: none;
+    border-radius: 7px;
+    background: transparent;
+    font-size: var(--text-chip);
+    font-weight: 600;
+    color: var(--fg-2);
+    cursor: pointer;
+    transition:
+      background var(--motion-fast) var(--ease-out),
+      color var(--motion-fast) var(--ease-out),
+      box-shadow var(--motion-fast) var(--ease-out);
+    white-space: nowrap;
+  }
+  .settings-density-seg__btn:hover:not(.is-active) {
+    color: var(--fg);
+    background: color-mix(in oklab, var(--bg-elev) 65%, transparent);
+  }
+  .settings-density-seg__btn.is-active {
+    background: var(--accent);
+    color: var(--text-on-accent);
+    box-shadow:
+      inset 0 1px 0 color-mix(in oklab, var(--text-on-accent) 22%, transparent),
+      0 1px 3px color-mix(in oklab, var(--accent) 28%, transparent);
+  }
+  .settings-density-seg__btn:first-child {
+    border-start-start-radius: calc(var(--radius-pill) - 3px);
+    border-end-start-radius: calc(var(--radius-pill) - 3px);
+  }
+  .settings-density-seg__btn:last-child {
+    border-start-end-radius: calc(var(--radius-pill) - 3px);
+    border-end-end-radius: calc(var(--radius-pill) - 3px);
+  }
+  .settings-font-seg {
+    display: inline-flex;
+    align-items: stretch;
+    padding: 3px;
+    border-radius: var(--radius-pill);
+    background: color-mix(in oklab, var(--fg) 4.5%, transparent);
+    border: 1px solid var(--line);
+    gap: 3px;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    max-width: 100%;
+  }
+  /* One line like every other option bar: font name, then a short sample in that font. */
+  .settings-font-seg__btn {
+    margin: 0;
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: center;
+    gap: var(--space-2);
+    min-height: 2.125rem;
+    min-width: 0;
+    padding: 0 var(--space-3);
+    white-space: nowrap;
+    border: none;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--fg-2);
+    cursor: pointer;
+    transition:
+      background var(--motion-fast) var(--ease-out),
+      color var(--motion-fast) var(--ease-out),
+      transform var(--motion-fast) var(--ease-out);
+  }
+  .settings-font-seg__btn:hover:not(.is-active) {
+    background: color-mix(in oklab, var(--fg) 6%, transparent);
+    color: var(--fg);
+  }
+  .settings-font-seg__btn.is-active {
+    background: var(--accent);
+    color: var(--text-on-accent);
+    box-shadow:
+      inset 0 1px 0 color-mix(in oklab, var(--text-on-accent) 22%, transparent),
+      0 1px 3px color-mix(in oklab, var(--accent) 28%, transparent);
+  }
+  .settings-font-seg__label {
+    font-size: 12.5px;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+  .settings-font-seg__sample {
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.2;
+    opacity: 0.82;
+    white-space: nowrap;
+  }
+  .settings-font-seg__btn.is-active .settings-font-seg__sample {
+    opacity: 0.92;
+  }
+  .settings-font-seg__btn:first-child {
+    border-start-start-radius: calc(var(--radius-pill) - 3px);
+    border-end-start-radius: calc(var(--radius-pill) - 3px);
+  }
+  .settings-font-seg__btn:last-child {
+    border-start-end-radius: calc(var(--radius-pill) - 3px);
+    border-end-end-radius: calc(var(--radius-pill) - 3px);
+  }
+  .settings-lang-seg {
+    display: inline-flex;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    justify-content: flex-end;
+    max-width: 100%;
+    padding: 3px;
+    border-radius: var(--radius-pill);
+    background: color-mix(in oklab, var(--fg) 4.5%, transparent);
+    border: 1px solid var(--line);
+    gap: 3px;
+    box-sizing: border-box;
+  }
+  .settings-lang-seg__btn {
+    white-space: nowrap;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.125rem;
+    padding: 0 calc(var(--space-3) + var(--space-1));
+    border: none;
+    border-radius: 7px;
+    background: transparent;
+    font-size: var(--text-chip);
+    font-weight: 600;
+    color: var(--fg-2);
+    cursor: pointer;
+    transition:
+      background var(--motion-fast) var(--ease-out),
+      color var(--motion-fast) var(--ease-out),
+      transform var(--motion-fast) var(--ease-out);
+  }
+  .settings-lang-seg__btn:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+  .settings-lang-seg__btn.is-active {
+    background: var(--accent);
+    color: var(--text-on-accent);
+    box-shadow:
+      inset 0 1px 0 color-mix(in oklab, var(--text-on-accent) 22%, transparent),
+      0 1px 3px color-mix(in oklab, var(--accent) 28%, transparent);
+  }
+  .settings-lang-seg__btn:first-child {
+    border-start-start-radius: calc(var(--radius-pill) - 3px);
+    border-end-start-radius: calc(var(--radius-pill) - 3px);
+  }
+  .settings-lang-seg__btn:last-child {
+    border-start-end-radius: calc(var(--radius-pill) - 3px);
+    border-end-end-radius: calc(var(--radius-pill) - 3px);
+  }
+  /* Accent color — inline color dots (Settings appearance) */
+  .settings-accent-inline {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    flex-shrink: 0;
+    justify-content: end;
+  }
+}

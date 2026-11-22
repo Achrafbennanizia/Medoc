@@ -3,6 +3,7 @@ import { StatusBadge } from "@/views/components/ui/status-badge";
 import {
     STATUS_ENTITY_IDS,
     STATUS_REGISTRY,
+    statusCapabilityLabelKey,
     statusDescriptionKey,
     statusFlagLabelKey,
     statusLabelKey,
@@ -33,6 +34,7 @@ export function HelpStatusGuide({ query }: HelpSectionProps) {
                         </h3>
                         <span className="help-card__meta">
                             {t("help.statuses.initial")}: {t(statusLabelKey(id, ent.initial))}
+                            {ent.derived ? ` · ${t("help.statuses.derived")}` : ""}
                         </span>
                     </header>
                     <div className="data-table-wrap">
@@ -43,6 +45,7 @@ export function HelpStatusGuide({ query }: HelpSectionProps) {
                                     <th scope="col">{t("help.statuses.col_meaning")}</th>
                                     <th scope="col">{t("help.statuses.col_phase")}</th>
                                     <th scope="col">{t("help.statuses.col_next")}</th>
+                                    <th scope="col">{t("help.statuses.col_allows")}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -60,6 +63,19 @@ export function HelpStatusGuide({ query }: HelpSectionProps) {
                                                 <span className="help-chip-row">
                                                     {st.next.map((n) => (
                                                         <StatusBadge key={n} entity={id} status={n} />
+                                                    ))}
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td>
+                                            {st.can.length === 0 ? (
+                                                <span className="data-table__muted">{t("help.statuses.locked")}</span>
+                                            ) : (
+                                                <span className="help-chip-row">
+                                                    {st.can.map((c) => (
+                                                        <span key={c} className="pill grey">
+                                                            {t(statusCapabilityLabelKey(c))}
+                                                        </span>
                                                     ))}
                                                 </span>
                                             )}

@@ -1,0 +1,71 @@
+/* From styles/pages/appointments-cards.css (cascade position kept by its import there). */
+/* —— Appointment card densities (micro / standard / roomy) —— */
+.appointment-appt-block--day,
+.appointment-appt-block--week {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+  padding: 0;
+}
+.appointment-appt-block--day { border-radius: 12px; }
+.appointment-appt-block--week { border-radius: 8px; }
+
+.appointment-appt-block-shell {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.appointment-appt-block-stripe {
+  width: 3px;
+  align-self: stretch;
+  min-height: 0;
+  flex-shrink: 0;
+  border-radius: 2px;
+}
+.appointment-appt-block-time {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+  line-height: 1.1;
+  white-space: nowrap;
+  unicode-bidi: isolate;
+  direction: ltr;
+}
+.appointment-appt-block-duration {
+  font-weight: 500;
+  color: var(--fg-3);
+  line-height: 1.1;
+  white-space: nowrap;
+  unicode-bidi: isolate;
+  direction: ltr;
+}
+.appointment-appt-block-name {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  line-height: 1.15;
+}
+.appointment-appt-block-type {
+  font-weight: 500;
+  color: var(--fg-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  line-height: 1.15;
+}

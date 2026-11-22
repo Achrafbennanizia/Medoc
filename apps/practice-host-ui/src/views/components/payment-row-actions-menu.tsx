@@ -21,8 +21,15 @@ function computeMenuStyle(trigger: HTMLElement, actionCount: number): CSSPropert
     const rect = trigger.getBoundingClientRect();
     const menuHeight = actionCount * MENU_ROW_H + MENU_PAD;
     const rtl = getComputedStyle(document.documentElement).direction === "rtl";
+    // Mirror LTR: keep the menu's inline-end edge aligned with the trigger's inline-end.
     let left = rtl ? rect.left : rect.right - MENU_WIDTH;
     left = Math.max(VIEWPORT_PAD, Math.min(left, window.innerWidth - VIEWPORT_PAD - MENU_WIDTH));
+    // If clamping moved us off the trigger, prefer keeping the trigger covered.
+    if (rtl && left + MENU_WIDTH < rect.right) {
+        left = Math.max(VIEWPORT_PAD, rect.right - MENU_WIDTH);
+    } else if (!rtl && left > rect.left) {
+        left = Math.min(left, Math.max(VIEWPORT_PAD, rect.right - MENU_WIDTH));
+    }
     let top = rect.bottom + 6;
     if (top + menuHeight > window.innerHeight - VIEWPORT_PAD) {
         top = rect.top - menuHeight - 6;

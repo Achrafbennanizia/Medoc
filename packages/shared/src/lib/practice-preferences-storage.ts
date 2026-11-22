@@ -210,15 +210,3 @@ export async function savePracticePreferences(next: PracticePreferences): Promis
         window.dispatchEvent(new CustomEvent(PRACTICE_PREFERENCES_CHANGED_EVENT, { detail: normalizePartial(next) }));
     }
 }
-
-/**
- * @deprecated Browser sync cache removed — returns defaults until {@link loadPracticePreferencesFromKv} runs.
- */
-export function loadPracticePreferences(): PracticePreferences {
-    return normalizePartial({});
-}
-
-/** Alias for pages that already call `hydrate…`; loads authoritative KV (with migration). */
-export async function hydratePracticePreferencesFromKv(): Promise<PracticePreferences> {
-    return loadPracticePreferencesFromKv();
-}

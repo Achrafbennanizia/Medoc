@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useT, useTParams } from "@/lib/i18n";
 import { Button } from "../components/ui/button";
+import { DataTable } from "../components/ui/data-table";
 import { Input, Select } from "../components/ui/input";
 import { Card, CardHeader } from "../components/ui/card";
 import { EmptyState } from "../components/ui/empty-state";
@@ -9,7 +10,8 @@ import { AdministrationPageHeader } from "../components/administration-page-head
 import { useToastStore } from "../components/ui/toast-store";
 import type { PracticeClosureMode, PracticeClosureRule } from "@/lib/practice-planning";
 import { loadPracticeWorkHoursConfig, savePracticeWorkHoursConfig } from "@/lib/practice-planning";
-import { errorMessage } from "@/lib/utils";
+import { notifyAppointmentsOutsideWorkHours } from "@/lib/appointment-hours-compliance-notify";
+import { errorMessage, formatDate } from "@/lib/utils";
 import { useRbac } from "@/lib/use-rbac";
 import { EditIcon, TrashIcon } from "@/lib/icons";
 
@@ -49,7 +51,23 @@ export function SpecialBlockedTimesPage() {
         setSelected((s) => (s ? next.find((x) => x.id === s.id) ?? null : null));
         try {
             const cfg = await loadPracticeWorkHoursConfig();
-            await savePracticeWorkHoursConfig({ ...cfg, closures: next });
+            const nextCfg = { ...cfg, closures: next };
+            await savePracticeWorkHoursConfig(nextCfg);
+            try {
+                const { violations } = await notifyAppointmentsOutsideWorkHours({
+                    practiceCfg: nextCfg,
+                    t,
+                    tp,
+                });
+                if (violations.length > 0) {
+                    toast(
+                        tp("app.notifications.outside_hours_toast", { count: violations.length }),
+                        "warning",
+                    );
+                }
+            } catch {
+                /* schedule saved; compliance notify is best-effort */
+            }
         } catch (e) {
             setClosures(previous);
             toast(tp("common.save_failed", { message: errorMessage(e) }), "error");
@@ -185,7 +203,7 @@ export function SpecialBlockedTimesPage() {
             : t(short ? "page.special_blocked_times.mode.custom_short" : "page.special_blocked_times.mode.custom");
 
     const readField = (label: string, value: string) => (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-1)" }}>
             <span className="kpi-label-mini">{label}</span>
             <span style={{ fontSize: 14, color: "var(--fg-2)" }}>{value || "—"}</span>
         </div>
@@ -207,9 +225,9 @@ export function SpecialBlockedTimesPage() {
                 />
                 <Input id={`${idPrefix}-reason`} label={t("common.reason_optional")} value={closureReason} onChange={(e) => setClosureReason(e.target.value)} />
                 {closureMode === "CUSTOM" ? (
-                    <div className="col" style={{ gap: 8, gridColumn: "1 / -1" }}>
+                    <div className="col" style={{ gap: "var(--space-2)", gridColumn: "1 / -1" }}>
                         {closurePeriods.map((p, idx) => (
-                            <div key={`period-${idPrefix}-${idx}`} className="row" style={{ gap: 8, alignItems: "end", flexWrap: "wrap" }}>
+                            <div key={`period-${idPrefix}-${idx}`} className="row" style={{ gap: "var(--space-2)", alignItems: "end", flexWrap: "wrap" }}>
                                 <Input
                                     id={`${idPrefix}-from-${idx}`}
                                     type="time"
@@ -250,7 +268,7 @@ export function SpecialBlockedTimesPage() {
                         title={t("page.special_blocked_times.new_rule.title")}
                         subtitle={t("page.special_blocked_times.new_rule.subtitle")}
                         action={
-                            <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                            <div className="row" style={{ gap: "var(--space-2)", flexWrap: "wrap" }}>
                                 <Button type="button" size="sm" variant="danger" onClick={addNextDayEmergencyClose}>
                                     {t("page.special_blocked_times.close_practice_tomorrow")}
                                 </Button>
@@ -260,10 +278,10 @@ export function SpecialBlockedTimesPage() {
                             </div>
                         }
                     />
-                    <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: 12 }}>
+                    <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
                         <p style={{ fontSize: 12.5, color: "var(--fg-3)", margin: 0 }}>{t("page.special_blocked_times.form.hint")}</p>
                         {closureFormFields("closure")}
-                        <div className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
+                        <div className="row" style={{ justifyContent: "flex-end", gap: "var(--space-2)" }}>
                             <Button type="button" variant="secondary" onClick={() => void addClosure()}>
                                 {t("page.special_blocked_times.add_closure")}
                             </Button>
@@ -279,16 +297,16 @@ export function SpecialBlockedTimesPage() {
                         title={t("page.special_blocked_times.edit.title")}
                         subtitle={t("page.special_blocked_times.edit.subtitle")}
                         action={
-                            <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                            <div className="row" style={{ gap: "var(--space-2)", flexWrap: "wrap" }}>
                                 <Button type="button" size="sm" variant="ghost" onClick={cancelSperrEdit}>
                                     {t("common.cancel")}
                                 </Button>
                             </div>
                         }
                     />
-                    <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: 12 }}>
+                    <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
                         {closureFormFields("closure-ed")}
-                        <div className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
+                        <div className="row" style={{ justifyContent: "flex-end", gap: "var(--space-2)" }}>
                             <Button type="button" variant="secondary" onClick={() => void saveSperrEdit()}>
                                 {t("common.save")}
                             </Button>
@@ -306,7 +324,7 @@ export function SpecialBlockedTimesPage() {
                         subtitle={modeLabel(r.mode)}
                         action={
                             canWritePracticePlanning ? (
-                            <div className="row" style={{ gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                            <div className="row" style={{ gap: "var(--space-2)", flexWrap: "wrap", justifyContent: "flex-end" }}>
                                 <Button type="button" size="sm" variant="secondary" onClick={startEditSelected}>
                                     <EditIcon size={14} /> {t("common.edit")}
                                 </Button>
@@ -318,7 +336,7 @@ export function SpecialBlockedTimesPage() {
                         }
                     />
                     <div className="card-pad" style={{ paddingTop: 0 }}>
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }} className="products-read-grid">
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-4)" }} className="products-read-grid">
                             {readField(t("common.date"), r.date)}
                             {readField(t("common.type"), modeLabel(r.mode, true))}
                             <div style={{ gridColumn: "1 / -1" }}>{readField(t("common.time"), timeLabel(r))}</div>
@@ -340,7 +358,7 @@ export function SpecialBlockedTimesPage() {
     if (loading) return <PageLoading label={t("page.special_blocked_times.loading")} />;
 
     return (
-        <div className="products-page practice-workspace-page animate-fade-in">
+        <div className="products-page practice-workspace-page animate-fade-in--sticky-safe">
             <AdministrationPageHeader
                 title={t("page.special_blocked_times.title")}
                 subtitle={t("page.special_blocked_times.subtitle")}
@@ -360,35 +378,21 @@ export function SpecialBlockedTimesPage() {
                             <EmptyState icon="🚫" title={t("page.special_blocked_times.empty.title")} description={t("page.special_blocked_times.empty.desc")} />
                         </Card>
                     ) : (
-                        <div className="card products-table-card tbl-data-card tbl-scroll">
-                            <table className="tbl tbl-fluid">
-                                <thead>
-                                    <tr>
-                                        <th scope="col">{t("common.date")}</th>
-                                        <th scope="col">{t("common.type")}</th>
-                                        <th scope="col">{t("common.time")}</th>
-                                        <th scope="col">{t("common.reason")}</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {sorted.map((r) => {
-                                        const isSel = !creating && selected?.id === r.id;
-                                        return (
-                                            <tr
-                                                key={r.id}
-                                                className={isSel ? "products-row--selected" : undefined}
-                                                onClick={() => selectRow(r)}
-                                                style={{ cursor: "pointer" }}
-                                            >
-                                                <td style={{ fontWeight: 600, color: "var(--fg-2)" }}>{r.date}</td>
-                                                <td>{modeLabel(r.mode, true)}</td>
-                                                <td className="page-sub" style={{ fontSize: 13 }}>{timeLabel(r)}</td>
-                                                <td className="page-sub" style={{ fontSize: 13, color: "var(--fg-3)" }}>{r.reason ?? "—"}</td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
+                        <div className="card products-table-card tbl-data-card">
+                            <DataTable
+                                label={t("page.special_blocked_times.title")}
+                                rows={sorted}
+                                getRowId={(r) => r.id}
+                                selectedId={creating ? null : selected?.id ?? null}
+                                onRowActivate={selectRow}
+                                rowLabel={(r) => `${formatDate(r.date)} · ${modeLabel(r.mode, true)}`}
+                                columns={[
+                                    { id: "date", header: t("common.date"), width: "8rem", cell: (r) => <span className="data-table__primary">{formatDate(r.date)}</span> },
+                                    { id: "type", header: t("common.type"), width: "22%", truncate: true, text: (r) => modeLabel(r.mode, true), cell: (r) => modeLabel(r.mode, true) },
+                                    { id: "time", header: t("common.time"), width: "9rem", cell: (r) => <span className="data-table__muted">{timeLabel(r)}</span> },
+                                    { id: "reason", header: t("common.reason"), truncate: true, hideBelow: "sm", text: (r) => r.reason ?? "", cell: (r) => <span className="data-table__muted">{r.reason ?? "—"}</span> },
+                                ]}
+                            />
                         </div>
                     )}
                 </div>

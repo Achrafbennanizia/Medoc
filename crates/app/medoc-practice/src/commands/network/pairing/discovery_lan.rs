@@ -10,17 +10,17 @@ use crate::error::AppError as TauriAppError;
 
 use super::support::into_tauri;
 
+/// Replica scans for masters. Probes the configured, default (47830) and legacy (8788) discovery ports —
+/// the old code only probed 8788 while every responder listens on 47830 by default, so scans found nothing.
 #[tauri::command]
-#[tracing::instrument(level = "info")]
+#[tracing::instrument(level = "info", skip(pool))]
 pub async fn pairing_scan_lan(
+    pool: tauri::State<'_, sqlx::SqlitePool>,
     payload: PairingScanPayload,
 ) -> Result<Vec<DiscoveredMaster>, TauriAppError> {
-    let port = std::env::var("MEDOC_DISCOVERY_PORT")
-        .ok()
-        .and_then(|s| s.parse::<u16>().ok())
-        .unwrap_or(8788);
-    let window = Duration::from_millis((payload.seconds * 1000).max(500));
-    let probed = medoc_core::discovery::scan_lan_hosts(port, window, None)
+    let ports = crate::commands::network::lan::discovery_ports_to_probe(&pool).await;
+    let window = Duration::from_millis((payload.seconds * 1000).max(1500));
+    let probed = medoc_core::discovery::scan_lan_hosts_on_ports(&ports, window, None)
         .await
         .map_err(|e| into_tauri(AppError::Internal(format!("LAN discovery: {e}"))))?;
     Ok(probed

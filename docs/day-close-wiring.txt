@@ -1,0 +1,256 @@
+Daily close (Kassenabschluss) — code map
+Generated from the MeDoc tree on 2026-11-16.
+
+This is the cash closing: counted cash, expected cash, a numbered Kassenbericht (TB-…), and an immutable protocol row. It is not the appointment calendar. `deriveDayClosedSpans` in appointment-calendar-layout.ts only marks hours the practice is shut. That name is unrelated.
+
+`apps/practice-host-ui/src/lib` is a symlink to `packages/shared/src/lib`. Those paths are one copy.
+
+There is no LAN HTTP route for day close. The screen talks to the desktop process by Tauri command names.
+
+
+1. How a closing runs
+
+  Browser route
+    /administration/finance-reports/day-close
+    old /administration/day-close redirects there
+    App.tsx loads DayClosePage
+
+  Screen
+    views/pages/day-close.tsx          list, detail, correction, PDF copy
+    views/components/day-close-form.tsx draft, count, cash movement, close
+
+  TypeScript controller
+    packages/app/practice-host/src/controllers/day-close-protocol.controller.ts
+    practiceSystem.invoke("<command>", args)
+
+  Tauri registration
+    crates/app/medoc-practice/src/commands/register.rs lines 324–334
+    handler file
+    crates/app/medoc-practice/src/commands/billing/day_close_protocol.rs
+
+  Business rules
+    crates/shared/medoc-core/src/application/documents/cash_book.rs
+    schema extras (columns, unique final date, no-delete / no-update triggers)
+    crates/shared/medoc-core/src/application/documents/finance_schema.rs
+    function extend_day_close_protocol
+
+  Stored row
+    table day_close_protocol
+    created in migrations/legacy_embedded.rs
+    read by repos/billing/day_close_protocol.rs
+    entity domain/entities/day_close_protocol.rs
+
+  Permission
+    read list/get: finance.read
+    delete command: finance.day_close.write, then it always refuses
+    close / correct / cash movement: authenticated session, cash_book checks the cash-desk right
+    route gate: finance.day_close.write (Physician). Reception is blocked from the page.
+
+
+2. Command wire
+
+  UI function                         Tauri command                 Rust function                         Core
+  listDayCloseProtocols               list_day_close_protocols      list_day_close_protocols              repo.list
+  getDayCloseProtocol                 get_day_close_protocol        get_day_close_protocol                repo.get
+  (no UI wrapper)                     create_day_close_protocol     create_day_close_protocol             cash_book.close_day (client figures ignored)
+  (no UI wrapper)                     delete_day_close_protocol     delete_day_close_protocol             always error.day_close.immutable
+  prepareDayClose                     prepare_day_close             prepare_day_close                     cash_book.prepare
+  closeDay                            close_day                     close_day                             cash_book.close_day
+  correctDayClose                     correct_day_close             correct_day_close                     cash_book.correct_day_close
+  dayCloseReportCopy                  day_close_report_copy         day_close_report_copy                 cash_book.report_copy
+  recordCashMovement                  record_cash_movement          record_cash_movement                  cash_book.record_cash_movement
+  reverseCashMovement                 reverse_cash_movement         reverse_cash_movement                 cash_book.reverse_cash_movement
+  listCashMovements                   list_cash_movements           list_cash_movements                   cash_book.list_cash_movements
+
+  The form also calls setPaymentsCashVerified from payment.controller.ts so the day's cash payments can be marked verified before the close.
+
+
+3. Screens and navigation
+
+  apps/practice-host-ui/src/App.tsx
+    lazy DayClosePage
+    route administration/finance-reports/day-close
+    redirect administration/day-close
+
+  apps/practice-host-ui/src/views/pages/day-close.tsx
+    DayClosePage
+    listDayCloseProtocols, prepareDayClose, correctDayClose, dayCloseReportCopy
+    renders DayCloseForm
+
+  apps/practice-host-ui/src/views/components/day-close-form.tsx
+    DayCloseForm
+    prepareDayClose, closeDay, recordCashMovement, setPaymentsCashVerified
+
+  apps/practice-host-ui/src/views/pages/administration-finance-tools.tsx
+    two buttons navigate to /administration/finance-reports/day-close
+
+  packages/shared/src/lib/administration-toc/model.ts
+    hub link title page.administration_finance.link_day_close_title
+    href /administration/finance-reports/day-close
+    requires administration/finance-reports/day-close
+
+  packages/shared/src/lib/administration-hierarchy.ts
+    /administration/day-close belongs to finance reports
+
+  packages/shared/src/lib/command-palette-data.ts
+    command administration-day_close
+    path /administration/finance-reports/day-close
+    keywords cash, cash-up, day_close
+
+  packages/shared/src/lib/breadcrumb-keys.ts
+    breadcrumb for both the live path and the old path
+
+  packages/shared/src/lib/rbac.ts
+    both routes require action finance.day_close.write
+
+  packages/shared/src/lib/use-rbac.ts
+    canDayCloseWrite
+
+  packages/shared/src/lib/rbac.generated.ts
+    case finance.day_close.write
+
+  Rust permission source
+    crates/shared/medoc-core/src/domain/access.rs
+      finance.day_close.write is listed, and mapped to cash desk Full
+    crates/shared/medoc-core/src/application/rbac.rs
+      allowed("finance.day_close.write", role)
+
+
+4. Client helpers (not the server close)
+
+  packages/shared/src/lib/day-close.ts
+    parseDbUtc, paymentLocalYmd, filterPaymentsForLocalDay
+    sumCashDay, sumIncomeDay, isCashUnverified, isPostedPayment
+    paymentRecordedLocalYmd
+    filterReceptionCashQueue, filterReceptionCashQueueOlder
+    AMOUNT_TOL, amountsMatch, parseEuroInput, formatCashAmount
+
+  Who uses those helpers
+    day-close.tsx and day-close-form.tsx (parse, format, euro input)
+    dashboard.tsx (filterReceptionCashQueue, parseDbUtc)
+    finance-cash.tsx (filterReceptionCashQueue) — reception cash not yet confirmed
+    invoice-service-item.ts (paymentLocalYmd)
+    notifications-popover.tsx (parseDbUtc only)
+    administration-contracts.tsx (parseEuroInput only)
+
+  packages/shared/src/lib/day-close-invoice-pdf.ts
+    downloadDayCloseReportPdf calls dayCloseReportCopy
+    The PDF itself is issued by the server inside close_day. This function reprints it.
+
+  Reminder
+    apps/practice-host-ui/src/views/pages/dashboard.tsx
+    Once per calendar day, at the practice closing time from opening hours,
+    shows dashboard.day_close.toast.
+    sessionStorage key medoc-ta-reminder-YYYY-MM-DD
+    The reminder uses the practice closing time from opening hours.
+
+
+5. Server
+
+  crates/app/medoc-practice/src/commands/billing/day_close_protocol.rs
+    all Tauri commands in section 2
+    module comment: client sends counted cash, denominations, card terminal total, and a note
+    delete_day_close_protocol ignores the id and returns error.day_close.immutable
+
+  crates/app/medoc-practice/src/commands/billing/mod.rs
+    declares the day_close_protocol module
+
+  crates/app/medoc-practice/src/commands/register.rs
+    lines 324–334, the only IPC registration site
+
+  crates/shared/medoc-core/src/application/documents/cash_book.rs
+    pub fn fmt_eur
+    pub async fn prepare                  line 457
+    pub async fn close_day                line 611
+    pub async fn correct_day_close        line 680
+    pub async fn report_copy              line 1187
+    pub async fn record_cash_movement     line 1436
+    pub async fn reverse_cash_movement    line 1536
+    pub async fn list_cash_movements      line 1578
+    Writes and reads day_close_protocol. After insert/update it calls sync_outbox::record_or_noop
+    and stores document_id / document_number from the issued report.
+
+  crates/shared/medoc-core/src/application/documents/finance_schema.rs
+    extend_day_close_protocol
+    Adds status, period, cent columns, denominations_json, closed_by, document_id,
+    document_number, corrects_id.
+    Unique index ux_day_close_final_date on as_of_date where status = FINAL.
+    Triggers trg_day_close_no_delete and trg_day_close_no_update.
+    Allowed status change is FINAL to CORRECTED only.
+
+  crates/shared/medoc-core/src/application/documents/issue.rs
+    issues the numbered report the close stores
+
+  crates/shared/medoc-core/src/application/documents/period_report.rs
+    period figures can include closed days (same finance document family)
+
+  crates/shared/medoc-core/src/infrastructure/database/repos/billing/day_close_protocol.rs
+    list, get, create
+    create is the older insert path. The live close inserts from cash_book.
+
+  crates/shared/medoc-core/src/infrastructure/database/repos/billing/mod.rs
+    pub mod day_close_protocol
+
+  crates/shared/medoc-core/src/domain/entities/day_close_protocol.rs
+    DayCloseProtocol, CreateDayCloseProtocol
+
+  crates/shared/medoc-core/src/domain/entities/mod.rs
+    exports the entity module
+
+  crates/shared/medoc-core/src/infrastructure/database/migrations/legacy_embedded.rs
+    CREATE TABLE day_close_protocol (id, as_of_date, counted_eur, system_cash_eur,
+    system_income_eur, variance_eur, cash_matches, day_payment_count,
+    cash_verified_count, all_payments_verified, note, recorded_at)
+    indexes idx_day_close_protocol_time, idx_day_close_protocol_as_of_date
+
+  crates/shared/medoc-core/src/infrastructure/database/migrations/english_schema_upgrade.rs
+    touches the same table during the English schema upgrade
+
+  crates/shared/medoc-core/src/infrastructure/database/sync_registry.rs
+    ("day_close_protocol", SyncClass::Numbered)
+    queue name includes day_close_protocol
+
+  crates/shared/medoc-sync/src/engine/initial_copy.rs
+    copies day_close_protocol on first replica pull
+
+  crates/shared/medoc-core/src/infrastructure/database/repos/billing/payment.rs
+    payment list filters used by finance, cash, and day close
+
+
+6. Tests
+
+  packages/shared/src/lib/day-close.test.ts
+    local-day payment filters and euro parsing
+
+  packages/shared/src/lib/rbac.test.ts
+    finance.day_close.write is Physician only
+    Reception cannot open administration/finance-reports/day-close
+
+  packages/shared/src/lib/administration-hierarchy.test.ts
+    back target of both day-close paths is /administration/finance-reports
+
+  packages/shared/src/lib/nav-sections.test.ts
+  packages/shared/src/lib/collaboration-g21.test.ts
+    the practice sidebar does not list the day-close route
+
+  crates/shared/medoc-core/tests/finance_workflow_tests.rs
+    close with float, denominations, late placeholder, bank deposit, correction, immutability
+
+  crates/shared/medoc-core/tests/access_control_tests.rs
+  crates/shared/medoc-core/tests/part_f_tests.rs
+  apps/practice-host/tests/rbac_codegen_tests.rs
+    permission matrix includes finance.day_close.write
+
+
+7. Copy
+
+  Locale keys (values in packages/shared/locales, plus scripts/i18n-translation-patches*.json):
+    nav.day_close
+    dashboard.day_close.toast
+    settings.workflows.day_close_hint
+    page.administration_finance.link_day_close_title
+    page.administration_finance.link_day_close_desc
+    page.day_close.*
+    palette.cmd.administration-day_close
+    breadcrumb.daily_close
+    error.day_close.immutable

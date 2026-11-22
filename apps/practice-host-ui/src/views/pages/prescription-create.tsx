@@ -14,25 +14,22 @@ import { useToastStore } from "../components/ui/toast-store";
 import { PageLoading, PageLoadError } from "../components/ui/page-status";
 import { WorkspacePageHeader } from "../components/administration-page-header";
 import {
-    MEDICATION_SUGGESTIONS,
     DOSAGE_FORM_OPTIONS,
     PACK_SIZE_OPTIONS,
     PRESCRIPTION_KIND_OPTIONS,
     DENTAL_ICD10_SUGGESTIONS,
-    findSuggestion as findMedSuggestion,
     emptyPrescriptionLine,
     parsePrescriptionTemplatePayload,
     templateItemsToLines,
     type PrescriptionLine,
 } from "@/lib/medications";
 import type { Patient } from "../../models/types";
-
-function validatePrescriptionLine(line: PrescriptionLine, t: (key: string) => string): string | null {
-    if (!line.medication.trim()) return t("page.prescriptions.validation.med_required");
-    if (!line.dosage.trim()) return t("page.prescriptions.validation.dosage_required");
-    if (!line.duration.trim()) return t("page.prescriptions.validation.duration_required");
-    return null;
-}
+import { validatePrescriptionLine } from "@/lib/validate-prescription-line";
+import { MedicationDatalist } from "../components/medication-presets/medication-datalist";
+import { applyMedicationSuggestion } from "@/lib/apply-medication-suggestion";
+import { buildPrescriptionQueue, isPrescriptionLineStarted } from "@/lib/build-prescription-queue";
+import { withAllergyConfirmation } from "@/lib/with-allergy-confirmation";
+import { useAllergyConfirmation } from "../components/prescription-allergy/use-allergy-confirmation";
 
 export function PrescriptionCreatePage() {
     const t = useT();
@@ -43,6 +40,7 @@ export function PrescriptionCreatePage() {
     const [searchParams] = useSearchParams();
     const session = useAuthStore((s) => s.session);
     const toast = useToastStore((s) => s.add);
+    const { confirmAllergy, allergyDialog } = useAllergyConfirmation();
 
     const [patient, setPatient] = useState<Patient | null>(null);
     const [loadError, setLoadError] = useState<string | null>(null);
@@ -135,15 +133,7 @@ export function PrescriptionCreatePage() {
         [templates],
     );
 
-    const pickMed = (label: string) => {
-        const sugg = findMedSuggestion(label);
-        setDraft((prev) => ({
-            ...prev,
-            medication: label,
-            active_ingredient: prev.active_ingredient || sugg?.active_ingredient || "",
-            dosage: prev.dosage || sugg?.dosage || "",
-        }));
-    };
+    const pickMed = (label: string) => setDraft((prev) => applyMedicationSuggestion(prev, label));
 
     const addLine = () => {
         const err = validatePrescriptionLine(draft, t);
@@ -162,12 +152,9 @@ export function PrescriptionCreatePage() {
 
     const handleSave = async () => {
         if (!patientId || !session) return;
-        const queue: PrescriptionLine[] = [...lines];
-        if (validatePrescriptionLine(draft, t) === null) queue.push({ ...draft });
-        if (queue.length === 0) {
-            setDraftError(t("page.prescriptions.validation.min_one_line"));
-            return;
-        }
+        const { lines: queue, error: queueError } = buildPrescriptionQueue(lines, draft, t, tp);
+        setDraftError(queueError);
+        if (!queue) return;
         setCreating(true);
         setError(null);
         let ok = 0;
@@ -175,7 +162,7 @@ export function PrescriptionCreatePage() {
             for (const line of queue) {
                 const merged = [line.instructions, shared].filter((s) => s.trim()).join(" · ");
                 const quantityN = Number.parseInt(line.quantity.trim(), 10);
-                await createPrescription({
+                const created = await withAllergyConfirmation((allergy_override) => createPrescription({
                     patient_id: patientId,
                     physician_id: session.user_id,
                     medication: line.medication.trim(),
@@ -191,9 +178,12 @@ export function PrescriptionCreatePage() {
                     prescription_type: line.prescription_type,
                     icd10_code: line.icd10_code.trim() || null,
                     prescribing_physician_id: session.user_id,
-                });
+                    allergy_override,
+                }), confirmAllergy);
+                if (!created) break;
                 ok += 1;
             }
+            if (ok === 0) return;
             toast(
                 ok === 1 ? t("page.prescriptions.toast.created_one") : tp("page.prescriptions.toast.created_many", { count: ok }),
                 "success",
@@ -223,7 +213,8 @@ export function PrescriptionCreatePage() {
         return <PageLoadError message={loadError ?? t("page.prescriptions.toast.linked_patient_not_found")} onRetry={() => void loadPatient()} />;
     }
 
-    const nLines = lines.length + (validatePrescriptionLine(draft, t) === null ? 1 : 0);
+    // Enabled as soon as something is entered; a click names what is still missing.
+    const nLines = lines.length + (isPrescriptionLineStarted(draft) ? 1 : 0);
     const cannotSave = nLines === 0 || creating;
 
     return (
@@ -234,6 +225,7 @@ export function PrescriptionCreatePage() {
                 eyebrow={patient.name}
                 back={{ to: `/patients/${patientId}#prescription`, label: t("patient.detail.title") }}
             />
+            {allergyDialog}
 
             <div style={{ maxWidth: 920 }}>
             <Card>
@@ -257,7 +249,7 @@ export function PrescriptionCreatePage() {
                             </div>
                             {templates.length > 0 ? (
                                 <>
-                                    <div className="flex flex-col sm:flex-row gap-2 sm:items-end" style={{ marginBottom: 10 }}>
+                                    <div className="flex flex-col sm:flex-row gap-2 sm:items-end" style={{ marginBottom: "var(--space-3)" }}>
                                         <div className="flex-1 min-w-0">
                                             <Select
                                                 id="rc-template"
@@ -303,22 +295,18 @@ export function PrescriptionCreatePage() {
                             )}
                         </div>
 
-                        <datalist id="rc-med-suggestions">
-                            {MEDICATION_SUGGESTIONS.map((s) => (
-                                <option key={s.label} value={s.label} />
-                            ))}
-                        </datalist>
+                        <MedicationDatalist id="rc-med-suggestions" />
 
                         <div
                             style={{
                                 border: "1px solid var(--line)",
                                 borderRadius: 10,
-                                padding: 12,
-                                marginBottom: 12,
+                                padding: "var(--space-3)",
+                                marginBottom: "var(--space-3)",
                                 background: "rgba(0,0,0,0.02)",
                             }}
                         >
-                            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>{t("page.prescriptions.new_line")}</div>
+                            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: "var(--space-2)" }}>{t("page.prescriptions.new_line")}</div>
                             {draftError ? (
                                 <p style={{ color: "var(--red)", fontSize: 12, margin: "0 0 8px" }}>{draftError}</p>
                             ) : null}
@@ -359,7 +347,7 @@ export function PrescriptionCreatePage() {
                                 value={draft.instructions}
                                 onChange={(e) => setDraft({ ...draft, instructions: e.target.value })}
                             />
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" style={{ marginTop: 8 }}>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" style={{ marginTop: "var(--space-2)" }}>
                                 <Input
                                     id="rc-pzn"
                                     label={t("page.prescriptions.field.pzn")}
@@ -419,7 +407,7 @@ export function PrescriptionCreatePage() {
                                     <option key={c} value={c} />
                                 ))}
                             </datalist>
-                            <label className="row" style={{ gap: 8, alignItems: "center", marginTop: 8, fontSize: 13 }}>
+                            <label className="row" style={{ gap: "var(--space-2)", alignItems: "center", marginTop: "var(--space-2)", fontSize: 13 }}>
                                 <input
                                     type="checkbox"
                                     checked={draft.aut_idem}
@@ -427,7 +415,7 @@ export function PrescriptionCreatePage() {
                                 />
                                 {t("page.prescriptions.field.aut_idem")}
                             </label>
-                            <div className="row" style={{ justifyContent: "flex-end", marginTop: 8 }}>
+                            <div className="row" style={{ justifyContent: "flex-end", marginTop: "var(--space-2)" }}>
                                 <Button type="button" size="sm" variant="secondary" onClick={addLine}>
                                     {t("page.prescriptions.create.add_line_btn")}
                                 </Button>
@@ -442,8 +430,8 @@ export function PrescriptionCreatePage() {
                             onChange={(e) => setShared(e.target.value)}
                         />
 
-                        <div style={{ marginTop: 12 }}>
-                            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>
+                        <div style={{ marginTop: "var(--space-3)" }}>
+                            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: "var(--space-2)" }}>
                                 {tp("page.prescriptions.lines_title", { count: lines.length })}
                             </div>
                             {lines.length === 0 ? (
@@ -480,11 +468,11 @@ export function PrescriptionCreatePage() {
                             )}
                         </div>
 
-                        <div className="row" style={{ justifyContent: "space-between", alignItems: "center", gap: 12, marginTop: 16, flexWrap: "wrap" }}>
+                        <div className="row" style={{ justifyContent: "space-between", alignItems: "center", gap: "var(--space-3)", marginTop: "var(--space-4)", flexWrap: "wrap" }}>
                             <p style={{ margin: 0, fontSize: 12, color: "var(--fg-3)" }}>
                                 {t("page.prescriptions.create.after_save_hint")}
                             </p>
-                            <div className="row" style={{ gap: 8 }}>
+                            <div className="row" style={{ gap: "var(--space-2)" }}>
                                 <Button variant="ghost" onClick={() => navigate(`/patients/${patientId}#prescription`)} disabled={creating}>
                                     {t("common.cancel")}
                                 </Button>

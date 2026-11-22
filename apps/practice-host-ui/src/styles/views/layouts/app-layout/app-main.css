@@ -1,0 +1,66 @@
+/* From styles/layout/shell-chrome.css (cascade position kept by its import there). */
+@layer components {
+  .queue-exchange-bar {
+    height: 3px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    background-size: 40% 100%;
+    background-repeat: no-repeat;
+    animation: queue-exchange 1s linear infinite;
+  }
+  @keyframes queue-exchange {
+    from { background-position: -40% 0; }
+    to { background-position: 140% 0; }
+  }
+  .app-main--scroll-y {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    /* Let page roots grow to full content height so the main column scrolls (flex shrink trap). */
+    scroll-padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .app-main--scroll-y > .animate-fade-in,
+  .app-main--scroll-y > .animate-fade-in--sticky-safe {
+    flex-shrink: 0;
+    min-height: min-content;
+  }
+  .app-main--fill-y {
+    overflow-y: hidden;
+  }
+  .card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    padding: clamp(12px, 1.8vh, 16px) var(--card-pad-x);
+    border-bottom: 1px solid var(--line);
+  }
+  .card-head-text {
+    /* Keep the title readable in narrow master-detail panes; wrap the actions instead of crushing text. */
+    min-width: min(100%, 10rem);
+    flex: 1 1 10rem;
+  }
+  .card-head-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: end;
+    gap: var(--space-2);
+    margin-inline-start: auto;
+    flex: 1 1 auto;
+    max-width: 100%;
+    align-self: flex-start;
+  }
+  .card.card-pad > .card-head,
+  .card.card-pad .card-head {
+    margin-inline: calc(-1 * var(--card-pad-x));
+    width: calc(100% + 2 * var(--card-pad-x));
+    max-width: none;
+    box-sizing: border-box;
+  }
+  .card.card-pad > .card-head:first-child {
+    margin-top: calc(-1 * var(--card-pad-y));
+  }
+  .card-title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+  .card-sub { color: var(--fg-3); font-size: 13px; margin-top: 2px; }
+}

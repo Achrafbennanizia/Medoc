@@ -14,6 +14,7 @@ env:
   MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
   MEDOC_DB_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
   MEDOC_AUDIT_KEY: k9-medoc-test-audit-key-32bytes!
+  STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: "1"
 
@@ -128,6 +129,16 @@ jobs:
         if: runner.os == 'Linux'
         run: npm audit --omit=dev
 
+      # Small, single-purpose files: no new oversized file, and listed legacy files may only shrink.
+      - name: file size rule
+        if: runner.os == 'Linux'
+        run: npm run check:size
+
+      # Every text lives in packages/shared/locales/<lang>.json, with the same keys in all four languages.
+      - name: translations in locale files
+        if: runner.os == 'Linux'
+        run: npm run i18n:verify && npm run i18n:scan
+
       - name: unit tests
         if: runner.os != 'Windows'
         env:
@@ -216,10 +227,149 @@ jobs:
       - name: tauri build (debug, no bundle)
         run: npm run tauri -w medoc-tauri-host -- build --debug --no-bundle
 
+  # Activation UI (medoc-usb-setup) + recovery CLI/UI — release binaries as artifacts.
+  ops-uis:
+    name: Ops UIs (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: [rust]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: System deps for egui (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            pkg-config libssl-dev \
+            libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
+            libxkbcommon-dev libgtk-3-dev
+
+      - name: Install OpenSSL (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/ci-windows-install-openssl.ps1
+
+      - name: Export OpenSSL env (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $root = if ($env:VCPKG_INSTALLATION_ROOT) { $env:VCPKG_INSTALLATION_ROOT } else { "C:\vcpkg" }
+          $dir = Join-Path $root "installed\x64-windows"
+          $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+          $lines = @(
+            "OPENSSL_DIR=$dir"
+            "OPENSSL_LIB_DIR=$(Join-Path $dir 'lib')"
+            "OPENSSL_INCLUDE_DIR=$(Join-Path $dir 'include')"
+          )
+          $payload = ($lines -join [Environment]::NewLine) + [Environment]::NewLine
+          [System.IO.File]::AppendAllText($env:GITHUB_ENV, $payload, $utf8NoBom)
+          $lines | ForEach-Object { Write-Host $_ }
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+          shared-key: ops-uis-${{ matrix.os }}
+
+      - name: Release build activation + recovery UIs
+        run: |
+          cargo build --release -p medoc-usb-setup -p medoc-recovery
+
+      - name: Stage binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist-ops-uis
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            cp target/release/medoc-usb-setup.exe dist-ops-uis/MedocUsbSetup.exe
+            cp target/release/medoc-recovery.exe dist-ops-uis/medoc-recovery.exe
+            cp target/release/medoc-recovery-ui.exe dist-ops-uis/medoc-recovery-ui.exe
+          else
+            cp target/release/medoc-usb-setup dist-ops-uis/MedocUsbSetup
+            cp target/release/medoc-recovery dist-ops-uis/medoc-recovery
+            cp target/release/medoc-recovery-ui dist-ops-uis/medoc-recovery-ui
+            chmod +x dist-ops-uis/*
+          fi
+          ls -la dist-ops-uis
+
+      - name: Upload ops UI binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: medoc-ops-uis-${{ matrix.os }}
+          path: dist-ops-uis/**
+          if-no-files-found: error
+
+  playwright-lan:
+    name: Playwright LAN
+    runs-on: ubuntu-latest
+    needs: [rust]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: System deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev curl
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+          shared-key: rust-ubuntu-latest
+
+      - name: Build medoc-server
+        run: cargo build -p medoc-lan-server --bin medoc-server
+
+      - name: Start LAN server
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/medoc-lan-data"
+          MEDOC_DEV_SEED=1 ./target/debug/medoc-server \
+            --data-dir "$RUNNER_TEMP/medoc-lan-data" \
+            --http-bind 127.0.0.1 \
+            --http-port 8787 \
+            > "$RUNNER_TEMP/medoc-server.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/medoc-server.pid"
+          for _ in $(seq 1 60); do
+            if curl -fsSk https://127.0.0.1:8787/health >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "medoc-server did not become healthy"
+          cat "$RUNNER_TEMP/medoc-server.log" || true
+          exit 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: npm ci
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        working-directory: apps/practice-host-ui
+        run: npx playwright install --with-deps chromium
+
+      - name: Playwright
+        working-directory: apps/practice-host-ui
+        env:
+          MEDOC_LAN_E2E: "1"
+          MEDOC_LAN_URL: https://127.0.0.1:8787
+        run: npm run test:playwright
+
   ci-ok:
     name: CI gate
     if: always()
-    needs: [rust, frontend, tauri-smoke]
+    needs: [rust, frontend, tauri-smoke, playwright-lan, ops-uis]
     runs-on: ubuntu-latest
     steps:
       - name: Require all matrix jobs to succeed
@@ -229,6 +379,10 @@ jobs:
           echo "rust=${{ needs.rust.result }}"
           echo "frontend=${{ needs.frontend.result }}"
           echo "tauri-smoke=${{ needs.tauri-smoke.result }}"
+          echo "playwright-lan=${{ needs.playwright-lan.result }}"
+          echo "ops-uis=${{ needs.ops-uis.result }}"
           test "${{ needs.rust.result }}" = "success"
           test "${{ needs.frontend.result }}" = "success"
           test "${{ needs.tauri-smoke.result }}" = "success"
+          test "${{ needs.playwright-lan.result }}" = "success"
+          test "${{ needs.ops-uis.result }}" = "success"

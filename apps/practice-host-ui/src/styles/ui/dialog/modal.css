@@ -1,0 +1,99 @@
+/* From styles/components/overlays.css (cascade position kept by its import there). */
+@layer components {
+  .chart-workflow-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    width: 100%;
+    text-align: start;
+  }
+  .chart-workflow-form .ui-field-wrap,
+  .chart-workflow-form .stack,
+  .chart-workflow-form .input,
+  .chart-workflow-form .input-edit,
+  .chart-workflow-form .select-trigger,
+  .chart-workflow-form textarea {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .chart-workflow-form .ui-field-label,
+  .chart-workflow-form .text-sm {
+    text-align: start;
+  }
+  .chart-workflow-form__hint {
+    margin: 0;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: var(--fg-3);
+    text-align: start;
+  }
+  .modal.modal--form > .modal-actions {
+    display: flex;
+    gap: var(--space-2);
+    justify-content: flex-end;
+    align-items: center;
+    background: transparent;
+    border-top: 1px solid var(--line);
+    padding: 12px 16px 16px;
+  }
+  .modal.modal--form > .modal-actions .btn {
+    flex: 0 0 auto;
+    min-height: 36px;
+    border-radius: var(--radius-ctl);
+    padding: 0 14px;
+    font-size: 13.5px;
+    box-shadow: none;
+  }
+  .modal.modal--form > .modal-actions .btn-ghost {
+    background: transparent;
+    border: 1px solid var(--line-strong);
+    color: var(--fg);
+  }
+  .modal.modal--form > .modal-actions .btn-ghost:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--fg) 4%, var(--bg-elev));
+  }
+  .modal.modal--form > .modal-actions .btn-accent {
+    background: var(--accent);
+    color: var(--fg-on-saturated);
+    border: 1px solid transparent;
+    font-weight: 600;
+  }
+  .modal.modal--form > .modal-actions .btn-accent:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--accent) 88%, var(--fg));
+  }
+
+  /** Wide modals (export picker, template editor): cap height so header/footer stay reachable; scroll body. */
+  .modal.modal--wide,
+  .modal.modal--export-preview,
+  .modal.modal--chart-export {
+    width: min(94vw, 920px);
+    max-width: min(94vw, 960px);
+    max-height: min(calc(var(--app-dvh) * 0.92), calc(var(--app-dvh) - 32px));
+    display: flex;
+    flex-direction: column;
+  }
+  .modal.modal--wide .modal-body-pad,
+  .modal.modal--export-preview .modal-body-pad,
+  .modal.modal--chart-export .modal-body-pad {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .modal.modal--chart-export .modal-body-pad {
+    display: flex;
+    flex-direction: column;
+  }
+  .modal.modal--wide .modal-actions,
+  .modal.modal--export-preview .modal-actions,
+  .modal.modal--chart-export .modal-actions {
+    flex-shrink: 0;
+  }
+  .modal.modal--wide .modal-header-row,
+  .modal.modal--export-preview .modal-header-row,
+  .modal.modal--chart-export .modal-header-row {
+    flex-shrink: 0;
+  }
+}

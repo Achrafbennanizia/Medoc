@@ -1,0 +1,64 @@
+/* From styles/features/settings.css (cascade position kept by its import there). */
+@layer components {
+  .settings-nav-label {
+    min-width: 0;
+  }
+  .settings-panel-stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    min-width: 0;
+  }
+  .settings-subcard {
+    border-radius: var(--radius-card);
+    background: var(--bg-elev);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+  }
+  .settings-subcard:has(.select-wrap) {
+    overflow: visible;
+  }
+  .settings-subcard .card-head {
+    padding: var(--space-4) var(--card-pad-x) var(--space-3);
+    border-bottom: 1px solid var(--line);
+  }
+  .settings-subcard .card-title {
+    font-size: var(--settings-section-title);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  .settings-subcard .card-sub {
+    font-size: var(--text-caption);
+    color: var(--fg-3);
+    line-height: 1.45;
+  }
+  .settings-subcard.settings-subcard--segment-safe {
+    overflow: visible;
+  }
+  .settings-subcard.settings-subcard--segment-safe .settings-row {
+    min-width: 0;
+  }
+  .settings-row--wrap .settings-lang-seg,
+  .settings-row--wrap .settings-density-seg,
+  .settings-row--wrap .settings-font-seg {
+    flex: 1 1 100%;
+    max-width: 100%;
+    justify-content: stretch;
+    width: 100%;
+  }
+  .settings-row--wrap .settings-lang-seg > .settings-lang-seg__btn,
+  .settings-row--wrap .settings-density-seg > .settings-density-seg__btn,
+  .settings-row--wrap .settings-font-seg > .settings-font-seg__btn {
+    flex: 1 1 auto;
+    white-space: nowrap;
+    text-align: center;
+  }
+  .settings-subcard .settings-row:first-of-type {
+    border-top: none;
+  }
+  .settings-system-section > .settings-row {
+    padding: var(--space-3) var(--card-pad-x);
+    border-top: 1px solid var(--line);
+  }
+}

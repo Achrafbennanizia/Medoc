@@ -13,10 +13,15 @@ pub async fn find_all(pool: &SqlitePool) -> Result<Vec<Product>, AppError> {
 }
 
 pub async fn create(pool: &SqlitePool, data: &CreateProduct) -> Result<Product, AppError> {
+    crate::domain::services::pricing::require_non_negative_amount(data.price, "Price")?;
+    if data.stock < 0 || data.min_stock < 0 {
+        return Err(AppError::Validation("Stock must be zero or more".into()));
+    }
     let id = uuid::Uuid::new_v4().to_string();
+    let mut tx = pool.begin().await?;
     sqlx::query(
-        "INSERT INTO product (id, name, description, category, price, stock, min_stock)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        "INSERT INTO product (id, name, description, category, price, stock, min_stock, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
     )
     .bind(&id)
     .bind(&data.name)
@@ -25,8 +30,13 @@ pub async fn create(pool: &SqlitePool, data: &CreateProduct) -> Result<Product, 
     .bind(data.price)
     .bind(data.stock)
     .bind(data.min_stock)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
+    crate::infrastructure::database::recorded_write::record_in_tx(
+        &mut tx, "product", &id, "INSERT",
+    )
+    .await?;
+    tx.commit().await?;
 
     Ok(
         sqlx::query_as::<_, Product>("SELECT * FROM product WHERE id = ?1")
@@ -41,15 +51,22 @@ pub async fn update(
     id: &str,
     data: &UpdateProduct,
 ) -> Result<Product, AppError> {
+    if let Some(p) = data.price {
+        crate::domain::services::pricing::require_non_negative_amount(p, "Price")?;
+    }
+    if data.stock.is_some_and(|v| v < 0) || data.min_stock.is_some_and(|v| v < 0) {
+        return Err(AppError::Validation("Stock must be zero or more".into()));
+    }
     let existing = sqlx::query_as::<_, Product>("SELECT * FROM product WHERE id = ?1")
         .bind(id)
         .fetch_optional(pool)
         .await?
         .ok_or(AppError::NotFound("Product".into()))?;
 
+    let mut tx = pool.begin().await?;
     sqlx::query(
         "UPDATE product SET name = ?1, description = ?2, category = ?3, price = ?4,
-         stock = ?5, min_stock = ?6, active = ?7, updated_at = CURRENT_TIMESTAMP WHERE id = ?8",
+         stock = ?5, min_stock = ?6, active = ?7, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?8",
     )
     .bind(data.name.as_deref().unwrap_or(&existing.name))
     .bind(
@@ -63,8 +80,11 @@ pub async fn update(
     .bind(data.min_stock.unwrap_or(existing.min_stock))
     .bind(data.active.unwrap_or(existing.active))
     .bind(id)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
+    crate::infrastructure::database::recorded_write::record_in_tx(&mut tx, "product", id, "UPDATE")
+        .await?;
+    tx.commit().await?;
 
     Ok(
         sqlx::query_as::<_, Product>("SELECT * FROM product WHERE id = ?1")
@@ -75,9 +95,20 @@ pub async fn update(
 }
 
 pub async fn delete(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
-    sqlx::query("UPDATE product SET active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?1")
-        .bind(id)
-        .execute(pool)
+    let mut tx = pool.begin().await?;
+    let n = sqlx::query(
+        "UPDATE product SET active = 0, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?1",
+    )
+    .bind(id)
+    .execute(&mut *tx)
+    .await?
+    .rows_affected();
+    // F92: deleting an unknown id was reported as success.
+    if n != 1 {
+        return Err(AppError::NotFound("Product".into()));
+    }
+    crate::infrastructure::database::recorded_write::record_in_tx(&mut tx, "product", id, "UPDATE")
         .await?;
+    tx.commit().await?;
     Ok(())
 }

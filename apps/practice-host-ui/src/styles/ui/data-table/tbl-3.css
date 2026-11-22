@@ -1,0 +1,69 @@
+/* From styles/features/finance-payments.css (cascade position kept by its import there). */
+@layer components {
+  .payment-row-actions-menu__panel--portal {
+    position: fixed;
+    margin: 0;
+  }
+  .menu-item:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .menu-item:disabled:hover {
+    background: transparent;
+    color: var(--fg-2);
+  }
+  .tbl.tbl-finance-payment td.payment-td-status > div {
+    margin-bottom: 0;
+  }
+  /* History: inline editing as its own table row directly above the data row */
+  .tbl.tbl-payment-chart td.payment-history-edit-cell {
+    overflow: visible !important;
+    padding: 12px 14px 14px !important;
+    vertical-align: top;
+    background: color-mix(in oklab, var(--accent) 8%, transparent);
+    border-bottom: none !important;
+  }
+  .tbl.tbl-payment-chart .payment-history-edit-cell .chart-inline-panel--payment-table-edit {
+    margin: 0;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .card.card-pad:has(.payment-history-edit-row) {
+    overflow: visible;
+  }
+  .card.card-pad:has(.examination-stack-edit-slot) {
+    overflow: visible;
+  }
+  .chart-inline-panel--examination-stack-edit {
+    margin: 0;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .chart-inline-panel--examination-stack-edit .chart-inline-panel-body {
+    padding-top: var(--space-3);
+  }
+  /* Finance: title + KPIs scroll with the page (not pinned). */
+  .finance-page {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    width: 100%;
+    min-width: 0;
+  }
+  .finance-page__head,
+  .finance-page__sticky {
+    position: static;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+    margin: 0 0 20px;
+    padding: 0 0 2px;
+  }
+  /* Finance: transactions; "Neue Payment" is its own route `/finance/new`. */
+  .finance-workspace {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-5);
+    align-items: start;
+  }
+}

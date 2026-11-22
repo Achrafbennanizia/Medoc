@@ -1,0 +1,110 @@
+/* From styles/components/data-controls.css (cascade position kept by its import there). */
+@layer components {
+  .page-toolbar__filters {
+    flex: 0 1 auto;
+    margin-inline-start: auto;
+  }
+  .input-edit:focus {
+    outline: 0;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 22%, transparent);
+  }
+  .input-edit.ui-field-error {
+    border-color: color-mix(in oklab, var(--red) 55%, var(--line-strong));
+  }
+  .input-wrap--error .input-edit {
+    animation: fieldErrorShake var(--motion-fast) var(--ease-out);
+  }
+  .ui-field-wrap {
+    margin-bottom: var(--space-2);
+  }
+  .ui-field-label {
+    font-size: 11px;
+    color: var(--fg-3);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    margin-bottom: var(--space-2);
+    display: block;
+  }
+  .ui-field-error-msg {
+    font-size: 11.5px;
+    color: var(--red);
+    margin-top: var(--space-1);
+  }
+  .ui-field-hint {
+    font-size: 11.5px;
+    color: var(--fg-3);
+    margin: 0 0 6px;
+    line-height: 1.4;
+  }
+  .select-native-hidden {
+    display: none;
+  }
+  .select-wrap {
+    position: relative;
+  }
+  .select-wrap::after {
+    content: "";
+    position: absolute;
+    inset-inline-end: 12px;
+    top: 50%;
+    width: 7px;
+    height: 7px;
+    border-right: 1.6px solid var(--fg-3);
+    border-bottom: 1.6px solid var(--fg-3);
+    transform: translateY(-60%) rotate(45deg);
+    pointer-events: none;
+    opacity: 0.9;
+  }
+  .select-edit {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    padding-inline-end: var(--space-8);
+    cursor: pointer;
+    background-image: linear-gradient(to bottom, rgba(255,255,255,0.98), rgba(255,255,255,0.98));
+  }
+  .select-trigger {
+    text-align: start;
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+    width: 100%;
+  }
+  .select-trigger-label {
+    flex: 1;
+    min-width: 0;
+    text-align: start;
+    line-height: 1.35;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+  }
+  .select-menu {
+    position: absolute;
+    z-index: 500;
+    top: calc(100% + 6px);
+    inset-inline-start: 0;
+    inset-inline-end: 0;
+    max-height: min(280px, 40vh);
+    overflow: auto;
+    padding: var(--space-2);
+    border-radius: 12px;
+    border: 1px solid var(--line-strong);
+    background: var(--bg-elev);
+    box-shadow: var(--shadow-lg);
+  }
+  .select-menu.select-menu--portal {
+    position: fixed;
+    inset-inline-end: auto;
+    max-height: min(280px, 40vh);
+    overflow: auto;
+  }
+  .select-wrap--menu-portal-open {
+    position: relative;
+    z-index: 2;
+  }
+}

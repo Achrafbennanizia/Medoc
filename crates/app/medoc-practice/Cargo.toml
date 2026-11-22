@@ -36,6 +36,7 @@ base64 = "0.22"
 ed25519-dalek = { version = "2", features = ["rand_core"] }
 jsonwebtoken = "9"
 zip = { version = "2", default-features = false, features = ["deflate"] }
+csv = "1"
 btleplug = "0.11"
 
 [dev-dependencies]
@@ -48,3 +49,7 @@ serial_test = "3"
 totp-rs = { version = "5", features = ["gen_secret", "otpauth"] }
 bcrypt = "0.17"
 rand = "0.8"
+
+[features]
+# Replica app build (see medoc-core feature `replica`).
+replica = ["medoc-core/replica"]

@@ -14,10 +14,11 @@ use medoc_core::error::AppError;
 use sqlx::SqlitePool;
 
 use crate::deployment::DeploymentMode;
-use crate::repo::{self, SYNCED_TABLES};
+use crate::repo::{self, is_synced_table, synced_tables};
 use crate::schema::ensure_sync_tables;
 
 const BASELINE_KEY: &str = "sync.watch.baseline.v1";
+const HIGH_PREFIX: &str = "sync.watch.high.v1.";
 
 /// How many shared rows changed since the last observation.
 ///
@@ -45,7 +46,7 @@ pub async fn note_remote_applied(
     entity_table: &str,
     entity_id: &str,
 ) -> Result<(), AppError> {
-    if !SYNCED_TABLES.contains(&entity_table) {
+    if !is_synced_table(entity_table) {
         return Ok(());
     }
     ensure_sync_tables(pool).await?;
@@ -66,20 +67,16 @@ async fn replication_active(pool: &SqlitePool) -> Result<bool, AppError> {
     if deployment.mode == DeploymentMode::ServerlessPeer {
         return Ok(true);
     }
-    let joined: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM sync_device
-         WHERE is_local = 0
-           AND (role = 'REPLICA' OR seat_role = 'MEMBER')",
-    )
-    .fetch_one(pool)
-    .await
-    .unwrap_or(0);
+    let joined: i64 =
+        medoc_core::infrastructure::database::recorded_write::count_remote_replicas(pool)
+            .await
+            .unwrap_or(0);
     Ok(joined > 0)
 }
 
 async fn baseline_done(pool: &SqlitePool) -> Result<bool, AppError> {
     let value: Option<String> =
-        medoc_core::infrastructure::database::app_kv_repo::get(pool, BASELINE_KEY).await?;
+        medoc_core::infrastructure::database::repos::admin::app_kv::get(pool, BASELINE_KEY).await?;
     Ok(value.as_deref() == Some("1"))
 }
 
@@ -100,38 +97,47 @@ async fn remember_current(pool: &SqlitePool) -> Result<(), AppError> {
         .execute(pool)
         .await
         .map_err(AppError::Database)?;
-    for table in SYNCED_TABLES {
+    for table in synced_tables() {
+        let mut high = String::new();
         for (id, stamp) in list_stamps(pool, table).await? {
+            if stamp > high {
+                high.clone_from(&stamp);
+            }
             upsert_seen(pool, table, &id, &stamp).await?;
         }
+        store_watermark(pool, table, &high).await?;
     }
     Ok(())
 }
 
 async fn diff_and_queue(pool: &SqlitePool) -> Result<u32, AppError> {
     let mut changes = 0u32;
-    for table in SYNCED_TABLES {
-        let current = list_stamps(pool, table).await?;
-        let seen = seen_stamps(pool, table).await?;
-        for (id, stamp) in &current {
-            if seen.get(id).map(String::as_str) == Some(stamp.as_str()) {
+    for table in synced_tables() {
+        let watermark = watermark(pool, table).await?;
+        let mut high = watermark.clone();
+        for (id, stamp) in list_changed_stamps(pool, table, &watermark).await? {
+            if stamp > high {
+                high.clone_from(&stamp);
+            }
+            let seen = seen_stamp(pool, table, &id).await?;
+            if seen.as_deref() == Some(stamp.as_str()) {
                 continue;
             }
             changes += 1;
-            if let Some(payload) = repo::load_row_payload_json(pool, table, id).await? {
-                repo::sync_record_or_noop(pool, table, id, "UPDATE", &payload).await?;
+            if let Some(payload) = repo::load_row_payload_json(pool, table, &id).await? {
+                repo::sync_record_or_noop(pool, table, &id, "UPDATE", &payload).await?;
             }
-            upsert_seen(pool, table, id, stamp).await?;
+            upsert_seen(pool, table, &id, &stamp).await?;
         }
-        for id in seen.keys() {
-            if current.contains_key(id) {
-                continue;
-            }
+        if high != watermark {
+            store_watermark(pool, table, &high).await?;
+        }
+        for id in missing_seen_ids(pool, table).await? {
             changes += 1;
-            repo::sync_record_or_noop(pool, table, id, "DELETE", "{}").await?;
+            repo::sync_record_or_noop(pool, table, &id, "DELETE", "{}").await?;
             sqlx::query("DELETE FROM sync_watch_seen WHERE entity_table = ?1 AND entity_id = ?2")
                 .bind(table)
-                .bind(id)
+                .bind(&id)
                 .execute(pool)
                 .await
                 .map_err(AppError::Database)?;
@@ -140,18 +146,62 @@ async fn diff_and_queue(pool: &SqlitePool) -> Result<u32, AppError> {
     Ok(changes)
 }
 
+fn watermark_key(table: &str) -> String {
+    format!("{HIGH_PREFIX}{table}")
+}
+
+async fn watermark(pool: &SqlitePool, table: &str) -> Result<String, AppError> {
+    let value = medoc_core::infrastructure::database::repos::admin::app_kv::get(
+        pool,
+        &watermark_key(table),
+    )
+    .await?;
+    Ok(value.unwrap_or_default())
+}
+
+async fn store_watermark(pool: &SqlitePool, table: &str, stamp: &str) -> Result<(), AppError> {
+    medoc_core::infrastructure::database::repos::admin::app_kv::set(
+        pool,
+        &watermark_key(table),
+        stamp,
+    )
+    .await
+}
+
+async fn seen_stamp(
+    pool: &SqlitePool,
+    table: &str,
+    entity_id: &str,
+) -> Result<Option<String>, AppError> {
+    let stamp: Option<String> = sqlx::query_scalar(
+        "SELECT stamp FROM sync_watch_seen WHERE entity_table = ?1 AND entity_id = ?2",
+    )
+    .bind(table)
+    .bind(entity_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(AppError::Database)?;
+    Ok(stamp)
+}
+
 async fn stamp_select(
     pool: &SqlitePool,
     table: &str,
-) -> Result<Option<(&'static str, String)>, AppError> {
+) -> Result<Option<(String, String)>, AppError> {
     let cols: Vec<String> =
         sqlx::query_scalar(&format!("SELECT name FROM pragma_table_info('{table}')"))
             .fetch_all(pool)
             .await
             .map_err(AppError::Database)?;
-    let id_col = if table == "app_kv" { "key" } else { "id" };
-    if cols.is_empty() || !cols.iter().any(|c| c == id_col) {
+    if cols.is_empty() {
         return Ok(None);
+    }
+    let key = medoc_core::infrastructure::database::sync_registry::key_expr(table);
+    if medoc_core::infrastructure::database::sync_registry::key_is_column(table) {
+        let id_col = medoc_core::infrastructure::database::sync_registry::id_column(table);
+        if !cols.iter().any(|c| c == id_col) {
+            return Ok(None);
+        }
     }
     let stamp_sql = if cols.iter().any(|c| c == "updated_at") {
         "COALESCE(CAST(updated_at AS TEXT), '')".to_string()
@@ -160,14 +210,14 @@ async fn stamp_select(
     } else {
         "''".to_string()
     };
-    Ok(Some((id_col, stamp_sql)))
+    Ok(Some((key, stamp_sql)))
 }
 
 async fn list_stamps(pool: &SqlitePool, table: &str) -> Result<HashMap<String, String>, AppError> {
-    if !SYNCED_TABLES.contains(&table) {
+    if !is_synced_table(table) {
         return Ok(HashMap::new());
     }
-    let Some((id_col, stamp_sql)) = stamp_select(pool, table).await? else {
+    let Some((key, stamp_sql)) = stamp_select(pool, table).await? else {
         return Ok(HashMap::new());
     };
     let mut from_sql = format!("\"{table}\"");
@@ -180,9 +230,7 @@ async fn list_stamps(pool: &SqlitePool, table: &str) -> Result<HashMap<String, S
                AND key NOT LIKE 'cluster.%'",
         );
     }
-    let sql = format!(
-        "SELECT CAST(\"{id_col}\" AS TEXT), {stamp_sql} FROM {from_sql}"
-    );
+    let sql = format!("SELECT CAST({key} AS TEXT), {stamp_sql} FROM {from_sql}");
     let rows: Vec<(String, String)> = sqlx::query_as(&sql)
         .fetch_all(pool)
         .await
@@ -190,15 +238,75 @@ async fn list_stamps(pool: &SqlitePool, table: &str) -> Result<HashMap<String, S
     Ok(rows.into_iter().collect())
 }
 
-async fn seen_stamps(pool: &SqlitePool, table: &str) -> Result<HashMap<String, String>, AppError> {
-    let rows: Vec<(String, String)> = sqlx::query_as(
-        "SELECT entity_id, stamp FROM sync_watch_seen WHERE entity_table = ?1",
-    )
-    .bind(table)
-    .fetch_all(pool)
-    .await
-    .map_err(AppError::Database)?;
+/// Rows that are new, or whose `updated_at` moved past the last scan.
+/// Tables without `updated_at` still return every stamp.
+async fn list_changed_stamps(
+    pool: &SqlitePool,
+    table: &str,
+    watermark: &str,
+) -> Result<HashMap<String, String>, AppError> {
+    if !is_synced_table(table) {
+        return Ok(HashMap::new());
+    }
+    let Some((key, stamp_sql)) = stamp_select(pool, table).await? else {
+        return Ok(HashMap::new());
+    };
+    let cols: Vec<String> =
+        sqlx::query_scalar(&format!("SELECT name FROM pragma_table_info('{table}')"))
+            .fetch_all(pool)
+            .await
+            .map_err(AppError::Database)?;
+    if !cols.iter().any(|c| c == "updated_at") {
+        return list_stamps(pool, table).await;
+    }
+    let from_sql = format!("\"{table}\"");
+    let mut filter = String::new();
+    if table == "app_kv" {
+        filter.push_str(
+            " key NOT LIKE 'sync.%'
+               AND key NOT LIKE 'license.%'
+               AND key NOT LIKE 'pairing.%'
+               AND key NOT LIKE 'onboarding.%'
+               AND key NOT LIKE 'cluster.%'
+               AND ",
+        );
+    }
+    let sql = format!(
+        "SELECT CAST({key} AS TEXT), {stamp_sql} FROM {from_sql}
+         WHERE {filter}(
+            CAST(updated_at AS TEXT) > ?1
+            OR CAST({key} AS TEXT) NOT IN (
+                SELECT entity_id FROM sync_watch_seen WHERE entity_table = ?2
+            )
+         )"
+    );
+    let rows: Vec<(String, String)> = sqlx::query_as(&sql)
+        .bind(watermark)
+        .bind(table)
+        .fetch_all(pool)
+        .await
+        .map_err(AppError::Database)?;
     Ok(rows.into_iter().collect())
+}
+
+async fn missing_seen_ids(pool: &SqlitePool, table: &str) -> Result<Vec<String>, AppError> {
+    if !is_synced_table(table) {
+        return Ok(Vec::new());
+    }
+    let Some((key, _)) = stamp_select(pool, table).await? else {
+        return Ok(Vec::new());
+    };
+    let sql = format!(
+        "SELECT entity_id FROM sync_watch_seen
+         WHERE entity_table = ?1
+           AND entity_id NOT IN (SELECT CAST({key} AS TEXT) FROM \"{table}\")"
+    );
+    let ids: Vec<String> = sqlx::query_scalar(&sql)
+        .bind(table)
+        .fetch_all(pool)
+        .await
+        .map_err(AppError::Database)?;
+    Ok(ids)
 }
 
 async fn row_stamp(
@@ -206,15 +314,13 @@ async fn row_stamp(
     table: &str,
     entity_id: &str,
 ) -> Result<Option<String>, AppError> {
-    if !SYNCED_TABLES.contains(&table) {
+    if !is_synced_table(table) {
         return Ok(None);
     }
-    let Some((id_col, stamp_sql)) = stamp_select(pool, table).await? else {
+    let Some((key, stamp_sql)) = stamp_select(pool, table).await? else {
         return Ok(None);
     };
-    let sql = format!(
-        "SELECT {stamp_sql} FROM \"{table}\" WHERE \"{id_col}\" = ?1"
-    );
+    let sql = format!("SELECT {stamp_sql} FROM \"{table}\" WHERE {key} = ?1");
     let stamp: Option<String> = sqlx::query_scalar(&sql)
         .bind(entity_id)
         .fetch_optional(pool)

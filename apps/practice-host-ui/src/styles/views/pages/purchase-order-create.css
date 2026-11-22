@@ -1,0 +1,92 @@
+/* From styles/features/tasks-orders.css (cascade position kept by its import there). */
+@layer components {
+  .practice-task-form-fields__row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--space-4);
+    align-items: end;
+  }
+  .practice-task-create-page__card,
+  .practice-task-edit-page__card {
+    overflow: visible;
+    max-width: 840px;
+  }
+
+  /* Neue PurchaseOrder / Neue Payment — form rhythm (shell via .practice-workspace-page) */
+  .purchase-order-create-page__card,
+  .payment-create-page__card {
+    overflow: visible;
+    box-shadow: var(--shadow-sm);
+  }
+  .purchase-order-create-page__card .card-head,
+  .payment-create-page__card .card-head,
+  .payment-finance-embed .card-head {
+    padding: clamp(14px, 1.8vh, 18px) var(--card-pad-x);
+  }
+  .purchase-order-create-form,
+  .payment-create-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    padding-top: 0;
+  }
+  .purchase-order-create-form__error {
+    color: var(--red);
+    font-size: 12.5px;
+    margin: 0;
+    padding: 8px 12px;
+    background: var(--red-soft);
+    border-radius: 8px;
+  }
+  .purchase-order-create-form__hint,
+  .purchase-order-create-form__note {
+    margin: 0;
+    font-size: 12px;
+    color: var(--fg-3);
+    line-height: 1.45;
+  }
+  .purchase-order-create-form__field {
+    min-width: 0;
+  }
+  .purchase-order-create-form__grid {
+    display: grid;
+    gap: var(--space-4);
+    min-width: 0;
+  }
+  .purchase-order-create-form__grid--2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  @media (max-width: 560px) {
+    .purchase-order-create-form__grid--2 {
+      grid-template-columns: 1fr;
+    }
+  }
+  .purchase-order-create-form_item-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-2);
+    align-items: end;
+  }
+  .purchase-order-create-form_amount {
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-ctl);
+    background: color-mix(in oklab, var(--accent) 6%, transparent);
+  }
+  .purchase-order-create-form_amount-value {
+    font-size: 20px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+  }
+  .purchase-order-create-form__actions,
+  .payment-create-form__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    margin-top: var(--space-1);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--line);
+  }
+}

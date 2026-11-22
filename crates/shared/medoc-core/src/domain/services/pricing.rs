@@ -2,18 +2,27 @@
 use crate::error::AppError;
 use rand::{rngs::OsRng, Rng};
 
-const EUR_EPS: f64 = 1e-6;
+/// Amounts at or below this are treated as zero.
+pub const MONEY_ZERO_EUR: f64 = 1e-6;
+
+/// Matches the practice app `PAYMENT_EUR_EPS`. A payment above this has started.
+pub const PAYMENT_BOOKING_TOLERANCE_EUR: f64 = 0.005;
 
 /// Matches FE `roundMoney2`.
 pub fn round_money_2(version: f64) -> f64 {
     (version * 100.0).round() / 100.0
 }
 
+/// Euro amount to integer cents. No minimum of 1 cent.
+pub fn euros_to_cents(euros: f64) -> i64 {
+    (euros * 100.0).round() as i64
+}
+
 /// Matches FE `moneyToInvoiceCents`.
 pub fn money_to_invoice_cents(bruto: f64) -> i64 {
     let eur = round_money_2(bruto);
-    let mut cents = (eur * 100.0).round() as i64;
-    if cents == 0 && eur > EUR_EPS {
+    let mut cents = euros_to_cents(eur);
+    if cents == 0 && eur > MONEY_ZERO_EUR {
         cents = 1;
     }
     cents
@@ -29,7 +38,7 @@ pub fn treatment_has_billable_service_item(
     }
     total_cost
         .filter(|g| g.is_finite())
-        .is_some_and(|g| g > EUR_EPS)
+        .is_some_and(|g| g > MONEY_ZERO_EUR)
 }
 
 /// FA-LEIST-05: both Freigabe fields must be non-empty.
@@ -97,7 +106,7 @@ pub fn practice_invoice_required_missing(
         || bank_iban.map(str::trim).filter(|s| !s.is_empty()).is_none()
 }
 
-/// Auto invoice number `RE-YYYYMMDD-XXXXXX` (legacy client fallback only — prefer `allocate_invoice_document_number`).
+/// Auto invoice number `RE-YYYYMMDD-XXXXXX` (legacy display fallback). Official numbers are allocated by the issued-document registry.
 pub fn next_invoice_number(ymd: &str, reserved: &[&str]) -> String {
     let d: String = ymd.chars().filter(|c| c.is_ascii_digit()).collect();
     let mut rng = OsRng;
@@ -123,4 +132,14 @@ pub fn next_invoice_number(ymd: &str, reserved: &[&str]) -> String {
         }
     }
     format!("RE-{prefix}-{}", rng.gen::<u32>())
+}
+
+/// F93: prices and default costs are amounts of money: finite and not negative.
+pub fn require_non_negative_amount(v: f64, field: &str) -> Result<(), crate::error::AppError> {
+    if !v.is_finite() || v < 0.0 {
+        return Err(crate::error::AppError::Validation(format!(
+            "{field} must be zero or more"
+        )));
+    }
+    Ok(())
 }

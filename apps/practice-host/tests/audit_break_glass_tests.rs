@@ -1,9 +1,9 @@
 //! Audit rows record active break-glass context per user/entity.
 
 use medoc_lib::application::break_glass::{BreakGlassGrant, BreakGlassState};
-use medoc_lib::infrastructure::database::audit_break_glass;
-use medoc_lib::infrastructure::database::audit_repo;
 use medoc_lib::infrastructure::database::connection::test_memory_pool;
+use medoc_lib::infrastructure::database::repos::admin::audit as audit_repo;
+use medoc_lib::infrastructure::database::repos::admin::audit_break_glass;
 use std::sync::{Arc, Once};
 use std::time::Instant;
 

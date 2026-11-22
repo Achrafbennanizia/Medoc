@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import {
     DEFAULT_CLIENT_SETTINGS,
     mergeClientSettingsPatch,
@@ -151,7 +152,7 @@ export function SettingsAppearanceSection({
                     />
                 </div>
             ) : null}
-            <div className="settings-row" style={{ flexDirection: "column", alignItems: "stretch", gap: 10 }}>
+            <div className="settings-row" style={{ flexDirection: "column", alignItems: "stretch", gap: "var(--space-3)" }}>
                 <div>
                     <b>{t("settings.appearance.font")}</b>
                     <div className="card-sub">{t(fontStackHintKey(fontStack))}</div>
@@ -181,7 +182,7 @@ export function SettingsAppearanceSection({
                     ))}
                 </div>
             </div>
-            <div className="settings-row" style={{ flexDirection: "column", alignItems: "stretch", gap: 10 }}>
+            <div className="settings-row" style={{ flexDirection: "column", alignItems: "stretch", gap: "var(--space-3)" }}>
                 <div>
                     <b>{t("settings.appearance.density")}</b>
                     <div className="card-sub">{tp("settings.appearance.density.current", { label: densityLabel })}</div>
@@ -207,7 +208,7 @@ export function SettingsAppearanceSection({
                     ))}
                 </div>
             </div>
-            <div className="settings-row" style={{ flexDirection: "column", alignItems: "stretch", gap: 10 }}>
+            <div className="settings-row" style={{ flexDirection: "column", alignItems: "stretch", gap: "var(--space-3)" }}>
                 <div>
                     <b>{t("settings.appearance.card_hover")}</b>
                     <div className="card-sub">{tp("settings.appearance.card_hover.current", { label: hoverScaleLabel })}</div>
@@ -248,7 +249,7 @@ export function SettingsAppearanceSection({
                 <LocaleSwitcher locale={locale} onChange={onLocaleChange} />
             </div>
             {locale === "ar" ? (
-                <div className="settings-row" style={{ flexDirection: "column", alignItems: "stretch", gap: 10 }}>
+                <div className="settings-row" style={{ flexDirection: "column", alignItems: "stretch", gap: "var(--space-3)" }}>
                     <div>
                         <b>{t("settings.appearance.arabic_numerals")}</b>
                         <div className="card-sub">{t("settings.appearance.arabic_numerals.hint")}</div>
@@ -294,26 +295,34 @@ export function SettingsAppearanceSection({
                     </div>
                 </div>
                 <div role="radiogroup" aria-label={t("settings.appearance.accent.aria")} className="settings-accent-inline">
-                    {ACCENT_ORDER.map((id: AccentId) => (
-                        <button
-                            key={id}
-                            type="button"
-                            role="radio"
-                            aria-checked={accentPresetId === id}
-                            aria-label={`${t(accentLabelKey(id))}: ${t(accentHintKey(id))}`}
-                            title={t(accentHintKey(id))}
-                            className={`settings-accent-inline__swatch${accentPresetId === id ? " is-selected" : ""}`}
-                            style={{ background: accentColorCircle(id) }}
-                            onClick={() => {
-                                if (accentPresetId === id) return;
-                                onPersistClient((c) => {
-                                    const a = c.appearance ?? DEFAULT_CLIENT_SETTINGS.appearance!;
-                                    return mergeClientSettingsPatch(c, { appearance: { ...a, accentPreset: id } });
-                                });
-                                toast(tp("settings.appearance.toast.accent", { label: t(accentLabelKey(id)) }), "success");
-                            }}
-                        />
-                    ))}
+                    {ACCENT_ORDER.map((id: AccentId) => {
+                        const swatch = accentColorCircle(id);
+                        return (
+                            <button
+                                key={id}
+                                type="button"
+                                role="radio"
+                                aria-checked={accentPresetId === id}
+                                aria-label={`${t(accentLabelKey(id))}: ${t(accentHintKey(id))}`}
+                                title={t(accentHintKey(id))}
+                                className={`settings-accent-inline__swatch${accentPresetId === id ? " is-selected" : ""}`}
+                                style={
+                                    {
+                                        background: swatch,
+                                        ["--swatch-color"]: swatch,
+                                    } as CSSProperties
+                                }
+                                onClick={() => {
+                                    if (accentPresetId === id) return;
+                                    onPersistClient((c) => {
+                                        const a = c.appearance ?? DEFAULT_CLIENT_SETTINGS.appearance!;
+                                        return mergeClientSettingsPatch(c, { appearance: { ...a, accentPreset: id } });
+                                    });
+                                    toast(tp("settings.appearance.toast.accent", { label: t(accentLabelKey(id)) }), "success");
+                                }}
+                            />
+                        );
+                    })}
                 </div>
             </div>
         </section>

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Card, CardHeader } from "../components/ui/card";
+import { DataTable } from "../components/ui/data-table";
+import { StatusBadge } from "../components/ui/status-badge";
 import { Button } from "../components/ui/button";
 import { PatientComboField } from "../components/patient-combo-field";
 import { ConfirmDialog } from "../components/ui/dialog";
@@ -15,6 +17,7 @@ import type { Patient } from "../../models/types";
 import { clearPatientScopedBrowserStorage } from "@/lib/patient-browser-storage";
 import { errorMessage, formatTpl } from "@/lib/utils";
 import { DataExportPickerDialog } from "../components/data-export-picker-dialog";
+import type { ExportContext } from "@/lib/save-download";
 import { useT, useTParams } from "@/lib/i18n";
 import { EmptyState } from "../components/ui/empty-state";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
@@ -80,6 +83,8 @@ export function PrivacyPage() {
             suggestedFilename: `dsgvo-export-${exportPatient.id}.json`,
             textBody: JSON.stringify(data, null, 2),
             mime: "application/json;charset=utf-8",
+            // Art. 15/20 GDPR handover: logged with hash so the practice can prove what was disclosed.
+            context: { kind: "gdpr_export", format: "json", entityId: exportPatient.id } satisfies ExportContext,
         };
     }, [exportPatient, tp, t]);
 
@@ -101,7 +106,7 @@ export function PrivacyPage() {
     }
 
     return (
-        <div className="practice-workspace-page animate-fade-in">
+        <div className="practice-workspace-page animate-fade-in--sticky-safe">
             <WorkspacePageHeader
                 title={t("page.privacy.title")}
                 back={{ to: "/settings", label: t("page.privacy.back_settings") }}
@@ -139,36 +144,35 @@ export function PrivacyPage() {
                 <EmptyState icon="👥" title={t("page.privacy.empty_title")} description={t("page.privacy.empty_desc")} />
             ) : (
                 <div className="card tbl-data-card">
-                    <div className="tbl-scroll">
-                    <table className="tbl tbl-fluid">
-                        <thead>
-                            <tr>
-                                <th>{t("page.privacy.col.name")}</th>
-                                <th>{t("page.privacy.col.status")}</th>
-                                <th>{t("page.privacy.col.actions")}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {pageRows.map((p) => (
-                                <tr key={p.id}>
-                                    <td>{p.name}</td>
-                                    <td>{p.status}</td>
-                                    <td className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
+                    <DataTable
+                        label={t("page.privacy.title")}
+                        rows={pageRows}
+                        getRowId={(p) => p.id}
+                        columns={[
+                            { id: "name", header: t("page.privacy.col.name"), truncate: true, text: (p) => p.name, cell: (p) => <span className="data-table__primary">{p.name}</span> },
+                            { id: "status", header: t("page.privacy.col.status"), width: "9.5rem", cell: (p) => <StatusBadge entity="patient" status={p.status} /> },
+                            {
+                                id: "actions",
+                                header: t("page.privacy.col.actions"),
+                                srOnlyHeader: true,
+                                width: "17rem",
+                                align: "end",
+                                cell: (p) => (
+                                    <div className="data-table__actions">
                                         <Button size="sm" onClick={() => setExportPatient(p)} disabled={busyId === p.id}>
                                             {t("page.privacy.export_json")}
                                         </Button>
                                         <Button size="sm" variant="danger" onClick={() => setConfirmErase(p)} disabled={busyId === p.id}>
                                             {t("page.privacy.erase_request")}
                                         </Button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                    </div>
+                                    </div>
+                                ),
+                            },
+                        ]}
+                    />
                     {totalFiltered > 0 ? (
-                        <div className="card-pad" style={{ borderTop: "1px solid var(--line)", paddingTop: 14 }}>
-                            <div className="row" style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+                        <div className="card-pad" style={{ borderTop: "1px solid var(--line)", paddingTop: "var(--space-4)" }}>
+                            <div className="row" style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "var(--space-3)" }}>
                                 <span style={{ color: "var(--fg-3)", fontSize: 13 }}>
                                     {totalFiltered <= PAGE_SIZE
                                         ? formatTpl(t("page.privacy.page_all"), { count: totalFiltered })
@@ -179,7 +183,7 @@ export function PrivacyPage() {
                                         })}
                                 </span>
                                 {totalFiltered > PAGE_SIZE ? (
-                                    <div className="row" style={{ gap: 8 }}>
+                                    <div className="row" style={{ gap: "var(--space-2)" }}>
                                         <Button size="sm" variant="ghost" disabled={safePage <= 0} onClick={() => setTablePage((p) => {
                                             const cur = Math.min(p, pageCount - 1);
                                             return Math.max(0, cur - 1);
@@ -214,7 +218,7 @@ export function PrivacyPage() {
             {eraseReport && (
                 <Card className="card-pad">
                     <CardHeader title={t("page.privacy.report_title")} />
-                    <ul className="text-body" style={{ margin: 0, paddingInlineStart: 20, display: "flex", flexDirection: "column", gap: 6 }}>
+                    <ul className="text-body" style={{ margin: 0, paddingInlineStart: "var(--space-5)", display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
                         <li>{t("page.privacy.report_patient_id")} <span style={{ fontFamily: "ui-monospace, monospace" }}>{eraseReport.patient_id}</span></li>
                         <li>{t("page.privacy.report_anonymised")} {eraseReport.anonymised_at}</li>
                         <li>{t("page.privacy.report_records")} {eraseReport.deleted_records}</li>

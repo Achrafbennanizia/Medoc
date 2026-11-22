@@ -1,8 +1,8 @@
 //! Negative-path coverage for the master license gate on LAN HTTP routes.
 //!
-//! `master_license::require_master_license` is called from:
-//! - `sync_http::sync_push` (line 48), `sync_pull` (line 86), `sync_status` (line 101)
-//! - `pairing_http::submit_request` (line 106), `decide` (line 175), `revoke` (line 198)
+//! `master_license::require_master_license` is called from
+//! `http::sync` (`sync_push`, `sync_pull`, `sync_status`, and the other sync routes)
+//! and `http::pairing` (`submit`, `decide`, `confirm`, `revoke`).
 //!
 //! Envelope-level negative paths (tampered ciphertext, wrong device, inner
 //! mismatch) are already covered in `medoc-core/tests/license_v2_tests.rs`.
@@ -13,9 +13,10 @@ use axum::http::StatusCode;
 use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine};
 use chrono::{TimeZone, Utc};
 use ed25519_dalek::{Signer, SigningKey};
-use medoc_core::infrastructure::database::{app_kv_repo, connection};
+use medoc_core::infrastructure::database::connection;
+use medoc_core::infrastructure::database::repos::admin::app_kv as app_kv_repo;
+use medoc_core::infrastructure::database::repos::admin::license as license_repo;
 use medoc_core::infrastructure::license::{encrypt_v2_for_device, LicenseV2, VENDOR_PUBKEY};
-use medoc_core::infrastructure::license_repo;
 use medoc_e2e::harness::{ensure_e2e_env, slave_pubkey_b64, slave_signing_key, LanHarness};
 use std::sync::OnceLock;
 use tokio::sync::Mutex;
@@ -24,6 +25,23 @@ use tokio::sync::Mutex;
 /// env var (either setting or removing it). cargo-test runs tests in
 /// parallel by default, so we serialize them under a shared mutex to avoid
 /// flakes when one test removes the var while another expects it set.
+fn sync_status_device_token(device_id: &str) -> String {
+    let signing_key = medoc_sync::master_keys::load_or_create().expect("master key");
+    medoc_sync::pairing::mint_activation_token(
+        &signing_key,
+        &medoc_sync::pairing::ActivationTokenPayload {
+            version: 2,
+            device_id: device_id.to_string(),
+            slave_label: "replica".into(),
+            master_device_id: "master".into(),
+            allowed_actions: vec!["sync.status".into()],
+            issued_at: "2026-11-07T00:00:00Z".into(),
+            nonce: format!("n-{device_id}"),
+        },
+    )
+    .expect("mint")
+}
+
 fn env_guard() -> &'static Mutex<()> {
     static G: OnceLock<Mutex<()>> = OnceLock::new();
     G.get_or_init(|| Mutex::new(()))
@@ -205,10 +223,10 @@ async fn skip_enforcement_env_bypasses_gate_even_without_license() {
         .await
         .expect("device");
     let mut lan = LanHarness::from_pool(pool).await;
-    let jwt = lan.login_ops_jwt().await;
+    let token = sync_status_device_token("skip-license-device");
 
     let (status, _) = lan
-        .json("GET", "/api/v1/sync/status", None, Some(&jwt))
+        .json("GET", "/api/v1/sync/status", None, Some(&token))
         .await;
 
     std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
@@ -234,9 +252,9 @@ async fn replica_role_in_serverless_peer_does_not_require_master_license() {
     .expect("deployment kv");
 
     let mut lan = LanHarness::from_pool(pool).await;
-    let jwt = lan.login_ops_jwt().await;
+    let token = sync_status_device_token("replica-no-license-device");
     let (status, _) = lan
-        .json("GET", "/api/v1/sync/status", None, Some(&jwt))
+        .json("GET", "/api/v1/sync/status", None, Some(&token))
         .await;
     assert_eq!(
         status,

@@ -1,0 +1,78 @@
+/* From styles/components/overlays.css (cascade position kept by its import there). */
+@layer components {
+  .ios-confirm {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .ios-confirm-body {
+    padding: 22px 18px 18px;
+    text-align: center;
+  }
+  .ios-confirm-title {
+    margin: 0 0 10px;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    line-height: 1.25;
+    color: var(--fg);
+  }
+  .ios-confirm-message {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--fg-3);
+    text-wrap: balance;
+  }
+  .ios-confirm-actions {
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    border-top: 1px solid var(--line);
+    min-height: 48px;
+  }
+  .ios-confirm-actions__vsep {
+    width: 1px;
+    flex-shrink: 0;
+    background: var(--line);
+  }
+  .ios-confirm-btn {
+    flex: 1;
+    margin: 0;
+    min-width: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    font-size: 17px;
+    font-weight: 400;
+    line-height: 1.2;
+    padding: 12px 10px;
+    cursor: pointer;
+    transition: background var(--motion-fast) var(--ease-out);
+    font-family: inherit;
+  }
+  .ios-confirm-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .ios-confirm-btn--cancel {
+    color: var(--fg);
+    font-weight: 500;
+  }
+  .ios-confirm-btn--primary {
+    color: var(--blue);
+    font-weight: 600;
+  }
+  .ios-confirm-btn--destructive {
+    color: var(--red);
+    font-weight: 600;
+  }
+  @media (hover: hover) {
+    .ios-confirm-btn:hover:not(:disabled) {
+      background: color-mix(in oklab, var(--fg) 5%, transparent);
+    }
+  }
+  .ios-confirm-btn:active:not(:disabled) {
+    background: color-mix(in oklab, var(--fg) 9%, transparent);
+  }
+}

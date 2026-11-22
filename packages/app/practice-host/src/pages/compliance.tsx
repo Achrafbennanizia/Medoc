@@ -28,7 +28,7 @@ export type CompliancePageProps = {
 function Bullets({ items }: { items: string[] }) {
     if (!items?.length) return <p style={{ color: "var(--fg-3)", margin: 0 }}>—</p>;
     return (
-        <ul style={{ margin: "8px 0 0", paddingInlineStart: 20, color: "var(--fg-2)", lineHeight: 1.5 }}>
+        <ul style={{ margin: "8px 0 0", paddingInlineStart: "var(--space-5)", color: "var(--fg-2)", lineHeight: 1.5 }}>
             {items.map((x, i) => (
                 <li key={i}>{x}</li>
             ))}
@@ -41,13 +41,13 @@ function ActivitySection({ a, index }: { a: ProcessingActivity; index: number })
     return (
         <section
             style={{
-                marginTop: 18,
-                paddingTop: 16,
+                marginTop: "var(--space-4)",
+                paddingTop: "var(--space-4)",
                 borderTop: index === 0 ? undefined : "1px solid var(--line)",
             }}
         >
             <h3 style={{ margin: "0 0 10px", fontSize: 17 }}>{a.name}</h3>
-            <dl style={{ margin: 0, display: "grid", gap: 10 }}>
+            <dl style={{ margin: 0, display: "grid", gap: "var(--space-3)" }}>
                 <div>
                     <dt className="dl-term">{t("page.compliance.activity.purpose")}</dt>
                     <dd style={{ margin: "4px 0 0", whiteSpace: "pre-wrap" }}>{a.purpose}</dd>
@@ -94,7 +94,7 @@ function VvtStructured({ data }: { data: VVT }) {
             <p style={{ margin: "0 0 16px", color: "var(--fg-3)", fontSize: 13 }}>
                 {tp("page.compliance.vvt.subtitle", { date: formatDateTime(data.generated_at) })}
             </p>
-            <dl style={{ margin: 0, display: "grid", gap: 8, fontSize: 14 }}>
+            <dl style={{ margin: 0, display: "grid", gap: "var(--space-2)", fontSize: 14 }}>
                 <div><strong>{t("page.compliance.vvt.controller")}</strong> {data.controller}</div>
                 <div><strong>{t("page.compliance.vvt.system")}</strong> {data.system}</div>
                 <div><strong>{t("page.compliance.vvt.version")}</strong> {data.system_version}</div>
@@ -110,11 +110,11 @@ function ScenarioBlock({ s, index }: { s: RiskScenario; index: number }) {
     const t = useT();
     const tp = useTParams();
     return (
-        <section style={{ marginTop: index === 0 ? 12 : 18, paddingTop: 14, borderTop: index === 0 ? undefined : "1px solid var(--line)" }}>
+        <section style={{ marginTop: index === 0 ? 12 : 18, paddingTop: "var(--space-4)", borderTop: index === 0 ? undefined : "1px solid var(--line)" }}>
             <h4 style={{ margin: "0 0 8px", fontSize: 15 }}>
                 {tp("page.compliance.scenario.title", { index: index + 1, threat: s.threat })}
             </h4>
-            <dl style={{ margin: 0, display: "grid", gap: 8, fontSize: 14 }}>
+            <dl style={{ margin: 0, display: "grid", gap: "var(--space-2)", fontSize: 14 }}>
                 <div><strong>{t("page.compliance.scenario.likelihood")}</strong> {String(s.likelihood)}</div>
                 <div><strong>{t("page.compliance.scenario.impact")}</strong> {String(s.impact)}</div>
                 <div><strong>{t("page.compliance.scenario.residual")}</strong> {String(s.residual_risk)}</div>
@@ -136,15 +136,15 @@ function DpiaStructured({ data }: { data: Dpia }) {
             <p style={{ margin: "0 0 16px", color: "var(--fg-3)", fontSize: 13 }}>
                 {tp("page.compliance.dpia.subtitle", { date: formatDateTime(data.generated_at) })}
             </p>
-            <dl style={{ margin: "0 0 16px", display: "grid", gap: 6, fontSize: 14 }}>
+            <dl style={{ margin: "0 0 16px", display: "grid", gap: "var(--space-2)", fontSize: 14 }}>
                 <div><strong>{t("page.compliance.vvt.system")}</strong> {data.system}</div>
                 <div><strong>{t("page.compliance.vvt.version")}</strong> {data.system_version}</div>
             </dl>
-            <section style={{ marginBottom: 16 }}>
+            <section style={{ marginBottom: "var(--space-4)" }}>
                 <h3 style={{ margin: "0 0 8px", fontSize: 16 }}>{t("page.compliance.dpia.processing")}</h3>
                 <p style={{ margin: 0, whiteSpace: "pre-wrap", lineHeight: 1.55, color: "var(--fg-2)" }}>{data.processing_overview}</p>
             </section>
-            <section style={{ marginBottom: 16 }}>
+            <section style={{ marginBottom: "var(--space-4)" }}>
                 <h3 style={{ margin: "0 0 8px", fontSize: 16 }}>{t("page.compliance.dpia.necessity")}</h3>
                 <p style={{ margin: 0, whiteSpace: "pre-wrap", lineHeight: 1.55, color: "var(--fg-2)" }}>{data.necessity_proportionality}</p>
             </section>
@@ -164,15 +164,15 @@ function RetentionStructured({ data }: { data: LogRetentionReport }) {
         <div className="compliance-report-print">
             <h2 style={{ margin: "0 0 8px", fontSize: 20 }}>{t("page.compliance.retention.title")}</h2>
             <p style={{ margin: "0 0 16px", color: "var(--fg-3)", fontSize: 13 }}>{t("page.compliance.retention.report")}</p>
-            <dl style={{ margin: "0 0 16px", display: "grid", gap: 8, fontSize: 14 }}>
+            <dl style={{ margin: "0 0 16px", display: "grid", gap: "var(--space-2)", fontSize: 14 }}>
                 <div><strong>{t("page.compliance.retention.scanned")}</strong> {data.scanned}</div>
                 <div><strong>{t("page.compliance.retention.kept")}</strong> {data.kept}</div>
                 <div><strong>{t("page.compliance.retention.deleted")}</strong> {data.deleted.length}</div>
             </dl>
             {data.deleted.length > 0 ? (
-                <section style={{ marginBottom: 14 }}>
+                <section style={{ marginBottom: "var(--space-4)" }}>
                     <h3 style={{ margin: "0 0 8px", fontSize: 15 }}>{t("page.compliance.retention.deleted_ids")}</h3>
-                    <ul style={{ margin: 0, paddingInlineStart: 20, fontSize: 13, fontFamily: "ui-monospace, monospace", wordBreak: "break-all" }}>
+                    <ul style={{ margin: 0, paddingInlineStart: "var(--space-5)", fontSize: 13, fontFamily: "ui-monospace, monospace", wordBreak: "break-all" }}>
                         {data.deleted.map((id, i) => (
                             <li key={i}>{id}</li>
                         ))}
@@ -182,7 +182,7 @@ function RetentionStructured({ data }: { data: LogRetentionReport }) {
             {data.errors.length > 0 ? (
                 <section>
                     <h3 style={{ margin: "0 0 8px", fontSize: 15, color: "var(--red)" }}>{t("page.compliance.retention.errors")}</h3>
-                    <ul style={{ margin: 0, paddingInlineStart: 20, color: "var(--red)", fontSize: 13 }}>
+                    <ul style={{ margin: 0, paddingInlineStart: "var(--space-5)", color: "var(--red)", fontSize: 13 }}>
                         {data.errors.map((err, i) => (
                             <li key={i}>{err}</li>
                         ))}
@@ -257,7 +257,7 @@ export function CompliancePage({ embedded = false }: CompliancePageProps = {}) {
                 title={t("nav.compliance") || "Compliance"}
                 subtitle={t("page.compliance.subtitle")}
                 actions={
-                    <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                    <div className="row" style={{ gap: "var(--space-2)", flexWrap: "wrap" }}>
                         {!embedded ? (
                             <>
                                 <Button type="button" variant="secondary" onClick={() => navigate("/feedback")}>

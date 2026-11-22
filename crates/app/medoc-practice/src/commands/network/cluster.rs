@@ -17,21 +17,32 @@ use medoc_sync::cluster::services::{
 };
 use medoc_sync::cluster::SeatRole;
 use medoc_sync::net::{
-    bind_cluster_listener, join_admin_endpoint, scan_admins, spawn_cluster_connection_handler,
-    AdminEndpoint, MdnsResponder, DEFAULT_CLUSTER_PORT,
+    bind_cluster_listener, join_admin_endpoint, scan_admins,
+    spawn_cluster_connection_handler_until, AdminEndpoint, MdnsResponder, DEFAULT_CLUSTER_PORT,
 };
 use serde::Deserialize;
 use sqlx::SqlitePool;
 use tauri::{AppHandle, Manager, State};
-use tokio::sync::Mutex;
+use tokio::sync::{watch, Mutex};
 
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::commands::rbac_state::require;
 use crate::error::AppError;
 
-#[derive(Default)]
 pub struct ClusterListenerControl {
     inner: Mutex<Option<tokio::task::JoinHandle<()>>>,
+    /// `true` closes sockets that are already accepted.
+    cancel_existing: watch::Sender<bool>,
+}
+
+impl Default for ClusterListenerControl {
+    fn default() -> Self {
+        let (cancel_existing, _) = watch::channel(false);
+        Self {
+            inner: Mutex::new(None),
+            cancel_existing,
+        }
+    }
 }
 
 impl ClusterListenerControl {
@@ -39,15 +50,48 @@ impl ClusterListenerControl {
         self.inner.lock().await.is_some()
     }
 
+    /// Drop the listen socket. Connections already accepted stay open.
     pub async fn stop(&self) {
         if let Some(handle) = self.inner.lock().await.take() {
             handle.abort();
         }
     }
+
+    /// Drop the listen socket and close every connection already accepted.
+    pub async fn close_all(&self) {
+        let _ = self.cancel_existing.send(true);
+        self.stop().await;
+    }
 }
 
 async fn require_admin_seat(pool: &SqlitePool) -> Result<(), AppError> {
     require_owner_admin(pool).await
+}
+
+/// Pre-login onboarding commands (license, install plan) run without a staff
+/// session on a fresh install. Once setup is complete they change the
+/// device's role / license, so a signed-in `ops.system` user is required —
+/// otherwise anyone at a logged-out practice PC could re-role the device.
+async fn require_ops_after_onboarding(
+    pool: &SqlitePool,
+    session_state: &State<'_, SessionState>,
+) -> Result<(), AppError> {
+    let done = medoc_core::infrastructure::database::repos::admin::app_kv::get(
+        pool,
+        "onboarding.setup_complete.v1",
+    )
+    .await
+    .ok()
+    .flatten()
+    .map(|v| {
+        let v = v.trim().trim_matches('"');
+        !v.is_empty() && v != "0" && v != "false"
+    })
+    .unwrap_or(false);
+    if done {
+        require(session_state, "ops.system")?;
+    }
+    Ok(())
 }
 
 fn user_id(session: &SessionState) -> Result<String, AppError> {
@@ -67,21 +111,30 @@ pub async fn license_activate(
     session_state: State<'_, SessionState>,
     license_key: String,
 ) -> Result<ClusterStatus, AppError> {
+    require_ops_after_onboarding(&pool, &session_state).await?;
     // Pre-login onboarding: no session yet — use bootstrap actor id.
     let uid = user_id(&session_state).unwrap_or_else(|_| "onboarding".into());
-    let resolved = crate::commands::company_portal_commands::resolve_onboarding_license_key(
+    let resolved = crate::commands::network::company_portal::resolve_onboarding_license_key(
         &pool,
         &license_key,
     )
     .await?;
     let status = activate_cluster_license(&pool, &uid, &resolved).await?;
     if status.licensed {
-        let _ = crate::commands::company_portal_commands::apply_serverless_role_from_license_code(
-            &pool,
-            &license_key,
-        )
-        .await;
-        crate::commands::company_portal_commands::reset_onboarding_after_owner_license_activation(
+        let rebound = resolved.trim() != license_key.trim();
+        if let Some(code) =
+            crate::commands::network::company_portal::deployment_code_for_pasted_license(
+                &license_key,
+                rebound,
+            )
+        {
+            let _ =
+                crate::commands::network::company_portal::apply_serverless_role_from_license_code(
+                    &pool, &code,
+                )
+                .await;
+        }
+        crate::commands::network::company_portal::reset_onboarding_after_owner_license_activation(
             &pool,
         )
         .await?;
@@ -96,10 +149,7 @@ pub async fn import_activation_manifest(
     manifest_path: String,
     passphrase: String,
 ) -> Result<ImportActivationResult, AppError> {
-    let app_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| AppError::Internal(format!("App data directory: {e}")))?;
+    let app_dir = crate::commands::app_data_dir(&app)?;
     let summary = import_owner_activation(
         &pool,
         &app_dir,
@@ -121,6 +171,7 @@ pub async fn import_activation_manifest(
         cluster_id: Some(summary.cluster_id),
         device_fingerprint: Some(summary.device_fingerprint),
         requires_app_reload: summary.requires_app_reload,
+        needs_bridge_b_passphrase: summary.needs_bridge_b_passphrase,
     })
 }
 
@@ -146,8 +197,10 @@ pub async fn install_plan_consume_sidecar(
 #[tauri::command]
 pub async fn install_plan_apply(
     pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
     plan: InstallPlan,
 ) -> Result<ApplyInstallPlanResult, AppError> {
+    require_ops_after_onboarding(&pool, &session_state).await?;
     apply_install_plan(&pool, &plan).await
 }
 
@@ -269,7 +322,17 @@ pub async fn cluster_sync_staff_directory(pool: State<'_, SqlitePool>) -> Result
 
 /// Spawn TCP+mDNS receive port with the desktop app (pairing / mesh).
 pub async fn auto_start_cluster_if_ready(pool: &SqlitePool, listener: &ClusterListenerControl) {
-    if crate::commands::lan_commands::lan_server_listen_disabled() {
+    if medoc_sync::pairing::is_network_hidden(pool)
+        .await
+        .unwrap_or(false)
+    {
+        tracing::info!(
+            target: "medoc::cluster",
+            event = "CLUSTER_LISTENER_SKIP_HIDDEN"
+        );
+        return;
+    }
+    if crate::commands::network::lan::lan_server_listen_disabled() {
         tracing::info!(
             target: "medoc::cluster",
             event = "CLUSTER_LISTENER_SKIP_INSTANCE"
@@ -301,6 +364,7 @@ async fn start_cluster_listener_task(
     if listener.is_running().await {
         return Ok(());
     }
+    let _ = listener.cancel_existing.send(false);
     listener.stop().await;
     let (addr, iface_name) = match medoc_core::discovery::pick_private_lan_ipv4_bind() {
         Some(bind) => (IpAddr::V4(bind.ip), bind.iface_name),
@@ -324,12 +388,14 @@ async fn start_cluster_listener_task(
         }
         Err(e) => return Err(e),
     };
+    let cancel = listener.cancel_existing.subscribe();
     let cluster_id = cluster_status(&pool)
         .await?
         .cluster_id
         .unwrap_or_else(|| "cluster".into());
     let host = addr.to_string();
     let listener_task = tokio::spawn(async move {
+        let cancel = cancel;
         let _mdns = match MdnsResponder::advertise(&host, DEFAULT_CLUSTER_PORT, &cluster_id) {
             Ok(r) => Some(r),
             Err(e) => {
@@ -357,7 +423,7 @@ async fn start_cluster_listener_task(
                         peer = %peer
                     );
                     let pool = pool.clone();
-                    spawn_cluster_connection_handler(stream, pool);
+                    spawn_cluster_connection_handler_until(stream, pool, cancel.clone());
                 }
                 Err(e) => {
                     tracing::warn!(
@@ -387,6 +453,54 @@ pub async fn cluster_start_listener(
         ));
     }
     start_cluster_listener_task(pool.inner().clone(), &listener).await
+}
+
+#[tauri::command]
+pub async fn network_set_hidden(
+    app: AppHandle,
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    listener: State<'_, ClusterListenerControl>,
+    hidden: bool,
+) -> Result<(), AppError> {
+    require(&session_state, "ops.system")?;
+    crate::infrastructure::database::repos::admin::app_kv::set(
+        &pool,
+        medoc_sync::pairing::APP_KV_NETWORK_HIDDEN,
+        if hidden { "1" } else { "0" },
+    )
+    .await?;
+    if hidden {
+        listener.close_all().await;
+        if let Some(lan) = app.try_state::<crate::commands::network::lan::LanServerControl>() {
+            crate::commands::network::lan::stop_lan_listener(&lan).await;
+        }
+        tracing::info!(target: "medoc::cluster", event = "NETWORK_HIDDEN_PORT_CLOSED");
+        return Ok(());
+    }
+    if let Err(error) = start_cluster_listener_task(pool.inner().clone(), &listener).await {
+        tracing::warn!(
+            target: "medoc::cluster",
+            event = "NETWORK_UNHIDE_CLUSTER_SKIP",
+            error = %error
+        );
+    }
+    if let Some(lan) = app.try_state::<crate::commands::network::lan::LanServerControl>() {
+        match crate::commands::network::lan::start_lan_embedded(&app, pool.inner().clone(), &lan)
+            .await
+        {
+            Ok(_) => {}
+            Err(error) if matches!(error, AppError::Conflict(_)) => {}
+            Err(error) => {
+                tracing::warn!(
+                    target: "medoc::lan",
+                    event = "NETWORK_UNHIDE_LAN_SKIP",
+                    error = %error
+                );
+            }
+        }
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -548,9 +662,10 @@ async fn validate_cluster_reset_reauth(
 ) -> Result<String, AppError> {
     let session = require(session_state, "ops.system")?;
 
-    let user = crate::infrastructure::database::staff_repo::find_by_id(pool, &session.user_id)
-        .await?
-        .ok_or(AppError::NotFound("error.entity.staff".into()))?;
+    let user =
+        crate::infrastructure::database::repos::admin::staff::find_by_id(pool, &session.user_id)
+            .await?
+            .ok_or(AppError::NotFound("error.entity.staff".into()))?;
     let ok = medoc_core::infrastructure::crypto::verify_password(password, &user.password_hash)
         .map_err(|e| AppError::Internal(e.to_string()))?;
     if !ok {
@@ -559,7 +674,7 @@ async fn validate_cluster_reset_reauth(
 
     /*
     // TODO(deferred-security): 2FA cluster-reset reauth unwired
-    if crate::infrastructure::database::staff_repo::is_totp_enrolled(&user) {
+    if crate::infrastructure::database::repos::admin::staff::is_totp_enrolled(&user) {
         let code = totp_code
             .map(str::trim)
             .filter(|s| !s.is_empty())
@@ -611,10 +726,7 @@ pub async fn cluster_execute_cluster_reset(
     crate::commands::app_lifecycle::stop_network_services(&app).await;
 
     let mode = medoc_sync::cluster::services::ClusterResetMode::parse(&request.mode)?;
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| AppError::Internal(format!("App data directory: {e}")))?;
+    let app_data_dir = crate::commands::app_data_dir(&app)?;
 
     let report = medoc_sync::cluster::services::execute_owner_cluster_reset(
         &pool,

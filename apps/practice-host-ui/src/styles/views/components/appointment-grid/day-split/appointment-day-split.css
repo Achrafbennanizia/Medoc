@@ -1,0 +1,119 @@
+/* From styles/pages/appointments-cards.css (cascade position kept by its import there). */
+.appointment-day-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 32%);
+  gap: 20px;
+  align-items: stretch;
+  flex: 1;
+  min-height: 0;
+  container-type: size;
+  container-name: appointment-day-split;
+}
+.appointment-main-full:has(.appointment-day-split) .appointment-day-split {
+  flex: 1 0 auto;
+}
+/* Grid items otherwise min-height:auto → grow beyond viewport */
+.appointment-day-split > * {
+  min-width: 0;
+  min-height: 0;
+}
+@media (max-width: 1100px) {
+  .appointment-day-split {
+    display: flex;
+    flex-direction: column;
+    flex: 1 0 auto;
+    min-height: auto;
+    grid-template-columns: unset;
+    gap: 16px;
+  }
+  .appointment-main-full:has(.appointment-day-split) .appointment-day-split {
+    min-height: auto;
+  }
+  .appointment-day-main {
+    flex: 1;
+    min-height: min(56vh, 520px);
+  }
+  .appointment-day-sidebar {
+    order: -1;
+    max-width: none;
+    flex: 0 1 auto;
+    min-height: 0;
+    overflow: hidden;
+  }
+}
+.appointment-day-split-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+  flex-shrink: 0;
+}
+.appointment-day-split-head .card-title {
+  font-size: clamp(18px, 1.35vw + 14px, 24px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+.appointment-day-split-head .card-sub {
+  margin-top: 4px;
+  font-size: 14px;
+}
+.appointment-day-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--bg-elev);
+  box-shadow: var(--shadow-sm);
+}
+.appointment-day-main.card {
+  /* card + appointment-day-main: uniform surface */
+  border-radius: 16px;
+}
+.appointment-day-timeline-host {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--bg-elev);
+  position: relative;
+}
+.appointment-day-body-grid.appointment-week-body-grid {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  height: 100%;
+  grid-template-columns: 52px minmax(0, 1fr) !important;
+  border-radius: 12px;
+}
+.appointment-day-hours {
+  background: linear-gradient(90deg, color-mix(in oklab, var(--fg) 4%, var(--bg-elev)) 0%, var(--bg-elev) 100%);
+  border-right: 1px solid var(--line);
+}
+.appointment-day-hours .appointment-hour-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-3);
+}
+.appointment-day-hour-label {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding-top: 2px;
+}
+.appointment-day-hours-stack {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  min-height: 100%;
+}

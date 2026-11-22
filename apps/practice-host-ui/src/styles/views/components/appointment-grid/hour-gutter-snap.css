@@ -1,0 +1,63 @@
+/* From styles/pages/appointments-cards.css (cascade position kept by its import there). */
+.appointment-hour-gutter-snap {
+  position: absolute;
+  left: 0;
+  right: 2px;
+  pointer-events: none;
+  z-index: 6;
+  display: flex;
+  justify-content: flex-end;
+  transform: translateY(-50%);
+}
+.appointment-hour-gutter-snap__time {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-ink);
+  line-height: 1.2;
+}
+.appointment-hour-gutter-snap--drag .appointment-hour-gutter-snap__time {
+  font-weight: 900;
+  color: var(--fg);
+}
+.appointment-hour-gutter-snap--placed .appointment-hour-gutter-snap__time {
+  font-weight: 800;
+  color: var(--accent-ink);
+}
+.appointment-appt-block-target-day {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent-ink);
+  margin-top: 3px;
+  line-height: 1.2;
+}
+.appointment-day-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  max-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.appointment-day-sidebar > .card {
+  flex-shrink: 0;
+  border-radius: 14px;
+  box-shadow: 0 2px 14px rgba(10, 12, 16, 0.05);
+  border: 1px solid var(--line);
+}
+.appointment-day-sidebar .card-pad {
+  padding: 14px 16px;
+}
+.appointment-next-empty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--fg-3);
+  line-height: 1.45;
+}
+.appointment-day-body-grid {
+  min-width: 0;
+}

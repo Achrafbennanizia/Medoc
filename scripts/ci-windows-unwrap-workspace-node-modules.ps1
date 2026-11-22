@@ -8,7 +8,6 @@ $ErrorActionPreference = "Continue"
 $paths = @(
     "apps/practice-host-ui/node_modules",
     "apps/practice-host/node_modules",
-    "apps/lan-web-client/node_modules",
     "packages/shared/node_modules",
     "packages/ui/node_modules",
     "packages/app/practice-host/node_modules",

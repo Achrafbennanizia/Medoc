@@ -1,0 +1,63 @@
+/* From styles/features/schedule.css (cascade position kept by its import there). */
+@layer components {
+  .schedule-day-meta-line {
+    font-size: var(--dash-meta-size);
+    color: var(--fg-3);
+    line-height: 1.35;
+    margin-top: 2px;
+  }
+  .schedule-severity-bar {
+    width: 4px;
+    height: 44px;
+    border-radius: 999px;
+    flex-shrink: 0;
+  }
+  .schedule-day-view-card {
+    padding: 0;
+    /* overflow:hidden clipped chevrons; overflow on any axis breaks sticky day header */
+    overflow: visible;
+  }
+  .schedule-day-view-card.dashboard-card-fill {
+    min-height: 280px;
+  }
+  .schedule-day-view-card.dashboard-card-fill > .card-head {
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    z-index: 6;
+    background: var(--bg-elev);
+    box-shadow: 0 1px 0 var(--line);
+  }
+  .schedule-day-view-card > .card-head {
+    padding: 14px 16px 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .schedule-day-view-head.card-head {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) auto 44px;
+    gap: 10px;
+    align-items: center;
+    justify-content: stretch;
+  }
+  .schedule-day-view-head .icon-btn {
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    justify-self: center;
+  }
+  .schedule-day-view-titles {
+    text-align: center;
+    min-width: 0;
+  }
+  .schedule-day-view-titles .card-title {
+    font-size: clamp(16px, 2.4vw, 22px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .schedule-day-view-titles .card-sub {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}

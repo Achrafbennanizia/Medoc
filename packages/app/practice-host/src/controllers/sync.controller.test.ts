@@ -8,7 +8,7 @@ vi.mock("../adapters/practice-transport", () => ({
 
 import { practiceSystem } from "../adapters/practice-transport";
 import { DEFAULT_SYNC_DEPLOYMENT } from "../lib/deployment-config";
-import { syncGetStatus, syncRunNow, syncSetDeployment } from "./sync.controller";
+import { syncGetStatus, syncReconcileNow, syncRunNow, syncSetDeployment } from "./sync.controller";
 
 describe("sync.controller", () => {
     beforeEach(() => {
@@ -40,13 +40,15 @@ describe("sync.controller", () => {
             unstableMesh: true,
         });
         expect(practiceSystem.invoke).toHaveBeenCalledWith("sync_set_deployment", {
-            deployment: expect.objectContaining({
-                mode: "serverless_peer",
-                role: "REPLICA",
-                masterBaseUrl: "https://127.0.0.1:8787",
-                activationToken: "mt2.x",
-                unstableMesh: true,
-            }),
+            payload: {
+                deployment: expect.objectContaining({
+                    mode: "serverless_peer",
+                    role: "REPLICA",
+                    masterBaseUrl: "https://127.0.0.1:8787",
+                    activationToken: "mt2.x",
+                    unstableMesh: true,
+                }),
+            },
         });
     });
 
@@ -58,6 +60,18 @@ describe("sync.controller", () => {
         const report = await syncRunNow();
         expect(practiceSystem.invoke).toHaveBeenCalledWith("sync_run_now");
         expect(report.push?.accepted).toBe(1);
+    });
+
+    it("syncReconcileNow invokes sync_reconcile_now", async () => {
+        vi.mocked(practiceSystem.invoke).mockResolvedValueOnce({
+            bucketsChecked: 0,
+            rowsFetched: 0,
+            applied: 0,
+            queued: 0,
+            skipped: false,
+        });
+        await syncReconcileNow();
+        expect(practiceSystem.invoke).toHaveBeenCalledWith("sync_reconcile_now");
     });
 
     it("SyncRunReport accepts mesh report shape", () => {

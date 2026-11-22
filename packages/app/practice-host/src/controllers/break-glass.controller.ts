@@ -1,4 +1,4 @@
-import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
+import { practiceSystem } from "@/systems/practice-host/adapters/practice-transport";
 
 /** Must match `BREAK_GLASS_DURATION` in `application::break_glass` (Rust). */
 export const BREAK_GLASS_WINDOW_SECS = 30 * 60;

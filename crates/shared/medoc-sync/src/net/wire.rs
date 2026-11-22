@@ -20,6 +20,9 @@ pub enum WireMessage {
         app_version: String,
         ip: String,
         requested_role: SeatRoleWire,
+        /// Ed25519 signature over the Noise transcript ([`ChannelPurpose::Join`]).
+        #[serde(default)]
+        signature: Vec<u8>,
     },
     JoinAccept {
         session_id: String,
@@ -29,10 +32,24 @@ pub enum WireMessage {
         master_pubkey: Option<String>,
         #[serde(default)]
         master_device_id: Option<String>,
+        /// SHA-256 of the main device's LAN certificate. Sent after SAS so the
+        /// replica can pin HTTPS sync.
+        #[serde(default)]
+        master_cert_sha256: Option<String>,
+        /// HTTPS port of the main device's LAN server (`lan.server.config.v1`
+        /// `httpPort`). Absent from older main devices; replicas then use 8787.
+        #[serde(default)]
+        master_http_port: Option<u16>,
     },
     SasConfirm {
         session_id: String,
         digits: String,
+        /// Device public key of the joiner (must match the session fingerprint).
+        #[serde(default)]
+        pubkey: Vec<u8>,
+        /// Signature over the Noise transcript ([`ChannelPurpose::SasConfirm`]).
+        #[serde(default)]
+        signature: Vec<u8>,
     },
     Provision {
         seat_certificate: String,
@@ -60,6 +77,10 @@ pub enum WireMessage {
         fingerprint: String,
         #[serde(default)]
         session_id: String,
+        #[serde(default)]
+        pubkey: Vec<u8>,
+        #[serde(default)]
+        signature: Vec<u8>,
     },
     StaffDirectoryResponse {
         directory_json: String,
@@ -68,6 +89,10 @@ pub enum WireMessage {
         fingerprint: String,
         #[serde(default)]
         session_id: String,
+        #[serde(default)]
+        pubkey: Vec<u8>,
+        #[serde(default)]
+        signature: Vec<u8>,
     },
     ClusterStatusRequest {
         fingerprint: String,
@@ -167,6 +192,7 @@ mod tests {
             app_version: "0.1".into(),
             ip: "192.168.0.2".into(),
             requested_role: SeatRoleWire::Member,
+            signature: vec![7; 64],
         };
         let frame = encode_frame(&msg).expect("encode");
         let decoded = decode_frame(&frame).expect("decode");
@@ -177,7 +203,9 @@ mod tests {
     fn roundtrip_sas_confirm() {
         let msg = WireMessage::SasConfirm {
             session_id: "sess".into(),
-            digits: "4829".into(),
+            digits: "482913".into(),
+            pubkey: vec![1; 32],
+            signature: vec![2; 64],
         };
         let frame = encode_frame(&msg).expect("encode");
         let decoded = decode_frame(&frame).expect("decode");
@@ -191,6 +219,8 @@ mod tests {
             activation_token: Some("mt2.token".into()),
             master_pubkey: Some("pk".into()),
             master_device_id: Some("master".into()),
+            master_cert_sha256: Some("ab".repeat(32)),
+            master_http_port: Some(8787),
         };
         let frame = encode_frame(&msg).expect("encode");
         let decoded = decode_frame(&frame).expect("decode");
@@ -202,6 +232,8 @@ mod tests {
         let msg = WireMessage::ReplicaAuthRequest {
             fingerprint: "fp".into(),
             session_id: "sess".into(),
+            pubkey: vec![1; 32],
+            signature: vec![2; 64],
         };
         let frame = encode_frame(&msg).expect("encode");
         let decoded = decode_frame(&frame).expect("decode");

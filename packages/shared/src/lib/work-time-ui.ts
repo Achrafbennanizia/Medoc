@@ -66,6 +66,19 @@ export function liveElapsedMinutes(
     return Math.max(0, gross - storedPause - openPause);
 }
 
+/** Hours used as the bar scale when that weekday has no target (Soll). */
+export const UNSET_DAY_SCALE_MINUTES = 8 * 60;
+
+/**
+ * Bar scale for one day. An unset target must not collapse to the worked
+ * minutes, or a short day paints as a full column.
+ */
+export function weekBarScaleMinutes(day: Pick<WeekBarDay, "targetMinutes" | "workedMinutes" | "openMinutes">): number {
+    const used = day.workedMinutes + day.openMinutes;
+    if (day.targetMinutes > 0) return Math.max(day.targetMinutes, used, 1);
+    return Math.max(UNSET_DAY_SCALE_MINUTES, used, 1);
+}
+
 export type WeekBarDay = {
     date: string;
     label: string;
@@ -90,18 +103,21 @@ export function buildWeekBarDays(
         const summary = byDate.get(date);
         const isActiveDay =
             activeSession != null && activeSession.startedAt.slice(0, 10) === date;
-        const openMinutes =
-            isActiveDay && activeSession
-                ? liveElapsedMinutes(activeSession, openPauseMinutes, nowMs)
-                : 0;
-        const endedWorked = summary?.workedMinutes ?? 0;
+        const live = isActiveDay && activeSession
+            ? liveElapsedMinutes(activeSession, openPauseMinutes, nowMs)
+            : 0;
+        const fromSummary = summary?.workedMinutes ?? 0;
+        // The week summary already includes the open session. Taking the
+        // larger of the two keeps the bar on the live clock without adding
+        // that session a second time.
+        const workedMinutes = isActiveDay ? Math.max(fromSummary, live) : fromSummary;
         return {
             date,
             label: dayLabels[i] ?? date,
             targetMinutes: targetMinutesForDay(staffId, date, weeklyRules),
-            workedMinutes: endedWorked,
+            workedMinutes,
             pauseMinutes: summary?.pauseMinutes ?? 0,
-            openMinutes: isActiveDay ? openMinutes : 0,
+            openMinutes: 0,
         };
     });
 }

@@ -1,0 +1,19 @@
+/* From styles/features/device-pairing.css (cascade position kept by its import there). */
+@layer components {
+  @keyframes pairing-inbox-pulse {
+    0%,
+    100% { opacity: 1; }
+    50% { opacity: 0.55; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .pairing-inbox__card,
+    .pairing-inbox__skeleton span:not(.sr-only) {
+      animation: none;
+    }
+    .pairing-inbox__chip,
+    .pairing-inbox__icon-btn,
+    .pairing-inbox__card {
+      transition: none;
+    }
+  }
+}

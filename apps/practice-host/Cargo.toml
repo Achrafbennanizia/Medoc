@@ -19,6 +19,8 @@ medoc-practice = { path = "../../crates/app/medoc-practice" }
 tauri = { version = "2", features = ["protocol-asset"] }
 tauri-plugin-shell = "2"
 tauri-plugin-updater = "2"
+# Native notifications (macOS Notification Center, Windows Action Center, Linux libnotify) with sound.
+tauri-plugin-notification = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sqlx = { version = "0.8", default-features = false, features = [
@@ -67,6 +69,8 @@ tower = "0.5"
 # Production webview (custom protocol + embedded dist). `tauri build` enables this;
 # plain `cargo build -p medoc --release` without it loads http://localhost:1420 (blank window).
 [features]
+# Replica app: `npm run tauri:build:replica` (docs/architecture/device-flavors-and-access.md).
+replica = ["medoc-practice/replica"]
 custom-protocol = ["tauri/custom-protocol"]
 
 # Standalone server binaries (no Tauri):

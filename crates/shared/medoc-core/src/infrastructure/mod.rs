@@ -13,6 +13,7 @@ pub mod crypto;
 pub mod database;
 pub mod devices;
 pub mod dpia;
+pub mod fs_guard;
 pub mod gdpr;
 pub mod install_plan;
 pub mod license;
@@ -30,14 +31,4 @@ pub mod update;
 pub mod usb_vault;
 pub mod vvt;
 
-// ---------------------------------------------------------------------------
-// PDF (R2) — canonical tree: `pdf/`; legacy flat shims for stable import paths.
-// ---------------------------------------------------------------------------
 pub mod pdf;
-
-pub mod clinical_pdf_layout;
-pub mod pdf_core;
-pub mod pdf_export;
-pub mod pdf_letterhead;
-
-pub mod license_repo;

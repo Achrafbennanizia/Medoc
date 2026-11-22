@@ -2,6 +2,7 @@
 
 mod install;
 mod ui;
+mod ui_i18n;
 
 use std::path::PathBuf;
 
@@ -263,7 +264,11 @@ pub(crate) fn cmd_init_campaign(
         } else {
             InstallRole::Replica
         };
-        let label = format!("Device {}", i + 1);
+        let label = if role == InstallRole::Replica {
+            medoc_core::infrastructure::install_plan::REPLICA_DESKTOP_NAME.to_string()
+        } else {
+            format!("Device {}", i + 1)
+        };
         slots.push(build_slot_plan(
             role,
             &label,
@@ -380,7 +385,7 @@ pub(crate) fn cmd_install(
     let mut practice_target = None;
 
     let result = (|| {
-        practice_target = install::install_components(&root, &plan.components, silent)?;
+        practice_target = install::install_components(&root, &plan.components, silent, plan.role)?;
         install::write_plan_sidecar(&plan)?;
         medoc_core::infrastructure::database::connection::prepare_practice_db_before_launch(
             &usb_vault::practice_app_data_dir(),

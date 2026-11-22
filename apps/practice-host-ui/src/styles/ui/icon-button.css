@@ -1,0 +1,26 @@
+/* From styles/features/notifications.css (cascade position kept by its import there). */
+@layer components {
+  .icon-btn .notif-badge {
+    position: absolute;
+    top: 2px;
+    inset-inline-end: 2px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: var(--red);
+    color: #fff;
+    font: 700 10px/16px var(--font-ui);
+    text-align: center;
+    pointer-events: none;
+  }
+
+  .settings-row__note {
+    margin-top: var(--space-1);
+    color: var(--orange-ink);
+    font-size: 12px;
+  }
+
+  .settings-notification-sound { display: flex; align-items: center; gap: var(--space-3); }
+  .settings-notification-sound input[type="range"] { width: 7rem; accent-color: var(--accent); }
+}

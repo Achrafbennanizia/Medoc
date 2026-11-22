@@ -10,12 +10,19 @@ import {
     readLegacyAccentFromStorage,
     type AccentId,
 } from "./accent-preset";
+import { applyBrandMark } from "./brand-mark";
 import {
     applyArabicNumeralsToDocument,
     normalizeArabicNumeralMode,
     type ArabicNumeralMode,
 } from "./arabic-numerals";
 import { normalizeFontStack, type FontStackId } from "./font-stack-preset";
+import {
+    applyDisplayPreferences,
+    DEFAULT_DISPLAY_PREFERENCES,
+    normalizeDisplayPreferences,
+    type DisplayPreferences,
+} from "./display-preferences";
 
 export type { FontStackId } from "./font-stack-preset";
 export { normalizeFontStack } from "./font-stack-preset";
@@ -60,6 +67,8 @@ export type ClientSettingsV1 = {
          * Ignored when the interface language is not Arabic.
          */
         arabicNumeralMode?: ArabicNumeralMode;
+        /** Accessibility & comfort (text size, high contrast, motion, …) — see display-preferences.ts. */
+        display?: Partial<DisplayPreferences>;
     };
     /** Calendar, appointments, day-end closing */
     workflows?: {
@@ -67,8 +76,6 @@ export type ClientSettingsV1 = {
         appointmentsDefaultView?: AppointmentCalendarView;
         /** Default duration in "New appointment" (minutes). */
         defaultAppointmentDurationMin?: number;
-        /** Local time for one-time daily reminder (HH:mm, e.g. 18:00). */
-        dayCloseReminderTime?: string;
         /** CAL2: pause/emergency toolbar in calendar (experimental). */
         calendarEmergencyToolbarEnabled?: boolean;
         /**
@@ -94,6 +101,10 @@ export type ClientSettingsV1 = {
     /** Push/email — delivery may be wired later; toggles act as preference. */
     notifications?: {
         push?: boolean;
+        /** Chime for new notifications (and the OS sound for native notifications). */
+        sound?: boolean;
+        /** Chime volume 0–1. */
+        soundVolume?: number;
         emailSummary?: boolean;
         criticalWarnings?: boolean;
         patientSms?: boolean;
@@ -127,11 +138,11 @@ export const DEFAULT_CLIENT_SETTINGS: ClientSettingsV1 = {
         showKeyboardHints: true,
         appointmentCardHoverScale: "md",
         arabicNumeralMode: "western",
+        display: { ...DEFAULT_DISPLAY_PREFERENCES },
     },
     workflows: {
-        appointmentsDefaultView: "month",
+        appointmentsDefaultView: "week",
         defaultAppointmentDurationMin: 30,
-        dayCloseReminderTime: "18:00",
         calendarEmergencyToolbarEnabled: false,
         appointmentConfirmMode: "manual",
     },
@@ -145,6 +156,8 @@ export const DEFAULT_CLIENT_SETTINGS: ClientSettingsV1 = {
     },
     notifications: {
         push: true,
+        sound: true,
+        soundVolume: 0.6,
         emailSummary: true,
         criticalWarnings: true,
         patientSms: false,
@@ -199,8 +212,9 @@ export function normalizeAppointmentCalendarView(raw: unknown): AppointmentCalen
     return "month";
 }
 
-export function readAppointmentsDefaultView(s?: ClientSettingsV1): AppointmentCalendarView {
-    return normalizeAppointmentCalendarView((s ?? loadClientSettings()).workflows?.appointmentsDefaultView);
+/** Appointments open on the practice week from Opening hours. The view is not a workflow setting. */
+export function readAppointmentsDefaultView(): AppointmentCalendarView {
+    return "week";
 }
 
 export function normalizeAppointmentConfirmMode(raw: unknown): AppointmentConfirmMode {
@@ -300,7 +314,17 @@ export function saveClientSettings(next: ClientSettingsV1): void {
     clientSettingsListeners.forEach((fn) => fn(next));
     if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent(CLIENT_SETTINGS_CHANGED_EVENT, { detail: next }));
+        window.dispatchEvent(new CustomEvent("medoc-client-settings"));
     }
+    // Durable per-instance file (survives shared Vite origin / refresh races).
+    // Also pin the current UI locale so a settings-only file cannot leave language unset.
+    void Promise.all([
+        import("@/systems/practice-host/controllers/ui-prefs.controller"),
+        import("@/lib/i18n"),
+    ]).then(([prefs, i18nMod]) => {
+        const locale = i18nMod.useLocale.getState().locale;
+        return prefs.persistUiPrefs({ settings: next, locale });
+    });
 }
 
 /**
@@ -340,10 +364,12 @@ export function applyAppearanceFromSettings(s: ClientSettingsV1): void {
     document.documentElement.dataset.kbdHints = kbd ? "true" : "false";
     const accent = normalizeAccentId(s.appearance?.accentPreset);
     applyAccentPresetToDocument(accent, resolved);
+    applyBrandMark(accent, resolved);
     mirrorAccentToLegacyStorage(accent);
     const fs = normalizeFontStack(s.appearance?.fontStack);
     document.documentElement.dataset.fontStack = fs;
     applyArabicNumeralsToDocument(document.documentElement.lang || "en", s.appearance?.arabicNumeralMode);
+    applyDisplayPreferences(normalizeDisplayPreferences(s.appearance?.display));
 }
 
 export function hydrateAppearanceFromStorage(): void {

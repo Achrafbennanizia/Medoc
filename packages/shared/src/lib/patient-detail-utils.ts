@@ -1,20 +1,15 @@
+import { treatmentLineLabel } from "./clinical-service-label";
 import { deriveAttachmentDisplayName } from "./chart-attachments";
-import { formatDate, formatDateTime } from "@/lib/utils";
+import { formatDate, formatDateTime, parseDisplayDate } from "@/lib/utils";
 import { t, translateLocaleParams, useLocale } from "@/lib/i18n";
 import { ipcErrorRaw } from "@/lib/ipc-errors";
 import type { PrescriptionLine } from "@/lib/medications";
 import type { CertificateComposerFormFields } from "@/lib/certificate-composer";
 import type { Treatment, TreatmentCatalogItem } from "@/models/types";
 import { EXAMINATION_CATALOG_CATEGORY } from "./treatment-catalog-categories";
+export { validatePrescriptionLine } from "./validate-prescription-line";
 
 type TFn = (key: string) => string;
-
-export function validatePrescriptionLine(line: PrescriptionLine, t: TFn): string | null {
-    if (!line.medication.trim()) return t("page.prescriptions.validation.med_required");
-    if (!line.dosage.trim()) return t("page.prescriptions.validation.dosage_required");
-    if (!line.duration.trim()) return t("page.prescriptions.validation.duration_required");
-    return null;
-}
 
 export function isPatientChartMissingError(e: unknown): boolean {
     const m = ipcErrorRaw(e);
@@ -170,17 +165,34 @@ export function treatmentToUpdatePayload(b: Treatment) {
     };
 }
 
+/** Next `{letter}-{year}-{nnn}` from numbers already on the chart. */
+export function previewNextYearNumber(
+    letter: "B" | "U",
+    existing: Iterable<string | null | undefined>,
+): string {
+    const year = new Date().getFullYear();
+    const prefix = `${letter}-${year}-`;
+    let max = 0;
+    for (const raw of existing) {
+        const n = (raw ?? "").trim();
+        if (!n.startsWith(prefix)) continue;
+        const version = Number.parseInt(n.slice(prefix.length), 10);
+        if (Number.isFinite(version) && version > max) max = version;
+    }
+    return `${prefix}${String(max + 1).padStart(3, "0")}`;
+}
+
 export function treatmentContinueLabel(b: Treatment): string {
     const bn = (b.treatment_number ?? "").trim() || "—";
     const sitz = b.session_number != null ? String(b.session_number) : "?";
-    const title = b.service_name || b.description || b.kind;
+    const title = treatmentLineLabel(b);
     const d = b.treatment_date ? formatDate(b.treatment_date) : formatDateTime(b.created_at);
     return `${bn} · Session ${sitz} · ${title} · ${d}`;
 }
 
 export function alterAusDateOfBirth(date_of_birth: string): number | null {
     const raw = date_of_birth.slice(0, 10);
-    const d = new Date(`${raw}T12:00:00`);
+    const d = parseDisplayDate(raw);
     if (Number.isNaN(d.getTime())) return null;
     const t = new Date();
     let a = t.getFullYear() - d.getFullYear();

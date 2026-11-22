@@ -32,9 +32,10 @@ export function HelpShortcuts({ query }: HelpSectionProps) {
                                         <span key={ci} className="help-chord">
                                             {ci > 0 ? <span className="help-chord__or">/</span> : null}
                                             {chord.map((k, ki) => (
-                                                <kbd key={ki} className="kbd">
-                                                    {displayKey(k, mac)}
-                                                </kbd>
+                                                <span key={ki} className="help-chord__key">
+                                                    {ki > 0 && s.sequence ? <span className="help-chord__then" aria-hidden>→</span> : null}
+                                                    <kbd className="kbd">{displayKey(k, mac)}</kbd>
+                                                </span>
                                             ))}
                                         </span>
                                     ))}
@@ -45,7 +46,9 @@ export function HelpShortcuts({ query }: HelpSectionProps) {
                     </dl>
                 </section>
             ))}
-            <p className="help-footnote">{t("help.shortcuts.typing_note")}</p>
+            <p className="help-footnote">
+                {t("help.shortcuts.typing_note")} {t("help.shortcuts.sequence_hint")}
+            </p>
         </div>
     );
 }

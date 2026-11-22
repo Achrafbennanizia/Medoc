@@ -1,0 +1,89 @@
+/* From styles/pages/appointments-cards.css (cascade position kept by its import there). */
+.appointment-appt-status-pill--edit {
+  background: var(--yellow-soft);
+  color: #92400e;
+}
+
+/* Week view: entire card in status color (no separate pill — more room for names) */
+.appointment-appt-block--week.appointment-appt-status-surface--planned {
+  background: color-mix(in oklab, var(--fg) 7%, var(--bg-elev));
+  border-color: color-mix(in oklab, var(--fg) 18%, var(--line));
+}
+.appointment-appt-block--week.appointment-appt-status-surface--planned .appointment-appt-block-time,
+.appointment-appt-block--week.appointment-appt-status-surface--planned .appointment-appt-block-name {
+  color: var(--fg);
+}
+.appointment-appt-block--week.appointment-appt-status-surface--planned .appointment-appt-block-duration,
+.appointment-appt-block--week.appointment-appt-status-surface--planned .appointment-appt-block-type {
+  color: var(--fg-2);
+}
+
+.appointment-appt-block--week.appointment-appt-status-surface--active {
+  background: color-mix(in oklab, var(--green) 16%, var(--bg-elev));
+  border-color: color-mix(in oklab, var(--green) 35%, var(--line));
+}
+.appointment-appt-block--week.appointment-appt-status-surface--active .appointment-appt-block-time,
+.appointment-appt-block--week.appointment-appt-status-surface--active .appointment-appt-block-name {
+  color: var(--green-ink);
+}
+.appointment-appt-block--week.appointment-appt-status-surface--active .appointment-appt-block-duration,
+.appointment-appt-block--week.appointment-appt-status-surface--active .appointment-appt-block-type {
+  color: color-mix(in oklab, var(--green-ink) 65%, var(--fg-3));
+}
+
+.appointment-appt-block--week.appointment-appt-status-surface--done {
+  background: color-mix(in oklab, var(--accent) 14%, var(--bg-elev));
+  border-color: color-mix(in oklab, var(--accent) 28%, var(--line));
+}
+.appointment-appt-block--week.appointment-appt-status-surface--done .appointment-appt-block-time,
+.appointment-appt-block--week.appointment-appt-status-surface--done .appointment-appt-block-name {
+  color: var(--accent-ink);
+}
+.appointment-appt-block--week.appointment-appt-status-surface--done .appointment-appt-block-duration,
+.appointment-appt-block--week.appointment-appt-status-surface--done .appointment-appt-block-type {
+  color: color-mix(in oklab, var(--accent-ink) 70%, var(--fg-3));
+}
+
+.appointment-appt-block--week.appointment-appt-status-surface--cancel {
+  background: var(--red-soft);
+  border-color: color-mix(in oklab, #9f1239 22%, var(--line));
+}
+.appointment-appt-block--week.appointment-appt-status-surface--cancel .appointment-appt-block-time,
+.appointment-appt-block--week.appointment-appt-status-surface--cancel .appointment-appt-block-name {
+  color: #9f1239;
+}
+.appointment-appt-block--week.appointment-appt-status-surface--cancel .appointment-appt-block-duration,
+.appointment-appt-block--week.appointment-appt-status-surface--cancel .appointment-appt-block-type {
+  color: color-mix(in oklab, #9f1239 55%, var(--fg-3));
+}
+
+.appointment-appt-block--week.appointment-appt-status-surface--edit {
+  background: var(--yellow-soft);
+  border-color: color-mix(in oklab, #92400e 22%, var(--line));
+}
+.appointment-appt-block--week.appointment-appt-status-surface--edit .appointment-appt-block-time,
+.appointment-appt-block--week.appointment-appt-status-surface--edit .appointment-appt-block-name {
+  color: #92400e;
+}
+.appointment-appt-block--week.appointment-appt-status-surface--edit .appointment-appt-block-duration,
+.appointment-appt-block--week.appointment-appt-status-surface--edit .appointment-appt-block-type {
+  color: color-mix(in oklab, #92400e 58%, var(--fg-3));
+}
+.appointment-appt-block--week.appointment-appt-status-surface--edit .appointment-appt-block-emergency-ic {
+  color: #92400e;
+}
+
+.appointment-appt-block-time--drag-live,
+.appointment-appt-block-time-live {
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+/* Live drag time (day view, appointment-drag-runtime.ts): shown instead of the rendered time while dragging. */
+.appointment-appt-block-time-live,
+.appointment-appt-block--time-live .appointment-appt-block-time {
+  display: none;
+}
+.appointment-appt-block--time-live .appointment-appt-block-time-live {
+  display: inline;
+  font-size: 11.5px;
+}

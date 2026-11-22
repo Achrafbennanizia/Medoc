@@ -1,0 +1,63 @@
+/* From styles/features/tasks-orders.css (cascade position kept by its import there). */
+@layer components {
+  .administration-cat-card {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+    gap: var(--space-3);
+  }
+  .administration-cat-card__head {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+  }
+  .administration-cat-card__desc {
+    flex: 1;
+  }
+  .administration-cat-card__btn {
+    align-self: flex-start;
+    margin-top: 2px;
+  }
+  .administration-section__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    flex-shrink: 0;
+    background: color-mix(in oklab, var(--accent) 14%, transparent);
+    color: var(--accent, #0ea07e);
+  }
+  .finance-amt {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .finance-amt--in { color: #148B4C; }
+  .finance-amt--out { color: var(--fg-2); }
+  .finance-amt--warn { color: #B45309; }
+  .finance-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--fg-2);
+  }
+  .finance-pill__dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--fg-4);
+  }
+  .finance-pill__dot[data-s="ok"] { background: #30D158; }
+  .finance-pill__dot[data-s="open"] { background: var(--orange); }
+  .finance-pill__dot[data-s="part"] { background: var(--yellow); }
+  .finance-pill__dot[data-s="storno"] { background: var(--fg-4); }
+  .tbl.tbl-finance-v2 {
+    min-width: 0;
+    width: 100%;
+    table-layout: fixed;
+  }
+}

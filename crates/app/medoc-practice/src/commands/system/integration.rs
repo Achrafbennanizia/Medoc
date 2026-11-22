@@ -4,7 +4,7 @@ use sqlx::SqlitePool;
 use tauri::State;
 
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::error::AppError;
 use crate::infrastructure::{notifications, telematik};
 
@@ -25,6 +25,9 @@ pub fn validate_eprescription(
     session_state: State<'_, SessionState>,
     rx: telematik::EPrescription,
 ) -> Result<(), AppError> {
+    if !medoc_core::mvp_security::EPRESCRIPTION_ENABLED {
+        return Err(AppError::FeatureDisabled("eprescription".into()));
+    }
     rbac::require(&session_state, "patient.write_medical")?;
     telematik::validate(&rx)
 }
@@ -35,6 +38,9 @@ pub fn submit_eprescription(
     session_state: State<'_, SessionState>,
     rx: telematik::EPrescription,
 ) -> Result<telematik::EPrescriptionToken, AppError> {
+    if !medoc_core::mvp_security::EPRESCRIPTION_ENABLED {
+        return Err(AppError::FeatureDisabled("eprescription".into()));
+    }
     rbac::require(&session_state, "patient.write_medical")?;
     telematik::submit_via_ti(&rx)
 }
@@ -47,15 +53,4 @@ pub fn send_kim_message(
 ) -> Result<(), AppError> {
     rbac::require(&session_state, "patient.write_medical")?;
     telematik::kim_send(&msg)
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_integration_commands {
-    () => {
-        $crate::commands::integration_commands::list_upcoming_appointments,
-        $crate::commands::integration_commands::validate_eprescription,
-        $crate::commands::integration_commands::submit_eprescription,
-        $crate::commands::integration_commands::send_kim_message,
-    };
 }

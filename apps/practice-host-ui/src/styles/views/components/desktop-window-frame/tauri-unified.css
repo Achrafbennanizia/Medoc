@@ -1,0 +1,63 @@
+/* From styles/layout/shell-chrome.css (cascade position kept by its import there). */
+@layer components {
+  .card-subtitle { font-size: 12px; color: var(--fg-3); margin-top: 2px; }
+}
+/*
+ * Windows / Linux unified title bar (resolve-desktop-chrome-mode.ts). The unified layout rules in
+ * layout/sidebar.css apply to every `html.tauri-unified` (macOS included); here only what differs: no
+ * traffic lights to clear (content is vertically centred) and the per-platform window buttons.
+ * Unlayered on purpose, like sidebar.css, so these rules win over it.
+ */
+  html.tauri-unified:not(.tauri-macos-traffic) {
+    --mac-chrome-traffic-top: var(--space-2);
+    --mac-chrome-bar-height: 48px;
+  }
+  html.tauri-unified:not(.tauri-macos-traffic) .app-window-chrome__brand,
+  html.tauri-unified:not(.tauri-macos-traffic) .app-window-chrome__toolbar {
+    align-items: center;
+    padding-bottom: var(--space-2);
+  }
+  /* Windows / Linux with the full sidebar: no traffic lights to clear, so no 30 px top inset and no 76 px
+     bar (sidebar.css, macOS). Brand, toolbar and window buttons share one centred row. */
+  html.tauri-unified:not(.tauri-macos-traffic):not([data-sidebar-rail="icons"]) .app-shell.app-shell--mac-unified > .app-window-chrome {
+    min-height: 56px;
+    align-items: center;
+  }
+  html.tauri-unified:not(.tauri-macos-traffic):not([data-sidebar-rail="icons"]) .app-window-chrome__brand,
+  html.tauri-unified:not(.tauri-macos-traffic):not([data-sidebar-rail="icons"]) .app-window-chrome__toolbar {
+    padding-top: var(--space-2);
+    padding-bottom: var(--space-2);
+    align-items: center;
+  }
+  /* Before sign-in the frame's slim title bar carries the buttons; the app shell's bar replaces it. */
+  html.tauri-unified:has(.app-shell) .desktop-titlebar {
+    display: none;
+  }
+
+  .window-controls {
+    display: flex;
+    align-items: stretch;
+    flex-shrink: 0;
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+  }
+  .window-controls__btn {
+    display: grid;
+    place-items: center;
+    border: none;
+    padding: 0;
+    margin: 0;
+    background: transparent;
+    color: var(--fg-2);
+    cursor: default;
+  }
+  .window-controls__btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
+
+  /* Windows 11 (Fluent): 46px wide, full bar height, flush with the right edge; close turns red. */
+  .window-controls--windows {
+    align-self: stretch;
+    margin-block: calc(-1 * var(--space-2)) 0;
+  }

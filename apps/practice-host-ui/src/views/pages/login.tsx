@@ -1,13 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { login, postLoginPath } from "@/systems/practice-host/controllers/auth.controller";
 import { BREAK_GLASS_ENABLED } from "@/lib/mvp-security-config";
 import { CapsLockIcon, EyeIcon, EyeOffIcon, ICON_SIZE_LG, ICON_SIZE_SM, PinIcon } from "@/lib/icons";
-import { useT } from "@/lib/i18n";
+import { useT, useTParams } from "@/lib/i18n";
 import { errorMessage } from "@/lib/utils";
 import { LocaleSwitcher } from "../components/locale-switcher";
 import { useDesktopChromeMode } from "../components/desktop-chrome";
 import { WindowDragStrip } from "@/views/components/window-drag-strip";
+import { applyAppearanceFromSettings, loadClientSettings } from "@/lib/client-settings";
+import { formatLockoutCountdown, rateLimitSeconds } from "./login-lockout";
 
 const LS_REMEMBER_EMAIL = "medoc-login-remember-email";
 const LS_REMEMBER_FLAG = "medoc-login-remember-me";
@@ -83,9 +85,13 @@ function formatLoginError(
 
 export function LoginPage() {
     const t = useT();
+    const tp = useTParams();
     const [email, setEmail] = useState(readRememberedEmail);
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
+    const [lockoutUntil, setLockoutUntil] = useState<number | null>(null);
+    /** Clock for the lockout countdown — sampled in effects, never during render. */
+    const [nowMs, setNowMs] = useState(0);
     const [loading, setLoading] = useState(false);
     const [rememberMe, setRememberMe] = useState(() => {
         try {
@@ -100,6 +106,26 @@ export function LoginPage() {
     const [showPw, setShowPw] = useState(false);
     const desktopChrome = useDesktopChromeMode();
     const isMacOverlay = desktopChrome === "mac-overlay";
+    useEffect(() => {
+        applyAppearanceFromSettings(loadClientSettings());
+    }, []);
+
+    useEffect(() => {
+        if (lockoutUntil == null) return;
+        const tick = () => setNowMs(Date.now());
+        tick();
+        const id = window.setInterval(tick, 1000);
+        return () => window.clearInterval(id);
+    }, [lockoutUntil]);
+
+    const lockoutRemainingSec =
+        lockoutUntil == null || nowMs === 0 ? 0 : Math.max(0, Math.ceil((lockoutUntil - nowMs) / 1000));
+
+    useEffect(() => {
+        if (lockoutUntil == null || nowMs === 0 || nowMs < lockoutUntil) return;
+        setLockoutUntil(null);
+        setError("");
+    }, [lockoutUntil, nowMs]);
 
     const deviceOpts = {
         device_label: typeof window !== "undefined" ? `MeDoc · ${window.location.hostname || "app"}` : "MeDoc",
@@ -108,22 +134,31 @@ export function LoginPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (lockoutRemainingSec > 0) return;
         setError("");
         setHelperMsg("");
         setLoading(true);
         try {
             const session = await login(email, password, deviceOpts);
             persistRememberMe(rememberMe, email);
+            setLockoutUntil(null);
             navigate(await postLoginPath(session));
         } catch (err) {
-            setError(
-                formatLoginError(
-                    err,
-                    t("login.rate_limited"),
-                    t("login.unauthorized"),
-                    t("login.failed"),
-                ),
-            );
+            const waitSec = rateLimitSeconds(err);
+            if (waitSec != null) {
+                setLockoutUntil(Date.now() + waitSec * 1000);
+                setError(t("login.rate_limited"));
+            } else {
+                setLockoutUntil(null);
+                setError(
+                    formatLoginError(
+                        err,
+                        t("login.rate_limited"),
+                        t("login.unauthorized"),
+                        t("login.failed"),
+                    ),
+                );
+            }
         } finally {
             setLoading(false);
         }
@@ -159,12 +194,12 @@ export function LoginPage() {
                         <p style={{ fontSize: 16, color: "rgba(255,255,255,0.7)", maxWidth: 460, lineHeight: 1.55 }}>
                             {t("login.hero_subtitle")}
                         </p>
-                        <p style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", maxWidth: 460, lineHeight: 1.5, marginTop: 16 }}>
+                        <p style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", maxWidth: 460, lineHeight: 1.5, marginTop: "var(--space-4)" }}>
                             {t("login.trust_line")}
                         </p>
                     </div>
                 </div>
-                <div style={{ position: "relative", zIndex: 1, fontSize: 12.5, color: "rgba(255,255,255,0.55)", display: "flex", gap: 18, flexWrap: "wrap" }}>
+                <div style={{ position: "relative", zIndex: 1, fontSize: 12.5, color: "rgba(255,255,255,0.55)", display: "flex", gap: "var(--space-4)", flexWrap: "wrap" }}>
                     <span>
                         {t("login.build")} {import.meta.env.VITE_APP_VERSION ?? "—"}
                         {import.meta.env.DEV ? ` · ${import.meta.env.MODE}` : ""}
@@ -176,7 +211,7 @@ export function LoginPage() {
                 className="login-form-wrap"
             >
                 <form className="login-form" onSubmit={handleSubmit}>
-                    <div className="row" style={{ alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
+                    <div className="row" style={{ alignItems: "center", gap: "var(--space-3)", flexWrap: "wrap", marginBottom: "var(--space-2)" }}>
                         <h2 style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", margin: 0 }} tabIndex={-1}>
                             {t("auth.login")}
                         </h2>
@@ -190,17 +225,22 @@ export function LoginPage() {
                             </span>
                         ) : null}
                     </div>
-                    <p style={{ color: "var(--fg-3)", fontSize: 14, marginBottom: 28 }}>
+                    <p style={{ color: "var(--fg-3)", fontSize: 14, marginBottom: "var(--space-8)" }}>
                         {t("login.role_hint")}
                     </p>
                     {error && (
-                        <div role="alert" style={{ background: "var(--red-soft)", color: "var(--red)", padding: "12px", borderRadius: 10, marginBottom: 16, fontSize: 13 }}>
-                            {error}
+                        <div role="alert" style={{ background: "var(--red-soft)", color: "var(--red)", padding: "12px", borderRadius: 10, marginBottom: "var(--space-4)", fontSize: 13 }}>
+                            <div>{error}</div>
+                            {lockoutRemainingSec > 0 ? (
+                                <div style={{ marginTop: "var(--space-2)", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
+                                    {tp("login.rate_limited_next", { time: formatLockoutCountdown(lockoutRemainingSec) })}
+                                </div>
+                            ) : null}
                         </div>
                     )}
                     <label htmlFor="email" className="form-label">{t("auth.email")}</label>
-                    <input id="email" className="input-edit" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t("login.email_placeholder")} required autoComplete="username" style={{ marginBottom: 12 }} />
-                    <div className="row" style={{ justifyContent: "space-between", marginBottom: 6 }}>
+                    <input id="email" className="input-edit" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t("login.email_placeholder")} required autoComplete="username" style={{ marginBottom: "var(--space-3)" }} />
+                    <div className="row" style={{ justifyContent: "space-between", marginBottom: "var(--space-2)" }}>
                         <label htmlFor="password" className="form-label form-label--mb-0">{t("auth.password")}</label>
                         <button
                             type="button"
@@ -211,7 +251,7 @@ export function LoginPage() {
                             {t("login.password_forgot")}
                         </button>
                     </div>
-                    <div className="input login-password-input-row" style={{ marginBottom: 8 }}>
+                    <div className="input login-password-input-row" style={{ marginBottom: "var(--space-2)" }}>
                         <input
                             id="password"
                             className="input-edit login-password-input-row__field"
@@ -255,11 +295,11 @@ export function LoginPage() {
                             {t("login.remember_email")}
                         </label>
                     </div>
-                    <div style={{ marginBottom: 16 }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-3)", marginBottom: 8 }}>{t("login.language_label")}</div>
+                    <div style={{ marginBottom: "var(--space-4)" }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-3)", marginBottom: "var(--space-2)" }}>{t("login.language_label")}</div>
                         <LocaleSwitcher />
                     </div>
-                    <button type="submit" className="login-submit" disabled={loading}>
+                    <button type="submit" className="login-submit" disabled={loading || lockoutRemainingSec > 0}>
                         {loading ? (
                             <span
                                 className="animate-spin"
@@ -278,17 +318,17 @@ export function LoginPage() {
                         {t("login.cert_hint_sr")}
                     </p>
                     {helperMsg ? (
-                        <div style={{ marginTop: 10, color: "var(--blue)", fontSize: 12.5 }} role="status">{helperMsg}</div>
+                        <div style={{ marginTop: "var(--space-3)", color: "var(--blue)", fontSize: 12.5 }} role="status">{helperMsg}</div>
                     ) : null}
                     {BREAK_GLASS_ENABLED ? (
-                    <div id="login-emergency-hint" style={{ marginTop: 22, paddingTop: 18, borderTop: "1px solid var(--line)" }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-2)", marginBottom: 6 }}>{t("login.emergency.title")}</div>
+                    <div id="login-emergency-hint" style={{ marginTop: "var(--space-5)", paddingTop: "var(--space-4)", borderTop: "1px solid var(--line)" }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg-2)", marginBottom: "var(--space-2)" }}>{t("login.emergency.title")}</div>
                         <p style={{ margin: 0, fontSize: 12.5, color: "var(--fg-3)", lineHeight: 1.45 }}>{t("login.emergency.body")}</p>
                     </div>
                     ) : null}
                 </form>
                 {import.meta.env.DEV && (
-                    <p style={{ textAlign: "center", color: "var(--fg-3)", fontSize: 12, marginTop: 14, maxWidth: 420, marginInlineStart: "auto", marginInlineEnd: "auto", lineHeight: 1.45 }}>
+                    <p style={{ textAlign: "center", color: "var(--fg-3)", fontSize: 12, marginTop: "var(--space-4)", maxWidth: 420, marginInlineStart: "auto", marginInlineEnd: "auto", lineHeight: 1.45 }}>
                         <strong>{t("login.dev_badge")}:</strong> {t("login.dev_db_hint")}
                     </p>
                 )}

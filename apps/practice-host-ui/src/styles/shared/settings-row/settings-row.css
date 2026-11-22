@@ -1,0 +1,63 @@
+/* From styles/components/data-controls.css (cascade position kept by its import there). */
+@layer components {
+  [dir="rtl"] .tag-input-shell {
+    direction: rtl;
+  }
+  [dir="rtl"] .app-notice__head {
+    flex-direction: row-reverse;
+  }
+  [dir="rtl"] .sb-item .count {
+    margin-inline-start: auto;
+    margin-inline-end: 0;
+  }
+  [dir="rtl"] .menu-item,
+  [dir="rtl"] .appointment-ctx-menu .menu-item {
+    text-align: start;
+  }
+  [dir="rtl"] .icon-btn--nav-back svg,
+  [dir="rtl"] .page-toolbar .icon-btn .ui-icon-chevron-left {
+    transform: scaleX(-1);
+  }
+  [dir="rtl"] .settings-lang-seg,
+  [dir="rtl"] .settings-density-seg,
+  [dir="rtl"] .settings-font-seg,
+  [dir="rtl"] .seg.seg--wrap {
+    direction: rtl;
+    justify-content: flex-start;
+  }
+  [dir="rtl"] .settings-accent-inline {
+    direction: rtl;
+    justify-content: end;
+    flex: 0 0 auto;
+  }
+  [dir="rtl"] .settings-row--accent .settings-accent-inline {
+    min-width: 0;
+  }
+  [dir="rtl"] .settings-row,
+  [dir="rtl"] .settings-system-block__head--row {
+    direction: rtl;
+  }
+  [dir="rtl"] .settings-row__label,
+  [dir="rtl"] .settings-row__hint,
+  [dir="rtl"] .settings-row .settings-row-clickable__label {
+    text-align: start;
+  }
+  [dir="rtl"] .workspace-page__head-row,
+  [dir="rtl"] .administration-page__head-row,
+  [dir="rtl"] .page-head {
+    direction: rtl;
+  }
+  html[data-arabic-font="1"] body {
+    font-family: "Noto Sans Arabic", "Segoe UI", system-ui, -apple-system, sans-serif;
+  }
+  .page-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--form-gap);
+  }
+  .page-toolbar__search {
+    flex: 1 1 220px;
+    min-width: 0;
+  }
+}

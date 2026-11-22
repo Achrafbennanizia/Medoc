@@ -1,0 +1,63 @@
+/* From styles/features/help-center.css (cascade position kept by its import there). */
+@layer components {
+  .help-center__bar {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    position: sticky;
+    top: calc(-1 * var(--main-padding));
+    z-index: 2;
+    padding-block: var(--space-2);
+    background: var(--bg);
+  }
+  .help-center__search {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    max-width: 36rem;
+    position: relative;
+  }
+  .help-center__search .ui-field-wrap { flex: 1 1 auto; min-width: 0; }
+  .help-center__search-icon { color: var(--fg-3); display: inline-flex; }
+  .help-center__tabs {
+    display: flex;
+    flex-wrap: wrap; /* narrow window: wrap so every tab stays visible (hidden scrollbars hid tabs) */
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: var(--space-1);
+    border-bottom: 1px solid var(--line);
+  }
+  .help-center__tab {
+    flex: 0 0 auto;
+    padding: var(--space-2) var(--space-3);
+    margin-bottom: -1px;
+    border-bottom: 2px solid transparent;
+    color: var(--fg-3);
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    border-radius: var(--radius-ctl) var(--radius-ctl) 0 0;
+  }
+  .help-center__tab:hover { color: var(--fg); background: color-mix(in oklab, var(--fg) 4%, transparent); }
+  .help-center__tab[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+  .help-center__tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .help-center__panel:focus { outline: none; }
+  .help-stack { display: flex; flex-direction: column; gap: var(--space-4); }
+  .help-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr));
+    gap: var(--space-4);
+    align-items: start;
+  }
+  .help-intro { margin: 0; max-width: 48rem; color: var(--fg-2); line-height: 1.55; }
+  .help-empty, .help-footnote, .help-count { margin: 0; color: var(--fg-3); font-size: 13px; }
+  .help-footnote { grid-column: 1 / -1; }
+  .help-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
+  .help-toolbar__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+}

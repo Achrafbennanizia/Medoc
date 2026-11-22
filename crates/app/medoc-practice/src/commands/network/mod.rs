@@ -4,4 +4,5 @@ pub mod cluster;
 pub mod company_portal;
 pub mod lan;
 pub mod pairing;
+pub mod reconnect_update_check;
 pub mod sync;

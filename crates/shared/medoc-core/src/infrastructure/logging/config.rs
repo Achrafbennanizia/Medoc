@@ -61,13 +61,8 @@ impl LoggingConfig {
     /// Re-evaluated on every event so `set_log_level` takes effect immediately
     /// (the file layer uses `FilterFn`, not a one-shot `EnvFilter`).
     pub fn app_json_accepts(&self, meta: &Metadata<'_>) -> bool {
-        let t = meta.target();
-        if t.starts_with("medoc::security")
-            || t.starts_with("medoc::system")
-            || t.starts_with("medoc::device")
-            || t.starts_with("medoc::migration")
-            || t.starts_with("medoc::perf")
-        {
+        // Events a channel owns go to that channel's file only (channels.rs is the single routing table).
+        if super::channels::channel_for(meta.target()).is_some() {
             return false;
         }
         Self::level_accepts(self.level(), *meta.level())
@@ -88,12 +83,14 @@ impl LoggingConfig {
     }
 
     /// Static filter string for tests / tooling only (startup filters use
-    /// [`Self::app_json_accepts`] for runtime updates).
+    /// [`Self::app_json_accepts`] for runtime updates). Derived from the channel registry.
     pub fn app_filter(&self) -> EnvFilter {
         let lvl = self.level().as_filter();
-        EnvFilter::new(format!(
-            "{lvl},medoc::security=off,medoc::system=off,medoc::device=off,medoc::migration=off,medoc::perf=off"
-        ))
+        let off: Vec<String> = super::channels::CHANNELS
+            .iter()
+            .flat_map(|c| c.targets.iter().map(|t| format!("{t}=off")))
+            .collect();
+        EnvFilter::new(format!("{lvl},{}", off.join(",")))
     }
 }
 

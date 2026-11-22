@@ -3,7 +3,7 @@
 //! Authenticated HTTPS API + UDP discovery beacon — runs as either:
 //!
 //! 1. **Embedded** inside the practice host (`medoc-server` binary spawned by
-//!    `commands::lan_commands::start_lan_embedded`), or
+//!    `commands::network::lan::start_lan_embedded`), or
 //! 2. **Standalone** on a separate Linux/macOS host (`medoc-server` binary
 //!    started from the CLI), pointing at the same SQLCipher database file.
 
@@ -15,21 +15,13 @@ pub mod master_license;
 pub mod secrets;
 pub mod tls;
 
-// ---------------------------------------------------------------------------
-// Legacy flat HTTP handlers (R3) — canonical: `http::{sync,pairing}`.
-// Old wiring (commented):
-// pub use http::sync as sync_http;
-// pub use http::pairing as pairing_http;
-pub mod pairing_http;
-pub mod sync_http;
-
 pub use config::{LanServerConfigV1, APP_KV_KEY};
 pub use discovery::{scan_lan_hosts, LanBeaconPayload, SCHEMA};
 pub use secrets::{ensure_instance_id, ensure_jwt_secret_bytes};
 
 /// LAN system **Factory** — single entry point that builds the HTTPS state +
 /// Axum router for both the embedded path (Tauri practice host spawns it
-/// via `commands::lan_commands`) and the standalone `medoc-server` binary.
+/// via `commands::network::lan`) and the standalone `medoc-server` binary.
 pub struct LanSystemFactory;
 
 impl LanSystemFactory {

@@ -1,5 +1,6 @@
-import { practiceSystem } from "@/systems/practice-host/adapters/tauri-practice.adapter";
-import type { BalanceSheet, Payment, PaymentMethod, PaymentStatus } from "@/models/types";
+import type { z } from "zod";
+import { practiceSystem } from "@/systems/practice-host/adapters/practice-transport";
+import type { BalanceSheet, Payment, PaymentStatus } from "@/models/types";
 import { CreatePaymentSchema, UpdatePaymentSchema, parseOrThrow } from "@/lib/schemas";
 import type { ListParams, ListResponse } from "@/lib/list-params";
 
@@ -50,16 +51,7 @@ export async function getBalanceSheet(): Promise<BalanceSheet> {
     return practiceSystem.invoke<BalanceSheet>("get_balance_sheet");
 }
 
-export async function createPayment(data: {
-    patient_id: string;
-    amount: number;
-    payment_method: string;
-    service_item_id?: string;
-    description?: string;
-    treatment_id?: string | null;
-    examination_id?: string | null;
-    amount_expected?: number | null;
-}): Promise<Payment> {
+export async function createPayment(data: z.input<typeof CreatePaymentSchema>): Promise<Payment> {
     const safe = parseOrThrow(CreatePaymentSchema, data);
     return practiceSystem.invoke<Payment>("create_payment", { data: safe });
 }
@@ -68,13 +60,7 @@ export async function updatePaymentStatus(id: string, status: PaymentStatus): Pr
     return practiceSystem.invoke<Payment>("update_payment_status", { id, status });
 }
 
-export async function updatePayment(data: {
-    id: string;
-    amount: number;
-    payment_method: PaymentMethod;
-    service_item_id?: string | null;
-    description?: string | null;
-}): Promise<Payment> {
+export async function updatePayment(data: z.input<typeof UpdatePaymentSchema>): Promise<Payment> {
     const safe = parseOrThrow(UpdatePaymentSchema, data);
     return practiceSystem.invoke<Payment>("update_payment", { data: safe });
 }

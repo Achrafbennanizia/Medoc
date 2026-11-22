@@ -1,21 +1,17 @@
 import type { Payment } from "@/models/types";
+import { paymentCountsTowardPaid } from "./payment-booking";
+import { practiceCurrency } from "./practice-currency";
+import { ymdInTimeZone } from "./practice-timezone";
+import { parseDbUtc } from "./utils";
 
-/** Local date (YYYY-MM-DD) from `created_at` (SQLite-naive or ISO). */
+/** Local date (YYYY-MM-DD) from `created_at` in the practice time zone. */
+
 export function paymentLocalYmd(createdAt: string): string {
-    const t = createdAt.trim();
-    const iso = t.includes("T") ? t : t.replace(" ", "T");
-    const d = new Date(iso);
+    const d = parseDbUtc(createdAt);
     if (Number.isNaN(d.getTime())) {
         return "";
     }
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
-}
-
-function isCancelled(z: Payment): boolean {
-    return z.status === "CANCELLED";
+    return ymdInTimeZone(d);
 }
 
 export function filterPaymentsForLocalDay(payments: Payment[], ymd: string): Payment[] {
@@ -25,14 +21,14 @@ export function filterPaymentsForLocalDay(payments: Payment[], ymd: string): Pay
 /** Cash per capture (cash, not cancelled). */
 export function sumCashDay(payments: Payment[], ymd: string): number {
     return filterPaymentsForLocalDay(payments, ymd)
-        .filter((x) => !isCancelled(x) && x.payment_method === "CASH")
+        .filter((x) => paymentCountsTowardPaid(x.status) && x.payment_method === "CASH")
         .reduce((s, x) => s + x.amount, 0);
 }
 
 /** All booked revenue for the day (paid / partially paid, not cancelled). */
 export function sumIncomeDay(payments: Payment[], ymd: string): number {
     return filterPaymentsForLocalDay(payments, ymd)
-        .filter((x) => !isCancelled(x) && (x.status === "PAID" || x.status === "PARTIALLY_PAID"))
+        .filter((x) => paymentCountsTowardPaid(x.status) && (x.status === "PAID" || x.status === "PARTIALLY_PAID"))
         .reduce((s, x) => s + x.amount, 0);
 }
 
@@ -41,13 +37,24 @@ export function isCashUnverified(z: Payment): boolean {
 }
 
 export function isPostedPayment(z: Payment): boolean {
-    return !isCancelled(z) && (z.status === "PAID" || z.status === "PARTIALLY_PAID");
+    return paymentCountsTowardPaid(z.status) && (z.status === "PAID" || z.status === "PARTIALLY_PAID");
+}
+
+/**
+ * Day the money was recorded. Filling an older 0 € booking does not change
+ * `created_at`; `updated_at` is that later day.
+ */
+export function paymentRecordedLocalYmd(payment: Payment): string {
+    const created = paymentLocalYmd(payment.created_at);
+    const updated = payment.updated_at ? paymentLocalYmd(payment.updated_at) : "";
+    if (updated && (!created || updated > created)) return updated;
+    return created;
 }
 
 /** Payments for Reception: recorded today, not yet confirmed in DayClose. */
 export function filterReceptionCashQueue(payments: Payment[], ymd: string): Payment[] {
     return payments.filter(
-        (z) => paymentLocalYmd(z.created_at) === ymd && isPostedPayment(z) && isCashUnverified(z),
+        (z) => paymentRecordedLocalYmd(z) === ymd && isPostedPayment(z) && isCashUnverified(z),
     );
 }
 
@@ -66,25 +73,13 @@ export function amountsMatch(a: number, b: number): boolean {
     return Math.abs(a - b) < AMOUNT_TOL;
 }
 
-/**
- * Parse German / mixed numeric input for Euro amounts.
- * - `1.234,56` → 1234.56 (`.` thousands, `,` decimal)
- * - `1234,56` → 1234.56
- * - `1.234.567` (only dots as thousands) → 1234567
- * - `12.34` with a single dot and no comma → decimal point (en-US style)
- */
-export function parseEuroInput(raw: string): number | null {
-    const s0 = String(raw).trim().replace(/\s/g, "");
-    if (s0 === "") return null;
-
-    let s = s0;
-    if (s.includes(",")) {
-        s = s.replace(/\./g, "").replace(",", ".");
-    } else if (/^\d{1,3}(\.\d{3})+$/.test(s)) {
-        s = s.replace(/\./g, "");
+/** Cash on the day-close screen, in the currency chosen under Settings → Practice. */
+export function formatCashAmount(euros: number): string {
+    if (!Number.isFinite(euros)) return "—";
+    const currency = practiceCurrency();
+    try {
+        return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(euros);
+    } catch {
+        return new Intl.NumberFormat(undefined, { style: "currency", currency: "EUR" }).format(euros);
     }
-
-    const n = Number(s);
-    if (!Number.isFinite(n)) return null;
-    return n;
 }

@@ -19,6 +19,7 @@ import { errorMessage } from "@/lib/utils";
 import { Button } from "@/views/components/ui/button";
 import { OnboardingShell } from "@/views/components/onboarding-shell";
 
+import { PreShellScreen } from "./window-drag-strip";
 type OnboardingPhase = {
     needsDeviceSetup: boolean;
     needsPracticeSetup: boolean;
@@ -85,9 +86,9 @@ export function ClusterOnboardingGate({ children }: { children: ReactNode }) {
 
     if (status === null || phase === null) {
         return (
-            <div className="onboarding-page" role="status">
-                <p className="card-sub">{t("onboarding.gate.loading")}</p>
-            </div>
+            <PreShellScreen className="onboarding-page">
+                <p className="card-sub" role="status">{t("onboarding.gate.loading")}</p>
+            </PreShellScreen>
         );
     }
 

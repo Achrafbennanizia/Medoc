@@ -1,0 +1,65 @@
+/* From styles/themes/accessibility.css (cascade position kept by its import there). */
+/* ---- High contrast (light): pure black text, solid borders, darker accent (WCAG AAA-leaning) ---- */
+html[data-contrast="high"]:not([data-theme="dark"]) {
+  --bg: #ffffff;
+  --bg-elev: #ffffff;
+  --fg: #000000;
+  --fg-2: #000000;
+  --fg-3: #1f1f1f;
+  --fg-4: #333333;
+  --line: rgba(0, 0, 0, 0.55);
+  --line-strong: #000000;
+  /* Your accent, darkened for contrast: 70 % preset + black is ≥ 7:1 on white for every preset (AAA).
+     !important: the preset is applied inline on <html> and would otherwise win. */
+  --accent: color-mix(in oklab, var(--accent-base, #0ea07e) 70%, #000) !important;
+  --accent-soft: color-mix(in oklab, var(--accent-base, #0ea07e) 14%, #fff) !important;
+  --accent-ink: color-mix(in oklab, var(--accent-base, #0ea07e) 45%, #000) !important;
+  --accent-fade-strength: 6%;
+  --accent-fade-soft: 0%;
+  --surface-1: #ffffff;
+  --red: #b00020;
+  --orange: #8a4b00;
+  --blue: #0040a8;
+  --surface-sidebar-canvas: #ffffff;
+}
+/* ---- High contrast (dark): white on black ---- */
+html[data-contrast="high"][data-theme="dark"] {
+  --bg: #000000;
+  --bg-elev: #0b0b0b;
+  --fg: #ffffff;
+  --fg-2: #ffffff;
+  --fg-3: #ededed;
+  --fg-4: #d0d0d0;
+  --line: rgba(255, 255, 255, 0.6);
+  --line-strong: #ffffff;
+  /* Your accent, lightened: 60 % preset + white is ≥ 8.9:1 on black for every preset. */
+  --accent: color-mix(in oklab, var(--accent-base, #0ea07e) 60%, #fff) !important;
+  --accent-soft: color-mix(in oklab, var(--accent-base, #0ea07e) 30%, #000) !important;
+  --accent-ink: color-mix(in oklab, var(--accent-base, #0ea07e) 35%, #fff) !important;
+  --accent-fade-strength: 10%;
+  --accent-fade-soft: 0%;
+  /* The dark-HC accent is light, so text on it must be dark. */
+  --text-on-accent: #000000;
+  --surface-1: #0b0b0b;
+  --red: #ff7a8a;
+  --orange: #ffc266;
+  --blue: #8cc1ff;
+  --surface-sidebar-canvas: #000000;
+}
+html[data-contrast="high"] .card,
+html[data-contrast="high"] .help-card,
+html[data-contrast="high"] .input-edit,
+html[data-contrast="high"] .btn-subtle,
+html[data-contrast="high"] .pill {
+  border: 1px solid var(--line-strong);
+}
+html[data-contrast="high"] .glass {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background: var(--bg-elev) !important;
+}
+html[data-contrast="high"] *:focus-visible {
+  outline: 3px solid var(--fg) !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 5px var(--bg) !important;
+}

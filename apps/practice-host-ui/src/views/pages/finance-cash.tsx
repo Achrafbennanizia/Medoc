@@ -1,25 +1,21 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { Patient, Payment } from "@/models/types";
+import { itemValidationKey } from "@/lib/chart-validation";
 import { filterReceptionCashQueue } from "@/lib/day-close";
 import { allowed, parseRole } from "@/lib/rbac";
-import { errorMessage, formatCurrency, formatDateTime } from "@/lib/utils";
+import { errorMessage, formatCurrency, formatDateTime, localIsoDate } from "@/lib/utils";
 import { paymentMethodLabel } from "@/lib/finance-order-labels";
-import { useLocale, useT, useTParams } from "@/lib/i18n";
+import { translatePluralUnit, useLocale, useT, useTParams } from "@/lib/i18n";
 import { useAuthStore } from "../../models/store/auth-store";
 import { Badge } from "../components/ui/badge";
+import { DataTable } from "../components/ui/data-table";
 import { Button } from "../components/ui/button";
 import { EmptyState } from "../components/ui/empty-state";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
+import { useToastStore } from "../components/ui/toast-store";
 import { WorkspacePageHeader } from "../components/administration-page-header";
-
-function todayYmd(): string {
-    const d = new Date();
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
-}
+import { usePageRefresh } from "../layouts/page-refresh";
 
 /**
  * Reception-only cash overview: payments recorded today not yet confirmed in DayClose.
@@ -32,24 +28,33 @@ export function FinanceCashPage() {
     const session = useAuthStore((s) => s.session);
     const role = session?.role ? parseRole(session.role) : null;
     const canWritePayment = role != null && allowed("finance.write", role);
+    const toast = useToastStore((s) => s.add);
 
     const [payments, setPayments] = useState<Payment[]>([]);
     const [patients, setPatients] = useState<Patient[]>([]);
+    /** `null` until validation rows load; then `payment:{id}` keys that are validated. */
+    const [validatedPaymentKeys, setValidatedPaymentKeys] = useState<Set<string> | null>(null);
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
+    const inFlight = useRef(false);
 
-    const today = todayYmd();
+    const today = localIsoDate(new Date());
 
-    const load = useCallback(async () => {
-        setLoading(true);
-        setLoadError(null);
+    const load = useCallback(async (opts?: { silent?: boolean }) => {
+        const silent = opts?.silent === true;
+        if (silent && inFlight.current) return;
+        inFlight.current = true;
+        if (!silent) {
+            setLoading(true);
+            setLoadError(null);
+        }
         try {
             const { listPaymentsPaged } = await import("@/systems/practice-host/controllers/payment.controller");
             const { listPatientsByIds } = await import("@/systems/practice-host/controllers/patient.controller");
             const resp = await listPaymentsPaged({
                 page: 1,
                 pageSize: 500,
-                filter: { dateOn: today },
+                filter: { activeOn: today },
             });
             // Cash queue can span pages if a busy day exceeds 500; pull remaining pages.
             let all = resp.items;
@@ -59,23 +64,33 @@ export function FinanceCashPage() {
                 const more = await listPaymentsPaged({
                     page,
                     pageSize: 500,
-                    filter: { dateOn: today },
+                    filter: { activeOn: today },
                 });
                 all = all.concat(more.items);
             }
             setPayments(all);
             const ids = [...new Set(all.map((z) => z.patient_id).filter(Boolean))];
             setPatients(ids.length ? await listPatientsByIds(ids) : []);
+            const { listValidatedPaymentKeys } = await import("@/systems/practice-host/controllers/validation.controller");
+            const validated = await listValidatedPaymentKeys(ids);
+            if (validated) setValidatedPaymentKeys(validated);
         } catch (e) {
-            setLoadError(errorMessage(e));
+            const msg = errorMessage(e);
+            if (silent) toast(tp("common.refresh_failed", { message: msg }), "error");
+            else setLoadError(msg);
         } finally {
-            setLoading(false);
+            inFlight.current = false;
+            if (!silent) setLoading(false);
         }
-    }, [today]);
+    }, [today, toast, tp]);
 
     useEffect(() => {
         void load();
     }, [load]);
+
+    usePageRefresh(() => {
+        void load({ silent: true });
+    });
 
     const patientName = useCallback(
         (id: string) => patients.find((p) => p.id === id)?.name ?? id,
@@ -89,14 +104,7 @@ export function FinanceCashPage() {
 
     const todaySum = useMemo(() => todayOpen.reduce((s, z) => s + z.amount, 0), [todayOpen]);
 
-    const paymentPluralSuffix =
-        todayOpen.length === 1
-            ? ""
-            : locale === "de"
-              ? "en"
-              : locale === "fr"
-                ? "s"
-                : "s";
+    const paymentUnit = translatePluralUnit(locale, "page.finance_cash.payment_unit", todayOpen.length);
 
     if (loading) {
         return (
@@ -137,7 +145,7 @@ export function FinanceCashPage() {
                     <div className="finance-cash-page__kpi-meta">
                         {tp("page.finance_cash.kpi_meta", {
                             count: todayOpen.length,
-                            plural: paymentPluralSuffix,
+                            unit: paymentUnit,
                             date: today,
                         })}
                     </div>
@@ -168,44 +176,41 @@ export function FinanceCashPage() {
                         />
                     </div>
                 ) : (
-                    <div className="finance-cash-page__table-wrap tbl-scroll">
-                        <table className="tbl tbl-cash">
-                            <colgroup>
-                                <col className="cash-col-time" />
-                                <col className="cash-col-patient" />
-                                <col className="cash-col-kind" />
-                                <col className="cash-col-amount" />
-                                <col className="cash-col-status" />
-                            </colgroup>
-                            <thead>
-                                <tr>
-                                    <th scope="col">{t("common.time")}</th>
-                                    <th scope="col">{t("common.patient")}</th>
-                                    <th scope="col">{t("drawer.finance_tx.kind_kind")}</th>
-                                    <th scope="col" className="tbl-th-num">
-                                        {t("common.amount")}
-                                    </th>
-                                    <th scope="col">{t("common.status")}</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {todayOpen.map((z) => (
-                                    <tr key={z.id}>
-                                        <td className="cash-td-time">{formatDateTime(z.created_at)}</td>
-                                        <td className="cash-td-patient">
-                                            <Link to={`/patients/${z.patient_id}`} className="tbl-link">
-                                                {patientName(z.patient_id)}
-                                            </Link>
-                                        </td>
-                                        <td className="cash-td-kind">{paymentMethodLabel(z.payment_method, t)}</td>
-                                        <td className="tbl-td-num">{formatCurrency(z.amount)}</td>
-                                        <td className="cash-td-status">
+                    <div className="finance-cash-page__table-wrap">
+                        <DataTable
+                            label={t("page.finance_cash.title")}
+                            rows={todayOpen}
+                            getRowId={(z) => z.id}
+                            columns={[
+                                { id: "time", header: t("common.time"), width: "10rem", cell: (z) => formatDateTime(z.created_at) },
+                                {
+                                    id: "patient",
+                                    header: t("common.patient"),
+                                    truncate: true,
+                                    text: (z) => patientName(z.patient_id),
+                                    cell: (z) => (
+                                        <Link to={`/patients/${z.patient_id}`} className="tbl-link">
+                                            {patientName(z.patient_id)}
+                                        </Link>
+                                    ),
+                                },
+                                { id: "kind", header: t("drawer.finance_tx.kind_kind"), width: "18%", truncate: true, hideBelow: "sm", text: (z) => paymentMethodLabel(z.payment_method, t), cell: (z) => paymentMethodLabel(z.payment_method, t) },
+                                { id: "amount", header: t("common.amount"), width: "8rem", numeric: true, cell: (z) => formatCurrency(z.amount) },
+                                {
+                                    id: "status",
+                                    header: t("common.status"),
+                                    width: "11rem",
+                                    cell: (z) =>
+                                        validatedPaymentKeys == null ? (
                                             <Badge variant="warning">{t("page.finance_cash.status_open")}</Badge>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                        ) : validatedPaymentKeys.has(itemValidationKey("payment", z.id)) ? (
+                                            <Badge variant="success">{t("enum.charts_status.validated")}</Badge>
+                                        ) : (
+                                            <Badge variant="warning">{t("patient.detail.tab.payment.status_need_validation")}</Badge>
+                                        ),
+                                },
+                            ]}
+                        />
                     </div>
                 )}
             </section>

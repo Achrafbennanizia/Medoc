@@ -13,21 +13,21 @@ async fn sync_status_requires_license_on_unlicensed_master() {
     let lan = LanTestHarness::unlicensed_master().await;
     let jwt = lan.ops_jwt();
     let mut lan = lan;
-    let (status, _) = lan
+    let (status, body) = lan
         .json("GET", "/api/v1/sync/status", None, Some(&jwt))
         .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(body["reason"], "staff_jwt_rejected");
 }
 
 #[tokio::test]
 #[serial]
 async fn sync_status_returns_snapshot_when_licensed() {
     std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
-    let lan = LanTestHarness::licensed_master().await;
-    let jwt = lan.ops_jwt();
-    let mut lan = lan;
+    let mut lan = LanTestHarness::licensed_master().await;
+    let token = device_token("status-device", &["sync.status"]);
     let (status, body) = lan
-        .json("GET", "/api/v1/sync/status", None, Some(&jwt))
+        .json("GET", "/api/v1/sync/status", None, Some(&token))
         .await;
     assert_eq!(status, StatusCode::OK);
     assert!(body["localDeviceId"].is_string());
@@ -38,7 +38,8 @@ async fn sync_status_returns_snapshot_when_licensed() {
 async fn sync_push_rejects_invalid_json_body() {
     std::env::set_var("MEDOC_SKIP_MASTER_LICENSE", "1");
     let mut lan = LanTestHarness::licensed_master().await;
-    let status = lan.post_raw("/api/v1/sync/push", "{not-json").await;
+    let token = device_token("json-device", &["sync.push"]);
+    let status = lan.post_raw("/api/v1/sync/push", "{not-json", &token).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
     std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
 }
@@ -47,10 +48,9 @@ async fn sync_push_rejects_invalid_json_body() {
 #[serial]
 async fn sync_push_ingests_remote_app_kv_row() {
     std::env::set_var("MEDOC_SKIP_MASTER_LICENSE", "1");
-    let lan = LanTestHarness::licensed_master().await;
-    let jwt = lan.ops_jwt();
-    let mut lan = lan;
+    let mut lan = LanTestHarness::licensed_master().await;
     let remote = "remote-lan-replica-1";
+    let token = device_token(&remote, &["sync.push"]);
     let entry = serde_json::json!({
         "id": "lan-e1",
         "deviceId": remote,
@@ -70,7 +70,7 @@ async fn sync_push_ingests_remote_app_kv_row() {
                 "fromDeviceId": remote,
                 "entries": [entry]
             })),
-            Some(&jwt),
+            Some(&token),
         )
         .await;
     assert_eq!(status, StatusCode::OK);
@@ -86,7 +86,7 @@ async fn sync_push_ingests_remote_app_kv_row() {
 
 #[tokio::test]
 #[serial]
-async fn sync_pull_returns_outbox_entries_for_device() {
+async fn sync_pull_rejects_staff_jwt() {
     std::env::set_var("MEDOC_SKIP_MASTER_LICENSE", "1");
     let lan = LanTestHarness::licensed_master().await;
     let jwt = lan.ops_jwt();
@@ -116,12 +116,12 @@ async fn sync_pull_returns_outbox_entries_for_device() {
             Some(&jwt),
         )
         .await;
-    assert_eq!(status, StatusCode::OK);
-    let entries = pull_body["entries"].as_array().expect("entries");
-    assert!(
-        entries.iter().any(|e| e["entityId"] == "pull.key"),
-        "pull must include the master's outbox row, got {entries:?}"
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "staff jwt pull: {pull_body:?}"
     );
+    assert_eq!(pull_body["reason"], "staff_jwt_rejected");
     std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
 }
 
@@ -132,7 +132,7 @@ async fn sync_pull_rejects_unlicensed_master() {
     let lan = LanTestHarness::unlicensed_master().await;
     let jwt = lan.ops_jwt();
     let mut lan = lan;
-    let (status, _) = lan
+    let (status, body) = lan
         .json(
             "POST",
             "/api/v1/sync/pull",
@@ -144,6 +144,86 @@ async fn sync_pull_rejects_unlicensed_master() {
         )
         .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(body["reason"], "staff_jwt_rejected");
+}
+
+fn device_token(device_id: &str, actions: &[&str]) -> String {
+    let signing_key = medoc_sync::master_keys::load_or_create().expect("master key");
+    medoc_sync::pairing::mint_activation_token(
+        &signing_key,
+        &medoc_sync::pairing::ActivationTokenPayload {
+            version: 2,
+            device_id: device_id.to_string(),
+            slave_label: "replica".into(),
+            master_device_id: "master".into(),
+            allowed_actions: actions.iter().map(|action| (*action).to_string()).collect(),
+            issued_at: "2026-11-07T00:00:00Z".into(),
+            nonce: format!("n-{device_id}"),
+        },
+    )
+    .expect("mint")
+}
+
+#[tokio::test]
+#[serial]
+async fn sync_push_rejects_a_foreign_device_id() {
+    std::env::set_var("MEDOC_SKIP_MASTER_LICENSE", "1");
+    let mut lan = LanTestHarness::licensed_master().await;
+    let token = device_token("paired-device", &["sync.push"]);
+    let (status, body) = lan
+        .json(
+            "POST",
+            "/api/v1/sync/push",
+            Some(&serde_json::json!({
+                "fromDeviceId": "someone-else",
+                "entries": []
+            })),
+            Some(&token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(body["reason"], "from_device_mismatch");
+    std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
+}
+
+#[tokio::test]
+#[serial]
+async fn sync_status_rejects_an_unlicensed_paired_device() {
+    std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
+    let mut lan = LanTestHarness::unlicensed_master().await;
+    let token = device_token("paired-device", &["sync.status"]);
+    let (status, body) = lan
+        .json("GET", "/api/v1/sync/status", None, Some(&token))
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(body["reason"], "master_license_required");
+}
+
+#[tokio::test]
+#[serial]
+async fn reception_cannot_delete_the_license_or_submit_a_prescription() {
+    std::env::set_var("MEDOC_SKIP_MASTER_LICENSE", "1");
+    let lan = LanTestHarness::licensed_master().await;
+    let jwt = lan.reception_jwt();
+    let mut lan = lan;
+    let (license_status, _) = lan
+        .json("DELETE", "/api/v1/license", None, Some(&jwt))
+        .await;
+    assert_eq!(license_status, StatusCode::FORBIDDEN);
+    let (rx_status, _) = lan
+        .json(
+            "POST",
+            "/api/v1/eprescriptions/validate",
+            Some(&serde_json::json!({
+                "kvnr": "A123456789",
+                "pzn": "12345678",
+                "doctorLanr": "123456789"
+            })),
+            Some(&jwt),
+        )
+        .await;
+    assert_eq!(rx_status, StatusCode::CONFLICT);
+    std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
 }
 
 #[tokio::test]
@@ -153,5 +233,92 @@ async fn sync_routes_require_bearer_token() {
     let mut lan = LanTestHarness::licensed_master().await;
     let (status, _) = lan.json("GET", "/api/v1/sync/status", None, None).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
+    std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
+}
+
+#[tokio::test]
+#[serial]
+async fn staff_jwt_on_digest_is_401() {
+    std::env::set_var("MEDOC_SKIP_MASTER_LICENSE", "1");
+    let mut lan = LanTestHarness::licensed_master().await;
+    let jwt = lan.ops_jwt();
+    let (status, _) = lan
+        .json(
+            "POST",
+            "/api/v1/sync/digest",
+            Some(&serde_json::json!({})),
+            Some(&jwt),
+        )
+        .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
+}
+
+#[tokio::test]
+#[serial]
+async fn digest_returns_256_buckets_with_activation_token() {
+    std::env::set_var("MEDOC_SKIP_MASTER_LICENSE", "1");
+    let mut lan = LanTestHarness::licensed_master().await;
+    let token = device_token("digest-device", &["sync.reconcile"]);
+    let (status, body) = lan
+        .json(
+            "POST",
+            "/api/v1/sync/digest",
+            Some(&serde_json::json!({})),
+            Some(&token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["buckets"].as_array().map(|a| a.len()), Some(256));
+    std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
+}
+
+#[tokio::test]
+#[serial]
+async fn replica_sync_push_token_can_allocate_document_number() {
+    std::env::set_var("MEDOC_SKIP_MASTER_LICENSE", "1");
+    let mut lan = LanTestHarness::licensed_master().await;
+    let token = device_token("number-device", &["sync.push"]);
+    let body = serde_json::json!({
+        "prefix": "RE",
+        "date": "2026-11-08",
+        "style": "daily"
+    });
+    let (status, first) = lan
+        .json("POST", "/api/v1/sync/number", Some(&body), Some(&token))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{first}");
+    let n1 = first["number"].as_str().expect("number");
+    assert!(n1.contains("RE"), "{n1}");
+    let (status, second) = lan
+        .json("POST", "/api/v1/sync/number", Some(&body), Some(&token))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{second}");
+    let n2 = second["number"].as_str().expect("number");
+    assert_ne!(n1, n2, "replica allocations must be unique");
+    std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
+}
+
+#[tokio::test]
+#[serial]
+async fn blob_with_wrong_hash_is_rejected() {
+    std::env::set_var("MEDOC_SKIP_MASTER_LICENSE", "1");
+    let mut lan = LanTestHarness::licensed_master().await;
+    let bytes = b"attachment-bytes";
+    let hex = medoc_core::infrastructure::database::sync_blob::sha256_hex(bytes);
+    let token = device_token("blob-device", &["sync.blob.put", "sync.blob.get"]);
+    let bad_hex = "00".repeat(32);
+    let bad = lan
+        .put_bytes(
+            &format!("/api/v1/sync/blob/{bad_hex}"),
+            bytes.to_vec(),
+            &token,
+        )
+        .await;
+    assert_eq!(bad, StatusCode::BAD_REQUEST);
+    let ok = lan
+        .put_bytes(&format!("/api/v1/sync/blob/{hex}"), bytes.to_vec(), &token)
+        .await;
+    assert_eq!(ok, StatusCode::NO_CONTENT);
     std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
 }

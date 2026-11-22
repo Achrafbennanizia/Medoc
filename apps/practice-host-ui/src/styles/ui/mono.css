@@ -1,0 +1,4 @@
+/* ui/mono — packages/ui/src/mono.tsx */
+@layer components {
+  .ui-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; word-break: break-all; }
+}

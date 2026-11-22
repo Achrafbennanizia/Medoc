@@ -3,13 +3,33 @@
 use medoc_core::error::AppError;
 use medoc_core::infrastructure::crypto;
 use medoc_core::infrastructure::database::connection::{run_migrations, test_memory_pool};
-use medoc_core::infrastructure::database::staff_repo;
+use medoc_core::infrastructure::database::repos::admin::staff as staff_repo;
 use sqlx::SqlitePool;
 
 async fn fresh_pool() -> SqlitePool {
     let pool = test_memory_pool().await.expect("pool");
     run_migrations(&pool).await.expect("migrate");
     pool
+}
+
+/// The test database has no demo seed, so create one appointment for the
+/// seeded physician explicitly.
+async fn seed_appointment_for(pool: &SqlitePool, physician_id: &str) {
+    sqlx::query(
+        "INSERT OR IGNORE INTO patient (id, name, date_of_birth, sex, insurance_number, status)
+         VALUES ('fk-patient-1', 'FK Patient', '1980-01-01', 'MALE', 'FK-INS-1', 'ACTIVE')",
+    )
+    .execute(pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO appointment (id, date, time, kind, status, patient_id, physician_id)
+         VALUES ('fk-apt-1', '2026-11-10', '09:00', 'CHECKUP', 'PLANNED', 'fk-patient-1', ?1)",
+    )
+    .bind(physician_id)
+    .execute(pool)
+    .await
+    .unwrap();
 }
 
 async fn insert_staff(pool: &SqlitePool, id: &str, role: &str) {
@@ -63,6 +83,7 @@ async fn delete_physician_reassigns_appointments_when_another_exists() {
         .await
         .expect("drop quota");
     insert_staff(&pool, "doc-b", "PHYSICIAN").await;
+    seed_appointment_for(&pool, "seed-physician-001").await;
     medoc_core::mvp_security::ensure_staff_quota_db_triggers(&pool)
         .await
         .expect("quota");
@@ -77,16 +98,18 @@ async fn delete_physician_reassigns_appointments_when_another_exists() {
     .await
     .unwrap();
     assert_eq!(n, 0);
-    let left: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM appointment WHERE physician_id = 'doc-b'")
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+    let left: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM appointment WHERE physician_id = 'doc-b'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert!(left > 0);
 }
 
 #[tokio::test]
 async fn delete_last_physician_with_appointments_is_blocked() {
     let pool = fresh_pool().await;
+    seed_appointment_for(&pool, "seed-physician-001").await;
     let err = staff_repo::delete(&pool, "seed-physician-001")
         .await
         .expect_err("must block last clinician");

@@ -5,7 +5,7 @@ use std::net::IpAddr;
 use medoc_core::error::AppError;
 use sqlx::SqlitePool;
 
-use super::types::{APP_KV_PAIRING_ENABLED, DEFAULT_ALLOWED_ACTIONS};
+use super::types::{APP_KV_NETWORK_HIDDEN, APP_KV_PAIRING_ENABLED, DEFAULT_ALLOWED_ACTIONS};
 
 /// IPv4 form of a socket address. Mapped IPv6 (`::ffff:192.168.1.5`) becomes `192.168.1.5`.
 /// Unspecified addresses (`0.0.0.0`, `::`) are treated as unknown.
@@ -38,10 +38,7 @@ pub fn canonical_ip_str(raw: &str) -> String {
 
 /// Addresses that are not the replica's LAN address.
 fn unusable_requester_ip(ip: &str) -> bool {
-    ip == "::1"
-        || ip.starts_with("127.")
-        || ip.starts_with("fe80:")
-        || ip.starts_with("169.254.")
+    ip == "::1" || ip.starts_with("127.") || ip.starts_with("fe80:") || ip.starts_with("169.254.")
 }
 
 /// Prefer the address the master saw on the socket. If that is loopback or link-local,
@@ -91,10 +88,39 @@ pub async fn peer_advertised_url(
     Ok(stored.or_else(|| peer_base_url_from_ip(requester_ip, http_port)))
 }
 
+/// Hide network — defaults to visible when unset.
+pub async fn is_network_hidden(pool: &SqlitePool) -> Result<bool, AppError> {
+    let raw = medoc_core::infrastructure::database::repos::admin::app_kv::get(
+        pool,
+        APP_KV_NETWORK_HIDDEN,
+    )
+    .await?;
+    Ok(matches!(raw.as_deref(), Some("1") | Some("true")))
+}
+
+/// Whether a newly accepted cluster TCP socket may proceed.
+///
+/// Hidden network refuses every connection. Disallowing new replica requests
+/// refuses unknown peers and still admits addresses that already belong to a
+/// paired device.
+pub fn admit_inbound_cluster(
+    network_hidden: bool,
+    pairing_enabled: bool,
+    known_peer: bool,
+) -> bool {
+    if network_hidden {
+        return false;
+    }
+    pairing_enabled || known_peer
+}
+
 /// Master-side toggle — defaults to enabled when unset.
 pub async fn is_pairing_enabled(pool: &SqlitePool) -> Result<bool, AppError> {
-    let raw = medoc_core::infrastructure::database::app_kv_repo::get(pool, APP_KV_PAIRING_ENABLED)
-        .await?;
+    let raw = medoc_core::infrastructure::database::repos::admin::app_kv::get(
+        pool,
+        APP_KV_PAIRING_ENABLED,
+    )
+    .await?;
     Ok(!matches!(raw.as_deref(), Some("0") | Some("false")))
 }
 
@@ -132,7 +158,20 @@ pub(crate) fn sanitise_actions(input: &[String]) -> Vec<String> {
 mod tests {
     use std::net::IpAddr;
 
-    use super::{canonical_ip_str, canonical_peer_ip};
+    use super::{admit_inbound_cluster, canonical_ip_str, canonical_peer_ip};
+
+    #[test]
+    fn hidden_network_refuses_every_connection() {
+        assert!(!admit_inbound_cluster(true, true, true));
+        assert!(!admit_inbound_cluster(true, false, false));
+    }
+
+    #[test]
+    fn new_replicas_disabled_keeps_known_peers() {
+        assert!(!admit_inbound_cluster(false, false, false));
+        assert!(admit_inbound_cluster(false, false, true));
+        assert!(admit_inbound_cluster(false, true, false));
+    }
 
     #[test]
     fn mapped_ipv6_displays_as_ipv4() {
@@ -154,6 +193,9 @@ mod tests {
             super::choose_requester_ip(Some("10.0.0.8"), "192.168.1.42"),
             "10.0.0.8"
         );
-        assert_eq!(super::choose_requester_ip(None, "::ffff:10.1.1.5"), "10.1.1.5");
+        assert_eq!(
+            super::choose_requester_ip(None, "::ffff:10.1.1.5"),
+            "10.1.1.5"
+        );
     }
 }

@@ -1,5 +1,5 @@
 import { useT, useTParams, useCollatorLocale } from "@/lib/i18n";
-import { useCallback, useEffect, useId, useMemo, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { listServices, createServiceItem, deleteServiceItem, updateServiceItem } from "@/systems/practice-host/controllers/service-item.controller";
 import { errorMessage, formatCurrency, formatDateTime } from "@/lib/utils";
@@ -7,6 +7,7 @@ import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "../../models/store/auth-store";
 import type { ServiceItem } from "../../models/types";
 import { Button } from "../components/ui/button";
+import { DataTable } from "../components/ui/data-table";
 import { Card, CardHeader } from "../components/ui/card";
 import { ConfirmDialog } from "../components/ui/dialog";
 import { Input, Select, Textarea } from "../components/ui/input";
@@ -187,7 +188,17 @@ export function ServicesPage() {
                 price: p.price,
                 description: p.description,
             });
-            toast(t("services.toast.created"), "success");
+            toast(t("services.toast.created"), "success", {
+                onUndo: async () => {
+                    try {
+                        await deleteServiceItem(created.id);
+                        setSelected((current) => (current?.id === created.id ? null : current));
+                        void load();
+                    } catch (err) {
+                        toast(errorMessage(err), "error");
+                    }
+                },
+            });
             setCreateForm(emptyForm());
             setCreating(false);
             setSelected(created);
@@ -203,10 +214,11 @@ export function ServicesPage() {
 
     const handleUpdate = async () => {
         if (!selected || !formValid(editForm) || !canWrite) return;
+        const previous = selected;
         setSaveBusy(true);
         try {
             const p = parseForm(editForm);
-            await updateServiceItem(selected.id, {
+            await updateServiceItem(previous.id, {
                 name: p.name,
                 category: p.category,
                 price: p.price,
@@ -214,7 +226,22 @@ export function ServicesPage() {
                 active: p.active,
             });
             setDetailEdit(false);
-            toast(t("services.toast.saved"), "success");
+            toast(t("services.toast.saved"), "success", {
+                onUndo: async () => {
+                    try {
+                        await updateServiceItem(previous.id, {
+                            name: previous.name,
+                            category: previous.category,
+                            price: previous.price,
+                            description: previous.description,
+                            active: previous.active,
+                        });
+                        void load();
+                    } catch (err) {
+                        toast(errorMessage(err), "error");
+                    }
+                },
+            });
             void load();
         } catch (e) {
             toast(errorMessage(e), "error");
@@ -226,9 +253,25 @@ export function ServicesPage() {
     const handleDelete = async () => {
         if (!deleteId) return;
         const id = deleteId;
+        const row = services.find((item) => item.id === id) ?? (selected?.id === id ? selected : null);
         try {
             await deleteServiceItem(id);
-            toast(t("services.toast.deleted"), "success");
+            toast(t("services.toast.deleted"), "success", {
+                onUndo: async () => {
+                    if (!row) return;
+                    try {
+                        await createServiceItem({
+                            name: row.name,
+                            category: row.category,
+                            price: row.price,
+                            description: row.description ?? undefined,
+                        });
+                        void load();
+                    } catch (err) {
+                        toast(errorMessage(err), "error");
+                    }
+                },
+            });
             setDeleteId(null);
             setSelected((s) => (s?.id === id ? null : s));
             setDetailEdit(false);
@@ -258,7 +301,7 @@ export function ServicesPage() {
     }, [services, specialExamCategory, sortLocale]);
 
     const readField = (label: string, value: string | number | null | undefined) => (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-1)" }}>
             <span className="kpi-label-mini">{label}</span>
             <span style={{ fontSize: 14, color: "var(--fg-2)", lineHeight: 1.4 }}>{value === null || value === undefined || value === "" ? t("common.em_dash") : value}</span>
         </div>
@@ -277,9 +320,9 @@ export function ServicesPage() {
                             </Button>
                         }
                     />
-                    <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: 12 }}>
+                    <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
                         <ServiceItemFormFields form={createForm} setForm={setCreateForm} idPrefix="lst-new" categorySuggestions={categorySuggestions} showActive={false} specialExamCategory={specialExamCategory} />
-                        <div className="row" style={{ justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+                        <div className="row" style={{ justifyContent: "flex-end", gap: "var(--space-2)", flexWrap: "wrap" }}>
                             <Button type="button" variant="ghost" onClick={cancelCreate} disabled={createBusy}>
                                 {t("common.cancel")}
                             </Button>
@@ -298,7 +341,7 @@ export function ServicesPage() {
                         title={selected.name}
                         subtitle={detailEdit ? t("services.detail.edit_sub") : t("services.detail.read_sub")}
                         action={canWrite && !detailEdit ? (
-                            <div className="row" style={{ gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                            <div className="row" style={{ gap: "var(--space-2)", flexWrap: "wrap", justifyContent: "flex-end" }}>
                                 <Button type="button" size="sm" variant="secondary" onClick={() => { setDetailEdit(true); setEditForm(toForm(selected, specialExamCategory)); }}>
                                     <EditIcon size={14} />
                                     {" "}
@@ -312,9 +355,9 @@ export function ServicesPage() {
                     />
                     <div className="card-pad" style={{ paddingTop: 0 }}>
                         {detailEdit && canWrite ? (
-                            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
                                 <ServiceItemFormFields form={editForm} setForm={setEditForm} idPrefix="lst-edit" categorySuggestions={categorySuggestions} showActive specialExamCategory={specialExamCategory} />
-                                <div className="row" style={{ justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+                                <div className="row" style={{ justifyContent: "flex-end", gap: "var(--space-2)", flexWrap: "wrap" }}>
                                     <Button type="button" variant="ghost" onClick={cancelEdit} disabled={saveBusy}>
                                         {t("common.cancel")}
                                     </Button>
@@ -324,7 +367,7 @@ export function ServicesPage() {
                                 </div>
                             </div>
                         ) : (
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }} className="services-read-grid">
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-4)" }} className="services-read-grid">
                                 {readField(t("common.name"), selected.name)}
                                 {readField(t("common.category"), selected.category)}
                                 {readField(t("common.price_eur"), formatCurrency(selected.price))}
@@ -351,14 +394,14 @@ export function ServicesPage() {
     })();
 
     return (
-        <div className="services-page practice-workspace-page animate-fade-in">
+        <div className="services-page practice-workspace-page animate-fade-in--sticky-safe">
             <AdministrationPageHeader
                 showBack={canGoAdministration}
                 title={t("services.page.title")}
                 subtitle={t("services.page.subtitle")}
                 actions={
                     canWrite ? (
-                        <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                        <div className="row" style={{ gap: "var(--space-2)", flexWrap: "wrap" }}>
                             <Button
                                 type="button"
                                 variant="secondary"
@@ -390,50 +433,35 @@ export function ServicesPage() {
                                 />
                             </Card>
                         ) : (
-                            <div className="card services-table-card tbl-data-card tbl-scroll">
-                                <table className="tbl services-tbl">
-                                    <thead>
-                                        <tr>
-                                            <th scope="col">{t("common.name")}</th>
-                                            <th scope="col">{t("common.category")}</th>
-                                            <th scope="col" style={{ textAlign: "end" }}>{t("common.price")}</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {servicesSorted.map((l) => {
-                                            const isSel = !creating && selected?.id === l.id;
-                                            const pick = () => selectRow(l);
-                                            const onRowKeyDown = (e: KeyboardEvent) => {
-                                                if (e.key === "Enter" || e.key === " ") {
-                                                    e.preventDefault();
-                                                    pick();
-                                                }
-                                            };
-                                            return (
-                                                <tr
-                                                    key={l.id}
-                                                    className={isSel ? "services-row--selected" : undefined}
-                                                    tabIndex={0}
-                                                    onClick={() => pick()}
-                                                    onKeyDown={onRowKeyDown}
-                                                    style={{ cursor: "pointer" }}
-                                                    aria-label={tp("common.row_show_aria", { entity: t("services.entity"), name: l.name })}
-                                                >
-                                                    <td>
-                                                        <span style={{ fontWeight: 600, color: "var(--fg-2)" }}>{l.name}</span>
-                                                        {!l.active ? (
-                                                            <span style={{ marginInlineStart: 8, display: "inline-block" }}>
-                                                                <Badge variant="warning">{t("common.inactive")}</Badge>
-                                                            </span>
-                                                        ) : null}
-                                                    </td>
-                                                    <td>{l.category}</td>
-                                                    <td style={{ textAlign: "end", fontVariantNumeric: "tabular-nums" }}>{formatCurrency(l.price)}</td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
+                            <div className="card services-table-card tbl-data-card">
+                                <DataTable
+                                    label={t("services.entity")}
+                                    rows={servicesSorted}
+                                    getRowId={(l) => l.id}
+                                    selectedId={creating ? null : selected?.id ?? null}
+                                    onRowActivate={selectRow}
+                                    rowLabel={(l) => tp("common.row_show_aria", { entity: t("services.entity"), name: l.name })}
+                                    columns={[
+                                        {
+                                            id: "name",
+                                            header: t("common.name"),
+                                            truncate: true,
+                                            text: (l) => l.name,
+                                            cell: (l) => (
+                                                <>
+                                                    <span className="data-table__primary">{l.name}</span>
+                                                    {!l.active ? (
+                                                        <span className="data-table__badge-after">
+                                                            <Badge variant="warning">{t("common.inactive")}</Badge>
+                                                        </span>
+                                                    ) : null}
+                                                </>
+                                            ),
+                                        },
+                                        { id: "category", header: t("common.category"), width: "30%", truncate: true, text: (l) => l.category ?? "", cell: (l) => l.category, hideBelow: "sm" },
+                                        { id: "price", header: t("common.price"), width: "8rem", numeric: true, cell: (l) => formatCurrency(l.price) },
+                                    ]}
+                                />
                             </div>
                         )}
                     </div>
@@ -531,7 +559,7 @@ function ServiceItemFormFields({
                 onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
             />
             {showActive ? (
-                <label className="row" style={{ gap: 10, alignItems: "center", fontSize: 14, color: "var(--fg-2)" }}>
+                <label className="row" style={{ gap: "var(--space-3)", alignItems: "center", fontSize: 14, color: "var(--fg-2)" }}>
                     <input
                         type="checkbox"
                         checked={form.active}

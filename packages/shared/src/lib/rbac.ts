@@ -17,6 +17,7 @@ import {
     MIGRATION_SETTINGS_ENABLED,
 } from "./settings-ui-flags";
 import type { PermissionOverride } from "../models/types";
+import { isReplicaApp } from "./device-flavor";
 import {
     ACTIVE_ROLE_WIRES,
     type ActiveRoleWire,
@@ -131,7 +132,7 @@ export const NAV_ITEM_DEFINITIONS: NavItemDefinition[] = [
         : []),
     { to: "/tickets", labelKey: "nav.practice_tickets", visibility: { kind: "roles", roles: ["PHYSICIAN", "RECEPTION"] } },
     ...(PRESCRIPTIONS_CERTIFICATES_MENU_ENABLED
-        ? [{ to: "/prescriptions", labelKey: "nav.prescriptions", visibility: { kind: "action", action: "patient.read_medical" } } as NavItemDefinition]
+        ? [{ to: "/prescriptions", labelKey: "nav.prescriptions", visibility: { kind: "anyOf", actions: ["patient.read_medical", "patient.read_documents"] } } as NavItemDefinition]
         : []),
     { to: "/finance", labelKey: "nav.finance", visibility: { kind: "action", action: "finance.read" } },
     {
@@ -187,8 +188,8 @@ export const ROUTE_VISIBILITY: Record<string, NavVisibility> = {
     // TODO(deferred-roles): balance-sheet — was ["PHYSICIAN", "TAX_ADVISOR"]
     "balance-sheet": { kind: "roles", roles: ["PHYSICIAN"] },
     "balance-sheet/new": { kind: "roles", roles: ["PHYSICIAN"] },
-    "prescriptions": { kind: "action", action: "patient.read_medical" },
-    "certificates": { kind: "action", action: "patient.read_medical" },
+    "prescriptions": { kind: "anyOf", actions: ["patient.read_medical", "patient.read_documents"] },
+    "certificates": { kind: "anyOf", actions: ["patient.read_medical", "patient.read_documents"] },
     "services": { kind: "anyOf", actions: FINANCE_READ_OR_RECEPTION },
     "services/new": { kind: "action", action: "finance.write" },
     "products": { kind: "roles", roles: [...ACTIVE_ROLE_WIRES] },
@@ -219,6 +220,8 @@ export const ROUTE_VISIBILITY: Record<string, NavVisibility> = {
     "administration/templates": { kind: "action", action: "administration.templates.read" },
     "administration/templates/editor": { kind: "action", action: "administration.templates.write" },
     "administration/treatment-catalog": { kind: "action", action: "patient.read_medical" },
+    "administration/medications": { kind: "action", action: "administration.templates.read" },
+    "administration/prescription-presets": { kind: "action", action: "administration.templates.read" },
     /** Order management (not `finance.*`) — mirrors Tauri `purchase_order.read` / `purchase_order.write` for practice master data. */
     "administration/order-master": { kind: "action", action: "purchase_order.read" },
     "administration/finance-tools": { kind: "action", action: "finance.read" },
@@ -339,7 +342,6 @@ export type SettingsSectionId =
     | "integrations"
     | "migration"
     | "appearance"
-    | "workflows"
     | "system"
     | "about";
 
@@ -357,16 +359,14 @@ export const SETTINGS_SECTION_VISIBILITY: Partial<Record<SettingsSectionId, NavV
     security: { kind: "action", action: "ops.system" },
 };
 
-/** Front desk: explicit allowlist — prevents "default = visible" for admin panels. */
-export const RECEPTION_SETTINGS_SECTIONS: ReadonlySet<SettingsSectionId> = new Set(
-    [
-        "account",
-        ...(NOTIFICATIONS_SETTINGS_ENABLED ? (["notifications"] as const) : []),
-        "appearance",
-        "workflows",
-        "about",
-    ] satisfies readonly SettingsSectionId[],
-);
+/** Personal sections: every signed-in person. Every other section follows privileges, not the role. */
+export const PERSONAL_SETTINGS_SECTIONS: ReadonlySet<string> = new Set(["account", "notifications", "appearance", "about"]);
+
+/** Practice-wide sections without their own rule need practice settings rights. */
+const PRACTICE_SETTINGS_DEFAULT: NavVisibility = { kind: "action", action: "ops.system" };
+
+/** Sections that only make sense on the main app (licence activation: device-flavor.ts). */
+const MAIN_APP_SECTIONS: ReadonlySet<string> = new Set(["license"]);
 
 /** Device network admin panel: app RBAC PHYSICIAN + ADMIN seat (seat checked in UI/backend). */
 export function canAccessClusterAdminPanel(role: string | undefined): boolean {
@@ -388,11 +388,8 @@ export function settingsSectionVisible(
         return false;
     }
     if (!routeChildPathAllowed("settings", role, overrides)) return false;
-    const parsedRole = parseRole(role);
-    if (parsedRole === "RECEPTION") {
-        return RECEPTION_SETTINGS_SECTIONS.has(section as SettingsSectionId);
-    }
-    const vis = SETTINGS_SECTION_VISIBILITY[section as SettingsSectionId];
-    if (!vis) return true;
-    return navVisibilitySatisfied(vis, parsedRole ?? role, overrides);
+    if (MAIN_APP_SECTIONS.has(section) && isReplicaApp()) return false;
+    if (PERSONAL_SETTINGS_SECTIONS.has(section)) return true;
+    const vis = SETTINGS_SECTION_VISIBILITY[section as SettingsSectionId] ?? PRACTICE_SETTINGS_DEFAULT;
+    return navVisibilitySatisfied(vis, parseRole(role) ?? role, overrides);
 }

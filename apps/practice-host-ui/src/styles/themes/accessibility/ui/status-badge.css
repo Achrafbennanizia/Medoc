@@ -1,0 +1,29 @@
+/* From styles/themes/accessibility.css (cascade position kept by its import there). */
+/* ---- High contrast: heavier lines need more air around them ----
+ * Lists, labels and messages directly under a divider (card heads, page header, table heads) get extra top
+ * spacing, so strong borders never sit on the text below them. */
+html[data-contrast="high"] .workspace-page__sticky-chrome { margin-bottom: var(--space-4); }
+html[data-contrast="high"] .card-head + * { margin-top: var(--space-1); }
+html[data-contrast="high"] .dashboard-card-list { padding-top: var(--space-2); }
+html[data-contrast="high"] :is(.settings-row, .help-card, .about-section, .about-status-card) { padding-top: calc(var(--card-pad-y, 14px) + 2px); }
+html[data-contrast="high"] :is(.kpi-label-mini, .settings-field-label, .card-sub) { line-height: 1.45; }
+html[data-contrast="high"] .tbl thead th { padding-top: calc(var(--tbl-td-pad-y, 10px) + 4px); }
+
+/* ---- Reading spacing (WCAG 1.4.12 text spacing; helps dyslexia) ---- */
+html[data-reading-spacing="true"] body {
+  letter-spacing: 0.03em;
+  word-spacing: 0.12em;
+  line-height: 1.6;
+}
+html[data-reading-spacing="true"] p,
+html[data-reading-spacing="true"] .card-sub { line-height: 1.7; }
+
+/* ---- Colour-blind-safe status colours (blue / orange instead of green / red) ---- */
+html[data-status-palette="cb"] .pill.green { background: #dbeafe; color: #0b3a8a; }
+html[data-status-palette="cb"] .pill.red { background: #ffe8cc; color: #8a3b00; }
+html[data-status-palette="cb"] .pill.yellow { background: #f3e8ff; color: #5b21b6; }
+html[data-status-palette="cb"] .pill.orange { background: #f3e8ff; color: #5b21b6; }
+html[data-status-palette="cb"][data-theme="dark"] .pill.green { background: #12305f; color: #cfe0ff; }
+html[data-status-palette="cb"][data-theme="dark"] .pill.red { background: #4a2a00; color: #ffd9a8; }
+html[data-status-palette="cb"][data-theme="dark"] .pill.yellow { background: #3b1f63; color: #e6d4ff; }
+html[data-status-palette="cb"][data-theme="dark"] .pill.orange { background: #3b1f63; color: #e6d4ff; }

@@ -1,0 +1,63 @@
+/* From styles/features/schedule.css (cascade position kept by its import there). */
+@layer components {
+  .quick-calendar-mode.active {
+    background: var(--accent-soft);
+    color: var(--accent-ink);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 35%, transparent);
+  }
+  .quick-calendar-days {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 4px;
+    align-items: center;
+  }
+  .quick-calendar-days > b {
+    text-align: center;
+    font-size: 11px;
+    color: var(--fg-3);
+  }
+  .quick-calendar-cell {
+    min-height: 28px;
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 12px;
+  }
+  .quick-calendar-cell:hover {
+    background: color-mix(in oklab, var(--accent) 14%, transparent);
+  }
+  .quick-calendar-cell.active {
+    background: var(--accent);
+    color: var(--text-on-accent);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--text-on-accent) 22%, transparent);
+  }
+  .quick-grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .quick-grid-item {
+    min-height: 36px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--fg);
+  }
+  .quick-grid-item:hover {
+    background: color-mix(in oklab, var(--accent) 12%, transparent);
+  }
+  .quick-grid-item.active {
+    background: var(--accent);
+    color: var(--text-on-accent);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--text-on-accent) 24%, transparent);
+  }
+  .quick-calendar-reset {
+    width: 100%;
+    justify-content: center;
+    margin-top: 10px;
+    min-height: 38px;
+    border-radius: 10px;
+    border-color: var(--line-strong);
+    color: var(--fg);
+    background: color-mix(in oklab, var(--fg) 4%, var(--bg-elev));
+  }
+}

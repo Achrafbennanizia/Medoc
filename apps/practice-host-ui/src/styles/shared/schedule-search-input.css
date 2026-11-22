@@ -1,0 +1,63 @@
+/* From styles/features/schedule.css (cascade position kept by its import there). */
+@layer components {
+  .schedule-sidepanel {
+    position: sticky;
+    top: var(--layout-sticky-below-chrome);
+    align-self: start;
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-sm);
+  }
+  .schedule-sidepanel-title {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--fg);
+  }
+  .schedule-sidepanel-sub {
+    margin-top: 4px;
+    color: var(--fg-3);
+    font-size: 12.5px;
+  }
+  .schedule-sidepanel-grid {
+    margin-top: 8px;
+  }
+  .schedule-search-input {
+    min-height: 42px;
+    border-radius: 14px;
+    font-size: 14px;
+    border-color: var(--line-strong);
+    color: var(--fg);
+    background: var(--bg-elev);
+  }
+  .schedule-search-input::placeholder {
+    color: var(--fg-4);
+    opacity: 1;
+  }
+  .quick-calendar {
+    margin-top: 10px;
+    margin-bottom: 14px;
+    border: 1px solid var(--line-strong);
+    border-radius: 14px;
+    padding: 10px;
+    background: var(--bg-elev);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--fg) 5%, transparent);
+  }
+  .quick-calendar-nav {
+    display: grid;
+    grid-template-columns: 28px 1fr 1fr 28px;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .quick-calendar-mode {
+    border-radius: 10px;
+    padding: 6px 8px;
+    font-weight: 700;
+    font-size: 12.5px;
+    cursor: pointer;
+    color: var(--fg);
+  }
+  .quick-calendar-mode:hover {
+    background: color-mix(in oklab, var(--accent) 12%, transparent);
+  }
+}

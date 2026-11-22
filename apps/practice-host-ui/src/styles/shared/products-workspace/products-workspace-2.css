@@ -1,0 +1,63 @@
+/* From styles/layout/master-detail.css (cascade position kept by its import there). */
+@layer components {
+  .products-workspace,
+  .services-workspace,
+  .staff-workspace {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: var(--space-5);
+    width: 100%;
+    min-width: 0;
+    container-type: inline-size;
+    container-name: administration-master-detail;
+  }
+  .products-workspace__list,
+  .services-workspace__list,
+  .staff-workspace__list {
+    flex: 999 1 0;
+    /* min-inline-size is min-width in LTR: do not also set min-width here, it would cancel the 55 % floor. */
+    min-inline-size: 55%;
+    container-type: inline-size;
+    container-name: administration-master-list;
+  }
+  .products-workspace__detail,
+  .services-workspace__detail,
+  .staff-workspace__detail {
+    flex: 1 1 clamp(17rem, 30%, 24rem);
+    min-width: 0;
+    max-width: 100%;
+  }
+  /* The detail part is always there (an overview when nothing is selected: MasterDetailOverview), so the
+     layout never jumps; tables give way by hiding their secondary columns (data-table `hideBelow`). */
+  .master-detail-overview { display: flex; flex-direction: column; gap: var(--space-3); }
+  .master-detail-overview__facts { margin: 0; display: grid; gap: var(--space-2); }
+  .master-detail-overview__facts > div {
+    display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3);
+    padding: var(--space-2) 0; border-bottom: 1px solid var(--line);
+  }
+  .master-detail-overview__facts dt { color: var(--fg-3); font-size: 13px; }
+  .master-detail-overview__facts dd { margin: 0; font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; }
+  .master-detail-overview__facts > div[data-tone="warn"] dd { color: var(--red-ink); }
+  .master-detail-overview .page-sub { margin: 0; }
+  .master-detail-overview__action { display: flex; }
+
+  /* Beside the list (wide enough that it does not wrap): the detail stays in view and scrolls itself. */
+  @container administration-master-detail (min-width: 40rem) {
+    .products-workspace__detail,
+    .services-workspace__detail,
+    .staff-workspace__detail {
+      position: sticky;
+      top: var(--space-2);
+      /* --side-panel-max-height: from the panel's top to the window bottom minus a gap, set by the shell
+         (hooks/use-main-visible-height.ts) — the panel never runs past the bottom edge, even below a header. */
+      max-height: var(--side-panel-max-height, calc(var(--main-visible-height, calc(var(--app-dvh) - var(--app-chrome-offset))) - 2 * var(--space-2)));
+      overflow-y: auto;
+      overflow-x: hidden;
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;
+      -webkit-overflow-scrolling: touch;
+      border-radius: var(--radius-card);
+    }
+  }
+}

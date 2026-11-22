@@ -1,0 +1,66 @@
+/* From styles/features/settings-sections.css (cascade position kept by its import there). */
+@layer components {
+  .settings-license-hero {
+    margin: var(--card-pad-x);
+    padding: var(--space-4);
+    border-radius: var(--radius-card);
+    border: 1px solid color-mix(in oklab, var(--blue) 35%, var(--line));
+    background: linear-gradient(135deg, color-mix(in oklab, var(--blue) 8%, var(--bg-elev)) 0%, var(--bg-elev) 55%);
+    box-shadow: var(--shadow-sm);
+  }
+  .settings-license-hero__grid {
+    display: grid;
+    gap: var(--space-3);
+    margin-top: var(--space-3);
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
+  .settings-license-metric {
+    font-size: 13px;
+    color: var(--fg-3);
+  }
+  .settings-license-metric strong {
+    display: block;
+    margin-top: var(--space-1);
+    font-size: 22px;
+    font-weight: 750;
+    letter-spacing: -0.03em;
+    color: var(--fg);
+  }
+  .settings-progress {
+    height: 8px;
+    border-radius: var(--radius-pill);
+    background: color-mix(in oklab, var(--fg) 7%, transparent);
+    overflow: hidden;
+    margin-top: var(--space-2);
+  }
+  .settings-progress > span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--blue);
+    transition: width 320ms var(--ease-out);
+  }
+  .settings-team-card .settings-row {
+    align-items: flex-start;
+  }
+  .settings-team-lock {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    background: var(--blue-soft);
+    color: var(--blue);
+  }
+  .settings-team-lock.is-muted {
+    background: color-mix(in oklab, var(--fg) 6%, transparent);
+    color: var(--fg-3);
+  }
+  .settings-team-meta {
+    font-size: 12px;
+    color: var(--fg-3);
+    margin-top: var(--space-1);
+    line-height: 1.35;
+  }
+}

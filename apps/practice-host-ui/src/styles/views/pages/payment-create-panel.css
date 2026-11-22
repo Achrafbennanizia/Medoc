@@ -1,0 +1,67 @@
+/* From styles/features/tasks-orders.css (cascade position kept by its import there). */
+@layer components {
+  .payment-create-form__error {
+    color: var(--red);
+    font-size: 12.5px;
+    margin: 0;
+    padding: 8px 12px;
+    background: var(--red-soft);
+    border-radius: 8px;
+  }
+  .payment-create-form__grid {
+    display: grid;
+    gap: var(--space-4);
+    min-width: 0;
+  }
+  .payment-create-form__grid--2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  @media (max-width: 560px) {
+    .payment-create-form__grid--2 {
+      grid-template-columns: 1fr;
+    }
+  }
+  .tbl.tbl-payment-hist {
+    table-layout: fixed;
+    width: 100%;
+    font-size: 12.5px;
+  }
+  .payment-hist-col-date { width: 20%; }
+  .payment-hist-col-reference { width: 38%; }
+  .payment-hist-col-amount { width: 18%; }
+  .payment-hist-col-kind { width: 12%; }
+  .payment-hist-col-status { width: 12%; }
+  .payment-hist-table-wrap {
+    overflow: auto;
+    max-height: 220px;
+  }
+  .tbl.tbl-payment-hist .payment-hist-td-reference {
+    line-height: 1.35;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .administration-page {
+    width: 100%;
+    max-width: none;
+  }
+  .administration-page__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: var(--space-4);
+    align-items: stretch;
+  }
+  .administration-cat-wrap {
+    min-width: 0;
+    display: flex;
+  }
+  .administration-cat-wrap > .administration-cat-card {
+    flex: 1;
+    width: 100%;
+  }
+  @media (min-width: 900px) {
+    .administration-page__grid {
+      gap: var(--space-4);
+    }
+  }
+}

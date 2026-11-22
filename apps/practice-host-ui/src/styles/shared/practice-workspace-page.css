@@ -1,0 +1,63 @@
+/* From styles/features/finance-payments.css (cascade position kept by its import there). */
+@layer components {
+  .finance-workspace--single {
+    grid-template-columns: 1fr;
+  }
+  .finance-workspace__detail {
+    min-width: 0;
+  }
+  .payment-finance-embed {
+    max-height: none;
+    overflow-x: auto;
+    overflow-y: visible;
+  }
+  .payment-finance-embed .payment-finance-embed__body {
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+  /* Shared workspace shell: orders, cash receipts, new order, new payment */
+  .practice-workspace-page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--page-stack-gap);
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: clamp(4px, 0.8vh, 8px) 0 clamp(12px, 2vh, 24px);
+  }
+  .practice-workspace-page--form {
+    max-width: 920px;
+    margin: 0 auto;
+  }
+  .practice-workspace-page .page-head {
+    align-items: flex-start;
+    gap: clamp(12px, 2vh, 20px);
+    margin-bottom: 2px;
+  }
+  .practice-workspace-page .page-sub {
+    max-width: 40rem;
+    margin-top: var(--space-2);
+    line-height: 1.55;
+  }
+  .practice-workspace-page__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    flex-shrink: 0;
+    padding-top: 2px;
+  }
+  /* Tables in cards: th/td share horizontal rhythm with card-head */
+  .tbl-data-card .tbl thead th,
+  .tbl-data-card .tbl tbody td {
+    padding-block: var(--tbl-td-pad-y);
+    padding-inline: var(--tbl-cell-pad-x);
+    vertical-align: middle;
+  }
+  /* Logical properties: in RTL (Arabic) the card-edge inset must sit on the right. */
+  .tbl-data-card .tbl thead th:first-child,
+  .tbl-data-card .tbl tbody td:first-child {
+    padding-inline-start: var(--card-pad-x);
+  }
+}

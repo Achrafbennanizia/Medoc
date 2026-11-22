@@ -1,0 +1,70 @@
+/* From styles/components/primitives.css (cascade position kept by its import there). */
+@layer components {
+  .btn-subtle:hover { background: rgba(0,0,0,0.03); }
+  .btn-danger,
+  .btn:has(.ui-icon-trash) {
+    background: color-mix(in oklab, var(--red) 16%, var(--bg-elev));
+    color: var(--red);
+    border: 1px solid color-mix(in oklab, var(--red) 42%, transparent);
+  }
+  .btn-danger:hover:not(:disabled),
+  .btn:has(.ui-icon-trash):hover:not(:disabled) {
+    background: color-mix(in oklab, var(--red) 26%, var(--bg-elev));
+    color: var(--red);
+  }
+  .attention-hover {
+    transition:
+      background var(--motion-fast) var(--ease-out),
+      color var(--motion-fast) var(--ease-out),
+      border-color var(--motion-fast) var(--ease-out);
+  }
+  .attention-hover:hover,
+  .attention-hover:focus-visible {
+    background: rgba(255, 59, 48, 0.12) !important;
+    color: #B42318 !important;
+    border-color: rgba(255, 59, 48, 0.28) !important;
+  }
+  .icon-btn { width: 34px; height: 34px; border-radius: var(--radius-ctl); display: grid; place-items: center; color: var(--fg-2); transition: background var(--motion-fast) var(--ease-out), transform var(--motion-fast) var(--ease-out); position: relative; }
+  .icon-btn:hover { background: rgba(0,0,0,0.05); }
+  .icon-btn:active:not(:disabled) { transform: scale(0.98); }
+  .icon-btn .dot { position: absolute; top: 8px; inset-inline-end: 9px; width: 8px; height: 8px; border-radius: 50%; background: var(--red); border: 2px solid var(--bg); }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; font-size: 11.5px; font-weight: 700; border-radius: 999px; letter-spacing: 0.01em; }
+  .pill.green  { background: var(--green-soft);  color: var(--green-ink); }
+  .pill.blue   { background: var(--blue-soft);   color: var(--blue-ink); }
+  .pill.orange { background: var(--orange-soft); color: var(--orange-ink); }
+  .pill.yellow { background: var(--yellow-soft); color: var(--yellow-ink); }
+  .pill.red    { background: var(--red-soft);    color: var(--red-ink); }
+  .pill.grey   { background: rgba(0,0,0,0.06);   color: var(--fg-2); }
+  .pill.accent { background: var(--accent-soft); color: var(--accent-ink); }
+  .pill.purple { background: var(--purple-soft); color: var(--purple-ink); }
+  .pill.solid-green { background: #30d158; color: #fff; }
+  .pill.solid-amber { background: #e5a000; color: #fff; }
+  .pill.solid-blue { background: #0a84ff; color: #fff; }
+  .pill.solid-teal { background: #0ea07e; color: #fff; }
+  .pill.solid-purple { background: #af52de; color: #fff; }
+  .pill.solid-red { background: #e95858; color: #fff; }
+  .pill .dot   { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  /* min-width:0 + container query so long currency KPIs shrink instead of clipping (.card overflow:hidden) */
+  /* Section title inside a card (h2/h3.text-title, 29 uses). Was undefined: browser defaults with the
+     top margin removed inline, so the title sat directly on the fields or text below it. */
+  .text-title {
+    margin: 0 0 var(--space-3);
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.3;
+    letter-spacing: -0.01em;
+    color: var(--fg);
+  }
+  /* Title + intro: a smaller gap, the intro then keeps its own space to the content. */
+  .text-title:has(+ .page-sub) { margin-bottom: var(--space-1); }
+  .kpi {
+    padding: clamp(12px, 1.6vh, 16px) var(--card-pad-x);
+    display: flex;
+    flex-direction: column;
+    gap: clamp(4px, 0.8vh, 7px);
+    min-height: clamp(92px, 12vh, 128px);
+    min-width: 0;
+    container-type: inline-size;
+    container-name: kpi-card;
+  }
+}

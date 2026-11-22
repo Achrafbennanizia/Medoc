@@ -5,9 +5,9 @@
 //! wide settings persisted via SQLite (vs. the prior `localStorage` blob).
 use crate::application::app_kv_policy;
 use crate::application::rbac;
-use crate::commands::auth_commands::SessionState;
+use crate::commands::admin::auth::SessionState;
 use crate::error::AppError;
-use crate::infrastructure::database::app_kv_repo;
+use crate::infrastructure::database::repos::admin::app_kv as app_kv_repo;
 use sqlx::SqlitePool;
 use tauri::State;
 
@@ -18,10 +18,9 @@ pub async fn get_app_kv(
     session_state: State<'_, SessionState>,
     key: String,
 ) -> Result<Option<String>, AppError> {
-    if app_kv_policy::permission_for_app_kv_key(&key).is_none() {
-        return Err(AppError::Validation(format!("Unknown KV key: {key}")));
-    }
-    rbac::require_authenticated(&session_state)?;
+    let perm = app_kv_policy::read_permission_for_app_kv_key(&key)
+        .ok_or_else(|| AppError::Validation(format!("Unknown KV key: {key}")))?;
+    rbac::require(&session_state, perm)?;
     app_kv_repo::get(&pool, &key).await
 }
 
@@ -36,6 +35,7 @@ pub async fn set_app_kv(
     let perm = app_kv_policy::permission_for_app_kv_key(&key)
         .ok_or_else(|| AppError::Validation(format!("Unknown KV key: {key}")))?;
     rbac::require(&session_state, perm)?;
+    app_kv_policy::validate_app_kv_value(&key, &value)?;
     app_kv_repo::set(&pool, &key, &value).await
 }
 
@@ -50,14 +50,4 @@ pub async fn delete_app_kv(
         .ok_or_else(|| AppError::Validation(format!("Unknown KV key: {key}")))?;
     rbac::require(&session_state, perm)?;
     app_kv_repo::delete(&pool, &key).await
-}
-
-/// IPC commands for [`crate::commands::register`].
-#[macro_export]
-macro_rules! register_app_kv_commands {
-    () => {
-        $crate::commands::app_kv_commands::get_app_kv,
-        $crate::commands::app_kv_commands::set_app_kv,
-        $crate::commands::app_kv_commands::delete_app_kv,
-    };
 }

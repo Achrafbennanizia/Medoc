@@ -1,0 +1,63 @@
+/* From styles/components/data-controls.css (cascade position kept by its import there). */
+@layer components {
+  [dir="rtl"] .app-sidebar-brand-hit {
+    direction: ltr;
+    unicode-bidi: isolate;
+    text-align: start;
+  }
+  .phone-text,
+  input[type="tel"],
+  a[href^="tel:"] {
+    direction: ltr;
+    unicode-bidi: isolate;
+  }
+  [dir="rtl"] .app-sidebar-brand-meta {
+    direction: rtl;
+    text-align: start;
+    flex: 1;
+    min-width: 0;
+  }
+  /* Inline › ignores transform; isolate so bidi does not re-mirror after scaleX. */
+  html[dir="rtl"] .administration-toc-chevron,
+  html[dir="rtl"] .nav-chevron {
+    display: inline-block;
+    transform: scaleX(-1);
+    unicode-bidi: isolate;
+    direction: ltr;
+  }
+  html[dir="rtl"] .ui-icon-chevron-right {
+    transform: scaleX(-1);
+  }
+  [dir="rtl"] .administration-toc-table {
+    direction: rtl;
+  }
+  [dir="rtl"] .workspace-page-back-button,
+  [dir="rtl"] .administration-back-button,
+  [dir="rtl"] .btn-nav-back {
+    direction: rtl;
+    unicode-bidi: isolate;
+  }
+  [dir="rtl"] .workspace-page-back-button svg,
+  [dir="rtl"] .administration-back-button svg,
+  [dir="rtl"] .btn-nav-back svg {
+    transform: scaleX(-1);
+  }
+  [dir="rtl"] .settings-row-clickable {
+    text-align: start;
+  }
+  [dir="rtl"] .settings-row-clickable__label {
+    text-align: start;
+  }
+  [dir="rtl"] .nav-link-forward {
+    display: inline-flex;
+    flex-direction: row-reverse;
+    align-items: center;
+    gap: 0.25em;
+  }
+  [dir="rtl"] .crumb {
+    direction: rtl;
+  }
+  [dir="rtl"] .app-breadcrumbs {
+    direction: rtl;
+  }
+}

@@ -1,0 +1,35 @@
+/* From styles/components/overlays.css (cascade position kept by its import there). */
+@layer components {
+  .chart-inline-panel-actions--ios {
+    padding: 0;
+    border-top: none;
+  }
+  .chart-inline-panel-actions--ios .ios-confirm-actions {
+    border-radius: 0 0 var(--radius-card) var(--radius-card);
+    overflow: hidden;
+  }
+
+  /* Patient chart: edit forms opened as Dialog (preference: modal) */
+  .modal.chart-form-dialog {
+    width: min(92vw, 560px);
+    max-width: min(92vw, 600px);
+  }
+  .modal.chart-form-dialog--examination {
+    width: min(94vw, 720px);
+    max-width: min(94vw, 760px);
+  }
+  .modal.chart-form-dialog--examination .chart-form-dialog-body {
+    max-height: min(72vh, 640px);
+  }
+  .chart-form-dialog-sub {
+    margin: 0 0 12px;
+    font-size: 13px;
+    color: var(--fg-3);
+    line-height: 1.45;
+  }
+  .chart-form-dialog-body {
+    max-height: min(62vh, 520px);
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+}

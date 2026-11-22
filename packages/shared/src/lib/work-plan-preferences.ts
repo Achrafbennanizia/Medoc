@@ -1,20 +1,14 @@
 /**
  * Named work/break rules (PlanPreference): work / break, validity, cascade — UI: "Arbeits- & Pausenregeln".
  */
-import { addDays, endOfMonth, format, getISODay, parseISO, startOfDay, startOfWeek } from "date-fns";
+import { addDays, endOfMonth, format, startOfDay } from "date-fns";
 import { collatorLocale, useLocale } from "./i18n";
+import { isoWeekdayFromYmd } from "./iso-weekday-from-ymd";
+import { parseYmd } from "./parse-ymd";
+import { weekStartMonday } from "./week-start-monday";
 
-function parseYmd(s: string): Date {
-    return parseISO(s.length >= 10 ? s.slice(0, 10) : s);
-}
 function ymdFmt(d: Date): string {
     return format(d, "yyyy-MM-dd");
-}
-function weekStartMonday(d: Date): Date {
-    return startOfWeek(d, { weekStartsOn: 1 });
-}
-function isoWeekdayFromYmd(dateStr: string): 1 | 2 | 3 | 4 | 5 | 6 | 7 {
-    return getISODay(parseYmd(dateStr)) as 1 | 2 | 3 | 4 | 5 | 6 | 7;
 }
 
 export type PlanScopeType =

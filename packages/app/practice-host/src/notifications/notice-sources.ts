@@ -2,8 +2,10 @@
  * Notification sources. Each one adapts a domain (backend inbox, tasks, schedule, stock, device security)
  * to {@link Notice}. Failing sources are isolated by the center — one broken source never empties the list.
  */
+import { isLowStock } from "@/lib/is-low-stock";
 import { parseInstant, clockNow, wallClockToDate } from "@/lib/practice-clock";
-import { displayPracticeTaskTitle } from "@/lib/finance-order-labels";
+import { localizeInAppNotification } from "@/lib/in-app-notification-display";
+import { practiceTaskHeadline } from "@/lib/practice-task-display";
 import { statusIsOpen } from "@/lib/status/status-registry";
 import {
     listInAppNotifications,
@@ -21,9 +23,10 @@ export const APPOINTMENT_REMINDER_LEAD_MIN = 30;
 
 function inboxCategory(kind: string): NoticeCategory {
     const k = kind.toLowerCase();
-    if (k.startsWith("practice_task")) return "task";
+    if (k.startsWith("practice_task") || k === "ticket" || k === "practice_ticket") return "task";
     if (k.includes("appointment") || k.includes("plan_hint")) return "appointment";
     if (k.includes("chart") || k.includes("prescription")) return "clinical";
+    if (k === "stock") return "inventory";
     if (k.includes("order") || k.includes("inventory") || k.includes("stock")) return "inventory";
     if (k.includes("device") || k.includes("security") || k.includes("login")) return "security";
     return "system";
@@ -31,7 +34,10 @@ function inboxCategory(kind: string): NoticeCategory {
 
 function inboxSeverity(kind: string): NoticeSeverity {
     const k = kind.toUpperCase();
-    if (k.endsWith("_BACK") || k.includes("DECLINED") || k.includes("SUSPECT")) return "warning";
+    if (k.endsWith("_BACK") || k.includes("DECLINED") || k.includes("SUSPECT") || k.startsWith("APPOINTMENT_OUTSIDE_HOURS")) {
+        return "warning";
+    }
+    if (k === "STOCK") return "warning";
     return "info";
 }
 
@@ -43,33 +49,38 @@ function inboxHref(kind: string, payload: string | null): string | undefined {
         /* ignore */
     }
     const taskId = typeof p.taskId === "string" ? p.taskId : typeof p.task_id === "string" ? p.task_id : undefined;
-    if (taskId || kind.toUpperCase().startsWith("PRACTICE_TASK")) {
+    const K = kind.toUpperCase();
+    if (taskId || K.startsWith("PRACTICE_TASK") || K === "TICKET" || K === "PRACTICE_TICKET") {
         return taskId ? `/tickets?task=${encodeURIComponent(taskId)}` : "/tickets";
     }
     if (typeof p.patient_id === "string") return `/patients/${encodeURIComponent(p.patient_id)}`;
     if (typeof p.appointment_id === "string") return "/appointments";
     if (kind.toLowerCase().includes("chart")) return "/charts-to-validate";
+    if (K.startsWith("APPOINTMENT")) return "/appointments";
+    if (K === "STOCK") return "/products";
     return undefined;
 }
 
 export const inboxSource: NoticeSource = {
     id: "inbox",
     enabled: () => true,
-    async load() {
+    async load(ctx) {
         const rows = await listInAppNotifications();
-        return rows.map(
-            (n): Notice => ({
+        return rows.map((n): Notice => {
+            // Backend rows store payload + fallback text; render them in the active UI language.
+            const text = localizeInAppNotification(n, ctx.t, ctx.tp);
+            return {
                 id: `inbox:${n.id}`,
                 source: "inbox",
                 category: inboxCategory(n.kind),
                 severity: inboxSeverity(n.kind),
-                title: n.title,
-                body: n.body,
+                title: text.title,
+                body: text.sub,
                 at: parseInstant(n.created_at) ?? clockNow(),
                 unread: !n.read_at,
                 href: inboxHref(n.kind, n.payload_json),
-            }),
-        );
+            };
+        });
     },
     async markRead(notice) {
         await markInAppNotificationRead(notice.id.replace(/^inbox:/, ""));
@@ -100,7 +111,7 @@ export const taskSource: NoticeSource = {
                     source: "task",
                     category: "task",
                     severity: back ? "warning" : "info",
-                    title: displayPracticeTaskTitle(task.title, ctx.t),
+                    title: practiceTaskHeadline(task, ctx.t),
                     body: back
                         ? ctx.t("app.notifications.task_returned")
                         : task.status === "DONE_RECEPTION"
@@ -171,7 +182,7 @@ export const lowStockSource: NoticeSource = {
     async load(ctx) {
         const products = await listProducts();
         return products
-            .filter((p) => p.min_stock > 0 && p.stock <= p.min_stock)
+            .filter(isLowStock)
             .slice(0, 10)
             .map((p): Notice => {
                 const id = `stock:${p.id}:${p.stock}`;

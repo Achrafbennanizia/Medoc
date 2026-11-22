@@ -28,12 +28,12 @@ pub async fn stop_network_services(app: &AppHandle) {
 }
 
 pub async fn stop_lan_server_if_running(app: &AppHandle) {
-    if let Some(lan) = app.try_state::<crate::commands::lan_commands::LanServerControl>() {
+    if let Some(lan) = app.try_state::<crate::commands::network::lan::LanServerControl>() {
         stop_lan_server(&lan).await;
     }
 }
 
-async fn stop_lan_server(control: &crate::commands::lan_commands::LanServerControl) {
+async fn stop_lan_server(control: &crate::commands::network::lan::LanServerControl) {
     let rt = {
         let mut g = control.0.lock().unwrap_or_else(|e| e.into_inner());
         g.runtime.take()

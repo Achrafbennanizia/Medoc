@@ -35,4 +35,20 @@ case "$OS" in
     ;;
 esac
 
+if [[ "$OS" == Darwin ]]; then
+  SRC="${ROOT}/apps/practice-host/target/release/bundle/macos/MeDoc.app"
+  DST="${ROOT}/apps/practice-host/target/release/bundle/macos/Medoc_replica.app"
+  if [[ -d "$SRC" ]]; then
+    rm -rf "$DST"
+    ditto "$SRC" "$DST"
+    PLIST="$DST/Contents/Info.plist"
+    for key in CFBundleName CFBundleDisplayName; do
+      /usr/libexec/PlistBuddy -c "Set :${key} Medoc_replica" "$PLIST" \
+        || /usr/libexec/PlistBuddy -c "Add :${key} string Medoc_replica" "$PLIST"
+    done
+    codesign --force --deep --sign - "$DST"
+    echo "Replica bundle: $DST"
+  fi
+fi
+
 echo "Installers under apps/practice-host/target/release/bundle/"

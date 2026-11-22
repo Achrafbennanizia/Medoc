@@ -50,7 +50,7 @@ impl Role {
 }
 
 /// Per-user RBAC override (FA-PERS-07). `effect` is `"ALLOW"` or `"DENY"`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PermissionOverride {
     pub action: String,
     pub effect: String,

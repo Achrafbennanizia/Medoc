@@ -1,28 +1,24 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { checkSession } from "@/systems/practice-host/controllers/auth.controller";
 import {
     adminUnlockBruteForce,
     createStaff,
     deleteStaff,
-    deleteStaffPermissionOverride,
     getStaffQuota,
-    grantStaffAllPermissions,
     listStaff,
-    listStaffPermissionOverrides,
-    resetStaffPermissionOverrides,
-    setStaffFullChartReadonly,
     setStaffPasswordByAdmin,
-    setStaffPermissionOverride,
     updateStaff,
     type StaffQuota,
 } from "@/systems/practice-host/controllers/staff.controller";
 import { MAX_TOTAL_STAFF } from "@/lib/mvp-security-config";
-import { allowed, isFullChartReadonlyOverrideActive, parseRole, RBAC_ALL_ACTIONS } from "@/lib/rbac";
+import { allowed, parseRole } from "@/lib/rbac";
+import { StaffAccessPanel } from "../components/staff/staff-access-panel";
+import { StaffActionExceptions } from "../components/staff/staff-action-exceptions";
 import { useAuthStore } from "@/models/store/auth-store";
-import { errorMessage, formatDate } from "@/lib/utils";
+import { errorMessage, formatDate, initialsFromName } from "@/lib/utils";
 import type { Staff } from "../../models/types";
 import { Button } from "../components/ui/button";
+import { DataTable } from "../components/ui/data-table";
 import { Card, CardHeader } from "../components/ui/card";
 import { ConfirmDialog } from "../components/ui/dialog";
 import { Input, Select } from "../components/ui/input";
@@ -38,14 +34,7 @@ import { PasswordPolicyHints } from "../components/password-policy-hints";
 import type { Role } from "@/models/types";
 import { ACTIVE_ROLE_WIRES } from "@/lib/deferred-roles";
 import { useT, useTParams , useCollatorLocale} from "@/lib/i18n";
-
-function initialsFromName(name: string) {
-    return name
-        .split(" ")
-        .map((n) => n[0])
-        .slice(0, 2)
-        .join("");
-}
+import { syncGetStatus } from "@/systems/practice-host/controllers/sync.controller";
 
 const ROLE_VALUE_OPTIONS = [
     { value: "PHYSICIAN" as const, key: "enum.role.physician" },
@@ -68,6 +57,12 @@ function quotaOverCapHint(staffQuota: StaffQuota, t: (key: string) => string): s
 
 export function StaffPage() {
     const t = useT();
+    /** Role wire value (PHYSICIAN, RECEPTION, …) → translated label; unknown roles show as stored. */
+    const staffRoleLabel = (role: string) => {
+        const key = `enum.role.${role.trim().toLowerCase()}`;
+        const label = t(key);
+        return label === key ? role : label;
+    };
     const sortLocale = useCollatorLocale();
     const tp = useTParams();
     const [staff, setStaff] = useState<Staff[]>([]);
@@ -75,7 +70,7 @@ export function StaffPage() {
     const [loadError, setLoadError] = useState<string | null>(null);
     const [searchParams, setSearchParams] = useSearchParams();
     const [creating, setCreating] = useState(false);
-    const [createForm, setCreateForm] = useState({ name: "", email: "", password: "", role: "RECEPTION" });
+    const [createForm, setCreateForm] = useState({ name: "", email: "", password: "", role: "RECEPTION" as Role });
     const [createErrors, setCreateErrors] = useState<{ name?: string; email?: string; password?: string }>({});
     const [createBusy, setCreateBusy] = useState(false);
     const [selected, setSelected] = useState<Staff | null>(null);
@@ -95,17 +90,17 @@ export function StaffPage() {
     const [resetPwError, setResetPwError] = useState<string | undefined>(undefined);
     const [resetBusy, setResetBusy] = useState(false);
     /** FA-PERS-07 overrides editor (edit mode only). */
-    const [permOverrides, setPermOverrides] = useState<{ action: string; effect: "ALLOW" | "DENY" }[]>([]);
-    const [permBusy, setPermBusy] = useState(false);
-    const [newPermAction, setNewPermAction] = useState("");
-    const [newPermEffect, setNewPermEffect] = useState<"ALLOW" | "DENY">("DENY");
     const [deleteId, setDeleteId] = useState<string | null>(null);
     const [deleteBusy, setDeleteBusy] = useState(false);
     const [staffQuota, setStaffQuota] = useState<StaffQuota | null>(null);
     const toast = useToastStore((s) => s.add);
     const session = useAuthStore((s) => s.session);
     const role = parseRole(session?.role);
-    const canWrite = role != null && allowed("staff.write", role, session?.permission_overrides);
+    const [replicaStaffReadOnly, setReplicaStaffReadOnly] = useState(false);
+    const canWrite =
+        role != null &&
+        allowed("staff.write", role, session?.permission_overrides) &&
+        !replicaStaffReadOnly;
 
     const load = useCallback(
         async (opts?: { initial?: boolean }) => {
@@ -138,32 +133,19 @@ export function StaffPage() {
     }, [load]);
 
     useEffect(() => {
-        if (!selected?.id || !detailEdit || !canWrite) {
-            setPermOverrides([]);
-            return;
-        }
         let cancelled = false;
-        setPermBusy(true);
-        void listStaffPermissionOverrides(selected.id)
-            .then((rows) => {
-                if (cancelled) return;
-                setPermOverrides(
-                    rows.map((r) => ({
-                        action: r.action,
-                        effect: r.effect === "ALLOW" ? "ALLOW" : "DENY",
-                    })),
-                );
+        void syncGetStatus()
+            .then((snap) => {
+                if (!cancelled) setReplicaStaffReadOnly(snap.deployment.role === "REPLICA");
             })
-            .catch((e) => {
-                if (!cancelled) toast(tp("page.staff.toast_perm_load_failed", { message: errorMessage(e) }), "error");
-            })
-            .finally(() => {
-                if (!cancelled) setPermBusy(false);
+            .catch(() => {
+                if (!cancelled) setReplicaStaffReadOnly(false);
             });
         return () => {
             cancelled = true;
         };
-    }, [selected?.id, detailEdit, canWrite, toast, tp]);
+    }, []);
+
 
     const newFromQuery = searchParams.get("new");
     useEffect(() => {
@@ -268,8 +250,18 @@ export function StaffPage() {
             return;
         }
         setEditBusy(true);
+        const previous = {
+            name: selected.name,
+            email: selected.email,
+            role: selected.role,
+            activity_area: selected.activity_area,
+            specialty: selected.specialty,
+            phone: selected.phone,
+            available: selected.available,
+        };
+        const staffId = selected.id;
         try {
-            const updated = await updateStaff(selected.id, {
+            const updated = await updateStaff(staffId, {
                 name: editForm.name.trim(),
                 email: editForm.email.trim(),
                 role: editForm.role,
@@ -278,7 +270,17 @@ export function StaffPage() {
                 phone: editForm.phone.trim() || null,
                 available: editForm.available,
             });
-            toast(t("page.staff.toast_saved"), "success");
+            toast(t("page.staff.toast_saved"), "success", {
+                onUndo: async () => {
+                    try {
+                        const restored = await updateStaff(staffId, previous);
+                        setSelected(restored);
+                        void load();
+                    } catch (err) {
+                        toast(`${t("common.error_prefix")} ${errorMessage(err)}`, "error");
+                    }
+                },
+            });
             setDetailEdit(false);
             setSelected(updated);
             void load();
@@ -317,7 +319,17 @@ export function StaffPage() {
                 password: createForm.password,
                 role: createForm.role,
             });
-            toast(t("page.staff.toast_created"), "success");
+            toast(t("page.staff.toast_created"), "success", {
+                onUndo: async () => {
+                    try {
+                        await deleteStaff(created.id);
+                        setSelected((current) => (current?.id === created.id ? null : current));
+                        void load();
+                    } catch (err) {
+                        toast(`${t("common.error_prefix")} ${errorMessage(err)}`, "error");
+                    }
+                },
+            });
             setCreating(false);
             setCreateForm({ name: "", email: "", password: "", role: "RECEPTION" });
             setSelected(created);
@@ -385,7 +397,7 @@ export function StaffPage() {
         : t("page.staff.subtitle_default");
 
     const readField = (label: string, value: ReactNode) => (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-1)" }}>
             <span className="kpi-label-mini">{label}</span>
             <span style={{ fontSize: 14, color: "var(--fg-2)", lineHeight: 1.4 }}>
                 {value === null || value === undefined || value === "" ? "—" : value}
@@ -444,10 +456,10 @@ export function StaffPage() {
                             id="pers-new-role"
                             label={t("common.role")}
                             value={createForm.role}
-                            onChange={(e) => setCreateForm((f) => ({ ...f, role: e.target.value }))}
+                            onChange={(e) => setCreateForm((f) => ({ ...f, role: e.target.value as Role }))}
                             options={availableRoleOptions.map((o) => ({ value: o.value, label: o.label }))}
                         />
-                        <div className="row" style={{ justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+                        <div className="row" style={{ justifyContent: "flex-end", gap: "var(--space-2)", flexWrap: "wrap" }}>
                             <Button type="button" variant="ghost" onClick={cancelCreate} disabled={createBusy}>
                                 {t("common.cancel")}
                             </Button>
@@ -486,7 +498,7 @@ export function StaffPage() {
                             onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))}
                         />
                         {canWrite ? (
-                            <div className="row" style={{ gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                            <div className="row" style={{ gap: "var(--space-2)", alignItems: "center", flexWrap: "wrap" }}>
                                 <Button
                                     type="button"
                                     variant="secondary"
@@ -554,233 +566,8 @@ export function StaffPage() {
                                 { value: "0", label: t("page.staff.avail_no") },
                             ]}
                         />
-                        <div className="staff-detail-card__section">
-                            <p className="text-title" style={{ margin: 0, fontSize: 14 }}>
-                                {t("page.staff.perm_section_title")}
-                            </p>
-                            <p className="page-sub" style={{ margin: 0, fontSize: 12, lineHeight: 1.45 }}>
-                                {t("page.staff.perm_section_desc")}
-                            </p>
-                            <label
-                                className="row"
-                                style={{
-                                    gap: 10,
-                                    alignItems: "flex-start",
-                                    padding: "10px 12px",
-                                    border: "1px solid var(--line)",
-                                    borderRadius: 10,
-                                    background: "var(--bg-elev)",
-                                    cursor: selected && !permBusy ? "pointer" : "default",
-                                    opacity: permBusy ? 0.7 : 1,
-                                }}
-                            >
-                                <input
-                                    type="checkbox"
-                                    style={{ marginTop: 3 }}
-                                    checked={isFullChartReadonlyOverrideActive(permOverrides)}
-                                    disabled={!selected || permBusy}
-                                    onChange={(e) => {
-                                        if (!selected) return;
-                                        const enabled = e.target.checked;
-                                        void (async () => {
-                                            try {
-                                                setPermBusy(true);
-                                                await setStaffFullChartReadonly(selected.id, enabled);
-                                                setPermOverrides((prev) => {
-                                                    const rest = prev.filter(
-                                                        (x) =>
-                                                            x.action !== "patient.read_medical"
-                                                            && x.action !== "patient.write_medical",
-                                                    );
-                                                    if (!enabled) return rest;
-                                                    return [
-                                                        ...rest,
-                                                        { action: "patient.read_medical", effect: "ALLOW" as const },
-                                                        { action: "patient.write_medical", effect: "DENY" as const },
-                                                    ].sort((a, b) => a.action.localeCompare(b.action));
-                                                });
-                                                if (useAuthStore.getState().session?.user_id === selected.id) {
-                                                    await checkSession();
-                                                }
-                                                toast(
-                                                    enabled
-                                                        ? t("page.staff.toast_chart_readonly_on")
-                                                        : t("page.staff.toast_chart_readonly_off"),
-                                                    "success",
-                                                );
-                                            } catch (err) {
-                                                toast(errorMessage(err), "error");
-                                            } finally {
-                                                setPermBusy(false);
-                                            }
-                                        })();
-                                    }}
-                                />
-                                <span>
-                                    <span style={{ display: "block", fontSize: 13, fontWeight: 600 }}>
-                                        {t("page.staff.chart_readonly_title")}
-                                    </span>
-                                    <span style={{ display: "block", fontSize: 12, color: "var(--fg-3)", lineHeight: 1.45, marginTop: 2 }}>
-                                        {t("page.staff.chart_readonly_desc")}
-                                    </span>
-                                </span>
-                            </label>
-                            <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
-                                <Button
-                                    type="button"
-                                    variant="secondary"
-                                    size="sm"
-                                    disabled={!selected || permBusy}
-                                    onClick={() => {
-                                        if (!selected) return;
-                                        void (async () => {
-                                            try {
-                                                setPermBusy(true);
-                                                const n = await resetStaffPermissionOverrides(selected.id);
-                                                setPermOverrides([]);
-                                                if (useAuthStore.getState().session?.user_id === selected.id) {
-                                                    await checkSession();
-                                                }
-                                                toast(
-                                                    n > 0
-                                                        ? tp("page.staff.toast_perm_reset_ok", { n })
-                                                        : t("page.staff.toast_perm_reset_none"),
-                                                    "success",
-                                                );
-                                            } catch (e) {
-                                                toast(errorMessage(e), "error");
-                                            } finally {
-                                                setPermBusy(false);
-                                            }
-                                        })();
-                                    }}
-                                >
-                                    {t("page.staff.perm_reset")}
-                                </Button>
-                                <Button
-                                    type="button"
-                                    variant="secondary"
-                                    size="sm"
-                                    disabled={!selected || permBusy}
-                                    onClick={() => {
-                                        if (!selected) return;
-                                        void (async () => {
-                                            try {
-                                                setPermBusy(true);
-                                                const n = await grantStaffAllPermissions(selected.id);
-                                                const rows = RBAC_ALL_ACTIONS.map((action) => ({
-                                                    action,
-                                                    effect: "ALLOW" as const,
-                                                }));
-                                                setPermOverrides(rows);
-                                                if (useAuthStore.getState().session?.user_id === selected.id) {
-                                                    await checkSession();
-                                                }
-                                                toast(tp("page.staff.toast_perm_grant", { n }), "success");
-                                            } catch (e) {
-                                                toast(errorMessage(e), "error");
-                                            } finally {
-                                                setPermBusy(false);
-                                            }
-                                        })();
-                                    }}
-                                >
-                                    {t("page.staff.perm_grant_all")}
-                                </Button>
-                            </div>
-                            {permBusy ? (
-                                <p style={{ margin: 0, fontSize: 12, color: "var(--fg-3)" }}>{t("page.staff.perm_loading")}</p>
-                            ) : (
-                                <ul style={{ margin: 0, paddingInlineStart: 18, fontSize: 13 }}>
-                                    {permOverrides.map((row) => (
-                                        <li key={row.action} style={{ marginBottom: 6 }}>
-                                            <code>{row.action}</code> → <strong>{row.effect}</strong>{" "}
-                                            <button
-                                                type="button"
-                                                className="btn btn-danger btn-sm"
-                                                style={{ marginInlineStart: 8 }}
-                                                onClick={() => {
-                                                    if (!selected) return;
-                                                    void (async () => {
-                                                        try {
-                                                            await deleteStaffPermissionOverride(selected.id, row.action);
-                                                            setPermOverrides((prev) => prev.filter((x) => x.action !== row.action));
-                                                            if (useAuthStore.getState().session?.user_id === selected.id) {
-                                                                await checkSession();
-                                                            }
-                                                            toast(t("page.staff.toast_perm_removed"), "success");
-                                                        } catch (e) {
-                                                            toast(errorMessage(e), "error");
-                                                        }
-                                                    })();
-                                                }}
-                                            >
-                                                {t("common.remove")}
-                                            </button>
-                                        </li>
-                                    ))}
-                                </ul>
-                            )}
-                            <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
-                                <Input
-                                    id="perm-action"
-                                    label={t("page.staff.perm_action")}
-                                    value={newPermAction}
-                                    onChange={(e) => setNewPermAction(e.target.value)}
-                                    placeholder={t("page.staff.perm_action_ph")}
-                                    list="perm-action-hints"
-                                    style={{ flex: "1 1 200px", minWidth: 160 }}
-                                />
-                                <datalist id="perm-action-hints">
-                                    {RBAC_ALL_ACTIONS.map((action) => (
-                                        <option key={action} value={action} />
-                                    ))}
-                                </datalist>
-                                <Select
-                                    id="perm-eff"
-                                    label={t("page.staff.perm_effect")}
-                                    value={newPermEffect}
-                                    onChange={(e) => setNewPermEffect(e.target.value as "ALLOW" | "DENY")}
-                                    options={[
-                                        { value: "ALLOW", label: t("page.staff.perm_effect_allow") },
-                                        { value: "DENY", label: t("page.staff.perm_effect_deny") },
-                                    ]}
-                                    style={{ width: 120 }}
-                                />
-                                <Button
-                                    type="button"
-                                    variant="secondary"
-                                    onClick={() => {
-                                        if (!selected) return;
-                                        const a = newPermAction.trim();
-                                        if (!a) {
-                                            toast(t("page.staff.toast_perm_action_required"), "info");
-                                            return;
-                                        }
-                                        void (async () => {
-                                            try {
-                                                await setStaffPermissionOverride(selected.id, a, newPermEffect);
-                                                setPermOverrides((prev) => {
-                                                    const rest = prev.filter((x) => x.action !== a);
-                                                    return [...rest, { action: a, effect: newPermEffect }].sort((x, y) =>
-                                                        x.action.localeCompare(y.action),
-                                                    );
-                                                });
-                                                setNewPermAction("");
-                                                if (useAuthStore.getState().session?.user_id === selected.id) {
-                                                    await checkSession();
-                                                }
-                                                toast(t("page.staff.toast_perm_saved"), "success");
-                                            } catch (e) {
-                                                toast(errorMessage(e), "error");
-                                            }
-                                        })();
-                                    }}
-                                >
-                                    {t("page.staff.perm_add")}
-                                </Button>
-                            </div>
-                        </div>
+                        {selected ? <StaffAccessPanel staffId={selected.id} /> : null}
+                        {selected ? <StaffActionExceptions staffId={selected.id} /> : null}
                         <div className="staff-detail-card__section">
                             <p className="text-title" style={{ margin: 0, fontSize: 14 }}>{t("page.staff.pw_reset_title")}</p>
                             <p className="page-sub" style={{ margin: 0, fontSize: 12, lineHeight: 1.45 }}>
@@ -822,7 +609,7 @@ export function StaffPage() {
                                 </Button>
                             </div>
                         </div>
-                        <div className="row" style={{ justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+                        <div className="row" style={{ justifyContent: "flex-end", gap: "var(--space-2)", flexWrap: "wrap" }}>
                             <Button type="button" variant="ghost" onClick={cancelEdit} disabled={editBusy}>
                                 {t("common.cancel")}
                             </Button>
@@ -843,7 +630,7 @@ export function StaffPage() {
                         subtitle={t("page.staff.detail_subtitle")}
                         action={
                             canWrite ? (
-                                <div className="row" style={{ gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                                <div className="row" style={{ gap: "var(--space-2)", flexWrap: "wrap", justifyContent: "flex-end" }}>
                                     <Button type="button" size="sm" variant="secondary" onClick={startEdit}>
                                         <EditIcon size={14} /> {t("common.edit")}
                                     </Button>
@@ -857,7 +644,7 @@ export function StaffPage() {
                     <div className="staff-detail-card__body">
                         <div className="staff-read-grid">
                             {readField(t("common.email"), p.email)}
-                            {readField(t("common.role"), p.role)}
+                            {readField(t("common.role"), staffRoleLabel(p.role))}
                             {readField(t("page.staff.label_activity_area"), p.activity_area ?? "—")}
                             {readField(t("page.staff.label_specialty"), p.specialty ?? "—")}
                             {readField(t("common.phone"), p.phone?.trim() ? <PhoneText value={p.phone} /> : "—")}
@@ -882,7 +669,7 @@ export function StaffPage() {
     })();
 
     return (
-        <div className="staff-page practice-workspace-page animate-fade-in">
+        <div className="staff-page practice-workspace-page animate-fade-in--sticky-safe">
             <AdministrationPageHeader
                 title={t("page.staff.title")}
                 subtitle={quotaSubtitle}
@@ -905,6 +692,12 @@ export function StaffPage() {
                 }
             />
 
+            {replicaStaffReadOnly ? (
+                <p role="status" style={{ color: "var(--fg-2)", fontSize: 14, margin: "0 0 12px" }}>
+                    {t("page.staff.replica_managed_banner")}
+                </p>
+            ) : null}
+
             {loading ? (
                 <PageLoading label={t("page.staff.loading")} />
             ) : loadError ? (
@@ -923,51 +716,30 @@ export function StaffPage() {
                                 />
                             </Card>
                         ) : (
-                            <div className="card staff-table-card tbl-data-card tbl-scroll">
-                                <table className="tbl staff-tbl">
-                                    <thead>
-                                        <tr>
-                                            <th scope="col" aria-label={t("common.avatar")} />
-                                            <th scope="col">{t("page.staff.col_name")}</th>
-                                            <th scope="col">{t("page.staff.col_role")}</th>
-                                            <th scope="col">{t("page.staff.col_email")}</th>
-                                            <th scope="col" style={{ textAlign: "end" }}>{t("page.staff.col_availability")}</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {sorted.map((p) => {
-                                            const isSel = !creating && selected?.id === p.id;
-                                            return (
-                                                <tr
-                                                    key={p.id}
-                                                    className={isSel ? "staff-row--selected" : undefined}
-                                                    onClick={() => selectRow(p)}
-                                                    style={{ cursor: "pointer" }}
-                                                >
-                                                    <td>
-                                                        <span className="av av--accent">
-                                                            {initialsFromName(p.name)}
-                                                        </span>
-                                                    </td>
-                                                    <td>
-                                                        <span style={{ fontWeight: 600, color: "var(--fg-2)" }}>{p.name}</span>
-                                                    </td>
-                                                    <td>
-                                                        <span className="page-sub" style={{ fontSize: 13 }}>{p.role}</span>
-                                                    </td>
-                                                    <td>
-                                                        <span className="page-sub" style={{ fontSize: 13, color: "var(--fg-3)" }}>{p.email}</span>
-                                                    </td>
-                                                    <td style={{ textAlign: "end" }}>
-                                                        <Badge variant={p.available ? "success" : "default"}>
-                                                            {p.available ? t("page.staff.avail_yes") : t("page.staff.avail_no")}
-                                                        </Badge>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
+                            <div className="card staff-table-card tbl-data-card">
+                                <DataTable
+                                    label={t("page.staff.title")}
+                                    rows={sorted}
+                                    getRowId={(p) => p.id}
+                                    selectedId={creating ? null : selected?.id ?? null}
+                                    onRowActivate={selectRow}
+                                    rowLabel={(p) => p.name}
+                                    columns={[
+                                        { id: "avatar", header: t("common.avatar"), srOnlyHeader: true, width: "calc(36px + 2 * var(--tbl-cell-pad-x))", hideBelow: "sm", cell: (p) => <span className="av av--accent">{initialsFromName(p.name)}</span> },
+                                        { id: "name", header: t("page.staff.col_name"), truncate: true, text: (p) => p.name, cell: (p) => <span className="data-table__primary">{p.name}</span> },
+                                        { id: "role", header: t("page.staff.col_role"), width: "11rem", truncate: true, hideBelow: "sm", text: (p) => staffRoleLabel(p.role), cell: (p) => <span className="data-table__muted">{staffRoleLabel(p.role)}</span> },
+                                        { id: "email", header: t("page.staff.col_email"), width: "26%", truncate: true, hideBelow: "lg", text: (p) => p.email ?? "", cell: (p) => <span className="data-table__muted">{p.email}</span> },
+                                        {
+                                            id: "availability",
+                                            header: t("page.staff.col_availability"),
+                                            width: "9rem",
+                                            align: "end",
+                                            cell: (p) => (
+                                                <Badge variant={p.available ? "success" : "default"}>{p.available ? t("page.staff.avail_yes") : t("page.staff.avail_no")}</Badge>
+                                            ),
+                                        },
+                                    ]}
+                                />
                             </div>
                         )}
                     </div>
