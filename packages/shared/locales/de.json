@@ -6282,5 +6282,8 @@
   "error.text.md_uix_503": "LAN-Client-Konfiguration unvollständig (Basis-URL oder Token fehlt).",
   "error.text.md_uix_510": "PDF fehlt.",
   "error.text.md_uix_511": "Praxisstammdaten für Quittungen unvollständig.",
-  "error.text.md_uix_513": "Gespeicherte Arbeitszeiten sind ungültig."
+  "error.text.md_uix_513": "Gespeicherte Arbeitszeiten sind ungültig.",
+  "dental.chart.legend": "Legende der Zahnstatus",
+  "dental.chart.detail_empty": "Für diesen Zahn ist kein Befund erfasst.",
+  "dental.chart.detail_updated": "Zuletzt geändert am {date}"
 }

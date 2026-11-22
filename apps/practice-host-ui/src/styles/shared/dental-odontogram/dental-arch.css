@@ -1,0 +1,227 @@
+/* Arch odontogram (DentalChart): one SVG, FDI order from the viewer's side, never mirrored in RTL.
+   Colours come from the --dental-* tokens in tokens/theme.css, so light and dark follow the app theme. */
+.dental-arch {
+  --dental-selected: var(--blue, #0a84ff);
+  padding: var(--space-4) var(--space-4) 0;
+  overflow: hidden;
+}
+.dental-arch.is-disabled .dental-arch__svg {
+  opacity: 0.7;
+}
+.dental-arch__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+.dental-arch__brushes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.dental-arch__brush {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--fg-2);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.dental-arch__brush[aria-pressed="true"] {
+  border-color: var(--dental-selected);
+  color: var(--fg);
+  box-shadow: inset 0 0 0 1px var(--dental-selected);
+}
+.dental-arch__brush:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.dental-arch__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--fg-3);
+}
+.dental-arch__legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.dental-arch__swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  border: 1.5px solid var(--dental-healthy-stroke);
+  background: var(--dental-healthy-fill);
+}
+.is-caries > .dental-arch__swatch { background: var(--dental-caries-stroke); border-color: var(--dental-caries-stroke); }
+.is-filling > .dental-arch__swatch { background: var(--dental-filling-stroke); border-color: var(--dental-filling-stroke); }
+.is-crown > .dental-arch__swatch { background: var(--dental-crown-stroke); border-color: var(--dental-crown-stroke); }
+.is-root > .dental-arch__swatch { background: var(--dental-root-stroke); border-color: var(--dental-root-stroke); }
+.is-implant > .dental-arch__swatch { background: var(--dental-implant-stroke); border-color: var(--dental-implant-stroke); }
+.is-planned > .dental-arch__swatch { background: var(--dental-planned-fill); border-color: var(--dental-planned-stroke); border-style: dashed; }
+.is-missing > .dental-arch__swatch { background: transparent; border-color: var(--dental-missing-stroke); border-style: dashed; }
+
+.dental-arch__frame {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.dental-arch__svg {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  height: auto;
+  max-height: 320px;
+  overflow: visible;
+}
+
+/* teeth */
+.dental-arch__tooth {
+  cursor: pointer;
+  outline: none;
+}
+.is-disabled .dental-arch__tooth {
+  cursor: default;
+}
+.dental-arch__crown {
+  fill: var(--dental-healthy-fill);
+  stroke: var(--dental-healthy-stroke);
+  stroke-width: 1.4;
+  transition: stroke 0.15s, fill 0.15s;
+}
+.dental-arch__root {
+  fill: color-mix(in oklab, var(--dental-healthy-fill) 70%, var(--surface-2));
+  stroke: var(--dental-healthy-stroke);
+  stroke-width: 1.1;
+  stroke-linejoin: round;
+}
+.dental-arch__num {
+  font-size: 10.5px;
+  font-weight: 600;
+  fill: var(--fg-3);
+}
+.dental-arch__mark {
+  fill: var(--dental-caries-stroke);
+}
+.dental-arch__line {
+  fill: none;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.dental-arch__tooth:not(.is-selected):hover .dental-arch__crown {
+  stroke: var(--fg-2);
+}
+
+.dental-arch__tooth.is-caries .dental-arch__crown { fill: var(--dental-caries-fill); stroke: var(--dental-caries-stroke); }
+.dental-arch__tooth.is-filling .dental-arch__crown { fill: var(--dental-filling-fill); stroke: var(--dental-filling-stroke); }
+.dental-arch__tooth.is-filling .dental-arch__mark { fill: var(--dental-filling-stroke); }
+.dental-arch__tooth.is-crown .dental-arch__crown { fill: var(--dental-crown-stroke); stroke: var(--dental-crown-stroke); }
+.dental-arch__tooth.is-root .dental-arch__root { fill: var(--dental-root-fill); stroke: var(--dental-root-stroke); }
+.dental-arch__tooth.is-root .dental-arch__line { stroke: var(--dental-root-stroke); }
+.dental-arch__tooth.is-implant .dental-arch__crown { fill: var(--dental-implant-fill); stroke: var(--dental-implant-stroke); }
+.dental-arch__tooth.is-implant .dental-arch__root { fill: var(--dental-implant-fill); stroke: var(--dental-implant-stroke); }
+.dental-arch__tooth.is-implant .dental-arch__line { stroke: var(--dental-implant-stroke); }
+.dental-arch__tooth.is-planned .dental-arch__crown { fill: var(--dental-planned-fill); stroke: var(--dental-planned-stroke); stroke-dasharray: 4 3; }
+.dental-arch__tooth.is-missing .dental-arch__crown,
+.dental-arch__tooth.is-missing .dental-arch__root {
+  fill: transparent;
+  stroke: var(--dental-missing-stroke);
+  stroke-dasharray: 3 3;
+}
+
+.dental-arch__tooth.is-selected .dental-arch__crown,
+.dental-arch__tooth:focus-visible .dental-arch__crown {
+  stroke: var(--dental-selected);
+  stroke-width: 2.6;
+  stroke-dasharray: none;
+}
+.dental-arch__tooth.is-selected .dental-arch__num {
+  fill: var(--dental-selected);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .dental-arch__tooth.is-pulse .dental-arch__crown {
+    animation: dental-arch-pulse 0.16s ease-out;
+  }
+}
+@keyframes dental-arch-pulse {
+  from { stroke-width: 5; }
+}
+
+.dental-arch__occlusal {
+  stroke: var(--line);
+  stroke-dasharray: 2 5;
+}
+.dental-arch__midline {
+  stroke: var(--line);
+  stroke-dasharray: 2 5;
+}
+
+/* selected-tooth panel */
+.dental-arch__detail {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: 72px;
+  margin: var(--space-3) calc(-1 * var(--space-4)) 0;
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--line);
+  background: var(--surface-1);
+}
+.dental-arch__detail-tooth {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+}
+.dental-arch__detail-num {
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--dental-selected);
+  min-width: 2ch;
+}
+.dental-arch__detail-body {
+  min-width: 0;
+}
+.dental-arch__detail-note {
+  margin: 0;
+  font-weight: 500;
+  color: var(--fg);
+}
+.dental-arch__detail-meta {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: var(--fg-3);
+}
+.dental-arch__pill {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--dental-healthy-fill);
+  border: 1px solid var(--dental-healthy-stroke);
+  color: var(--fg-2);
+  white-space: nowrap;
+}
+.dental-arch__pill.is-caries { background: var(--dental-caries-fill); border-color: var(--dental-caries-stroke); color: var(--dental-caries-stroke); }
+.dental-arch__pill.is-filling { background: var(--dental-filling-fill); border-color: var(--dental-filling-stroke); color: var(--dental-filling-stroke); }
+.dental-arch__pill.is-crown { background: var(--dental-crown-fill); border-color: var(--dental-crown-stroke); color: var(--dental-crown-stroke); }
+.dental-arch__pill.is-root { background: var(--dental-root-fill); border-color: var(--dental-root-stroke); color: var(--dental-root-stroke); }
+.dental-arch__pill.is-implant { background: var(--dental-implant-fill); border-color: var(--dental-implant-stroke); color: var(--dental-implant-stroke); }
+.dental-arch__pill.is-planned { background: var(--dental-planned-fill); border-color: var(--dental-planned-stroke); color: var(--dental-planned-stroke); border-style: dashed; }
+.dental-arch__pill.is-missing { background: transparent; border-color: var(--dental-missing-stroke); border-style: dashed; }

@@ -6282,5 +6282,8 @@
   "error.text.md_uix_503": "Configuration du client LAN incomplète (URL ou jeton manquant).",
   "error.text.md_uix_510": "PDF manquant.",
   "error.text.md_uix_511": "Données du cabinet incomplètes pour les reçus.",
-  "error.text.md_uix_513": "Les horaires enregistrés sont invalides."
+  "error.text.md_uix_513": "Les horaires enregistrés sont invalides.",
+  "dental.chart.legend": "Légende des statuts dentaires",
+  "dental.chart.detail_empty": "Aucun constat enregistré pour cette dent.",
+  "dental.chart.detail_updated": "Dernière mise à jour le {date}"
 }

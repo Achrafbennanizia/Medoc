@@ -4,6 +4,7 @@
 @import "../practice-host/pages/patient-detail/patient-detail-shell-header.css";
 @import "../views/components/DentalMiniBar/dental-mini-title.css";
 @import "../shared/dental-odontogram/dental-odontogram.css";
+@import "../shared/dental-odontogram/dental-arch.css";
 @import "../views/components/treatment-chart-composer-panel.css";
 @import "../shared/btn-chip.css";
 @import "../views/components/DentalMiniBar/tooth-popover-list.css";

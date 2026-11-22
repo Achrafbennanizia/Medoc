@@ -6282,5 +6282,8 @@
   "error.text.md_uix_503": "LAN client configuration incomplete (base URL or token missing).",
   "error.text.md_uix_510": "PDF missing",
   "error.text.md_uix_511": "Practice master data incomplete for receipts",
-  "error.text.md_uix_513": "Stored work hours are invalid"
+  "error.text.md_uix_513": "Stored work hours are invalid",
+  "dental.chart.legend": "Tooth status legend",
+  "dental.chart.detail_empty": "No finding recorded for this tooth.",
+  "dental.chart.detail_updated": "Last updated {date}"
 }

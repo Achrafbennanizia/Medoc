@@ -1,26 +1,24 @@
-import { useMemo, useState } from "react";
+import { type KeyboardEvent, useMemo, useState } from "react";
 import { DentalOdontogramAxis } from "./dental-odontogram-axis";
 import type { DentalFinding } from "@/models/types";
 import {
     DENTAL_LOWER_L,
     DENTAL_LOWER_R,
-    DENTAL_STATES,
     DENTAL_STATUS_KEYS,
-    DENTAL_TOOTH_SHAPES,
     DENTAL_UPPER_L,
     DENTAL_UPPER_R,
     type DentalStatusKey,
     findingToStatusKey,
     dentalStatusLabel,
     dentalToothType,
+    findingsForTooth,
     formatDentalToothLabel,
 } from "@/lib/dental";
 import { useT, useTParams } from "@/lib/i18n";
+import { formatDate } from "@/lib/utils";
 
-const UPPER_R = DENTAL_UPPER_R;
-const UPPER_L = DENTAL_UPPER_L;
-const LOWER_R = DENTAL_LOWER_R;
-const LOWER_L = DENTAL_LOWER_L;
+const UPPER = [...DENTAL_UPPER_R, ...DENTAL_UPPER_L];
+const LOWER = [...DENTAL_LOWER_R, ...DENTAL_LOWER_L];
 
 type DentalChartProps = {
     findings: DentalFinding[];
@@ -37,6 +35,41 @@ type DentalChartProps = {
     /** View only — no tooth selection / no finding set (view mode). */
     disabled?: boolean;
 };
+
+/* ---------- arch geometry (SVG user units) ---------- */
+const GAP = 4;
+const CROWN_H = 30;
+const ARCH_DIP = 20; // how far the outer molars rise/fall from the midline teeth
+
+function toothWidth(fdi: string): number {
+    const type = dentalToothType(fdi);
+    if (type === "incisor") return 24;
+    if (type === "canine") return 26;
+    if (type === "premolar") return 28;
+    return 36;
+}
+
+/** Crown + roots drawn occlusal edge at y=0, roots towards +y. Upper teeth are flipped by the caller. */
+function toothPaths(fdi: string): { crown: string; roots: string } {
+    const w = toothWidth(fdi);
+    const r = 8;
+    const crown = `M0 ${r} Q0 0 ${r} 0 H${w - r} Q${w} 0 ${w} ${r} V${CROWN_H} H0 Z`;
+    const type = dentalToothType(fdi);
+    let roots: string;
+    if (type === "molar") {
+        roots = `M3 ${CROWN_H} L${w * 0.28} 62 L${w * 0.44} ${CROWN_H} Z M${w * 0.56} ${CROWN_H} L${w * 0.72} 62 L${w - 3} ${CROWN_H} Z`;
+    } else if (type === "canine") {
+        roots = `M3 ${CROWN_H} L${w / 2} 70 L${w - 3} ${CROWN_H} Z`;
+    } else {
+        roots = `M3 ${CROWN_H} L${w / 2} 60 L${w - 3} ${CROWN_H} Z`;
+    }
+    return { crown, roots };
+}
+
+const ROW_WIDTH = UPPER.reduce((s, n) => s + toothWidth(n), 0) + GAP * (UPPER.length - 1);
+const VIEW_W = ROW_WIDTH + 24;
+const VIEW_H = 250;
+const OCCLUSAL_Y = 120;
 
 export function DentalChart({
     findings,
@@ -58,113 +91,178 @@ export function DentalChart({
         return m;
     }, [findings]);
 
-    const renderTooth = (n: string) => {
-        const type = dentalToothType(n);
-        const shape = DENTAL_TOOTH_SHAPES[type];
-        const stateKey = findingToStatusKey(map.get(Number(n)));
-        const state = DENTAL_STATES[stateKey];
-        const isSel = mode === "picker" && selectedTooth === n;
-        const label = formatDentalToothLabel(n, t);
-        return (
-            <button
-                key={n}
-                type="button"
-                className={`col ${pulseTooth === n ? "tooth-btn-pulse" : ""}`}
-                style={{ alignItems: "center", gap: "var(--space-1)", opacity: disabled ? 0.65 : undefined }}
-                aria-label={tp("dental.tooth_status_aria", { tooth: label, status: dentalStatusLabel(t, stateKey) })}
-                disabled={disabled}
-                onClick={async () => {
-                    if (disabled) return;
-                    setPulseTooth(n);
-                    window.setTimeout(() => setPulseTooth((cur) => (cur === n ? null : cur)), 140);
-                    if (mode === "picker") {
-                        onToothSelect?.(n);
-                        return;
-                    }
-                    setLastTouched(n);
-                    if (onApply) {
-                        await onApply(Number(n), active);
-                    }
-                }}
-            >
-                <svg
-                    width="28"
-                    height="42"
-                    viewBox="0 0 20 34"
-                    aria-hidden
-                    style={{
-                        filter: isSel ? "drop-shadow(0 0 5px rgba(74,157,255,0.85))" : undefined,
-                        outline: isSel ? "2px solid var(--accent)" : undefined,
-                        borderRadius: 4,
-                    }}
-                >
-                    <path d={shape.crown} fill={state.fill} stroke={state.stroke} />
-                    <path d={shape.root} fill={state.fill} stroke={state.stroke} />
-                </svg>
-                <span className="dental-tooth-label" style={{ fontSize: 11, color: "var(--fg-3)" }}>{label}</span>
-            </button>
-        );
+    const focusTooth = mode === "picker" ? selectedTooth : lastTouched;
+
+    const activate = async (n: string) => {
+        if (disabled) return;
+        setPulseTooth(n);
+        window.setTimeout(() => setPulseTooth((cur) => (cur === n ? null : cur)), 160);
+        if (mode === "picker") {
+            onToothSelect?.(n);
+            return;
+        }
+        setLastTouched(n);
+        if (onApply) {
+            await onApply(Number(n), active);
+        }
     };
 
+    const onKey = (e: KeyboardEvent, n: string) => {
+        if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            void activate(n);
+        }
+    };
+
+    const renderRow = (teeth: string[], upper: boolean) => {
+        let x = 12;
+        return teeth.map((n, i) => {
+            const w = toothWidth(n);
+            const d = (i - 7.5) / 7.5; // -1 … 1 across the row
+            const lift = ARCH_DIP * d * d;
+            const baseY = upper ? 40 - lift : OCCLUSAL_Y + 4 + lift;
+            const stateKey = findingToStatusKey(map.get(Number(n)));
+            const { crown, roots } = toothPaths(n);
+            const transform = upper ? `translate(${x} ${baseY + 70}) scale(1 -1)` : `translate(${x} ${baseY})`;
+            const labelY = upper ? baseY - 8 : baseY + 88;
+            const cx = x + w / 2;
+            x += w + GAP;
+            const label = formatDentalToothLabel(n, t);
+            const isFocus = focusTooth === n;
+            const cls = [
+                "dental-arch__tooth",
+                `is-${stateKey}`,
+                isFocus ? "is-selected" : "",
+                pulseTooth === n ? "is-pulse" : "",
+            ]
+                .filter(Boolean)
+                .join(" ");
+            return (
+                <g
+                    key={n}
+                    className={cls}
+                    role="button"
+                    tabIndex={disabled ? -1 : 0}
+                    aria-disabled={disabled || undefined}
+                    aria-pressed={mode === "picker" ? isFocus : undefined}
+                    aria-label={tp("dental.tooth_status_aria", { tooth: label, status: dentalStatusLabel(t, stateKey) })}
+                    onClick={() => void activate(n)}
+                    onKeyDown={(e) => onKey(e, n)}
+                >
+                    <g transform={transform}>
+                        <path className="dental-arch__root" d={roots} />
+                        <path className="dental-arch__crown" d={crown} />
+                        {stateKey === "caries" ? <circle className="dental-arch__mark" cx={w / 2} cy={12} r={5} /> : null}
+                        {stateKey === "filling" ? (
+                            <rect className="dental-arch__mark" x={w * 0.25} y={6} width={w * 0.5} height={12} rx={4} />
+                        ) : null}
+                        {stateKey === "root" ? (
+                            <path className="dental-arch__line" d={`M${w / 2 - 4} 38 L${w / 2 + 3} 46 L${w / 2 - 2} 54`} />
+                        ) : null}
+                        {stateKey === "implant" ? (
+                            <path
+                                className="dental-arch__line"
+                                d={`M${w / 2 - 5} 36 H${w / 2 + 5} M${w / 2 - 4} 44 H${w / 2 + 4} M${w / 2 - 3} 52 H${w / 2 + 3} M${w / 2} 32 V60`}
+                            />
+                        ) : null}
+                    </g>
+                    <text className="dental-arch__num" x={cx} y={labelY} textAnchor="middle">
+                        {label}
+                    </text>
+                </g>
+            );
+        });
+    };
+
+    const focusFindings = focusTooth ? findingsForTooth(findings, focusTooth) : [];
+    const latest = focusFindings.length
+        ? [...focusFindings].sort((a, b) => (b.updated_at ?? "").localeCompare(a.updated_at ?? ""))[0]
+        : null;
+    const focusState = focusTooth ? findingToStatusKey(map.get(Number(focusTooth))) : null;
+    const hint =
+        mode === "picker"
+            ? disabled
+                ? t("dental.chart.view_hint")
+                : pickerHint ?? t("dental.chart.pick_hint")
+            : focusTooth
+              ? tp("dental.chart.brush_footer_tooth", {
+                    tooth: formatDentalToothLabel(focusTooth, t),
+                    brush: dentalStatusLabel(t, active),
+                })
+              : tp("dental.chart.brush_footer", { brush: dentalStatusLabel(t, active) });
+
     return (
-        <div className="card card-pad">
-            {mode === "clinical" ? (
-                <div className="row" style={{ gap: "var(--space-2)", flexWrap: "wrap", marginBottom: "var(--space-4)" }}>
-                    {DENTAL_STATUS_KEYS.map((k) => (
+        <div className={`card dental-arch${disabled ? " is-disabled" : ""}`}>
+            <div className="dental-arch__head">
+                {mode === "clinical" ? (
+                    <div className="dental-arch__brushes" role="group" aria-label={t("dental.chart.legend")}>
+                        {DENTAL_STATUS_KEYS.map((k) => (
                             <button
                                 key={k}
                                 type="button"
-                                className={`pill ${active === k ? "accent" : "grey"}`}
+                                className={`dental-arch__brush is-${k}`}
                                 aria-pressed={active === k}
                                 disabled={disabled}
                                 onClick={() => !disabled && setActive(k)}
                             >
+                                <span className="dental-arch__swatch" aria-hidden />
                                 {dentalStatusLabel(t, k)}
                             </button>
-                    ))}
-                </div>
-            ) : (
-                <p style={{ margin: "0 0 12px", fontSize: 13, color: "var(--fg-3)" }}>
-                    {disabled
-                        ? t("dental.chart.view_hint")
-                        : pickerHint ?? t("dental.chart.pick_hint")}
-                </p>
-            )}
-            <div className="dental-odontogram dental-odontogram--chart" dir="ltr">
-                <DentalOdontogramAxis slot="start">{t("dental.axis.right")}</DentalOdontogramAxis>
-                <div className="dental-odontogram__center">
-                    <DentalOdontogramAxis slot="top">{t("dental.axis.top")}</DentalOdontogramAxis>
-                    <div className="dental-odontogram__chart" role="group">
-                        <div className="dental-odontogram__quad dental-odontogram__quad--ur dental-odontogram__quad--gap">
-                            {UPPER_R.map(renderTooth)}
-                        </div>
-                        <div className="dental-odontogram__vline" aria-hidden />
-                        <div className="dental-odontogram__quad dental-odontogram__quad--ul dental-odontogram__quad--gap">
-                            {UPPER_L.map(renderTooth)}
-                        </div>
-                        <div className="dental-odontogram__hline" aria-hidden />
-                        <div className="dental-odontogram__quad dental-odontogram__quad--lr dental-odontogram__quad--gap">
-                            {LOWER_R.map(renderTooth)}
-                        </div>
-                        <div className="dental-odontogram__quad dental-odontogram__quad--ll dental-odontogram__quad--gap">
-                            {LOWER_L.map(renderTooth)}
-                        </div>
+                        ))}
                     </div>
-                    <DentalOdontogramAxis slot="bottom">{t("dental.axis.bottom")}</DentalOdontogramAxis>
-                </div>
+                ) : (
+                    <ul className="dental-arch__legend" aria-label={t("dental.chart.legend")}>
+                        {DENTAL_STATUS_KEYS.filter((k) => k !== "healthy").map((k) => (
+                            <li key={k} className={`is-${k}`}>
+                                <span className="dental-arch__swatch" aria-hidden />
+                                {dentalStatusLabel(t, k)}
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </div>
+            <div className="dental-arch__frame" dir="ltr">
+                <DentalOdontogramAxis slot="start">{t("dental.axis.right")}</DentalOdontogramAxis>
+                <svg
+                    className="dental-arch__svg"
+                    viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+                    role="group"
+                    aria-label={hint}
+                >
+                    <g role="group" aria-label={t("dental.axis.top")}>
+                        {renderRow(UPPER, true)}
+                    </g>
+                    <line className="dental-arch__occlusal" x1={12} x2={VIEW_W - 12} y1={OCCLUSAL_Y - 3} y2={OCCLUSAL_Y - 3} />
+                    <line className="dental-arch__midline" x1={VIEW_W / 2} x2={VIEW_W / 2} y1={24} y2={VIEW_H - 24} />
+                    <g role="group" aria-label={t("dental.axis.bottom")}>
+                        {renderRow(LOWER, false)}
+                    </g>
+                </svg>
                 <DentalOdontogramAxis slot="end">{t("dental.axis.left")}</DentalOdontogramAxis>
             </div>
-            <div className="card card-pad" style={{ marginTop: "var(--space-4)", background: "rgba(0,0,0,0.015)" }}>
-                {mode === "picker"
-                    ? (selectedTooth
-                        ? tp("dental.chart.selected_tooth", { tooth: formatDentalToothLabel(selectedTooth, t) })
-                        : t("dental.chart.no_tooth"))
-                    : lastTouched
-                        ? tp("dental.chart.brush_footer_tooth", {
-                            tooth: formatDentalToothLabel(lastTouched, t),
-                            brush: dentalStatusLabel(t, active),
-                        })
-                        : tp("dental.chart.brush_footer", { brush: dentalStatusLabel(t, active) })}
+            <div className="dental-arch__detail" aria-live="polite">
+                {focusTooth && focusState ? (
+                    <>
+                        <div className="dental-arch__detail-tooth">
+                            <span className="dental-arch__detail-num">{formatDentalToothLabel(focusTooth, t)}</span>
+                            <span className={`dental-arch__pill is-${focusState}`}>{dentalStatusLabel(t, focusState)}</span>
+                        </div>
+                        <div className="dental-arch__detail-body">
+                            <p className="dental-arch__detail-note">
+                                {latest?.diagnosis?.trim() || latest?.notes?.trim() || latest?.finding?.trim() || t("dental.chart.detail_empty")}
+                            </p>
+                            <p className="dental-arch__detail-meta">
+                                {latest
+                                    ? tp("dental.chart.detail_updated", { date: formatDate(latest.updated_at || latest.created_at) })
+                                    : hint}
+                            </p>
+                        </div>
+                    </>
+                ) : (
+                    <p className="dental-arch__detail-meta">
+                        {mode === "picker" && !disabled ? t("dental.chart.no_tooth") + " — " + hint : hint}
+                    </p>
+                )}
             </div>
         </div>
     );

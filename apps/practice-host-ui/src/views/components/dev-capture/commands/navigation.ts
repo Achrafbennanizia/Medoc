@@ -25,14 +25,32 @@ export const navigationCommands: CaptureCommandGroup = {
     clickText: (cmd) => (cmd.text ? { ok: clickMatchingButton(cmd.text) } : missing("text")),
     clickSelector: (cmd) => {
         if (!cmd.selector) return missing("selector");
-        const el = document.querySelector<HTMLElement>(cmd.selector);
-        el?.click();
+        const el = document.querySelector<Element>(cmd.selector);
+        // SVG elements (e.g. odontogram teeth) have no .click(); dispatch the event instead.
+        if (el instanceof HTMLElement) el.click();
+        else el?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
         return { ok: Boolean(el) };
     },
     fill: (cmd) => {
         if (!cmd.selector) return missing("selector");
         const el = document.querySelector<HTMLInputElement | HTMLTextAreaElement>(cmd.selector);
         if (el) setNativeValue(el, cmd.value ?? "");
+        return { ok: Boolean(el) };
+    },
+    /** Picks an option in a native <select> so React's onChange fires. */
+    selectValue: (cmd) => {
+        if (!cmd.selector) return missing("selector");
+        const el = document.querySelector<HTMLSelectElement>(cmd.selector);
+        if (!(el instanceof HTMLSelectElement)) return { ok: false };
+        Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")?.set?.call(el, cmd.value ?? "");
+        el.dispatchEvent(new Event("change", { bubbles: true }));
+        return { ok: el.value === cmd.value };
+    },
+    /** Scrolls the first match into view (centered), for screenshots of long pages. */
+    scrollIntoView: (cmd) => {
+        if (!cmd.selector) return missing("selector");
+        const el = document.querySelector<HTMLElement>(cmd.selector);
+        el?.scrollIntoView({ block: "center" });
         return { ok: Boolean(el) };
     },
 };

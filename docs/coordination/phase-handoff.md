@@ -1,6 +1,31 @@
 # Phase handoff
 
-**Last phase label:** Fix Practice tasks + Patient records filters (2026-11-20)
+**Last phase label:** Worktree cleanup — keep medoc-website (2026-11-22)
+
+### Verified
+
+- Main checkout `fix/finance-workflows` fast-forwarded to UI/UX tip `0605c37` (was `fcae8af`). Brought in: API failure logging (`19b0b1d`) + cleanup of one-off i18n scripts/dumps/credentials (`0605c37`).
+- Ported uncommitted **app** work from `medoc-website-launch` into main working tree (not committed): dental chart/CSS/odontogram, locale keys, `docs/launch/*`. Skipped temp `zz_tmp_sql_runner.rs`.
+- Removed inactive worktrees: `five-skills-integration-9aadac`, `git-config-push-issue-4cb067`, `magical-dhawan-8eea48`, `mystifying-brattain-5a61f1`, `ui-ux-architecture-refactor-ea9775`.
+- Kept: `.claude/worktrees/medoc-website-launch-a7a03b` (website WIP still dirty there).
+- Remaining worktrees: main + `medoc-website-launch-a7a03b` only. Local Claude branches deleted except `claude/medoc-website-launch-a7a03b`.
+
+### Remains unverified
+
+- Ported dental/launch files on main are **uncommitted**. **NOT RUN**: commit.
+- Website worktree still at `fcae8af` with dirty website + app copies; not rebased onto `0605c37`.
+- Full test suite after FF. **NOT RUN**.
+- Five-skills unique commits (`44ccdc6`, `3d48e85` + untracked `.claude/skills`) intentionally discarded (agent tooling, not product).
+
+### Required next
+
+1. Commit or discard ported dental/`docs/launch` changes on `fix/finance-workflows` when ready.
+2. Optionally rebase/update `medoc-website-launch` onto `0605c37` and finish website WIP.
+3. Optional: clear `medoc-website-launch/.../target` (~16G build cache) if disk pressure continues.
+
+---
+
+**Previous last phase label:** Fix Practice tasks + Patient records filters (2026-11-20)
 
 ### Verified
 

@@ -6282,5 +6282,8 @@
   "error.text.md_uix_503": "إعداد عميل الشبكة المحلية غير مكتمل (العنوان أو الرمز مفقود).",
   "error.text.md_uix_510": "ملف PDF مفقود.",
   "error.text.md_uix_511": "بيانات العيادة الأساسية غير مكتملة للإيصالات.",
-  "error.text.md_uix_513": "ساعات العمل المحفوظة غير صالحة."
+  "error.text.md_uix_513": "ساعات العمل المحفوظة غير صالحة.",
+  "dental.chart.legend": "دليل حالات الأسنان",
+  "dental.chart.detail_empty": "لا توجد ملاحظة مسجّلة لهذا السن.",
+  "dental.chart.detail_updated": "آخر تحديث {date}"
 }
