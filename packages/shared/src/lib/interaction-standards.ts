@@ -12,7 +12,7 @@ export const INTERACTION_STANDARD = {
         width: 260,
         radius: 14,
         itemHeight: 36,
-        zIndex: 40,
+        zIndex: 100,
     },
     dialog: {
         width: 420,
