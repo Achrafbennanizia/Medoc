@@ -1,6 +1,7 @@
 //! Replica-side pairing IPC (submit, poll, confirm PIN, persist token).
 
 use medoc_core::error::AppError;
+use medoc_core::infrastructure::logging::outbound_http;
 use medoc_sync::deployment::{DeploymentMode, DeviceRole, SyncDeploymentConfig};
 use medoc_sync::engine::SyncEngine;
 use medoc_sync::master_keys;
@@ -36,7 +37,7 @@ pub async fn pairing_submit_request(
         .get(format!("{base}/api/v1/pairing/master-info"))
         .send()
         .await
-        .map_err(|e| into_tauri(AppError::Internal(format!("master-info: {e}"))))?
+        .map_err(|e| into_tauri(outbound_http::send_failed("pairing master-info", &e)))?
         .json()
         .await
         .map_err(|e| into_tauri(AppError::Internal(format!("master-info json: {e}"))))?;
@@ -67,12 +68,11 @@ pub async fn pairing_submit_request(
         .json(&body)
         .send()
         .await
-        .map_err(|e| into_tauri(AppError::Internal(format!("pairing request: {e}"))))?;
+        .map_err(|e| into_tauri(outbound_http::send_failed("pairing request", &e)))?;
     if !resp.status().is_success() {
-        let status = resp.status();
-        return Err(into_tauri(AppError::Internal(format!(
-            "pairing request http {status}"
-        ))));
+        return Err(into_tauri(
+            outbound_http::status_failed("pairing request", resp).await,
+        ));
     }
     let req: PairingRequest = resp
         .json()
@@ -119,10 +119,15 @@ pub async fn pairing_confirm_pin(
         .json(&serde_json::json!({ "pin": payload.pin.trim() }))
         .send()
         .await
-        .map_err(|e| into_tauri(AppError::Internal(format!("confirm pin: {e}"))))?;
+        .map_err(|e| into_tauri(outbound_http::send_failed("pairing confirm pin", &e)))?;
     if !resp.status().is_success() {
         let status = resp.status();
+        let (route, rid) = (
+            resp.url().path().to_owned(),
+            outbound_http::request_id(&resp),
+        );
         let body = resp.text().await.unwrap_or_default();
+        outbound_http::rejected("pairing confirm pin", status.as_u16(), &route, &rid, &body);
         return Err(into_tauri(AppError::Validation(format!(
             "PIN confirmation failed ({status}): {body}"
         ))));
@@ -144,12 +149,11 @@ pub async fn pairing_check_status(
         .get(&url)
         .send()
         .await
-        .map_err(|e| into_tauri(AppError::Internal(format!("status: {e}"))))?;
+        .map_err(|e| into_tauri(outbound_http::send_failed("pairing status", &e)))?;
     if !resp.status().is_success() {
-        return Err(into_tauri(AppError::Internal(format!(
-            "status http {}",
-            resp.status()
-        ))));
+        return Err(into_tauri(
+            outbound_http::status_failed("pairing status", resp).await,
+        ));
     }
     resp.json::<PairingRequest>()
         .await

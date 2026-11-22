@@ -67,11 +67,15 @@ impl IntoResponse for ApiError {
             StatusCode::from_u16(self.0.http_status()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
         // `error` is the contract (wire token, same as IPC). `status` is additive and mirrors the HTTP code
         // for clients that only see the body (e.g. queued sync problems); the request id is in the header.
-        (
+        let wire = self.0.wire_code();
+        let code = observability::FailureCode::of(&wire);
+        let mut res = (
             status,
-            Json(json!({ "error": self.0.wire_code(), "status": status.as_u16() })),
+            Json(json!({ "error": wire, "status": status.as_u16() })),
         )
-            .into_response()
+            .into_response();
+        res.extensions_mut().insert(code);
+        res
     }
 }
 
@@ -325,13 +329,14 @@ pub fn build_router(state: LanHttpState) -> Router {
         // gzip for clients that send `Accept-Encoding: gzip` (the sync client does). Sync pull/rows pages
         // are JSON and shrink several-fold; tiny bodies and already-compressed types are skipped.
         .layer(tower_http::compression::CompressionLayer::new().gzip(true))
-        // Request id, request log line (network.log) and response headers — see observability.rs.
-        .layer(middleware::from_fn(self::observability::request_context))
         .layer(cors_policy::lan_cors_layer(&allowed))
         .layer(middleware::from_fn_with_state(
             cors_gate,
             cors_policy::cors_origin_gate_middleware,
         ))
+        // Outermost: request id, request log line (network.log) and response headers for every
+        // request, including ones the origin gate or CORS refuse — see observability.rs.
+        .layer(middleware::from_fn(self::observability::request_context))
 }
 
 /// Host clock snapshot. Clients use `server_time` to correct their own clock drift so every device in

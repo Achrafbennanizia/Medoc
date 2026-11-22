@@ -15,6 +15,7 @@ pub mod master_keys;
 pub mod merge;
 pub mod net;
 pub mod numbering;
+pub mod outbound_http_log;
 pub mod pairing;
 pub mod paths;
 pub mod problems;

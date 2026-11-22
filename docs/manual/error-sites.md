@@ -10,7 +10,7 @@
 | `MD-APP-001` | coded | error.app.conflict | `crates/shared/medoc-core/src/error.rs`<br>`packages/shared/src/lib/errors/error-resolver.ts` |
 | `MD-APP-002` | coded | error.app.database | `crates/shared/medoc-core/src/error.rs`<br>`packages/shared/src/lib/errors/error-resolver.ts` |
 | `MD-APP-015` | coded | error.app.feature_disabled | `apps/practice-host-ui/src/views/components/help/help-error-codes.tsx`<br>`packages/shared/src/lib/errors/error-resolver.ts` |
-| `MD-APP-003` | coded | error.app.forbidden | `crates/shared/medoc-core/src/error.rs` |
+| `MD-APP-003` | coded | error.app.forbidden | `crates/server/lan/medoc-lan/src/http/observability.rs`<br>`crates/shared/medoc-core/src/error.rs` |
 | `MD-APP-004` | coded | error.app.internal | `crates/shared/medoc-core/src/error.rs`<br>`packages/shared/src/lib/client-log.ts`<br>`packages/shared/src/lib/errors/error-resolver.ts` |
 | `MD-APP-005` | coded | error.app.network | `packages/app/practice-host/src/adapters/http-practice.adapter.ts`<br>`packages/shared/src/lib/errors/error-resolver.ts` |
 | `MD-APP-006` | coded | error.app.not_found | `crates/shared/medoc-core/src/error.rs` |

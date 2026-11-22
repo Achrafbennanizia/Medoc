@@ -15,6 +15,7 @@ pub mod brute_force;
 pub mod channels;
 pub mod config;
 pub mod export;
+pub mod outbound_http;
 pub mod redacting_writer;
 pub mod sanitizer;
 

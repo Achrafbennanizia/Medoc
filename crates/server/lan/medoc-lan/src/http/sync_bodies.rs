@@ -43,6 +43,30 @@ pub struct SyncExchangeBody {
     pub batch: SignedBatch,
 }
 
+/// Error response of a sync route: `{ "error", "reason"? }` as before, plus the code as a response
+/// extension so the request line in network.log records why it failed (observability.rs).
+pub fn sync_error(
+    status: StatusCode,
+    error: impl Into<String>,
+    reason: impl Into<String>,
+) -> Response {
+    let (error, reason) = (error.into(), reason.into());
+    let code = if reason.is_empty() {
+        error.clone()
+    } else {
+        format!("{error}: {reason}")
+    };
+    let body = if reason.is_empty() {
+        json!({ "error": error })
+    } else {
+        json!({ "error": error, "reason": reason })
+    };
+    let mut res = (status, Json(body)).into_response();
+    res.extensions_mut()
+        .insert(super::observability::FailureCode::of(&code));
+    res
+}
+
 /// 403 with the error code when a signature is missing (and required), forged or by another key.
 pub async fn verify_signed(
     pool: &SqlitePool,
@@ -55,10 +79,6 @@ pub async fn verify_signed(
         .map(|_| ())
         .map_err(|e| {
             tracing::warn!(target: "medoc::lan", event = "LAN_SYNC_SIGNATURE_REJECTED", device_id = from_device_id, error = %e);
-            (
-                StatusCode::FORBIDDEN,
-                Json(json!({"error": "forbidden", "reason": e.to_string()})),
-            )
-                .into_response()
+            sync_error(StatusCode::FORBIDDEN, "forbidden", e.to_string())
         })
 }

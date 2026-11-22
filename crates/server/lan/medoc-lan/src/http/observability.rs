@@ -26,6 +26,24 @@ const SLOW_REQUEST_MS: u128 = 1_500;
 #[derive(Clone, Debug)]
 pub struct RequestId(pub String);
 
+/// Error code of a failed response (response extension, set by `ApiError` and the sync handlers),
+/// logged with the request line. The key only (`error.app.forbidden`), never its parameters.
+#[derive(Clone, Debug)]
+pub struct FailureCode(pub String);
+
+impl FailureCode {
+    pub fn of(wire: &str) -> Self {
+        FailureCode(
+            wire.split('|')
+                .next()
+                .unwrap_or("")
+                .chars()
+                .take(80)
+                .collect(),
+        )
+    }
+}
+
 fn valid_client_id(v: &str) -> bool {
     !v.is_empty()
         && v.len() <= 64
@@ -54,11 +72,20 @@ pub async fn request_context(mut req: Request, next: Next) -> Response {
 
     let status = res.status().as_u16();
     let elapsed_ms = started.elapsed().as_millis();
+    let code = match res.extensions().get::<FailureCode>() {
+        Some(c) => c.0.clone(),
+        None if status >= 400 => {
+            let (peeked, code) = code_from_small_json_body(res).await;
+            res = peeked;
+            code
+        }
+        None => String::new(),
+    };
     let mutating = !matches!(method, Method::GET | Method::HEAD | Method::OPTIONS);
     if status >= 500 {
-        tracing::error!(target: "medoc::http", event = "HTTP_REQUEST_FAILED", request_id = %id, method = %method, route = %route, status, elapsed_ms);
+        tracing::error!(target: "medoc::http", event = "HTTP_REQUEST_FAILED", request_id = %id, method = %method, route = %route, status, code = %code, elapsed_ms);
     } else if status >= 400 {
-        tracing::warn!(target: "medoc::http", event = "HTTP_REQUEST_REJECTED", request_id = %id, method = %method, route = %route, status, elapsed_ms);
+        tracing::warn!(target: "medoc::http", event = "HTTP_REQUEST_REJECTED", request_id = %id, method = %method, route = %route, status, code = %code, elapsed_ms);
     } else if elapsed_ms >= SLOW_REQUEST_MS {
         tracing::warn!(target: "medoc::perf", event = "HTTP_REQUEST_SLOW", request_id = %id, method = %method, route = %route, status, elapsed_ms);
     } else if mutating {
@@ -83,6 +110,41 @@ pub async fn request_context(mut req: Request, next: Next) -> Response {
         HeaderValue::from_static("nosniff"),
     );
     res
+}
+
+/// Largest failure body read for its code; real error bodies are a few hundred bytes.
+const PEEK_LIMIT: u64 = 4 * 1024;
+
+/// Code of a failure response built by hand (`{"error": …, "reason": …}`) without [`FailureCode`].
+/// Only small, uncompressed bodies of known size are read; the response is rebuilt unchanged.
+async fn code_from_small_json_body(res: Response) -> (Response, String) {
+    use axum::body::{Body, HttpBody};
+    let small = res
+        .body()
+        .size_hint()
+        .exact()
+        .is_some_and(|n| n <= PEEK_LIMIT);
+    let encoded = res
+        .headers()
+        .contains_key(axum::http::header::CONTENT_ENCODING);
+    if !small || encoded {
+        return (res, String::new());
+    }
+    let (parts, body) = res.into_parts();
+    let Ok(bytes) = axum::body::to_bytes(body, PEEK_LIMIT as usize).await else {
+        return (Response::from_parts(parts, Body::empty()), String::new());
+    };
+    let code = serde_json::from_slice::<serde_json::Value>(&bytes)
+        .ok()
+        .map(|v| {
+            let pick = |k: &str| v.get(k).and_then(|x| x.as_str()).unwrap_or("").to_owned();
+            match (pick("error"), pick("reason")) {
+                (e, r) if r.is_empty() => FailureCode::of(&e).0,
+                (e, r) => FailureCode::of(&format!("{e}: {r}")).0,
+            }
+        })
+        .unwrap_or_default();
+    (Response::from_parts(parts, Body::from(bytes)), code)
 }
 
 #[cfg(test)]
