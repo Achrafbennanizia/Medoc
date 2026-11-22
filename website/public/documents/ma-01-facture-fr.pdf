@@ -24,7 +24,7 @@ BT /F1 9 Tf 71 710 Td (INPE 101234567) Tj ET
 BT /F1 11 Tf 71 682 Td (Salma Bennani) Tj ET
 BT /F1 10 Tf 71 669 Td (112, boulevard Zerktouni, 20250 Casablanca) Tj ET
 BT /F1 8 Tf 499 682 Td (Facture N\260) Tj ET
-BT /F2 9 Tf 469 672 Td (RE-2026-000001) Tj ET
+BT /F2 9 Tf 469 672 Td (FA-2026-000001) Tj ET
 BT /F1 8 Tf 521 658 Td (Date) Tj ET
 BT /F2 9 Tf 492 648 Td (22/11/2026) Tj ET
 BT /F1 8 Tf 502 634 Td (\311ch\351ance) Tj ET
@@ -34,7 +34,7 @@ BT /F2 9 Tf 389 600 Td (Salma Bennani, n\351\(e\) le 14/06/1990) Tj ET
 BT /F1 8 Tf 506 586 Td (Praticien) Tj ET
 BT /F2 9 Tf 443 576 Td (Dr. Youssef El Amrani) Tj ET
 q 0.720 G 0.4 w 71 554 m 538 554 l S Q
-BT /F2 16 Tf 71 538 Td (Facture RE-2026-000001) Tj ET
+BT /F2 16 Tf 71 538 Td (Facture FA-2026-000001) Tj ET
 BT /F2 8 Tf 73 518 Td (Date) Tj ET
 BT /F2 8 Tf 123 518 Td (Dent) Tj ET
 BT /F2 8 Tf 155 518 Td (Code) Tj ET
@@ -80,7 +80,7 @@ BT /F1 7 Tf 192.42 42 Td (ICE 001234567000089 \267 IF 12345678 \267 TP 34567890 
 BT /F1 7 Tf 170.66 51 Td (Cabinet dentaire Dr. Youssef El Amrani \267 112, boulevard Zerktouni, 20250 Casablanca) Tj ET
 BT /F1 9 Tf 271.99 30 Td (Page 1 sur 1) Tj ET
 q 0.45 g
-BT /F1 6 Tf 71 30 Td (ID du document: 1c2e5d2f-ddba-47cc-a64c-6956f3934cdc) Tj ET
+BT /F1 6 Tf 71 30 Td (ID du document: c2561de7-5e39-4e55-850f-011ec7096e19) Tj ET
 Q
 
 endstream
@@ -92,7 +92,7 @@ endobj
 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
 endobj
 7 0 obj
-<< /Title (Facture RE-2026-000001) /Producer (MeDoc) /Creator (MeDoc) /CreationDate (D:20261122215034+00'00') /ModDate (D:20261122215034+00'00') /MeDocDocumentId (1c2e5d2f-ddba-47cc-a64c-6956f3934cdc) /Subject (RE-2026-000001) /Author (Cabinet dentaire Dr. Youssef El Amrani) /Keywords (MeDoc document id 1c2e5d2f-ddba-47cc-a64c-6956f3934cdc) >>
+<< /Title (Facture FA-2026-000001) /Producer (MeDoc) /Creator (MeDoc) /CreationDate (D:20261122220704+00'00') /ModDate (D:20261122220704+00'00') /MeDocDocumentId (c2561de7-5e39-4e55-850f-011ec7096e19) /Subject (FA-2026-000001) /Author (Cabinet dentaire Dr. Youssef El Amrani) /Keywords (MeDoc document id c2561de7-5e39-4e55-850f-011ec7096e19) >>
 endobj
 xref
 0 8
@@ -105,7 +105,7 @@ xref
 0000003816 00000 n 
 0000003918 00000 n 
 trailer
-<< /Size 8 /Root 1 0 R /Info 7 0 R /ID [<1C2E5D2FDDBA47CCA64C6956F3934CDC> <1C2E5D2FDDBA47CCA64C6956F3934CDC>] >>
+<< /Size 8 /Root 1 0 R /Info 7 0 R /ID [<C2561DE75E394E55850F011EC7096E19> <C2561DE75E394E55850F011EC7096E19>] >>
 startxref
 4279
 %%EOF
