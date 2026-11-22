@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { Input, Textarea } from "./ui/input";
 import { useT, useTParams } from "@/lib/i18n";
@@ -7,13 +7,17 @@ import {
     treatmentCatalogCategoryLabel,
     EXAMINATION_CATALOG_CATEGORY,
 } from "@/lib/treatment-catalog-categories";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/lib/utils";
 import { Button } from "./ui/button";
 import { DentalChart } from "./DentalChart";
+import { TreatmentFindingList } from "./treatment-finding-list";
 import type { TreatmentCatalogItem, DentalFinding } from "@/models/types";
 import {
     DENTAL_STATUS_KEYS,
     dentalStatusLabel,
+    findingToStatusKey,
+    findingsForTooth,
+    formatDentalToothLabel,
     type DentalStatusKey,
 } from "@/lib/dental";
 import { parseExaminationV1, EXAMINATION_V1_EMPTY, type ExaminationV1 } from "@/lib/examination";
@@ -190,6 +194,15 @@ export function ExaminationComposer({
         }
     };
 
+    const selectedFinding = selectedTooth
+        ? findingsForTooth(findings, selectedTooth)
+              .slice()
+              .sort((a, b) => (b.updated_at ?? "").localeCompare(a.updated_at ?? ""))[0]
+        : undefined;
+    const selectedStatus = findingToStatusKey(
+        (selectedTooth ? data.toothStatuses[selectedTooth] : undefined) || selectedFinding?.finding,
+    );
+
     return (
         <div className="col examination-composer" style={{ gap: "var(--space-4)" }}>
             <Textarea
@@ -205,23 +218,26 @@ export function ExaminationComposer({
             <div className="col" style={{ gap: "var(--space-3)" }}>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{t("examination.composer.dental_section_title")}</div>
                 <p style={{ margin: 0, fontSize: 12.5, color: "var(--fg-3)" }}>{t("examination.composer.dental_hint")}</p>
-                <DentalChart
-                    mode="picker"
-                    findings={findings}
-                    selectedTooth={selectedTooth}
-                    onToothSelect={setSelectedTooth}
-                    pickerHint={t("examination.composer.dental_pick_hint")}
-                    disabled={locked}
-                />
+                <div className="dental-chart-with-findings">
+                    <DentalChart
+                        mode="picker"
+                        findings={findings}
+                        selectedTooth={selectedTooth}
+                        onToothSelect={setSelectedTooth}
+                        pickerHint={t("examination.composer.dental_pick_hint")}
+                        disabled={locked}
+                        showDetail={false}
+                    />
+                    <TreatmentFindingList
+                        findings={findings}
+                        selectedTooth={selectedTooth}
+                        onSelect={setSelectedTooth}
+                        disabled={locked}
+                    />
+                </div>
 
                 {selectedTooth ? (
-                    <div
-                        className="card card-pad col"
-                        style={{ gap: "var(--space-3)", background: "rgba(0,0,0,0.02)", border: "1px solid var(--line)" }}
-                    >
-                        <div style={{ fontWeight: 600, fontSize: 13.5 }}>
-                            {tp("examination.composer.tooth_panel_title", { tooth: selectedTooth })}
-                        </div>
+                    <ExamToothCard tooth={selectedTooth} statusKey={selectedStatus} updatedAt={selectedFinding?.updated_at}>
                         <div className="row" style={{ gap: "var(--space-2)", flexWrap: "wrap", alignItems: "center" }}>
                             {DENTAL_STATUS_KEYS.map((k) => (
                                 <button
@@ -255,7 +271,7 @@ export function ExaminationComposer({
                             placeholder={t("examination.composer.tooth_note_ph")}
                             disabled={locked}
                         />
-                    </div>
+                    </ExamToothCard>
                 ) : null}
 
                 {documentedTeeth.length > 0 ? (
@@ -363,6 +379,33 @@ export function ExaminationComposer({
                     {variant === "edit" ? t("examination.composer.save_changes") : t("examination.composer.save")}
                 </Button>
             </div>
+        </div>
+    );
+}
+
+function ExamToothCard({
+    tooth,
+    statusKey,
+    updatedAt,
+    children,
+}: {
+    tooth: string;
+    statusKey: DentalStatusKey;
+    updatedAt?: string;
+    children: ReactNode;
+}) {
+    const t = useT();
+    const tp = useTParams();
+    return (
+        <div className="exam-tooth-card">
+            <div className="exam-tooth-card__head">
+                <span className="exam-tooth-card__num">{formatDentalToothLabel(tooth, t)}</span>
+                <span className={`dental-arch__pill is-${statusKey}`}>{dentalStatusLabel(t, statusKey)}</span>
+            </div>
+            {updatedAt ? (
+                <p className="exam-tooth-card__meta">{tp("dental.chart.detail_updated", { date: formatDate(updatedAt) })}</p>
+            ) : null}
+            {children}
         </div>
     );
 }

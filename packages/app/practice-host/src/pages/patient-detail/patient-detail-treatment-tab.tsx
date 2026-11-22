@@ -1,6 +1,5 @@
 import { treatmentCatalogCategoryLabel } from "@/lib/treatment-catalog-categories";
 import { useT, useTParams } from "@/lib/i18n";
-import { Fragment } from "react";
 import type { Treatment } from "@/models/types";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { isReleasedForBilling } from "@/lib/billing-open-booking";
@@ -100,7 +99,7 @@ export function PatientDetailTreatmentTab({
                             </>
                         )}
                     />
-                    {canWriteMedical && showTreatmentComposer && !treatmentEditId ? (
+                    {canWriteMedical && showTreatmentComposer ? (
                         <TreatmentChartComposerPanel {...treatmentComposerCommon} />
                     ) : null}
                     {treatments.length === 0 ? (
@@ -108,6 +107,17 @@ export function PatientDetailTreatmentTab({
                     ) : (
                         <div className="treatment-groups-scroll">
                             <table className="tbl tbl-treatment-groups">
+                                <colgroup>
+                                    <col className="treatment-col-date" />
+                                    <col className="treatment-col-tooth" />
+                                    <col className="treatment-col-category" />
+                                    <col className="treatment-col-service" />
+                                    <col className="treatment-col-session" />
+                                    <col className="treatment-col-number" />
+                                    {showClinicalPrices ? <col className="treatment-col-eur" /> : null}
+                                    <col className="treatment-col-billing" />
+                                    <col className="treatment-col-actions" />
+                                </colgroup>
                                 <thead>
                                     <tr>
                                         <th>{t("patient.detail.tab.treatment.col.date")}</th>
@@ -124,22 +134,7 @@ export function PatientDetailTreatmentTab({
                                 {treatmentGroups.map((grp) => (
                                     <tbody key={grp[0]?.id ?? grp.map((x) => x.id).join()} className="treatment-grp">
                                         {grp.map((b) => (
-                                            <Fragment key={b.id}>
-                                                {canWriteMedical && showTreatmentComposer && treatmentEditId === b.id ? (
-                                                    <tr>
-                                                        <td
-                                                            colSpan={showClinicalPrices ? 9 : 8}
-                                                            style={{
-                                                                padding: "var(--space-3)",
-                                                                verticalAlign: "top",
-                                                                background: "var(--bg-elev)",
-                                                            }}
-                                                        >
-                                                            <TreatmentChartComposerPanel {...treatmentComposerCommon} />
-                                                        </td>
-                                                    </tr>
-                                                ) : null}
-                                                <tr>
+                                                <tr key={b.id} className={treatmentEditId === b.id ? "is-editing" : undefined}>
                                                     <td>
                                                         {b.treatment_date
                                                             ? formatDate(b.treatment_date)
@@ -212,7 +207,6 @@ export function PatientDetailTreatmentTab({
                                                         })()}
                                                     </td>
                                                 </tr>
-                                            </Fragment>
                                         ))}
                                     </tbody>
                                 ))}

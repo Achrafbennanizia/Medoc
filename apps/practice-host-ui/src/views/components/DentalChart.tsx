@@ -34,6 +34,8 @@ type DentalChartProps = {
     pickerHint?: string;
     /** View only — no tooth selection / no finding set (view mode). */
     disabled?: boolean;
+    /** When false, the strip under the chart is omitted because the side list shows it. */
+    showDetail?: boolean;
 };
 
 /* ---------- arch geometry (SVG user units) ---------- */
@@ -49,21 +51,34 @@ function toothWidth(fdi: string): number {
     return 36;
 }
 
-/** Crown + roots drawn occlusal edge at y=0, roots towards +y. Upper teeth are flipped by the caller. */
+/** Crown + roots drawn with the biting edge at y=0 and the roots toward +y. Upper teeth are flipped by the caller. */
 function toothPaths(fdi: string): { crown: string; roots: string } {
     const w = toothWidth(fdi);
-    const r = 8;
-    const crown = `M0 ${r} Q0 0 ${r} 0 H${w - r} Q${w} 0 ${w} ${r} V${CROWN_H} H0 Z`;
+    const n = CROWN_H;
     const type = dentalToothType(fdi);
-    let roots: string;
-    if (type === "molar") {
-        roots = `M3 ${CROWN_H} L${w * 0.28} 62 L${w * 0.44} ${CROWN_H} Z M${w * 0.56} ${CROWN_H} L${w * 0.72} 62 L${w - 3} ${CROWN_H} Z`;
-    } else if (type === "canine") {
-        roots = `M3 ${CROWN_H} L${w / 2} 70 L${w - 3} ${CROWN_H} Z`;
-    } else {
-        roots = `M3 ${CROWN_H} L${w / 2} 60 L${w - 3} ${CROWN_H} Z`;
+    const tuck = n - 6;
+    if (type === "incisor") {
+        return {
+            crown: `M6 ${n} Q2 18 3 8 Q4 2 9 2 H${w - 9} Q${w - 4} 2 ${w - 3} 8 Q${w - 2} 18 ${w - 6} ${n} Q${w / 2} ${n + 1} 6 ${n} Z`,
+            roots: `M${w * 0.34} ${tuck} Q${w * 0.28} 46 ${w / 2} 58 Q${w * 0.72} 46 ${w * 0.66} ${tuck} Z`,
+        };
     }
-    return { crown, roots };
+    if (type === "canine") {
+        return {
+            crown: `M6 ${n} Q3 16 5 11 Q4 5 ${w * 0.34} 3 Q${w / 2} -1 ${w * 0.66} 3 Q${w - 4} 5 ${w - 5} 11 Q${w - 3} 16 ${w - 6} ${n} Q${w / 2} ${n + 1} 6 ${n} Z`,
+            roots: `M${w * 0.32} ${tuck} Q${w * 0.24} 50 ${w / 2} 68 Q${w * 0.76} 50 ${w * 0.68} ${tuck} Z`,
+        };
+    }
+    if (type === "premolar") {
+        return {
+            crown: `M5 ${n} Q2 16 3 8 Q4 2 ${w * 0.3} 1.5 Q${w * 0.42} 5 ${w / 2} 3.5 Q${w * 0.58} 5 ${w * 0.7} 1.5 Q${w - 4} 2 ${w - 3} 8 Q${w - 2} 16 ${w - 5} ${n} Q${w / 2} ${n + 1} 5 ${n} Z`,
+            roots: `M${w * 0.3} ${tuck} Q${w * 0.22} 46 ${w / 2} 60 Q${w * 0.78} 46 ${w * 0.7} ${tuck} Z`,
+        };
+    }
+    return {
+        crown: `M6 ${n} Q2 18 3 9 Q3 3 ${w * 0.2} 2 Q${w * 0.32} 6 ${w * 0.4} 3 Q${w / 2} 7 ${w * 0.6} 3 Q${w * 0.68} 6 ${w * 0.8} 2 Q${w - 3} 3 ${w - 3} 9 Q${w - 2} 18 ${w - 6} ${n} Q${w / 2} ${n + 1} 6 ${n} Z`,
+        roots: `M5 ${tuck} Q${w * 0.06} 44 ${w * 0.2} 58 Q${w * 0.36} 46 ${w * 0.42} ${tuck} Z M${w * 0.58} ${tuck} Q${w * 0.64} 46 ${w * 0.8} 58 Q${w * 0.94} 44 ${w - 5} ${tuck} Z`,
+    };
 }
 
 const ROW_WIDTH = UPPER.reduce((s, n) => s + toothWidth(n), 0) + GAP * (UPPER.length - 1);
@@ -79,6 +94,7 @@ export function DentalChart({
     onApply,
     disabled = false,
     pickerHint,
+    showDetail = true,
 }: DentalChartProps) {
     const t = useT();
     const tp = useTParams();
@@ -154,7 +170,7 @@ export function DentalChart({
                         <path className="dental-arch__crown" d={crown} />
                         {stateKey === "caries" ? <circle className="dental-arch__mark" cx={w / 2} cy={12} r={5} /> : null}
                         {stateKey === "filling" ? (
-                            <rect className="dental-arch__mark" x={w * 0.25} y={6} width={w * 0.5} height={12} rx={4} />
+                            <rect className="dental-arch__mark" x={w * 0.28} y={7} width={w * 0.44} height={10} rx={5} />
                         ) : null}
                         {stateKey === "root" ? (
                             <path className="dental-arch__line" d={`M${w / 2 - 4} 38 L${w / 2 + 3} 46 L${w / 2 - 2} 54`} />
@@ -212,7 +228,7 @@ export function DentalChart({
                     </div>
                 ) : (
                     <ul className="dental-arch__legend" aria-label={t("dental.chart.legend")}>
-                        {DENTAL_STATUS_KEYS.filter((k) => k !== "healthy").map((k) => (
+                        {DENTAL_STATUS_KEYS.map((k) => (
                             <li key={k} className={`is-${k}`}>
                                 <span className="dental-arch__swatch" aria-hidden />
                                 {dentalStatusLabel(t, k)}
@@ -240,6 +256,7 @@ export function DentalChart({
                 </svg>
                 <DentalOdontogramAxis slot="end">{t("dental.axis.left")}</DentalOdontogramAxis>
             </div>
+            {showDetail ? (
             <div className="dental-arch__detail" aria-live="polite">
                 {focusTooth && focusState ? (
                     <>
@@ -264,6 +281,7 @@ export function DentalChart({
                     </p>
                 )}
             </div>
+            ) : null}
         </div>
     );
 }

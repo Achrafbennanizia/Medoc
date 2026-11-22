@@ -11,8 +11,8 @@ use crate::commands::admin::auth::SessionState;
 use crate::error::AppError;
 use crate::infrastructure::{backup, gdpr, migration, retention};
 
+// snake_case on the wire: ops.controller.ts and every screen read `size_bytes`, `signature_ok`, …
 #[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct BackupInfo {
     pub path: String,
     pub size_bytes: u64,
@@ -38,20 +38,33 @@ pub async fn create_backup(
     })
 }
 
+/// Lists backups off the UI thread. `verify_signatures` (default `true`) HMACs every signed
+/// file — the Ops page wants that; About only needs metadata and passes `false`.
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(session_state))]
-pub fn list_backups(session_state: State<'_, SessionState>) -> Result<Vec<BackupInfo>, AppError> {
+pub async fn list_backups(
+    session_state: State<'_, SessionState>,
+    verify_signatures: Option<bool>,
+) -> Result<Vec<BackupInfo>, AppError> {
     rbac::require(&session_state, "ops.backup")?;
-    backup::list().map(|version| {
-        version
-            .into_iter()
-            .map(|e| BackupInfo {
-                path: e.path.display().to_string(),
-                size_bytes: e.size_bytes,
-                signature_ok: e.signature_ok,
-            })
-            .collect()
+    let verify = verify_signatures.unwrap_or(true);
+    let entries = tokio::task::spawn_blocking(move || {
+        if verify {
+            backup::list()
+        } else {
+            backup::list_metadata()
+        }
     })
+    .await
+    .map_err(|e| AppError::Internal(format!("backup listing task: {e}")))??;
+    Ok(entries
+        .into_iter()
+        .map(|e| BackupInfo {
+            path: e.path.display().to_string(),
+            size_bytes: e.size_bytes,
+            signature_ok: e.signature_ok,
+        })
+        .collect())
 }
 
 #[tauri::command]
@@ -67,8 +80,8 @@ pub async fn validate_backup(
     backup::validate_open(&PathBuf::from(path), &key).await
 }
 
+// snake_case on the wire: ops.controller.ts and every screen read `size_bytes`, `signature_ok`, …
 #[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct RestoreBackupResult {
     pub requires_app_restart: bool,
     pub restored_from: String,

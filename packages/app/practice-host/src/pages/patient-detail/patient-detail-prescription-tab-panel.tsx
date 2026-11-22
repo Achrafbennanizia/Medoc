@@ -1,5 +1,5 @@
-import { Fragment } from "react";
 import type { usePatientDetailPrescriptionTab } from "./use-patient-detail-prescription-tab";
+import { ConfirmOrInline } from "@/views/components/chart-confirm-presentation";
 import {
     certificateValidUntilFromStartAndDays,
     certificateKindSelectOptions,
@@ -8,7 +8,6 @@ import {
 import { formatDate } from "@/lib/utils";
 import { PlusIcon } from "@/lib/icons";
 import { prescriptionStatusDisplay } from "@/lib/patient-detail-utils";
-import { ChartEditFormOrInline, ConfirmOrInline } from "@/views/components/chart-confirm-presentation";
 import { PaymentRowActionsMenu, type PaymentRowAction } from "@/views/components/payment-row-actions-menu";
 import { Badge } from "@/views/components/ui/badge";
 import { Button } from "@/views/components/ui/button";
@@ -48,13 +47,6 @@ export function PatientDetailPrescriptionTabPanel(props: PatientDetailPrescripti
         handleDeleteCertificate,
         handlePrintPrescription,
         handlePrintCertificate,
-        runSavePrescriptionEdit,
-        prescriptionEdit,
-        setPrescriptionEdit,
-        prescriptionEditUnlocked,
-        setPrescriptionEditUnlocked,
-        prescriptionEditForm,
-        setPrescriptionEditForm,
         prescriptionWizardStep,
         prescriptionWizardPanelRef,
         prescriptionComposerKind,
@@ -132,7 +124,6 @@ export function PatientDetailPrescriptionTabPanel(props: PatientDetailPrescripti
                 onClick={() => {
                     setPrescriptionCertificateSub("certificate");
                     resetPrescriptionWizard();
-                    setPrescriptionEdit(null);
                     setPrescriptionDeleteId(null);
                 }}
             >
@@ -276,8 +267,16 @@ export function PatientDetailPrescriptionTabPanel(props: PatientDetailPrescripti
                                     </p>
                                 ) : null}
                                 {prescriptionLines.length > 0 ? (
-                                    <div style={{ overflowX: "auto", marginBottom: "var(--space-3)" }}>
-                                        <table className="tbl">
+                                    <div className="prescription-certificate-table-scroll" style={{ marginBottom: "var(--space-3)" }}>
+                                        <table className="tbl tbl-prescription-lines">
+                                            <colgroup>
+                                                <col className="prescription-line-med" />
+                                                <col className="prescription-line-ingredient" />
+                                                <col className="prescription-line-dosage" />
+                                                <col className="prescription-line-duration" />
+                                                <col className="prescription-line-notes" />
+                                                <col className="prescription-line-actions" />
+                                            </colgroup>
                                             <thead>
                                                 <tr>
                                                     <th>{t("page.prescriptions.col.medication")}</th>
@@ -446,6 +445,15 @@ export function PatientDetailPrescriptionTabPanel(props: PatientDetailPrescripti
                                 </Button>
                                 <Button
                                     type="button"
+                                    variant="secondary"
+                                    onClick={() => void submitPrescriptionComposer(true)}
+                                    loading={prescriptionComposerBusy}
+                                    disabled={prescriptionComposerBusy}
+                                >
+                                    {t("page.patient_detail.prescription.save_and_print")}
+                                </Button>
+                                <Button
+                                    type="button"
                                     onClick={() => void submitPrescriptionComposer()}
                                     loading={prescriptionComposerBusy}
                                     disabled={prescriptionComposerBusy}
@@ -499,6 +507,14 @@ export function PatientDetailPrescriptionTabPanel(props: PatientDetailPrescripti
             ) : (
                 <div className="prescription-certificate-table-scroll">
                     <table className="tbl tbl-prescription-chart">
+                        <colgroup>
+                            <col className="prescription-col-med" />
+                            <col className="prescription-col-dosage" />
+                            <col className="prescription-col-duration" />
+                            <col className="prescription-col-status" />
+                            <col className="prescription-col-issued" />
+                            <col className="prescription-col-actions" />
+                        </colgroup>
                         <thead>
                             <tr>
                                 <th>{t("page.prescriptions.col.medication")}</th>
@@ -512,128 +528,8 @@ export function PatientDetailPrescriptionTabPanel(props: PatientDetailPrescripti
                         <tbody>
                             {prescriptions.map((r) => {
                                 const st = prescriptionStatusDisplay(r.status, t);
-                                const showEditRow =
-                                    canWriteMedical && prescriptionEdit?.id === r.id && !prescriptionWizardStep;
                                 return (
-                                    <Fragment key={r.id}>
-                                        {showEditRow ? (
-                                            <tr>
-                                                <td
-                                                    colSpan={6}
-                                                    style={{
-                                                        padding: "var(--space-3)",
-                                                        verticalAlign: "top",
-                                                        background: "var(--bg-elev)",
-                                                    }}
-                                                >
-                                                    <ChartEditFormOrInline
-                                                        area="patient_chart_prescription_edit"
-                                                        open={canWriteMedical && !!prescriptionEdit && !prescriptionWizardStep}
-                                                        onClose={() => setPrescriptionEdit(null)}
-                                                        title={t("page.patient_detail.prescription.edit_title")}
-                                                        subtitle={
-                                                            prescriptionEditUnlocked
-                                                                ? t("page.patient_detail.prescription.edit_sub_unlocked")
-                                                                : t("page.patient_detail.prescription.edit_sub_locked")
-                                                        }
-                                                        inlineId={`ak-prescription-edit-inline-${r.id}`}
-                                                        ariaLabel={t("page.patient_detail.prescription.edit_title")}
-                                                        panelVariant="prescription"
-                                                        headerExtra={
-                                                            !prescriptionEditUnlocked ? (
-                                                                <Button
-                                                                    type="button"
-                                                                    variant="secondary"
-                                                                    size="sm"
-                                                                    onClick={() => setPrescriptionEditUnlocked(true)}
-                                                                >
-                                                                    {t("common.edit")}
-                                                                </Button>
-                                                            ) : null
-                                                        }
-                                                        footer={(
-                                                            <>
-                                                                <Button type="button" variant="ghost" onClick={() => setPrescriptionEdit(null)}>
-                                                                    {t("common.cancel")}
-                                                                </Button>
-                                                                <Button
-                                                                    type="button"
-                                                                    onClick={() => void runSavePrescriptionEdit()}
-                                                                    disabled={
-                                                                        !prescriptionEditUnlocked
-                                                                        || !prescriptionEditForm.medication.trim()
-                                                                        || !prescriptionEditForm.dosage.trim()
-                                                                        || !prescriptionEditForm.duration.trim()
-                                                                    }
-                                                                >
-                                                                    {t("common.save")}
-                                                                </Button>
-                                                            </>
-                                                        )}
-                                                    >
-                                                        <Input
-                                                            id={`rex-med-${r.id}`}
-                                                            label={t("page.prescriptions.field.medication")}
-                                                            value={prescriptionEditForm.medication}
-                                                            disabled={!prescriptionEditUnlocked}
-                                                            onChange={(e) =>
-                                                                setPrescriptionEditForm({
-                                                                    ...prescriptionEditForm,
-                                                                    medication: e.target.value,
-                                                                })}
-                                                        />
-                                                        <Input
-                                                            id={`rex-wirk-${r.id}`}
-                                                            label={t("page.prescriptions.field.active_ingredient")}
-                                                            value={prescriptionEditForm.active_ingredient}
-                                                            disabled={!prescriptionEditUnlocked}
-                                                            onChange={(e) =>
-                                                                setPrescriptionEditForm({
-                                                                    ...prescriptionEditForm,
-                                                                    active_ingredient: e.target.value,
-                                                                })}
-                                                        />
-                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                            <Input
-                                                                id={`rex-dos-${r.id}`}
-                                                                label={t("page.prescriptions.field.dosage")}
-                                                                value={prescriptionEditForm.dosage}
-                                                                disabled={!prescriptionEditUnlocked}
-                                                                onChange={(e) =>
-                                                                    setPrescriptionEditForm({
-                                                                        ...prescriptionEditForm,
-                                                                        dosage: e.target.value,
-                                                                    })}
-                                                            />
-                                                            <Input
-                                                                id={`rex-duration-${r.id}`}
-                                                                label={t("page.prescriptions.field.duration")}
-                                                                value={prescriptionEditForm.duration}
-                                                                disabled={!prescriptionEditUnlocked}
-                                                                onChange={(e) =>
-                                                                    setPrescriptionEditForm({
-                                                                        ...prescriptionEditForm,
-                                                                        duration: e.target.value,
-                                                                    })}
-                                                            />
-                                                        </div>
-                                                        <Textarea
-                                                            id={`rex-hin-${r.id}`}
-                                                            label={t("common.notes")}
-                                                            rows={2}
-                                                            value={prescriptionEditForm.instructions}
-                                                            disabled={!prescriptionEditUnlocked}
-                                                            onChange={(e) =>
-                                                                setPrescriptionEditForm({
-                                                                    ...prescriptionEditForm,
-                                                                    instructions: e.target.value,
-                                                                })}
-                                                        />
-                                                    </ChartEditFormOrInline>
-                                                </td>
-                                            </tr>
-                                        ) : null}
-                                        <tr>
+                                    <tr key={r.id}>
                                             <td style={{ fontWeight: 600 }}>{r.medication}</td>
                                             <td>{r.dosage}</td>
                                             <td>{r.duration}</td>
@@ -649,35 +545,15 @@ export function PatientDetailPrescriptionTabPanel(props: PatientDetailPrescripti
                                                         },
                                                     ];
                                                     if (canWriteMedical) {
-                                                        actions.push(
-                                                            {
-                                                                id: "edit",
-                                                                label: t("common.edit"),
-                                                                onClick: () => {
-                                                                    setPrescriptionDeleteId(null);
-                                                                    resetPrescriptionWizard();
-                                                                    setPrescriptionEditUnlocked(false);
-                                                                    setPrescriptionEditForm({
-                                                                        medication: r.medication,
-                                                                        active_ingredient: r.active_ingredient ?? "",
-                                                                        dosage: r.dosage,
-                                                                        duration: r.duration,
-                                                                        instructions: r.instructions ?? "",
-                                                                    });
-                                                                    setPrescriptionEdit(r);
-                                                                },
+                                                        actions.push({
+                                                            id: "delete",
+                                                            label: t("common.delete"),
+                                                            onClick: () => {
+                                                                resetPrescriptionWizard();
+                                                                setPrescriptionDeleteId(r.id);
                                                             },
-                                                            {
-                                                                id: "delete",
-                                                                label: t("common.delete"),
-                                                                onClick: () => {
-                                                                    resetPrescriptionWizard();
-                                                                    setPrescriptionEdit(null);
-                                                                    setPrescriptionDeleteId(r.id);
-                                                                },
-                                                                danger: true,
-                                                            },
-                                                        );
+                                                            danger: true,
+                                                        });
                                                     }
                                                     return (
                                                         <PaymentRowActionsMenu
@@ -688,7 +564,6 @@ export function PatientDetailPrescriptionTabPanel(props: PatientDetailPrescripti
                                                 })()}
                                             </td>
                                         </tr>
-                                    </Fragment>
                                 );
                             })}
                         </tbody>
@@ -1004,6 +879,15 @@ export function PatientDetailPrescriptionTabPanel(props: PatientDetailPrescripti
                                 </Button>
                                 <Button
                                     type="button"
+                                    variant="secondary"
+                                    onClick={() => void submitCertificateComposer(true)}
+                                    loading={certificateComposerBusy}
+                                    disabled={certificateComposerBusy}
+                                >
+                                    {t("page.patient_detail.certificate.save_and_print")}
+                                </Button>
+                                <Button
+                                    type="button"
                                     onClick={() => void submitCertificateComposer()}
                                     loading={certificateComposerBusy}
                                     disabled={certificateComposerBusy}
@@ -1056,6 +940,13 @@ export function PatientDetailPrescriptionTabPanel(props: PatientDetailPrescripti
             ) : (
                 <div className="prescription-certificate-table-scroll">
                     <table className="tbl tbl-certificate-chart">
+                        <colgroup>
+                            <col className="certificate-col-type" />
+                            <col className="certificate-col-from" />
+                            <col className="certificate-col-until" />
+                            <col className="certificate-col-issued" />
+                            <col className="certificate-col-actions" />
+                        </colgroup>
                         <thead>
                             <tr>
                                 <th>{t("page.patient_detail.certificate.col.type")}</th>

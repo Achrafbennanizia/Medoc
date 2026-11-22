@@ -7,6 +7,7 @@ import { planNextHasContent as planNextHasContentFn } from "@/lib/plan-next-appo
 import { Button } from "./ui/button";
 import { Input, Select, Textarea } from "./ui/input";
 import { DentalChart } from "./DentalChart";
+import { TreatmentFindingList } from "./treatment-finding-list";
 
 export type TreatmentChartFormState = {
     date: string;
@@ -126,12 +127,19 @@ export function TreatmentChartComposerPanel({
                     </div>
                 ) : null}
                 {chart ? (
-                    <div className="treatment-composer-dental">
+                    <div className="dental-chart-with-findings">
                         <DentalChart
                             mode="picker"
                             findings={findings}
                             selectedTooth={selectedTreatmentTooth}
-                            onToothSelect={onSelectTooth}
+                            onToothSelect={(fdi) => onSelectTooth(fdi)}
+                            disabled={treatmentFieldsLocked}
+                            showDetail={false}
+                        />
+                        <TreatmentFindingList
+                            findings={findings}
+                            selectedTooth={selectedTreatmentTooth}
+                            onSelect={(fdi) => onSelectTooth(fdi)}
                             disabled={treatmentFieldsLocked}
                         />
                     </div>

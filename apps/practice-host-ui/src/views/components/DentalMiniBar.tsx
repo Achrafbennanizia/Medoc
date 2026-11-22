@@ -6,8 +6,6 @@ import { formatDate, formatDateTime } from "@/lib/utils";
 import {
     DENTAL_LOWER_L,
     DENTAL_LOWER_R,
-    DENTAL_STATES,
-    DENTAL_TOOTH_SHAPES,
     DENTAL_UPPER_L,
     DENTAL_UPPER_R,
     type DentalStatusKey,
@@ -15,12 +13,12 @@ import {
     findingsForTooth,
     treatmentsForTooth,
     dentalStatusLabel,
-    dentalToothType,
     formatDentalToothLabel,
 } from "@/lib/dental";
+import { clinicalServiceLabel } from "@/lib/clinical-service-label";
 import { examinationToothNotesForTooth } from "@/lib/examination";
 import { useT, useTParams } from "@/lib/i18n";
-import { clinicalServiceLabel } from "@/lib/clinical-service-label";
+import { DentalMiniToothSvg } from "./dental-mini-tooth-svg";
 
 type PopState = {
     fdi: string;
@@ -125,10 +123,7 @@ export function DentalMiniBar({
     if (!visible) return null;
 
     const renderMini = (fdi: string) => {
-        const type = dentalToothType(fdi);
-        const shape = DENTAL_TOOTH_SHAPES[type];
         const stateKey = findingToStatusKey(map.get(Number(fdi)));
-        const st = DENTAL_STATES[stateKey];
         const label = formatDentalToothLabel(fdi, t);
         const hasHistory =
             findingsForTooth(findings, fdi).length > 0
@@ -146,10 +141,7 @@ export function DentalMiniBar({
                     className={`dental-mini-tooth ${hasHistory ? "has-history" : ""} ${pop?.fdi === fdi ? "is-active" : ""}`}
                     aria-label={tp("dental.tooth_status_aria", { tooth: label, status: dentalStatusLabel(t, stateKey) })}
                 >
-                    <svg width="18" height="28" viewBox="0 0 20 34" aria-hidden>
-                        <path d={shape.crown} fill={st.fill} stroke={st.stroke} strokeWidth={1.1} />
-                        <path d={shape.root} fill={st.fill} stroke={st.stroke} strokeWidth={1.1} />
-                    </svg>
+                    <DentalMiniToothSvg fdi={fdi} stateKey={stateKey} />
                     <span className="dental-mini-label">{label}</span>
                 </button>
             </div>

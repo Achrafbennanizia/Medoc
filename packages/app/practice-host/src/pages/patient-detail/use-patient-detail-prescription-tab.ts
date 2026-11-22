@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { deleteCertificate } from "@/systems/practice-host/controllers/certificate.controller";
-import { deletePrescription, updatePrescription } from "@/systems/practice-host/controllers/prescription.controller";
+import { deletePrescription } from "@/systems/practice-host/controllers/prescription.controller";
 import type { Certificate } from "@/systems/practice-host/controllers/certificate.controller";
 import type { Prescription } from "@/systems/practice-host/controllers/prescription.controller";
 import { listDocumentTemplates } from "@/systems/practice-host/controllers/practice.controller";
@@ -35,7 +35,6 @@ import {
     type PatientDetailPrescriptionToast,
 } from "@/lib/patient-detail-prescription-actions";
 import {
-    PATIENT_DETAIL_TOAST_UNDO_MS,
     validatePrescriptionLine,
     type ChartSavePending,
     type CertificateWizardStep,
@@ -49,9 +48,8 @@ import type { ClinicalDocumentExportBundle } from "@/lib/document-print-html";
 import { useT, useTParams } from "@/lib/i18n";
 import { applyMedicationSuggestion } from "@/lib/apply-medication-suggestion";
 import { buildPrescriptionQueue } from "@/lib/build-prescription-queue";
-import { withAllergyConfirmation } from "@/lib/with-allergy-confirmation";
-import { useAllergyConfirmation } from "@/views/components/prescription-allergy/use-allergy-confirmation";
 import { errorMessage } from "@/lib/utils";
+import { useAllergyConfirmation } from "@/views/components/prescription-allergy/use-allergy-confirmation";
 import { localYmd } from "@/lib/practice-clock";
 
 export type PatientDetailPrescriptionTabProps = {
@@ -125,20 +123,6 @@ export function usePatientDetailPrescriptionTab({
     const [prescriptionComposerBusy, setPrescriptionComposerBusy] = useState(false);
     const [prescriptionNewTemplateTitle, setPrescriptionNewTemplateTitle] = useState("");
     const [prescriptionPendingQueue, setPrescriptionPendingQueue] = useState<{ lines: PrescriptionLine[]; shared: string } | null>(null);
-    const [prescriptionEdit, setPrescriptionEdit] = useState<Prescription | null>(null);
-    const [prescriptionEditUnlocked, setPrescriptionEditUnlocked] = useState(false);
-    const [prescriptionEditForm, setPrescriptionEditForm] = useState({
-        medication: "",
-        active_ingredient: "",
-        dosage: "",
-        duration: "",
-        instructions: "",
-    });
-
-    const prescriptionEditId = prescriptionEdit?.id ?? null;
-    useEffect(() => {
-        if (prescriptionEditId) setPrescriptionEditUnlocked(false);
-    }, [prescriptionEditId]);
 
     const resetPrescriptionWizard = useCallback(() => {
         setPrescriptionWizardStep(null);
@@ -243,9 +227,19 @@ export function usePatientDetailPrescriptionTab({
         return queue.lines;
     };
 
-    const submitPrescriptionComposer = async () => {
+    const submitPrescriptionComposer = async (print = false) => {
         const queue = buildPrescriptionQueueFromComposer();
         if (!queue) return;
+        if (print) {
+            setPrescriptionComposerBusy(true);
+            try {
+                const saved = await persistPatientPrescriptions(actionsCtx, queue, prescriptionSharedNotes, resetPrescriptionWizard);
+                for (const row of saved) handlePrintPrescription(row);
+            } finally {
+                setPrescriptionComposerBusy(false);
+            }
+            return;
+        }
         if (prescriptionComposerKind === "template") {
             void persistPatientPrescriptions(actionsCtx, queue, prescriptionSharedNotes, resetPrescriptionWizard);
             return;
@@ -290,13 +284,23 @@ export function usePatientDetailPrescriptionTab({
         onChartSaveConfirm({ kind: "prescription_finalize_template", title, lines: p.lines, shared: p.shared });
     };
 
-    const submitCertificateComposer = () => {
+    const submitCertificateComposer = async (print = false) => {
         const err = validateCertificateComposer(certificateForm, t);
         if (err) {
             setCertificateDraftErr(err);
             return;
         }
         setCertificateDraftErr(null);
+        if (print) {
+            setCertificateComposerBusy(true);
+            try {
+                const created = await persistPatientCertificate(actionsCtx, certificateForm, { onAfterSave: resetCertificateWizard });
+                if (created) handlePrintCertificate(created);
+            } finally {
+                setCertificateComposerBusy(false);
+            }
+            return;
+        }
         if (certificateComposerKind === "template") {
             void persistPatientCertificate(actionsCtx, certificateForm, { onAfterSave: resetCertificateWizard });
             return;
@@ -336,51 +340,7 @@ export function usePatientDetailPrescriptionTab({
         onChartSaveConfirm({ kind: "certificate_finalize_template", title, fields: p });
     };
 
-    const runSavePrescriptionEdit = async () => {
-        if (!prescriptionEdit) return;
-        if (!prescriptionEditUnlocked) {
-            toast(t("patient.detail.toast.edit_unlock_first"), "info");
-            return;
-        }
-        const rid = prescriptionEdit.id;
-        const prevSnap = {
-            medication: prescriptionEdit.medication,
-            active_ingredient: prescriptionEdit.active_ingredient,
-            dosage: prescriptionEdit.dosage,
-            duration: prescriptionEdit.duration,
-            instructions: prescriptionEdit.instructions,
-        };
-        try {
-            const saved = await withAllergyConfirmation((allergy_override) => updatePrescription({
-                id: rid,
-                medication: prescriptionEditForm.medication.trim(),
-                active_ingredient: prescriptionEditForm.active_ingredient.trim() || null,
-                dosage: prescriptionEditForm.dosage.trim(),
-                duration: prescriptionEditForm.duration.trim(),
-                instructions: prescriptionEditForm.instructions.trim() || null,
-                allergy_override,
-            }), confirmAllergy);
-            if (!saved) return;
-            toast(t("patient.detail.toast.prescription_saved"), "success", {
-                durationMs: PATIENT_DETAIL_TOAST_UNDO_MS,
-                onUndo: async () => {
-                    try {
-                        await withAllergyConfirmation((allergy_override) => updatePrescription({ id: rid, ...prevSnap, allergy_override }), confirmAllergy);
-                        await onReload();
-                    } catch (e) {
-                        toast(tp("common.error_with_message", { message: errorMessage(e) }), "error");
-                    }
-                },
-            });
-            setPrescriptionEdit(null);
-            await onReload();
-        } catch (e) {
-            toast(tp("common.error_with_message", { message: errorMessage(e) }), "error");
-        }
-    };
-
     const openPrescriptionPick = () => {
-        setPrescriptionEdit(null);
         setPrescriptionDeleteId(null);
         resetPrescriptionWizard();
         setPrescriptionWizardStep("pick");
@@ -411,7 +371,6 @@ export function usePatientDetailPrescriptionTab({
     };
 
     const openPrescriptionNew = () => {
-        setPrescriptionEdit(null);
         setPrescriptionDeleteId(null);
         resetPrescriptionWizard();
         setPrescriptionComposerKind("new");
@@ -563,13 +522,6 @@ export function usePatientDetailPrescriptionTab({
         handleDeleteCertificate,
         handlePrintPrescription,
         handlePrintCertificate,
-        runSavePrescriptionEdit,
-        prescriptionEdit,
-        setPrescriptionEdit,
-        prescriptionEditUnlocked,
-        setPrescriptionEditUnlocked,
-        prescriptionEditForm,
-        setPrescriptionEditForm,
         prescriptionWizardStep,
         allergyDialog,
         prescriptionWizardPanelRef,

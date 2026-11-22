@@ -8,6 +8,9 @@ export function GuideRoles({ catalog }: { catalog: AccessCatalog }) {
     return (
         <div className="access-guide__matrix-wrap">
             <table className="tbl access-guide__matrix">
+                <colgroup>
+                    <col className="access-guide__matrix-role" />
+                </colgroup>
                 <thead>
                     <tr>
                         <th scope="col">{t("access.panel.role")}</th>

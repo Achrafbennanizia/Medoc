@@ -1,6 +1,27 @@
 # Phase handoff
 
-**Last phase label:** Worktree cleanup — keep medoc-website (2026-11-22)
+**Last phase label:** Live site product screens (2026-11-22)
+
+### Verified
+
+- Worktree site `.claude/worktrees/medoc-website-launch-a7a03b/website`: product sections are real screenshots in FR/AR/EN/DE. `npm run build` (`tsc --noEmit && vite build`) succeeded.
+- On `http://127.0.0.1:4173`: EN light/dark, MAD prices (24,900 / 29,900 / 34,900 and 110 / 290 / 540), AR `dir=rtl`, 24 product images, 0 broken. Clinique copy is one dentist login. In preparation lists AMO/NGAP, 2FA, DICOM, and more than one dentist account.
+- Examination composer on the running app shows the selected-tooth card (number, status pill, note). Saving a new exam on demo patient `seed-yr-pat-0152` recorded `U-2026-001`.
+
+### Remains unverified
+
+- Native read of Arabic and German. **NOT RUN**.
+- Legal footer pages are still anchors. Contact mail is still `demo@example.com`.
+- Two older MeDoc windows were left blank when Vite on port 1420 restarted. **NOT OBSERVED** after that. Reload them if they are still white.
+
+### Required next
+
+1. Reload the other MeDoc windows if they are blank.
+2. Real e-mail and WhatsApp before the site is public. Do not commit unless asked.
+
+---
+
+**Previous last phase label:** Worktree cleanup — keep medoc-website (2026-11-22)
 
 ### Verified
 

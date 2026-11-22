@@ -14,13 +14,14 @@ import { HelpGettingStarted } from "../components/help/help-getting-started";
 import { HelpRecentErrors } from "../components/help/help-recent-errors";
 import { HelpShortcuts } from "../components/help/help-shortcuts";
 import { HelpStatusGuide } from "../components/help/help-status-guide";
+import { HelpToothChart } from "../components/help/help-tooth-chart";
 
 export type HelpPageProps = {
     /** Embedded in Settings: no jumps to other routes */
     embedded?: boolean;
 };
 
-const TABS = ["start", "shortcuts", "statuses", "access", "errors", "recent", "about"] as const;
+const TABS = ["start", "shortcuts", "statuses", "teeth", "access", "errors", "recent", "about"] as const;
 type HelpTab = (typeof TABS)[number];
 
 function isTab(v: string | null): v is HelpTab {
@@ -107,11 +108,6 @@ export function HelpPage({ embedded = false }: HelpPageProps = {}) {
                 titleLevel="h1"
                 title={t("page.help.title")}
                 subtitle={t("page.help.intro")}
-                actions={
-                    <Button type="button" variant="ghost" onClick={() => window.print()}>
-                        {t("help.print")}
-                    </Button>
-                }
             />
 
             <div className="help-center__bar">
@@ -164,6 +160,7 @@ export function HelpPage({ embedded = false }: HelpPageProps = {}) {
                 {tab === "start" ? <HelpGettingStarted query={query} /> : null}
                 {tab === "shortcuts" ? <HelpShortcuts query={query} /> : null}
                 {tab === "statuses" ? <HelpStatusGuide query={query} /> : null}
+                {tab === "teeth" ? <HelpToothChart query={query} /> : null}
                 {tab === "access" ? <HelpAccessGuide query={query} /> : null}
                 {tab === "errors" ? <HelpErrorCodes query={query} /> : null}
                 {tab === "recent" ? <HelpRecentErrors /> : null}
