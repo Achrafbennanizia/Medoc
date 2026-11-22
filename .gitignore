@@ -67,3 +67,12 @@ app/target/coverage/
 
 # Local code dumps (not source)
 crates/shared/medoc-core.txt
+
+# Local dev credentials and activation (never commit; rotate if they were pushed)
+.dev-activation/
+/activation.json
+/license.code
+# Generated coverage reports and local code dumps
+releases/*/coverage/
+crates/**/*.txt
+*.log
