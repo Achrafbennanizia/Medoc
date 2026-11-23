@@ -357,8 +357,8 @@ fn reminder_layout(
     address.extend(inv.recipient_address.iter().cloned());
     json!({
         "kind": "reminder",
-        "practiceLines": profile.letterhead_lines(),
-        "footerLines": profile.footer_lines("de"),
+        "practiceLines": profile.minimal_letterhead_lines(),
+        "footerLines": profile.minimal_footer_lines("de"),
         "addressLines": address,
         "documentTitle": reminder_title(level),
         "documentNumber": number,
@@ -377,7 +377,7 @@ fn reminder_layout(
         }],
         "totals": totals,
         "closingParagraphs": closing,
-        "signatureLines": profile.signature_lines(),
+        "signatureLines": profile.minimal_signature_lines(),
         "locale": "de",
     })
 }

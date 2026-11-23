@@ -202,42 +202,62 @@ fn fmt_treatment_status(locale: &str, raw: &str) -> String {
     }
 }
 
-async fn practice_kv_pairs_from_app_kv(pool: &SqlitePool, locale: &str) -> Vec<(String, String)> {
+/// Stored sex code → word in the document language (raw codes such as `FEMALE` are not for print).
+fn sex_label(locale: &str, raw: &str) -> String {
+    use crate::infrastructure::pdf::i18n::pick;
+    match raw.trim().to_ascii_uppercase().as_str() {
+        "FEMALE" | "F" | "WEIBLICH" => pick(locale, "Weiblich", "Female", "Féminin", "أنثى").into(),
+        "MALE" | "M" | "MAENNLICH" | "MÄNNLICH" => {
+            pick(locale, "Männlich", "Male", "Masculin", "ذكر").into()
+        }
+        "DIVERSE" | "DIVERS" | "OTHER" | "D" => {
+            pick(locale, "Divers", "Other", "Autre", "آخر").into()
+        }
+        _ => raw.to_string(),
+    }
+}
+
+/// Stored patient status code → word in the document language.
+fn status_label(locale: &str, raw: &str) -> String {
+    use crate::infrastructure::pdf::i18n::pick;
+    match raw.trim().to_ascii_uppercase().as_str() {
+        // Codes from config/enums.yaml (PatientStatus).
+        "NEW" => pick(locale, "Neu", "New", "Nouveau", "جديد").into(),
+        "ACTIVE" => pick(locale, "Aktiv", "Active", "Actif", "نشط").into(),
+        "VALIDATED" => pick(locale, "Bestätigt", "Validated", "Validé", "مُصادق عليه").into(),
+        "READONLY" => pick(
+            locale,
+            "Schreibgeschützt",
+            "Read-only",
+            "Lecture seule",
+            "للقراءة فقط",
+        )
+        .into(),
+        "ARCHIVED" => pick(locale, "Archiviert", "Archived", "Archivé", "مؤرشف").into(),
+        "DRAFT" => pick(locale, "Entwurf", "Draft", "Brouillon", "مسودة").into(),
+        _ => raw.to_string(),
+    }
+}
+
+/// The practice's emergency number, for the discharge leaflet. The practice itself is named in
+/// the minimal header; practitioner names and professional numbers are left out.
+async fn emergency_kv_pairs_from_app_kv(pool: &SqlitePool, locale: &str) -> Vec<(String, String)> {
     let Ok(Some(raw)) = app_kv_repo::get(pool, "invoice.practice.v1").await else {
         return Vec::new();
     };
     let Ok(j) = serde_json::from_str::<serde_json::Value>(&raw) else {
         return Vec::new();
     };
-    let get = |k: &str| {
-        j.get(k)
-            .and_then(|version| version.as_str())
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
-    };
-    let mut kv = Vec::new();
-    if let Some(version) = get("name") {
-        kv.push((l(locale, "Practice"), version));
-    }
-    if let Some(version) = get("clinician_name") {
-        kv.push((l(locale, "Clinician"), version));
-    }
-    let german = crate::application::documents::practice_profile::uses_german_ids(
-        get("country").as_deref(),
-        get("currency").as_deref(),
-    );
-    if german {
-        if let Some(version) = get("bsnr") {
-            kv.push(("BSNR".into(), version));
-        }
-        if let Some(version) = get("zanr") {
-            kv.push(("ZANR".into(), version));
-        }
-    }
-    if let Some(version) = get("emergency_phone").or_else(|| get("notfall_phone")) {
-        kv.push((l(locale, "Emergency"), version));
-    }
-    kv
+    ["emergency_phone", "notfall_phone"]
+        .iter()
+        .find_map(|k| {
+            j.get(*k)
+                .and_then(|v| v.as_str())
+                .map(str::trim)
+                .filter(|v| !v.is_empty())
+        })
+        .map(|v| vec![(l(locale, "Emergency"), v.to_string())])
+        .unwrap_or_default()
 }
 
 async fn chart_header_from_app_kv(
@@ -252,25 +272,20 @@ async fn chart_header_from_app_kv(
     if profile.name.trim().is_empty() {
         return None;
     }
-    let trimmed = |value: &Option<String>| {
-        value
-            .as_ref()
-            .map(|text| text.trim().to_string())
-            .filter(|text| !text.is_empty())
-    };
     Some(ChartHeaderContext {
-        practice_lines: profile.letterhead_lines(),
-        clinician_name: trimmed(&profile.clinician_name),
-        professional_title: trimmed(&profile.professional_title),
-        bsnr: trimmed(&profile.bsnr),
-        zanr: trimmed(&profile.zanr),
+        // Minimal header: the practice and how to reach it. No practitioner line or numbers.
+        practice_lines: profile.minimal_letterhead_lines(),
+        clinician_name: None,
+        professional_title: None,
+        bsnr: None,
+        zanr: None,
         created_by: Some(created_by.to_string()),
         document_id: Some(document_id.to_string()),
         logo: crate::application::documents::practice_profile::practice_logo(pool).await,
         locale: locale.into(),
         rtl: locale == "ar",
         watermark: None,
-        footer_lines: profile.footer_lines(locale),
+        footer_lines: profile.minimal_footer_lines(locale),
     })
 }
 
@@ -391,32 +406,24 @@ pub async fn export_chart_pdf(
     let generated = chrono::Local::now().format("%d.%m.%Y %H:%M").to_string();
     let mut blocks: Vec<ChartPdfBlock> = Vec::new();
 
-    let practice_kv = practice_kv_pairs_from_app_kv(pool, locale).await;
-    if !practice_kv.is_empty() {
-        blocks.insert(
-            0,
-            ChartPdfBlock {
-                title: l(locale, "Practice"),
-                body_lines: vec![],
-                kv_pairs: practice_kv,
-                table: None,
-            },
-        );
-    }
+    // The practice is named in the header; no separate practice block (minimal layout).
 
     if sec.patient {
         let mut kv = vec![
             ("Name".into(), patient.name.clone()),
             (
                 l(locale, "Date of birth"),
-                patient.date_of_birth.to_string(),
+                crate::infrastructure::pdf::format_date_dmy(&patient.date_of_birth.to_string()),
             ),
-            (l(locale, "Sex"), patient.sex.clone()),
+            (l(locale, "Sex"), sex_label(locale, &patient.sex)),
             (
                 l(locale, "Insurance number"),
                 patient.insurance_number.clone().unwrap_or_default(),
             ),
-            (l(locale, "Patient status"), patient.status.clone()),
+            (
+                l(locale, "Patient status"),
+                status_label(locale, &patient.status),
+            ),
         ];
         if let Some(t) = &patient.phone {
             kv.push((l(locale, "Phone"), t.clone()));
@@ -909,7 +916,8 @@ pub async fn export_chart_pdf(
         });
     }
 
-    let created_by = format!("{} ({})", session.name, session.role);
+    // Who made the document, by name; the internal role code is not for print.
+    let created_by = session.name.clone();
     let title = crate::infrastructure::pdf::i18n::pick(
         locale,
         "Patientenakte – Auszug",
@@ -1004,14 +1012,15 @@ pub async fn export_discharge_leaflet_pdf(
     let generated = chrono::Local::now().format("%d.%m.%Y %H:%M").to_string();
     let mut blocks: Vec<ChartPdfBlock> = Vec::new();
 
-    let practice_kv = practice_kv_pairs_from_app_kv(pool, locale).await;
+    let practice_kv = emergency_kv_pairs_from_app_kv(pool, locale).await;
     if !practice_kv.is_empty() {
         blocks.insert(
             0,
+            // The number under its heading, without repeating the label.
             ChartPdfBlock {
-                title: l(locale, "Practice"),
-                body_lines: vec![],
-                kv_pairs: practice_kv,
+                title: l(locale, "Emergency"),
+                body_lines: practice_kv.into_iter().map(|(_, v)| v).collect(),
+                kv_pairs: vec![],
                 table: None,
             },
         );
@@ -1021,7 +1030,7 @@ pub async fn export_discharge_leaflet_pdf(
         ("Name".into(), patient.name.clone()),
         (
             l(locale, "Date of birth"),
-            patient.date_of_birth.to_string(),
+            crate::infrastructure::pdf::format_date_dmy(&patient.date_of_birth.to_string()),
         ),
     ];
     if let Some(t) = &patient.phone {
@@ -1227,23 +1236,6 @@ pub async fn export_discharge_leaflet_pdf(
                 if !professional_title.is_empty() {
                     sig.push(professional_title.to_string());
                 }
-                let zanr = j
-                    .get("zanr")
-                    .and_then(|version| version.as_str())
-                    .unwrap_or("")
-                    .trim();
-                let bsnr = j
-                    .get("bsnr")
-                    .and_then(|version| version.as_str())
-                    .unwrap_or("")
-                    .trim();
-                let german = crate::application::documents::practice_profile::uses_german_ids(
-                    j.get("country").and_then(|v| v.as_str()),
-                    j.get("currency").and_then(|v| v.as_str()),
-                );
-                if german && (!zanr.is_empty() || !bsnr.is_empty()) {
-                    sig.push(format!("ZANR: {zanr} · BSNR: {bsnr}"));
-                }
                 sig.push(stamp_label(locale).into());
                 blocks.push(ChartPdfBlock::body(
                     crate::infrastructure::pdf::i18n::pick(
@@ -1259,7 +1251,8 @@ pub async fn export_discharge_leaflet_pdf(
         }
     }
 
-    let created_by = format!("{} ({})", session.name, session.role);
+    // Who made the document, by name; the internal role code is not for print.
+    let created_by = session.name.clone();
     let title = crate::infrastructure::pdf::i18n::pick(
         locale,
         "Nachsorge-Merkblatt",

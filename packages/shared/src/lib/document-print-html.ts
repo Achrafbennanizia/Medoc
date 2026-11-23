@@ -16,6 +16,7 @@ import type {
 import { getInvoicePracticeFromStorage } from "@/lib/invoice-service-item";
 import { buildClinicalTemplateHeaderLines } from "@/lib/clinical-document-pdf";
 import { emptyDocumentTemplatePayloadV1, type PracticeFieldKey } from "@/lib/document-template-schema";
+import { practiceCountry } from "@/lib/document-header-layout";
 import { loadPracticeHeaderPrivacy } from "@/lib/practice-header-privacy";
 import { formatPaymentReferenceLine } from "@/lib/payment-booking";
 import { paymentMethodLabel, paymentStatusDisplay } from "@/lib/finance-order-labels";
@@ -35,40 +36,45 @@ function csvRow(cells: string[]): string {
     return cells.map((c) => csvCell(c, ";")).join(";");
 }
 
-const CLINICAL_HEADER_FIELDS: PracticeFieldKey[] = [
-    "name",
-    "address",
-    "phone",
-    "fax",
-    "email",
-    "clinician",
-    "zanr",
-    "bsnr",
-    "bank",
-    "chamber",
-    "kzv",
-    "vat_notice",
-    "emergency_phone",
-];
+/**
+ * Minimal header for exports: who the practice is and how to reach it. Practitioner numbers
+ * appear once, under the signature, and only on prescriptions and certificates; no bank,
+ * chamber or tax lines (same rules as the server PDFs, practice_profile.rs).
+ */
+const EXPORT_HEADER_FIELDS: PracticeFieldKey[] = ["name", "address", "phone", "email"];
 
 function practiceHeaderLinesForExport(): string[] {
     const practice = getInvoicePracticeFromStorage();
     const tpl = emptyDocumentTemplatePayloadV1();
-    tpl.header.fieldsToShow = CLINICAL_HEADER_FIELDS;
+    tpl.header.fieldsToShow = EXPORT_HEADER_FIELDS;
     return buildClinicalTemplateHeaderLines(tpl, practice, loadPracticeHeaderPrivacy());
 }
 
-function clinicianSignatureBlock(): string[] {
+/** Practitioner id required on a prescription or certificate in the practice's country. */
+function practitionerIdLines(): string[] {
+    const p = getInvoicePracticeFromStorage();
+    const v = (x: string | undefined) => (x ?? "").trim();
+    switch (practiceCountry(p)) {
+        case "DE":
+            return [v(p.zanr) && `ZANR: ${v(p.zanr)}`, v(p.bsnr) && `BSNR: ${v(p.bsnr)}`].filter(Boolean);
+        case "MA":
+            return v(p.ma_inpe) ? [`INPE: ${v(p.ma_inpe)}`] : [];
+        case "FR":
+            return v(p.fr_rpps) ? [`RPPS: ${v(p.fr_rpps)}`] : [];
+        default:
+            return [];
+    }
+}
+
+/** `withIds`: prescriptions and certificates carry the practitioner id; receipts do not. */
+function clinicianSignatureBlock(withIds = true): string[] {
     const p = getInvoicePracticeFromStorage();
     const bh = (p.clinician_name ?? "").trim();
     const professionalTitle = (p.professional_title ?? "").trim();
-    const zanr = (p.zanr ?? "").trim();
-    const bsnr = (p.bsnr ?? "").trim();
     if (!bh) return [];
     const lines = ["", "____________________________", bh];
     if (professionalTitle) lines.push(professionalTitle);
-    if (zanr) lines.push(`ZANR: ${zanr}`);
-    if (bsnr) lines.push(`BSNR: ${bsnr}`);
+    if (withIds) lines.push(...practitionerIdLines());
     lines.push(docT("document.print.stamp"));
     return lines;
 }
@@ -421,7 +427,7 @@ function receiptPdfLines(
         ust,
         docT("document.print.amount_received"),
         "",
-        ...clinicianSignatureBlock(),
+        ...clinicianSignatureBlock(false),
     ].filter((line) => line !== "");
 }
 

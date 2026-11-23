@@ -468,12 +468,12 @@ fn report_input(
         },
         generated_at: Local::now().format("%d.%m.%Y %H:%M").to_string(),
         practice_name: profile.name.trim().to_string(),
-        practice_address: profile.document_address_lines(),
+        practice_address: profile.minimal_address_lines(),
         summary,
         sections,
         report_kind: Some("finance".into()),
         locale: Some(locale.into()),
-        footer_lines: profile.footer_lines(locale),
+        footer_lines: profile.minimal_footer_lines(locale),
         ..Default::default()
     }
 }

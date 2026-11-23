@@ -146,18 +146,27 @@ fn assert_official(name: &str, pdf: &[u8], number: Option<&str>) -> String {
     for needle in ["Zahnarztpraxis Dr. Anna Berger", "Seite 1 von"] {
         assert!(t.contains(&latin1(needle)), "{name}: missing {needle:?}");
     }
-    // Tax number and bank account belong on invoices, receipts and reports. Prescriptions and
-    // sick notes (AU) are medical documents: no bank details or tax id.
-    let clinical = name.contains("-au-") || name.contains("rezept");
-    for needle in ["66/123/45678", "DE89 3704 0044 0532 0130 00"] {
-        if clinical {
-            assert!(
-                !t.contains(needle),
-                "{name}: clinical document shows {needle:?}"
-            );
-        } else {
-            assert!(t.contains(needle), "{name}: footer missing {needle:?}");
-        }
+    // What each document may carry besides the practice name, address and contact:
+    // - invoice, credit note (…rechnung): tax number and bank account (§ 14 UStG);
+    // - prescription, sick note (…rezept, …au-…): ZANR / BSNR, no tax number or bank account;
+    // - payment reminder: the bank account in the body so the patient can pay, nothing else;
+    // - everything else (receipts, day close, cash and period reports): minimal, none of them.
+    const TAX: &str = "66/123/45678";
+    const IBAN: &str = "DE89 3704 0044 0532 0130 00";
+    let (allowed, forbidden): (&[&str], &[&str]) = if name.contains("rechnung") {
+        (&[TAX, IBAN], &[])
+    } else if name.contains("rezept") || name.contains("-au-") {
+        (&[], &[TAX, IBAN])
+    } else if name.contains("zahlungserinnerung") {
+        (&[IBAN], &[TAX, "ZANR", "BSNR"])
+    } else {
+        (&[], &[TAX, IBAN, "ZANR", "BSNR"])
+    };
+    for needle in allowed {
+        assert!(t.contains(needle), "{name}: missing {needle:?}");
+    }
+    for needle in forbidden {
+        assert!(!t.contains(needle), "{name}: should not show {needle:?}");
     }
     if let Some(n) = number {
         assert!(t.contains(n), "{name}: document number {n} not printed");

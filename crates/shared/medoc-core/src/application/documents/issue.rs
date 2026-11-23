@@ -441,19 +441,23 @@ fn apply_server_fields(
     let obj = layout
         .as_object_mut()
         .ok_or_else(|| AppError::Validation("layout must be a JSON object".into()))?;
-    // Medical documents (prescriptions, certificates, leaflets) carry no tax ids or bank details;
-    // receipts keep them.
-    let (practice_lines, footer_lines) = if medical {
+    // Medical documents (prescriptions, certificates) carry the practitioner's id and no tax ids
+    // or bank details; receipts get the minimal layout (practice name, address, contact).
+    let (practice_lines, footer_lines, sig) = if medical {
         (
             profile.clinical_letterhead_lines(),
             profile.clinical_footer_lines(locale),
+            profile.signature_lines(),
         )
     } else {
-        (profile.letterhead_lines(), profile.footer_lines(locale))
+        (
+            profile.minimal_letterhead_lines(),
+            profile.minimal_footer_lines(locale),
+            profile.minimal_signature_lines(),
+        )
     };
     obj.insert("practiceLines".into(), serde_json::json!(practice_lines));
     obj.insert("footerLines".into(), serde_json::json!(footer_lines));
-    let sig = profile.signature_lines();
     if !sig.is_empty() {
         obj.insert("signatureLines".into(), serde_json::json!(sig));
     }
@@ -1560,13 +1564,13 @@ pub async fn issue_report(
     let profile = PracticeProfile::load(pool).await?;
     profile.require_complete()?;
     input.practice_name = profile.name.trim().to_string();
-    input.practice_address = profile.document_address_lines();
+    input.practice_address = profile.minimal_address_lines();
     input.logo = practice_logo(pool).await;
     let requested = input.locale.clone();
     let locale = resolve_document_locale(pool, requested.as_deref()).await;
     input.locale = Some(locale.into());
     // Same three footer lines as the invoice: practice and chamber, tax number, bank.
-    input.footer_lines = profile.footer_lines(locale);
+    input.footer_lines = profile.minimal_footer_lines(locale);
 
     if preview {
         input.watermark = Some(

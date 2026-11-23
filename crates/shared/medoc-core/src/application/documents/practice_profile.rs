@@ -411,6 +411,64 @@ impl PracticeProfile {
         v
     }
 
+    /// Minimal letterhead for documents with no legal content requirements (receipts, reminders,
+    /// reports, record exports, leaflets): who the practice is and how to reach it. No
+    /// practitioner, no professional or tax numbers, no bank details, whatever the saved header
+    /// table says.
+    pub fn minimal_letterhead_lines(&self) -> Vec<String> {
+        let mut out = Vec::new();
+        let name = self.name.trim();
+        if !name.is_empty() {
+            out.push(name.to_string());
+        }
+        out.extend(self.minimal_address_lines());
+        out
+    }
+
+    /// [`Self::minimal_letterhead_lines`] without the practice name (reports print it apart).
+    pub fn minimal_address_lines(&self) -> Vec<String> {
+        let mut out = self.address_lines();
+        if let Some(t) = opt(&self.phone) {
+            out.push(format!("{} {t}", header_label("phone")));
+        }
+        if let Some(t) = opt(&self.email) {
+            out.push(t.to_string());
+        }
+        out
+    }
+
+    /// Minimal footer: practice name and address.
+    pub fn minimal_footer_lines(&self, locale: &str) -> Vec<String> {
+        footer_lines_for_practice(
+            &PracticeFooter {
+                practice_name: format!(
+                    "{} · {}",
+                    self.name.trim(),
+                    self.address_lines().join(", ")
+                ),
+                tax_number: None,
+                vat_id: None,
+                iban: None,
+                bic: None,
+                bank_name: None,
+                chamber: None,
+            },
+            locale,
+        )
+    }
+
+    /// Signature block without professional numbers: name and title.
+    pub fn minimal_signature_lines(&self) -> Vec<String> {
+        let Some(name) = opt(&self.clinician_name) else {
+            return Vec::new();
+        };
+        let mut v = vec![name.to_string()];
+        if let Some(t) = opt(&self.professional_title) {
+            v.push(t.to_string());
+        }
+        v
+    }
+
     /// Footer of a prescription or certificate: practice, address and chamber only.
     pub fn clinical_footer_lines(&self, locale: &str) -> Vec<String> {
         footer_lines_for_practice(

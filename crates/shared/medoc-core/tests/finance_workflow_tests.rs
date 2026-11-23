@@ -523,6 +523,24 @@ async fn open_items_double_billing_and_reminders() {
     .await
     .unwrap();
     assert!(preview.document_number.is_none());
+    // Minimal layout: the practice is named and the bank account stays so the patient can pay,
+    // but the tax number is not printed.
+    {
+        use base64::Engine as _;
+        let raw = base64::engine::general_purpose::STANDARD
+            .decode(&preview.pdf_base64)
+            .unwrap();
+        let raw = String::from_utf8_lossy(&raw);
+        assert!(
+            raw.contains("Zahnarztpraxis Dr. Test"),
+            "reminder: practice name"
+        );
+        assert!(
+            raw.contains("DE89 3704 0044 0532 0130 00"),
+            "reminder: bank account to pay to"
+        );
+        assert!(!raw.contains("12/345/67890"), "reminder: no tax number");
+    }
     let r1 = receivables::issue_reminder(
         &pool,
         &s,
