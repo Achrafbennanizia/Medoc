@@ -21,6 +21,8 @@ export type AppKvKey =
     /** LAN host configuration (same key as backend `APP_KV_KEY`). */
     | "lan.server.config.v1"
     | "practice.header_privacy.v1"
+    /** Compliance page checklist (JSON object). Write: ops.dsgvo. */
+    | "compliance.checklist.v1"
     /** Work plan: shared settings + one slice per staff id (`app_kv_policy.rs`). */
     | "staff.work_plan.v1.settings"
     | `staff.work_plan.v1.${string}`;

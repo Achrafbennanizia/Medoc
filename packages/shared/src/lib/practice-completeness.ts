@@ -1,3 +1,4 @@
+import { practiceCountry } from "@/lib/document-header-layout";
 import type { DocumentKind } from "@/lib/document-template-schema";
 import { getInvoicePracticeFromStorage, type InvoicePractice } from "@/lib/invoice-service-item";
 
@@ -28,6 +29,9 @@ const FIELD_LABEL_KEYS: Partial<Record<keyof InvoicePractice | "addr", string>> 
     tax_number: "practice.setup.tax_number",
     vat_id: "practice.setup.tax_id",
     vat_exemption_notice: "practice.setup.tax_exempt",
+    ma_ice: "settings.practice.billing_ma_ice",
+    ma_if: "settings.practice.billing_ma_if",
+    fr_rpps: "settings.practice.billing_fr_rpps",
 };
 
 const RULES: Record<DocumentKind, { field: keyof InvoicePractice | "addr" }[]> = {
@@ -80,7 +84,18 @@ export function checkPracticeDocumentReadiness(
     practice: InvoicePractice,
     documentKind: DocumentKind,
 ): PracticeReadinessResult {
-    const rules = RULES[documentKind] ?? RULES.chart;
+    // ZANR / BSNR are German numbers. A Moroccan invoice needs ICE and IF instead (CGI art. 145,
+    // also checked by the server) and no IBAN; France and the EU need neither set of ids.
+    const country = practiceCountry(practice);
+    let rules = (RULES[documentKind] ?? RULES.chart).filter(
+        (r) => country === "DE" || (r.field !== "zanr" && r.field !== "bsnr"),
+    );
+    if (country === "MA") {
+        rules = rules.filter((r) => r.field !== "bank_iban");
+        if (documentKind === "invoice") rules = [...rules, { field: "ma_ice" }, { field: "ma_if" }];
+    }
+    // France: the prescriber's RPPS number must be on every prescription (art. R.5132-3 CSP).
+    if (country === "FR" && documentKind === "prescription") rules = [...rules, { field: "fr_rpps" }];
     const missingFields = rules
         .filter((r) => fieldEmpty(practice, r.field))
         .map((r) => ({

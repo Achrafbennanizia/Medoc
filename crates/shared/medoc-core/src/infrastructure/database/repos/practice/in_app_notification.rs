@@ -69,6 +69,7 @@ async fn insert_row(
     body: &str,
     payload_json: Option<&str>,
 ) -> Result<String, AppError> {
+    // sync: recorded by caller — `insert` records the new row; `insert_local_gap_fill` writes a row that came *from* sync and must not be sent back.
     let staff_ok: Option<i64> = sqlx::query_scalar("SELECT 1 FROM staff WHERE id = ?1")
         .bind(user_id)
         .fetch_optional(pool)

@@ -129,7 +129,17 @@ pub fn validate_invoice(inv: &Invoice) -> Result<(), AppError> {
     if inv.lines.is_empty() {
         errs.push("error.invoice.no_lines".into());
     }
-    let has_fees = inv.lines.iter().any(|l| l.fee_schedule.is_fee());
+    // Moroccan invoices (CGI art. 145) carry ICE and IF instead of GOZ fee rules.
+    let morocco = inv.morocco.as_ref();
+    if let Some(ids) = morocco {
+        if blank(&ids.ice) {
+            errs.push("error.invoice.ma_ice_missing".into());
+        }
+        if blank(&ids.if_number) {
+            errs.push("error.invoice.ma_if_missing".into());
+        }
+    }
+    let has_fees = morocco.is_none() && inv.lines.iter().any(|l| l.fee_schedule.is_fee());
     if has_fees && (inv.patient_name.trim().is_empty() || blank(&inv.patient_birth_date)) {
         errs.push("error.invoice.patient_identity_missing".into());
     }
@@ -168,7 +178,7 @@ pub fn validate_invoice(inv: &Invoice) -> Result<(), AppError> {
             );
         }
 
-        if l.fee_schedule.is_fee() {
+        if morocco.is_none() && l.fee_schedule.is_fee() {
             if blank(&l.goz_nr) {
                 push_code(
                     &mut errs,

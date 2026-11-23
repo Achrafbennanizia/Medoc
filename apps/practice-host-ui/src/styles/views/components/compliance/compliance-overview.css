@@ -1,0 +1,127 @@
+/* From styles/features/help-center.css (cascade position kept by its import there). */
+@layer components {
+  /* Compliance page: status, checklist and registers (compliance-overview.tsx). */
+  .compliance-overview {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6, 28px);
+  }
+  .compliance-section__head {
+    margin-bottom: var(--space-3);
+  }
+  .compliance-section__head--row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--space-3);
+  }
+  .compliance-section__head h2 {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 650;
+  }
+  .compliance-section__head p {
+    margin: 4px 0 0;
+    max-width: 72ch;
+    font-size: 13px;
+    color: var(--fg-3);
+  }
+  .compliance-checklist {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--surface);
+    overflow: hidden;
+  }
+  .compliance-checklist li {
+    display: flex;
+    gap: var(--space-3);
+    align-items: flex-start;
+    padding: var(--space-3) var(--space-4);
+  }
+  .compliance-checklist li + li {
+    border-top: 1px solid var(--line);
+  }
+  .compliance-checklist input[type="checkbox"] {
+    flex: none;
+    width: 18px;
+    height: 18px;
+    margin-top: 2px;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+  .compliance-checklist label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    cursor: pointer;
+    min-width: 0;
+  }
+  .compliance-checklist__title {
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .compliance-checklist li.is-done .compliance-checklist__title {
+    color: var(--fg-2);
+  }
+  .compliance-checklist__detail {
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--fg-3);
+  }
+  .compliance-checklist__meta {
+    margin-top: 2px;
+    font-size: 12px;
+    color: var(--green-ink, var(--accent));
+  }
+  .compliance-cndp {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto;
+    gap: var(--space-3);
+    align-items: end;
+    margin-top: var(--space-3);
+  }
+  .compliance-cndp__current {
+    grid-column: 1 / -1;
+    margin: 0;
+    font-size: 12.5px;
+    color: var(--fg-3);
+  }
+  .compliance-reports {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-3);
+  }
+  .compliance-report-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-4);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--surface);
+  }
+  .compliance-report-card h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .compliance-report-card p {
+    margin: 0 0 var(--space-2);
+    flex: 1;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--fg-3);
+  }
+  .compliance-report-card button {
+    align-self: flex-start;
+  }
+  @media (max-width: 900px) {
+    .compliance-reports,
+    .compliance-cndp {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+}

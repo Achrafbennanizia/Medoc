@@ -130,9 +130,61 @@ pub fn default_document_locale() -> &'static str {
 static MISSING: LazyLock<Mutex<HashSet<&'static str>>> =
     LazyLock::new(|| Mutex::new(HashSet::new()));
 
+/// Keys whose wording depends on the practice's jurisdiction, not only on the language.
+/// A catalog entry `"<key>@<jurisdiction>"` (`de` | `fr` | `eu` | `ma`) replaces the plain key.
+const LEGAL_KEYS: &[&str] = &[
+    "common.privacy",
+    "common.chart_privacy",
+    "period.preliminary_notice",
+    "invoice.vat_exempt_default",
+];
+
+static DOCUMENT_JURISDICTION: Mutex<Option<&'static str>> = Mutex::new(None);
+
+/// Practice jurisdiction for legal wording (`de`, `fr`, `eu`, `ma`), set when the practice
+/// profile loads. `None` = unknown: the document language decides ([`legal_jurisdiction`]).
+pub fn set_document_jurisdiction(code: Option<&str>) {
+    let next = code.and_then(|c| match c.trim().to_ascii_lowercase().as_str() {
+        "de" => Some("de"),
+        "fr" => Some("fr"),
+        "ma" => Some("ma"),
+        "eu" => Some("eu"),
+        _ => None,
+    });
+    if let Ok(mut g) = DOCUMENT_JURISDICTION.lock() {
+        *g = next;
+    }
+}
+
+/// Jurisdiction whose law a document cites: the practice's when known, else the one the
+/// language implies (de → Germany, fr → France, ar → Morocco, otherwise EU).
+pub fn legal_jurisdiction(locale: &str) -> &'static str {
+    if let Some(j) = DOCUMENT_JURISDICTION.lock().ok().and_then(|g| *g) {
+        return j;
+    }
+    match locale_or_default(locale) {
+        "de" => "de",
+        "fr" => "fr",
+        "ar" => "ma",
+        _ => "eu",
+    }
+}
+
+/// The jurisdiction-specific wording of a legal key, if the catalog has one.
+pub fn tr_jurisdiction(locale: &str, key: &str, jurisdiction: &str) -> Option<&'static str> {
+    if !LEGAL_KEYS.contains(&key) {
+        return None;
+    }
+    let code = locale_or_default(locale);
+    CATALOGS.get(code).and_then(|m| m.get(&format!("{key}@{jurisdiction}"))).map(String::as_str)
+}
+
 /// Catalog text for `key` in `locale`.
 pub fn tr(locale: &str, key: &str) -> &'static str {
     let code = locale_or_default(locale);
+    if let Some(s) = tr_jurisdiction(code, key, legal_jurisdiction(code)) {
+        return s;
+    }
     let lookup = |c: &str| CATALOGS.get(c).and_then(|m| m.get(key)).map(String::as_str);
     if let Some(s) = lookup(code) {
         return s;
@@ -359,8 +411,9 @@ pub fn is_default_vat_notice(text: &str) -> bool {
     LEGACY.iter().any(|l| norm(l) == n)
         || CATALOGS
             .values()
-            .filter_map(|c| c.get("invoice.vat_exempt_default"))
-            .any(|v| norm(v) == n)
+            .flat_map(|c| c.iter())
+            .filter(|(k, _)| k.as_str() == "invoice.vat_exempt_default" || k.starts_with("invoice.vat_exempt_default@"))
+            .any(|(_, v)| norm(v) == n)
 }
 
 /// "Seite 1 von 3" / "صفحة 1 من 3".
@@ -495,5 +548,20 @@ mod tests {
         assert!(is_default_vat_notice("Umsatzsteuerbefreit gem. § 4 Nr. 14 UStG"));
         assert!(is_default_vat_notice("VAT-exempt under § 4 No. 14 (a) UStG."));
         assert!(!is_default_vat_notice("Kleinunternehmer gem. § 19 UStG"));
+    }
+
+    #[test]
+    fn legal_wording_follows_the_jurisdiction_not_the_language() {
+        for loc in ["fr", "en", "de", "ar"] {
+            let ma = tr_jurisdiction(loc, "common.chart_privacy", "ma").expect("ma variant");
+            assert!(ma.contains("446") && ma.contains("09-08") && !ma.contains("BGB"), "{loc}: {ma}");
+            let fr = tr_jurisdiction(loc, "common.chart_privacy", "fr").expect("fr variant");
+            assert!(fr.contains("L.1110-4") && !fr.contains("BGB"), "{loc}: {fr}");
+            let eu = tr_jurisdiction(loc, "invoice.vat_exempt_default", "eu").expect("eu variant");
+            assert!(eu.contains("2006/112") && !eu.contains("UStG"), "{loc}: {eu}");
+            // Germany keeps the plain key (German law).
+            assert!(tr_jurisdiction(loc, "common.chart_privacy", "de").is_none());
+        }
+        assert!(tr_jurisdiction("fr", "invoice.invoice", "ma").is_none(), "only legal keys vary");
     }
 }

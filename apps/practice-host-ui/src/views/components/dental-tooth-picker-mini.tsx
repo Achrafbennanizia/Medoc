@@ -1,15 +1,14 @@
 import { useMemo } from "react";
 import { DentalOdontogramAxis } from "./dental-odontogram-axis";
+import { DentalMiniToothSvg } from "./dental-mini-tooth-svg";
 import type { DentalFinding } from "@/models/types";
 import {
     DENTAL_LOWER_L,
     DENTAL_LOWER_R,
-    DENTAL_STATES,
-    DENTAL_TOOTH_SHAPES,
     DENTAL_UPPER_L,
     DENTAL_UPPER_R,
     findingToStatusKey,
-    dentalToothType,
+    findingToStatusKeys,
     formatDentalToothLabel,
     formatDentalToothList,
     sortFdiTeeth,
@@ -51,29 +50,13 @@ export function DentalToothPickerMini({
     const pickedLabel = useMemo(() => sortFdiTeeth(selectedTeeth), [selectedTeeth]);
 
     const renderTooth = (n: string) => {
-        const type = dentalToothType(n);
-        const shape = DENTAL_TOOTH_SHAPES[type];
         const stateKey = findingToStatusKey(map.get(Number(n)));
-        const state = DENTAL_STATES[stateKey];
         const isSel = selectedSet.has(n);
         const label = formatDentalToothLabel(n, t);
         const aria = tp("dental.tooth_aria", { tooth: label });
         const svg = (
             <>
-                <svg width="20" height="32" viewBox="0 0 20 34" aria-hidden className="dental-mini-tooth-svg">
-                    <path
-                        d={shape.crown}
-                        fill={state.fill}
-                        stroke={state.stroke}
-                        strokeWidth={isSel ? 1.7 : 1.15}
-                    />
-                    <path
-                        d={shape.root}
-                        fill={state.fill}
-                        stroke={state.stroke}
-                        strokeWidth={isSel ? 1.7 : 1.15}
-                    />
-                </svg>
+                <DentalMiniToothSvg fdi={n} stateKey={stateKey} marks={findingToStatusKeys(map.get(Number(n)))} selected={isSel} width={20} height={32} />
                 <span className="dental-mini-tooth-num">{label}</span>
             </>
         );

@@ -18,6 +18,42 @@ export const DEFAULT_PDF_HEADER_FIELDS: PracticeFieldKey[] = [
     "zanr",
 ];
 
+/** Country of the practice: decides which ids and legal lines its documents carry. */
+export type PracticeCountry = "MA" | "DE" | "FR" | "EU";
+export const PRACTICE_COUNTRIES: PracticeCountry[] = ["MA", "FR", "DE", "EU"];
+
+/** German practitioner / practice numbers. Printed on German documents only. */
+export const GERMAN_ONLY_HEADER_FIELDS: PracticeFieldKey[] = ["zanr", "bsnr", "kv", "kzv", "tax"];
+
+/**
+ * The practice's country: the one chosen in Settings, else Morocco for a dirham practice,
+ * else Germany (how practices set up before the country existed were printed).
+ * Keep in step with `uses_german_ids` / `is_morocco` in `practice_profile.rs`.
+ */
+export function practiceCountry(practice: { country?: unknown; currency?: unknown } | null | undefined): PracticeCountry {
+    const c = typeof practice?.country === "string" ? practice.country.trim().toUpperCase() : "";
+    if (c === "MA" || c === "DE" || c === "FR" || c === "EU") return c;
+    const cur = typeof practice?.currency === "string" ? practice.currency.trim().toUpperCase() : "";
+    return cur === "MAD" ? "MA" : "DE";
+}
+
+/** Whether a header field belongs on this country's documents. */
+export function headerFieldAllowed(id: PracticeFieldKey, country: PracticeCountry): boolean {
+    if (GERMAN_ONLY_HEADER_FIELDS.includes(id)) return country === "DE";
+    if (id === "ma_ids") return country === "MA";
+    if (id === "fr_ids") return country === "FR";
+    return true;
+}
+
+/** Official default letterhead for a country. Keep in step with `DEFAULT_HEADER_FIELDS*` in Rust. */
+export function defaultPdfHeaderFields(country: PracticeCountry): PracticeFieldKey[] {
+    const base: PracticeFieldKey[] = ["name", "address", "phone", "fax", "email", "web"];
+    if (country === "DE") return DEFAULT_PDF_HEADER_FIELDS;
+    if (country === "MA") return [...base, "ma_ids"];
+    if (country === "FR") return [...base, "fr_ids"];
+    return base;
+}
+
 /** Clinician identity. The rest of the catalog is practice information. */
 export const DOCTOR_HEADER_FIELDS: PracticeFieldKey[] = ["clinician", "zanr"];
 
@@ -83,8 +119,8 @@ export function tableFromFieldList(fields: PracticeFieldKey[]): HeaderTable {
     return table;
 }
 
-export function defaultHeaderTable(): HeaderTable {
-    return tableFromFieldList(DEFAULT_PDF_HEADER_FIELDS);
+export function defaultHeaderTable(country: PracticeCountry = "DE"): HeaderTable {
+    return tableFromFieldList(defaultPdfHeaderFields(country));
 }
 
 /**

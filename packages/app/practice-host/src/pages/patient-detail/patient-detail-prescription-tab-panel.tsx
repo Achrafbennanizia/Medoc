@@ -16,7 +16,9 @@ import { Card, CardHeader } from "@/views/components/ui/card";
 import { EmptyState } from "@/views/components/ui/empty-state";
 import { FormSection } from "@/views/components/ui/form-section";
 import { Input, Select, Textarea } from "@/views/components/ui/input";
+import { practiceCountry } from "@/lib/document-header-layout";
 import { useT, useTParams } from "@/lib/i18n";
+import { getInvoicePracticeFromStorage } from "@/lib/invoice-service-item";
 import { MedicationDatalist } from "@/views/components/medication-presets/medication-datalist";
 
 export type PatientDetailPrescriptionTabPanelProps = Omit<
@@ -896,6 +898,11 @@ export function PatientDetailPrescriptionTabPanel(props: PatientDetailPrescripti
                                     onChange={(e) => setCertificateForm({ ...certificateForm, icd10_code: e.target.value })}
                                     placeholder={t("page.patient_detail.certificate.field.icd_ph")}
                                 />
+                                {certificateForm.kind.includes("SICK_LEAVE") && practiceCountry(getInvoicePracticeFromStorage()) === "FR" ? (
+                                    <p className="settings-row-muted" role="note">
+                                        {t("certificate.fr_sick_leave_hint")}
+                                    </p>
+                                ) : null}
                                 {certificateForm.kind.includes("SICK_LEAVE") ? (
                                     <Input
                                         id="ak-cert-employer"

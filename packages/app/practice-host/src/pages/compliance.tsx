@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useT, useTParams } from "@/lib/i18n";
 import { errorMessage, formatDateTime } from "@/lib/utils";
@@ -18,6 +18,7 @@ import { Button } from "@/views/components/ui/button";
 import { useToastStore } from "@/views/components/ui/toast-store";
 import { WorkspacePageHeader } from "@/views/components/administration-page-header";
 import { DismissibleNotice } from "@/views/components/ui/dismissible-notice";
+import { ComplianceOverview } from "@/views/components/compliance/compliance-overview";
 
 type ReportKind = "vvt" | "dpia" | "retention";
 
@@ -203,6 +204,7 @@ export function CompliancePage({ embedded = false }: CompliancePageProps = {}) {
     const [report, setReport] = useState<{ kind: ReportKind; data: unknown } | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const reportRef = useRef<HTMLDivElement>(null);
 
     async function run(kind: ReportKind) {
         setLoading(true);
@@ -213,6 +215,7 @@ export function CompliancePage({ embedded = false }: CompliancePageProps = {}) {
                     : kind === "dpia" ? await generateDpia()
                         : await enforceLogRetention();
             setReport({ kind, data });
+            window.setTimeout(() => reportRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
         } catch (e) {
             setError(errorMessage(e));
         } finally {
@@ -268,15 +271,6 @@ export function CompliancePage({ embedded = false }: CompliancePageProps = {}) {
                                 </Button>
                             </>
                         ) : null}
-                        <Button type="button" onClick={() => run("vvt")} disabled={loading}>
-                            {t("page.compliance.btn.vvt")}
-                        </Button>
-                        <Button type="button" onClick={() => run("dpia")} disabled={loading}>
-                            {t("page.compliance.btn.dpia")}
-                        </Button>
-                        <Button type="button" variant="secondary" onClick={() => run("retention")} disabled={loading}>
-                            {t("page.compliance.btn.retention")}
-                        </Button>
                         {report ? (
                             <>
                                 <Button type="button" variant="ghost" onClick={() => void copyStructuredJson()}>
@@ -304,8 +298,12 @@ export function CompliancePage({ embedded = false }: CompliancePageProps = {}) {
                 </DismissibleNotice>
             ) : null}
 
+            <div className="compliance-no-print">
+                <ComplianceOverview onRunReport={(kind) => void run(kind)} busy={loading} />
+            </div>
+
             {report && (
-                <div className="card card-pad compliance-report-print">
+                <div ref={reportRef} className="card card-pad compliance-report-print" style={{ marginTop: "var(--space-5)" }}>
                     {report.kind === "vvt" ? (
                         <VvtStructured data={report.data as VVT} />
                     ) : report.kind === "dpia" ? (

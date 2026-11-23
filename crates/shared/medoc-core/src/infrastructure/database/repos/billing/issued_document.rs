@@ -141,6 +141,7 @@ pub async fn list_recent(
 }
 
 pub async fn insert(tx: &mut SqliteConnection, doc: &IssuedDocument) -> Result<(), AppError> {
+    // sync: recorded by caller — `issue::after_insert` records both `issued_document` and the first `issued_document_print` row once the transaction has committed.
     sqlx::query(
         "INSERT INTO issued_document
             (id, kind, document_number, source_table, source_id, copy_variant, patient_id,
@@ -182,6 +183,7 @@ pub fn original_print_id(document_id: &str) -> String {
 }
 
 pub async fn mark_cancelled(tx: &mut SqliteConnection, id: &str) -> Result<(), AppError> {
+    // sync: recorded by caller — `issue::cancel_invoice` records the `issued_document` UPDATE after the transaction has committed.
     let n = sqlx::query(
         "UPDATE issued_document
             SET status = 'CANCELLED', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')

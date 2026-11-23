@@ -66,4 +66,18 @@ describe("parseInvoicePracticeJson", () => {
         expect(p.kv_number).toBe("KV-1");
         expect(p.chamber).toBe("Berlin");
     });
+    it("a Moroccan practice is asked for ICE and IF, never ZANR / BSNR / IBAN", () => {
+        const r = checkPracticeDocumentReadiness(
+            { name: "Cabinet", addr: "Casablanca", clinician_name: "Dr. A", country: "MA", currency: "MAD" },
+            "invoice",
+        );
+        expect(r.missingFields.map((m) => m.field).sort()).toEqual(["ma_ice", "ma_if"]);
+        const rx = checkPracticeDocumentReadiness({ name: "C", addr: "a", clinician_name: "Dr. A", country: "FR" }, "prescription");
+        expect(rx.missingFields.map((m) => m.field)).toEqual(["fr_rpps"]);
+        const rxOk = checkPracticeDocumentReadiness(
+            { name: "C", addr: "a", clinician_name: "Dr. A", country: "FR", fr_rpps: "10101234567" },
+            "prescription",
+        );
+        expect(rxOk.ready).toBe(true);
+    });
 });

@@ -9,6 +9,89 @@
     padding: 8px 10px;
     border-radius: 8px;
   }
+  .exam-tooth-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: var(--surface-1);
+  }
+  .exam-tooth-card__head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+  .exam-tooth-card__num {
+    font-size: 30px;
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    color: var(--dental-selected, var(--accent));
+  }
+  .exam-tooth-card__meta {
+    margin: 0;
+    font-size: 12.5px;
+    color: var(--fg-3);
+  }
+
+  /* Examination · advanced findings (collapsible) */
+  .exam-advanced {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--surface-1);
+  }
+  .exam-advanced > summary {
+    cursor: pointer;
+    padding: var(--space-3) var(--space-4);
+    font-size: 13.5px;
+    font-weight: 600;
+    list-style-position: inside;
+  }
+  .exam-advanced[open] > summary {
+    border-bottom: 1px solid var(--line);
+  }
+  .exam-advanced__section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-4);
+  }
+  .exam-advanced__section + .exam-advanced__section {
+    border-top: 1px solid var(--line);
+  }
+  .exam-advanced__section h4 {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--fg-3);
+  }
+  .exam-advanced__hint {
+    margin: 0;
+    font-size: 12px;
+    color: var(--fg-3);
+  }
+  .exam-advanced__grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+  }
+  .exam-advanced__grid--3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .exam-advanced__psi {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-3);
+  }
+  @media (max-width: 900px) {
+    .exam-advanced__grid,
+    .exam-advanced__grid--3,
+    .exam-advanced__psi {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
 
   /* Chart · anamnesis overview: vertical option list — same tokens as segment controls (.seg) */
   .chart-section-eyebrow {

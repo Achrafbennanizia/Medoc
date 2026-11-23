@@ -30,6 +30,16 @@ use crate::infrastructure::pdf::{render_clinical_layout_with_logo, ClinicalPdfLa
 use super::issue::IssuedPdf;
 
 pub const REMINDER_PREFIX: &str = "MA";
+/// Payment-reminder prefixes: German (Mahnung), French for France and Morocco (relance), English.
+pub const REMINDER_PREFIXES: [&str; 3] = [REMINDER_PREFIX, "RP", "REM"];
+
+pub fn reminder_prefix(jurisdiction: Option<&str>) -> &'static str {
+    match jurisdiction {
+        Some("fr") | Some("ma") => "RP",
+        Some("eu") => "REM",
+        _ => REMINDER_PREFIX,
+    }
+}
 /// Days the patient gets after each reminder.
 pub const DEFAULT_REMINDER_DAYS: i64 = 14;
 
@@ -445,7 +455,7 @@ pub async fn issue_reminder(
         if existing > 0 {
             return Err(AppError::validation_code("error.reminder.not_due"));
         }
-        let number = repo::next_number(conn, REMINDER_PREFIX, year_now()).await?;
+        let number = repo::next_number(conn, reminder_prefix(profile.jurisdiction()), year_now()).await?;
         let v = reminder_layout(&profile, &inv, &row, level, Some(&number), args.fee_cents, &pay_by);
         // The reminder PDF carries `payment_reminder.id` as its document id.
         let bytes = crate::infrastructure::pdf::with_document_uid(&id, || render(&v))?;

@@ -35,7 +35,7 @@ use crate::infrastructure::database::repos::billing::issued_document::{
 };
 use crate::infrastructure::database::sync_outbox;
 use crate::infrastructure::pdf::{
-    is_pdf_renderable, render_clinical_layout_with_logo, render_goz_invoice, render_report_pdf,
+    is_pdf_renderable, render_clinical_layout_with_logo, render_invoice, render_report_pdf,
     unit_fee_cents, validate_invoice, ClinicalPdfLayout, FeeSchedule, Invoice, InvoiceKind,
     InvoiceLine, ReportPdfInput,
 };
@@ -87,7 +87,39 @@ impl DocKind {
         })
     }
 
-    /// Number prefix: `RE-2026-000001`.
+    /// Number prefix in the practice's country (`jurisdiction` from
+    /// [`PracticeProfile::jurisdiction`]): French for France and Morocco (`FA-2026-000001`),
+    /// English for the rest of the EU (`INV-…`), German otherwise (`RE-…`). Each prefix is its
+    /// own gap-free series, so a practice that changes country starts a new series.
+    pub fn prefix_for(self, jurisdiction: Option<&str>) -> &'static str {
+        match jurisdiction {
+            Some("fr") | Some("ma") => match self {
+                DocKind::Invoice => "FA",
+                DocKind::Cancellation => "AV",
+                DocKind::Receipt => "RC",
+                DocKind::Certificate => "CM",
+                DocKind::Prescription => "OR",
+                DocKind::ChartExtract => "ED",
+                DocKind::DischargeLeaflet => "FC",
+                DocKind::DailyReport => "CJ",
+                DocKind::Report => "RA",
+            },
+            Some("eu") => match self {
+                DocKind::Invoice => "INV",
+                DocKind::Cancellation => "CN",
+                DocKind::Receipt => "RCT",
+                DocKind::Certificate => "CRT",
+                DocKind::Prescription => "RX",
+                DocKind::ChartExtract => "REC",
+                DocKind::DischargeLeaflet => "AFT",
+                DocKind::DailyReport => "DAY",
+                DocKind::Report => "RPT",
+            },
+            _ => self.prefix(),
+        }
+    }
+
+    /// German number prefix: `RE-2026-000001`.
     pub fn prefix(self) -> &'static str {
         match self {
             DocKind::Invoice => "RE",
@@ -404,18 +436,20 @@ fn apply_server_fields(
     profile: &PracticeProfile,
     locale: &str,
     copy_variant: &str,
+    medical: bool,
 ) -> Result<(), AppError> {
     let obj = layout
         .as_object_mut()
         .ok_or_else(|| AppError::Validation("layout must be a JSON object".into()))?;
-    obj.insert(
-        "practiceLines".into(),
-        serde_json::json!(profile.letterhead_lines()),
-    );
-    obj.insert(
-        "footerLines".into(),
-        serde_json::json!(profile.footer_lines(locale)),
-    );
+    // Medical documents (prescriptions, certificates, leaflets) carry no tax ids or bank details;
+    // receipts keep them.
+    let (practice_lines, footer_lines) = if medical {
+        (profile.clinical_letterhead_lines(), profile.clinical_footer_lines(locale))
+    } else {
+        (profile.letterhead_lines(), profile.footer_lines(locale))
+    };
+    obj.insert("practiceLines".into(), serde_json::json!(practice_lines));
+    obj.insert("footerLines".into(), serde_json::json!(footer_lines));
     let sig = profile.signature_lines();
     if !sig.is_empty() {
         obj.insert("signatureLines".into(), serde_json::json!(sig));
@@ -444,6 +478,7 @@ async fn patient_panel(
     patient_id: &str,
     locale: &str,
     copy_variant: &str,
+    french_prescription: bool,
 ) -> Result<Value, AppError> {
     let row: Option<(String, Option<String>, Option<String>, Option<String>)> = sqlx::query_as(
         "SELECT name, CAST(date_of_birth AS TEXT), insurance_number, address FROM patient WHERE id = ?1",
@@ -455,7 +490,8 @@ async fn patient_panel(
     let dob = dob
         .as_deref()
         .and_then(|d| chrono::NaiveDate::parse_from_str(d.get(..10)?, "%Y-%m-%d").ok())
-        .map(|d| d.format("%d.%m.%Y").to_string());
+        // German documents use 14.06.1990; French and Arabic (Morocco, France) use 14/06/1990.
+        .map(|d| d.format(if locale.starts_with("de") { "%d.%m.%Y" } else { "%d/%m/%Y" }).to_string());
     let mut left = vec![name.trim().to_string()];
     if let Some(d) = dob {
         left.push(format!(
@@ -466,8 +502,23 @@ async fn patient_panel(
             )
         ));
     }
+    if french_prescription {
+        let sex: Option<String> = sqlx::query_scalar("SELECT sex FROM patient WHERE id = ?1")
+            .bind(patient_id)
+            .fetch_optional(pool)
+            .await?
+            .flatten();
+        let sex = match sex.as_deref().map(str::to_ascii_uppercase).as_deref() {
+            Some("FEMALE") | Some("F") => Some("F"),
+            Some("MALE") | Some("M") => Some("M"),
+            _ => None,
+        };
+        if let Some(sx) = sex {
+            left.push(format!("Sexe : {sx}"));
+        }
+    }
     // The employer copy shows who is unfit for work, nothing more.
-    if copy_variant != "employer" {
+    if copy_variant != "employer" && !french_prescription {
         if let Some(i) = ins.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
             left.push(format!(
                 "{} {i}",
@@ -481,11 +532,18 @@ async fn patient_panel(
     let right: Vec<String> = addr
         .as_deref()
         .map(|a| {
-            a.split(['\n', ','])
-                .map(str::trim)
-                .filter(|l| !l.is_empty())
-                .map(String::from)
-                .collect()
+            let mut lines: Vec<String> = Vec::new();
+            for part in a.split(['\n', ',']).map(str::trim).filter(|l| !l.is_empty()) {
+                // "112, boulevard Zerktouni": a bare house number stays on the street's line.
+                match lines.last_mut() {
+                    Some(prev) if prev.chars().all(|c| c.is_ascii_digit()) => {
+                        prev.push_str(", ");
+                        prev.push_str(part);
+                    }
+                    _ => lines.push(part.to_string()),
+                }
+            }
+            lines
         })
         .unwrap_or_default();
     Ok(serde_json::json!({
@@ -549,11 +607,32 @@ pub async fn issue_clinical_document(
         .map(str::to_string);
     let locale = resolve_document_locale(pool, requested.as_deref()).await;
     let logo = practice_logo(pool).await;
-    apply_server_fields(&mut layout, &profile, locale, copy_variant)?;
+    let medical = !matches!(kind, DocKind::Receipt);
+    apply_server_fields(&mut layout, &profile, locale, copy_variant, medical)?;
     if matches!(kind, DocKind::Certificate | DocKind::Prescription) {
-        let panel = patient_panel(pool, &patient_id, locale, copy_variant).await?;
+        // France (R.5132-3 CSP): a prescription names the patient's sex and age, and carries no
+        // social-security number (NIR), which French rules keep off documents that do not need it.
+        let french_rx = matches!(kind, DocKind::Prescription) && profile.jurisdiction() == Some("fr");
+        let panel = patient_panel(pool, &patient_id, locale, copy_variant, french_rx).await?;
         if let Some(obj) = layout.as_object_mut() {
             obj.insert("twoColumn".into(), panel);
+        }
+    }
+    // France: the Assurance Maladie and employers only accept sick leave declared online
+    // (amelipro) or on the secure CERFA form. A free-form certificate says so on its face.
+    if matches!(kind, DocKind::Certificate) && profile.jurisdiction() == Some("fr") {
+        let cert_kind: Option<String> = sqlx::query_scalar("SELECT kind FROM certificate WHERE id = ?1")
+            .bind(&args.source_id)
+            .fetch_optional(pool)
+            .await?;
+        if cert_kind.as_deref() == Some("SICK_LEAVE") {
+            let note = crate::infrastructure::pdf::i18n::tr(locale, "certificate.fr_sick_leave_notice").to_string();
+            if let Some(obj) = layout.as_object_mut() {
+                let closing = obj.entry("closingParagraphs").or_insert_with(|| Value::Array(Vec::new()));
+                if let Some(list) = closing.as_array_mut() {
+                    list.push(Value::String(note));
+                }
+            }
         }
     }
     check_renderable(&layout)?;
@@ -587,7 +666,7 @@ pub async fn issue_clinical_document(
 
     let issued_at = now_iso();
     let doc = immediate_tx!(pool, |conn| {
-        let number = repo::next_number(conn, kind.prefix(), year_now()).await?;
+        let number = repo::next_number(conn, kind.prefix_for(profile.jurisdiction()), year_now()).await?;
         layout["documentNumber"] = Value::String(number.clone());
         let doc_id = crate::infrastructure::pdf::new_document_uid();
         let bytes = crate::infrastructure::pdf::with_document_uid(&doc_id, || {
@@ -849,19 +928,32 @@ async fn complete_invoice_from_db(
     }
     inv.tax_number = profile.tax_number.clone().filter(|s| !s.trim().is_empty());
     inv.vat_id = profile.vat_id.clone().filter(|s| !s.trim().is_empty());
+    // The language the UI asked for (Settings language when none was sent). Resolved first:
+    // header labels and the bank line are written in it.
+    let requested = inv.locale.clone();
+    let locale = resolve_document_locale(pool, Some(requested.as_str())).await;
     let bank = profile.bank_lines();
     inv.bank_details = if bank.is_empty() { None } else { Some(bank) };
     inv.practice_lines = profile.letterhead_lines();
-    // The language the UI asked for (Settings language when none was sent).
-    let requested = inv.locale.clone();
-    let locale = resolve_document_locale(pool, Some(requested.as_str())).await;
     inv.locale = locale.into();
     inv.rtl = crate::infrastructure::pdf::i18n::is_rtl(locale);
     inv.footer_lines = profile.footer_lines(locale);
-    inv.vat_notice = Some(match inv.vat_notice.as_deref() {
-        Some(n) if !n.trim().is_empty() => localized_vat_notice(n, locale),
-        _ => profile.vat_notice_for(locale),
-    });
+    if profile.is_morocco() {
+        // Moroccan format: its own identity block and exemption notice (CGI art. 91);
+        // a notice the practice typed itself is kept, the German default is not.
+        inv.morocco = Some(profile.morocco_ids());
+        inv.vat_notice = profile
+            .vat_exemption_notice
+            .as_deref()
+            .filter(|n| !n.trim().is_empty() && !crate::infrastructure::pdf::i18n::is_default_vat_notice(n))
+            .map(|n| n.trim().to_string())
+            .or_else(|| Some(crate::infrastructure::pdf::i18n::tr(locale, "invoice_ma.vat_exempt_default").to_string()));
+    } else {
+        inv.vat_notice = Some(match inv.vat_notice.as_deref() {
+            Some(n) if !n.trim().is_empty() => localized_vat_notice(n, locale),
+            _ => profile.vat_notice_for(locale),
+        });
+    }
     if inv
         .payment_terms_text
         .as_deref()
@@ -1236,6 +1328,7 @@ pub async fn issue_invoice(
         },
     )?;
     complete_invoice_from_db(pool, &mut invoice, &patient_id).await?;
+    let jurisdiction = PracticeProfile::load(pool).await?.jurisdiction();
     hydrate_invoice_lines(pool, &mut invoice, &patient_id).await?;
     check_invoice_sources(pool, &invoice, &patient_id).await?;
     invoice.kind = InvoiceKind::Invoice;
@@ -1254,7 +1347,7 @@ pub async fn issue_invoice(
         invoice.number = draft.into();
         validate_invoice(&invoice)?;
         invoice.watermark = Some(draft.into());
-        let bytes = render_goz_invoice(&invoice)?;
+        let bytes = render_invoice(&invoice)?;
         return Ok(IssuedPdf {
             document_id: None,
             document_number: None,
@@ -1267,12 +1360,12 @@ pub async fn issue_invoice(
     repo::ensure_numbering_authority(pool).await?;
     let issued_at = now_iso();
     let (doc, bytes, total) = immediate_tx!(pool, |conn| {
-        invoice.number = repo::next_number(conn, DocKind::Invoice.prefix(), year_now()).await?;
+        invoice.number = repo::next_number(conn, DocKind::Invoice.prefix_for(jurisdiction), year_now()).await?;
         // Validation failure rolls back → the number is not consumed (gap-free).
         validate_invoice(&invoice)?;
         let doc_id = crate::infrastructure::pdf::new_document_uid();
         let bytes = crate::infrastructure::pdf::with_document_uid(&doc_id, || {
-            render_goz_invoice(&invoice)
+            render_invoice(&invoice)
         })?;
         let doc = IssuedDocument {
             id: doc_id.clone(),
@@ -1352,11 +1445,11 @@ pub async fn cancel_invoice(
 
     let issued_at = now_iso();
     let (doc, bytes, total) = immediate_tx!(pool, |conn| {
-        inv.number = repo::next_number(conn, DocKind::Cancellation.prefix(), year_now()).await?;
+        inv.number = repo::next_number(conn, DocKind::Cancellation.prefix_for(profile.jurisdiction()), year_now()).await?;
         validate_invoice(&inv)?;
         let doc_id = crate::infrastructure::pdf::new_document_uid();
         let bytes =
-            crate::infrastructure::pdf::with_document_uid(&doc_id, || render_goz_invoice(&inv))?;
+            crate::infrastructure::pdf::with_document_uid(&doc_id, || render_invoice(&inv))?;
         let doc = IssuedDocument {
             id: doc_id.clone(),
             kind: DocKind::Cancellation.as_db().into(),
@@ -1468,7 +1561,7 @@ pub async fn issue_report(
     }
     let issued_at = now_iso();
     let (doc, bytes) = immediate_tx!(pool, |conn| {
-        let number = repo::next_number(conn, kind.prefix(), year_now()).await?;
+        let number = repo::next_number(conn, kind.prefix_for(profile.jurisdiction()), year_now()).await?;
         input.document_number = Some(number.clone());
         input.watermark = None;
         let doc_id = crate::infrastructure::pdf::new_document_uid();
@@ -1521,9 +1614,11 @@ where
 {
     require_permission(session, kind.issue_permission())?;
     repo::ensure_numbering_authority(pool).await?;
+    // Number prefix follows the practice country (FA-/INV-/RE-…).
+    let jurisdiction = PracticeProfile::load(pool).await.ok().and_then(|p| p.jurisdiction());
     let issued_at = now_iso();
     let (doc, bytes) = immediate_tx!(pool, |conn| {
-        let number = repo::next_number(conn, kind.prefix(), year_now()).await?;
+        let number = repo::next_number(conn, kind.prefix_for(jurisdiction), year_now()).await?;
         let doc_id = crate::infrastructure::pdf::new_document_uid();
         let bytes = crate::infrastructure::pdf::with_document_uid(&doc_id, || render(&number))?;
         let doc = IssuedDocument {
@@ -1600,7 +1695,7 @@ pub async fn reprint(
                     .map_err(|e| AppError::Internal(format!("stored invoice: {e}")))?;
                 inv.watermark = Some(WATERMARK_COPY.into()); // localised by the renderer
                 inv.logo = logo;
-                render_goz_invoice(&inv)?
+                render_invoice(&inv)?
             }
             DocKind::Certificate | DocKind::Prescription | DocKind::Receipt => {
                 let mut v: Value = serde_json::from_str(&doc.payload_json)
@@ -1688,10 +1783,19 @@ mod tests {
             DocKind::DailyReport,
             DocKind::Report,
         ];
-        let mut p: Vec<_> = all.iter().map(|k| k.prefix()).collect();
+        // Unique across kinds *and* countries: a practice that changes country must never
+        // continue another kind's series.
+        let mut p: Vec<_> = [None, Some("fr"), Some("eu")]
+            .iter()
+            .flat_map(|j| all.iter().map(move |k| k.prefix_for(*j)))
+            .chain(crate::application::documents::receivables::REMINDER_PREFIXES)
+            .collect();
         p.sort_unstable();
         p.dedup();
-        assert_eq!(p.len(), all.len());
+        assert_eq!(p.len(), all.len() * 3 + 3);
+        assert_eq!(DocKind::Invoice.prefix_for(Some("ma")), "FA");
+        assert_eq!(DocKind::Invoice.prefix_for(Some("de")), "RE");
+        assert_eq!(DocKind::Invoice.prefix_for(None), "RE");
         for k in all {
             assert_eq!(DocKind::from_db(k.as_db()), Some(k));
         }
@@ -1715,7 +1819,7 @@ mod tests {
             addr: "Hauptstr. 1\n10115 Berlin".into(),
             ..Default::default()
         };
-        apply_server_fields(&mut v, &profile, "de", "employer").unwrap();
+        apply_server_fields(&mut v, &profile, "de", "employer", true).unwrap();
         assert_eq!(v["practiceLines"][0], "Echte Praxis");
         assert!(v.get("documentNumber").is_none());
         assert!(v.get("logoKvJson").is_none());

@@ -183,4 +183,56 @@
     height: auto;
     max-height: 36px;
   }
+
+  /* Effect key sits on the inline-end: right in English, left in Arabic. The chart child stays LTR. */
+  .dental-chart-side {
+    display: grid;
+    grid-template-columns: max-content minmax(8.5rem, 11rem);
+    gap: 8px;
+    align-items: start;
+    width: max-content;
+    max-width: 100%;
+    min-width: 0;
+  }
+  .dental-arch .dental-chart-side,
+  .dental-tooth-picker-mini .dental-chart-side {
+    width: 100%;
+    grid-template-columns: minmax(0, 1fr) minmax(8.5rem, 11rem);
+  }
+  .dental-arch .dental-chart-side > :first-child,
+  .dental-tooth-picker-mini .dental-chart-side > :first-child {
+    min-width: 0;
+  }
+  .dental-effect-list {
+    box-sizing: border-box;
+    max-height: 12.5rem;
+    margin: 0;
+    padding: 2px 8px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    list-style: none;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    scrollbar-width: thin;
+  }
+  .dental-effect-list li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 0;
+    font-size: 11px;
+    line-height: 1.25;
+    color: var(--fg-2);
+  }
+  .dental-effect-list li span {
+    min-width: 0;
+    text-align: start;
+  }
+  .dental-effect-list .dental-mini-tooth-svg {
+    width: 16px;
+    height: 24px;
+    max-height: none;
+    flex: none;
+  }
 }

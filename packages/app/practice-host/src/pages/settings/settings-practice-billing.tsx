@@ -1,6 +1,7 @@
 import type { ChangeEvent, FC } from "react";
 import type { InvoicePractice } from "@/lib/invoice-service-item";
 import { isValidPracticeDigitId, isValidPracticeIban } from "@/lib/invoice-service-item";
+import { practiceCountry } from "@/lib/document-header-layout";
 import { useT } from "@/lib/i18n";
 import { Button } from "@/views/components/ui/button";
 import { Input } from "@/views/components/ui/input";
@@ -34,6 +35,9 @@ export const SettingsPracticeBillingSection: FC<SettingsPracticeBillingProps> = 
 }) => {
     const t = useT();
     const set = (patch: Partial<InvoicePractice>) => onChange(patch);
+    const country = practiceCountry(practice);
+    const isMorocco = country === "MA";
+    const isGermany = country === "DE";
 
     return (
         <>
@@ -84,35 +88,105 @@ export const SettingsPracticeBillingSection: FC<SettingsPracticeBillingProps> = 
                                 <option key={key} value={t(key)} />
                             ))}
                         </datalist>
-                        <Input
-                            id="px-zanr"
-                            label={t("settings.practice.billing_zanr")}
-                            value={practice.zanr ?? ""}
-                            onChange={(e) => set({ zanr: e.target.value })}
-                            error={
-                                (practice.zanr ?? "").trim() && !isValidPracticeDigitId(practice.zanr ?? "")
-                                    ? t("settings.practice.billing_digits_error")
-                                    : undefined
-                            }
-                        />
-                        <Input
-                            id="px-bsnr"
-                            label={t("settings.practice.billing_bsnr")}
-                            value={practice.bsnr ?? ""}
-                            onChange={(e) => set({ bsnr: e.target.value })}
-                            error={
-                                (practice.bsnr ?? "").trim() && !isValidPracticeDigitId(practice.bsnr ?? "")
-                                    ? t("settings.practice.billing_digits_error")
-                                    : undefined
-                            }
-                        />
-                        <Input
-                            id="px-lanr"
-                            label={t("settings.practice.billing_lanr")}
-                            value={practice.lanr ?? ""}
-                            onChange={(e) => set({ lanr: e.target.value })}
-                        />
+                        {/* German practitioner ids (ZANR / BSNR / LANR) belong on German documents only. */}
+                        {!isGermany ? null : (
+                            <>
+                            <Input
+                                id="px-zanr"
+                                label={t("settings.practice.billing_zanr")}
+                                value={practice.zanr ?? ""}
+                                onChange={(e) => set({ zanr: e.target.value })}
+                                error={
+                                    (practice.zanr ?? "").trim() && !isValidPracticeDigitId(practice.zanr ?? "")
+                                        ? t("settings.practice.billing_digits_error")
+                                        : undefined
+                                }
+                            />
+                            <Input
+                                id="px-bsnr"
+                                label={t("settings.practice.billing_bsnr")}
+                                value={practice.bsnr ?? ""}
+                                onChange={(e) => set({ bsnr: e.target.value })}
+                                error={
+                                    (practice.bsnr ?? "").trim() && !isValidPracticeDigitId(practice.bsnr ?? "")
+                                        ? t("settings.practice.billing_digits_error")
+                                        : undefined
+                                }
+                            />
+                            <Input
+                                id="px-lanr"
+                                label={t("settings.practice.billing_lanr")}
+                                value={practice.lanr ?? ""}
+                                onChange={(e) => set({ lanr: e.target.value })}
+                            />
+                            </>
+                        )}
                     </div>
+                    {country === "FR" ? (
+                        <>
+                            <p className="card-sub" style={{ margin: "16px 0 4px", fontWeight: 600 }}>
+                                {t("settings.practice.billing_fr_section")}
+                            </p>
+                            <p className="settings-row-muted" style={{ margin: "0 0 12px" }}>
+                                {t("settings.practice.billing_fr_hint")}
+                            </p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <Input
+                                    id="px-fr-rpps"
+                                    label={t("settings.practice.billing_fr_rpps")}
+                                    value={practice.fr_rpps ?? ""}
+                                    inputMode="numeric"
+                                    onChange={(e) => set({ fr_rpps: e.target.value })}
+                                    error={
+                                        (practice.fr_rpps ?? "").trim() && !/^\d{11}$/.test((practice.fr_rpps ?? "").replace(/\s/g, ""))
+                                            ? t("settings.practice.billing_fr_rpps_error")
+                                            : undefined
+                                    }
+                                />
+                                <Input
+                                    id="px-fr-siret"
+                                    label={t("settings.practice.billing_fr_siret")}
+                                    value={practice.fr_siret ?? ""}
+                                    inputMode="numeric"
+                                    onChange={(e) => set({ fr_siret: e.target.value })}
+                                    error={
+                                        (practice.fr_siret ?? "").trim() && !/^\d{14}$/.test((practice.fr_siret ?? "").replace(/\s/g, ""))
+                                            ? t("settings.practice.billing_fr_siret_error")
+                                            : undefined
+                                    }
+                                />
+                            </div>
+                        </>
+                    ) : null}
+                    {isMorocco ? (
+                        <>
+                            <p className="card-sub" style={{ margin: "16px 0 4px", fontWeight: 600 }}>
+                                {t("settings.practice.billing_ma_section")}
+                            </p>
+                            <p className="settings-row-muted" style={{ margin: "0 0 12px" }}>
+                                {t("settings.practice.billing_ma_hint")}
+                            </p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <Input
+                                    id="px-ma-ice"
+                                    label={t("settings.practice.billing_ma_ice")}
+                                    value={practice.ma_ice ?? ""}
+                                    inputMode="numeric"
+                                    onChange={(e) => set({ ma_ice: e.target.value })}
+                                    error={
+                                        (practice.ma_ice ?? "").trim() && !/^\d{15}$/.test((practice.ma_ice ?? "").replace(/\s/g, ""))
+                                            ? t("settings.practice.billing_ma_ice_error")
+                                            : undefined
+                                    }
+                                />
+                                <Input id="px-ma-if" label={t("settings.practice.billing_ma_if")} value={practice.ma_if ?? ""} inputMode="numeric" onChange={(e) => set({ ma_if: e.target.value })} />
+                                <Input id="px-ma-tp" label={t("settings.practice.billing_ma_tp")} value={practice.ma_tp ?? ""} onChange={(e) => set({ ma_tp: e.target.value })} />
+                                <Input id="px-ma-inpe" label={t("settings.practice.billing_ma_inpe")} value={practice.ma_inpe ?? ""} onChange={(e) => set({ ma_inpe: e.target.value })} />
+                                <Input id="px-ma-cnss" label={t("settings.practice.billing_ma_cnss")} value={practice.ma_cnss ?? ""} onChange={(e) => set({ ma_cnss: e.target.value })} />
+                                <Input id="px-ma-rc" label={t("settings.practice.billing_ma_rc")} value={practice.ma_rc ?? ""} onChange={(e) => set({ ma_rc: e.target.value })} />
+                            </div>
+                        </>
+                    ) : null}
                     <p className="card-sub" style={{ margin: "16px 0 12px", fontWeight: 600 }}>
                         {t("settings.practice.billing_bank_section")}
                     </p>
@@ -147,7 +221,9 @@ export const SettingsPracticeBillingSection: FC<SettingsPracticeBillingProps> = 
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <Input id="px-chamber" label={t("settings.practice.billing_chamber")} value={practice.chamber ?? ""} onChange={(e) => set({ chamber: e.target.value })} />
-                        <Input id="px-kzv" label={t("settings.practice.billing_kzv")} value={practice.kzv ?? ""} onChange={(e) => set({ kzv: e.target.value })} />
+                        {isGermany ? (
+                            <Input id="px-kzv" label={t("settings.practice.billing_kzv")} value={practice.kzv ?? ""} onChange={(e) => set({ kzv: e.target.value })} />
+                        ) : null}
                         <Input
                             id="px-vat-notice"
                             label={t("settings.practice.billing_vat_exempt")}

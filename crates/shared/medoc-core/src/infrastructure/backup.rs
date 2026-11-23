@@ -164,8 +164,18 @@ fn copy_recovery_sidecars(app_data_dir: &Path, backup_db: &Path) {
     }
 }
 
-/// List all backup files (newest first) with optional signature verification.
+/// List all backup files (newest first), verifying each signed file's HMAC (reads every file).
 pub fn list() -> Result<Vec<BackupEntry>, AppError> {
+    list_entries(true)
+}
+
+/// Same files as [`list`], but only metadata: no file is read, `signature_ok` is `None`
+/// ("not checked", never "bad"). For quick status views such as Help → About.
+pub fn list_metadata() -> Result<Vec<BackupEntry>, AppError> {
+    list_entries(false)
+}
+
+fn list_entries(verify: bool) -> Result<Vec<BackupEntry>, AppError> {
     let dir = backup_dir();
     if !dir.exists() {
         return Ok(Vec::new());
@@ -177,7 +187,7 @@ pub fn list() -> Result<Vec<BackupEntry>, AppError> {
         .map(|e| {
             let path = e.path();
             let size_bytes = e.metadata().map(|m| m.len()).unwrap_or(0);
-            let signature_ok = if sig_path(&path).exists() {
+            let signature_ok = if verify && sig_path(&path).exists() {
                 verify_signature(&path)
             } else {
                 None
@@ -527,4 +537,29 @@ pub fn validate(path: &Path) -> Result<bool, AppError> {
     f.read_exact(&mut header)
         .map_err(|e| AppError::Internal(format!("read header: {e}")))?;
     Ok(&header == b"SQLite format 3\0")
+}
+
+#[cfg(test)]
+mod list_tests {
+    use super::*;
+
+    #[test]
+    fn metadata_listing_reports_not_checked_instead_of_bad() {
+        let dir = std::env::temp_dir().join(format!("medoc-backup-list-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let db = dir.join("medoc-20261122T100000Z.db");
+        std::fs::write(&db, b"not really a database").unwrap();
+        std::fs::write(sig_path(&db), "0000\n").unwrap(); // wrong signature
+        std::env::set_var("MEDOC_BACKUP_DIR", &dir);
+
+        let full = list().unwrap();
+        let meta = list_metadata().unwrap();
+
+        std::env::remove_var("MEDOC_BACKUP_DIR");
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(full.len(), 1);
+        assert_eq!(full[0].signature_ok, Some(false), "Ops listing must catch the bad signature");
+        assert_eq!(meta[0].size_bytes, 21);
+        assert_eq!(meta[0].signature_ok, None, "About listing does not check, so it must not say bad");
+    }
 }

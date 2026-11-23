@@ -7,6 +7,7 @@ import type { ExaminationSubmit } from "@/views/components/examination-composer"
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 import { ChartInlineEditPanelShell, ConfirmOrInline } from "@/views/components/chart-confirm-presentation";
 import { ExaminationComposer } from "@/views/components/examination-composer";
+import { ExaminationDetailPanel } from "@/views/components/examination-detail-panel";
 import { Button } from "@/views/components/ui/button";
 import { Card, CardHeader } from "@/views/components/ui/card";
 
@@ -32,7 +33,6 @@ export type PatientDetailExaminationTabProps = {
     onCancelDelete: () => void;
     onConfirmDelete: () => void | Promise<void>;
     onCloseComposer: () => void;
-    onApplyTooth: (tooth: number, statusKey: string, notes?: string | null) => Promise<void>;
     onSaveEdit: (payload: ExaminationSubmit) => Promise<void>;
     onCreateExamination: (payload: ExaminationSubmit) => Promise<void>;
 };
@@ -59,7 +59,6 @@ export function PatientDetailExaminationTab({
     onCancelDelete,
     onConfirmDelete,
     onCloseComposer,
-    onApplyTooth,
     onSaveEdit,
     onCreateExamination,
 }: PatientDetailExaminationTabProps) {
@@ -101,7 +100,6 @@ export function PatientDetailExaminationTab({
                                 <ExaminationComposer
                                     findings={findings}
                                     catalog={catalog}
-                                    onApplyTooth={onApplyTooth}
                                     onCancel={onCloseComposer}
                                     onSave={onCreateExamination}
                                 />
@@ -178,158 +176,9 @@ export function PatientDetailExaminationTab({
                                             </div>
                                         </div>
                                         {open ? (
-                                            detail ? (
-                                                <div
-                                                    className="examination-detail-sheet"
-                                                    style={{
-                                                        marginTop: "var(--space-4)",
-                                                        border: "1px solid var(--line)",
-                                                        borderRadius: 12,
-                                                        overflow: "hidden",
-                                                        background: "var(--surface)",
-                                                    }}
-                                                >
-                                                    <div
-                                                        style={{
-                                                            padding: "14px 16px",
-                                                            background: "var(--accent-soft)",
-                                                            borderBottom: "1px solid var(--line)",
-                                                        }}
-                                                    >
-                                                        <div
-                                                            style={{
-                                                                fontSize: 11,
-                                                                letterSpacing: "0.04em",
-                                                                color: "var(--fg-3)",
-                                                                textTransform: "uppercase",
-                                                            }}
-                                                        >
-                                                            {t("patient.detail.tab.examination.summary_title")}
-                                                        </div>
-                                                        <div style={{ fontWeight: 700, fontSize: 15, marginTop: "var(--space-2)" }}>
-                                                            {detail.diagnosis || u.diagnosis || emDash}
-                                                        </div>
-                                                        {detail.plan ? (
-                                                            <p style={{ margin: "10px 0 0", fontSize: 13, lineHeight: 1.45, whiteSpace: "pre-line" }}>
-                                                                <strong>{t("patient.detail.tab.examination.plan_prefix")}</strong> {detail.plan}
-                                                            </p>
-                                                        ) : null}
-                                                        {detail.generalNote?.trim() ? (
-                                                            <p style={{ margin: "10px 0 0", fontSize: 13, lineHeight: 1.45, whiteSpace: "pre-line" }}>
-                                                                <strong>{t("patient.detail.tab.examination.general_note_prefix")}</strong> {detail.generalNote}
-                                                            </p>
-                                                        ) : null}
-                                                    </div>
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-0" style={{ fontSize: 13 }}>
-                                                        <div
-                                                            style={{
-                                                                padding: "var(--space-4)",
-                                                                borderBottom: "1px solid var(--line)",
-                                                                borderRight: "1px solid var(--line)",
-                                                            }}
-                                                        >
-                                                            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: "var(--space-2)" }}>
-                                                                {t("patient.detail.tab.examination.chief_complaint")}
-                                                            </div>
-                                                            <p style={{ margin: 0, whiteSpace: "pre-line" }}>{detail.chiefComplaint || emDash}</p>
-                                                            {detail.painVas ? (
-                                                                <div style={{ marginTop: "var(--space-2)", color: "var(--fg-3)" }}>
-                                                                    {tp("patient.detail.tab.examination.vas_line", {
-                                                                        vas: detail.painVas,
-                                                                        location: detail.painLocation || emDash,
-                                                                    })}
-                                                                </div>
-                                                            ) : null}
-                                                        </div>
-                                                        <div style={{ padding: "var(--space-4)", borderBottom: "1px solid var(--line)" }}>
-                                                            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: "var(--space-2)" }}>
-                                                                {t("patient.detail.tab.examination.extraoral")}
-                                                            </div>
-                                                            <p style={{ margin: "4px 0" }}>{t("patient.detail.tab.examination.extraoral.tmj")} {detail.extraoral.tmj || emDash}</p>
-                                                            <p style={{ margin: "4px 0" }}>{t("patient.detail.tab.examination.extraoral.lymph")} {detail.extraoral.lymphNodes || emDash}</p>
-                                                            <p style={{ margin: "4px 0" }}>{t("patient.detail.tab.examination.extraoral.asymmetry")} {detail.extraoral.asymmetry || emDash}</p>
-                                                        </div>
-                                                        <div
-                                                            style={{
-                                                                padding: "var(--space-4)",
-                                                                borderBottom: "1px solid var(--line)",
-                                                                borderRight: "1px solid var(--line)",
-                                                            }}
-                                                        >
-                                                            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: "var(--space-2)" }}>
-                                                                {t("patient.detail.tab.examination.intraoral")}
-                                                            </div>
-                                                            <p style={{ margin: "4px 0" }}>{t("patient.detail.tab.examination.intraoral.mucosa")} {detail.intraoral.mucosa || emDash}</p>
-                                                            <p style={{ margin: "4px 0" }}>{t("patient.detail.tab.examination.intraoral.tongue")} {detail.intraoral.tongue || emDash}</p>
-                                                            <p style={{ margin: "4px 0" }}>{t("patient.detail.tab.examination.intraoral.gingiva")} {detail.intraoral.gingiva || emDash}</p>
-                                                        </div>
-                                                        <div style={{ padding: "var(--space-4)", borderBottom: "1px solid var(--line)" }}>
-                                                            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: "var(--space-2)" }}>
-                                                                {t("patient.detail.tab.examination.periodontal")}
-                                                            </div>
-                                                            <p style={{ margin: "4px 0" }}>
-                                                                {t("patient.detail.tab.examination.periodontal.psi")}{" "}
-                                                                {Object.values(detail.psi).filter(Boolean).join(" / ") || emDash}
-                                                            </p>
-                                                            <p style={{ margin: "4px 0" }}>
-                                                                {tp("patient.detail.tab.examination.periodontal.metrics", {
-                                                                    bop: detail.bopPercent || emDash,
-                                                                    pi: detail.plaqueIndex || emDash,
-                                                                    mh: detail.hygieneScore || emDash,
-                                                                })}
-                                                            </p>
-                                                        </div>
-                                                        <div style={{ padding: "var(--space-4)", borderRight: "1px solid var(--line)" }}>
-                                                            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: "var(--space-2)" }}>
-                                                                {t("patient.detail.tab.examination.function")}
-                                                            </div>
-                                                            <p style={{ margin: "4px 0" }}>{t("patient.detail.tab.examination.function.cmd")} {detail.function.cmd || emDash}</p>
-                                                            <p style={{ margin: "4px 0" }}>{t("patient.detail.tab.examination.function.bruxism")} {detail.function.bruxism || emDash}</p>
-                                                            <p style={{ margin: "4px 0", whiteSpace: "pre-line" }}>{detail.function.notes || ""}</p>
-                                                        </div>
-                                                        <div style={{ padding: "var(--space-4)", borderRight: "1px solid var(--line)" }}>
-                                                            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: "var(--space-2)" }}>
-                                                                {t("patient.detail.tab.examination.tooth_notes")}
-                                                            </div>
-                                                            {Object.entries(detail.toothNotes).filter(([, n]) => n.trim()).length > 0 ? (
-                                                                <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-                                                                    {Object.entries(detail.toothNotes)
-                                                                        .filter(([, n]) => n.trim())
-                                                                        .sort(([a], [b]) => Number(a) - Number(b))
-                                                                        .map(([tooth, note]) => (
-                                                                            <li key={tooth}>
-                                                                                <strong>{tp("examination.composer.tooth_label", { tooth })}</strong>
-                                                                                <span style={{ display: "block", marginTop: 2, whiteSpace: "pre-line" }}>{note}</span>
-                                                                            </li>
-                                                                        ))}
-                                                                </ul>
-                                                            ) : (
-                                                                <p style={{ margin: 0 }}>{emDash}</p>
-                                                            )}
-                                                        </div>
-                                                        <div style={{ padding: "var(--space-4)" }}>
-                                                            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)", marginBottom: "var(--space-2)" }}>
-                                                                {t("patient.detail.tab.examination.imaging")}
-                                                            </div>
-                                                            <p style={{ margin: "4px 0" }}>{t("patient.detail.tab.examination.imaging.ordered")} {detail.imaging.ordered || emDash}</p>
-                                                            <p style={{ margin: "4px 0", whiteSpace: "pre-line" }}>{detail.imaging.findings || emDash}</p>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <pre
-                                                    style={{
-                                                        whiteSpace: "pre-wrap",
-                                                        marginTop: "var(--space-3)",
-                                                        fontSize: 12,
-                                                        background: "var(--bg-2, rgba(0,0,0,0.04))",
-                                                        padding: "var(--space-3)",
-                                                        borderRadius: 8,
-                                                    }}
-                                                >
-                                                    {u.results || t("patient.detail.tab.examination.no_structured_data")}
-                                                </pre>
-                                            )
+                                            <div style={{ marginTop: "var(--space-4)" }}>
+                                                <ExaminationDetailPanel examination={u} />
+                                            </div>
                                         ) : null}
                                     </div>
                                 );
@@ -369,7 +218,6 @@ export function PatientDetailExaminationTab({
                                                         diagnosis: examinationEdit.diagnosis,
                                                     }}
                                                     findings={findings}
-                                                    onApplyTooth={onApplyTooth}
                                                     onCancel={onCloseEdit}
                                                     onSave={onSaveEdit}
                                                 />

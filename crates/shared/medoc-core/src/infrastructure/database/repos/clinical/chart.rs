@@ -899,7 +899,8 @@ pub async fn set_treatment_billing(
     }
     let n = sqlx::query(
         "UPDATE treatment SET fee_schedule = ?1, goz_nr = ?2, points = ?3, factor = ?4,
-                factor_reason = ?5, quantity = ?6, analog_of = ?7, agreement_ref = ?8
+                factor_reason = ?5, quantity = ?6, analog_of = ?7, agreement_ref = ?8,
+                updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
           WHERE id = ?9",
     )
     .bind(&schedule)
@@ -927,7 +928,19 @@ pub async fn set_treatment_billing(
     if n == 0 {
         return Err(AppError::NotFound("Treatment".into()));
     }
-    find_treatment_by_id(pool, &data.treatment_id)
+    let updated = find_treatment_by_id(pool, &data.treatment_id)
         .await?
-        .ok_or(AppError::NotFound("Treatment".into()))
+        .ok_or(AppError::NotFound("Treatment".into()))?;
+    // Billing fields are part of the synced treatment row: replicate the change.
+    let body = serde_json::to_string(&updated)
+        .unwrap_or_else(|_| format!("{{\"id\":\"{}\"}}", data.treatment_id));
+    crate::infrastructure::database::sync_outbox::record_or_noop(
+        pool,
+        "treatment",
+        &data.treatment_id,
+        "UPDATE",
+        &body,
+    )
+    .await?;
+    Ok(updated)
 }

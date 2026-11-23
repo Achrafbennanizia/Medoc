@@ -5,6 +5,7 @@ import type { Treatment } from "@/models/types";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { isReleasedForBilling } from "@/lib/billing-open-booking";
 import { treatmentLineLabel } from "@/lib/clinical-service-label";
+import { parseTeethTokens } from "@/lib/dental";
 import {
     TreatmentChartComposerPanel,
     type TreatmentChartComposerPanelProps,
@@ -144,7 +145,10 @@ export function PatientDetailTreatmentTab({
                                                             ? formatDate(b.treatment_date)
                                                             : formatDateTime(b.created_at)}
                                                     </td>
-                                                    <td>{b.teeth || emDash}</td>
+                                                    <td style={{ overflowWrap: "anywhere", minWidth: "5ch" }}>
+                                                        {/* "11,12,13" has no break points; spaced tokens wrap inside the column. */}
+                                                        {parseTeethTokens(b.teeth).join(", ") || emDash}
+                                                    </td>
                                                     <td>
                                                         {b.category
                                                             ? treatmentCatalogCategoryLabel(t, b.category)

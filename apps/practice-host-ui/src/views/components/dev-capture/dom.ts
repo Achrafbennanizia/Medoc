@@ -26,11 +26,13 @@ export function setNativeValue(el: HTMLInputElement | HTMLTextAreaElement, value
 }
 
 /** Clicks the button / menu item / sidebar link whose text matches exactly, else the first containing it. */
-export function clickMatchingButton(text: string): boolean {
+export function clickMatchingButton(text: string, index = 0): boolean {
     const want = text.trim().toLowerCase();
     const nodes = Array.from(document.querySelectorAll("button, [role='menuitem'], a.sb-item"));
     const label = (n: Element) => (n.textContent ?? "").trim().toLowerCase();
-    const hit = nodes.find((n) => label(n) === want) ?? nodes.find((n) => label(n).includes(want));
+    // `index` picks the n-th exact match when a page repeats a label (e.g. several "Edit" buttons).
+    const exact = nodes.filter((n) => label(n) === want);
+    const hit = exact[index] ?? (index === 0 ? nodes.find((n) => label(n).includes(want)) : undefined);
     if (hit instanceof HTMLElement) hit.click();
     return hit instanceof HTMLElement;
 }

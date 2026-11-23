@@ -28,6 +28,7 @@ import { DismissibleNotice } from "@/views/components/ui/dismissible-notice";
 import { Input, Select } from "@/views/components/ui/input";
 import { useToastStore } from "@/views/components/ui/toast-store";
 import { translateLocale, useT, useTParams } from "@/lib/i18n";
+import { practiceCountry } from "@/lib/document-header-layout";
 import { SettingsPracticeBillingSection } from "./settings-practice-billing";
 import { SettingsSwitch } from "@/views/components/settings-switch";
 
@@ -568,6 +569,33 @@ export function SettingsPracticeSection({
         <div className="settings-row" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: "var(--space-3)" }}>
             <div style={{ flex: "1 1 200px", minWidth: 0 }}>
                 <span className="settings-field-label">
+                    <b>{t("settings.practice.country")}</b>
+                </span>
+                <div className="settings-row-muted">{t("settings.practice.country_hint")}</div>
+            </div>
+            <Select
+                className="settings-timezone-select"
+                value={practice.country ?? ""}
+                disabled={!canEditPractice}
+                aria-label={t("settings.practice.country")}
+                options={["", "MA", "FR", "DE", "EU"].map((code) => ({ value: code, label: t(`settings.practice.country_${code || "auto"}`) }))}
+                onChange={(e: ChangeEvent<HTMLSelectElement>) => {
+                    const country = e.target.value || undefined;
+                    // Morocco bills in dirhams, the others in euros; the currency can still be changed below.
+                    const currency = country === "MA" ? "MAD" : country ? "EUR" : practice.currency;
+                    const next = { ...practice, country, currency: normalizePracticeCurrency(currency) };
+                    setPractice(next);
+                    void saveInvoicePracticeToStorage(next)
+                        .then(() => toast(t("settings.practice.toast.country_saved"), "success"))
+                        .catch((err) => {
+                            toast(tp("settings.practice.toast.sync_failed", { message: errorMessage(err) }), "warning");
+                        });
+                }}
+            />
+        </div>
+        <div className="settings-row" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: "var(--space-3)" }}>
+            <div style={{ flex: "1 1 200px", minWidth: 0 }}>
+                <span className="settings-field-label">
                     <b>{t("settings.practice.currency")}</b>
                 </span>
                 <div className="settings-row-muted">{t("settings.practice.currency_hint")}</div>
@@ -733,7 +761,8 @@ export function SettingsPracticeSection({
                 <div className="card-sub">{t("settings.practice.hours_follows")}</div>
             </div>
         </div>
-        {canEditPractice ? (
+        {/* KV number: German statutory insurance only. */}
+        {canEditPractice && practiceCountry(practice) === "DE" ? (
         <div className="settings-row" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: "var(--space-3)" }}>
             <div style={{ flex: "1 1 200px", minWidth: 0 }}>
                 <span className="settings-field-label">

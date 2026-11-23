@@ -7,6 +7,7 @@ import type { CaptureCommand } from "./types";
 
 const POLL_MS = 350;
 let started = false;
+const seen = new Set<string>();
 
 export function startDevCaptureLoop(): void {
     if (!import.meta.env.DEV || started || typeof window === "undefined") return;
@@ -33,6 +34,8 @@ async function pollOnce(bridge: string): Promise<void> {
             await fetch(`${bridge}/hello`, { method: "POST" }).catch(() => undefined);
             return;
         }
+        if (cmd.id && seen.has(cmd.id)) return;
+        if (cmd.id) seen.add(cmd.id);
         const result = await runCaptureCommand(cmd);
         await fetch(`${bridge}/ack`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: cmd.id, ...result }) });
     } catch {

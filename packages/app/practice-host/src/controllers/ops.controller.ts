@@ -25,7 +25,9 @@ export interface ImportReport {
 }
 
 export const createBackup = () => practiceSystem.invoke<BackupInfo>("create_backup");
-export const listBackups = () => practiceSystem.invoke<BackupInfo[]>("list_backups");
+/** `verifySignatures: false` skips the per-file HMAC (fast; `signature_ok` comes back `null` = not checked). */
+export const listBackups = (opts?: { verifySignatures?: boolean }) =>
+    practiceSystem.invoke<BackupInfo[]>("list_backups", { verifySignatures: opts?.verifySignatures ?? true });
 export const validateBackup = (path: string) =>
     practiceSystem.invoke<boolean>("validate_backup", { path });
 

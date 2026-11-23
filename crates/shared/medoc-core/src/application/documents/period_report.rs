@@ -547,7 +547,7 @@ pub async fn create(
     sqlx::query("BEGIN IMMEDIATE").execute(&mut *guard).await?;
     let result: Result<(IssuedDocument, Vec<u8>), AppError> = async {
         let conn: &mut SqliteConnection = &mut guard;
-        let number = repo::next_number(conn, DocKind::Report.prefix(), year_now()).await?;
+        let number = repo::next_number(conn, DocKind::Report.prefix_for(profile.jurisdiction()), year_now()).await?;
         input.document_number = Some(number.clone());
         let doc_id = crate::infrastructure::pdf::new_document_uid();
         let bytes = crate::infrastructure::pdf::with_document_uid(&doc_id, || render_report_pdf(&input))?;

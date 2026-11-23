@@ -6,10 +6,11 @@ import {
     syncInvoicePracticeToAppKv,
     type InvoicePractice,
 } from "@/lib/invoice-service-item";
+import { PRACTICE_COUNTRIES, practiceCountry } from "@/lib/document-header-layout";
 import { dismissPracticeSetupWizard } from "@/lib/practice-completeness";
 import { Dialog } from "./ui/dialog";
 import { Button } from "./ui/button";
-import { Input, Textarea } from "./ui/input";
+import { Input, Select, Textarea } from "./ui/input";
 
 type Props = {
     open: boolean;
@@ -21,6 +22,12 @@ export const PracticeSetupWizard: FC<Props> = ({ open, onClose }) => {
     const tp = useTParams();
     const [step, setStep] = useState(0);
     const [draft, setDraft] = useState<InvoicePractice>(() => getInvoicePracticeFromStorage());
+    // The country decides which ids the documents print, so later steps ask only for those.
+    const country = practiceCountry(draft);
+    const text = (key: keyof InvoicePractice) => (typeof draft[key] === "string" ? (draft[key] as string) : "");
+    const field = (key: keyof InvoicePractice, labelKey: string) => (
+        <Input key={key} label={t(labelKey)} value={text(key)} onChange={(e) => setDraft({ ...draft, [key]: e.target.value })} />
+    );
 
     const steps = useMemo(
         () => [
@@ -78,6 +85,16 @@ export const PracticeSetupWizard: FC<Props> = ({ open, onClose }) => {
             </p>
             {step === 0 ? (
                 <div className="grid gap-3">
+                    <Select
+                        label={t("settings.practice.country")}
+                        hint={t("practice.setup.country_hint")}
+                        value={draft.country ?? country}
+                        options={PRACTICE_COUNTRIES.map((code) => ({ value: code, label: t(`settings.practice.country_${code}`) }))}
+                        onChange={(e) => {
+                            const next = e.target.value;
+                            setDraft({ ...draft, country: next, currency: next === "MA" ? "MAD" : "EUR" });
+                        }}
+                    />
                     <Input label={t("practice.setup.practice_name")} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
                     <Textarea label={t("practice.setup.address")} rows={3} value={draft.addr} onChange={(e) => setDraft({ ...draft, addr: e.target.value })} />
                     <Input type="tel" label={t("practice.setup.phone")} value={draft.phone ?? ""} onChange={(e) => setDraft({ ...draft, phone: e.target.value })} />
@@ -96,8 +113,20 @@ export const PracticeSetupWizard: FC<Props> = ({ open, onClose }) => {
                         value={draft.professional_title ?? ""}
                         onChange={(e) => setDraft({ ...draft, professional_title: e.target.value })}
                     />
-                    <Input label={t("practice.setup.zanr")} value={draft.zanr ?? ""} onChange={(e) => setDraft({ ...draft, zanr: e.target.value })} />
-                    <Input label={t("practice.setup.bsnr")} value={draft.bsnr ?? ""} onChange={(e) => setDraft({ ...draft, bsnr: e.target.value })} />
+                    {country === "DE" ? [field("zanr", "practice.setup.zanr"), field("bsnr", "practice.setup.bsnr")] : null}
+                    {country === "FR"
+                        ? [field("fr_rpps", "settings.practice.billing_fr_rpps"), field("fr_siret", "settings.practice.billing_fr_siret")]
+                        : null}
+                    {country === "MA"
+                        ? [
+                              field("ma_inpe", "settings.practice.billing_ma_inpe"),
+                              field("ma_ice", "settings.practice.billing_ma_ice"),
+                              field("ma_if", "settings.practice.billing_ma_if"),
+                              field("ma_tp", "settings.practice.billing_ma_tp"),
+                              field("ma_rc", "settings.practice.billing_ma_rc"),
+                              field("ma_cnss", "settings.practice.billing_ma_cnss"),
+                          ]
+                        : null}
                 </div>
             ) : null}
             {step === 2 ? (
@@ -109,8 +138,8 @@ export const PracticeSetupWizard: FC<Props> = ({ open, onClose }) => {
             ) : null}
             {step === 3 ? (
                 <div className="grid gap-3">
-                    <Input label={t("practice.setup.tax_id")} value={draft.vat_id ?? ""} onChange={(e) => setDraft({ ...draft, vat_id: e.target.value })} />
-                    <Input label={t("practice.setup.tax_number")} value={draft.tax_number ?? ""} onChange={(e) => setDraft({ ...draft, tax_number: e.target.value })} />
+                    {/* In Morocco the tax ids (ICE, IF) were asked in the previous step. */}
+                    {country === "MA" ? null : [field("vat_id", "practice.setup.tax_id"), field("tax_number", "practice.setup.tax_number")]}
                     <Input
                         label={t("practice.setup.tax_exempt")}
                         value={draft.vat_exemption_notice ?? ""}
@@ -129,12 +158,22 @@ export const PracticeSetupWizard: FC<Props> = ({ open, onClose }) => {
                             name: (draft.clinician_name ?? "").trim() || t("common.dash"),
                         })}
                     </div>
-                    <div>
-                        {tp("practice.setup.summary_zanr_bsnr", {
-                            zanr: draft.zanr ?? t("common.dash"),
-                            bsnr: draft.bsnr ?? t("common.dash"),
-                        })}
-                    </div>
+                    <div>{t(`settings.practice.country_${country}`)}</div>
+                    {country === "DE" ? (
+                        <div>
+                            {tp("practice.setup.summary_zanr_bsnr", {
+                                zanr: draft.zanr ?? t("common.dash"),
+                                bsnr: draft.bsnr ?? t("common.dash"),
+                            })}
+                        </div>
+                    ) : null}
+                    {country === "MA" ? (
+                        <div>
+                            {[["ICE", draft.ma_ice], ["IF", draft.ma_if], ["INPE", draft.ma_inpe]]
+                                .map(([k, v]) => `${k} ${(v ?? "").trim() || t("common.dash")}`)
+                                .join(" · ")}
+                        </div>
+                    ) : null}
                     <div>{tp("practice.setup.summary_iban", { iban: draft.bank_iban ?? t("common.dash") })}</div>
                 </div>
             ) : null}

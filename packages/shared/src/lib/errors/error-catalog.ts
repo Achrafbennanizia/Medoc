@@ -116,6 +116,8 @@ export const ERROR_CATALOG: readonly ErrorCatalogEntry[] = [
     { code: "MD-INV-025", key: "error.invoice.tax_id_missing", domain: "invoice", kind: "validation", severity: "warning", retryable: false },
     { code: "MD-INV-026", key: "error.invoice.unprintable", domain: "invoice", kind: "validation", severity: "warning", retryable: false },
     { code: "MD-INV-027", key: "error.invoice.vat_notice_missing", domain: "invoice", kind: "validation", severity: "warning", retryable: false },
+    { code: "MD-INV-108", key: "error.invoice.ma_ice_missing", domain: "invoice", kind: "validation", severity: "warning", retryable: false },
+    { code: "MD-INV-109", key: "error.invoice.ma_if_missing", domain: "invoice", kind: "validation", severity: "warning", retryable: false },
     { code: "MD-LAN-001", key: "error.lan.command_unavailable", domain: "lan", kind: "connectivity", severity: "error", retryable: true },
     { code: "MD-LAN-002", key: "error.lan.config_incomplete", domain: "lan", kind: "connectivity", severity: "error", retryable: true },
     { code: "MD-LAN-003", key: "error.lan.config_missing_url", domain: "lan", kind: "connectivity", severity: "error", retryable: true },

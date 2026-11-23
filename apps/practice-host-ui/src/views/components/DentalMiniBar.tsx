@@ -6,21 +6,19 @@ import { formatDate, formatDateTime } from "@/lib/utils";
 import {
     DENTAL_LOWER_L,
     DENTAL_LOWER_R,
-    DENTAL_STATES,
-    DENTAL_TOOTH_SHAPES,
     DENTAL_UPPER_L,
     DENTAL_UPPER_R,
-    type DentalStatusKey,
     findingToStatusKey,
+    findingToStatusKeys,
     findingsForTooth,
     treatmentsForTooth,
     dentalStatusLabel,
-    dentalToothType,
     formatDentalToothLabel,
 } from "@/lib/dental";
+import { clinicalServiceLabel } from "@/lib/clinical-service-label";
 import { examinationToothNotesForTooth } from "@/lib/examination";
 import { useT, useTParams } from "@/lib/i18n";
-import { clinicalServiceLabel } from "@/lib/clinical-service-label";
+import { DentalMiniToothSvg } from "./dental-mini-tooth-svg";
 
 type PopState = {
     fdi: string;
@@ -100,7 +98,6 @@ export function DentalMiniBar({
     const popFindings = pop ? findingsForTooth(findings, pop.fdi) : [];
     const popTreatment = pop ? treatmentsForTooth(treatments, pop.fdi) : [];
     const popExaminations = pop ? examinationToothNotesForTooth(examinations, pop.fdi) : [];
-    const popStatus: DentalStatusKey = pop ? findingToStatusKey(map.get(Number(pop.fdi))) : "healthy";
     const popLayout = useMemo(() => {
         if (!pop) return { left: 0, top: 0, width: 280, maxHeight: 360, placement: "below" as const };
         const safety = 12; // outer margin to the viewport edges
@@ -125,10 +122,7 @@ export function DentalMiniBar({
     if (!visible) return null;
 
     const renderMini = (fdi: string) => {
-        const type = dentalToothType(fdi);
-        const shape = DENTAL_TOOTH_SHAPES[type];
         const stateKey = findingToStatusKey(map.get(Number(fdi)));
-        const st = DENTAL_STATES[stateKey];
         const label = formatDentalToothLabel(fdi, t);
         const hasHistory =
             findingsForTooth(findings, fdi).length > 0
@@ -144,12 +138,9 @@ export function DentalMiniBar({
                 <button
                     type="button"
                     className={`dental-mini-tooth ${hasHistory ? "has-history" : ""} ${pop?.fdi === fdi ? "is-active" : ""}`}
-                    aria-label={tp("dental.tooth_status_aria", { tooth: label, status: dentalStatusLabel(t, stateKey) })}
+                    aria-label={tp("dental.tooth_status_aria", { tooth: label, status: findingToStatusKeys(map.get(Number(fdi))).map((k) => dentalStatusLabel(t, k)).join(", ") })}
                 >
-                    <svg width="18" height="28" viewBox="0 0 20 34" aria-hidden>
-                        <path d={shape.crown} fill={st.fill} stroke={st.stroke} strokeWidth={1.1} />
-                        <path d={shape.root} fill={st.fill} stroke={st.stroke} strokeWidth={1.1} />
-                    </svg>
+                    <DentalMiniToothSvg fdi={fdi} stateKey={stateKey} marks={findingToStatusKeys(map.get(Number(fdi)))} />
                     <span className="dental-mini-label">{label}</span>
                 </button>
             </div>
@@ -171,7 +162,7 @@ export function DentalMiniBar({
             role="tooltip"
         >
             <div className="tooth-popover-title">{tp("dental.picker.one_tooth", { tooth: formatDentalToothLabel(pop.fdi, t) })}</div>
-            <div className="tooth-popover-meta">{dentalStatusLabel(t, popStatus)}</div>
+            <div className="tooth-popover-meta">{findingToStatusKeys(map.get(Number(pop.fdi))).map((k) => dentalStatusLabel(t, k)).join(" · ")}</div>
             <div className="tooth-popover-section">
                 <div className="tooth-popover-h">{t("dental.mini.findings_heading")}</div>
                 {popFindings.length === 0 ? (

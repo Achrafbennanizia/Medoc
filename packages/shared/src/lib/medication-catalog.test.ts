@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { defaultMedicationCatalog, medicationSuggestions, parseMedicationCatalog } from "./medication-catalog";
+import { defaultMedicationCatalog, medicationCatalogSnapshot, medicationSuggestions, parseMedicationCatalog } from "./medication-catalog";
 
 describe("medication catalogue", () => {
+    it("returns the same snapshot until the catalogue changes (useSyncExternalStore contract)", () => {
+        expect(medicationCatalogSnapshot()).toBe(medicationCatalogSnapshot());
+    });
+
     it("starts from the built-in list", () => {
         expect(defaultMedicationCatalog().length).toBeGreaterThan(0);
         expect(parseMedicationCatalog("")).toBeNull();

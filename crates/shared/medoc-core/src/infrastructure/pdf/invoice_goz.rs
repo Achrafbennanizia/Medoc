@@ -138,6 +138,19 @@ impl InvoiceLine {
     }
 }
 
+/// Legal identifiers a Moroccan invoice must carry (CGI art. 145-III). Present on an
+/// invoice ⇒ it is rendered in the Moroccan format ([`super::invoice_ma`]), also on reprints.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct MoroccoIds {
+    pub ice: Option<String>,
+    pub if_number: Option<String>,
+    pub tp: Option<String>,
+    pub rc: Option<String>,
+    pub cnss: Option<String>,
+    pub inpe: Option<String>,
+}
+
 /// Complete invoice (UStG § 14 Abs. 4 + GOZ § 10).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
@@ -200,6 +213,9 @@ pub struct Invoice {
     pub locale: String,
     #[serde(default, deserialize_with = "null_as_default")]
     pub rtl: bool,
+    /// Moroccan practice identifiers, filled by the server; `Some` selects the Moroccan format.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub morocco: Option<MoroccoIds>,
 }
 
 impl Invoice {
@@ -253,14 +269,18 @@ const X_AMOUNT_R: i32 = M_RIGHT;
 const ROW_FS: i32 = 8;
 const ROW_STEP: i32 = 10;
 
-fn emit_table_header(pb: &mut PageBuilder, locale: &str) {
+/// `factor`: the GOZ increase-factor column, shown only when a line has a factor
+/// (a French or EU invoice has no fee multiplier).
+fn emit_table_header(pb: &mut PageBuilder, locale: &str, factor: bool) {
     pb.table_header_band(M_LEFT, pb.y + 2, M_RIGHT - M_LEFT);
     pb.text(X_DATE + 2, 8, true, tr(locale, "invoice.date"));
     pb.text(X_REGION, 8, true, tr(locale, "invoice.tooth_region"));
     pb.text(X_NR, 8, true, tr(locale, "invoice.no"));
     pb.text(X_DESC, 8, true, tr(locale, "invoice.service_description"));
     pb.text_right(X_QTY_R, 8, true, tr(locale, "invoice.qty"));
-    pb.text_right(X_FACTOR_R, 8, true, tr(locale, "invoice.factor"));
+    if factor {
+        pb.text_right(X_FACTOR_R, 8, true, tr(locale, "invoice.factor"));
+    }
     pb.text_right(X_AMOUNT_R - 2, 8, true, tr(locale, "invoice.amount"));
     pb.advance(10);
     pb.hline(M_LEFT, M_RIGHT);
@@ -312,13 +332,13 @@ fn description_lines(line: &InvoiceLine, locale: &str) -> Vec<(String, bool)> {
     out
 }
 
-fn emit_line(pb: &mut PageBuilder, line: &InvoiceLine, locale: &str) {
+fn emit_line(pb: &mut PageBuilder, line: &InvoiceLine, locale: &str, factor: bool) {
     let desc = description_lines(line, locale);
     let height = desc.len() as i32 * ROW_STEP + 4;
     // Whole row must fit — otherwise new page with repeated header.
     if pb.y - height < M_BOTTOM + 6 {
         pb.break_page();
-        emit_table_header(pb, locale);
+        emit_table_header(pb, locale, factor);
     }
     let top = pb.y;
     let date = line
@@ -547,7 +567,8 @@ pub fn render_goz_invoice(inv: &Invoice) -> Result<Vec<u8>, AppError> {
     pb.advance(4);
 
     // ---- Table, grouped by schedule ---------------------------------------
-    emit_table_header(&mut pb, locale);
+    let factor_col = inv.lines.iter().any(|l| l.factor.is_some());
+    emit_table_header(&mut pb, locale, factor_col);
     for schedule in FeeSchedule::ORDER {
         let lines: Vec<&InvoiceLine> = inv
             .lines
@@ -562,7 +583,7 @@ pub fn render_goz_invoice(inv: &Invoice) -> Result<Vec<u8>, AppError> {
         pb.advance(11);
         let mut sum = 0;
         for l in lines {
-            emit_line(&mut pb, l, locale);
+            emit_line(&mut pb, l, locale, factor_col);
             sum += l.amount_cents;
         }
         emit_sum_row(
@@ -646,14 +667,16 @@ pub fn render_goz_invoice(inv: &Invoice) -> Result<Vec<u8>, AppError> {
             pb.wrapped(M_LEFT, 9, false, terms, width);
         }
         // § 286 Abs. 3 S. 1 Hs. 2 BGB: a consumer only falls into default
-        // 30 days after receipt if the invoice says so.
-        pb.wrapped(
-            M_LEFT,
-            9,
-            false,
-            tr(locale, "invoice.default_notice_bgb_286"),
-            width,
-        );
+        // 30 days after receipt if the invoice says so. German law: German practices only.
+        if super::i18n::legal_jurisdiction(locale) == "de" {
+            pb.wrapped(
+                M_LEFT,
+                9,
+                false,
+                tr(locale, "invoice.default_notice_bgb_286"),
+                width,
+            );
+        }
         // Payment details in the body, not only in the footer, so the
         // patient can transfer without searching the small print.
         if let Some(bank) = inv.bank_details.as_ref().filter(|b| !b.is_empty()) {
@@ -711,7 +734,7 @@ fn short_label(s: FeeSchedule, locale: &str) -> &'static str {
 }
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
     use super::super::goz::{unit_fee_cents, validate_invoice};
     use super::*;
 

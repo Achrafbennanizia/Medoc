@@ -3,5 +3,7 @@
    the component that uses them, not here. */
 @import "../views/pages/help.css";
 @import "../views/components/help/help-error-codes.css";
+@import "../views/components/help/help-tooth-chart.css";
 @import "../views/components/help/about/about-nav.css";
 @import "../views/components/help/about/about-primitives.css";
+@import "../views/components/compliance/compliance-overview.css";

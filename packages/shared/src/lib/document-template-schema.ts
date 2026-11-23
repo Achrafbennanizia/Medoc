@@ -19,7 +19,11 @@ export type PracticeFieldKey =
     | "kzv"
     | "payment_terms"
     | "vat_notice"
-    | "emergency_phone";
+    | "emergency_phone"
+    /** Moroccan practice ids: ICE, IF, TP, RC, CNSS, INPE (CGI art. 145). */
+    | "ma_ids"
+    /** French practice ids: RPPS, SIRET. */
+    | "fr_ids";
 
 export type TextAlignment = "left" | "center" | "right";
 
@@ -95,6 +99,8 @@ export const PRACTICE_FIELD_OPTIONS: { id: PracticeFieldKey }[] = [
     { id: "payment_terms" },
     { id: "vat_notice" },
     { id: "emergency_phone" },
+    { id: "ma_ids" },
+    { id: "fr_ids" },
 ];
 
 export function emptyDocumentTemplatePayloadV1(): DocumentTemplatePayloadV1 {

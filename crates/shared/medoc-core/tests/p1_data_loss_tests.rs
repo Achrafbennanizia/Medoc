@@ -175,7 +175,9 @@ async fn validate_open_accepts_only_the_practice_key() {
 }
 
 #[tokio::test]
-async fn failed_migration_leaves_existing_rows_and_foreign_keys_on() {
+/// Orphan rows from older builds must not lock a practice out of its database (v0.1.5):
+/// the upgrade logs them and carries on, loses no row, and leaves foreign keys on.
+async fn migration_with_orphan_rows_keeps_rows_and_foreign_keys_on() {
     let _guard = lock_keys();
     std::env::set_var("MEDOC_DEV_SEED", "1");
     let dir = scratch("fk");
@@ -205,18 +207,20 @@ async fn failed_migration_leaves_existing_rows_and_foreign_keys_on() {
         .unwrap();
     drop(conn);
 
-    let err = run_english_schema_upgrade(&pool)
+    run_english_schema_upgrade(&pool)
         .await
-        .expect_err("foreign_key_check must fail while the orphan row exists");
-    assert!(
-        err.to_string().contains("foreign_key_check"),
-        "unexpected error: {err}"
-    );
+        .expect("orphan rows are logged, not fatal");
+    let orphan: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM sick_leave_certificate WHERE id = 'orphan-leave'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(orphan, 1, "the upgrade must not silently delete the orphan row");
     let after: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM staff")
         .fetch_one(&pool)
         .await
         .unwrap();
-    assert_eq!(before, after, "a failed migration must keep the staff rows");
+    assert_eq!(before, after, "the upgrade must keep the staff rows");
     let fk: i64 = sqlx::query_scalar("PRAGMA foreign_keys")
         .fetch_one(&pool)
         .await

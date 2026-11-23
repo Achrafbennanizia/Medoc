@@ -1,8 +1,8 @@
 /**
  * About & support — live application status (data layer).
  *
- * One hook loads every source in parallel (`Promise.allSettled`): a source the role may not read, or that
- * fails, never blocks the others. Pure helpers below turn the raw data into a tone (ok / warn / problem /
+ * One hook loads every source in parallel and shows each result as it arrives: a slow, denied or failing
+ * source never blocks the others. Pure helpers below turn the raw data into a tone (ok / warn / problem /
  * unknown) and are unit-tested (about-status.test.ts).
  */
 import { useCallback, useEffect, useState } from "react";
@@ -58,28 +58,29 @@ export function useAboutStatus(): { status: AboutStatus; refresh: () => void; lo
     const refresh = useCallback(() => {
         let cancelled = false;
         setLoading(true);
-        void Promise.allSettled([
-            currentAppVersion(),
-            currentLicenseStatus(),
-            clusterGetStatus(),
-            syncGetStatus(),
-            systemHealthCheck(),
-            listBackups(),
-            getLogDir(),
-        ]).then(([version, license, cluster, sync, health, backups, logDir]) => {
-            if (cancelled) return;
-            setStatus({
-                version: settle(version),
-                license: settle(license),
-                cluster: settle(cluster),
-                sync: settle(sync),
-                health: settle(health),
-                backups: settle(backups),
-                logDir: settle(logDir),
-                loadedAt: Date.now(),
+        // Each source lands on its own: fast ones (version, licence, network) show at once while
+        // health (full audit chain) and backups are still running. About only needs backup
+        // metadata, so it skips the per-file signature check the Ops page does.
+        const sources: { [K in Exclude<keyof AboutStatus, "loadedAt">]: () => Promise<unknown> } = {
+            version: currentAppVersion,
+            license: currentLicenseStatus,
+            cluster: clusterGetStatus,
+            sync: syncGetStatus,
+            health: systemHealthCheck,
+            backups: () => listBackups({ verifySignatures: false }),
+            logDir: getLogDir,
+        };
+        const keys = Object.keys(sources) as (keyof typeof sources)[];
+        let open = keys.length;
+        setStatus((prev) => ({ ...prev, ...Object.fromEntries(keys.map((k) => [k, LOADING])) }));
+        for (const key of keys) {
+            void Promise.allSettled([sources[key]()]).then(([result]) => {
+                if (cancelled) return;
+                setStatus((prev) => ({ ...prev, [key]: settle(result), loadedAt: Date.now() }));
+                open -= 1;
+                if (open === 0) setLoading(false);
             });
-            setLoading(false);
-        });
+        }
         return () => {
             cancelled = true;
         };

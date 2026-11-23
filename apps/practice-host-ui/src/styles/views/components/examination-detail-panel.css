@@ -74,6 +74,55 @@
     white-space: pre-wrap;
     color: var(--fg-2);
   }
+  .examination-detail-sheet__summary {
+    padding: 14px 16px;
+    background: var(--accent-soft);
+    border-bottom: 1px solid var(--line);
+    font-size: 13px;
+  }
+  .examination-detail-sheet__summary p {
+    margin: 10px 0 0;
+    line-height: 1.45;
+    white-space: pre-line;
+  }
+  .examination-detail-sheet__diagnosis {
+    font-size: 15px;
+    font-weight: 700;
+  }
+  /* Two columns of sections; the inner border sits between them in either direction. */
+  .examination-detail-sheet__grid--full .examination-detail-sheet__cell:nth-child(odd) {
+    border-inline-end: 1px solid var(--line);
+  }
+  @media (max-width: 767px) {
+    .examination-detail-sheet__grid--full .examination-detail-sheet__cell:nth-child(odd) {
+      border-inline-end: none;
+    }
+  }
+  .examination-detail-sheet__rows {
+    margin: 0;
+    display: grid;
+    gap: 6px;
+    font-size: 13px;
+  }
+  .examination-detail-sheet__rows > div {
+    display: grid;
+    grid-template-columns: minmax(7rem, 40%) 1fr;
+    gap: 10px;
+  }
+  .examination-detail-sheet__rows dt {
+    color: var(--fg-3);
+  }
+  .examination-detail-sheet__rows dd {
+    margin: 0;
+    white-space: pre-line;
+  }
+  .examination-detail-sheet__cell--teeth {
+    border-bottom: none;
+    font-size: 13px;
+  }
+  .examination-detail-sheet__pill {
+    margin-inline-start: 8px;
+  }
   .examination-detail-sheet__grid--clinical .examination-detail-sheet__cell--field:first-child {
     border-inline-end: 1px solid var(--line);
   }

@@ -92,9 +92,15 @@ export async function saveMedicationCatalog(list: MedicationPreset[]): Promise<M
 
 export const subscribeMedicationCatalog = listeners.subscribe;
 
-/** Current catalogue without waiting (built-in list until the stored one is loaded). */
+let builtIn: MedicationPreset[] | null = null;
+
+/**
+ * Current catalogue without waiting (built-in list until the stored one is loaded).
+ * Must return the same array until the catalogue changes: it is a useSyncExternalStore
+ * snapshot, and a fresh array per call re-renders forever ("Maximum update depth exceeded").
+ */
 export function medicationCatalogSnapshot(): MedicationPreset[] {
-    return cache ?? defaultMedicationCatalog();
+    return cache ?? (builtIn ??= defaultMedicationCatalog());
 }
 
 /** Active presets in the shape the prescription screens use for suggestions. */

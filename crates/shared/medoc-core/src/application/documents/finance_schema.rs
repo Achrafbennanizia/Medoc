@@ -286,16 +286,24 @@ async fn extend_day_close_protocol(pool: &SqlitePool) -> Result<(), AppError> {
             .await?;
         }
     }
+    // On an old database this can run before the sync migration adds `updated_at`.
+    let stamp = if column_exists(pool, "day_close_protocol", "updated_at").await? {
+        ", updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')"
+    } else {
+        ""
+    };
     let mut tx = pool.begin().await?;
     // Old data may hold several runs for one date; keep the newest as FINAL.
-    sqlx::query(
-        "UPDATE day_close_protocol SET status = 'CORRECTED'
+    // sync: recorded by caller is not needed — this schema migration runs on every device
+    // against its own copy, so each device reaches the same state without replicating it.
+    sqlx::query(&format!(
+        "UPDATE day_close_protocol SET status = 'CORRECTED'{stamp}
           WHERE status = 'FINAL' AND id NOT IN (
                 SELECT id FROM (
                   SELECT id, ROW_NUMBER() OVER (PARTITION BY as_of_date ORDER BY recorded_at DESC, id DESC) AS rn
                     FROM day_close_protocol WHERE status = 'FINAL')
-                 WHERE rn = 1)",
-    )
+                 WHERE rn = 1)"
+    ))
     .execute(&mut *tx)
     .await?;
     for ddl in [

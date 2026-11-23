@@ -222,11 +222,17 @@ async fn practice_kv_pairs_from_app_kv(pool: &SqlitePool, locale: &str) -> Vec<(
     if let Some(version) = get("clinician_name") {
         kv.push((l(locale, "Clinician"), version));
     }
-    if let Some(version) = get("bsnr") {
-        kv.push(("BSNR".into(), version));
-    }
-    if let Some(version) = get("zanr") {
-        kv.push(("ZANR".into(), version));
+    let german = crate::application::documents::practice_profile::uses_german_ids(
+        get("country").as_deref(),
+        get("currency").as_deref(),
+    );
+    if german {
+        if let Some(version) = get("bsnr") {
+            kv.push(("BSNR".into(), version));
+        }
+        if let Some(version) = get("zanr") {
+            kv.push(("ZANR".into(), version));
+        }
     }
     if let Some(version) = get("emergency_phone").or_else(|| get("notfall_phone")) {
         kv.push((l(locale, "Emergency"), version));
@@ -937,10 +943,12 @@ pub async fn export_chart_pdf(
                         crate::infrastructure::pdf::i18n::Phrase::DocumentNo
                     )
                 ),
-                l(
+                // Legal basis follows the practice's jurisdiction (§ 630f BGB only in Germany).
+                crate::infrastructure::pdf::i18n::t(
                     locale,
-                    "This document contains confidential patient data (§ 630f BGB).",
-                ),
+                    crate::infrastructure::pdf::i18n::Phrase::ChartPrivacy,
+                )
+                .to_string(),
                 l(
                     locale,
                     "Disclosure only with the patient's explicit consent.",
@@ -1229,7 +1237,11 @@ pub async fn export_discharge_leaflet_pdf(
                     .and_then(|version| version.as_str())
                     .unwrap_or("")
                     .trim();
-                if !zanr.is_empty() || !bsnr.is_empty() {
+                let german = crate::application::documents::practice_profile::uses_german_ids(
+                    j.get("country").and_then(|v| v.as_str()),
+                    j.get("currency").and_then(|v| v.as_str()),
+                );
+                if german && (!zanr.is_empty() || !bsnr.is_empty()) {
                     sig.push(format!("ZANR: {zanr} · BSNR: {bsnr}"));
                 }
                 sig.push(stamp_label(locale).into());

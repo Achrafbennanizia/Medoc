@@ -250,7 +250,9 @@ pub fn layout(text: &str, size: f64, bold: bool, rtl_context: bool) -> LineLayou
     }
 
     let has_rtl = prepared.chars().any(is_rtl_char);
-    let base_level = if rtl_context {
+    // A line with no right-to-left letter (an address, a phone number) reads left to right even
+    // on an Arabic page; otherwise "112, boulevard Zerktouni" would print as "boulevard Zerktouni ,112".
+    let base_level = if rtl_context && has_rtl {
         Some(Level::rtl())
     } else if has_rtl {
         None // first strong character decides

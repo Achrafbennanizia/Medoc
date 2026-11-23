@@ -58,6 +58,19 @@ export type InvoicePractice = {
     /** e.g. VAT-exempt under § 4 No. 14 UStG (DE legal text may stay in value) */
     vat_exemption_notice?: string;
     emergency_phone?: string;
+    /** Country whose law documents cite: "MA" | "DE" | "FR" | "EU"; empty = from currency/language. */
+    country?: string;
+    /** Morocco (CGI art. 145): ICE, IF, TP, RC, CNSS, INPE — printed when currency is MAD. */
+    ma_ice?: string;
+    ma_if?: string;
+    ma_tp?: string;
+    ma_rc?: string;
+    ma_cnss?: string;
+    ma_inpe?: string;
+    /** France: RPPS number of the dentist (11 digits), printed on prescriptions. */
+    fr_rpps?: string;
+    /** France: SIRET of the practice (14 digits). */
+    fr_siret?: string;
 };
 
 function defaultVatNotice(): string {
@@ -96,6 +109,15 @@ const INVOICE_PRACTICE_OPTIONAL_STRING_KEYS = [
     "kzv",
     "vat_exemption_notice",
     "emergency_phone",
+    "country",
+    "ma_ice",
+    "ma_if",
+    "ma_tp",
+    "ma_rc",
+    "ma_cnss",
+    "ma_inpe",
+    "fr_rpps",
+    "fr_siret",
 ] as const;
 
 type InvoicePracticeJson = Record<string, unknown>;

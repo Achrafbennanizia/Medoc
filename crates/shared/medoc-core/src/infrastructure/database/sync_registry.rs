@@ -31,6 +31,11 @@ pub const TABLES: &[(&str, SyncClass)] = &[
     ("device_blocklist", SyncClass::DeviceLocal),
     ("sync_blob", SyncClass::DeviceLocal),
     ("number_sequence", SyncClass::DeviceLocal),
+    // Gap-free document numbers are allocated on the master only (ensure_numbering_authority);
+    // issued documents carry their number when they replicate.
+    ("document_sequence", SyncClass::DeviceLocal),
+    // Outgoing sync packets waiting for a peer: transport state of this device.
+    ("sync_packet_queue", SyncClass::DeviceLocal),
     ("provisioning_state", SyncClass::DeviceLocal),
     ("license", SyncClass::DeviceLocal),
     ("audit_log", SyncClass::DeviceLocal),

@@ -6,6 +6,8 @@ import {
     clearHeaderCell,
     defaultHeaderTable,
     firstEmptyHeaderCell,
+    headerFieldAllowed,
+    practiceCountry,
     headerTableJson,
     headerTableRowCount,
     isHeaderField,
@@ -36,7 +38,7 @@ function headerKind(id: PracticeFieldKey): HeaderKind {
     if (id === "phone" || id === "fax" || id === "email" || id === "web" || id === "emergency_phone") {
         return "contact";
     }
-    if (id === "bsnr" || id === "zanr" || id === "kv" || id === "tax" || id === "bank") return "identity";
+    if (id === "bsnr" || id === "zanr" || id === "kv" || id === "tax" || id === "bank" || id === "ma_ids" || id === "fr_ids") return "identity";
     return "other";
 }
 
@@ -88,6 +90,28 @@ function fieldPreview(id: PracticeFieldKey, practice: Record<string, unknown> | 
             return text("chamber") || label;
         case "kzv":
             return text("kzv") || label;
+        case "ma_ids": {
+            const ids = [
+                ["ICE", "ma_ice"],
+                ["IF", "ma_if"],
+                ["TP", "ma_tp"],
+                ["RC", "ma_rc"],
+                ["CNSS", "ma_cnss"],
+                ["INPE", "ma_inpe"],
+            ]
+                .filter(([, key]) => text(key!))
+                .map(([name, key]) => `${name} ${text(key!)}`);
+            return ids.length ? ids.join("\n") : label;
+        }
+        case "fr_ids": {
+            const ids = [
+                ["RPPS", "fr_rpps"],
+                ["SIRET", "fr_siret"],
+            ]
+                .filter(([, key]) => text(key!))
+                .map(([name, key]) => `${name} ${text(key!)}`);
+            return ids.length ? ids.join("\n") : label;
+        }
         default:
             return label;
     }
@@ -130,25 +154,36 @@ export function PdfHeaderDesigner() {
     const positions = useRef(new Map<string, DOMRect>());
     const gridRef = useRef<HTMLDivElement>(null);
     tableRef.current = table;
+    const country = practiceCountry(practice);
+    const practiceFields = PRACTICE_HEADER_FIELDS.filter((id) => headerFieldAllowed(id, country));
+    const doctorFields = DOCTOR_HEADER_FIELDS.filter((id) => headerFieldAllowed(id, country));
 
     useEffect(() => {
         let cancel = false;
-        void getAppKv(DOCUMENT_HEADER_LAYOUT_KV_KEY)
-            .then((raw) => {
-                if (cancel) return;
-                const saved = parseHeaderTable(raw);
-                setTable(saved && tableHasField(saved) ? saved : defaultHeaderTable());
-            })
-            .catch(() => {
-                if (!cancel) setTable(defaultHeaderTable());
-            });
-        void getAppKv("invoice.practice.v1")
-            .then((raw) => {
-                if (cancel || !raw) return;
-                const parsed: unknown = JSON.parse(raw);
-                if (parsed && typeof parsed === "object") setPractice(parsed as Record<string, unknown>);
-            })
-            .catch(() => undefined);
+        void (async () => {
+            let loaded: Record<string, unknown> | null = null;
+            try {
+                const raw = await getAppKv("invoice.practice.v1");
+                const parsed: unknown = raw ? JSON.parse(raw) : null;
+                if (parsed && typeof parsed === "object") loaded = parsed as Record<string, unknown>;
+            } catch {
+                /* no practice yet: German default, as before */
+            }
+            if (cancel) return;
+            setPractice(loaded);
+            const c = practiceCountry(loaded);
+            let saved: HeaderTable | null = null;
+            try {
+                saved = parseHeaderTable(await getAppKv(DOCUMENT_HEADER_LAYOUT_KV_KEY));
+            } catch {
+                saved = null;
+            }
+            if (cancel) return;
+            // A saved table may still hold another country's ids (e.g. BSNR after switching to Morocco):
+            // the PDF skips them, so the designer does too.
+            const shown = saved?.map((row) => row.map((cell) => (cell && headerFieldAllowed(cell, c) ? cell : null)));
+            setTable(shown && tableHasField(shown) ? shown : defaultHeaderTable(c));
+        })();
         void getAppKv("practice.logo.v1")
             .then((raw) => {
                 if (cancel || !raw) return;
@@ -203,7 +238,7 @@ export function PdfHeaderDesigner() {
 
     async function reset() {
         const previous = table;
-        setTable(defaultHeaderTable());
+        setTable(defaultHeaderTable(country));
         try {
             await deleteAppKv(DOCUMENT_HEADER_LAYOUT_KV_KEY);
         } catch (error) {
@@ -325,7 +360,7 @@ export function PdfHeaderDesigner() {
                 <div className="pdf-header-designer__col" aria-label={t("settings.system.header_designer_fields")}>
                     <div className="pdf-header-designer__label">{t("settings.system.header_designer_fields")}</div>
                     <div className="pdf-header-designer__group">{t("settings.system.header_designer_practice")}</div>
-                    {PRACTICE_HEADER_FIELDS.map((id) => (
+                    {practiceFields.map((id) => (
                         <button
                             key={id}
                             type="button"
@@ -343,7 +378,7 @@ export function PdfHeaderDesigner() {
                         </button>
                     ))}
                     <div className="pdf-header-designer__group">{t("settings.system.header_designer_doctor")}</div>
-                    {DOCTOR_HEADER_FIELDS.map((id) => (
+                    {doctorFields.map((id) => (
                         <button
                             key={id}
                             type="button"

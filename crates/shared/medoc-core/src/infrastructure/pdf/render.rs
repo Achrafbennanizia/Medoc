@@ -27,9 +27,9 @@ pub use super::invoice_goz::{
     fmt_amount, render_goz_invoice, FeeSchedule, Invoice, InvoiceKind, InvoiceLine,
 };
 
-/// Render an invoice. Kept as `render` for existing call sites.
+/// Render an invoice in its practice's format (Moroccan or GOZ). Kept as `render` for existing call sites.
 pub fn render(invoice: &Invoice) -> Result<Vec<u8>, AppError> {
-    render_goz_invoice(invoice)
+    super::invoice_ma::render_invoice(invoice)
 }
 
 // ===========================================================================

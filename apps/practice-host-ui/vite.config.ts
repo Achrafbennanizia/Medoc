@@ -26,6 +26,7 @@ function applyCaptureCors(req: IncomingMessage, res: ServerResponse) {
 /** In-memory command queue so screenshot scripts can drive the Tauri webview (same-origin). */
 function medocCaptureBridge(): Plugin {
     let pending: Record<string, unknown> | null = null;
+    let pendingUntil = 0;
     const acks = new Map<string, Record<string, unknown>>();
     let lastHello = 0;
 
@@ -75,13 +76,15 @@ function medocCaptureBridge(): Plugin {
                 if (url === "/__medoc_capture/enqueue" && req.method === "POST") {
                     const body = await readJson(req);
                     pending = body;
+                    // Every open MeDoc window polls this queue. Hold the command long enough
+                    // that each window runs it once (loop.ts drops a repeated id).
+                    pendingUntil = Date.now() + 900;
                     json(res, 200, { ok: true });
                     return;
                 }
                 if (url === "/__medoc_capture/cmd" && req.method === "GET") {
-                    const body = pending;
-                    pending = null;
-                    json(res, 200, body ?? {});
+                    if (pending && Date.now() > pendingUntil) pending = null;
+                    json(res, 200, pending ?? {});
                     return;
                 }
                 if (url === "/__medoc_capture/ack" && req.method === "POST") {

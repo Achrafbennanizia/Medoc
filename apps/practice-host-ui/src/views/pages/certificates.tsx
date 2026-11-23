@@ -18,6 +18,8 @@ import {
 } from "@/systems/practice-host/controllers/certificate.controller";
 import type { Patient } from "../../models/types";
 import { errorMessage, formatDate } from "@/lib/utils";
+import { practiceCountry } from "@/lib/document-header-layout";
+import { getInvoicePracticeFromStorage } from "@/lib/invoice-service-item";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { HtmlDocumentExportPickerDialog } from "../components/export-picker-dialog";
 import { bundleCertificateExport, suggestCertificateExportBasename, type ClinicalDocumentExportBundle } from "@/lib/document-print-html";
@@ -232,6 +234,11 @@ export function CertificatesPage() {
                     value={form.kind}
                     onChange={(e) => setForm({ ...form, kind: e.target.value })}
                     options={certificateTypeOptions}
+                    hint={
+                        form.kind === "SICK_LEAVE" && practiceCountry(getInvoicePracticeFromStorage()) === "FR"
+                            ? t("certificate.fr_sick_leave_hint")
+                            : undefined
+                    }
                 />
                 <div className="grid grid-cols-2 gap-3">
                     <Input id="att-vo" type="date" label={`${t("common.valid_from")} *`} value={form.valid_from} onChange={(e) => setForm({ ...form, valid_from: e.target.value })} />

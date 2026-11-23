@@ -67,6 +67,8 @@ pub fn permission_for_app_kv_key(key: &str) -> Option<&'static str> {
         | "network.hidden.v1"
         | crate::infrastructure::database::sync_registry::APP_KV_DEPLOYMENT_KEY
         | "company.portal.config.v1" => Some("ops.system"),
+        // Compliance page: the practice's data-protection checklist (who did what, CNDP ref).
+        COMPLIANCE_CHECKLIST_KEY => Some("ops.dsgvo"),
         key if key.starts_with("onboarding.progress.v1.") => Some("dashboard.read"),
         _ => None,
     }
@@ -93,7 +95,14 @@ pub const MEDICATION_CATALOG_KEY: &str = "practice.medication-catalog.v1";
 const MEDICATION_CATALOG_MAX: usize = 1000;
 
 /// F110: reject malformed `practice.work_hours.v1` JSON.
+pub const COMPLIANCE_CHECKLIST_KEY: &str = "compliance.checklist.v1";
+
 pub fn validate_app_kv_value(key: &str, value: &str) -> Result<(), crate::error::AppError> {
+    if key == COMPLIANCE_CHECKLIST_KEY
+        && (value.len() > 16_384 || !serde_json::from_str::<serde_json::Value>(value).is_ok_and(|v| v.is_object()))
+    {
+        return Err(crate::error::AppError::Validation("The compliance checklist is invalid".into()));
+    }
     if key == MEDICATION_CATALOG_KEY {
         let list: Vec<serde_json::Value> = serde_json::from_str(value).map_err(|_| {
             crate::error::AppError::Validation("The medication list is invalid".into())

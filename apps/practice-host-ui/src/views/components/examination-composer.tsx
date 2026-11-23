@@ -1,22 +1,26 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { Input, Textarea } from "./ui/input";
+import { Input, Select, Textarea } from "./ui/input";
 import { useT, useTParams } from "@/lib/i18n";
 import { resolveDefaultExaminationCatalogItem } from "@/lib/patient-detail-utils";
 import {
     treatmentCatalogCategoryLabel,
     EXAMINATION_CATALOG_CATEGORY,
 } from "@/lib/treatment-catalog-categories";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/lib/utils";
 import { Button } from "./ui/button";
 import { DentalChart } from "./DentalChart";
 import type { TreatmentCatalogItem, DentalFinding } from "@/models/types";
 import {
     DENTAL_STATUS_KEYS,
     dentalStatusLabel,
+    findingToStatusKeys,
+    findingsForTooth,
+    formatDentalToothLabel,
+    statusKeysToFinding,
     type DentalStatusKey,
 } from "@/lib/dental";
-import { parseExaminationV1, EXAMINATION_V1_EMPTY, type ExaminationV1 } from "@/lib/examination";
+import { hasExamContent, parseExaminationV1, EXAMINATION_V1_EMPTY, type ExaminationV1 } from "@/lib/examination";
 
 export interface ExaminationSubmit {
     chiefComplaint: string;
@@ -50,12 +54,6 @@ function initialDataFromRecord(row: ExaminationComposerInitial): ExaminationV1 {
     };
 }
 
-function hasExamContent(data: ExaminationV1): boolean {
-    if (data.generalNote.trim() || data.diagnosis.trim()) return true;
-    if (Object.values(data.toothNotes).some((n) => n.trim())) return true;
-    return Object.values(data.toothStatuses).some((n) => n.trim());
-}
-
 function catalogDefaultCost(item: TreatmentCatalogItem | null): string {
     if (item?.default_cost != null && Number.isFinite(item.default_cost)) {
         return String(item.default_cost);
@@ -67,7 +65,6 @@ interface Props {
     findings: DentalFinding[];
     /** Treatment catalog (`treatment_catalog`) — predefined examination price on create. */
     catalog?: TreatmentCatalogItem[];
-    onApplyTooth: (tooth: number, statusKey: string, notes?: string | null) => Promise<void>;
     onCancel: () => void;
     onSave: (data: ExaminationSubmit) => Promise<void>;
     initialFromRecord?: ExaminationComposerInitial;
@@ -78,7 +75,6 @@ interface Props {
 export function ExaminationComposer({
     findings,
     catalog = [],
-    onApplyTooth,
     onCancel,
     onSave,
     initialFromRecord,
@@ -92,8 +88,6 @@ export function ExaminationComposer({
         initialFromRecord ? initialDataFromRecord(initialFromRecord) : EXAMINATION_V1_EMPTY,
     );
     const [selectedTooth, setSelectedTooth] = useState<string | null>(null);
-    const [statusBrush, setStatusBrush] = useState<DentalStatusKey>("healthy");
-    const [statusBusy, setStatusBusy] = useState(false);
     const [busy, setBusy] = useState(false);
     const [totalCost, setTotalCost] = useState("");
 
@@ -128,23 +122,45 @@ export function ExaminationComposer({
         });
     };
 
-    const applyStatusToSelected = async () => {
-        if (!selectedTooth || locked || statusBusy) return;
-        setStatusBusy(true);
-        try {
-            setData((prev) => ({
-                ...prev,
-                toothStatuses: { ...prev.toothStatuses, [selectedTooth]: statusBrush },
-            }));
-            await onApplyTooth(
-                Number(selectedTooth),
-                statusBrush,
-                data.toothNotes[selectedTooth] ?? null,
-            );
-        } finally {
-            setStatusBusy(false);
-        }
+    /** Statuses for a tooth: this exam's draft first, else what the chart already holds. */
+    const statusKeysFor = (tooth: string): DentalStatusKey[] => {
+        const draft = data.toothStatuses[tooth];
+        if (draft) return findingToStatusKeys(draft);
+        const saved = findingsForTooth(findings, tooth).slice(-1)[0];
+        return findingToStatusKeys(saved?.finding);
     };
+
+    /** A tooth can carry several statuses (e.g. crown + caries). "Healthy" clears the others. */
+    const toggleStatus = (tooth: string, key: DentalStatusKey) => {
+        const cur = statusKeysFor(tooth).filter((k) => k !== "healthy");
+        const next: DentalStatusKey[] =
+            key === "healthy" ? [] : cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key];
+        setData((prev) => ({
+            ...prev,
+            toothStatuses: { ...prev.toothStatuses, [tooth]: statusKeysToFinding(next) },
+        }));
+    };
+
+    /** Saved findings with this exam's draft statuses on top, so the chart updates while typing. */
+    const chartFindings = useMemo(() => {
+        const draftTeeth = Object.keys(data.toothStatuses);
+        if (!draftTeeth.length) return findings;
+        const rest = findings.filter((f) => !draftTeeth.includes(String(f.tooth_number)));
+        const drafts: DentalFinding[] = draftTeeth.map((tooth) => {
+            const saved = findingsForTooth(findings, tooth).slice(-1)[0];
+            return {
+                id: saved?.id ?? `draft-${tooth}`,
+                chart_id: saved?.chart_id ?? "",
+                tooth_number: Number(tooth),
+                finding: data.toothStatuses[tooth],
+                diagnosis: saved?.diagnosis ?? null,
+                notes: saved?.notes ?? null,
+                created_at: saved?.created_at ?? "",
+                updated_at: saved?.updated_at ?? "",
+            };
+        });
+        return [...rest, ...drafts];
+    }, [findings, data.toothStatuses]);
 
     const submit = async () => {
         if (busy || locked || !hasExamContent(data)) return;
@@ -190,6 +206,27 @@ export function ExaminationComposer({
         }
     };
 
+    const selectedFinding = selectedTooth
+        ? findingsForTooth(findings, selectedTooth)
+              .slice()
+              .sort((a, b) => (b.updated_at ?? "").localeCompare(a.updated_at ?? ""))[0]
+        : undefined;
+    const selectedKeys = selectedTooth ? statusKeysFor(selectedTooth) : [];
+
+    const nested = <S extends "extraoral" | "intraoral" | "function" | "imaging">(section: S, field: keyof ExaminationV1[S], value: string) =>
+        setData((prev) => ({ ...prev, [section]: { ...prev[section], [field]: value } }));
+    const advancedFilled =
+        !!(data.chiefComplaint || data.painVas || data.painLocation || data.bopPercent || data.plaqueIndex || data.hygieneScore || data.plan) ||
+        [data.extraoral, data.intraoral, data.psi, data.function, data.imaging].some((o) => Object.values(o).some((v) => v.trim()));
+    const psiOptions = [
+        { value: "", label: t("examination.composer.psi_empty") },
+        ...["0", "1", "2", "3", "4"].map((v) => ({ value: v, label: t(`examination.composer.psi_${v}`) })),
+        { value: "*", label: t("examination.composer.psi_star") },
+    ];
+    const field = (id: string, label: string, value: string, onChange: (v: string) => void, placeholder?: string) => (
+        <Input id={id} label={label} value={value} placeholder={placeholder} disabled={locked} onChange={(e) => onChange(e.target.value)} />
+    );
+
     return (
         <div className="col examination-composer" style={{ gap: "var(--space-4)" }}>
             <Textarea
@@ -207,44 +244,29 @@ export function ExaminationComposer({
                 <p style={{ margin: 0, fontSize: 12.5, color: "var(--fg-3)" }}>{t("examination.composer.dental_hint")}</p>
                 <DentalChart
                     mode="picker"
-                    findings={findings}
+                    findings={chartFindings}
                     selectedTooth={selectedTooth}
                     onToothSelect={setSelectedTooth}
                     pickerHint={t("examination.composer.dental_pick_hint")}
                     disabled={locked}
+                    detail={false}
                 />
 
                 {selectedTooth ? (
-                    <div
-                        className="card card-pad col"
-                        style={{ gap: "var(--space-3)", background: "rgba(0,0,0,0.02)", border: "1px solid var(--line)" }}
-                    >
-                        <div style={{ fontWeight: 600, fontSize: 13.5 }}>
-                            {tp("examination.composer.tooth_panel_title", { tooth: selectedTooth })}
-                        </div>
+                    <ExamToothCard tooth={selectedTooth} statusKeys={selectedKeys} updatedAt={selectedFinding?.updated_at}>
                         <div className="row" style={{ gap: "var(--space-2)", flexWrap: "wrap", alignItems: "center" }}>
                             {DENTAL_STATUS_KEYS.map((k) => (
                                 <button
                                     key={k}
                                     type="button"
-                                    className={`pill ${statusBrush === k ? "accent" : "grey"}`}
-                                    aria-pressed={statusBrush === k}
+                                    className={`pill ${selectedKeys.includes(k) ? "accent" : "grey"}`}
+                                    aria-pressed={selectedKeys.includes(k)}
                                     disabled={locked}
-                                    onClick={() => !locked && setStatusBrush(k)}
+                                    onClick={() => !locked && toggleStatus(selectedTooth, k)}
                                 >
                                     {dentalStatusLabel(t, k)}
                                 </button>
                             ))}
-                            <Button
-                                type="button"
-                                size="sm"
-                                variant="secondary"
-                                disabled={locked || statusBusy}
-                                loading={statusBusy}
-                                onClick={() => void applyStatusToSelected()}
-                            >
-                                {t("examination.composer.apply_status")}
-                            </Button>
                         </div>
                         <Textarea
                             id={`u-tooth-note-${selectedTooth}`}
@@ -255,7 +277,7 @@ export function ExaminationComposer({
                             placeholder={t("examination.composer.tooth_note_ph")}
                             disabled={locked}
                         />
-                    </div>
+                    </ExamToothCard>
                 ) : null}
 
                 {documentedTeeth.length > 0 ? (
@@ -294,6 +316,80 @@ export function ExaminationComposer({
                 placeholder={t("examination.composer.diagnosis_ph")}
                 disabled={locked}
             />
+            <Textarea
+                id="u-plan"
+                label={t("examination.composer.plan")}
+                value={data.plan}
+                onChange={(e) => upd("plan", e.target.value)}
+                rows={2}
+                placeholder={t("examination.composer.plan_ph")}
+                disabled={locked}
+            />
+
+            <details className="exam-advanced" open={advancedFilled || undefined}>
+                <summary>{t("examination.composer.advanced_title")}</summary>
+                <section className="exam-advanced__section">
+                    <h4>{t("examination.composer.section_haupt")}</h4>
+                    <Textarea id="u-chief" label={t("examination.composer.chief")} value={data.chiefComplaint} rows={2} placeholder={t("examination.composer.chief_ph")} disabled={locked} onChange={(e) => upd("chiefComplaint", e.target.value)} />
+                    <div className="exam-advanced__grid">
+                        {field("u-vas", t("examination.composer.pain_vas"), data.painVas, (v) => upd("painVas", v), t("examination.composer.pain_vas_ph"))}
+                        {field("u-pain-loc", t("examination.composer.pain_location"), data.painLocation, (v) => upd("painLocation", v), t("examination.composer.pain_location_ph"))}
+                    </div>
+                </section>
+                <section className="exam-advanced__section">
+                    <h4>{t("examination.composer.section_extra")}</h4>
+                    <div className="exam-advanced__grid">
+                        {field("u-tmj", t("examination.composer.tmj"), data.extraoral.tmj, (v) => nested("extraoral", "tmj", v), t("examination.composer.tmj_ph"))}
+                        {field("u-lymph", t("examination.composer.lymph"), data.extraoral.lymphNodes, (v) => nested("extraoral", "lymphNodes", v))}
+                        {field("u-asym", t("examination.composer.asymmetry"), data.extraoral.asymmetry, (v) => nested("extraoral", "asymmetry", v))}
+                        {field("u-muscles", t("examination.composer.muscles"), data.extraoral.muscles, (v) => nested("extraoral", "muscles", v))}
+                    </div>
+                </section>
+                <section className="exam-advanced__section">
+                    <h4>{t("examination.composer.section_intra")}</h4>
+                    <div className="exam-advanced__grid">
+                        {field("u-mucosa", t("examination.composer.mucosa"), data.intraoral.mucosa, (v) => nested("intraoral", "mucosa", v))}
+                        {field("u-tongue", t("examination.composer.tongue"), data.intraoral.tongue, (v) => nested("intraoral", "tongue", v))}
+                        {field("u-gingiva", t("examination.composer.gingiva"), data.intraoral.gingiva, (v) => nested("intraoral", "gingiva", v))}
+                        {field("u-saliva", t("examination.composer.salivary"), data.intraoral.salivary, (v) => nested("intraoral", "salivary", v))}
+                    </div>
+                </section>
+                <section className="exam-advanced__section">
+                    <h4>{t("examination.composer.section_paro")}</h4>
+                    <p className="exam-advanced__hint">{t("examination.composer.psi_hint")}</p>
+                    <div className="exam-advanced__psi">
+                        {(["s1", "s2", "s3", "s4", "s5", "s6"] as const).map((s, i) => (
+                            <Select
+                                key={s}
+                                label={tp("examination.composer.sextant", { n: i + 1 })}
+                                value={data.psi[s]}
+                                options={psiOptions}
+                                disabled={locked}
+                                onChange={(e) => setData((prev) => ({ ...prev, psi: { ...prev.psi, [s]: e.target.value } }))}
+                            />
+                        ))}
+                    </div>
+                    <div className="exam-advanced__grid exam-advanced__grid--3">
+                        {field("u-bop", t("examination.composer.bop"), data.bopPercent, (v) => upd("bopPercent", v), t("examination.composer.bop_ph"))}
+                        {field("u-pi", t("examination.composer.plaque"), data.plaqueIndex, (v) => upd("plaqueIndex", v), t("examination.composer.plaque_ph"))}
+                        {field("u-hyg", t("examination.composer.hygiene"), data.hygieneScore, (v) => upd("hygieneScore", v), t("examination.composer.hygiene_ph"))}
+                    </div>
+                </section>
+                <section className="exam-advanced__section">
+                    <h4>{t("examination.composer.section_funk")}</h4>
+                    <div className="exam-advanced__grid">
+                        {field("u-cmd", t("examination.composer.cmd"), data.function.cmd, (v) => nested("function", "cmd", v))}
+                        {field("u-brux", t("examination.composer.bruxism"), data.function.bruxism, (v) => nested("function", "bruxism", v))}
+                        {field("u-splint", t("examination.composer.splint"), data.function.splint, (v) => nested("function", "splint", v))}
+                        {field("u-fn-notes", t("examination.composer.function_notes"), data.function.notes, (v) => nested("function", "notes", v))}
+                    </div>
+                </section>
+                <section className="exam-advanced__section">
+                    <h4>{t("examination.composer.section_rx")}</h4>
+                    {field("u-img-ordered", t("examination.composer.imaging_ordered"), data.imaging.ordered, (v) => nested("imaging", "ordered", v), t("examination.composer.imaging_ordered_ph"))}
+                    <Textarea id="u-img-findings" label={t("examination.composer.imaging_note")} value={data.imaging.findings} rows={2} disabled={locked} onChange={(e) => nested("imaging", "findings", e.target.value)} />
+                </section>
+            </details>
 
             {variant === "create" ? (
                 <div className="col" style={{ gap: "var(--space-2)" }}>
@@ -363,6 +459,35 @@ export function ExaminationComposer({
                     {variant === "edit" ? t("examination.composer.save_changes") : t("examination.composer.save")}
                 </Button>
             </div>
+        </div>
+    );
+}
+
+function ExamToothCard({
+    tooth,
+    statusKeys,
+    updatedAt,
+    children,
+}: {
+    tooth: string;
+    statusKeys: DentalStatusKey[];
+    updatedAt?: string;
+    children: ReactNode;
+}) {
+    const t = useT();
+    const tp = useTParams();
+    return (
+        <div className="exam-tooth-card">
+            <div className="exam-tooth-card__head">
+                <span className="exam-tooth-card__num">{formatDentalToothLabel(tooth, t)}</span>
+                {statusKeys.map((k) => (
+                    <span key={k} className={`dental-arch__pill is-${k}`}>{dentalStatusLabel(t, k)}</span>
+                ))}
+            </div>
+            {updatedAt ? (
+                <p className="exam-tooth-card__meta">{tp("dental.chart.detail_updated", { date: formatDate(updatedAt) })}</p>
+            ) : null}
+            {children}
         </div>
     );
 }

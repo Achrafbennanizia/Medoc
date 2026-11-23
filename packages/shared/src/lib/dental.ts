@@ -71,6 +71,24 @@ export function findingToStatusKey(finding: string | null | undefined): DentalSt
     return "healthy";
 }
 
+/**
+ * All statuses on one tooth. A finding may combine keys ("crown,caries"); the first key is the
+ * primary one shown in pills and lists. Never empty: a tooth without findings is ["healthy"].
+ */
+export function findingToStatusKeys(finding: string | null | undefined): DentalStatusKey[] {
+    const keys = (finding ?? "")
+        .split(/[,;+]/)
+        .map((part) => findingToStatusKey(part))
+        .filter((k, i, all) => k !== "healthy" && all.indexOf(k) === i);
+    return keys.length ? keys : ["healthy"];
+}
+
+/** Stored form of a status combination (inverse of findingToStatusKeys). */
+export function statusKeysToFinding(keys: readonly DentalStatusKey[]): string {
+    const real = keys.filter((k) => k !== "healthy");
+    return real.length ? real.join(",") : "healthy";
+}
+
 /** Split teeth field into FDI tokens (e.g. "18, 16" → ["18","16"]). */
 export function parseTeethTokens(z: string | null | undefined): string[] {
     if (!z) return [];
