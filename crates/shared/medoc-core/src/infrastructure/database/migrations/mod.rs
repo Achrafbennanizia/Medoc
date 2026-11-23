@@ -10,6 +10,7 @@ mod lookup_indexes;
 mod rust_only;
 mod seed;
 mod seed_practice;
+mod seed_showcase;
 mod seed_workday;
 mod seed_year;
 mod status_checks;

@@ -102,6 +102,8 @@ pub async fn run_post_migration_seed(pool: &SqlitePool) -> Result<(), AppError> 
         // demo start so existing DBs that already have `migration.demo_seed.v1`
         // still get the rows (INSERT OR IGNORE).
         ensure_demo_pending_approval_charts(pool).await?;
+        // Website screenshots only (MEDOC_SHOWCASE=1): a healthy, consistent practice.
+        super::seed_showcase::run_showcase_polish(pool).await?;
     }
     Ok(())
 }
