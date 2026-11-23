@@ -7,6 +7,7 @@
 @import "../practice-host/pages/settings/settings-appearance-section/settings-row-clickable.css";
 @import "../practice-host/pages/settings/settings-device-sessions-section/settings-pill-blue.css";
 @import "../practice-host/pages/settings/settings-security-section.css";
+@import "../practice-host/pages/settings/settings-backups-section.css";
 @import "../shared/settings-todo-pill.css";
 @import "../shared/settings-device-session-icon.css";
 @import "../practice-host/pages/settings/settings-device-sessions-section/settings-device-session-investigate-grid.css";

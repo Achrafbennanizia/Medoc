@@ -9,6 +9,7 @@ use tauri::{AppHandle, Manager, State};
 use crate::application::rbac;
 use crate::commands::admin::auth::SessionState;
 use crate::error::AppError;
+use crate::infrastructure::database::repos::admin::audit as audit_repo;
 use crate::infrastructure::{backup, gdpr, migration, retention};
 
 // snake_case on the wire: ops.controller.ts and every screen read `size_bytes`, `signature_ok`, …
@@ -18,6 +19,32 @@ pub struct BackupInfo {
     pub size_bytes: u64,
     /// `None` = legacy backup without sidecar; `Some` = HMAC verification result.
     pub signature_ok: Option<bool>,
+    /// RFC 3339, from the file name.
+    pub created_at: Option<String>,
+    /// `.mdbk` (compressed + encrypted) or legacy `.db`.
+    pub compressed: bool,
+    /// Why it is kept: `daily`, `weekly`, `half_year` (empty: goes at the next rotation).
+    pub tiers: Vec<backup::BackupTier>,
+}
+
+impl From<backup::BackupEntry> for BackupInfo {
+    fn from(e: backup::BackupEntry) -> Self {
+        BackupInfo {
+            path: e.path.display().to_string(),
+            size_bytes: e.size_bytes,
+            signature_ok: e.signature_ok,
+            created_at: e.created_at.map(|t| t.to_rfc3339()),
+            compressed: e.compressed,
+            tiers: e.tiers,
+        }
+    }
+}
+
+/// File name only, for the audit log (no full local path).
+fn backup_label(path: &std::path::Path) -> String {
+    path.file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default()
 }
 
 #[tauri::command]
@@ -27,15 +54,23 @@ pub async fn create_backup(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
 ) -> Result<BackupInfo, AppError> {
-    rbac::require(&session_state, "ops.backup")?;
+    let session = rbac::require(&session_state, "ops.backup")?;
     let app_dir = crate::commands::app_data_dir(&app)?;
-    let path = backup::create_with_app_dir(&pool, Some(&app_dir)).await?;
-    let size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
-    Ok(BackupInfo {
-        path: path.display().to_string(),
-        size_bytes: size,
-        signature_ok: Some(true),
-    })
+    let path = backup::create_compressed(&pool, &app_dir).await?;
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "BACKUP_MANUAL",
+        "Backup",
+        Some(&backup_label(&path)),
+        None,
+    )
+    .await?;
+    let entry = backup::list_metadata()?
+        .into_iter()
+        .find(|e| e.path == path)
+        .ok_or_else(|| AppError::Internal("backup not listed after creation".into()))?;
+    Ok(entry.into())
 }
 
 /// Lists backups off the UI thread. `verify_signatures` (default `true`) HMACs every signed
@@ -57,14 +92,7 @@ pub async fn list_backups(
     })
     .await
     .map_err(|e| AppError::Internal(format!("backup listing task: {e}")))??;
-    Ok(entries
-        .into_iter()
-        .map(|e| BackupInfo {
-            path: e.path.display().to_string(),
-            size_bytes: e.size_bytes,
-            signature_ok: e.signature_ok,
-        })
-        .collect())
+    Ok(entries.into_iter().map(BackupInfo::from).collect())
 }
 
 #[tauri::command]
@@ -95,16 +123,39 @@ pub async fn restore_backup(
     session_state: State<'_, SessionState>,
     path: String,
 ) -> Result<RestoreBackupResult, AppError> {
-    rbac::require(&session_state, "ops.backup")?;
+    let session = rbac::require(&session_state, "ops.backup")?;
     if let Some(control) = app.try_state::<crate::commands::network::lan::LanServerControl>() {
         crate::commands::network::lan::stop_lan_listener(&control).await;
     }
     let app_dir = crate::commands::app_data_dir(&app)?;
+    let label = backup_label(std::path::Path::new(&path));
     let report = {
         let pool = app.state::<SqlitePool>();
-        backup::restore_from_backup(pool.inner(), &app_dir, &PathBuf::from(path)).await?
+        // Record the attempt in the data being replaced: the restored database is older and
+        // would not otherwise show that a restore was asked for.
+        audit_repo::create(
+            pool.inner(),
+            &session.user_id,
+            "BACKUP_RESTORE_START",
+            "Backup",
+            Some(&label),
+            None,
+        )
+        .await
+        .ok();
+        backup::restore_from_backup(pool.inner(), &app_dir, &PathBuf::from(&path)).await?
     };
     let reopened = crate::infrastructure::database::connection::reopen_app_pool(&app_dir).await?;
+    // And in the restored data, so the record survives the jump back in time.
+    audit_repo::create(
+        &reopened,
+        &session.user_id,
+        "BACKUP_RESTORE",
+        "Backup",
+        Some(&label),
+        None,
+    )
+    .await?;
     // The command's State guard is already dropped. Swap the managed pool so
     // the next command uses the restored file without restarting the process.
     #[allow(deprecated)]
@@ -115,6 +166,100 @@ pub async fn restore_backup(
         restored_from: report.restored_from.display().to_string(),
         pre_restore_backup_created: report.pre_restore_backup_created,
     })
+}
+
+/// Settings → Backups: everything the page shows in one call.
+#[derive(Debug, Serialize)]
+pub struct BackupOverview {
+    pub enabled: bool,
+    /// Last schedule change: `{enabled, changedBy, changedAt, reason}` (absent: never changed).
+    pub schedule: Option<Value>,
+    pub backup_dir: String,
+    pub total_bytes: u64,
+    pub backups: Vec<BackupInfo>,
+    pub history: Vec<backup::BackupHistoryRow>,
+}
+
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
+pub async fn backup_overview(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+) -> Result<BackupOverview, AppError> {
+    rbac::require(&session_state, "ops.backup")?;
+    let entries = tokio::task::spawn_blocking(backup::list)
+        .await
+        .map_err(|e| AppError::Internal(format!("backup listing task: {e}")))??;
+    let schedule =
+        crate::infrastructure::database::repos::admin::app_kv::get(&pool, backup::SCHEDULE_KV_KEY)
+            .await?
+            .and_then(|v| serde_json::from_str::<Value>(&v).ok());
+    Ok(BackupOverview {
+        enabled: backup::schedule_enabled(&pool).await,
+        schedule,
+        backup_dir: backup::backup_dir().display().to_string(),
+        total_bytes: entries.iter().map(|e| e.size_bytes).sum(),
+        backups: entries.into_iter().map(BackupInfo::from).collect(),
+        history: backup::history(&pool, 50).await?,
+    })
+}
+
+/// Pause or resume the automatic daily backup. Pausing needs a reason (kept in the audit log).
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, reason))]
+pub async fn set_backup_schedule(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    enabled: bool,
+    reason: Option<String>,
+) -> Result<(), AppError> {
+    let session = rbac::require(&session_state, "ops.backup")?;
+    let reason = reason.unwrap_or_default();
+    if !enabled && reason.trim().len() < 3 {
+        return Err(AppError::validation_code("error.backup.reason_required"));
+    }
+    backup::set_schedule(&pool, enabled, &session.user_id, &reason).await
+}
+
+/// Delete every backup and start again with a fresh one. Needs a reason (audit log).
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(app, pool, session_state, reason))]
+pub async fn reset_backups(
+    app: AppHandle,
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    reason: String,
+) -> Result<BackupInfo, AppError> {
+    let session = rbac::require(&session_state, "ops.backup")?;
+    if reason.trim().len() < 3 {
+        return Err(AppError::validation_code("error.backup.reason_required"));
+    }
+    let app_dir = crate::commands::app_data_dir(&app)?;
+    let deleted = backup::delete_all()?;
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "BACKUP_RESET",
+        "Backup",
+        None,
+        Some(&format!("deleted={deleted}; reason={}", reason.trim())),
+    )
+    .await?;
+    let path = backup::create_compressed(&pool, &app_dir).await?;
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "BACKUP_MANUAL",
+        "Backup",
+        Some(&backup_label(&path)),
+        Some("after reset"),
+    )
+    .await?;
+    let entry = backup::list_metadata()?
+        .into_iter()
+        .find(|e| e.path == path)
+        .ok_or_else(|| AppError::Internal("backup not listed after creation".into()))?;
+    Ok(entry.into())
 }
 
 #[tauri::command]

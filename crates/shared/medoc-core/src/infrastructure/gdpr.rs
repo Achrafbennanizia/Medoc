@@ -201,7 +201,23 @@ async fn redact_patient_from_all_backups(
     let key = db_key::ensure_sqlcipher_key(app_data_dir, false)?;
     let mut redacted = 0u32;
     for entry in backup::list()? {
-        let path = entry.path;
+        // Compressed archives are unpacked into an encrypted working copy, redacted, then
+        // packed again; the working copy is removed afterwards.
+        let archive = entry.compressed.then(|| entry.path.clone());
+        let path = match &archive {
+            Some(a) => {
+                let work = app_data_dir.join("medoc-redact-work.db");
+                if backup::unpack_to_encrypted_db(a, &key, &work)
+                    .await
+                    .is_err()
+                {
+                    log_system!(warn, event = "BACKUP_REDACT_SKIP", path = %a.display(), reason = "unpack_failed");
+                    continue;
+                }
+                work
+            }
+            None => entry.path,
+        };
         let Ok(pool) = sqlcipher::open_encrypted_pool(&path, key.clone(), false).await else {
             log_system!(warn,
                 event = "BACKUP_REDACT_SKIP",
@@ -217,8 +233,13 @@ async fn redact_patient_from_all_backups(
             .is_some();
         if present {
             erase_patient_records(&pool, patient_id).await?;
+            if let Some(a) = &archive {
+                backup::write_compressed(&pool, &key, a).await?;
+            }
             pool.close().await;
-            backup::sign_file(&path)?;
+            if archive.is_none() {
+                backup::sign_file(&path)?;
+            }
             redacted += 1;
             log_system!(info,
                 event = "BACKUP_REDACT_OK",
@@ -227,6 +248,9 @@ async fn redact_patient_from_all_backups(
             );
         } else {
             pool.close().await;
+        }
+        if archive.is_some() {
+            let _ = std::fs::remove_file(&path);
         }
     }
     Ok(redacted)

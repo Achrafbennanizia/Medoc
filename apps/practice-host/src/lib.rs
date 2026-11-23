@@ -328,27 +328,31 @@ pub fn run() {
                         });
                     });
 
-                    // NFA-SEC-05: daily automatic backup scheduler (24h interval).
+                    // NFA-SEC-05: automatic daily backup. Checked every 30 minutes (and shortly
+                    // after start), so a practice that closes the app every evening still gets
+                    // its backup; the old 24 h interval restarted with every launch and never ran.
+                    // Compressed + encrypted, rotated to 3 daily, 1 weekly, 1 half-yearly.
                     let backup_pool = pool.clone();
+                    let backup_app = app_handle.clone();
                     tauri::async_runtime::spawn(async move {
-                        let mut ticker =
-                            tokio::time::interval(std::time::Duration::from_secs(24 * 60 * 60));
-                        // Skip the immediate first tick that `interval` fires.
-                        ticker.tick().await;
+                        tokio::time::sleep(std::time::Duration::from_secs(60)).await;
                         loop {
-                            ticker.tick().await;
-                            match infrastructure::backup::create(&backup_pool).await {
-                                Ok(p) => tracing::info!(
-                                    target: "medoc::system",
-                                    event = "BACKUP_AUTO_OK",
-                                    path = %p.display()
-                                ),
-                                Err(e) => tracing::error!(
-                                    target: "medoc::system",
-                                    event = "BACKUP_AUTO_FAIL",
-                                    error = %e
-                                ),
+                            if let Ok(app_dir) = commands::app_data_dir(&backup_app) {
+                                match infrastructure::backup::run_scheduled_if_due(&backup_pool, &app_dir).await {
+                                    Ok(Some(p)) => tracing::info!(
+                                        target: "medoc::system",
+                                        event = "BACKUP_AUTO_OK",
+                                        path = %p.display()
+                                    ),
+                                    Ok(None) => {}
+                                    Err(e) => tracing::error!(
+                                        target: "medoc::system",
+                                        event = "BACKUP_AUTO_FAIL",
+                                        error = %e
+                                    ),
+                                }
                             }
+                            tokio::time::sleep(std::time::Duration::from_secs(30 * 60)).await;
                         }
                     });
                 }

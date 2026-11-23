@@ -5,7 +5,39 @@ export interface BackupInfo {
     size_bytes: number;
     /** null = no .sig sidecar (legacy); true/false = HMAC verification */
     signature_ok: boolean | null;
+    /** RFC 3339, from the file name. */
+    created_at?: string | null;
+    /** `.mdbk`: compressed + encrypted; false = legacy `.db`. */
+    compressed?: boolean;
+    /** Why it is kept; empty = goes at the next rotation. */
+    tiers?: BackupTier[];
 }
+
+export type BackupTier = "daily" | "weekly" | "half_year";
+
+export interface BackupHistoryRow {
+    at: string;
+    action: string;
+    by: string;
+    details: string | null;
+}
+
+export interface BackupOverview {
+    enabled: boolean;
+    schedule: { enabled: boolean; changedBy?: string; changedAt?: string; reason?: string } | null;
+    backup_dir: string;
+    total_bytes: number;
+    backups: BackupInfo[];
+    history: BackupHistoryRow[];
+}
+
+/** Settings → Backups (dentist only, `ops.backup`). */
+export const backupOverview = () => practiceSystem.invoke<BackupOverview>("backup_overview");
+/** Pausing needs a reason; it is kept in the audit log. */
+export const setBackupSchedule = (enabled: boolean, reason: string) =>
+    practiceSystem.invoke<void>("set_backup_schedule", { enabled, reason });
+/** Deletes every backup and makes a fresh one. Needs a reason (audit log). */
+export const resetBackups = (reason: string) => practiceSystem.invoke<BackupInfo>("reset_backups", { reason });
 
 export interface ErasureReport {
     patient_id: string;

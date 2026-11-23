@@ -1,0 +1,76 @@
+/* Settings → Backups. */
+@layer components {
+  .settings-backups__dir {
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-size: 11px;
+    overflow-wrap: anywhere;
+  }
+  .settings-backups__table-wrap {
+    overflow-x: auto;
+    padding: 0 var(--card-pad-x);
+    border-top: 1px solid var(--line);
+  }
+  .settings-backups__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .settings-backups__table th {
+    text-align: start;
+    font-weight: 600;
+    color: var(--fg-3);
+    padding: var(--space-2) var(--space-2) var(--space-2) 0;
+  }
+  .settings-backups__table td {
+    padding: var(--space-2) var(--space-2) var(--space-2) 0;
+    border-top: 1px solid var(--line);
+    vertical-align: middle;
+    font-variant-numeric: tabular-nums;
+  }
+  .settings-backups__actions {
+    text-align: end;
+  }
+  .settings-backups__chip {
+    display: inline-block;
+    margin-inline-end: var(--space-1);
+    padding: 1px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .settings-backups__bad {
+    color: var(--danger, #b42318);
+    font-weight: 600;
+  }
+  .settings-backups__history {
+    padding: var(--space-3) var(--card-pad-x);
+    border-top: 1px solid var(--line);
+  }
+  .settings-backups__history-list {
+    list-style: none;
+    margin: var(--space-2) 0 0;
+    padding: 0;
+    font-size: 13px;
+  }
+  .settings-backups__history-list li {
+    display: grid;
+    grid-template-columns: 9.5rem minmax(8rem, auto) minmax(6rem, auto) 1fr;
+    gap: var(--space-2);
+    padding: var(--space-2) 0;
+    border-top: 1px solid var(--line);
+  }
+  .settings-backups__when {
+    font-variant-numeric: tabular-nums;
+    color: var(--fg-2);
+  }
+  .settings-backups__details {
+    overflow-wrap: anywhere;
+  }
+  @media (max-width: 640px) {
+    .settings-backups__history-list li {
+      grid-template-columns: 1fr;
+      gap: 0;
+    }
+  }
+}

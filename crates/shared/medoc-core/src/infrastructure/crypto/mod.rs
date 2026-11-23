@@ -126,7 +126,8 @@ pub fn audit_hmac_bytes(key: &[u8], data: &[u8]) -> Result<String, String> {
 pub fn audit_hmac_file(key: &[u8], path: &std::path::Path) -> Result<String, String> {
     use std::io::Read;
     let mut mac = HmacSha256::new_from_slice(key).map_err(|e| format!("Invalid HMAC key: {e}"))?;
-    let mut file = std::fs::File::open(path).map_err(|e| format!("Open file: {e}"))?;
+    let mut file =
+        std::fs::File::open(path).map_err(|e| format!("Open file {}: {e}", path.display()))?;
     let mut buf = [0u8; 64 * 1024];
     loop {
         let n = file.read(&mut buf).map_err(|e| format!("Read file: {e}"))?;

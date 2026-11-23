@@ -53,7 +53,8 @@ import { SettingsMigrationSection } from "@/systems/practice-host/pages/settings
 import { SettingsAboutSection } from "@/systems/practice-host/pages/settings/settings-about-section";
 import { SettingsLicenseSection } from "@/systems/practice-host/pages/settings/settings-license-section";
 import { SettingsIntegrationsSection } from "@/systems/practice-host/pages/settings/settings-integrations-section";
-import { StethoscopeIcon, UsersIcon, BellIcon, ShieldIcon, KeyRoundIcon, BoltIcon, DownloadIcon, SunIcon, SettingsIcon, InfoIcon, ICON_SIZE_LG } from "@/lib/icons";
+import { StethoscopeIcon, UsersIcon, BellIcon, ShieldIcon, KeyRoundIcon, BoltIcon, DownloadIcon, SunIcon, SettingsIcon, InfoIcon, ClockIcon, ICON_SIZE_LG } from "@/lib/icons";
+import { SettingsBackupsSection } from "@/systems/practice-host/pages/settings/settings-backups-section";
 import { errorMessage } from "@/lib/utils";
 
 const SETTINGS_BREADCRUMB_FALLBACK = "settings.breadcrumb_fallback";
@@ -72,6 +73,7 @@ const TAB_QUERY: Record<SettingsSection, string> = {
     migration: "migration",
     appearance: "appearance",
     system: "system",
+    backups: "backups",
     about: "about",
 };
 
@@ -339,6 +341,7 @@ export function SettingsPage() {
 
     const advancedNavAll: Array<{ id: SettingsSection; labelKey: string; icon: FC<{ size?: number }> }> = [
         { id: "system", labelKey: "settings.nav.system", icon: SettingsIcon },
+        { id: "backups", labelKey: "settings.nav.backups", icon: ClockIcon },
         { id: "about", labelKey: "settings.nav.about", icon: InfoIcon },
     ];
 
@@ -505,6 +508,7 @@ export function SettingsPage() {
                         />
                     ) : null}
 
+                    {canSettingsSection(activeSection) && activeSection === "backups" ? <SettingsBackupsSection /> : null}
                     {canSettingsSection(activeSection) && activeSection === "about" ? (
                         <SettingsAboutSection />
                     ) : null}

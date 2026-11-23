@@ -35,6 +35,7 @@ export const ERROR_CATALOG: readonly ErrorCatalogEntry[] = [
     { code: "MD-BAK-003", key: "error.backup.invalid_sqlite", domain: "backup", kind: "integrity", severity: "error", retryable: false },
     { code: "MD-BAK-004", key: "error.backup.only_db_files", domain: "backup", kind: "validation", severity: "warning", retryable: false },
     { code: "MD-BAK-005", key: "error.backup.signature_invalid", domain: "backup", kind: "integrity", severity: "error", retryable: false },
+    { code: "MD-BAK-006", key: "error.backup.reason_required", domain: "backup", kind: "validation", severity: "warning", retryable: false },
     { code: "MD-BIL-001", key: "error.billing.not_released", domain: "billing", kind: "state", severity: "warning", retryable: false },
     { code: "MD-BND-001", key: "error.boundary.crash", domain: "boundary", kind: "system", severity: "critical", retryable: true },
     { code: "MD-BRG-001", key: "error.break_glass.reason_too_short", domain: "break_glass", kind: "validation", severity: "warning", retryable: false },

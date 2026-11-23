@@ -343,12 +343,15 @@ export type SettingsSectionId =
     | "migration"
     | "appearance"
     | "system"
+    | "backups"
     | "about";
 
 /** Settings sub-panels (page is already gated by `settings` route). */
 export const SETTINGS_SECTION_VISIBILITY: Partial<Record<SettingsSectionId, NavVisibility>> = {
     migration: { kind: "action", action: "ops.migration" },
     system: { kind: "anyOf", actions: ["ops.backup", "ops.system", "ops.logs"] },
+    /** Backups: view, run, pause, reset, restore — practice administrator only. */
+    backups: { kind: "action", action: "ops.backup" },
     /** License activation, subscription portal — practice lead / IT (ops.system). */
     "license": { kind: "action", action: "ops.system" },
     /** Manufacturer interfaces — not for front desk. */

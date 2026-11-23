@@ -1,17 +1,23 @@
 // Backup & restore (NFA-SEC-08, supports DSGVO + system continuity).
 //
-// Uses SQLite's built-in `VACUUM INTO` to produce a self-contained snapshot
-// that includes WAL contents and skips free pages. Snapshots are timestamped
-// and stored under `~/medoc-data/backups/`.
+// Format (`.mdbk`, current): a consistent in-memory image of the database
+// (`sqlcipher_export` into an attached `:memory:` database, then `sqlite3_serialize`),
+// gzip-compressed, then sealed with AES-256-GCM under a key derived from the database
+// key. Patient data never touches the disk unencrypted, and the file is far smaller than
+// the encrypted database (encrypted pages do not compress; the plain image does).
+// Legacy `.db` files (`VACUUM INTO`, still used for the pre-restore safety snapshot)
+// stay readable and restorable.
 //
-// Retention (TASK 2.6): all backups ≤30 days; one per ISO week for weeks 31–84;
-// one per calendar month for months 85–365; older than 12 months are removed.
-// Each `.db` file gets an HMAC sidecar `*.db.sig` using the audit-chain key.
+// Retention (tiers): the newest backup of each of the last 3 days, the last backup of the
+// previous ISO week, and the last backup of the previous half-year (Jan–Jun / Jul–Dec).
+// While the practice is too new to have those, the oldest backup stands in for them.
+// Everything else is deleted after each new backup, so the disk does not fill up.
+// Each file gets an HMAC sidecar `*.sig` using the audit-chain key.
 
 use chrono::{DateTime, Datelike, Duration, NaiveDateTime, Utc};
 use serde::Serialize;
 use sqlx::SqlitePool;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use crate::error::AppError;
@@ -19,13 +25,22 @@ use crate::infrastructure::database::repos::admin::audit as audit_repo;
 use crate::infrastructure::database::{db_key, sqlcipher};
 use crate::log_system;
 
-const DAILY_DAYS: i64 = 30;
-const WEEKLY_WEEKS: i64 = 12;
-const MONTHLY_MONTHS: i64 = 12;
+/// Days with a kept daily backup.
+pub const DAILY_KEEP: usize = 3;
+/// Extension of the compressed, encrypted backup format.
+pub const COMPRESSED_EXT: &str = "mdbk";
+const MDBK_MAGIC: &[u8; 8] = b"MEDOCBK2";
+/// app_kv: automatic backup schedule (`{"enabled": bool, "changedBy", "changedAt", "reason"}`).
+pub const SCHEDULE_KV_KEY: &str = "backup.schedule.v1";
 
-type WeekKey = (i32, u32);
-type MonthKey = (i32, u32);
-type DatedBackup = (PathBuf, DateTime<Utc>);
+/// Why a kept backup is kept (shown in Settings → Backups).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BackupTier {
+    Daily,
+    Weekly,
+    HalfYear,
+}
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -34,6 +49,12 @@ pub struct BackupEntry {
     pub size_bytes: u64,
     /// `None` = no `.sig` sidecar (legacy backup); `Some` = verification result.
     pub signature_ok: Option<bool>,
+    /// From the file name; `None` for files that do not follow the naming scheme.
+    pub created_at: Option<DateTime<Utc>>,
+    /// `.mdbk` (compressed) or legacy `.db`.
+    pub compressed: bool,
+    /// Tiers this backup is kept for (empty: will go at the next rotation).
+    pub tiers: Vec<BackupTier>,
 }
 
 #[derive(Debug, Serialize)]
@@ -183,7 +204,7 @@ fn list_entries(verify: bool) -> Result<Vec<BackupEntry>, AppError> {
     let mut entries: Vec<BackupEntry> = std::fs::read_dir(&dir)
         .map_err(|e| AppError::Internal(e.to_string()))?
         .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("db"))
+        .filter(|e| is_backup_file(&e.path()))
         .map(|e| {
             let path = e.path();
             let size_bytes = e.metadata().map(|m| m.len()).unwrap_or(0);
@@ -193,114 +214,510 @@ fn list_entries(verify: bool) -> Result<Vec<BackupEntry>, AppError> {
                 None
             };
             BackupEntry {
+                created_at: parse_backup_timestamp(&path),
+                compressed: is_compressed(&path),
                 path,
                 size_bytes,
                 signature_ok,
+                tiers: Vec::new(),
             }
         })
         .collect();
-    entries.sort_by(|a, b| b.path.cmp(&a.path));
+    let dated: Vec<(PathBuf, DateTime<Utc>)> = entries
+        .iter()
+        .filter_map(|e| e.created_at.map(|t| (e.path.clone(), t)))
+        .collect();
+    let tiers = classify(&dated, chrono::Local::now());
+    for e in &mut entries {
+        if let Some(t) = tiers.get(&e.path) {
+            e.tiers = t.clone();
+        }
+    }
+    entries.sort_by(|a, b| {
+        b.created_at
+            .cmp(&a.created_at)
+            .then_with(|| b.path.cmp(&a.path))
+    });
     Ok(entries)
 }
 
-/// GFS-style retention: daily 30d, weekly 12w, monthly 12m.
+/// Tiered retention (see the module comment); deletes every backup no tier keeps.
 pub fn enforce_retention(dir: &Path) -> Result<BackupRetentionReport, AppError> {
-    enforce_retention_at(dir, Utc::now())
+    enforce_retention_at(dir, chrono::Local::now())
 }
 
 pub fn enforce_retention_at(
     dir: &Path,
-    now: DateTime<Utc>,
+    now: DateTime<chrono::Local>,
 ) -> Result<BackupRetentionReport, AppError> {
-    let daily_cutoff = now - Duration::days(DAILY_DAYS);
-    let weekly_cutoff = now - Duration::weeks(WEEKLY_WEEKS);
-    let monthly_cutoff = now - Duration::days(MONTHLY_MONTHS * 30);
-
     let mut report = BackupRetentionReport {
         scanned: 0,
         kept: 0,
         deleted: Vec::new(),
         errors: Vec::new(),
     };
-
     let mut files: Vec<(PathBuf, DateTime<Utc>)> = Vec::new();
     if dir.exists() {
         for entry in std::fs::read_dir(dir).map_err(|e| AppError::Internal(e.to_string()))? {
             let entry = entry.map_err(|e| AppError::Internal(e.to_string()))?;
             let path = entry.path();
-            if path.extension().and_then(|s| s.to_str()) != Some("db") {
+            if !is_backup_file(&path) {
                 continue;
             }
             report.scanned += 1;
-            let Some(ts) = parse_backup_timestamp(&path) else {
-                report
+            match parse_backup_timestamp(&path) {
+                Some(ts) => files.push((path, ts)),
+                // Never delete a file whose age is unknown.
+                None => report
                     .errors
-                    .push(format!("Timestamp not readable: {}", path.display()));
-                continue;
-            };
-            files.push((path, ts));
-        }
-    }
-
-    let mut keep: HashSet<PathBuf> = HashSet::new();
-
-    for (path, ts) in &files {
-        if *ts >= daily_cutoff {
-            keep.insert(path.clone());
-        }
-    }
-
-    let mut by_week: HashMap<WeekKey, Vec<DatedBackup>> = HashMap::new();
-    for (path, ts) in &files {
-        if *ts < daily_cutoff && *ts >= weekly_cutoff {
-            let iso = ts.date_naive().iso_week();
-            by_week
-                .entry((iso.year(), iso.week()))
-                .or_default()
-                .push((path.clone(), *ts));
-        }
-    }
-    for files_in_week in by_week.values_mut() {
-        files_in_week.sort_by_key(|(_, t)| *t);
-        if let Some((path, _)) = files_in_week.last() {
-            keep.insert(path.clone());
-        }
-    }
-
-    let mut by_month: HashMap<MonthKey, Vec<DatedBackup>> = HashMap::new();
-    for (path, ts) in &files {
-        if *ts < weekly_cutoff && *ts >= monthly_cutoff {
-            by_month
-                .entry((ts.year(), ts.month()))
-                .or_default()
-                .push((path.clone(), *ts));
-        }
-    }
-    for files_in_month in by_month.values_mut() {
-        files_in_month.sort_by_key(|(_, t)| *t);
-        if let Some((path, _)) = files_in_month.last() {
-            keep.insert(path.clone());
-        }
-    }
-
-    report.kept = keep.len();
-    for (path, _) in files {
-        if keep.contains(&path) {
-            continue;
-        }
-        for p in [path.clone(), sig_path(&path)] {
-            if p.exists() {
-                match std::fs::remove_file(&p) {
-                    Ok(()) => report
-                        .deleted
-                        .push(p.file_name().unwrap().to_string_lossy().into_owned()),
-                    Err(e) => report.errors.push(format!("{}: {e}", p.display())),
-                }
+                    .push(format!("Timestamp not readable: {}", path.display())),
             }
         }
     }
-
+    let keep = classify(&files, now);
+    report.kept = keep.len();
+    for (path, _) in files {
+        if keep.contains_key(&path) {
+            continue;
+        }
+        for p in backup_and_sidecars(&path) {
+            match std::fs::remove_file(&p) {
+                Ok(()) => report.deleted.push(
+                    p.file_name()
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                        .into_owned(),
+                ),
+                Err(e) => report.errors.push(format!("{}: {e}", p.display())),
+            }
+        }
+    }
     Ok(report)
+}
+
+/// Which backups each tier keeps, judged in the practice's local time.
+pub fn classify(
+    files: &[(PathBuf, DateTime<Utc>)],
+    now: DateTime<chrono::Local>,
+) -> HashMap<PathBuf, Vec<BackupTier>> {
+    use chrono::{Local, NaiveDate};
+    let mut sorted: Vec<(PathBuf, chrono::DateTime<Local>)> = files
+        .iter()
+        .map(|(p, t)| (p.clone(), t.with_timezone(&Local)))
+        .collect();
+    sorted.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| b.0.cmp(&a.0)));
+    let mut out: HashMap<PathBuf, Vec<BackupTier>> = HashMap::new();
+    let mut add = |p: &PathBuf, t: BackupTier| {
+        let v = out.entry(p.clone()).or_default();
+        if !v.contains(&t) {
+            v.push(t);
+        }
+    };
+
+    // Daily: the newest backup of each of the last DAILY_KEEP days that have one.
+    let mut days: Vec<NaiveDate> = Vec::new();
+    for (p, t) in &sorted {
+        let d = t.date_naive();
+        if days.contains(&d) {
+            continue;
+        }
+        if days.len() == DAILY_KEEP {
+            break;
+        }
+        days.push(d);
+        add(p, BackupTier::Daily);
+    }
+
+    let today = now.date_naive();
+    let oldest = sorted.last().map(|(p, _)| p.clone());
+    let newest_in = |from: NaiveDate, to: NaiveDate| {
+        sorted
+            .iter()
+            .find(|(_, t)| t.date_naive() >= from && t.date_naive() < to)
+            .map(|(p, _)| p.clone())
+    };
+
+    // Weekly: the last backup of the previous ISO week.
+    let monday = today - Duration::days(i64::from(today.weekday().num_days_from_monday()));
+    let weekly = newest_in(monday - Duration::days(7), monday).or_else(|| oldest.clone());
+    if let Some(p) = weekly {
+        add(&p, BackupTier::Weekly);
+    }
+
+    // Half-year: the last backup of the previous half (Jan–Jun or Jul–Dec).
+    let half_start =
+        NaiveDate::from_ymd_opt(today.year(), if today.month() <= 6 { 1 } else { 7 }, 1)
+            .unwrap_or(today);
+    let prev_start = if half_start.month() == 1 {
+        NaiveDate::from_ymd_opt(half_start.year() - 1, 7, 1)
+    } else {
+        NaiveDate::from_ymd_opt(half_start.year(), 1, 1)
+    }
+    .unwrap_or(half_start);
+    let half = newest_in(prev_start, half_start).or(oldest);
+    if let Some(p) = half {
+        add(&p, BackupTier::HalfYear);
+    }
+    out
+}
+
+fn is_backup_file(path: &Path) -> bool {
+    matches!(
+        path.extension().and_then(|s| s.to_str()),
+        Some("db") | Some(COMPRESSED_EXT)
+    )
+}
+
+fn is_compressed(path: &Path) -> bool {
+    path.extension().and_then(|s| s.to_str()) == Some(COMPRESSED_EXT)
+}
+
+/// The backup file plus every sidecar named after it (`.sig`, recovery key files).
+fn backup_and_sidecars(path: &Path) -> Vec<PathBuf> {
+    let mut out = vec![path.to_path_buf()];
+    let (Some(dir), Some(name)) = (path.parent(), path.file_name()) else {
+        return out;
+    };
+    let prefix = format!("{}.", name.to_string_lossy());
+    if let Ok(rd) = std::fs::read_dir(dir) {
+        for e in rd.flatten() {
+            if e.file_name().to_string_lossy().starts_with(&prefix) {
+                out.push(e.path());
+            }
+        }
+    }
+    out
+}
+
+/// Deletes every backup and its sidecars (Settings → Backups → reset). Returns how many.
+pub fn delete_all() -> Result<usize, AppError> {
+    let mut n = 0;
+    for e in list_metadata()? {
+        for p in backup_and_sidecars(&e.path) {
+            let _ = std::fs::remove_file(p);
+        }
+        n += 1;
+    }
+    Ok(n)
+}
+
+// ---------------------------------------------------------------------------
+// Compressed format (.mdbk)
+// ---------------------------------------------------------------------------
+
+fn backup_cipher(db_key: &[u8]) -> aes_gcm::Aes256Gcm {
+    use aes_gcm::KeyInit;
+    use hmac::Mac;
+    // A separate key per purpose: the database key itself never encrypts the archive.
+    let mut mac = <hmac::Hmac<sha2::Sha256> as Mac>::new_from_slice(db_key)
+        .expect("HMAC accepts any key length");
+    mac.update(b"medoc-backup-archive-v2");
+    aes_gcm::Aes256Gcm::new_from_slice(&mac.finalize().into_bytes()).expect("32-byte key")
+}
+
+/// Plain SQLite image of the live database, in memory only. `sqlcipher_export` reads inside
+/// one transaction, so the image is consistent even while the practice keeps working.
+async fn plaintext_image(pool: &SqlitePool) -> Result<zeroize::Zeroizing<Vec<u8>>, AppError> {
+    let mut conn = pool.acquire().await.map_err(AppError::Database)?;
+    sqlx::query("ATTACH DATABASE ':memory:' AS medoc_snapshot KEY ''")
+        .execute(&mut *conn)
+        .await
+        .map_err(|e| AppError::Internal(format!("backup: attach snapshot: {e}")))?;
+    let image = async {
+        sqlx::query("SELECT sqlcipher_export('medoc_snapshot')")
+            .execute(&mut *conn)
+            .await?;
+        let buf = conn.serialize(Some("medoc_snapshot")).await?;
+        Ok::<_, sqlx::Error>(zeroize::Zeroizing::new(buf.to_vec()))
+    }
+    .await;
+    let _ = sqlx::query("DETACH DATABASE medoc_snapshot")
+        .execute(&mut *conn)
+        .await;
+    image.map_err(|e| AppError::Internal(format!("backup: snapshot: {e}")))
+}
+
+fn seal(image: &[u8], db_key: &[u8]) -> Result<Vec<u8>, AppError> {
+    use aes_gcm::aead::{Aead, AeadCore, OsRng, Payload};
+    use std::io::Write;
+    let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::best());
+    gz.write_all(image)
+        .map_err(|e| AppError::Internal(format!("backup: compress: {e}")))?;
+    let compressed = zeroize::Zeroizing::new(
+        gz.finish()
+            .map_err(|e| AppError::Internal(format!("backup: compress: {e}")))?,
+    );
+    let nonce = aes_gcm::Aes256Gcm::generate_nonce(&mut OsRng);
+    let sealed = backup_cipher(db_key)
+        .encrypt(
+            &nonce,
+            Payload {
+                msg: &compressed,
+                aad: MDBK_MAGIC,
+            },
+        )
+        .map_err(|_| AppError::Internal("backup: encryption failed".into()))?;
+    let mut out = Vec::with_capacity(MDBK_MAGIC.len() + nonce.len() + sealed.len());
+    out.extend_from_slice(MDBK_MAGIC);
+    out.extend_from_slice(&nonce);
+    out.extend_from_slice(&sealed);
+    Ok(out)
+}
+
+fn unseal(file: &[u8], db_key: &[u8]) -> Result<zeroize::Zeroizing<Vec<u8>>, AppError> {
+    use aes_gcm::aead::{Aead, Payload};
+    use std::io::Read;
+    if file.len() < MDBK_MAGIC.len() + 12 || &file[..MDBK_MAGIC.len()] != MDBK_MAGIC {
+        return Err(AppError::validation_code("error.backup.invalid_medoc_db"));
+    }
+    let (nonce, sealed) = file[MDBK_MAGIC.len()..].split_at(12);
+    let compressed = zeroize::Zeroizing::new(
+        backup_cipher(db_key)
+            .decrypt(
+                aes_gcm::Nonce::from_slice(nonce),
+                Payload {
+                    msg: sealed,
+                    aad: MDBK_MAGIC,
+                },
+            )
+            // Wrong practice key or altered file.
+            .map_err(|_| AppError::validation_code("error.backup.invalid_medoc_db"))?,
+    );
+    let mut image = zeroize::Zeroizing::new(Vec::new());
+    flate2::read::GzDecoder::new(&compressed[..])
+        .read_to_end(&mut image)
+        .map_err(|_| AppError::validation_code("error.backup.invalid_medoc_db"))?;
+    Ok(image)
+}
+
+/// Writes a compressed, encrypted, signed backup of `pool` to `target`.
+pub async fn write_compressed(
+    pool: &SqlitePool,
+    db_key: &[u8],
+    target: &Path,
+) -> Result<(), AppError> {
+    let image = plaintext_image(pool).await?;
+    let key = zeroize::Zeroizing::new(db_key.to_vec());
+    // Compression and encryption are CPU-bound: keep them off the async runtime.
+    let sealed = tokio::task::spawn_blocking(move || seal(&image, &key))
+        .await
+        .map_err(|e| AppError::Internal(format!("backup: compress task: {e}")))??;
+    // Write beside, then rename: a crash never leaves a half-written backup under the real name.
+    let part = target.with_extension("mdbk.part");
+    std::fs::write(&part, &sealed)
+        .map_err(|e| AppError::Internal(format!("backup: write: {e}")))?;
+    std::fs::rename(&part, target)
+        .map_err(|e| AppError::Internal(format!("backup: rename: {e}")))?;
+    write_signature(target)
+}
+
+/// Creates a compressed backup in the backup folder, then applies retention.
+pub async fn create_compressed(
+    pool: &SqlitePool,
+    app_data_dir: &Path,
+) -> Result<PathBuf, AppError> {
+    let dir = backup_dir();
+    std::fs::create_dir_all(&dir).map_err(|e| AppError::Internal(format!("backup dir: {e}")))?;
+    let ts = Utc::now().format("%Y%m%dT%H%M%SZ");
+    let mut target = dir.join(format!("medoc-{ts}.{COMPRESSED_EXT}"));
+    let mut n = 1u32;
+    while target.exists() {
+        target = dir.join(format!("medoc-{ts}-{n}.{COMPRESSED_EXT}"));
+        n += 1;
+    }
+    log_system!(info, event = "BACKUP_START", target = %target.display(), format = "mdbk");
+    let key = db_key::ensure_sqlcipher_key(app_data_dir, false)?;
+    if let Err(e) = write_compressed(pool, &key, &target).await {
+        log_system!(error, event = "BACKUP_FAILED", error = %e);
+        return Err(e);
+    }
+    copy_recovery_sidecars(app_data_dir, &target);
+    let report = enforce_retention(&dir)?;
+    let size = std::fs::metadata(&target).map(|m| m.len()).unwrap_or(0);
+    log_system!(
+        info,
+        event = "BACKUP_COMPLETE",
+        target = %target.display(),
+        bytes = size,
+        kept = report.kept,
+        deleted = report.deleted.len(),
+    );
+    Ok(target)
+}
+
+/// `file:` URI for an absolute path (escaping `%`, `?`, `#`; Windows drive paths get a `/`).
+fn sqlite_file_uri(path: &Path) -> String {
+    let mut p = path.to_string_lossy().replace('\\', "/");
+    if !p.starts_with('/') {
+        p.insert(0, '/');
+    }
+    let p = p
+        .replace('%', "%25")
+        .replace('?', "%3f")
+        .replace('#', "%23")
+        .replace('\'', "''");
+    format!("file:{p}?mode=rwc")
+}
+
+/// Unpacks a `.mdbk` into an encrypted database file at `out` (never a plain file on disk):
+/// the image is loaded into a plain in-memory connection and `sqlcipher_export` writes it into
+/// the attached, encrypted target.
+pub async fn unpack_to_encrypted_db(
+    mdbk: &Path,
+    db_key: &[u8],
+    out: &Path,
+) -> Result<(), AppError> {
+    use sqlx::Connection;
+    let file = std::fs::read(mdbk).map_err(|e| AppError::Internal(format!("backup: read: {e}")))?;
+    let key = zeroize::Zeroizing::new(db_key.to_vec());
+    let image = tokio::task::spawn_blocking(move || unseal(&file, &key))
+        .await
+        .map_err(|e| AppError::Internal(format!("backup: unpack task: {e}")))??;
+    let buf = sqlx::sqlite::SqliteOwnedBuf::try_from(&image[..]).map_err(AppError::Database)?;
+    drop(image);
+    let _ = std::fs::remove_file(out);
+    let key_hex = zeroize::Zeroizing::new(
+        db_key
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect::<String>(),
+    );
+    let mut conn = sqlx::sqlite::SqliteConnection::connect("sqlite::memory:")
+        .await
+        .map_err(AppError::Database)?;
+    let result = async {
+        conn.deserialize(None, buf, false).await?;
+        // The memory connection is opened in URI mode: a bare path would also be in memory.
+        sqlx::query(&format!(
+            "ATTACH DATABASE '{}' AS restored KEY \"x'{}'\"",
+            sqlite_file_uri(out),
+            key_hex.as_str()
+        ))
+        .execute(&mut conn)
+        .await?;
+        sqlx::query("SELECT sqlcipher_export('restored')")
+            .execute(&mut conn)
+            .await?;
+        sqlx::query("DETACH DATABASE restored")
+            .execute(&mut conn)
+            .await?;
+        Ok::<_, sqlx::Error>(())
+    }
+    .await;
+    let _ = conn.close().await;
+    result.map_err(|e| AppError::Internal(format!("backup: unpack: {e}")))?;
+    if !out.is_file() {
+        return Err(AppError::Internal("backup: unpack produced no file".into()));
+    }
+    Ok(())
+}
+
+/// One backup action from the audit log, for Settings → Backups.
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+pub struct BackupHistoryRow {
+    pub at: String,
+    pub action: String,
+    /// Staff name, or `system` for the automatic run.
+    pub by: String,
+    pub details: Option<String>,
+}
+
+/// Backup actions (automatic runs, manual backups, restores, resets, schedule changes), newest
+/// first. They live in the tamper-evident audit log; this is a read view of it.
+pub async fn history(pool: &SqlitePool, limit: i64) -> Result<Vec<BackupHistoryRow>, AppError> {
+    Ok(sqlx::query_as::<_, BackupHistoryRow>(
+        "SELECT a.created_at AS at, a.action, COALESCE(s.name, a.user_id) AS by,
+                COALESCE(a.details, a.entity_id) AS details
+           FROM audit_log a LEFT JOIN staff s ON s.id = a.user_id
+          WHERE a.entity = 'Backup'
+          ORDER BY a.created_at DESC LIMIT ?1",
+    )
+    .bind(limit)
+    .fetch_all(pool)
+    .await?)
+}
+
+// ---------------------------------------------------------------------------
+// Automatic schedule
+// ---------------------------------------------------------------------------
+
+/// Automatic daily backups are on unless an administrator paused them.
+pub async fn schedule_enabled(pool: &SqlitePool) -> bool {
+    crate::infrastructure::database::repos::admin::app_kv::get(pool, SCHEDULE_KV_KEY)
+        .await
+        .ok()
+        .flatten()
+        .and_then(|v| serde_json::from_str::<serde_json::Value>(&v).ok())
+        .and_then(|v| v.get("enabled").and_then(serde_json::Value::as_bool))
+        .unwrap_or(true)
+}
+
+/// Records who turned automatic backups on or off, when and why (also in the audit log).
+pub async fn set_schedule(
+    pool: &SqlitePool,
+    enabled: bool,
+    user_id: &str,
+    reason: &str,
+) -> Result<(), AppError> {
+    let value = serde_json::json!({
+        "enabled": enabled,
+        "changedBy": user_id,
+        "changedAt": Utc::now().to_rfc3339(),
+        "reason": reason.trim(),
+    });
+    crate::infrastructure::database::repos::admin::app_kv::set(
+        pool,
+        SCHEDULE_KV_KEY,
+        &value.to_string(),
+    )
+    .await?;
+    audit_repo::create(
+        pool,
+        user_id,
+        if enabled {
+            "BACKUP_SCHEDULE_ON"
+        } else {
+            "BACKUP_SCHEDULE_OFF"
+        },
+        "Backup",
+        None,
+        Some(reason.trim()).filter(|r| !r.is_empty()),
+    )
+    .await?;
+    log_system!(warn, event = "BACKUP_SCHEDULE_CHANGED", enabled, by = %user_id);
+    Ok(())
+}
+
+/// The daily run: makes today's backup if the schedule is on and none exists yet for today.
+/// Safe to call often (the app checks every 30 minutes, so a practice that closes the app
+/// in the evening still gets its backup the next morning).
+pub async fn run_scheduled_if_due(
+    pool: &SqlitePool,
+    app_data_dir: &Path,
+) -> Result<Option<PathBuf>, AppError> {
+    if !schedule_enabled(pool).await {
+        return Ok(None);
+    }
+    let today = chrono::Local::now().date_naive();
+    let has_today = list_metadata()?
+        .iter()
+        .filter_map(|e| e.created_at)
+        .any(|t| t.with_timezone(&chrono::Local).date_naive() == today);
+    if has_today {
+        return Ok(None);
+    }
+    let path = create_compressed(pool, app_data_dir).await?;
+    let name = path.file_name().map(|n| n.to_string_lossy().into_owned());
+    audit_repo::create(
+        pool,
+        "system",
+        "BACKUP_AUTO",
+        "Backup",
+        name.as_deref(),
+        None,
+    )
+    .await?;
+    Ok(Some(path))
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -333,6 +750,25 @@ pub async fn restore_from_backup(
 ) -> Result<RestoreReport, AppError> {
     if !backup_path.is_file() {
         return Err(AppError::validation_code("error.backup.file_not_found"));
+    }
+    if is_compressed(backup_path) {
+        // A compressed archive must carry a valid signature; it is unpacked into an encrypted
+        // database file, which then goes through the same checks and safe swap as any backup.
+        if verify_signature(backup_path) != Some(true) {
+            return Err(AppError::validation_code("error.backup.signature_invalid"));
+        }
+        let key = db_key::ensure_sqlcipher_key(app_data_dir, false)?;
+        // Outside the backup folder, so rotation during the restore cannot touch it.
+        let unpacked = app_data_dir.join("medoc-restore-unpacked.db");
+        unpack_to_encrypted_db(backup_path, &key, &unpacked).await?;
+        write_signature(&unpacked)?;
+        let outcome = Box::pin(restore_from_backup(pool, app_data_dir, &unpacked)).await;
+        let _ = std::fs::remove_file(&unpacked);
+        let _ = std::fs::remove_file(sig_path(&unpacked));
+        return outcome.map(|mut r| {
+            r.restored_from = backup_path.to_path_buf();
+            r
+        });
     }
     if backup_path.extension().and_then(|e| e.to_str()) != Some("db") {
         return Err(AppError::validation_code("error.backup.only_db_files"));
