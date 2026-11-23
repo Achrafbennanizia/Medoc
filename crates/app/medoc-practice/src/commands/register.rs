@@ -228,6 +228,7 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::system::ops::backup_overview,
             $crate::commands::system::ops::set_backup_schedule,
             $crate::commands::system::ops::reset_backups,
+            $crate::commands::system::ops::delete_backup,
             $crate::commands::system::ops::dsgvo_export_patient,
             $crate::commands::system::ops::dsgvo_erase_patient,
             $crate::commands::system::ops::import_patients_csv,

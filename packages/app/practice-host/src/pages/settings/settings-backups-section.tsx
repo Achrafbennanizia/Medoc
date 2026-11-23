@@ -4,6 +4,7 @@ import { errorMessage, formatDateTime } from "@/lib/utils";
 import {
     backupOverview,
     createBackup,
+    deleteBackup,
     resetBackups,
     restoreBackup,
     setBackupSchedule,
@@ -66,7 +67,9 @@ function ReasonDialog({
                 </>
             }
         >
-            <p className="card-sub" style={{ marginTop: 0 }}>{message}</p>
+            <p className="card-sub" style={{ marginTop: 0 }}>
+                {message}
+            </p>
             <Textarea
                 label={t("settings.backups.reason_label")}
                 placeholder={t("settings.backups.reason_hint")}
@@ -93,6 +96,7 @@ export function SettingsBackupsSection() {
     const [pauseOpen, setPauseOpen] = useState(false);
     const [resetOpen, setResetOpen] = useState(false);
     const [restoreTarget, setRestoreTarget] = useState<BackupInfo | null>(null);
+    const [deleteTarget, setDeleteTarget] = useState<BackupInfo | null>(null);
 
     const load = useCallback(async () => {
         try {
@@ -124,6 +128,8 @@ export function SettingsBackupsSection() {
     if (!data) return <TableSkeleton label={t("settings.backups.loading")} rows={5} />;
 
     const last = data.backups.find((b) => b.created_at)?.created_at ?? null;
+    const onlyOne = data.backups.length <= 1;
+    const whenOf = (b: BackupInfo | null) => (b?.created_at ? formatDateTime(b.created_at) : "—");
     const tierLabel = (tier: string) => t(`settings.backups.tier.${tier}`);
     const actionLabel = (action: string) => {
         const key = `settings.backups.action.${action.toLowerCase()}`;
@@ -154,23 +160,31 @@ export function SettingsBackupsSection() {
                         </div>
                     ) : null}
                 </div>
-                <SettingsSwitch
-                    ariaLabel={t("settings.backups.auto")}
-                    checked={data.enabled}
-                    disabled={busy}
-                    onChange={() => {
-                        if (data.enabled) setPauseOpen(true);
-                        else void run(() => setBackupSchedule(true, ""), "settings.backups.toast.resumed");
-                    }}
-                />
+                <div className="settings-backups__toggle">
+                    <span className={`settings-backups__state${data.enabled ? " is-on" : ""}`}>
+                        {t(data.enabled ? "settings.backups.state_on" : "settings.backups.state_off")}
+                    </span>
+                    <SettingsSwitch
+                        ariaLabel={t("settings.backups.auto")}
+                        checked={data.enabled}
+                        disabled={busy}
+                        onChange={() => {
+                            if (data.enabled) setPauseOpen(true);
+                            else void run(() => setBackupSchedule(true, ""), "settings.backups.toast.resumed");
+                        }}
+                    />
+                </div>
             </div>
 
             <div className="settings-row">
                 <div>
-                    <b>{tp("settings.backups.summary", { count: data.backups.length, size: formatBytes(data.total_bytes) })}</b>
-                    <div className="card-sub">
-                        {last ? tp("settings.backups.last", { when: formatDateTime(last) }) : t("settings.backups.none")}
-                    </div>
+                    <b>
+                        {tp("settings.backups.summary", {
+                            count: data.backups.length,
+                            size: formatBytes(data.total_bytes),
+                        })}
+                    </b>
+                    <div className="card-sub">{last ? tp("settings.backups.last", { when: formatDateTime(last) }) : t("settings.backups.none")}</div>
                     <div className="card-sub settings-backups__dir" title={data.backup_dir}>
                         {data.backup_dir}
                     </div>
@@ -196,7 +210,9 @@ export function SettingsBackupsSection() {
                     <tbody>
                         {data.backups.length === 0 ? (
                             <tr>
-                                <td colSpan={5} className="card-sub">{t("settings.backups.none")}</td>
+                                <td colSpan={5} className="card-sub">
+                                    {t("settings.backups.none")}
+                                </td>
                             </tr>
                         ) : (
                             data.backups.map((b) => (
@@ -218,11 +234,13 @@ export function SettingsBackupsSection() {
                                         {b.compressed === false ? <span className="card-sub"> · {t("settings.backups.legacy")}</span> : null}
                                     </td>
                                     <td>
-                                        {b.signature_ok === true
-                                            ? t("settings.backups.integrity.ok")
-                                            : b.signature_ok === false
-                                              ? <span className="settings-backups__bad">{t("settings.backups.integrity.bad")}</span>
-                                              : t("settings.backups.integrity.unsigned")}
+                                        {b.signature_ok === true ? (
+                                            t("settings.backups.integrity.ok")
+                                        ) : b.signature_ok === false ? (
+                                            <span className="settings-backups__bad">{t("settings.backups.integrity.bad")}</span>
+                                        ) : (
+                                            t("settings.backups.integrity.unsigned")
+                                        )}
                                     </td>
                                     <td className="settings-backups__actions">
                                         <Button
@@ -232,6 +250,15 @@ export function SettingsBackupsSection() {
                                             disabled={busy || b.signature_ok === false}
                                         >
                                             {t("settings.backups.restore")}
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            onClick={() => setDeleteTarget(b)}
+                                            disabled={busy || onlyOne}
+                                            title={onlyOne ? t("settings.backups.delete_last_hint") : undefined}
+                                        >
+                                            {t("settings.backups.delete")}
                                         </Button>
                                     </td>
                                 </tr>
@@ -296,6 +323,22 @@ export function SettingsBackupsSection() {
                     void run(() => resetBackups(reason), "settings.backups.toast.reset");
                 }}
             />
+            <ReasonDialog
+                open={deleteTarget != null}
+                title={t("settings.backups.delete_title")}
+                message={tp("settings.backups.delete_message", {
+                    when: whenOf(deleteTarget),
+                })}
+                confirmLabel={t("settings.backups.delete_confirm")}
+                danger
+                busy={busy}
+                onClose={() => setDeleteTarget(null)}
+                onConfirm={(reason) => {
+                    const target = deleteTarget;
+                    setDeleteTarget(null);
+                    if (target) void run(() => deleteBackup(target.path, reason), "settings.backups.toast.deleted");
+                }}
+            />
             <ConfirmDialog
                 open={restoreTarget != null}
                 onClose={() => setRestoreTarget(null)}
@@ -303,7 +346,7 @@ export function SettingsBackupsSection() {
                 loading={busy}
                 title={t("settings.backups.restore_title")}
                 message={tp("settings.backups.restore_message", {
-                    when: restoreTarget?.created_at ? formatDateTime(restoreTarget.created_at) : "—",
+                    when: whenOf(restoreTarget),
                 })}
                 confirmLabel={t("settings.backups.restore_confirm")}
                 onConfirm={() => {

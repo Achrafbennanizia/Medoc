@@ -20,6 +20,23 @@
     "error.prescription.allergy_conflict": "validation",
     "error.sync.change_signature_invalid": "integrity",
     "error.sync.change_signer_unknown": "integrity",
-    "error.sync.unsigned_changes": "state"
+    "error.sync.unsigned_changes": "state",
+    "error.backup.busy": "state",
+    "error.backup.disk_full": "state",
+    "error.backup.keep_last": "state",
+    "error.backup.no_permission": "permission",
+    "error.backup.outside_folder": "permission",
+    "error.backup.not_an_archive": "integrity",
+    "error.backup.decrypt_failed": "integrity",
+    "error.backup.key_unavailable": "system",
+    "error.backup.write_failed": "system",
+    "error.backup.folder_unavailable": "system",
+    "error.backup.snapshot_failed": "system",
+    "error.backup.compress_failed": "system",
+    "error.backup.unpack_failed": "system",
+    "error.backup.read_failed": "system",
+    "error.backup.restore_failed": "system",
+    "error.backup.safety_backup_failed": "system",
+    "error.backup.delete_failed": "system"
   }
 }

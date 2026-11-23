@@ -332,12 +332,17 @@ pub fn run() {
                     // after start), so a practice that closes the app every evening still gets
                     // its backup; the old 24 h interval restarted with every launch and never ran.
                     // Compressed + encrypted, rotated to 3 daily, 1 weekly, 1 half-yearly.
-                    let backup_pool = pool.clone();
+                    // The pool is read from the app state each time: a restore swaps it.
                     let backup_app = app_handle.clone();
                     tauri::async_runtime::spawn(async move {
                         tokio::time::sleep(std::time::Duration::from_secs(60)).await;
                         loop {
-                            if let Ok(app_dir) = commands::app_data_dir(&backup_app) {
+                            let backup_pool = backup_app
+                                .try_state::<sqlx::SqlitePool>()
+                                .map(|p| p.inner().clone());
+                            if let (Ok(app_dir), Some(backup_pool)) =
+                                (commands::app_data_dir(&backup_app), backup_pool)
+                            {
                                 match infrastructure::backup::run_scheduled_if_due(&backup_pool, &app_dir).await {
                                     Ok(Some(p)) => tracing::info!(
                                         target: "medoc::system",

@@ -40,6 +40,25 @@ impl From<backup::BackupEntry> for BackupInfo {
     }
 }
 
+/// A failed backup action, in the audit log with the error code (who tried what, and why it failed).
+async fn audit_backup_failure(
+    pool: &SqlitePool,
+    user_id: &str,
+    action: &str,
+    label: Option<&str>,
+    e: &AppError,
+) {
+    let _ = audit_repo::create(
+        pool,
+        user_id,
+        "BACKUP_FAILED",
+        "Backup",
+        label,
+        Some(&format!("action={action}; error={}", e.wire_code())),
+    )
+    .await;
+}
+
 /// File name only, for the audit log (no full local path).
 fn backup_label(path: &std::path::Path) -> String {
     path.file_name()
@@ -55,8 +74,15 @@ pub async fn create_backup(
     session_state: State<'_, SessionState>,
 ) -> Result<BackupInfo, AppError> {
     let session = rbac::require(&session_state, "ops.backup")?;
+    let _op = backup::begin_operation()?;
     let app_dir = crate::commands::app_data_dir(&app)?;
-    let path = backup::create_compressed(&pool, &app_dir).await?;
+    let path = match backup::create_compressed(&pool, &app_dir).await {
+        Ok(p) => p,
+        Err(e) => {
+            audit_backup_failure(&pool, &session.user_id, "BACKUP_MANUAL", None, &e).await;
+            return Err(e);
+        }
+    };
     audit_repo::create(
         &pool,
         &session.user_id,
@@ -124,6 +150,7 @@ pub async fn restore_backup(
     path: String,
 ) -> Result<RestoreBackupResult, AppError> {
     let session = rbac::require(&session_state, "ops.backup")?;
+    let _op = backup::begin_operation()?;
     if let Some(control) = app.try_state::<crate::commands::network::lan::LanServerControl>() {
         crate::commands::network::lan::stop_lan_listener(&control).await;
     }
@@ -143,7 +170,32 @@ pub async fn restore_backup(
         )
         .await
         .ok();
-        backup::restore_from_backup(pool.inner(), &app_dir, &PathBuf::from(&path)).await?
+        match backup::restore_from_backup(pool.inner(), &app_dir, &PathBuf::from(&path)).await {
+            Ok(r) => r,
+            Err(e) => {
+                // The live pool stays open when the checks refuse the backup; when the swap itself
+                // failed it is closed and the record is written by the reopened pool below.
+                if !pool.inner().is_closed() {
+                    audit_backup_failure(
+                        pool.inner(),
+                        &session.user_id,
+                        "BACKUP_RESTORE",
+                        Some(&label),
+                        &e,
+                    )
+                    .await;
+                } else if let Ok(p) =
+                    crate::infrastructure::database::connection::reopen_app_pool(&app_dir).await
+                {
+                    audit_backup_failure(&p, &session.user_id, "BACKUP_RESTORE", Some(&label), &e)
+                        .await;
+                    #[allow(deprecated)]
+                    let _closed = app.unmanage::<SqlitePool>();
+                    app.manage(p);
+                }
+                return Err(e);
+            }
+        }
     };
     let reopened = crate::infrastructure::database::connection::reopen_app_pool(&app_dir).await?;
     // And in the restored data, so the record survives the jump back in time.
@@ -234,8 +286,15 @@ pub async fn reset_backups(
     if reason.trim().len() < 3 {
         return Err(AppError::validation_code("error.backup.reason_required"));
     }
+    let _op = backup::begin_operation()?;
     let app_dir = crate::commands::app_data_dir(&app)?;
-    let deleted = backup::delete_all()?;
+    let deleted = match backup::delete_all() {
+        Ok(n) => n,
+        Err(e) => {
+            audit_backup_failure(&pool, &session.user_id, "BACKUP_RESET", None, &e).await;
+            return Err(e);
+        }
+    };
     audit_repo::create(
         &pool,
         &session.user_id,
@@ -245,7 +304,13 @@ pub async fn reset_backups(
         Some(&format!("deleted={deleted}; reason={}", reason.trim())),
     )
     .await?;
-    let path = backup::create_compressed(&pool, &app_dir).await?;
+    let path = match backup::create_compressed(&pool, &app_dir).await {
+        Ok(p) => p,
+        Err(e) => {
+            audit_backup_failure(&pool, &session.user_id, "BACKUP_MANUAL", None, &e).await;
+            return Err(e);
+        }
+    };
     audit_repo::create(
         &pool,
         &session.user_id,
@@ -260,6 +325,42 @@ pub async fn reset_backups(
         .find(|e| e.path == path)
         .ok_or_else(|| AppError::Internal("backup not listed after creation".into()))?;
     Ok(entry.into())
+}
+
+/// Delete one backup (and its signature and key files). Needs a reason (audit log).
+/// Only files in the backup folder; the last remaining backup cannot be deleted.
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state, path, reason))]
+pub async fn delete_backup(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    path: String,
+    reason: String,
+) -> Result<(), AppError> {
+    let session = rbac::require(&session_state, "ops.backup")?;
+    if reason.trim().len() < 3 {
+        return Err(AppError::validation_code("error.backup.reason_required"));
+    }
+    let _op = backup::begin_operation()?;
+    let label = backup_label(std::path::Path::new(&path));
+    match backup::delete_one(std::path::Path::new(&path)) {
+        Ok(name) => {
+            audit_repo::create(
+                &pool,
+                &session.user_id,
+                "BACKUP_DELETE",
+                "Backup",
+                Some(&name),
+                Some(&format!("reason={}", reason.trim())),
+            )
+            .await?;
+            Ok(())
+        }
+        Err(e) => {
+            audit_backup_failure(&pool, &session.user_id, "BACKUP_DELETE", Some(&label), &e).await;
+            Err(e)
+        }
+    }
 }
 
 #[tauri::command]

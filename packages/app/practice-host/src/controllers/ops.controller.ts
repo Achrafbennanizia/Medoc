@@ -38,6 +38,8 @@ export const setBackupSchedule = (enabled: boolean, reason: string) =>
     practiceSystem.invoke<void>("set_backup_schedule", { enabled, reason });
 /** Deletes every backup and makes a fresh one. Needs a reason (audit log). */
 export const resetBackups = (reason: string) => practiceSystem.invoke<BackupInfo>("reset_backups", { reason });
+/** Delete one backup in the backup folder (not the last one). The reason goes into the audit log. */
+export const deleteBackup = (path: string, reason: string) => practiceSystem.invoke<void>("delete_backup", { path, reason });
 
 export interface ErasureReport {
     patient_id: string;

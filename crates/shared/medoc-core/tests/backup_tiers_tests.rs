@@ -235,3 +235,93 @@ async fn compressed_backup_is_small_restores_and_refuses_tampering() {
     std::env::remove_var("MEDOC_DEV_SEED");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn delete_one_removes_a_backup_with_its_sidecars_and_keeps_the_last() {
+    let _g = keys();
+    let dir = scratch("delete");
+    std::env::set_var("MEDOC_BACKUP_DIR", &dir);
+    let (a, b) = (
+        dir.join(name(at(2026, 11, 22))),
+        dir.join(name(at(2026, 11, 23))),
+    );
+    for p in [&a, &b] {
+        std::fs::write(p, b"x").unwrap();
+        std::fs::write(format!("{}.sig", p.display()), b"sig").unwrap();
+    }
+
+    // Outside the backup folder: refused, file untouched.
+    let outside = std::env::temp_dir().join(format!("medoc-outside-{}.mdbk", uuid::Uuid::new_v4()));
+    std::fs::write(&outside, b"x").unwrap();
+    let e = backup::delete_one(&outside).unwrap_err();
+    assert_eq!(e.wire_code(), "error.backup.outside_folder");
+    assert!(outside.exists());
+    let _ = std::fs::remove_file(&outside);
+    // A path that climbs out of the folder is refused too.
+    let climb = dir.join("..").join(outside.file_name().unwrap());
+    assert!(backup::delete_one(&climb).is_err());
+    // Missing file.
+    assert_eq!(
+        backup::delete_one(&dir.join("medoc-20200101T000000Z.mdbk"))
+            .unwrap_err()
+            .wire_code(),
+        "error.backup.file_not_found"
+    );
+
+    let deleted = backup::delete_one(&a).expect("delete");
+    assert_eq!(deleted, a.file_name().unwrap().to_string_lossy());
+    assert!(!a.exists() && !PathBuf::from(format!("{}.sig", a.display())).exists());
+    // The last one stays.
+    assert_eq!(
+        backup::delete_one(&b).unwrap_err().wire_code(),
+        "error.backup.keep_last"
+    );
+    assert!(b.exists());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn only_one_backup_operation_at_a_time() {
+    let first = backup::begin_operation().expect("free");
+    assert_eq!(
+        backup::begin_operation().unwrap_err().wire_code(),
+        "error.backup.busy"
+    );
+    drop(first);
+    assert!(backup::begin_operation().is_ok());
+}
+
+#[tokio::test]
+async fn an_archive_from_another_key_or_not_an_archive_gets_its_own_code() {
+    let _g = keys();
+    std::env::set_var("MEDOC_DEV_SEED", "0");
+    let dir = scratch("codes");
+    std::env::set_var("MEDOC_BACKUP_DIR", dir.join("backups"));
+    let pool = connection::init_db_headless(&dir).await.expect("init");
+    let archive = dir.join("a.mdbk");
+    backup::write_compressed(&pool, &[7u8; 32], &archive)
+        .await
+        .expect("seal with a foreign key");
+    let out = dir.join("out.db");
+    let e = backup::unpack_to_encrypted_db(&archive, &[9u8; 32], &out)
+        .await
+        .unwrap_err();
+    assert_eq!(e.wire_code(), "error.backup.decrypt_failed");
+    std::fs::write(&archive, b"not a backup at all").unwrap();
+    let e = backup::unpack_to_encrypted_db(&archive, &[9u8; 32], &out)
+        .await
+        .unwrap_err();
+    assert_eq!(e.wire_code(), "error.backup.not_an_archive");
+    // A read failure carries a log reference.
+    let e = backup::unpack_to_encrypted_db(&dir.join("missing.mdbk"), &[9u8; 32], &out)
+        .await
+        .unwrap_err();
+    assert!(
+        e.wire_code().starts_with("error.backup.read_failed|ref="),
+        "{}",
+        e.wire_code()
+    );
+    pool.close().await;
+    std::env::remove_var("MEDOC_DEV_SEED");
+    let _ = std::fs::remove_dir_all(&dir);
+}

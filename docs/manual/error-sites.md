@@ -30,11 +30,29 @@
 | `MD-AUTH-002` | coded | error.auth.totp_invalid_code | `crates/app/medoc-practice/src/commands/admin/auth.rs` |
 | `MD-AUTH-003` | coded | error.auth.totp_optional_role | `crates/app/medoc-practice/src/commands/admin/auth.rs` |
 | `MD-AUTH-004` | coded | error.auth.totp_setup_not_started | `crates/app/medoc-practice/src/commands/admin/auth.rs` |
+| `MD-BAK-006` | coded | error.backup.busy | `crates/shared/medoc-core/src/infrastructure/backup.rs` |
+| `MD-BAK-007` | coded | error.backup.compress_failed | `crates/shared/medoc-core/src/infrastructure/backup.rs` |
+| `MD-BAK-008` | coded | error.backup.decrypt_failed | `crates/shared/medoc-core/src/infrastructure/backup.rs` |
+| `MD-BAK-009` | coded | error.backup.delete_failed | `crates/shared/medoc-core/src/infrastructure/backup.rs` |
+| `MD-BAK-010` | coded | error.backup.disk_full | `crates/shared/medoc-core/src/infrastructure/backup.rs` |
 | `MD-BAK-001` | coded | error.backup.file_not_found | `crates/shared/medoc-core/src/infrastructure/backup.rs` |
+| `MD-BAK-011` | coded | error.backup.folder_unavailable | `crates/shared/medoc-core/src/infrastructure/backup.rs` |
 | `MD-BAK-002` | coded | error.backup.invalid_medoc_db | `crates/shared/medoc-core/src/infrastructure/backup.rs` |
 | `MD-BAK-003` | coded | error.backup.invalid_sqlite | `crates/shared/medoc-core/src/infrastructure/backup.rs` |
+| `MD-BAK-012` | coded | error.backup.keep_last | `crates/shared/medoc-core/src/infrastructure/backup.rs` |
+| `MD-BAK-013` | coded | error.backup.key_unavailable | `crates/shared/medoc-core/src/infrastructure/backup.rs` |
+| `MD-BAK-014` | coded | error.backup.no_permission | `crates/shared/medoc-core/src/infrastructure/backup.rs` |
+| `MD-BAK-015` | coded | error.backup.not_an_archive | `crates/shared/medoc-core/src/infrastructure/backup.rs` |
 | `MD-BAK-004` | coded | error.backup.only_db_files | `crates/shared/medoc-core/src/infrastructure/backup.rs` |
+| `MD-BAK-016` | coded | error.backup.outside_folder | `crates/shared/medoc-core/src/infrastructure/backup.rs` |
+| `MD-BAK-017` | coded | error.backup.read_failed | `crates/shared/medoc-core/src/infrastructure/backup.rs` |
+| `MD-BAK-018` | coded | error.backup.reason_required | `crates/app/medoc-practice/src/commands/system/ops.rs` |
+| `MD-BAK-019` | coded | error.backup.restore_failed | `crates/shared/medoc-core/src/infrastructure/backup.rs` |
+| `MD-BAK-020` | coded | error.backup.safety_backup_failed | `crates/shared/medoc-core/src/infrastructure/backup.rs` |
 | `MD-BAK-005` | coded | error.backup.signature_invalid | `crates/shared/medoc-core/src/infrastructure/backup.rs` |
+| `MD-BAK-021` | coded | error.backup.snapshot_failed | `crates/shared/medoc-core/src/infrastructure/backup.rs` |
+| `MD-BAK-022` | coded | error.backup.unpack_failed | `crates/shared/medoc-core/src/infrastructure/backup.rs` |
+| `MD-BAK-023` | coded | error.backup.write_failed | `crates/shared/medoc-core/src/infrastructure/backup.rs` |
 | `MD-BIL-001` | coded | error.billing.not_released | `crates/shared/medoc-core/src/domain/services/pricing.rs`<br>`packages/shared/src/lib/billing-release.ts` |
 | `MD-BND-001` | coded | error.boundary.crash | — |
 | `MD-BRG-001` | coded | error.break_glass.reason_too_short | `crates/app/medoc-practice/src/commands/admin/break_glass.rs` |
@@ -107,6 +125,8 @@
 | `MD-INV-016` | coded | error.invoice.line_fee_number | `crates/shared/medoc-core/src/infrastructure/pdf/goz.rs` |
 | `MD-INV-017` | coded | error.invoice.line_points | `crates/shared/medoc-core/src/infrastructure/pdf/goz.rs` |
 | `MD-INV-018` | coded | error.invoice.line_receipt | `crates/shared/medoc-core/src/infrastructure/pdf/goz.rs` |
+| `MD-INV-028` | coded | error.invoice.ma_ice_missing | `crates/shared/medoc-core/src/infrastructure/pdf/goz.rs` |
+| `MD-INV-029` | coded | error.invoice.ma_if_missing | `crates/shared/medoc-core/src/infrastructure/pdf/goz.rs` |
 | `MD-INV-019` | coded | error.invoice.no_lines | `crates/shared/medoc-core/src/infrastructure/pdf/goz.rs` |
 | `MD-INV-020` | coded | error.invoice.not_released | `crates/shared/medoc-core/src/application/documents/issue.rs` |
 | `MD-INV-021` | coded | error.invoice.number_missing | `crates/shared/medoc-core/src/infrastructure/pdf/goz.rs` |
@@ -442,6 +462,7 @@
 | `MD-APP-125` | backend-text | System scanner is not supported on this platform. | `crates/shared/medoc-core/src/infrastructure/devices/host_integration.rs` |
 | `MD-SYN-148` | backend-text | table {entity_table} is not on a sync queue | `crates/shared/medoc-sync/src/repo/store.rs` |
 | `MD-DOC-102` | backend-text | Template JSON: {e} | `crates/app/medoc-practice/src/commands/system/document_pdf.rs` |
+| `MD-SET-103` | backend-text | The compliance checklist is invalid | `crates/shared/medoc-core/src/application/app_kv_policy.rs` |
 | `MD-CLU-158` | backend-text | The main device has not accepted this request yet | `crates/shared/medoc-sync/src/cluster/services/cluster_service.rs` |
 | `MD-CLU-159` | backend-text | The main device is not reachable. Start it, then try again. | `crates/shared/medoc-sync/src/cluster/services/staff_directory.rs` |
 | `MD-SET-102` | backend-text | The medication list is invalid | `crates/shared/medoc-core/src/application/app_kv_policy.rs` |
