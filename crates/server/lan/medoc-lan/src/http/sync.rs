@@ -30,18 +30,11 @@ use serde_json::json;
 use super::{ApiError, LanHttpState};
 use crate::master_license;
 
-use super::sync_bodies::verify_signed;
+use super::sync_bodies::{sync_error, verify_signed};
 pub use super::sync_bodies::{SyncExchangeBody, SyncPullBody, SyncPushBody};
 
 fn forbidden(reason: &'static str) -> Response {
-    (
-        StatusCode::FORBIDDEN,
-        Json(json!({
-            "error": "forbidden",
-            "reason": reason
-        })),
-    )
-        .into_response()
+    sync_error(StatusCode::FORBIDDEN, "forbidden", reason)
 }
 
 pub async fn sync_push(
@@ -64,24 +57,21 @@ pub async fn sync_push(
         match axum::body::to_bytes(std::mem::take(req.body_mut()), 16 * 1024 * 1024).await {
             Ok(b) => b,
             Err(_) => {
-                return Err((
+                return Err(sync_error(
                     StatusCode::BAD_REQUEST,
-                    Json(json!({"error": "sync_push_failed", "reason": "body"})),
-                )
-                    .into_response())
+                    "sync_push_failed",
+                    "body",
+                ))
             }
         };
     let body: SyncPushBody = match serde_json::from_slice(&body_bytes) {
         Ok(b) => b,
         Err(error) => {
-            return Err((
+            return Err(sync_error(
                 StatusCode::BAD_REQUEST,
-                Json(json!({
-                    "error": "sync_push_failed",
-                    "reason": error.to_string()
-                })),
-            )
-                .into_response())
+                "sync_push_failed",
+                error.to_string(),
+            ))
         }
     };
     if token_check.device_id != body.from_device_id {
@@ -98,14 +88,7 @@ pub async fn sync_push(
         .await
         .map_err(|e| {
             tracing::warn!(target: "medoc::lan", event = "LAN_SYNC_PUSH_FAILED", error = %e);
-            (
-                StatusCode::BAD_REQUEST,
-                Json(json!({
-                    "error": "sync_push_failed",
-                    "reason": e.to_string()
-                })),
-            )
-                .into_response()
+            sync_error(StatusCode::BAD_REQUEST, "sync_push_failed", e.to_string())
         })?;
     if let Err(error) = repo::touch_replica_seen(
         &state.pool,
@@ -143,24 +126,21 @@ pub async fn sync_exchange(
         match axum::body::to_bytes(std::mem::take(req.body_mut()), 16 * 1024 * 1024).await {
             Ok(b) => b,
             Err(_) => {
-                return Err((
+                return Err(sync_error(
                     StatusCode::BAD_REQUEST,
-                    Json(json!({"error": "sync_exchange_failed", "reason": "body"})),
-                )
-                    .into_response())
+                    "sync_exchange_failed",
+                    "body",
+                ))
             }
         };
     let body: SyncExchangeBody = match serde_json::from_slice(&body_bytes) {
         Ok(b) => b,
         Err(error) => {
-            return Err((
+            return Err(sync_error(
                 StatusCode::BAD_REQUEST,
-                Json(json!({
-                    "error": "sync_exchange_failed",
-                    "reason": error.to_string()
-                })),
-            )
-                .into_response())
+                "sync_exchange_failed",
+                error.to_string(),
+            ))
         }
     };
     if token_check.device_id != body.from_device_id {
@@ -183,14 +163,11 @@ pub async fn sync_exchange(
     .await
     .map_err(|e| {
         tracing::warn!(target: "medoc::lan", event = "LAN_SYNC_EXCHANGE_FAILED", error = %e);
-        (
+        sync_error(
             StatusCode::BAD_REQUEST,
-            Json(json!({
-                "error": "sync_exchange_failed",
-                "reason": e.to_string()
-            })),
+            "sync_exchange_failed",
+            e.to_string(),
         )
-            .into_response()
     })?;
     let deployment = medoc_sync::repo::load_deployment(&state.pool)
         .await
@@ -376,11 +353,11 @@ pub async fn verify_activation_for_path(
 }
 
 fn too_many_requests() -> Response {
-    (
+    sync_error(
         StatusCode::TOO_MANY_REQUESTS,
-        Json(json!({ "error": "reconcile already in progress" })),
+        "reconcile already in progress",
+        "",
     )
-        .into_response()
 }
 
 pub async fn sync_digest(
@@ -466,13 +443,7 @@ pub async fn sync_number(
     let style = medoc_core::infrastructure::database::number_sequence::NumberStyle::parse(
         body.style.as_deref(),
     )
-    .map_err(|e| {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": e.to_string() })),
-        )
-            .into_response()
-    })?;
+    .map_err(|e| sync_error(StatusCode::BAD_REQUEST, e.to_string(), ""))?;
     let number = medoc_core::infrastructure::database::number_sequence::allocate_styled(
         &state.pool,
         &body.prefix,
@@ -480,13 +451,7 @@ pub async fn sync_number(
         style,
     )
     .await
-    .map_err(|e| {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": e.to_string() })),
-        )
-            .into_response()
-    })?;
+    .map_err(|e| sync_error(StatusCode::BAD_REQUEST, e.to_string(), ""))?;
     Ok(Json(json!({ "number": number })))
 }
 

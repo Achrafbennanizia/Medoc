@@ -19,27 +19,102 @@
     border-top: 2px solid var(--line-strong);
   }
   .treatment-groups-scroll {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
     overflow-x: auto;
     overflow-y: visible;
   }
+  /* Chart tables stay the card width. Cell text must not resize them. */
+  #panel-prescription,
+  #panel-treatment,
+  #panel-payment {
+    min-width: 0;
+    max-width: 100%;
+  }
+  #panel-prescription table.tbl,
+  #panel-treatment table.tbl,
+  #panel-payment table.tbl {
+    table-layout: fixed;
+    width: 100%;
+  }
+  #panel-prescription table.tbl :is(th, td),
+  #panel-treatment table.tbl :is(th, td),
+  #panel-payment table.tbl :is(th, td) {
+    min-width: 0;
+  }
+  #panel-prescription table.tbl :is(input, textarea, .ui-field-wrap, .grid),
+  #panel-treatment table.tbl :is(input, textarea, .ui-field-wrap, .grid),
+  #panel-payment table.tbl :is(input, textarea, .ui-field-wrap, .grid) {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .tbl.tbl-treatment-groups col.treatment-col-date { width: 11%; }
+  .tbl.tbl-treatment-groups col.treatment-col-tooth { width: 9%; }
+  .tbl.tbl-treatment-groups col.treatment-col-category { width: 13%; }
+  .tbl.tbl-treatment-groups col.treatment-col-service { width: 22%; }
+  .tbl.tbl-treatment-groups col.treatment-col-session { width: 10%; }
+  .tbl.tbl-treatment-groups col.treatment-col-number { width: 9%; }
+  .tbl.tbl-treatment-groups col.treatment-col-eur { width: 10%; }
+  .tbl.tbl-treatment-groups col.treatment-col-billing { width: 12%; }
+  .tbl.tbl-treatment-groups col.treatment-col-actions { width: 8%; }
+  .tbl.tbl-treatment-groups tr.is-editing td {
+    background: color-mix(in oklab, var(--accent) 8%, transparent);
+  }
   .tbl.tbl-treatment-groups .treatment-th-actions,
   .tbl.tbl-treatment-groups .treatment-td-actions {
-    width: 52px;
     overflow: visible;
     text-align: center;
     vertical-align: middle;
   }
+  .tbl.tbl-certificate-chart col.certificate-col-type { width: 34%; }
+  .tbl.tbl-certificate-chart col.certificate-col-from { width: 18%; }
+  .tbl.tbl-certificate-chart col.certificate-col-until { width: 18%; }
+  .tbl.tbl-certificate-chart col.certificate-col-issued { width: 18%; }
+  .tbl.tbl-certificate-chart col.certificate-col-actions { width: 12%; }
+  .tbl.tbl-prescription-lines col.prescription-line-med { width: 22%; }
+  .tbl.tbl-prescription-lines col.prescription-line-ingredient { width: 18%; }
+  .tbl.tbl-prescription-lines col.prescription-line-dosage { width: 14%; }
+  .tbl.tbl-prescription-lines col.prescription-line-duration { width: 14%; }
+  .tbl.tbl-prescription-lines col.prescription-line-notes { width: 24%; }
+  .tbl.tbl-prescription-lines col.prescription-line-actions { width: 8%; }
 
   /* Prescriptions + certificates (patient Chart) */
   .prescription-certificate-table-scroll {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
     overflow-x: auto;
     overflow-y: visible;
   }
-  .tbl.tbl-prescription-chart .prescription-th-actions,
-  .tbl.tbl-prescription-chart .prescription-td-actions,
+  /* Content length must not resize the chart table. */
+  .tbl.tbl-prescription-chart {
+    table-layout: fixed;
+    width: 100%;
+  }
+  .tbl.tbl-prescription-chart col.prescription-col-med { width: 28%; }
+  .tbl.tbl-prescription-chart col.prescription-col-dosage { width: 18%; }
+  .tbl.tbl-prescription-chart col.prescription-col-duration { width: 14%; }
+  .tbl.tbl-prescription-chart col.prescription-col-status { width: 14%; }
+  .tbl.tbl-prescription-chart col.prescription-col-issued { width: 16%; }
+  .tbl.tbl-prescription-chart col.prescription-col-actions { width: 10%; }
+  .tbl.tbl-prescription-chart th,
+  .tbl.tbl-prescription-chart td {
+    min-width: 0;
+    overflow-wrap: break-word;
+  }
+  .tbl.tbl-prescription-chart td[colspan] :is(input, textarea, .ui-field-wrap, .grid) {
+    min-width: 0;
+    max-width: 100%;
+  }
   .tbl.tbl-certificate-chart .certificate-th-actions,
   .tbl.tbl-certificate-chart .certificate-td-actions {
-    width: 52px;
+    overflow: visible;
+    text-align: center;
+    vertical-align: middle;
+  }
+  .tbl.tbl-prescription-chart .prescription-th-actions,
+  .tbl.tbl-prescription-chart .prescription-td-actions {
     overflow: visible;
     text-align: center;
     vertical-align: middle;

@@ -553,13 +553,9 @@ async fn post_json<T: serde::de::DeserializeOwned, B: Serialize>(
         .json(body)
         .send()
         .await
-        .map_err(|e| AppError::Internal(format!("reconcile http: {e}")))?;
+        .map_err(|e| crate::outbound_http_log::send_failed("reconcile", &e))?;
     if !resp.status().is_success() {
-        let status = resp.status();
-        let body = resp.text().await.unwrap_or_default();
-        return Err(AppError::Internal(format!(
-            "reconcile http status {status}: {body}"
-        )));
+        return Err(crate::outbound_http_log::status_failed("reconcile", resp).await);
     }
     resp.json()
         .await

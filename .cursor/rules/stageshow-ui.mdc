@@ -1,0 +1,24 @@
+---
+description: Use Stageshow (benjitaylor/skills) automatically whenever building or refining UI — product screens, demos, heroes, feature cards, motion walkthroughs, and faux/marketing product shots.
+globs: "{apps/practice-host-ui,packages,website,installer}/**/*.{tsx,ts,css,jsx,js}"
+alwaysApply: false
+---
+
+# Stageshow — automatic UI skill
+
+When this rule is active (UI files in scope) **or** the user asks to build / refine UI, demos, heroes, feature cards, product shots, or cursor walkthroughs:
+
+1. **Read and follow** the Stageshow skill before writing UI:
+   - Primary: `~/.agents/skills/stageshow/SKILL.md` (also linked at `~/.cursor/skills/stageshow/SKILL.md`)
+   - Source: https://github.com/benjitaylor/skills (`stageshow`)
+2. Prefer Stageshow workflow: plan medium/place → look → story → copy closest gold example → craft → choreograph → rehearse/gate.
+3. For faux / marketing / hero / feature-card / demo UI: use the kit and references under that skill (`references/`, `kit/`, `examples/`).
+4. For real MeDoc product UI (practice-host screens): keep Medoc tokens, i18n, and existing components; still apply Stageshow craft rules (restraint, hierarchy, framing, motion with a cause, no stock AI chrome).
+5. Do not invent purple-sparkle AI chrome, fake logos, or wireframe blobs when a structured product screen is needed.
+
+Install / refresh later:
+
+```sh
+npx skills add benjitaylor/skills --skill stageshow -g -y
+ln -sfn ~/.agents/skills/stageshow ~/.cursor/skills/stageshow
+```

@@ -4,6 +4,7 @@ use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use serde_json::{json, Value};
 
 use crate::error::AppError;
+use crate::infrastructure::logging::outbound_http;
 
 use super::config::{effective_api_key, require_callable, CompanyPortalConfig};
 
@@ -34,10 +35,12 @@ async fn get_json(base: &str, path: &str, cfg: &CompanyPortalConfig) -> Result<V
         .header("X-Practice-Slug", cfg.practice_slug.trim())
         .send()
         .await
-        .map_err(|e| AppError::Internal(format!("Vendor portal GET {path}: {e}")))?;
+        .map_err(|e| outbound_http::send_failed(&format!("Vendor portal GET {path}"), &e))?;
     let status = res.status();
     if !status.is_success() {
+        let rid = outbound_http::request_id(&res);
         let t = res.text().await.unwrap_or_default();
+        outbound_http::rejected("vendor portal", status.as_u16(), path, &rid, &t);
         return Err(AppError::Internal(format!(
             "Vendor portal {}: HTTP {} — {}",
             path,
@@ -65,10 +68,12 @@ async fn post_json(
         .json(&body)
         .send()
         .await
-        .map_err(|e| AppError::Internal(format!("Vendor portal POST {path}: {e}")))?;
+        .map_err(|e| outbound_http::send_failed(&format!("Vendor portal POST {path}"), &e))?;
     let status = res.status();
     if !status.is_success() {
+        let rid = outbound_http::request_id(&res);
         let t = res.text().await.unwrap_or_default();
+        outbound_http::rejected("vendor portal", status.as_u16(), path, &rid, &t);
         return Err(AppError::Internal(format!(
             "Vendor portal {}: HTTP {} — {}",
             path,
@@ -154,10 +159,12 @@ pub async fn register_practice_onboarding(base: &str, body: Value) -> Result<Val
         .json(&body)
         .send()
         .await
-        .map_err(|e| AppError::Internal(format!("Vendor portal POST /v1/register: {e}")))?;
+        .map_err(|e| outbound_http::send_failed("Vendor portal POST /v1/register", &e))?;
     let status = res.status();
     if !status.is_success() {
+        let rid = outbound_http::request_id(&res);
         let t = res.text().await.unwrap_or_default();
+        outbound_http::rejected("vendor portal", status.as_u16(), "/v1/register", &rid, &t);
         return Err(AppError::Validation(format!(
             "Registration failed (HTTP {}): {}",
             status,

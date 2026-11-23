@@ -380,7 +380,7 @@ impl SyncEngine {
                     .json(&body)
                     .send()
                     .await
-                    .map_err(|e| AppError::Internal(format!("sync push http: {e}")))?;
+                    .map_err(|e| crate::outbound_http_log::send_failed("sync push", &e))?;
                 let status = resp.status();
                 if status.as_u16() == 401 || status.as_u16() == 403 {
                     return Err(http_status_error("sync push", resp).await);
@@ -568,7 +568,7 @@ impl SyncEngine {
             .json(&body)
             .send()
             .await
-            .map_err(|e| AppError::Internal(format!("sync pull http: {e}")))?;
+            .map_err(|e| crate::outbound_http_log::send_failed("sync pull", &e))?;
         if !resp.status().is_success() {
             return Err(http_status_error("sync pull", resp).await);
         }
@@ -1569,7 +1569,7 @@ async fn fetch_peer_list(
         .bearer_auth(bearer_token)
         .send()
         .await
-        .map_err(|e| AppError::Internal(format!("peers http: {e}")))?;
+        .map_err(|e| crate::outbound_http_log::send_failed("peers", &e))?;
     if !resp.status().is_success() {
         return Err(http_status_error("peers", resp).await);
     }
@@ -1652,7 +1652,7 @@ async fn push_to_peer(
         .json(&body)
         .send()
         .await
-        .map_err(|e| AppError::Internal(format!("peer push http: {e}")))?;
+        .map_err(|e| crate::outbound_http_log::send_failed("peer push", &e))?;
     if !resp.status().is_success() {
         return Err(http_status_error("peer push", resp).await);
     }
@@ -1792,7 +1792,7 @@ async fn post_exchange(
         .json(&body)
         .send()
         .await
-        .map_err(|e| AppError::Internal(format!("sync exchange http: {e}")))?;
+        .map_err(|e| crate::outbound_http_log::send_failed("sync exchange", &e))?;
     if !resp.status().is_success() {
         return Err(http_status_error("sync exchange", resp).await);
     }
@@ -1929,10 +1929,9 @@ async fn receive_exchange_page(
     })
 }
 
+/// Logs the failed call (`outbound_http_log`) and returns the same error as before.
 async fn http_status_error(kind: &str, resp: reqwest::Response) -> AppError {
-    let status = resp.status();
-    let body = resp.text().await.unwrap_or_default();
-    AppError::Internal(format!("{kind} http status {status}: {body}"))
+    crate::outbound_http_log::status_failed(kind, resp).await
 }
 
 /// Relay outbox row and `sync_applied` commit together. A failed relay leaves

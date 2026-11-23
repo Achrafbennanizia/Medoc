@@ -763,13 +763,13 @@ export function PatientDetailPaymentTab({
                     ) : (
                         <table className="tbl tbl-payment-chart">
                             <colgroup>
+                                <col style={{ width: "14%" }} />
+                                <col style={{ width: "24%" }} />
                                 <col style={{ width: "12%" }} />
-                                <col style={{ width: "20%" }} />
-                                <col style={{ width: "10%" }} />
-                                <col style={{ width: "10%" }} />
-                                <col style={{ width: "10%" }} />
+                                <col style={{ width: "12%" }} />
                                 <col style={{ width: "12%" }} />
                                 <col style={{ width: "14%" }} />
+                                <col style={{ width: "12%" }} />
                             </colgroup>
                             <thead>
                                 <tr>
@@ -872,12 +872,12 @@ export function PatientDetailPaymentTab({
                 ) : (
                     <table className="tbl tbl-payment-chart">
                         <colgroup>
-                            <col style={{ width: "11%" }} />
-                            <col style={{ width: "14%" }} />
+                            <col style={{ width: "16%" }} />
+                            <col style={{ width: "22%" }} />
+                            <col style={{ width: "16%" }} />
+                            <col style={{ width: "18%" }} />
+                            <col style={{ width: "16%" }} />
                             <col style={{ width: "12%" }} />
-                            <col style={{ width: "14%" }} />
-                            <col style={{ width: "12%" }} />
-                            <col style={{ width: "8%" }} />
                         </colgroup>
                         <thead>
                             <tr>

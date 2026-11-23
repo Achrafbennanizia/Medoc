@@ -217,7 +217,7 @@ export function PatientDetailPage() {
     const [treatmentComposerMode, setTreatmentComposerMode] = useState<"new" | "continue" | null>(null);
     const [continueFromTreatmentId, setContinueFromTreatmentId] = useState<string>("");
     const [treatmentEditId, setTreatmentEditId] = useState<string | null>(null);
-    /** When editing a row: view first (locked), then edit. New/continue: unlocked immediately. */
+    /** Row edit opens ready to change. New and continue stay unlocked too. */
     const [treatmentFormUnlocked, setTreatmentFormUnlocked] = useState(true);
     const [treatmentDeleteId, setTreatmentDeleteId] = useState<string | null>(null);
     const [unterEdit, setUnterEdit] = useState<Examination | null>(null);
@@ -585,17 +585,6 @@ export function PatientDetailPage() {
         }
     }, []);
 
-    /* Unlock state only when switching to another row id, not on every field mutation. */
-    /* eslint-disable react-hooks/exhaustive-deps */
-    useEffect(() => {
-        if (unterEdit) setUnterEditUnlocked(false);
-    }, [unterEdit?.id]);
-
-    useEffect(() => {
-        if (paymentEdit) setPaymentEditUnlocked(false);
-    }, [paymentEdit?.id]);
-    /* eslint-enable react-hooks/exhaustive-deps */
-
     useEffect(() => {
         if (!id) return;
         const version =
@@ -810,7 +799,7 @@ export function PatientDetailPage() {
                     onStartEdit={(u) => {
                         setUnterDeleteId(null);
                         setShowUnterComposer(false);
-                        setUnterEditUnlocked(false);
+                        setUnterEditUnlocked(true);
                         setUnterEdit({ ...u });
                     }}
                     onRequestDelete={(examinationId) => {
@@ -890,7 +879,7 @@ export function PatientDetailPage() {
                     onOpenEditTreatment={(b: Treatment) => {
                         setTreatmentDeleteId(null);
                         setTreatmentEditId(b.id);
-                        setTreatmentFormUnlocked(false);
+                        setTreatmentFormUnlocked(true);
                         setTreatmentComposerMode(null);
                         setContinueFromTreatmentId("");
                         const kid = resolveCatalogIdForTreatment(catalog, b);
@@ -1137,7 +1126,7 @@ export function PatientDetailPage() {
                     onUnlockPaymentEdit={() => setPaymentEditUnlocked(true)}
                     onStartEditPayment={(z) => {
                         setPaymentDeleteId(null);
-                        setPaymentEditUnlocked(false);
+                        setPaymentEditUnlocked(true);
                         setPaymentEditForm({
                             amount: String(z.amount),
                             payment_method: z.payment_method,

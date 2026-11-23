@@ -3,6 +3,7 @@
 //! forwarded main-only operations, and dropped at sign-out. The main device checks that
 //! person's own privileges, so a replica never gains rights of its own.
 
+use medoc_core::infrastructure::logging::outbound_http;
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 
@@ -89,8 +90,17 @@ pub async fn establish_link(pool: &SqlitePool, email: &str, password: &str) -> b
             .json(&serde_json::json!({ "email": email, "password": password }))
             .send()
             .await
-            .map_err(|_| AppError::validation_code(ERR_UNREACHABLE))?;
+            .map_err(|e| {
+                let _ = outbound_http::send_failed("main link sign-in", &e);
+                AppError::validation_code(ERR_UNREACHABLE)
+            })?;
         if !res.status().is_success() {
+            let (status, route, rid) = (
+                res.status().as_u16(),
+                res.url().path().to_owned(),
+                outbound_http::request_id(&res),
+            );
+            outbound_http::rejected("main link sign-in", status, &route, &rid, "");
             return Err(AppError::Unauthorized);
         }
         res.json::<LoginReply>()
@@ -112,7 +122,7 @@ pub async fn establish_link(pool: &SqlitePool, email: &str, password: &str) -> b
             true
         }
         Err(e) => {
-            tracing::warn!(target: "medoc::network", event = "MAIN_LINK_FAILED", error = %e);
+            tracing::warn!(target: "medoc::http", event = "MAIN_LINK_FAILED", error = %e);
             false
         }
     }
@@ -136,10 +146,10 @@ pub async fn forward<T: DeserializeOwned>(
     if let Some(b) = body {
         req = req.json(&b);
     }
-    let res = req
-        .send()
-        .await
-        .map_err(|_| AppError::validation_code(ERR_UNREACHABLE))?;
+    let res = req.send().await.map_err(|e| {
+        let _ = outbound_http::send_failed("main link forward", &e);
+        AppError::validation_code(ERR_UNREACHABLE)
+    })?;
     let status = res.status();
     if status.is_success() {
         return res
@@ -148,9 +158,16 @@ pub async fn forward<T: DeserializeOwned>(
             .map_err(|e| AppError::Internal(format!("main device reply: {e}")));
     }
     // The main device's own error token (same wire format as local IPC errors).
-    let message = res
-        .json::<serde_json::Value>()
-        .await
+    let (route, request_id) = (res.url().path().to_owned(), outbound_http::request_id(&res));
+    let body = res.text().await.unwrap_or_default();
+    outbound_http::rejected(
+        "main link forward",
+        status.as_u16(),
+        &route,
+        &request_id,
+        &body,
+    );
+    let message = serde_json::from_str::<serde_json::Value>(&body)
         .ok()
         .and_then(|v| v.get("error").and_then(|e| e.as_str()).map(str::to_string))
         .unwrap_or_default();

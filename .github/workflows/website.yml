@@ -3,6 +3,12 @@ name: Website
 on:
   push:
     branches: [main]
+  # Pull requests that touch the site build it (type-check + production build) but never deploy.
+  pull_request:
+    paths:
+      - "website/**"
+      - "package-lock.json"
+      - ".github/workflows/website.yml"
   workflow_dispatch:
 
 permissions:
@@ -11,7 +17,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
+  group: ${{ github.event_name == 'pull_request' && format('website-pr-{0}', github.ref) || 'pages' }}
   cancel-in-progress: true
 
 jobs:
@@ -20,6 +26,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
+        if: github.event_name != 'pull_request'
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -28,11 +35,13 @@ jobs:
       - run: npm run build -w medoc-product-website
       - run: touch website/dist/.nojekyll
       - uses: actions/upload-pages-artifact@v3
+        if: github.event_name != 'pull_request'
         with:
           path: website/dist
 
   deploy:
     needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment:
       name: github-pages

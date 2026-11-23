@@ -10,13 +10,97 @@
     justify-content: center;
     width: 100%;
   }
-  .treatment-composer-dental > .card {
-    width: max-content;
+  .treatment-composer-dental > .treatment-tooth-status {
+    width: 100%;
     max-width: 100%;
     margin-inline: auto;
   }
-  .treatment-composer-dental .dental-odontogram {
-    margin-inline: auto;
+  .dental-chart-with-findings {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 16.5rem;
+    gap: 10px;
+    align-items: start;
+    width: 100%;
+    min-width: 0;
+  }
+  .treatment-finding-list {
+    max-height: 22rem;
+    margin: 0;
+    padding: 0;
+    overflow: auto;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    scrollbar-width: thin;
+  }
+  .treatment-finding {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    width: 100%;
+    margin: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface-1);
+    color: inherit;
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+  }
+  .treatment-finding--empty { cursor: default; color: var(--fg-3); font-size: 12.5px; }
+  .treatment-finding:disabled { cursor: default; }
+  .treatment-finding.is-selected {
+    border-color: var(--dental-selected, var(--blue));
+    box-shadow: inset 0 0 0 1px var(--dental-selected, var(--blue));
+  }
+  .treatment-finding:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .treatment-finding__head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .treatment-finding__num {
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--dental-selected, var(--blue));
+    direction: ltr;
+    unicode-bidi: isolate;
+  }
+  .treatment-finding .dental-arch__detail-note,
+  .treatment-finding .dental-arch__detail-meta { display: block; }
+  .treatment-tooth-status {
+    box-sizing: border-box;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-card);
+    background: var(--surface-1);
+    padding: 12px 14px 0;
+    overflow-x: auto;
+  }
+  .treatment-tooth-status .dental-arch__legend { margin-bottom: 8px; }
+  .dental-mini-tooth-svg.is-missing path,
+  .dental-mini-tooth-svg.is-planned .dental-mini-tooth-svg__crown {
+    stroke-dasharray: 2 1.6;
+  }
+  .treatment-tooth-status .dental-odontogram { margin-inline: auto; }
+  .treatment-tooth-status .dental-mini-tooth.is-selected {
+    border-color: var(--tooth-ring);
+    box-shadow: 0 0 0 1.5px var(--tooth-ring);
+    background: color-mix(in oklab, var(--tooth-ring) 16%, transparent);
+  }
+  .treatment-tooth-status .dental-mini-tooth.is-selected .dental-mini-label {
+    color: var(--tooth-ring);
+  }
+  .treatment-tooth-status .dental-mini-tooth:disabled {
+    cursor: default;
+  }
+  .treatment-tooth-status.is-disabled .dental-odontogram { opacity: 0.72; }
+  .treatment-tooth-status .dental-arch__detail {
+    margin: 10px -14px 0;
+    border-radius: 0 0 var(--radius-card) var(--radius-card);
   }
   .dental-mini-row {
     display: flex;

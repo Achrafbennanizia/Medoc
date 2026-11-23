@@ -11,6 +11,7 @@ without touching routing code.
 | "Something is wrong", no reference | `errors.log` | Every WARN and ERROR from every area, in time order |
 | A screen misbehaves (render crash, unexpected UI state) | `client.log` | Errors the UI showed or caught, with route and code |
 | Sync, pairing, discovery, LAN API | `network.log` | All network traffic events |
+| An API call failed (any side) | `errors.log`, search the request id or `API_CALL_FAILED` / `HTTP_REQUEST_` / `OUTBOUND_HTTP_` | Caller and receiver log the same `request_id` |
 | Sign-in, lockout, permission | `security.log` | |
 | Start-up, database, backups, window | `system.log` | |
 | Slow screens | `perf.log` | |
@@ -80,6 +81,25 @@ Rules:
 The desktop app installs the sink in `main.tsx` (`log_client_event` command). Reports are de-duplicated for
 5 s on the client and rate-limited to 30 per 10 s on the backend; messages are capped at 2,000 characters and
 routes are stored without query strings.
+
+## API failures
+
+A failed API call is logged on every side it touches, and the sides are joined by one `request_id`:
+
+| Side | Where | Event | Fields |
+|---|---|---|---|
+| UI → desktop backend (IPC) | `client.log` (`tauri-transport.ts` → `report-api-failure.ts`) | `API_CALL_FAILED` | transport `ipc`, command, catalogue code and kind, backend `ref=` |
+| UI → main device (LAN client, HTTPS) | `client.log` (`http-practice.adapter.ts`) | `API_CALL_FAILED` | transport `lan`, command, code, HTTP status, `request_id` (sent as `x-request-id`) |
+| Main device receiving a request | `network.log` (`observability.rs`, outermost layer) | `HTTP_REQUEST_FAILED` (5xx), `HTTP_REQUEST_REJECTED` (4xx) | method, route template, status, error `code`, `request_id`, elapsed |
+| Device calling another device (sync push/pull/exchange, reconcile, peers, pairing, main link, vendor portal) | `network.log` (`logging/outbound_http.rs`) | `OUTBOUND_HTTP_FAILED` (5xx), `OUTBOUND_HTTP_REJECTED` (4xx), `OUTBOUND_HTTP_UNREACHABLE` (no answer) | call kind, route path, status, the other side's `request_id` and error code, `skipped` |
+
+Rules:
+- Arguments and error parameters are never logged (passwords, patient data): only the command, the error key and the code.
+- Expected outcomes (validation, not found, conflict) are `info` in `client.log` and stay out of `errors.log`.
+- Connectivity failures are throttled: once a minute per command (UI) or per call kind (outgoing), with the count of skipped ones, so an offline device polling twice a second cannot flood the files.
+- The server logs requests refused before routing too (origin gate, CORS): the logging layer is the outermost one.
+- Error responses carry their code to the log line as a response extension (`FailureCode`); hand-built JSON error bodies are read for their `error`/`reason` when small and uncompressed.
+- `log_targets_routed_tests.rs` fails when code logs to a `medoc::…` target that no channel routes (and that is not a listed app.log area).
 
 ## Adding a new area
 

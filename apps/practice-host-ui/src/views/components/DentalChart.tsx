@@ -27,8 +27,8 @@ type DentalChartProps = {
     pickerHint?: string;
     /** View only — no tooth selection / no finding set (view mode). */
     disabled?: boolean;
-    /** Show the selected-tooth strip under the chart. Off when the parent renders its own tooth card. */
-    detail?: boolean;
+    /** Show the selected-tooth strip under the chart. Off when the parent renders its own tooth card or a side list. */
+    showDetail?: boolean;
 };
 
 export function DentalChart({
@@ -39,7 +39,7 @@ export function DentalChart({
     onApply,
     disabled = false,
     pickerHint,
-    detail = true,
+    showDetail = true,
 }: DentalChartProps) {
     const t = useT();
     const tp = useTParams();
@@ -106,7 +106,7 @@ export function DentalChart({
                     </div>
                 ) : (
                     <ul className="dental-arch__legend" aria-label={t("dental.chart.legend")}>
-                        {DENTAL_STATUS_KEYS.filter((k) => k !== "healthy").map((k) => (
+                        {DENTAL_STATUS_KEYS.map((k) => (
                             <li key={k} className={`is-${k}`}>
                                 <span className="dental-arch__swatch" aria-hidden />
                                 {dentalStatusLabel(t, k)}
@@ -127,7 +127,7 @@ export function DentalChart({
                 />
                 <DentalOdontogramAxis slot="end">{t("dental.axis.left")}</DentalOdontogramAxis>
             </div>
-            {detail ? (
+            {showDetail ? (
                 <div className="dental-arch__detail" aria-live="polite">
                     {focusTooth && focusState ? (
                         <>

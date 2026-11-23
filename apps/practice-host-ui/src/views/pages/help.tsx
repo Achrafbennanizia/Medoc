@@ -108,11 +108,6 @@ export function HelpPage({ embedded = false }: HelpPageProps = {}) {
                 titleLevel="h1"
                 title={t("page.help.title")}
                 subtitle={t("page.help.intro")}
-                actions={
-                    <Button type="button" variant="ghost" onClick={() => window.print()}>
-                        {t("help.print")}
-                    </Button>
-                }
             />
 
             <div className="help-center__bar">

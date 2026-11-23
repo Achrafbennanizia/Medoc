@@ -244,7 +244,7 @@ There is no LAN HTTP route for day close. The screen talks to the desktop proces
 
 7. Copy
 
-  Locale keys (values in packages/shared/locales, plus scripts/i18n-translation-patches*.json):
+  Locale keys (values in packages/shared/locales):
     nav.day_close
     dashboard.day_close.toast
     settings.workflows.day_close_hint

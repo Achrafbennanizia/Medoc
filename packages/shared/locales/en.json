@@ -6431,5 +6431,7 @@
   "settings.practice.billing_fr_siret": "SIRET",
   "settings.practice.billing_fr_siret_error": "The SIRET has 14 digits.",
   "document.practice_field.fr_ids": "French ids (RPPS, SIRET)",
-  "certificate.fr_sick_leave_hint": "In France, sick leave is declared online on amelipro or on the secure Cerfa form. This certificate will say so; it remains valid as a medical certificate."
+  "certificate.fr_sick_leave_hint": "In France, sick leave is declared online on amelipro or on the secure Cerfa form. This certificate will say so; it remains valid as a medical certificate.",
+  "page.patient_detail.certificate.save_and_print": "Save and print",
+  "page.patient_detail.prescription.save_and_print": "Save and print"
 }

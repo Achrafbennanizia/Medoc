@@ -1,6 +1,6 @@
-import { createCertificate, deleteCertificate } from "@/systems/practice-host/controllers/certificate.controller";
+import { createCertificate, deleteCertificate, type Certificate } from "@/systems/practice-host/controllers/certificate.controller";
 import { createDocumentTemplate, listDocumentTemplates } from "@/systems/practice-host/controllers/practice.controller";
-import { createPrescription, deletePrescription } from "@/systems/practice-host/controllers/prescription.controller";
+import { createPrescription, deletePrescription, type Prescription } from "@/systems/practice-host/controllers/prescription.controller";
 import type { DocumentTemplate, DocumentTemplateKind } from "@/models/types";
 import { normalizeDocumentTemplateKind } from "@/models/types";
 import {
@@ -47,8 +47,8 @@ export async function persistPatientPrescriptions(
     queue: PrescriptionLine[],
     shared: string,
     onAfterSave?: () => void,
-): Promise<void> {
-    const createdIds: string[] = [];
+): Promise<Prescription[]> {
+    const created: Prescription[] = [];
     try {
         for (const line of queue) {
             const merged = [line.instructions, shared].filter((s) => s.trim()).join(" · ");
@@ -72,23 +72,23 @@ export async function persistPatientPrescriptions(
                 allergy_override,
             }), ctx.confirmAllergy);
             if (!r) break;
-            createdIds.push(r.id);
+            created.push(r);
         }
-        if (createdIds.length === 0) {
+        if (created.length === 0) {
             await ctx.onReload();
-            return;
+            return [];
         }
         ctx.toast(
-            createdIds.length === 1
+            created.length === 1
                 ? t("patient.detail.toast.prescription_saved_one")
-                : tp("patient.detail.toast.prescriptions_saved_count", { count: createdIds.length }),
+                : tp("patient.detail.toast.prescriptions_saved_count", { count: created.length }),
             "success",
             {
                 durationMs: PATIENT_DETAIL_TOAST_UNDO_MS,
                 onUndo: async () => {
                     try {
-                        for (const rid of createdIds) {
-                            await deletePrescription(rid);
+                        for (const row of created) {
+                            await deletePrescription(row.id);
                         }
                         await ctx.onReload();
                     } catch (e) {
@@ -99,8 +99,10 @@ export async function persistPatientPrescriptions(
         );
         onAfterSave?.();
         await ctx.onReload();
+        return created;
     } catch (e) {
         toastError(ctx, e);
+        return [];
     }
 }
 
@@ -108,7 +110,7 @@ export async function persistPatientCertificate(
     ctx: PatientDetailPrescriptionActionsCtx,
     fields: CertificateComposerFormFields,
     options?: { silent?: boolean; onAfterSave?: () => void },
-): Promise<string | null> {
+): Promise<Certificate | null> {
     const vErr = validateCertificateComposer(fields, t);
     if (vErr) {
         ctx.toast(vErr, "error");
@@ -146,7 +148,7 @@ export async function persistPatientCertificate(
         }
         options?.onAfterSave?.();
         await ctx.onReload();
-        return created.id;
+        return created;
     } catch (e) {
         toastError(ctx, e);
         return null;
@@ -196,13 +198,13 @@ export async function flushCertificateFinalizeTemplate(
         });
         await hooks.refreshCertificateTemplates();
         hooks.clearPending();
-        const certificateId = await persistPatientCertificate(ctx, p.fields, { silent: true });
-        if (certificateId) {
+        const created = await persistPatientCertificate(ctx, p.fields, { silent: true });
+        if (created) {
             ctx.toast(t("patient.detail.toast.template_certificate_saved"), "success", {
                 durationMs: PATIENT_DETAIL_TOAST_UNDO_MS,
                 onUndo: async () => {
                     try {
-                        await deleteCertificate(certificateId);
+                        await deleteCertificate(created.id);
                         await ctx.onReload();
                     } catch (e) {
                         toastError(ctx, e);

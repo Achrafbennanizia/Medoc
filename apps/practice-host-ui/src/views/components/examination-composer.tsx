@@ -10,6 +10,7 @@ import {
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Button } from "./ui/button";
 import { DentalChart } from "./DentalChart";
+import { TreatmentFindingList } from "./treatment-finding-list";
 import type { TreatmentCatalogItem, DentalFinding } from "@/models/types";
 import {
     DENTAL_STATUS_KEYS,
@@ -242,15 +243,23 @@ export function ExaminationComposer({
             <div className="col" style={{ gap: "var(--space-3)" }}>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{t("examination.composer.dental_section_title")}</div>
                 <p style={{ margin: 0, fontSize: 12.5, color: "var(--fg-3)" }}>{t("examination.composer.dental_hint")}</p>
-                <DentalChart
-                    mode="picker"
-                    findings={chartFindings}
-                    selectedTooth={selectedTooth}
-                    onToothSelect={setSelectedTooth}
-                    pickerHint={t("examination.composer.dental_pick_hint")}
-                    disabled={locked}
-                    detail={false}
-                />
+                <div className="dental-chart-with-findings">
+                    <DentalChart
+                        mode="picker"
+                        findings={chartFindings}
+                        selectedTooth={selectedTooth}
+                        onToothSelect={setSelectedTooth}
+                        pickerHint={t("examination.composer.dental_pick_hint")}
+                        disabled={locked}
+                        showDetail={false}
+                    />
+                    <TreatmentFindingList
+                        findings={findings}
+                        selectedTooth={selectedTooth}
+                        onSelect={setSelectedTooth}
+                        disabled={locked}
+                    />
+                </div>
 
                 {selectedTooth ? (
                     <ExamToothCard tooth={selectedTooth} statusKeys={selectedKeys} updatedAt={selectedFinding?.updated_at}>

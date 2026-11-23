@@ -1,34 +1,43 @@
 # MeDoc product website
 
-Standalone marketing site for **MeDoc**. It is **not** in the root npm workspace (so `npm test` / CI stay on the desktop app).
+Marketing site for **MeDoc**, aimed first at dental practices in Morocco.
+
+- 4 languages: FR (default), AR (right-to-left), EN, DE. `?lang=ar` deep-links a language.
+- Country selector (Morocco, France, Germany, EU): defaults from the browser's time zone and language, no location prompt. It picks the documents shown, the country section, the price currency and number format. `?country=FR` deep-links a country.
+- Light/dark theme: follows the system.
+- Interactive odontogram (FDI, combined statuses) in the hero, What's new, a tour of the real app, a gallery of real PDFs per country, set-ups, prices in MAD or €, FAQ, demo form (opens the visitor's e-mail app; nothing is stored), legal pages per language at `#/legal/<doc>`.
+- Cookies: only four first-party, strictly necessary ones, written when the visitor makes a choice (`src/prefs.ts`). Keep that list and the legal pages in step.
 
 ## Run
 
 ```bash
-# from the repo root
-npm run dev:website          # http://127.0.0.1:4173
-
-# or
-cd website && npm run dev
+cd website
+npm ci --workspaces=false
+npm run dev        # http://127.0.0.1:4173
+npm run build      # type-check + production build → dist/
 ```
 
-## What this is
+## Edit
 
-- Single-page site: hero → problem → how it works → features (interactive mockups) → backends → RBAC table → compliance mechanisms → walkthrough CTA.
-- Visual language from `apps/practice-host-ui/src/index.css` (accent `#0EA07E`, Inter, light/dark).
-- Claims constrained by `website/AUDIT.md`. No invented metrics or cloud regions.
+| What | Where |
+|---|---|
+| All copy, 4 languages | `src/i18n.ts` (FR/AR/DE are typed against EN, so a missing key fails the build) |
+| E-mail, WhatsApp number, prices | `src/config.ts` — **set the real e-mail and WhatsApp before publishing** |
+| Odontogram data | `src/Odontogram.tsx` (`FINDINGS`) |
+| What's new, documents gallery, legal page labels | `src/site-copy.ts` |
+| Country selector, country sections, cookie notice | `src/country-copy.ts`, `src/prefs.ts` |
+| Legal texts (EN → EU, DE → Germany, FR → France, AR → Morocco) | `src/legal/*.ts`; company details in `src/legal/entity.ts` — **fill every `[…]` before publishing** |
+| Product tour text + screenshot list | `src/product-copy.ts` (sections, captions) and `src/product-points.ts` (detail bullets) |
+| Colours, type, layout | `src/styles.css` (tokens at the top; dark mode redefines the same tokens) |
 
-## Sitemap
+Design rationale: `docs/launch/03-website-design-plan.md`. Claims must stay within what the app does today: features not shipped yet are listed under "En préparation".
 
-1. `#top` Hero  
-2. `#problem` Field problem  
-3. `#how` Solution bridge  
-4. `#features` Dashboard, calendar (drag), chart, tasks, finance  
-5. `#backends` Desktop / LAN / peer / company portal  
-6. `#security` PHYSICIAN vs RECEPTION  
-7. `#compliance` Mechanism list  
-8. `#contact` Mailto walkthrough request  
+## Screenshots and documents
 
-## Intentionally not claimed
+`public/product/*.webp` are real captures of the desktop app (French UI, demo practice in MAD), at 1800 and 1000 px. `public/documents/` holds PDFs issued by the app's own sample tests (`crates/shared/medoc-core/tests/{moroccan_invoice_samples,country_document_samples,official_pdf_samples}.rs`, written to `$MEDOC_PDF_SAMPLE_DIR`), rendered to WebP. Patients and practices are fictitious.
 
-Managed EU patient hosting, MDR CE mark, live TAX_ADVISOR role, company portal as production billing SaaS, hours-saved statistics.
+To re-capture the app: run it with `MEDOC_DEV_SEED=1`, sign in with the demo accounts and use the dev capture bridge (dev builds only). Wait for the page fade-in before each capture, or the content area comes out blank. Check every file by eye before publishing.
+
+## Deploy
+
+Every push to `main` builds the site and publishes it to GitHub Pages (`.github/workflows/website.yml`).

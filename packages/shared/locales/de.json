@@ -6431,5 +6431,7 @@
   "settings.practice.billing_fr_siret": "SIRET",
   "settings.practice.billing_fr_siret_error": "Die SIRET hat 14 Ziffern.",
   "document.practice_field.fr_ids": "Französische Kennungen (RPPS, SIRET)",
-  "certificate.fr_sick_leave_hint": "In Frankreich wird die Arbeitsunfähigkeit online über amelipro oder auf dem gesicherten Cerfa-Formular gemeldet. Diese Bescheinigung weist darauf hin; als ärztliche Bescheinigung bleibt sie gültig."
+  "certificate.fr_sick_leave_hint": "In Frankreich wird die Arbeitsunfähigkeit online über amelipro oder auf dem gesicherten Cerfa-Formular gemeldet. Diese Bescheinigung weist darauf hin; als ärztliche Bescheinigung bleibt sie gültig.",
+  "page.patient_detail.certificate.save_and_print": "Speichern und drucken",
+  "page.patient_detail.prescription.save_and_print": "Speichern und drucken"
 }

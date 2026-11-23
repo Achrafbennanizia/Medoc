@@ -11,6 +11,17 @@ import {
 import { formatIpcError } from "@/lib/ipc-errors";
 import type { PracticeSystemPort } from "../ports/practice-system.port";
 import { enqueueWrite, flushQueuedWrites, queuedValue, type QueuedWrite, type ReplayResult } from "./offline-write-queue";
+import { reportApiFailure } from "@/lib/report-api-failure";
+
+/** Error of a LAN call, with what the log line needs (status, the id the main device logged). */
+type LanCallError = Error & { status?: number; requestId?: string };
+
+/** Same alphabet the main device accepts (`observability.rs`): its log line uses this id too. */
+function newRequestId(): string {
+    const bytes = new Uint8Array(8);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("").toUpperCase();
+}
 
 /** Setting writes are kept offline and replayed later (store-and-forward). */
 const QUEUEABLE = new Set(["set_app_kv", "delete_app_kv"]);
@@ -116,6 +127,8 @@ export class HttpPracticeAdapter implements PracticeSystemPort {
             if (command !== "logout") void this.replayQueued();
             return out;
         } catch (e) {
+            const err = e as LanCallError;
+            reportApiFailure("lan", command, e, { status: err.status, requestId: err.requestId });
             if (!QUEUEABLE.has(command) || !isOfflineError(e)) throw e;
             const key = String(args?.key ?? "");
             // Resolves once the write is on disk, so a shutdown right after cannot lose it.
@@ -131,6 +144,8 @@ export class HttpPracticeAdapter implements PracticeSystemPort {
                 await this.send(w.command, { key: w.key, value: w.value, editedAt: w.editedAt });
                 return "sent";
             } catch (e) {
+                const err = e as LanCallError;
+                reportApiFailure("lan", `${w.command} (offline replay)`, e, { status: err.status, requestId: err.requestId });
                 const msg = e instanceof Error ? e.message : String(e);
                 // Not reachable, or signed out: keep the write for the next attempt.
                 if (isOfflineError(e) || /unauthorized|forbidden|LAN HTTP 40[13]\b/i.test(msg)) return "offline";
@@ -155,8 +170,10 @@ export class HttpPracticeAdapter implements PracticeSystemPort {
         const path =
             typeof route.path === "function" ? route.path(args ?? {}) : route.path;
         const url = `${this.cfg.baseUrl}${path}`;
+        const requestId = newRequestId();
         const headers: Record<string, string> = {
             Accept: "application/json",
+            "x-request-id": requestId,
         };
         if (this.cfg.accessToken.trim().length > 0) {
             headers.Authorization = `Bearer ${this.cfg.accessToken}`;
@@ -178,9 +195,15 @@ export class HttpPracticeAdapter implements PracticeSystemPort {
             }
         }
 
-        const res = await fetchWithTimeout(url, init, LAN_REQUEST_TIMEOUT_MS);
+        let res: Response;
+        try {
+            res = await fetchWithTimeout(url, init, LAN_REQUEST_TIMEOUT_MS);
+        } catch (e) {
+            throw Object.assign(e instanceof Error ? e : new Error(String(e)), { requestId }) as LanCallError;
+        }
         if (!res.ok) {
-            throw new Error(await lanErrorFromResponse(res));
+            const err: LanCallError = new Error(await lanErrorFromResponse(res));
+            throw Object.assign(err, { status: res.status, requestId: res.headers.get("x-request-id") ?? requestId });
         }
         if (res.status === 204) {
             return undefined as T;
