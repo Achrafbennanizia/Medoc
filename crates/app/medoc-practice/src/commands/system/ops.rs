@@ -10,7 +10,7 @@ use crate::application::rbac;
 use crate::commands::admin::auth::SessionState;
 use crate::error::AppError;
 use crate::infrastructure::database::repos::admin::audit as audit_repo;
-use crate::infrastructure::{backup, gdpr, migration, retention};
+use crate::infrastructure::{backup, backup_files, gdpr, migration, retention};
 
 // snake_case on the wire: ops.controller.ts and every screen read `size_bytes`, `signature_ok`, …
 #[derive(Debug, Serialize)]
@@ -140,6 +140,8 @@ pub struct RestoreBackupResult {
     pub requires_app_restart: bool,
     pub restored_from: String,
     pub pre_restore_backup_created: bool,
+    /// Attachments (X-rays, scans…) put back from the backup.
+    pub restored_files: usize,
 }
 
 #[tauri::command]
@@ -198,6 +200,18 @@ pub async fn restore_backup(
         }
     };
     let reopened = crate::infrastructure::database::connection::reopen_app_pool(&app_dir).await?;
+    // The backup folder is a property of this computer, not of the data: keep the current choice
+    // even if the restored (older) database remembers another one.
+    let folder = serde_json::json!({
+        "path": backup_files::chosen_backup_dir().map(|d| d.display().to_string())
+    });
+    crate::infrastructure::database::repos::admin::app_kv::set(
+        &reopened,
+        backup_files::DIR_KV_KEY,
+        &folder.to_string(),
+    )
+    .await
+    .ok();
     // And in the restored data, so the record survives the jump back in time.
     audit_repo::create(
         &reopened,
@@ -217,6 +231,7 @@ pub async fn restore_backup(
         requires_app_restart: false,
         restored_from: report.restored_from.display().to_string(),
         pre_restore_backup_created: report.pre_restore_backup_created,
+        restored_files: report.restored_files,
     })
 }
 
@@ -226,8 +241,19 @@ pub struct BackupOverview {
     pub enabled: bool,
     /// Last schedule change: `{enabled, changedBy, changedAt, reason}` (absent: never changed).
     pub schedule: Option<Value>,
+    /// Folder backups go to now.
     pub backup_dir: String,
+    /// Folder chosen in Settings (None = this computer's default folder).
+    pub chosen_dir: Option<String>,
+    /// The chosen folder is missing (drive unplugged): backups go to `backup_dir` meanwhile.
+    pub chosen_dir_missing: bool,
+    /// The active folder is on a USB stick, external disk or network share.
+    pub external: bool,
+    pub default_dir: String,
     pub total_bytes: u64,
+    /// Attachments stored with the backups (shared encrypted copies): count and bytes.
+    pub files_count: u64,
+    pub files_bytes: u64,
     pub backups: Vec<BackupInfo>,
 }
 
@@ -245,13 +271,95 @@ pub async fn backup_overview(
         crate::infrastructure::database::repos::admin::app_kv::get(&pool, backup::SCHEDULE_KV_KEY)
             .await?
             .and_then(|v| serde_json::from_str::<Value>(&v).ok());
+    let (active, missing) = backup_files::active_backup_dir();
+    let (files_count, files_bytes) = backup_files::store_usage(&active);
     Ok(BackupOverview {
         enabled: backup::schedule_enabled(&pool).await,
         schedule,
-        backup_dir: backup::backup_dir().display().to_string(),
-        total_bytes: entries.iter().map(|e| e.size_bytes).sum(),
+        backup_dir: active.display().to_string(),
+        chosen_dir: backup_files::chosen_backup_dir().map(|d| d.display().to_string()),
+        chosen_dir_missing: missing,
+        external: backup_files::is_external_location(&active),
+        default_dir: backup_files::default_backup_dir().display().to_string(),
+        total_bytes: entries.iter().map(|e| e.size_bytes).sum::<u64>() + files_bytes,
+        files_count,
+        files_bytes,
         backups: entries.into_iter().map(BackupInfo::from).collect(),
     })
+}
+
+/// Native folder picker for the backup folder (USB stick, external disk).
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(session_state))]
+pub fn pick_backup_folder(
+    session_state: State<'_, SessionState>,
+) -> Result<Option<String>, AppError> {
+    rbac::require(&session_state, "ops.backup")?;
+    Ok(rfd::FileDialog::new()
+        .pick_folder()
+        .map(|p| p.to_string_lossy().into_owned()))
+}
+
+/// Sets the backup folder (`None` = this computer's default). The folder is created and must be
+/// writable; backups are kept in a `MeDoc-Backups` subfolder. Existing backups stay where they
+/// are. Recorded in the audit log and the app log.
+#[tauri::command]
+#[tracing::instrument(level = "info", skip(pool, session_state))]
+pub async fn set_backup_folder(
+    pool: State<'_, SqlitePool>,
+    session_state: State<'_, SessionState>,
+    path: Option<String>,
+) -> Result<BackupOverview, AppError> {
+    let session = rbac::require(&session_state, "ops.backup")?;
+    let _op = backup::begin_operation()?;
+    let chosen = match path.as_deref().map(str::trim).filter(|p| !p.is_empty()) {
+        Some(p) => {
+            let base = PathBuf::from(p);
+            // A subfolder keeps MeDoc's files apart from whatever else is on the stick.
+            let dir = if base
+                .file_name()
+                .map(|n| n == "MeDoc-Backups")
+                .unwrap_or(false)
+            {
+                base
+            } else {
+                base.join("MeDoc-Backups")
+            };
+            backup_files::validate_target_dir(&dir)?;
+            Some(dir)
+        }
+        None => None,
+    };
+    let value = serde_json::json!({ "path": chosen.as_ref().map(|d| d.display().to_string()) });
+    crate::infrastructure::database::repos::admin::app_kv::set(
+        &pool,
+        backup_files::DIR_KV_KEY,
+        &value.to_string(),
+    )
+    .await?;
+    backup_files::set_chosen_backup_dir(chosen.clone());
+    let shown = chosen
+        .as_ref()
+        .map(|d| d.display().to_string())
+        .unwrap_or_else(|| "default".into());
+    audit_repo::create(
+        &pool,
+        &session.user_id,
+        "BACKUP_FOLDER_CHANGED",
+        "Backup",
+        None,
+        Some(&format!(
+            "folder={shown}; external={}",
+            chosen
+                .as_deref()
+                .map(backup_files::is_external_location)
+                .unwrap_or(false)
+        )),
+    )
+    .await?;
+    tracing::warn!(target: "medoc::system", event = "BACKUP_FOLDER_CHANGED", folder = %shown);
+    drop(_op);
+    backup_overview(pool, session_state).await
 }
 
 /// Pause or resume the automatic daily backup. Pausing needs a reason (kept in the audit log).

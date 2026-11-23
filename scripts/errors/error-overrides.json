@@ -37,6 +37,8 @@
     "error.backup.read_failed": "system",
     "error.backup.restore_failed": "system",
     "error.backup.safety_backup_failed": "system",
-    "error.backup.delete_failed": "system"
+    "error.backup.delete_failed": "system",
+    "error.backup.folder_invalid": "validation",
+    "error.backup.folder_not_writable": "permission"
   }
 }

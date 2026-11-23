@@ -107,13 +107,22 @@ pub struct BackupRetentionReport {
     pub errors: Vec<String>,
 }
 
+/// Where backups are written now: the folder chosen in Settings (e.g. a USB stick) while it is
+/// there, else this computer's default folder. See `backup_files`.
 pub fn backup_dir() -> PathBuf {
-    if let Ok(dir) = std::env::var("MEDOC_BACKUP_DIR") {
-        return PathBuf::from(dir);
+    super::backup_files::active_backup_dir().0
+}
+
+/// Folders that may hold backups: the active one, plus the default folder when backups fell
+/// back to it (drive unplugged) or were made there before another folder was chosen.
+fn backup_dirs() -> Vec<PathBuf> {
+    let active = backup_dir();
+    let local = super::backup_files::default_backup_dir();
+    if local != active && local.is_dir() {
+        vec![active, local]
+    } else {
+        vec![active]
     }
-    dirs::home_dir()
-        .map(|h| h.join("medoc-data").join("backups"))
-        .unwrap_or_else(|| PathBuf::from("./medoc-data/backups"))
 }
 
 fn sig_path(db_path: &Path) -> PathBuf {
@@ -147,6 +156,11 @@ fn write_signature(db_path: &Path) -> Result<(), AppError> {
         )
     })?;
     Ok(())
+}
+
+/// `None` = no signature file; `Some(ok)` = verification result.
+pub(crate) fn signature_ok(path: &Path) -> Option<bool> {
+    verify_signature(path)
 }
 
 fn verify_signature(db_path: &Path) -> Option<bool> {
@@ -237,13 +251,17 @@ pub fn list_metadata() -> Result<Vec<BackupEntry>, AppError> {
 }
 
 fn list_entries(verify: bool) -> Result<Vec<BackupEntry>, AppError> {
-    let dir = backup_dir();
-    if !dir.exists() {
-        return Ok(Vec::new());
+    let mut found = Vec::new();
+    for dir in backup_dirs() {
+        if !dir.exists() {
+            continue;
+        }
+        let rd = std::fs::read_dir(&dir)
+            .map_err(|e| io_fail("error.backup.folder_unavailable", "BACKUP_LIST_FAILED", e))?;
+        found.extend(rd.filter_map(|e| e.ok()));
     }
-    let mut entries: Vec<BackupEntry> = std::fs::read_dir(&dir)
-        .map_err(|e| io_fail("error.backup.folder_unavailable", "BACKUP_LIST_FAILED", e))?
-        .filter_map(|e| e.ok())
+    let mut entries: Vec<BackupEntry> = found
+        .into_iter()
         .filter(|e| is_backup_file(&e.path()))
         .map(|e| {
             let path = e.path();
@@ -459,6 +477,9 @@ pub fn delete_all() -> Result<usize, AppError> {
             Err(err) => failed.push(format!("{}: {err}", e.path.display())),
         }
     }
+    for dir in backup_dirs() {
+        super::backup_files::collect_garbage(&dir);
+    }
     log_system!(
         warn,
         event = "BACKUP_RESET",
@@ -490,8 +511,11 @@ fn resolve_in_backup_dir(path: &Path) -> Result<PathBuf, AppError> {
     let Ok(file) = path.canonicalize() else {
         return Err(AppError::validation_code("error.backup.file_not_found"));
     };
-    let dir = backup_dir().canonicalize().unwrap_or_else(|_| backup_dir());
-    if file.parent() != Some(dir.as_path()) || !is_backup_file(&file) {
+    let inside = backup_dirs()
+        .into_iter()
+        .map(|d| d.canonicalize().unwrap_or(d))
+        .any(|d| file.parent() == Some(d.as_path()));
+    if !inside || !is_backup_file(&file) {
         log_system!(warn, event = "BACKUP_PATH_REFUSED", path = %path.display());
         return Err(AppError::validation_code("error.backup.outside_folder"));
     }
@@ -511,6 +535,9 @@ pub fn delete_one(path: &Path) -> Result<String, AppError> {
         .unwrap_or_default();
     remove_with_sidecars(&file)
         .map_err(|e| io_fail("error.backup.delete_failed", "BACKUP_DELETE_FAILED", e))?;
+    if let Some(dir) = file.parent() {
+        super::backup_files::collect_garbage(dir);
+    }
     log_system!(warn, event = "BACKUP_DELETED", file = %name);
     Ok(name)
 }
@@ -519,7 +546,7 @@ pub fn delete_one(path: &Path) -> Result<String, AppError> {
 // Compressed format (.mdbk)
 // ---------------------------------------------------------------------------
 
-fn backup_cipher(db_key: &[u8]) -> aes_gcm::Aes256Gcm {
+pub(crate) fn backup_cipher(db_key: &[u8]) -> aes_gcm::Aes256Gcm {
     use aes_gcm::KeyInit;
     use hmac::Mac;
     // A separate key per purpose: the database key itself never encrypts the archive.
@@ -557,7 +584,7 @@ async fn plaintext_image(pool: &SqlitePool) -> Result<zeroize::Zeroizing<Vec<u8>
 fn seal(image: &[u8], db_key: &[u8]) -> Result<Vec<u8>, AppError> {
     use aes_gcm::aead::{Aead, AeadCore, OsRng, Payload};
     use std::io::Write;
-    let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::best());
+    let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::new(6)); // nearly "best" size at a fraction of the CPU
     gz.write_all(image)
         .map_err(|e| fail("error.backup.compress_failed", "BACKUP_COMPRESS_FAILED", e))?;
     let compressed = zeroize::Zeroizing::new(
@@ -626,15 +653,8 @@ pub async fn write_compressed(
     let image = plaintext_image(pool).await?;
     let key = zeroize::Zeroizing::new(db_key.to_vec());
     // Compression and encryption are CPU-bound: keep them off the async runtime.
-    let sealed = tokio::task::spawn_blocking(move || seal(&image, &key))
-        .await
-        .map_err(|e| {
-            fail(
-                "error.backup.compress_failed",
-                "BACKUP_COMPRESS_TASK_FAILED",
-                e,
-            )
-        })??;
+    // Compression and encryption: a low-priority thread, off the async runtime.
+    let sealed = super::backup_files::run_in_background(move || seal(&image, &key)).await?;
     // Write beside, then rename: a crash never leaves a half-written backup under the real name.
     let part = target.with_extension("mdbk.part");
     if let Err(e) = std::fs::write(&part, &sealed) {
@@ -673,8 +693,24 @@ pub async fn create_compressed(
         let _ = std::fs::remove_file(sig_path(&target));
         return Err(e);
     }
+    // Attachments (X-rays, scans…): new files go into the folder's shared encrypted store.
+    let files = {
+        let (app_dir, archive, key) = (app_data_dir.to_path_buf(), target.clone(), key.clone());
+        super::backup_files::run_in_background(move || {
+            super::backup_files::back_up_attachments(&app_dir, &archive, &key)
+        })
+        .await
+    };
+    if let Err(e) = files {
+        log_system!(error, event = "BACKUP_FAILED", target = %target.display(), code = %e.wire_code());
+        for p in backup_and_sidecars(&target) {
+            let _ = std::fs::remove_file(p);
+        }
+        return Err(e);
+    }
     copy_recovery_sidecars(app_data_dir, &target);
     let report = enforce_retention(&dir)?;
+    super::backup_files::collect_garbage(&dir);
     let size = std::fs::metadata(&target).map(|m| m.len()).unwrap_or(0);
     log_system!(
         info,
@@ -713,9 +749,7 @@ pub async fn unpack_to_encrypted_db(
     let file = std::fs::read(mdbk)
         .map_err(|e| io_fail("error.backup.read_failed", "BACKUP_READ_FAILED", e))?;
     let key = zeroize::Zeroizing::new(db_key.to_vec());
-    let image = tokio::task::spawn_blocking(move || unseal(&file, &key))
-        .await
-        .map_err(|e| fail("error.backup.unpack_failed", "BACKUP_UNPACK_TASK_FAILED", e))??;
+    let image = super::backup_files::run_in_background(move || unseal(&file, &key)).await?;
     let buf = sqlx::sqlite::SqliteOwnedBuf::try_from(&image[..])
         .map_err(|e| fail("error.backup.unpack_failed", "BACKUP_UNPACK_FAILED", e))?;
     drop(image);
@@ -906,6 +940,8 @@ pub struct RestoreReport {
     pub restored_from: PathBuf,
     /// Whether a pre-restore safety snapshot was created.
     pub pre_restore_backup_created: bool,
+    /// Attachments put back from the backup (missing or changed here).
+    pub restored_files: usize,
 }
 
 /// Replace `medoc.db` with a validated backup snapshot (G2 / WAAD 9.1).
@@ -935,6 +971,8 @@ pub async fn restore_from_backup(
             return Err(AppError::validation_code("error.backup.signature_invalid"));
         }
         let key = backup_key(app_data_dir)?;
+        // The attachment list is read now: the safety backup below may rotate it away.
+        let files = super::backup_files::load_restore_list(backup_path)?;
         // Outside the backup folder, so rotation during the restore cannot touch it.
         let unpacked = app_data_dir.join("medoc-restore-unpacked.db");
         unpack_to_encrypted_db(backup_path, &key, &unpacked).await?;
@@ -942,10 +980,17 @@ pub async fn restore_from_backup(
         let outcome = Box::pin(restore_from_backup(pool, app_data_dir, &unpacked)).await;
         let _ = std::fs::remove_file(&unpacked);
         let _ = std::fs::remove_file(sig_path(&unpacked));
-        return outcome.map(|mut r| {
-            r.restored_from = backup_path.to_path_buf();
-            r
-        });
+        let mut report = outcome?;
+        report.restored_from = backup_path.to_path_buf();
+        // The database is back; now the X-rays and scans it refers to.
+        if let Some((dir, list)) = files {
+            let app_dir = app_data_dir.to_path_buf();
+            report.restored_files = super::backup_files::run_in_background(move || {
+                super::backup_files::restore_attachments(&app_dir, &dir, &list, &key)
+            })
+            .await?;
+        }
+        return Ok(report);
     }
     if backup_path.extension().and_then(|e| e.to_str()) != Some("db") {
         return Err(AppError::validation_code("error.backup.only_db_files"));
@@ -993,6 +1038,7 @@ pub async fn restore_from_backup(
         requires_app_restart: true,
         restored_from: backup_path.to_path_buf(),
         pre_restore_backup_created: true,
+        restored_files: 0,
     })
 }
 

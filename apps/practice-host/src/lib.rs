@@ -332,10 +332,15 @@ pub fn run() {
                     // after start), so a practice that closes the app every evening still gets
                     // its backup; the old 24 h interval restarted with every launch and never ran.
                     // Compressed + encrypted, rotated to 3 daily, 1 weekly, 1 half-yearly.
+                    // Backup folder chosen in Settings (USB stick, external disk).
+                    tauri::async_runtime::block_on(
+                        infrastructure::backup_files::load_dir_setting(&pool),
+                    );
                     // The pool is read from the app state each time: a restore swaps it.
                     let backup_app = app_handle.clone();
                     tauri::async_runtime::spawn(async move {
-                        tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+                        // Not during start-up: the first check waits 5 minutes.
+                        tokio::time::sleep(std::time::Duration::from_secs(5 * 60)).await;
                         loop {
                             let backup_pool = backup_app
                                 .try_state::<sqlx::SqlitePool>()

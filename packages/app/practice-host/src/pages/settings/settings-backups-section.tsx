@@ -5,8 +5,10 @@ import {
     backupOverview,
     createBackup,
     deleteBackup,
+    pickBackupFolder,
     resetBackups,
     restoreBackup,
+    setBackupFolder,
     setBackupSchedule,
     type BackupInfo,
     type BackupOverview,
@@ -172,6 +174,53 @@ export function SettingsBackupsSection() {
             </div>
 
             <div className="settings-row">
+                <div className="settings-backups__where">
+                    <b>{t("settings.backups.where")}</b>
+                    <div className="settings-backups__dir-line">
+                        <span className={`settings-backups__place${data.external ? " is-external" : ""}`}>
+                            {t(data.external ? "settings.backups.place_external" : "settings.backups.place_local")}
+                        </span>
+                        <span className="card-sub settings-backups__dir" title={data.backup_dir}>
+                            {data.backup_dir}
+                        </span>
+                    </div>
+                    {data.chosen_dir_missing ? (
+                        <div className="settings-backups__warn" role="status">
+                            {tp("settings.backups.folder_missing", { folder: data.chosen_dir ?? "" })}
+                        </div>
+                    ) : (
+                        <div className="card-sub">{t(data.external ? "settings.backups.where_hint_external" : "settings.backups.where_hint_local")}</div>
+                    )}
+                </div>
+                <div className="settings-backups__where-actions">
+                    <Button
+                        type="button"
+                        variant="secondary"
+                        disabled={busy}
+                        onClick={() =>
+                            void (async () => {
+                                const folder = await pickBackupFolder().catch(() => null);
+                                if (!folder) return;
+                                await run(async () => setData(await setBackupFolder(folder)), "settings.backups.toast.folder");
+                            })()
+                        }
+                    >
+                        {t("settings.backups.choose_folder")}
+                    </Button>
+                    {data.chosen_dir ? (
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            disabled={busy}
+                            onClick={() => void run(async () => setData(await setBackupFolder(null)), "settings.backups.toast.folder_local")}
+                        >
+                            {t("settings.backups.use_local")}
+                        </Button>
+                    ) : null}
+                </div>
+            </div>
+
+            <div className="settings-row">
                 <div>
                     <b>
                         {tp("settings.backups.summary", {
@@ -180,8 +229,8 @@ export function SettingsBackupsSection() {
                         })}
                     </b>
                     <div className="card-sub">{last ? tp("settings.backups.last", { when: formatDateTime(last) }) : t("settings.backups.none")}</div>
-                    <div className="card-sub settings-backups__dir" title={data.backup_dir}>
-                        {data.backup_dir}
+                    <div className="card-sub">
+                        {tp("settings.backups.files", { count: data.files_count, size: formatBytes(data.files_bytes) })}
                     </div>
                 </div>
                 <Button type="button" onClick={() => void run(createBackup, "settings.backups.toast.created")} disabled={busy}>
@@ -330,8 +379,13 @@ export function SettingsBackupsSection() {
                     if (!target) return;
                     setBusy(true);
                     restoreBackup(target.path)
-                        .then(() => {
-                            toast(t("settings.backups.toast.restored"), "success");
+                        .then((r) => {
+                            toast(
+                                r.restored_files > 0
+                                    ? tp("settings.backups.toast.restored_files", { count: r.restored_files })
+                                    : t("settings.backups.toast.restored"),
+                                "success",
+                            );
                             // Every screen holds data from before the jump: reload from the restored database.
                             window.setTimeout(() => window.location.reload(), 1200);
                         })

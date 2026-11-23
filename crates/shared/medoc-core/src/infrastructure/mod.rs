@@ -6,6 +6,7 @@
 //! or single-tenant HTTP clients (`company_portal`).
 
 pub mod backup;
+pub mod backup_files;
 pub mod clinical_text_format;
 pub mod company_portal;
 pub mod cors_policy;

@@ -110,6 +110,8 @@ Every error message shows a code such as MD-PAY-004. Search it here to see what 
 | `MD-BAK-009` | The backup could not be deleted (reference …). | System problem · Retrying can help | An unexpected technical problem occurred on this device or the server. | Retry once. If it repeats, note the code and reference and contact support (Help → Recent errors → Copy). |
 | `MD-BAK-010` | The disk is full: the backup could not be written. Free up space and try again (reference …). | Needs your input | The item is in a status that does not allow this action. | Check the item's current status (see Status guide) and use one of the allowed next steps. |
 | `MD-BAK-001` | Backup file not found. | Needs your input | The item no longer exists or was removed on another device. | Refresh the list (Ctrl/⌘ R) and open the item again. |
+| `MD-BAK-024` | Choose a full folder path. | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
+| `MD-BAK-025` | MeDoc cannot write to this folder. Check that the drive is connected and not read-only. | Action blocked | Your role does not have the permission for this action. | Ask a physician or administrator to perform it or to grant the permission. |
 | `MD-BAK-011` | The backup folder cannot be opened or created (reference …). | System problem · Retrying can help | An unexpected technical problem occurred on this device or the server. | Retry once. If it repeats, note the code and reference and contact support (Help → Recent errors → Copy). |
 | `MD-BAK-002` | Restored file is not a valid MeDoc database. | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
 | `MD-BAK-003` | File is not a valid SQLite backup (no signature, invalid header). | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
@@ -191,6 +193,7 @@ Every error message shows a code such as MD-PAY-004. Search it here to see what 
 | `MD-CHT-005` | Unknown physician: … | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-CHT-100` | Payment already started for this line; create a correction instead | Needs your input | The change conflicts with existing data (duplicate or competing edit). | Use a different value, or reload and apply your change again. |
 | `MD-CHT-101` | Invalid Base64 data. _(technical check, shown in English)_ | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
+| `MD-CHT-103` | invalid patient list tab _(technical check, shown in English)_ | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-CHT-102` | invalid patient status filter | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 
 ## Practice network (cluster)
