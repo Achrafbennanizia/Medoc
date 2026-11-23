@@ -205,6 +205,8 @@ export type ChartAttachmentRowDto = {
     size_bytes: number;
     created_at: string;
     abs_path: string;
+    /** Small JPEG for the list card (images only); absent for documents or older files. */
+    thumb_abs_path?: string;
     document_kind?: string;
 };
 

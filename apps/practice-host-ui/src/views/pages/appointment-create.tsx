@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, startOfWeek, endOfWeek } from "date-fns";
-import { createAppointment, deleteAppointment, getAppointment, listAppointments, updateAppointment } from "@/systems/practice-host/controllers/appointment.controller";
+import { createAppointment, deleteAppointment, getAppointment, listAppointmentsInRange, updateAppointment } from "@/systems/practice-host/controllers/appointment.controller";
 import { useDateFnsLocale, useT, useTParams } from "@/lib/i18n";
 import { practiceTodayYmd } from "@/lib/practice-timezone";
 import { listPatients } from "@/systems/practice-host/controllers/patient.controller";
@@ -502,9 +502,7 @@ export function AppointmentCreatePage() {
 
     const load = useCallback(async () => {
         try {
-            const [p, t] = await Promise.all([listPatients(), listAppointments()]);
-            setPatients(p);
-            setAppointments(t);
+            setPatients(await listPatients());
             try {
                 setPhysicians(await listPhysicians());
             } catch {
@@ -525,6 +523,26 @@ export function AppointmentCreatePage() {
             toast(errorMessage(e), "error");
         }
     }, [toast]);
+
+    // Slots and alternative suggestions only look at the chosen day: load that day, not every
+    // appointment ever booked. The server checks conflicts again on save.
+    useEffect(() => {
+        if (!date) {
+            setAppointments([]);
+            return;
+        }
+        let cancelled = false;
+        listAppointmentsInRange(date, date)
+            .then((rows) => {
+                if (!cancelled) setAppointments(rows);
+            })
+            .catch((e) => {
+                if (!cancelled) toast(errorMessage(e), "error");
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [date, toast]);
 
     useEffect(() => {
         void load();

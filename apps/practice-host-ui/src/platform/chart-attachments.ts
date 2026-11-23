@@ -6,5 +6,6 @@ export * from "../../../../packages/shared/src/lib/chart-attachments";
 import { mapChartAttachmentRowFromDto, type ChartAttachment, type ChartAttachmentRowDto } from "../../../../packages/shared/src/lib/chart-attachments";
 
 export function mapChartAttachmentRowDto(r: ChartAttachmentRowDto): ChartAttachment {
-    return mapChartAttachmentRowFromDto(r, convertFileSrc(r.abs_path));
+    // The card shows the small thumbnail when there is one, not the full-resolution original.
+    return mapChartAttachmentRowFromDto(r, convertFileSrc(r.thumb_abs_path ?? r.abs_path));
 }

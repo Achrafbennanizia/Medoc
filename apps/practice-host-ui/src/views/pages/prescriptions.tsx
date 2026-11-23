@@ -23,7 +23,7 @@ import { listDocumentTemplates } from "@/systems/practice-host/controllers/pract
 import type { Patient, DocumentTemplate } from "../../models/types";
 import { errorMessage, formatDate } from "@/lib/utils";
 import { useT, useTParams } from "@/lib/i18n";
-import { PageLoadError, PageLoading } from "../components/ui/page-status";
+import { PageLoadError, TableSkeleton } from "../components/ui/page-status";
 import { HtmlDocumentExportPickerDialog } from "../components/export-picker-dialog";
 import {
     bundlePrescriptionExport,
@@ -417,7 +417,7 @@ export function PrescriptionsPage() {
             {patientsLoading || patientsError ? null : !selectedPatient ? (
                 <p className="text-body text-on-surface-variant">{t("page.prescriptions.select_patient_hint")}</p>
             ) : listLoading ? (
-                <PageLoading label={t("page.prescriptions.loading")} />
+                <TableSkeleton label={t("page.prescriptions.loading")} rows={5} />
             ) : listError ? (
                 <PageLoadError message={listError} onRetry={() => void fetchPrescriptions()} />
             ) : prescriptions.length === 0 ? (

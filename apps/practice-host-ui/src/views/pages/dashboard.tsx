@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, 
 import { Link, useNavigate } from "react-router-dom";
 import { getDashboardStats, type DashboardStats } from "@/systems/practice-host/controllers/statistics.controller";
 import { APPOINTMENTS_CHANGED_EVENT, listAppointmentsByDate } from "@/systems/practice-host/controllers/appointment.controller";
-import { listPatients } from "@/systems/practice-host/controllers/patient.controller";
+import { listPatientsByIds } from "@/systems/practice-host/controllers/patient.controller";
 import { listPurchaseOrders, updatePurchaseOrderStatus, type PurchaseOrder } from "@/systems/practice-host/controllers/purchase-order.controller";
 import {
     listChartsToValidate,
@@ -133,11 +133,11 @@ export function DashboardPage() {
 
         const loadLists = (showError: boolean) => {
             const day = practiceTodayYmd();
-            return Promise.all([listAppointmentsByDate(day), listPatients(), listPurchaseOrders()])
-                .then(([appointmentsList, patientList, purchaseOrdersList]) => {
+            // Patient names are fetched for the ids on screen only (effect below), not the whole list.
+            return Promise.all([listAppointmentsByDate(day), listPurchaseOrders()])
+                .then(([appointmentsList, purchaseOrdersList]) => {
                     if (!cancelled) {
                         setAppointments(appointmentsList);
-                        setPatients(patientList);
                         setPurchaseOrders(purchaseOrdersList);
                         setListsError(null);
                     }
@@ -145,9 +145,8 @@ export function DashboardPage() {
                 .catch((e) => {
                     if (!cancelled) {
                         const msg = errorMessage(e);
-                        console.error("[Dashboard] listAppointmentsByDate/listPatients/listPurchaseOrders failed:", e);
+                        console.error("[Dashboard] listAppointmentsByDate/listPurchaseOrders failed:", e);
                         setAppointments([]);
-                        setPatients([]);
                         setPurchaseOrders([]);
                         setListsError(msg);
                         if (showError && !listsErrorToastSent.current) {
@@ -369,6 +368,28 @@ export function DashboardPage() {
         [canViewClinical, pendingTasks],
     );
     const showPendingTasks = !canViewClinical && receptionPendingTasks.length > 0;
+
+    // Names for today's appointments and the pending tasks: fetch only ids not already known.
+    const neededPatientIds = useMemo(() => {
+        const ids = new Set<string>();
+        for (const a of appointments) if (a.patient_id) ids.add(a.patient_id);
+        for (const task of receptionPendingTasks) if (task.patient_id) ids.add(task.patient_id);
+        return [...ids].sort().join(",");
+    }, [appointments, receptionPendingTasks]);
+    useEffect(() => {
+        const missing = neededPatientIds.split(",").filter((id) => id && !patientById.has(id));
+        if (missing.length === 0) return;
+        let cancelled = false;
+        listPatientsByIds(missing)
+            .then((rows) => {
+                if (!cancelled && rows.length) setPatients((prev) => [...prev, ...rows]);
+            })
+            .catch(() => undefined); // names fall back to the "patient" label
+        return () => {
+            cancelled = true;
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch only when the needed ids change
+    }, [neededPatientIds]);
     const freigabenItemCount = canViewClinical ? chartsToValidate.length : receptionPendingTasks.length;
     const freigabenLeer =
         !chartsQueueLoading &&

@@ -17,7 +17,7 @@ import {
 import { Badge } from "../components/ui/badge";
 import { EmptyState } from "../components/ui/empty-state";
 import { useToastStore } from "../components/ui/toast-store";
-import { PageLoadError, PageLoading } from "../components/ui/page-status";
+import { PageLoadError, TableSkeleton } from "../components/ui/page-status";
 import { MoreIcon, PlusIcon, SearchIcon, UsersIcon, XIcon, ExportIcon } from "@/lib/icons";
 import { useDismissibleLayer } from "../components/ui/use-dismissible-layer";
 import { usePageRefresh } from "../layouts/page-refresh";
@@ -519,7 +519,7 @@ export function PatientsPage() {
             </div>
 
             {loading ? (
-                <PageLoading label={t("patient.loading")} />
+                <TableSkeleton label={t("patient.loading")} columns={5} />
             ) : loadError ? (
                 <PageLoadError message={loadError} onRetry={() => void load()} />
             ) : patients.length === 0 && !debouncedSearch.trim() ? (

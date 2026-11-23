@@ -20,7 +20,7 @@ import type { Patient } from "../../models/types";
 import { errorMessage, formatDate } from "@/lib/utils";
 import { practiceCountry } from "@/lib/document-header-layout";
 import { getInvoicePracticeFromStorage } from "@/lib/invoice-service-item";
-import { PageLoadError, PageLoading } from "../components/ui/page-status";
+import { PageLoadError, TableSkeleton } from "../components/ui/page-status";
 import { HtmlDocumentExportPickerDialog } from "../components/export-picker-dialog";
 import { bundleCertificateExport, suggestCertificateExportBasename, type ClinicalDocumentExportBundle } from "@/lib/document-print-html";
 import { useT, useTParams } from "@/lib/i18n";
@@ -184,7 +184,7 @@ export function CertificatesPage() {
             {patientsLoading || patientsError ? null : !selectedPatient ? (
                 <p className="text-body text-on-surface-variant">{t("page.certificates.select_patient_hint")}</p>
             ) : listLoading ? (
-                <PageLoading label={t("page.certificates.loading")} />
+                <TableSkeleton label={t("page.certificates.loading")} rows={5} />
             ) : listError ? (
                 <PageLoadError message={listError} onRetry={() => void fetchCertificates()} />
             ) : certificates.length === 0 ? (

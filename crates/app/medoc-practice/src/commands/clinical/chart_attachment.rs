@@ -101,6 +101,35 @@ pub struct ChartAttachmentDto {
     pub created_at: String,
     /// Absolute path for frontend `convertFileSrc`.
     pub abs_path: String,
+    /// Small JPEG for the list card (images only); the original stays at `abs_path`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thumb_abs_path: Option<String>,
+}
+
+/// Creates missing list thumbnails off the async runtime (image decoding is CPU-bound).
+/// Best effort: a failure only means the card shows the original.
+async fn ensure_thumbnails(app_dir: &Path, rows: &[ChartAttachmentRow]) {
+    let jobs: Vec<(PathBuf, String)> = rows
+        .iter()
+        .map(|r| {
+            (
+                chart_attachment_repo::absolute_path(app_dir, &r.rel_storage_path),
+                r.mime_type.clone(),
+            )
+        })
+        .filter(|(abs, mime)| {
+            mime.starts_with("image/") && !chart_attachment_repo::thumbnail_path(abs).is_file()
+        })
+        .collect();
+    if jobs.is_empty() {
+        return;
+    }
+    let _ = tokio::task::spawn_blocking(move || {
+        for (abs, mime) in jobs {
+            chart_attachment_repo::ensure_thumbnail(&abs, &mime);
+        }
+    })
+    .await;
 }
 
 fn app_data_dir(app: &AppHandle) -> Result<std::path::PathBuf, AppError> {
@@ -116,6 +145,9 @@ fn row_to_dto(app_data_dir: &Path, row: ChartAttachmentRow) -> ChartAttachmentDt
         size_bytes: row.size_bytes,
         document_kind: normalize_document_kind(Some(row.document_kind.as_str())),
         created_at: row.created_at,
+        thumb_abs_path: Some(chart_attachment_repo::thumbnail_path(&abs))
+            .filter(|t| t.is_file())
+            .map(|t| t.to_string_lossy().to_string()),
         abs_path: abs.to_string_lossy().to_string(),
     }
 }
@@ -214,6 +246,7 @@ pub async fn list_chart_attachments(
     let session = rbac::require(&session_state, "patient.read_documents")?;
     let app_dir = app_data_dir(&app)?;
     let rows = chart_attachment_repo::list_for_chart(&pool, &chart_id).await?;
+    ensure_thumbnails(&app_dir, &rows).await;
     audit_repo::create(
         &pool,
         &session.user_id,
@@ -251,6 +284,7 @@ pub async fn create_chart_attachment(
         &bytes,
     )
     .await?;
+    ensure_thumbnails(&app_dir, std::slice::from_ref(&row)).await;
     audit_repo::create(
         &pool,
         &session.user_id,
@@ -314,6 +348,7 @@ pub async fn create_chart_attachment_from_path(
         &bytes,
     )
     .await?;
+    ensure_thumbnails(&app_dir, std::slice::from_ref(&row)).await;
     audit_repo::create(
         &pool,
         &session.user_id,
@@ -457,6 +492,7 @@ pub async fn duplicate_chart_attachment(
         &bytes,
     )
     .await?;
+    ensure_thumbnails(&app_dir, std::slice::from_ref(&row)).await;
     audit_repo::create(
         &pool,
         &session.user_id,

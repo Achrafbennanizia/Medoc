@@ -263,6 +263,8 @@ pub async fn run_migrations(pool: &SqlitePool) -> Result<(), AppError> {
     }
     // Install staff-quota triggers after bootstrap/seed inserts (demo seed must not trip 1-PHYSICIAN cap).
     crate::mvp_security::ensure_staff_quota_db_triggers(pool).await?;
+    // Last: earlier steps may rebuild tables, which drops their indexes.
+    migrations::ensure_lookup_indexes(pool).await?;
     Ok(())
 }
 

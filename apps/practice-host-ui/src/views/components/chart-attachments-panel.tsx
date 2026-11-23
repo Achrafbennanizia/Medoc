@@ -290,7 +290,7 @@ export function ChartAttachmentsPanel({
                                     <span className="attachment-card__badge">{badge}</span>
                                     <div className="attachment-card__preview-body">
                                         {showImg ? (
-                                            <img src={a.previewUrl} alt="" className="attachment-card__thumb" loading="lazy" />
+                                            <img src={a.previewUrl} alt="" className="attachment-card__thumb" loading="lazy" decoding="async" />
                                         ) : (
                                             <AttachmentDocGlyph color={tone.doc} />
                                         )}

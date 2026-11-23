@@ -24,7 +24,7 @@ import { Button } from "@/views/components/ui/button";
 import { DismissibleNotice } from "@/views/components/ui/dismissible-notice";
 import { useToastStore } from "@/views/components/ui/toast-store";
 import { useT, useTParams } from "@/lib/i18n";
-import { PageLoading } from "@/views/components/ui/page-status";
+import { RecordSkeleton } from "@/views/components/ui/page-status";
 import { EMPTY_ANAMNESIS_V1_JSON, parseAnamnesisV1 } from "@/lib/anamnesis";
 import { computeChartCompleteness, type ChartCompletenessGap } from "@/lib/chart-completeness";
 import { PatientDetailChartSubnav } from "./patient-detail-chart-subnav";
@@ -676,7 +676,7 @@ export function PatientDetailPage() {
         );
     }
 
-    if (!patient) return <PageLoading label={t("patient.detail.loading")} />;
+    if (!patient) return <RecordSkeleton label={t("patient.detail.loading")} />;
 
     /** Welche Sektionen enthalten Daten? */
     const hasSectionData = {

@@ -1,5 +1,6 @@
 import { useT } from "@/lib/i18n";
 import { codeForMessage } from "@/lib/errors";
+import { Skeleton } from "./skeleton";
 import { Spinner } from "./spinner";
 import { OPEN_HELP_EVENT } from "./toast-store";
 
@@ -38,6 +39,57 @@ export function PageLoading({ label }: { label?: string }) {
         >
             <Spinner size="md" />
             <span style={{ fontSize: 13 }}>{text}</span>
+        </div>
+    );
+}
+
+/**
+ * Loading placeholder shaped like a list table: a toolbar line, a header row and `rows` rows.
+ * Same footprint as the table that replaces it, so nothing jumps when data arrives.
+ */
+export function TableSkeleton({ label, rows = 8, columns = 4 }: { label?: string; rows?: number; columns?: number }) {
+    const t = useT();
+    const widths = ["38%", "22%", "18%", "14%", "12%", "10%"];
+    return (
+        <div className="card page-skeleton" role="status" aria-live="polite" aria-busy="true">
+            <span className="sr-only">{label ?? t("common.loading")}</span>
+            {Array.from({ length: rows + 1 }, (_, r) => (
+                <div key={r} className={r === 0 ? "page-skeleton__row page-skeleton__row--head" : "page-skeleton__row"}>
+                    {Array.from({ length: columns }, (_, c) => (
+                        <Skeleton key={c} className="page-skeleton__cell" style={{ width: widths[c % widths.length] }} />
+                    ))}
+                </div>
+            ))}
+        </div>
+    );
+}
+
+/** Loading placeholder shaped like a patient record: header card, then a side menu and a content panel. */
+export function RecordSkeleton({ label }: { label?: string }) {
+    const t = useT();
+    return (
+        <div className="page-skeleton-record" role="status" aria-live="polite" aria-busy="true">
+            <span className="sr-only">{label ?? t("common.loading")}</span>
+            <div className="card page-skeleton-record__head">
+                <Skeleton className="page-skeleton-record__avatar" />
+                <div className="page-skeleton-record__lines">
+                    <Skeleton style={{ width: "40%", height: 18 }} />
+                    <Skeleton style={{ width: "25%" }} />
+                    <Skeleton style={{ width: "70%" }} />
+                </div>
+            </div>
+            <div className="page-skeleton-record__body">
+                <div className="page-skeleton-record__nav">
+                    {Array.from({ length: 6 }, (_, i) => (
+                        <Skeleton key={i} style={{ height: 32 }} />
+                    ))}
+                </div>
+                <div className="card page-skeleton-record__panel">
+                    {Array.from({ length: 5 }, (_, i) => (
+                        <Skeleton key={i} style={{ width: `${90 - i * 12}%` }} />
+                    ))}
+                </div>
+            </div>
         </div>
     );
 }

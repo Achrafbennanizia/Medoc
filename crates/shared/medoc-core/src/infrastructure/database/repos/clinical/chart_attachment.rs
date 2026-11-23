@@ -9,6 +9,40 @@ use crate::error::AppError;
 
 pub const ATTACHMENT_MAX_BYTES: usize = 50 * 1024 * 1024;
 
+/// Longest side of an attachment thumbnail. Cards in the list are about 200 px wide (×2 for
+/// high-density screens); originals (radiographs, photos) can be 20 MB.
+const THUMB_MAX_PX: u32 = 480;
+
+/// `<file>.thumb.jpg` next to the original.
+pub fn thumbnail_path(abs: &Path) -> PathBuf {
+    let mut name = abs.as_os_str().to_owned();
+    name.push(".thumb.jpg");
+    PathBuf::from(name)
+}
+
+/// Writes the list thumbnail of an image attachment once (JPEG, quality 80) and returns its path.
+/// `None` for non-images or undecodable files: the list then shows the original or an icon.
+/// CPU-bound: call from `spawn_blocking`.
+pub fn ensure_thumbnail(abs: &Path, mime: &str) -> Option<PathBuf> {
+    if !mime.starts_with("image/") {
+        return None;
+    }
+    let thumb = thumbnail_path(abs);
+    if thumb.is_file() {
+        return Some(thumb);
+    }
+    let img = image::open(abs).ok()?;
+    let small = img.thumbnail(THUMB_MAX_PX, THUMB_MAX_PX).to_rgb8();
+    let file = std::fs::File::create(&thumb).ok()?;
+    let mut enc =
+        image::codecs::jpeg::JpegEncoder::new_with_quality(std::io::BufWriter::new(file), 80);
+    if enc.encode_image(&small).is_err() {
+        let _ = std::fs::remove_file(&thumb);
+        return None;
+    }
+    Some(thumb)
+}
+
 #[derive(Debug, Clone, sqlx::FromRow, serde::Serialize)]
 pub struct ChartAttachmentRow {
     pub id: String,
@@ -269,6 +303,7 @@ pub async fn delete_row_and_file(
     if path.is_file() {
         let _ = std::fs::remove_file(&path);
     }
+    let _ = std::fs::remove_file(thumbnail_path(&path));
     let dir = storage_dir_for_chart(app_data_dir, &row.chart_id);
     if dir.is_dir() {
         let empty = std::fs::read_dir(&dir)
@@ -288,4 +323,52 @@ fn chart_attachment_extension_mapping_common_formats() {
     assert_eq!(extension_from_name("X.WEBP"), ".webp");
     assert_eq!(extension_from_name("a.heic"), ".heic");
     assert_eq!(extension_from_name("b.heif"), ".heif");
+}
+
+#[cfg(test)]
+mod thumbnail_tests {
+    use super::*;
+
+    #[test]
+    fn image_attachments_get_a_small_thumbnail_once_and_documents_none() {
+        let dir = std::env::temp_dir().join(format!("medoc-thumb-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        // A "radiograph": 2000×1500 PNG with some structure so it does not compress to nothing.
+        let big = image::RgbImage::from_fn(2000, 1500, |x, y| {
+            image::Rgb([(x % 256) as u8, (y % 256) as u8, ((x ^ y) % 256) as u8])
+        });
+        let original = dir.join("xray.png");
+        big.save(&original).unwrap();
+
+        let thumb = ensure_thumbnail(&original, "image/png").expect("thumbnail");
+        assert_eq!(thumb, thumbnail_path(&original));
+        let small = image::open(&thumb).unwrap();
+        assert!(
+            small.width() <= THUMB_MAX_PX && small.height() <= THUMB_MAX_PX,
+            "{}×{}",
+            small.width(),
+            small.height()
+        );
+        let (o, t) = (
+            std::fs::metadata(&original).unwrap().len(),
+            std::fs::metadata(&thumb).unwrap().len(),
+        );
+        assert!(
+            t * 10 < o,
+            "thumbnail {t} B should be far smaller than original {o} B"
+        );
+
+        // Second call reuses the file.
+        let before = std::fs::metadata(&thumb).unwrap().modified().unwrap();
+        ensure_thumbnail(&original, "image/png").unwrap();
+        assert_eq!(
+            std::fs::metadata(&thumb).unwrap().modified().unwrap(),
+            before
+        );
+
+        let pdf = dir.join("letter.pdf");
+        std::fs::write(&pdf, b"%PDF-1.4").unwrap();
+        assert!(ensure_thumbnail(&pdf, "application/pdf").is_none());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

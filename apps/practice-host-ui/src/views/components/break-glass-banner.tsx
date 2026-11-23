@@ -6,7 +6,7 @@ import {
     breakGlassActive,
     type BreakGlassEntry,
 } from "@/systems/practice-host/controllers/break-glass.controller";
-import { listPatients } from "@/systems/practice-host/controllers/patient.controller";
+import { listPatientsByIds } from "@/systems/practice-host/controllers/patient.controller";
 import type { Patient } from "@/models/types";
 import { DismissibleNotice } from "./ui/dismissible-notice";
 
@@ -33,12 +33,9 @@ export function BreakGlassBanner({ userId }: { userId: string | undefined }) {
             return;
         }
         try {
-            const all: Patient[] = await listPatients();
-            const m = new Map<string, string>();
-            for (const p of all) {
-                if (ids.includes(p.id)) m.set(p.id, p.name);
-            }
-            setNames(m);
+            // Only the patients named in the banner, not the whole list.
+            const rows: Patient[] = await listPatientsByIds(ids);
+            setNames(new Map(rows.map((p) => [p.id, p.name])));
         } catch {
             setNames(new Map());
         }
