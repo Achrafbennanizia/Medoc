@@ -27,6 +27,7 @@ export type SiteCopy = {
     titles: Record<LegalDocId, string>;
   };
   moreShots: (n: number) => string;
+  looks: { title: string; lead: string; light: string; dark: string; accents: Record<"mint" | "ocean" | "plum" | "rose" | "amber", string>; caption: string };
   mobileDemo: string;
 };
 
@@ -89,6 +90,14 @@ export const SITE_COPY: Record<Lang, SiteCopy> = {
       back: "Retour au site",
       titles: { "legal-notice": "Mentions légales", "privacy-notice": "Avis de confidentialité", "privacy-policy": "Politique de confidentialité", terms: "Conditions générales de vente" },
     },
+    looks: {
+      title: "Votre cabinet, vos couleurs",
+      lead: "Clair, sombre, ou comme l'ordinateur, et cinq couleurs d'accent. Chaque poste garde son réglage. Le site suit aussi votre thème : passez-le en sombre pour voir les écrans en sombre.",
+      light: "Clair",
+      dark: "Sombre",
+      accents: { mint: "Menthe", ocean: "Océan", plum: "Prune", rose: "Rose", amber: "Ambre" },
+      caption: "Le même tableau de bord, données fictives.",
+    },
     moreShots: (n) => `Voir ${n} autre${n > 1 ? "s" : ""} écran${n > 1 ? "s" : ""}`,
     mobileDemo: "Réserver une démo",
   },
@@ -135,6 +144,14 @@ export const SITE_COPY: Record<Lang, SiteCopy> = {
       updated: "آخر تحديث",
       back: "العودة إلى الموقع",
       titles: { "legal-notice": "البيانات القانونية", "privacy-notice": "إشعار الخصوصية", "privacy-policy": "سياسة الخصوصية", terms: "الشروط العامة للبيع" },
+    },
+    looks: {
+      title: "عيادتك بألوانك",
+      lead: "فاتح أو داكن أو حسب الحاسوب، وخمسة ألوان مميزة. كل جهاز يحتفظ بإعداده. الموقع يتبع مظهرك أيضًا: اجعله داكنًا لترى الشاشات داكنة.",
+      light: "فاتح",
+      dark: "داكن",
+      accents: { mint: "نعناعي", ocean: "محيطي", plum: "برقوقي", rose: "وردي", amber: "كهرماني" },
+      caption: "لوحة التحكم نفسها، ببيانات وهمية.",
     },
     moreShots: (n) => `عرض ${n} شاشات أخرى`,
     mobileDemo: "احجز عرضًا",
@@ -183,6 +200,14 @@ export const SITE_COPY: Record<Lang, SiteCopy> = {
       back: "Back to the site",
       titles: { "legal-notice": "Legal notice", "privacy-notice": "Privacy notice", "privacy-policy": "Privacy policy", terms: "Terms of sale" },
     },
+    looks: {
+      title: "Your practice, your colours",
+      lead: "Light, dark, or follow the computer, and five accent colours. Each workstation keeps its own setting. This site follows your theme too: switch it to dark to see the screens in dark.",
+      light: "Light",
+      dark: "Dark",
+      accents: { mint: "Mint", ocean: "Ocean", plum: "Plum", rose: "Rose", amber: "Amber" },
+      caption: "The same dashboard, fictitious data.",
+    },
     moreShots: (n) => `Show ${n} more screen${n > 1 ? "s" : ""}`,
     mobileDemo: "Book a demo",
   },
@@ -229,6 +254,14 @@ export const SITE_COPY: Record<Lang, SiteCopy> = {
       updated: "Stand",
       back: "Zurück zur Website",
       titles: { "legal-notice": "Impressum", "privacy-notice": "Datenschutzhinweis", "privacy-policy": "Datenschutzerklärung", terms: "Allgemeine Verkaufsbedingungen" },
+    },
+    looks: {
+      title: "Ihre Praxis, Ihre Farben",
+      lead: "Hell, dunkel oder wie der Rechner, und fünf Akzentfarben. Jeder Arbeitsplatz behält seine Einstellung. Diese Seite folgt Ihrem Design auch: auf dunkel stellen, um die Bildschirme dunkel zu sehen.",
+      light: "Hell",
+      dark: "Dunkel",
+      accents: { mint: "Minze", ocean: "Ozean", plum: "Pflaume", rose: "Rosé", amber: "Bernstein" },
+      caption: "Dasselbe Dashboard, fiktive Daten.",
     },
     moreShots: (n) => `${n} weitere Ansicht${n > 1 ? "en" : ""} zeigen`,
     mobileDemo: "Demo buchen",

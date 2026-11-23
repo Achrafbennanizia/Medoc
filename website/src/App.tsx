@@ -670,7 +670,7 @@ export function App() {
           <>
             <Hero t={t} locale={locale} />
             <WhatsNew lang={lang} locale={locale} />
-            <Product t={t} lang={lang} />
+            <Product t={t} lang={lang} theme={theme} />
             <DocumentsGallery lang={lang} country={country} />
             {country === "MA" ? <Morocco t={t} /> : <CountryReady lang={lang} country={country} />}
             <Setups t={t} />

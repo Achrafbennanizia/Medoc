@@ -92,8 +92,8 @@ export const productEn: ProductCopy = {
       text: "Start an examination, select a tooth, write the finding, and save. Open it later to add or change it. A treatment names the act, the teeth, and whether it is ready to bill.",
       shots: shots(
         files.clinical,
-        ["Examination with the tooth chart", "Treatments on the patient"],
-        ["The chart and the note are the same examination.", "Each line says what was done, and whether it can be billed."],
+        ["Examination with the tooth chart", "Recording a treatment"],
+        ["The chart and the note are the same examination.", "Pick the tooth and the service from the catalogue; the price follows."],
       ),
     },
     {
@@ -203,7 +203,7 @@ export const productFr: ProductCopy = {
       id: "clinical",
       title: "Examiner, soigner, suivre, corriger.",
       text: "On ouvre un examen, on choisit une dent, on écrit le constat, on enregistre. On le rouvre plus tard pour compléter ou corriger. Un soin nomme l’acte, les dents, et s’il est prêt à facturer.",
-      shots: shots(files.clinical, ["Examen avec le schéma dentaire", "Soins du patient"], ["Le schéma et la note sont le même examen.", "Chaque ligne dit ce qui a été fait, et si on peut le facturer."]),
+      shots: shots(files.clinical, ["Examen avec le schéma dentaire", "Saisie d’un soin"], ["Le schéma et la note sont le même examen.", "On choisit la dent et la prestation du catalogue ; le prix suit."]),
     },
     {
       id: "documents",
@@ -300,7 +300,7 @@ export const productAr: ProductCopy = {
       id: "clinical",
       title: "افحص، عالج، تابع، وصحّح.",
       text: "تبدأ فحصًا، تختار سنًا، تكتب النتيجة، وتحفظ. تعود إليه لاحقًا لتضيف أو تصحح. العلاج يسمّي الإجراء والأسنان وهل هو جاهز للفوترة.",
-      shots: shots(files.clinical, ["فحص مع مخطط الأسنان", "علاجات المريض"], ["المخطط والملاحظة فحص واحد.", "كل سطر يقول ما تم، وهل يمكن فوترته."]),
+      shots: shots(files.clinical, ["فحص مع مخطط الأسنان", "تسجيل علاج"], ["المخطط والملاحظة فحص واحد.", "اختر السن والخدمة من الكتالوج، والسعر يتبع."]),
     },
     {
       id: "documents",
@@ -397,7 +397,7 @@ export const productDe: ProductCopy = {
       id: "clinical",
       title: "Untersuchen, behandeln, nachsehen, korrigieren.",
       text: "Eine Untersuchung beginnen, einen Zahn wählen, den Befund schreiben, speichern. Später wieder öffnen und ergänzen oder ändern. Eine Behandlung nennt die Leistung, die Zähne und ob sie abgerechnet werden kann.",
-      shots: shots(files.clinical, ["Untersuchung mit Zahnschema", "Behandlungen der Patientin"], ["Schema und Notiz sind dieselbe Untersuchung.", "Jede Zeile sagt, was getan wurde und ob es abgerechnet werden kann."]),
+      shots: shots(files.clinical, ["Untersuchung mit Zahnschema", "Behandlung erfassen"], ["Schema und Notiz sind dieselbe Untersuchung.", "Zahn und Leistung aus dem Katalog wählen, der Preis folgt."]),
     },
     {
       id: "documents",
