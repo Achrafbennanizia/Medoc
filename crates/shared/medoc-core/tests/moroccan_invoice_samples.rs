@@ -7,7 +7,8 @@ use std::path::PathBuf;
 use base64::Engine;
 use medoc_core::application::auth_service::Session;
 use medoc_core::application::documents::issue::{
-    cancel_invoice, issue_clinical_document, issue_invoice, IssueClinicalArgs, IssueInvoiceArgs, IssuedPdf,
+    cancel_invoice, issue_clinical_document, issue_invoice, IssueClinicalArgs, IssueInvoiceArgs,
+    IssuedPdf,
 };
 use medoc_core::infrastructure::database::connection::{run_migrations, test_memory_pool};
 use medoc_core::infrastructure::database::repos::admin::app_kv as app_kv_repo;
@@ -37,7 +38,9 @@ fn session() -> Session {
 async fn setup(practice: &str) -> sqlx::SqlitePool {
     let pool = test_memory_pool().await.expect("pool");
     run_migrations(&pool).await.expect("migrations");
-    app_kv_repo::set(&pool, "invoice.practice.v1", practice).await.unwrap();
+    app_kv_repo::set(&pool, "invoice.practice.v1", practice)
+        .await
+        .unwrap();
     sqlx::query(
         "INSERT INTO patient (id, name, date_of_birth, sex, insurance_number, status, address)
          VALUES ('p1', 'Salma Bennani', '1990-06-14', 'FEMALE', 'CNOPS-77421093', 'ACTIVE',
@@ -72,13 +75,17 @@ fn invoice(locale: &str) -> Invoice {
 }
 
 fn pdf(p: &IssuedPdf) -> Vec<u8> {
-    base64::engine::general_purpose::STANDARD.decode(&p.pdf_base64).expect("base64")
+    base64::engine::general_purpose::STANDARD
+        .decode(&p.pdf_base64)
+        .expect("base64")
 }
 
 fn save(name: &str, bytes: &[u8]) -> String {
     let dir = std::env::var("MEDOC_PDF_SAMPLE_DIR")
         .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../target/medoc-pdf-samples"));
+        .unwrap_or_else(|_| {
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../target/medoc-pdf-samples")
+        });
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(dir.join(format!("{name}.pdf")), bytes).unwrap();
     String::from_utf8_lossy(bytes).into_owned()
@@ -89,25 +96,57 @@ async fn moroccan_practice_issues_french_and_arabic_invoices() {
     let pool = setup(PRACTICE_MA).await;
     let s = session();
 
-    let fr = issue_invoice(&pool, &s, IssueInvoiceArgs { patient_id: "p1".into(), invoice: invoice("fr"), preview: false })
-        .await
-        .expect("issue fr");
+    let fr = issue_invoice(
+        &pool,
+        &s,
+        IssueInvoiceArgs {
+            patient_id: "p1".into(),
+            invoice: invoice("fr"),
+            preview: false,
+        },
+    )
+    .await
+    .expect("issue fr");
     let t = save("ma-01-facture-fr", &pdf(&fr));
-    for needle in ["ICE 001234567000089", "IF 12345678", "TP 34567890", "INPE 101234567", "Total HT", "91-VI-1", "mille trois cents dirhams"] {
+    for needle in [
+        "ICE 001234567000089",
+        "IF 12345678",
+        "TP 34567890",
+        "INPE 101234567",
+        "Total HT",
+        "91-VI-1",
+        "mille trois cents dirhams",
+    ] {
         assert!(t.contains(needle), "fr invoice: missing {needle:?}");
     }
-    assert!(!t.contains("GOZ") && !t.contains("UStG"), "no German law on a Moroccan invoice");
+    assert!(
+        !t.contains("GOZ") && !t.contains("UStG"),
+        "no German law on a Moroccan invoice"
+    );
 
-    let ar = issue_invoice(&pool, &s, IssueInvoiceArgs { patient_id: "p1".into(), invoice: invoice("ar"), preview: false })
-        .await
-        .expect("issue ar");
+    let ar = issue_invoice(
+        &pool,
+        &s,
+        IssueInvoiceArgs {
+            patient_id: "p1".into(),
+            invoice: invoice("ar"),
+            preview: false,
+        },
+    )
+    .await
+    .expect("issue ar");
     let t = save("ma-02-facture-ar", &pdf(&ar));
     assert!(t.contains("/Lang (ar)"), "ar invoice: /Lang");
     assert!(t.contains("001234567000089"), "ar invoice: ICE value");
 
-    let credit = cancel_invoice(&pool, &s, ar.document_id.as_deref().unwrap(), "Erreur de montant")
-        .await
-        .expect("credit note");
+    let credit = cancel_invoice(
+        &pool,
+        &s,
+        ar.document_id.as_deref().unwrap(),
+        "Erreur de montant",
+    )
+    .await
+    .expect("credit note");
     save("ma-03-avoir-ar", &pdf(&credit));
 }
 
@@ -115,10 +154,21 @@ async fn moroccan_practice_issues_french_and_arabic_invoices() {
 async fn moroccan_invoice_without_ice_is_refused() {
     let practice = PRACTICE_MA.replace(r#""ma_ice": "001234567000089", "#, "");
     let pool = setup(&practice).await;
-    let err = issue_invoice(&pool, &session(), IssueInvoiceArgs { patient_id: "p1".into(), invoice: invoice("fr"), preview: true })
-        .await
-        .expect_err("ICE is mandatory");
-    assert!(err.to_string().contains("error.invoice.ma_ice_missing"), "{err}");
+    let err = issue_invoice(
+        &pool,
+        &session(),
+        IssueInvoiceArgs {
+            patient_id: "p1".into(),
+            invoice: invoice("fr"),
+            preview: true,
+        },
+    )
+    .await
+    .expect_err("ICE is mandatory");
+    assert!(
+        err.to_string().contains("error.invoice.ma_ice_missing"),
+        "{err}"
+    );
 }
 
 /// French and Arabic prescription + certificate from a Moroccan practice (website gallery samples).
@@ -145,7 +195,11 @@ async fn moroccan_practice_issues_clinical_documents_in_french_and_arabic() {
     }
 
     let docs: [(&str, &str, &str, &str); 4] = [
-        ("fr", "prescription", "ma-04-ordonnance-fr", r#"{
+        (
+            "fr",
+            "prescription",
+            "ma-04-ordonnance-fr",
+            r#"{
           "kind": "prescription", "documentTitle": "ORDONNANCE",
           "metaLines": [{"label": "Date", "value": "09/11/2026"}],
           "twoColumn": {"leftTitle": "Patient(e)", "leftLines": ["Salma Bennani", "Née le 14/06/1990"],
@@ -155,8 +209,13 @@ async fn moroccan_practice_issues_clinical_documents_in_french_and_arabic() {
             "rows": [["Amoxicilline 1 g", "Comprimés", "1 boîte de 14", "1 comprimé matin et soir", "7 jours"],
                      ["Paracétamol 1 g", "Comprimés", "1 boîte de 8", "1 comprimé si douleur, max. 3/jour", "3 jours"]]}],
           "closingParagraphs": ["Allergies notées au dossier : aucune."]
-        }"#),
-        ("ar", "prescription", "ma-05-ordonnance-ar", r#"{
+        }"#,
+        ),
+        (
+            "ar",
+            "prescription",
+            "ma-05-ordonnance-ar",
+            r#"{
           "kind": "prescription", "documentTitle": "وصفة طبية",
           "metaLines": [{"label": "التاريخ", "value": "09/11/2026"}],
           "twoColumn": {"leftTitle": "المريض(ة)", "leftLines": ["سلمى بناني", "تاريخ الازدياد 14/06/1990"],
@@ -165,8 +224,13 @@ async fn moroccan_practice_issues_clinical_documents_in_french_and_arabic() {
             "headers": ["الدواء / الجرعة", "الشكل", "الكمية", "طريقة الاستعمال", "المدة"],
             "rows": [["Amoxicilline 1 g", "أقراص", "علبة واحدة من 14", "قرص صباحًا ومساءً", "7 أيام"]]}],
           "closingParagraphs": ["الحساسية المسجلة في الملف: لا شيء."]
-        }"#),
-        ("fr", "certificate", "ma-06-certificat-fr", r#"{
+        }"#,
+        ),
+        (
+            "fr",
+            "certificate",
+            "ma-06-certificat-fr",
+            r#"{
           "kind": "certificate", "documentTitle": "CERTIFICAT MÉDICAL D'ARRÊT DE TRAVAIL",
           "metaLines": [{"label": "Établi le", "value": "09/11/2026"}],
           "introParagraphs": ["Je soussigné, Dr. Youssef El Amrani, chirurgien-dentiste, certifie avoir examiné ce jour la personne ci-dessous."],
@@ -178,8 +242,13 @@ async fn moroccan_practice_issues_clinical_documents_in_french_and_arabic() {
             {"label": "Motif", "value": "Pulpite aiguë 36", "confidential": true}
           ],
           "closingParagraphs": ["Certificat établi à la demande de l'intéressée et remis en main propre."]
-        }"#),
-        ("ar", "certificate", "ma-07-certificat-ar", r#"{
+        }"#,
+        ),
+        (
+            "ar",
+            "certificate",
+            "ma-07-certificat-ar",
+            r#"{
           "kind": "certificate", "documentTitle": "شهادة طبية للتوقف عن العمل",
           "metaLines": [{"label": "حررت بتاريخ", "value": "09/11/2026"}],
           "introParagraphs": ["أشهد أنا الموقع أسفله، الدكتور يوسف العمراني، جراح أسنان، أنني فحصت اليوم الشخص المذكور أدناه."],
@@ -191,10 +260,13 @@ async fn moroccan_practice_issues_clinical_documents_in_french_and_arabic() {
             {"label": "السبب", "value": "التهاب حاد في لب السن 36", "confidential": true}
           ],
           "closingParagraphs": ["سلمت هذه الشهادة بطلب من المعنية بالأمر."]
-        }"#),
+        }"#,
+        ),
     ];
     for (locale, kind, name, layout) in docs {
-        app_kv_repo::set(&pool, "documents.locale.v1", &format!("\"{locale}\"")).await.unwrap();
+        app_kv_repo::set(&pool, "documents.locale.v1", &format!("\"{locale}\""))
+            .await
+            .unwrap();
         let issued = issue_clinical_document(
             &pool,
             &s,
@@ -208,17 +280,27 @@ async fn moroccan_practice_issues_clinical_documents_in_french_and_arabic() {
                 },
                 layout_json: layout.into(),
                 preview: false,
-                copy_variant: if kind == "certificate" { Some("patient".into()) } else { None },
+                copy_variant: if kind == "certificate" {
+                    Some("patient".into())
+                } else {
+                    None
+                },
             },
         )
         .await
         .unwrap_or_else(|e| panic!("{name}: {e}"));
         let t = save(name, &pdf(&issued));
         assert!(t.contains(&format!("/Lang ({locale}")), "{name}: /Lang");
-        assert!(!t.contains("ZANR") && !t.contains("AMVV") && !t.contains("BGB"), "{name}: no German law on a Moroccan document");
+        assert!(
+            !t.contains("ZANR") && !t.contains("AMVV") && !t.contains("BGB"),
+            "{name}: no German law on a Moroccan document"
+        );
         // Prescriptions and certificates: INPE identifies the dentist; tax ids stay on invoices.
         assert!(t.contains("101234567"), "{name}: INPE");
-        assert!(!t.contains("001234567000089") && !t.contains("34567890"), "{name}: no ICE / TP on a clinical document");
+        assert!(
+            !t.contains("001234567000089") && !t.contains("34567890"),
+            "{name}: no ICE / TP on a clinical document"
+        );
     }
 }
 
@@ -231,11 +313,26 @@ async fn moroccan_letterhead_drops_german_ids() {
         r#""currency": "MAD", "country": "MA", "bsnr": "987654321", "zanr": "123456789","#,
     );
     let pool = setup(&practice).await;
-    let fr = issue_invoice(&pool, &session(), IssueInvoiceArgs { patient_id: "p1".into(), invoice: invoice("fr"), preview: true })
-        .await
-        .expect("issue fr");
+    let fr = issue_invoice(
+        &pool,
+        &session(),
+        IssueInvoiceArgs {
+            patient_id: "p1".into(),
+            invoice: invoice("fr"),
+            preview: true,
+        },
+    )
+    .await
+    .expect("issue fr");
     let t = String::from_utf8_lossy(&pdf(&fr)).into_owned();
-    assert!(!t.contains("BSNR") && !t.contains("ZANR"), "German ids on a Moroccan invoice");
+    assert!(
+        !t.contains("BSNR") && !t.contains("ZANR"),
+        "German ids on a Moroccan invoice"
+    );
     // Once in the letterhead, once in the identity footer; never twice in the header.
-    assert_eq!(t.matches("001234567000089").count(), 2, "ICE in header and footer only");
+    assert_eq!(
+        t.matches("001234567000089").count(),
+        2,
+        "ICE in header and footer only"
+    );
 }

@@ -827,7 +827,12 @@ async fn record(
             }
         }
 
-        let number = repo::next_number(conn, DocKind::DailyReport.prefix_for(profile.jurisdiction()), year_now()).await?;
+        let number = repo::next_number(
+            conn,
+            DocKind::DailyReport.prefix_for(profile.jurisdiction()),
+            year_now(),
+        )
+        .await?;
         let mut input = report_input(
             &profile,
             locale,
@@ -1344,7 +1349,12 @@ async fn issue_missing_report(
         if let Some(id) = existing {
             return Ok(MissingReport::Already(id));
         }
-        let number = repo::next_number(conn, DocKind::DailyReport.prefix_for(profile.jurisdiction()), year_now()).await?;
+        let number = repo::next_number(
+            conn,
+            DocKind::DailyReport.prefix_for(profile.jurisdiction()),
+            year_now(),
+        )
+        .await?;
         let mut input = report_input(
             &profile,
             locale,

@@ -2,7 +2,8 @@ import type { LegalEntityToken } from "./types";
 
 /**
  * Company details printed in the legal pages.
- * TODO(owner): replace every "[…]" before publishing — a legal page with placeholders is not valid.
+ * TODO(owner): replace every remaining "[…]" before selling — a legal page with placeholders is not valid.
+ * What is still missing and why: docs/launch/04-legal-review-brief.md §2.
  */
 export const LEGAL_ENTITY: Record<LegalEntityToken, string> = {
   company: "[Company name]",
@@ -18,7 +19,8 @@ export const LEGAL_ENTITY: Record<LegalEntityToken, string> = {
   taxId: "[Tax ID / IF]",
   ice: "[ICE]",
   capital: "[Share capital]",
-  hostingProvider: "[Website host name and address]",
+  // Public fact: the site is served by GitHub Pages (see .github/workflows/website.yml).
+  hostingProvider: "GitHub Pages, GitHub, Inc., 88 Colin P. Kelly Jr. Street, San Francisco, CA 94107, USA",
   dpoContact: "[Data-protection contact e-mail]",
   court: "[Competent court / city]",
 };

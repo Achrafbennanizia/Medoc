@@ -10,7 +10,10 @@
 //! Same data model as the GOZ invoice ([`super::invoice_goz::Invoice`]); GOZ-only fields
 //! (factor, points, fee groups) are ignored here.
 
-use super::core::{document_currency, emit_pdf_document, pdf_locale, PageBuilder, PdfDocMeta, M_BOTTOM, M_LEFT, M_RIGHT};
+use super::core::{
+    document_currency, emit_pdf_document, pdf_locale, PageBuilder, PdfDocMeta, M_BOTTOM, M_LEFT,
+    M_RIGHT,
+};
 use super::goz::compute_totals;
 use super::i18n::{tr, trf};
 use super::invoice_goz::{render_goz_invoice, Invoice, InvoiceKind, InvoiceLine, MoroccoIds};
@@ -62,7 +65,12 @@ pub fn money_ma(cents: i64) -> String {
         }
         grouped.push(ch);
     }
-    format!("{}{grouped},{:02} {}", if neg { "-" } else { "" }, abs % 100, document_currency())
+    format!(
+        "{}{grouped},{:02} {}",
+        if neg { "-" } else { "" },
+        abs % 100,
+        document_currency()
+    )
 }
 
 /// Amount as drawn on the page: on right-to-left pages it is a left-to-right isolate, so the
@@ -85,7 +93,12 @@ fn identity_parts(ids: &MoroccoIds, locale: &str) -> Vec<String> {
         ("invoice_ma.inpe", &ids.inpe),
     ]
     .into_iter()
-    .filter_map(|(key, v)| v.as_deref().map(str::trim).filter(|v| !v.is_empty()).map(|v| format!("{} {v}", tr(locale, key))))
+    .filter_map(|(key, v)| {
+        v.as_deref()
+            .map(str::trim)
+            .filter(|v| !v.is_empty())
+            .map(|v| format!("{} {v}", tr(locale, key)))
+    })
     .collect()
 }
 
@@ -113,8 +126,22 @@ fn emit_line(pb: &mut PageBuilder, line: &InvoiceLine, locale: &str) {
     let top = pb.y;
     let qty = i64::from(line.quantity.unwrap_or(1).max(1));
     let unit = line.unit_price_cents.unwrap_or(line.amount_cents / qty);
-    pb.text(X_DATE + 2, ROW_FS, false, &line.treatment_date.as_deref().map(date_ma).unwrap_or_default());
-    pb.text(X_TOOTH, ROW_FS, false, line.tooth_nr.as_deref().unwrap_or(""));
+    pb.text(
+        X_DATE + 2,
+        ROW_FS,
+        false,
+        &line
+            .treatment_date
+            .as_deref()
+            .map(date_ma)
+            .unwrap_or_default(),
+    );
+    pb.text(
+        X_TOOTH,
+        ROW_FS,
+        false,
+        line.tooth_nr.as_deref().unwrap_or(""),
+    );
     pb.text(X_CODE, ROW_FS, false, line.goz_nr.as_deref().unwrap_or(""));
     pb.text_right(X_QTY_R, ROW_FS, false, &qty.to_string());
     let (unit, amount) = (money_on(pb, unit), money_on(pb, line.amount_cents));
@@ -157,7 +184,10 @@ pub fn render_ma_invoice(inv: &Invoice) -> Result<Vec<u8>, AppError> {
         inv.practice_lines.clone()
     };
     // The practice letterhead already lists the ids for a Moroccan practice; add them only if missing.
-    let ice_shown = ids.ice.as_deref().is_some_and(|ice| practice.iter().any(|l| l.contains(ice.trim())));
+    let ice_shown = ids
+        .ice
+        .as_deref()
+        .is_some_and(|ice| practice.iter().any(|l| l.contains(ice.trim())));
     if !ice_shown {
         practice.extend(identity_parts(&ids, locale));
     }
@@ -178,9 +208,16 @@ pub fn render_ma_invoice(inv: &Invoice) -> Result<Vec<u8>, AppError> {
             .filter(|d| !d.trim().is_empty())
             .map(|d| format!(", {} {}", tr(locale, "invoice_ma.born"), date_ma(d)))
             .unwrap_or_default();
-        meta.push(MetaRow::new(tr(locale, "invoice_ma.patient"), format!("{}{dob}", inv.patient_name)));
+        meta.push(MetaRow::new(
+            tr(locale, "invoice_ma.patient"),
+            format!("{}{dob}", inv.patient_name),
+        ));
     }
-    if let Some(c) = inv.clinician_name.as_deref().filter(|s| !s.trim().is_empty()) {
+    if let Some(c) = inv
+        .clinician_name
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+    {
         meta.push(MetaRow::new(tr(locale, "invoice_ma.practitioner"), c));
     }
     let mut recipient = vec![inv.recipient_name.clone()];
@@ -200,7 +237,11 @@ pub fn render_ma_invoice(inv: &Invoice) -> Result<Vec<u8>, AppError> {
     );
 
     // Identity on every page: CGI art. 145 mentions must stay with each sheet.
-    let mut footer = vec![format!("{} · {}", inv.practice_name, inv.practice_address.join(", "))];
+    let mut footer = vec![format!(
+        "{} · {}",
+        inv.practice_name,
+        inv.practice_address.join(", ")
+    )];
     let id_line = identity_parts(&ids, locale);
     if !id_line.is_empty() {
         footer.push(id_line.join(" · "));
@@ -210,14 +251,39 @@ pub fn render_ma_invoice(inv: &Invoice) -> Result<Vec<u8>, AppError> {
     }
     pb.footer_lines.extend(footer);
 
-    let title = tr(locale, if credit { "invoice_ma.credit_note" } else { "invoice_ma.title" });
-    pb.set_continuation(&inv.practice_name, &format!("{title} {}", inv.number), locale);
+    let title = tr(
+        locale,
+        if credit {
+            "invoice_ma.credit_note"
+        } else {
+            "invoice_ma.title"
+        },
+    );
+    pb.set_continuation(
+        &inv.practice_name,
+        &format!("{title} {}", inv.number),
+        locale,
+    );
     pb.text(M_LEFT, 16, true, &format!("{title} {}", inv.number));
     pb.advance(20);
     if credit {
         let orig = inv.cancels_number.as_deref().unwrap_or("-");
-        let date = inv.cancels_date.as_deref().map(|d| format!(" ({})", date_ma(d))).unwrap_or_default();
-        pb.wrapped(M_LEFT, 9, false, &trf(locale, "invoice_ma.cancels", &[("orig", orig), ("date", &date)]), M_RIGHT - M_LEFT);
+        let date = inv
+            .cancels_date
+            .as_deref()
+            .map(|d| format!(" ({})", date_ma(d)))
+            .unwrap_or_default();
+        pb.wrapped(
+            M_LEFT,
+            9,
+            false,
+            &trf(
+                locale,
+                "invoice_ma.cancels",
+                &[("orig", orig), ("date", &date)],
+            ),
+            M_RIGHT - M_LEFT,
+        );
         pb.advance(4);
     }
 
@@ -231,25 +297,50 @@ pub fn render_ma_invoice(inv: &Invoice) -> Result<Vec<u8>, AppError> {
     pb.ensure_space(80);
     pb.hline(M_LEFT + 250, M_RIGHT);
     pb.advance(13);
-    emit_sum_row(&mut pb, tr(locale, "invoice_ma.total_ht"), totals.net, false);
+    emit_sum_row(
+        &mut pb,
+        tr(locale, "invoice_ma.total_ht"),
+        totals.net,
+        false,
+    );
     for (rate, _net, tax) in &totals.vat_groups {
         let rate_s = format!("{}", *rate as f64 / 100.0).replace('.', ",");
-        emit_sum_row(&mut pb, &trf(locale, "invoice_ma.vat", &[("rate", &rate_s)]), *tax, false);
+        emit_sum_row(
+            &mut pb,
+            &trf(locale, "invoice_ma.vat", &[("rate", &rate_s)]),
+            *tax,
+            false,
+        );
     }
     if totals.vat_groups.is_empty() {
         emit_sum_row(&mut pb, tr(locale, "invoice_ma.vat_zero"), 0, false);
     }
     pb.hline(M_LEFT + 250, M_RIGHT);
     pb.advance(13);
-    emit_sum_row(&mut pb, tr(locale, "invoice_ma.total_ttc"), totals.gross, true);
+    emit_sum_row(
+        &mut pb,
+        tr(locale, "invoice_ma.total_ttc"),
+        totals.gross,
+        true,
+    );
 
     // ---- Total in words, VAT notice, terms ----------------------------------------
     pb.advance(8);
     let width = M_RIGHT - M_LEFT;
     let words = amount_in_words(totals.gross, locale);
-    pb.wrapped(M_LEFT, 9, true, &trf(locale, "invoice_ma.amount_words", &[("words", &words)]), width);
+    pb.wrapped(
+        M_LEFT,
+        9,
+        true,
+        &trf(locale, "invoice_ma.amount_words", &[("words", &words)]),
+        width,
+    );
     pb.advance(4);
-    if inv.lines.iter().any(|l| l.vat_percent.unwrap_or(0.0) <= 0.0) {
+    if inv
+        .lines
+        .iter()
+        .any(|l| l.vat_percent.unwrap_or(0.0) <= 0.0)
+    {
         let notice = inv
             .vat_notice
             .as_deref()
@@ -258,7 +349,11 @@ pub fn render_ma_invoice(inv: &Invoice) -> Result<Vec<u8>, AppError> {
         pb.wrapped(M_LEFT, 9, false, notice, width);
     }
     if !credit {
-        if let Some(terms) = inv.payment_terms_text.as_deref().filter(|s| !s.trim().is_empty()) {
+        if let Some(terms) = inv
+            .payment_terms_text
+            .as_deref()
+            .filter(|s| !s.trim().is_empty())
+        {
             pb.wrapped(M_LEFT, 9, false, terms, width);
         }
     }
@@ -310,10 +405,18 @@ pub fn amount_in_words(cents: i64, locale: &str) -> String {
         s
     } else {
         let unit = if dh > 1 { "dirhams" } else { "dirham" };
-        let de = if dh >= 1_000_000 && dh % 1_000_000 == 0 { "de " } else { "" };
+        let de = if dh >= 1_000_000 && dh % 1_000_000 == 0 {
+            "de "
+        } else {
+            ""
+        };
         let mut s = format!("{} {de}{unit}", fr_words(dh));
         if ct > 0 {
-            s.push_str(&format!(" et {} centime{}", fr_words(ct), if ct > 1 { "s" } else { "" }));
+            s.push_str(&format!(
+                " et {} centime{}",
+                fr_words(ct),
+                if ct > 1 { "s" } else { "" }
+            ));
         }
         s
     }
@@ -321,10 +424,18 @@ pub fn amount_in_words(cents: i64, locale: &str) -> String {
 
 fn fr_below_100(n: u64) -> String {
     const UNITS: [&str; 17] = [
-        "zéro", "un", "deux", "trois", "quatre", "cinq", "six", "sept", "huit", "neuf", "dix", "onze", "douze",
-        "treize", "quatorze", "quinze", "seize",
+        "zéro", "un", "deux", "trois", "quatre", "cinq", "six", "sept", "huit", "neuf", "dix",
+        "onze", "douze", "treize", "quatorze", "quinze", "seize",
     ];
-    const TENS: [&str; 7] = ["", "dix", "vingt", "trente", "quarante", "cinquante", "soixante"];
+    const TENS: [&str; 7] = [
+        "",
+        "dix",
+        "vingt",
+        "trente",
+        "quarante",
+        "cinquante",
+        "soixante",
+    ];
     match n {
         0..=16 => UNITS[n as usize].into(),
         17..=19 => format!("dix-{}", UNITS[(n - 10) as usize]),
@@ -371,13 +482,25 @@ pub fn fr_words(n: u64) -> String {
     let (millions, rest) = (n / 1_000_000, n % 1_000_000);
     let (thousands, units) = (rest / 1000, rest % 1000);
     if millions > 0 {
-        parts.push(format!("{} million{}", fr_below_1000(millions), if millions > 1 { "s" } else { "" }));
+        parts.push(format!(
+            "{} million{}",
+            fr_below_1000(millions),
+            if millions > 1 { "s" } else { "" }
+        ));
     }
     if thousands > 0 {
         // "mille" is invariable; "cents" / "vingts" lose their s before it ("deux cent mille").
         let w = fr_below_1000(thousands);
-        let w = w.strip_suffix("cents").map(|p| format!("{p}cent")).or_else(|| w.strip_suffix("vingts").map(|p| format!("{p}vingt"))).unwrap_or(w);
-        parts.push(if thousands == 1 { "mille".into() } else { format!("{w} mille") });
+        let w = w
+            .strip_suffix("cents")
+            .map(|p| format!("{p}cent"))
+            .or_else(|| w.strip_suffix("vingts").map(|p| format!("{p}vingt")))
+            .unwrap_or(w);
+        parts.push(if thousands == 1 {
+            "mille".into()
+        } else {
+            format!("{w} mille")
+        });
     }
     if units > 0 {
         parts.push(fr_below_1000(units));
@@ -385,13 +508,53 @@ pub fn fr_words(n: u64) -> String {
     parts.join(" ")
 }
 
-const AR_ONES: [&str; 10] = ["", "واحد", "اثنان", "ثلاثة", "أربعة", "خمسة", "ستة", "سبعة", "ثمانية", "تسعة"];
-const AR_TEENS: [&str; 10] = [
-    "عشرة", "أحد عشر", "اثنا عشر", "ثلاثة عشر", "أربعة عشر", "خمسة عشر", "ستة عشر", "سبعة عشر", "ثمانية عشر", "تسعة عشر",
+const AR_ONES: [&str; 10] = [
+    "",
+    "واحد",
+    "اثنان",
+    "ثلاثة",
+    "أربعة",
+    "خمسة",
+    "ستة",
+    "سبعة",
+    "ثمانية",
+    "تسعة",
 ];
-const AR_TENS: [&str; 10] = ["", "", "عشرون", "ثلاثون", "أربعون", "خمسون", "ستون", "سبعون", "ثمانون", "تسعون"];
+const AR_TEENS: [&str; 10] = [
+    "عشرة",
+    "أحد عشر",
+    "اثنا عشر",
+    "ثلاثة عشر",
+    "أربعة عشر",
+    "خمسة عشر",
+    "ستة عشر",
+    "سبعة عشر",
+    "ثمانية عشر",
+    "تسعة عشر",
+];
+const AR_TENS: [&str; 10] = [
+    "",
+    "",
+    "عشرون",
+    "ثلاثون",
+    "أربعون",
+    "خمسون",
+    "ستون",
+    "سبعون",
+    "ثمانون",
+    "تسعون",
+];
 const AR_HUNDREDS: [&str; 10] = [
-    "", "مائة", "مائتان", "ثلاثمائة", "أربعمائة", "خمسمائة", "ستمائة", "سبعمائة", "ثمانمائة", "تسعمائة",
+    "",
+    "مائة",
+    "مائتان",
+    "ثلاثمائة",
+    "أربعمائة",
+    "خمسمائة",
+    "ستمائة",
+    "سبعمائة",
+    "ثمانمائة",
+    "تسعمائة",
 ];
 
 fn ar_below_1000(n: u64) -> String {
@@ -402,7 +565,11 @@ fn ar_below_1000(n: u64) -> String {
         10..=19 => AR_TEENS[(r - 10) as usize].into(),
         _ => {
             let (t, u) = ((r / 10) as usize, (r % 10) as usize);
-            if u == 0 { AR_TENS[t].into() } else { format!("{} و{}", AR_ONES[u], AR_TENS[t]) }
+            if u == 0 {
+                AR_TENS[t].into()
+            } else {
+                format!("{} و{}", AR_ONES[u], AR_TENS[t])
+            }
         }
     };
     match (h, rest.is_empty()) {
@@ -482,7 +649,10 @@ mod tests {
         assert_eq!(fr_words(1250), "mille deux cent cinquante");
         assert_eq!(fr_words(200_000), "deux cent mille");
         assert_eq!(fr_words(9_000), "neuf mille");
-        assert_eq!(amount_in_words(125_050, "fr"), "mille deux cent cinquante dirhams et cinquante centimes");
+        assert_eq!(
+            amount_in_words(125_050, "fr"),
+            "mille deux cent cinquante dirhams et cinquante centimes"
+        );
         assert_eq!(amount_in_words(100_000_000, "fr"), "un million de dirhams");
     }
 
@@ -510,7 +680,14 @@ mod tests {
         inv.locale = "fr".into();
         let pdf = render_invoice(&inv).unwrap();
         let s = String::from_utf8_lossy(&pdf);
-        for needle in ["(Facture ", "ICE 001234567000089", "IF 12345678", "TP 34567890", "Arr\\352t\\351e la pr\\351sente facture", "91-VI-1"] {
+        for needle in [
+            "(Facture ",
+            "ICE 001234567000089",
+            "IF 12345678",
+            "TP 34567890",
+            "Arr\\352t\\351e la pr\\351sente facture",
+            "91-VI-1",
+        ] {
             assert!(s.contains(needle), "missing {needle}");
         }
         assert!(!s.contains("GOZ"), "no German fee-schedule wording");
@@ -523,6 +700,9 @@ mod tests {
         inv.rtl = true;
         let s = String::from_utf8_lossy(&render_invoice(&inv).unwrap()).into_owned();
         assert!(s.contains("/Lang (ar)"));
-        assert!(s.contains("+NotoNaskhArabic") || s.contains("/F3 "), "arabic font embedded");
+        assert!(
+            s.contains("+NotoNaskhArabic") || s.contains("/F3 "),
+            "arabic font embedded"
+        );
     }
 }

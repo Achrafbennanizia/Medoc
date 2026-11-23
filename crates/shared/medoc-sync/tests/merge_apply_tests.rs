@@ -1214,12 +1214,25 @@ async fn product_delete_applies_while_a_template_still_points_at_it() {
 #[tokio::test]
 async fn practice_task_remote_insert_ensures_assignee_notification() {
     let pool = fresh_pool().await;
-    seed_patient(&pool, "sync-task-pat", "Sync Task Pat", "2099-01-01 00:00:00").await;
+    seed_patient(
+        &pool,
+        "sync-task-pat",
+        "Sync Task Pat",
+        "2099-01-01 00:00:00",
+    )
+    .await;
     let task_id = "sync-task-remote-001";
     let payload = format!(
         r#"{{"id":"{task_id}","patient_id":"sync-task-pat","kind":"TICKET","title":"Remote ticket","body":"Please review","assignee_role":null,"assignee_user_id":"seed-physician-001","created_by":"seed-rez-001","treatment_id":null,"examination_id":null,"service_name":null,"total_cost":null,"payment_id":null,"done_note":null,"return_reason":null,"status":"OPEN","legacy_ticket_id":null,"created_at":"2099-06-01T12:00:00Z","updated_at":"2099-06-01T12:00:00Z"}}"#
     );
-    let e = entry("remote-device", 90, "practice_task", task_id, "INSERT", &payload);
+    let e = entry(
+        "remote-device",
+        90,
+        "practice_task",
+        task_id,
+        "INSERT",
+        &payload,
+    );
     assert!(
         apply_remote_entry(&pool, LOCAL_MASTER, true, ConflictPolicy::LastWriteWins, &e)
             .await

@@ -65,7 +65,11 @@ fn sanitize_user_id(raw: Option<&str>) -> Option<String> {
     if s.is_empty() {
         return None;
     }
-    if s.len() > 128 || !s.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+    if s.len() > 128
+        || !s
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
         return None;
     }
     Some(s.to_string())
@@ -78,8 +82,8 @@ fn read_file(path: &Path) -> Result<UiPrefsFile, AppError> {
             ..Default::default()
         });
     }
-    let raw = fs::read_to_string(path)
-        .map_err(|e| AppError::Internal(format!("ui-prefs read: {e}")))?;
+    let raw =
+        fs::read_to_string(path).map_err(|e| AppError::Internal(format!("ui-prefs read: {e}")))?;
     if raw.trim().is_empty() {
         return Ok(UiPrefsFile {
             version: FILE_VERSION,
@@ -117,10 +121,15 @@ fn normalize_locale(raw: Option<&str>) -> Option<String> {
 }
 
 fn resolve_slice<'a>(file: &'a UiPrefsFile, uid: Option<&str>) -> UiPrefsSlice {
-    let user = uid.and_then(|id| file.users.get(id)).cloned().unwrap_or_default();
+    let user = uid
+        .and_then(|id| file.users.get(id))
+        .cloned()
+        .unwrap_or_default();
     UiPrefsSlice {
         locale: user.locale.or_else(|| file.device.locale.clone()),
-        settings_json: user.settings_json.or_else(|| file.device.settings_json.clone()),
+        settings_json: user
+            .settings_json
+            .or_else(|| file.device.settings_json.clone()),
     }
 }
 
@@ -145,10 +154,7 @@ fn apply_patch(
 
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(app))]
-pub async fn get_ui_prefs(
-    app: AppHandle,
-    user_id: Option<String>,
-) -> Result<UiPrefsDto, AppError> {
+pub async fn get_ui_prefs(app: AppHandle, user_id: Option<String>) -> Result<UiPrefsDto, AppError> {
     let path = prefs_path(&app)?;
     let file = read_file(&path)?;
     let uid = sanitize_user_id(user_id.as_deref());

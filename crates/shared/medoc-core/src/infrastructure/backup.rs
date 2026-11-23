@@ -558,8 +558,15 @@ mod list_tests {
         std::env::remove_var("MEDOC_BACKUP_DIR");
         let _ = std::fs::remove_dir_all(&dir);
         assert_eq!(full.len(), 1);
-        assert_eq!(full[0].signature_ok, Some(false), "Ops listing must catch the bad signature");
+        assert_eq!(
+            full[0].signature_ok,
+            Some(false),
+            "Ops listing must catch the bad signature"
+        );
         assert_eq!(meta[0].size_bytes, 21);
-        assert_eq!(meta[0].signature_ok, None, "About listing does not check, so it must not say bad");
+        assert_eq!(
+            meta[0].signature_ok, None,
+            "About listing does not check, so it must not say bad"
+        );
     }
 }

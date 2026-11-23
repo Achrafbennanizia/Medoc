@@ -1305,7 +1305,12 @@ fn pack_word_at_hyphen_points(word: &str, width: usize) -> Vec<String> {
 pub fn format_date_dmy(iso: &str) -> String {
     let d = iso.trim();
     if d.len() >= 10 && d.as_bytes().get(4) == Some(&b'-') && d.as_bytes().get(7) == Some(&b'-') {
-        let sep = if super::i18n::legal_jurisdiction(super::i18n::default_document_locale()) == "de" { '.' } else { '/' };
+        let sep = if super::i18n::legal_jurisdiction(super::i18n::default_document_locale()) == "de"
+        {
+            '.'
+        } else {
+            '/'
+        };
         return format!("{}{sep}{}{sep}{}", &d[8..10], &d[5..7], &d[0..4]);
     }
     d.to_string()

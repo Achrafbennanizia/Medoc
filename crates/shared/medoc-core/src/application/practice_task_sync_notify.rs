@@ -2,7 +2,9 @@
 //! have a `PRACTICE_TASK_ASSIGNED` notification when the origin did not (or the
 //! notification row has not arrived yet). Gap-fill inserts stay local (no outbox).
 
-use crate::application::practice_task_notify::{assigned_notice, assignee_recipients, patient_name};
+use crate::application::practice_task_notify::{
+    assigned_notice, assignee_recipients, patient_name,
+};
 use crate::error::AppError;
 use crate::infrastructure::database::repos::admin::staff as staff_repo;
 use crate::infrastructure::database::repos::practice::in_app_notification as in_app_notification_repo;
@@ -10,10 +12,7 @@ use crate::infrastructure::database::repos::scheduling::practice_task as practic
 use sqlx::SqlitePool;
 
 /// Best-effort: fill missing assignee notifications after remote task INSERT.
-pub async fn ensure_assignee_notifications_after_remote_insert(
-    pool: &SqlitePool,
-    task_id: &str,
-) {
+pub async fn ensure_assignee_notifications_after_remote_insert(pool: &SqlitePool, task_id: &str) {
     if let Err(e) = try_ensure(pool, task_id).await {
         tracing::warn!(
             target: "medoc::sync",
@@ -108,7 +107,10 @@ mod tests {
         let after = in_app_notification_repo::count_unread(&pool, "seed-physician-001")
             .await
             .expect("count");
-        assert!(after > before, "gap-fill should create PRACTICE_TASK_ASSIGNED");
+        assert!(
+            after > before,
+            "gap-fill should create PRACTICE_TASK_ASSIGNED"
+        );
 
         // Idempotent: second call does not duplicate.
         ensure_assignee_notifications_after_remote_insert(&pool, &task.id).await;

@@ -24,8 +24,10 @@ pub const DOCUMENT_HEADER_LAYOUT_KV_KEY: &str = "documents.header_layout.v1";
 const DEFAULT_HEADER_FIELDS: &[&str] = &[
     "name", "address", "phone", "fax", "email", "web", "bsnr", "zanr",
 ];
-const DEFAULT_HEADER_FIELDS_MA: &[&str] = &["name", "address", "phone", "fax", "email", "web", "ma_ids"];
-const DEFAULT_HEADER_FIELDS_FR: &[&str] = &["name", "address", "phone", "fax", "email", "web", "fr_ids"];
+const DEFAULT_HEADER_FIELDS_MA: &[&str] =
+    &["name", "address", "phone", "fax", "email", "web", "ma_ids"];
+const DEFAULT_HEADER_FIELDS_FR: &[&str] =
+    &["name", "address", "phone", "fax", "email", "web", "fr_ids"];
 const DEFAULT_HEADER_FIELDS_OTHER: &[&str] = &["name", "address", "phone", "fax", "email", "web"];
 
 /// Header labels in the document language (the old ones were German on every document).
@@ -54,7 +56,9 @@ fn header_label(key: &str) -> &'static str {
 pub fn uses_german_ids(country: Option<&str>, currency: Option<&str>) -> bool {
     match country.map(str::trim).filter(|c| !c.is_empty()) {
         Some(c) => c.eq_ignore_ascii_case("DE"),
-        None => !currency.map(str::trim).is_some_and(|c| c.eq_ignore_ascii_case("MAD")),
+        None => !currency
+            .map(str::trim)
+            .is_some_and(|c| c.eq_ignore_ascii_case("MAD")),
     }
 }
 
@@ -411,7 +415,11 @@ impl PracticeProfile {
     pub fn clinical_footer_lines(&self, locale: &str) -> Vec<String> {
         footer_lines_for_practice(
             &PracticeFooter {
-                practice_name: format!("{} · {}", self.name.trim(), self.address_lines().join(", ")),
+                practice_name: format!(
+                    "{} · {}",
+                    self.name.trim(),
+                    self.address_lines().join(", ")
+                ),
                 tax_number: None,
                 vat_id: None,
                 iban: None,
@@ -482,7 +490,7 @@ impl PracticeProfile {
         crate::infrastructure::pdf::i18n::trf(locale, "invoice.payment_terms", &[("days", &days)])
     }
 
-/// Jurisdiction for legal wording: the chosen country, else Morocco for MAD practices,
+    /// Jurisdiction for legal wording: the chosen country, else Morocco for MAD practices,
     /// else unknown (the document language decides).
     pub fn jurisdiction(&self) -> Option<&'static str> {
         match opt(&self.country).map(|c| c.to_ascii_uppercase()) {
@@ -503,7 +511,12 @@ impl PracticeProfile {
     /// Practices billing in dirhams get the Moroccan invoice (CGI art. 145) instead of the GOZ one.
     pub fn is_morocco(&self) -> bool {
         let country_ma = opt(&self.country).is_some_and(|c| c.eq_ignore_ascii_case("MA"));
-        country_ma || self.currency.as_deref().map(str::trim).is_some_and(|c| c.eq_ignore_ascii_case("MAD"))
+        country_ma
+            || self
+                .currency
+                .as_deref()
+                .map(str::trim)
+                .is_some_and(|c| c.eq_ignore_ascii_case("MAD"))
     }
 
     pub fn morocco_ids(&self) -> crate::infrastructure::pdf::MoroccoIds {

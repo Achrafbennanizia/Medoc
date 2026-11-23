@@ -444,7 +444,10 @@ fn apply_server_fields(
     // Medical documents (prescriptions, certificates, leaflets) carry no tax ids or bank details;
     // receipts keep them.
     let (practice_lines, footer_lines) = if medical {
-        (profile.clinical_letterhead_lines(), profile.clinical_footer_lines(locale))
+        (
+            profile.clinical_letterhead_lines(),
+            profile.clinical_footer_lines(locale),
+        )
     } else {
         (profile.letterhead_lines(), profile.footer_lines(locale))
     };
@@ -491,7 +494,14 @@ async fn patient_panel(
         .as_deref()
         .and_then(|d| chrono::NaiveDate::parse_from_str(d.get(..10)?, "%Y-%m-%d").ok())
         // German documents use 14.06.1990; French and Arabic (Morocco, France) use 14/06/1990.
-        .map(|d| d.format(if locale.starts_with("de") { "%d.%m.%Y" } else { "%d/%m/%Y" }).to_string());
+        .map(|d| {
+            d.format(if locale.starts_with("de") {
+                "%d.%m.%Y"
+            } else {
+                "%d/%m/%Y"
+            })
+            .to_string()
+        });
     let mut left = vec![name.trim().to_string()];
     if let Some(d) = dob {
         left.push(format!(
@@ -533,7 +543,11 @@ async fn patient_panel(
         .as_deref()
         .map(|a| {
             let mut lines: Vec<String> = Vec::new();
-            for part in a.split(['\n', ',']).map(str::trim).filter(|l| !l.is_empty()) {
+            for part in a
+                .split(['\n', ','])
+                .map(str::trim)
+                .filter(|l| !l.is_empty())
+            {
                 // "112, boulevard Zerktouni": a bare house number stays on the street's line.
                 match lines.last_mut() {
                     Some(prev) if prev.chars().all(|c| c.is_ascii_digit()) => {
@@ -612,7 +626,8 @@ pub async fn issue_clinical_document(
     if matches!(kind, DocKind::Certificate | DocKind::Prescription) {
         // France (R.5132-3 CSP): a prescription names the patient's sex and age, and carries no
         // social-security number (NIR), which French rules keep off documents that do not need it.
-        let french_rx = matches!(kind, DocKind::Prescription) && profile.jurisdiction() == Some("fr");
+        let french_rx =
+            matches!(kind, DocKind::Prescription) && profile.jurisdiction() == Some("fr");
         let panel = patient_panel(pool, &patient_id, locale, copy_variant, french_rx).await?;
         if let Some(obj) = layout.as_object_mut() {
             obj.insert("twoColumn".into(), panel);
@@ -621,14 +636,19 @@ pub async fn issue_clinical_document(
     // France: the Assurance Maladie and employers only accept sick leave declared online
     // (amelipro) or on the secure CERFA form. A free-form certificate says so on its face.
     if matches!(kind, DocKind::Certificate) && profile.jurisdiction() == Some("fr") {
-        let cert_kind: Option<String> = sqlx::query_scalar("SELECT kind FROM certificate WHERE id = ?1")
-            .bind(&args.source_id)
-            .fetch_optional(pool)
-            .await?;
+        let cert_kind: Option<String> =
+            sqlx::query_scalar("SELECT kind FROM certificate WHERE id = ?1")
+                .bind(&args.source_id)
+                .fetch_optional(pool)
+                .await?;
         if cert_kind.as_deref() == Some("SICK_LEAVE") {
-            let note = crate::infrastructure::pdf::i18n::tr(locale, "certificate.fr_sick_leave_notice").to_string();
+            let note =
+                crate::infrastructure::pdf::i18n::tr(locale, "certificate.fr_sick_leave_notice")
+                    .to_string();
             if let Some(obj) = layout.as_object_mut() {
-                let closing = obj.entry("closingParagraphs").or_insert_with(|| Value::Array(Vec::new()));
+                let closing = obj
+                    .entry("closingParagraphs")
+                    .or_insert_with(|| Value::Array(Vec::new()));
                 if let Some(list) = closing.as_array_mut() {
                     list.push(Value::String(note));
                 }
@@ -666,7 +686,8 @@ pub async fn issue_clinical_document(
 
     let issued_at = now_iso();
     let doc = immediate_tx!(pool, |conn| {
-        let number = repo::next_number(conn, kind.prefix_for(profile.jurisdiction()), year_now()).await?;
+        let number =
+            repo::next_number(conn, kind.prefix_for(profile.jurisdiction()), year_now()).await?;
         layout["documentNumber"] = Value::String(number.clone());
         let doc_id = crate::infrastructure::pdf::new_document_uid();
         let bytes = crate::infrastructure::pdf::with_document_uid(&doc_id, || {
@@ -945,9 +966,16 @@ async fn complete_invoice_from_db(
         inv.vat_notice = profile
             .vat_exemption_notice
             .as_deref()
-            .filter(|n| !n.trim().is_empty() && !crate::infrastructure::pdf::i18n::is_default_vat_notice(n))
+            .filter(|n| {
+                !n.trim().is_empty() && !crate::infrastructure::pdf::i18n::is_default_vat_notice(n)
+            })
             .map(|n| n.trim().to_string())
-            .or_else(|| Some(crate::infrastructure::pdf::i18n::tr(locale, "invoice_ma.vat_exempt_default").to_string()));
+            .or_else(|| {
+                Some(
+                    crate::infrastructure::pdf::i18n::tr(locale, "invoice_ma.vat_exempt_default")
+                        .to_string(),
+                )
+            });
     } else {
         inv.vat_notice = Some(match inv.vat_notice.as_deref() {
             Some(n) if !n.trim().is_empty() => localized_vat_notice(n, locale),
@@ -1360,13 +1388,13 @@ pub async fn issue_invoice(
     repo::ensure_numbering_authority(pool).await?;
     let issued_at = now_iso();
     let (doc, bytes, total) = immediate_tx!(pool, |conn| {
-        invoice.number = repo::next_number(conn, DocKind::Invoice.prefix_for(jurisdiction), year_now()).await?;
+        invoice.number =
+            repo::next_number(conn, DocKind::Invoice.prefix_for(jurisdiction), year_now()).await?;
         // Validation failure rolls back → the number is not consumed (gap-free).
         validate_invoice(&invoice)?;
         let doc_id = crate::infrastructure::pdf::new_document_uid();
-        let bytes = crate::infrastructure::pdf::with_document_uid(&doc_id, || {
-            render_invoice(&invoice)
-        })?;
+        let bytes =
+            crate::infrastructure::pdf::with_document_uid(&doc_id, || render_invoice(&invoice))?;
         let doc = IssuedDocument {
             id: doc_id.clone(),
             kind: DocKind::Invoice.as_db().into(),
@@ -1445,7 +1473,12 @@ pub async fn cancel_invoice(
 
     let issued_at = now_iso();
     let (doc, bytes, total) = immediate_tx!(pool, |conn| {
-        inv.number = repo::next_number(conn, DocKind::Cancellation.prefix_for(profile.jurisdiction()), year_now()).await?;
+        inv.number = repo::next_number(
+            conn,
+            DocKind::Cancellation.prefix_for(profile.jurisdiction()),
+            year_now(),
+        )
+        .await?;
         validate_invoice(&inv)?;
         let doc_id = crate::infrastructure::pdf::new_document_uid();
         let bytes =
@@ -1561,7 +1594,8 @@ pub async fn issue_report(
     }
     let issued_at = now_iso();
     let (doc, bytes) = immediate_tx!(pool, |conn| {
-        let number = repo::next_number(conn, kind.prefix_for(profile.jurisdiction()), year_now()).await?;
+        let number =
+            repo::next_number(conn, kind.prefix_for(profile.jurisdiction()), year_now()).await?;
         input.document_number = Some(number.clone());
         input.watermark = None;
         let doc_id = crate::infrastructure::pdf::new_document_uid();
@@ -1615,7 +1649,10 @@ where
     require_permission(session, kind.issue_permission())?;
     repo::ensure_numbering_authority(pool).await?;
     // Number prefix follows the practice country (FA-/INV-/RE-…).
-    let jurisdiction = PracticeProfile::load(pool).await.ok().and_then(|p| p.jurisdiction());
+    let jurisdiction = PracticeProfile::load(pool)
+        .await
+        .ok()
+        .and_then(|p| p.jurisdiction());
     let issued_at = now_iso();
     let (doc, bytes) = immediate_tx!(pool, |conn| {
         let number = repo::next_number(conn, kind.prefix_for(jurisdiction), year_now()).await?;

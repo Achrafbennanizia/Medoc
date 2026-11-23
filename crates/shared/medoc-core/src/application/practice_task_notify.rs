@@ -261,7 +261,10 @@ pub async fn notify_assignees_if_task_back(
     .await
 }
 
-pub(crate) async fn patient_name(pool: &SqlitePool, patient_id: Option<&str>) -> Result<String, AppError> {
+pub(crate) async fn patient_name(
+    pool: &SqlitePool,
+    patient_id: Option<&str>,
+) -> Result<String, AppError> {
     match patient_id.filter(|s| !s.trim().is_empty()) {
         Some(pid) => Ok(patient_repo::find_by_id(pool, pid)
             .await?
@@ -270,4 +273,3 @@ pub(crate) async fn patient_name(pool: &SqlitePool, patient_id: Option<&str>) ->
         None => Ok(String::new()),
     }
 }
-

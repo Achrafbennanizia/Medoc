@@ -176,7 +176,10 @@ pub fn tr_jurisdiction(locale: &str, key: &str, jurisdiction: &str) -> Option<&'
         return None;
     }
     let code = locale_or_default(locale);
-    CATALOGS.get(code).and_then(|m| m.get(&format!("{key}@{jurisdiction}"))).map(String::as_str)
+    CATALOGS
+        .get(code)
+        .and_then(|m| m.get(&format!("{key}@{jurisdiction}")))
+        .map(String::as_str)
 }
 
 /// Catalog text for `key` in `locale`.
@@ -412,7 +415,10 @@ pub fn is_default_vat_notice(text: &str) -> bool {
         || CATALOGS
             .values()
             .flat_map(|c| c.iter())
-            .filter(|(k, _)| k.as_str() == "invoice.vat_exempt_default" || k.starts_with("invoice.vat_exempt_default@"))
+            .filter(|(k, _)| {
+                k.as_str() == "invoice.vat_exempt_default"
+                    || k.starts_with("invoice.vat_exempt_default@")
+            })
             .any(|(_, v)| norm(v) == n)
 }
 
@@ -545,8 +551,12 @@ mod tests {
         assert_eq!(localize_watermark("KOPIE", "ar"), "نسخة");
         assert_eq!(localize_watermark("DRAFT", "de"), "ENTWURF");
         assert_eq!(localize_watermark("MUSTER", "en"), "MUSTER");
-        assert!(is_default_vat_notice("Umsatzsteuerbefreit gem. § 4 Nr. 14 UStG"));
-        assert!(is_default_vat_notice("VAT-exempt under § 4 No. 14 (a) UStG."));
+        assert!(is_default_vat_notice(
+            "Umsatzsteuerbefreit gem. § 4 Nr. 14 UStG"
+        ));
+        assert!(is_default_vat_notice(
+            "VAT-exempt under § 4 No. 14 (a) UStG."
+        ));
         assert!(!is_default_vat_notice("Kleinunternehmer gem. § 19 UStG"));
     }
 
@@ -554,14 +564,26 @@ mod tests {
     fn legal_wording_follows_the_jurisdiction_not_the_language() {
         for loc in ["fr", "en", "de", "ar"] {
             let ma = tr_jurisdiction(loc, "common.chart_privacy", "ma").expect("ma variant");
-            assert!(ma.contains("446") && ma.contains("09-08") && !ma.contains("BGB"), "{loc}: {ma}");
+            assert!(
+                ma.contains("446") && ma.contains("09-08") && !ma.contains("BGB"),
+                "{loc}: {ma}"
+            );
             let fr = tr_jurisdiction(loc, "common.chart_privacy", "fr").expect("fr variant");
-            assert!(fr.contains("L.1110-4") && !fr.contains("BGB"), "{loc}: {fr}");
+            assert!(
+                fr.contains("L.1110-4") && !fr.contains("BGB"),
+                "{loc}: {fr}"
+            );
             let eu = tr_jurisdiction(loc, "invoice.vat_exempt_default", "eu").expect("eu variant");
-            assert!(eu.contains("2006/112") && !eu.contains("UStG"), "{loc}: {eu}");
+            assert!(
+                eu.contains("2006/112") && !eu.contains("UStG"),
+                "{loc}: {eu}"
+            );
             // Germany keeps the plain key (German law).
             assert!(tr_jurisdiction(loc, "common.chart_privacy", "de").is_none());
         }
-        assert!(tr_jurisdiction("fr", "invoice.invoice", "ma").is_none(), "only legal keys vary");
+        assert!(
+            tr_jurisdiction("fr", "invoice.invoice", "ma").is_none(),
+            "only legal keys vary"
+        );
     }
 }

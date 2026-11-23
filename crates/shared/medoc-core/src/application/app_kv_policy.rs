@@ -99,9 +99,12 @@ pub const COMPLIANCE_CHECKLIST_KEY: &str = "compliance.checklist.v1";
 
 pub fn validate_app_kv_value(key: &str, value: &str) -> Result<(), crate::error::AppError> {
     if key == COMPLIANCE_CHECKLIST_KEY
-        && (value.len() > 16_384 || !serde_json::from_str::<serde_json::Value>(value).is_ok_and(|v| v.is_object()))
+        && (value.len() > 16_384
+            || !serde_json::from_str::<serde_json::Value>(value).is_ok_and(|v| v.is_object()))
     {
-        return Err(crate::error::AppError::Validation("The compliance checklist is invalid".into()));
+        return Err(crate::error::AppError::Validation(
+            "The compliance checklist is invalid".into(),
+        ));
     }
     if key == MEDICATION_CATALOG_KEY {
         let list: Vec<serde_json::Value> = serde_json::from_str(value).map_err(|_| {

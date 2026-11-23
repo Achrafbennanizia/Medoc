@@ -951,7 +951,10 @@ pub(super) mod tests {
         inv.watermark = Some("ENTWURF".into());
         let s = String::from_utf8_lossy(&render_goz_invoice(&inv).unwrap()).into_owned();
         assert!(s.contains("Justificatif joint."), "receipt line in French");
-        assert!(s.contains("Justification \\(\\247 10 al. 3 GOZ\\)"), "justification in French");
+        assert!(
+            s.contains("Justification \\(\\247 10 al. 3 GOZ\\)"),
+            "justification in French"
+        );
         assert!(!s.contains("Beleg liegt bei"), "no German sub-line");
         assert!(!s.contains("Begr\\374ndung"), "no German justification");
         assert!(s.contains("(BROUILLON)"), "German watermark word localised");
@@ -962,13 +965,22 @@ pub(super) mod tests {
         let inv = sample();
         let uid = "4f1c2b8e-1111-4222-8333-944455556666";
         let pdf = super::super::core::with_document_uid(uid, || render_goz_invoice(&inv)).unwrap();
-        assert_eq!(super::super::core::document_uid_of(&pdf).as_deref(), Some(uid));
+        assert_eq!(
+            super::super::core::document_uid_of(&pdf).as_deref(),
+            Some(uid)
+        );
         let s = String::from_utf8_lossy(&pdf);
-        assert!(s.contains(&format!("Dokument-ID: {uid}")), "id printed in the footer");
+        assert!(
+            s.contains(&format!("Dokument-ID: {uid}")),
+            "id printed in the footer"
+        );
         assert!(s.contains("/ID [<4F1C2B8E111142228333944455556666>"));
         // Without a fixed id every render still gets one.
         let other = render_goz_invoice(&inv).unwrap();
         assert!(super::super::core::document_uid_of(&other).is_some());
-        assert_ne!(super::super::core::document_uid_of(&other).as_deref(), Some(uid));
+        assert_ne!(
+            super::super::core::document_uid_of(&other).as_deref(),
+            Some(uid)
+        );
     }
 }

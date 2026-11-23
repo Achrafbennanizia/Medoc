@@ -215,7 +215,10 @@ async fn migration_with_orphan_rows_keeps_rows_and_foreign_keys_on() {
             .fetch_one(&pool)
             .await
             .unwrap();
-    assert_eq!(orphan, 1, "the upgrade must not silently delete the orphan row");
+    assert_eq!(
+        orphan, 1,
+        "the upgrade must not silently delete the orphan row"
+    );
     let after: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM staff")
         .fetch_one(&pool)
         .await

@@ -27,10 +27,17 @@ async fn patient_search_finds_row_beyond_first_page() {
         insert_named(&pool, &format!("Z-F57-{i:03}"), &format!("INS-F57-{i:03}")).await;
     }
     insert_named(&pool, "Needle Unique", "NEEDLE-F57").await;
-    let (page, total) =
-        patient_repo::find_paginated(&pool, 50, 0, Some("Needle Unique"), false, None, Default::default())
-            .await
-            .expect("search");
+    let (page, total) = patient_repo::find_paginated(
+        &pool,
+        50,
+        0,
+        Some("Needle Unique"),
+        false,
+        None,
+        Default::default(),
+    )
+    .await
+    .expect("search");
     assert!(total >= 1);
     assert!(page.iter().any(|p| p.name == "Needle Unique"), "{page:?}");
     assert!(page.len() <= 50);
@@ -48,8 +55,14 @@ async fn export_contains_all_matching_rows() {
         .await;
     }
     insert_named(&pool, "Other", "NO-MATCH").await;
-    let rows = patient_repo::find_all_matching(&pool, Some("Export Match"), false, None, Default::default())
-        .await
-        .expect("all");
+    let rows = patient_repo::find_all_matching(
+        &pool,
+        Some("Export Match"),
+        false,
+        None,
+        Default::default(),
+    )
+    .await
+    .expect("all");
     assert_eq!(rows.len(), 60);
 }

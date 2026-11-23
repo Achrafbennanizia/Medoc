@@ -151,7 +151,10 @@ fn assert_official(name: &str, pdf: &[u8], number: Option<&str>) -> String {
     let clinical = name.contains("-au-") || name.contains("rezept");
     for needle in ["66/123/45678", "DE89 3704 0044 0532 0130 00"] {
         if clinical {
-            assert!(!t.contains(needle), "{name}: clinical document shows {needle:?}");
+            assert!(
+                !t.contains(needle),
+                "{name}: clinical document shows {needle:?}"
+            );
         } else {
             assert!(t.contains(needle), "{name}: footer missing {needle:?}");
         }
