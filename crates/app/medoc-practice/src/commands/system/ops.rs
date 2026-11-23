@@ -229,7 +229,6 @@ pub struct BackupOverview {
     pub backup_dir: String,
     pub total_bytes: u64,
     pub backups: Vec<BackupInfo>,
-    pub history: Vec<backup::BackupHistoryRow>,
 }
 
 #[tauri::command]
@@ -252,7 +251,6 @@ pub async fn backup_overview(
         backup_dir: backup::backup_dir().display().to_string(),
         total_bytes: entries.iter().map(|e| e.size_bytes).sum(),
         backups: entries.into_iter().map(BackupInfo::from).collect(),
-        history: backup::history(&pool, 50).await?,
     })
 }
 

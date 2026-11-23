@@ -780,6 +780,7 @@ pub struct BackupHistoryRow {
 
 /// Backup actions (automatic runs, manual backups, restores, resets, schedule changes), newest
 /// first. They live in the tamper-evident audit log; this is a read view of it.
+/// Not shown in Settings for now (kept internal: audit log + app log); kept for support tooling.
 pub async fn history(pool: &SqlitePool, limit: i64) -> Result<Vec<BackupHistoryRow>, AppError> {
     Ok(sqlx::query_as::<_, BackupHistoryRow>(
         "SELECT a.created_at AS at, a.action, COALESCE(s.name, a.user_id) AS by,

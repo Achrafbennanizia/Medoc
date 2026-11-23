@@ -50,6 +50,7 @@ export const SITE_COPY: Record<Lang, SiteCopy> = {
       title: "Nouveautés",
       lead: "Ce qui a changé dans MeDoc ce mois-ci.",
       items: [
+        { date: "2026-11-23", title: "Sauvegardes automatiques, plus petites", text: "Une sauvegarde chiffrée par jour, à 13 % de la taille d'avant. 3 jours, la semaine dernière et le dernier semestre sont gardés. Pause, restauration et suppression dans Réglages, avec un motif.", href: "#settings" },
         { date: "2026-11-22", title: "Des documents conformes au pays du cabinet", text: "Choisissez Maroc, France, Allemagne ou UE : en-tête, identifiants (ICE, RPPS, BSNR…), mentions légales et format de date suivent. Aussi dans la configuration initiale.", href: "#documents-gallery" },
         { date: "2026-11-20", title: "Facture marocaine en français et en arabe", text: "ICE, IF, TP, RC, CNSS et INPE, total en toutes lettres et mention d'exonération de TVA (art. 91 CGI).", href: "#documents-gallery" },
         { date: "2026-11-20", title: "Ordonnances et certificats en arabe", text: "Mise en page de droite à gauche, dates au format 14/06/1990, adresses latines lisibles.", href: "#documents-gallery" },
@@ -96,6 +97,7 @@ export const SITE_COPY: Record<Lang, SiteCopy> = {
       title: "الجديد",
       lead: "ما تغيّر في MeDoc هذا الشهر.",
       items: [
+        { date: "2026-11-23", title: "نسخ احتياطية تلقائية وأصغر", text: "نسخة مشفّرة كل يوم، بحجم 13 % مما كانت عليه. يُحتفظ بـ 3 أيام والأسبوع الماضي وآخر نصف سنة. الإيقاف والاستعادة والحذف من الإعدادات، مع سبب.", href: "#settings" },
         { date: "2026-11-22", title: "وثائق تتبع بلد العيادة", text: "اختر المغرب أو فرنسا أو ألمانيا أو الاتحاد الأوروبي: رأس الوثيقة والمعرّفات (ICE وRPPS وBSNR…) والبيانات القانونية وصيغة التاريخ تتبع اختيارك. متاح أيضًا عند الإعداد الأول.", href: "#documents-gallery" },
         { date: "2026-11-20", title: "فاتورة مغربية بالفرنسية والعربية", text: "ICE وIF وTP وRC وCNSS وINPE، المبلغ بالحروف، وإشارة الإعفاء من الضريبة على القيمة المضافة (المادة 91).", href: "#documents-gallery" },
         { date: "2026-11-20", title: "وصفات وشهادات بالعربية", text: "تخطيط من اليمين إلى اليسار، تواريخ بصيغة 14/06/1990، وعناوين لاتينية مقروءة.", href: "#documents-gallery" },
@@ -142,6 +144,7 @@ export const SITE_COPY: Record<Lang, SiteCopy> = {
       title: "What's new",
       lead: "What changed in MeDoc this month.",
       items: [
+        { date: "2026-11-23", title: "Automatic backups, much smaller", text: "One encrypted backup a day, 13% of the old size. The last 3 days, last week and last half-year are kept. Pause, restore and delete in Settings, each with a reason.", href: "#settings" },
         { date: "2026-11-22", title: "Documents that follow your country", text: "Pick Morocco, France, Germany or the EU: header, ids (ICE, RPPS, BSNR…), legal wording and date format follow. Also part of the first-run setup.", href: "#documents-gallery" },
         { date: "2026-11-20", title: "Moroccan invoice in French and Arabic", text: "ICE, IF, TP, RC, CNSS and INPE, amount in words and the VAT-exemption note (CGI art. 91).", href: "#documents-gallery" },
         { date: "2026-11-20", title: "Prescriptions and certificates in Arabic", text: "Right-to-left layout, dates as 14/06/1990, Latin addresses kept readable.", href: "#documents-gallery" },
@@ -188,6 +191,7 @@ export const SITE_COPY: Record<Lang, SiteCopy> = {
       title: "Neu in MeDoc",
       lead: "Was sich in diesem Monat geändert hat.",
       items: [
+        { date: "2026-11-23", title: "Automatische Sicherung, viel kleiner", text: "Jeden Tag eine verschlüsselte Sicherung, 13 % der bisherigen Größe. Aufbewahrt: 3 Tage, die Vorwoche und das letzte Halbjahr. Pausieren, Wiederherstellen und Löschen in den Einstellungen, jeweils mit Grund.", href: "#settings" },
         { date: "2026-11-22", title: "Dokumente nach dem Land der Praxis", text: "Wählen Sie Marokko, Frankreich, Deutschland oder die EU: Briefkopf, Kennungen (ICE, RPPS, BSNR …), Rechtstexte und Datumsformat folgen. Auch Teil der Ersteinrichtung.", href: "#documents-gallery" },
         { date: "2026-11-20", title: "Marokkanische Rechnung auf Französisch und Arabisch", text: "ICE, IF, TP, RC, CNSS und INPE, Betrag in Worten und Hinweis auf die MwSt.-Befreiung (Art. 91 CGI).", href: "#documents-gallery" },
         { date: "2026-11-20", title: "Rezepte und Bescheinigungen auf Arabisch", text: "Layout von rechts nach links, Datum als 14/06/1990, lateinische Adressen bleiben lesbar.", href: "#documents-gallery" },

@@ -15,20 +15,12 @@ export interface BackupInfo {
 
 export type BackupTier = "daily" | "weekly" | "half_year";
 
-export interface BackupHistoryRow {
-    at: string;
-    action: string;
-    by: string;
-    details: string | null;
-}
-
 export interface BackupOverview {
     enabled: boolean;
     schedule: { enabled: boolean; changedBy?: string; changedAt?: string; reason?: string } | null;
     backup_dir: string;
     total_bytes: number;
     backups: BackupInfo[];
-    history: BackupHistoryRow[];
 }
 
 /** Settings → Backups (dentist only, `ops.backup`). */

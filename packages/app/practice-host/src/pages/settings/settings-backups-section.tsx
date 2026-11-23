@@ -131,11 +131,6 @@ export function SettingsBackupsSection() {
     const onlyOne = data.backups.length <= 1;
     const whenOf = (b: BackupInfo | null) => (b?.created_at ? formatDateTime(b.created_at) : "—");
     const tierLabel = (tier: string) => t(`settings.backups.tier.${tier}`);
-    const actionLabel = (action: string) => {
-        const key = `settings.backups.action.${action.toLowerCase()}`;
-        const label = t(key);
-        return label === key ? action : label;
-    };
 
     return (
         <section className="settings-subcard settings-backups">
@@ -276,25 +271,6 @@ export function SettingsBackupsSection() {
                 <Button type="button" variant="danger" onClick={() => setResetOpen(true)} disabled={busy}>
                     {t("settings.backups.reset_button")}
                 </Button>
-            </div>
-
-            <div className="settings-backups__history">
-                <b>{t("settings.backups.history")}</b>
-                <div className="card-sub">{t("settings.backups.history_hint")}</div>
-                {data.history.length === 0 ? (
-                    <p className="card-sub">{t("settings.backups.history_empty")}</p>
-                ) : (
-                    <ul className="settings-backups__history-list">
-                        {data.history.map((h, i) => (
-                            <li key={`${h.at}-${i}`}>
-                                <span className="settings-backups__when">{formatDateTime(h.at)}</span>
-                                <span>{actionLabel(h.action)}</span>
-                                <span className="card-sub">{h.by === "system" ? t("settings.backups.by_system") : h.by}</span>
-                                {h.details ? <span className="card-sub settings-backups__details">{h.details}</span> : null}
-                            </li>
-                        ))}
-                    </ul>
-                )}
             </div>
 
             <ReasonDialog

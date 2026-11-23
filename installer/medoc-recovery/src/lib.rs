@@ -15,6 +15,7 @@ use x25519_dalek::{PublicKey, StaticSecret};
 use zeroize::Zeroizing;
 
 pub mod export;
+pub mod password;
 pub mod store;
 pub mod ui;
 pub mod ui_i18n;

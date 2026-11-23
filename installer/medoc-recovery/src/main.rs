@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{bail, Context, Result};
 use clap::{Parser, Subcommand};
 use medoc_recovery::{
-    auth_check, export, export_key_file, recover, write_wrap, Bridge, RecoverRequest,
+    auth_check, export, export_key_file, password, recover, write_wrap, Bridge, RecoverRequest,
     RecoveryResult,
 };
 
@@ -53,6 +53,18 @@ enum Commands {
         /// Include key_hex in the export file (dangerous).
         #[arg(long)]
         export_include_key: bool,
+        /// Folder holding the practice's medoc.db (default: --app-dir, then --write-wrap-dir).
+        #[arg(long)]
+        practice_dir: Option<PathBuf>,
+        /// List the staff accounts of the practice (after recovering the key).
+        #[arg(long)]
+        list_accounts: bool,
+        /// Set a new login password for this account (email or staff id). MeDoc must be closed.
+        #[arg(long)]
+        reset_login: Option<String>,
+        /// New login password (first line of the file; prompted when omitted).
+        #[arg(long)]
+        new_login_password_file: Option<PathBuf>,
     },
     /// Write wrap/salt/kcv for an already-known key (hex).
     WriteWrap {
@@ -114,7 +126,14 @@ fn run() -> Result<()> {
             export_out,
             export_format,
             export_include_key,
+            practice_dir,
+            list_accounts,
+            reset_login,
+            new_login_password_file,
         } => {
+            let practice_dir = practice_dir
+                .or_else(|| app_dir.clone())
+                .or_else(|| write_wrap_dir.clone());
             let bridge = Bridge::parse(&bridge)?;
             let passphrase = match bridge {
                 Bridge::A | Bridge::B => Some(read_pass(passphrase_file.as_deref())?),
@@ -161,8 +180,48 @@ fn run() -> Result<()> {
                 let fmt = export::ExportFormat::parse(&export_format)?;
                 export::write_recovery_file(&out, &result, fmt)?;
                 eprintln!("wrote recovery result {} ({})", out.display(), fmt.as_str());
-            } else if write_wrap_dir.is_none() {
+            } else if write_wrap_dir.is_none() && !list_accounts && reset_login.is_none() {
                 println!("key_hex={}", hex::encode(&*key));
+            }
+            if list_accounts || reset_login.is_some() {
+                let dir = practice_dir
+                    .as_deref()
+                    .context("--practice-dir (or --app-dir) required to reach medoc.db")?;
+                let db = password::practice_db(dir);
+                let rt = tokio::runtime::Runtime::new()?;
+                if list_accounts {
+                    for a in rt.block_on(password::list_accounts(&db, &key))? {
+                        println!("{}\t{}\t{}\t{}", a.email, a.role, a.name, a.id);
+                    }
+                }
+                if let Some(account) = reset_login {
+                    let new_pw = match new_login_password_file.as_deref() {
+                        Some(p) => read_pass(Some(p))?,
+                        None => {
+                            let a = rpassword::prompt_password("New login password: ")?;
+                            let b = rpassword::prompt_password("Repeat new login password: ")?;
+                            if a != b {
+                                bail!("the two passwords differ");
+                            }
+                            a
+                        }
+                    };
+                    let r = rt.block_on(password::reset_password(
+                        &db,
+                        &key,
+                        &account,
+                        &new_pw,
+                        &result.bridge,
+                    ))?;
+                    eprintln!(
+                        "login password reset for {} ({}); {} session(s) ended, {} lockout(s) cleared, audit log: {}",
+                        r.account.email,
+                        r.account.role,
+                        r.sessions_ended,
+                        r.lockouts_cleared,
+                        if r.audit_logged { "written" } else { "not written (no audit key on this computer)" }
+                    );
+                }
             }
             Ok(())
         }

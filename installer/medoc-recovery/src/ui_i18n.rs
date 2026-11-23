@@ -60,6 +60,15 @@ pub enum Msg {
     IncludeKey,
     Recover,
     Status,
+    ResetTitle,
+    ResetHint,
+    PracticeDir,
+    LoadAccounts,
+    Account,
+    NewLoginPassword,
+    RepeatLoginPassword,
+    PasswordPolicy,
+    ResetButton,
 }
 
 pub fn t(locale: Locale, msg: Msg) -> &'static str {
@@ -206,6 +215,51 @@ pub fn t(locale: Locale, msg: Msg) -> &'static str {
         (Locale::Fr, Msg::Status) => "État",
         (Locale::Ar, Msg::Status) => "الحالة",
         (_, Msg::Status) => "Status",
+
+        (Locale::De, Msg::ResetTitle) => "Anmeldepasswort zurücksetzen",
+        (Locale::Fr, Msg::ResetTitle) => "Réinitialiser un mot de passe de connexion",
+        (Locale::Ar, Msg::ResetTitle) => "إعادة تعيين كلمة مرور الدخول",
+        (_, Msg::ResetTitle) => "Reset a login password",
+
+        (Locale::De, Msg::ResetHint) => "Mit dem wiederhergestellten Schlüssel ein neues Passwort für ein Konto setzen. MeDoc vorher schließen. Wird im Audit-Protokoll und in logs/recovery.log festgehalten.",
+        (Locale::Fr, Msg::ResetHint) => "Avec la clé récupérée, définir un nouveau mot de passe pour un compte. Fermez MeDoc avant. Inscrit au journal d'audit et dans logs/recovery.log.",
+        (Locale::Ar, Msg::ResetHint) => "باستخدام المفتاح المستعاد، عيّن كلمة مرور جديدة لحساب. أغلق MeDoc أولًا. يُسجَّل في سجل التدقيق وفي logs/recovery.log.",
+        (_, Msg::ResetHint) => "With the recovered key, set a new password for one account. Close MeDoc first. Recorded in the audit log and in logs/recovery.log.",
+
+        (Locale::De, Msg::PracticeDir) => "Praxisordner (enthält medoc.db)",
+        (Locale::Fr, Msg::PracticeDir) => "Dossier du cabinet (contient medoc.db)",
+        (Locale::Ar, Msg::PracticeDir) => "مجلد العيادة (يحتوي medoc.db)",
+        (_, Msg::PracticeDir) => "Practice folder (holds medoc.db)",
+
+        (Locale::De, Msg::LoadAccounts) => "Konten laden",
+        (Locale::Fr, Msg::LoadAccounts) => "Charger les comptes",
+        (Locale::Ar, Msg::LoadAccounts) => "تحميل الحسابات",
+        (_, Msg::LoadAccounts) => "Load accounts",
+
+        (Locale::De, Msg::Account) => "Konto",
+        (Locale::Fr, Msg::Account) => "Compte",
+        (Locale::Ar, Msg::Account) => "الحساب",
+        (_, Msg::Account) => "Account",
+
+        (Locale::De, Msg::NewLoginPassword) => "Neues Anmeldepasswort",
+        (Locale::Fr, Msg::NewLoginPassword) => "Nouveau mot de passe de connexion",
+        (Locale::Ar, Msg::NewLoginPassword) => "كلمة مرور الدخول الجديدة",
+        (_, Msg::NewLoginPassword) => "New login password",
+
+        (Locale::De, Msg::RepeatLoginPassword) => "Passwort wiederholen",
+        (Locale::Fr, Msg::RepeatLoginPassword) => "Répéter le mot de passe",
+        (Locale::Ar, Msg::RepeatLoginPassword) => "أعد كتابة كلمة المرور",
+        (_, Msg::RepeatLoginPassword) => "Repeat the password",
+
+        (Locale::De, Msg::PasswordPolicy) => "Gleiche Regeln wie in MeDoc: mindestens 12 Zeichen, Groß- und Kleinbuchstaben, eine Ziffer.",
+        (Locale::Fr, Msg::PasswordPolicy) => "Mêmes règles que dans MeDoc : au moins 12 caractères, majuscules et minuscules, un chiffre.",
+        (Locale::Ar, Msg::PasswordPolicy) => "القواعد نفسها كما في MeDoc: 12 حرفًا على الأقل، أحرف كبيرة وصغيرة، ورقم.",
+        (_, Msg::PasswordPolicy) => "Same rules as in MeDoc: at least 12 characters, upper and lower case, a digit.",
+
+        (Locale::De, Msg::ResetButton) => "Neues Passwort setzen",
+        (Locale::Fr, Msg::ResetButton) => "Définir le nouveau mot de passe",
+        (Locale::Ar, Msg::ResetButton) => "تعيين كلمة المرور الجديدة",
+        (_, Msg::ResetButton) => "Set new password",
     }
 }
 
@@ -231,6 +285,15 @@ mod tests {
             Msg::BridgeA,
             Msg::BridgeB,
             Msg::BridgeC,
+            Msg::ResetTitle,
+            Msg::ResetHint,
+            Msg::PracticeDir,
+            Msg::LoadAccounts,
+            Msg::Account,
+            Msg::NewLoginPassword,
+            Msg::RepeatLoginPassword,
+            Msg::PasswordPolicy,
+            Msg::ResetButton,
         ];
         for locale in Locale::ALL {
             for msg in msgs {

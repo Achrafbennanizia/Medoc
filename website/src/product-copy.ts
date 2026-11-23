@@ -41,6 +41,8 @@ export const productEn: ProductCopy = {
     "Important actions go into a log a physician can check.",
     "A physician can export one patient, or erase the medical rows.",
     "The day keeps running when the internet does not.",
+    "A backup every day, compressed and encrypted. The last 3 days, last week and last half-year are kept, and older ones are deleted so the disk does not fill up.",
+    "A forgotten password does not lock the practice out. The printed recovery sheet, with MeDoc support, opens the database offline and sets a new password.",
     "MeDoc documents the practice. It does not diagnose.",
   ],
   sections: [
@@ -146,8 +148,8 @@ export const productEn: ProductCopy = {
     },
     {
       id: "settings",
-      title: "The practice, the account, and the lock on the chair.",
-      text: "Settings cover the practice profile, your account, notifications, security, the license, and appearance, including the four languages. Security shows the activity log, who is signed in, and a lock when the chair sits idle. Backup is for the physician.",
+      title: "Appearance, backups, and the lock on the chair.",
+      text: "Appearance: light, dark or follow the computer, five accent colours, three densities, the font, and Western or Arabic-Indic digits, in four languages. Backups: one a day, kept for 3 days, last week and last half-year. The dentist can pause them, restore any of them (a safety copy is made first) or delete them, always with a reason that goes into the log. Security: the activity log, who is signed in, and a lock when the chair sits idle.",
       shots: shots(
         files.settings,
         ["Settings", "Security settings"],
@@ -168,6 +170,8 @@ export const productFr: ProductCopy = {
     "Les actes importants vont dans un journal que le dentiste peut vérifier.",
     "Le dentiste peut exporter un patient, ou effacer les lignes médicales.",
     "La journée continue quand internet s’arrête.",
+    "Une sauvegarde par jour, compressée et chiffrée. Sont gardés les 3 derniers jours, la semaine dernière et le dernier semestre ; les plus anciennes sont supprimées pour ne pas remplir le disque.",
+    "Un mot de passe oublié ne bloque pas le cabinet. La fiche de récupération imprimée, avec le support MeDoc, ouvre la base hors ligne et définit un nouveau mot de passe.",
     "MeDoc documente le cabinet. Il ne pose pas de diagnostic.",
   ],
   sections: [
@@ -245,8 +249,8 @@ export const productFr: ProductCopy = {
     },
     {
       id: "settings",
-      title: "Le cabinet, le compte, et le verrou du fauteuil.",
-      text: "Les réglages couvrent la fiche du cabinet, votre compte, les notifications, la sécurité, la licence et l’apparence, dont les quatre langues. La sécurité montre le journal, qui est connecté, et un verrou si le poste reste inactif. La sauvegarde est réservée au dentiste.",
+      title: "Apparence, sauvegardes, et le verrou du fauteuil.",
+      text: "Apparence : clair, sombre ou comme l’ordinateur, cinq couleurs d’accent, trois densités, la police, et chiffres occidentaux ou arabes-indiens, en quatre langues. Sauvegardes : une par jour, gardées 3 jours, la semaine dernière et le dernier semestre. Le dentiste peut les mettre en pause, revenir à n’importe laquelle (une copie de sécurité est faite avant) ou les supprimer, toujours avec un motif inscrit au journal. Sécurité : le journal, qui est connecté, et un verrou si le poste reste inactif.",
       shots: shots(files.settings, ["Réglages", "Sécurité"], ["Apparence, langue, et fiche du cabinet.", "Le journal, les sessions, et le verrou d’inactivité."]),
     },
   ],
@@ -263,6 +267,8 @@ export const productAr: ProductCopy = {
     "الأعمال المهمة تُكتب في سجل يستطيع الطبيب مراجعته.",
     "يستطيع الطبيب تصدير مريض، أو مسح الصفوف الطبية.",
     "اليوم يستمر حين ينقطع الإنترنت.",
+    "نسخة احتياطية كل يوم، مضغوطة ومشفّرة. يُحتفظ بآخر 3 أيام، والأسبوع الماضي، وآخر نصف سنة، وتُحذف الأقدم حتى لا يمتلئ القرص.",
+    "نسيان كلمة المرور لا يُغلق العيادة. ورقة الاستعادة المطبوعة، بمساعدة دعم MeDoc، تفتح قاعدة البيانات دون اتصال وتعيّن كلمة مرور جديدة.",
     "MeDoc يوثّق عمل العيادة. لا يضع تشخيصًا.",
   ],
   sections: [
@@ -340,8 +346,8 @@ export const productAr: ProductCopy = {
     },
     {
       id: "settings",
-      title: "العيادة، والحساب، وقفل الكرسي.",
-      text: "الإعدادات تشمل ملف العيادة وحسابك والإشعارات والأمان والرخصة والمظهر، ومنها اللغات الأربع. الأمان يعرض السجل ومن هو داخل، وقفلاً إذا بقي الكرسي بلا حركة. النسخ الاحتياطي للطبيب.",
+      title: "المظهر، والنسخ الاحتياطية، وقفل الكرسي.",
+      text: "المظهر: فاتح أو داكن أو حسب الحاسوب، خمسة ألوان مميزة، ثلاث كثافات، الخط، وأرقام غربية أو عربية هندية، بأربع لغات. النسخ الاحتياطية: واحدة يوميًا، يُحتفظ بها 3 أيام، والأسبوع الماضي، وآخر نصف سنة. يستطيع الطبيب إيقافها مؤقتًا، أو العودة إلى أي نسخة (تُنشأ نسخة أمان أولًا)، أو حذفها، دائمًا مع سبب يُسجَّل. الأمان: السجل، ومن هو داخل، وقفل إذا بقي الكرسي بلا حركة.",
       shots: shots(files.settings, ["الإعدادات", "إعدادات الأمان"], ["المظهر واللغة وملف العيادة.", "السجل والجلسات وقفل الخمول."]),
     },
   ],
@@ -358,6 +364,8 @@ export const productDe: ProductCopy = {
     "Wichtige Vorgänge stehen in einem Protokoll, das die Zahnärztin prüfen kann.",
     "Eine Zahnärztin kann eine Patientin exportieren oder die medizinischen Zeilen löschen.",
     "Der Tag läuft weiter, wenn das Internet ausfällt.",
+    "Jeden Tag eine Sicherung, komprimiert und verschlüsselt. Aufbewahrt werden die letzten 3 Tage, die Vorwoche und das letzte Halbjahr; ältere werden gelöscht, damit die Platte nicht vollläuft.",
+    "Ein vergessenes Passwort sperrt die Praxis nicht aus. Das gedruckte Wiederherstellungsblatt öffnet mit dem MeDoc-Support die Datenbank offline und setzt ein neues Passwort.",
     "MeDoc dokumentiert die Praxis. Es stellt keine Diagnose.",
   ],
   sections: [
@@ -435,8 +443,8 @@ export const productDe: ProductCopy = {
     },
     {
       id: "settings",
-      title: "Die Praxis, das Konto und die Sperre am Stuhl.",
-      text: "Einstellungen halten das Praxisprofil, das Konto, Hinweise, Sicherheit, die Lizenz und das Aussehen, einschließlich der vier Sprachen. Sicherheit zeigt das Protokoll, wer angemeldet ist, und eine Sperre, wenn der Stuhl stillsteht. Die Sicherung ist für die Zahnärztin.",
+      title: "Aussehen, Datensicherung und die Sperre am Stuhl.",
+      text: "Aussehen: hell, dunkel oder wie der Rechner, fünf Akzentfarben, drei Dichten, die Schrift und westliche oder arabisch-indische Ziffern, in vier Sprachen. Datensicherung: eine pro Tag, aufbewahrt 3 Tage, die Vorwoche und das letzte Halbjahr. Die Zahnärztin kann sie pausieren, zu jeder zurückkehren (vorher wird eine Sicherheitskopie angelegt) oder sie löschen, immer mit einem Grund im Protokoll. Sicherheit: das Protokoll, wer angemeldet ist, und eine Sperre, wenn der Stuhl stillsteht.",
       shots: shots(files.settings, ["Einstellungen", "Sicherheit"], ["Aussehen, Sprache und Praxisprofil.", "Das Protokoll, die Sitzungen und die Leerlaufsperre."]),
     },
   ],

@@ -68,6 +68,33 @@ cargo run -p medoc-recovery -- export-key --out sqlcipher.key --key-hex … \
 cargo run -p medoc-recovery -- auth-check --ticket auth.json --vendor-pubkey-hex …
 ```
 
+## Reset a login password
+
+After any bridge recovers the key, set a new login password for one staff account (forgotten
+password, or a dentist locked out). MeDoc must be closed. Same rules as in MeDoc: password policy,
+Argon2 hash, LAN tokens invalidated, every device session ended, login lockout cleared. Recorded in
+the practice audit log (`PASSWORD_RECOVERY`, actor `recovery-tool`, with the bridge) when this
+computer holds the practice's audit key (the tool never creates one), and always in
+`<app data>/logs/recovery.log`. The password is never logged.
+
+In the UI, the **Reset a login password** section appears after a successful recover.
+
+```bash
+# Vendor key + printed sheet (Bridge C), then list accounts and reset one
+cargo run -p medoc-recovery -- recover --bridge c \
+  --practice-share practice-recovery.share.v2.json \
+  --vendor-share vendor-recovery.share.v2.json \
+  --vendor-sk vendor-recovery.sk \
+  --practice-dir /path/to/app-data --list-accounts \
+  --reset-login dentist@practice.example --new-login-password-file new-login.txt
+
+# With the passphrase instead (Bridge B)
+cargo run -p medoc-recovery -- recover --bridge b --app-dir /path/to/app-data \
+  --passphrase-file pw.txt --reset-login dentist@practice.example
+```
+
+Tested end to end in `tests/password_recovery.rs` (Bridge C and B, MeDoc's own sign-in).
+
 ## Live demo (manual test)
 
 End-to-end kit under `.tmp/medoc-recovery-demo` (gitignored). From repo root:

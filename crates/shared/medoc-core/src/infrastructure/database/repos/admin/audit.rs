@@ -22,6 +22,21 @@ pub fn init_audit_hmac_key(app_data_dir: &Path) -> Result<(), std::io::Error> {
     Ok(())
 }
 
+/// Loads the practice's existing audit key and never creates one (offline tools such as
+/// `medoc-recovery`: a new key would break the audit chain). `false` when there is none here.
+pub fn init_existing_audit_hmac_key() -> Result<bool, AppError> {
+    if AUDIT_KEY_MATERIAL.get().is_some() {
+        return Ok(true);
+    }
+    match secret_store::load_bytes_if_exists("audit-hmac-key")? {
+        Some(k) => {
+            let _ = AUDIT_KEY_MATERIAL.set(k);
+            Ok(true)
+        }
+        None => Ok(false),
+    }
+}
+
 fn resolve_audit_key_material(app_data_dir: &Path) -> Result<Vec<u8>, AppError> {
     let mut legacy_candidates = vec![app_data_dir.join(".audit_hmac_key")];
     if let Some(home) = dirs::home_dir() {
