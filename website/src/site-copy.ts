@@ -28,6 +28,8 @@ export type SiteCopy = {
   };
   moreShots: (n: number) => string;
   mobileDemo: string;
+  /** Appearance showcase in the settings section (same screen, each look of the app). */
+  looks: { title: string; light: string; dark: string; accents: Record<"mint" | "ocean" | "plum" | "rose" | "amber", string>; alt: (look: string) => string };
 };
 
 const DOC_FILES = {
@@ -91,6 +93,13 @@ export const SITE_COPY: Record<Lang, SiteCopy> = {
     },
     moreShots: (n) => `Voir ${n} autre${n > 1 ? "s" : ""} écran${n > 1 ? "s" : ""}`,
     mobileDemo: "Réserver une démo",
+    looks: {
+      title: "Votre MeDoc, à votre goût",
+      light: "Clair",
+      dark: "Sombre",
+      accents: { mint: "Menthe", ocean: "Océan", plum: "Prune", rose: "Rose", amber: "Ambre" },
+      alt: (look) => `Vue générale de MeDoc, apparence ${look}`,
+    },
   },
   ar: {
     news: {
@@ -138,6 +147,13 @@ export const SITE_COPY: Record<Lang, SiteCopy> = {
     },
     moreShots: (n) => `عرض ${n} شاشات أخرى`,
     mobileDemo: "احجز عرضًا",
+    looks: {
+      title: "MeDoc كما تحبه",
+      light: "فاتح",
+      dark: "داكن",
+      accents: { mint: "نعناعي", ocean: "محيطي", plum: "برقوقي", rose: "وردي", amber: "كهرماني" },
+      alt: (look) => `الشاشة العامة في MeDoc، المظهر: ${look}`,
+    },
   },
   en: {
     news: {
@@ -185,6 +201,13 @@ export const SITE_COPY: Record<Lang, SiteCopy> = {
     },
     moreShots: (n) => `Show ${n} more screen${n > 1 ? "s" : ""}`,
     mobileDemo: "Book a demo",
+    looks: {
+      title: "Your MeDoc, your way",
+      light: "Light",
+      dark: "Dark",
+      accents: { mint: "Mint", ocean: "Ocean", plum: "Plum", rose: "Rose", amber: "Amber" },
+      alt: (look) => `MeDoc overview, ${look} appearance`,
+    },
   },
   de: {
     news: {
@@ -232,5 +255,12 @@ export const SITE_COPY: Record<Lang, SiteCopy> = {
     },
     moreShots: (n) => `${n} weitere Ansicht${n > 1 ? "en" : ""} zeigen`,
     mobileDemo: "Demo buchen",
+    looks: {
+      title: "Ihr MeDoc, wie Sie es mögen",
+      light: "Hell",
+      dark: "Dunkel",
+      accents: { mint: "Minze", ocean: "Ozean", plum: "Pflaume", rose: "Rosé", amber: "Bernstein" },
+      alt: (look) => `MeDoc-Übersicht, Aussehen ${look}`,
+    },
   },
 };

@@ -1782,3 +1782,65 @@ html[dir="rtl"] .country-select select {
     display: none !important;
   }
 }
+
+/* Appearance showcase (settings section): the app in light, dark and its accent colours. */
+.looks {
+  display: grid;
+  gap: 10px;
+  margin-top: 6px;
+}
+.looks-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.looks-head h4 {
+  margin: 0;
+  font-size: 1rem;
+}
+.looks-picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.looks-mode {
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+.looks-mode[aria-checked="true"] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--panel);
+}
+.looks-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--panel);
+  box-shadow: 0 0 0 1px var(--line);
+  cursor: pointer;
+  padding: 0;
+}
+.looks-swatch[aria-checked="true"] {
+  box-shadow: 0 0 0 2px var(--ink);
+}
+.looks-mode:focus-visible,
+.looks-swatch:focus-visible {
+  outline: 2px solid var(--accent, var(--ink));
+  outline-offset: 2px;
+}
+/* The app's accent presets (apps/practice-host-ui accent-preset). */
+.looks-swatch.is-mint { background: #0ea07e; }
+.looks-swatch.is-ocean { background: #0a84ff; }
+.looks-swatch.is-plum { background: #af52de; }
+.looks-swatch.is-rose { background: #e11d48; }
+.looks-swatch.is-amber { background: #d97706; }
