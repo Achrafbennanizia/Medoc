@@ -100,11 +100,22 @@ pub async fn erase_patient(
     }
     let (deleted, chart_ids) = erase_patient_records(pool, patient_id).await?;
 
-    for (aid,) in chart_ids {
+    for (aid,) in &chart_ids {
         crate::infrastructure::database::repos::clinical::chart_attachment::remove_storage_dir_best_effort(
             app_data_dir,
-            &aid,
+            aid,
         );
+    }
+    // The patient's attachments leave the backups too (file lists, then the stored copies).
+    let charts: Vec<String> = chart_ids.into_iter().map(|(c,)| c).collect();
+    for dir in [
+        backup::backup_dir(),
+        crate::infrastructure::backup_files::default_backup_dir(),
+    ] {
+        if let Err(e) = crate::infrastructure::backup_files::forget_charts(&dir, &charts) {
+            log_system!(error, event = "BACKUP_FILES_REDACT_FAILED", detail = %e.wire_code());
+            return Err(e);
+        }
     }
 
     let backups_redacted = redact_patient_from_all_backups(app_data_dir, patient_id).await?;

@@ -18,8 +18,19 @@ export type BackupTier = "daily" | "weekly" | "half_year";
 export interface BackupOverview {
     enabled: boolean;
     schedule: { enabled: boolean; changedBy?: string; changedAt?: string; reason?: string } | null;
+    /** Folder backups go to now. */
     backup_dir: string;
+    /** Folder chosen in Settings (null = this computer's default folder). */
+    chosen_dir: string | null;
+    /** The chosen folder is missing (drive unplugged): backups go to this computer meanwhile. */
+    chosen_dir_missing: boolean;
+    /** USB stick, external disk or network share. */
+    external: boolean;
+    default_dir: string;
     total_bytes: number;
+    /** Attachments (X-rays, scans…) stored with the backups. */
+    files_count: number;
+    files_bytes: number;
     backups: BackupInfo[];
 }
 
@@ -30,6 +41,11 @@ export const setBackupSchedule = (enabled: boolean, reason: string) =>
     practiceSystem.invoke<void>("set_backup_schedule", { enabled, reason });
 /** Deletes every backup and makes a fresh one. Needs a reason (audit log). */
 export const resetBackups = (reason: string) => practiceSystem.invoke<BackupInfo>("reset_backups", { reason });
+/** Native folder picker (USB stick, external disk). Null when cancelled. */
+export const pickBackupFolder = () => practiceSystem.invoke<string | null>("pick_backup_folder");
+/** Where backups go (null = this computer's default folder). Returns the refreshed overview. */
+export const setBackupFolder = (path: string | null) =>
+    practiceSystem.invoke<BackupOverview>("set_backup_folder", { path });
 /** Delete one backup in the backup folder (not the last one). The reason goes into the audit log. */
 export const deleteBackup = (path: string, reason: string) => practiceSystem.invoke<void>("delete_backup", { path, reason });
 
@@ -61,6 +77,8 @@ export interface RestoreBackupResult {
     requires_app_restart: boolean;
     restored_from: string;
     pre_restore_backup_created: boolean;
+    /** Attachments (X-rays, scans…) put back from the backup. */
+    restored_files: number;
 }
 
 export const restoreBackup = (path: string) =>

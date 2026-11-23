@@ -325,3 +325,102 @@ async fn an_archive_from_another_key_or_not_an_archive_gets_its_own_code() {
     std::env::remove_var("MEDOC_DEV_SEED");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn attachments_are_backed_up_once_restored_and_forgotten_on_erasure() {
+    use medoc_core::infrastructure::backup_files;
+    let _g = keys();
+    std::env::set_var("MEDOC_DEV_SEED", "0");
+    let dir = scratch("files");
+    let backups = dir.join("backups");
+    std::env::set_var("MEDOC_BACKUP_DIR", &backups);
+    backup_files::set_chosen_backup_dir(None);
+    let pool = connection::init_db_headless(&dir).await.expect("init");
+
+    // Two attachments of chart "c1" (an X-ray and a PDF) and one of "c2"; thumbnails are skipped.
+    let att = dir.join("chart_attachments");
+    std::fs::create_dir_all(att.join("c1")).unwrap();
+    std::fs::create_dir_all(att.join("c2")).unwrap();
+    std::fs::write(att.join("c1/a.jpg"), vec![7u8; 50_000]).unwrap();
+    std::fs::write(att.join("c1/a.jpg.thumb.jpg"), b"thumb").unwrap();
+    std::fs::write(att.join("c1/b.pdf"), b"%PDF-1.7 referral").unwrap();
+    std::fs::write(att.join("c2/c.png"), vec![9u8; 2_000]).unwrap();
+
+    let first = backup::create_compressed(&pool, &dir)
+        .await
+        .expect("backup 1");
+    let list = backup_files::read_manifest(&backup_files::manifest_path(&first)).unwrap();
+    assert_eq!(list.files.len(), 3, "thumbnail not listed: {list:?}");
+    assert_eq!(backup_files::store_usage(&backups).0, 3);
+    // Stored copies are encrypted: the X-ray bytes never appear in the store.
+    for e in std::fs::read_dir(backups.join("files")).unwrap().flatten() {
+        assert!(!std::fs::read(e.path())
+            .unwrap()
+            .windows(16)
+            .any(|w| w == [7u8; 16]));
+    }
+
+    // A second backup re-uses the copies: no new file stored.
+    tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+    let second = backup::create_compressed(&pool, &dir)
+        .await
+        .expect("backup 2");
+    assert_eq!(backup_files::store_usage(&backups).0, 3);
+    assert_eq!(
+        backup_files::read_manifest(&backup_files::manifest_path(&second))
+            .unwrap()
+            .files
+            .len(),
+        3
+    );
+
+    // Lost X-ray: the restore puts it back, byte for byte.
+    std::fs::remove_file(att.join("c1/a.jpg")).unwrap();
+    let report = backup::restore_from_backup(&pool, &dir, &second)
+        .await
+        .expect("restore");
+    assert_eq!(report.restored_files, 1);
+    assert_eq!(
+        std::fs::read(att.join("c1/a.jpg")).unwrap(),
+        vec![7u8; 50_000]
+    );
+
+    // GDPR erasure of the patient of chart c1: their files leave every backup.
+    backup_files::forget_charts(&backups, &["c1".to_string()]).unwrap();
+    assert_eq!(
+        backup_files::store_usage(&backups).0,
+        1,
+        "only c2's copy remains"
+    );
+    let l2 = backup_files::read_manifest(&backup_files::manifest_path(&second)).unwrap();
+    assert!(l2
+        .files
+        .iter()
+        .all(|f| f.rel.starts_with("chart_attachments/c2/")));
+
+    let _ = connection::reopen_app_pool(&dir)
+        .await
+        .map(|p| async move { p.close().await });
+    std::env::remove_var("MEDOC_DEV_SEED");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_missing_usb_folder_falls_back_to_this_computer() {
+    use medoc_core::infrastructure::backup_files;
+    let _g = keys();
+    let local = scratch("local");
+    std::env::set_var("MEDOC_BACKUP_DIR", &local);
+    let stick = std::env::temp_dir()
+        .join(format!("medoc-usb-{}", uuid::Uuid::new_v4()))
+        .join("MeDoc-Backups");
+    backup_files::validate_target_dir(&stick).expect("stick folder writable");
+    backup_files::set_chosen_backup_dir(Some(stick.clone()));
+    assert_eq!(backup_files::active_backup_dir(), (stick.clone(), false));
+    // Stick unplugged: backups go to this computer, and the page is told.
+    std::fs::remove_dir_all(stick.parent().unwrap()).unwrap();
+    assert_eq!(backup_files::active_backup_dir(), (local.clone(), true));
+    assert!(backup_files::validate_target_dir(std::path::Path::new("relative/path")).is_err());
+    backup_files::set_chosen_backup_dir(None);
+    let _ = std::fs::remove_dir_all(&local);
+}

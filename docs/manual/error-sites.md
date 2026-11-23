@@ -36,6 +36,8 @@
 | `MD-BAK-009` | coded | error.backup.delete_failed | `crates/shared/medoc-core/src/infrastructure/backup.rs` |
 | `MD-BAK-010` | coded | error.backup.disk_full | `crates/shared/medoc-core/src/infrastructure/backup.rs` |
 | `MD-BAK-001` | coded | error.backup.file_not_found | `crates/shared/medoc-core/src/infrastructure/backup.rs` |
+| `MD-BAK-024` | coded | error.backup.folder_invalid | — |
+| `MD-BAK-025` | coded | error.backup.folder_not_writable | — |
 | `MD-BAK-011` | coded | error.backup.folder_unavailable | `crates/shared/medoc-core/src/infrastructure/backup.rs` |
 | `MD-BAK-002` | coded | error.backup.invalid_medoc_db | `crates/shared/medoc-core/src/infrastructure/backup.rs` |
 | `MD-BAK-003` | coded | error.backup.invalid_sqlite | `crates/shared/medoc-core/src/infrastructure/backup.rs` |
@@ -327,6 +329,7 @@
 | `MD-PAY-105` | backend-text | Invalid metrics | `crates/shared/medoc-core/src/infrastructure/database/repos/billing/day_close_protocol.rs` |
 | `MD-BAK-103` | backend-text | invalid nonce length | `crates/shared/medoc-core/src/infrastructure/usb_vault.rs` |
 | `MD-BAK-104` | backend-text | invalid password verifier | `crates/shared/medoc-core/src/infrastructure/usb_vault.rs` |
+| `MD-CHT-103` | backend-text | invalid patient list tab | `crates/shared/medoc-core/src/infrastructure/database/repos/clinical/patient.rs` |
 | `MD-CHT-102` | backend-text | invalid patient status filter | `crates/shared/medoc-core/src/infrastructure/database/repos/clinical/patient.rs` |
 | `MD-APP-111` | backend-text | Invalid provider token (expected pm_ or tok_ prefix) | `crates/app/medoc-practice/src/commands/system/subscription.rs` |
 | `MD-RXP-103` | backend-text | Invalid PZN: {} | `crates/shared/medoc-core/src/infrastructure/telematik.rs` |

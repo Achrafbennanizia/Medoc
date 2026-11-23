@@ -70,3 +70,36 @@
     flex-shrink: 0;
   }
 }
+
+@layer components {
+  .settings-backups__where { min-width: 0; }
+  .settings-backups__dir-line {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    margin: 2px 0;
+  }
+  .settings-backups__place {
+    flex: none;
+    padding: 1px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    font-size: 12px;
+    color: var(--fg-2);
+  }
+  .settings-backups__place.is-external {
+    border-color: color-mix(in oklab, var(--accent) 45%, var(--line));
+    color: var(--accent-ink, var(--accent));
+  }
+  .settings-backups__warn {
+    font-size: 13px;
+    color: var(--danger);
+  }
+  .settings-backups__where-actions {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+}
