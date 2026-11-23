@@ -304,6 +304,8 @@ pub struct PaymentFinanceKpis {
     pub open_sum: f64,
 }
 
+/// Month-to-date figures. "Previous" is the same days of last month (1st up to today's date),
+/// not the whole of last month: a partial month compared with a full one always looked like a drop.
 pub async fn finance_kpis(pool: &SqlitePool) -> Result<PaymentFinanceKpis, AppError> {
     let row: (f64, f64, f64, f64, i64, f64) = sqlx::query_as(
         "SELECT
@@ -312,7 +314,8 @@ pub async fn finance_kpis(pool: &SqlitePool) -> Result<PaymentFinanceKpis, AppEr
                  AND TRIM(UPPER(COALESCE(status,''))) IN ('PAID','PARTIALLY_PAID')
                 THEN amount ELSE 0 END), 0) AS REAL),
             CAST(COALESCE(SUM(CASE
-                WHEN strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now', 'localtime', '-1 month')
+                WHEN date(created_at) >= date('now', 'localtime', 'start of month', '-1 month')
+                 AND date(created_at) <= date('now', 'localtime', '-1 month')
                  AND TRIM(UPPER(COALESCE(status,''))) IN ('PAID','PARTIALLY_PAID')
                 THEN amount ELSE 0 END), 0) AS REAL),
             CAST(COALESCE(SUM(CASE
@@ -320,7 +323,8 @@ pub async fn finance_kpis(pool: &SqlitePool) -> Result<PaymentFinanceKpis, AppEr
                  AND TRIM(UPPER(COALESCE(status,''))) = 'CANCELLED'
                 THEN amount ELSE 0 END), 0) AS REAL),
             CAST(COALESCE(SUM(CASE
-                WHEN strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now', 'localtime', '-1 month')
+                WHEN date(created_at) >= date('now', 'localtime', 'start of month', '-1 month')
+                 AND date(created_at) <= date('now', 'localtime', '-1 month')
                  AND TRIM(UPPER(COALESCE(status,''))) = 'CANCELLED'
                 THEN amount ELSE 0 END), 0) AS REAL),
             COALESCE(SUM(CASE

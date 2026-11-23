@@ -957,6 +957,17 @@ export function StatisticsPage() {
 
     const dashboardMetrics = useMemo(() => {
         if (!stats) return null;
+        /**
+         * "vs last month": the newest bar is usually the current, unfinished month. Compare it with
+         * the same share of last month (days elapsed / days in last month), not the whole month,
+         * which made every month look like a drop until its last days.
+         */
+        const now = new Date();
+        const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+        const daysInPrev = new Date(now.getFullYear(), now.getMonth(), 0).getDate();
+        const elapsedShare = Math.min(1, now.getDate() / daysInPrev);
+        const prevComparable = (series: { month: string; value: number }[], prev: number) =>
+            series.length > 0 && series[series.length - 1]!.month === thisMonth ? prev * elapsedShare : prev;
         const income = trim(stats.income_per_month, period);
         const income6 = income.slice(-6);
         const newPatients = trim(stats.new_patients_per_month, period);
@@ -970,11 +981,11 @@ export function StatisticsPage() {
         const nIncome = income6.length;
         const eCur = nIncome > 0 ? income6[nIncome - 1]!.value : 0;
         const ePrev = nIncome > 1 ? income6[nIncome - 2]!.value : 0;
-        const incomeMom = momPercent(eCur, ePrev);
+        const incomeMom = momPercent(eCur, prevComparable(income6, ePrev));
         const nNew = newPatients.length;
         const newCur = nNew > 0 ? newPatients[nNew - 1]!.value : 0;
         const newPrev = nNew > 1 ? newPatients[nNew - 2]!.value : 0;
-        const newDelta = newCur - newPrev;
+        const newDelta = newCur - Math.round(prevComparable(newPatients, newPrev));
         const kum = trim(stats.patients_cumulative_per_month, period);
         const nk = kum.length;
         const kCur = nk > 0 ? kum[nk - 1]!.value : 0;
@@ -983,7 +994,7 @@ export function StatisticsPage() {
         const nt = appts.length;
         const tCur = nt > 0 ? appts[nt - 1]!.value : 0;
         const tPrev = nt > 1 ? appts[nt - 2]!.value : 0;
-        const appointmentMom = momPercent(tCur, tPrev);
+        const appointmentMom = momPercent(tCur, prevComparable(appts, tPrev));
         const noShow = st["NO_SHOW"] ?? 0;
         const loyaltyDenom = completed + noShow;
         const loyaltyPct = loyaltyDenom > 0 ? (100 * completed) / loyaltyDenom : null;
@@ -991,7 +1002,7 @@ export function StatisticsPage() {
         const nb = treatments.length;
         const treatmentsCur = nb > 0 ? treatments[nb - 1]!.value : 0;
         const treatmentsPrev = nb > 1 ? treatments[nb - 2]!.value : 0;
-        const treatmentsMom = momPercent(treatmentsCur, treatmentsPrev);
+        const treatmentsMom = momPercent(treatmentsCur, prevComparable(treatments, treatmentsPrev));
         return {
             income6,
             incomeMom,

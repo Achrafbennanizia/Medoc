@@ -210,6 +210,31 @@ pub async fn run_showcase_polish(pool: &SqlitePool) -> Result<(), AppError> {
     .execute(&mut *tx)
     .await?;
 
+    // 3b. Moroccan price level: the demo seed prices in euro. Once per database (guarded).
+    let scaled: Option<(String,)> =
+        sqlx::query_as("SELECT value FROM app_kv WHERE key = 'migration.showcase.money.v1'")
+            .fetch_optional(&mut *tx)
+            .await?;
+    if scaled.is_none() {
+        for sql in [
+            "UPDATE payment SET amount = ROUND(amount * 6), amount_expected = ROUND(amount_expected * 6) WHERE id NOT LIKE 'seed-sc-%'",
+            "UPDATE examination SET total_cost = ROUND(total_cost * 6)",
+            "UPDATE treatment SET total_cost = ROUND(total_cost * 6)",
+            "UPDATE service_item SET price = ROUND(price * 6)",
+            "UPDATE product SET price = ROUND(price * 6)",
+            "UPDATE treatment_catalog SET default_cost = ROUND(default_cost * 6)",
+            "UPDATE practice_task SET total_cost = ROUND(total_cost * 6)",
+            "UPDATE purchase_order SET total_amount = ROUND(total_amount * 6)",
+            "UPDATE contract SET amount = ROUND(amount * 6)",
+        ] {
+            // A table missing in an older schema is skipped, not fatal.
+            let _ = sqlx::query(sql).execute(&mut *tx).await;
+        }
+        sqlx::query("INSERT INTO app_kv (key, value) VALUES ('migration.showcase.money.v1', 'x6')")
+            .execute(&mut *tx)
+            .await?;
+    }
+
     // 4. Orders: delivered on time, two on their way.
     let today = Local::now().date_naive();
     sqlx::query(
@@ -293,6 +318,410 @@ pub async fn run_showcase_polish(pool: &SqlitePool) -> Result<(), AppError> {
             .execute(&mut *tx)
             .await?;
         }
+    }
+
+    // 7. Practice: a Moroccan practice in MAD (all identifiers are examples, not a real company).
+    let practice = serde_json::json!({
+        "name": "Cabinet dentaire Nord",
+        "addr": "27 Boulevard Zerktouni\n20250 Casablanca",
+        "country": "MA",
+        "currency": "MAD",
+        "phone": "+212 5 22 00 00 00",
+        "email": "contact@cabinet-nord.exemple.ma",
+        "web": "cabinet-nord.exemple.ma",
+        "opening_hours": "Lun–Ven 08:30–18:00, Sam 09:00–13:00",
+        "clinician_name": "Dr. Ahmed Rahman",
+        "professional_title": "Chirurgien-dentiste",
+        "ma_ice": "001234567000089",
+        "ma_if": "12345678",
+        "ma_tp": "34567890",
+        "ma_rc": "123456",
+        "ma_cnss": "1234567",
+        "ma_inpe": "123456789",
+        "bank_name": "Banque Exemple",
+        "bank_iban": "MA64 0001 0000 0000 0000 0000 001",
+        "bank_bic": "BEXAMAMC",
+        "account_holder": "Cabinet dentaire Nord",
+        "payment_terms_days": 30,
+        "emergency_phone": "+212 6 00 00 00 00",
+    });
+    sqlx::query(
+        "INSERT INTO app_kv (key, value, updated_at) VALUES ('invoice.practice.v1', ?1, CURRENT_TIMESTAMP)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP",
+    )
+    .bind(practice.to_string())
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query(
+        "INSERT INTO app_kv (key, value, updated_at) VALUES ('documents.locale.v1', '\"fr\"', CURRENT_TIMESTAMP)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP",
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    // 8. Payment lines in French (the demo seed writes English labels).
+    const ACTS: &[&str] = &[
+        "Détartrage et polissage",
+        "Composite une face",
+        "Consultation et examen",
+        "Radiographie panoramique",
+        "Traitement endodontique (séance)",
+        "Couronne céramique (acompte)",
+        "Extraction simple",
+        "Blanchiment au fauteuil",
+        "Contrôle post-opératoire",
+        "Surfaçage radiculaire",
+        "Gouttière occlusale",
+        "Scellement de sillons",
+    ];
+    for (i, act) in ACTS.iter().enumerate() {
+        sqlx::query("UPDATE payment SET description = ?1 WHERE id NOT LIKE 'seed-sc-%' AND (rowid % ?2) = ?3")
+            .bind(act)
+            .bind(ACTS.len() as i64)
+            .bind(i as i64)
+            .execute(&mut *tx)
+            .await?;
+    }
+
+    // 9. A growing month: this month so far ahead of the same days last month (+12 %).
+    let (cur, prev): (f64, f64) = sqlx::query_as(
+        "SELECT
+           COALESCE(SUM(CASE WHEN date(created_at) >= date('now','start of month') THEN amount END), 0),
+           COALESCE(SUM(CASE WHEN date(created_at) >= date('now','start of month','-1 month')
+                              AND date(created_at) <= date('now','-1 month') THEN amount END), 0)
+         FROM payment WHERE status = 'PAID' AND id NOT LIKE 'seed-sc-boost-%'",
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+    sqlx::query("DELETE FROM payment WHERE id LIKE 'seed-sc-boost-%'")
+        .execute(&mut *tx)
+        .await?;
+    let gap = prev * 1.12 - cur;
+    let days = today.day().saturating_sub(1).max(1);
+    if gap > 0.0 {
+        let pats: Vec<(String,)> =
+            sqlx::query_as("SELECT id FROM patient ORDER BY id LIMIT 60 OFFSET 20")
+                .fetch_all(&mut *tx)
+                .await?;
+        let n = (days as usize * 2).clamp(4, 40);
+        for k in 0..n {
+            let Some((pid,)) = pats.get(k % pats.len().max(1)) else {
+                break;
+            };
+            sqlx::query(
+                "INSERT INTO payment (id, patient_id, amount, payment_method, status, description, created_at)
+                 VALUES (?1, ?2, ?3, ?4, 'PAID', ?5, datetime(date('now','start of month'), ?6, '+10 hours', ?7))",
+            )
+            .bind(format!("seed-sc-boost-{k:02}"))
+            .bind(pid)
+            .bind((gap / n as f64).round())
+            .bind(if k % 3 == 0 { "CASH" } else { "CARD" })
+            .bind(ACTS[k % ACTS.len()])
+            .bind(format!("+{} days", k as u32 % days))
+            .bind(format!("+{} minutes", (k * 7) % 60))
+            .execute(&mut *tx)
+            .await?;
+        }
+    }
+
+    // 10. What else shows on screen in French, with Moroccan names (demo text is English/German).
+    const STAFF: &[(&str, &str)] = &[
+        ("aya@practice.de", "Aya Benali"),
+        ("nora@practice.de", "Nora Lahlou"),
+        ("tom@practice.de", "Taha Ouazzani"),
+        ("lina@practice.de", "Lina Berrada"),
+    ];
+    for (email, name) in STAFF {
+        sqlx::query("UPDATE staff SET name = ?2 WHERE email = ?1")
+            .bind(email)
+            .bind(name)
+            .execute(&mut *tx)
+            .await?;
+    }
+    sqlx::query("UPDATE practice_task SET body = 'Suivi de facturation' WHERE body LIKE 'Demo%'")
+        .execute(&mut *tx)
+        .await?;
+    // Reminders are generated again at start, with today's patient names.
+    sqlx::query("DELETE FROM in_app_notification")
+        .execute(&mut *tx)
+        .await?;
+    const ITEMS: &[(&str, &str)] = &[
+        ("Rubber dam set", "Kit de digue"),
+        ("Diamond bur set 314", "Fraises diamantées 314"),
+        ("Mouth mirror rhodium", "Miroirs buccaux rhodiés"),
+        ("Anaesthetic Ultracain DS", "Anesthésique Ultracain DS"),
+        ("A-silicone impression material", "Silicone d'empreinte (A)"),
+        ("Impression material", "Matériau d'empreinte"),
+        ("Fluoride varnish 5%", "Vernis fluoré 5 %"),
+        ("Suture 4-0", "Fil de suture 4-0"),
+        ("Sof-Lex polishing discs", "Disques de polissage Sof-Lex"),
+        (
+            "Sterilization pouches 90×230",
+            "Sachets de stérilisation 90×230",
+        ),
+        (
+            "Glass ionomer cement Fuji IX",
+            "Ciment verre ionomère Fuji IX",
+        ),
+        ("Etch gel 37%", "Gel de mordançage 37 %"),
+        ("Cotton rolls", "Rouleaux de coton"),
+        (
+            "Nitrile gloves M (box of 100)",
+            "Gants nitrile M (boîte de 100)",
+        ),
+        ("Matrix bands", "Matrices"),
+    ];
+    for (en, fr) in ITEMS {
+        sqlx::query("UPDATE purchase_order SET item = ?2 WHERE item = ?1")
+            .bind(en)
+            .bind(fr)
+            .execute(&mut *tx)
+            .await?;
+    }
+    sqlx::query(
+        "UPDATE purchase_order SET remark = NULL,
+                unit = CASE unit WHEN 'Pkg.' THEN 'Paq.' WHEN 'Set' THEN 'Kit' WHEN 'Syringe' THEN 'Seringue'
+                                 WHEN 'Pcs' THEN 'Pièces' ELSE unit END,
+                pharma_consultant = CASE rowid % 4 WHEN 0 THEN 'M. Kettani' WHEN 1 THEN 'Mme Alaoui'
+                                                   WHEN 2 THEN 'M. Tazi' ELSE 'Mme Chraibi' END",
+    )
+    .execute(&mut *tx)
+    .await?;
+    const ANAM: &[(&str, &str)] = &[
+        ("None known", "Aucune connue"),
+        ("Keine bekannt", "Aucune connue"),
+        ("Keine Dauermedikation", "Aucun traitement au long cours"),
+        ("\"None\"", "\"Aucune\""),
+        ("Penicillin", "Pénicilline"),
+        ("Hypertension", "Hypertension artérielle"),
+        ("Type 2 diabetes", "Diabète de type 2"),
+        ("Hypothyroid", "Hypothyroïdie"),
+        ("Nuts", "Fruits à coque"),
+        (
+            "Anxiety — prefer short visits",
+            "Anxiété : préfère des séances courtes",
+        ),
+        ("Tonsillectomy 2010", "Amygdalectomie 2010"),
+    ];
+    for (from, to) in ANAM {
+        sqlx::query("UPDATE anamnesis_form SET answers = REPLACE(answers, ?1, ?2)")
+            .bind(from)
+            .bind(to)
+            .execute(&mut *tx)
+            .await?;
+    }
+
+    // 11. Clinical demo text in French (catalogue, diagnoses, prescriptions, today's book).
+    // Longest phrases first so "Amoxicillin" does not break "Amoxicillin/Clavulanic acid".
+    const FR: &[(&str, &str)] = &[
+        (
+            "Periodontal status · hygiene instruction",
+            "Bilan parodontal · conseils d'hygiène",
+        ),
+        (
+            "Demo prescription — year volume seed.",
+            "Selon prescription.",
+        ),
+        (
+            "New patient intake · full anamnesis",
+            "Première visite · anamnèse complète",
+        ),
+        (
+            "Emergency walk-in · cracked cusp",
+            "Urgence · cuspide fêlée",
+        ),
+        (
+            "Aligner progress / next aligners",
+            "Suivi aligneurs / nouvelles gouttières",
+        ),
+        (
+            "Scaling & root planing quadrant",
+            "Surfaçage radiculaire (quadrant)",
+        ),
+        (
+            "Post-op review after extraction",
+            "Contrôle après extraction",
+        ),
+        ("Composite filling 16 occlusal", "Composite 16 occlusal"),
+        ("Recall + bitewing radiographs", "Contrôle + radiographies"),
+        (
+            "Amoxicillin/Clavulanic acid",
+            "Amoxicilline / acide clavulanique",
+        ),
+        (
+            "Fissure sealant per tooth",
+            "Scellement de sillons par dent",
+        ),
+        (
+            "Crown prep 24 + temporary",
+            "Préparation couronne 24 + provisoire",
+        ),
+        ("Cracked tooth after lunch", "Dent fêlée après le repas"),
+        ("Oral hygiene instruction", "Enseignement à l'hygiène"),
+        ("Pocket depth measurement", "Mesure des poches"),
+        (
+            "Crown vs implant consult",
+            "Consultation couronne ou implant",
+        ),
+        ("New patient intake exam", "Bilan nouveau patient"),
+        ("Desensitizing treatment", "Traitement désensibilisant"),
+        ("Three-surface composite", "Composite trois faces"),
+        ("Periodontal maintenance", "Maintenance parodontale"),
+        ("Local antibiotic pocket", "Antibiotique local en poche"),
+        ("Year demo multi-finding", "Plusieurs constats"),
+        ("Endodontic follow-up 36", "Suivi endodontique 36"),
+        ("Peri-implant mucositis", "Mucosite péri-implantaire"),
+        ("Replacement filling 46", "Remplacement d'obturation 46"),
+        ("Professional cleaning", "Détartrage professionnel"),
+        ("One-surface composite", "Composite une face"),
+        ("Two-surface composite", "Composite deux faces"),
+        ("Glass ionomer filling", "Obturation verre ionomère"),
+        ("Periodontitis stage I", "Parodontite stade I"),
+        ("Year demo examination", "Examen de contrôle"),
+        (
+            "Whitening shade check",
+            "Contrôle de teinte après blanchiment",
+        ),
+        ("Chewing pain tooth 16", "Douleur à la mastication 16"),
+        ("Periodontal charting", "Charting parodontal"),
+        ("Bitewing radiographs", "Radiographies rétro-coronaires"),
+        ("Wisdom tooth removal", "Extraction de dent de sagesse"),
+        ("Smile design consult", "Consultation design du sourire"),
+        ("Clinical examination", "Examen clinique"),
+        ("Hot/cold sensitivity", "Sensibilité chaud/froid"),
+        ("Root canal anterior", "Traitement canalaire (antérieure)"),
+        ("Root canal premolar", "Traitement canalaire (prémolaire)"),
+        ("Surgical extraction", "Extraction chirurgicale"),
+        ("In-office bleaching", "Blanchiment au fauteuil"),
+        ("Splint therapy hard", "Gouttière occlusale rigide"),
+        ("Metronidazole 400mg", "Métronidazole 400 mg"),
+        ("Implant uncovering", "Dégagement d'implant"),
+        ("Bleaching tray set", "Gouttières de blanchiment"),
+        ("Amoxicillin 1000mg", "Amoxicilline 1000 mg"),
+        ("Corsodyl mouthwash", "Bain de bouche Corsodyl"),
+        ("Occlusal analysis", "Analyse occlusale"),
+        ("Composite buildup", "Reconstitution composite"),
+        ("Temporary filling", "Obturation provisoire"),
+        ("Simple extraction", "Extraction simple"),
+        ("Crown preparation", "Préparation de couronne"),
+        ("Splint adjustment", "Ajustement de gouttière"),
+        ("Impression / scan", "Empreinte / scan"),
+        ("Paracetamol 500mg", "Paracétamol 500 mg"),
+        ("Chlorhexidin 0.2%", "Chlorhexidine 0,2 %"),
+        ("Gingival bleeding", "Saignement gingival"),
+        ("Throbbing pain 36", "Douleur pulsatile 36"),
+        ("Aligner tightness", "Aligneur trop serré"),
+        ("Recall / checkup", "Contrôle / rappel"),
+        ("Emergency triage", "Tri d'urgence"),
+        ("Fluoride varnish", "Vernis fluoré"),
+        ("Root canal molar", "Traitement canalaire (molaire)"),
+        ("Endo retreatment", "Retraitement endodontique"),
+        ("Abscess incision", "Incision d'abcès"),
+        ("Composite veneer", "Facette composite"),
+        ("Space maintainer", "Mainteneur d'espace"),
+        ("Secondary caries", "Carie secondaire"),
+        ("Missing tooth 24", "Dent manquante 24"),
+        ("Panoramic X-ray", "Radiographie panoramique"),
+        ("Partial denture", "Prothèse partielle"),
+        ("Temporary crown", "Couronne provisoire"),
+        ("Bruxism consult", "Consultation bruxisme"),
+        ("Aligner consult", "Consultation aligneurs"),
+        ("Ibuprofen 600mg", "Ibuprofène 600 mg"),
+        ("Diclofenac 50mg", "Diclofénac 50 mg"),
+        ("Post-op checkup", "Contrôle post-opératoire"),
+        ("Shade too light", "Teinte trop claire"),
+        ("Airflow polish", "Polissage airflow"),
+        ("Zirconia crown", "Couronne zircone"),
+        ("Denture reline", "Rebasage de prothèse"),
+        ("Shade matching", "Prise de teinte"),
+        ("Initial caries", "Carie initiale"),
+        ("Tooth fracture", "Fracture dentaire"),
+        ("Healthy recall", "Contrôle sans particularité"),
+        ("Routine recall", "Contrôle de routine"),
+        ("Vitality test", "Test de vitalité"),
+        ("TMJ screening", "Dépistage ATM"),
+        ("Fracture risk", "Risque de fracture"),
+        ("Pericoronitis", "Péricoronarite"),
+        ("Metronidazole", "Métronidazole"),
+        ("Child recall", "Contrôle enfant"),
+        ("Gingivectomy", "Gingivectomie"),
+        ("Pulp capping", "Coiffage pulpaire"),
+        ("Broken crown", "Couronne cassée"),
+        ("Lost filling", "Obturation perdue"),
+        ("Apicoectomy", "Résection apicale"),
+        ("Bridge unit", "Élément de bridge"),
+        ("Amoxicillin", "Amoxicilline"),
+        ("Paracetamol", "Paracétamol"),
+        ("As directed", "Selon prescription"),
+        ("Sensitivity", "Sensibilité"),
+        ("Gingivitis", "Gingivite"),
+        ("Retainers", "Contentions"),
+        ("Ibuprofen", "Ibuprofène"),
+        ("Duration:", "Durée :"),
+        ("Follow-up", "Suivi"),
+        ("Bleeding", "Saignement"),
+        ("Swelling", "Gonflement"),
+        ("Checkup", "Contrôle"),
+        ("Recall", "Rappel"),
+        ("Trauma", "Traumatisme"),
+        (" days", " jours"),
+        (" day", " jour"),
+        ("Pain", "Douleur"),
+    ];
+    const TEXT_COLUMNS: &[(&str, &str)] = &[
+        ("treatment", "service_name"),
+        ("treatment", "description"),
+        ("treatment", "notes"),
+        ("examination", "service_name"),
+        ("examination", "diagnosis"),
+        ("examination", "chief_complaint"),
+        ("examination", "results"),
+        ("treatment_catalog", "name"),
+        ("service_item", "name"),
+        ("prescription", "medication"),
+        ("prescription", "active_ingredient"),
+        ("prescription", "duration"),
+        ("prescription", "instructions"),
+        ("appointment", "notes"),
+        ("appointment", "chief_complaint"),
+        ("practice_task", "title"),
+        ("practice_task", "service_name"),
+    ];
+    for (table, col) in TEXT_COLUMNS {
+        for (en, fr) in FR {
+            // Duration words only in the duration column ("7 days"), not inside other text.
+            if en.starts_with(' ') && *col != "duration" {
+                continue;
+            }
+            let _ = sqlx::query(&format!(
+                "UPDATE {table} SET {col} = REPLACE({col}, ?1, ?2) WHERE {col} LIKE '%' || ?1 || '%'"
+            ))
+            .bind(en)
+            .bind(fr)
+            .execute(&mut *tx)
+            .await;
+        }
+    }
+
+    // 12. Stock above minimum (no "low stock" alerts) and a morning of work time already logged.
+    sqlx::query("UPDATE product SET stock = MAX(stock, min_stock * 3 + 5)")
+        .execute(&mut *tx)
+        .await?;
+    let at = |h: u32, m: u32| {
+        today
+            .and_hms_opt(h, m, 0)
+            .and_then(|t| t.and_local_timezone(Local).single())
+            .map(|t| t.with_timezone(&chrono::Utc).to_rfc3339())
+    };
+    if let (Some(start), Some(end)) = (at(8, 10), at(12, 35)) {
+        let _ = sqlx::query(
+            "INSERT OR REPLACE INTO work_time_session (id, staff_id, started_at, ended_at, status, auto_recorded, pause_minutes)
+             VALUES ('seed-sc-wt-am', 'seed-physician-001', ?1, ?2, 'ENDED', 0, 0)",
+        )
+        .bind(start)
+        .bind(end)
+        .execute(&mut *tx)
+        .await;
     }
 
     tx.commit().await.map_err(AppError::Database)?;

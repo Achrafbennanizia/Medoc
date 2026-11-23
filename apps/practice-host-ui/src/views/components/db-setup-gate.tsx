@@ -7,6 +7,7 @@ import {
     type DbSetupStatus,
 } from "@/systems/practice-host/controllers/db-setup.controller";
 import { errorMessage } from "@/lib/utils";
+import { isTauriApp } from "@/lib/is-tauri-app";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 
@@ -25,13 +26,18 @@ export function DbSetupGate({ children }: { children: ReactNode }) {
     const [busy, setBusy] = useState(false);
 
     const refresh = useCallback(() => {
+        // The interface address opened in a normal browser has no desktop bridge: say so plainly.
+        if (!isTauriApp()) {
+            setError(t("db.setup.not_desktop"));
+            return;
+        }
         void getDbSetupStatus()
             .then(setStatus)
             .catch((e: unknown) => {
                 setStatus(null);
                 setError(tp("db.setup.status_load_failed", { message: errorMessage(e) }));
             });
-    }, [tp]);
+    }, [t, tp]);
 
     useEffect(() => {
         refresh();

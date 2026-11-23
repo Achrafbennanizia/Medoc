@@ -6285,6 +6285,7 @@
   "settings.practice.billing_fr_siret_error": "Die SIRET hat 14 Ziffern.",
   "document.practice_field.fr_ids": "Französische Kennungen (RPPS, SIRET)",
   "certificate.fr_sick_leave_hint": "In Frankreich wird die Arbeitsunfähigkeit online über amelipro oder auf dem gesicherten Cerfa-Formular gemeldet. Diese Bescheinigung weist darauf hin; als ärztliche Bescheinigung bleibt sie gültig.",
+  "db.setup.not_desktop": "MeDoc läuft in seiner Desktop-App. Diese Adresse ist die Oberflächen-Vorschau für Entwickler und erreicht die Praxisdatenbank nicht – öffnen Sie stattdessen die MeDoc-App.",
   "error.backup.busy": "Eine andere Sicherungsaktion läuft gerade. Bitte gleich noch einmal versuchen.",
   "error.backup.compress_failed": "Die Sicherung konnte nicht komprimiert und verschlüsselt werden (Referenz {ref}).",
   "error.backup.decrypt_failed": "Diese Sicherung lässt sich mit dem Schlüssel dieser Praxis nicht öffnen. Sie gehört zu einer anderen Praxis oder wurde verändert.",
