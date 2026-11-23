@@ -1,6 +1,6 @@
 /**
  * Patient list status tabs (Patient records).
- * Keep in sync with `count_patients_by_filter` / `PatientFilterCounts`.
+ * Keep in sync with `patient_repo::tab_condition` (the list and tab counts filter in SQL).
  */
 
 export type PatientStatusFilter =
@@ -10,24 +10,6 @@ export type PatientStatusFilter =
     | "INVOICE_OPEN"
     | "CHART_OPEN"
     | "CLOSED";
-
-/** Tabs that cannot be expressed as a single `patient.status` server filter. */
-export function patientStatusFilterNeedsClientBucket(filter: PatientStatusFilter): boolean {
-    return (
-        filter === "IN_TREATMENT" ||
-        filter === "INVOICE_OPEN" ||
-        filter === "CHART_OPEN" ||
-        filter === "CLOSED"
-    );
-}
-
-/** Optional single-status hint for paged server queries (NEW only today). */
-export function patientStatusFilterServerStatus(
-    filter: PatientStatusFilter,
-): string | undefined {
-    if (filter === "NEW_PATIENT") return "NEW";
-    return undefined;
-}
 
 /**
  * Patient list rules (must match `patient_repo::filter_counts`):

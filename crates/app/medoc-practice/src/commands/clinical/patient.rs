@@ -83,6 +83,13 @@ pub async fn list_patients_paged(
     let offset = p.offset();
     let include_archived = p.filter_bool("showArchived").unwrap_or(false);
     let status = p.filter_str("status");
+    // Patient list tab (IN_TREATMENT, INVOICE_OPEN, CHART_OPEN, CLOSED…), filtered in SQL.
+    let tab = p.filter_str("tab");
+    let with_invoices = rbac::require_one_of(
+        &session_state,
+        crate::application::rbac::FINANCE_READ_OR_RECEPTION,
+    )
+    .is_ok();
     let (items, total) = patient_repo::find_paginated(
         &pool,
         limit,
@@ -90,6 +97,8 @@ pub async fn list_patients_paged(
         p.search.as_deref().or(p.filter_str("query")),
         include_archived,
         status,
+        tab,
+        with_invoices,
         search_scope(&p),
     )
     .await?;
@@ -274,11 +283,19 @@ pub async fn export_patients_csv(
     use medoc_core::application::documents::export_audit::csv_safe_cell as safe;
     let p = params.unwrap_or_default();
     let include_archived = p.filter_bool("showArchived").unwrap_or(false);
+    // Same tab as the list on screen (export of "invoice open" exports those patients only).
+    let with_invoices = rbac::require_one_of(
+        &session_state,
+        crate::application::rbac::FINANCE_READ_OR_RECEPTION,
+    )
+    .is_ok();
     let rows = patient_repo::find_all_matching(
         &pool,
         p.search.as_deref().or(p.filter_str("query")),
         include_archived,
         p.filter_str("status"),
+        p.filter_str("tab"),
+        with_invoices,
         search_scope(&p),
     )
     .await?;

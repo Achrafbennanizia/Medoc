@@ -39,7 +39,7 @@ async function boot(): Promise<void> {
 
     hydrateAppearanceFromStorage();
     initAppearanceMediaListener();
-    bootstrapDocumentLocale();
+    await bootstrapDocumentLocale();
 
     // UI errors → client.log / errors.log in the desktop app (docs/architecture/logging.md).
     if ("__TAURI_INTERNALS__" in window) {

@@ -9,7 +9,6 @@ import { EmptyState } from "../components/ui/empty-state";
 import { useToastStore } from "../components/ui/toast-store";
 import { useAuthStore } from "../../models/store/auth-store";
 import { WorkspacePageHeader } from "../components/administration-page-header";
-import { listPatients } from "@/systems/practice-host/controllers/patient.controller";
 import {
     listCertificates,
     createCertificate,
@@ -34,9 +33,8 @@ export function CertificatesPage() {
     const tp = useTParams();
     const session = useAuthStore((s) => s.session);
     const toast = useToastStore((s) => s.add);
-    const [patients, setPatients] = useState<Patient[]>([]);
-    const [patientsLoading, setPatientsLoading] = useState(true);
-    const [patientsError, setPatientsError] = useState<string | null>(null);
+    // The picker searches on the server; only the chosen patient is kept here.
+    const [selectedPatientRow, setSelectedPatientRow] = useState<Patient | null>(null);
     const [selectedPatient, setSelectedPatient] = useState<string>("");
     const [certificates, setCertificates] = useState<Certificate[]>([]);
     const [listLoading, setListLoading] = useState(false);
@@ -66,26 +64,6 @@ export function CertificatesPage() {
         ],
         [t],
     );
-
-    const loadPatients = useCallback(async () => {
-        setPatientsLoading(true);
-        setPatientsError(null);
-        try {
-            const ps = await listPatients();
-            setPatients(ps);
-            setSelectedPatient((prev) => prev || (ps[0]?.id ?? ""));
-        } catch (e) {
-            setPatientsError(errorMessage(e));
-            setPatients([]);
-            setSelectedPatient("");
-        } finally {
-            setPatientsLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        void loadPatients();
-    }, [loadPatients]);
 
     const fetchCertificates = useCallback(async () => {
         if (!selectedPatient) {
@@ -143,7 +121,7 @@ export function CertificatesPage() {
     }
 
     function openCertificateExport(a: Certificate) {
-        const pat = patients.find((p) => p.id === a.patient_id) ?? null;
+        const pat = selectedPatientRow?.id === a.patient_id ? selectedPatientRow : null;
         setHtmlExport({
             bundle: bundleCertificateExport(a, pat),
             suggestedBasename: suggestCertificateExportBasename(a),
@@ -164,24 +142,17 @@ export function CertificatesPage() {
 
             <Card className="card-pad">
                 <CardHeader title={t("page.certificates.select_patient")} />
-                {patientsLoading ? (
-                    <p className="text-body text-on-surface-variant" role="status">{t("common.loading_patients")}</p>
-                ) : patientsError ? (
-                    <PageLoadError message={patientsError} onRetry={() => void loadPatients()} />
-                ) : (
-                    <PatientComboField
-                        id="att-patient"
-                        label={t("common.patient")}
-                        patients={patients}
-                        patientId={selectedPatient}
-                        onPatientIdChange={setSelectedPatient}
-                        disabled={patients.length === 0}
-                        placeholder={patients.length === 0 ? t("page.prescriptions.no_patients") : t("common.search_patient_ph")}
-                    />
-                )}
+                <PatientComboField
+                    id="att-patient"
+                    label={t("common.patient")}
+                    patientId={selectedPatient}
+                    onPatientIdChange={setSelectedPatient}
+                    onPatientChange={setSelectedPatientRow}
+                    placeholder={t("common.search_patient_ph")}
+                />
             </Card>
 
-            {patientsLoading || patientsError ? null : !selectedPatient ? (
+            {!selectedPatient ? (
                 <p className="text-body text-on-surface-variant">{t("page.certificates.select_patient_hint")}</p>
             ) : listLoading ? (
                 <TableSkeleton label={t("page.certificates.loading")} rows={5} />

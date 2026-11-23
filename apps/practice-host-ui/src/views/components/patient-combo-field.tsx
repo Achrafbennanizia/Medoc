@@ -5,14 +5,21 @@ import type { Patient } from "@/models/types";
 
 import { filterPatients } from "@/lib/patient-search";
 import { useClientSettings } from "@/lib/use-client-settings";
+import { getPatient, listPatientsPaged } from "@/systems/practice-host/controllers/patient.controller";
 const MAX_SHOWN_WHEN_NO_QUERY = 200;
+/** Server search: matches per request, and the wait after the last keystroke. */
+const REMOTE_PAGE = 20;
+const REMOTE_DEBOUNCE_MS = 200;
 
 type PatientComboFieldProps = {
     id: string;
     label: string;
-    patients: readonly Patient[];
+    /** Patients to choose from. Omit to search on the server as you type (no full list in memory). */
+    patients?: readonly Patient[];
     patientId: string;
     onPatientIdChange: (id: string) => void;
+    /** The chosen patient record (or null when cleared), for callers that print or export it. */
+    onPatientChange?: (patient: Patient | null) => void;
     /** Optional: mirror typed query (e.g. privacy table filter). */
     onQueryChange?: (query: string) => void;
     disabled?: boolean;
@@ -25,9 +32,10 @@ type PatientComboFieldProps = {
 export function PatientComboField({
     id,
     label,
-    patients,
+    patients: givenPatients,
     patientId,
     onPatientIdChange,
+    onPatientChange,
     onQueryChange,
     disabled = false,
     placeholder,
@@ -39,6 +47,52 @@ export function PatientComboField({
     const [open, setOpen] = useState(false);
     const rootRef = useRef<HTMLDivElement>(null);
     const listId = useId();
+    const remote = givenPatients === undefined;
+    const [remoteRows, setRemoteRows] = useState<Patient[]>([]);
+    const [remoteTotal, setRemoteTotal] = useState(0);
+    const [selected, setSelected] = useState<Patient | null>(null);
+    const patients: readonly Patient[] = remote ? remoteRows : givenPatients;
+
+    // Server mode: one small page per (debounced) query instead of every patient.
+    useEffect(() => {
+        if (!remote || !open) return;
+        let live = true;
+        const q = query.trim();
+        const timer = window.setTimeout(() => {
+            listPatientsPaged({ page: 1, pageSize: REMOTE_PAGE, search: q || undefined })
+                .then((r) => {
+                    if (!live) return;
+                    setRemoteRows(r.items);
+                    setRemoteTotal(r.total);
+                })
+                .catch(() => live && setRemoteRows([]));
+        }, q ? REMOTE_DEBOUNCE_MS : 0);
+        return () => {
+            live = false;
+            window.clearTimeout(timer);
+        };
+    }, [remote, open, query]);
+
+    // Server mode: a preselected id (e.g. from a link) is fetched alone for its name.
+    useEffect(() => {
+        if (!remote || !patientId || selected?.id === patientId) return;
+        let live = true;
+        getPatient(patientId)
+            .then((p) => {
+                if (!live) return;
+                setSelected(p);
+                setQuery(p.name);
+                onPatientChange?.(p);
+            })
+            .catch(() => {
+                if (!live) return;
+                onPatientIdChange("");
+                onPatientChange?.(null);
+            });
+        return () => {
+            live = false;
+        };
+    }, [remote, patientId, selected?.id, onPatientChange, onPatientIdChange]);
 
     useEffect(() => {
         if (patientId) {
@@ -71,13 +125,15 @@ export function PatientComboField({
 
     const includeInsuranceNumber = useClientSettings((c) => c.search?.patientIncludeInsuranceNumber !== false);
     const filtered = useMemo(() => {
+        // The server already matched the query (name, insurance number, phone, email).
+        if (remote) return [...uniquePatients];
         if (!query.trim()) {
             return uniquePatients.length > MAX_SHOWN_WHEN_NO_QUERY
                 ? uniquePatients.slice(0, MAX_SHOWN_WHEN_NO_QUERY)
                 : [...uniquePatients];
         }
         return filterPatients(uniquePatients, query, { includeInsuranceNumber });
-    }, [uniquePatients, query, includeInsuranceNumber]);
+    }, [uniquePatients, query, includeInsuranceNumber, remote]);
 
     function optionLabel(p: Patient): string {
         const shared = (nameCounts.get(p.name.trim().toLowerCase()) ?? 0) > 1;
@@ -90,15 +146,19 @@ export function PatientComboField({
         setQuery(version);
         onQueryChange?.(version);
         if (patientId) {
-            const p = patients.find((x) => x.id === patientId);
+            const p = selected?.id === patientId ? selected : patients.find((x) => x.id === patientId);
             if (p && version !== p.name) {
                 onPatientIdChange("");
+                setSelected(null);
+                onPatientChange?.(null);
             }
         }
         setOpen(true);
     }
 
     function pick(p: Patient) {
+        setSelected(p);
+        onPatientChange?.(p);
         onPatientIdChange(p.id);
         setQuery(p.name);
         onQueryChange?.(p.name);
@@ -106,7 +166,9 @@ export function PatientComboField({
     }
 
     const noMatch = query.trim().length > 0 && filtered.length === 0;
-    const manyTotal = !query.trim() && patients.length > MAX_SHOWN_WHEN_NO_QUERY;
+    const manyTotal = remote
+        ? !query.trim() && remoteTotal > REMOTE_PAGE
+        : !query.trim() && patients.length > MAX_SHOWN_WHEN_NO_QUERY;
 
     return (
         <div ref={rootRef} className="patient-combo-field" style={{ marginBottom: "var(--space-2)" }}>
@@ -164,7 +226,10 @@ export function PatientComboField({
             </div>
             {manyTotal ? (
                 <p style={{ fontSize: 12, color: "var(--fg-3)", margin: "6px 0 0" }}>
-                    {tp("patient.combo.truncated", { max: MAX_SHOWN_WHEN_NO_QUERY, total: patients.length })}
+                    {tp("patient.combo.truncated", {
+                        max: remote ? REMOTE_PAGE : MAX_SHOWN_WHEN_NO_QUERY,
+                        total: remote ? remoteTotal : patients.length,
+                    })}
                 </p>
             ) : null}
         </div>

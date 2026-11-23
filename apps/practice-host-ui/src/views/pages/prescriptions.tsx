@@ -10,7 +10,8 @@ import { EmptyState } from "../components/ui/empty-state";
 import { useToastStore } from "../components/ui/toast-store";
 import { useAuthStore } from "../../models/store/auth-store";
 import { WorkspacePageHeader } from "../components/administration-page-header";
-import { listPatients } from "@/systems/practice-host/controllers/patient.controller";
+import { getPatient } from "@/systems/practice-host/controllers/patient.controller";
+import { PatientComboField } from "../components/patient-combo-field";
 import {
     listPrescriptions,
     createPrescription,
@@ -58,9 +59,8 @@ export function PrescriptionsPage() {
     const toast = useToastStore((s) => s.add);
     const { confirmAllergy, allergyDialog } = useAllergyConfirmation();
     const [searchParams, setSearchParams] = useSearchParams();
-    const [patients, setPatients] = useState<Patient[]>([]);
-    const [patientsLoading, setPatientsLoading] = useState(true);
-    const [patientsError, setPatientsError] = useState<string | null>(null);
+    // The picker searches on the server; only the chosen patient is kept here.
+    const [selectedPatientRow, setSelectedPatientRow] = useState<Patient | null>(null);
     const [selectedPatient, setSelectedPatient] = useState<string>("");
     const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
     const [listLoading, setListLoading] = useState(false);
@@ -81,41 +81,22 @@ export function PrescriptionsPage() {
         exportPreviewTitle: string;
     } | null>(null);
 
-    const loadPatients = useCallback(async () => {
-        setPatientsLoading(true);
-        setPatientsError(null);
-        try {
-            const ps = await listPatients();
-            setPatients(ps);
-            setSelectedPatient((prev) => prev || (ps[0]?.id ?? ""));
-        } catch (e) {
-            setPatientsError(errorMessage(e));
-            setPatients([]);
-            setSelectedPatient("");
-        } finally {
-            setPatientsLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        void loadPatients();
-    }, [loadPatients]);
-
+    // A link from the patient record (?patient_id=…) preselects that patient.
     useEffect(() => {
         const pid = searchParams.get("patient_id");
-        if (!pid || patients.length === 0) return;
-        const exists = patients.some((p) => p.id === pid);
-        if (exists) {
-            setSelectedPatient(pid);
-        } else {
-            toast(t("page.prescriptions.toast.linked_patient_not_found"), "error");
-        }
+        if (!pid) return;
+        getPatient(pid)
+            .then((p) => {
+                setSelectedPatientRow(p);
+                setSelectedPatient(p.id);
+            })
+            .catch(() => toast(t("page.prescriptions.toast.linked_patient_not_found"), "error"));
         setSearchParams((prev) => {
             const next = new URLSearchParams(prev);
             next.delete("patient_id");
             return next;
         }, { replace: true });
-    }, [patients, searchParams, setSearchParams, toast, t]);
+    }, [searchParams, setSearchParams, toast, t]);
 
     const fetchPrescriptions = useCallback(async () => {
         if (!selectedPatient) {
@@ -339,7 +320,7 @@ export function PrescriptionsPage() {
     function openPrescriptionExport(items: Prescription[]) {
         if (items.length === 0) return;
         const first = items[0]!;
-        const patient = patients.find((p) => p.id === first.patient_id) ?? null;
+        const patient = selectedPatientRow?.id === first.patient_id ? selectedPatientRow : null;
         const bundle =
             items.length === 1 ? bundlePrescriptionExport(first, patient) : bundlePrescriptionsComboExport(items, patient);
         const suggestedBasename =
@@ -394,27 +375,17 @@ export function PrescriptionsPage() {
 
             <Card className="card-pad">
                 <CardHeader title={t("page.prescriptions.select_patient")} />
-                {patientsLoading ? (
-                    <p className="text-body text-on-surface-variant" role="status">{t("page.prescriptions.loading_patients")}</p>
-                ) : patientsError ? (
-                    <PageLoadError message={patientsError} onRetry={() => void loadPatients()} />
-                ) : (
-                    <Select
-                        id="rez-patient"
-                        value={selectedPatient}
-                        onChange={(e) => setSelectedPatient(e.target.value)}
-                        disabled={patients.length === 0}
-                        options={[
-                            ...(patients.length === 0
-                                ? [{ value: "", label: t("page.prescriptions.no_patients") }]
-                                : [{ value: "", label: t("page.prescriptions.choose_patient") }]),
-                            ...patients.map((p) => ({ value: p.id, label: p.name })),
-                        ]}
-                    />
-                )}
+                <PatientComboField
+                    id="rez-patient"
+                    label={t("common.patient")}
+                    patientId={selectedPatient}
+                    onPatientIdChange={setSelectedPatient}
+                    onPatientChange={setSelectedPatientRow}
+                    placeholder={t("common.search_patient_ph")}
+                />
             </Card>
 
-            {patientsLoading || patientsError ? null : !selectedPatient ? (
+            {!selectedPatient ? (
                 <p className="text-body text-on-surface-variant">{t("page.prescriptions.select_patient_hint")}</p>
             ) : listLoading ? (
                 <TableSkeleton label={t("page.prescriptions.loading")} rows={5} />

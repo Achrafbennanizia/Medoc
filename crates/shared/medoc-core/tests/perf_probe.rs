@@ -189,13 +189,11 @@ async fn perf_probe() {
         ("examinations: one chart", "SELECT * FROM examination WHERE chart_id = ?1 ORDER BY created_at DESC", vec![cid.as_str()]),
         ("dental findings: one chart", "SELECT * FROM dental_finding WHERE chart_id = ?1", vec![cid.as_str()]),
         ("prescriptions: one patient", "SELECT * FROM prescription WHERE patient_id = ?1 ORDER BY issued_at DESC", vec![pid.as_str()]),
-        ("certificates: one patient", "SELECT * FROM certificate WHERE patient_id = ?1", vec![pid.as_str()]),
+        ("certificates: one patient", "SELECT * FROM certificate WHERE patient_id = ?1 ORDER BY issued_at DESC", vec![pid.as_str()]),
         ("issued documents: one patient", "SELECT id FROM issued_document WHERE patient_id = ?1 ORDER BY issued_at DESC", vec![pid.as_str()]),
         ("audit log: latest 50", "SELECT * FROM audit_log ORDER BY created_at DESC LIMIT 50", vec![]),
         ("tasks: admin list", "SELECT * FROM practice_task ORDER BY datetime(updated_at) DESC LIMIT 200", vec![]),
         ("notifications: one user", "SELECT * FROM in_app_notification WHERE user_id = ?1 ORDER BY created_at DESC LIMIT 100", vec![staff]),
-        ("prescriptions: all", "SELECT * FROM prescription ORDER BY issued_at DESC", vec![]),
-        ("certificates: all", "SELECT * FROM certificate ORDER BY created_at DESC", vec![]),
     ];
     for (label, sql, binds) in q {
         probe(&pool, label, sql, binds).await;

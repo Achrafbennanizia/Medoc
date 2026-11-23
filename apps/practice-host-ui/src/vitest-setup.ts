@@ -34,6 +34,8 @@ Object.defineProperty(globalThis, "matchMedia", {
 });
 
 /** Dynamic import so Zustand persist loads after the storage shim (ESM import hoisting). */
-const { initI18n } = await import("@/lib/i18n");
+const { initI18n, loadAllLocaleCatalogs } = await import("@/lib/i18n");
+/** The app loads non-English catalogs on demand; tests read all four synchronously. */
+await loadAllLocaleCatalogs();
 /** Smoke/unit tests assert English UI copy; production default locale remains German. */
 initI18n("en");

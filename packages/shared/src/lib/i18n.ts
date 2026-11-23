@@ -13,10 +13,7 @@ import { fr as dateFnsFr } from "date-fns/locale/fr";
 import type { Locale as DateFnsLocale } from "date-fns";
 import { dateFnsArGregorian } from "./date-fns-locale-ar";
 
-import deCatalog from "#shared-locales/de.json";
 import enCatalog from "#shared-locales/en.json";
-import frCatalog from "#shared-locales/fr.json";
-import arCatalog from "#shared-locales/ar.json";
 import type { AccentId } from "./accent-preset";
 import { applyArabicNumeralsToDocument, effectiveArabicNumeralMode, numberingSystemForLocale, rewriteDigitsForMode } from "./arabic-numerals";
 import { loadClientSettings } from "./client-settings";
@@ -105,13 +102,18 @@ export function applyDocumentLocale(locale: Locale): void {
     applyArabicNumeralsToDocument(locale, loadClientSettings().appearance?.arabicNumeralMode);
 }
 
-/** Apply persisted locale before React mounts (login, onboarding). */
-export function bootstrapDocumentLocale(): void {
+/**
+ * Apply persisted locale before React mounts (login, onboarding): waits for the interface
+ * language's catalog, then preloads the others in the background.
+ */
+export async function bootstrapDocumentLocale(): Promise<void> {
     if (typeof window === "undefined") return;
     const locale = useLocale.getState().locale;
     ensureI18n();
+    await loadLocaleCatalog(locale).catch(() => undefined);
     void i18n.changeLanguage(locale);
     applyDocumentLocale(locale);
+    window.setTimeout(() => void loadAllLocaleCatalogs().catch(() => undefined), 1500);
 }
 
 /**
@@ -131,6 +133,7 @@ export function diskLocaleAuthority(): Locale | null {
 export function adoptLocaleFromDisk(locale: Locale): void {
     localeAuthorityFromDisk = locale;
     ensureI18n();
+    void loadLocaleCatalog(locale);
     void i18n.changeLanguage(locale);
     applyDocumentLocale(locale);
     try {
@@ -142,12 +145,57 @@ export function adoptLocaleFromDisk(locale: Locale): void {
     notifyLocaleListeners();
 }
 
-const catalogs: Record<Locale, Record<string, string>> = {
-    de: deCatalog as Record<string, string>,
-    en: enCatalog as Record<string, string>,
-    fr: frCatalog as Record<string, string>,
-    ar: arCatalog as Record<string, string>,
+type Catalog = Record<string, string>;
+
+/**
+ * English ships in the main bundle: it is the fallback of every key. The other catalogs are
+ * separate chunks (about 0.5 MB each), loaded for the interface language before the first render
+ * and for the rest right after start (documents can print in another language). Until a catalog
+ * arrives, its keys read the English text.
+ */
+const catalogs: Partial<Record<Locale, Catalog>> = { en: enCatalog as Catalog };
+const CATALOG_LOADERS: Record<Exclude<Locale, "en">, () => Promise<{ default: unknown }>> = {
+    de: () => import("#shared-locales/de.json"),
+    fr: () => import("#shared-locales/fr.json"),
+    ar: () => import("#shared-locales/ar.json"),
 };
+const catalogLoads = new Map<Locale, Promise<void>>();
+let catalogVersion = 0;
+const catalogListeners = new Set<() => void>();
+
+function subscribeCatalogs(listener: () => void) {
+    catalogListeners.add(listener);
+    return () => catalogListeners.delete(listener);
+}
+
+/** Loads one language's catalog (once); screens using it re-render when it arrives. */
+export function loadLocaleCatalog(locale: Locale): Promise<void> {
+    if (catalogs[locale]) return Promise.resolve();
+    let load = catalogLoads.get(locale);
+    if (!load) {
+        load = CATALOG_LOADERS[locale as Exclude<Locale, "en">]()
+            .then((mod) => {
+                const cat = mod.default as Catalog;
+                catalogs[locale] = cat;
+                ensureI18n();
+                i18n.addResourceBundle(locale, "translation", cat, true, true);
+                catalogVersion += 1;
+                for (const l of catalogListeners) l();
+                notifyLocaleListeners();
+            })
+            .catch((e) => {
+                catalogLoads.delete(locale); // a later call retries
+                throw e;
+            });
+        catalogLoads.set(locale, load);
+    }
+    return load;
+}
+
+/** Every catalog (tests, and the background preload after start). */
+export async function loadAllLocaleCatalogs(): Promise<void> {
+    await Promise.all(SUPPORTED_LOCALES.map(loadLocaleCatalog));
+}
 
 
 /** Arabic dual/few/other; other locales use one vs other. */
@@ -168,8 +216,8 @@ export function pluralCategory(locale: Locale, n: number): PluralCategory {
 /** Read `prefix.one` / `.two` / `.few` / `.other` from the flat catalog (not i18next nesting). */
 export function translatePluralUnit(locale: Locale, keyPrefix: string, n: number): string {
     const cat = pluralCategory(locale, n);
-    const pack = catalogs[locale];
-    return pack[`${keyPrefix}.${cat}`] ?? pack[`${keyPrefix}.other`] ?? catalogs.en[`${keyPrefix}.other`] ?? "";
+    const pack = catalogs[locale] ?? catalogs.en!;
+    return pack[`${keyPrefix}.${cat}`] ?? pack[`${keyPrefix}.other`] ?? catalogs.en![`${keyPrefix}.other`] ?? "";
 }
 
 let i18nReady = false;
@@ -178,7 +226,7 @@ function ensureI18n() {
     if (i18nReady) return;
     void i18n.use(initReactI18next).init({
         resources: Object.fromEntries(
-            SUPPORTED_LOCALES.map((l) => [l, { translation: catalogs[l] }]),
+            SUPPORTED_LOCALES.filter((l) => catalogs[l]).map((l) => [l, { translation: catalogs[l]! }]),
         ),
         lng: "en",
         fallbackLng: "en",
@@ -215,6 +263,7 @@ export const useLocale = create<LocaleStore>()(
                 // User choice becomes the new disk authority for this instance.
                 localeAuthorityFromDisk = locale;
                 ensureI18n();
+                void loadLocaleCatalog(locale);
                 void i18n.changeLanguage(locale);
                 applyDocumentLocale(locale);
                 try {
@@ -238,6 +287,7 @@ export const useLocale = create<LocaleStore>()(
                 const locale = localeAuthorityFromDisk ?? state?.locale;
                 if (locale) {
                     ensureI18n();
+                    void loadLocaleCatalog(locale);
                     void i18n.changeLanguage(locale);
                     applyDocumentLocale(locale);
                     try {
@@ -269,6 +319,7 @@ export const useLocale = create<LocaleStore>()(
 if (typeof window !== "undefined") {
     const stored = useLocale.getState().locale;
     ensureI18n();
+    void loadLocaleCatalog(stored);
     void i18n.changeLanguage(stored);
     applyDocumentLocale(stored);
     try {
@@ -316,7 +367,7 @@ export function useCollatorLocale(): string {
 
 /** Keys present in the catalog for a locale (CI missing-key guard). */
 export function localeCatalogKeys(locale: Locale): string[] {
-    return Object.keys(catalogs[locale]);
+    return Object.keys(catalogs[locale] ?? {});
 }
 
 function interpolateParams(text: string, params?: Record<string, string | number>): string {
@@ -346,8 +397,9 @@ function stampPracticeCurrency(key: string, text: string): string {
 export function translateLocale(locale: Locale, key: string): string {
     ensureI18n();
     const t = i18n.getFixedT(locale);
-    const version = t(key, { defaultValue: catalogs.en[key] ?? key });
-    const resolved = version === key && catalogs.en[key] ? catalogs.en[key]! : version;
+    const en = catalogs.en!;
+    const version = t(key, { defaultValue: en[key] ?? key });
+    const resolved = version === key && en[key] ? en[key]! : version;
     return stampPracticeCurrency(key, resolved);
 }
 
@@ -383,22 +435,26 @@ export function useT() {
     const locale = useSyncExternalStore(subscribeLocale, () => useLocale.getState().locale);
     // Re-render when practice currency changes so EUR→MAD stamps refresh without a full remount.
     const currency = useSyncExternalStore(subscribePracticeCurrency, practiceCurrency, practiceCurrency);
-    return useCallback((key: string) => translateLocale(locale, key), [locale, currency]);
+    // …and when a language catalog arrives.
+    const catalogs = useSyncExternalStore(subscribeCatalogs, () => catalogVersion, () => catalogVersion);
+    return useCallback((key: string) => translateLocale(locale, key), [locale, currency, catalogs]);
 }
 
 export function useTParams() {
     const locale = useSyncExternalStore(subscribeLocale, () => useLocale.getState().locale);
     const currency = useSyncExternalStore(subscribePracticeCurrency, practiceCurrency, practiceCurrency);
+    const catalogs = useSyncExternalStore(subscribeCatalogs, () => catalogVersion, () => catalogVersion);
     return useCallback(
         (key: string, params: Record<string, string | number>) =>
             translateLocaleParams(locale, key, params),
-        [locale, currency],
+        [locale, currency, catalogs],
     );
 }
 
 /** Initialize i18n for non-React entry points (tests, native menu). */
 export function initI18n(locale: Locale = "en") {
     ensureI18n();
+    void loadLocaleCatalog(locale);
     void i18n.changeLanguage(locale);
     applyDocumentLocale(locale);
     useLocale.setState({ locale });

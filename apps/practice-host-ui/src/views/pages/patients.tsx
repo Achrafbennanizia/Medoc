@@ -10,8 +10,6 @@ import { allowed, parseRole } from "@/lib/rbac";
 import { useAuthStore } from "../../models/store/auth-store";
 import {
     patientMatchesStatusFilter,
-    patientStatusFilterNeedsClientBucket,
-    patientStatusFilterServerStatus,
     type PatientStatusFilter,
 } from "@/lib/patient-status-filter";
 import { Badge } from "../components/ui/badge";
@@ -81,30 +79,9 @@ function buildFilterCounts(
     };
 }
 
-/** Load every page for search + optional single status (client buckets need the full set). */
-async function listPatientsComplete(opts: {
-    showArchived: boolean;
-    search?: string;
-    status?: string;
-    includeInsuranceNumber?: boolean;
-}): Promise<Patient[]> {
-    const out: Patient[] = [];
-    const pageSize = 500;
-    for (let page = 1; page <= 1000; page += 1) {
-        const resp = await listPatientsPaged({
-            page,
-            pageSize,
-            search: opts.search,
-            filter: {
-                showArchived: opts.showArchived,
-                includeInsuranceNumber: opts.includeInsuranceNumber !== false,
-                ...(opts.status ? { status: opts.status } : {}),
-            },
-        });
-        out.push(...resp.items);
-        if (resp.items.length === 0 || out.length >= resp.total) break;
-    }
-    return out;
+/** Server-side list filter for a tab (the backend applies the same rules as the tab counts). */
+function tabFilter(filter: PatientStatusFilter): { tab?: PatientStatusFilter } {
+    return filter === "ALL" ? {} : { tab: filter };
 }
 
 function patientStatusPill(p: Patient, t: (key: string) => string): { label: string; variant: "primary" | "success" | "default" | "warning" } {
@@ -149,8 +126,6 @@ export function PatientsPage() {
     const [loading, setLoading] = useState(() => !initialPatientList);
     const [loadError, setLoadError] = useState<string | null>(null);
     const [exportPickerOpen, setExportPickerOpen] = useState(false);
-    /** Client-bucket tabs load the full matching set — disable infinite scroll. */
-    const [clientBucketComplete, setClientBucketComplete] = useState(false);
     const actionLayerRef = useRef<HTMLDivElement>(null);
     const listScrollRef = useRef<HTMLDivElement>(null);
     const loadMoreLock = useRef(false);
@@ -192,7 +167,6 @@ export function PatientsPage() {
             setPatientPage(snap.page);
             setServerCounts(snap.counts);
             if (snap.invoiceIds.length > 0) setOpenPaymentPatientIds(new Set(snap.invoiceIds));
-            setClientBucketComplete(patientStatusFilterNeedsClientBucket(statusFilter));
             setLoading(false);
         }
         if (silent) silentLoadInflight.current = true;
@@ -201,9 +175,7 @@ export function PatientsPage() {
             setLoadError(null);
         }
         try {
-            const useClientBucket = patientStatusFilterNeedsClientBucket(statusFilter);
-            const status = patientStatusFilterServerStatus(statusFilter);
-            const refreshInvoices = !invoicesFetchedRef.current || silent || useClientBucket;
+            const refreshInvoices = !invoicesFetchedRef.current || silent;
             const [ids, counts, chartIds] = await Promise.all([
                 refreshInvoices
                     ? listPatientIdsOpenInvoice().catch(() => [] as string[])
@@ -222,39 +194,11 @@ export function PatientsPage() {
             }
             setServerCounts(counts);
 
-            if (useClientBucket) {
-                // Tab counts are global; page-1 + client filter left lists empty.
-                const all = q
-                    ? await listPatientsComplete({ showArchived, search: q || undefined, includeInsuranceNumber })
-                    : await listAllPatients(showArchived);
-                if (token !== searchLoadTokenRef.current) return;
-                const matched = all.filter((p) => patientMatchesStatusFilter(p, statusFilter, openSet, openChartSet));
-                setPatients(matched);
-                setPatientTotal(matched.length);
-                setPatientPage(1);
-                setClientBucketComplete(true);
-                setLoading(false);
-                const names = matched.map((p) => p.name);
-                if (!q) {
-                    setNameDirectory(names);
-                    setAllPatientNames((prev) => (prev.length > names.length ? prev : names));
-                }
-                writeListSnapshot<PatientListCache>(key, {
-                    items: matched,
-                    total: matched.length,
-                    page: 1,
-                    counts,
-                    invoiceIds,
-                });
-                return;
-            }
-
-            setClientBucketComplete(false);
             const dataResp = await listPatientsPaged({
                 page: 1,
                 pageSize: PATIENT_PAGE_SIZE,
                 search: q || undefined,
-                filter: { showArchived, includeInsuranceNumber, ...(status ? { status } : {}) },
+                filter: { showArchived, includeInsuranceNumber, ...tabFilter(statusFilter) },
             });
             if (token !== searchLoadTokenRef.current) return;
             setPatients((prev) => {
@@ -310,20 +254,18 @@ export function PatientsPage() {
         void load({ silent: true });
     });
 
-    const patientsHaveMore =
-        !clientBucketComplete && patientPage * PATIENT_PAGE_SIZE < patientTotal;
+    const patientsHaveMore = patientPage * PATIENT_PAGE_SIZE < patientTotal;
 
     const onListScroll = useCallback(() => {
-        if (!patientsHaveMore || loadingMore || loadMoreLock.current || clientBucketComplete) return;
+        if (!patientsHaveMore || loadingMore || loadMoreLock.current) return;
         loadMoreLock.current = true;
         setLoadingMore(true);
         const q = debouncedSearch.trim();
-        const status = patientStatusFilterServerStatus(statusFilter);
         void listPatientsPaged({
             page: patientPage + 1,
             pageSize: PATIENT_PAGE_SIZE,
             search: q || undefined,
-            filter: { showArchived, includeInsuranceNumber, ...(status ? { status } : {}) },
+            filter: { showArchived, includeInsuranceNumber, ...tabFilter(statusFilter) },
         })
             .then((resp) => {
                 setPatientPage(resp.page);
@@ -349,7 +291,6 @@ export function PatientsPage() {
         showArchived,
         debouncedSearch,
         statusFilter,
-        clientBucketComplete,
         includeInsuranceNumber,
     ]);
 
@@ -378,7 +319,7 @@ export function PatientsPage() {
         return patients.filter((p) => {
             if (seen.has(p.id)) return false;
             seen.add(p.id);
-            // Client-bucket loads already match; still re-check so invoice updates apply.
+            // The server filtered by tab; re-check so a payment made meanwhile updates the list.
             return patientMatchesStatusFilter(p, statusFilter, openPaymentPatientIds, openChartPatientIds);
         });
     }, [patients, statusFilter, openPaymentPatientIds, openChartPatientIds]);
@@ -395,10 +336,9 @@ export function PatientsPage() {
 
     const resolvePatientExport = useCallback(async () => {
         const q = debouncedSearch.trim();
-        const status = patientStatusFilterServerStatus(statusFilter);
         const csv = await exportPatientsCsv({
             search: q || undefined,
-            filter: { showArchived, includeInsuranceNumber, ...(status ? { status } : {}) },
+            filter: { showArchived, includeInsuranceNumber, ...tabFilter(statusFilter) },
         });
         if (!csv.trim() || csv.split("\n").filter((l) => l.trim()).length <= 1) return null;
         const d = localYmd();

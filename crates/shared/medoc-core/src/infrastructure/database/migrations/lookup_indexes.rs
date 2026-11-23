@@ -23,8 +23,17 @@ const INDEXES: &[(&str, &str, &str)] = &[
     ("examination", "idx_examination_chart", "chart_id"),
     ("dental_finding", "idx_dental_finding_chart", "chart_id"),
     ("anamnesis_form", "idx_anamnesis_form_patient", "patient_id"),
-    ("prescription", "idx_prescription_patient", "patient_id"),
-    ("certificate", "idx_certificate_patient", "patient_id"),
+    // Patient + date: the record lists them newest first without a sort step.
+    (
+        "prescription",
+        "idx_prescription_patient_issued",
+        "patient_id, issued_at",
+    ),
+    (
+        "certificate",
+        "idx_certificate_patient_issued",
+        "patient_id, issued_at",
+    ),
     ("payment", "idx_payment_patient", "patient_id"),
     ("payment", "idx_payment_created", "created_at"),
     ("practice_task", "idx_practice_task_patient", "patient_id"),
@@ -36,7 +45,15 @@ const INDEXES: &[(&str, &str, &str)] = &[
     ),
 ];
 
+/// Indexes replaced by a wider one above (dropped so writes do not maintain both).
+const SUPERSEDED: &[&str] = &["idx_prescription_patient", "idx_certificate_patient"];
+
 pub async fn ensure_lookup_indexes(pool: &SqlitePool) -> Result<(), AppError> {
+    for name in SUPERSEDED {
+        sqlx::query(&format!("DROP INDEX IF EXISTS {name}"))
+            .execute(pool)
+            .await?;
+    }
     for (table, name, cols) in INDEXES {
         // Skip a table or column that an older or newer schema does not have.
         let present: i64 =

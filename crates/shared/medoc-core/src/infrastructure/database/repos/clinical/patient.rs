@@ -27,6 +27,30 @@ pub struct PatientFilterCounts {
     pub closed: i64,
 }
 
+/// Unpaid payment (OUTSTANDING / PARTIALLY_PAID) for this patient.
+const INVOICE_OPEN_SQL: &str = "EXISTS (SELECT 1 FROM payment z WHERE z.patient_id = patient.id
+         AND TRIM(UPPER(COALESCE(z.status, ''))) IN ('OUTSTANDING', 'PARTIALLY_PAID'))";
+/// Record still needs work: draft, in review or declined.
+const CHART_OPEN_SQL: &str = "EXISTS (SELECT 1 FROM patient_chart c WHERE c.patient_id = patient.id
+         AND UPPER(COALESCE(c.status, '')) IN ('DRAFT', 'IN_PROGRESS', 'DECLINED'))";
+
+/// SQL condition of one patient-list tab, shared by the tab counts and the paged list so both
+/// follow the same rules (status guide): lifecycle NEW / ACTIVE / closed, plus the overlapping
+/// flags "invoice open" and "record open". `with_invoices` is false for roles that may not see
+/// payment state (the invoice tab is then empty). `None` for an unknown tab name.
+pub fn tab_condition(tab: &str, with_invoices: bool) -> Option<&'static str> {
+    Some(match tab {
+        "ALL" => "1=1",
+        "NEW_PATIENT" => "patient.status = 'NEW'",
+        "IN_TREATMENT" => "patient.status = 'ACTIVE'",
+        "CLOSED" => "patient.status IN ('VALIDATED','READONLY')",
+        "INVOICE_OPEN" if with_invoices => INVOICE_OPEN_SQL,
+        "INVOICE_OPEN" => "0",
+        "CHART_OPEN" => CHART_OPEN_SQL,
+        _ => return None,
+    })
+}
+
 pub async fn filter_counts(
     pool: &SqlitePool,
     include_archived: bool,
@@ -35,26 +59,23 @@ pub async fn filter_counts(
     let vis = if include_archived {
         "1=1"
     } else {
-        "COALESCE(p.status,'ACTIVE') != 'ARCHIVED'"
+        "COALESCE(patient.status,'ACTIVE') != 'ARCHIVED'"
     };
-    let inv = if with_invoices {
-        "EXISTS (SELECT 1 FROM payment z WHERE z.patient_id = p.id
-                 AND TRIM(UPPER(COALESCE(z.status, ''))) IN ('OUTSTANDING', 'PARTIALLY_PAID'))"
-    } else {
-        "0"
-    };
-    // Patient list tabs (status guide): lifecycle NEW/ACTIVE/COMPLETED + flags payment, record open.
-    let chart_open = "EXISTS (SELECT 1 FROM patient_chart c WHERE c.patient_id = p.id
-                 AND UPPER(COALESCE(c.status, '')) IN ('DRAFT', 'IN_PROGRESS', 'DECLINED'))";
+    let c = |tab: &str| tab_condition(tab, with_invoices).unwrap_or("0");
     let sql = format!(
         "SELECT
             COUNT(*),
-            COALESCE(SUM(CASE WHEN p.status = 'ACTIVE' THEN 1 ELSE 0 END), 0),
-            COALESCE(SUM(CASE WHEN p.status = 'NEW' THEN 1 ELSE 0 END), 0),
-            COALESCE(SUM(CASE WHEN {inv} THEN 1 ELSE 0 END), 0),
-            COALESCE(SUM(CASE WHEN {chart_open} THEN 1 ELSE 0 END), 0),
-            COALESCE(SUM(CASE WHEN p.status IN ('VALIDATED','READONLY') THEN 1 ELSE 0 END), 0)
-         FROM patient p WHERE {vis}"
+            COALESCE(SUM(CASE WHEN {} THEN 1 ELSE 0 END), 0),
+            COALESCE(SUM(CASE WHEN {} THEN 1 ELSE 0 END), 0),
+            COALESCE(SUM(CASE WHEN {} THEN 1 ELSE 0 END), 0),
+            COALESCE(SUM(CASE WHEN {} THEN 1 ELSE 0 END), 0),
+            COALESCE(SUM(CASE WHEN {} THEN 1 ELSE 0 END), 0)
+         FROM patient WHERE {vis}",
+        c("IN_TREATMENT"),
+        c("NEW_PATIENT"),
+        c("INVOICE_OPEN"),
+        c("CHART_OPEN"),
+        c("CLOSED"),
     );
     let r: (i64, i64, i64, i64, i64, i64) = sqlx::query_as(&sql).fetch_one(pool).await?;
     Ok(PatientFilterCounts {
@@ -110,6 +131,8 @@ pub async fn find_paginated(
     search: Option<&str>,
     include_archived: bool,
     status: Option<&str>,
+    tab: Option<&str>,
+    with_invoices: bool,
     scope: PatientSearchScope,
 ) -> Result<(Vec<Patient>, i64), AppError> {
     let q = search.map(str::trim).filter(|s| !s.is_empty());
@@ -126,6 +149,15 @@ pub async fn find_paginated(
         }
         (true, None) => "1=1".into(),
         (false, None) => "COALESCE(status,'ACTIVE') != 'ARCHIVED'".into(),
+    };
+    // A list tab (invoice open, record open, …) is filtered here, not on the client.
+    let vis = match tab.map(str::trim).filter(|t| !t.is_empty()) {
+        Some(t) => {
+            let cond = tab_condition(t, with_invoices)
+                .ok_or_else(|| AppError::Validation("invalid patient list tab".into()))?;
+            format!("{vis} AND {cond}")
+        }
+        None => vis,
     };
     let limit = limit.min(50);
     if let Some(q) = q {
@@ -166,13 +198,25 @@ pub async fn find_all_matching(
     search: Option<&str>,
     include_archived: bool,
     status: Option<&str>,
+    tab: Option<&str>,
+    with_invoices: bool,
     scope: PatientSearchScope,
 ) -> Result<Vec<Patient>, AppError> {
     let mut offset = 0u32;
     let mut all = Vec::new();
     loop {
-        let (page, total) =
-            find_paginated(pool, 50, offset, search, include_archived, status, scope).await?;
+        let (page, total) = find_paginated(
+            pool,
+            50,
+            offset,
+            search,
+            include_archived,
+            status,
+            tab,
+            with_invoices,
+            scope,
+        )
+        .await?;
         let n = page.len() as u32;
         all.extend(page);
         offset += n;
