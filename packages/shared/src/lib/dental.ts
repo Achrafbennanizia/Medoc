@@ -89,6 +89,36 @@ export function statusKeysToFinding(keys: readonly DentalStatusKey[]): string {
     return real.length ? real.join(",") : "healthy";
 }
 
+/** Statuses about the tooth itself: they cannot sit on a missing tooth. */
+const NEEDS_TOOTH: readonly DentalStatusKey[] = ["caries", "filling", "crown", "root"];
+
+/** Keys that cannot be true together, with the one that goes when the other is set. */
+function conflicts(key: DentalStatusKey): readonly DentalStatusKey[] {
+    if (key === "missing") return NEEDS_TOOTH;
+    if (NEEDS_TOOTH.includes(key)) return key === "root" ? ["missing", "implant"] : ["missing"];
+    if (key === "implant") return ["root"]; // an implant replaces the root
+    return [];
+}
+
+/**
+ * One click with a status on a tooth (examination chart, Help practice chart).
+ * Healthy clears the tooth; the same status again removes it; a status that contradicts one
+ * already set replaces it (missing vs. caries/filling/crown/root, implant vs. root fracture).
+ * Planned and implant can sit on a missing tooth (a gap with a planned or placed implant).
+ */
+export function toggleDentalStatus(current: readonly DentalStatusKey[], key: DentalStatusKey): DentalStatusKey[] {
+    const cur = current.filter((k) => k !== "healthy");
+    if (key === "healthy") return [];
+    if (cur.includes(key)) return cur.filter((k) => k !== key);
+    const drop = conflicts(key);
+    return [...cur.filter((k) => !drop.includes(k)), key];
+}
+
+/** Whether these statuses can be recorded together on one tooth. */
+export function dentalStatusesCompatible(keys: readonly DentalStatusKey[]): boolean {
+    return keys.every((k) => k !== "healthy" && !conflicts(k).some((c) => keys.includes(c)));
+}
+
 /** Split teeth field into FDI tokens (e.g. "18, 16" → ["18","16"]). */
 export function parseTeethTokens(z: string | null | undefined): string[] {
     if (!z) return [];

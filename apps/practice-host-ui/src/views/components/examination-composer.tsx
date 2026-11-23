@@ -19,6 +19,7 @@ import {
     findingsForTooth,
     formatDentalToothLabel,
     statusKeysToFinding,
+    toggleDentalStatus,
     type DentalStatusKey,
 } from "@/lib/dental";
 import { hasExamContent, parseExaminationV1, EXAMINATION_V1_EMPTY, type ExaminationV1 } from "@/lib/examination";
@@ -131,11 +132,9 @@ export function ExaminationComposer({
         return findingToStatusKeys(saved?.finding);
     };
 
-    /** A tooth can carry several statuses (e.g. crown + caries). "Healthy" clears the others. */
+    /** A tooth can carry several statuses (e.g. crown + caries); rules in `toggleDentalStatus`. */
     const toggleStatus = (tooth: string, key: DentalStatusKey) => {
-        const cur = statusKeysFor(tooth).filter((k) => k !== "healthy");
-        const next: DentalStatusKey[] =
-            key === "healthy" ? [] : cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key];
+        const next = toggleDentalStatus(statusKeysFor(tooth), key);
         setData((prev) => ({
             ...prev,
             toothStatuses: { ...prev.toothStatuses, [tooth]: statusKeysToFinding(next) },

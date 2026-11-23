@@ -47,3 +47,31 @@
   }
   .help-tooth-notes li + li { margin-top: 6px; }
 }
+
+@layer components {
+  .help-tooth-practice__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
+  .help-tooth-reset {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--fg-2);
+    font: inherit;
+    font-size: 12.5px;
+    padding: 4px 10px;
+    cursor: pointer;
+  }
+  .help-tooth-reset:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .help-tooth-practice { margin-top: var(--space-3); }
+  .help-tooth-practice .card { box-shadow: none; }
+  .help-tooth-row > svg { margin-top: 2px; }
+  .help-tooth-list--grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+    column-gap: var(--space-5);
+  }
+}

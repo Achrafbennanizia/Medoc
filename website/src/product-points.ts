@@ -5,6 +5,11 @@ import type { Lang } from "./i18n";
 type Points = Partial<Record<string, string[]>> & { trust: string[] };
 
 const en: Points = {
+  roles: [
+    "The same rights apply on every computer, and to every request over the practice network.",
+    "A physician can give one person an extra right, or take one away. Each change goes into the activity log.",
+    "Help shows, role by role, which screens and actions each account has.",
+  ],
   calendar: [
     "The month colours each day by how full it is, so open days stand out.",
     "Drag a card to another time or day. It snaps to the grid, the gutter shows the new time, and an overlap is refused.",
@@ -27,6 +32,7 @@ const en: Points = {
     "The price comes from your treatment catalog and is confirmed before saving.",
     "Treatments are Planned, In progress, Completed, Discontinued or Cancelled. Multi-session work keeps its session number.",
     "A record goes Draft, In review, Validated. A declined record comes back with the reason.",
+    "The tooth chart stacks statuses on one tooth, each drawn on its own layer: a crown with decay, a gap with a planned implant. It refuses contradictions: a missing tooth cannot carry decay, and an implant replaces a root fracture.",
   ],
   documents: [
     "Each file has a type: X-ray, CT, MRI, lab, referral, consent or other.",
@@ -48,6 +54,7 @@ const en: Points = {
     "Task types: appointment, billing, master data, print and other.",
     "A task goes Open, In progress, Done and awaiting review, Validated. The creator can return it with a reason.",
     "The overview lists approvals waiting and orders to check, so nothing sits unseen.",
+    "Every record has its own statuses and allowed next steps: appointment, chart, treatment, invoice, order, task. Buttons offer only the allowed step, and Help lists every status with what it allows.",
   ],
   time: ["Start, pause and end a session. Breaks are not counted.", "The dentist sees the team's hours and can correct a session."],
   settings: [
@@ -64,6 +71,11 @@ const en: Points = {
 };
 
 const fr: Points = {
+  roles: [
+    "Les mêmes droits s'appliquent sur chaque ordinateur, et à chaque demande sur le réseau du cabinet.",
+    "Le dentiste peut donner un droit en plus à une personne, ou en retirer un. Chaque changement va dans le journal d'activité.",
+    "L'Aide montre, rôle par rôle, les écrans et actions de chaque compte.",
+  ],
   calendar: [
     "Le mois colore chaque jour selon son remplissage : les jours libres se voient tout de suite.",
     "Glissez une carte vers une autre heure ou un autre jour. Elle s'aligne sur la grille, la nouvelle heure s'affiche et un chevauchement est refusé.",
@@ -86,6 +98,7 @@ const fr: Points = {
     "Le prix vient de votre catalogue d'actes et se confirme avant l'enregistrement.",
     "Les traitements sont Planifiés, En cours, Terminés, Interrompus ou Annulés. Les soins en plusieurs séances gardent leur numéro de séance.",
     "Un dossier passe de Brouillon à En revue puis Validé. Un dossier refusé revient avec le motif.",
+    "Le schéma dentaire superpose les statuts sur une dent, chacun sur sa propre couche : une couronne avec une carie, un espace avec un implant prévu. Il refuse les contradictions : une dent absente ne peut pas porter de carie, et un implant remplace une fracture radiculaire.",
   ],
   documents: [
     "Chaque fichier a un type : radiographie, scanner, IRM, laboratoire, courrier, consentement ou autre.",
@@ -107,6 +120,7 @@ const fr: Points = {
     "Types de tâches : rendez-vous, facturation, données de base, impression et autre.",
     "Une tâche passe de Ouverte à En cours, Terminée en attente de contrôle, puis Validée. Son auteur peut la renvoyer avec un motif.",
     "La vue générale liste les validations en attente et les commandes à vérifier : rien ne reste dans l'ombre.",
+    "Chaque dossier a ses statuts et ses étapes suivantes autorisées : rendez-vous, dossier, traitement, facture, commande, tâche. Les boutons ne proposent que l'étape permise, et l'Aide liste chaque statut avec ce qu'il permet.",
   ],
   time: ["Démarrez, mettez en pause et terminez une session. Les pauses ne sont pas comptées.", "Le dentiste voit les heures de l'équipe et peut corriger une session."],
   settings: [
@@ -123,6 +137,11 @@ const fr: Points = {
 };
 
 const ar: Points = {
+  roles: [
+    "الصلاحيات نفسها تُطبَّق على كل حاسوب، وعلى كل طلب عبر شبكة العيادة.",
+    "يستطيع الطبيب منح شخص واحد صلاحية إضافية أو سحبها. كل تغيير يُكتب في سجل النشاط.",
+    "المساعدة تعرض، دورًا بدور، الشاشات والإجراءات المتاحة لكل حساب.",
+  ],
   calendar: [
     "يلوّن عرض الشهر كل يوم حسب امتلائه، فتظهر الأيام الفارغة فورًا.",
     "اسحب البطاقة إلى وقت أو يوم آخر. تلتصق بالشبكة ويظهر الوقت الجديد، ويُرفض أي تداخل.",
@@ -145,6 +164,7 @@ const ar: Points = {
     "يأتي السعر من دليل الإجراءات ويُؤكَّد قبل الحفظ.",
     "العلاجات: مخطط، جارٍ، مكتمل، متوقف أو ملغى. ويحتفظ العلاج متعدد الجلسات برقم جلسته.",
     "ينتقل الملف من مسودة إلى قيد المراجعة ثم معتمد. والملف المرفوض يعود مع السبب.",
+    "مخطط الأسنان يجمع عدة حالات على سن واحد، كل حالة في طبقة خاصة بها: تاج مع تسوس، فراغ مع زرعة مخططة. ويرفض التناقض: السن المفقود لا يحمل تسوسًا، والزرعة تحل محل كسر الجذر.",
   ],
   documents: [
     "لكل ملف نوع: أشعة، تصوير مقطعي، رنين مغناطيسي، مختبر، إحالة، موافقة أو غير ذلك.",
@@ -166,6 +186,7 @@ const ar: Points = {
     "أنواع المهام: موعد، فوترة، بيانات أساسية، طباعة وغير ذلك.",
     "تنتقل المهمة من مفتوحة إلى قيد التنفيذ ثم منجزة بانتظار المراجعة ثم معتمدة، ويمكن لصاحبها إعادتها مع السبب.",
     "تعرض النظرة العامة الاعتمادات المنتظرة والطلبيات التي يجب التحقق منها، فلا يبقى شيء دون متابعة.",
+    "لكل ملف حالاته وخطواته التالية المسموح بها: الموعد، الملف الطبي، العلاج، الفاتورة، الطلبية، المهمة. الأزرار تعرض الخطوة المسموح بها فقط، والمساعدة تسرد كل حالة وما تسمح به.",
   ],
   time: ["ابدأ الجلسة وأوقفها مؤقتًا وأنهِها، ولا تُحتسب الاستراحات.", "يرى الطبيب ساعات الفريق ويمكنه تصحيح جلسة."],
   settings: [
@@ -182,6 +203,11 @@ const ar: Points = {
 };
 
 const de: Points = {
+  roles: [
+    "Dieselben Rechte gelten auf jedem Rechner und für jede Anfrage im Praxisnetz.",
+    "Die Zahnärztin kann einer Person ein Recht zusätzlich geben oder eines entziehen. Jede Änderung steht im Aktivitätsprotokoll.",
+    "Die Hilfe zeigt Rolle für Rolle, welche Bildschirme und Aktionen jedes Konto hat.",
+  ],
   calendar: [
     "Der Monat färbt jeden Tag nach Auslastung – freie Tage fallen sofort auf.",
     "Ziehen Sie eine Karte auf eine andere Uhrzeit oder einen anderen Tag. Sie rastet im Raster ein, die neue Zeit wird angezeigt, Überschneidungen werden abgelehnt.",
@@ -204,6 +230,7 @@ const de: Points = {
     "Der Preis kommt aus Ihrem Leistungskatalog und wird vor dem Speichern bestätigt.",
     "Behandlungen sind Geplant, In Behandlung, Abgeschlossen, Abgebrochen oder Storniert. Mehrere Sitzungen behalten ihre Sitzungsnummer.",
     "Eine Akte geht von Entwurf über In Prüfung zu Freigegeben. Eine abgelehnte Akte kommt mit Begründung zurück.",
+    "Das Zahnschema legt mehrere Status auf einen Zahn, jeden auf seiner eigenen Ebene: eine Krone mit Karies, eine Lücke mit geplantem Implantat. Widersprüche nimmt es nicht an: Ein fehlender Zahn trägt keine Karies, und ein Implantat ersetzt eine Wurzelfraktur.",
   ],
   documents: [
     "Jede Datei hat einen Typ: Röntgen, CT, MRT, Labor, Überweisung, Einwilligung oder Sonstiges.",
@@ -225,6 +252,7 @@ const de: Points = {
     "Aufgabentypen: Termin, Abrechnung, Stammdaten, Druck und Sonstiges.",
     "Eine Aufgabe geht von Offen über In Bearbeitung und Erledigt – Prüfung offen zu Bestätigt. Der Ersteller kann sie mit Begründung zurückgeben.",
     "Die Übersicht zeigt offene Freigaben und zu prüfende Bestellungen – nichts bleibt liegen.",
+    "Jeder Vorgang hat eigene Status und erlaubte nächste Schritte: Termin, Akte, Behandlung, Rechnung, Bestellung, Aufgabe. Die Schaltflächen bieten nur den erlaubten Schritt, und die Hilfe listet jeden Status mit dem, was er erlaubt.",
   ],
   time: ["Sitzung starten, pausieren und beenden. Pausen zählen nicht.", "Der Zahnarzt sieht die Stunden des Teams und kann eine Sitzung korrigieren."],
   settings: [

@@ -129,23 +129,38 @@
   stroke: var(--fg-2);
 }
 
+/* Each status paints one layer, so combinations stay readable (rules in toggleDentalStatus):
+   crown colour: crown > implant > filling > caries; marks (dot, block) always on top;
+   root layer: root fracture zigzag, or implant screw (never both);
+   outline: planned = dashed outline over whatever colour is there; missing = dashed ghost,
+   with a planned or placed implant still drawn on the gap. */
 .dental-arch__tooth.is-caries .dental-arch__crown { fill: var(--dental-caries-fill); stroke: var(--dental-caries-stroke); }
 .dental-arch__tooth.is-filling .dental-arch__crown { fill: var(--dental-filling-fill); stroke: var(--dental-filling-stroke); }
 .dental-arch__mark--filling { fill: var(--dental-filling-stroke); }
 .dental-arch__mark--caries { fill: var(--dental-caries-stroke); }
+.dental-arch__tooth.is-implant .dental-arch__crown { fill: var(--dental-implant-fill); stroke: var(--dental-implant-stroke); }
 .dental-arch__tooth.is-crown .dental-arch__crown { fill: var(--dental-crown-stroke); stroke: var(--dental-crown-stroke); }
 .dental-arch__tooth.is-root .dental-arch__root { fill: var(--dental-root-fill); stroke: var(--dental-root-stroke); }
-.dental-arch__tooth.is-root .dental-arch__line { stroke: var(--dental-root-stroke); }
-.dental-arch__tooth.is-implant .dental-arch__crown { fill: var(--dental-implant-fill); stroke: var(--dental-implant-stroke); }
+.dental-arch__line--root { stroke: var(--dental-root-stroke); }
 .dental-arch__tooth.is-implant .dental-arch__root { fill: var(--dental-implant-fill); stroke: var(--dental-implant-stroke); }
-.dental-arch__tooth.is-implant .dental-arch__line { stroke: var(--dental-implant-stroke); }
-.dental-arch__tooth.is-planned .dental-arch__crown { fill: var(--dental-planned-fill); stroke: var(--dental-planned-stroke); stroke-dasharray: 4 3; }
+.dental-arch__line--implant { stroke: var(--dental-implant-stroke); }
+/* Planned alone tints the crown; with another status it only dashes the outline. */
+.dental-arch__tooth.is-planned .dental-arch__crown { stroke: var(--dental-planned-stroke); stroke-dasharray: 4 3; }
+.dental-arch__tooth.is-planned:not(.is-caries):not(.is-filling):not(.is-crown):not(.is-implant) .dental-arch__crown { fill: var(--dental-planned-fill); }
 .dental-arch__tooth.is-missing .dental-arch__crown,
 .dental-arch__tooth.is-missing .dental-arch__root {
   fill: transparent;
   stroke: var(--dental-missing-stroke);
   stroke-dasharray: 3 3;
 }
+/* A gap with a placed implant: the screw and its root stay visible. */
+.dental-arch__tooth.is-missing.is-implant .dental-arch__root { fill: var(--dental-implant-fill); stroke: var(--dental-implant-stroke); stroke-dasharray: none; }
+/* A gap with planned work: the ghost crown takes the planned colour. */
+.dental-arch__tooth.is-missing.is-planned .dental-arch__crown { fill: var(--dental-planned-fill); stroke: var(--dental-planned-stroke); stroke-dasharray: 4 3; }
+
+/* Single tooth outside the chart (Help, legends): no pointer. */
+.dental-arch__icon { display: block; flex: none; overflow: visible; }
+.dental-arch__icon .dental-arch__tooth { cursor: default; }
 
 .dental-arch__tooth.is-selected .dental-arch__crown,
 .dental-arch__tooth:focus-visible .dental-arch__crown {
