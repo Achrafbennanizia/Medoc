@@ -107,16 +107,20 @@ export type DentalArchToothIconProps = {
     height?: number;
     selected?: boolean;
     pulse?: boolean;
+    /** Upper jaw: roots up, as on the chart. */
+    upper?: boolean;
+    /** Extra class on the `<svg>` (callers' layout hooks). */
+    className?: string;
 };
 
 /** A single tooth exactly as the chart draws it (Help, legends). Decorative: label it beside. */
-export function DentalArchToothIcon({ fdi, keys, height = 44, selected = false, pulse = false }: DentalArchToothIconProps) {
+export function DentalArchToothIcon({ fdi, keys, height = 44, selected = false, pulse = false, upper = false, className }: DentalArchToothIconProps) {
     const w = toothWidth(fdi);
     const viewW = w + 6;
     const viewH = 74;
     return (
         <svg
-            className="dental-arch__icon"
+            className={`dental-arch__icon${className ? ` ${className}` : ""}`}
             viewBox={`-3 -4 ${viewW} ${viewH}`}
             width={(height * viewW) / viewH}
             height={height}
@@ -124,7 +128,9 @@ export function DentalArchToothIcon({ fdi, keys, height = 44, selected = false, 
             focusable="false"
         >
             <g className={toothClassName(keys, [selected ? "is-selected" : "", pulse ? "is-pulse" : ""])}>
-                <ToothShape fdi={fdi} keys={keys} />
+                <g transform={upper ? `translate(0 ${viewH - 8}) scale(1 -1)` : undefined}>
+                    <ToothShape fdi={fdi} keys={keys} />
+                </g>
             </g>
         </svg>
     );
