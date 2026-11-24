@@ -14,7 +14,7 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 # Single app-layer dependency — practice IPC + all domain/sync/LAN/company wiring.
-medoc-practice = { path = "../../crates/app/medoc-practice" }
+medoc-practice = { path = "../../crates/app/medoc-practice", default-features = false }
 
 tauri = { version = "2", features = ["protocol-asset"] }
 tauri-plugin-shell = "2"
@@ -69,6 +69,12 @@ tower = "0.5"
 # Production webview (custom protocol + embedded dist). `tauri build` enables this;
 # plain `cargo build -p medoc --release` without it loads http://localhost:1420 (blank window).
 [features]
+# Edition (docs/architecture/editions-plan.md): `npm run tauri:build:<solo|duo|group>`.
+# Developers get everything compiled (group) by default.
+default = ["edition-group"]
+edition-solo = ["medoc-practice/edition-solo"]
+edition-duo = ["medoc-practice/edition-duo"]
+edition-group = ["medoc-practice/edition-group"]
 # Replica app: `npm run tauri:build:replica` (docs/architecture/device-flavors-and-access.md).
 replica = ["medoc-practice/replica"]
 custom-protocol = ["tauri/custom-protocol"]

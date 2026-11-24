@@ -6062,6 +6062,7 @@
   "error.device.main_link_missing": "Dafür ist eine Verbindung zum Hauptgerät nötig. Melden Sie sich ab und wieder an, während das Hauptgerät erreichbar ist.",
   "error.device.main_unreachable": "Das Hauptgerät ist nicht erreichbar. Prüfen Sie, ob es eingeschaltet und im selben Netzwerk ist.",
   "error.device.main_only": "Das ist nur am Hauptgerät möglich.",
+  "error.edition.mismatch": "Diese Installation ist beschädigt: Ihre Teile gehören zu verschiedenen MeDoc-Editionen. Installieren Sie MeDoc neu.",
   "error.device.replica_cannot_host": "Die Replikat-App tritt einer bestehenden Praxis bei; sie kann keine anlegen. Verwenden Sie die Haupt-App auf dem Hauptgerät.",
   "error.access.own_appointments_only": "Sie können nur Ihre eigenen Termine ändern.",
   "errors.domain.access": "Zugriffsrechte",

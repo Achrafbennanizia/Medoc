@@ -31,6 +31,9 @@ npm run tauri:build            # main app
 npm run tauri:build:replica    # replica app
 ```
 
+Editions (Solo / Duo / Group) are a second build axis on top of the flavor: see
+[editions-plan.md](./editions-plan.md) §3.2 (`npm run tauri:build:<edition>[:replica]`).
+
 ### Main-only operations
 
 One registry, `device::capabilities::MainOnly`, replaces the scattered checks:

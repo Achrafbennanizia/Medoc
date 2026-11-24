@@ -1,0 +1,47 @@
+# Product editions (docs/architecture/editions-plan.md).
+#
+# Single source of truth. `medoc-codegen` turns this file into:
+#   - Rust: OUT_DIR/edition_generated.rs (medoc-core `edition` module)
+#   - TS:   packages/shared/src/lib/edition.generated.ts
+#
+# Code checks a capability (`cfg(feature = "cap-net")`, `__CAP_NET__`), never an edition id.
+# Each capability `foo_bar` is the Cargo feature `cap-foo-bar` in medoc-core and medoc-practice.
+# Adding an edition: add it here, add its `edition-<id>` feature in medoc-practice and
+# apps/practice-host (listing exactly its `cap-*` features); the build fails if they disagree.
+
+capabilities:
+  guest_inbox: "Guest account whose changes are staged until the admin adds or dismisses them (Solo)"
+  net: "LAN API, sync engine, pairing, discovery"
+  multi_staff: "Accounts beyond admin + guest, roles, privileges, team pages"
+  tasks: "Practice tasks, tickets, comments, next-appointment hints"
+  work_time: "Time tracking, work plans, sick-leave administration"
+  validation: "Reception drafts validated by a doctor"
+  multi_doctor: "Doctor dimension in the UI: pickers, filters, colours, per-doctor statistics, signing doctor"
+  multi_admin: "Two admins, two hubs"
+  allowances: "Settings > Allowances: who may change and who sees what, per admin"
+  lan_client: "Browser / tablet client API"
+  maintenance: "Maintenance view, remote log export"
+
+# Capabilities that can never be on together.
+exclusive:
+  - [guest_inbox, multi_staff]
+
+editions:
+  solo:
+    devices: 1
+    admins: 1
+    staff_active: 2
+    doctors: 1
+    caps: [guest_inbox]
+  duo:
+    devices: 3
+    admins: 1
+    staff_active: 3
+    doctors: 1
+    caps: [net, multi_staff, tasks, work_time, validation, lan_client, maintenance]
+  group:
+    devices: 5
+    admins: 2
+    staff_active: 20
+    doctors: 4
+    caps: [net, multi_staff, tasks, work_time, validation, multi_doctor, multi_admin, allowances, lan_client, maintenance]

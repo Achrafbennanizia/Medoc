@@ -9,10 +9,13 @@
 //!   `migrations/generated/enum_check_fragments.sql`.
 //! - [`rbac::run`]  — `config/rbac.yaml`  →
 //!   `OUT_DIR/rbac_generated.rs`, `app/src/lib/rbac.generated.ts`.
+//! - [`editions::run`] — `config/editions.yaml` →
+//!   `OUT_DIR/edition_generated.rs`, `packages/shared/src/lib/edition.generated.ts`.
 //!
 //! Both functions take the consuming crate's `CARGO_MANIFEST_DIR` (the
 //! `app/src-tauri/` directory) and resolve YAML inputs + TS outputs
 //! relative to it. They are intended to be called from a `build.rs`.
 
+pub mod editions;
 pub mod enums;
 pub mod rbac;

@@ -47,6 +47,17 @@ async function boot(): Promise<void> {
         const { invoke } = await import("@tauri-apps/api/core");
         setClientLogSink((event) => invoke("log_client_event", { event }));
         installGlobalErrorReporting();
+
+        // A UI built for one edition must not run on a core of another (editions-plan.md §3.2).
+        const { editionMismatch } = await import("@/lib/edition");
+        const mismatch = editionMismatch(await invoke("edition_info"));
+        if (mismatch.length > 0) {
+            console.error("[medoc] edition mismatch", mismatch);
+            const root = document.getElementById("root")!;
+            const { t } = await import("@/lib/i18n");
+            root.textContent = `${t("error.edition.mismatch")} (${mismatch.join("; ")})`;
+            return;
+        }
     }
 
     if (import.meta.env.DEV) {

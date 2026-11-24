@@ -3,6 +3,7 @@
 pub mod core;
 pub mod devices;
 pub mod document_pdf;
+pub mod edition;
 pub mod export;
 pub mod integration;
 pub mod logging;

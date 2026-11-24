@@ -102,3 +102,20 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 # Build flavor. Off = main app (default); on = replica app: main-only services are not compiled
 # and are reached through the main device's API instead (docs/architecture/device-flavors-and-access.md).
 replica = []
+
+# Capabilities (config/editions.yaml, docs/architecture/editions-plan.md §3.2). Off by default:
+# the edition chosen in medoc-practice turns on exactly its capabilities. Code checks
+# `cfg(feature = "cap-…")`, never an edition. `full` turns them all on except `cap-guest-inbox`
+# (exclusive with `cap-multi-staff`), for running this crate's tests alone.
+cap-guest-inbox = []
+cap-net = []
+cap-multi-staff = []
+cap-tasks = []
+cap-work-time = []
+cap-validation = []
+cap-multi-doctor = []
+cap-multi-admin = []
+cap-allowances = []
+cap-lan-client = []
+cap-maintenance = []
+full = ["cap-net", "cap-multi-staff", "cap-tasks", "cap-work-time", "cap-validation", "cap-multi-doctor", "cap-multi-admin", "cap-allowances", "cap-lan-client", "cap-maintenance"]

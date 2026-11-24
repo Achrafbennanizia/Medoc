@@ -6062,6 +6062,7 @@
   "error.device.main_link_missing": "This needs a connection to the main device. Sign out and in again while the main device is reachable.",
   "error.device.main_unreachable": "The main device cannot be reached. Check that it is on and in the same network.",
   "error.device.main_only": "This can only be done on the main device.",
+  "error.edition.mismatch": "This installation is damaged: its parts belong to different MeDoc editions. Reinstall MeDoc.",
   "error.device.replica_cannot_host": "The replica app joins an existing practice; it cannot create one. Use the main app on the main device.",
   "error.access.own_appointments_only": "You can only change your own appointments.",
   "errors.domain.access": "Access rights",
