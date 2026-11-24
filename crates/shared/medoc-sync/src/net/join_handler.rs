@@ -390,6 +390,7 @@ async fn session_fingerprint(
         .filter(|s| !s.is_empty()))
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn handle_join_request(
     stream: &mut TcpStream,
     transport: &mut NoiseTransport,

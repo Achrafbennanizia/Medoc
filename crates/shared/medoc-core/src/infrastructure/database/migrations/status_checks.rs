@@ -125,13 +125,13 @@ async fn rebuild_table_on_conn(
         regex::escape(table)
     ))
     .map_err(|e| AppError::Internal(e.to_string()))?;
-    if !name_re.is_match(&new_sql) {
+    if !name_re.is_match(new_sql) {
         return Err(AppError::Internal(format!(
             "status CHECK upgrade: cannot parse CREATE TABLE for {table}"
         )));
     }
     let tmp_sql = name_re
-        .replace(&new_sql, format!("CREATE TABLE \"{tmp}\""))
+        .replace(new_sql, format!("CREATE TABLE \"{tmp}\""))
         .into_owned();
 
     let side_sql: Vec<String> = sqlx::query_scalar(

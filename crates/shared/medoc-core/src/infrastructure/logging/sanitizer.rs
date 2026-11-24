@@ -187,8 +187,8 @@ mod tests {
             .unwrap();
         let out = String::from_utf8(buf).unwrap();
         assert!(!out.contains(&secret));
-        assert!(!out.contains(&email));
-        assert!(!out.contains(&iban));
+        assert!(!out.contains(email));
+        assert!(!out.contains(iban));
         assert!(out.contains(r#""password":"***""#));
         assert!(out.contains("***@***"));
         assert!(

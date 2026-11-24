@@ -36,7 +36,7 @@ async fn master_license_code_sets_serverless_peer_master() {
     let snap = SyncEngine::status(&pool).await.expect("status");
     assert_eq!(snap.deployment.mode, DeploymentMode::ServerlessPeer);
     assert_eq!(snap.deployment.role, DeviceRole::Master);
-    assert_eq!(snap.deployment.unstable_mesh, false);
+    assert!(!snap.deployment.unstable_mesh);
     assert_eq!(lan_listen_block_reason(&pool).await, None);
 }
 

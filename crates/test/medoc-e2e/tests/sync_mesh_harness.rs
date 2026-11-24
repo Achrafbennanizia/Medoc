@@ -67,7 +67,7 @@ async fn patient_created_on_replica_a_is_visible_on_replica_b() {
 
 #[tokio::test]
 async fn later_edit_wins_on_both_devices_for_examination() {
-    let mut mesh = SyncMesh::connect().await;
+    let mesh = SyncMesh::connect().await;
     let created = patient_repo::create(
         &mesh.replica_a,
         &CreatePatient {
@@ -272,7 +272,7 @@ async fn set_cash_verified_for_ids_reaches_replica_b() {
     .expect("payment");
     medoc_core::infrastructure::database::repos::billing::payment::set_cash_verified_for_ids(
         &mesh.replica_a,
-        &[pay.id.clone()],
+        std::slice::from_ref(&pay.id),
         1,
     )
     .await
@@ -716,6 +716,8 @@ async fn contract_reaches_replica_b() {
             period_until: None,
             created_at: "2099-01-01T00:00:00Z".into(),
             document_path: None,
+            active: 1,
+            deactivated_at: None,
         },
     )
     .await
@@ -775,6 +777,7 @@ async fn balance_sheet_snapshot_reaches_replica_b() {
             income_cents: 100,
             expenses_cents: 40,
             payload: serde_json::json!({}),
+            locale: None,
         },
         "mesh-user",
     )

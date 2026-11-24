@@ -50,7 +50,7 @@ async fn sync_push_ingests_remote_app_kv_row() {
     std::env::set_var("MEDOC_SKIP_MASTER_LICENSE", "1");
     let mut lan = LanTestHarness::licensed_master().await;
     let remote = "remote-lan-replica-1";
-    let token = device_token(&remote, &["sync.push"]);
+    let token = device_token(remote, &["sync.push"]);
     let entry = serde_json::json!({
         "id": "lan-e1",
         "deviceId": remote,

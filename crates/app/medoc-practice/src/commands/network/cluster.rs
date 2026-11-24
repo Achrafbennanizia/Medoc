@@ -455,6 +455,7 @@ pub async fn cluster_start_listener(
     start_cluster_listener_task(pool.inner().clone(), &listener).await
 }
 
+#[allow(clippy::redundant_guards)]
 #[tauri::command]
 pub async fn network_set_hidden(
     app: AppHandle,

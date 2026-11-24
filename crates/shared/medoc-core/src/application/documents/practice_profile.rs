@@ -659,6 +659,7 @@ fn parse_header_rows(raw: &str) -> Vec<[Option<String>; 2]> {
     rows
 }
 
+#[allow(clippy::needless_range_loop)]
 fn parse_row_grid(rows: &[serde_json::Value]) -> Vec<[Option<String>; 2]> {
     let mut seen = Vec::new();
     let mut out = Vec::new();
@@ -707,6 +708,23 @@ fn parse_header_layout_fields(value: &serde_json::Value) -> Vec<String> {
         }
     }
     out
+}
+
+pub async fn logo_hidden_on_documents(pool: &SqlitePool) -> bool {
+    match app_kv_repo::get(pool, "practice.logo.v1").await {
+        Ok(Some(raw)) => !crate::infrastructure::pdf::logo_visible_on_documents(&raw),
+        _ => false,
+    }
+}
+
+pub async fn practice_logo(pool: &SqlitePool) -> Option<PdfLogo> {
+    let Ok(Some(raw)) = app_kv_repo::get(pool, "practice.logo.v1").await else {
+        return None;
+    };
+    if !crate::infrastructure::pdf::logo_visible_on_documents(&raw) {
+        return None;
+    }
+    PdfLogo::from_kv_json(&raw)
 }
 
 #[cfg(test)]
@@ -807,21 +825,4 @@ mod tests {
         );
         assert!(parse_header_rows("not json").is_empty());
     }
-}
-
-pub async fn logo_hidden_on_documents(pool: &SqlitePool) -> bool {
-    match app_kv_repo::get(pool, "practice.logo.v1").await {
-        Ok(Some(raw)) => !crate::infrastructure::pdf::logo_visible_on_documents(&raw),
-        _ => false,
-    }
-}
-
-pub async fn practice_logo(pool: &SqlitePool) -> Option<PdfLogo> {
-    let Ok(Some(raw)) = app_kv_repo::get(pool, "practice.logo.v1").await else {
-        return None;
-    };
-    if !crate::infrastructure::pdf::logo_visible_on_documents(&raw) {
-        return None;
-    }
-    PdfLogo::from_kv_json(&raw)
 }

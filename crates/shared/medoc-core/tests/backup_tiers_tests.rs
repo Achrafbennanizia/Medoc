@@ -1,4 +1,6 @@
 //! Tiered backup rotation and the compressed `.mdbk` format.
+// Tests serialise shared env/state with a std Mutex held across awaits on purpose.
+#![allow(clippy::await_holding_lock)]
 
 use std::path::PathBuf;
 use std::sync::Mutex;

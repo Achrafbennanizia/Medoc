@@ -168,7 +168,7 @@ where
 
 pub async fn seat_usage(pool: &SqlitePool, cluster_id: &str) -> Result<SeatUsage, AppError> {
     ensure(pool).await?;
-    release_revoked_pairing_seats(&*pool).await?;
+    release_revoked_pairing_seats(pool).await?;
     let license = load_license(pool).await?;
     let (max_total, max_admin, max_member) = license
         .map(|l| (l.max_total, l.max_admin, l.max_member))

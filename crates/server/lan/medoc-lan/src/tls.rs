@@ -224,6 +224,11 @@ pub async fn plain_http_reachable(addr: std::net::SocketAddr) -> bool {
     )
 }
 
+/// Ensure the TCP port accepts TLS (used in integration checks).
+pub async fn tls_listener_bound(addr: std::net::SocketAddr) -> bool {
+    TcpListener::bind(addr).await.is_ok()
+}
+
 #[cfg(test)]
 mod san_tests {
     use super::generate_self_signed_pem;
@@ -271,9 +276,4 @@ mod san_tests {
         }
         out
     }
-}
-
-/// Ensure the TCP port accepts TLS (used in integration checks).
-pub async fn tls_listener_bound(addr: std::net::SocketAddr) -> bool {
-    TcpListener::bind(addr).await.is_ok()
 }

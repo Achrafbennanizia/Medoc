@@ -397,6 +397,7 @@ pub async fn run_now(pool: &SqlitePool) -> Result<ReconcileReport, AppError> {
     run_against_master(pool).await
 }
 
+#[allow(clippy::unnecessary_get_then_check)]
 async fn run_against_master(pool: &SqlitePool) -> Result<ReconcileReport, AppError> {
     let deployment = load_deployment(pool).await?;
     let local = ensure_local_device(pool, &deployment.device_label).await?;
@@ -499,18 +500,18 @@ async fn run_against_master(pool: &SqlitePool) -> Result<ReconcileReport, AppErr
             report.applied += 1;
         }
         for id in fetch_ids {
-            if remote_map.get(&(id.table.clone(), id.id.clone())).is_none() {
-                if snapshot_row(pool, &id.table, &id.id).await?.is_some() {
-                    force_apply_payload(
-                        pool,
-                        &id.table,
-                        &id.id,
-                        "DELETE",
-                        &serde_json::json!({ "id": id.id }).to_string(),
-                    )
-                    .await?;
-                    report.applied += 1;
-                }
+            if remote_map.get(&(id.table.clone(), id.id.clone())).is_none()
+                && snapshot_row(pool, &id.table, &id.id).await?.is_some()
+            {
+                force_apply_payload(
+                    pool,
+                    &id.table,
+                    &id.id,
+                    "DELETE",
+                    &serde_json::json!({ "id": id.id }).to_string(),
+                )
+                .await?;
+                report.applied += 1;
             }
         }
     }

@@ -1635,11 +1635,7 @@ pub async fn prune_outbox(pool: &SqlitePool) -> Result<u64, AppError> {
         .fetch_all(pool)
         .await
         .map_err(AppError::Database)?;
-        let floor = match cursors.iter().map(|(_, c)| *c).min() {
-            Some(min) => min,
-            // Nobody reads this outbox: everything older than the window may go.
-            None => i64::MAX,
-        };
+        let floor = cursors.iter().map(|(_, c)| *c).min().unwrap_or(i64::MAX);
         let deleted_max: Option<i64> = sqlx::query_scalar(
             "SELECT MAX(seq) FROM sync_outbox
              WHERE device_id = ?1 AND snapshot_for IS NULL AND seq <= ?2 AND created_at < ?3",

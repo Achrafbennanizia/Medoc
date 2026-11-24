@@ -245,6 +245,15 @@ pub fn chart_validation_key(patient_id: &str, section_or_item: &str) -> String {
     format!("{patient_id}|{section_or_item}")
 }
 
+pub fn id_column(table: &str) -> &'static str {
+    match table {
+        "app_kv" => "key",
+        "chart_next_appointment_hint" => "patient_id",
+        "work_time_preference" => "staff_id",
+        _ => "id",
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::queue_of;
@@ -276,14 +285,5 @@ mod tests {
         let predicate = super::synced_app_kv_predicate("key");
         assert!(predicate.contains("key NOT LIKE 'sync.%'"));
         assert!(predicate.contains("key NOT LIKE 'theme.%'"));
-    }
-}
-
-pub fn id_column(table: &str) -> &'static str {
-    match table {
-        "app_kv" => "key",
-        "chart_next_appointment_hint" => "patient_id",
-        "work_time_preference" => "staff_id",
-        _ => "id",
     }
 }

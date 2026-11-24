@@ -122,7 +122,8 @@ pub fn run() {
                 }
             }
 
-            let mut replica_desktop_name: Option<&'static str> = None;
+            // Set on every branch below (the database opened or failed).
+            let replica_desktop_name: Option<&'static str>;
             match db_result {
                 Ok(pool) => {
                     #[cfg(debug_assertions)]

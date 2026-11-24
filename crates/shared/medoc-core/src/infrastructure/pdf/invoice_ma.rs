@@ -60,7 +60,7 @@ pub fn money_ma(cents: i64) -> String {
     let units = (abs / 100).to_string();
     let mut grouped = String::new();
     for (i, ch) in units.chars().enumerate() {
-        if i > 0 && (units.len() - i) % 3 == 0 {
+        if i > 0 && (units.len() - i).is_multiple_of(3) {
             grouped.push('\u{a0}');
         }
         grouped.push(ch);

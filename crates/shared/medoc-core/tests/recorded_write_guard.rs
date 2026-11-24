@@ -57,7 +57,7 @@ fn scan_and_assert(roots: &[std::path::PathBuf], skip_app_kv: bool) {
                 for cap in sql_re.captures_iter(body) {
                     let kind = cap.get(1).unwrap().as_str().to_ascii_uppercase();
                     let table = cap.get(2).unwrap().as_str();
-                    if !synced.iter().any(|t| *t == table) {
+                    if !synced.contains(&table) {
                         continue;
                     }
                     if skip_app_kv && table == "app_kv" {

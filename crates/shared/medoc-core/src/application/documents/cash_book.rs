@@ -210,7 +210,7 @@ pub fn fmt_eur(cents: i64) -> String {
     let euros = (c / 100).to_string();
     let mut grouped = String::new();
     for (i, ch) in euros.chars().enumerate() {
-        if i > 0 && (euros.len() - i) % 3 == 0 {
+        if i > 0 && (euros.len() - i).is_multiple_of(3) {
             grouped.push(',');
         }
         grouped.push(ch);
@@ -278,6 +278,7 @@ fn kind_label(k: &str, locale: &str) -> &'static str {
     }
 }
 
+#[allow(clippy::type_complexity)]
 async fn last_final_close(
     pool: &SqlitePool,
     before_or_on: Option<&str>,

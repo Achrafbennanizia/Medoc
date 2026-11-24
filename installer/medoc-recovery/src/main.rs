@@ -19,6 +19,7 @@ struct Cli {
     cmd: Commands,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Subcommand)]
 enum Commands {
     /// Reconstruct the SQLCipher key via Bridge A, B, or C.

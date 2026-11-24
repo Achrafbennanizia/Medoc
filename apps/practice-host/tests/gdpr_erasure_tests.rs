@@ -62,7 +62,9 @@ async fn erase_removes_treatment_via_chart_and_anonymises_patient() {
     .expect("insert chart");
 
     sqlx::query(
-        "INSERT INTO treatment (id, chart_id, kind) VALUES ('beh-dsgvo-1', 'chart-dsgvo-1', 'Kontrolle')",
+        // Last treatment in 2010: the 10-year retention period is over, so erasure is allowed.
+        "INSERT INTO treatment (id, chart_id, kind, created_at)
+         VALUES ('beh-dsgvo-1', 'chart-dsgvo-1', 'Kontrolle', '2010-03-01 10:00:00')",
     )
     .execute(&pool)
     .await

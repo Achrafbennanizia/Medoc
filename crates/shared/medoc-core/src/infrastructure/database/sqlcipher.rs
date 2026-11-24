@@ -271,6 +271,18 @@ pub async fn rekey_database_file(
     Ok(())
 }
 
+pub async fn open_memory_pool(key: &[u8]) -> Result<SqlitePool, AppError> {
+    let key_pragma = db_key::pragma_key_value(key);
+    let options = SqliteConnectOptions::from_str("sqlite::memory:")
+        .map_err(AppError::Database)?
+        .pragma("key", key_pragma);
+    SqlitePoolOptions::new()
+        .max_connections(2)
+        .connect_with(options)
+        .await
+        .map_err(AppError::Database)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -310,16 +322,4 @@ mod tests {
             "{err}"
         );
     }
-}
-
-pub async fn open_memory_pool(key: &[u8]) -> Result<SqlitePool, AppError> {
-    let key_pragma = db_key::pragma_key_value(key);
-    let options = SqliteConnectOptions::from_str("sqlite::memory:")
-        .map_err(AppError::Database)?
-        .pragma("key", key_pragma);
-    SqlitePoolOptions::new()
-        .max_connections(2)
-        .connect_with(options)
-        .await
-        .map_err(AppError::Database)
 }

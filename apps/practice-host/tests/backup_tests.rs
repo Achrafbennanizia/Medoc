@@ -1,7 +1,6 @@
 //! Backup HMAC sidecars and GFS retention (TASK 2.6).
 
-use chrono::{Datelike, Duration, Utc};
-use medoc_lib::infrastructure::backup::{enforce_retention_at, parse_backup_timestamp, sign_file};
+use medoc_lib::infrastructure::backup::sign_file;
 use medoc_lib::infrastructure::database::repos::admin::audit as audit_repo;
 use std::path::PathBuf;
 use std::sync::Once;
@@ -18,10 +17,6 @@ fn init_audit() {
         std::fs::create_dir_all(&base).expect("tmpdir");
         audit_repo::init_audit_hmac_key(&base).expect("audit key");
     });
-}
-
-fn ts_name(dt: chrono::DateTime<Utc>) -> String {
-    format!("medoc-{}.db", dt.format("%Y%m%dT%H%M%SZ"))
 }
 
 fn temp_backup_dir(label: &str) -> PathBuf {
@@ -147,55 +142,5 @@ async fn vacuum_backup_from_encrypted_db_opens_with_sqlcipher_key() {
     std::fs::remove_dir_all(&dir).ok();
 }
 
-#[test]
-fn backup_retention_keeps_daily_weekly_and_drops_ancient() {
-    let rt = tokio::runtime::Runtime::new().expect("runtime");
-    let _lock = rt.block_on(BACKUP_TEST_LOCK.lock());
-    init_audit();
-    let dir = temp_backup_dir("retention");
-    let now = Utc::now();
-
-    let fresh = dir.join(ts_name(now - Duration::days(5)));
-    // Pin the weekly anchor to Wednesday of its ISO week so the anchor and the
-    // anchor-minus-one-day both land in the same ISO week regardless of which
-    // day-of-week `now` falls on. (Previously `now` on Mon/Sun shifted the pair
-    // across an ISO-week boundary and broke the XOR assertion below.)
-    let week_anchor_raw = now - Duration::weeks(8);
-    let weekday_iso = week_anchor_raw.weekday().number_from_monday() as i64;
-    let week_anchor = week_anchor_raw + Duration::days(3 - weekday_iso);
-    let old_week_a = dir.join(ts_name(week_anchor - Duration::days(1)));
-    let old_week_b = dir.join(ts_name(week_anchor));
-    let monthly = dir.join(ts_name(now - Duration::days(200)));
-    let ancient = dir.join(ts_name(now - Duration::days(400)));
-
-    for p in [&fresh, &old_week_a, &old_week_b, &monthly, &ancient] {
-        std::fs::write(p, b"x").expect("touch file");
-        assert!(
-            parse_backup_timestamp(p).is_some(),
-            "parseable backup name: {}",
-            p.display()
-        );
-    }
-
-    let daily_cutoff = now - Duration::days(30);
-    let ts = parse_backup_timestamp(&fresh).unwrap();
-    assert!(
-        ts >= daily_cutoff,
-        "fresh ts {ts} should be >= daily cutoff {daily_cutoff}"
-    );
-
-    enforce_retention_at(&dir, now).expect("retention");
-
-    assert!(fresh.exists(), "daily window keeps 5-day backup");
-    assert!(monthly.exists(), "monthly tier keeps ~200d backup");
-    assert!(
-        !ancient.exists(),
-        "backups older than 12 months must be removed"
-    );
-    assert!(
-        old_week_a.exists() ^ old_week_b.exists(),
-        "weekly tier keeps one representative per ISO week"
-    );
-
-    std::fs::remove_dir_all(&dir).ok();
-}
+// Rotation (3 days, last week, last half-year) is tested with fixed dates in
+// crates/shared/medoc-core/tests/backup_tiers_tests.rs.

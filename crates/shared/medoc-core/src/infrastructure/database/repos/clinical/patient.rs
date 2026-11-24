@@ -124,6 +124,7 @@ pub async fn patient_ids_open_chart(pool: &SqlitePool) -> Result<Vec<String>, Ap
     Ok(rows.into_iter().map(|r| r.0).collect())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn find_paginated(
     pool: &SqlitePool,
     limit: u32,
@@ -378,6 +379,7 @@ pub async fn create(pool: &SqlitePool, data: &CreatePatient) -> Result<Patient, 
 }
 
 /// F52: same chart/anamnesis/outbox path as [`create`], status `NEW`, insurance NULL when omitted.
+#[allow(clippy::too_many_arguments)]
 pub async fn create_from_import(
     pool: &SqlitePool,
     name: &str,
