@@ -1,6 +1,8 @@
 import { COMPANY_URL } from "./config";
 import type { Dict, Lang } from "./i18n";
+import { DIGITAL_COPY } from "./digital-copy";
 import { PAGES_COPY } from "./pages-copy";
+import type { Country } from "./prefs";
 import { pageHref } from "./route";
 
 const asset = (path: string) => `${import.meta.env.BASE_URL}${path}`;
@@ -193,5 +195,88 @@ export function SecurityPage({ lang }: { lang: Lang }) {
         </div>
       </section>
     </>
+  );
+}
+
+/* ---------- home: Digitalization Pack ---------- */
+export function DigitalizationPack({ lang }: { lang: Lang }) {
+  const p = DIGITAL_COPY[lang].pack;
+  return (
+    <section className="section" id="digitalization" aria-labelledby="pack-title">
+      <div className="wrap pack-grid">
+        <div>
+          <p className="kicker">{p.kicker}</p>
+          <h2 id="pack-title">{p.title}</h2>
+          <p className="lead">{p.lead}</p>
+          <ol className="pack-steps">
+            {p.steps.map((s) => (
+              <li key={s.t}>
+                <h3>{s.t}</h3>
+                <p>{s.d}</p>
+              </li>
+            ))}
+          </ol>
+          <p className="pack-promise">{p.promise}</p>
+          <a className="btn btn-primary" href="#contact">
+            {p.cta}
+          </a>
+        </div>
+        <div className="before-after">
+          <figure>
+            <Photo name="paper-files" alt={p.beforeAlt} sizes="(min-width: 960px) 460px, 100vw" />
+            <figcaption>{p.before}</figcaption>
+          </figure>
+          <figure>
+            <Photo name="reception-digital" alt={p.afterAlt} sizes="(min-width: 960px) 460px, 100vw" />
+            <figcaption>{p.after}</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ---------- home: digital health in the visitor's country ---------- */
+export function DigitalHealth({ lang, country }: { lang: Lang; country: Country }) {
+  const d = DIGITAL_COPY[lang];
+  const c = d.countries[country];
+  return (
+    <section className="section digital" id="digital-health" aria-labelledby="dh-title">
+      <div className="wrap">
+        <header className="section-head">
+          <p className="kicker">{c.kicker}</p>
+          <h2 id="dh-title">{c.title}</h2>
+          <p className="lead">{c.lead}</p>
+        </header>
+        <dl className="dh-stats">
+          {c.stats.map((s) => (
+            <div key={s.v}>
+              <dt>{s.l}</dt>
+              <dd>{s.v}</dd>
+            </div>
+          ))}
+        </dl>
+        <div className="dh-help">
+          <h3>{c.helpTitle}</h3>
+          <ul>
+            {c.help.map((h) => (
+              <li key={h}>{h}</li>
+            ))}
+          </ul>
+          {c.note ? <p className="fine">{c.note}</p> : null}
+        </div>
+        <p className="fine dh-sources">
+          {d.sourcesLabel}:{" "}
+          {c.sources.map((s, i) => (
+            <span key={s.u}>
+              {i ? " · " : ""}
+              <a href={s.u} rel="noopener" target="_blank">
+                {s.t}
+              </a>
+            </span>
+          ))}
+        </p>
+      </div>
+    </section>
   );
 }
