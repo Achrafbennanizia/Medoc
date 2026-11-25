@@ -1,0 +1,47 @@
+# sifralabs.com
+
+Company website for **Sifra Labs**. Static, English, no cookies, no third-party requests. Brand rules: [`../docs/brand/brand-strategy.md`](../docs/brand/brand-strategy.md).
+
+## Run
+
+```bash
+cd sifralabs
+npm ci
+npm run dev      # http://127.0.0.1:4180
+npm run build    # type-check + build → dist/
+```
+
+## Edit
+
+| What | Where |
+|---|---|
+| Pages | `index.html`, `products/`, `security/`, `company/`, `contact/`, `legal/notice/`, `legal/privacy/`, `404.html`. New page: add it to `pages` in `vite.config.ts` and to `public/sitemap.xml` |
+| Shared header, footer, contact block, core diagram | `partials/*.html`, pulled in with `<!-- @include name -->` |
+| Colours, type, layout | `src/site.css` (tokens at the top, dark mode redefines them) |
+| Logo, icons | `public/sifra-mark*.svg`, `public/favicon.svg`. PNGs (`favicon-32`, `apple-touch-icon`, `icon-512`, `og`) are rendered from `brand-src/*.html` with headless Chrome |
+| Security contact | `public/.well-known/security.txt`. **Renew `Expires` before 2027-11-01** |
+| Response headers (CSP, HSTS…) | `public/_headers` (Cloudflare Pages format). If you add analytics or any outside script, add its origin to the CSP |
+| Legal notice | `legal/notice/index.html`. **Fill every `[…]` once the company is registered** |
+
+Claims must stay true to the current release: anything not shipped is labelled "planned" or "research".
+
+## Deploy on Cloudflare Pages (free)
+
+1. Push this repository to GitHub.
+2. Cloudflare dashboard → **Workers & Pages → Create → Pages → Connect to Git** → pick the repo.
+3. Build settings:
+   - Production branch: `main`
+   - Framework preset: **None**
+   - Root directory: `sifralabs`
+   - Build command: `npm run build`
+   - Build output directory: `dist`
+   (`.node-version` pins Node 22.)
+4. After the first deploy: **Custom domains → Set up a custom domain** → `sifralabs.com`, then again for `www.sifralabs.com`.
+
+## MeDoc at medoc.sifralabs.com
+
+The site links to `https://medoc.sifralabs.com/`. The MeDoc site (`../website`) is on GitHub Pages; to move it there:
+
+1. Cloudflare DNS → add `CNAME` `medoc` → `<your-github-user>.github.io`, **DNS only** (grey cloud).
+2. GitHub repo → **Settings → Pages → Custom domain** → `medoc.sifralabs.com` → Save, then tick **Enforce HTTPS** when offered.
+3. In `../website/vite.config.ts`, change `base` to `"/"` (the site no longer lives under `/Medoc/`), commit and push.

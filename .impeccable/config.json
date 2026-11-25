@@ -1,0 +1,71 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "sifralabs/index.html"
+        ],
+        "createdAt": "2026-11-25T17:38:10.864Z",
+        "reason": "Claude: sizes are set in sifralabs/src/site.css, not the HTML (h1 67-88px, h2 50px, h3 24-34px, body 17px; every step >=1.25x); verified rendered at 1280px and 375px"
+      },
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "sifralabs/products/index.html"
+        ],
+        "createdAt": "2026-11-25T17:38:10.877Z",
+        "reason": "Claude: sizes are set in sifralabs/src/site.css, not the HTML (h1 67-88px, h2 50px, h3 24-34px, body 17px; every step >=1.25x); verified rendered at 1280px and 375px"
+      },
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "sifralabs/security/index.html"
+        ],
+        "createdAt": "2026-11-25T17:38:10.888Z",
+        "reason": "Claude: sizes are set in sifralabs/src/site.css, not the HTML (h1 67-88px, h2 50px, h3 24-34px, body 17px; every step >=1.25x); verified rendered at 1280px and 375px"
+      },
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "sifralabs/company/index.html"
+        ],
+        "createdAt": "2026-11-25T17:38:10.899Z",
+        "reason": "Claude: sizes are set in sifralabs/src/site.css, not the HTML (h1 67-88px, h2 50px, h3 24-34px, body 17px; every step >=1.25x); verified rendered at 1280px and 375px"
+      },
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "sifralabs/contact/index.html"
+        ],
+        "createdAt": "2026-11-25T17:38:10.908Z",
+        "reason": "Claude: sizes are set in sifralabs/src/site.css, not the HTML (h1 67-88px, h2 50px, h3 24-34px, body 17px; every step >=1.25x); verified rendered at 1280px and 375px"
+      },
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "sifralabs/legal/notice/index.html"
+        ],
+        "createdAt": "2026-11-25T17:38:10.919Z",
+        "reason": "Claude: sizes are set in sifralabs/src/site.css, not the HTML (h1 67-88px, h2 50px, h3 24-34px, body 17px; every step >=1.25x); verified rendered at 1280px and 375px"
+      },
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "sifralabs/legal/privacy/index.html"
+        ],
+        "createdAt": "2026-11-25T17:38:10.929Z",
+        "reason": "Claude: sizes are set in sifralabs/src/site.css, not the HTML (h1 67-88px, h2 50px, h3 24-34px, body 17px; every step >=1.25x); verified rendered at 1280px and 375px"
+      }
+    ]
+  }
+}

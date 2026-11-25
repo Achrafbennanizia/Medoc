@@ -29,6 +29,7 @@ npm run build      # type-check + production build → dist/
 | Legal texts (EN → EU, DE → Germany, FR → France, AR → Morocco) | `src/legal/*.ts`; company details in `src/legal/entity.ts` — **fill every `[…]` before publishing** |
 | Product tour text + screenshot list | `src/product-copy.ts` (sections, captions) and `src/product-points.ts` (detail bullets) |
 | Colours, type, layout | `src/styles.css` (tokens at the top; dark mode redefines the same tokens) |
+| Link to the company site, contact e-mail | `src/config.ts` (`COMPANY_URL`, `CONTACT_EMAIL`). The company site itself is `../sifralabs/` |
 
 Design rationale: `docs/launch/03-website-design-plan.md`. Claims must stay within what the app does today: features not shipped yet are listed under "En préparation".
 

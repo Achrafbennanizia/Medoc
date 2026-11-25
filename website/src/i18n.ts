@@ -205,6 +205,7 @@ const en = {
   },
   footer: {
     tagline: "Dental practice software. Your data, in your practice.",
+    company: "A Sifra Labs product",
     legal: "Legal notice",
     privacy: "Privacy policy",
     terms: "Terms of sale",
@@ -402,6 +403,7 @@ const fr: Dict = {
   },
   footer: {
     tagline: "Logiciel pour cabinets dentaires. Vos données, dans votre cabinet.",
+    company: "Un produit Sifra Labs",
     legal: "Mentions légales",
     privacy: "Politique de confidentialité",
     terms: "Conditions générales de vente",
@@ -597,6 +599,7 @@ const ar: Dict = {
   },
   footer: {
     tagline: "برنامج لعيادات طب الأسنان. بياناتك داخل عيادتك.",
+    company: "منتج من Sifra Labs",
     legal: "الإشعار القانوني",
     privacy: "سياسة الخصوصية",
     terms: "شروط البيع",
@@ -792,6 +795,7 @@ const de: Dict = {
   },
   footer: {
     tagline: "Software für Zahnarztpraxen. Ihre Daten, in Ihrer Praxis.",
+    company: "Ein Produkt von Sifra Labs",
     legal: "Impressum",
     privacy: "Datenschutzerklärung",
     terms: "AGB",
