@@ -25,18 +25,19 @@ npm run build    # type-check + build → dist/
 
 Claims must stay true to the current release: anything not shipped is labelled "planned" or "research".
 
-## Deploy on Cloudflare Pages (free)
+## Deploy on Cloudflare (free)
 
-1. Push this repository to GitHub.
-2. Cloudflare dashboard → **Workers & Pages → Create → Pages → Connect to Git** → pick the repo.
-3. Build settings:
+The site deploys as a Worker with static assets; `wrangler.jsonc` holds the config, `public/_headers` the security headers.
+
+1. Cloudflare dashboard → **Workers & Pages → Create → Import a repository** → pick the repo.
+2. Settings:
+   - Project name: `sifralabs` (must match `name` in `wrangler.jsonc`)
    - Production branch: `main`
-   - Framework preset: **None**
    - Root directory: `sifralabs`
    - Build command: `npm run build`
-   - Build output directory: `dist`
+   - Deploy command: `npx wrangler deploy`
    (`.node-version` pins Node 22.)
-4. After the first deploy: **Custom domains → Set up a custom domain** → `sifralabs.com`, then again for `www.sifralabs.com`.
+3. After the first deploy: **Settings → Domains & Routes → Add → Custom domain** → `sifralabs.com`, then `www.sifralabs.com`.
 
 ## MeDoc at medoc.sifralabs.com
 

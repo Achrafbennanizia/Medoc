@@ -1,0 +1,10 @@
+// Cloudflare Workers static-assets deploy for sifralabs.com (see README "Deploy").
+// The name must match the Worker connected in the Cloudflare dashboard.
+{
+  "name": "sifralabs",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "404-page"
+  }
+}
