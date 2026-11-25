@@ -66,42 +66,70 @@ if (dialog) {
   });
 }
 
-/* ---------- contact form: prepares a structured e-mail in the visitor's own mail app ---------- */
+/* ---------- contact form: sends through /api/contact; falls back to the visitor's mail app ---------- */
+const SENT = "Thank you. Your message is on its way to contact@sifralabs.com, and we reply within two working days.";
+const FALLBACK =
+  "We couldn't send it from the website just now, so your e-mail app is opening with the message ready: press Send there. Nothing opened? Copy the e-mail and send it to contact@sifralabs.com.";
+
 for (const form of document.querySelectorAll<HTMLFormElement>("form.mail-form")) {
   const to = form.dataset.to!;
+  const api = form.dataset.api!;
   const status = form.querySelector<HTMLElement>(".mail-sent")!;
+  const msg = status.querySelector<HTMLElement>("[data-msg]")!;
   const copyBtn = form.querySelector<HTMLButtonElement>("[data-copy]")!;
+  const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+  const shownAt = Date.now();
+  // One key per message: a double click or a retry is delivered once (the Worker remembers it for 10 minutes).
+  let key = crypto.randomUUID();
   let prepared = "";
-  form.addEventListener("submit", (e) => {
+
+  form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const d = new FormData(form);
     const v = (k: string) => String(d.get(k) ?? "").trim();
-    const line = (label: string, value: string) => `${label}: ${value || "–"}`;
-    // Default subject: topic and organisation, so the inbox shows what and who at a glance.
     const subject = ["Sifra Labs", v("topic"), v("org")].filter(Boolean).join(" · ");
+    const line = (label: string, value: string) => `${label}: ${value || "–"}`;
     const body = [
-      "Hello Sifra Labs team,",
-      "",
-      `I'm writing about: ${v("topic")}.`,
-      "",
-      "— Contact —",
-      line("Name", v("name")),
-      line("Organisation", v("org")),
-      line("E-mail", v("email")),
-      line("Phone", v("phone")),
-      "",
-      "— Message —",
-      v("message"),
-      "",
-      `Sent from sifralabs.com on ${new Date().toLocaleDateString("en-GB")}`,
-      "",
-      "Best regards,",
-      v("name"),
+      "Hello Sifra Labs team,", "",
+      `I'm writing about: ${v("topic")}.`, "",
+      "— Contact —", line("Name", v("name")), line("Organisation", v("org")), line("E-mail", v("email")), line("Phone", v("phone")), "",
+      "— Message —", v("message"), "",
+      `Sent from sifralabs.com on ${new Date().toLocaleDateString("en-GB")}`, "",
+      "Best regards,", v("name"),
     ].join("\n");
     prepared = `To: ${to}\nSubject: ${subject}\n\n${body}`;
+
+    submit.disabled = true;
+    submit.textContent = "Sending…";
+    let ok = false;
+    try {
+      const res = await fetch(api, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Idempotency-Key": key },
+        body: JSON.stringify({
+          form: "sifra", name: v("name"), email: v("email"), phone: v("phone"), org: v("org"),
+          topic: v("topic"), message: v("message"), lang: document.documentElement.lang, country: "",
+          website: v("website"), elapsed: Date.now() - shownAt,
+        }),
+      });
+      ok = res.ok && ((await res.json()) as { ok?: boolean }).ok === true;
+    } catch {
+      ok = false;
+    }
+    submit.disabled = false;
+    submit.textContent = "Send message";
     status.hidden = false;
-    copyBtn.textContent = "Copy the e-mail";
-    location.href = `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    if (ok) {
+      msg.textContent = SENT;
+      copyBtn.hidden = true;
+      form.reset();
+      key = crypto.randomUUID();
+    } else {
+      msg.textContent = FALLBACK;
+      copyBtn.hidden = false;
+      copyBtn.textContent = "Copy the e-mail";
+      location.href = `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    }
   });
   copyBtn.addEventListener("click", async () => {
     try {

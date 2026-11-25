@@ -25,6 +25,9 @@ export type PagesCopy = {
     opened: string;
     copy: string;
     copied: string;
+    sending: string;
+    sent: string;
+    fallback: string;
   };
   security: {
     meta: string;
@@ -90,6 +93,9 @@ const en: PagesCopy = {
     opened: "Your e-mail app should now open with the message ready: check it and press Send. Nothing opened? Copy the e-mail and send it to",
     copy: "Copy the e-mail",
     copied: "Copied",
+    sending: "Sending…",
+    sent: "Thank you. Your request is on its way to our team, and we will call or write back within two working days.",
+    fallback: "We couldn't send it from the website just now, so your e-mail app is opening with the message ready: press Send there. Nothing opened? Copy the e-mail and send it to",
   },
   security: {
     meta: "Security and privacy · MeDoc",
@@ -182,6 +188,9 @@ const fr: PagesCopy = {
     opened: "Votre application e-mail devrait s'ouvrir avec le message prêt : vérifiez-le et cliquez sur Envoyer. Rien ne s'est ouvert ? Copiez l'e-mail et envoyez-le à",
     copy: "Copier l'e-mail",
     copied: "Copié",
+    sending: "Envoi…",
+    sent: "Merci. Votre demande est partie vers notre équipe : nous vous appelons ou vous écrivons sous deux jours ouvrés.",
+    fallback: "L'envoi depuis le site n'a pas abouti : votre application e-mail s'ouvre avec le message prêt, cliquez sur Envoyer. Rien ne s'est ouvert ? Copiez l'e-mail et envoyez-le à",
   },
   security: {
     meta: "Sécurité et confidentialité · MeDoc",
@@ -274,6 +283,9 @@ const ar: PagesCopy = {
     opened: "سيُفتح الآن تطبيق البريد لديكم والرسالة جاهزة: راجعوها ثم اضغطوا إرسال. لم يُفتح شيء؟ انسخوا الرسالة وأرسلوها إلى",
     copy: "نسخ الرسالة",
     copied: "تم النسخ",
+    sending: "جارٍ الإرسال…",
+    sent: "شكرًا. وصل طلبكم إلى فريقنا، وسنتصل بكم أو نراسلكم خلال يومَي عمل.",
+    fallback: "تعذّر الإرسال من الموقع الآن، لذلك يُفتح تطبيق البريد لديكم والرسالة جاهزة: اضغطوا إرسال. لم يُفتح شيء؟ انسخوا الرسالة وأرسلوها إلى",
   },
   security: {
     meta: "الأمان والسرية · MeDoc",
@@ -366,6 +378,9 @@ const de: PagesCopy = {
     opened: "Ihr E-Mail-Programm sollte sich jetzt mit der fertigen Nachricht öffnen: Prüfen Sie sie und klicken Sie auf Senden. Nichts geöffnet? Kopieren Sie die E-Mail und senden Sie sie an",
     copy: "E-Mail kopieren",
     copied: "Kopiert",
+    sending: "Wird gesendet…",
+    sent: "Vielen Dank. Ihre Anfrage ist bei unserem Team, wir rufen Sie innerhalb von zwei Werktagen an oder schreiben Ihnen.",
+    fallback: "Das Senden über die Website hat gerade nicht geklappt, deshalb öffnet sich Ihr E-Mail-Programm mit der fertigen Nachricht: Klicken Sie dort auf Senden. Nichts geöffnet? Kopieren Sie die E-Mail und senden Sie sie an",
   },
   security: {
     meta: "Sicherheit und Datenschutz · MeDoc",

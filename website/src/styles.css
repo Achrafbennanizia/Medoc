@@ -2164,3 +2164,13 @@ html[dir="rtl"] .country-select select {
   flex: 1 1 280px;
   color: var(--ink);
 }
+.trap {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+.form {
+  position: relative;
+}

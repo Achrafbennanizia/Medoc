@@ -142,7 +142,7 @@ export const LEGAL_DE: LegalSet = {
           blocks: [
             {
               kind: "p",
-              text: "Das Demo-Formular sendet nichts an unseren Server. Es öffnet Ihr E-Mail-Programm mit einer vorbereiteten Nachricht an {email}. Erst wenn Sie diese E-Mail absenden, erhalten wir Ihre Angaben. Wenn Sie den WhatsApp-Link nutzen, gelten zusätzlich die Datenschutzbestimmungen von WhatsApp (Meta); dabei können Daten in Drittländer übermittelt werden.",
+              text: "Das Demo-Formular überträgt Ihre Eingaben (Name, Praxis, Ort, Telefon, E-Mail, Nachricht) verschlüsselt an unseren Server unter sifralabs.com, betrieben bei Cloudflare, der sie per E-Mail an {email} weiterleitet; unser Postfach liegt bei Zoho. Die Website speichert keine Kopie. Ist unser Server nicht erreichbar, öffnet sich stattdessen Ihr E-Mail-Programm mit einer vorbereiteten Nachricht. Wenn Sie den WhatsApp-Link nutzen, gelten zusätzlich die Datenschutzbestimmungen von WhatsApp (Meta); dabei können Daten in Drittländer übermittelt werden.",
             },
           ],
         },
@@ -240,7 +240,7 @@ export const LEGAL_DE: LegalSet = {
           blocks: [
             {
               kind: "p",
-              text: "Das Demo-Formular überträgt keine Daten an unseren Server. Es öffnet Ihr E-Mail-Programm mit einer vorbereiteten Nachricht an {email}. Ob Sie diese Nachricht absenden, entscheiden Sie selbst. Wenn Sie uns schreiben, verarbeiten wir Ihre Angaben (etwa Name, Praxis, Kontaktdaten, Inhalt der Anfrage), um die Anfrage zu beantworten. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO, soweit die Anfrage auf einen Vertrag zielt, im Übrigen Art. 6 Abs. 1 lit. f DSGVO.",
+              text: "Das Demo-Formular überträgt Ihre Eingaben verschlüsselt an unseren Server unter sifralabs.com (Cloudflare), der sie per E-Mail an {email} weiterleitet (Postfach bei Zoho). Der Server speichert keine Kopie. Ist er nicht erreichbar, öffnet sich stattdessen Ihr E-Mail-Programm mit einer vorbereiteten Nachricht. Wenn Sie uns schreiben, verarbeiten wir Ihre Angaben (etwa Name, Praxis, Kontaktdaten, Inhalt der Anfrage), um die Anfrage zu beantworten. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO, soweit die Anfrage auf einen Vertrag zielt, im Übrigen Art. 6 Abs. 1 lit. f DSGVO.",
             },
             {
               kind: "p",

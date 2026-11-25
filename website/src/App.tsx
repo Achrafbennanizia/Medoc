@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { Product } from "./Product";
-import { COMPANY_URL, CONTACT_EMAIL, type Currency, PRICES, WHATSAPP_NUMBER } from "./config";
+import { COMPANY_URL, CONTACT_API, CONTACT_EMAIL, type Currency, PRICES, WHATSAPP_NUMBER } from "./config";
 import { DICTS, type Dict, LANGS, LOCALE, type Lang } from "./i18n";
 import { LEGAL_DOCS, LegalPage, legalHref } from "./Legal";
 import { Odontogram } from "./Odontogram";
@@ -456,12 +456,17 @@ function Faq({ t }: { t: Dict }) {
 function Contact({ t, lang, locale, country }: { t: Dict; lang: Lang; locale: string; country: Country }) {
   const c = t.contact;
   const m = PAGES_COPY[lang].mail;
-  // After sending: the prepared e-mail, kept so the visitor can copy it if no mail app opened.
+  // After sending: "sent", or "fallback" with the prepared e-mail kept for copying if no mail app opened.
+  const [state, setState] = useState<"idle" | "sending" | "sent" | "fallback">("idle");
   const [prepared, setPrepared] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const onSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const [shownAt] = useState(() => Date.now());
+  // One key per request: a double click or a retry is delivered once.
+  const [key, setKey] = useState(() => crypto.randomUUID());
+  const onSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const d = new FormData(e.currentTarget);
+    const form = e.currentTarget;
+    const d = new FormData(form);
     const v = (k: string) => String(d.get(k) ?? "").trim();
     const line = (label: string, value: string) => `${label}: ${value || "–"}`;
     // Default subject, with the practice and city so the inbox shows who is asking.
@@ -491,8 +496,39 @@ function Contact({ t, lang, locale, country }: { t: Dict; lang: Lang; locale: st
     ].join("\n");
     setPrepared(`${subject}\n\n${body}`);
     setCopied(false);
-    // Opens the visitor's own e-mail app (Mail, Outlook, Gmail…) with everything filled in; they press Send.
-    location.href = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    setState("sending");
+    let ok = false;
+    try {
+      const res = await fetch(CONTACT_API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Idempotency-Key": key },
+        body: JSON.stringify({
+          form: "medoc",
+          name: v("name"),
+          email: v("email"),
+          phone: v("phone"),
+          org: v("practice"),
+          city: v("city"),
+          message: v("message"),
+          lang,
+          country: COUNTRY_COPY[lang].names[country],
+          website: v("website"),
+          elapsed: Date.now() - shownAt,
+        }),
+      });
+      ok = res.ok && ((await res.json()) as { ok?: boolean }).ok === true;
+    } catch {
+      ok = false;
+    }
+    if (ok) {
+      setState("sent");
+      form.reset();
+      setKey(crypto.randomUUID());
+    } else {
+      setState("fallback");
+      // Opens the visitor's own e-mail app (Mail, Outlook, Gmail…) with everything filled in; they press Send.
+      location.href = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    }
   };
   const copy = async () => {
     if (!prepared) return;
@@ -520,6 +556,10 @@ function Contact({ t, lang, locale, country }: { t: Dict; lang: Lang; locale: st
           </p>
         </div>
         <form className="form" onSubmit={onSubmit}>
+          {/* Bot trap: people never see or fill this field. */}
+          <label className="trap" aria-hidden="true">
+            Website <input name="website" tabIndex={-1} autoComplete="off" />
+          </label>
           <label>
             <span>
               {c.name} <abbr title={c.required}>*</abbr>
@@ -551,15 +591,19 @@ function Contact({ t, lang, locale, country }: { t: Dict; lang: Lang; locale: st
             <textarea name="message" rows={4} />
           </label>
           <div className="span-2 form-foot">
-            <button className="btn btn-primary" type="submit">
-              {c.send}
+            <button className="btn btn-primary" type="submit" disabled={state === "sending"}>
+              {state === "sending" ? m.sending : c.send}
             </button>
             <p className="fine">{c.note}</p>
           </div>
-          {prepared ? (
+          {state === "sent" ? (
+            <div className="span-2 mail-sent" role="status">
+              <p>{m.sent}</p>
+            </div>
+          ) : state === "fallback" && prepared ? (
             <div className="span-2 mail-sent" role="status">
               <p>
-                {m.opened} <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
+                {m.fallback} <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
               </p>
               <button className="btn btn-ghost btn-sm" type="button" onClick={copy}>
                 {copied ? m.copied : m.copy}

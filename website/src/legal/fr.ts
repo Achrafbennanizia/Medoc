@@ -156,7 +156,7 @@ export const LEGAL_FR: LegalSet = {
           blocks: [
             {
               kind: "p",
-              text: "Le formulaire de démonstration n’envoie rien à nos serveurs : il ouvre votre messagerie avec un message prérempli vers {email}. Nous utilisons ce que vous nous écrivez pour vous répondre et, si vous devenez client, pour exécuter le contrat et tenir notre comptabilité.",
+              text: "Le formulaire de démonstration transmet ce que vous saisissez (nom, cabinet, ville, téléphone, e-mail, message) par une connexion chiffrée à notre serveur sifralabs.com, hébergé par Cloudflare, qui le transfère par e-mail à {email} ; notre messagerie est hébergée par Zoho. Le site n’en garde aucune copie. Si notre serveur est injoignable, votre messagerie s’ouvre à la place avec un message prérempli. Nous utilisons ce que vous nous écrivez pour vous répondre et, si vous devenez client, pour exécuter le contrat et tenir notre comptabilité.",
             },
             {
               kind: "p",
@@ -264,7 +264,7 @@ export const LEGAL_FR: LegalSet = {
           blocks: [
             {
               kind: "p",
-              text: "Le formulaire de démonstration n’envoie aucune donnée à un serveur. Il ouvre votre logiciel de messagerie avec un message prérempli à destination de {email}. Nous ne recevons que le courriel que vous décidez d’envoyer.",
+              text: "Le formulaire de démonstration envoie vos saisies par une connexion chiffrée à notre serveur sifralabs.com (Cloudflare), qui les transfère par e-mail à {email} (messagerie hébergée par Zoho). Le serveur n’en garde aucune copie. S’il est injoignable, votre logiciel de messagerie s’ouvre à la place avec un message prérempli.",
             },
             {
               kind: "p",

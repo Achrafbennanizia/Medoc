@@ -167,7 +167,7 @@ export const LEGAL_EN: LegalSet = {
           blocks: [
             {
               kind: "p",
-              text: "The demo form does not send anything to our server. It opens your own e-mail program with a prepared message to {email}. You decide whether to send it.",
+              text: "The demo form sends what you enter (name, practice, city, phone, e-mail, message) over an encrypted connection to our server at sifralabs.com, run on Cloudflare, which forwards it by e-mail to {email}; our mailbox is hosted by Zoho. The website keeps no copy. If our server can't be reached, your own e-mail program opens with the prepared message instead, and you decide whether to send it.",
             },
             {
               kind: "p",
@@ -270,7 +270,7 @@ export const LEGAL_EN: LegalSet = {
               items: [
                 "Server logs: {hostingProvider} records your IP address, the date and time of the request and the page requested. Purpose: delivering the website and protecting it against misuse and attacks. Legal basis: Article 6(1)(f), our legitimate interest in a secure, working website. The logs are kept only as long as needed for this purpose and then deleted automatically.",
                 "Local storage: your chosen language and light or dark theme are stored in your browser only, because you asked for this function. This information is not sent to us. Storing it is strictly necessary for a service you requested (Article 5(3) of Directive 2002/58/EC). You can delete it in your browser at any time.",
-                "Demo form: the form does not transmit data to our server. It opens your own e-mail program with a prepared message to {email}. Nothing is processed by us until you send that e-mail.",
+                "Demo form: your entries are sent over an encrypted connection to our server at sifralabs.com (Cloudflare), which forwards them by e-mail to {email} (mailbox hosted by Zoho). The server keeps no copy. If it can't be reached, your own e-mail program opens with a prepared message instead.",
                 "WhatsApp: if you use the optional WhatsApp link, WhatsApp, a service of Meta, processes your data as its own controller under its own privacy policy. Use e-mail if you do not want this.",
               ],
             },

@@ -49,11 +49,13 @@
           <div>
             <h2 id="write-h">Write to us</h2>
             <p class="lede">
-              Fill in the form and your own e-mail app opens with the message ready, addressed to
-              contact@sifralabs.com. Check it and press Send. This site stores nothing.
+              Your message goes straight to contact@sifralabs.com, and we reply from there within two
+              working days. Nothing is kept on this website.
             </p>
           </div>
-          <form class="mail-form" data-to="contact@sifralabs.com">
+          <form class="mail-form" data-to="contact@sifralabs.com" data-api="/api/contact">
+            <!-- Bot trap: people never see or fill this field. -->
+            <label class="trap" aria-hidden="true">Website <input name="website" tabindex="-1" autocomplete="off" /></label>
             <label><span>Your name <abbr title="Required">*</abbr></span><input name="name" required autocomplete="name" /></label>
             <label><span>Organisation</span><input name="org" autocomplete="organization" /></label>
             <label><span>E-mail <abbr title="Required">*</abbr></span><input name="email" type="email" required autocomplete="email" /></label>
@@ -69,12 +71,12 @@
             </label>
             <label class="span-2"><span>Message <abbr title="Required">*</abbr></span><textarea name="message" rows="5" required></textarea></label>
             <div class="span-2 form-foot">
-              <button class="btn" type="submit">Open in my e-mail app</button>
+              <button class="btn" type="submit">Send message</button>
               <p class="fine">Please don't include patient records.</p>
             </div>
             <div class="span-2 mail-sent" role="status" hidden>
-              <p>Your e-mail app should now open with the message ready: check it and press Send. Nothing opened? Copy the e-mail and send it to <a href="mailto:contact@sifralabs.com">contact@sifralabs.com</a>.</p>
-              <button class="btn btn-quiet" type="button" data-copy>Copy the e-mail</button>
+              <p data-msg></p>
+              <button class="btn btn-quiet" type="button" data-copy hidden>Copy the e-mail</button>
             </div>
           </form>
         </div>

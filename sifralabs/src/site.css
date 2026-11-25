@@ -2052,3 +2052,22 @@ h3 {
   flex: 1 1 280px;
   color: var(--ink);
 }
+
+.trap {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+.mail-form {
+  position: relative;
+}
+.mail-form button[disabled] {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+[hidden] {
+  display: none !important;
+}
