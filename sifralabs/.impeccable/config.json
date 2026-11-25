@@ -11,6 +11,69 @@
         ],
         "createdAt": "2026-11-25T18:01:47.527Z",
         "reason": "Claude: render source for the 1200x630 share image, text sits 96px from the edges (checked in the rendered og.png); not a page visitors see"
+      },
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "legal/notice/index.html"
+        ],
+        "createdAt": "2026-11-25T18:13:23.469Z",
+        "reason": "Claude: sizes live in src/site.css, not the HTML (h1 40-88px, h2 32-50px, h3 17-34px, body 17px; every step >=1.25x); verified rendered at 1366px and 390px"
+      },
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "company/index.html"
+        ],
+        "createdAt": "2026-11-25T18:13:23.483Z",
+        "reason": "Claude: sizes live in src/site.css, not the HTML (h1 40-88px, h2 32-50px, h3 17-34px, body 17px; every step >=1.25x); verified rendered at 1366px and 390px"
+      },
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "products/index.html"
+        ],
+        "createdAt": "2026-11-25T18:13:23.496Z",
+        "reason": "Claude: sizes live in src/site.css, not the HTML (h1 40-88px, h2 32-50px, h3 17-34px, body 17px; every step >=1.25x); verified rendered at 1366px and 390px"
+      },
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "security/index.html"
+        ],
+        "createdAt": "2026-11-25T18:13:23.509Z",
+        "reason": "Claude: sizes live in src/site.css, not the HTML (h1 40-88px, h2 32-50px, h3 17-34px, body 17px; every step >=1.25x); verified rendered at 1366px and 390px"
+      },
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "contact/index.html"
+        ],
+        "createdAt": "2026-11-25T18:13:23.521Z",
+        "reason": "Claude: sizes live in src/site.css, not the HTML (h1 40-88px, h2 32-50px, h3 17-34px, body 17px; every step >=1.25x); verified rendered at 1366px and 390px"
+      },
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "legal/privacy/index.html"
+        ],
+        "createdAt": "2026-11-25T18:13:23.533Z",
+        "reason": "Claude: sizes live in src/site.css, not the HTML (h1 40-88px, h2 32-50px, h3 17-34px, body 17px; every step >=1.25x); verified rendered at 1366px and 390px"
+      },
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "index.html"
+        ],
+        "createdAt": "2026-11-25T18:13:23.544Z",
+        "reason": "Claude: sizes live in src/site.css, not the HTML (h1 40-88px, h2 32-50px, h3 17-34px, body 17px; every step >=1.25x); verified rendered at 1366px and 390px"
       }
     ]
   }
