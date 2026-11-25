@@ -163,3 +163,33 @@ for (const form of document.querySelectorAll<HTMLFormElement>("form.mail-form"))
     }
   });
 }
+
+/* ---------- country view: remembered in a cookie only when the visitor picks a country ---------- */
+const picker = document.querySelector(".ctry-picker");
+if (picker) {
+  const COOKIE = "sifra_country";
+  const panels = [...document.querySelectorAll<HTMLElement>(".ctry")];
+  const buttons = [...picker.querySelectorAll<HTMLButtonElement>("[data-pick]")];
+  const show = (c: string) => {
+    for (const p of panels) p.hidden = p.dataset.country !== c;
+    for (const b of buttons) b.setAttribute("aria-pressed", String(b.dataset.pick === c));
+  };
+  // A guess from the time zone, without asking for location; the cookie wins once the visitor chooses.
+  const guess = () => {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone ?? "";
+    if (tz === "Africa/Casablanca" || tz === "Africa/El_Aaiun") return "MA";
+    if (tz === "Europe/Paris") return "FR";
+    if (/^Europe\/(Berlin|Vienna|Zurich)$/.test(tz)) return "DE";
+    if (tz.startsWith("Europe/")) return "EU";
+    return "MA";
+  };
+  const saved = /(?:^|; )sifra_country=(MA|FR|DE|EU)/.exec(document.cookie)?.[1];
+  show(saved ?? guess());
+  for (const b of buttons) {
+    b.addEventListener("click", () => {
+      const c = b.dataset.pick!;
+      show(c);
+      document.cookie = `${COOKIE}=${c}; Max-Age=31536000; Path=/; SameSite=Lax${location.protocol === "https:" ? "; Secure" : ""}`;
+    });
+  }
+}
