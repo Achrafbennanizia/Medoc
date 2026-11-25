@@ -1,5 +1,5 @@
 // Contact details used by the demo form, the WhatsApp button and the footer.
-export const CONTACT_EMAIL = "demo@sifralabs.com";
+export const CONTACT_EMAIL = "contact@sifralabs.com";
 
 // The company site (sifralabs/ in this repo), linked from the footer.
 export const COMPANY_URL = "https://sifralabs.com/";

@@ -30,7 +30,7 @@ Ordered by how much each one blocks selling.
 | 1 | **No company name or legal entity.** `website/src/legal/entity.ts` is all `[…]` placeholders. | A legal notice with placeholders is invalid; nobody signs a contract with a placeholder. | Register Sifra Labs (SARL AU, Morocco), fill `entity.ts`. |
 | 2 | **No trademark** for company or product. | Without it you cannot stop a copy, and a prior owner can stop you. | OMPIC filing, then WIPO Madrid (§3.4). |
 | 3 | **The product name "MeDoc" carries two risks.** *M.E.Doc* is the Ukrainian accounting software whose update server spread the NotPetya malware in 2017, the most expensive cyber-attack on record. *Médoc* is a protected Bordeaux wine appellation in the EU. | A security-first brand should not share a name with a famous supply-chain attack, and EU marks that evoke a protected appellation can be opposed. | Keep MeDoc for the Morocco launch, run a clearance search before EU entry, and let the masterbrand carry trust so a later product rename is cheap. |
-| 4 | **No real contact channel.** Site uses `demo@example.com`, WhatsApp empty. | Every call to action is dead. | Buy the domain, set up `hello@` and `demo@`, fill `website/src/config.ts`. |
+| 4 | **No real contact channel.** Site uses `demo@example.com`, WhatsApp empty. | Every call to action is dead. | Buy the domain, set up `hello@` and `contact@`, fill `website/src/config.ts`. |
 | 5 | **Unsigned installers.** | Gatekeeper and SmartScreen warnings are the first brand impression at install, and they say "untrusted". | Apple Developer ID + notarization, Windows Authenticode certificate in the company's name. |
 | 6 | **No trust centre.** No `security.txt`, vulnerability-disclosure policy, incident-response page or status page. | For a security brand these *are* the marketing. EU CRA will require vulnerability handling anyway. | `/.well-known/security.txt`, a disclosure page, a security whitepaper (Loi 09-08 / GDPR one-pager already planned). |
 | 7 | **MDR classification contradicts itself** (README "not a medical device" vs PMS "Class I"). | A brand built on accountability cannot publish two answers. | Decide, document, align every page (see SWOT G-01). |
@@ -87,7 +87,7 @@ One word that already means **numbers, computing and encryption** in every targe
 1. **Domains:** register `sifralabs.com` now (primary). Defensive: `sifralabs.ma`, `sifra.ma`, `sifra.eu`, `sifra.health` (all showed no DNS on 2026-11-25; confirm at the registrar). Later, try to buy `sifra.com`.
 2. **Handles:** `sifralabs` on GitHub, X, LinkedIn, Instagram, YouTube. Check LinkedIn and Instagram by hand.
 3. **Trademark:** full search on TMview, WIPO Global Brand Database and OMPIC first. Then file **Sifra Labs** (word + mark) at OMPIC in Nice classes **9** (software), **42** (SaaS, software development, IT security), **35** (the future in-app shop), **44** (only if you ever offer health services), **10** (only when devices are real). Extend through the Madrid system to the EU, UK, Saudi Arabia, UAE and Egypt as you enter them.
-4. **E-mail:** `hello@sifralabs.com`, `demo@sifralabs.com`, `security@sifralabs.com`. Set up SPF, DKIM and DMARC on day one: a security brand whose mail lands in spam is not one.
+4. **E-mail:** `hello@sifralabs.com`, `contact@sifralabs.com`, `security@sifralabs.com`. Set up SPF, DKIM and DMARC on day one: a security brand whose mail lands in spam is not one.
 
 ## 4. Brand architecture
 
