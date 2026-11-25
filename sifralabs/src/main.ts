@@ -65,3 +65,50 @@ if (dialog) {
     }
   });
 }
+
+/* ---------- contact form: prepares a structured e-mail in the visitor's own mail app ---------- */
+for (const form of document.querySelectorAll<HTMLFormElement>("form.mail-form")) {
+  const to = form.dataset.to!;
+  const status = form.querySelector<HTMLElement>(".mail-sent")!;
+  const copyBtn = form.querySelector<HTMLButtonElement>("[data-copy]")!;
+  let prepared = "";
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const d = new FormData(form);
+    const v = (k: string) => String(d.get(k) ?? "").trim();
+    const line = (label: string, value: string) => `${label}: ${value || "–"}`;
+    // Default subject: topic and organisation, so the inbox shows what and who at a glance.
+    const subject = ["Sifra Labs", v("topic"), v("org")].filter(Boolean).join(" · ");
+    const body = [
+      "Hello Sifra Labs team,",
+      "",
+      `I'm writing about: ${v("topic")}.`,
+      "",
+      "— Contact —",
+      line("Name", v("name")),
+      line("Organisation", v("org")),
+      line("E-mail", v("email")),
+      line("Phone", v("phone")),
+      "",
+      "— Message —",
+      v("message"),
+      "",
+      `Sent from sifralabs.com on ${new Date().toLocaleDateString("en-GB")}`,
+      "",
+      "Best regards,",
+      v("name"),
+    ].join("\n");
+    prepared = `To: ${to}\nSubject: ${subject}\n\n${body}`;
+    status.hidden = false;
+    copyBtn.textContent = "Copy the e-mail";
+    location.href = `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  });
+  copyBtn.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(prepared);
+      copyBtn.textContent = "Copied";
+    } catch {
+      copyBtn.textContent = "Copy failed: write to contact@sifralabs.com";
+    }
+  });
+}

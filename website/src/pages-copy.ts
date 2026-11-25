@@ -10,6 +10,22 @@ export type PagesCopy = {
   highlights: { title: string; lead: string; more: string; cards: Card[] };
   band: { kicker: string; title: string; text: string; points: string[]; more: string };
   features: { kicker: string };
+  /** The demo e-mail the form prepares in the visitor's own mail app. */
+  mail: {
+    hello: string;
+    intro: string;
+    contact: string;
+    request: string;
+    noMessage: string;
+    details: string;
+    language: string;
+    country: string;
+    sentFrom: string;
+    regards: string;
+    opened: string;
+    copy: string;
+    copied: string;
+  };
   security: {
     meta: string;
     kicker: string;
@@ -60,6 +76,21 @@ const en: PagesCopy = {
     more: "How MeDoc protects data",
   },
   features: { kicker: "Features" },
+  mail: {
+    hello: "Hello Sifra Labs team,",
+    intro: "I would like a demo of MeDoc for our practice.",
+    contact: "Contact",
+    request: "Request",
+    noMessage: "No specific request: please show us a typical day.",
+    details: "Details",
+    language: "Language",
+    country: "Country",
+    sentFrom: "Sent from the MeDoc website on",
+    regards: "Best regards,",
+    opened: "Your e-mail app should now open with the message ready: check it and press Send. Nothing opened? Copy the e-mail and send it to",
+    copy: "Copy the e-mail",
+    copied: "Copied",
+  },
   security: {
     meta: "Security and privacy · MeDoc",
     kicker: "Security",
@@ -137,6 +168,21 @@ const fr: PagesCopy = {
     more: "Comment MeDoc protège les données",
   },
   features: { kicker: "Fonctionnalités" },
+  mail: {
+    hello: "Bonjour l'équipe Sifra Labs,",
+    intro: "Je souhaite une démonstration de MeDoc pour notre cabinet.",
+    contact: "Coordonnées",
+    request: "Demande",
+    noMessage: "Pas de demande particulière : montrez-nous une journée type.",
+    details: "Détails",
+    language: "Langue",
+    country: "Pays",
+    sentFrom: "Envoyé depuis le site MeDoc le",
+    regards: "Bien cordialement,",
+    opened: "Votre application e-mail devrait s'ouvrir avec le message prêt : vérifiez-le et cliquez sur Envoyer. Rien ne s'est ouvert ? Copiez l'e-mail et envoyez-le à",
+    copy: "Copier l'e-mail",
+    copied: "Copié",
+  },
   security: {
     meta: "Sécurité et confidentialité · MeDoc",
     kicker: "Sécurité",
@@ -214,6 +260,21 @@ const ar: PagesCopy = {
     more: "كيف يحمي MeDoc البيانات",
   },
   features: { kicker: "الميزات" },
+  mail: {
+    hello: "مرحبًا فريق Sifra Labs،",
+    intro: "أرغب في عرض تجريبي لبرنامج MeDoc لعيادتنا.",
+    contact: "معلومات الاتصال",
+    request: "الطلب",
+    noMessage: "لا طلب خاص: أرونا يومًا عاديًا في العيادة.",
+    details: "تفاصيل",
+    language: "اللغة",
+    country: "البلد",
+    sentFrom: "أُرسل من موقع MeDoc بتاريخ",
+    regards: "مع أطيب التحيات،",
+    opened: "سيُفتح الآن تطبيق البريد لديكم والرسالة جاهزة: راجعوها ثم اضغطوا إرسال. لم يُفتح شيء؟ انسخوا الرسالة وأرسلوها إلى",
+    copy: "نسخ الرسالة",
+    copied: "تم النسخ",
+  },
   security: {
     meta: "الأمان والسرية · MeDoc",
     kicker: "الأمان",
@@ -291,6 +352,21 @@ const de: PagesCopy = {
     more: "Wie MeDoc Daten schützt",
   },
   features: { kicker: "Funktionen" },
+  mail: {
+    hello: "Hallo Sifra-Labs-Team,",
+    intro: "ich möchte eine MeDoc-Vorführung für unsere Praxis.",
+    contact: "Kontakt",
+    request: "Anliegen",
+    noMessage: "Kein besonderes Anliegen: Zeigen Sie uns einen typischen Praxistag.",
+    details: "Details",
+    language: "Sprache",
+    country: "Land",
+    sentFrom: "Gesendet über die MeDoc-Website am",
+    regards: "Mit freundlichen Grüßen",
+    opened: "Ihr E-Mail-Programm sollte sich jetzt mit der fertigen Nachricht öffnen: Prüfen Sie sie und klicken Sie auf Senden. Nichts geöffnet? Kopieren Sie die E-Mail und senden Sie sie an",
+    copy: "E-Mail kopieren",
+    copied: "Kopiert",
+  },
   security: {
     meta: "Sicherheit und Datenschutz · MeDoc",
     kicker: "Sicherheit",

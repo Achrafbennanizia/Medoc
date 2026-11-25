@@ -2148,3 +2148,19 @@ html[dir="rtl"] .country-select select {
 .law-grid h2 {
   color: var(--band-ink);
 }
+
+/* demo form: after sending */
+.mail-sent {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  padding: 16px 18px;
+  border-radius: var(--radius);
+  background: var(--mint-soft);
+}
+.mail-sent p {
+  margin: 0;
+  flex: 1 1 280px;
+  color: var(--ink);
+}

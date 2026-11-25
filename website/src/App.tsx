@@ -453,22 +453,55 @@ function Faq({ t }: { t: Dict }) {
 }
 
 /* ---------- contact ---------- */
-function Contact({ t }: { t: Dict }) {
+function Contact({ t, lang, locale, country }: { t: Dict; lang: Lang; locale: string; country: Country }) {
   const c = t.contact;
+  const m = PAGES_COPY[lang].mail;
+  // After sending: the prepared e-mail, kept so the visitor can copy it if no mail app opened.
+  const [prepared, setPrepared] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const onSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const d = new FormData(e.currentTarget);
-    const line = (k: string, label: string) => `${label}: ${String(d.get(k) ?? "").trim()}`;
+    const v = (k: string) => String(d.get(k) ?? "").trim();
+    const line = (label: string, value: string) => `${label}: ${value || "–"}`;
+    // Default subject, with the practice and city so the inbox shows who is asking.
+    const subject = [c.subject, [v("practice"), v("city")].filter(Boolean).join(", ")].filter(Boolean).join(" · ");
     const body = [
-      line("name", c.name),
-      line("practice", c.practice),
-      line("city", c.city),
-      line("phone", c.phone),
-      line("email", c.email),
+      m.hello,
       "",
-      String(d.get("message") ?? "").trim(),
+      m.intro,
+      "",
+      `— ${m.contact} —`,
+      line(c.name, v("name")),
+      line(c.practice, v("practice")),
+      line(c.city, v("city")),
+      line(c.phone, v("phone")),
+      line(c.email, v("email")),
+      "",
+      `— ${m.request} —`,
+      v("message") || m.noMessage,
+      "",
+      `— ${m.details} —`,
+      line(m.language, LANGS.find((l) => l.id === lang)!.name),
+      line(m.country, COUNTRY_COPY[lang].names[country]),
+      `${m.sentFrom} ${new Date().toLocaleDateString(locale)}`,
+      "",
+      m.regards,
+      v("name"),
     ].join("\n");
-    location.href = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(c.subject)}&body=${encodeURIComponent(body)}`;
+    setPrepared(`${subject}\n\n${body}`);
+    setCopied(false);
+    // Opens the visitor's own e-mail app (Mail, Outlook, Gmail…) with everything filled in; they press Send.
+    location.href = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  };
+  const copy = async () => {
+    if (!prepared) return;
+    try {
+      await navigator.clipboard.writeText(`${CONTACT_EMAIL}\n${prepared}`);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
   };
   return (
     <section className="section" id="contact">
@@ -523,6 +556,16 @@ function Contact({ t }: { t: Dict }) {
             </button>
             <p className="fine">{c.note}</p>
           </div>
+          {prepared ? (
+            <div className="span-2 mail-sent" role="status">
+              <p>
+                {m.opened} <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
+              </p>
+              <button className="btn btn-ghost btn-sm" type="button" onClick={copy}>
+                {copied ? m.copied : m.copy}
+              </button>
+            </div>
+          ) : null}
         </form>
       </div>
     </section>
@@ -725,7 +768,7 @@ export function App() {
             <Setups t={t} />
             <Prices t={t} locale={locale} country={country} />
             <Faq t={t} />
-            <Contact t={t} />
+            <Contact t={t} lang={lang} locale={locale} country={country} />
           </>
         )}
       </main>

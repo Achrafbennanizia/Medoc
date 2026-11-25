@@ -1981,3 +1981,74 @@ h3 {
     --dot: color-mix(in srgb, var(--majorelle) 22%, transparent);
   }
 }
+
+/* contact form */
+.mail-form {
+  display: grid;
+  gap: 16px;
+  padding: 28px;
+  border-radius: 16px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+@media (min-width: 640px) {
+  .mail-form {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.mail-form .span-2 {
+  grid-column: 1 / -1;
+}
+.mail-form label {
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.mail-form abbr {
+  color: var(--majorelle);
+  text-decoration: none;
+}
+.mail-form input,
+.mail-form select,
+.mail-form textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 16px var(--font-text);
+}
+.mail-form textarea {
+  resize: vertical;
+}
+.mail-form input:focus-visible,
+.mail-form select:focus-visible,
+.mail-form textarea:focus-visible {
+  outline: 2px solid var(--majorelle);
+  outline-offset: 1px;
+}
+.form-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+}
+.mail-sent {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  padding: 16px 18px;
+  border-radius: 10px;
+  background: var(--majorelle-soft);
+}
+.mail-sent[hidden] {
+  display: none;
+}
+.mail-sent p {
+  flex: 1 1 280px;
+  color: var(--ink);
+}
