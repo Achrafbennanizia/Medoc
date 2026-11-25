@@ -23,6 +23,13 @@ npm run build    # type-check + build → dist/
 | Response headers (CSP, HSTS…) | `public/_headers` (Cloudflare Pages format). If you add analytics or any outside script, add its origin to the CSP |
 | Legal notice | `legal/notice/index.html`. **Fill every `[…]` once the company is registered** |
 
+| Command menu (⌘K / Ctrl+K or "/") | `partials/cmdk.html` (entries), `src/main.ts` (behaviour) |
+| Statistics on the home page | `index.html` "By the numbers"; every outside figure has a numbered source under it. Update the IBM figure each summer when the new report comes out |
+| Page prerendering | Speculation rules in `partials/head.html`; the CSP in `public/_headers` allows them with `'inline-speculation-rules'` |
+| Links to MeDoc | `https://achrafbennanizia.github.io/Medoc/` (its live address). Switch to `https://medoc.sifralabs.com/` once that domain is set up (see below) |
+
+Art direction: blueprint grid and dot-matrix texture on a Swiss editorial layout (`src/site.css`, "Art direction"). Keep it to those two textures.
+
 Claims must stay true to the current release: anything not shipped is labelled "planned" or "research".
 
 ## Deploy on Cloudflare (free)

@@ -35,7 +35,7 @@ Ordered by how much each one blocks selling.
 | 6 | **No trust centre.** No `security.txt`, vulnerability-disclosure policy, incident-response page or status page. | For a security brand these *are* the marketing. EU CRA will require vulnerability handling anyway. | `/.well-known/security.txt`, a disclosure page, a security whitepaper (Loi 09-08 / GDPR one-pager already planned). |
 | 7 | **MDR classification contradicts itself** (README "not a medical device" vs PMS "Class I"). | A brand built on accountability cannot publish two answers. | Decide, document, align every page (see SWOT G-01). |
 | 8 | **No proof from customers.** No pilots, testimonials or case studies. | Healthcare buys on peer trust. | Three pilot practices with written consent (business plan §3.4). |
-| 9 | **No brand architecture for expansion.** "MeDoc-Dentist" naming has no rule for general medicine, pharmacy, booking, devices. | Each new product would invent its own name and look. | §4 below. |
+| 9 | **No brand architecture for expansion.** "MeDoc-Dentist" naming has no rule for general medicine, pharmacy or booking. | Each new product would invent its own name and look. | §4 below. |
 | 10 | **No founder story or company presence.** No LinkedIn page, no "about", no press kit. | Distributors, partners and hires look for the company, not the product. | The `/company/` site, a LinkedIn page, a one-page press kit with mark files. |
 | 11 | **One-person risk is visible.** | Buyers ask "what if you disappear?" | Publish a continuity promise: escrow of source and keys with a notary, data export in open formats. Turn the weakness into a trust feature. |
 
@@ -56,7 +56,7 @@ Ordered by how much each one blocks selling.
 
 One word that already means **numbers, computing and encryption** in every target market, and that tells the true story of the company: from the Maghreb, for the world.
 
-"Labs" says engineering and research, which covers software, AI, IoT, security and later microcontrollers without tying the company to one field.
+"Labs" says engineering and research, which covers software, AI, security and cloud without tying the company to one field.
 
 ### 3.2 Against the criteria
 
@@ -66,7 +66,7 @@ One word that already means **numbers, computing and encryption** in every targe
 | Easy to pronounce and spell | ✅ | SIF-ra. Same in FR, EN, DE, ES, IT. Arabic wordmark: سيفرا |
 | Distinctive and sticky | ✅ | No software company owns it; the etymology is a story people repeat |
 | Visual potential | ✅ | The dotted zero (§6.1): a mark that comes out of the name itself |
-| Room to grow | ✅ | Nothing medical in the name; fits AI, IoT, cloud, devices, a shop |
+| Room to grow | ✅ | Nothing medical in the name; fits AI, cloud, booking, pharmacy, a shop |
 | Cross-cultural safety | ⚠️ low risk | *Sifra* is also the title of a classical Hebrew legal commentary and a given name; neither is negative. Do not write it صفرا in Arabic (reads *safra*, "yellow"); use سيفرا or the Latin wordmark |
 | Trademark | ⚠️ search needed | Nearest marks found: "SIFRICH" (Sifra Life Sciences, India, class 5 pharma) and "SIFR" (Cryptobiotix, research services). Neither is in software (9/42), but run a full search before filing |
 | Domain and handles | ✅ | `sifralabs.com` free on 2026-11-25. GitHub `sifralabs` and X `@sifralabs` free. `sifra.com` is registered (parked) |
@@ -86,7 +86,7 @@ One word that already means **numbers, computing and encryption** in every targe
 
 1. **Domains:** register `sifralabs.com` now (primary). Defensive: `sifralabs.ma`, `sifra.ma`, `sifra.eu`, `sifra.health` (all showed no DNS on 2026-11-25; confirm at the registrar). Later, try to buy `sifra.com`.
 2. **Handles:** `sifralabs` on GitHub, X, LinkedIn, Instagram, YouTube. Check LinkedIn and Instagram by hand.
-3. **Trademark:** full search on TMview, WIPO Global Brand Database and OMPIC first. Then file **Sifra Labs** (word + mark) at OMPIC in Nice classes **9** (software), **42** (SaaS, software development, IT security), **35** (the future in-app shop), **44** (only if you ever offer health services), **10** (only when devices are real). Extend through the Madrid system to the EU, UK, Saudi Arabia, UAE and Egypt as you enter them.
+3. **Trademark:** full search on TMview, WIPO Global Brand Database and OMPIC first. Then file **Sifra Labs** (word + mark) at OMPIC in Nice classes **9** (software), **42** (SaaS, software development, IT security), **35** (the future in-app shop), **44** (only if you ever offer health services). Extend through the Madrid system to the EU, UK, Saudi Arabia, UAE and Egypt as you enter them.
 4. **E-mail:** `hello@sifralabs.com`, `contact@sifralabs.com`, `security@sifralabs.com`. Set up SPF, DKIM and DMARC on day one: a security brand whose mail lands in spam is not one.
 
 ## 4. Brand architecture
@@ -101,7 +101,6 @@ Sifra Labs                      company, trust, engineering, the core
 ├── Sifra Booking               patient-facing booking (a consumer name may come later)
 ├── Sifra Pharmacy              pharmacy systems
 ├── Sifra Assist                AI assistance (opt-in, auditable)
-├── Sifra Devices               IoT / device integration with partners
 └── Sifra Core                  shared security, sync, audit, licensing (internal + partner SDK)
 ```
 
@@ -163,7 +162,7 @@ Files: `website/public/brand/sifra-mark.svg`, `sifra-mark-reversed.svg`, `sifra-
 - **Dot** = the zero written in Arabic (٠).
 - **Together** = the dotted zero engineers use so 0 cannot be mistaken for O. Precision where a mistake is not an option.
 
-Construction (64-unit grid): ellipse rx 16.5, ry 23, stroke 7; dot r 5, centred. The dot is always Majorelle; the ring is ink (or paper when reversed). Clear space = the ring's stroke width × 2 on all sides. Minimum size 16 px. Don't rotate, outline, add gradients or put the dot off-centre. The mark may also read as an eye or a sensor; that is welcome (vigilance, Face ID, devices).
+Construction (64-unit grid): ellipse rx 16.5, ry 23, stroke 7; dot r 5, centred. The dot is always Majorelle; the ring is ink (or paper when reversed). Clear space = the ring's stroke width × 2 on all sides. Minimum size 16 px. Don't rotate, outline, add gradients or put the dot off-centre. The mark may also read as an eye; that is welcome (vigilance, Face ID).
 
 **Wordmark:** "Sifra Labs" in IBM Plex Sans SemiBold, −0.01em, beside the mark at the cap height. Have a designer outline it as SVG before printing anything.
 

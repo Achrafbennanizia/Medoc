@@ -23,10 +23,14 @@ function includes(): Plugin {
     // "pre": run before Vite processes the HTML, so the script tag in partials/head.html is bundled.
     transformIndexHtml: {
       order: "pre",
-      handler: (html) =>
-        html.replace(/<!-- @include (\w+) -->/g, (_, name: string) =>
-          readFileSync(resolve(root, "partials", `${name}.html`), "utf8"),
-        ),
+      // Partials may include partials (the header includes the command menu): repeat until none are left.
+      handler: (html) => {
+        const re = /<!-- @include (\w+) -->/g;
+        for (let depth = 0; re.test(html) && depth < 5; depth++) {
+          html = html.replace(re, (_, name: string) => readFileSync(resolve(root, "partials", `${name}.html`), "utf8"));
+        }
+        return html;
+      },
     },
   };
 }
