@@ -10,7 +10,10 @@ type Stat = { v: string; l: string };
 type Src = { t: string; u: string };
 type CountryDigital = { kicker: string; title: string; lead: string; stats: Stat[]; helpTitle: string; help: string[]; note?: string; sources: Src[] };
 type Step = { t: string; d: string };
+type Adv = { k: string; t: string; d: string };
 export type DigitalCopy = {
+  advantages: { kicker: string; title: string; lead: string; items: Adv[] };
+  pilot: { kicker: string; title: string; text: string; points: string[]; cta: string };
   pack: { kicker: string; title: string; lead: string; steps: Step[]; promise: string; cta: string; photoAlt: string; before: string; after: string; beforeAlt: string; afterAlt: string };
   sourcesLabel: string;
   countries: Record<Country, CountryDigital>;
@@ -27,6 +30,74 @@ const SRC = {
 };
 
 const en: DigitalCopy = {
+  advantages: {
+    "kicker": "Why practices switch",
+    "title": "10 ways MeDoc Dentist makes the day easier",
+    "lead": "Every point below is a feature of the current release, not a promise.",
+    "items": [
+      {
+        "k": "⌘K",
+        "t": "Find any patient in seconds",
+        "d": "One search, from any screen, with a single shortcut."
+      },
+      {
+        "k": "1 file",
+        "t": "No more missing documents",
+        "d": "X-rays, letters and scans are attached to the patient's record, not left in a drawer."
+      },
+      {
+        "k": "3 views",
+        "t": "A calendar the whole team shares",
+        "d": "Month, week and day, with drag-and-drop changes everyone sees."
+      },
+      {
+        "k": "↻",
+        "t": "Prescriptions without retyping",
+        "d": "Reuse the lines you save; MeDoc warns when a drug matches a recorded allergy."
+      },
+      {
+        "k": "✓",
+        "t": "Nothing slips between reception and dentist",
+        "d": "Reception drafts, the dentist validates, and a bell signals every change."
+      },
+      {
+        "k": "=",
+        "t": "A day close that adds up",
+        "d": "Each payment method is checked against the till before the day is locked."
+      },
+      {
+        "k": "13%",
+        "t": "Backups that don't fill the disk",
+        "d": "One encrypted backup a day at 13% of the previous size, with 3 days, last week and last half-year kept."
+      },
+      {
+        "k": "Offline",
+        "t": "Works when the internet doesn't",
+        "d": "Records, calendar and till run on your own computers and practice network."
+      },
+      {
+        "k": "Audit",
+        "t": "Know who opened what",
+        "d": "Every medical read is logged, and reception never sees the medical chart."
+      },
+      {
+        "k": "4",
+        "t": "In your patients' language",
+        "d": "French, Arabic, English and German, with Moroccan invoices in French and Arabic."
+      }
+    ]
+  },
+  pilot: {
+    "kicker": "Stories from our first practices",
+    "title": "Write the first story with us",
+    "text": "MeDoc Dentist is opening to its first practices. Pilot practices get the Digitalization Pack and a direct line to the people who build the software. In return we ask for honest feedback, which we will publish here, with their permission.",
+    "points": [
+      "Set-up, data import and training included",
+      "A direct line to the team that builds MeDoc Dentist",
+      "Your feedback decides what we improve next"
+    ],
+    "cta": "Become a pilot practice"
+  },
   pack: {
     kicker: "Digitalization Pack",
     title: "From paper files to a digital practice, with us at your side",
@@ -117,6 +188,74 @@ const en: DigitalCopy = {
 };
 
 const fr: DigitalCopy = {
+  advantages: {
+    "kicker": "Pourquoi les cabinets passent à MeDoc",
+    "title": "10 façons dont MeDoc Dentist simplifie la journée",
+    "lead": "Chaque point ci-dessous est une fonction de la version actuelle, pas une promesse.",
+    "items": [
+      {
+        "k": "⌘K",
+        "t": "Retrouver un patient en quelques secondes",
+        "d": "Une recherche depuis n'importe quel écran, avec un seul raccourci."
+      },
+      {
+        "k": "1 dossier",
+        "t": "Fini les documents égarés",
+        "d": "Radios, courriers et scans sont rattachés au dossier du patient, pas oubliés dans un tiroir."
+      },
+      {
+        "k": "3 vues",
+        "t": "Un agenda partagé par toute l'équipe",
+        "d": "Mois, semaine et jour, avec des modifications par glisser-déposer que chacun voit."
+      },
+      {
+        "k": "↻",
+        "t": "Des ordonnances sans ressaisie",
+        "d": "Réutilisez vos lignes enregistrées ; MeDoc alerte si un médicament correspond à une allergie notée."
+      },
+      {
+        "k": "✓",
+        "t": "Rien ne se perd entre l'accueil et le dentiste",
+        "d": "L'accueil prépare, le dentiste valide, et une cloche signale chaque changement."
+      },
+      {
+        "k": "=",
+        "t": "Une clôture de caisse qui tombe juste",
+        "d": "Chaque moyen de paiement est comparé à la caisse avant que la journée soit verrouillée."
+      },
+      {
+        "k": "13 %",
+        "t": "Des sauvegardes qui ne remplissent pas le disque",
+        "d": "Une sauvegarde chiffrée par jour, à 13 % de la taille d'avant ; 3 jours, la semaine dernière et le dernier semestre sont gardés."
+      },
+      {
+        "k": "Hors ligne",
+        "t": "Fonctionne quand internet coupe",
+        "d": "Dossiers, agenda et caisse tournent sur vos ordinateurs et le réseau du cabinet."
+      },
+      {
+        "k": "Journal",
+        "t": "Savoir qui a ouvert quoi",
+        "d": "Chaque lecture médicale est journalisée, et l'accueil ne voit jamais le dossier médical."
+      },
+      {
+        "k": "4",
+        "t": "Dans la langue de vos patients",
+        "d": "Français, arabe, anglais et allemand, avec des factures marocaines en français et en arabe."
+      }
+    ]
+  },
+  pilot: {
+    "kicker": "Les histoires de nos premiers cabinets",
+    "title": "Écrivez la première histoire avec nous",
+    "text": "MeDoc Dentist s'ouvre à ses premiers cabinets. Les cabinets pilotes bénéficient du Pack Digitalisation et d'une ligne directe avec ceux qui construisent le logiciel. En échange, nous leur demandons un retour honnête, que nous publierons ici avec leur accord.",
+    "points": [
+      "Installation, reprise des données et formation incluses",
+      "Une ligne directe avec l'équipe qui construit MeDoc Dentist",
+      "Vos retours décident de nos prochaines améliorations"
+    ],
+    "cta": "Devenir cabinet pilote"
+  },
   pack: {
     kicker: "Pack Digitalisation",
     title: "Du dossier papier au cabinet numérique, avec nous à vos côtés",
@@ -207,6 +346,74 @@ const fr: DigitalCopy = {
 };
 
 const ar: DigitalCopy = {
+  advantages: {
+    "kicker": "لماذا تنتقل العيادات إلى MeDoc",
+    "title": "10 طرق يجعل بها MeDoc Dentist اليوم أسهل",
+    "lead": "كل نقطة أدناه ميزة موجودة في الإصدار الحالي، وليست وعدًا.",
+    "items": [
+      {
+        "k": "⌘K",
+        "t": "العثور على أي مريض في ثوانٍ",
+        "d": "بحث واحد من أي شاشة، باختصار واحد."
+      },
+      {
+        "k": "ملف واحد",
+        "t": "لا وثائق ضائعة بعد اليوم",
+        "d": "الصور الشعاعية والرسائل والوثائق الممسوحة مرفقة بملف المريض، لا منسية في درج."
+      },
+      {
+        "k": "3 عروض",
+        "t": "جدول مواعيد يتقاسمه الفريق كله",
+        "d": "الشهر والأسبوع واليوم، مع تعديلات بالسحب والإفلات يراها الجميع."
+      },
+      {
+        "k": "↻",
+        "t": "وصفات دون إعادة كتابة",
+        "d": "أعيدوا استعمال السطور المحفوظة، وينبّه MeDoc إذا طابق دواءٌ حساسيةً مسجّلة."
+      },
+      {
+        "k": "✓",
+        "t": "لا شيء يضيع بين الاستقبال والطبيب",
+        "d": "يُعِدّ الاستقبال، ويصادق الطبيب، وجرس ينبّه إلى كل تغيير."
+      },
+      {
+        "k": "=",
+        "t": "إغلاق صندوق مضبوط",
+        "d": "تُقارن كل وسيلة دفع بالصندوق قبل قفل اليوم."
+      },
+      {
+        "k": "13%",
+        "t": "نسخ احتياطية لا تملأ القرص",
+        "d": "نسخة مشفّرة كل يوم بحجم 13% مما كانت عليه، مع الاحتفاظ بثلاثة أيام والأسبوع الماضي وآخر نصف سنة."
+      },
+      {
+        "k": "دون إنترنت",
+        "t": "يعمل حين ينقطع الإنترنت",
+        "d": "الملفات والمواعيد والصندوق تعمل على حواسيبكم وشبكة العيادة."
+      },
+      {
+        "k": "سجل",
+        "t": "معرفة من فتح ماذا",
+        "d": "كل قراءة طبية مسجّلة، ولا يرى الاستقبال الملف الطبي أبدًا."
+      },
+      {
+        "k": "4",
+        "t": "بلغة مرضاكم",
+        "d": "الفرنسية والعربية والإنجليزية والألمانية، مع فواتير مغربية بالفرنسية والعربية."
+      }
+    ]
+  },
+  pilot: {
+    "kicker": "قصص عياداتنا الأولى",
+    "title": "اكتبوا القصة الأولى معنا",
+    "text": "يفتح MeDoc Dentist أبوابه لعياداته الأولى. تحصل العيادات الرائدة على باقة الرقمنة وعلى خط مباشر مع من يبنون البرنامج. وفي المقابل نطلب منها رأيًا صادقًا، سننشره هنا بموافقتها.",
+    "points": [
+      "التثبيت ونقل البيانات والتدريب مشمولة",
+      "خط مباشر مع الفريق الذي يبني MeDoc Dentist",
+      "آراؤكم تحدد ما نحسّنه بعد ذلك"
+    ],
+    "cta": "انضموا كعيادة رائدة"
+  },
   pack: {
     kicker: "باقة الرقمنة",
     title: "من الملفات الورقية إلى عيادة رقمية، ونحن إلى جانبكم",
@@ -297,6 +504,74 @@ const ar: DigitalCopy = {
 };
 
 const de: DigitalCopy = {
+  advantages: {
+    "kicker": "Warum Praxen wechseln",
+    "title": "10 Wege, wie MeDoc Dentist den Tag leichter macht",
+    "lead": "Jeder Punkt unten ist eine Funktion der aktuellen Version, kein Versprechen.",
+    "items": [
+      {
+        "k": "⌘K",
+        "t": "Jeden Patienten in Sekunden finden",
+        "d": "Eine Suche von jedem Bildschirm aus, mit einem einzigen Kürzel."
+      },
+      {
+        "k": "1 Akte",
+        "t": "Keine verlorenen Dokumente mehr",
+        "d": "Röntgenbilder, Briefe und Scans hängen an der Patientenakte, nicht in einer Schublade."
+      },
+      {
+        "k": "3 Ansichten",
+        "t": "Ein Kalender für das ganze Team",
+        "d": "Monat, Woche und Tag, mit Änderungen per Drag-and-drop, die alle sehen."
+      },
+      {
+        "k": "↻",
+        "t": "Rezepte ohne Abtippen",
+        "d": "Gespeicherte Zeilen wiederverwenden; MeDoc warnt, wenn ein Medikament zu einer erfassten Allergie passt."
+      },
+      {
+        "k": "✓",
+        "t": "Nichts geht zwischen Empfang und Zahnarzt verloren",
+        "d": "Der Empfang bereitet vor, der Zahnarzt gibt frei, und eine Glocke meldet jede Änderung."
+      },
+      {
+        "k": "=",
+        "t": "Ein Tagesabschluss, der aufgeht",
+        "d": "Jede Zahlungsart wird mit der Kasse abgeglichen, bevor der Tag gesperrt wird."
+      },
+      {
+        "k": "13 %",
+        "t": "Sicherungen, die die Festplatte nicht füllen",
+        "d": "Eine verschlüsselte Sicherung pro Tag mit 13 % der bisherigen Größe; 3 Tage, letzte Woche und letztes Halbjahr bleiben erhalten."
+      },
+      {
+        "k": "Offline",
+        "t": "Funktioniert, wenn das Internet ausfällt",
+        "d": "Akten, Kalender und Kasse laufen auf Ihren Rechnern und im Praxisnetz."
+      },
+      {
+        "k": "Protokoll",
+        "t": "Wissen, wer was geöffnet hat",
+        "d": "Jeder medizinische Zugriff wird protokolliert, und der Empfang sieht nie die medizinische Akte."
+      },
+      {
+        "k": "4",
+        "t": "In der Sprache Ihrer Patienten",
+        "d": "Französisch, Arabisch, Englisch und Deutsch, mit marokkanischen Rechnungen auf Französisch und Arabisch."
+      }
+    ]
+  },
+  pilot: {
+    "kicker": "Geschichten unserer ersten Praxen",
+    "title": "Schreiben Sie die erste Geschichte mit uns",
+    "text": "MeDoc Dentist öffnet sich für seine ersten Praxen. Pilotpraxen erhalten das Digitalisierungspaket und einen direkten Draht zu den Menschen, die die Software bauen. Im Gegenzug bitten wir um ehrliches Feedback, das wir hier mit ihrer Zustimmung veröffentlichen.",
+    "points": [
+      "Einrichtung, Datenübernahme und Schulung inklusive",
+      "Ein direkter Draht zum Team hinter MeDoc Dentist",
+      "Ihr Feedback bestimmt, was wir als Nächstes verbessern"
+    ],
+    "cta": "Pilotpraxis werden"
+  },
   pack: {
     kicker: "Digitalisierungspaket",
     title: "Von der Papierakte zur digitalen Praxis, mit uns an Ihrer Seite",

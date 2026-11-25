@@ -8,7 +8,7 @@ import { COUNTRY_COPY } from "./country-copy";
 import { COOKIES, COUNTRIES, type Country, initialCountry, readCookie, writeCookie } from "./prefs";
 import { DocumentsGallery, WhatsNew } from "./Sections";
 import { SITE_COPY } from "./site-copy";
-import { DigitalHealth, DigitalizationPack, FeaturesHero, Highlights, Photo, PrivacyBand, SecurityPage } from "./Pages";
+import { Advantages, DigitalHealth, DigitalizationPack, Pilot, FeaturesHero, Highlights, Photo, PrivacyBand, SecurityPage } from "./Pages";
 import { PAGES_COPY } from "./pages-copy";
 import { type Route, pageHref, parseRoute } from "./route";
 
@@ -807,10 +807,12 @@ export function App() {
           <>
             <Hero t={t} lang={lang} locale={locale} />
             <Highlights lang={lang} />
+            <Advantages lang={lang} />
             <DigitalizationPack lang={lang} />
             <PrivacyBand lang={lang} />
             <DigitalHealth lang={lang} country={country} />
             {country === "MA" ? <Morocco t={t} /> : <CountryReady lang={lang} country={country} />}
+            <Pilot lang={lang} />
             <Setups t={t} />
             <Prices t={t} locale={locale} country={country} />
             <Faq t={t} />

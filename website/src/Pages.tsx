@@ -280,3 +280,55 @@ export function DigitalHealth({ lang, country }: { lang: Lang; country: Country 
     </section>
   );
 }
+
+/* ---------- home: 10 advantages ---------- */
+export function Advantages({ lang }: { lang: Lang }) {
+  const a = DIGITAL_COPY[lang].advantages;
+  return (
+    <section className="section section-tint" id="advantages" aria-labelledby="adv-title">
+      <div className="wrap">
+        <header className="section-head">
+          <p className="kicker">{a.kicker}</p>
+          <h2 id="adv-title">{a.title}</h2>
+          <p className="lead">{a.lead}</p>
+        </header>
+        <ol className="advantages">
+          {a.items.map((it) => (
+            <li key={it.t}>
+              <span className="adv-key" aria-hidden="true">
+                {it.k}
+              </span>
+              <h3>{it.t}</h3>
+              <p>{it.d}</p>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </section>
+  );
+}
+
+/* ---------- home: pilot practices (real stories go here, with written consent) ---------- */
+export function Pilot({ lang }: { lang: Lang }) {
+  const p = DIGITAL_COPY[lang].pilot;
+  return (
+    <section className="section" id="stories" aria-labelledby="pilot-title">
+      <div className="wrap pilot">
+        <Photo name="tablet-consult" alt={PAGES_COPY[lang].photoAlt.tablet} className="pilot-photo" sizes="(min-width: 960px) 520px, 100vw" />
+        <div>
+          <p className="kicker">{p.kicker}</p>
+          <h2 id="pilot-title">{p.title}</h2>
+          <p className="lead">{p.text}</p>
+          <ul className="band-points pilot-points">
+            {p.points.map((x) => (
+              <li key={x}>{x}</li>
+            ))}
+          </ul>
+          <a className="btn btn-primary" href="#contact">
+            {p.cta}
+          </a>
+        </div>
+      </div>
+    </section>
+  );
+}
