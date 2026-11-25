@@ -1,0 +1,22 @@
+    <!-- Command menu: ⌘K / Ctrl+K or "/" opens it; src/main.ts wires filtering and arrow keys. -->
+    <dialog class="cmdk" aria-label="Jump to a page or action">
+      <div class="cmdk-search">
+        <svg aria-hidden="true"><use href="#i-search" /></svg>
+        <input type="search" placeholder="Jump to a page or action" aria-label="Search pages and actions" autocomplete="off" spellcheck="false" />
+        <kbd>esc</kbd>
+      </div>
+      <ul class="cmdk-list">
+        <li><a href="/"><span>Home</span><small>Page</small></a></li>
+        <li><a href="/products/"><span>Products and service</span><small>Page</small></a></li>
+        <li><a href="/security/"><span>Security overview</span><small>Page</small></a></li>
+        <li><a href="/company/"><span>Company and the name</span><small>Page</small></a></li>
+        <li><a href="/contact/"><span>Contact</span><small>Page</small></a></li>
+        <li><a href="https://achrafbennanizia.github.io/Medoc/#contact"><span>Book a 30-minute MeDoc Dentist demo</span><small>Action</small></a></li>
+        <li><a href="https://achrafbennanizia.github.io/Medoc/"><span>Visit the MeDoc Dentist website</span><small>Link</small></a></li>
+        <li><a href="/security/#report"><span>Report a vulnerability</span><small>Action</small></a></li>
+        <li><a href="/contact/#write"><span>Write to us</span><small>Form</small></a></li>
+        <li><a href="/company/#mark"><span>Logo files for press</span><small>Download</small></a></li>
+      </ul>
+      <p class="cmdk-empty" hidden>Nothing matches. Try “demo” or “security”.</p>
+      <p class="cmdk-hints"><span><kbd>↑</kbd><kbd>↓</kbd> move</span><span><kbd>↵</kbd> open</span><span><kbd>esc</kbd> close</span></p>
+    </dialog>

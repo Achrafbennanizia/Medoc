@@ -1,0 +1,22 @@
+// Cloudflare Worker for sifralabs.com (see README "Deploy").
+// The name must match the Worker connected in the Cloudflare dashboard.
+{
+  "name": "sifralabs",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "404-page",
+    // Only the contact API runs code; every other path is served straight from dist/.
+    "run_worker_first": ["/api/*"]
+  },
+  "vars": {
+    "SMTP_HOST": "smtp.zoho.com",
+    "SMTP_PORT": "465",
+    "CONTACT_TO": "contact@sifralabs.com",
+    "ALLOWED_ORIGINS": "https://sifralabs.com,https://www.sifralabs.com,https://achrafbennanizia.github.io,https://medoc.sifralabs.com"
+  },
+  // SMTP_USER and SMTP_PASSWORD are secrets: set them in the dashboard, never here.
+  "observability": { "enabled": true }
+}

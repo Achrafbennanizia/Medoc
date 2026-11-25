@@ -13,7 +13,7 @@ export type Status = "healthy" | "caries" | "filling" | "crown" | "missing" | "i
 
 const en = {
   meta: {
-    title: "Dental practice software, on-premise · MeDoc",
+    title: "Dental practice software, on-premise · MeDoc Dentist",
     description:
       "Patient files, odontogram, appointments, prescriptions and payments for dental practices. Encrypted on your own computers, works offline, in French, Arabic, English and German.",
   },
@@ -199,12 +199,13 @@ const en = {
     message: "What would you like to see?",
     send: "Request a demo",
     whatsapp: "Write to us on WhatsApp",
-    note: "Sending opens your e-mail app with the message ready. The site keeps no copy of your message.",
+    note: "Your request goes straight to our team by e-mail. The website keeps no copy of it.",
     subject: "MeDoc demo request",
     required: "Required",
   },
   footer: {
     tagline: "Dental practice software. Your data, in your practice.",
+    company: "A Sifra Labs product",
     legal: "Legal notice",
     privacy: "Privacy policy",
     terms: "Terms of sale",
@@ -217,7 +218,7 @@ export type Dict = typeof en;
 
 const fr: Dict = {
   meta: {
-    title: "Logiciel cabinet dentaire au Maroc · MeDoc",
+    title: "Logiciel cabinet dentaire au Maroc · MeDoc Dentist",
     description:
       "Dossiers patients, schéma dentaire, rendez-vous, ordonnances et encaissements pour cabinets dentaires. Chiffré sur vos propres ordinateurs, fonctionne sans internet, en français, arabe, anglais et allemand.",
   },
@@ -396,12 +397,13 @@ const fr: Dict = {
     message: "Que souhaitez-vous voir ?",
     send: "Demander une démo",
     whatsapp: "Nous écrire sur WhatsApp",
-    note: "L'envoi ouvre votre messagerie avec le message prêt. Le site ne garde aucune copie de votre message.",
+    note: "Votre demande part directement par e-mail à notre équipe. Le site n'en garde aucune copie.",
     subject: "Demande de démo MeDoc",
     required: "Obligatoire",
   },
   footer: {
     tagline: "Logiciel pour cabinets dentaires. Vos données, dans votre cabinet.",
+    company: "Un produit Sifra Labs",
     legal: "Mentions légales",
     privacy: "Politique de confidentialité",
     terms: "Conditions générales de vente",
@@ -412,7 +414,7 @@ const fr: Dict = {
 
 const ar: Dict = {
   meta: {
-    title: "برنامج تسيير عيادة الأسنان بالمغرب · MeDoc",
+    title: "برنامج تسيير عيادة الأسنان بالمغرب · MeDoc Dentist",
     description:
       "ملفات المرضى، مخطط الأسنان، المواعيد، الوصفات والمدفوعات لعيادات طب الأسنان. مشفّر على حواسيبك، يعمل دون إنترنت، بالفرنسية والعربية والإنجليزية والألمانية.",
   },
@@ -591,12 +593,13 @@ const ar: Dict = {
     message: "ماذا تودّ أن ترى؟",
     send: "اطلب عرضًا",
     whatsapp: "راسلنا عبر واتساب",
-    note: "يفتح الإرسال بريدك الإلكتروني والرسالة جاهزة. لا يحتفظ الموقع بأي نسخة من رسالتك.",
+    note: "يصل طلبكم مباشرة إلى فريقنا عبر البريد الإلكتروني. لا يحتفظ الموقع بأي نسخة منه.",
     subject: "طلب عرض MeDoc",
     required: "إلزامي",
   },
   footer: {
     tagline: "برنامج لعيادات طب الأسنان. بياناتك داخل عيادتك.",
+    company: "منتج من Sifra Labs",
     legal: "الإشعار القانوني",
     privacy: "سياسة الخصوصية",
     terms: "شروط البيع",
@@ -607,7 +610,7 @@ const ar: Dict = {
 
 const de: Dict = {
   meta: {
-    title: "Zahnarztsoftware lokal & offline · MeDoc",
+    title: "Zahnarztsoftware lokal & offline · MeDoc Dentist",
     description:
       "Patientenakten, Zahnschema, Termine, Rezepte und Zahlungen für Zahnarztpraxen. Verschlüsselt auf Ihren eigenen Rechnern, funktioniert offline, auf Französisch, Arabisch, Englisch und Deutsch.",
   },
@@ -786,12 +789,13 @@ const de: Dict = {
     message: "Was möchten Sie sehen?",
     send: "Demo anfragen",
     whatsapp: "Per WhatsApp schreiben",
-    note: "Beim Senden öffnet sich Ihr E-Mail-Programm mit der fertigen Nachricht. Die Website speichert Ihre Nachricht nicht.",
+    note: "Ihre Anfrage geht per E-Mail direkt an unser Team. Die Website speichert keine Kopie.",
     subject: "MeDoc Demo-Anfrage",
     required: "Pflichtfeld",
   },
   footer: {
     tagline: "Software für Zahnarztpraxen. Ihre Daten, in Ihrer Praxis.",
+    company: "Ein Produkt von Sifra Labs",
     legal: "Impressum",
     privacy: "Datenschutzerklärung",
     terms: "AGB",

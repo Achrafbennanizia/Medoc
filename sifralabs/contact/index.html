@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+  <head>
+<!-- @include head -->
+    <title>Contact · Sifra Labs</title>
+    <meta name="description" content="Contact Sifra Labs: MeDoc Dentist demos, partnerships and press, and security reports." />
+    <link rel="canonical" href="https://sifralabs.com/contact/" />
+    <meta property="og:title" content="Contact · Sifra Labs" />
+    <meta property="og:url" content="https://sifralabs.com/contact/" />
+  </head>
+  <body>
+<!-- @include icons -->
+<!-- @include header -->
+    <main id="main">
+      <section class="page-hero">
+        <div class="wrap">
+          <p class="kicker">Contact</p>
+          <h1>Write to the right address, get the right answer.</h1>
+          <p class="lede">We read every message ourselves, and nothing you send is stored on this website.</p>
+        </div>
+      </section>
+
+      <section class="section" aria-label="Contact addresses">
+        <div class="wrap">
+          <ul class="contacts">
+            <li>
+              <h2>MeDoc Dentist demo</h2>
+              <p>For dental practices: a 30-minute demo in French, Arabic or English.</p>
+              <a class="btn" href="https://achrafbennanizia.github.io/Medoc/#contact">Book a demo</a>
+              <a class="text-link" href="mailto:contact@sifralabs.com">contact@sifralabs.com</a>
+            </li>
+            <li>
+              <h2>Partners and press</h2>
+              <p>Dental distributors, clinics, investors and journalists.</p>
+              <a class="text-link" href="mailto:hello@sifralabs.com">hello@sifralabs.com</a>
+            </li>
+            <li>
+              <h2>Security</h2>
+              <p>Report a vulnerability. Please read the <a class="text-link" href="/security/#report">disclosure policy</a> first.</p>
+              <a class="text-link" href="mailto:security@sifralabs.com">security@sifralabs.com</a>
+            </li>
+          </ul>
+          <p class="fine">We aim to reply within 2 working days. Please don't send patient records by e-mail.</p>
+        </div>
+      </section>
+
+      <section class="section" id="write" aria-labelledby="write-h">
+        <div class="wrap split">
+          <div>
+            <h2 id="write-h">Write to us</h2>
+            <p class="lede">
+              Your message goes straight to contact@sifralabs.com, and we reply from there within two
+              working days. Nothing is kept on this website.
+            </p>
+          </div>
+          <form class="mail-form" data-to="contact@sifralabs.com" data-api="/api/contact">
+            <!-- Bot trap: people never see or fill this field. -->
+            <label class="trap" aria-hidden="true">Website <input name="website" tabindex="-1" autocomplete="off" /></label>
+            <label><span>Your name <abbr title="Required">*</abbr></span><input name="name" required autocomplete="name" /></label>
+            <label><span>Organisation</span><input name="org" autocomplete="organization" /></label>
+            <label><span>E-mail <abbr title="Required">*</abbr></span><input name="email" type="email" required autocomplete="email" /></label>
+            <label><span>Phone</span><input name="phone" type="tel" autocomplete="tel" /></label>
+            <label class="span-2"><span>Topic <abbr title="Required">*</abbr></span>
+              <select name="topic" required>
+                <option value="MeDoc Dentist demo for a dental practice">MeDoc Dentist demo for a dental practice</option>
+                <option value="Partnership or distribution">Partnership or distribution</option>
+                <option value="Press">Press</option>
+                <option value="Careers">Careers</option>
+                <option value="Other">Other</option>
+              </select>
+            </label>
+            <label class="span-2"><span>Message <abbr title="Required">*</abbr></span><textarea name="message" rows="5" required></textarea></label>
+            <div class="span-2 form-foot">
+              <button class="btn" type="submit">Send message</button>
+              <p class="fine">Please don't include patient records.</p>
+            </div>
+            <div class="span-2 mail-sent" role="status" hidden>
+              <p data-msg></p>
+              <button class="btn btn-quiet" type="button" data-copy hidden>Copy the e-mail</button>
+            </div>
+          </form>
+        </div>
+      </section>
+    </main>
+<!-- @include footer -->
+  </body>
+</html>

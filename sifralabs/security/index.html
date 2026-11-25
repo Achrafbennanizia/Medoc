@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+  <head>
+<!-- @include head -->
+    <title>Security · Sifra Labs</title>
+    <meta name="description" content="How Sifra Labs software protects patient data, what is not done yet, the standards we build to, and how to report a vulnerability." />
+    <link rel="canonical" href="https://sifralabs.com/security/" />
+    <meta property="og:title" content="Security · Sifra Labs" />
+    <meta property="og:url" content="https://sifralabs.com/security/" />
+  </head>
+  <body>
+<!-- @include icons -->
+<!-- @include header -->
+    <main id="main">
+      <section class="page-hero with-photo">
+        <div class="wrap">
+          <div>
+          <p class="kicker">Security</p>
+          <h1>What we protect, how, and what we haven't done yet.</h1>
+          <p class="lede">
+            Health records are among the most sensitive data there is. This page says plainly how our
+            software handles them. Where something is missing, it says that too.
+          </p>
+          </div>
+          <img class="page-photo" src="/img/records-900.webp" srcset="/img/records-900.webp 900w, /img/records.webp 1600w" sizes="(min-width: 960px) 520px, 100vw"
+            width="900" height="600" fetchpriority="high" decoding="async"
+            alt="Hands typing on a laptop next to a stethoscope." />
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="design-h">
+        <div class="wrap">
+          <header class="section-head">
+            <p class="num">01</p>
+            <h2 id="design-h">How MeDoc Dentist protects patient data</h2>
+          </header>
+          <dl class="facts">
+            <div><dt>Where the data lives</dt><dd>On the practice's own computers. Patient records are not sent to Sifra Labs or to any cloud. The software works offline.</dd></div>
+            <div><dt>Encryption at rest</dt><dd>The practice database is encrypted with SQLCipher. A copied disk or a stolen laptop does not expose readable records.</dd></div>
+            <div><dt>Who sees what</dt><dd>Role-based access, checked in the application core and not only on screen. Reception cannot read the medical chart.</dd></div>
+            <div><dt>Audit trail</dt><dd>Reads of medical data and sensitive changes are written to an audit log chained with HMAC, so later edits to the log can be detected.</dd></div>
+            <div><dt>Between devices</dt><dd>Devices in one practice talk over the local network with TLS; clients pin the server's certificate fingerprint.</dd></div>
+            <div><dt>Backups</dt><dd>Backups include attachments and go to a folder the practice chooses, such as a USB or external drive.</dd></div>
+            <div><dt>Patients' rights</dt><dd>Built-in export and erasure, plus generators for the processing register and data-protection impact assessment.</dd></div>
+            <div><dt>Licences</dt><dd>Signed with Ed25519 and bound to the practice's devices.</dd></div>
+          </dl>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="gaps-h">
+        <div class="wrap">
+          <header class="section-head">
+            <p class="num">02</p>
+            <h2 id="gaps-h">Not done yet</h2>
+            <p>We're working on these. Until they ship, we don't claim them.</p>
+          </header>
+          <ul class="gaps">
+            <li><b>Two-factor sign-in</b> is built but switched off until it has been fully tested.</li>
+            <li><b>Installers are not yet code-signed.</b> Windows and macOS may warn at install; signing certificates are in progress.</li>
+            <li><b>No independent certification or penetration test yet.</b> We map our work to the standards below; we don't hold their certificates.</li>
+            <li><b>No emergency “break-glass” access</b> to a chart outside the normal roles.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="standards-h">
+        <div class="wrap">
+          <header class="section-head">
+            <p class="num">03</p>
+            <h2 id="standards-h">The rules we build to</h2>
+            <p>Our requirements and tests are mapped to these standards and laws.</p>
+          </header>
+          <ul class="norms">
+            <li><b>IEC 62304</b> Software lifecycle</li>
+            <li><b>ISO 14971</b> Risk management</li>
+            <li><b>IEC 82304-1</b> Health software safety</li>
+            <li><b>ISO/IEC 27001</b> Information security</li>
+            <li><b>ISO 27799</b> Security of health data</li>
+            <li><b>ISO 9241</b> Usability</li>
+            <li><b>WCAG 2.2</b> Accessibility</li>
+            <li><b>Loi 09-08</b> Personal data, Morocco</li>
+            <li><b>GDPR</b> Personal data, EU</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="section" id="report" aria-labelledby="report-h">
+        <div class="wrap name-grid">
+          <header class="section-head">
+            <p class="num">04</p>
+            <h2 id="report-h">Report a vulnerability</h2>
+          </header>
+          <div class="prose">
+            <p>
+              If you find a security problem in MeDoc Dentist or on our websites, write to
+              <a class="text-link" href="mailto:security@sifralabs.com">security@sifralabs.com</a>.
+              Include what you found, how to reproduce it, and what an attacker could do with it.
+            </p>
+            <p>We will:</p>
+            <ul class="plain">
+              <li>confirm we received your report within 5 working days;</li>
+              <li>keep you informed while we fix it;</li>
+              <li>credit you when the fix ships, if you want to be named;</li>
+              <li>not take legal action against research done in good faith under this policy.</li>
+            </ul>
+            <p>Please:</p>
+            <ul class="plain">
+              <li>never access, change or keep real patient data, and stop as soon as you reach any;</li>
+              <li>don't disrupt a practice's systems or run denial-of-service tests;</li>
+              <li>give us reasonable time to fix the problem before you publish.</li>
+            </ul>
+            <p class="fine">Machine-readable contact: <a href="/.well-known/security.txt">/.well-known/security.txt</a></p>
+          </div>
+        </div>
+      </section>
+    </main>
+<!-- @include footer -->
+  </body>
+</html>

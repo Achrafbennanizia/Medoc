@@ -1,13 +1,16 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { Product } from "./Product";
-import { CONTACT_EMAIL, type Currency, PRICES, WHATSAPP_NUMBER } from "./config";
+import { COMPANY_URL, CONTACT_API, CONTACT_EMAIL, type Currency, PRICES, WHATSAPP_NUMBER } from "./config";
 import { DICTS, type Dict, LANGS, LOCALE, type Lang } from "./i18n";
-import { LEGAL_DOCS, LegalPage, legalHref, legalRoute } from "./Legal";
+import { LEGAL_DOCS, LegalPage, legalHref } from "./Legal";
 import { Odontogram } from "./Odontogram";
 import { COUNTRY_COPY } from "./country-copy";
 import { COOKIES, COUNTRIES, type Country, initialCountry, readCookie, writeCookie } from "./prefs";
 import { DocumentsGallery, WhatsNew } from "./Sections";
 import { SITE_COPY } from "./site-copy";
+import { Advantages, DigitalHealth, DigitalizationPack, Pilot, FeaturesHero, Highlights, Photo, PrivacyBand, SecurityPage } from "./Pages";
+import { PAGES_COPY } from "./pages-copy";
+import { type Route, pageHref, parseRoute } from "./route";
 
 type Theme = "light" | "dark";
 
@@ -114,22 +117,28 @@ function Header({
   setCountry: (c: Country) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const pc = PAGES_COPY[lang];
   const links = [
-    ["#product", t.nav.product],
-    ["#roles", t.nav.privacy],
+    [pageHref("features"), pc.nav.features],
+    [pageHref("security"), pc.nav.security],
     ["#prices", t.nav.prices],
     ["#faq", t.nav.faq],
   ];
   return (
     <header className="site-header">
       <div className="wrap header-row">
-        <a className="brand" href="#top" aria-label="MeDoc">
-          {I.logo}
-          <span>MeDoc</span>
-        </a>
+        <div className="brand-group">
+          <a className="brand" href="#top" aria-label="MeDoc Dentist">
+            {I.logo}
+            <span>MeDoc Dentist</span>
+          </a>
+          <a className="by-line" href={COMPANY_URL}>
+            {pc.by}
+          </a>
+        </div>
         <nav className={`nav${open ? " is-open" : ""}`} aria-label={t.nav.menu}>
           {links.map(([href, label]) => (
-            <a key={href} href={href} onClick={() => setOpen(false)}>
+            <a key={href} href={href} onClick={() => setOpen(false)} aria-current={location.hash.startsWith(href) && href.startsWith("#/") ? "page" : undefined}>
               {label}
             </a>
           ))}
@@ -176,7 +185,7 @@ function Header({
 }
 
 /* ---------- hero ---------- */
-function Hero({ t, locale }: { t: Dict; locale: string }) {
+function Hero({ t, lang, locale }: { t: Dict; lang: Lang; locale: string }) {
   return (
     <section className="hero" id="top">
       <div className="wrap hero-grid">
@@ -200,9 +209,12 @@ function Hero({ t, locale }: { t: Dict; locale: string }) {
             ))}
           </dl>
         </div>
-        <div className="hero-visual">
-          <Odontogram t={t} locale={locale} />
-          <p className="chart-hint">{t.hero.chartHint}</p>
+        <div className="hero-visual hero-stage">
+          <Photo name="dentist-patient" alt={PAGES_COPY[lang].photoAlt.hero} className="hero-photo" eager sizes="(min-width: 960px) 600px, 100vw" />
+          <div className="hero-chart">
+            <Odontogram t={t} locale={locale} />
+            <p className="chart-hint">{t.hero.chartHint}</p>
+          </div>
         </div>
       </div>
     </section>
@@ -441,22 +453,91 @@ function Faq({ t }: { t: Dict }) {
 }
 
 /* ---------- contact ---------- */
-function Contact({ t }: { t: Dict }) {
+function Contact({ t, lang, locale, country }: { t: Dict; lang: Lang; locale: string; country: Country }) {
   const c = t.contact;
-  const onSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const m = PAGES_COPY[lang].mail;
+  // After sending: "sent", or "fallback" with the prepared e-mail kept for copying if no mail app opened.
+  const [state, setState] = useState<"idle" | "sending" | "sent" | "fallback">("idle");
+  const [prepared, setPrepared] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [shownAt] = useState(() => Date.now());
+  // One key per request: a double click or a retry is delivered once.
+  const [key, setKey] = useState(() => crypto.randomUUID());
+  const onSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const d = new FormData(e.currentTarget);
-    const line = (k: string, label: string) => `${label}: ${String(d.get(k) ?? "").trim()}`;
+    const form = e.currentTarget;
+    const d = new FormData(form);
+    const v = (k: string) => String(d.get(k) ?? "").trim();
+    const line = (label: string, value: string) => `${label}: ${value || "–"}`;
+    // Default subject, with the practice and city so the inbox shows who is asking.
+    const subject = [c.subject, [v("practice"), v("city")].filter(Boolean).join(", ")].filter(Boolean).join(" · ");
     const body = [
-      line("name", c.name),
-      line("practice", c.practice),
-      line("city", c.city),
-      line("phone", c.phone),
-      line("email", c.email),
+      m.hello,
       "",
-      String(d.get("message") ?? "").trim(),
+      m.intro,
+      "",
+      `— ${m.contact} —`,
+      line(c.name, v("name")),
+      line(c.practice, v("practice")),
+      line(c.city, v("city")),
+      line(c.phone, v("phone")),
+      line(c.email, v("email")),
+      "",
+      `— ${m.request} —`,
+      v("message") || m.noMessage,
+      "",
+      `— ${m.details} —`,
+      line(m.language, LANGS.find((l) => l.id === lang)!.name),
+      line(m.country, COUNTRY_COPY[lang].names[country]),
+      `${m.sentFrom} ${new Date().toLocaleDateString(locale)}`,
+      "",
+      m.regards,
+      v("name"),
     ].join("\n");
-    location.href = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(c.subject)}&body=${encodeURIComponent(body)}`;
+    setPrepared(`${subject}\n\n${body}`);
+    setCopied(false);
+    setState("sending");
+    let ok = false;
+    try {
+      const res = await fetch(CONTACT_API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Idempotency-Key": key },
+        body: JSON.stringify({
+          form: "medoc",
+          name: v("name"),
+          email: v("email"),
+          phone: v("phone"),
+          org: v("practice"),
+          city: v("city"),
+          message: v("message"),
+          lang,
+          country: COUNTRY_COPY[lang].names[country],
+          website: v("website"),
+          elapsed: Date.now() - shownAt,
+        }),
+      });
+      ok = res.ok && ((await res.json()) as { ok?: boolean }).ok === true;
+    } catch {
+      ok = false;
+    }
+    if (ok) {
+      setState("sent");
+      form.reset();
+      setKey(crypto.randomUUID());
+    } else {
+      setState("fallback");
+      // Opens the visitor's own e-mail app (Mail, Outlook, Gmail…) with everything filled in; they press Send.
+      location.href = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    }
+  };
+  const copy = async () => {
+    if (!prepared) return;
+    try {
+      await navigator.clipboard.writeText(`${CONTACT_EMAIL}\n${prepared}`);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
   };
   return (
     <section className="section" id="contact">
@@ -475,6 +556,10 @@ function Contact({ t }: { t: Dict }) {
           </p>
         </div>
         <form className="form" onSubmit={onSubmit}>
+          {/* Bot trap: people never see or fill this field. */}
+          <label className="trap" aria-hidden="true">
+            Website <input name="website" tabIndex={-1} autoComplete="off" />
+          </label>
           <label>
             <span>
               {c.name} <abbr title={c.required}>*</abbr>
@@ -506,11 +591,25 @@ function Contact({ t }: { t: Dict }) {
             <textarea name="message" rows={4} />
           </label>
           <div className="span-2 form-foot">
-            <button className="btn btn-primary" type="submit">
-              {c.send}
+            <button className="btn btn-primary" type="submit" disabled={state === "sending"}>
+              {state === "sending" ? m.sending : c.send}
             </button>
             <p className="fine">{c.note}</p>
           </div>
+          {state === "sent" ? (
+            <div className="span-2 mail-sent" role="status">
+              <p>{m.sent}</p>
+            </div>
+          ) : state === "fallback" && prepared ? (
+            <div className="span-2 mail-sent" role="status">
+              <p>
+                {m.fallback} <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
+              </p>
+              <button className="btn btn-ghost btn-sm" type="button" onClick={copy}>
+                {copied ? m.copied : m.copy}
+              </button>
+            </div>
+          ) : null}
         </form>
       </div>
     </section>
@@ -523,15 +622,32 @@ function Footer({ t, lang, setLang }: { t: Dict; lang: Lang; setLang: (l: Lang) 
     <footer className="site-footer">
       <div className="wrap footer-grid">
         <div>
-          <a className="brand" href="#top" aria-label="MeDoc">
+          <a className="brand" href="#top" aria-label="MeDoc Dentist">
             {I.logo}
-            <span>MeDoc</span>
+            <span>MeDoc Dentist</span>
           </a>
           <p>{t.footer.tagline}</p>
+          <p className="fine">
+            <a href={COMPANY_URL}>{t.footer.company}</a>
+          </p>
           <p className="fine">
             <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
           </p>
         </div>
+        <ul className="footer-links" aria-label="MeDoc Dentist">
+          <li>
+            <a href={pageHref("features")}>{PAGES_COPY[lang].nav.features}</a>
+          </li>
+          <li>
+            <a href={pageHref("security")}>{PAGES_COPY[lang].nav.security}</a>
+          </li>
+          <li>
+            <a href="#prices">{t.nav.prices}</a>
+          </li>
+          <li>
+            <a href="#contact">{t.nav.demo}</a>
+          </li>
+        </ul>
         <ul className="footer-links" aria-label={t.footer.legal}>
           {LEGAL_DOCS.map((id) => (
             <li key={id}>
@@ -551,7 +667,7 @@ function Footer({ t, lang, setLang }: { t: Dict; lang: Lang; setLang: (l: Lang) 
       </div>
       <div className="wrap">
         <p className="fine device">{t.footer.device}</p>
-        <p className="fine">© {new Date().getFullYear()} MeDoc</p>
+        <p className="fine">© {new Date().getFullYear()} MeDoc Dentist · Sifra Labs</p>
       </div>
     </footer>
   );
@@ -631,9 +747,6 @@ export function App() {
     const html = document.documentElement;
     html.lang = lang;
     html.dir = lang === "ar" ? "rtl" : "ltr";
-    // The French title names Morocco; a French-speaking visitor elsewhere gets a neutral one.
-    const title = lang === "fr" && country !== "MA" ? "Logiciel de gestion de cabinet dentaire · MeDoc" : t.meta.title;
-    if (!legalRoute(location.hash)) document.title = title;
     document.querySelector('meta[name="description"]')?.setAttribute("content", t.meta.description);
     const url = new URL(location.href);
     url.searchParams.set("lang", lang);
@@ -644,18 +757,33 @@ export function App() {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
 
-  // "#/legal/<doc>" shows a legal page; any other hash is a section of the home page.
-  const [route, setRoute] = useState(() => legalRoute(location.hash));
+  // Pages: "#/features", "#/security", "#/legal/<doc>"; any other hash is a section of the home page.
+  const [route, setRoute] = useState<Route>(() => parseRoute(location.hash));
   useEffect(() => {
-    const onHash = () => setRoute(legalRoute(location.hash));
+    const onHash = () => setRoute(parseRoute(location.hash));
     addEventListener("hashchange", onHash);
     return () => removeEventListener("hashchange", onHash);
   }, []);
 
-  // Deep links (#prices, #contact…) land on their section: the DOM only exists after render.
+  // A new page starts at its top, or at its section (#prices, #/features/calendar): the DOM only exists after render.
+  const routeKey = route.page === "legal" ? `legal/${route.doc}` : `${route.page}/${route.anchor ?? ""}`;
+
+  // Tab title per page. The French home title names Morocco; a French-speaking visitor elsewhere gets a neutral one.
   useEffect(() => {
-    if (!route && location.hash.length > 1) document.getElementById(location.hash.slice(1))?.scrollIntoView();
-  }, [route]);
+    if (route.page === "home") document.title = lang === "fr" && country !== "MA" ? "Logiciel de gestion de cabinet dentaire · MeDoc Dentist" : t.meta.title;
+    else if (route.page === "features") document.title = `${PAGES_COPY[lang].nav.features} · MeDoc Dentist`;
+    else if (route.page === "security") document.title = PAGES_COPY[lang].security.meta;
+  }, [lang, t, country, route.page]);
+  useEffect(() => {
+    // A tick later: on first load the browser's own hash scroll runs after this effect.
+    const id = setTimeout(() => {
+      const el = route.anchor ? document.getElementById(route.anchor) : null;
+      if (el) el.scrollIntoView({ behavior: "instant" });
+      else if (route.page !== "home" || !route.anchor) scrollTo({ top: 0, behavior: "instant" });
+    }, 0);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeKey]);
 
   return (
     <>
@@ -664,24 +792,36 @@ export function App() {
       </a>
       <Header t={t} lang={lang} setLang={setLang} theme={theme} setTheme={setTheme} country={country} setCountry={setCountry} />
       <main id="main">
-        {route ? (
-          <LegalPage lang={lang} locale={locale} doc={route} />
+        {route.page === "legal" ? (
+          <LegalPage lang={lang} locale={locale} doc={route.doc} />
+        ) : route.page === "features" ? (
+          <>
+            <FeaturesHero t={t} lang={lang} />
+            <Product t={t} lang={lang} theme={theme} hideHead />
+            <DocumentsGallery lang={lang} country={country} />
+            <WhatsNew lang={lang} locale={locale} />
+          </>
+        ) : route.page === "security" ? (
+          <SecurityPage lang={lang} />
         ) : (
           <>
-            <Hero t={t} locale={locale} />
-            <WhatsNew lang={lang} locale={locale} />
-            <Product t={t} lang={lang} theme={theme} />
-            <DocumentsGallery lang={lang} country={country} />
+            <Hero t={t} lang={lang} locale={locale} />
+            <Highlights lang={lang} />
+            <Advantages lang={lang} />
+            <DigitalizationPack lang={lang} />
+            <PrivacyBand lang={lang} />
+            <DigitalHealth lang={lang} country={country} />
             {country === "MA" ? <Morocco t={t} /> : <CountryReady lang={lang} country={country} />}
+            <Pilot lang={lang} />
             <Setups t={t} />
             <Prices t={t} locale={locale} country={country} />
             <Faq t={t} />
-            <Contact t={t} />
+            <Contact t={t} lang={lang} locale={locale} country={country} />
           </>
         )}
       </main>
       <Footer t={t} lang={lang} setLang={setLang} />
-      {route ? null : <MobileCta lang={lang} />}
+      {route.page === "legal" ? null : <MobileCta lang={lang} />}
       <CookieNotice lang={lang} />
     </>
   );

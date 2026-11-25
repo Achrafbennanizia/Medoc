@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { COUNTRY_COPY } from "./country-copy";
 import type { Lang } from "./i18n";
 import type { Country } from "./prefs";
+import { featureLink } from "./route";
 import { SITE_COPY } from "./site-copy";
 
 const asset = (path: string) => `${import.meta.env.BASE_URL}${path}`;
@@ -22,7 +23,7 @@ export function WhatsNew({ lang, locale }: { lang: Lang; locale: string }) {
             <li key={it.title} className="news-item">
               <time dateTime={it.date}>{fmt.format(new Date(it.date))}</time>
               <h3>
-                <a href={it.href}>{it.title}</a>
+                <a href={featureLink(it.href)}>{it.title}</a>
               </h3>
               <p>{it.text}</p>
             </li>
