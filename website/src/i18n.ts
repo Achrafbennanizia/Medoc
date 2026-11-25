@@ -13,7 +13,7 @@ export type Status = "healthy" | "caries" | "filling" | "crown" | "missing" | "i
 
 const en = {
   meta: {
-    title: "Dental practice software, on-premise · MeDoc",
+    title: "Dental practice software, on-premise · MeDoc Dentist",
     description:
       "Patient files, odontogram, appointments, prescriptions and payments for dental practices. Encrypted on your own computers, works offline, in French, Arabic, English and German.",
   },
@@ -218,7 +218,7 @@ export type Dict = typeof en;
 
 const fr: Dict = {
   meta: {
-    title: "Logiciel cabinet dentaire au Maroc · MeDoc",
+    title: "Logiciel cabinet dentaire au Maroc · MeDoc Dentist",
     description:
       "Dossiers patients, schéma dentaire, rendez-vous, ordonnances et encaissements pour cabinets dentaires. Chiffré sur vos propres ordinateurs, fonctionne sans internet, en français, arabe, anglais et allemand.",
   },
@@ -414,7 +414,7 @@ const fr: Dict = {
 
 const ar: Dict = {
   meta: {
-    title: "برنامج تسيير عيادة الأسنان بالمغرب · MeDoc",
+    title: "برنامج تسيير عيادة الأسنان بالمغرب · MeDoc Dentist",
     description:
       "ملفات المرضى، مخطط الأسنان، المواعيد، الوصفات والمدفوعات لعيادات طب الأسنان. مشفّر على حواسيبك، يعمل دون إنترنت، بالفرنسية والعربية والإنجليزية والألمانية.",
   },
@@ -610,7 +610,7 @@ const ar: Dict = {
 
 const de: Dict = {
   meta: {
-    title: "Zahnarztsoftware lokal & offline · MeDoc",
+    title: "Zahnarztsoftware lokal & offline · MeDoc Dentist",
     description:
       "Patientenakten, Zahnschema, Termine, Rezepte und Zahlungen für Zahnarztpraxen. Verschlüsselt auf Ihren eigenen Rechnern, funktioniert offline, auf Französisch, Arabisch, Englisch und Deutsch.",
   },

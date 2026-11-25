@@ -98,7 +98,7 @@ const en: PagesCopy = {
     fallback: "We couldn't send it from the website just now, so your e-mail app is opening with the message ready: press Send there. Nothing opened? Copy the e-mail and send it to",
   },
   security: {
-    meta: "Security and privacy · MeDoc",
+    meta: "Security and privacy · MeDoc Dentist",
     kicker: "Security",
     title: "Your patients' records stay in your practice",
     lead: "MeDoc keeps its database encrypted on your own computers, shows each person only what their job needs, and records who opened what. Here is how, and what is not done yet.",
@@ -193,7 +193,7 @@ const fr: PagesCopy = {
     fallback: "L'envoi depuis le site n'a pas abouti : votre application e-mail s'ouvre avec le message prêt, cliquez sur Envoyer. Rien ne s'est ouvert ? Copiez l'e-mail et envoyez-le à",
   },
   security: {
-    meta: "Sécurité et confidentialité · MeDoc",
+    meta: "Sécurité et confidentialité · MeDoc Dentist",
     kicker: "Sécurité",
     title: "Les dossiers de vos patients restent dans votre cabinet",
     lead: "MeDoc garde sa base de données chiffrée sur vos propres ordinateurs, ne montre à chacun que ce dont son métier a besoin et enregistre qui a ouvert quoi. Voici comment, et ce qui n'est pas encore fait.",
@@ -288,7 +288,7 @@ const ar: PagesCopy = {
     fallback: "تعذّر الإرسال من الموقع الآن، لذلك يُفتح تطبيق البريد لديكم والرسالة جاهزة: اضغطوا إرسال. لم يُفتح شيء؟ انسخوا الرسالة وأرسلوها إلى",
   },
   security: {
-    meta: "الأمان والسرية · MeDoc",
+    meta: "الأمان والسرية · MeDoc Dentist",
     kicker: "الأمان",
     title: "ملفات مرضاكم تبقى داخل عيادتكم",
     lead: "يحفظ MeDoc قاعدة بياناته مشفّرة على حواسيبكم، ولا يُظهر لكل شخص إلا ما يحتاجه عمله، ويسجّل من فتح ماذا. إليكم الطريقة، وما لم يُنجز بعد.",
@@ -383,7 +383,7 @@ const de: PagesCopy = {
     fallback: "Das Senden über die Website hat gerade nicht geklappt, deshalb öffnet sich Ihr E-Mail-Programm mit der fertigen Nachricht: Klicken Sie dort auf Senden. Nichts geöffnet? Kopieren Sie die E-Mail und senden Sie sie an",
   },
   security: {
-    meta: "Sicherheit und Datenschutz · MeDoc",
+    meta: "Sicherheit und Datenschutz · MeDoc Dentist",
     kicker: "Sicherheit",
     title: "Die Akten Ihrer Patienten bleiben in Ihrer Praxis",
     lead: "MeDoc speichert seine Datenbank verschlüsselt auf Ihren eigenen Rechnern, zeigt jeder Person nur, was ihre Arbeit braucht, und hält fest, wer was geöffnet hat. So funktioniert es, und das ist noch nicht fertig.",

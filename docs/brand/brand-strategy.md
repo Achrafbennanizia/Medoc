@@ -95,7 +95,7 @@ One word that already means **numbers, computing and encryption** in every targe
 
 ```
 Sifra Labs                      company, trust, engineering, the core
-├── MeDoc Dental                available
+├── MeDoc Dentist                available
 ├── MeDoc General               general medicine
 ├── MeDoc Mobile                iPad / Android companion
 ├── Sifra Booking               patient-facing booking (a consumer name may come later)

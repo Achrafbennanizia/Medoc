@@ -51,7 +51,7 @@ export function LegalPage({ lang, locale, doc }: { lang: Lang; locale: string; d
 
   useEffect(() => {
     window.scrollTo(0, 0);
-    document.title = `${d.title} · MeDoc`;
+    document.title = `${d.title} · MeDoc Dentist`;
   }, [d]);
 
   // Scrollspy: the table of contents marks the section being read.

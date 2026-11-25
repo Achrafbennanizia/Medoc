@@ -128,9 +128,9 @@ function Header({
     <header className="site-header">
       <div className="wrap header-row">
         <div className="brand-group">
-          <a className="brand" href="#top" aria-label="MeDoc">
+          <a className="brand" href="#top" aria-label="MeDoc Dentist">
             {I.logo}
-            <span>MeDoc</span>
+            <span>MeDoc Dentist</span>
           </a>
           <a className="by-line" href={COMPANY_URL}>
             {pc.by}
@@ -622,9 +622,9 @@ function Footer({ t, lang, setLang }: { t: Dict; lang: Lang; setLang: (l: Lang) 
     <footer className="site-footer">
       <div className="wrap footer-grid">
         <div>
-          <a className="brand" href="#top" aria-label="MeDoc">
+          <a className="brand" href="#top" aria-label="MeDoc Dentist">
             {I.logo}
-            <span>MeDoc</span>
+            <span>MeDoc Dentist</span>
           </a>
           <p>{t.footer.tagline}</p>
           <p className="fine">
@@ -634,7 +634,7 @@ function Footer({ t, lang, setLang }: { t: Dict; lang: Lang; setLang: (l: Lang) 
             <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
           </p>
         </div>
-        <ul className="footer-links" aria-label="MeDoc">
+        <ul className="footer-links" aria-label="MeDoc Dentist">
           <li>
             <a href={pageHref("features")}>{PAGES_COPY[lang].nav.features}</a>
           </li>
@@ -667,7 +667,7 @@ function Footer({ t, lang, setLang }: { t: Dict; lang: Lang; setLang: (l: Lang) 
       </div>
       <div className="wrap">
         <p className="fine device">{t.footer.device}</p>
-        <p className="fine">© {new Date().getFullYear()} MeDoc</p>
+        <p className="fine">© {new Date().getFullYear()} MeDoc Dentist · Sifra Labs</p>
       </div>
     </footer>
   );
@@ -770,8 +770,8 @@ export function App() {
 
   // Tab title per page. The French home title names Morocco; a French-speaking visitor elsewhere gets a neutral one.
   useEffect(() => {
-    if (route.page === "home") document.title = lang === "fr" && country !== "MA" ? "Logiciel de gestion de cabinet dentaire · MeDoc" : t.meta.title;
-    else if (route.page === "features") document.title = `${PAGES_COPY[lang].nav.features} · MeDoc`;
+    if (route.page === "home") document.title = lang === "fr" && country !== "MA" ? "Logiciel de gestion de cabinet dentaire · MeDoc Dentist" : t.meta.title;
+    else if (route.page === "features") document.title = `${PAGES_COPY[lang].nav.features} · MeDoc Dentist`;
     else if (route.page === "security") document.title = PAGES_COPY[lang].security.meta;
   }, [lang, t, country, route.page]);
   useEffect(() => {

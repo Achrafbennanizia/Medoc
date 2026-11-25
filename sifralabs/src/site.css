@@ -2071,3 +2071,11 @@ h3 {
 [hidden] {
   display: none !important;
 }
+
+.band-soft {
+  background: var(--panel);
+}
+.layer-products li.soon {
+  border-style: dashed;
+  color: var(--ink-3);
+}
