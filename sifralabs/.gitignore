@@ -2,3 +2,7 @@ node_modules
 dist
 .dev.vars
 .wrangler
+fr/
+ar/
+de/
+i18n/missing-*.json

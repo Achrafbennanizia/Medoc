@@ -2079,3 +2079,68 @@ h3 {
   border-style: dashed;
   color: var(--ink-3);
 }
+
+/* language switcher */
+.langs {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.langs a {
+  min-width: 32px;
+  min-height: 30px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 6px;
+  border-radius: 4px;
+  font: 500 12px var(--font-mono);
+  color: var(--ink-2);
+  text-decoration: none;
+}
+.langs a[lang="ar"] {
+  font-family: "IBM Plex Sans Arabic", var(--font-text);
+  font-size: 14px;
+}
+.langs a:hover {
+  color: var(--ink);
+}
+.langs a[aria-current="true"] {
+  background: var(--ink);
+  color: var(--paper);
+}
+@media (max-width: 760px) {
+  .langs a {
+    min-width: 28px;
+    padding: 0 4px;
+  }
+}
+@media (max-width: 420px) {
+  .brand span {
+    display: none;
+  }
+}
+
+/* Arabic pages: Arabic typeface, no letter-spacing on Arabic text */
+:root[lang="ar"] body {
+  font-family: "IBM Plex Sans Arabic", var(--font-text);
+}
+:root[lang="ar"] h1,
+:root[lang="ar"] h2,
+:root[lang="ar"] h3,
+:root[lang="ar"] .lede,
+:root[lang="ar"] .num-list dd {
+  font-family: "IBM Plex Sans Arabic", var(--font-display);
+  letter-spacing: 0;
+}
+:root[lang="ar"] .hero h1,
+:root[lang="ar"] .page-hero h1 {
+  font-weight: 400;
+  line-height: 1.25;
+}
+:root[lang="ar"] .kicker,
+:root[lang="ar"] .num-title,
+:root[lang="ar"] .tag {
+  font-family: "IBM Plex Sans Arabic", var(--font-mono);
+}

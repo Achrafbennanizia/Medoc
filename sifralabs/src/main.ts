@@ -4,6 +4,8 @@ import "@fontsource/ibm-plex-sans/400.css";
 import "@fontsource/ibm-plex-sans/500.css";
 import "@fontsource/ibm-plex-sans/600.css";
 import "@fontsource/ibm-plex-sans-arabic/400.css";
+import "@fontsource/ibm-plex-sans-arabic/500.css";
+import "@fontsource/ibm-plex-sans-arabic/600.css";
 import "@fontsource/ibm-plex-mono/400.css";
 import "./site.css";
 
@@ -67,9 +69,30 @@ if (dialog) {
 }
 
 /* ---------- contact form: sends through /api/contact; falls back to the visitor's mail app ---------- */
-const SENT = "Thank you. Your message is on its way to contact@sifralabs.com, and we reply within two working days.";
-const FALLBACK =
-  "We couldn't send it from the website just now, so your e-mail app is opening with the message ready: press Send there. Nothing opened? Copy the e-mail and send it to contact@sifralabs.com.";
+// Form messages in the page's language (pages are generated per language from i18n/*.json).
+const UI = {
+  en: {
+    sent: "Thank you. Your message is on its way to contact@sifralabs.com, and we reply within two working days.",
+    fallback: "We couldn't send it from the website just now, so your e-mail app is opening with the message ready: press Send there. Nothing opened? Copy the e-mail and send it to contact@sifralabs.com.",
+    sending: "Sending…", send: "Send message", copy: "Copy the e-mail", copied: "Copied", copyFailed: "Copy failed: write to contact@sifralabs.com",
+  },
+  fr: {
+    sent: "Merci. Votre message est en route vers contact@sifralabs.com, et nous répondons sous deux jours ouvrés.",
+    fallback: "L'envoi depuis le site n'a pas abouti : votre messagerie s'ouvre avec le message prêt, cliquez sur Envoyer. Rien ne s'est ouvert ? Copiez l'e-mail et envoyez-le à contact@sifralabs.com.",
+    sending: "Envoi…", send: "Envoyer le message", copy: "Copier l'e-mail", copied: "Copié", copyFailed: "Copie impossible : écrivez à contact@sifralabs.com",
+  },
+  ar: {
+    sent: "شكرًا. رسالتكم في طريقها إلى contact@sifralabs.com، وسنرد خلال يومَي عمل.",
+    fallback: "تعذّر الإرسال من الموقع الآن، لذلك يُفتح تطبيق البريد لديكم والرسالة جاهزة: اضغطوا إرسال. لم يُفتح شيء؟ انسخوا الرسالة وأرسلوها إلى contact@sifralabs.com.",
+    sending: "جارٍ الإرسال…", send: "إرسال الرسالة", copy: "نسخ الرسالة", copied: "تم النسخ", copyFailed: "تعذّر النسخ: راسلونا على contact@sifralabs.com",
+  },
+  de: {
+    sent: "Vielen Dank. Ihre Nachricht ist unterwegs an contact@sifralabs.com, wir antworten innerhalb von zwei Werktagen.",
+    fallback: "Das Senden über die Website hat gerade nicht geklappt, deshalb öffnet sich Ihr E-Mail-Programm mit der fertigen Nachricht: Klicken Sie dort auf Senden. Nichts geöffnet? Kopieren Sie die E-Mail und senden Sie sie an contact@sifralabs.com.",
+    sending: "Wird gesendet…", send: "Nachricht senden", copy: "E-Mail kopieren", copied: "Kopiert", copyFailed: "Kopieren fehlgeschlagen: Schreiben Sie an contact@sifralabs.com",
+  },
+};
+const ui = UI[(document.documentElement.lang as keyof typeof UI) || "en"] ?? UI.en;
 
 for (const form of document.querySelectorAll<HTMLFormElement>("form.mail-form")) {
   const to = form.dataset.to!;
@@ -100,7 +123,7 @@ for (const form of document.querySelectorAll<HTMLFormElement>("form.mail-form"))
     prepared = `To: ${to}\nSubject: ${subject}\n\n${body}`;
 
     submit.disabled = true;
-    submit.textContent = "Sending…";
+    submit.textContent = ui.sending;
     let ok = false;
     try {
       const res = await fetch(api, {
@@ -117,26 +140,26 @@ for (const form of document.querySelectorAll<HTMLFormElement>("form.mail-form"))
       ok = false;
     }
     submit.disabled = false;
-    submit.textContent = "Send message";
+    submit.textContent = ui.send;
     status.hidden = false;
     if (ok) {
-      msg.textContent = SENT;
+      msg.textContent = ui.sent;
       copyBtn.hidden = true;
       form.reset();
       key = crypto.randomUUID();
     } else {
-      msg.textContent = FALLBACK;
+      msg.textContent = ui.fallback;
       copyBtn.hidden = false;
-      copyBtn.textContent = "Copy the e-mail";
+      copyBtn.textContent = ui.copy;
       location.href = `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     }
   });
   copyBtn.addEventListener("click", async () => {
     try {
       await navigator.clipboard.writeText(prepared);
-      copyBtn.textContent = "Copied";
+      copyBtn.textContent = ui.copied;
     } catch {
-      copyBtn.textContent = "Copy failed: write to contact@sifralabs.com";
+      copyBtn.textContent = ui.copyFailed;
     }
   });
 }

@@ -1,9 +1,27 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://sifralabs.com/</loc></url>
+  <url><loc>https://sifralabs.com/fr/</loc></url>
+  <url><loc>https://sifralabs.com/ar/</loc></url>
+  <url><loc>https://sifralabs.com/de/</loc></url>
   <url><loc>https://sifralabs.com/products/</loc></url>
+  <url><loc>https://sifralabs.com/fr/products/</loc></url>
+  <url><loc>https://sifralabs.com/ar/products/</loc></url>
+  <url><loc>https://sifralabs.com/de/products/</loc></url>
   <url><loc>https://sifralabs.com/security/</loc></url>
+  <url><loc>https://sifralabs.com/fr/security/</loc></url>
+  <url><loc>https://sifralabs.com/ar/security/</loc></url>
+  <url><loc>https://sifralabs.com/de/security/</loc></url>
   <url><loc>https://sifralabs.com/company/</loc></url>
+  <url><loc>https://sifralabs.com/fr/company/</loc></url>
+  <url><loc>https://sifralabs.com/ar/company/</loc></url>
+  <url><loc>https://sifralabs.com/de/company/</loc></url>
   <url><loc>https://sifralabs.com/contact/</loc></url>
+  <url><loc>https://sifralabs.com/fr/contact/</loc></url>
+  <url><loc>https://sifralabs.com/ar/contact/</loc></url>
+  <url><loc>https://sifralabs.com/de/contact/</loc></url>
   <url><loc>https://sifralabs.com/legal/privacy/</loc></url>
+  <url><loc>https://sifralabs.com/fr/legal/privacy/</loc></url>
+  <url><loc>https://sifralabs.com/ar/legal/privacy/</loc></url>
+  <url><loc>https://sifralabs.com/de/legal/privacy/</loc></url>
 </urlset>

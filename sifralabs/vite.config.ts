@@ -1,11 +1,24 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { defineConfig, type Plugin } from "vite";
+// @ts-expect-error plain ESM helper without types
+import { LANGS, PAGES, decorate, includes, loadDict, localiseLinks, translate } from "./i18n/build.mjs";
 
 const root = import.meta.dirname;
 
-// Every page, by URL. Add a page here and it is built and served.
-const pages = {
+// One-line stubs for the translated pages (fr/, ar/, de/ are generated, not committed).
+const stubs: Record<string, string> = {};
+for (const lang of (LANGS as string[]).filter((l) => l !== "en")) {
+  for (const file of PAGES as string[]) {
+    const path = `${lang}/${file}`;
+    mkdirSync(dirname(resolve(root, path)), { recursive: true });
+    writeFileSync(resolve(root, path), `<!-- @translate ${lang} ${file} -->\n`);
+    stubs[`${lang}-${file.replace(/\/?index\.html$/, "").replace(/\//g, "-") || "home"}`] = path;
+  }
+}
+
+// Every page, by URL. Add an English page here and to PAGES in i18n/build.mjs.
+const pages: Record<string, string> = {
   home: "index.html",
   products: "products/index.html",
   security: "security/index.html",
@@ -14,29 +27,40 @@ const pages = {
   notice: "legal/notice/index.html",
   privacy: "legal/privacy/index.html",
   notFound: "404.html",
+  ...stubs,
 };
 
-// `<!-- @include header -->` pulls in partials/header.html, so the nav and footer live in one place.
-function includes(): Plugin {
+// Partials, translation and per-language links in one pass, before Vite processes the HTML.
+function site(): Plugin {
   return {
-    name: "sifra-includes",
-    // "pre": run before Vite processes the HTML, so the script tag in partials/head.html is bundled.
+    name: "sifra-site",
     transformIndexHtml: {
       order: "pre",
-      // Partials may include partials (the header includes the command menu): repeat until none are left.
-      handler: (html) => {
-        const re = /<!-- @include (\w+) -->/g;
-        for (let depth = 0; re.test(html) && depth < 5; depth++) {
-          html = html.replace(re, (_, name: string) => readFileSync(resolve(root, "partials", `${name}.html`), "utf8"));
+      handler: (html, ctx) => {
+        let lang = "en";
+        let file = ctx.path.replace(/^\//, "") || "index.html";
+        if (file.endsWith("/")) file += "index.html";
+        const stub = /<!-- @translate (\w+) (\S+) -->/.exec(html);
+        if (stub) {
+          lang = stub[1]!;
+          file = stub[2]!;
+          html = readFileSync(resolve(root, file), "utf8");
         }
-        return html;
+        html = includes(html, root);
+        if (lang !== "en") {
+          const missing = new Set<string>();
+          html = translate(html, lang, loadDict(root, lang), missing);
+          if (missing.size) console.warn(`[i18n] ${lang}/${file}: ${missing.size} untranslated`, [...missing].slice(0, 5));
+          html = localiseLinks(html, lang);
+        }
+        return (PAGES as string[]).includes(file) ? decorate(html, lang, file) : html.replaceAll("<!-- @langs -->", "");
       },
     },
   };
 }
 
 export default defineConfig({
-  plugins: [includes()],
+  plugins: [site()],
   build: {
     rollupOptions: {
       input: Object.fromEntries(Object.entries(pages).map(([k, v]) => [k, resolve(root, v)])),
