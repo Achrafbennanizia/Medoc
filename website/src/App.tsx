@@ -2,12 +2,15 @@ import { type FormEvent, useEffect, useState } from "react";
 import { Product } from "./Product";
 import { COMPANY_URL, CONTACT_EMAIL, type Currency, PRICES, WHATSAPP_NUMBER } from "./config";
 import { DICTS, type Dict, LANGS, LOCALE, type Lang } from "./i18n";
-import { LEGAL_DOCS, LegalPage, legalHref, legalRoute } from "./Legal";
+import { LEGAL_DOCS, LegalPage, legalHref } from "./Legal";
 import { Odontogram } from "./Odontogram";
 import { COUNTRY_COPY } from "./country-copy";
 import { COOKIES, COUNTRIES, type Country, initialCountry, readCookie, writeCookie } from "./prefs";
 import { DocumentsGallery, WhatsNew } from "./Sections";
 import { SITE_COPY } from "./site-copy";
+import { FeaturesHero, Highlights, Photo, PrivacyBand, SecurityPage } from "./Pages";
+import { PAGES_COPY } from "./pages-copy";
+import { type Route, pageHref, parseRoute } from "./route";
 
 type Theme = "light" | "dark";
 
@@ -114,22 +117,28 @@ function Header({
   setCountry: (c: Country) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const pc = PAGES_COPY[lang];
   const links = [
-    ["#product", t.nav.product],
-    ["#roles", t.nav.privacy],
+    [pageHref("features"), pc.nav.features],
+    [pageHref("security"), pc.nav.security],
     ["#prices", t.nav.prices],
     ["#faq", t.nav.faq],
   ];
   return (
     <header className="site-header">
       <div className="wrap header-row">
-        <a className="brand" href="#top" aria-label="MeDoc">
-          {I.logo}
-          <span>MeDoc</span>
-        </a>
+        <div className="brand-group">
+          <a className="brand" href="#top" aria-label="MeDoc">
+            {I.logo}
+            <span>MeDoc</span>
+          </a>
+          <a className="by-line" href={COMPANY_URL}>
+            {pc.by}
+          </a>
+        </div>
         <nav className={`nav${open ? " is-open" : ""}`} aria-label={t.nav.menu}>
           {links.map(([href, label]) => (
-            <a key={href} href={href} onClick={() => setOpen(false)}>
+            <a key={href} href={href} onClick={() => setOpen(false)} aria-current={location.hash.startsWith(href) && href.startsWith("#/") ? "page" : undefined}>
               {label}
             </a>
           ))}
@@ -176,7 +185,7 @@ function Header({
 }
 
 /* ---------- hero ---------- */
-function Hero({ t, locale }: { t: Dict; locale: string }) {
+function Hero({ t, lang, locale }: { t: Dict; lang: Lang; locale: string }) {
   return (
     <section className="hero" id="top">
       <div className="wrap hero-grid">
@@ -200,9 +209,12 @@ function Hero({ t, locale }: { t: Dict; locale: string }) {
             ))}
           </dl>
         </div>
-        <div className="hero-visual">
-          <Odontogram t={t} locale={locale} />
-          <p className="chart-hint">{t.hero.chartHint}</p>
+        <div className="hero-visual hero-stage">
+          <Photo name="dentist-patient" alt={PAGES_COPY[lang].photoAlt.hero} className="hero-photo" eager sizes="(min-width: 960px) 600px, 100vw" />
+          <div className="hero-chart">
+            <Odontogram t={t} locale={locale} />
+            <p className="chart-hint">{t.hero.chartHint}</p>
+          </div>
         </div>
       </div>
     </section>
@@ -535,6 +547,20 @@ function Footer({ t, lang, setLang }: { t: Dict; lang: Lang; setLang: (l: Lang) 
             <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
           </p>
         </div>
+        <ul className="footer-links" aria-label="MeDoc">
+          <li>
+            <a href={pageHref("features")}>{PAGES_COPY[lang].nav.features}</a>
+          </li>
+          <li>
+            <a href={pageHref("security")}>{PAGES_COPY[lang].nav.security}</a>
+          </li>
+          <li>
+            <a href="#prices">{t.nav.prices}</a>
+          </li>
+          <li>
+            <a href="#contact">{t.nav.demo}</a>
+          </li>
+        </ul>
         <ul className="footer-links" aria-label={t.footer.legal}>
           {LEGAL_DOCS.map((id) => (
             <li key={id}>
@@ -634,9 +660,6 @@ export function App() {
     const html = document.documentElement;
     html.lang = lang;
     html.dir = lang === "ar" ? "rtl" : "ltr";
-    // The French title names Morocco; a French-speaking visitor elsewhere gets a neutral one.
-    const title = lang === "fr" && country !== "MA" ? "Logiciel de gestion de cabinet dentaire · MeDoc" : t.meta.title;
-    if (!legalRoute(location.hash)) document.title = title;
     document.querySelector('meta[name="description"]')?.setAttribute("content", t.meta.description);
     const url = new URL(location.href);
     url.searchParams.set("lang", lang);
@@ -647,18 +670,33 @@ export function App() {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
 
-  // "#/legal/<doc>" shows a legal page; any other hash is a section of the home page.
-  const [route, setRoute] = useState(() => legalRoute(location.hash));
+  // Pages: "#/features", "#/security", "#/legal/<doc>"; any other hash is a section of the home page.
+  const [route, setRoute] = useState<Route>(() => parseRoute(location.hash));
   useEffect(() => {
-    const onHash = () => setRoute(legalRoute(location.hash));
+    const onHash = () => setRoute(parseRoute(location.hash));
     addEventListener("hashchange", onHash);
     return () => removeEventListener("hashchange", onHash);
   }, []);
 
-  // Deep links (#prices, #contact…) land on their section: the DOM only exists after render.
+  // A new page starts at its top, or at its section (#prices, #/features/calendar): the DOM only exists after render.
+  const routeKey = route.page === "legal" ? `legal/${route.doc}` : `${route.page}/${route.anchor ?? ""}`;
+
+  // Tab title per page. The French home title names Morocco; a French-speaking visitor elsewhere gets a neutral one.
   useEffect(() => {
-    if (!route && location.hash.length > 1) document.getElementById(location.hash.slice(1))?.scrollIntoView();
-  }, [route]);
+    if (route.page === "home") document.title = lang === "fr" && country !== "MA" ? "Logiciel de gestion de cabinet dentaire · MeDoc" : t.meta.title;
+    else if (route.page === "features") document.title = `${PAGES_COPY[lang].nav.features} · MeDoc`;
+    else if (route.page === "security") document.title = PAGES_COPY[lang].security.meta;
+  }, [lang, t, country, route.page]);
+  useEffect(() => {
+    // A tick later: on first load the browser's own hash scroll runs after this effect.
+    const id = setTimeout(() => {
+      const el = route.anchor ? document.getElementById(route.anchor) : null;
+      if (el) el.scrollIntoView({ behavior: "instant" });
+      else if (route.page !== "home" || !route.anchor) scrollTo({ top: 0, behavior: "instant" });
+    }, 0);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeKey]);
 
   return (
     <>
@@ -667,14 +705,22 @@ export function App() {
       </a>
       <Header t={t} lang={lang} setLang={setLang} theme={theme} setTheme={setTheme} country={country} setCountry={setCountry} />
       <main id="main">
-        {route ? (
-          <LegalPage lang={lang} locale={locale} doc={route} />
+        {route.page === "legal" ? (
+          <LegalPage lang={lang} locale={locale} doc={route.doc} />
+        ) : route.page === "features" ? (
+          <>
+            <FeaturesHero t={t} lang={lang} />
+            <Product t={t} lang={lang} theme={theme} hideHead />
+            <DocumentsGallery lang={lang} country={country} />
+            <WhatsNew lang={lang} locale={locale} />
+          </>
+        ) : route.page === "security" ? (
+          <SecurityPage lang={lang} />
         ) : (
           <>
-            <Hero t={t} locale={locale} />
-            <WhatsNew lang={lang} locale={locale} />
-            <Product t={t} lang={lang} theme={theme} />
-            <DocumentsGallery lang={lang} country={country} />
+            <Hero t={t} lang={lang} locale={locale} />
+            <Highlights lang={lang} />
+            <PrivacyBand lang={lang} />
             {country === "MA" ? <Morocco t={t} /> : <CountryReady lang={lang} country={country} />}
             <Setups t={t} />
             <Prices t={t} locale={locale} country={country} />
@@ -684,7 +730,7 @@ export function App() {
         )}
       </main>
       <Footer t={t} lang={lang} setLang={setLang} />
-      {route ? null : <MobileCta lang={lang} />}
+      {route.page === "legal" ? null : <MobileCta lang={lang} />}
       <CookieNotice lang={lang} />
     </>
   );

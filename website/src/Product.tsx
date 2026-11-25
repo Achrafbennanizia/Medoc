@@ -100,17 +100,19 @@ function Looks({ lang }: { lang: Lang }) {
   );
 }
 
-export function Product({ t, lang, theme }: { t: Dict; lang: Lang; theme: Theme }) {
+export function Product({ t, lang, theme, hideHead }: { t: Dict; lang: Lang; theme: Theme; hideHead?: boolean }) {
   const p = t.product;
   const points = PRODUCT_POINTS[lang];
   return (
     <>
       <section className="section" id="product">
         <div className="wrap">
-          <header className="section-head">
-            <h2>{p.title}</h2>
-            <p className="lead">{p.lead}</p>
-          </header>
+          {hideHead ? null : (
+            <header className="section-head">
+              <h2>{p.title}</h2>
+              <p className="lead">{p.lead}</p>
+            </header>
+          )}
           {p.sections.map((s, i) => {
             const more = points[s.id];
             return (
