@@ -845,9 +845,8 @@ h3 {
   gap: 8px;
   padding: 20px 24px;
   margin-bottom: 32px;
-  border-inline-start: 3px solid var(--research);
-  background: var(--panel);
-  border-radius: 0 8px 8px 0;
+  background: var(--research-soft);
+  border-radius: 8px;
   max-width: 44em;
 }
 .note p {
@@ -888,10 +887,8 @@ h3 {
 }
 .gaps li {
   padding: 16px 20px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-inline-start: 3px solid var(--research);
-  border-radius: 0 8px 8px 0;
+  background: var(--research-soft);
+  border-radius: 8px;
   color: var(--ink-2);
 }
 .gaps b {
