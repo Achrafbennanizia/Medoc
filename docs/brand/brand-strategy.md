@@ -196,6 +196,7 @@ Scale: 13 / 15 / 17 / 19 / 24 / 34 / 50 / 88 px. Display tracked −0.02 to −0
 ### 6.4 Imagery
 
 - **Product first.** Real screenshots of the real app, demo data only, in a thin border with a soft shadow. Never a mock-up that does more than the product.
+- **Photography now:** real, licensed stock photos (Unsplash License, credited on the legal notice) of clinicians using technology, clinics and engineering teams. No AI-generated images. Replace with commissioned photos once pilots run.
 - **Photography (to commission):** real practices in Moroccan daylight; hands at work (a receptionist at the desk, a dentist's gloved hands, a tablet on a tray); natural colour, no blue tint. With signed consent from everyone shown. No stock smiles, no glowing brains, no padlocks on circuit boards, no "AI" robots.
 - **Diagrams** drawn in the brand tokens (like the core/products stack on `/company/`), never clip art.
 - **Texture:** none. Structure comes from thin rules and the Mono numbers.

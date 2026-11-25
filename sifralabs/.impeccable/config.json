@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "sifralabs/brand-src/og.html"
+        ],
+        "createdAt": "2026-11-25T18:01:47.527Z",
+        "reason": "Claude: render source for the 1200x630 share image, text sits 96px from the edges (checked in the rendered og.png); not a page visitors see"
+      }
+    ]
+  }
+}

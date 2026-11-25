@@ -2,12 +2,13 @@
 <html lang="en" dir="ltr">
   <head>
 <!-- @include head -->
-    <title>Sifra Labs · Healthcare software, built to be kept</title>
-    <meta name="description" content="Sifra Labs builds healthcare software that runs on the practice's own machines, keeps patient records confidential and is maintained release after release. MeDoc for dental practices is the first." />
+    <title>Sifra Labs · Software engineering for healthcare</title>
+    <meta name="description" content="Sifra Labs is a software engineering company for healthcare: secure, local-first systems for medical practices, built and maintained for years. MeDoc for dental practices is the first." />
     <link rel="canonical" href="https://sifralabs.com/" />
     <meta property="og:title" content="Sifra Labs · Precise. Private. Kept." />
-    <meta property="og:description" content="Healthcare software that runs on your own machines, keeps records confidential and is maintained for years." />
+    <meta property="og:description" content="Software engineering for healthcare: secure, local-first systems for medical practices, built and maintained for years." />
     <meta property="og:url" content="https://sifralabs.com/" />
+    <link rel="preload" as="image" href="/img/clinicians-900.webp" imagesrcset="/img/clinicians-900.webp 900w, /img/clinicians.webp 1600w" imagesizes="(min-width: 960px) 600px, 100vw" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -16,138 +17,178 @@
         "url": "https://sifralabs.com/",
         "logo": "https://sifralabs.com/icon-512.png",
         "email": "hello@sifralabs.com",
-        "description": "Healthcare software engineering: local-first, confidential, maintained.",
+        "description": "Software engineering for healthcare: secure, local-first systems for medical practices.",
         "brand": { "@type": "Brand", "name": "MeDoc" }
       }
     </script>
   </head>
   <body>
+<!-- @include icons -->
 <!-- @include header -->
     <main id="main">
+      <!-- Hero: clinicians photo, real MeDoc window overlapping it -->
       <section class="hero">
         <div class="wrap hero-grid">
           <div class="hero-copy">
-            <p class="kicker">Healthcare software engineering</p>
-            <h1>Precise. Private. Kept.</h1>
+            <p class="kicker"><span class="dot" aria-hidden="true"></span>Software engineering for healthcare</p>
+            <h1>Technology that clinicians can trust with their patients</h1>
             <p class="lede">
-              We build healthcare software that runs on the practice's own machines, keeps patient
-              records confidential, and is maintained release after release. MeDoc, for dental
-              practices, is the first.
+              We design, build and maintain secure software for medical practices. Patient data stays
+              on the practice's own machines, every access leaves a trace, and the product keeps
+              improving release after release.
             </p>
             <div class="actions">
-              <a class="btn" href="https://medoc.sifralabs.com/">See MeDoc</a>
+              <a class="btn" href="/products/">See what we build</a>
               <a class="text-link" href="/security/">How we protect data</a>
             </div>
           </div>
-
-          <figure class="origin" aria-labelledby="origin-cap">
-            <svg class="origin-mark" viewBox="0 0 64 64" aria-hidden="true">
-              <ellipse cx="32" cy="32" rx="16.5" ry="23" />
-              <circle cx="32" cy="32" r="5" />
-            </svg>
-            <ol class="lineage">
-              <li><span class="w" lang="ar" dir="rtl">صِفر</span><span class="m">ṣifr · Arabic · empty, zero</span></li>
-              <li><span class="w" lang="la">cifra</span><span class="m">Medieval Latin · a digit</span></li>
-              <li><span class="w" lang="fr">chiffre</span><span class="m">French · a number, a code</span></li>
-              <li><span class="w" lang="de">Ziffer</span><span class="m">German · a digit</span></li>
-              <li><span class="w">cipher</span><span class="m">English · zero, then secret writing</span></li>
-            </ol>
-            <figcaption id="origin-cap">
-              One word, carried from the Maghreb into every European language: the root of numbers,
-              of computing and of encryption. <a class="text-link" href="/company/#name">Why we chose it</a>
-            </figcaption>
+          <figure class="hero-visual">
+            <img class="hero-photo" src="/img/clinicians-900.webp" srcset="/img/clinicians-900.webp 900w, /img/clinicians.webp 1600w" sizes="(min-width: 960px) 600px, 100vw"
+              width="900" height="506" fetchpriority="high" decoding="async"
+              alt="Two doctors in white coats reviewing information on a tablet together in a clinic office." />
+            <div class="hero-window">
+              <div class="win-bar" aria-hidden="true"><i></i><i></i><i></i><span>MeDoc · this week</span></div>
+              <img src="/img/calendar-week-1000.webp" width="1000" height="648" decoding="async"
+                alt="MeDoc's week calendar with a practice's appointments from Monday to Friday." />
+            </div>
+            <p class="hero-chip"><svg aria-hidden="true"><use href="#i-lock" /></svg>Encrypted on the practice's own computers</p>
           </figure>
         </div>
       </section>
 
-      <section class="section" aria-labelledby="work-h">
+      <!-- Figures -->
+      <section class="figures" aria-label="Sifra Labs in figures">
         <div class="wrap">
-          <header class="section-head">
-            <p class="num">01</p>
-            <h2 id="work-h">What we build</h2>
-            <p>
-              One family of systems for the people who run medical practices, on a single core for
-              security, sync and audit. We start narrow and deep, then widen one field at a time.
-            </p>
-          </header>
-          <article class="flagship">
-            <div class="flagship-copy">
-              <p class="status status-live">Available</p>
-              <h3>MeDoc Dental</h3>
-              <p>
-                Practice management for dental practices: patient records, the tooth chart,
-                appointments, prescriptions, payments and the day close. Encrypted on the
-                practice's own computers, works without internet, in French, Arabic, English and
-                German.
-              </p>
-              <div class="actions">
-                <a class="text-link" href="/products/">What MeDoc does</a>
-                <a class="text-link" href="https://medoc.sifralabs.com/#contact">Book a demo</a>
-              </div>
-            </div>
-            <img
-              class="shot"
-              src="/img/overview-1000.webp"
-              srcset="/img/overview-1000.webp 1000w, /img/overview.webp 1800w"
-              sizes="(min-width: 960px) 620px, 100vw"
-              width="1000"
-              height="625"
-              alt="MeDoc's practice overview: today's appointments, open tasks and payments for a demo practice."
-              decoding="async"
-            />
-          </article>
+          <dl>
+            <div><dt>Patient records on our servers</dt><dd class="zero">0</dd></div>
+            <div><dt>Languages, incl. right-to-left Arabic</dt><dd>4</dd></div>
+            <div><dt>Standards and laws we map our work to</dt><dd>9</dd></div>
+            <div><dt>Shared core under every product</dt><dd>1</dd></div>
+          </dl>
         </div>
       </section>
 
+      <!-- Disciplines: the colour band -->
+      <section class="band" aria-labelledby="disc-h">
+        <div class="wrap band-grid">
+          <header class="band-head">
+            <p class="kicker kicker-on-dark">What we do</p>
+            <h2 id="disc-h">Many disciplines, one product team</h2>
+            <p>Health software fails at the seams between code, security, law and the people who use it. We treat them as one job.</p>
+            <img class="band-photo" src="/img/engineering-900.webp" srcset="/img/engineering-900.webp 900w, /img/engineering.webp 1600w" sizes="(min-width: 960px) 420px, 100vw"
+              width="900" height="600" loading="lazy" decoding="async"
+              alt="An engineer working at a computer with code on two screens." />
+          </header>
+          <ul class="disciplines">
+            <li><svg aria-hidden="true"><use href="#i-code" /></svg><h3>Software &amp; AI engineering</h3><p>Desktop and network systems in Rust and TypeScript. AI only where its output can be checked.</p></li>
+            <li><svg aria-hidden="true"><use href="#i-shield" /></svg><h3>Security &amp; privacy</h3><p>Encryption at rest, roles enforced in the core, audit trails that show tampering.</p></li>
+            <li><svg aria-hidden="true"><use href="#i-users" /></svg><h3>Usability engineering</h3><p>Designed with reception staff and clinicians, in their languages, for their busiest hour.</p></li>
+            <li><svg aria-hidden="true"><use href="#i-cloud" /></svg><h3>Sync &amp; cloud</h3><p>Devices in one practice stay in step over the local network. Cloud only as an option.</p></li>
+            <li><svg aria-hidden="true"><use href="#i-cpu" /></svg><h3>Devices &amp; IoT</h3><p>Connecting clinical devices and sensors, with hardware partners.</p></li>
+            <li><svg aria-hidden="true"><use href="#i-scale" /></svg><h3>Law &amp; standards</h3><p>Loi 09-08, GDPR and health software standards built into the requirements.</p></li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- Product showcase -->
+      <section class="section showcase" aria-labelledby="medoc-h">
+        <div class="wrap">
+          <header class="section-head">
+            <p class="kicker"><span class="dot dot-medoc" aria-hidden="true"></span>Our first product</p>
+            <h2 id="medoc-h">MeDoc, for dental practices</h2>
+            <p>
+              Patient records, the tooth chart, appointments, prescriptions and payments, in French,
+              Arabic, English and German. Running today in a demo practice, ready for its first
+              clinics in Morocco.
+            </p>
+          </header>
+          <div class="mosaic">
+            <figure class="m-main">
+              <img src="/img/treatments-1000.webp" width="1000" height="649" loading="lazy" decoding="async"
+                alt="MeDoc's treatment screen with the tooth chart: one tooth marked as caries, one as planned." />
+              <figcaption>Tooth chart and treatment</figcaption>
+            </figure>
+            <figure>
+              <img src="/img/analytics-1000.webp" width="1000" height="648" loading="lazy" decoding="async"
+                alt="MeDoc statistics: patient count, new patients, monthly revenue in MAD and the treatment mix." />
+              <figcaption>The practice's numbers</figcaption>
+            </figure>
+            <figure>
+              <img src="/img/calendar-week-1000.webp" width="1000" height="648" loading="lazy" decoding="async"
+                alt="MeDoc's week calendar with appointments." />
+              <figcaption>One calendar for the whole team</figcaption>
+            </figure>
+          </div>
+          <div class="actions">
+            <a class="btn btn-medoc" href="https://medoc.sifralabs.com/">Visit MeDoc</a>
+            <a class="text-link" href="/products/">The whole product family</a>
+          </div>
+        </div>
+      </section>
+
+      <!-- Principles with photo -->
       <section class="section" aria-labelledby="principles-h">
-        <div class="wrap">
-          <header class="section-head">
-            <p class="num">02</p>
-            <h2 id="principles-h">Four principles, each with evidence</h2>
-            <p>A principle is only worth stating if the code proves it.</p>
-          </header>
-          <ol class="principles">
-            <li>
-              <h3>Data stays where it is created</h3>
-              <p>Patient records live on the practice's computers, not on our servers. The practice keeps working when the internet does not.</p>
-              <p class="evidence">Encrypted SQLCipher database · offline by default</p>
-            </li>
-            <li>
-              <h3>Every access leaves a trace</h3>
-              <p>Reception cannot open the medical chart. When a clinician does, it is recorded in a log that cannot be edited quietly.</p>
-              <p class="evidence">Permissions checked in the core · HMAC-chained audit log</p>
-            </li>
-            <li>
-              <h3>Built to be maintained</h3>
-              <p>Small, regular releases. Mistakes fixed in the open. A product meant to be supported for ten years.</p>
-              <p class="evidence">Incremental delivery · V-model documentation</p>
-            </li>
-            <li>
-              <h3>Clear to the people who use it</h3>
-              <p>The receptionist at 8:30 and the dentist between patients should never have to think about the software.</p>
-              <p class="evidence">Usability engineering · four languages, incl. right-to-left Arabic</p>
-            </li>
-          </ol>
-          <p class="more"><a class="text-link" href="/security/">Read the full security overview</a></p>
+        <div class="wrap split">
+          <div>
+            <header class="section-head">
+              <p class="kicker">Principles</p>
+              <h2 id="principles-h">Four promises, each with evidence</h2>
+              <p>A principle is only worth stating if the code proves it.</p>
+            </header>
+            <ol class="promises">
+              <li><h3>Data stays where it is created</h3><p>Encrypted SQLCipher database on the practice's computers. Works offline.</p></li>
+              <li><h3>Every access leaves a trace</h3><p>Reception can't open the medical chart. Clinicians' reads go into an HMAC-chained audit log.</p></li>
+              <li><h3>Built to be maintained</h3><p>Small, regular releases with documented requirements, risks and tests.</p></li>
+              <li><h3>Clear to the people who use it</h3><p>Four languages, right-to-left Arabic, light and dark, designed around real practice workflows.</p></li>
+            </ol>
+            <p class="more"><a class="text-link" href="/security/">Read the security overview</a></p>
+          </div>
+          <img class="side-photo" src="/img/records-900.webp" srcset="/img/records-900.webp 900w, /img/records.webp 1600w" sizes="(min-width: 960px) 480px, 100vw"
+            width="900" height="600" loading="lazy" decoding="async"
+            alt="Hands typing on a laptop next to a stethoscope." />
         </div>
       </section>
 
-      <section class="section" aria-labelledby="core-h">
-        <div class="wrap">
-          <header class="section-head">
-            <p class="num">03</p>
-            <h2 id="core-h">One core, many fields</h2>
-            <p>
-              Every product sits on the same foundation. A new field reuses security, sync and audit
-              already proven in practice, so it starts trustworthy.
-            </p>
-          </header>
-<!-- @include stack -->
-          <p class="more"><a class="text-link" href="/products/#family">See the whole family and roadmap</a></p>
+      <!-- Fields roadmap -->
+      <section class="section fields" aria-labelledby="fields-h">
+        <div class="wrap split split-reverse">
+          <img class="side-photo" src="/img/clinic-900.webp" srcset="/img/clinic-900.webp 900w, /img/clinic.webp 1600w" sizes="(min-width: 960px) 480px, 100vw"
+            width="900" height="600" loading="lazy" decoding="async"
+            alt="A bright dental treatment room with a teal dental chair, lamp and monitor." />
+          <div>
+            <header class="section-head">
+              <p class="kicker">Where we're going</p>
+              <h2 id="fields-h">From the dental chair outward</h2>
+              <p>One core for security, sync and audit, proven in dentistry, then carried into each new field.</p>
+            </header>
+            <ol class="path">
+              <li class="on"><b>Dental practices</b><span>Available</span></li>
+              <li><b>Tablet apps for the treatment room</b><span>Planned</span></li>
+              <li><b>General medicine</b><span>Planned</span></li>
+              <li><b>Online booking and pharmacy</b><span>Planned</span></li>
+              <li><b>AI assistance and connected devices</b><span>Research</span></li>
+            </ol>
+            <p class="more"><a class="text-link" href="/products/#roadmap">See the roadmap</a></p>
+          </div>
         </div>
       </section>
 
-<!-- @include cta -->
+      <!-- Team CTA -->
+      <section class="cta-photo" aria-labelledby="cta-h">
+        <div class="wrap cta-grid">
+          <img src="/img/team-900.webp" srcset="/img/team-900.webp 900w, /img/team.webp 1600w" sizes="(min-width: 960px) 640px, 100vw"
+            width="900" height="506" loading="lazy" decoding="async"
+            alt="A small team working together around a computer in a bright office." />
+          <div class="cta-card">
+            <h2 id="cta-h">Build healthcare software with us</h2>
+            <p>Clinics, hardware partners, distributors and engineers who care about getting health software right: we'd like to hear from you.</p>
+            <div class="actions">
+              <a class="btn" href="/contact/">Get in touch</a>
+              <a class="text-link" href="mailto:hello@sifralabs.com">hello@sifralabs.com</a>
+            </div>
+          </div>
+        </div>
+      </section>
     </main>
 <!-- @include footer -->
   </body>
