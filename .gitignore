@@ -76,3 +76,6 @@ crates/shared/medoc-core.txt
 releases/*/coverage/
 crates/**/*.txt
 *.log
+
+# Local tool checkouts (not part of the repo)
+.tools/
