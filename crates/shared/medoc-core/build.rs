@@ -7,7 +7,9 @@
 //! 2. **RBAC codegen** — produces `OUT_DIR/rbac_generated.rs` +
 //!    `packages/shared/src/lib/rbac.generated.ts`. `application::rbac` (now in medoc-core)
 //!    `include!`s the generated Rust file, so the same OUT_DIR constraint applies.
-//! 3. **Vendor Ed25519 pubkey embedding** — `infrastructure::license::VENDOR_PUBKEY`
+//! 3. **Editions codegen** — `OUT_DIR/edition_generated.rs` + `edition.generated.ts`
+//!    (`edition` module; docs/architecture/editions-plan.md).
+//! 4. **Vendor Ed25519 pubkey embedding** — `infrastructure::license::VENDOR_PUBKEY`
 //!    `include!`s `OUT_DIR/pubkey.rs`.
 
 use std::env;
@@ -23,6 +25,11 @@ fn main() {
     let sql_fragments = manifest_dir.join("migrations/generated/enum_check_fragments.sql");
     medoc_codegen::enums::run(&config_dir.join("enums.yaml"), &ts_out_dir, &sql_fragments);
     medoc_codegen::rbac::run(&config_dir.join("rbac.yaml"), &ts_out_dir);
+    medoc_codegen::editions::run(
+        &config_dir.join("editions.yaml"),
+        &ts_out_dir,
+        &manifest_dir.join("Cargo.toml"),
+    );
 
     let hex = env::var("MEDOC_VENDOR_PUBKEY").unwrap_or_else(|_| {
         panic!(

@@ -31,6 +31,15 @@
         "tauri": "npm run tauri -w medoc-tauri-host --",
         "tauri:build": "npm run tauri -w medoc-tauri-host -- build",
         "tauri:build:replica": "VITE_MEDOC_FLAVOR=replica npm run tauri -w medoc-tauri-host -- build --features replica --config tauri.replica.conf.json",
+        "build:solo": "MEDOC_EDITION=solo npm run build -w medoc",
+        "build:duo": "MEDOC_EDITION=duo npm run build -w medoc",
+        "build:group": "MEDOC_EDITION=group npm run build -w medoc",
+        "tauri:build:solo": "MEDOC_EDITION=solo npm run tauri -w medoc-tauri-host -- build --no-default-features --features edition-solo --config tauri.solo.conf.json",
+        "tauri:build:duo": "MEDOC_EDITION=duo npm run tauri -w medoc-tauri-host -- build --no-default-features --features edition-duo --config tauri.duo.conf.json",
+        "tauri:build:duo:replica": "MEDOC_EDITION=duo VITE_MEDOC_FLAVOR=replica npm run tauri -w medoc-tauri-host -- build --no-default-features --features edition-duo,replica --config tauri.duo.replica.conf.json",
+        "tauri:build:group": "MEDOC_EDITION=group npm run tauri -w medoc-tauri-host -- build --no-default-features --features edition-group --config tauri.group.conf.json",
+        "tauri:build:group:replica": "MEDOC_EDITION=group VITE_MEDOC_FLAVOR=replica npm run tauri -w medoc-tauri-host -- build --no-default-features --features edition-group,replica --config tauri.group.replica.conf.json",
+        "check:editions": "bash scripts/check-edition-surface.sh",
         "dev:website": "npm run dev -w medoc-product-website"
     }
 }

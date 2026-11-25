@@ -4,6 +4,28 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
+import {
+    CAPABILITY_IDS,
+    EDITIONS,
+    capDefineName,
+    type EditionId,
+} from "../../packages/shared/src/lib/edition.generated";
+
+/**
+ * Edition of this build (docs/architecture/editions-plan.md §3.2): `MEDOC_EDITION=solo|duo|group`,
+ * default `group` (everything). Every capability becomes its own literal `__CAP_*__` constant so
+ * Rollup drops the code behind `if (__CAP_X__)` in editions that lack it.
+ */
+function editionDefines(): Record<string, string> {
+    const raw = process.env.MEDOC_EDITION ?? "group";
+    if (!(raw in EDITIONS)) {
+        throw new Error(`MEDOC_EDITION=${raw}: expected one of ${Object.keys(EDITIONS).join(", ")}`);
+    }
+    const edition = EDITIONS[raw as EditionId];
+    const defines: Record<string, string> = { __MEDOC_EDITION__: JSON.stringify(edition.id) };
+    for (const cap of CAPABILITY_IDS) defines[capDefineName(cap)] = String(edition.caps[cap]);
+    return defines;
+}
 
 /**
  * Cross-origin browser callers must be named in ALLOWED_ORIGINS
@@ -159,6 +181,7 @@ export default defineConfig(async () => ({
     base: "./",
     define: {
         "import.meta.env.VITE_APP_VERSION": JSON.stringify(pkg.version),
+        ...editionDefines(),
     },
     test: {
         setupFiles: ["./src/vitest-setup.ts"],

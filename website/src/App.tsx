@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { Product } from "./Product";
-import { CONTACT_EMAIL, type Currency, PRICES, WHATSAPP_NUMBER } from "./config";
+import { COMPANY_URL, CONTACT_EMAIL, type Currency, PRICES, WHATSAPP_NUMBER } from "./config";
 import { DICTS, type Dict, LANGS, LOCALE, type Lang } from "./i18n";
 import { LEGAL_DOCS, LegalPage, legalHref, legalRoute } from "./Legal";
 import { Odontogram } from "./Odontogram";
@@ -528,6 +528,9 @@ function Footer({ t, lang, setLang }: { t: Dict; lang: Lang; setLang: (l: Lang) 
             <span>MeDoc</span>
           </a>
           <p>{t.footer.tagline}</p>
+          <p className="fine">
+            <a href={COMPANY_URL}>{t.footer.company}</a>
+          </p>
           <p className="fine">
             <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
           </p>

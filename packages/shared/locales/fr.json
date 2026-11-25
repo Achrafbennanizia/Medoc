@@ -6062,6 +6062,7 @@
   "error.device.main_link_missing": "Une connexion à l'appareil principal est nécessaire. Déconnectez-vous puis reconnectez-vous quand il est joignable.",
   "error.device.main_unreachable": "L'appareil principal est injoignable. Vérifiez qu'il est allumé et sur le même réseau.",
   "error.device.main_only": "Cette action n'est possible que sur l'appareil principal.",
+  "error.edition.mismatch": "Cette installation est endommagée : ses composants appartiennent à des éditions différentes de MeDoc. Réinstallez MeDoc.",
   "error.device.replica_cannot_host": "L'application réplique rejoint un cabinet existant ; elle ne peut pas en créer. Utilisez l'application principale.",
   "error.access.own_appointments_only": "Vous ne pouvez modifier que vos propres rendez-vous.",
   "errors.domain.access": "Droits d’accès",

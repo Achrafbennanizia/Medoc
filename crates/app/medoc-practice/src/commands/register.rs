@@ -338,6 +338,7 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::system::core::current_license_status,
             $crate::commands::system::core::clear_license,
             $crate::commands::system::core::check_for_updates,
+            $crate::commands::system::edition::edition_info,
         $crate::commands::system::core::install_available_update,
             $crate::commands::system::core::list_detected_photo_viewer_apps,
             $crate::commands::system::core::system_health_check,

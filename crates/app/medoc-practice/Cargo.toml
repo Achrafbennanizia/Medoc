@@ -51,5 +51,25 @@ bcrypt = "0.17"
 rand = "0.8"
 
 [features]
+default = ["edition-group"]
 # Replica app build (see medoc-core feature `replica`).
 replica = ["medoc-core/replica"]
+
+# Editions (config/editions.yaml, docs/architecture/editions-plan.md §3.2). Exactly one is on.
+# Each lists exactly its capabilities; `src/edition.rs` fails the build if this list and the YAML
+# disagree. Code checks `cfg(feature = "cap-…")`, never `edition-…`.
+edition-solo = ["cap-guest-inbox"]
+edition-duo = ["cap-net", "cap-multi-staff", "cap-tasks", "cap-work-time", "cap-validation", "cap-lan-client", "cap-maintenance"]
+edition-group = ["cap-net", "cap-multi-staff", "cap-tasks", "cap-work-time", "cap-validation", "cap-multi-doctor", "cap-multi-admin", "cap-allowances", "cap-lan-client", "cap-maintenance"]
+
+cap-guest-inbox = ["medoc-core/cap-guest-inbox"]
+cap-net = ["medoc-core/cap-net"]
+cap-multi-staff = ["medoc-core/cap-multi-staff"]
+cap-tasks = ["medoc-core/cap-tasks"]
+cap-work-time = ["medoc-core/cap-work-time"]
+cap-validation = ["medoc-core/cap-validation"]
+cap-multi-doctor = ["medoc-core/cap-multi-doctor"]
+cap-multi-admin = ["medoc-core/cap-multi-admin"]
+cap-allowances = ["medoc-core/cap-allowances"]
+cap-lan-client = ["medoc-core/cap-lan-client"]
+cap-maintenance = ["medoc-core/cap-maintenance"]

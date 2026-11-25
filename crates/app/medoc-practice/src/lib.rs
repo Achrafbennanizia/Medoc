@@ -6,6 +6,7 @@
 pub mod application;
 pub mod commands;
 pub mod domain;
+pub mod edition;
 pub mod error;
 pub mod infrastructure;
 pub mod systems;

@@ -15,6 +15,7 @@ pub mod break_glass;
 pub mod company;
 pub mod discovery;
 pub mod domain;
+pub mod edition;
 pub mod error;
 pub mod infrastructure;
 pub mod mvp_security;
