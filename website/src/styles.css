@@ -2097,11 +2097,22 @@ html[dir="rtl"] .country-select select {
   border-radius: var(--radius);
   background: var(--panel);
   border: 1px solid var(--line);
-  border-top: 3px solid var(--mint);
 }
 .protect h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
   font: 600 1.1rem/1.3 var(--font-display);
   margin: 0 0 8px;
+}
+.protect h3::before {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--mint);
+  transform: translateY(-1px);
 }
 .protect p {
   margin: 0;
