@@ -9,20 +9,17 @@ export const CONTACT_API: string = import.meta.env.VITE_CONTACT_API ?? "https://
 
 // Cloudflare Turnstile site key (public). Test always-pass key until production keys are set.
 export const TURNSTILE_SITE_KEY: string =
-  import.meta.env.VITE_TURNSTILE_SITE_KEY ?? "1x00000000000000000000AA";
+  import.meta.env.VITE_TURNSTILE_SITE_KEY ?? "0x4AAAAAAGWRuo3Zp4ZVJq6h";
 
-// Company site (sifralabs/). On GitHub Pages until sifralabs.com DNS + Worker are live.
-export const COMPANY_URL = "https://achrafbennanizia.github.io/Medoc/";
+// This site ships inside the company site at <company>/products/medoc-dentist/, so the
+// company root is the base path minus that suffix: "/" on sifralabs.com, "/Medoc/" on GitHub Pages.
+export const COMPANY_URL: string = import.meta.env.BASE_URL.replace(/products\/medoc-dentist\/$/, "");
 
 /** MeDoc series page on the company site (level 2). */
 export const SERIES_URL = `${COMPANY_URL}medoc/`;
 
-/**
- * Public origin of this product site (level 3).
- * Nested under /Medoc/dentist/ on GitHub Pages (company site is the /Medoc/ root).
- * Switch to `https://medoc.sifralabs.com` (and vite `base: "/"`) when that domain is live.
- */
-export const PRODUCT_SITE_ORIGIN = "https://achrafbennanizia.github.io/Medoc/dentist";
+/** Absolute URL of this product site (level 3), without the trailing slash. Set by vite.config.ts. */
+export const PRODUCT_SITE_ORIGIN: string = (import.meta.env.VITE_PRODUCT_URL as string).replace(/\/$/, "");
 
 // International format without "+" or spaces, e.g. "212600000000".
 // Leave empty to hide every WhatsApp button.

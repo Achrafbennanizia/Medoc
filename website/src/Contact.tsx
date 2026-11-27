@@ -43,16 +43,18 @@ export function Contact({ t, lang, locale }: { t: Dict; lang: Lang; locale: stri
         "error-callback": () => setTurnstileToken(""),
       });
     };
+    // The API is usable once the script has loaded. turnstile.ready() throws for scripts
+    // added async (as here), so render straight from the load event instead.
     const existing = document.getElementById("cf-turnstile-api") as HTMLScriptElement | null;
     if (existing) {
-      if (window.turnstile) window.turnstile.ready(boot);
-      else existing.addEventListener("load", () => window.turnstile?.ready(boot), { once: true });
+      if (window.turnstile) boot();
+      else existing.addEventListener("load", boot, { once: true });
     } else {
       const s = document.createElement("script");
       s.id = "cf-turnstile-api";
       s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
       s.async = true;
-      s.addEventListener("load", () => window.turnstile?.ready(boot), { once: true });
+      s.addEventListener("load", boot, { once: true });
       document.head.appendChild(s);
     }
     return () => {

@@ -7,3 +7,6 @@
 /ar/company/      /ar/about/      301
 # German pages were removed: send them to the English page.
 /de/*             /:splat         301
+# MeDoc Dentist moved from /dentist/ (GitHub Pages) to /products/medoc-dentist/.
+/dentist          /products/medoc-dentist/         301
+/dentist/*        /products/medoc-dentist/:splat   301

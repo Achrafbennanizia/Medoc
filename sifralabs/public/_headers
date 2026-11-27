@@ -1,11 +1,18 @@
-# Cloudflare Pages response headers. Everything the site loads is same-origin.
+# Response headers for the Worker's static assets (company site + /products/medoc-dentist/).
+# Same-origin only, except Cloudflare Turnstile (script + iframe) on the contact forms and the
+# contact API on the apex domain (forms on www. post to https://sifralabs.com/api/contact).
 /*
-  Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self' 'inline-speculation-rules'; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'; upgrade-insecure-requests
+  # Turnstile needs script + frame + connect to challenges.cloudflare.com; style-src 'unsafe-inline' for the widget chrome.
+  Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'inline-speculation-rules' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; font-src 'self' data:; connect-src 'self' https://sifralabs.com https://challenges.cloudflare.com; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'; upgrade-insecure-requests
   Strict-Transport-Security: max-age=31536000; includeSubDomains
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
-  Cross-Origin-Opener-Policy: same-origin
+  # Allow-popups: Turnstile challenge windows must not be blocked by strict same-origin COOP.
+  Cross-Origin-Opener-Policy: same-origin-allow-popups
 
 /assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/products/medoc-dentist/assets/*
   Cache-Control: public, max-age=31536000, immutable

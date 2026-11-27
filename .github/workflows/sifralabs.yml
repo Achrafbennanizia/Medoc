@@ -5,10 +5,16 @@ on:
     branches: [main]
     paths:
       - "sifralabs/**"
+      # MeDoc Dentist ships inside this site at /products/medoc-dentist/.
+      - "website/**"
+      - "package-lock.json"
       - ".github/workflows/sifralabs.yml"
   pull_request:
     paths:
       - "sifralabs/**"
+      # MeDoc Dentist ships inside this site at /products/medoc-dentist/.
+      - "website/**"
+      - "package-lock.json"
       - ".github/workflows/sifralabs.yml"
   workflow_dispatch:
 
@@ -28,9 +34,15 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: sifralabs/package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            sifralabs/package-lock.json
       - run: npm ci
-      - run: npm run build
+      - name: Build
+        env:
+          TURNSTILE_SITE_KEY: 0x4AAAAAAGWRuo3Zp4ZVJq6h
+          VITE_TURNSTILE_SITE_KEY: 0x4AAAAAAGWRuo3Zp4ZVJq6h
+        run: npm run build:all
 
   deploy:
     needs: build
@@ -48,9 +60,15 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: sifralabs/package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            sifralabs/package-lock.json
       - run: npm ci
-      - run: npm run build
+      - name: Build
+        env:
+          TURNSTILE_SITE_KEY: 0x4AAAAAAGWRuo3Zp4ZVJq6h
+          VITE_TURNSTILE_SITE_KEY: 0x4AAAAAAGWRuo3Zp4ZVJq6h
+        run: npm run build:all
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
         with:

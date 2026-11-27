@@ -12,20 +12,26 @@
     "run_worker_first": ["/api/*"]
   },
   // Unrestricted destination so we can e-mail the visitor a confirm link, then CONTACT_TO.
-  // Onboard sifralabs.com under Email → Email Sending first. Secret: TURNSTILE_SECRET_KEY.
+  // Onboard sifralabs.com under Email → Email Sending first. Secret: TURNSTILE_SECRET_KEY (dashboard / wrangler secret).
   "send_email": [
     {
       "name": "EMAIL",
-      "allowed_sender_addresses": ["website@sifralabs.com"]
+      "allowed_sender_addresses": ["website@sifralabs.com", "welcome@sifralabs.com"]
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "PENDING",
+      "id": "1237c39d16a747e8b989c1cde44ea307",
+      "preview_id": "11370dcbf8cd46e7ba92f34092098ed3"
     }
   ],
   "vars": {
     "CONTACT_FROM": "website@sifralabs.com",
     "CONTACT_TO": "contact@sifralabs.com",
     "PUBLIC_ORIGIN": "https://sifralabs.com",
-    // Public Turnstile site key (safe to embed). Override in the dashboard for production.
-    // Cloudflare always-passes test key until you replace it:
-    "TURNSTILE_SITE_KEY": "1x00000000000000000000AA",
+    // Public Turnstile site key (safe to embed). Secret stays out of git.
+    "TURNSTILE_SITE_KEY": "0x4AAAAAAGWRuo3Zp4ZVJq6h",
     "ALLOWED_ORIGINS": "https://sifralabs.com,https://www.sifralabs.com,https://achrafbennanizia.github.io,https://medoc.sifralabs.com,http://127.0.0.1:4173,http://127.0.0.1:4174,http://127.0.0.1:4175,http://127.0.0.1:4176,http://127.0.0.1:4177,http://localhost:4173,http://localhost:4174,http://localhost:4175,http://localhost:4176,http://localhost:4177,http://127.0.0.1:5173,http://localhost:5173,http://127.0.0.1:4180,http://localhost:4180,http://127.0.0.1:4181,http://localhost:4181"
   },
   "observability": { "enabled": true }

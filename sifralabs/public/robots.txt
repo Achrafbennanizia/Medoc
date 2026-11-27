@@ -2,3 +2,4 @@ User-agent: *
 Allow: /
 
 Sitemap: https://sifralabs.com/sitemap.xml
+Sitemap: https://sifralabs.com/products/medoc-dentist/sitemap.xml

@@ -8,7 +8,8 @@ Company website for **Sifra Labs**. Static, English, no cookies, no third-party 
 cd sifralabs
 npm ci
 npm run dev      # http://127.0.0.1:4180
-npm run build    # type-check + build → dist/
+npm run build      # company site only: type-check + build → dist/
+npm run build:all  # company site + MeDoc Dentist in dist/products/medoc-dentist/ (what deploys)
 ```
 
 ## Edit
@@ -28,7 +29,7 @@ npm run build    # type-check + build → dist/
 | Command menu (⌘K / Ctrl+K or "/") | `partials/cmdk.html` (entries), `src/main.ts` (behaviour) |
 | Statistics on the home page | `index.html` "By the numbers"; every outside figure has a numbered source under it. Update the IBM figure each summer when the new report comes out |
 | Page prerendering | Speculation rules in `partials/head.html`; the CSP in `public/_headers` allows them with `'inline-speculation-rules'` |
-| Links to MeDoc Dentist | `https://achrafbennanizia.github.io/Medoc/dentist/` on GitHub Pages. Switch to `https://medoc.sifralabs.com/` once that domain is set up (see below) |
+| Links to MeDoc Dentist | Root-relative `/products/medoc-dentist/` (`PRODUCT_SITE` in `i18n/build.mjs`). `scripts/build-product.mjs` builds `../website` into that folder. The old `/dentist/` path redirects there (`public/_redirects`, plus `public/dentist/` for GitHub Pages) |
 
 Art direction: blueprint grid and dot-matrix texture on a Swiss editorial layout (`src/styles/05-paths-cta-photo.css`, "Art direction"). Keep it to those two textures.
 
@@ -36,29 +37,36 @@ Claims must stay true to the current release: anything not shipped is labelled "
 
 ## Deploy (Cloudflare = official company site; GitHub Pages = MeDoc Dentist)
 
-**GitHub Pages** (`.github/workflows/website.yml`) builds both sites into one artifact: **Sifra Labs** at `https://achrafbennanizia.github.io/Medoc/` (root) and **MeDoc Dentist** nested at `https://achrafbennanizia.github.io/Medoc/dentist/`.
+**GitHub Pages** (`.github/workflows/website.yml`) runs `npm run build:all` with `SITE_BASE=/Medoc`: **Sifra Labs** at `https://achrafbennanizia.github.io/Medoc/` and **MeDoc Dentist** at `https://achrafbennanizia.github.io/Medoc/products/medoc-dentist/`.
 
 **Cloudflare Worker** (`.github/workflows/sifralabs.yml`) deploys this company site to Worker **`sifralabs-site`** (must match `name` in `wrangler.jsonc` and the CF project) when these exist:
 
-- `CLOUDFLARE_API_TOKEN` — Workers edit permission for this account
-- `CLOUDFLARE_ACCOUNT_ID` — Cloudflare account id (repo variable)
+- `CLOUDFLARE_API_TOKEN` — secret (Workers edit + Account; limit to this account / `sifralabs.com` zone)
+- `CLOUDFLARE_ACCOUNT_ID` — **repository variable** (not a secret); the workflow reads `vars.CLOUDFLARE_ACCOUNT_ID`
+
+```bash
+gh secret set CLOUDFLARE_API_TOKEN
+gh variable set CLOUDFLARE_ACCOUNT_ID --body "<your-account-id>"
+```
 
 Until those are set, the Cloudflare deploy job is skipped; Pages still ships the site from git.
 
-Manual / first-time Cloudflare path:
+### First Cloudflare setup
 
-1. Cloudflare dashboard → **Workers & Pages → Create → Import a repository** → pick the repo.
-2. Settings:
-   - Project name: **`sifralabs-site`** (must match `name` in `wrangler.jsonc`)
-   - Production branch: `main`
-   - Root directory: `sifralabs`
-   - Build command: `npm run build`
-   - Deploy command: `npx wrangler deploy`
-   (`.node-version` pins Node 22.)
-3. After the first deploy: **Settings → Domains & Routes → Add → Custom domain** → `sifralabs.com`, then `www.sifralabs.com`.
-4. **Email Sending** (dashboard → Email → Email Sending): onboard `sifralabs.com`, then ensure `website@sifralabs.com` can send. The Worker uses the `EMAIL` `send_email` binding to deliver to `contact@sifralabs.com`.
+1. Create KV for confirm tokens, then paste the id into `wrangler.jsonc` → `kv_namespaces[0].id` (and `preview_id`):
 
-**Contact forms** (company + MeDoc Dentist) both `POST` to the Worker at `https://sifralabs.com/api/contact` (Cloudflare Email Sending → `contact@sifralabs.com`). Override at build time with `CONTACT_API` (sifralabs) or `VITE_CONTACT_API` (website). Mailto is only the offline fallback.
+   ```bash
+   cd sifralabs && npx wrangler kv namespace create CONTACT_PENDING
+   ```
+
+2. Push or run `gh workflow run sifralabs.yml` to create/deploy Worker **`sifralabs-site`**.
+3. **Turnstile secret** (never commit): Workers & Pages → `sifralabs-site` → Settings → Variables → Secret `TURNSTILE_SECRET_KEY`. Until set, the Worker skips Turnstile verification.
+4. Domains & Routes → custom domains `sifralabs.com` and `www.sifralabs.com`.
+5. Email → Email Sending: onboard `sifralabs.com`; sender `website@sifralabs.com` (also allow `welcome@` in the binding). Inbox: `contact@sifralabs.com`.
+
+Public Turnstile **site** key is baked into builds (`0x4AAAAAAGWRuo3Zp4ZVJq6h`). CSP in `public/_headers` allows `challenges.cloudflare.com` (script, frame, connect) plus `style-src 'unsafe-inline'` for the widget.
+
+**Contact forms** (company + MeDoc Dentist) both `POST` to `https://sifralabs.com/api/contact` → Turnstile → confirm e-mail → after the link, Email Sending → `contact@sifralabs.com`. Mailto is only the offline fallback.
 
 **Local contact API** (stub; production uses Cloudflare Email Sending):
 
@@ -68,10 +76,6 @@ CONTACT_API=http://127.0.0.1:8787/api/contact npm run build   # bake local API i
 cd website && VITE_CONTACT_API=http://127.0.0.1:8787/api/contact npm run build && npm run preview
 ```
 
-## MeDoc Dentist at medoc.sifralabs.com (not set up yet)
+## MeDoc Dentist on the company domain
 
-Until that domain is live, product links use `https://achrafbennanizia.github.io/Medoc/dentist/`. To cut over:
-
-1. Cloudflare DNS → add `CNAME` `medoc` → `<your-github-user>.github.io`, **DNS only** (grey cloud).
-2. GitHub repo → **Settings → Pages → Custom domain** → `medoc.sifralabs.com` → Save, then tick **Enforce HTTPS** when offered.
-3. Point product `base` and `PRODUCT_SITE_ORIGIN` at the new host; update links in this site.
+MeDoc Dentist is part of this site: `https://sifralabs.com/products/medoc-dentist/` on Cloudflare, `/Medoc/products/medoc-dentist/` on GitHub Pages. `npm run build:all` builds it with `PRODUCT_BASE=<SITE_BASE>/products/medoc-dentist/` and copies `../website/dist` there. The product derives the company link from that base, so no host is hard-coded. The CSP in `public/_headers` covers both sites.

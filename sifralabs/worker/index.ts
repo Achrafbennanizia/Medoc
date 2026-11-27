@@ -4,11 +4,14 @@
  * - GET  /api/contact/confirm?token=…: one-time link → deliver to CONTACT_TO → short HTML page.
  * - Everything else: static site in ./dist.
  *
- * Secrets: TURNSTILE_SECRET_KEY (wrangler secret). Pending tokens live in Cache API (24 h).
+ * Secrets: TURNSTILE_SECRET_KEY (wrangler secret).
+ * Pending tokens: KV `PENDING` (24 h) so confirm links work across devices/colos.
  */
 export interface Env {
   ASSETS: Fetcher;
   EMAIL: SendEmail;
+  /** Confirm-token store (wrangler.jsonc → kv_namespaces binding PENDING). */
+  PENDING: KVNamespace;
   CONTACT_FROM: string;
   CONTACT_TO: string;
   ALLOWED_ORIGINS: string;
@@ -111,17 +114,13 @@ export default {
     if (await caches.default.match(idemKey)) return reply(200, { ok: true, pending: true, duplicate: true });
 
     const token = randomToken();
-    const pendingKey = new Request(`https://pending.sifralabs.internal/${token}`);
-    await caches.default.put(
-      pendingKey,
-      new Response(JSON.stringify(msg), { headers: { "Cache-Control": `max-age=${PENDING_TTL}`, "Content-Type": "application/json" } }),
-    );
+    await env.PENDING.put(token, JSON.stringify(msg), { expirationTtl: PENDING_TTL });
 
     try {
       await env.EMAIL.send(composeConfirm(env, msg, token));
     } catch (err) {
       console.error("contact: confirm mail failed", err instanceof Error ? err.message : err);
-      ctx.waitUntil(caches.default.delete(pendingKey));
+      ctx.waitUntil(env.PENDING.delete(token));
       return reply(502, { ok: false, error: "send" });
     }
 
@@ -138,30 +137,24 @@ async function confirm(request: Request, env: Env, ctx: ExecutionContext, url: U
   const token = (url.searchParams.get("token") ?? "").replace(/[^a-f0-9]/gi, "").slice(0, 64);
   if (token.length < 32) return htmlPage(400, "en", "invalid");
 
-  const pendingKey = new Request(`https://pending.sifralabs.internal/${token}`);
-  const hit = await caches.default.match(pendingKey);
-  if (!hit) return htmlPage(410, "en", "expired");
+  const raw = await env.PENDING.get(token);
+  if (!raw) return htmlPage(410, "en", "expired");
 
   let msg: Msg;
   try {
-    msg = (await hit.json()) as Msg;
+    msg = JSON.parse(raw) as Msg;
   } catch {
     return htmlPage(410, "en", "expired");
   }
   // One-time: drop before send so a double-click cannot deliver twice.
-  await caches.default.delete(pendingKey);
+  await env.PENDING.delete(token);
 
   try {
     await env.EMAIL.send(composeInbox(env, msg));
   } catch (err) {
     console.error("contact: inbox mail failed", err instanceof Error ? err.message : err);
     // Put back so the visitor can retry the same link once.
-    ctx.waitUntil(
-      caches.default.put(
-        pendingKey,
-        new Response(JSON.stringify(msg), { headers: { "Cache-Control": `max-age=${PENDING_TTL}`, "Content-Type": "application/json" } }),
-      ),
-    );
+    ctx.waitUntil(env.PENDING.put(token, JSON.stringify(msg), { expirationTtl: PENDING_TTL }));
     return htmlPage(502, msg.lang || "en", "error");
   }
   return htmlPage(200, msg.lang || "en", "ok");

@@ -1,6 +1,42 @@
 # Phase handoff
 
-**Last phase label:** Restore product Pages + Go digital for all businesses (2026-11-27)
+**Last phase label:** Turnstile CSP + site key + pending KV (2026-11-27)
+
+### Verified
+
+- CSP allows Turnstile (`connect-src` + `style-src 'unsafe-inline'` + COOP `same-origin-allow-popups`).
+- Public site key baked in workflows / wrangler / builds. Pending confirms use KV `PENDING` (replace placeholder id after `wrangler kv namespace create`). Secret not in git. sifralabs build **PASS**.
+
+### Remains unverified
+
+- Live deploy, domain, Email Sending, Turnstile secret, real KV id. **NOT OBSERVED.**
+
+### Required next
+
+1. User: GH token/var, KV id, deploy, `TURNSTILE_SECRET_KEY`, custom domains, test. 2. Do not commit the Turnstile secret.
+
+---
+
+**Previous last phase label:** T5.8 phase 2: History (2026-11-27)
+
+### Verified
+
+- `change_record` (per device) written for local changes (before the replication check) and applied remote changes (origin author + device); GDPR erasure clears a patient's history on every device; History service with field diffs and staff names; commands `history_for_record` / `history_for_patient` with per-table read permission and Cabinet+ History sharing.
+- UI: patient History tab; History section in appointment, payment, order, task drawers; 72 + 2 strings × 4 languages; `errors.domain.history` / `errors.domain.update` added (catalogue test was red on `update`).
+- Gates: medoc-core 504/505 (the 1 = `second_doctor_signs…`, fixed on branch `claude/angry-joliot-69141a`, not merged), medoc-sync 251, medoc-practice 65, medoc-lan 34, e2e 110; desktop solo / duo / group+replica compile; clippy (core, practice, sync lib) clean; vitest 649/649; tsc + lint clean; i18n parity; error catalogue + manuals current; Solo surface: no leaks.
+
+### Remains unverified
+
+- Live UI in the desktop app. **NOT OBSERVED**: disk has 4.4 GB free, too little for a desktop build.
+- History of devices that joined later starts at their join (plan D4), by design.
+
+### Required next
+
+1. Free disk space, then a live check of the History tab and drawers. 2. T5.8 phase 3 (signed per-device audit chains, security review stop). 3. Do not commit unless asked.
+
+---
+
+**Previous last phase label:** Restore product Pages + Go digital for all businesses (2026-11-27)
 
 ### Verified
 
