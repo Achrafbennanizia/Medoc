@@ -69,11 +69,14 @@ jobs:
           TURNSTILE_SITE_KEY: 0x4AAAAAAGWRuo3Zp4ZVJq6h
           VITE_TURNSTILE_SITE_KEY: 0x4AAAAAAGWRuo3Zp4ZVJq6h
         run: npm run build:all
+      # Trim accidental spaces/newlines from the secret (common cause of CF auth 6111).
       - name: Deploy to Cloudflare Workers
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: sifralabs
-          # Worker name must match wrangler.jsonc ("sifralabs-site") and the CF project.
-          command: deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: sifralabs
+        run: |
+          TOKEN="$(printf '%s' "$CLOUDFLARE_API_TOKEN" | tr -d '\r\n[:space:]')"
+          if [ -z "$TOKEN" ]; then echo "CLOUDFLARE_API_TOKEN is empty" >&2; exit 1; fi
+          export CLOUDFLARE_API_TOKEN="$TOKEN"
+          npx wrangler deploy
