@@ -19,12 +19,13 @@ const CHART_TABS: ChartTabDef[] = [
     { id: "prescription", labelKey: "patient.detail.subnav.tab.prescription" },
     { id: "attachment", labelKey: "patient.detail.subnav.tab.attachment" },
     { id: "payment", labelKey: "patient.detail.subnav.tab.payment" },
+    { id: "history", labelKey: "patient.detail.subnav.tab.history" },
 ];
 
 const CHART_TAB_SECTIONS: { headingKey: string; tabIds: PatientDetailChartTab[] }[] = [
     { headingKey: "patient.detail.subnav.section.administration", tabIds: ["anamnesis"] },
     { headingKey: "patient.detail.subnav.section.clinical", tabIds: ["examination", "treatment", "prescription"] },
-    { headingKey: "patient.detail.subnav.section.docs_finance", tabIds: ["attachment", "payment"] },
+    { headingKey: "patient.detail.subnav.section.docs_finance", tabIds: ["attachment", "payment", "history"] },
 ];
 
 export type PatientDetailChartSubnavProps = {

@@ -1228,3 +1228,68 @@ async fn practice_task_remote_insert_ensures_assignee_notification() {
         "gap-fill creates PRACTICE_TASK_ASSIGNED for remote task"
     );
 }
+
+/// T5.8 phase 2: a change applied from another device lands in history with that device and
+/// the author it signed; a re-delivered entry is not recorded twice.
+#[tokio::test]
+async fn applied_remote_change_is_recorded_with_its_origin() {
+    if !medoc_core::edition::CORE_CAPS.multi_staff {
+        return;
+    }
+    let pool = fresh_pool().await;
+    let id = "00000000-0000-0000-0000-0000000000a1";
+    let payload = format!(
+        r#"{{"id":"{id}","name":"From B","date_of_birth":"1991-02-02","sex":"FEMALE",
+            "insurance_number":"V-a1","status":"ACTIVE","created_at":"2099-01-01 00:00:00",
+            "updated_at":"2099-02-01T00:00:00Z","syncActor":"dr-b"}}"#
+    );
+    let e = entry("device-b", 7, "patient", id, "INSERT", &payload);
+    for _ in 0..2 {
+        apply_remote_entry(&pool, LOCAL_REPLICA, false, ConflictPolicy::LastWriteWins, &e)
+            .await
+            .unwrap();
+    }
+    let h = medoc_core::application::history::for_record(&pool, "patient", id)
+        .await
+        .unwrap();
+    assert_eq!(h.len(), 1, "{h:?}");
+    assert_eq!(h[0].actor_staff_id.as_deref(), Some("dr-b"));
+    assert_eq!(h[0].device_id, "device-b");
+    assert!(h[0].changes.iter().any(|c| c.field == "name"));
+}
+
+/// GDPR: a pseudonymised patient arriving from another device clears its old values here too.
+#[tokio::test]
+async fn received_erasure_clears_history() {
+    if !medoc_core::edition::CORE_CAPS.multi_staff {
+        return;
+    }
+    let pool = fresh_pool().await;
+    let id = "00000000-0000-0000-0000-0000000000a2";
+    let row = |name: &str, vnr: &str, at: &str| {
+        format!(
+            r#"{{"id":"{id}","name":"{name}","date_of_birth":"1991-02-02","sex":"FEMALE",
+                "insurance_number":"{vnr}","status":"ACTIVE","created_at":"2099-01-01 00:00:00",
+                "updated_at":"{at}"}}"#
+        )
+    };
+    let first = entry("device-b", 1, "patient", id, "INSERT", &row("Secret Name", "V-a2", "2099-02-01T00:00:00Z"));
+    let erased = entry(
+        "device-b",
+        2,
+        "patient",
+        id,
+        "UPDATE",
+        &row(&format!("Anonymisiert ({id})"), &format!("ANON-{id}"), "2099-03-01T00:00:00Z"),
+    );
+    for e in [&first, &erased] {
+        apply_remote_entry(&pool, LOCAL_REPLICA, false, ConflictPolicy::LastWriteWins, e)
+            .await
+            .unwrap();
+    }
+    let all: String = sqlx::query_scalar("SELECT group_concat(payload_json) FROM change_record")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert!(!all.contains("Secret Name"), "{all}");
+}

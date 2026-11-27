@@ -3,22 +3,26 @@ import type { EditionId } from "./route";
 // Contact details used by the demo form, the WhatsApp button and the footer.
 export const CONTACT_EMAIL = "contact@sifralabs.com";
 
-// The demo form posts here (Cloudflare Worker → Cloudflare Email Sending → CONTACT_EMAIL). If it can't
-// be reached, the form falls back to opening the visitor's mail app. Override locally with VITE_CONTACT_API.
+// Demo form → Cloudflare Worker (Turnstile + confirm link → Email Sending → CONTACT_EMAIL).
+// Mailto only if the Worker is unreachable. Override locally with VITE_CONTACT_API.
 export const CONTACT_API: string = import.meta.env.VITE_CONTACT_API ?? "https://sifralabs.com/api/contact";
 
-// The company site (sifralabs/ in this repo), linked from the footer.
-export const COMPANY_URL = "https://sifralabs.com/";
+// Cloudflare Turnstile site key (public). Test always-pass key until production keys are set.
+export const TURNSTILE_SITE_KEY: string =
+  import.meta.env.VITE_TURNSTILE_SITE_KEY ?? "1x00000000000000000000AA";
+
+// Company site (sifralabs/). On GitHub Pages until sifralabs.com DNS + Worker are live.
+export const COMPANY_URL = "https://achrafbennanizia.github.io/Medoc/";
 
 /** MeDoc series page on the company site (level 2). */
 export const SERIES_URL = `${COMPANY_URL}medoc/`;
 
 /**
  * Public origin of this product site (level 3).
- * GitHub Pages path stays `/Medoc/` while the repo is named Medoc.
+ * Nested under /Medoc/dentist/ on GitHub Pages (company site is the /Medoc/ root).
  * Switch to `https://medoc.sifralabs.com` (and vite `base: "/"`) when that domain is live.
  */
-export const PRODUCT_SITE_ORIGIN = "https://achrafbennanizia.github.io/Medoc";
+export const PRODUCT_SITE_ORIGIN = "https://achrafbennanizia.github.io/Medoc/dentist";
 
 // International format without "+" or spaces, e.g. "212600000000".
 // Leave empty to hide every WhatsApp button.

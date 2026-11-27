@@ -24,6 +24,7 @@
 @import "./styles/components/primitives.css";
 @import "./styles/components/data-controls.css";
 @import "./styles/components/table.css";
+@import "./styles/components/record-history.css";
 @import "./styles/features/finance-payments.css";
 @import "./styles/features/catalog-staff.css";
 @import "./styles/features/access.css";

@@ -1,27 +1,32 @@
 // Cloudflare Worker for sifralabs.com (see README "Deploy").
 // The name must match the Worker connected in the Cloudflare dashboard.
 {
-  "name": "sifralabs",
+  "name": "sifralabs-site",
   "main": "worker/index.ts",
   "compatibility_date": "2026-11-01",
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
     "not_found_handling": "404-page",
-    // Only the contact API runs code; every other path is served straight from dist/.
+    // Contact API + confirm link run in the Worker; everything else is static.
     "run_worker_first": ["/api/*"]
   },
-  // Cloudflare Email Sending — onboard sifralabs.com under Email → Email Sending first.
+  // Unrestricted destination so we can e-mail the visitor a confirm link, then CONTACT_TO.
+  // Onboard sifralabs.com under Email → Email Sending first. Secret: TURNSTILE_SECRET_KEY.
   "send_email": [
     {
       "name": "EMAIL",
-      "destination_address": "contact@sifralabs.com"
+      "allowed_sender_addresses": ["website@sifralabs.com"]
     }
   ],
   "vars": {
     "CONTACT_FROM": "website@sifralabs.com",
     "CONTACT_TO": "contact@sifralabs.com",
-    "ALLOWED_ORIGINS": "https://sifralabs.com,https://www.sifralabs.com,https://achrafbennanizia.github.io,https://medoc.sifralabs.com,http://127.0.0.1:4173,http://127.0.0.1:4174,http://127.0.0.1:4175,http://127.0.0.1:4176,http://127.0.0.1:4177,http://localhost:4173,http://localhost:4174,http://localhost:4175,http://localhost:4176,http://localhost:4177,http://127.0.0.1:5173,http://localhost:5173"
+    "PUBLIC_ORIGIN": "https://sifralabs.com",
+    // Public Turnstile site key (safe to embed). Override in the dashboard for production.
+    // Cloudflare always-passes test key until you replace it:
+    "TURNSTILE_SITE_KEY": "1x00000000000000000000AA",
+    "ALLOWED_ORIGINS": "https://sifralabs.com,https://www.sifralabs.com,https://achrafbennanizia.github.io,https://medoc.sifralabs.com,http://127.0.0.1:4173,http://127.0.0.1:4174,http://127.0.0.1:4175,http://127.0.0.1:4176,http://127.0.0.1:4177,http://localhost:4173,http://localhost:4174,http://localhost:4175,http://localhost:4176,http://localhost:4177,http://127.0.0.1:5173,http://localhost:5173,http://127.0.0.1:4180,http://localhost:4180,http://127.0.0.1:4181,http://localhost:4181"
   },
   "observability": { "enabled": true }
 }

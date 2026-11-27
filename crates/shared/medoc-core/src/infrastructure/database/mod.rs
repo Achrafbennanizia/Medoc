@@ -8,6 +8,7 @@ pub mod migrations;
 pub mod repos;
 
 pub mod actor;
+pub mod change_record;
 pub mod connection;
 pub mod db_key;
 pub mod field_hlc;

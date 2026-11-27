@@ -30,6 +30,10 @@ macro_rules! medoc_invoke_handler {
             #[cfg(feature = "cap-guest-inbox")]
             $crate::commands::admin::guest::staged_change_dismiss,
             #[cfg(feature = "cap-multi-staff")]
+            $crate::commands::admin::history::history_for_record,
+            #[cfg(feature = "cap-multi-staff")]
+            $crate::commands::admin::history::history_for_patient,
+            #[cfg(feature = "cap-multi-staff")]
             $crate::commands::admin::access::access_catalog,
             #[cfg(feature = "cap-multi-staff")]
             $crate::commands::admin::access::staff_access_get,

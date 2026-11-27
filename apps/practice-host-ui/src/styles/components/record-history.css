@@ -1,0 +1,72 @@
+/* History of a record or patient (T5.8): who, device, when; field old → new. */
+.record-history {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.record-history__item {
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--line-1);
+}
+.record-history__item:first-child {
+  border-top: 0;
+}
+.record-history__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+}
+.record-history__op {
+  font-weight: 600;
+  color: var(--fg-2);
+}
+.record-history__table {
+  color: var(--fg-3);
+}
+.record-history__meta {
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+.record-history__changes {
+  display: grid;
+  grid-template-columns: minmax(7rem, max-content) 1fr;
+  gap: var(--space-1) var(--space-3);
+  margin: var(--space-2) 0 0;
+  font-size: 13px;
+}
+.record-history__change {
+  display: contents;
+}
+.record-history__change dt {
+  color: var(--text-muted);
+}
+.record-history__change dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.record-history__old {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+.record-history__new {
+  color: var(--fg-2);
+}
+.record-history__status {
+  color: var(--text-muted);
+  margin: var(--space-2) 0;
+}
+.record-history-section {
+  margin-top: var(--space-4);
+  border-top: 1px solid var(--line-1);
+  padding-top: var(--space-3);
+}
+.record-history-section > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--fg-2);
+}
+.record-history-section[open] > summary {
+  margin-bottom: var(--space-2);
+}

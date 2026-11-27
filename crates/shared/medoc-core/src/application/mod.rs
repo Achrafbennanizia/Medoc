@@ -13,6 +13,7 @@ pub mod device_session_service;
 pub mod documents;
 pub mod first_run;
 pub mod guest;
+pub mod history;
 pub mod own_profile;
 pub mod practice_task_notify;
 pub mod practice_task_sync_notify;

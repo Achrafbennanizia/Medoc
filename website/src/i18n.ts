@@ -148,7 +148,7 @@ const en = {
     message: "What would you like to see?",
     send: "Request a demo",
     whatsapp: "Write to us on WhatsApp",
-    note: "Your request goes straight to our team by e-mail. The website keeps no copy of it.",
+    note: "We e-mail you a confirmation link. Your request reaches us only after you open it. The website keeps no lasting copy.",
     subject: "MeDoc Dentist demo request",
     required: "Required",
   },

@@ -39,6 +39,7 @@ pub const TABLES: &[(&str, SyncClass)] = &[
     ("provisioning_state", SyncClass::DeviceLocal),
     ("license", SyncClass::DeviceLocal),
     ("audit_log", SyncClass::DeviceLocal),
+    ("change_record", SyncClass::DeviceLocal),
     ("feedback", SyncClass::DeviceLocal),
     // Guest proposals: Solo only, one device.
     ("staged_change", SyncClass::DeviceLocal),

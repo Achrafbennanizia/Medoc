@@ -19,7 +19,7 @@ export function isPatientChartMissingError(e: unknown): boolean {
     return false;
 }
 
-export const PATIENT_DETAIL_TAB_IDS = ["anamnesis", "examination", "treatment", "prescription", "attachment", "payment"] as const;
+export const PATIENT_DETAIL_TAB_IDS = ["anamnesis", "examination", "treatment", "prescription", "attachment", "payment", "history"] as const;
 export type PatientDetailChartTab = (typeof PATIENT_DETAIL_TAB_IDS)[number];
 
 /** Default chart sub-nav tab when no hash is present (MasterData live in the hero header). */
@@ -37,6 +37,8 @@ export function patientDetailTabBlocked(tab: PatientDetailChartTab, canViewClini
 
 /** Whether the chart sub-nav tab should render (RBAC: hide blocked tabs for RECEPTION). */
 export function patientDetailTabVisible(tab: PatientDetailChartTab, canViewClinical: boolean): boolean {
+    // T5.8: History (who changed what) exists in Duo and Cabinet+ only.
+    if (tab === "history" && !__CAP_MULTI_STAFF__) return false;
     return !patientDetailTabBlocked(tab, canViewClinical);
 }
 

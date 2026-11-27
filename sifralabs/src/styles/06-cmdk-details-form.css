@@ -287,6 +287,13 @@ h3 {
   opacity: 0.6;
   cursor: progress;
 }
+/* Turnstile: no card chrome; interaction-only stays invisible until Cloudflare needs it. */
+.turnstile-slot {
+  min-height: 0;
+}
+.turnstile-slot .cf-turnstile {
+  max-width: 100%;
+}
 
 [hidden] {
   display: none !important;

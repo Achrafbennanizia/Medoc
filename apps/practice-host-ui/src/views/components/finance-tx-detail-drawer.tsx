@@ -16,6 +16,7 @@ import {
 import { useDateFnsLocale, useT } from "@/lib/i18n";
 import { ExportIcon, PackageIcon, UsersIcon, XIcon } from "@/lib/icons";
 import { Select } from "./ui/input";
+import { RecordHistory } from "./history/record-history";
 
 function pillClass(variant: "success" | "warning" | "default"): string {
     if (variant === "success") return "pill green";
@@ -233,6 +234,7 @@ export function FinanceTxDetailDrawer({
                                 </div>
                             ) : null}
                         </div>
+                        {__CAP_MULTI_STAFF__ ? <RecordHistory table="payment" entityId={z.id} /> : null}
                         <div className="appointment-drawer-actions row">
                             {showReceipt ? (
                                 <button

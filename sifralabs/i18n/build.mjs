@@ -10,6 +10,17 @@ export const LANGS = ["en", "fr", "ar"];
 export const LANG_LABEL = { en: "EN", fr: "FR", ar: "ع" };
 export const LANG_NAME = { en: "English", fr: "Français", ar: "العربية" };
 
+/** GitHub Pages mounts this site under /Medoc/; Cloudflare (sifralabs.com) uses "". */
+export const SITE_BASE = process.env.SITE_BASE || "";
+/** Public origin host for canonical / og:url (no path). GH Pages: https://achrafbennanizia.github.io */
+export const SITE_ORIGIN = process.env.SITE_ORIGIN || "https://sifralabs.com";
+/** MeDoc Dentist product site (nested under /Medoc/dentist/ on GH Pages). */
+export const PRODUCT_SITE = process.env.PRODUCT_SITE || "https://achrafbennanizia.github.io/Medoc/dentist/";
+/** Cloudflare Worker contact API (Email Sending). Absolute so GH Pages can reach it. */
+export const CONTACT_API = process.env.CONTACT_API || "https://sifralabs.com/api/contact";
+/** Cloudflare Turnstile site key (public). Test always-pass key until production keys are set. */
+export const TURNSTILE_SITE_KEY = process.env.TURNSTILE_SITE_KEY || "1x00000000000000000000AA";
+
 // Every translated page, as its English source file.
 export const PAGES = [
   "index.html",
@@ -44,6 +55,31 @@ export function includes(html, root) {
     html = html.replace(re, (_, name) => readFileSync(resolve(root, "partials", `${name}.html`), "utf8"));
   }
   return html;
+}
+
+/** Prefix root-absolute href/src/srcset with SITE_BASE (e.g. /about/ → /Medoc/about/). Skips paths that already include it. */
+export function applyBase(html) {
+  if (!SITE_BASE) return html;
+  const prefix = (path) => {
+    if (!path.startsWith("/") || path.startsWith("//")) return path;
+    // Leave Vite module entries alone; `base` rewrites their built asset URLs.
+    if (path.startsWith("/src/")) return path;
+    if (path === SITE_BASE || path.startsWith(`${SITE_BASE}/`)) return path;
+    return `${SITE_BASE}${path}`;
+  };
+  html = html.replace(/(href|src)="([^"]+)"/g, (m, attr, url) => `${attr}="${prefix(url)}"`);
+  return html.replace(/srcset="([^"]+)"/g, (_m, value) => {
+    const next = value
+      .split(",")
+      .map((part) => {
+        const trimmed = part.trim();
+        const sp = trimmed.search(/\s/);
+        if (sp < 0) return prefix(trimmed);
+        return `${prefix(trimmed.slice(0, sp))}${trimmed.slice(sp)}`;
+      })
+      .join(", ");
+    return `srcset="${next}"`;
+  });
 }
 
 const collapse = (s) => s.replace(/\s+/g, " ").trim();
@@ -98,7 +134,8 @@ export function translate(html, lang, dict, missing) {
 
 /** Links to the MeDoc Dentist site open it in the page's language (it reads ?lang=). */
 export function localiseProductLinks(html, lang) {
-  return html.replace(/href="(https:\/\/achrafbennanizia\.github\.io\/Medoc\/)(\?[^"#]*)?(#[^"]*)?"/g, (m, base, query = "", hash = "") =>
+  const esc = PRODUCT_SITE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return html.replace(new RegExp(`href="(${esc})(\\?[^"#]*)?(#[^"]*)?"`, "g"), (m, base, query = "", hash = "") =>
     `href="${base}${query ? `${query}&` : "?"}lang=${lang}${hash}"`,
   );
 }
@@ -106,9 +143,11 @@ export function localiseProductLinks(html, lang) {
 /** Internal page links → their /<lang>/ version. Assets (/img, /src, /favicon…) are left alone. */
 export function localiseLinks(html, lang) {
   if (lang === "en") return html;
-  return html.replace(/href="(\/[^"#?]*)([#?][^"]*)?"/g, (m, path, rest = "") =>
-    PAGE_URLS.includes(path) ? `href="/${lang}${path}${rest}"` : m,
-  );
+  return html.replace(/href="(\/[^"#?]*)([#?][^"]*)?"/g, (m, path, rest = "") => {
+    const bare = SITE_BASE && path.startsWith(SITE_BASE) ? path.slice(SITE_BASE.length) || "/" : path;
+    if (!PAGE_URLS.includes(bare)) return m;
+    return `href="${SITE_BASE}/${lang}${bare}${rest}"`;
+  });
 }
 
 const OG_LOCALE = { en: "en_GB", fr: "fr_MA", ar: "ar_MA" };
@@ -116,13 +155,13 @@ const OG_LOCALE = { en: "en_GB", fr: "fr_MA", ar: "ar_MA" };
 /** <html lang dir>, hreflang alternates, canonical/og:url, and the language switcher for one page. */
 export function decorate(html, lang, file) {
   const url = pageUrl(file);
-  const href = (l) => (l === "en" ? url : `/${l}${url}`);
-  const abs = `https://sifralabs.com${href(lang)}`;
+  const href = (l) => (l === "en" ? `${SITE_BASE}${url}` : `${SITE_BASE}/${l}${url}`);
+  const abs = `${SITE_ORIGIN}${href(lang)}`;
   html = html.replace(/<html lang="en" dir="ltr">/, `<html lang="${lang}" dir="${lang === "ar" ? "rtl" : "ltr"}">`);
-  const alternates = LANGS.map((l) => `    <link rel="alternate" hreflang="${l}" href="https://sifralabs.com${href(l)}" />`).join("\n");
-  html = html.replace("</head>", `${alternates}\n    <link rel="alternate" hreflang="x-default" href="https://sifralabs.com${url}" />\n  </head>`);
-  html = html.replace(/<link rel="canonical" href="https:\/\/sifralabs\.com[^"]*" \/>/, `<link rel="canonical" href="${abs}" />`);
-  html = html.replace(/<meta property="og:url" content="https:\/\/sifralabs\.com[^"]*" \/>/, `<meta property="og:url" content="${abs}" />`);
+  const alternates = LANGS.map((l) => `    <link rel="alternate" hreflang="${l}" href="${SITE_ORIGIN}${href(l)}" />`).join("\n");
+  html = html.replace("</head>", `${alternates}\n    <link rel="alternate" hreflang="x-default" href="${SITE_ORIGIN}${SITE_BASE}${url}" />\n  </head>`);
+  html = html.replace(/<link rel="canonical" href="https:\/\/(?:sifralabs\.com|achrafbennanizia\.github\.io)[^"]*" \/>/, `<link rel="canonical" href="${abs}" />`);
+  html = html.replace(/<meta property="og:url" content="https:\/\/(?:sifralabs\.com|achrafbennanizia\.github\.io)[^"]*" \/>/, `<meta property="og:url" content="${abs}" />`);
   html = html.replace(/<meta property="og:locale" content="[^"]*" \/>/, `<meta property="og:locale" content="${OG_LOCALE[lang]}" />`);
   const switcher = LANGS.map(
     (l) => `<a href="${href(l)}" lang="${l}" hreflang="${l}" title="${LANG_NAME[l]}"${l === lang ? ' aria-current="true"' : ""}>${LANG_LABEL[l]}</a>`,

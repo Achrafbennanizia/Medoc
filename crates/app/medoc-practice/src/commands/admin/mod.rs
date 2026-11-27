@@ -11,6 +11,8 @@ pub mod break_glass;
 pub mod db_setup;
 #[cfg(feature = "cap-guest-inbox")]
 pub mod guest;
+#[cfg(feature = "cap-multi-staff")]
+pub mod history;
 pub mod session_effects;
 pub mod sick_leave_certificate;
 pub mod staff;

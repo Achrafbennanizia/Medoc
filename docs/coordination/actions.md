@@ -1,10 +1,15 @@
 # Action ledger
 
-**Last updated:** 2026-11-27 (product site SEO/marketing messaging)
+**Last updated:** 2026-11-27 (sifralabs official GH Pages main)
 
 ## Now
 
-- Optional next: path-based SSG + real `/fr|/ar|/en` meta; domain cutover; Plausible; live browser pass of shortened home.
+- Push to `main` for Pages (company root + `/dentist/`). Cloudflare project name `sifralabs-site` + DNS when ready.
+
+## Done (2026-11-27 — sifralabs official GH Pages main)
+
+- Company site is Pages root; product under `/Medoc/dentist/`; `SITE_BASE`/`applyBase`; workflow assemble; product URL rewrites.
+- Builds **PASS**. No commit unless asked.
 
 ## Done (2026-11-27 — product site SEO/marketing messaging)
 

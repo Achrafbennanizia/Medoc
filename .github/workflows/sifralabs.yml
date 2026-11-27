@@ -57,4 +57,5 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: sifralabs
+          # Worker name must match wrangler.jsonc ("sifralabs-site") and the CF project.
           command: deploy

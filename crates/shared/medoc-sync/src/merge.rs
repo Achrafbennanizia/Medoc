@@ -122,6 +122,36 @@ async fn apply_remote_entry_inner(
             );
         }
     }
+    // T5.8 phase 2: history of the applied change, with the origin's author and device.
+    if applied {
+        let author = serde_json::from_str::<serde_json::Value>(&entry.payload_json)
+            .ok()
+            .and_then(|v| {
+                v.get(medoc_core::infrastructure::database::actor::PAYLOAD_KEY)
+                    .and_then(|a| a.as_str())
+                    .map(str::to_string)
+            });
+        if let Err(e) = medoc_core::infrastructure::database::change_record::write_applied(
+            pool,
+            &entry.entity_table,
+            &entry.entity_id,
+            &entry.op,
+            author.as_deref(),
+            &entry.device_id,
+            entry.seq,
+            &entry.created_at,
+        )
+        .await
+        {
+            tracing::warn!(
+                target: "medoc::sync",
+                event = "CHANGE_RECORD_WRITE_FAILED",
+                table = %entry.entity_table,
+                id = %entry.entity_id,
+                error = %e
+            );
+        }
+    }
     // Remote practice_task INSERT: ensure assignee notifications exist locally
     // when the origin did not sync a PRACTICE_TASK_ASSIGNED row (or it lagged).
     if applied && entry.entity_table == "practice_task" && entry.op.eq_ignore_ascii_case("INSERT") {

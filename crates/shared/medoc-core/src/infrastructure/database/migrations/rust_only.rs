@@ -13,6 +13,7 @@ pub async fn run_rust_only_migrations(pool: &SqlitePool) -> Result<(), AppError>
     super::edition_columns::ensure_edition_columns(pool).await?;
     // Group: sharing rules (T5.1) and the second hub's number blocks (T4.3).
     crate::application::allowances::ensure_tables(pool).await?;
+    crate::infrastructure::database::change_record::ensure_table(pool).await?;
     crate::infrastructure::database::number_sequence::blocks::ensure_table(pool).await?;
     super::contract_activation_columns::ensure_contract_activation_columns(pool).await?;
     let product_id_col: i64 = sqlx::query_scalar(

@@ -1,28 +1,78 @@
-import { type FormEvent, useState } from "react";
-import { CONTACT_API, CONTACT_EMAIL, WHATSAPP_NUMBER } from "./config";
+import { type FormEvent, useEffect, useRef, useState } from "react";
+import { CONTACT_API, CONTACT_EMAIL, TURNSTILE_SITE_KEY, WHATSAPP_NUMBER } from "./config";
 import { type Dict, LANGS, type Lang } from "./i18n";
 import { I } from "./icons";
 import { PAGES_COPY } from "./pages-copy";
 import { waLink } from "./whatsapp";
 
-/* Demo request form: sends through CONTACT_API, falls back to the visitor's mail app. */
+declare global {
+  interface Window {
+    turnstile?: {
+      render: (el: HTMLElement, opts: Record<string, unknown>) => string;
+      reset: (widgetId?: string) => void;
+      remove: (widgetId?: string) => void;
+      ready: (cb: () => void) => void;
+    };
+  }
+}
+
+/* Demo form: Turnstile → Worker → confirm e-mail; mailto only if the API is down. */
 export function Contact({ t, lang, locale }: { t: Dict; lang: Lang; locale: string }) {
   const c = t.contact;
   const m = PAGES_COPY[lang].mail;
-  // After sending: "sent", or "fallback" with the prepared e-mail kept for copying if no mail app opened.
   const [state, setState] = useState<"idle" | "sending" | "sent" | "fallback">("idle");
   const [prepared, setPrepared] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [shownAt] = useState(() => Date.now());
-  // One key per request: a double click or a retry is delivered once.
   const [key, setKey] = useState(() => crypto.randomUUID());
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const slotRef = useRef<HTMLDivElement>(null);
+  const widgetId = useRef<string | null>(null);
+
+  useEffect(() => {
+    const boot = () => {
+      const el = slotRef.current;
+      if (!el || !window.turnstile || widgetId.current) return;
+      widgetId.current = window.turnstile.render(el, {
+        sitekey: TURNSTILE_SITE_KEY,
+        appearance: "interaction-only",
+        theme: "auto",
+        size: "flexible",
+        callback: (token: string) => setTurnstileToken(token),
+        "expired-callback": () => setTurnstileToken(""),
+        "error-callback": () => setTurnstileToken(""),
+      });
+    };
+    const existing = document.getElementById("cf-turnstile-api") as HTMLScriptElement | null;
+    if (existing) {
+      if (window.turnstile) window.turnstile.ready(boot);
+      else existing.addEventListener("load", () => window.turnstile?.ready(boot), { once: true });
+    } else {
+      const s = document.createElement("script");
+      s.id = "cf-turnstile-api";
+      s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+      s.async = true;
+      s.addEventListener("load", () => window.turnstile?.ready(boot), { once: true });
+      document.head.appendChild(s);
+    }
+    return () => {
+      if (widgetId.current && window.turnstile) {
+        try {
+          window.turnstile.remove(widgetId.current);
+        } catch {
+          /* widget already gone */
+        }
+        widgetId.current = null;
+      }
+    };
+  }, []);
+
   const onSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = e.currentTarget;
     const d = new FormData(form);
     const v = (k: string) => String(d.get(k) ?? "").trim();
     const line = (label: string, value: string) => `${label}: ${value || "–"}`;
-    // Default subject, with the practice and city so the inbox shows who is asking.
     const subject = [c.subject, [v("practice"), v("city")].filter(Boolean).join(", ")].filter(Boolean).join(" · ");
     const body = [
       m.hello,
@@ -65,6 +115,7 @@ export function Contact({ t, lang, locale }: { t: Dict; lang: Lang; locale: stri
           lang,
           website: v("website"),
           elapsed: Date.now() - shownAt,
+          turnstile: turnstileToken || v("cf-turnstile-response"),
         }),
       });
       ok = res.ok && ((await res.json()) as { ok?: boolean }).ok === true;
@@ -75,9 +126,10 @@ export function Contact({ t, lang, locale }: { t: Dict; lang: Lang; locale: stri
       setState("sent");
       form.reset();
       setKey(crypto.randomUUID());
+      setTurnstileToken("");
+      if (widgetId.current) window.turnstile?.reset(widgetId.current);
     } else {
       setState("fallback");
-      // Opens the visitor's own e-mail app (Mail, Outlook, Gmail…) with everything filled in; they press Send.
       location.href = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     }
   };
@@ -107,7 +159,6 @@ export function Contact({ t, lang, locale }: { t: Dict; lang: Lang; locale: stri
           </p>
         </div>
         <form className="form" onSubmit={onSubmit}>
-          {/* Bot trap: people never see or fill this field. */}
           <label className="trap" aria-hidden="true">
             Website <input name="website" tabIndex={-1} autoComplete="off" />
           </label>
@@ -143,6 +194,9 @@ export function Contact({ t, lang, locale }: { t: Dict; lang: Lang; locale: stri
             <span>{c.message}</span>
             <textarea name="message" rows={4} />
           </label>
+          <div className="span-2 turnstile-slot">
+            <div ref={slotRef} />
+          </div>
           <div className="span-2 form-foot">
             <button className="btn btn-primary" type="submit" disabled={state === "sending"}>
               {state === "sending" ? m.sending : c.send}

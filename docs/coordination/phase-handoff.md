@@ -1,6 +1,67 @@
 # Phase handoff
 
-**Last phase label:** Cloudflare Email Sending for contact (2026-11-27)
+**Last phase label:** Contact forms → Cloudflare Email Sending (2026-11-27)
+
+### Verified
+
+- Only two submit forms: sifralabs `form.mail-form` and website `Contact.tsx` demo form.
+- Both POST to absolute `https://sifralabs.com/api/contact` (Worker `EMAIL` / Email Sending → `contact@sifralabs.com`). Mailto only on failure.
+- Company form no longer uses relative `/api/contact` (broken on GH Pages). Build injects `CONTACT_API`; website uses `VITE_CONTACT_API` / default.
+- `ALLOWED_ORIGINS` includes `https://achrafbennanizia.github.io`. Builds bake the API URL **PASS**.
+
+### Remains unverified
+
+- Live POST delivery: needs Worker deploy + sifralabs.com DNS + Email Sending onboard. **NOT OBSERVED** (DNS historically unresolved).
+
+### Required next
+
+1. Deploy Worker `sifralabs-site`, attach custom domain, onboard Email Sending. 2. Do not commit unless asked.
+
+---
+
+**Previous last phase label:** Sifra Labs as official GH Pages main site (2026-11-27)
+
+### Verified
+
+- GitHub Pages artifact: company site (`sifralabs/`) at `/Medoc/` root; MeDoc Dentist nested at `/Medoc/dentist/`.
+- Workflow `.github/workflows/website.yml` builds both and assembles `publish/` + `publish/dentist/`.
+- `SITE_BASE=/Medoc` + `SITE_ORIGIN=https://achrafbennanizia.github.io` → canonical `…/Medoc/` (no double path). Cloudflare build (empty `SITE_BASE`) still canonical `https://sifralabs.com/`.
+- Worker name remains `sifralabs-site` in `wrangler.jsonc`. Product links → `…/Medoc/dentist/`. `COMPANY_URL` → GH Pages company root until DNS.
+- Builds: sifralabs (with and without SITE_BASE) **PASS**; `GITHUB_ACTIONS=true` medoc-dentist **PASS**. Local assemble smoke: both `index.html` present.
+
+### Remains unverified
+
+- Live GitHub Pages after push. **NOT OBSERVED.**
+- Cloudflare Worker deploy + `sifralabs.com` DNS. **NOT OBSERVED** (domain still unresolved historically).
+
+### Required next
+
+1. Push to `main` so Pages redeploys. 2. Cloudflare: create/rename project to `sifralabs-site`, set account secrets, custom domain. 3. Do not commit unless asked.
+
+---
+
+**Previous last phase label:** T5.8 phase 1: author in every change (2026-11-27)
+
+### Verified
+
+- `syncActor` inside the signed payload of every local change (`actor.rs`; `record_in_tx`, `append_outbox`); signed-in person via `SessionState::replace` (sign-in, sign-out, idle expiry, licence clear, cluster reset); LAN staff token → that staff member, other LAN requests and background jobs → `system`.
+- Owner-only rows check the author (`is_owner_signed`). `SYNC_PROTOCOL`/`MIN_SYNC_PROTOCOL` = 2; protocol-1 devices get 426 and pause. Manifest script default 2.
+- Clean build: medoc-core 498/499 (the 1 also fails at HEAD, see below), medoc-practice 63/63, medoc-sync 249/249, medoc-lan 34/34, medoc-e2e 110/110; desktop `medoc` compiles for solo, duo, group+replica.
+- Test clients (LAN support, e2e harness, port client) now send the current protocol header like real devices; the 426 test now expects protocol 1 to be refused.
+
+### Remains unverified
+
+- `document_registry_tests::second_doctor_signs_the_certificate_they_issued` fails **at HEAD too** (issuer "Dr. Test" printed instead of the stored signer "Dr. Karim Alaoui"; from the latest T5.7 commit). Not touched.
+- `five_device_convergence_proptests.rs` fails `clippy --tests` (needless index loop, `vec!`); pre-existing.
+- Live multi-device run with a protocol-1 device pausing. **NOT OBSERVED.**
+
+### Required next
+
+1. T5.8 phase 2 (change records + History) after owner go-ahead. 2. Do not commit unless asked.
+
+---
+
+**Previous last phase label:** Cloudflare Email Sending for contact (2026-11-27)
 
 ### Verified
 

@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { defineConfig, type Plugin } from "vite";
 // @ts-expect-error plain ESM helper without types
-import { LANGS, PAGES, decorate, includes, loadDict, localiseLinks, localiseProductLinks, translate } from "./i18n/build.mjs";
+import { CONTACT_API, LANGS, PAGES, SITE_BASE, TURNSTILE_SITE_KEY, applyBase, decorate, includes, loadDict, localiseLinks, localiseProductLinks, translate } from "./i18n/build.mjs";
 
 const root = import.meta.dirname;
 
@@ -66,6 +66,10 @@ function site(): Plugin {
           html = localiseLinks(html, lang);
         }
         html = localiseProductLinks(html, lang);
+        // Always absolute: GH Pages has no /api/contact; the Worker (sifralabs.com) does.
+        html = html.replace(/data-api="[^"]*"/g, `data-api="${CONTACT_API}"`);
+        html = html.replace(/data-sitekey="[^"]*"/g, `data-sitekey="${TURNSTILE_SITE_KEY}"`);
+        html = applyBase(html);
         return (PAGES as string[]).includes(file) ? decorate(html, lang, file) : html.replaceAll("<!-- @langs -->", "");
       },
     },
@@ -73,6 +77,8 @@ function site(): Plugin {
 }
 
 export default defineConfig({
+  // GitHub Pages serves the company site at /Medoc/; Cloudflare custom domain uses "/".
+  base: SITE_BASE ? `${SITE_BASE}/` : "/",
   plugins: [site()],
   build: {
     rollupOptions: {

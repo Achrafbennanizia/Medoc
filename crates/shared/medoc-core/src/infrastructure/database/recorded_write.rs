@@ -87,6 +87,30 @@ pub async fn record_in_tx(
     if table == "app_kv" && deny_app_kv_key(id) {
         return Ok(());
     }
+    // T5.8 phase 2: history does not depend on replication (a Duo main without replicas yet).
+    if crate::infrastructure::database::change_record::is_tracked(table) {
+        let row = if op == "DELETE" {
+            None
+        } else {
+            row_json(tx, table, id).await?
+        };
+        let device = ensure_local_device_id_tx(tx).await?;
+        let actor = crate::infrastructure::database::actor::current();
+        crate::infrastructure::database::change_record::write(
+            tx,
+            crate::infrastructure::database::change_record::NewRecord {
+                table,
+                entity_id: id,
+                op,
+                row_json: row.as_deref(),
+                actor_staff_id: Some(&actor),
+                device_id: &device,
+                origin_seq: None,
+                created_at: &Utc::now().to_rfc3339(),
+            },
+        )
+        .await?;
+    }
     if !replication_active_tx(tx).await? {
         return Ok(());
     }

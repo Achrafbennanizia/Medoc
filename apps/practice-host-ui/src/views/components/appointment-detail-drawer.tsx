@@ -31,6 +31,7 @@ import {
 import { DentalToothPickerMini } from "./dental-tooth-picker-mini";
 import { RecordPrivacy } from "./record-privacy";
 import { canTransition, statusAllows, statusDescriptionKey, statusLabelKey } from "@/lib/status/status-registry";
+import { RecordHistory } from "./history/record-history";
 
 /** F64: workflow steps map 1:1 onto `AppointmentStatus`; "Active" is `IN_PROGRESS`. */
 const APPOINTMENT_DRAWER_STEPS: Appointment["status"][] = ["PLANNED", "CONFIRMED", "IN_PROGRESS", "COMPLETED"];
@@ -227,6 +228,7 @@ export function AppointmentDetailDrawer({
                         </div>
                     ) : null}
                     <RecordPrivacy entityTable="appointment" entityId={appointment.id} ownerId={appointment.physician_id} />
+                    {__CAP_MULTI_STAFF__ ? <RecordHistory table="appointment" entityId={appointment.id} /> : null}
                     <div className="appointment-drawer-actions row">
                         {/* TODO(later): restore Call + Reminder — see docs/coordination/todos-deferred-ui-blinds.md */}
                         {APPOINTMENT_CALL_REMINDER_ENABLED ? (

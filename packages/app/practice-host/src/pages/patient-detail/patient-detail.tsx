@@ -35,6 +35,7 @@ import { usePatientDetailClinicalActions } from "./use-patient-detail-clinical-a
 import { usePatientDetailValidation } from "./use-patient-detail-validation";
 import { usePatientDetailPaymentActions } from "./use-patient-detail-payment-actions";
 import { PatientDetailOverlays } from "./patient-detail-overlays";
+import { PatientHistoryPanel } from "@/views/components/history/record-history";
 import type { PatientChartWorkflowMode } from "@/views/components/patient-chart-workflow-dialogs";
 import { type PatientDetailPrescriptionTabHandle } from "./patient-detail-prescription-tab";
 
@@ -1071,6 +1072,11 @@ export function PatientDetailPage() {
                         }
                     }}
                 />
+            ) : null}
+            {activeTab === "history" && id && __CAP_MULTI_STAFF__ ? (
+                <PatientTabSlot>
+                    <PatientHistoryPanel patientId={id} />
+                </PatientTabSlot>
             ) : null}
             {activeTab === "payment" && (
                 <PatientTabSlot>

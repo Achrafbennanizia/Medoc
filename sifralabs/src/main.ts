@@ -79,21 +79,20 @@ if (dialog) {
   });
 }
 
-/* ---------- contact form: sends through /api/contact; falls back to the visitor's mail app ---------- */
-// Form messages in the page's language (pages are generated per language from i18n/*.json).
+/* ---------- contact form: Turnstile → Worker → confirm e-mail; mailto only if API is down ---------- */
 const UI = {
   en: {
-    sent: "Thank you. Your message is on its way to contact@sifralabs.com, and we reply within 24 hours on working days.",
+    sent: "Check your e-mail. We sent a confirmation link — your message reaches us only after you open it. The link expires in 24 hours.",
     fallback: "We couldn't send it from the website just now, so your e-mail app is opening with the message ready: press Send there. Nothing opened? Copy the e-mail and send it to contact@sifralabs.com.",
     sending: "Sending…", send: "Send message", copy: "Copy the e-mail", copied: "Copied", copyFailed: "Copy failed: write to contact@sifralabs.com",
   },
   fr: {
-    sent: "Merci. Votre message est en route vers contact@sifralabs.com, et nous répondons sous 24 heures, jours ouvrés.",
+    sent: "Vérifiez votre e-mail. Nous avons envoyé un lien de confirmation — votre message ne nous parvient qu'après l'avoir ouvert. Le lien expire dans 24 heures.",
     fallback: "L'envoi depuis le site n'a pas abouti : votre messagerie s'ouvre avec le message prêt, cliquez sur Envoyer. Rien ne s'est ouvert ? Copiez l'e-mail et envoyez-le à contact@sifralabs.com.",
     sending: "Envoi…", send: "Envoyer le message", copy: "Copier l'e-mail", copied: "Copié", copyFailed: "Copie impossible : écrivez à contact@sifralabs.com",
   },
   ar: {
-    sent: "شكرًا. رسالتكم في طريقها إلى contact@sifralabs.com، وسنرد خلال 24 ساعة في أيام العمل.",
+    sent: "تحققوا من بريدكم. أرسلنا رابط تأكيد — تصل رسالتكم إلينا فقط بعد فتحه. ينتهي الرابط خلال 24 ساعة.",
     fallback: "تعذّر الإرسال من الموقع الآن، لذلك يُفتح تطبيق البريد لديكم والرسالة جاهزة: اضغطوا إرسال. لم يُفتح شيء؟ انسخوا الرسالة وأرسلوها إلى contact@sifralabs.com.",
     sending: "جارٍ الإرسال…", send: "إرسال الرسالة", copy: "نسخ الرسالة", copied: "تم النسخ", copyFailed: "تعذّر النسخ: راسلونا على contact@sifralabs.com",
   },
@@ -108,7 +107,6 @@ for (const form of document.querySelectorAll<HTMLFormElement>("form.mail-form"))
   const copyBtn = form.querySelector<HTMLButtonElement>("[data-copy]")!;
   const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
   const shownAt = Date.now();
-  // One key per message: a double click or a retry is delivered once (the Worker remembers it for 10 minutes).
   let key = crypto.randomUUID();
   let prepared = "";
 
@@ -116,6 +114,7 @@ for (const form of document.querySelectorAll<HTMLFormElement>("form.mail-form"))
     e.preventDefault();
     const d = new FormData(form);
     const v = (k: string) => String(d.get(k) ?? "").trim();
+    const turnstile = v("cf-turnstile-response");
     const subject = ["Sifra Labs", v("topic"), v("org")].filter(Boolean).join(" · ");
     const line = (label: string, value: string) => `${label}: ${value || "–"}`;
     const body = [
@@ -138,7 +137,7 @@ for (const form of document.querySelectorAll<HTMLFormElement>("form.mail-form"))
         body: JSON.stringify({
           form: "sifra", name: v("name"), email: v("email"), phone: v("phone"), org: v("org"),
           topic: v("topic"), message: v("message"), lang: document.documentElement.lang, country: "",
-          website: v("website"), elapsed: Date.now() - shownAt,
+          website: v("website"), elapsed: Date.now() - shownAt, turnstile,
         }),
       });
       ok = res.ok && ((await res.json()) as { ok?: boolean }).ok === true;
@@ -153,6 +152,9 @@ for (const form of document.querySelectorAll<HTMLFormElement>("form.mail-form"))
       copyBtn.hidden = true;
       form.reset();
       key = crypto.randomUUID();
+      // Reset Turnstile so a second message needs a fresh token.
+      const w = window as Window & { turnstile?: { reset: () => void } };
+      w.turnstile?.reset();
     } else {
       msg.textContent = ui.fallback;
       copyBtn.hidden = false;

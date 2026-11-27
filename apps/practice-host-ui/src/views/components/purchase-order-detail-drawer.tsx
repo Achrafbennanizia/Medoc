@@ -20,6 +20,7 @@ import { ConfirmDialog } from "./ui/dialog";
 import { Input, Select, Textarea } from "./ui/input";
 import { useToastStore } from "./ui/toast-store";
 import { purchaseOrderIsOverdue } from "@/lib/purchase-order-is-overdue";
+import { RecordHistory } from "./history/record-history";
 
 function statusPill(status: OrderStatus, overdue: boolean, t: (key: string) => string): { className: string; label: string } {
     if (overdue) return { className: "pill orange", label: t("page.purchase_orders.status.overdue") };
@@ -470,6 +471,12 @@ export function PurchaseOrderDetailDrawer({
                             </div>
                         </div>
                     </div>
+                </div>
+            ) : null}
+
+            {!editing && __CAP_MULTI_STAFF__ ? (
+                <div className="appointment-drawer-section">
+                    <RecordHistory table="purchase_order" entityId={purchase_order.id} />
                 </div>
             ) : null}
 
