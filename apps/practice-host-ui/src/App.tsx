@@ -16,6 +16,20 @@ import { DesktopWindowFrame } from "./views/components/desktop-window-frame";
 import { AppLayout } from "./views/layouts/app-layout";
 import { PageLoading } from "@/views/components/ui/page-status";
 import { DevCaptureNavBinder } from "./views/components/dev-capture-poller";
+import {
+    AdministrationTeamPage,
+    ChartsToValidatePage,
+    DayClosePage,
+    GuestInboxPage,
+    PracticeTaskCreatePage,
+    PracticeTaskEditPage,
+    PracticeTicketsPage,
+    SickLeaveCertificateFormPage,
+    StaffPage,
+    StaffWorkPlanPage,
+    WorkTimeTeamPage,
+    WorkTimeTrackingPage,
+} from "./edition-gated-pages";
 
 const LoginPage = lazy(async () => ({ default: (await import("./views/pages/login")).LoginPage }));
 const DashboardPage = lazy(async () => ({ default: (await import("./views/pages/dashboard")).DashboardPage }));
@@ -23,18 +37,6 @@ const AppointmentsPage = lazy(async () => ({ default: (await import("./views/pag
 const AppointmentCreatePage = lazy(async () => ({ default: (await import("./views/pages/appointment-create")).AppointmentCreatePage }));
 const PatientsPage = lazy(async () => ({ default: (await import("./views/pages/patients")).PatientsPage }));
 const PatientDetailPage = lazy(async () => ({ default: (await import("@/systems/practice-host/pages/patient-detail/patient-detail")).PatientDetailPage }));
-const ChartsToValidatePage = lazy(async () => ({
-    default: (await import("@/systems/practice-host/pages/charts-to-validate")).ChartsToValidatePage,
-}));
-const PracticeTicketsPage = lazy(async () => ({
-    default: (await import("./views/pages/practice-tickets")).PracticeTicketsPage,
-}));
-const PracticeTaskCreatePage = lazy(async () => ({
-    default: (await import("./views/pages/practice-task-create")).PracticeTaskCreatePage,
-}));
-const PracticeTaskEditPage = lazy(async () => ({
-    default: (await import("./views/pages/practice-task-edit")).PracticeTaskEditPage,
-}));
 const FinancePage = lazy(async () => ({ default: (await import("./views/pages/finance")).FinancePage }));
 const FinanceCashPage = lazy(async () => ({ default: (await import("./views/pages/finance-cash")).FinanceCashPage }));
 const PaymentCreatePage = lazy(async () => ({ default: (await import("./views/pages/payment-create")).PaymentCreatePage }));
@@ -43,16 +45,6 @@ const PaymentCashCreatePage = lazy(async () => ({
 }));
 const ServicesPage = lazy(async () => ({ default: (await import("./views/pages/services")).ServicesPage }));
 const ProductsPage = lazy(async () => ({ default: (await import("./views/pages/products")).ProductsPage }));
-const StaffPage = lazy(async () => ({ default: (await import("./views/pages/staff")).StaffPage }));
-const StaffWorkPlanPage = lazy(async () => ({
-    default: (await import("./views/pages/staff-work-plan")).StaffWorkPlanPage,
-}));
-const WorkTimeTrackingPage = lazy(async () => ({
-    default: (await import("./views/pages/work-time-tracking")).WorkTimeTrackingPage,
-}));
-const WorkTimeTeamPage = lazy(async () => ({
-    default: (await import("./views/pages/work-time-team")).WorkTimeTeamPage,
-}));
 const StatisticsPage = lazy(async () => ({ default: (await import("./views/pages/statistics")).StatisticsPage }));
 const AuditPage = lazy(async () => ({ default: (await import("@/systems/practice-host/pages/audit")).AuditPage }));
 const LoggingPage = lazy(async () => ({ default: (await import("@/systems/practice-host/pages/logging")).LoggingPage }));
@@ -71,12 +63,6 @@ const AdministrationFinanceToolsPage = lazy(async () => ({
 const AdministrationFinanceReportsPage = lazy(async () => ({
     default: (await import("./views/pages/administration-finance-reports")).AdministrationFinanceReportsPage,
 }));
-const AdministrationTeamPage = lazy(async () => ({
-    default: (await import("./views/pages/administration-team")).AdministrationTeamPage,
-}));
-const DayClosePage = lazy(async () => ({
-    default: (await import("./views/pages/day-close")).DayClosePage,
-}));
 const AdministrationInventoryOrderingPage = lazy(async () => ({
     default: (await import("./views/pages/administration-inventory-ordering")).AdministrationInventoryOrderingPage,
 }));
@@ -89,9 +75,6 @@ const AdministrationContractsPage = lazy(async () => ({
 const TreatmentCatalogPage = lazy(async () => ({ default: (await import("./views/pages/treatment-catalog")).TreatmentCatalogPage }));
 const MedicationPresetsPage = lazy(async () => ({ default: (await import("./views/pages/medication-presets")).MedicationPresetsPage }));
 const PrescriptionPresetsPage = lazy(async () => ({ default: (await import("./views/pages/prescription-presets")).PrescriptionPresetsPage }));
-const SickLeaveCertificateFormPage = lazy(async () => ({
-    default: (await import("./views/pages/sick-leave-certificate-administration")).SickLeaveCertificateFormPage,
-}));
 const OrderMasterAdministrationPage = lazy(async () => ({ default: (await import("./views/pages/order-master-administration")).OrderMasterAdministrationPage }));
 const WorkDaysPage = lazy(async () => ({ default: (await import("./views/pages/work-days")).WorkDaysPage }));
 const PracticePlanningPage = lazy(async () => ({ default: (await import("./views/pages/practice-planning")).PracticePlanningPage }));
@@ -119,9 +102,10 @@ const SubscriptionRegisterOnboardingPage = lazy(async () => ({
     default: (await import("@/systems/practice-host/pages/onboarding/subscription-register"))
         .SubscriptionRegisterOnboardingPage,
 }));
-const ClusterJoinPage = lazy(async () => ({
-    default: (await import("@/systems/lan/pages/cluster-join")).ClusterJoinPage,
-}));
+// Joining another device's practice: only editions with a practice network.
+const ClusterJoinPage = __CAP_NET__
+    ? lazy(async () => ({ default: (await import("@/systems/lan/pages/cluster-join")).ClusterJoinPage }))
+    : () => <Navigate to="/onboarding/license" replace />;
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
     const session = useAuthStore((s) => s.session);
@@ -154,7 +138,7 @@ export default function App() {
         <DbSetupGate>
         <SessionGate>
         <DesktopWindowFrame>
-        <ClusterResetListener />
+        {__CAP_NET__ ? <ClusterResetListener /> : null}
         <ClusterOnboardingGate>
             <Routes>
                 <Route
@@ -210,7 +194,7 @@ export default function App() {
                     element={
                         <ProtectedRoute>
                             <LicenseAndPairingGate>
-                                <ReplicaSyncBackground />
+                                {__CAP_NET__ ? <ReplicaSyncBackground /> : null}
                                 <PracticeWorkHoursBackground />
                                 <AppLayout />
                             </LicenseAndPairingGate>
@@ -237,7 +221,10 @@ export default function App() {
                     <Route path="tickets/:id/edit" element={<RoleRoute routePath="tickets/:id/edit"><PracticeTaskEditPage /></RoleRoute>} />
                     <Route path="tickets/:id/bearbeiten" element={<RoleRoute routePath="tickets/:id/bearbeiten"><PracticeTaskEditPage /></RoleRoute>} />
                     <Route path="tickets" element={<RoleRoute routePath="tickets"><PracticeTicketsPage /></RoleRoute>} />
-                    <Route path="inbox" element={<Navigate to="/tickets" replace />} />
+                    <Route
+                        path="inbox"
+                        element={__CAP_GUEST_INBOX__ ? <RoleRoute routePath="inbox"><GuestInboxPage /></RoleRoute> : <Navigate to="/tickets" replace />}
+                    />
                     <Route path="finance" element={<RoleRoute routePath="finance"><FinancePage /></RoleRoute>} />
                     <Route path="finance/cash/new" element={<RoleRoute routePath="finance/cash/new"><PaymentCashCreatePage /></RoleRoute>} />
                     <Route path="finance/cash" element={<RoleRoute routePath="finance/cash"><FinanceCashPage /></RoleRoute>} />

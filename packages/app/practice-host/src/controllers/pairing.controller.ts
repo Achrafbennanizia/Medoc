@@ -38,8 +38,26 @@ export type PairingMasterInfo = {
     masterPubkey: string;
 };
 
-/** Optional read-only LAN actions (master must opt in per slave). */
-export const OPTIONAL_READ_ACTIONS = ["patient.read", "appointment.read"] as const;
+/**
+ * Optional LAN actions (master must opt in per slave). Group: `sync.number_block` makes the
+ * device the second admin hub, which may issue document numbers while the main one is off.
+ */
+export const OPTIONAL_READ_ACTIONS: readonly string[] = [
+    "patient.read",
+    "appointment.read",
+    ...(__CAP_MULTI_ADMIN__ ? ["sync.number_block"] : []),
+];
+
+/** Label key of each pairing action in Settings → Pairing. */
+export const PAIRING_ACTION_KEYS: Record<string, string> = {
+    "sync.push": "settings.pairing.action.sync_push",
+    "sync.pull": "settings.pairing.action.sync_pull",
+    "sync.status": "settings.pairing.action.sync_status",
+    "pairing.peers": "settings.pairing.action.pairing_peers",
+    "patient.read": "settings.pairing.action.patient_read",
+    "appointment.read": "settings.pairing.action.appointment_read",
+    "sync.number_block": "settings.pairing.action.sync_number_block",
+};
 
 /** Default action allow-list shown to the master operator when accepting a request. */
 export const DEFAULT_ALLOWED_ACTIONS = [

@@ -558,11 +558,11 @@ export function AdministrationFinanceToolsPage() {
             <CardHeader
                 title={t("page.administration_finance_tools.form_title")}
                 subtitle={t("page.administration_finance_tools.form_subtitle")}
-                action={(
+                action={__CAP_DAY_CLOSE__ ? (
                     <Button type="button" size="sm" variant="secondary" onClick={() => navigate("/administration/finance-reports/day-close")}>
                         {t("page.administration_finance_tools.day_close_btn")}
                     </Button>
-                )}
+                ) : undefined}
             />
             <div className="card-pad" style={{ paddingTop: 0, display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
                 {!canWritePayment ? (
@@ -895,7 +895,7 @@ export function AdministrationFinanceToolsPage() {
             <AdministrationPageHeader
                 titleLevel="h1"
                 title={t("page.administration_finance_tools.title")}
-                subtitle={
+                subtitle={!__CAP_DAY_CLOSE__ ? t("page.administration_finance_tools.subtitle_no_day_close") : (
                     <>
                         {t("page.administration_finance_tools.subtitle_part1")}{" "}
                         <button
@@ -907,7 +907,7 @@ export function AdministrationFinanceToolsPage() {
                         </button>
                         .
                     </>
-                }
+                )}
                 actions={
                     canWritePayment ? (
                         <Button type="button" variant={creating ? "secondary" : "primary"} onClick={creating ? cancelCreate : openCreate}>

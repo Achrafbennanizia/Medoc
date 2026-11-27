@@ -207,8 +207,9 @@ async fn revoked_certificate_frees_the_seat() {
 #[test]
 fn seat_budget_from_basis_edition() {
     use super::seat_budget::seat_budget_from_edition;
+    // BASIS (old name) is Solo: one computer.
     let b = seat_budget_from_edition("BASIS");
-    assert_eq!(b.max_total, 2);
+    assert_eq!(b.max_total, 1);
     assert_eq!(b.max_admin, 1);
 }
 

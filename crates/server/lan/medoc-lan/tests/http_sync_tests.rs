@@ -50,7 +50,7 @@ async fn sync_push_ingests_remote_app_kv_row() {
     std::env::set_var("MEDOC_SKIP_MASTER_LICENSE", "1");
     let mut lan = LanTestHarness::licensed_master().await;
     let remote = "remote-lan-replica-1";
-    let token = device_token(&remote, &["sync.push"]);
+    let token = device_token(remote, &["sync.push"]);
     let entry = serde_json::json!({
         "id": "lan-e1",
         "deviceId": remote,
@@ -301,6 +301,58 @@ async fn replica_sync_push_token_can_allocate_document_number() {
 
 #[tokio::test]
 #[serial]
+async fn number_block_needs_its_own_grant_and_moves_the_main_counter() {
+    std::env::set_var("MEDOC_SKIP_MASTER_LICENSE", "1");
+    let mut lan = LanTestHarness::licensed_master().await;
+    let body = serde_json::json!({ "prefix": "F", "date": "2026-11-24", "size": 5 });
+    let plain = device_token("member-device", &["sync.push"]);
+    let (status, _) = lan
+        .json(
+            "POST",
+            "/api/v1/sync/number-block",
+            Some(&body),
+            Some(&plain),
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "a replica without the grant gets no block"
+    );
+
+    let hub_b = device_token("hub-b", &["sync.push", "sync.number_block"]);
+    let (status, block) = lan
+        .json(
+            "POST",
+            "/api/v1/sync/number-block",
+            Some(&body),
+            Some(&hub_b),
+        )
+        .await;
+    if !medoc_core::edition::CORE_CAPS.multi_admin {
+        assert_eq!(status, StatusCode::FORBIDDEN, "only Group reserves blocks");
+        std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
+        return;
+    }
+    assert_eq!(status, StatusCode::OK, "{block}");
+    assert_eq!(
+        (block["first"].as_i64(), block["last"].as_i64()),
+        (Some(1), Some(5))
+    );
+    let one = serde_json::json!({ "prefix": "F", "date": "2026-11-24" });
+    let (status, next) = lan
+        .json("POST", "/api/v1/sync/number", Some(&one), Some(&plain))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{next}");
+    assert_eq!(
+        next["number"], "F-2026-0006",
+        "the main device continues after the block"
+    );
+    std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
+}
+
+#[tokio::test]
+#[serial]
 async fn blob_with_wrong_hash_is_rejected() {
     std::env::set_var("MEDOC_SKIP_MASTER_LICENSE", "1");
     let mut lan = LanTestHarness::licensed_master().await;
@@ -320,5 +372,24 @@ async fn blob_with_wrong_hash_is_rejected() {
         .put_bytes(&format!("/api/v1/sync/blob/{hex}"), bytes.to_vec(), &token)
         .await;
     assert_eq!(ok, StatusCode::NO_CONTENT);
+    std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
+}
+
+/// T7.6: a peer on a protocol this build cannot speak is refused before anything is applied.
+#[tokio::test]
+#[serial]
+async fn incompatible_sync_protocol_gets_426_with_our_protocol() {
+    std::env::set_var("MEDOC_SKIP_MASTER_LICENSE", "1");
+    let mut lan = LanTestHarness::licensed_master().await;
+    let token = device_token("future-device", &["sync.push"]);
+    let (status, headers) = lan
+        .post_with_header("/api/v1/sync/push", ("x-medoc-sync-protocol", "99;min=99"), &token)
+        .await;
+    assert_eq!(status, StatusCode::UPGRADE_REQUIRED);
+    assert!(headers.contains_key("x-medoc-sync-protocol-peer"));
+    let (status, _) = lan
+        .post_with_header("/api/v1/sync/push", ("x-medoc-sync-protocol", "1;min=1"), &token)
+        .await;
+    assert_ne!(status, StatusCode::UPGRADE_REQUIRED);
     std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
 }

@@ -26,8 +26,10 @@ pub async fn list_payments_paged(
     session_state: State<'_, SessionState>,
     params: Option<crate::commands::list_params::ListParams>,
 ) -> Result<crate::commands::list_params::ListResponse<Payment>, AppError> {
-    rbac::require_one_of(&session_state, FINANCE_READ_OR_RECEPTION)?;
+    let session = rbac::require_one_of(&session_state, FINANCE_READ_OR_RECEPTION)?;
     let p = params.unwrap_or_default();
+    let doctor = p.filter_str("doctorId").filter(|d| !d.trim().is_empty());
+    let scope = super::payment_allowances::scope(&pool, &session, doctor).await?;
     let limit = p.limit();
     let offset = p.offset();
     let sort_dir = p
@@ -42,6 +44,9 @@ pub async fn list_payments_paged(
         date_from: p.filter_str("dateFrom"),
         date_to: p.filter_str("dateTo"),
         active_on: p.filter_str("activeOn"),
+        doctor,
+        hidden_doctors: &scope.hidden_doctors,
+        hidden_ids: &scope.hidden_ids,
     };
     let (items, total) =
         payment_repo::find_paginated(&pool, limit, offset, sort_dir, filter).await?;
@@ -50,6 +55,7 @@ pub async fn list_payments_paged(
         total,
         page: p.page_one_based(),
         page_size: limit,
+        hidden_doctors: scope.hidden_doctors,
     })
 }
 
@@ -108,6 +114,7 @@ pub async fn create_payment(
     finance_schema::ensure(&pool).await?;
     payment_repo::ensure_released_for_payment(&pool, &session.user_id, &data).await?;
     let z = payment_repo::create(&pool, &data).await?;
+    crate::commands::ownership::stamp_created(&pool, &session, "payment", &z.id, None).await?;
     audit_repo::create(
         &pool,
         &session.user_id,

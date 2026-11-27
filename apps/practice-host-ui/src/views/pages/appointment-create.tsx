@@ -34,7 +34,8 @@ import {
     durationOptionsForSlotMin,
     firstBookableAppointmentSlot,
 } from "@/lib/appointment-slot-grid";
-import { parseToothacheTeethFromChiefComplaintPart, sortFdiTeeth, splitChiefComplaintParts } from "@/lib/dental";
+import { sortFdiTeeth } from "@/lib/dental";
+import { buildChiefComplaintPayload, normalizeChiefComplaintTagsFromStored, TOOTHACHE_TAG, TOOTHACHE_TAG_LEGACY } from "@/lib/appointment-chief-complaint";
 import {
     APPOINTMENT_KIND_VALUES,
     APPOINTMENT_STATUS_VALUES,
@@ -65,6 +66,8 @@ import {
 import { loadPlanNextAppointmentWithMigration } from "@/systems/practice-host/controllers/plan-next-appointment.controller";
 import { filterPatients } from "@/lib/patient-search";
 import { useClientSettings } from "@/lib/use-client-settings";
+import { DoctorSelect } from "../components/doctor-select";
+import { isProposal } from "@/systems/practice-host/controllers/guest.controller";
 import {
     clearAppointmentDraftFromBackend,
     loadAppointmentDraftWithMigration,
@@ -95,43 +98,6 @@ const CHIEF_COMPLAINT_SUG_KEYS = [
     "appointment.create.chief_complaint.CHECKUP",
     "appointment.create.chief_complaint.AESTHETICS",
 ] as const;
-const TOOTHACHE_TAG = "Toothache";
-const TOOTHACHE_TAG_LEGACY = "Zahnschmerzen";
-
-function normalizeChiefComplaintTagsFromStored(raw: string): { tags: string[]; teeth: string[] } {
-    const parts = splitChiefComplaintParts(raw);
-    let teeth: string[] = [];
-    const tags: string[] = [];
-    for (const part of parts) {
-        const p = part.trim();
-        if (!p) continue;
-        const z = parseToothacheTeethFromChiefComplaintPart(p);
-        if (z) {
-            teeth = z;
-            if (!tags.includes(TOOTHACHE_TAG)) tags.push(TOOTHACHE_TAG);
-            continue;
-        }
-        if (p === TOOTHACHE_TAG || p === TOOTHACHE_TAG_LEGACY) {
-            if (!tags.includes(TOOTHACHE_TAG)) tags.push(TOOTHACHE_TAG);
-            continue;
-        }
-        tags.push(p);
-    }
-    return { tags, teeth };
-}
-
-function buildChiefComplaintPayload(tags: string[], toothacheTeeth: string[]): string {
-    const zSorted = sortFdiTeeth(toothacheTeeth);
-    return tags
-        .map((t) => {
-            if (t !== TOOTHACHE_TAG && t !== TOOTHACHE_TAG_LEGACY) return t;
-            if (zSorted.length === 0) return TOOTHACHE_TAG;
-            if (zSorted.length === 1) return `${TOOTHACHE_TAG} (tooth ${zSorted[0]})`;
-            return `${TOOTHACHE_TAG} (teeth ${zSorted.join(", ")})`;
-        })
-        .join("; ");
-}
-
 function normalizeKind(raw: string | null): AppointmentKind {
     if (!raw) return "CHECKUP";
     if (raw === "NOTFALL" || raw === "EMERGENCY") return "TREATMENT";
@@ -689,7 +655,7 @@ export function AppointmentCreatePage() {
             if (isEdit && editId) {
                 const previous = loadedAppointmentRef.current;
                 // F149: `patient_id` is not updatable and made the strict schema reject every edit.
-                await updateAppointment(editId, {
+                const updated = await updateAppointment(editId, {
                     physician_id: physicianId,
                     date,
                     time: timeNorm,
@@ -699,6 +665,11 @@ export function AppointmentCreatePage() {
                     duration_minutes: durMin,
                     status: statusPreference || "PLANNED",
                 });
+                // Guest: the change went to the admin's inbox; nothing to undo here.
+                if (isProposal(updated)) {
+                    navigate("/appointments");
+                    return;
+                }
                 toast(t("appointment.create.toast_updated"), "success", {
                     onUndo: async () => {
                         if (!previous) return;
@@ -732,6 +703,12 @@ export function AppointmentCreatePage() {
                 // F67: status in the create itself; a failure is a failed save, not silently dropped.
                 status: statusPreference === "CONFIRMED" ? "CONFIRMED" : "PLANNED",
             });
+            if (isProposal(created)) {
+                await clearAppointmentDraftFromBackend(draftId);
+                stripLegacyAppointmentDraftLocalStorage(draftId);
+                navigate("/appointments");
+                return;
+            }
             if (statusPreference && statusPreference !== "PLANNED" && statusPreference !== "CONFIRMED") {
                 await updateAppointment(created.id, { status: statusPreference });
             }
@@ -995,13 +972,7 @@ export function AppointmentCreatePage() {
                                 ) : null}
                             </div>
 
-                            <Select
-                                id="tc-physician"
-                                label={t("appointment.create.doctor")}
-                                value={physicianId}
-                                onChange={(e) => setPhysicianId(e.target.value)}
-                                options={[{ value: "", label: physicians.length ? t("appointment.create.doctor_pick") : t("appointment.create.doctor_empty") }, ...physicians.map((a) => ({ value: a.id, label: a.name }))]}
-                            />
+                            <DoctorSelect id="tc-physician" label={t("appointment.create.doctor")} value={physicianId} onChange={setPhysicianId} physicians={physicians} />
                             <Select id="tc-kind" label={t("appointment.create.treatment_type")} value={kind} onChange={(e) => setKind(normalizeKind(e.target.value))} options={treatmentOptions} />
                             <Select id="tc-status" label={t("appointment.create.status")} value={statusPreference} onChange={(e) => {
                                     setStatusPreference(normalizeStatus(e.target.value));

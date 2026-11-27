@@ -209,5 +209,6 @@
   "invoice.vat_exempt_default@fr": "Exonération de TVA, article 261-4-1° du CGI.",
   "invoice.vat_exempt_default@eu": "Soins exonérés de TVA (art. 132, paragraphe 1, point e) de la directive 2006/112/CE).",
   "invoice.vat_exempt_default@ma": "Actes de soins exonérés de TVA en application de l'article 91-VI-1° du Code général des impôts.",
-  "certificate.fr_sick_leave_notice": "Ce certificat ne vaut pas avis d'arrêt de travail : pour l'Assurance Maladie et l'employeur, l'arrêt est déclaré en ligne (amelipro) ou sur le formulaire Cerfa sécurisé de l'Assurance Maladie."
+  "certificate.fr_sick_leave_notice": "Ce certificat ne vaut pas avis d'arrêt de travail : pour l'Assurance Maladie et l'employeur, l'arrêt est déclaré en ligne (amelipro) ou sur le formulaire Cerfa sécurisé de l'Assurance Maladie.",
+  "period.void_numbers": "Numéros non attribués (annulés)"
 }

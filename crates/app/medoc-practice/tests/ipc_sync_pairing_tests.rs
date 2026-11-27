@@ -1,6 +1,8 @@
 //! IPC command logic tests for sync + pairing (T-U1 medoc-practice).
 //!
 //! Tests RBAC policy + `SyncEngine`/`pairing` delegation (same paths as Tauri commands).
+// LAN / sync tests: only editions with other devices (cap-net).
+#![cfg(feature = "cap-net")]
 
 mod support;
 

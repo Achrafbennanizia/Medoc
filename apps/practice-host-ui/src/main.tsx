@@ -13,12 +13,6 @@ import "./index.css";
  *    cannot apply another window's shared-origin English before the file wins.
  */
 async function boot(): Promise<void> {
-    // #region agent log
-    fetch('http://127.0.0.1:7291/ingest/07a92a91-f77a-4e81-95d8-be425fb76d8d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'969bd8'},body:JSON.stringify({sessionId:'969bd8',runId:'post-fix',hypothesisId:'A',location:'main.tsx:boot-start',message:'boot() entered — module graph loading',data:{href:String(location.href),viteHost:location.host},timestamp:Date.now()})}).catch(()=>{});
-    window.addEventListener('error', (ev) => {
-        fetch('http://127.0.0.1:7291/ingest/07a92a91-f77a-4e81-95d8-be425fb76d8d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'969bd8'},body:JSON.stringify({sessionId:'969bd8',runId:'post-fix',hypothesisId:'C',location:'main.tsx:window-error',message:String(ev.message||'error'),data:{filename:String(ev.filename||''),lineno:ev.lineno||0},timestamp:Date.now()})}).catch(()=>{});
-    });
-    // #endregion
     const { hydrateAppearanceFromStorage, initAppearanceMediaListener } = await import(
         "@/lib/client-settings"
     );
@@ -55,7 +49,7 @@ async function boot(): Promise<void> {
             console.error("[medoc] edition mismatch", mismatch);
             const root = document.getElementById("root")!;
             const { t } = await import("@/lib/i18n");
-            root.textContent = `${t("error.edition.mismatch")} (${mismatch.join("; ")})`;
+            root.textContent = `${t("error.device.edition_mismatch")} (${mismatch.join("; ")})`;
             return;
         }
     }
@@ -71,9 +65,6 @@ async function boot(): Promise<void> {
             </ErrorBoundary>
         </React.StrictMode>,
     );
-    // #region agent log
-    fetch('http://127.0.0.1:7291/ingest/07a92a91-f77a-4e81-95d8-be425fb76d8d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'969bd8'},body:JSON.stringify({sessionId:'969bd8',runId:'post-fix',hypothesisId:'A',location:'main.tsx:boot-rendered',message:'React root rendered successfully',data:{hasRoot:!!document.getElementById('root')},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
 }
 
 void boot();

@@ -236,8 +236,18 @@ pub fn clamp_to_ceiling(role: Role, levels: &mut Levels) {
 // ---------------------------------------------------------------------------
 
 pub use crate::domain::access_templates::{
-    default_levels, default_template_id, resolve_levels, template, Template, TEMPLATES,
+    default_levels, default_template_id, resolve_levels, template, template_available, Template,
+    GUEST_CLINICAL_TEMPLATE, GUEST_TEMPLATE, TEMPLATES,
 };
+
+/// Whether an action only reads: every level it needs is at most [`Level::View`]. Actions
+/// without a rule count as reads only by their name (`*.read`, `*.view`, `*.read_*`).
+pub fn is_read_only_action(action: &str) -> bool {
+    if let Some(r) = rule(action) {
+        return r.any_of.iter().all(|(_, level)| *level <= Level::View);
+    }
+    action.ends_with(".read") || action.ends_with(".view") || action.contains(".read_")
+}
 
 use Area as A;
 use Level as L;
@@ -513,35 +523,9 @@ pub const ACTION_RULES: &[ActionRule] = &[
 /// Matrix actions that every signed-in person keeps, whatever the profile.
 pub const UNSCOPED_ACTIONS: &[&str] = &["dashboard.read"];
 
-pub fn rule(action: &str) -> Option<&'static ActionRule> {
-    ACTION_RULES.iter().find(|r| r.action == action)
-}
-
-pub fn rule_allows(levels: &Levels, rule: &ActionRule) -> bool {
-    rule.any_of
-        .iter()
-        .any(|(area, needed)| level_of(levels, *area).allows(*needed))
-}
-
-/// Explicit ALLOW/DENY for every catalogued action.
-pub fn compile_overrides(levels: &Levels) -> Vec<PermissionOverride> {
-    ACTION_RULES
-        .iter()
-        .map(|rule| PermissionOverride {
-            action: rule.action.to_string(),
-            effect: if rule_allows(levels, rule) {
-                "ALLOW".to_string()
-            } else {
-                "DENY".to_string()
-            },
-        })
-        .collect()
-}
-
-/// `(area, level)` an action needs, for messages and the access screen.
-pub fn first_requirement(action: &str) -> Option<(Area, Level)> {
-    rule(action).and_then(|r| r.any_of.first().copied())
-}
+mod rules;
+#[allow(unused_imports)]
+pub use rules::*;
 
 #[cfg(test)]
 mod tests {

@@ -121,6 +121,7 @@ pub async fn list_patients_paged(
         total,
         page: p.page_one_based(),
         page_size: limit,
+        hidden_doctors: Vec::new(),
     })
 }
 

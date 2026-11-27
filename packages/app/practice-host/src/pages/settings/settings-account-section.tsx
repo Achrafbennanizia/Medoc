@@ -402,7 +402,7 @@ export function SettingsAccountSection({ onOpenPasswordDialog, passwordChangedTi
                     {t("common.change")}
                 </Button>
             </div>
-            {isReplica ? (
+            {__CAP_NET__ && isReplica ? (
                 <div className="settings-row" style={{ alignItems: "flex-start", flexDirection: "column", gap: "var(--space-3)" }}>
                     <div>
                         <b>{t("settings.account.reconnect_title")}</b>

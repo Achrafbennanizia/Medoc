@@ -28,8 +28,9 @@ describe("pairing.controller", () => {
         expect(DEFAULT_ALLOWED_ACTIONS).toContain("pairing.peers");
     });
 
-    it("OPTIONAL_READ_ACTIONS lists patient and appointment read scopes", () => {
-        expect(OPTIONAL_READ_ACTIONS).toEqual(["patient.read", "appointment.read"]);
+    it("OPTIONAL_READ_ACTIONS lists the read scopes, plus the number-block grant in Group", () => {
+        const group = __CAP_MULTI_ADMIN__ ? ["sync.number_block"] : [];
+        expect(OPTIONAL_READ_ACTIONS).toEqual(["patient.read", "appointment.read", ...group]);
     });
 
     it("pairingListPending invokes pairing_list_pending", async () => {

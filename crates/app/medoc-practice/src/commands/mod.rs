@@ -17,6 +17,7 @@ pub mod clinical;
 pub mod documents;
 pub mod list_params;
 pub mod network;
+pub mod ownership;
 pub mod practice;
 pub mod rbac_state;
 pub mod register;

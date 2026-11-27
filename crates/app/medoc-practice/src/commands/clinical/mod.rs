@@ -6,5 +6,6 @@ pub mod chart_attachment;
 pub mod chart_next_appointment;
 pub mod chart_validation;
 pub mod chart_workflow;
+pub mod clinical_allowances;
 pub mod patient;
 pub mod prescription;

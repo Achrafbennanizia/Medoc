@@ -1,451 +1,455 @@
-type Shot = { file: string; alt: string; caption: string };
-type Section = { id: string; title: string; text: string; shots: Shot[] };
+// Copy for the Features page (#/features): the hero title and lead (read by FeaturesHero), the section
+// nav, the twelve features and the bands between them. Every claim comes from docs/brand/site-facts.md;
+// the bullet points under each feature live in product-points.ts.
+
+/** The twelve features, in page order. Each id is also the section's anchor (#/features/<id>). */
+export const FEATURE_IDS = [
+  "changes",
+  "day-close",
+  "calendar",
+  "flags",
+  "statistics",
+  "patients",
+  "tasks",
+  "orders",
+  "shortcuts",
+  "status-rules",
+  "backups",
+  "tooth-chart",
+] as const;
+export type FeatureId = (typeof FEATURE_IDS)[number];
+
+/** Editions that include a feature or a point: all three, Cabinet and Cabinet+, Cabinet+ only, Essentiel only. */
+export type Ed = "all" | "cabinet" | "plus" | "essentiel";
+
+export type Shot = { file: string; alt: string; caption: string };
+export type Feature = { chip: string; ed: Ed; title: string; text: string; shots: Shot[] };
 
 export type ProductCopy = {
   title: string;
   lead: string;
-  trustTitle: string;
-  trustLead: string;
-  trust: string[];
-  sections: Section[];
+  nav: string;
+  docsChip: string;
+  ed: Record<Ed, string>;
+  features: Record<FeatureId, Feature>;
+  /** Shortcuts card: keys separated by spaces, each drawn as one key. */
+  keys: { k: string; d: string }[];
+  /** Backups card: what the retention keeps. */
+  keep: { title: string; days: string; week: string; half: string; note: string };
+  demo: { title: string; text: string; cta: string };
+  editions: { title: string; text: string; price: (from: string) => string; cta: string };
+  security: { title: string; text: string; cta: string };
 };
 
-const files = {
-  roles: ["reception-overview", "reception-record", "overview"],
-  calendar: ["calendar-month", "calendar-week", "calendar-drag", "calendar-day"],
-  appointments: ["appointment-new", "appointment-detail"],
-  record: ["patient-records", "patient-record"],
-  clinical: ["examinations", "treatments"],
-  documents: ["attachments"],
-  papers: ["prescriptions"],
-  money: ["cash-entries", "finance", "orders"],
-  flow: ["practice-tasks", "charts-to-validate", "notifications"],
-  numbers: ["analytics"],
-  time: ["work-time"],
-  administration: ["administration"],
-  settings: ["settings", "settings-security"],
-} as const;
-
-function shots(ids: readonly string[], alts: string[], captions: string[]): Shot[] {
-  return ids.map((file, i) => ({ file, alt: alts[i], caption: captions[i] }));
-}
+const shot = (file: string, alt: string, caption: string): Shot => ({ file, alt, caption });
 
 export const productEn: ProductCopy = {
-  title: "The software, screen by screen",
-  lead: "Screenshots of the current version, with fictitious patients.",
-  trustTitle: "Security and reliability",
-  trustLead: "One menu, a shared book, and presets so the repeat work is short. You install the license on the practice computer, then extra screens join with a PIN.",
-  trust: [
-    "The database is encrypted on the practice computers.",
-    "Chairs talk on your network. There is no public cloud of patient files.",
-    "Important actions go into a log a physician can check.",
-    "A physician can export one patient, or erase the medical rows.",
-    "The day keeps running when the internet does not.",
-    "A backup every day, compressed and encrypted. The last 3 days, last week and last half-year are kept, and older ones are deleted so the disk does not fill up.",
-    "A forgotten password does not lock the practice out. The printed recovery sheet, with MeDoc support, opens the database offline and sets a new password.",
-    "MeDoc documents the practice. It does not diagnose.",
+  title: "Twelve ways MeDoc Dentist makes your day easier.",
+  lead: "Real screens with fictitious patients. Each feature says which editions include it: Essentiel, Cabinet or Cabinet+.",
+  nav: "On this page",
+  docsChip: "Moroccan documents",
+  ed: { all: "All editions", cabinet: "Cabinet and Cabinet+", plus: "Cabinet+", essentiel: "Essentiel" },
+  features: {
+    changes: {
+      chip: "Validation and log",
+      ed: "all",
+      title: "Keep an eye on what your team enters.",
+      text: "Charts wait for your validation, a helper's entries wait for your OK, and a log you can check shows who did what, and when.",
+      shots: [
+        shot("charts-to-validate", "List of charts to validate, in draft or in review, each with Validate and Decline", "Cabinet and Cabinet+: charts waiting for you, each with Validate and Decline."),
+        shot("settings-security", "Security settings with the audit log and device sessions", "The activity log opens from Settings, Security."),
+      ],
+    },
+    "day-close": {
+      chip: "Daily close",
+      ed: "cabinet",
+      title: "Close the day with two numbers.",
+      text: "Type the cash you counted and your card terminal's total. MeDoc works out what should be there from the day's bookings and shows any difference.",
+      shots: [shot("cash-entries", "New payment form with the amount in MAD and the payment method", "Each payment is booked with its method as it comes in. The day close adds them up for you.")],
+    },
+    calendar: {
+      chip: "Drag-and-drop calendar",
+      ed: "all",
+      title: "Move an appointment with the mouse. MeDoc makes room.",
+      text: "Drag an appointment to another time or day in the day or week view. MeDoc snaps it to your opening hours, pushes that doctor's next appointments back, and gives you Undo.",
+      shots: [
+        shot("calendar-drag", "Week view while an appointment is dragged to a new time", "In the week view, the old place fades and the new time shows in the margin."),
+        shot("calendar-day", "Day view with each appointment's status", "The day view, with each appointment's status and a summary of the day."),
+      ],
+    },
+    flags: {
+      chip: "Conflicts flagged",
+      ed: "all",
+      title: "Catch mistakes while you work, not after.",
+      text: "MeDoc checks each entry as you make it. It refuses a double booking, warns you about a drug the patient is allergic to, and shows what is still missing.",
+      shots: [shot("appointment-new", "New appointment form with unavailable times greyed out", "Opening hours and conflicts are checked while you pick a time.")],
+    },
+    statistics: {
+      chip: "Statistics",
+      ed: "all",
+      title: "Know how the month is going, in real figures.",
+      text: "Patients, new patients, appointments, treatments and income per month, over 6 or 12 months. Each key figure shows its change against last month.",
+      shots: [shot("analytics", "Statistics overview with each figure's change against last month", "Each key figure with its change against last month.")],
+    },
+    patients: {
+      chip: "Patient overview",
+      ed: "all",
+      title: "The whole patient on one header.",
+      text: "Open a record and see status, open invoice, age, phone, insurance and address at once, with a small tooth chart and the basics still missing.",
+      shots: [shot("patient-record", "Patient record with status, open invoice, contact details and a small tooth chart", "Status, open invoice, contact, insurance and a small tooth chart on one header.")],
+    },
+    tasks: {
+      chip: "Tasks for reception",
+      ed: "cabinet",
+      title: "Send a task instead of interrupting reception.",
+      text: "From the patient's file, send a task to the whole front desk or to one person. It lands in their task list and notification bell, and you go back to your patient.",
+      shots: [shot("practice-tasks", "Practice task list with patient, type and status", "Every task with its patient, type and status, in one list.")],
+    },
+    orders: {
+      chip: "Orders and spending",
+      ed: "all",
+      title: "Supplies and spending at a glance.",
+      text: "Order from your suppliers with saved templates and follow each order from open to in transit to delivered. The dashboard puts open and late orders in front of you.",
+      shots: [
+        shot("orders", "Supplier orders with status, expected date and price", "Open, in transit, late or delivered, with the expected date and price."),
+        shot("overview", "Dashboard with items waiting for validation and orders to check", "The dashboard shows late orders to check."),
+      ],
+    },
+    shortcuts: {
+      chip: "Keyboard shortcuts",
+      ed: "all",
+      title: "Keep your hands on the keyboard.",
+      text: "Press ⌘K to jump to any page or start something new. The most common actions have their own keys. On Windows, use Ctrl instead of ⌘.",
+      shots: [],
+    },
+    "status-rules": {
+      chip: "Status rules",
+      ed: "all",
+      title: "Every record follows clear steps. Nothing slips backwards.",
+      text: "Appointments, patients, charts, payments and orders each have a fixed set of statuses and allowed next steps. MeDoc refuses changes out of order.",
+      shots: [shot("appointment-detail", "Appointment panel with its steps: planned, confirmed, in progress, completed", "The appointment shows where it stands and offers the next allowed step.")],
+    },
+    backups: {
+      chip: "Backups",
+      ed: "all",
+      title: "A backup every day, without anyone having to remember.",
+      text: "MeDoc Dentist backs up the practice once a day by itself, compressed and encrypted with AES-256-GCM. Send it to a USB stick or an external drive, X-rays and scans included.",
+      shots: [],
+    },
+    "tooth-chart": {
+      chip: "Tooth chart",
+      ed: "all",
+      title: "A tooth chart you can read at a glance.",
+      text: "All 32 permanent teeth in FDI order along a curved arch, with distinct outlines for incisors, canines, premolars and molars. Each status has its own colour and mark.",
+      shots: [shot("examinations", "Examination with the tooth chart and its colour legend", "Caries in red, planned work dashed: each status has its own colour and mark.")],
+    },
+  },
+  keys: [
+    { k: "⌘ K", d: "Go to any page or new form" },
+    { k: "⌘ N", d: "New appointment" },
+    { k: "⇧ ⌘ N", d: "New patient" },
+    { k: "G", d: "Then a letter: go straight to a section" },
+    { k: "D W M", d: "Calendar: day, week or month view" },
+    { k: "T", d: "Calendar: jump to today" },
+    { k: "N", d: "Calendar: book an appointment" },
+    { k: "← →", d: "Calendar: page through time" },
+    { k: "⌘ /", d: "Every shortcut, in Help" },
   ],
-  sections: [
-    {
-      id: "roles",
-      title: "Two jobs. The chart stays with the dentist.",
-      text: "Physician and Reception sign in separately. Reception keeps names, phone, the book, tasks, and the cash desk. Examinations, the tooth chart, and clinical notes are not sent to that account. The rule is in the software, not only a hidden menu. A physician can grant extra rights to one person.",
-      shots: shots(
-        files.roles,
-        ["Reception menu, without statistics or the medical chart", "The same patient as reception sees it", "Physician overview with the full menu"],
-        ["Reception’s morning is the short menu.", "Reception sees contact, appointments, papers and payments. No examinations, treatments or tooth chart.", "The dentist also sees validation, statistics, finance, and administration."],
-      ),
-    },
-    {
-      id: "calendar",
-      title: "Month, week, and day are the same book.",
-      text: "The month shows empty days, so you can see where the month is still open. The week shows the whole week, so you can move an appointment that does not fit. The day is one chair against the clock. Drag a card. Two visits cannot take the same chair at the same time. Reception and the dentist share this book, and both see the change.",
-      shots: shots(
-        files.calendar,
-        ["Month calendar with open days", "Week calendar", "Dragging an appointment to a new slot", "Day calendar"],
-        ["The month: empty days are visible.", "The week: move what does not fit.", "Drag and drop: the old place fades, the new time shows in the gutter.", "The day, snapped to the clock."],
-      ),
-    },
-    {
-      id: "appointments",
-      title: "A new visit, or a change, stays on the calendar.",
-      text: "Create the appointment from the book. Open the card to change the time, the status, or a note. The dentist can go from that card to the patient. Reception stays on names and the book.",
-      shots: shots(
-        files.appointments,
-        ["New appointment on the calendar", "Appointment card"],
-        ["A new slot, on the same screen.", "Update the visit without opening another program."],
-      ),
-    },
-    {
-      id: "record",
-      title: "One file for what the dentist needs to know.",
-      text: "Identity, history, teeth, examinations, treatments, prescriptions, certificates, attachments, and payments live on the same person. The list shows a status, so you can see at a glance who is in treatment, who has an open invoice, and who is closed.",
-      shots: shots(
-        files.record,
-        ["Patient list with status", "Full patient record"],
-        ["The list is the fast view.", "Open the person and the clinical pages are there."],
-      ),
-    },
-    {
-      id: "clinical",
-      title: "Examine, treat, follow up, correct.",
-      text: "Start an examination, select a tooth, write the finding, and save. Open it later to add or change it. A treatment names the act, the teeth, and whether it is ready to bill.",
-      shots: shots(
-        files.clinical,
-        ["Examination with the tooth chart", "Recording a treatment"],
-        ["The chart and the note are the same examination.", "Pick the tooth and the service from the catalogue; the price follows."],
-      ),
-    },
-    {
-      id: "documents",
-      title: "Keep the papers on the patient. Open them again.",
-      text: "Letters, scans, and photos are stored on the record. Open one when you need it. Attaching a file is available now. Reading a sensor or a DICOM study is in preparation. MeDoc is not an X-ray workstation yet.",
-      shots: shots(files.documents, ["Attachments on a patient record"], ["Stored on the patient, ready to open."]),
-    },
-    {
-      id: "papers",
-      title: "Prescriptions and certificates, with the lines you reuse.",
-      text: "Both print on the practice letterhead. In Administration you keep medication lists, prescription presets, and templates, so a repeat script is a few clicks. You can still change the line before it prints.",
-      shots: shots(files.papers, ["Prescriptions on the patient"], ["Write it, or start from a preset."]),
-    },
-    {
-      id: "money",
-      title: "Receipts, invoices, and what you still owe the suppliers.",
-      text: "Reception records cash, card, or cheque, including a partial payment and what is still due. The dentist sees the money overview. Invoices are their own path, not the till. Orders show what you asked a supplier for, and what is late. Day close checks the totals and locks the day.",
-      shots: shots(
-        files.money,
-        ["Cash desk", "Finance overview", "Purchase orders"],
-        ["The desk takes the payment.", "The dentist sees the practice money.", "Orders: open, received, or late."],
-      ),
-    },
-    {
-      id: "flow",
-      title: "Tasks, validation, status, and a bell when something changed.",
-      text: "A practice task can ask reception to book a visit. Records that still need the dentist sit in their own list. Notifications collect what changed. The status on the patient list is the fast view. Reception does not open the validation queue.",
-      shots: shots(
-        files.flow,
-        ["Practice tasks", "Records waiting for validation", "Notifications"],
-        ["Handoffs stay in the menu.", "The dentist signs off what is waiting.", "The bell, without leaving the page."],
-      ),
-    },
-    {
-      id: "numbers",
-      title: "The practice’s own numbers.",
-      text: "Statistics are a physician screen. Pick a period and see patients, appointments, treatments, income, and open orders from this practice. Reception does not get that page.",
-      shots: shots(files.numbers, ["Practice statistics"], ["Counts for this practice, for the period you chose."]),
-    },
-    {
-      id: "time",
-      title: "Hours, for yourself and for the team.",
-      text: "Each person clocks their own time. Under Administration, the dentist can open the team’s hours.",
-      shots: shots(files.time, ["Work time"], ["Clock in, clock out, see the day."]),
-    },
-    {
-      id: "administration",
-      title: "Administration: staff, services, presets, data and updates.",
-      text: "Team holds staff and their hours. Finance reports hold day close, invoices, and balance sheets. Inventory and ordering holds products, supplier data, and contracts. Services holds the treatment catalog, medications, prescription presets, and templates. Practice planning holds work days, work hours, blocked times, and preferences.",
-      shots: shots(files.administration, ["Administration home"], ["The categories, and nothing that is not in the product."]),
-    },
-    {
-      id: "settings",
-      title: "Appearance, backups, and the lock on the chair.",
-      text: "Appearance: light, dark or follow the computer, five accent colours, three densities, the font, and Western or Arabic-Indic digits, in four languages. Backups: one a day, kept for 3 days, last week and last half-year. The dentist can pause them, restore any of them (a safety copy is made first) or delete them, always with a reason that goes into the log. Security: the activity log, who is signed in, and a lock when the chair sits idle.",
-      shots: shots(
-        files.settings,
-        ["Settings", "Security settings"],
-        ["Appearance, language, and the practice profile.", "The log, the sessions, and the idle lock."],
-      ),
-    },
-  ],
+  keep: {
+    title: "What MeDoc keeps",
+    days: "The last 3 days",
+    week: "One from last week",
+    half: "One from the last half-year",
+    note: "Older backups are deleted automatically, so the disk never fills up.",
+  },
+  demo: {
+    title: "See it working before you decide.",
+    text: "In a free demo we walk you through the calendar, the checks and the day close, and answer your questions.",
+    cta: "Book a free demo",
+  },
+  editions: {
+    title: "Which edition fits your practice?",
+    text: "Essentiel for one dentist on one computer. Cabinet for a dentist with reception, on up to 3 computers. Cabinet+ for up to 4 dentists and 5 computers.",
+    price: (from) => `Licence from ${from} excl. VAT, bought once.`,
+    cta: "Compare editions",
+  },
+  security: {
+    title: "How MeDoc Dentist protects patient data",
+    text: "Encryption on disk, separate roles and the audit chain are explained on the Security page.",
+    cta: "Read the Security page",
+  },
 };
 
 export const productFr: ProductCopy = {
-  title: "Le logiciel, écran par écran",
-  lead: "Captures de la version actuelle, avec des patients fictifs.",
-  trustTitle: "Sécurité et fiabilité",
-  trustLead: "Un seul menu, un agenda partagé, et des modèles pour le travail qui revient. La licence s’installe sur l’ordinateur du cabinet, puis les autres écrans se joignent avec un code.",
-  trust: [
-    "La base est chiffrée sur les ordinateurs du cabinet.",
-    "Les postes parlent sur votre réseau. Pas de cloud public de dossiers patients.",
-    "Les actes importants vont dans un journal que le dentiste peut vérifier.",
-    "Le dentiste peut exporter un patient, ou effacer les lignes médicales.",
-    "La journée continue quand internet s’arrête.",
-    "Une sauvegarde par jour, compressée et chiffrée. Sont gardés les 3 derniers jours, la semaine dernière et le dernier semestre ; les plus anciennes sont supprimées pour ne pas remplir le disque.",
-    "Un mot de passe oublié ne bloque pas le cabinet. La fiche de récupération imprimée, avec le support MeDoc, ouvre la base hors ligne et définit un nouveau mot de passe.",
-    "MeDoc documente le cabinet. Il ne pose pas de diagnostic.",
+  title: "Douze façons dont MeDoc Dentist vous simplifie la journée.",
+  lead: "Des écrans réels, avec des patients fictifs. Chaque fonction indique les éditions qui l'incluent : Essentiel, Cabinet ou Cabinet+.",
+  nav: "Sur cette page",
+  docsChip: "Documents marocains",
+  ed: { all: "Toutes les éditions", cabinet: "Cabinet et Cabinet+", plus: "Cabinet+", essentiel: "Essentiel" },
+  features: {
+    changes: {
+      chip: "Validation et journal",
+      ed: "all",
+      title: "Gardez un œil sur ce que votre équipe saisit.",
+      text: "Les dossiers attendent votre validation, les saisies d'un aide attendent votre accord, et un journal que vous pouvez consulter montre qui a fait quoi, et quand.",
+      shots: [
+        shot("charts-to-validate", "Liste des dossiers à valider, en brouillon ou en revue, avec Valider et Refuser", "Cabinet et Cabinet+ : les dossiers qui vous attendent, chacun avec Valider et Refuser."),
+        shot("settings-security", "Réglages de sécurité avec le journal d'audit et les sessions", "Le journal d'activité s'ouvre depuis Paramètres, Sécurité."),
+      ],
+    },
+    "day-close": {
+      chip: "Clôture journalière",
+      ed: "cabinet",
+      title: "Clôturez la journée avec deux chiffres.",
+      text: "Saisissez le montant compté en caisse et le total de votre terminal de carte. MeDoc calcule ce qui devrait s'y trouver d'après les encaissements du jour et affiche tout écart.",
+      shots: [shot("cash-entries", "Formulaire de nouveau paiement, montant en MAD et mode de paiement", "Chaque paiement est enregistré avec son mode dès qu'il arrive. La clôture les additionne pour vous.")],
+    },
+    calendar: {
+      chip: "Agenda glisser-déposer",
+      ed: "all",
+      title: "Déplacez un rendez-vous à la souris. MeDoc fait la place.",
+      text: "Glissez un rendez-vous vers une autre heure ou un autre jour, en vue jour ou semaine. MeDoc le cale sur vos horaires, décale les rendez-vous suivants de ce praticien et vous permet d'annuler le déplacement.",
+      shots: [
+        shot("calendar-drag", "Vue semaine pendant le déplacement d'un rendez-vous", "En vue semaine, l'ancienne place s'estompe et la nouvelle heure s'affiche dans la marge."),
+        shot("calendar-day", "Vue jour avec le statut de chaque rendez-vous", "La vue jour, avec le statut de chaque rendez-vous et un résumé de la journée."),
+      ],
+    },
+    flags: {
+      chip: "Conflits signalés",
+      ed: "all",
+      title: "Les erreurs se voient pendant la saisie, pas après.",
+      text: "MeDoc vérifie chaque saisie au moment où vous la faites. Il refuse une double réservation, vous avertit d'un médicament auquel le patient est allergique et montre ce qui manque encore.",
+      shots: [shot("appointment-new", "Formulaire de nouveau rendez-vous, heures indisponibles grisées", "Horaires et conflits vérifiés pendant que vous choisissez l'heure.")],
+    },
+    statistics: {
+      chip: "Statistiques",
+      ed: "all",
+      title: "Sachez où en est le mois, en chiffres réels.",
+      text: "Patients, nouveaux patients, rendez-vous, soins et recettes par mois, sur 6 ou 12 mois. Chaque chiffre clé montre son évolution par rapport au mois précédent.",
+      shots: [shot("analytics", "Vue d'ensemble des statistiques avec l'évolution de chaque chiffre", "Chaque chiffre clé avec son évolution par rapport au mois précédent.")],
+    },
+    patients: {
+      chip: "Vue patient",
+      ed: "all",
+      title: "Tout le patient sur un seul en-tête.",
+      text: "Ouvrez un dossier : statut, facture ouverte, âge, téléphone, assurance et adresse d'un coup d'œil, avec un petit schéma dentaire et les données de base qui manquent.",
+      shots: [shot("patient-record", "Dossier patient avec statut, facture ouverte, coordonnées et petit schéma dentaire", "Statut, facture ouverte, coordonnées, assurance et petit schéma dentaire sur un seul en-tête.")],
+    },
+    tasks: {
+      chip: "Tâches pour l'accueil",
+      ed: "cabinet",
+      title: "Envoyez une tâche au lieu d'interrompre l'accueil.",
+      text: "Depuis le dossier du patient, envoyez une tâche à tout l'accueil ou à une personne. Elle arrive dans sa liste de tâches et sa cloche de notifications, et vous retournez à votre patient.",
+      shots: [shot("practice-tasks", "Liste des tâches du cabinet avec patient, type et statut", "Chaque tâche avec son patient, son type et son statut, dans une seule liste.")],
+    },
+    orders: {
+      chip: "Commandes et dépenses",
+      ed: "all",
+      title: "Fournitures et dépenses d'un coup d'œil.",
+      text: "Commandez chez vos fournisseurs à partir de modèles enregistrés et suivez chaque commande : ouverte, en transit, livrée. Le tableau de bord met sous vos yeux les commandes ouvertes et en retard.",
+      shots: [
+        shot("orders", "Commandes fournisseurs avec statut, date prévue et prix", "Ouvertes, en transit, en retard ou livrées, avec date prévue et prix."),
+        shot("overview", "Tableau de bord avec validations en attente et commandes à vérifier", "Le tableau de bord signale les commandes en retard à vérifier."),
+      ],
+    },
+    shortcuts: {
+      chip: "Raccourcis clavier",
+      ed: "all",
+      title: "Gardez les mains sur le clavier.",
+      text: "Appuyez sur ⌘K pour aller à n'importe quelle page ou créer un élément. Les actions courantes ont leur propre touche. Sous Windows, utilisez Ctrl à la place de ⌘.",
+      shots: [],
+    },
+    "status-rules": {
+      chip: "Règles de statut",
+      ed: "all",
+      title: "Chaque dossier suit des étapes claires. Rien ne revient en arrière par erreur.",
+      text: "Rendez-vous, patients, dossiers, paiements et commandes ont chacun des statuts fixes et des étapes suivantes autorisées. MeDoc refuse les changements dans le désordre.",
+      shots: [shot("appointment-detail", "Fiche du rendez-vous avec ses étapes : planifié, confirmé, en cours, terminé", "Le rendez-vous montre où il en est et propose l'étape suivante autorisée.")],
+    },
+    backups: {
+      chip: "Sauvegardes",
+      ed: "all",
+      title: "Une sauvegarde chaque jour, sans que personne n'y pense.",
+      text: "MeDoc Dentist sauvegarde le cabinet une fois par jour, tout seul, compressé et chiffré en AES-256-GCM. Envoyez la sauvegarde sur une clé USB ou un disque externe, radios et scans compris.",
+      shots: [],
+    },
+    "tooth-chart": {
+      chip: "Schéma dentaire",
+      ed: "all",
+      title: "Un schéma dentaire qui se lit d'un coup d'œil.",
+      text: "Les 32 dents permanentes dans l'ordre FDI, le long d'une arcade, avec des contours distincts pour incisives, canines, prémolaires et molaires. Chaque statut a sa couleur et sa marque.",
+      shots: [shot("examinations", "Examen avec le schéma dentaire et sa légende de couleurs", "Carie en rouge, soin prévu en pointillés : chaque statut a sa couleur et sa marque.")],
+    },
+  },
+  keys: [
+    { k: "⌘ K", d: "Aller à une page ou créer un élément" },
+    { k: "⌘ N", d: "Nouveau rendez-vous" },
+    { k: "⇧ ⌘ N", d: "Nouveau patient" },
+    { k: "G", d: "Puis une lettre : aller droit à une rubrique" },
+    { k: "D W M", d: "Agenda : vue jour, semaine ou mois" },
+    { k: "T", d: "Agenda : revenir à aujourd'hui" },
+    { k: "N", d: "Agenda : prendre un rendez-vous" },
+    { k: "← →", d: "Agenda : avancer ou reculer dans le temps" },
+    { k: "⌘ /", d: "Tous les raccourcis, dans l'Aide" },
   ],
-  sections: [
-    {
-      id: "roles",
-      title: "Deux métiers. Le dossier médical reste au dentiste.",
-      text: "Dentiste et accueil se connectent séparément. L’accueil garde les noms, le téléphone, l’agenda, les tâches et la caisse. Les examens, le schéma dentaire et les notes cliniques ne sont pas envoyés à ce compte. La règle est dans le logiciel, pas seulement dans un menu caché. Le dentiste peut accorder des droits en plus à une personne.",
-      shots: shots(files.roles, ["Menu de l’accueil, sans statistiques ni dossier médical", "Le même patient vu par l’accueil", "Vue du dentiste avec le menu complet"], ["Le matin de l’accueil, menu court.", "L’accueil voit coordonnées, rendez-vous, documents et paiements. Ni examens, ni traitements, ni schéma dentaire.", "Le dentiste voit aussi la validation, les statistiques, les finances et l’administration."]),
-    },
-    {
-      id: "calendar",
-      title: "Mois, semaine et jour : le même agenda.",
-      text: "Le mois montre les jours vides, pour voir où le mois est encore ouvert. La semaine montre toute la semaine, pour déplacer un rendez-vous qui ne tient pas. Le jour, c’est un fauteuil face à l’horloge. On glisse une carte. Deux visites ne peuvent pas prendre le même fauteuil en même temps. L’accueil et le dentiste partagent cet agenda, et voient le changement.",
-      shots: shots(files.calendar, ["Calendrier du mois avec des jours libres", "Calendrier de la semaine", "Rendez-vous glissé vers un nouveau créneau", "Calendrier du jour"], ["Le mois : les jours vides se voient.", "La semaine : on déplace ce qui ne tient pas.", "Glisser-déposer : l’ancienne place s’efface, la nouvelle heure s’affiche.", "Le jour, calé sur l’horloge."]),
-    },
-    {
-      id: "appointments",
-      title: "Un nouveau rendez-vous, ou une correction, reste sur l’agenda.",
-      text: "On crée le rendez-vous depuis l’agenda. On ouvre la fiche pour changer l’heure, le statut ou une note. Le dentiste peut passer de cette fiche au patient. L’accueil reste sur les noms et l’agenda.",
-      shots: shots(files.appointments, ["Nouveau rendez-vous sur l’agenda", "Fiche du rendez-vous"], ["Un créneau, sur le même écran.", "On met à jour la visite sans ouvrir un autre logiciel."]),
-    },
-    {
-      id: "record",
-      title: "Un dossier pour ce que le dentiste doit savoir.",
-      text: "Identité, antécédents, dents, examens, soins, ordonnances, certificats, pièces jointes et paiements sont sur la même personne. La liste affiche un statut : en soins, facture ouverte, ou dossier clos.",
-      shots: shots(files.record, ["Liste des patients avec statut", "Dossier patient complet"], ["La liste est la vue rapide.", "On ouvre la personne, les pages cliniques sont là."]),
-    },
-    {
-      id: "clinical",
-      title: "Examiner, soigner, suivre, corriger.",
-      text: "On ouvre un examen, on choisit une dent, on écrit le constat, on enregistre. On le rouvre plus tard pour compléter ou corriger. Un soin nomme l’acte, les dents, et s’il est prêt à facturer.",
-      shots: shots(files.clinical, ["Examen avec le schéma dentaire", "Saisie d’un soin"], ["Le schéma et la note sont le même examen.", "On choisit la dent et la prestation du catalogue ; le prix suit."]),
-    },
-    {
-      id: "documents",
-      title: "Les documents restent sur le patient. On les rouvre.",
-      text: "Courriers, scans et photos sont dans le dossier. On ouvre le fichier quand on en a besoin. Joindre un fichier est disponible. Lire un capteur ou une étude DICOM est en préparation. MeDoc n’est pas encore un poste de radiologie.",
-      shots: shots(files.documents, ["Pièces jointes du dossier"], ["Rangées sur le patient, prêtes à ouvrir."]),
-    },
-    {
-      id: "papers",
-      title: "Ordonnances et certificats, avec les lignes que vous réutilisez.",
-      text: "Les deux s’impriment sur l’en-tête du cabinet. Dans l’administration, vous gardez les listes de médicaments, les ordonnances types et les modèles : une ordonnance habituelle tient en quelques clics. On peut encore changer la ligne avant d’imprimer.",
-      shots: shots(files.papers, ["Ordonnances du patient"], ["On l’écrit, ou on part d’un modèle."]),
-    },
-    {
-      id: "money",
-      title: "Encaissements, factures, et ce que vous devez encore aux fournisseurs.",
-      text: "L’accueil enregistre espèces, carte ou chèque, y compris un paiement partiel et le reste dû. Le dentiste voit la vue d’ensemble. Les factures ont leur propre chemin, distinct de la caisse. Les commandes montrent ce qui est demandé au fournisseur, et ce qui est en retard. La clôture du jour vérifie les totaux et verrouille la journée.",
-      shots: shots(files.money, ["Caisse", "Vue finances", "Commandes"], ["L’accueil encaisse.", "Le dentiste voit l’argent du cabinet.", "Commandes : ouvertes, reçues, ou en retard."]),
-    },
-    {
-      id: "flow",
-      title: "Tâches, validation, statut, et une cloche quand quelque chose change.",
-      text: "Une tâche peut demander à l’accueil de prendre un rendez-vous. Les dossiers qui attendent le dentiste ont leur liste. Les notifications rassemblent ce qui a changé. Le statut dans la liste des patients est la vue rapide. L’accueil n’ouvre pas la file de validation.",
-      shots: shots(files.flow, ["Tâches du cabinet", "Dossiers à valider", "Notifications"], ["Les passages de relais restent dans le menu.", "Le dentiste valide ce qui attend.", "La cloche, sans quitter la page."]),
-    },
-    {
-      id: "numbers",
-      title: "Les chiffres de ce cabinet.",
-      text: "Les statistiques sont un écran du dentiste. On choisit une période : patients, rendez-vous, soins, recettes et commandes ouvertes de ce cabinet. L’accueil n’a pas cette page.",
-      shots: shots(files.numbers, ["Statistiques du cabinet"], ["Les comptes de ce cabinet, pour la période choisie."]),
-    },
-    {
-      id: "time",
-      title: "Les heures, pour soi et pour l’équipe.",
-      text: "Chacun pointe ses heures. Dans l’administration, le dentiste ouvre les heures de l’équipe.",
-      shots: shots(files.time, ["Temps de travail"], ["Arrivée, départ, la journée."]),
-    },
-    {
-      id: "administration",
-      title: "Administration : équipe, actes, modèles, données et mises à jour.",
-      text: "Équipe : le personnel et ses heures. Rapports financiers : clôture du jour, factures, bilans. Stock et commandes : produits, fournisseurs, contrats. Prestations : catalogue de soins, médicaments, ordonnances types, modèles. Planning du cabinet : jours travaillés, horaires, blocages, préférences.",
-      shots: shots(files.administration, ["Accueil de l’administration"], ["Les catégories qui existent dans le logiciel."]),
-    },
-    {
-      id: "settings",
-      title: "Apparence, sauvegardes, et le verrou du fauteuil.",
-      text: "Apparence : clair, sombre ou comme l’ordinateur, cinq couleurs d’accent, trois densités, la police, et chiffres occidentaux ou arabes-indiens, en quatre langues. Sauvegardes : une par jour, gardées 3 jours, la semaine dernière et le dernier semestre. Le dentiste peut les mettre en pause, revenir à n’importe laquelle (une copie de sécurité est faite avant) ou les supprimer, toujours avec un motif inscrit au journal. Sécurité : le journal, qui est connecté, et un verrou si le poste reste inactif.",
-      shots: shots(files.settings, ["Réglages", "Sécurité"], ["Apparence, langue, et fiche du cabinet.", "Le journal, les sessions, et le verrou d’inactivité."]),
-    },
-  ],
+  keep: {
+    title: "Ce que MeDoc garde",
+    days: "Les 3 derniers jours",
+    week: "Une de la semaine dernière",
+    half: "Une du dernier semestre",
+    note: "Les plus anciennes sont supprimées automatiquement : le disque ne se remplit jamais.",
+  },
+  demo: {
+    title: "Voyez-le fonctionner avant de décider.",
+    text: "Pendant une démo gratuite, nous vous montrons l'agenda, les contrôles et la clôture journalière, et nous répondons à vos questions.",
+    cta: "Réserver une démo gratuite",
+  },
+  editions: {
+    title: "Quelle édition pour votre cabinet ?",
+    text: "Essentiel pour un dentiste sur un ordinateur. Cabinet pour un dentiste avec accueil, sur 3 ordinateurs au plus. Cabinet+ pour 4 dentistes et 5 ordinateurs au plus.",
+    price: (from) => `Licence à partir de ${from} HT, achetée une seule fois.`,
+    cta: "Comparer les éditions",
+  },
+  security: {
+    title: "Comment MeDoc Dentist protège les données des patients",
+    text: "Le chiffrement sur disque, les rôles séparés et la chaîne d'audit sont expliqués sur la page Sécurité.",
+    cta: "Lire la page Sécurité",
+  },
 };
 
 export const productAr: ProductCopy = {
-  title: "البرنامج، شاشة بشاشة",
-  lead: "لقطات من النسخة الحالية، بمرضى وهميين.",
-  trustTitle: "الأمان والموثوقية",
-  trustLead: "قائمة واحدة، ودفتر مواعيد مشترك، ونماذج جاهزة للعمل المتكرر. تُثبَّت الرخصة على حاسوب العيادة، ثم تنضم الشاشات الأخرى برمز.",
-  trust: [
-    "قاعدة البيانات مشفّرة على حواسيب العيادة.",
-    "الكراسي تتحدث عبر شبكتكم. لا سحابة عامة لملفات المرضى.",
-    "الأعمال المهمة تُكتب في سجل يستطيع الطبيب مراجعته.",
-    "يستطيع الطبيب تصدير مريض، أو مسح الصفوف الطبية.",
-    "اليوم يستمر حين ينقطع الإنترنت.",
-    "نسخة احتياطية كل يوم، مضغوطة ومشفّرة. يُحتفظ بآخر 3 أيام، والأسبوع الماضي، وآخر نصف سنة، وتُحذف الأقدم حتى لا يمتلئ القرص.",
-    "نسيان كلمة المرور لا يُغلق العيادة. ورقة الاستعادة المطبوعة، بمساعدة دعم MeDoc، تفتح قاعدة البيانات دون اتصال وتعيّن كلمة مرور جديدة.",
-    "MeDoc يوثّق عمل العيادة. لا يضع تشخيصًا.",
+  title: "اثنتا عشرة طريقة يُسهّل بها MeDoc Dentist يومك.",
+  lead: "شاشات حقيقية بمرضى وهميين. كل ميزة تذكر الإصدارات التي تشملها: Essentiel أو Cabinet أو Cabinet+.",
+  nav: "في هذه الصفحة",
+  docsChip: "الوثائق المغربية",
+  ed: { all: "كل الإصدارات", cabinet: "Cabinet وCabinet+", plus: "Cabinet+", essentiel: "Essentiel" },
+  features: {
+    changes: {
+      chip: "المصادقة والسجل",
+      ed: "all",
+      title: "تابِع ما يُدخله فريقك.",
+      text: "الملفات تنتظر مصادقتك، وما يُدخله المساعد ينتظر موافقتك، وسجلّ يمكنك مراجعته يبيّن من فعل ماذا، ومتى.",
+      shots: [
+        shot("charts-to-validate", "قائمة الملفات بانتظار المصادقة، مسودة أو قيد المراجعة، مع زرّي المصادقة والرفض", "Cabinet وCabinet+: الملفات التي تنتظرك، لكل منها زرّا المصادقة والرفض."),
+        shot("settings-security", "إعدادات الأمان مع سجل التدقيق وجلسات الأجهزة", "يُفتح سجل النشاط من الإعدادات، قسم الأمان."),
+      ],
+    },
+    "day-close": {
+      chip: "إغلاق اليوم",
+      ed: "cabinet",
+      title: "أغلِق اليوم برقمين.",
+      text: "أدخل المبلغ النقدي الذي عددته ومجموع جهاز الدفع بالبطاقة. يحسب MeDoc ما يجب أن يكون في الصندوق من تحصيلات اليوم، ويُظهر أي فرق.",
+      shots: [shot("cash-entries", "نموذج دفعة جديدة بالمبلغ بالدرهم وطريقة الدفع", "تُسجَّل كل دفعة مع طريقتها فور وصولها، ويجمعها إغلاق اليوم من أجلك.")],
+    },
+    calendar: {
+      chip: "مواعيد بالسحب والإفلات",
+      ed: "all",
+      title: "انقل الموعد بالفأرة، ويُفسح MeDoc المكان.",
+      text: "اسحب الموعد إلى وقت أو يوم آخر في عرض اليوم أو الأسبوع. يضبطه MeDoc على ساعات العمل، ويؤخّر المواعيد التالية للطبيب نفسه، ويتيح لك التراجع.",
+      shots: [
+        shot("calendar-drag", "عرض الأسبوع أثناء سحب موعد إلى وقت جديد", "في عرض الأسبوع يبهت المكان القديم ويظهر الوقت الجديد في الهامش."),
+        shot("calendar-day", "عرض اليوم مع حالة كل موعد", "عرض اليوم، مع حالة كل موعد وملخص اليوم."),
+      ],
+    },
+    flags: {
+      chip: "تنبيه التعارضات",
+      ed: "all",
+      title: "الأخطاء تظهر أثناء العمل، لا بعده.",
+      text: "يفحص MeDoc كل إدخال لحظة كتابته: يرفض الحجز المزدوج، وينبّهك إلى دواء لدى المريض حساسية منه، ويُظهر ما لا يزال ناقصًا.",
+      shots: [shot("appointment-new", "نموذج موعد جديد مع الأوقات غير المتاحة باللون الرمادي", "تُفحص ساعات العمل والتعارضات أثناء اختيار الوقت.")],
+    },
+    statistics: {
+      chip: "الإحصاءات",
+      ed: "all",
+      title: "اعرف كيف يسير الشهر، بأرقام حقيقية.",
+      text: "المرضى، والمرضى الجدد، والمواعيد، والعلاجات، والمداخيل شهرًا بشهر، على 6 أو 12 شهرًا. كل رقم أساسي يُظهر تغيّره مقارنة بالشهر الماضي.",
+      shots: [shot("analytics", "نظرة عامة على الإحصاءات مع تغيّر كل رقم مقارنة بالشهر الماضي", "كل رقم أساسي مع تغيّره مقارنة بالشهر الماضي.")],
+    },
+    patients: {
+      chip: "نظرة على المريض",
+      ed: "all",
+      title: "المريض كله في رأس صفحة واحد.",
+      text: "افتح الملف لترى دفعة واحدة الحالة، والفاتورة المفتوحة، والعمر، والهاتف، والتأمين، والعنوان، مع مخطط أسنان صغير والبيانات الأساسية الناقصة.",
+      shots: [shot("patient-record", "ملف مريض مع الحالة والفاتورة المفتوحة وبيانات الاتصال ومخطط أسنان صغير", "الحالة والفاتورة المفتوحة والاتصال والتأمين ومخطط أسنان صغير في رأس صفحة واحد.")],
+    },
+    tasks: {
+      chip: "مهام للاستقبال",
+      ed: "cabinet",
+      title: "أرسل مهمة بدل أن تقاطع الاستقبال.",
+      text: "من ملف المريض، أرسل مهمة إلى الاستقبال كله أو إلى شخص واحد. تصل إلى قائمة مهامه وجرس الإشعارات، وتعود أنت إلى مريضك.",
+      shots: [shot("practice-tasks", "قائمة مهام العيادة مع المريض والنوع والحالة", "كل مهمة مع مريضها ونوعها وحالتها، في قائمة واحدة.")],
+    },
+    orders: {
+      chip: "الطلبيات والمصاريف",
+      ed: "all",
+      title: "اللوازم والمصاريف في لمحة.",
+      text: "اطلب من مورّديك انطلاقًا من نماذج محفوظة، وتابع كل طلبية: مفتوحة، ثم قيد الشحن، ثم مستلمة. ولوحة القيادة تضع أمامك الطلبيات المفتوحة والمتأخرة.",
+      shots: [
+        shot("orders", "طلبيات المورّدين مع الحالة والتاريخ المتوقع والسعر", "مفتوحة أو قيد الشحن أو متأخرة أو مستلمة، مع التاريخ المتوقع والسعر."),
+        shot("overview", "لوحة القيادة مع ما ينتظر المصادقة والطلبيات التي يجب التحقق منها", "لوحة القيادة تُظهر الطلبيات المتأخرة التي يجب التحقق منها."),
+      ],
+    },
+    shortcuts: {
+      chip: "اختصارات لوحة المفاتيح",
+      ed: "all",
+      title: "أبقِ يديك على لوحة المفاتيح.",
+      text: "اضغط ⌘K للانتقال إلى أي صفحة أو لبدء شيء جديد. ولأكثر الإجراءات استعمالًا مفاتيحها الخاصة. في Windows استعمل Ctrl بدل ⌘.",
+      shots: [],
+    },
+    "status-rules": {
+      chip: "قواعد الحالات",
+      ed: "all",
+      title: "لكل ملف خطوات واضحة، ولا شيء يعود إلى الوراء خطأً.",
+      text: "للمواعيد والمرضى والملفات الطبية والمدفوعات والطلبيات حالات ثابتة وخطوات تالية مسموح بها، ويرفض MeDoc أي تغيير خارج الترتيب.",
+      shots: [shot("appointment-detail", "لوحة الموعد مع خطواته: مخطط، مؤكد، جارٍ، مكتمل", "يُظهر الموعد أين وصل، ويقترح الخطوة التالية المسموح بها.")],
+    },
+    backups: {
+      chip: "النسخ الاحتياطية",
+      ed: "all",
+      title: "نسخة احتياطية كل يوم، دون أن يتذكّرها أحد.",
+      text: "يأخذ MeDoc Dentist نسخة احتياطية من العيادة مرة في اليوم من تلقاء نفسه، مضغوطة ومشفّرة بـ AES-256-GCM. احفظها على مفتاح USB أو قرص خارجي، مع صور الأشعة والمسوح.",
+      shots: [],
+    },
+    "tooth-chart": {
+      chip: "مخطط الأسنان",
+      ed: "all",
+      title: "مخطط أسنان يُقرأ بنظرة واحدة.",
+      text: "الأسنان الدائمة الـ32 بترتيب FDI على قوس منحنٍ، بأشكال مميّزة للقواطع والأنياب والضواحك والأضراس. لكل حالة لونها وعلامتها.",
+      shots: [shot("examinations", "فحص مع مخطط الأسنان ودليل ألوانه", "التسوّس بالأحمر والعلاج المخطط بخط متقطع: لكل حالة لونها وعلامتها.")],
+    },
+  },
+  keys: [
+    { k: "⌘ K", d: "الانتقال إلى أي صفحة أو نموذج جديد" },
+    { k: "⌘ N", d: "موعد جديد" },
+    { k: "⇧ ⌘ N", d: "مريض جديد" },
+    { k: "G", d: "ثم حرف: انتقال مباشر إلى قسم" },
+    { k: "D W M", d: "المواعيد: عرض اليوم أو الأسبوع أو الشهر" },
+    { k: "T", d: "المواعيد: العودة إلى اليوم" },
+    { k: "N", d: "المواعيد: حجز موعد" },
+    { k: "← →", d: "المواعيد: التنقل في الزمن" },
+    { k: "⌘ /", d: "كل الاختصارات، في المساعدة" },
   ],
-  sections: [
-    {
-      id: "roles",
-      title: "وظيفتان. الملف الطبي يبقى عند الطبيب.",
-      text: "الطبيب والاستقبال يدخلان بحسابين منفصلين. الاستقبال يرى الأسماء والهاتف ودفتر المواعيد والمهام والصندوق. الفحوصات ومخطط الأسنان والملاحظات السريرية لا تُرسل إلى هذا الحساب. القاعدة داخل البرنامج، لا مجرد قائمة مخفية. يستطيع الطبيب منح صلاحيات إضافية لشخص واحد.",
-      shots: shots(files.roles, ["قائمة الاستقبال بلا إحصاءات ولا ملف طبي", "المريض نفسه كما يراه الاستقبال", "نظرة الطبيب مع القائمة الكاملة"], ["صباح الاستقبال: قائمة قصيرة.", "يرى الاستقبال بيانات الاتصال والمواعيد والوثائق والمدفوعات، دون الفحوص والعلاجات ومخطط الأسنان.", "الطبيب يرى أيضًا التحقق والإحصاءات والمالية والإدارة."]),
-    },
-    {
-      id: "calendar",
-      title: "الشهر والأسبوع واليوم دفتر واحد.",
-      text: "الشهر يُظهر الأيام الفارغة لتعرف أين ما زال الشهر مفتوحًا. الأسبوع يُظهر الأسبوع كاملًا لتنقل موعدًا لا يتسع. اليوم كرسي واحد أمام الساعة. اسحب البطاقة. زيارتان لا تأخذان الكرسي نفسه في الوقت نفسه. الاستقبال والطبيب يشاركان هذا الدفتر، ويريان التغيير.",
-      shots: shots(files.calendar, ["تقويم الشهر مع أيام فارغة", "تقويم الأسبوع", "سحب موعد إلى وقت جديد", "تقويم اليوم"], ["الشهر: الأيام الفارغة ظاهرة.", "الأسبوع: انقل ما لا يتسع.", "السحب والإفلات: يبهت المكان القديم ويظهر الوقت الجديد.", "اليوم، مضبوط على الساعة."]),
-    },
-    {
-      id: "appointments",
-      title: "موعد جديد، أو تعديل، يبقى على الدفتر.",
-      text: "يُنشأ الموعد من الدفتر. تُفتح البطاقة لتغيير الوقت أو الحالة أو ملاحظة. الطبيب ينتقل من البطاقة إلى المريض. الاستقبال يبقى على الأسماء والدفتر.",
-      shots: shots(files.appointments, ["موعد جديد على التقويم", "بطاقة الموعد"], ["خانة جديدة على الشاشة نفسها.", "تحديث الزيارة دون برنامج آخر."]),
-    },
-    {
-      id: "record",
-      title: "ملف واحد لما يحتاج الطبيب أن يعرفه.",
-      text: "الهوية والسوابق والأسنان والفحوصات والعلاجات والوصفات والشهادات والمرفقات والمدفوعات على الشخص نفسه. القائمة تعرض حالة: قيد العلاج، أو فاتورة مفتوحة، أو ملف مغلق.",
-      shots: shots(files.record, ["قائمة المرضى مع الحالة", "ملف المريض كاملًا"], ["القائمة هي النظرة السريعة.", "افتح الشخص فتجد الصفحات السريرية."]),
-    },
-    {
-      id: "clinical",
-      title: "افحص، عالج، تابع، وصحّح.",
-      text: "تبدأ فحصًا، تختار سنًا، تكتب النتيجة، وتحفظ. تعود إليه لاحقًا لتضيف أو تصحح. العلاج يسمّي الإجراء والأسنان وهل هو جاهز للفوترة.",
-      shots: shots(files.clinical, ["فحص مع مخطط الأسنان", "تسجيل علاج"], ["المخطط والملاحظة فحص واحد.", "اختر السن والخدمة من الكتالوج، والسعر يتبع."]),
-    },
-    {
-      id: "documents",
-      title: "الوثائق تبقى على المريض. تُفتح من جديد.",
-      text: "الرسائل والمسوح والصور مخزّنة في الملف. تفتحها حين تحتاجها. إرفاق ملف متاح الآن. قراءة مستشعر أو دراسة DICOM قيد الإعداد. MeDoc ليس بعد محطة أشعة.",
-      shots: shots(files.documents, ["مرفقات ملف المريض"], ["محفوظة على المريض، جاهزة للفتح."]),
-    },
-    {
-      id: "papers",
-      title: "الوصفات والشهادات، مع السطور التي تعيد استخدامها.",
-      text: "الاثنان يُطبعان على ترويسة العيادة. في الإدارة تحتفظ بقوائم الأدوية ونماذج الوصفات والقوالب، فوصفة متكررة بضع نقرات. تستطيع تغيير السطر قبل الطباعة.",
-      shots: shots(files.papers, ["وصفات المريض"], ["تكتبها، أو تبدأ من نموذج."]),
-    },
-    {
-      id: "money",
-      title: "الإيصالات والفواتير وما زلتم تدينون به للمورّدين.",
-      text: "الاستقبال يسجّل النقد أو البطاقة أو الشيك، بما في ذلك دفعة جزئية والباقي. الطبيب يرى نظرة المال. الفواتير مسار مستقل عن الصندوق. الطلبات تُظهر ما طُلب من المورّد وما تأخر. إقفال اليوم يراجع المجاميع ويقفل اليوم.",
-      shots: shots(files.money, ["الصندوق", "نظرة المالية", "الطلبات"], ["الاستقبال يقبض.", "الطبيب يرى مال العيادة.", "الطلبات: مفتوحة أو مستلمة أو متأخرة."]),
-    },
-    {
-      id: "flow",
-      title: "مهام، وتحقق، وحالة، وجرس حين يتغيّر شيء.",
-      text: "مهمة يمكن أن تطلب من الاستقبال حجز موعد. الملفات التي تنتظر الطبيب لها قائمتها. الإشعارات تجمع ما تغيّر. الحالة في قائمة المرضى هي النظرة السريعة. الاستقبال لا يفتح طابور التحقق.",
-      shots: shots(files.flow, ["مهام العيادة", "ملفات بانتظار التحقق", "الإشعارات"], ["التسليم يبقى في القائمة.", "الطبيب يعتمد ما ينتظر.", "الجرس، دون مغادرة الصفحة."]),
-    },
-    {
-      id: "numbers",
-      title: "أرقام هذه العيادة.",
-      text: "الإحصاءات شاشة للطبيب. تختار فترة: مرضى، ومواعيد، وعلاجات، ودخل، وطلبات مفتوحة لهذه العيادة. الاستقبال لا يصل إلى هذه الصفحة.",
-      shots: shots(files.numbers, ["إحصاءات العيادة"], ["أرقام هذه العيادة، للفترة التي اخترتها."]),
-    },
-    {
-      id: "time",
-      title: "الساعات، لك وللفريق.",
-      text: "كل شخص يسجّل ساعاته. في الإدارة يفتح الطبيب ساعات الفريق.",
-      shots: shots(files.time, ["وقت العمل"], ["دخول، خروج، واليوم."]),
-    },
-    {
-      id: "administration",
-      title: "الإدارة: الفريق، الخدمات، النماذج، البيانات والتحديثات.",
-      text: "الفريق: الموظفون وساعاتهم. التقارير المالية: إقفال اليوم والفواتير والميزانيات. المخزون والطلبات: المنتجات وبيانات المورّدين والعقود. الخدمات: فهرس العلاجات والأدوية ونماذج الوصفات والقوالب. تخطيط العيادة: أيام العمل والساعات والأوقات المحجوبة والتفضيلات.",
-      shots: shots(files.administration, ["صفحة الإدارة"], ["التصنيفات الموجودة في البرنامج."]),
-    },
-    {
-      id: "settings",
-      title: "المظهر، والنسخ الاحتياطية، وقفل الكرسي.",
-      text: "المظهر: فاتح أو داكن أو حسب الحاسوب، خمسة ألوان مميزة، ثلاث كثافات، الخط، وأرقام غربية أو عربية هندية، بأربع لغات. النسخ الاحتياطية: واحدة يوميًا، يُحتفظ بها 3 أيام، والأسبوع الماضي، وآخر نصف سنة. يستطيع الطبيب إيقافها مؤقتًا، أو العودة إلى أي نسخة (تُنشأ نسخة أمان أولًا)، أو حذفها، دائمًا مع سبب يُسجَّل. الأمان: السجل، ومن هو داخل، وقفل إذا بقي الكرسي بلا حركة.",
-      shots: shots(files.settings, ["الإعدادات", "إعدادات الأمان"], ["المظهر واللغة وملف العيادة.", "السجل والجلسات وقفل الخمول."]),
-    },
-  ],
-};
-
-export const productDe: ProductCopy = {
-  title: "Die Software, Bildschirm für Bildschirm",
-  lead: "Bildschirmfotos der aktuellen Version, mit erfundenen Patienten.",
-  trustTitle: "Sicherheit und Zuverlässigkeit",
-  trustLead: "Ein Menü, ein gemeinsames Buch und Vorlagen für die Arbeit, die sich wiederholt. Die Lizenz liegt auf dem Praxisrechner, weitere Bildschirme kommen mit einer PIN dazu.",
-  trust: [
-    "Die Datenbank ist auf den Praxisrechnern verschlüsselt.",
-    "Die Stühle sprechen über Ihr Netz. Keine öffentliche Wolke mit Patientenakten.",
-    "Wichtige Vorgänge stehen in einem Protokoll, das die Zahnärztin prüfen kann.",
-    "Eine Zahnärztin kann eine Patientin exportieren oder die medizinischen Zeilen löschen.",
-    "Der Tag läuft weiter, wenn das Internet ausfällt.",
-    "Jeden Tag eine Sicherung, komprimiert und verschlüsselt. Aufbewahrt werden die letzten 3 Tage, die Vorwoche und das letzte Halbjahr; ältere werden gelöscht, damit die Platte nicht vollläuft.",
-    "Ein vergessenes Passwort sperrt die Praxis nicht aus. Das gedruckte Wiederherstellungsblatt öffnet mit dem MeDoc-Support die Datenbank offline und setzt ein neues Passwort.",
-    "MeDoc dokumentiert die Praxis. Es stellt keine Diagnose.",
-  ],
-  sections: [
-    {
-      id: "roles",
-      title: "Zwei Berufe. Die Akte bleibt bei der Zahnärztin.",
-      text: "Zahnärztin und Empfang melden sich getrennt an. Der Empfang behält Namen, Telefon, das Buch, Aufgaben und die Kasse. Untersuchungen, das Zahnschema und klinische Notizen gehen nicht an dieses Konto. Die Regel steckt in der Software, nicht nur in einem versteckten Menü. Eine Zahnärztin kann einer Person zusätzliche Rechte geben.",
-      shots: shots(files.roles, ["Empfangsmenü ohne Statistik und ohne Akte", "Derselbe Patient aus Sicht des Empfangs", "Übersicht der Zahnärztin mit vollem Menü"], ["Der Morgen am Empfang ist das kurze Menü.", "Der Empfang sieht Kontakt, Termine, Dokumente und Zahlungen. Keine Untersuchungen, Behandlungen oder Zahnschema.", "Die Zahnärztin sieht auch Freigabe, Statistik, Finanzen und Verwaltung."]),
-    },
-    {
-      id: "calendar",
-      title: "Monat, Woche und Tag sind dasselbe Buch.",
-      text: "Der Monat zeigt leere Tage, damit sichtbar bleibt, wo der Monat noch offen ist. Die Woche zeigt die ganze Woche, damit ein Termin wandert, der nicht passt. Der Tag ist ein Stuhl an der Uhr. Eine Karte lässt sich ziehen. Zwei Besuche können nicht gleichzeitig denselben Stuhl belegen. Empfang und Zahnärztin teilen dieses Buch und sehen die Änderung.",
-      shots: shots(files.calendar, ["Monatskalender mit freien Tagen", "Wochenkalender", "Termin wird auf einen neuen Slot gezogen", "Tageskalender"], ["Der Monat: leere Tage sind sichtbar.", "Die Woche: verschieben, was nicht passt.", "Drag & Drop: der alte Platz verblasst, die neue Zeit steht am Rand.", "Der Tag, an der Uhr."]),
-    },
-    {
-      id: "appointments",
-      title: "Ein neuer Termin oder eine Änderung bleibt im Kalender.",
-      text: "Der Termin entsteht im Buch. Die Karte ändert Uhrzeit, Status oder eine Notiz. Die Zahnärztin geht von der Karte zur Patientin. Der Empfang bleibt bei Namen und Buch.",
-      shots: shots(files.appointments, ["Neuer Termin im Kalender", "Terminkarte"], ["Ein Slot, auf demselben Bildschirm.", "Den Besuch ändern, ohne ein zweites Programm."]),
-    },
-    {
-      id: "record",
-      title: "Eine Akte für das, was die Zahnärztin wissen muss.",
-      text: "Identität, Vorgeschichte, Zähne, Untersuchungen, Behandlungen, Rezepte, Bescheinigungen, Anhänge und Zahlungen liegen bei derselben Person. Die Liste zeigt einen Status: in Behandlung, offene Rechnung oder geschlossen.",
-      shots: shots(files.record, ["Patientenliste mit Status", "Vollständige Patientenakte"], ["Die Liste ist die schnelle Sicht.", "Die Person öffnen, die klinischen Seiten sind da."]),
-    },
-    {
-      id: "clinical",
-      title: "Untersuchen, behandeln, nachsehen, korrigieren.",
-      text: "Eine Untersuchung beginnen, einen Zahn wählen, den Befund schreiben, speichern. Später wieder öffnen und ergänzen oder ändern. Eine Behandlung nennt die Leistung, die Zähne und ob sie abgerechnet werden kann.",
-      shots: shots(files.clinical, ["Untersuchung mit Zahnschema", "Behandlung erfassen"], ["Schema und Notiz sind dieselbe Untersuchung.", "Zahn und Leistung aus dem Katalog wählen, der Preis folgt."]),
-    },
-    {
-      id: "documents",
-      title: "Unterlagen bleiben an der Patientin. Man öffnet sie wieder.",
-      text: "Briefe, Scans und Fotos liegen in der Akte. Man öffnet die Datei, wenn man sie braucht. Eine Datei anhängen geht heute. Einen Sensor oder eine DICOM-Studie lesen ist in Vorbereitung. MeDoc ist noch kein Röntgenplatz.",
-      shots: shots(files.documents, ["Anhänge in der Akte"], ["An der Patientin gespeichert, bereit zum Öffnen."]),
-    },
-    {
-      id: "papers",
-      title: "Rezepte und Bescheinigungen, mit den Zeilen, die Sie wiederverwenden.",
-      text: "Beides druckt auf dem Briefkopf der Praxis. In der Verwaltung liegen Medikamentenlisten, Rezeptvorlagen und Textvorlagen, damit ein bekanntes Rezept wenige Klicks braucht. Die Zeile lässt sich vor dem Druck noch ändern.",
-      shots: shots(files.papers, ["Rezepte der Patientin"], ["Selbst schreiben oder von einer Vorlage starten."]),
-    },
-    {
-      id: "money",
-      title: "Quittungen, Rechnungen und das, was Sie Lieferanten noch schulden.",
-      text: "Der Empfang bucht bar, Karte oder Scheck, auch eine Teilzahlung und den Rest. Die Zahnärztin sieht die Geldübersicht. Rechnungen sind ein eigener Weg, nicht die Kasse. Bestellungen zeigen, was beim Lieferanten liegt und was zu spät ist. Der Tagesabschluss prüft die Summen und sperrt den Tag.",
-      shots: shots(files.money, ["Kasse", "Finanzübersicht", "Bestellungen"], ["Der Empfang nimmt das Geld.", "Die Zahnärztin sieht das Geld der Praxis.", "Bestellungen: offen, da oder zu spät."]),
-    },
-    {
-      id: "flow",
-      title: "Aufgaben, Freigabe, Status und eine Glocke, wenn sich etwas ändert.",
-      text: "Eine Aufgabe kann den Empfang bitten, einen Termin zu legen. Akten, die noch die Zahnärztin brauchen, haben eine eigene Liste. Hinweise sammeln, was sich geändert hat. Der Status in der Patientenliste ist die schnelle Sicht. Der Empfang öffnet die Freigabeliste nicht.",
-      shots: shots(files.flow, ["Praxisaufgaben", "Akten zur Freigabe", "Hinweise"], ["Übergaben bleiben im Menü.", "Die Zahnärztin gibt frei, was wartet.", "Die Glocke, ohne die Seite zu verlassen."]),
-    },
-    {
-      id: "numbers",
-      title: "Die Zahlen dieser Praxis.",
-      text: "Statistik ist ein Bildschirm der Zahnärztin. Ein Zeitraum: Patienten, Termine, Behandlungen, Einnahmen und offene Bestellungen dieser Praxis. Der Empfang hat diese Seite nicht.",
-      shots: shots(files.numbers, ["Praxisstatistik"], ["Zahlen dieser Praxis, für den gewählten Zeitraum."]),
-    },
-    {
-      id: "time",
-      title: "Stunden, für sich und für das Team.",
-      text: "Jede Person stempelt ihre Zeit. In der Verwaltung öffnet die Zahnärztin die Stunden des Teams.",
-      shots: shots(files.time, ["Arbeitszeit"], ["Kommen, gehen, der Tag."]),
-    },
-    {
-      id: "administration",
-      title: "Verwaltung: Team, Leistungen, Vorlagen, Daten und Updates.",
-      text: "Team: Personal und Stunden. Finanzberichte: Tagesabschluss, Rechnungen, Bilanzen. Lager und Bestellung: Produkte, Lieferantendaten, Verträge. Leistungen: Behandlungskatalog, Medikamente, Rezeptvorlagen, Textvorlagen. Praxisplanung: Arbeitstage, Arbeitszeiten, Sperrzeiten, Einstellungen.",
-      shots: shots(files.administration, ["Verwaltung"], ["Die Kategorien, die das Programm wirklich hat."]),
-    },
-    {
-      id: "settings",
-      title: "Aussehen, Datensicherung und die Sperre am Stuhl.",
-      text: "Aussehen: hell, dunkel oder wie der Rechner, fünf Akzentfarben, drei Dichten, die Schrift und westliche oder arabisch-indische Ziffern, in vier Sprachen. Datensicherung: eine pro Tag, aufbewahrt 3 Tage, die Vorwoche und das letzte Halbjahr. Die Zahnärztin kann sie pausieren, zu jeder zurückkehren (vorher wird eine Sicherheitskopie angelegt) oder sie löschen, immer mit einem Grund im Protokoll. Sicherheit: das Protokoll, wer angemeldet ist, und eine Sperre, wenn der Stuhl stillsteht.",
-      shots: shots(files.settings, ["Einstellungen", "Sicherheit"], ["Aussehen, Sprache und Praxisprofil.", "Das Protokoll, die Sitzungen und die Leerlaufsperre."]),
-    },
-  ],
+  keep: {
+    title: "ما يحتفظ به MeDoc",
+    days: "آخر 3 أيام",
+    week: "نسخة من الأسبوع الماضي",
+    half: "نسخة من آخر نصف سنة",
+    note: "تُحذف النسخ الأقدم تلقائيًا، فلا يمتلئ القرص أبدًا.",
+  },
+  demo: {
+    title: "شاهده يعمل قبل أن تقرّر.",
+    text: "في عرض مجاني نريك المواعيد والتنبيهات وإغلاق اليوم، ونجيب عن أسئلتك.",
+    cta: "احجز عرضًا مجانيًا",
+  },
+  editions: {
+    title: "أي إصدار يناسب عيادتك؟",
+    text: "Essentiel لطبيب أسنان واحد على حاسوب واحد. Cabinet لطبيب أسنان مع الاستقبال، على 3 حواسيب كحد أقصى. Cabinet+ لما يصل إلى 4 أطباء أسنان و5 حواسيب.",
+    price: (from) => `الترخيص ابتداءً من ${from} دون احتساب الضريبة، تشتريه مرة واحدة.`,
+    cta: "قارن الإصدارات",
+  },
+  security: {
+    title: "كيف يحمي MeDoc Dentist بيانات المرضى",
+    text: "التشفير على القرص، والأدوار المنفصلة، وسلسلة التدقيق مشروحة في صفحة الأمان.",
+    cta: "اقرأ صفحة الأمان",
+  },
 };

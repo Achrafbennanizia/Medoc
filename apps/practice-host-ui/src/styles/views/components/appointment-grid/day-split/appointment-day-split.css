@@ -117,3 +117,63 @@
   align-self: stretch;
   min-height: 100%;
 }
+
+/* Group day view (editions-plan §6.4): one agenda column per doctor, same hour gutter. */
+.appointment-day-doctor-heads {
+  display: grid;
+  grid-template-columns: 52px repeat(var(--appointment-doctor-cols, 2), minmax(0, 1fr));
+  margin-bottom: var(--space-2);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg-2);
+}
+.appointment-day-doctor-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-inline: var(--space-2);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.appointment-day-doctor-count {
+  margin-inline-start: auto;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  color: var(--fg-3);
+}
+.appointment-day-doctor-cols {
+  display: grid;
+  grid-template-columns: repeat(var(--appointment-doctor-cols, 2), minmax(0, 1fr));
+  min-width: 0;
+}
+.appointment-day-doctor-col {
+  position: relative;
+  min-width: 0;
+}
+.appointment-day-doctor-col + .appointment-day-doctor-col {
+  border-inline-start: 1px solid var(--line);
+}
+
+/* Header chips: the doctor legend doubles as the filter. */
+.appointment-doctor-chip {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 10px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.appointment-doctor-chip:hover {
+  background: color-mix(in oklab, var(--fg) 5%, transparent);
+}
+.appointment-doctor-chip.is-on {
+  border-color: var(--accent);
+  background: color-mix(in oklab, var(--accent) 12%, transparent);
+}
+.appointment-doctor-chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

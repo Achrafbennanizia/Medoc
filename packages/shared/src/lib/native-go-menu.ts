@@ -1,9 +1,10 @@
 /**
- * Native OS "Go to" submenu: same capability gates as routes ({@link ROUTE_VISIBILITY}),
+ * Native OS "Go to" submenu: same edition and permission gates as routes ({@link ROUTE_VISIBILITY}),
  * grouped like the sidebar plus operations and help entries.
  */
 
-import { ROUTE_VISIBILITY, navVisibilitySatisfied, type NavVisibility } from "./rbac";
+import { ROUTE_VISIBILITY, navVisibilitySatisfied, routePathFromLocation, type NavVisibility } from "./rbac";
+import { routeEnabledInEdition } from "./feature-modules";
 import { PRIVACY_UI_ENABLED } from "./privacy-config";
 import { INBOX_UI_ENABLED } from "./inbox-config";
 import {
@@ -121,6 +122,7 @@ export function buildNativeGoMenuItems(role: string | undefined, t: (key: string
             if (!PRESCRIPTIONS_CERTIFICATES_MENU_ENABLED && (path === "/prescriptions" || path === "/certificates")) continue;
             if (!SERVICES_MENU_ENABLED && path === "/services") continue;
             if (path === "/products") continue;
+            if (!routeEnabledInEdition(routePathFromLocation(path))) continue;
             if (!navVisibilitySatisfied(visibilityForNativeGoPath(path), role)) continue;
             const labelKey = PATH_LABEL_KEYS[path];
             if (!labelKey) throw new Error(`native-go-menu: missing label key for "${path}"`);

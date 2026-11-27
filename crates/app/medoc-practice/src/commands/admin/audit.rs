@@ -39,6 +39,7 @@ pub async fn list_audit_logs_paged(
         total,
         page: p.page_one_based(),
         page_size: limit,
+        hidden_doctors: Vec::new(),
     })
 }
 

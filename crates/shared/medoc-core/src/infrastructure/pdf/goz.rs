@@ -219,18 +219,16 @@ pub fn validate_invoice(inv: &Invoice) -> Result<(), AppError> {
                     "error.invoice.line_points",
                     &[("pos", pos.clone())],
                 ),
-                (Some(_), Some(expected)) => {
-                    if (l.amount_cents.abs() - expected).abs() > 1 {
-                        push_code(
-                            &mut errs,
-                            "error.invoice.line_amount_mismatch",
-                            &[
-                                ("pos", pos.clone()),
-                                ("amount", l.amount_cents.to_string()),
-                                ("expected", expected.to_string()),
-                            ],
-                        );
-                    }
+                (Some(_), Some(expected)) if (l.amount_cents.abs() - expected).abs() > 1 => {
+                    push_code(
+                        &mut errs,
+                        "error.invoice.line_amount_mismatch",
+                        &[
+                            ("pos", pos.clone()),
+                            ("amount", l.amount_cents.to_string()),
+                            ("expected", expected.to_string()),
+                        ],
+                    );
                 }
                 _ => {}
             }

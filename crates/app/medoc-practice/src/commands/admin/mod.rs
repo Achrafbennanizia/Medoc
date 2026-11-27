@@ -1,12 +1,16 @@
 //! IPC commands — admin domain.
 
 pub mod access;
+#[cfg(feature = "cap-allowances")]
+pub mod allowances;
 pub mod app_kv;
 pub mod audit;
 pub mod audit_chain;
 pub mod auth;
 pub mod break_glass;
 pub mod db_setup;
+#[cfg(feature = "cap-guest-inbox")]
+pub mod guest;
 pub mod session_effects;
 pub mod sick_leave_certificate;
 pub mod staff;

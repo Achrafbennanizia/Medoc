@@ -88,6 +88,28 @@ fn in_matrix(action: &str) -> bool {
 ///    or by the role's default profile when it has no legacy name;
 /// 3. the role matrix from `config/rbac.yaml`.
 pub fn effective_allowed(action: &str, role: Role, overrides: &[PermissionOverride]) -> bool {
+    if guest_write_blocked(action, role) {
+        return false;
+    }
+    proposal_allowed(action, role, overrides)
+}
+
+/// In guest-inbox editions (Solo) the only reception login is the guest. It may read what its
+/// profile allows but never write: its changes become proposals the admin adds or dismisses
+/// (`staged_change`). Single chokepoint, so no command can be called around the inbox.
+#[cfg(feature = "cap-guest-inbox")]
+fn guest_write_blocked(action: &str, role: Role) -> bool {
+    role == Role::Reception && !access::is_read_only_action(action)
+}
+
+#[cfg(not(feature = "cap-guest-inbox"))]
+fn guest_write_blocked(_action: &str, _role: Role) -> bool {
+    false
+}
+
+/// What the person's profile grants, before the guest guard: for the guest, what it may
+/// propose. Everyone else: same as [`effective_allowed`].
+pub fn proposal_allowed(action: &str, role: Role, overrides: &[PermissionOverride]) -> bool {
     if let Some(o) = overrides.iter().find(|o| o.action == action) {
         match o.effect.as_str() {
             "ALLOW" => return true,
@@ -104,7 +126,7 @@ pub fn effective_allowed(action: &str, role: Role, overrides: &[PermissionOverri
             return rule
                 .legacy
                 .iter()
-                .any(|legacy| effective_allowed(legacy, role, overrides));
+                .any(|legacy| proposal_allowed(legacy, role, overrides));
         }
     }
     allowed(action, role)

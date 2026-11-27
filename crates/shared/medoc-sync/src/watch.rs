@@ -356,10 +356,12 @@ mod tests {
     use medoc_core::infrastructure::database::connection::{run_migrations, test_memory_pool};
 
     async fn enable_peer(pool: &SqlitePool) {
-        let mut cfg = SyncDeploymentConfig::default();
-        cfg.mode = DeploymentMode::ServerlessPeer;
-        cfg.role = DeviceRole::Replica;
-        cfg.device_label = "watch-test".into();
+        let cfg = SyncDeploymentConfig {
+            mode: DeploymentMode::ServerlessPeer,
+            role: DeviceRole::Replica,
+            device_label: "watch-test".into(),
+            ..SyncDeploymentConfig::default()
+        };
         repo::save_deployment(pool, &cfg).await.unwrap();
     }
 

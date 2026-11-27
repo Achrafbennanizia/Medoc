@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import { practiceSystem } from "@/systems/practice-host/adapters/practice-transport";
+import { invokeOrPropose } from "./guest.controller";
 import type { BalanceSheet, Payment, PaymentStatus } from "@/models/types";
 import { CreatePaymentSchema, UpdatePaymentSchema, parseOrThrow } from "@/lib/schemas";
 import type { ListParams, ListResponse } from "@/lib/list-params";
@@ -53,7 +54,7 @@ export async function getBalanceSheet(): Promise<BalanceSheet> {
 
 export async function createPayment(data: z.input<typeof CreatePaymentSchema>): Promise<Payment> {
     const safe = parseOrThrow(CreatePaymentSchema, data);
-    return practiceSystem.invoke<Payment>("create_payment", { data: safe });
+    return invokeOrPropose<Payment>("create_payment", { data: safe }, () => ({ ...safe, id: "" }) as unknown as Payment);
 }
 
 export async function updatePaymentStatus(id: string, status: PaymentStatus): Promise<Payment> {

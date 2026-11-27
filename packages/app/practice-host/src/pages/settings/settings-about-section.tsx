@@ -1,4 +1,4 @@
-import { useT, useTParams } from "@/lib/i18n";
+import { useLocale, useT, useTParams } from "@/lib/i18n";
 import { useEffect, useState } from "react";
 import {
     checkForUpdates,
@@ -9,8 +9,10 @@ import {
 import { Button } from "@/views/components/ui/button";
 import { useToastStore } from "@/views/components/ui/toast-store";
 import { errorMessage } from "@/lib/utils";
+import { UpdateRolloutPanel } from "@/views/components/update-rollout-panel";
 
 export function SettingsAboutSection() {
+    const locale = useLocale((s) => s.locale);
     const t = useT();
     const tp = useTParams();
     const toast = useToastStore((s) => s.add);
@@ -104,9 +106,10 @@ export function SettingsAboutSection() {
                     ) : null}
                 </div>
             </div>
-            {updateInfo?.update_available && updateInfo.release_notes ? (
+            <UpdateRolloutPanel updateAvailable={Boolean(updateInfo?.update_available)} />
+            {updateInfo?.update_available && (updateInfo.notes?.[locale] || updateInfo.release_notes) ? (
                 <p className="card-sub" style={{ margin: "0 0 12px", lineHeight: 1.55, whiteSpace: "pre-wrap" }}>
-                    {updateInfo.release_notes}
+                    {updateInfo.notes?.[locale] || updateInfo.release_notes}
                 </p>
             ) : null}
             <div className="settings-row" style={{ flexWrap: "wrap", gap: "var(--space-3)", alignItems: "flex-start" }}>

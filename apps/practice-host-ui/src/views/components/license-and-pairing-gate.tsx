@@ -95,7 +95,7 @@ export function LicenseAndPairingGate({ children }: { children: ReactNode }) {
         );
     }
 
-    if (decision === "needs-pairing") {
+    if (__CAP_NET__ && decision === "needs-pairing") {
         return (
             <PreShellScreen>
                 <PairingScanPage onPaired={() => void evaluate()} />

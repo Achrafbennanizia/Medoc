@@ -1,0 +1,10 @@
+[package]
+name = "medoc-support-open"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Vendor tool: create the support key pair and open sealed MeDoc support files (editions plan §11.2)."
+
+[dependencies]
+medoc-core = { path = "../../crates/shared/medoc-core" }
+rand = "0.8"

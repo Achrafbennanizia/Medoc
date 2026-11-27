@@ -153,6 +153,7 @@ pub async fn restore_backup(
 ) -> Result<RestoreBackupResult, AppError> {
     let session = rbac::require(&session_state, "ops.backup")?;
     let _op = backup::begin_operation()?;
+    #[cfg(feature = "cap-net")]
     if let Some(control) = app.try_state::<crate::commands::network::lan::LanServerControl>() {
         crate::commands::network::lan::stop_lan_listener(&control).await;
     }

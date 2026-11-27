@@ -1,87 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { useT, useTParams } from "@/lib/i18n";
 import { errorMessage, formatDateTime } from "@/lib/utils";
-import {
-    backupOverview,
-    createBackup,
-    deleteBackup,
-    pickBackupFolder,
-    resetBackups,
-    restoreBackup,
-    setBackupFolder,
-    setBackupSchedule,
-    type BackupInfo,
-    type BackupOverview,
-} from "@/systems/practice-host/controllers/ops.controller";
+import { backupOverview, createBackup, deleteBackup, pickBackupFolder, resetBackups, restoreBackup, setBackupFolder, setBackupSchedule, type BackupInfo, type BackupOverview } from "@/systems/practice-host/controllers/ops.controller";
 import { SettingsSwitch } from "@/views/components/settings-switch";
 import { Button } from "@/views/components/ui/button";
-import { ConfirmDialog, Dialog } from "@/views/components/ui/dialog";
-import { Textarea } from "@/views/components/ui/input";
+import { ConfirmDialog } from "@/views/components/ui/dialog";
 import { PageLoadError, TableSkeleton } from "@/views/components/ui/page-status";
 import { useToastStore } from "@/views/components/ui/toast-store";
-
-function formatBytes(n: number): string {
-    if (n < 1024) return `${n} B`;
-    if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
-    if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
-    return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`;
-}
-
-/** A dialog that asks for a reason; the reason goes into the audit log with the action. */
-function ReasonDialog({
-    open,
-    title,
-    message,
-    confirmLabel,
-    danger,
-    busy,
-    onClose,
-    onConfirm,
-}: {
-    open: boolean;
-    title: string;
-    message: string;
-    confirmLabel: string;
-    danger?: boolean;
-    busy: boolean;
-    onClose: () => void;
-    onConfirm: (reason: string) => void;
-}) {
-    const t = useT();
-    const [reason, setReason] = useState("");
-    useEffect(() => {
-        if (open) setReason("");
-    }, [open]);
-    const ok = reason.trim().length >= 3;
-    return (
-        <Dialog
-            open={open}
-            onClose={busy ? () => undefined : onClose}
-            title={title}
-            footer={
-                <>
-                    <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>
-                        {t("common.cancel")}
-                    </Button>
-                    <Button type="button" variant={danger ? "danger" : "primary"} onClick={() => onConfirm(reason.trim())} disabled={!ok || busy}>
-                        {confirmLabel}
-                    </Button>
-                </>
-            }
-        >
-            <p className="card-sub" style={{ marginTop: 0 }}>
-                {message}
-            </p>
-            <Textarea
-                label={t("settings.backups.reason_label")}
-                placeholder={t("settings.backups.reason_hint")}
-                rows={3}
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-            />
-        </Dialog>
-    );
-}
+import { ReasonDialog, formatBytes } from "./backup-reason-dialog";
 
 /**
  * Settings → Backups (practice administrator, `ops.backup`).

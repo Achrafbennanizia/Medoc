@@ -9,57 +9,13 @@ use medoc_sync::repo::{
     append_outbox, ensure_local_device, list_pending_outbox, mark_applied, save_deployment,
 };
 
-async fn deploy(
-    pool: &sqlx::SqlitePool,
-    cfg: &SyncDeploymentConfig,
-) -> Result<(), medoc_core::error::AppError> {
-    let mut cfg = cfg.clone();
-    if cfg.master_cert_sha256.is_empty() {
-        cfg.master_cert_sha256 = "ab".repeat(32);
-    }
-    save_deployment(pool, &cfg).await
-}
-
-async fn seed_peer_tls_pin(pool: &sqlx::SqlitePool, device_id: &str) {
-    sqlx::query(
-        "INSERT INTO sync_device (device_id, display_name, role, is_local, peer_cert_sha256)
-         VALUES (?1, ?1, 'REPLICA', 0, ?2)
-         ON CONFLICT(device_id) DO UPDATE SET peer_cert_sha256 = excluded.peer_cert_sha256",
-    )
-    .bind(device_id)
-    .bind("ab".repeat(32))
-    .execute(pool)
-    .await
-    .expect("peer pin");
-}
 use medoc_sync::schema::ensure_sync_tables;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-async fn fresh_pool() -> sqlx::SqlitePool {
-    let pool = test_memory_pool().await.expect("pool");
-    run_migrations(&pool).await.expect("migrate");
-    ensure_sync_tables(&pool).await.expect("sync schema");
-    pool
-}
-
-async fn save_replica(pool: &sqlx::SqlitePool, master_url: &str, token: &str, label: &str) {
-    deploy(
-        pool,
-        &SyncDeploymentConfig {
-            schema_version: 1,
-            mode: DeploymentMode::ServerlessPeer,
-            role: DeviceRole::Replica,
-            master_base_url: master_url.into(),
-            master_access_token: token.into(),
-            master_cert_sha256: "ab".repeat(32),
-            device_label: label.into(),
-            ..Default::default()
-        },
-    )
-    .await
-    .expect("deployment");
-}
+mod engine_http_support;
+#[allow(unused_imports)]
+pub use engine_http_support::*;
 
 #[tokio::test]
 async fn push_to_master_empty_outbox_skips_http() {
@@ -418,8 +374,13 @@ async fn push_to_master_http_error_surfaces_status() {
         .mount(&server)
         .await;
 
-    let err = SyncEngine::push_to_master(&pool).await.expect_err("503");
-    assert!(err.to_string().contains("503"));
+    // A server error defers the queue: nothing is marked delivered, the next run retries.
+    let result = SyncEngine::push_to_master(&pool).await.expect("deferred");
+    assert_eq!(result.accepted, 0);
+    assert_eq!(
+        list_pending_outbox(&pool, &device, 10).await.unwrap().len(),
+        1
+    );
 }
 
 #[tokio::test]
@@ -442,6 +403,14 @@ async fn run_replica_sync_push_and_pull_success() {
     .await
     .expect("deploy");
     let device = ensure_local_device(&pool, "replica-full").await.unwrap();
+    // The initial copy is done, so the replica pushes its own edits.
+    medoc_core::infrastructure::database::repos::admin::app_kv::set(
+        &pool,
+        "sync.replica.catchup.done.v1",
+        "1",
+    )
+    .await
+    .expect("catch-up done");
     append_outbox(
         &pool,
         &device,
@@ -1102,7 +1071,7 @@ async fn large_outbox_drains_in_pages() {
         .and(path("/api/v1/sync/push"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
             "accepted": 500,
-            "lastSeq": 1
+            "lastSeq": 10_000
         })))
         .mount(&server)
         .await;

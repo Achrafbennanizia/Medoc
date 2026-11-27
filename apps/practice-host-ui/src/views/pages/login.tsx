@@ -10,6 +10,8 @@ import { useDesktopChromeMode } from "../components/desktop-chrome";
 import { WindowDragStrip } from "@/views/components/window-drag-strip";
 import { applyAppearanceFromSettings, loadClientSettings } from "@/lib/client-settings";
 import { formatLockoutCountdown, rateLimitSeconds } from "./login-lockout";
+/** Sign-in name of the Solo guest (medoc-core `application::guest::GUEST_EMAIL`). */
+const GUEST_EMAIL = "guest@medoc.local";
 
 const LS_REMEMBER_EMAIL = "medoc-login-remember-email";
 const LS_REMEMBER_FLAG = "medoc-login-remember-me";
@@ -88,6 +90,8 @@ export function LoginPage() {
     const tp = useTParams();
     const [email, setEmail] = useState(readRememberedEmail);
     const [password, setPassword] = useState("");
+    /** Solo: the guest signs in with its password only (fixed sign-in name). */
+    const [guestMode, setGuestMode] = useState(false);
     const [error, setError] = useState("");
     const [lockoutUntil, setLockoutUntil] = useState<number | null>(null);
     /** Clock for the lockout countdown — sampled in effects, never during render. */
@@ -128,7 +132,7 @@ export function LoginPage() {
     }, [lockoutUntil, nowMs]);
 
     const deviceOpts = {
-        device_label: typeof window !== "undefined" ? `MeDoc · ${window.location.hostname || "app"}` : "MeDoc",
+        device_label: typeof window !== "undefined" ? `MeDoc Dentist · ${window.location.hostname || "app"}` : "MeDoc Dentist",
         user_agent: typeof navigator !== "undefined" ? navigator.userAgent : undefined,
     };
 
@@ -139,8 +143,8 @@ export function LoginPage() {
         setHelperMsg("");
         setLoading(true);
         try {
-            const session = await login(email, password, deviceOpts);
-            persistRememberMe(rememberMe, email);
+            const session = await login(guestMode ? GUEST_EMAIL : email, password, deviceOpts);
+            if (!guestMode) persistRememberMe(rememberMe, email);
             setLockoutUntil(null);
             navigate(await postLoginPath(session));
         } catch (err) {
@@ -213,7 +217,7 @@ export function LoginPage() {
                 <form className="login-form" onSubmit={handleSubmit}>
                     <div className="row" style={{ alignItems: "center", gap: "var(--space-3)", flexWrap: "wrap", marginBottom: "var(--space-2)" }}>
                         <h2 style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", margin: 0 }} tabIndex={-1}>
-                            {t("auth.login")}
+                            {guestMode ? t("login.guest_title") : t("auth.login")}
                         </h2>
                         {import.meta.env.DEV ? (
                             <span
@@ -225,8 +229,8 @@ export function LoginPage() {
                             </span>
                         ) : null}
                     </div>
-                    <p style={{ color: "var(--fg-3)", fontSize: 14, marginBottom: "var(--space-8)" }}>
-                        {t("login.role_hint")}
+                    <p style={{ color: "var(--fg-3)", fontSize: 14, marginBottom: "var(--login-section-gap)" }}>
+                        {guestMode ? t("login.guest_hint") : t("login.role_hint")}
                     </p>
                     {error && (
                         <div role="alert" style={{ background: "var(--red-soft)", color: "var(--red)", padding: "12px", borderRadius: 10, marginBottom: "var(--space-4)", fontSize: 13 }}>
@@ -238,8 +242,12 @@ export function LoginPage() {
                             ) : null}
                         </div>
                     )}
-                    <label htmlFor="email" className="form-label">{t("auth.email")}</label>
-                    <input id="email" className="input-edit" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t("login.email_placeholder")} required autoComplete="username" style={{ marginBottom: "var(--space-3)" }} />
+                    {guestMode ? null : (
+                        <>
+                            <label htmlFor="email" className="form-label">{t("auth.email")}</label>
+                            <input id="email" className="input-edit" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t("login.email_placeholder")} required autoComplete="username" style={{ marginBottom: "var(--space-3)" }} />
+                        </>
+                    )}
                     <div className="row" style={{ justifyContent: "space-between", marginBottom: "var(--space-2)" }}>
                         <label htmlFor="password" className="form-label form-label--mb-0">{t("auth.password")}</label>
                         <button
@@ -251,7 +259,7 @@ export function LoginPage() {
                             {t("login.password_forgot")}
                         </button>
                     </div>
-                    <div className="input login-password-input-row" style={{ marginBottom: "var(--space-2)" }}>
+                    <div className="input login-password-input-row" style={{ marginBottom: guestMode ? "var(--login-group-gap)" : "var(--space-2)" }}>
                         <input
                             id="password"
                             className="input-edit login-password-input-row__field"
@@ -289,13 +297,13 @@ export function LoginPage() {
                             {t("login.caps_warning")}
                         </p>
                     ) : null}
-                    <div className="row login-remember-row">
+                    {guestMode ? null : <div className="row login-remember-row">
                         <label className="login-remember-label">
                             <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
                             {t("login.remember_email")}
                         </label>
-                    </div>
-                    <div style={{ marginBottom: "var(--space-4)" }}>
+                    </div>}
+                    <div style={{ marginBottom: "var(--login-group-gap)" }}>
                         <div style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-3)", marginBottom: "var(--space-2)" }}>{t("login.language_label")}</div>
                         <LocaleSwitcher />
                     </div>
@@ -314,6 +322,19 @@ export function LoginPage() {
                         ) : null}
                         {t("auth.login")}
                     </button>
+                    {__CAP_GUEST_INBOX__ ? (
+                        <button
+                            type="button"
+                            className="login-guest-switch"
+                            onClick={() => {
+                                setGuestMode((g) => !g);
+                                setPassword("");
+                                setError("");
+                            }}
+                        >
+                            {guestMode ? t("login.as_admin") : t("login.as_guest")}
+                        </button>
+                    ) : null}
                     <p id="login-password-help" className="sr-only">
                         {t("login.cert_hint_sr")}
                     </p>
@@ -328,8 +349,8 @@ export function LoginPage() {
                     ) : null}
                 </form>
                 {import.meta.env.DEV && (
-                    <p style={{ textAlign: "center", color: "var(--fg-3)", fontSize: 12, marginTop: "var(--space-4)", maxWidth: 420, marginInlineStart: "auto", marginInlineEnd: "auto", lineHeight: 1.45 }}>
-                        <strong>{t("login.dev_badge")}:</strong> {t("login.dev_db_hint")}
+                    <p style={{ textAlign: "center", color: "var(--fg-3)", fontSize: 12, marginTop: "var(--login-section-gap)", paddingTop: "var(--space-3)", borderTop: "1px solid var(--line)", maxWidth: 380, marginInlineStart: "auto", marginInlineEnd: "auto", lineHeight: 1.45 }}>
+                        {t("login.dev_db_hint")}
                     </p>
                 )}
             </div>

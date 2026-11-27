@@ -170,7 +170,7 @@ pub async fn open_pool_with_migrations(app_dir: &std::path::Path) -> Result<Sqli
             }
             Err(err) if db_error_is_in_use(&err) => {
                 return Err(AppError::Conflict(
-                    "MeDoc is already running (database in use). Open the existing window instead of starting a second copy.".into(),
+                    "MeDoc Dentist is already running (database in use). Open the existing window instead of starting a second copy.".into(),
                 ));
             }
             Err(err) if file_is_not_a_database(&db_path) => {
@@ -248,7 +248,7 @@ pub async fn run_migrations(pool: &SqlitePool) -> Result<(), AppError> {
     migrations::run_english_schema_upgrade(pool).await?;
     // Existing installs keep quota triggers from the last launch. Drop them
     // before legacy/demo seed so INSERT OR IGNORE of existing staff cannot
-    // RAISE "Maximum N users allowed" when already at cap.
+    // RAISE "Maximum N accounts allowed" when already at cap.
     crate::mvp_security::drop_staff_quota_db_triggers(pool).await?;
     if migrations::schema_already_present(pool).await? {
         migrations::run_legacy_embedded_migrations(pool).await?;

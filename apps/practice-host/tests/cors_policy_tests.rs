@@ -1,10 +1,12 @@
 //! CORS allowlist + explicit 403 on disallowed `Origin`.
+// LAN / sync tests: only editions with other devices (cap-net).
+#![cfg(feature = "cap-net")]
 
 use std::sync::Arc;
 
 use axum::http::{header, StatusCode};
-use medoc_lib::infrastructure::company_host::db::init_company_db;
-use medoc_lib::infrastructure::company_host::http::build_company_router;
+use medoc_company::db::init_company_db;
+use medoc_company::http::build_company_router;
 use medoc_lib::infrastructure::cors_policy;
 use medoc_lib::infrastructure::database::connection;
 use medoc_lib::infrastructure::lan_server::discovery::LanBeaconPayload;

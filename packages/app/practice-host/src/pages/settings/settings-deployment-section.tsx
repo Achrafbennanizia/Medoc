@@ -27,8 +27,8 @@ import {
     setDeploymentModeCache,
 } from "@/systems/practice-host/adapters/practice-transport";
 import { isLanClientActive, saveLanClientConfig } from "@/systems/lan/lib/lan-client-config";
-import { SettingsPairingInbox } from "@/systems/practice-host/pages/settings/settings-pairing-inbox";
 import { SettingsReconcileButton } from "./settings-reconcile-button";
+import { SettingsMasterInboxes } from "./settings-sync-conflicts";
 import {
     SYSTEM_LEGACY_DEPLOYMENT_MODES_ENABLED,
     SYSTEM_MESH_SYNC_ENABLED,
@@ -671,11 +671,7 @@ export function SettingsDeploymentSection({
                 {isReplica && isPaired && canRepairAuditChain ? <SettingsReconcileButton onDone={reload} /> : null}
             </div>
 
-            {showPairingInbox && isMaster ? (
-                <div className="pairing-inbox-slot">
-                    <SettingsPairingInbox embedded />
-                </div>
-            ) : null}
+            <SettingsMasterInboxes conflicts={savedIsMaster && canRepairAuditChain} pairing={showPairingInbox && isMaster} />
         </>
     );
 

@@ -152,6 +152,10 @@ pub fn log_client_event(event: ClientLogEvent) -> Result<(), AppError> {
         .context
         .map(|c| clip(&c.to_string(), CLIENT_LOG_MAX_CHARS))
         .unwrap_or_default();
+    if matches!(event.level, ClientLogLevel::Error) && !code.is_empty() {
+        // Counted for error reports (allow-listed code + area only; editions plan §11.4).
+        crate::infrastructure::error_reports::record(&code, &route);
+    }
     match event.level {
         ClientLogLevel::Error => {
             tracing::error!(target: "medoc::client", event = "CLIENT_ERROR", code = %code, route = %route, error_ref = %error_ref, context = %context, "{message}")

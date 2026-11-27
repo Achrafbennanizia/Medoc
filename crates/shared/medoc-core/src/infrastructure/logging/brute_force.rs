@@ -200,6 +200,14 @@ fn instant_from_utc(dt: DateTime<Utc>) -> Instant {
     Instant::now() + Duration::from_millis(remaining_ms as u64)
 }
 
+fn utc_from_instant(i: Instant) -> DateTime<Utc> {
+    if i <= Instant::now() {
+        return Utc::now();
+    }
+    let secs = i.duration_since(Instant::now()).as_secs();
+    Utc::now() + chrono::Duration::seconds(secs as i64)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{BruteForceTracker, BruteKey, CheckResult};
@@ -222,12 +230,4 @@ mod tests {
             CheckResult::Locked { .. }
         ));
     }
-}
-
-fn utc_from_instant(i: Instant) -> DateTime<Utc> {
-    if i <= Instant::now() {
-        return Utc::now();
-    }
-    let secs = i.duration_since(Instant::now()).as_secs();
-    Utc::now() + chrono::Duration::seconds(secs as i64)
 }

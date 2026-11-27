@@ -251,7 +251,7 @@ pub fn ensure_sqlcipher_key(
             hint = "refusing to generate a new database key while the keychain is unreadable"
         );
         return Err(AppError::Internal(
-            "The system keychain is not available. Unlock it and start MeDoc again.".into(),
+            "The system keychain is not available. Unlock it and start MeDoc Dentist again.".into(),
         ));
     }
     let mut key = vec![0u8; 32];

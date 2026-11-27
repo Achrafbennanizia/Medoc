@@ -170,15 +170,28 @@ async fn pairing_revoke_returns_no_content() {
     assert_eq!(status, StatusCode::OK);
     let request_id = submitted["id"].as_str().unwrap();
 
-    lan.json(
-        "POST",
-        &format!("/api/v1/pairing/decide/{request_id}"),
-        Some(&serde_json::json!({ "accept": true })),
-        Some(&jwt),
-    )
-    .await;
+    let (decided, decide_body) = lan
+        .json(
+            "POST",
+            &format!("/api/v1/pairing/decide/{request_id}"),
+            Some(&serde_json::json!({ "accept": true })),
+            Some(&jwt),
+        )
+        .await;
+    assert_eq!(decided, StatusCode::OK, "decide: {decide_body}");
+    // Accepting only issues a PIN; the device is paired once it confirms it.
+    let pin = decide_body["confirmPin"].as_str().expect("confirm pin");
+    let (confirmed, confirm_body) = lan
+        .json(
+            "POST",
+            &format!("/api/v1/pairing/confirm/{request_id}"),
+            Some(&serde_json::json!({ "pin": pin })),
+            None,
+        )
+        .await;
+    assert_eq!(confirmed, StatusCode::OK, "confirm: {confirm_body}");
 
-    let (status, _) = lan
+    let (status, revoke_body) = lan
         .json(
             "POST",
             &format!("/api/v1/pairing/revoke/{device_id}"),
@@ -186,6 +199,6 @@ async fn pairing_revoke_returns_no_content() {
             Some(&jwt),
         )
         .await;
-    assert_eq!(status, StatusCode::NO_CONTENT);
+    assert_eq!(status, StatusCode::NO_CONTENT, "revoke: {revoke_body}");
     std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
 }

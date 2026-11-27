@@ -188,3 +188,36 @@
   white-space: nowrap;
   color: var(--fg-2);
 }
+
+/* Group (T5.6): doctors side by side; a name narrows the page to that doctor. */
+.statistics-doctors__table {
+  width: 100%;
+  margin-top: var(--space-2);
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.statistics-doctors__table th,
+.statistics-doctors__table td {
+  padding: 8px 10px;
+  text-align: end;
+  border-top: 1px solid var(--line);
+}
+.statistics-doctors__table thead th {
+  border-top: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-3);
+}
+.statistics-doctors__table th:first-child {
+  text-align: start;
+}
+.statistics-doctors__table tbody th .link {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+.statistics-hidden-note {
+  margin: 0;
+}

@@ -10,6 +10,7 @@ import { useT, useTParams } from "@/lib/i18n";
 import { SettingsSwitch } from "@/views/components/settings-switch";
 import { Select } from "@/views/components/ui/input";
 import { SettingsDeviceSessionsSection } from "./settings-device-sessions-section";
+import { SettingsGuestSection } from "./settings-guest-section";
 
 type SecurityPrefs = NonNullable<ClientSettingsV1["security"]>;
 
@@ -128,6 +129,7 @@ export function SettingsSecuritySection({
                 ) : null}
             </section>
 
+            {__CAP_GUEST_INBOX__ && canOpsSystem ? <SettingsGuestSection /> : null}
             <SettingsDeviceSessionsSection />
         </div>
     );

@@ -9,6 +9,7 @@ import { practiceTodayYmd } from "@/lib/practice-timezone";
 import { snapAppointmentDragPosition } from "@/lib/appointment-drag-snap";
 import { deriveDayClosedSpans, isAppointmentCalendarWorkingDay, APPOINTMENT_DEFAULT_DUR_MIN, APPOINTMENT_BLOCK_GAP_PX, assignAppointmentOverlapLanes, appointmentOverlapLaneInsets, timeToMinutes, type AppointmentDoctorTone, type AppointmentTimelineBounds } from "@/lib/appointment-calendar-ui";
 import type { Absence, Appointment } from "@/models/types";
+
 import { bindAppointmentDragBlock, paintAppointmentDragVisual } from "@/lib/appointment-drag-runtime";
 import { PX_PER_MIN, HOUR_PX, AppointmentDragState } from "./grid-layout";
 import { AppointmentApptBlockView } from "./appointment-block";
@@ -32,7 +33,13 @@ export function AppointmentTimeColumnBody({
     timelineBounds,
     practiceCfg,
     absences,
+    physicianId,
+    showNowPill = true,
 }: {
+    /** Group day view: the "now" label is drawn once, in the first doctor column. */
+    showNowPill?: boolean;
+    /** Group day view: this column holds one doctor's agenda (new bookings go to them). */
+    physicianId?: string;
     iso: string;
     appointments: Appointment[];
     patientNameById: Map<string, string>;
@@ -44,7 +51,7 @@ export function AppointmentTimeColumnBody({
     onBeginAppointmentDrag?: () => void;
     onOpenDrawer: (t: Appointment) => void;
     onContextMenu: (t: Appointment, e: ReactMouseEvent) => void;
-    onNewAt: (isoDay: string, startMin: number) => void;
+    onNewAt: (isoDay: string, startMin: number, physicianId?: string) => void;
     nowMin: () => number;
     singleDay: boolean;
     /** Week view: discard first click after drag-drop (see parent ref). */
@@ -126,20 +133,21 @@ export function AppointmentTimeColumnBody({
         const snap = snapAppointmentDragPosition({
             practiceCfg,
             absences,
-            physicianId: practiceCfg.defaultPhysicianId ?? "",
+            physicianId: physicianId ?? practiceCfg.defaultPhysicianId ?? "",
             isoDate: iso,
             rawStartMin: raw,
             durMin,
             timelineBounds,
         });
         if (!snap.dayAllowed || !snap.slotAllowed) return;
-        onNewAt(iso, snap.startMin);
+        onNewAt(iso, snap.startMin, physicianId);
     };
 
     return (
         <div
             className={`appointment-day-col ${isTodayCol ? "appointment-day-col--today" : ""} ${isInactiveDay ? "appointment-day-col--weekend" : ""}`}
             data-appointment-day-col={iso}
+            data-appointment-doctor-col={physicianId}
             data-single-day={singleDay ? "1" : undefined}
             style={{
                 minHeight: axisHeightPx,
@@ -178,7 +186,7 @@ export function AppointmentTimeColumnBody({
             {isTodayCol && nMin >= dayStartMin && nMin <= dayEndMin ? (
                 <div className="appointment-now-line" style={{ top: (nMin - dayStartMin) * pxPerMin }}>
                     <span className="appointment-now-dot" />
-                    {!singleDay ? null : (
+                    {!singleDay || !showNowPill ? null : (
                         <span className="appointment-now-pill">
                             {tp("appointment.calendar.now_pill", { time: minutesToTime(nMin) })}
                         </span>

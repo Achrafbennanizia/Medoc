@@ -40,6 +40,10 @@ pub const TABLES: &[(&str, SyncClass)] = &[
     ("license", SyncClass::DeviceLocal),
     ("audit_log", SyncClass::DeviceLocal),
     ("feedback", SyncClass::DeviceLocal),
+    // Guest proposals: Solo only, one device.
+    ("staged_change", SyncClass::DeviceLocal),
+    // Number blocks reserved for / held by the second admin hub (T4.3).
+    ("number_block", SyncClass::DeviceLocal),
     ("app_kv", SyncClass::Admin),
     ("service_item", SyncClass::Admin),
     ("treatment_catalog", SyncClass::Admin),
@@ -74,6 +78,9 @@ pub const TABLES: &[(&str, SyncClass)] = &[
     ("practice_ticket", SyncClass::Shared),
     ("in_app_notification", SyncClass::Shared),
     ("chart_validation", SyncClass::Shared),
+    // Group sharing rules (T5.1). Owner-only: merge refuses a row its owner did not write.
+    ("allowance_rule", SyncClass::Shared),
+    ("record_visibility", SyncClass::Shared),
     ("chart_next_appointment_hint", SyncClass::Shared),
     ("contract", SyncClass::Shared),
     ("purchase_order", SyncClass::Shared),
@@ -245,6 +252,15 @@ pub fn chart_validation_key(patient_id: &str, section_or_item: &str) -> String {
     format!("{patient_id}|{section_or_item}")
 }
 
+pub fn id_column(table: &str) -> &'static str {
+    match table {
+        "app_kv" => "key",
+        "chart_next_appointment_hint" => "patient_id",
+        "work_time_preference" => "staff_id",
+        _ => "id",
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::queue_of;
@@ -276,14 +292,5 @@ mod tests {
         let predicate = super::synced_app_kv_predicate("key");
         assert!(predicate.contains("key NOT LIKE 'sync.%'"));
         assert!(predicate.contains("key NOT LIKE 'theme.%'"));
-    }
-}
-
-pub fn id_column(table: &str) -> &'static str {
-    match table {
-        "app_kv" => "key",
-        "chart_next_appointment_hint" => "patient_id",
-        "work_time_preference" => "staff_id",
-        _ => "id",
     }
 }

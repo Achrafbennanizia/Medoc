@@ -15,6 +15,8 @@ type Props = {
     links: readonly AdministrationTocLink[];
     /** When true, links were already RBAC-filtered by {@link useAdministrationTocHub}. */
     rbacFiltered?: boolean;
+    /** Inside another page (Settings → Administration): no page header or page wrapper. */
+    embedded?: boolean;
 };
 
 function onLinkKeyDown(e: KeyboardEvent<HTMLAnchorElement>) {
@@ -25,7 +27,7 @@ function onLinkKeyDown(e: KeyboardEvent<HTMLAnchorElement>) {
 }
 
 /** Shared admin TOC: real table columns (header aligns with body), RBAC-filtered. */
-export function AdministrationTocPage({ title, subtitle, links, rbacFiltered = false }: Props) {
+export function AdministrationTocPage({ title, subtitle, links, rbacFiltered = false, embedded = false }: Props) {
     const t = useT();
     const tp = useTParams();
     const navigate = useNavigate();
@@ -40,11 +42,13 @@ export function AdministrationTocPage({ title, subtitle, links, rbacFiltered = f
     const useIcons = visible.some((l) => Boolean(l.iconKey));
 
     return (
-        <div className="administration-menu-page practice-workspace-page animate-fade-in--sticky-safe">
-            <AdministrationPageHeader
-                title={title}
-                subtitle={<span className="page-sub--administration-toc">{subtitle}</span>}
-            />
+        <div className={embedded ? "administration-menu-embedded" : "administration-menu-page practice-workspace-page animate-fade-in--sticky-safe"}>
+            {embedded ? null : (
+                <AdministrationPageHeader
+                    title={title}
+                    subtitle={<span className="page-sub--administration-toc">{subtitle}</span>}
+                />
+            )}
 
             <div className="card administration-toc-table-card">
                 <table

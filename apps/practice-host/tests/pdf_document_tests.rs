@@ -35,7 +35,12 @@ fn test_invoice_goz_has_required_fields() {
         recipient_address: vec!["Berlin".into()],
         practice_name: "Practice".into(),
         practice_address: vec!["Str. 1".into()],
-        lines: vec![sample_line("ServiceItem", 1000)],
+        // The factor column shows only when a line has a GOZ factor.
+        lines: vec![InvoiceLine {
+            goz_nr: Some("0010".into()),
+            factor: Some(2.3),
+            ..sample_line("ServiceItem", 1000)
+        }],
         note: None,
         clinician_name: Some("Dr. X".into()),
         clinician_zanr: Some("123456789".into()),
@@ -44,7 +49,8 @@ fn test_invoice_goz_has_required_fields() {
         payment_terms_text: Some("Payable within 14 days.".into()),
         vat_notice: Some("VAT-exempt".into()),
         logo: None,
-        locale: "en".into(),
+        // German needles below ("Faktor", "Rechnungsbetrag"): the GOZ invoice in German.
+        locale: "de".into(),
         rtl: false,
         ..Default::default()
     };

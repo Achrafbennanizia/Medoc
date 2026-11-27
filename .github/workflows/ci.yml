@@ -367,8 +367,8 @@ jobs:
         run: npm run test:playwright
 
   # One build per edition × flavor (docs/architecture/editions-plan.md §7). cargo check proves each
-  # feature set compiles and matches config/editions.yaml; the surface check is informational until
-  # phase P2 removes the network code from Solo.
+  # feature set compiles and matches config/editions.yaml; the surface check proves that code an
+  # edition does not have is not in its binary or bundle.
   editions:
     name: Edition ${{ matrix.edition }}${{ matrix.replica && ' (replica)' || '' }}
     runs-on: ubuntu-latest
@@ -416,8 +416,15 @@ jobs:
         run: npm run build -w medoc
 
       - name: edition surface check
-        continue-on-error: true
         run: bash scripts/check-edition-surface.sh ${{ matrix.edition }}
+
+      # Code that only exists in this edition (guest inbox in Solo) is only tested here.
+      - name: edition tests
+        run: |
+          cargo test -p medoc-practice --no-default-features --features "edition-${{ matrix.edition }}${{ matrix.replica && ',replica' || '' }}" --lib
+          if [ "${{ matrix.edition }}" = "solo" ]; then
+            cargo test -p medoc-core --features cap-guest-inbox --test guest_inbox_tests
+          fi
 
   ci-ok:
     name: CI gate

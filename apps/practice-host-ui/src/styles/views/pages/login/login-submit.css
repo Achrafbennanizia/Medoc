@@ -1,7 +1,24 @@
 /* From styles/features/auth-onboarding.css (cascade position kept by its import there). */
 @layer components {
   .login-kind::before { content: ''; position: absolute; inset: 0; background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.06) 1px, transparent 0); background-size: 22px 22px; opacity: 0.5; }
-  .login-form-wrap { display: grid; place-items: center; padding: 40px; }
+  /* Centered when it fits; scrolls from the top when the window is shorter than the form
+     (`safe` keeps the title reachable instead of cutting both ends). */
+  .login-form-wrap {
+    display: grid;
+    place-items: safe center;
+    padding: clamp(16px, 4vh, 40px) 40px;
+    min-height: 0;
+    overflow-y: auto;
+    /* Still scrolls on very short windows, without showing a scrollbar. */
+    scrollbar-width: none;
+  }
+  .login-form-wrap::-webkit-scrollbar { display: none; }
+  /* Gaps scale with the window height so the form fits without scrolling:
+     full size on tall windows, tighter on short ones. */
+  .login-form-wrap {
+    --login-group-gap: clamp(12px, 2.4vh, 24px);
+    --login-section-gap: clamp(16px, 3.6vh, 32px);
+  }
   .login-form { width: 100%; max-width: 380px; }
   .login-role-chip {
     display: flex;
@@ -41,6 +58,23 @@
   .login-submit:hover:not(:disabled) {
     background: color-mix(in oklab, var(--accent) 82%, var(--fg));
     transform: translateY(-1px);
+  }
+  /** Secondary full-width action under the primary button (Solo: guest / admin sign-in). */
+  .login-guest-switch {
+    width: 100%;
+    margin-top: var(--space-3);
+    padding: var(--space-3);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-ctl);
+    background: transparent;
+    color: var(--fg-2);
+    font-weight: 500;
+    font-size: 14px;
+    transition: background-color 140ms, border-color 140ms;
+  }
+  .login-guest-switch:hover {
+    background: var(--surface-1);
+    border-color: var(--fg-3);
   }
   .login-submit:disabled {
     opacity: 0.65;
@@ -84,8 +118,9 @@
   .login-password-caps .ui-icon {
     display: block;
   }
+  /* Vertical rhythm of the form: 12 px inside a group, 24 px between groups. */
   .login-remember-row {
-    margin-bottom: var(--space-4);
+    margin: var(--space-3) 0 var(--login-group-gap);
     color: var(--fg-3);
     font-size: 12.5px;
     flex-wrap: wrap;

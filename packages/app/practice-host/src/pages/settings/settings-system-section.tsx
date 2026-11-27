@@ -161,7 +161,7 @@ export function SettingsSystemSection({
         });
     };
     useEffect(() => {
-        if (!hideNetwork) return;
+        if (!__CAP_NET__ || !hideNetwork) return;
         void setNetworkHidden(true).catch(() => undefined);
     }, [hideNetwork]);
     // TODO(later): restore the PDF header designer — see docs/coordination/todos-deferred-ui-blinds.md
@@ -177,6 +177,21 @@ export function SettingsSystemSection({
             onPersistClient={onPersistClient}
         />
     );
+
+    // One-device editions have no practice network to set up (editions-plan.md §6.13).
+    if (!__CAP_NET__) {
+        return (
+            <>
+                {canOpsSystem && SYSTEM_COMPANY_PORTAL_ENABLED ? (
+                    <section className="settings-subcard settings-subcard--segment-safe settings-system-section">
+                        <SettingsCompanyPortalSection embedded />
+                    </section>
+                ) : null}
+                {headerDesigner}
+                {desktopSettings}
+            </>
+        );
+    }
 
     const hideToggle = (
         <div className="settings-row settings-row--wrap settings-row--network-hide">

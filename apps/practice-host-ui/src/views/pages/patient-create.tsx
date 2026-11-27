@@ -13,62 +13,8 @@ import { Dialog, ConfirmDialog } from "../components/ui/dialog";
 import { useToastStore } from "../components/ui/toast-store";
 import type { Sex } from "@/models/types";
 import { WorkspacePageHeader } from "../components/administration-page-header";
-
-type FormState = {
-    last_name: string;
-    first_name: string;
-    date_of_birth: string;
-    sex: Sex;
-    phone: string;
-    email: string;
-    address: string;
-    insuranceStatus: string;
-    health_insurance: string;
-    insurance_number: string;
-    chronic: string;
-    previousDiagnoses: string;
-    surgeries: string;
-    hospital: string;
-    mental: string;
-    medications: string;
-    dosing: string;
-    selfMedication: string;
-    missedDoses: string;
-    sideEffects: string;
-    allergiesMed: string;
-    allergiesFoods: string;
-    allergiesOther: string;
-    material: string;
-    vaccineReactions: string;
-};
-
-const initialForm: FormState = {
-    last_name: "",
-    first_name: "",
-    date_of_birth: "",
-    sex: "MALE",
-    phone: "",
-    email: "",
-    address: "",
-    insuranceStatus: "GKV",
-    health_insurance: "",
-    insurance_number: "",
-    chronic: "",
-    previousDiagnoses: "",
-    surgeries: "",
-    hospital: "",
-    mental: "",
-    medications: "",
-    dosing: "",
-    selfMedication: "",
-    missedDoses: "",
-    sideEffects: "",
-    allergiesMed: "",
-    allergiesFoods: "",
-    allergiesOther: "",
-    material: "",
-    vaccineReactions: "",
-};
+import { isProposal } from "@/systems/practice-host/controllers/guest.controller";
+import { initialForm, type FormState } from "./patient-create-form";
 
 type CreateStepKey = "master" | "anamnesis" | "save";
 
@@ -165,6 +111,12 @@ export function PatientCreatePage() {
                 email: form.email.trim() || undefined,
                 address: form.address.trim() || undefined,
             });
+            // Guest: the new patient waits in the admin's inbox.
+            if (isProposal(patient)) {
+                setDirty(false);
+                navigate("/patients");
+                return;
+            }
 
             if (canWriteMedical) {
                 const answers = {

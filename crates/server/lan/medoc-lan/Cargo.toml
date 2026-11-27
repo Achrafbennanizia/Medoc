@@ -9,7 +9,7 @@ publish = false
 path = "src/lib.rs"
 
 [dependencies]
-medoc-core = { path = "../../../shared/medoc-core" }
+medoc-core = { path = "../../../shared/medoc-core", features = ["http-host"] }
 medoc-sync = { path = "../../../shared/medoc-sync" }
 
 # HTTP / TLS stack
@@ -19,7 +19,7 @@ rustls = { version = "0.23.45", features = ["aws_lc_rs"] }
 rustls-pemfile = "2"
 rcgen = "0.13"
 tower = { version = "0.5", features = ["util"] }
-tower-http = { version = "0.6", features = ["cors", "limit", "timeout", "trace", "compression-gzip"] }
+tower-http = { version = "0.6", features = ["cors", "limit", "timeout", "trace", "compression-gzip", "decompression-gzip"] }
 sha2 = "0.10"
 
 # Async runtime

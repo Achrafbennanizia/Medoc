@@ -71,19 +71,19 @@ pub fn run(yaml_path: &Path, ts_out_dir: &Path, sql_out_path: &Path) {
     )
     .expect("write domain_enums_generated.rs");
 
-    fs::write(ts_out_dir.join("enums.generated.ts"), render_ts(&doc.enums))
-        .expect("write enums.generated.ts");
-    fs::write(
-        ts_out_dir.join("schemas.enums.generated.ts"),
-        render_zod(&doc.enums),
-    )
-    .expect("write schemas.enums.generated.ts");
+    crate::write_if_changed(
+        &ts_out_dir.join("enums.generated.ts"),
+        &render_ts(&doc.enums),
+    );
+    crate::write_if_changed(
+        &ts_out_dir.join("schemas.enums.generated.ts"),
+        &render_zod(&doc.enums),
+    );
 
     if let Some(parent) = sql_out_path.parent() {
         fs::create_dir_all(parent).expect("create sql fragments parent");
     }
-    fs::write(sql_out_path, render_sql_fragments(&doc.enums))
-        .expect("write enum_check_fragments.sql");
+    crate::write_if_changed(sql_out_path, &render_sql_fragments(&doc.enums));
 
     println!("cargo:rerun-if-changed={}", yaml_path.display());
 }

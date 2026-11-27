@@ -118,6 +118,12 @@ pub async fn login(
         );
         return Err(AppError::Unauthorized);
     }
+    // Solo: the admin can turn the guest account off.
+    #[cfg(feature = "cap-guest-inbox")]
+    if !medoc_core::application::guest::login_allowed(&pool, &session.user_id).await? {
+        log_security!(warn, event = "LOGIN_BLOCKED_GUEST_OFF", subject = %redact_login_identifier(&email));
+        return Err(AppError::validation_code("error.guest.disabled"));
+    }
     brute_force
         .0
         .record_success(Some(pool_ref), &brute_key)

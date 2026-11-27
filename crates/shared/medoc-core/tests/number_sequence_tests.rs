@@ -97,3 +97,72 @@ mod styled {
         assert_eq!(all.len(), 20);
     }
 }
+
+/// T4.4: a hub that takes over as primary has no counters. It continues after every number
+/// it has seen (documents and its own number blocks) and, in Group, refuses the first issue
+/// while numbers below that are unaccounted for, until an admin acknowledges.
+mod takeover {
+    use medoc_core::infrastructure::database::connection::{run_migrations, test_memory_pool};
+    use medoc_core::infrastructure::database::number_sequence::{
+        acknowledge_gap, allocate_styled, blocks, mark_takeover, open_gaps, NumberStyle,
+    };
+
+    async fn order(pool: &sqlx::SqlitePool, number: &str) {
+        sqlx::query(
+            "INSERT INTO purchase_order (id, order_number, supplier, item) VALUES (?1, ?1, 's', 'i')",
+        )
+        .bind(number)
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn continues_after_blocks_the_hub_held() {
+        let pool = test_memory_pool().await.expect("pool");
+        run_migrations(&pool).await.expect("migrate");
+        blocks::ensure_table(&pool).await.unwrap();
+        let block = blocks::NumberBlock {
+            prefix: "B".into(),
+            style: "monthly".into(),
+            day: "2026-11-02".into(),
+            first: 1,
+            last: 50,
+        };
+        blocks::keep(&pool, &block, "hub-b").await.unwrap();
+        order(&pool, "B-2026-11-0001").await;
+        let n = allocate_styled(&pool, "B", "2026-11-20", NumberStyle::Monthly).await.unwrap();
+        assert_eq!(n, "B-2026-11-0051");
+    }
+
+    #[tokio::test]
+    async fn a_gap_stops_the_first_issue_until_acknowledged() {
+        if !medoc_core::edition::CORE_CAPS.multi_admin {
+            return; // Group only
+        }
+        let pool = test_memory_pool().await.expect("pool");
+        run_migrations(&pool).await.expect("migrate");
+        order(&pool, "B-2026-10-0001").await;
+        order(&pool, "B-2026-10-0002").await;
+        order(&pool, "B-2026-10-0004").await;
+        // An ordinary first issue (legacy data, no takeover) is not checked.
+        assert_eq!(
+            allocate_styled(&pool, "B", "2026-10-20", NumberStyle::Monthly).await.unwrap(),
+            "B-2026-10-0005"
+        );
+        sqlx::query("DELETE FROM number_sequence").execute(&pool).await.unwrap();
+        mark_takeover(&pool).await.unwrap();
+        let err = allocate_styled(&pool, "B", "2026-10-20", NumberStyle::Monthly)
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("error.numbering.gap_found"), "{err}");
+        let open = open_gaps(&pool).await;
+        let (key, missing) = open.iter().next().expect("open gap");
+        assert_eq!(missing, "3");
+        assert!(acknowledge_gap(&pool, &key.clone()).await.unwrap());
+        assert!(open_gaps(&pool).await.is_empty());
+        let n = allocate_styled(&pool, "B", "2026-10-20", NumberStyle::Monthly).await.unwrap();
+        assert_eq!(n, "B-2026-10-0005");
+    }
+}

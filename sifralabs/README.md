@@ -15,7 +15,9 @@ npm run build    # type-check + build → dist/
 
 | What | Where |
 |---|---|
-| Pages | `index.html`, `products/`, `security/`, `company/`, `contact/`, `legal/notice/`, `legal/privacy/`, `404.html`. New page: add it to `pages` in `vite.config.ts` and to `public/sitemap.xml` |
+| Pages | One page per goal. `index.html` is about the company only (no product talk); `services/` what we build and the help with it; `products/` the MeDoc series, soft marketing; `news/` dated company, release and industry news; `security/`, `company/`, `contact/`, `legal/notice/`, `legal/privacy/`, `404.html`. Hard product marketing lives on the MeDoc Dentist site. New page: add it to `pages` in `vite.config.ts`, `PAGES` in `i18n/build.mjs` and `public/sitemap.xml` |
+| Translations | `i18n/{fr,ar,de}.json`, keyed by the English text. `npm run build` warns about any string without a translation |
+| Photos | `public/img/*.webp` (900 and 1600 px). Real photos under the Unsplash License: Cherrydeck (team-laptop), Compagnons (code-screens), BaljkanN4 (support), Vitaly Gariev (doctor-phone, team-office), Quang Tri NGUYEN (dental-scan), plus the earlier set. No AI-generated images |
 | Shared header, footer, contact block, core diagram | `partials/*.html`, pulled in with `<!-- @include name -->` |
 | Colours, type, layout | `src/site.css` (tokens at the top, dark mode redefines them) |
 | Logo, icons | `public/sifra-mark*.svg`, `public/favicon.svg`. PNGs (`favicon-32`, `apple-touch-icon`, `icon-512`, `og`) are rendered from `brand-src/*.html` with headless Chrome |
@@ -26,7 +28,7 @@ npm run build    # type-check + build → dist/
 | Command menu (⌘K / Ctrl+K or "/") | `partials/cmdk.html` (entries), `src/main.ts` (behaviour) |
 | Statistics on the home page | `index.html` "By the numbers"; every outside figure has a numbered source under it. Update the IBM figure each summer when the new report comes out |
 | Page prerendering | Speculation rules in `partials/head.html`; the CSP in `public/_headers` allows them with `'inline-speculation-rules'` |
-| Links to MeDoc | `https://achrafbennanizia.github.io/Medoc/` (its live address). Switch to `https://medoc.sifralabs.com/` once that domain is set up (see below) |
+| Links to MeDoc Dentist | `https://achrafbennanizia.github.io/Medoc/` (its live address). Switch to `https://medoc.sifralabs.com/` once that domain is set up (see below) |
 
 Art direction: blueprint grid and dot-matrix texture on a Swiss editorial layout (`src/site.css`, "Art direction"). Keep it to those two textures.
 
@@ -46,10 +48,11 @@ The site deploys as a Worker with static assets; `wrangler.jsonc` holds the conf
    (`.node-version` pins Node 22.)
 3. After the first deploy: **Settings → Domains & Routes → Add → Custom domain** → `sifralabs.com`, then `www.sifralabs.com`.
 
-## MeDoc at medoc.sifralabs.com
+## MeDoc Dentist at medoc.sifralabs.com (not set up yet)
 
-The site links to `https://medoc.sifralabs.com/`. The MeDoc site (`../website`) is on GitHub Pages; to move it there:
+`medoc.sifralabs.com` does not resolve yet, so every link points to `https://achrafbennanizia.github.io/Medoc/`. The MeDoc Dentist site (`../website`) is on GitHub Pages; to move it there:
 
 1. Cloudflare DNS → add `CNAME` `medoc` → `<your-github-user>.github.io`, **DNS only** (grey cloud).
 2. GitHub repo → **Settings → Pages → Custom domain** → `medoc.sifralabs.com` → Save, then tick **Enforce HTTPS** when offered.
 3. In `../website/vite.config.ts`, change `base` to `"/"` (the site no longer lives under `/Medoc/`), commit and push.
+4. Replace `https://achrafbennanizia.github.io/Medoc/` with `https://medoc.sifralabs.com/` in this site's pages and partials, and in `../website/index.html` (canonical, `og:url`, `og:image`, structured data).

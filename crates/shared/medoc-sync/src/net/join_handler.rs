@@ -222,7 +222,7 @@ async fn handle_cluster_connection_inner(
                     stream,
                     &mut transport,
                     "JOIN_FAILED",
-                    "Device signature missing or invalid. Update MeDoc on this device and try again.",
+                    "Device signature missing or invalid. Update MeDoc Dentist on this device and try again.",
                 )
                 .await;
             }
@@ -390,6 +390,7 @@ async fn session_fingerprint(
         .filter(|s| !s.is_empty()))
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn handle_join_request(
     stream: &mut TcpStream,
     transport: &mut NoiseTransport,
@@ -762,39 +763,6 @@ async fn load_join_lan_credentials(
     (token, master_pubkey, master_device_id, master_cert_sha256)
 }
 
-async fn handle_inbound_cluster_reset(
-    stream: &mut TcpStream,
-    transport: &mut NoiseTransport,
-    pool: &SqlitePool,
-    token_json: &str,
-    signature_b64: &str,
-) -> Result<(), AppError> {
-    if let Err(e) = queue_verified_remote_reset(pool, token_json, signature_b64).await {
-        tracing::warn!(
-            target: "medoc::cluster",
-            event = "CLUSTER_RESET_REJECTED_INBOUND",
-            error = %e
-        );
-        return send_error(
-            stream,
-            transport,
-            "RESET_REJECTED",
-            "Cluster reset rejected",
-        )
-        .await;
-    }
-    send_wire_message(
-        stream,
-        transport,
-        &WireMessage::Error {
-            code: "RESET_QUEUED".into(),
-            message: "Cluster reset queued".into(),
-        },
-    )
-    .await?;
-    tracing::warn!(
-        target: "medoc::cluster",
-        event = "CLUSTER_RESET_QUEUED_INBOUND",
-    );
-    Ok(())
-}
+mod reset;
+#[allow(unused_imports)]
+pub use reset::*;

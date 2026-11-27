@@ -8,6 +8,7 @@ import {
 import {
     DEFAULT_ALLOWED_ACTIONS,
     OPTIONAL_READ_ACTIONS,
+    PAIRING_ACTION_KEYS,
     pairingDecide,
     pairingListAll,
     pairingListPending,
@@ -23,14 +24,6 @@ import { ConfirmDialog } from "@/views/components/ui/dialog";
 import { errorMessage, formatDateTime, parseDbUtc } from "@/lib/utils";
 import { useToastStore } from "@/views/components/ui/toast-store";
 
-const PAIRING_ACTION_KEYS: Record<string, string> = {
-    "sync.push": "settings.pairing.action.sync_push",
-    "sync.pull": "settings.pairing.action.sync_pull",
-    "sync.status": "settings.pairing.action.sync_status",
-    "pairing.peers": "settings.pairing.action.pairing_peers",
-    "patient.read": "settings.pairing.action.patient_read",
-    "appointment.read": "settings.pairing.action.appointment_read",
-};
 
 const STATUS_LABEL_KEY: Record<PairingRequest["status"], string> = {
     PENDING: "settings.pairing.status_pending",

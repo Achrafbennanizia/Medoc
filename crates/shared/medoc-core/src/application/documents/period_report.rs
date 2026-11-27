@@ -92,6 +92,10 @@ pub struct PeriodReport {
     pub result_cents: i64,
     /// Days in the period that have cash entries but no closing.
     pub unclosed_days: Vec<String>,
+    /// Cabinet+: numbers reserved for the second hub that were never issued and can no longer
+    /// be (their day, month or year ended). Listed so no number goes missing silently.
+    #[serde(default)]
+    pub void_numbers: Vec<crate::infrastructure::database::number_sequence::blocks::VoidRange>,
 }
 
 fn parse(s: &str) -> Result<NaiveDate, AppError> {
@@ -242,7 +246,8 @@ pub async fn compute(
         });
     }
     // A deactivated contract costs nothing after its deactivation day (earlier of end date and deactivation).
-    let contracts: Vec<(String, String, f64, String, Option<String>, Option<String>)> = sqlx::query_as(
+    type ContractRow = (String, String, f64, String, Option<String>, Option<String>);
+    let contracts: Vec<ContractRow> = sqlx::query_as(
         "SELECT designation, partner, CAST(amount AS REAL), interval, period_from,
                 CASE
                     WHEN COALESCE(active, 1) = 0 AND deactivated_at IS NOT NULL
@@ -288,6 +293,13 @@ pub async fn compute(
     .bind(&to)
     .fetch_all(pool)
     .await?;
+    let void_numbers = crate::infrastructure::database::number_sequence::blocks::void_ranges_between(
+        pool,
+        &from,
+        &to,
+        chrono::Local::now().date_naive(),
+    )
+    .await?;
 
     Ok(PeriodReport {
         from,
@@ -313,6 +325,7 @@ pub async fn compute(
         expenses,
         result_cents: income - exp_total,
         unclosed_days,
+        void_numbers,
     })
 }
 
@@ -385,6 +398,17 @@ fn report_input(
                 .unclosed_days
                 .iter()
                 .map(|d| super::format_dmy(d))
+                .collect::<Vec<_>>()
+                .join(", "),
+        });
+    }
+    if !r.void_numbers.is_empty() {
+        summary.push(ReportPdfSummaryRow {
+            label: t("period.void_numbers"),
+            value: r
+                .void_numbers
+                .iter()
+                .map(|v| format!("{} – {} ({})", v.first, v.last, v.count))
                 .collect::<Vec<_>>()
                 .join(", "),
         });
@@ -642,81 +666,9 @@ pub async fn create(
     })
 }
 
-/// Reprint the numbered period report stored for a snapshot ("KOPIE").
-/// Looks up the issued document by snapshot id, then by `documentId` inside
-/// the snapshot payload (older rows).
-pub async fn reprint_snapshot(
-    pool: &SqlitePool,
-    session: &Session,
-    snapshot_id: &str,
-) -> Result<IssuedPdf, AppError> {
-    require_permission(session, "reports.read")?;
-    let id = snapshot_id.trim();
-    if id.is_empty() {
-        return Err(AppError::validation_code("error.period_report.no_pdf"));
-    }
-    let mut doc_id: Option<String> = sqlx::query_scalar(
-        "SELECT id FROM issued_document
-          WHERE source_table = 'balance_sheet_snapshot' AND source_id = ?1
-            AND kind = 'REPORT' AND status = 'ISSUED'
-          ORDER BY issued_at DESC LIMIT 1",
-    )
-    .bind(id)
-    .fetch_optional(pool)
-    .await?;
-    if doc_id.is_none() {
-        let payload: Option<String> =
-            sqlx::query_scalar("SELECT payload FROM balance_sheet_snapshot WHERE id = ?1")
-                .bind(id)
-                .fetch_optional(pool)
-                .await?;
-        if let Some(payload) = payload {
-            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&payload) {
-                doc_id = v
-                    .get("documentId")
-                    .or_else(|| v.get("document_id"))
-                    .and_then(|x| x.as_str())
-                    .map(str::to_string);
-            }
-        }
-    }
-    let doc_id = doc_id.ok_or_else(|| AppError::validation_code("error.period_report.no_pdf"))?;
-    let doc = repo::find_by_id(pool, &doc_id)
-        .await?
-        .ok_or_else(|| AppError::NotFound("Document".into()))?;
-    super::issue::reprint(pool, session, &doc).await
-}
-
-/// Corrected overview for the finance dashboard. The old query summed the
-/// *paid* part of open bookings as "outstanding" and ignored partial
-/// payments in income.
-pub async fn balance_overview(pool: &SqlitePool) -> Result<BalanceSheet, AppError> {
-    finance_schema::ensure(pool).await?;
-    let income: i64 =
-        sqlx::query_scalar("SELECT COALESCE(SUM(amount_cents),0) FROM payment_receipt")
-            .fetch_one(pool)
-            .await?;
-    let outstanding: f64 = sqlx::query_scalar(
-        "SELECT CAST(COALESCE(SUM(MAX(COALESCE(amount_expected,0) - COALESCE(amount,0), 0)), 0) AS REAL)
-           FROM payment WHERE UPPER(COALESCE(status,'')) IN ('OUTSTANDING','PARTIALLY_PAID')",
-    )
-    .fetch_one(pool)
-    .await?;
-    let cancelled: f64 = sqlx::query_scalar(
-        "SELECT CAST(COALESCE(SUM(amount), 0) AS REAL) FROM payment WHERE UPPER(COALESCE(status,'')) = 'CANCELLED'",
-    )
-    .fetch_one(pool)
-    .await?;
-    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM payment")
-        .fetch_one(pool)
-        .await?;
-    Ok(BalanceSheet {
-        income: income as f64 / 100.0,
-        outstanding: round_money_2(outstanding),
-        cancelled,
-        payment_count: count,
-    })
-}
+mod snapshots;
+#[allow(unused_imports)]
+pub use snapshots::*;
 
 #[cfg(test)]
 mod tests {
@@ -783,6 +735,7 @@ mod tests {
             }],
             result_cents: 13800,
             unclosed_days: Vec::new(),
+            void_numbers: Vec::new(),
         }
     }
 

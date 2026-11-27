@@ -7,7 +7,7 @@ type Props = {
 };
 
 /** Reusable Administration hub shell: model + controller hook → shared TOC view. */
-export function AdministrationHubPage({ hubId }: Props) {
+export function AdministrationHubPage({ hubId, embedded = false }: Props & { embedded?: boolean }) {
     const { title, subtitle, links } = useAdministrationTocHub(hubId);
-    return <AdministrationTocPage title={title} subtitle={subtitle} links={links} rbacFiltered />;
+    return <AdministrationTocPage title={title} subtitle={subtitle} links={links} rbacFiltered embedded={embedded} />;
 }

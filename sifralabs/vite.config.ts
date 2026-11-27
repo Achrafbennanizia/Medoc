@@ -2,11 +2,11 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { defineConfig, type Plugin } from "vite";
 // @ts-expect-error plain ESM helper without types
-import { LANGS, PAGES, decorate, includes, loadDict, localiseLinks, translate } from "./i18n/build.mjs";
+import { LANGS, PAGES, decorate, includes, loadDict, localiseLinks, localiseProductLinks, translate } from "./i18n/build.mjs";
 
 const root = import.meta.dirname;
 
-// One-line stubs for the translated pages (fr/, ar/, de/ are generated, not committed).
+// One-line stubs for the translated pages (fr/ and ar/ are generated, not committed).
 const stubs: Record<string, string> = {};
 for (const lang of (LANGS as string[]).filter((l) => l !== "en")) {
   for (const file of PAGES as string[]) {
@@ -20,9 +20,21 @@ for (const lang of (LANGS as string[]).filter((l) => l !== "en")) {
 // Every page, by URL. Add an English page here and to PAGES in i18n/build.mjs.
 const pages: Record<string, string> = {
   home: "index.html",
-  products: "products/index.html",
+  services: "services/index.html",
+  work: "work/index.html",
+  workMedoc: "work/medoc-dentist/index.html",
+  workMedocSite: "work/medoc-dentist-website/index.html",
+  workSifra: "work/sifralabs/index.html",
+  process: "process/index.html",
+  medoc: "medoc/index.html",
+  about: "about/index.html",
+  insights: "insights/index.html",
+  insightPaper: "insights/paper-patient-cards/index.html",
+  insightBill: "insights/bill-52-26/index.html",
+  insightOffline: "insights/offline-first/index.html",
+  news: "news/index.html",
   security: "security/index.html",
-  company: "company/index.html",
+  faq: "faq/index.html",
   contact: "contact/index.html",
   notice: "legal/notice/index.html",
   privacy: "legal/privacy/index.html",
@@ -53,6 +65,7 @@ function site(): Plugin {
           if (missing.size) console.warn(`[i18n] ${lang}/${file}: ${missing.size} untranslated`, [...missing].slice(0, 5));
           html = localiseLinks(html, lang);
         }
+        html = localiseProductLinks(html, lang);
         return (PAGES as string[]).includes(file) ? decorate(html, lang, file) : html.replaceAll("<!-- @langs -->", "");
       },
     },

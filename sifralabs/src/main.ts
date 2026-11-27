@@ -8,6 +8,7 @@ import "@fontsource/ibm-plex-sans-arabic/500.css";
 import "@fontsource/ibm-plex-sans-arabic/600.css";
 import "@fontsource/ibm-plex-mono/400.css";
 import "./site.css";
+import "./components.css";
 
 // Mark the nav link for the current section.
 const section = "/" + (location.pathname.split("/")[1] ?? "");
@@ -72,24 +73,19 @@ if (dialog) {
 // Form messages in the page's language (pages are generated per language from i18n/*.json).
 const UI = {
   en: {
-    sent: "Thank you. Your message is on its way to contact@sifralabs.com, and we reply within two working days.",
+    sent: "Thank you. Your message is on its way to contact@sifralabs.com, and we reply within 24 hours on working days.",
     fallback: "We couldn't send it from the website just now, so your e-mail app is opening with the message ready: press Send there. Nothing opened? Copy the e-mail and send it to contact@sifralabs.com.",
     sending: "Sending…", send: "Send message", copy: "Copy the e-mail", copied: "Copied", copyFailed: "Copy failed: write to contact@sifralabs.com",
   },
   fr: {
-    sent: "Merci. Votre message est en route vers contact@sifralabs.com, et nous répondons sous deux jours ouvrés.",
+    sent: "Merci. Votre message est en route vers contact@sifralabs.com, et nous répondons sous 24 heures, jours ouvrés.",
     fallback: "L'envoi depuis le site n'a pas abouti : votre messagerie s'ouvre avec le message prêt, cliquez sur Envoyer. Rien ne s'est ouvert ? Copiez l'e-mail et envoyez-le à contact@sifralabs.com.",
     sending: "Envoi…", send: "Envoyer le message", copy: "Copier l'e-mail", copied: "Copié", copyFailed: "Copie impossible : écrivez à contact@sifralabs.com",
   },
   ar: {
-    sent: "شكرًا. رسالتكم في طريقها إلى contact@sifralabs.com، وسنرد خلال يومَي عمل.",
+    sent: "شكرًا. رسالتكم في طريقها إلى contact@sifralabs.com، وسنرد خلال 24 ساعة في أيام العمل.",
     fallback: "تعذّر الإرسال من الموقع الآن، لذلك يُفتح تطبيق البريد لديكم والرسالة جاهزة: اضغطوا إرسال. لم يُفتح شيء؟ انسخوا الرسالة وأرسلوها إلى contact@sifralabs.com.",
     sending: "جارٍ الإرسال…", send: "إرسال الرسالة", copy: "نسخ الرسالة", copied: "تم النسخ", copyFailed: "تعذّر النسخ: راسلونا على contact@sifralabs.com",
-  },
-  de: {
-    sent: "Vielen Dank. Ihre Nachricht ist unterwegs an contact@sifralabs.com, wir antworten innerhalb von zwei Werktagen.",
-    fallback: "Das Senden über die Website hat gerade nicht geklappt, deshalb öffnet sich Ihr E-Mail-Programm mit der fertigen Nachricht: Klicken Sie dort auf Senden. Nichts geöffnet? Kopieren Sie die E-Mail und senden Sie sie an contact@sifralabs.com.",
-    sending: "Wird gesendet…", send: "Nachricht senden", copy: "E-Mail kopieren", copied: "Kopiert", copyFailed: "Kopieren fehlgeschlagen: Schreiben Sie an contact@sifralabs.com",
   },
 };
 const ui = UI[(document.documentElement.lang as keyof typeof UI) || "en"] ?? UI.en;
@@ -162,34 +158,4 @@ for (const form of document.querySelectorAll<HTMLFormElement>("form.mail-form"))
       copyBtn.textContent = ui.copyFailed;
     }
   });
-}
-
-/* ---------- country view: remembered in a cookie only when the visitor picks a country ---------- */
-const picker = document.querySelector(".ctry-picker");
-if (picker) {
-  const COOKIE = "sifra_country";
-  const panels = [...document.querySelectorAll<HTMLElement>(".ctry")];
-  const buttons = [...picker.querySelectorAll<HTMLButtonElement>("[data-pick]")];
-  const show = (c: string) => {
-    for (const p of panels) p.hidden = p.dataset.country !== c;
-    for (const b of buttons) b.setAttribute("aria-pressed", String(b.dataset.pick === c));
-  };
-  // A guess from the time zone, without asking for location; the cookie wins once the visitor chooses.
-  const guess = () => {
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone ?? "";
-    if (tz === "Africa/Casablanca" || tz === "Africa/El_Aaiun") return "MA";
-    if (tz === "Europe/Paris") return "FR";
-    if (/^Europe\/(Berlin|Vienna|Zurich)$/.test(tz)) return "DE";
-    if (tz.startsWith("Europe/")) return "EU";
-    return "MA";
-  };
-  const saved = /(?:^|; )sifra_country=(MA|FR|DE|EU)/.exec(document.cookie)?.[1];
-  show(saved ?? guess());
-  for (const b of buttons) {
-    b.addEventListener("click", () => {
-      const c = b.dataset.pick!;
-      show(c);
-      document.cookie = `${COOKIE}=${c}; Max-Age=31536000; Path=/; SameSite=Lax${location.protocol === "https:" ? "; Secure" : ""}`;
-    });
-  }
 }

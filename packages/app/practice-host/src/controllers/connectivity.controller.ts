@@ -70,7 +70,7 @@ export async function probeBackgroundServers(): Promise<boolean> {
         const master = snap.deployment.masterBaseUrl?.trim() ?? "";
         const replica =
             snap.deployment.mode === "serverless_peer" && snap.deployment.role === "REPLICA" && master.length > 0;
-        if (replica) {
+        if (__CAP_NET__ && replica) {
             return syncProbeMaster();
         }
     } catch {

@@ -1,6 +1,8 @@
 //! GitHub Releases update manifest.
 //!
-//! CI publishes `latest.json` on each tagged release. The app never embeds a
+//! CI publishes one signed manifest per edition × flavor on each tagged release,
+//! `latest-<edition>-<flavor>[-early].json` (T7.5, `medoc_core::infrastructure::update_manifest`).
+//! A build only reads its own file and refuses one the vendor did not sign. The app never embeds a
 //! GitHub token at compile time. Private repos need a practice-stored
 //! Contents:read PAT in app KV (`updates.github_token`). Public release
 //! assets need no token.
@@ -12,17 +14,12 @@
 use crate::error::AppError;
 use crate::infrastructure::database::repos::admin::app_kv as app_kv_repo;
 use medoc_core::infrastructure::update;
-use serde::Deserialize;
+use medoc_core::infrastructure::update_manifest::{self, Channel, MedocBlock};
 use sqlx::SqlitePool;
 
 pub const GITHUB_TOKEN_KV_KEY: &str = "updates.github_token";
-
-#[derive(Debug, Deserialize)]
-struct LatestJson {
-    version: String,
-    #[serde(default)]
-    notes: String,
-}
+/// `stable` (default) or `early`.
+pub const CHANNEL_KV_KEY: &str = "updates.channel.v1";
 
 #[derive(Debug)]
 pub struct GithubUpdateCheck {
@@ -30,6 +27,37 @@ pub struct GithubUpdateCheck {
     pub latest_version: String,
     pub update_available: bool,
     pub release_notes: String,
+    pub channel: Channel,
+    pub block: Option<MedocBlock>,
+}
+
+pub async fn channel(pool: &SqlitePool) -> Channel {
+    app_kv_repo::get(pool, CHANNEL_KV_KEY)
+        .await
+        .ok()
+        .flatten()
+        .map(|raw| Channel::parse(raw.trim()))
+        .unwrap_or(Channel::Stable)
+}
+
+/// This build's manifest file name.
+pub fn manifest_file(channel: Channel) -> String {
+    let info = crate::edition::info();
+    update_manifest::manifest_name(info.edition, info.flavor, channel)
+}
+
+/// Direct download URL of this build's manifest (the Tauri updater endpoint).
+pub fn manifest_url(repo: &str, channel: Channel) -> String {
+    format!(
+        "https://github.com/{repo}/releases/latest/download/{}",
+        manifest_file(channel)
+    )
+}
+
+/// Vendor signature, edition and flavor of a fetched manifest (`update_manifest::verify`).
+pub fn verify_manifest(raw: &serde_json::Value) -> Result<MedocBlock, AppError> {
+    let info = crate::edition::info();
+    update_manifest::verify(raw, info.edition, info.flavor)
 }
 
 enum FetchBody {
@@ -106,17 +134,18 @@ async fn fetch_bytes(
     Ok(FetchBody::Bytes(bytes.to_vec()))
 }
 
-fn parse_latest_json(bytes: &[u8]) -> Result<LatestJson, AppError> {
+fn parse_latest_json(bytes: &[u8]) -> Result<serde_json::Value, AppError> {
     serde_json::from_slice(bytes)
-        .map_err(|e| AppError::Internal(format!("Invalid latest.json: {e}")))
+        .map_err(|e| AppError::Internal(format!("Invalid update manifest: {e}")))
 }
 
 async fn fetch_latest_json(
     repo: &str,
     token: Option<&str>,
-) -> Result<Option<LatestJson>, AppError> {
+    file: &str,
+) -> Result<Option<serde_json::Value>, AppError> {
     let client = github_client(token)?;
-    let direct = format!("https://github.com/{repo}/releases/latest/download/latest.json");
+    let direct = format!("https://github.com/{repo}/releases/latest/download/{file}");
     match fetch_bytes(&direct, &client, true).await? {
         FetchBody::Bytes(bytes) => return parse_latest_json(&bytes).map(Some),
         FetchBody::Missing => {}
@@ -135,7 +164,7 @@ async fn fetch_latest_json(
     };
     let Some(asset) = assets
         .iter()
-        .find(|a| a.get("name").and_then(|n| n.as_str()) == Some("latest.json"))
+        .find(|a| a.get("name").and_then(|n| n.as_str()) == Some(file))
     else {
         return Ok(None);
     };
@@ -155,16 +184,26 @@ pub async fn check_github_updates(
         return Ok(None);
     };
     let token = resolve_github_token(pool).await;
-    let Some(manifest) = fetch_latest_json(repo, token.as_deref()).await? else {
+    let channel = channel(pool).await;
+    let Some(raw) = fetch_latest_json(repo, token.as_deref(), &manifest_file(channel)).await?
+    else {
         return Ok(None);
     };
     let current = update::current_version().to_string();
-    let update_available = update::version_newer(&manifest.version, &current);
+    let block = match verify_manifest(&raw) {
+        Ok(b) => b,
+        Err(e) => {
+            tracing::warn!(target: "medoc::system", event = "UPDATE_MANIFEST_REFUSED", reason = %e);
+            return Ok(None);
+        }
+    };
     Ok(Some(GithubUpdateCheck {
+        update_available: update_manifest::installable(&block, &current),
         current_version: current,
-        latest_version: manifest.version,
-        update_available,
-        release_notes: manifest.notes,
+        latest_version: block.version.clone(),
+        release_notes: block.notes_for("en"),
+        channel,
+        block: Some(block),
     }))
 }
 
@@ -184,9 +223,19 @@ mod tests {
     }
 
     #[test]
-    fn parse_latest_json_reads_version_and_notes() {
+    fn an_unsigned_manifest_is_refused() {
         let parsed = parse_latest_json(br#"{"version":"1.2.3","notes":"hello"}"#).unwrap();
-        assert_eq!(parsed.version, "1.2.3");
-        assert_eq!(parsed.notes, "hello");
+        assert_eq!(parsed["version"], "1.2.3");
+        assert!(verify_manifest(&parsed).is_err());
+    }
+
+    #[test]
+    fn the_manifest_names_this_edition_and_flavor() {
+        let info = crate::edition::info();
+        let url = manifest_url("acme/medoc", Channel::Early);
+        assert!(url.ends_with(&format!(
+            "latest-{}-{}-early.json",
+            info.edition, info.flavor
+        )));
     }
 }

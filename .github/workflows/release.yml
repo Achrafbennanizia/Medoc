@@ -20,26 +20,41 @@ permissions:
 
 env:
   MEDOC_VENDOR_PUBKEY: 79c1662a9e6877dd6b2156324ee33b969e1076393a91fbe9b2976596dca81b32
+  # Support bundles are sealed to this X25519 key (docs/operations/vendor-key-rotation.md). Repository
+  # variable; while it is unset, builds seal to the published dev key and say so in the build log.
+  MEDOC_VENDOR_SUPPORT_PUBKEY: ${{ vars.MEDOC_VENDOR_SUPPORT_PUBKEY }}
   STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
   MEDOC_UPDATER_GITHUB_REPO: ${{ github.repository }}
   # workflow_run's github.sha is the workflow file on default branch, not the green CI commit.
   MEDOC_CHECKOUT_REF: ${{ github.event.workflow_run.head_sha || github.sha }}
 
 jobs:
+  # One build per OS × edition × flavor (docs/architecture/editions-plan.md §11.6, T7.5). macOS builds
+  # also produce the signed updater package when TAURI_SIGNING_PRIVATE_KEY is set; Linux and Windows
+  # ship the plain binary (no updater bundle yet).
   build-app:
-    name: App (${{ matrix.os }})
+    name: App (${{ matrix.os }}, ${{ matrix.edition }})
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        edition: [solo, duo, duo.replica, group, group.replica]
         include:
           - os: ubuntu-latest
             tauri_args: --no-bundle
+            target: linux-x86_64
           - os: macos-latest
             tauri_args: --bundles app
+            target: darwin-aarch64
           - os: windows-latest
             tauri_args: --no-bundle
+            target: windows-x86_64
+    env:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      TAURI_UPDATER_PUBKEY: ${{ vars.TAURI_UPDATER_PUBKEY }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -63,59 +78,70 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: . -> target
+          key: ${{ matrix.edition }}
       - run: npm ci
       - name: Unwrap Windows workspace node_modules links
         if: runner.os == 'Windows'
         shell: pwsh
         run: ./scripts/ci-windows-unwrap-workspace-node-modules.ps1
-      - run: npm run build -w medoc
-      # Run from medoc-tauri-host (apps/practice-host), not -w medoc.
-      - name: Tauri app (no OS installer packages)
-        run: npm run tauri -w medoc-tauri-host -- build ${{ matrix.tauri_args }}
-      - name: Stage app payload (+ replica)
+      - name: Edition settings
         shell: bash
         run: |
           set -euo pipefail
+          ed="${{ matrix.edition }}"
+          base="${ed%%.*}"
+          flavor=main
+          features="edition-${base}"
+          if [[ "$ed" == *.replica ]]; then
+            flavor=replica
+            features="${features},replica"
+            echo "VITE_MEDOC_FLAVOR=replica" >> "$GITHUB_ENV"
+          fi
+          {
+            echo "MEDOC_EDITION=${base}"
+            echo "MEDOC_FLAVOR=${flavor}"
+            echo "MEDOC_FEATURES=${features}"
+          } >> "$GITHUB_ENV"
+      # Updater endpoint, pubkey and updater artifacts (active only when the signing key is set).
+      - run: node scripts/configure-tauri-updater.mjs
+      # The Tauri build runs `npm run build -w medoc` itself (beforeBuildCommand) with MEDOC_EDITION set.
+      - name: Tauri app (no OS installer packages)
+        shell: bash
+        run: npm run tauri -w medoc-tauri-host -- build ${{ matrix.tauri_args }} --features "$MEDOC_FEATURES" --config "tauri.${{ matrix.edition }}.conf.json" -- --no-default-features
+      - name: Stage app payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          name="MeDoc-${MEDOC_EDITION}-${MEDOC_FLAVOR}"
           mkdir -p dist-app
           macos_bundle="apps/practice-host/target/release/bundle/macos"
-          if [[ -d "$macos_bundle/MeDoc.app" ]]; then
-            cp -R "$macos_bundle/MeDoc.app" dist-app/
-            # Compiled replica app (same binary, field-deploy naming).
-            rm -rf dist-app/Medoc_replica.app
-            ditto dist-app/MeDoc.app dist-app/Medoc_replica.app
-            PLIST="dist-app/Medoc_replica.app/Contents/Info.plist"
-            for key in CFBundleName CFBundleDisplayName; do
-              /usr/libexec/PlistBuddy -c "Set :${key} Medoc_replica" "$PLIST" \
-                || /usr/libexec/PlistBuddy -c "Add :${key} string Medoc_replica" "$PLIST"
-            done
-            codesign --force --deep --sign - dist-app/Medoc_replica.app || true
-          elif [[ -d "$macos_bundle" ]]; then
-            cp -R "$macos_bundle"/. dist-app/
-          elif [[ -f apps/practice-host/target/release/medoc.exe ]]; then
-            cp apps/practice-host/target/release/medoc.exe dist-app/medoc.exe
-            cp dist-app/medoc.exe dist-app/medoc-replica.exe
-          elif [[ -f target/release/medoc.exe ]]; then
-            cp target/release/medoc.exe dist-app/medoc.exe
-            cp dist-app/medoc.exe dist-app/medoc-replica.exe
-          elif [[ -f apps/practice-host/target/release/medoc ]]; then
-            cp apps/practice-host/target/release/medoc dist-app/medoc
-            cp dist-app/medoc dist-app/medoc-replica
-            chmod +x dist-app/medoc dist-app/medoc-replica
-          elif [[ -f target/release/medoc ]]; then
-            cp target/release/medoc dist-app/medoc
-            cp dist-app/medoc dist-app/medoc-replica
-            chmod +x dist-app/medoc dist-app/medoc-replica
+          [[ -d "$macos_bundle" ]] || macos_bundle="target/release/bundle/macos"
+          if [[ -d "$macos_bundle" ]]; then
+            app="$(find "$macos_bundle" -maxdepth 1 -name '*.app' | head -1)"
+            ditto "$app" "dist-app/${name}.app"
+            tarball="$(find "$macos_bundle" -maxdepth 1 -name '*.app.tar.gz' | head -1 || true)"
+            if [[ -n "$tarball" && -f "${tarball}.sig" ]]; then
+              cp "$tarball" "dist-app/${name}-${{ matrix.target }}.app.tar.gz"
+              tag="${GITHUB_REF_NAME}"
+              node -e '
+                const [version, target, sigFile, url, out] = process.argv.slice(1);
+                const fs = require("fs");
+                const signature = fs.readFileSync(sigFile, "utf8").trim();
+                fs.writeFileSync(out, JSON.stringify({ version, platforms: { [target]: { signature, url } } }, null, 2));
+              ' "$(node -p 'require("./apps/practice-host/tauri.conf.json").version')" "${{ matrix.target }}" "${tarball}.sig" \
+                "https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}/${name}-${{ matrix.target }}.app.tar.gz" \
+                "dist-app/updater-${MEDOC_EDITION}-${MEDOC_FLAVOR}-${{ matrix.target }}.json"
+            fi
           else
-            echo "No MeDoc app binary found under target/release" >&2
-            find apps/practice-host/target/release -maxdepth 3 -type f 2>/dev/null | head -50 || true
-            find target/release -maxdepth 2 -type f 2>/dev/null | head -20 || true
-            exit 1
+            bin="apps/practice-host/target/release/medoc"
+            [[ -f "$bin" || -f "$bin.exe" ]] || bin="target/release/medoc"
+            if [[ -f "$bin.exe" ]]; then cp "$bin.exe" "dist-app/${name}.exe"; else cp "$bin" "dist-app/${name}"; chmod +x "dist-app/${name}"; fi
           fi
           ls -la dist-app
       - name: Upload app
         uses: actions/upload-artifact@v4
         with:
-          name: medoc-app-${{ matrix.os }}
+          name: medoc-app-${{ matrix.os }}-${{ matrix.edition }}
           path: dist-app/**
 
   build-ops-uis:
@@ -202,6 +228,38 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: release-artifacts
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      # One vendor-signed manifest per edition × flavor (T7.5). Without the signing key the release has
+      # no manifests, and installed apps simply find no update.
+      - name: Update manifests
+        env:
+          MEDOC_VENDOR_SIGNING_KEY: ${{ secrets.MEDOC_VENDOR_SIGNING_KEY }}
+          MEDOC_RELEASE_KIND: ${{ vars.MEDOC_RELEASE_KIND || 'feature' }}
+          MEDOC_RELEASE_CHANNEL: ${{ vars.MEDOC_RELEASE_CHANNEL || 'stable' }}
+          MEDOC_MIN_SUPPORTED: ${{ vars.MEDOC_MIN_SUPPORTED || '0.0.0' }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${MEDOC_VENDOR_SIGNING_KEY}" ]]; then
+            echo "::warning::MEDOC_VENDOR_SIGNING_KEY not set: no update manifests published"
+            exit 0
+          fi
+          suffix=""
+          [[ "${MEDOC_RELEASE_CHANNEL}" == "early" ]] && suffix="-early"
+          for pair in solo:main duo:main duo:replica group:main group:replica; do
+            ed="${pair%%:*}"; fl="${pair##*:}"
+            dir="$(mktemp -d)"
+            find release-artifacts -name "updater-${ed}-${fl}-*.json" -exec cp {} "$dir" \;
+            if ! ls "$dir"/*.json >/dev/null 2>&1; then
+              echo "::warning::no updater package for ${ed}/${fl}"
+              continue
+            fi
+            node scripts/merge-updater-latest.mjs "$dir" > "$dir/tauri-latest.json"
+            node scripts/make-update-manifest.mjs "$dir/tauri-latest.json" "$ed" "$fl" \
+              > "release-artifacts/latest-${ed}-${fl}${suffix}.json"
+          done
+          ls release-artifacts/*.json || true
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:

@@ -260,7 +260,12 @@ pub async fn import_owner_activation(
     let identity = DeviceIdentity::import_seed(device_seed)?;
 
     let cluster_id = cluster_id_from_bytes(&cluster_raw)?;
-    let budget = seat_budget_from_edition("BASIC");
+    // USB owner activation carries no licence edition: this build's edition decides the seats.
+    let budget = seat_budget_from_edition(
+        medoc_core::edition::edition_of(&medoc_core::edition::CORE_CAPS)
+            .map(|e| e.id)
+            .unwrap_or("BASIC"),
+    );
     let signing_key = master_keys::load_or_create()?;
 
     let license = License {

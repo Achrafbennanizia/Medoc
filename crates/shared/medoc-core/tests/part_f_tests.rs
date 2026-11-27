@@ -350,3 +350,56 @@ async fn raw_payment_no_updated(pool: &SqlitePool, id: &str, pid: &str, amount: 
     .await
     .unwrap();
 }
+
+/// T5.4 (Cabinet+): the finance list narrows to one doctor and leaves out doctors and single
+/// payments that are not shared with the viewer; the doctor columns come back on each row.
+#[tokio::test]
+async fn payment_list_filters_by_doctor_and_sharing() {
+    let pool = pool().await;
+    let pid = patient(&pool, "doctors").await;
+    for (id, doctor) in [("p-a", Some("dr-a")), ("p-b", Some("dr-b")), ("p-none", None), ("p-a2", Some("dr-a"))] {
+        raw_payment(&pool, id, &pid, 10.0, "PAID", "2026-11-20 10:00:00").await;
+        sqlx::query("UPDATE payment SET for_staff_id = ?1, collected_by = 'desk' WHERE id = ?2")
+            .bind(doctor)
+            .bind(id)
+            .execute(&pool)
+            .await
+            .unwrap();
+    }
+    let ids = |rows: Vec<medoc_core::domain::entities::Payment>| {
+        let mut v: Vec<String> = rows.into_iter().map(|p| p.id).collect();
+        v.sort();
+        v
+    };
+    let (only_a, total) = payment_repo::find_paginated(
+        &pool,
+        50,
+        0,
+        "ASC",
+        payment_repo::PaymentListFilter { doctor: Some("dr-a"), ..Default::default() },
+    )
+    .await
+    .unwrap();
+    assert_eq!(total, 2);
+    assert_eq!(only_a[0].collected_by.as_deref(), Some("desk"));
+    assert_eq!(ids(only_a), ["p-a", "p-a2"]);
+
+    let hidden_doctors = vec!["dr-b".to_string()];
+    let hidden_ids = vec!["p-a2".to_string()];
+    let (shared, total) = payment_repo::find_paginated(
+        &pool,
+        50,
+        0,
+        "ASC",
+        payment_repo::PaymentListFilter {
+            status: Some("PAID"),
+            hidden_doctors: &hidden_doctors,
+            hidden_ids: &hidden_ids,
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(total, 2, "count matches the rows");
+    assert_eq!(ids(shared), ["p-a", "p-none"], "payments without a doctor stay");
+}

@@ -1,735 +1,648 @@
 import type { LegalSet } from "./types";
 
+/** French version of the Moroccan-law set (ar.ts): loi 09-08 / CNDP, DOC, loi 31-08, loi 2-00. */
+
 const UPDATED = "2026-11-22";
 
 export const LEGAL_FR: LegalSet = {
-  jurisdictionLabel: "Rédigé selon le droit français",
-  reviewNote:
-    "Projet de texte : il doit être relu et validé par un avocat avant toute publication.",
+  jurisdictionLabel: "Droit marocain applicable",
+  reviewNote: "Ces textes sont des projets : un avocat qualifié en droit marocain doit les relire avant leur publication.",
   docs: {
-    /* ------------------------------------------------------------------ */
     "legal-notice": {
       title: "Mentions légales",
-      summary:
-        "Informations sur l’éditeur et l’hébergeur de ce site, publiées en application de l’article 6 III de la loi n° 2004-575 du 21 juin 2004 pour la confiance dans l’économie numérique (LCEN).",
+      summary: "Informations sur l’éditeur de ce site, son hébergeur et ses conditions d’utilisation.",
       updated: UPDATED,
       sections: [
         {
-          id: "editeur",
+          id: "publisher",
           title: "Éditeur du site",
           blocks: [
+            { kind: "p", text: "Ce site est édité et exploité par :" },
             {
               kind: "facts",
               rows: [
-                ["Raison sociale", "{company}"],
+                ["Dénomination", "{company}"],
                 ["Forme juridique", "{legalForm}"],
                 ["Capital social", "{capital}"],
                 ["Siège social", "{address}, {country}"],
-                ["Immatriculation", "{registry}, n° {registryNumber}"],
-                ["N° de TVA intracommunautaire", "{vatId}"],
+                ["Registre du commerce (RC)", "{registry}, n° {registryNumber}"],
+                ["Identifiant fiscal (IF)", "{taxId}"],
+                ["Identifiant commun de l’entreprise (ICE)", "{ice}"],
                 ["Courriel", "{email}"],
                 ["Téléphone", "{phone}"],
+                ["Représentant légal", "{director}"],
               ],
             },
           ],
         },
         {
-          id: "directeur-publication",
+          id: "publication-director",
           title: "Directeur de la publication",
           blocks: [
-            {
-              kind: "p",
-              text: "Le directeur de la publication est {director}, en sa qualité de représentant légal de {company}.",
-            },
+            { kind: "p", text: "Le directeur de la publication de ce site est {director}, en sa qualité de représentant légal de {company}." },
           ],
         },
         {
-          id: "hebergeur",
+          id: "host",
           title: "Hébergeur",
           blocks: [
-            {
-              kind: "p",
-              text: "Le site est hébergé par {hostingProvider}. Les coordonnées complètes de l’hébergeur (dénomination, adresse et moyen de contact) figurent ci-dessus.",
-            },
-            {
-              kind: "p",
-              text: "L’hébergement du site ne concerne que les pages publiques. Aucune donnée de santé n’est hébergée par l’éditeur ni par cet hébergeur.",
-            },
+            { kind: "p", text: "Ce site est hébergé par : {hostingProvider}." },
           ],
         },
         {
-          id: "offre-professionnels",
+          id: "professional-offer",
           title: "Offre réservée aux professionnels",
           blocks: [
             {
               kind: "p",
-              text: "Le logiciel MeDoc et les services décrits sur ce site sont proposés exclusivement à des professionnels, en particulier aux cabinets dentaires et aux chirurgiens-dentistes agissant dans le cadre de leur activité. Ils ne sont pas proposés aux consommateurs.",
+              text: "Ce site présente le logiciel MeDoc Dentist de gestion des cabinets dentaires. L’offre s’adresse exclusivement aux professionnels, c’est-à-dire aux cabinets et centres dentaires et aux praticiens autorisés à exercer. Elle ne concerne pas les consommateurs au sens de la loi n° 31-08 édictant des mesures de protection du consommateur.",
+            },
+            {
+              kind: "p",
+              text: "Les prix affichés sur ce site sont exprimés en dirhams marocains (MAD), hors taxe sur la valeur ajoutée. Les ventes sont soumises aux conditions générales de vente et de licence publiées sur ce site.",
             },
           ],
         },
         {
-          id: "propriete-intellectuelle",
+          id: "intellectual-property",
           title: "Propriété intellectuelle",
           blocks: [
             {
               kind: "p",
-              text: "Les textes, images, logos, captures d’écran, la marque MeDoc et la structure du site sont protégés par le Code de la propriété intellectuelle. Ils appartiennent à {company} ou sont utilisés avec l’autorisation de leurs titulaires.",
+              text: "Les textes, images, graphismes, logos, la conception du site et le logiciel MeDoc Dentist sont protégés par la loi n° 2-00 relative aux droits d’auteur et droits voisins. Ils sont la propriété de {company}, ou {company} est autorisée à les utiliser.",
             },
             {
               kind: "p",
-              text: "Toute reproduction, représentation ou adaptation, totale ou partielle, sans autorisation écrite préalable de {company} est interdite et peut constituer une contrefaçon au sens des articles L.335-2 et suivants du Code de la propriété intellectuelle.",
-            },
-          ],
-        },
-        {
-          id: "liens",
-          title: "Liens vers d’autres sites",
-          blocks: [
-            {
-              kind: "p",
-              text: "Le site peut contenir des liens vers des sites tiers, par exemple WhatsApp. {company} n’exerce aucun contrôle sur ces sites et n’est pas responsable de leur contenu ni de leurs pratiques en matière de données personnelles.",
-            },
-            {
-              kind: "p",
-              text: "La création d’un lien vers ce site est libre, à condition de ne pas porter atteinte à l’image de {company} et de ne pas présenter le site dans un cadre qui en masque l’origine.",
+              text: "Toute reproduction, republication, modification ou exploitation commerciale de tout ou partie du site sans l’autorisation écrite préalable de {company} est interdite, à l’exception de l’usage personnel ou de la courte citation avec mention de la source, dans les limites permises par la loi.",
             },
           ],
         },
         {
-          id: "donnees-personnelles",
-          title: "Données personnelles et cookies",
+          id: "links",
+          title: "Liens",
           blocks: [
             {
               kind: "p",
-              text: "Le site n’utilise aucun outil de mesure d’audience ni aucun traceur. Il ne dépose que des cookies nécessaires, et seulement lorsque vous choisissez une langue, un thème ou un pays. Le traitement des données personnelles est décrit dans la notice d’information et dans la politique de confidentialité.",
+              text: "Le site peut contenir des liens vers des sites ou services de tiers, dont un lien facultatif vers l’application WhatsApp. {company} n’exerce aucun contrôle sur le contenu de ces sites ni sur la manière dont ils traitent les données, et n’assume aucune responsabilité à leur égard.",
+            },
+            {
+              kind: "p",
+              text: "Il est permis de créer un lien vers la page d’accueil de ce site sans autorisation, à condition que ce lien ne laisse pas croire à un partenariat ou à une recommandation qui n’existe pas.",
             },
           ],
         },
         {
-          id: "contact",
-          title: "Contact",
+          id: "liability",
+          title: "Responsabilité de l’éditeur quant au contenu",
           blocks: [
             {
               kind: "p",
-              text: "Pour toute question sur le site, vous pouvez écrire à {email} ou appeler le {phone}.",
+              text: "{company} veille à ce que les informations publiées soient exactes et à jour. Il s’agit toutefois d’informations générales, qui ne constituent pas une offre contractuelle ferme. Les conditions contractuelles définitives sont fixées dans le devis ou dans le contrat signé.",
+            },
+          ],
+        },
+        {
+          id: "privacy",
+          title: "Protection des données personnelles",
+          blocks: [
+            {
+              kind: "p",
+              text: "Ce site n’utilise aucun outil de mesure d’audience ni de suivi. Il ne dépose que des cookies nécessaires, et seulement lorsque vous faites un choix : une langue, un thème, ou la fermeture de l’avis relatif aux cookies. La politique de confidentialité explique comment les données personnelles sont traitées conformément à la loi n° 09-08 relative à la protection des personnes physiques à l’égard du traitement des données à caractère personnel.",
+            },
+          ],
+        },
+        {
+          id: "law",
+          title: "Droit applicable",
+          blocks: [
+            {
+              kind: "p",
+              text: "Les présentes mentions et l’utilisation du site sont soumises au droit marocain. En cas de litige, le tribunal de commerce de {court} est compétent.",
             },
           ],
         },
       ],
     },
 
-    /* ------------------------------------------------------------------ */
     "privacy-notice": {
-      title: "Notice d’information sur les données personnelles",
-      summary:
-        "L’essentiel, en quelques lignes, sur ce que {company} fait de vos données lorsque vous consultez ce site, nous contactez ou utilisez MeDoc.",
+      title: "Avis de confidentialité",
+      summary: "Un résumé court et clair de ce que nous faisons de vos données lorsque vous consultez ce site, nous contactez ou utilisez le logiciel MeDoc Dentist.",
       updated: UPDATED,
       sections: [
         {
-          id: "qui",
-          title: "Qui est responsable",
+          id: "who",
+          title: "Qui sommes-nous",
           blocks: [
             {
               kind: "p",
-              text: "{company}, {address}, {country}, est responsable des données traitées par ce site et dans la relation commerciale. Contact données personnelles : {dpoContact}.",
+              text: "{company}, {address}, {country}, est responsable du traitement des données liées à ce site et à ses relations commerciales. Pour toute question sur vos données : {dpoContact}.",
             },
           ],
         },
         {
-          id: "site",
-          title: "Sur ce site",
+          id: "website",
+          title: "Le site : aucun cookie de suivi, aucun traçage",
           blocks: [
             {
               kind: "list",
               items: [
-                "Aucune mesure d’audience, aucun traceur : seulement des cookies nécessaires, déposés quand vous faites un choix.",
-                "Votre langue, votre thème (clair ou sombre) et votre pays sont gardés dans votre navigateur et ne nous sont pas transmis.",
-                "Les polices sont hébergées sur notre site : aucune requête vers un service tiers.",
-                "Notre hébergeur conserve brièvement des journaux techniques (adresse IP, heure, page demandée) pour la sécurité du site.",
+                "Aucun outil de statistiques ni de suivi : seulement des cookies nécessaires, déposés lorsque vous faites un choix.",
+                "Votre choix de langue et de thème (clair ou sombre) est conservé par votre seul navigateur et ne nous est pas transmis.",
+                "Les polices de caractères sont hébergées sur le serveur du site lui-même : votre navigateur ne contacte aucun service de polices externe.",
+                "L’hébergeur {hostingProvider} conserve pendant une courte durée des journaux techniques (adresse IP, heure, page demandée) à des fins de sécurité.",
               ],
             },
           ],
         },
         {
           id: "contact",
-          title: "Quand vous nous contactez",
+          title: "Demande de démonstration et prise de contact",
           blocks: [
             {
               kind: "p",
-              text: "Le formulaire de démonstration transmet ce que vous saisissez (nom, cabinet, ville, téléphone, e-mail, message) par une connexion chiffrée à notre serveur sifralabs.com, hébergé par Cloudflare, qui le transfère par e-mail à {email} ; notre messagerie est hébergée par Zoho. Le site n’en garde aucune copie. Si notre serveur est injoignable, votre messagerie s’ouvre à la place avec un message prérempli. Nous utilisons ce que vous nous écrivez pour vous répondre et, si vous devenez client, pour exécuter le contrat et tenir notre comptabilité.",
-            },
-            {
-              kind: "p",
-              text: "Si vous choisissez de nous écrire sur WhatsApp, la société Meta traite aussi ces échanges selon sa propre politique, éventuellement hors de l’Union européenne.",
+              text: "Le formulaire de demande de démonstration transmet ce que vous saisissez (nom, cabinet, ville, téléphone, adresse électronique, message) par une connexion chiffrée à notre serveur sifralabs.com, hébergé par Cloudflare, qui le transfère par courrier électronique à {email} ; notre messagerie est hébergée par Zoho. Le site n’en conserve aucune copie. Si notre serveur est injoignable, votre logiciel de messagerie s’ouvre à la place avec un message prérempli. Nous utilisons ce que vous nous envoyez pour vous répondre et préparer une offre. Le lien WhatsApp est facultatif : si vous l’utilisez, la politique de la société Meta s’applique et vos données peuvent être transférées hors du Maroc.",
             },
           ],
         },
         {
-          id: "medoc",
-          title: "Dans le logiciel MeDoc",
+          id: "software",
+          title: "Le logiciel MeDoc Dentist et les données des patients",
           blocks: [
             {
               kind: "p",
-              text: "Les données des patients restent chiffrées sur les ordinateurs du cabinet et ne circulent que sur son réseau local. Nous ne les hébergeons pas. Le cabinet en est responsable. Nous n’y avons accès que si le cabinet partage son écran pendant une assistance ou nous remet une sauvegarde, en qualité de sous-traitant tenu au secret.",
+              text: "Les données des patients sont conservées chiffrées sur les seuls ordinateurs du cabinet et, dans les éditions Cabinet et Cabinet+, synchronisées au sein de son réseau local. Nous n’hébergeons pas ces données et ne les transférons pas à l’étranger. Nous n’y avons accès que si le cabinet partage son écran pendant une session d’assistance ou nous remet une sauvegarde pour analyse ; nous agissons alors en qualité de sous-traitant, en vertu d’un contrat écrit. La vérification des mises à jour ne transmet que le numéro de version du logiciel.",
             },
           ],
         },
         {
-          id: "duree",
-          title: "Combien de temps",
+          id: "retention",
+          title: "Durée de conservation et partage",
           blocks: [
             {
-              kind: "list",
-              items: [
-                "Prospects : 3 ans après le dernier contact.",
-                "Clients : pendant le contrat, puis 10 ans pour les pièces comptables.",
-                "Journaux du site : quelques jours à quelques semaines, selon l’hébergeur.",
-              ],
+              kind: "p",
+              text: "Nous ne vendons ni ne louons vos données. Nous les conservons pendant la durée nécessaire à la finalité pour laquelle elles ont été collectées, et les documents comptables pendant dix ans, conformément à l’article 22 du Code de commerce.",
             },
           ],
         },
         {
-          id: "droits",
+          id: "rights",
           title: "Vos droits",
           blocks: [
             {
               kind: "p",
-              text: "Vous pouvez demander l’accès, la rectification, l’effacement, la limitation ou la portabilité de vos données, et vous opposer à leur traitement, en écrivant à {dpoContact}. Vous pouvez aussi saisir la CNIL (www.cnil.fr). Le détail figure dans notre politique de confidentialité.",
+              text: "Vous disposez d’un droit à l’information, d’un droit d’accès, d’un droit de rectification et d’un droit d’opposition, conformément aux articles 5, 7, 8 et 9 de la loi n° 09-08. Écrivez-nous à {dpoContact}. Vous pouvez également adresser une plainte à la Commission nationale de contrôle de la protection des données à caractère personnel (CNDP). Le détail figure dans la politique de confidentialité.",
             },
           ],
         },
       ],
     },
 
-    /* ------------------------------------------------------------------ */
     "privacy-policy": {
       title: "Politique de confidentialité",
-      summary:
-        "Information complète, au sens des articles 13 et 14 du RGPD, sur les traitements de données personnelles réalisés par {company} pour son site, sa relation commerciale et le logiciel MeDoc.",
+      summary: "Le texte complet sur la manière dont {company} traite les données personnelles des visiteurs du site, des prospects et des clients, et sur son rôle à l’égard du logiciel MeDoc Dentist, conformément à la loi n° 09-08.",
       updated: UPDATED,
       sections: [
         {
-          id: "responsable",
-          title: "1. Responsable du traitement et contact",
+          id: "controller",
+          title: "Responsable du traitement et contact",
           blocks: [
             {
               kind: "facts",
               rows: [
                 ["Responsable du traitement", "{company}, {legalForm}"],
                 ["Adresse", "{address}, {country}"],
-                ["Contact général", "{email}"],
-                ["Contact données personnelles / délégué", "{dpoContact}"],
+                ["Représentant légal", "{director}"],
+                ["Contact pour la protection des données", "{dpoContact}"],
+                ["Déclaration auprès de la CNDP", "« [Numéro du récépissé de déclaration auprès de la CNDP] », communiqué sur demande"],
               ],
             },
             {
               kind: "p",
-              text: "Cette politique est établie en application du règlement (UE) 2016/679 du 27 avril 2016 (RGPD) et à la loi n° 78-17 du 6 janvier 1978 relative à l’informatique, aux fichiers et aux libertés (loi Informatique et Libertés).",
+              text: "La présente politique applique la loi n° 09-08 relative à la protection des personnes physiques à l’égard du traitement des données à caractère personnel et ses textes d’application.",
             },
           ],
         },
         {
-          id: "site",
-          title: "2. Consultation du site",
+          id: "website",
+          title: "Consultation du site",
           blocks: [
             {
               kind: "p",
-              text: "Le site est statique. Il n’utilise aucun outil de mesure d’audience, de publicité ni aucun autre traceur. Il ne dépose que des cookies strictement nécessaires : aucun bandeau de consentement n’est donc requis, un simple avis vous en informe.",
-            },
-            {
-              kind: "p",
-              text: "Vos choix de langue, de thème (clair ou sombre) et de pays sont enregistrés dans des cookies propres au site, uniquement lorsque vous les faites. Ils ne nous sont pas transmis et ne sont partagés avec personne. Ils sont strictement nécessaires au service que vous demandez et relèvent de l’exemption prévue à l’article 82 de la loi Informatique et Libertés. Le pays est d’abord estimé à partir du fuseau horaire et de la langue de votre navigateur, sur votre appareil seulement ; cette estimation n’est pas enregistrée. Vous pouvez effacer ces cookies à tout moment depuis les réglages de votre navigateur.",
-            },
-            {
-              kind: "facts",
-              rows: [
-                ["medoc_lang", "Langue choisie. 12 mois."],
-                ["medoc_theme", "Thème clair ou sombre choisi. 12 mois."],
-                ["medoc_country", "Pays choisi (adapte les documents et les prix affichés). 12 mois."],
-                ["medoc_cookie_notice", "Retient que vous avez fermé l’avis sur les cookies. 12 mois."],
-              ],
-            },
-            {
-              kind: "p",
-              text: "Les polices de caractères sont servies depuis notre propre site : votre navigateur ne contacte aucun service tiers pour les charger.",
-            },
-            {
-              kind: "p",
-              text: "Notre hébergeur, {hostingProvider}, enregistre des journaux techniques à chaque requête : adresse IP, date et heure, page demandée et informations techniques du navigateur. Ces journaux servent à la sécurité et au bon fonctionnement du site. Base légale : notre intérêt légitime à protéger le site (art. 6.1 f RGPD). Ils sont conservés pour une courte durée, puis supprimés.",
-            },
-          ],
-        },
-        {
-          id: "contact-prospects",
-          title: "3. Demandes de démonstration et prospects",
-          blocks: [
-            {
-              kind: "p",
-              text: "Le formulaire de démonstration envoie vos saisies par une connexion chiffrée à notre serveur sifralabs.com (Cloudflare), qui les transfère par e-mail à {email} (messagerie hébergée par Zoho). Le serveur n’en garde aucune copie. S’il est injoignable, votre logiciel de messagerie s’ouvre à la place avec un message prérempli.",
-            },
-            {
-              kind: "p",
-              text: "Nous traitons les données contenues dans votre message (nom, cabinet, coordonnées, contenu de la demande) pour vous répondre et organiser une démonstration. Base légale : mesures précontractuelles prises à votre demande (art. 6.1 b RGPD) et notre intérêt légitime à développer notre activité auprès des professionnels (art. 6.1 f RGPD).",
-            },
-            {
-              kind: "p",
-              text: "Si vous nous contactez via WhatsApp, ce service est fourni par Meta, qui traite les échanges selon sa propre politique de confidentialité, avec un possible transfert hors de l’Union européenne. Ce canal est facultatif : vous pouvez toujours nous écrire par courriel ou par téléphone.",
-            },
-          ],
-        },
-        {
-          id: "clients",
-          title: "4. Clients",
-          blocks: [
-            {
-              kind: "p",
-              text: "Pour nos clients, nous traitons les données des interlocuteurs du cabinet (nom, fonction, coordonnées professionnelles), les données de commande, de facturation et de paiement, ainsi que l’historique des demandes d’assistance.",
+              text: "Le site est statique et ne comporte pas de comptes utilisateurs. Il n’utilise aucun outil de mesure d’audience, de publicité ou de suivi, et ne dépose que les cookies nécessaires décrits ci-dessous.",
             },
             {
               kind: "list",
               items: [
-                "Exécution du contrat (licence, installation, forfaits de service, assistance) : art. 6.1 b RGPD.",
-                "Obligations comptables et fiscales : art. 6.1 c RGPD.",
-                "Gestion de la relation client, prévention des impayés et défense de nos droits : intérêt légitime, art. 6.1 f RGPD.",
+                "Préférences d’affichage : la langue et le thème clair ou sombre sont enregistrés dans des cookies propres au site (medoc_lang et medoc_theme, pour 12 mois), uniquement lorsque vous les choisissez, et ne nous sont pas transmis. Le cookie medoc_cookie_notice retient que vous avez fermé l’avis relatif aux cookies. Vous pouvez supprimer ces cookies depuis les réglages de votre navigateur.",
+                "Polices de caractères : elles sont hébergées sur le serveur du site ; votre adresse IP n’est donc transmise à aucun fournisseur de polices externe.",
+                "Journaux du serveur : l’hébergeur {hostingProvider} enregistre l’adresse IP, l’heure de la requête et la page demandée, afin d’assurer la sécurité et le bon fonctionnement du site, sur le fondement de l’intérêt légitime (article 4 de la loi n° 09-08). Ces journaux sont conservés pendant une courte durée, qui n’excède pas ce qu’exige cette finalité.",
               ],
             },
           ],
         },
         {
-          id: "medoc",
-          title: "5. Le logiciel MeDoc",
+          id: "demo-whatsapp",
+          title: "Demande de démonstration et lien WhatsApp",
           blocks: [
             {
               kind: "p",
-              text: "MeDoc est installé sur les ordinateurs du cabinet. Le dossier patient, le schéma dentaire, l’agenda, les ordonnances, les certificats, les factures, la caisse et le temps de travail y sont enregistrés. Les données sont chiffrées (SQLCipher, AES-256) et synchronisées uniquement entre les appareils du cabinet, sur son réseau local.",
+              text: "Le formulaire de demande de démonstration transmet vos données par une connexion chiffrée à notre serveur sifralabs.com (Cloudflare), qui les transfère par courrier électronique à {email} (messagerie hébergée par Zoho). Le serveur n’en conserve aucune copie. S’il est injoignable, votre logiciel de messagerie s’ouvre à la place avec un message prérempli.",
             },
             {
               kind: "p",
-              text: "{company} n’héberge aucune donnée de santé. Aucune donnée patient n’est envoyée à nos serveurs. Nous ne réalisons donc pas d’activité d’hébergement de données de santé soumise à la certification HDS prévue à l’article L.1111-8 du Code de la santé publique.",
-            },
-            {
-              kind: "p",
-              text: "Le cabinet est responsable des traitements qu’il réalise avec MeDoc sur les données de ses patients. Il lui appartient notamment d’informer ses patients et de gérer leurs demandes d’exercice de droits.",
-            },
-            {
-              kind: "p",
-              text: "{company} ne voit des données patients que dans deux cas, à l’initiative du cabinet : lorsque le cabinet partage son écran pendant une session d’assistance, ou lorsqu’il nous remet une sauvegarde pour analyse. Nous agissons alors comme sous-traitant au sens de l’article 28 du RGPD, sur instruction du cabinet, dans le cadre d’un contrat de sous-traitance. Les sauvegardes remises sont supprimées dès la fin de l’analyse.",
-            },
-            {
-              kind: "p",
-              text: "Les personnes de {company} qui interviennent sont soumises à une obligation de confidentialité et au respect du secret médical prévu à l’article L.1110-4 du Code de la santé publique.",
-            },
-            {
-              kind: "p",
-              text: "La vérification des mises à jour contacte notre serveur. Elle transmet la version installée du logiciel et les informations techniques nécessaires à la connexion (dont l’adresse IP), jamais de donnée patient. Base légale : notre intérêt légitime et l’exécution du contrat (fourniture des correctifs).",
+              text: "Le lien WhatsApp est facultatif. Si vous l’utilisez, la société Meta traite vos données selon sa propre politique, ce qui peut entraîner un transfert de données hors du Maroc. Cela ne se produit que si vous choisissez d’utiliser ce lien.",
             },
           ],
         },
         {
-          id: "securite",
-          title: "6. Sécurité",
+          id: "prospects-customers",
+          title: "Prospects et clients : finalités et fondements juridiques",
           blocks: [
             {
               kind: "p",
-              text: "Conformément à l’article 32 du RGPD, nous mettons en œuvre des mesures techniques et organisationnelles adaptées au risque, notamment :",
+              text: "Nous traitons les données des personnes qui nous contactent ou qui représentent un cabinet client : nom, fonction, nom du cabinet, adresse électronique, téléphone, adresse, données de facturation (ICE, IF) et contenu des échanges.",
             },
             {
               kind: "list",
               items: [
-                "chiffrement de la base de données de MeDoc (SQLCipher, AES-256) ;",
-                "synchronisation limitée au réseau local du cabinet, sans serveur central de l’éditeur ;",
-                "accès de l’éditeur aux données patients uniquement à l’initiative du cabinet et pour la durée nécessaire ;",
-                "obligation de confidentialité de notre personnel et limitation des accès internes ;",
-                "mises à jour de sécurité du logiciel.",
+                "Répondre aux demandes et établir les offres : exécution de mesures précontractuelles prises à votre demande (article 4 de la loi n° 09-08).",
+                "Exécuter le contrat : livraison, installation, assistance, mises à jour et gestion du compte client (exécution du contrat).",
+                "Facturation et comptabilité : respect des obligations légales, notamment de l’article 145 du Code général des impôts et du Code de commerce (obligation légale).",
+                "Suivi de la relation commerciale, amélioration du service et défense de nos droits en cas de litige (intérêt légitime).",
+                "Envoi par courrier électronique d’informations commerciales sur nos produits à des personnes qui ne sont pas clientes : uniquement avec votre consentement, que vous pouvez retirer à tout moment.",
               ],
-            },
-            {
-              kind: "p",
-              text: "La sécurité du matériel, du réseau, des comptes utilisateurs et des sauvegardes du cabinet relève du cabinet.",
             },
           ],
         },
         {
-          id: "destinataires",
-          title: "7. Destinataires et sous-traitants",
+          id: "software",
+          title: "Le logiciel MeDoc Dentist : qui fait quoi",
           blocks: [
             {
               kind: "p",
-              text: "Vos données sont accessibles aux seules personnes de {company} qui en ont besoin. Elles peuvent être communiquées à nos sous-traitants techniques, dans la limite de leur mission :",
+              text: "MeDoc Dentist est un logiciel de gestion et de documentation installé sur les ordinateurs du cabinet. Les données des patients (dossier, schéma dentaire, rendez-vous, ordonnances, certificats, factures) sont conservées chiffrées (SQLCipher / AES-256) sur ces ordinateurs. Dans les éditions Cabinet et Cabinet+, elles ne sont synchronisées qu’entre les appareils du cabinet, au sein de son réseau local.",
             },
             {
               kind: "list",
               items: [
-                "{hostingProvider}, pour l’hébergement du site et du serveur de mises à jour ;",
-                "nos prestataires de messagerie, de comptabilité et notre expert-comptable ;",
-                "les autorités administratives ou judiciaires, lorsque la loi l’exige.",
-              ],
-            },
-            { kind: "p", text: "Nous ne vendons ni ne louons aucune donnée personnelle." },
-          ],
-        },
-        {
-          id: "transferts",
-          title: "8. Transferts hors de l’Union européenne",
-          blocks: [
-            {
-              kind: "p",
-              text: "Par défaut, nous ne transférons aucune donnée personnelle hors de l’Union européenne. Seul l’usage facultatif de WhatsApp, à votre initiative, peut entraîner un transfert par Meta. Si un transfert devenait nécessaire, il serait encadré par une décision d’adéquation ou par les clauses contractuelles types de la Commission européenne (art. 44 et suivants du RGPD).",
-            },
-          ],
-        },
-        {
-          id: "durees",
-          title: "9. Durées de conservation",
-          blocks: [
-            {
-              kind: "facts",
-              rows: [
-                ["Prospects", "3 ans à compter du dernier contact de votre part"],
-                ["Clients (données contractuelles)", "Durée du contrat, puis 5 ans (prescription, art. L.110-4 C. com.)"],
-                ["Pièces comptables et factures", "10 ans (art. L.123-22 C. com.)"],
-                ["Journaux techniques du site", "Courte durée fixée par l’hébergeur"],
-                ["Sauvegardes remises pour analyse", "Supprimées à la fin de l’analyse"],
+                "Le cabinet est responsable du traitement des données de ses patients. Il lui appartient d’accomplir auprès de la CNDP les formalités préalables relatives aux données de santé, conformément aux articles 12 et 21 de la loi n° 09-08.",
+                "{company} n’héberge pas les données des patients, ne les transfère pas à l’étranger et n’y accède pas lors de l’utilisation normale du logiciel.",
+                "Nous n’accédons aux données des patients que dans deux cas : lorsque le cabinet partage son écran pendant une session d’assistance, ou lorsqu’il nous remet une sauvegarde pour analyse. Dans ces deux cas, nous agissons en qualité de sous-traitant au sens de l’article 24 de la loi n° 09-08, sur instruction du cabinet et en vertu d’un contrat écrit.",
+                "Vérification des mises à jour : le logiciel contacte le serveur de mises à jour et ne transmet que le numéro de version, sans aucune donnée relative aux patients.",
               ],
             },
           ],
         },
         {
-          id: "droits",
-          title: "10. Vos droits",
+          id: "security",
+          title: "Sécurité des données et secret professionnel",
           blocks: [
             {
               kind: "p",
-              text: "Conformément aux articles 15 à 22 du RGPD, vous disposez des droits suivants :",
+              text: "Conformément à l’article 23 de la loi n° 09-08, nous prenons les mesures techniques et organisationnelles appropriées pour protéger les données contre la destruction, la perte ou l’accès non autorisé.",
             },
             {
               kind: "list",
               items: [
-                "droit d’accès (art. 15) et de rectification (art. 16) ;",
-                "droit à l’effacement (art. 17) et à la limitation du traitement (art. 18) ;",
-                "droit à la portabilité (art. 20) ;",
-                "droit d’opposition, notamment à la prospection (art. 21) ;",
-                "droit de définir des directives sur le sort de vos données après votre décès (art. 85 de la loi Informatique et Libertés).",
+                "Chiffrement de la base de données du logiciel sur les ordinateurs (SQLCipher / AES-256).",
+                "Synchronisation limitée au réseau local du cabinet (éditions Cabinet et Cabinet+).",
+                "Accès de l’équipe d’assistance limité au strict nécessaire, et suppression des sauvegardes remises pour analyse à la fin de la mission.",
+                "Engagement de confidentialité de notre personnel et respect du secret professionnel prévu à l’article 446 du Code pénal pour les données médicales.",
+              ],
+            },
+          ],
+        },
+        {
+          id: "recipients",
+          title: "Destinataires et sous-traitants",
+          blocks: [
+            {
+              kind: "p",
+              text: "Seul le personnel habilité de {company} a accès à vos données, dans la limite de ses fonctions. Nous faisons appel à des sous-traitants qui traitent les données pour notre compte et selon nos instructions, notamment :",
+            },
+            {
+              kind: "list",
+              items: [
+                "l’hébergeur du site : {hostingProvider} ;",
+                "notre fournisseur de messagerie électronique ;",
+                "le comptable ou l’expert-comptable, ainsi que les établissements bancaires pour le traitement des paiements.",
               ],
             },
             {
               kind: "p",
-              text: "Pour les exercer, écrivez à {dpoContact}. Nous répondons dans un délai d’un mois, prolongeable de deux mois si la demande est complexe (art. 12 RGPD). Nous pouvons demander un justificatif d’identité en cas de doute raisonnable.",
-            },
-            {
-              kind: "p",
-              text: "Les patients d’un cabinet qui utilise MeDoc doivent adresser leurs demandes à leur cabinet, responsable du traitement. Nous l’assistons si nécessaire.",
+              text: "Nous pouvons communiquer les données aux autorités administratives ou judiciaires lorsque la loi nous y oblige. Nous ne vendons ni ne louons les données.",
             },
           ],
         },
         {
-          id: "cnil",
-          title: "11. Réclamation auprès de la CNIL",
+          id: "transfers",
+          title: "Transferts à l’étranger",
           blocks: [
             {
               kind: "p",
-              text: "Si vous estimez que vos droits ne sont pas respectés, vous pouvez introduire une réclamation auprès de la Commission nationale de l’informatique et des libertés (CNIL), 3 place de Fontenoy, TSA 80715, 75334 Paris Cedex 07, www.cnil.fr.",
+              text: "En principe, nous ne transférons aucune donnée personnelle hors du Maroc. Si cela devenait nécessaire, le transfert ne serait effectué que dans le respect des articles 43 et 44 de la loi n° 09-08, c’est-à-dire vers un État assurant un niveau de protection suffisant, avec l’autorisation de la CNDP ou dans l’un des cas dérogatoires prévus par la loi. Nous mettrions à jour la présente politique au préalable.",
+            },
+            {
+              kind: "p",
+              text: "Fait exception votre utilisation facultative du lien WhatsApp, pour laquelle la société Meta est responsable de son propre traitement.",
             },
           ],
         },
         {
-          id: "decision-automatisee",
-          title: "12. Absence de décision automatisée",
+          id: "retention",
+          title: "Durées de conservation",
           blocks: [
             {
-              kind: "p",
-              text: "Nous ne prenons aucune décision fondée exclusivement sur un traitement automatisé, y compris le profilage, produisant des effets juridiques à votre égard (art. 22 RGPD).",
+              kind: "list",
+              items: [
+                "Journaux du serveur : courte durée, à des fins de sécurité.",
+                "Échanges avec les prospects qui n’ont pas contracté : trois ans au plus après le dernier contact.",
+                "Données des clients : pendant toute la durée de la relation contractuelle, puis pendant le délai de prescription applicable, à des fins de preuve.",
+                "Factures et documents comptables : dix ans, conformément à l’article 22 du Code de commerce.",
+                "Sauvegardes remises pour analyse : supprimées dès la fin de l’analyse.",
+              ],
             },
           ],
         },
         {
-          id: "modifications",
-          title: "13. Modifications",
+          id: "rights",
+          title: "Vos droits et leur exercice",
+          blocks: [
+            {
+              kind: "list",
+              items: [
+                "Droit à l’information (article 5) : connaître l’identité du responsable du traitement, les finalités du traitement, ses destinataires et vos droits. C’est l’objet de la présente politique.",
+                "Droit d’accès (article 7) : obtenir la confirmation que des données vous concernant sont traitées et en recevoir une copie.",
+                "Droit de rectification (article 8) : faire rectifier, compléter, mettre à jour ou effacer les données inexactes ou incomplètes.",
+                "Droit d’opposition (article 9) : vous opposer, pour des motifs légitimes, au traitement de vos données, et vous opposer, sans avoir à vous justifier, à leur utilisation à des fins de prospection commerciale.",
+              ],
+            },
+            {
+              kind: "p",
+              text: "Pour exercer vos droits, écrivez-nous à {dpoContact} ou par courrier à l’adresse {address}. Nous pouvons vous demander de justifier de votre identité en cas de doute raisonnable. Nous répondons dans les meilleurs délais et dans la limite des délais prévus par la loi.",
+            },
+            {
+              kind: "p",
+              text: "Si votre demande porte sur les données d’un patient enregistrées dans le logiciel MeDoc Dentist, le cabinet est responsable du traitement : adressez-vous directement à lui. Nous l’aiderons à répondre s’il le demande.",
+            },
+          ],
+        },
+        {
+          id: "complaint",
+          title: "Plainte auprès de la CNDP",
           blocks: [
             {
               kind: "p",
-              text: "Nous pouvons modifier cette politique, notamment en cas d’évolution du site, du logiciel ou de la réglementation. La date de mise à jour figure en tête du document. En cas de changement important, nos clients en sont informés par courriel.",
+              text: "Si vous estimez que vos droits n’ont pas été respectés, vous pouvez adresser une plainte à la Commission nationale de contrôle de la protection des données à caractère personnel (CNDP). Vous pouvez aussi nous contacter d’abord pour tenter de trouver une solution.",
+            },
+          ],
+        },
+        {
+          id: "changes",
+          title: "Modification de la présente politique",
+          blocks: [
+            {
+              kind: "p",
+              text: "Nous pouvons modifier cette politique pour suivre l’évolution du site, du logiciel ou de la loi. La date de la dernière révision figure en haut de la page. Nous informons nos clients à l’avance de toute modification substantielle.",
             },
           ],
         },
       ],
     },
 
-    /* ------------------------------------------------------------------ */
     terms: {
       title: "Conditions générales de vente et de licence",
-      summary:
-        "Conditions applicables à la licence du logiciel MeDoc et aux forfaits de service vendus par {company} aux professionnels de santé dentaire.",
+      summary: "Les conditions qui régissent la vente de la licence d’utilisation du logiciel MeDoc Dentist et des forfaits de service aux cabinets dentaires. Elles s’adressent exclusivement aux professionnels.",
       updated: UPDATED,
       sections: [
         {
-          id: "objet",
-          title: "1. Objet et champ d’application",
+          id: "purpose",
+          title: "Objet et champ d’application",
           blocks: [
             {
               kind: "p",
-              text: "Les présentes conditions générales (les « Conditions ») régissent la concession de licence du logiciel MeDoc, son installation et les forfaits de service fournis par {company} (l’« Éditeur ») à ses clients (le « Client »).",
+              text: "Les présentes conditions générales régissent la relation entre {company} (le « Fournisseur ») et tout cabinet, centre ou praticien de médecine dentaire qui acquiert une licence d’utilisation du logiciel MeDoc Dentist ou un forfait de service (le « Client »).",
             },
             {
               kind: "p",
-              text: "L’offre est réservée aux professionnels, en particulier aux cabinets dentaires et chirurgiens-dentistes agissant pour les besoins de leur activité. Elle n’est pas destinée aux consommateurs. Les dispositions du Code de la consommation ne s’appliquent donc pas.",
+              text: "Cette offre s’adresse exclusivement aux professionnels qui contractent pour les besoins de leur activité professionnelle. Les dispositions de la loi n° 31-08 édictant des mesures de protection du consommateur ne s’y appliquent pas, le Client n’étant pas un consommateur au sens de cette loi.",
             },
             {
               kind: "p",
-              text: "Les Conditions constituent le socle de la négociation commerciale au sens de l’article L.441-1 du Code de commerce. Elles prévalent sur les conditions d’achat du Client, sauf accord écrit contraire.",
+              text: "Les présentes conditions s’appliquent à toute commande et prévalent sur les conditions générales du Client, sauf accord écrit contraire des parties. En cas de contradiction, le devis signé prévaut, puis les présentes conditions.",
             },
           ],
         },
         {
-          id: "commande",
-          title: "2. Commande et formation du contrat",
+          id: "order",
+          title: "Commande et conclusion du contrat",
           blocks: [
             {
               kind: "p",
-              text: "Toute commande fait l’objet d’un devis ou bon de commande indiquant la formule choisie, le nombre de postes, le prix et le calendrier d’installation. Le contrat est formé à la signature du bon de commande par le Client et au paiement du premier acompte.",
+              text: "Le contrat est conclu par la signature du devis par le Client, ou par son acceptation écrite, et par le paiement du premier acompte. Il peut être conclu par voie électronique, conformément aux dispositions du Dahir formant Code des obligations et contrats (DOC) relatives aux contrats conclus sous forme électronique, telles qu’introduites par la loi n° 53-05 relative à l’échange électronique de données juridiques, ainsi qu’à la loi n° 43-20 relative aux services de confiance pour les transactions électroniques.",
             },
             {
               kind: "p",
-              text: "Le contrat se compose, par ordre de priorité décroissant : du bon de commande, des présentes Conditions, puis du contrat de sous-traitance des données lorsqu’il est conclu.",
+              text: "Le devis précise l’édition de la licence, le nombre de postes de travail, le forfait de service choisi, le montant et la date d’installation prévue. Le Fournisseur conserve un exemplaire du contrat et le met à la disposition du Client sur demande.",
             },
           ],
         },
         {
           id: "licence",
-          title: "3. Licence",
+          title: "Licence d’utilisation",
           blocks: [
             {
               kind: "p",
-              text: "L’Éditeur concède au Client une licence d’utilisation de MeDoc perpétuelle, non exclusive, non cessible et non transférable, pour un cabinet et pour le nombre de postes indiqué au bon de commande, en vue de l’usage professionnel interne du Client.",
-            },
-            {
-              kind: "p",
-              text: "Le Client s’interdit de reproduire le logiciel au-delà des besoins de son utilisation et de ses sauvegardes, de le modifier, de le décompiler hors des cas prévus à l’article L.122-6-1 du Code de la propriété intellectuelle, de le louer, de le sous-licencier ou de le mettre à disposition de tiers.",
+              text: "Après paiement intégral du prix, le Fournisseur concède au Client une licence perpétuelle, non exclusive et incessible d’utilisation du logiciel MeDoc Dentist pour un seul cabinet, dans la limite du nombre de postes de travail prévu au devis. Jusqu’au paiement intégral, une licence provisoire est concédée aux mêmes conditions.",
             },
             {
               kind: "facts",
               rows: [
-                ["Essentiel", "2 500 € HT — 3 mois de service inclus"],
-                ["Cabinet", "2 900 € HT — 6 mois de service inclus"],
-                ["Clinique", "3 500 € HT — 12 mois de service inclus"],
+                ["Essentiel", "24 900 MAD HT, 3 mois de service inclus"],
+                ["Cabinet", "29 900 MAD HT, 6 mois de service inclus"],
+                ["Cabinet+", "34 900 MAD HT, 12 mois de service inclus"],
               ],
             },
             {
               kind: "p",
-              text: "Sans forfait de service, la licence continue de fonctionner sans limite de durée. Les correctifs de sécurité restent fournis gratuitement pendant 12 mois à compter de l’achat.",
+              text: "Le Client s’interdit de copier le logiciel au-delà de ce qu’exigent son utilisation et ses copies de sauvegarde, de le modifier, de le décompiler ou d’en pratiquer l’ingénierie inverse, de le louer, de le prêter ou de le céder à des tiers, sauf dans les limites expressément permises par la loi. La licence reste valable sans forfait de service.",
             },
           ],
         },
         {
-          id: "installation",
-          title: "4. Livraison et installation",
+          id: "delivery",
+          title: "Livraison et installation",
           blocks: [
             {
               kind: "p",
-              text: "L’Éditeur installe MeDoc sur les ordinateurs du Client à la date convenue. L’installation est réputée réalisée lorsque le logiciel est opérationnel sur les postes prévus ; elle fait l’objet d’un procès-verbal ou d’un courriel de confirmation.",
+              text: "Le Fournisseur installe le logiciel sur les ordinateurs du cabinet à la date convenue, sur place ou à distance. La livraison est réputée effectuée lorsque le logiciel fonctionne sur les postes de travail convenus. Le Client formule ses réserves par écrit dans un délai de huit jours à compter de l’installation ; à défaut, la livraison est réputée acceptée.",
             },
             {
               kind: "p",
-              text: "Le Client met à disposition, à la date prévue, un matériel et un réseau local conformes aux prérequis communiqués par l’Éditeur. Un retard imputable au Client décale l’installation sans remettre en cause l’échéancier de paiement lié à la signature.",
+              text: "Le Client s’engage à fournir des ordinateurs et, le cas échéant, un réseau local conformes aux exigences techniques que le Fournisseur lui communique avant l’installation, et à permettre au Fournisseur d’y accéder à la date fixée.",
             },
           ],
         },
         {
-          id: "forfaits",
-          title: "5. Forfaits de service",
+          id: "service-plans",
+          title: "Forfaits de service : contenu, durée et résiliation",
           blocks: [
-            {
-              kind: "p",
-              text: "À l’issue de la période de service incluse dans la licence, le Client peut souscrire l’un des forfaits suivants. Les forfaits sont cumulatifs : chacun comprend le contenu du précédent.",
-            },
             {
               kind: "facts",
               rows: [
-                ["Sécurité — 10 € HT/mois", "Mises à jour de sécurité et réglementaires, accès au centre d’aide."],
-                ["Confort — 25 € HT/mois", "Sécurité + nouvelles fonctions, assistance par téléphone et WhatsApp aux heures ouvrables, contrôle mensuel des sauvegardes."],
-                ["Premium — 50 € HT/mois", "Confort + assistance prioritaire avec prise en charge sous 4 heures ouvrables, visite annuelle et formation."],
+                ["Sécurité", "110 MAD HT par mois : mises à jour de sécurité et mises à jour réglementaires, centre d’aide."],
+                ["Confort", "290 MAD HT par mois : le contenu de Sécurité, plus les mises à jour fonctionnelles, l’assistance par téléphone et WhatsApp aux heures ouvrables et le contrôle mensuel des sauvegardes."],
+                ["Premium", "540 MAD HT par mois : le contenu de Confort, plus une assistance prioritaire dans un délai de 4 heures, une visite et une formation annuelles, et l’aide à la préparation du dossier du cabinet auprès de la CNDP."],
               ],
             },
             {
               kind: "p",
-              text: "Les forfaits sont conclus pour une durée d’un mois, reconduite tacitement de mois en mois. Chaque partie peut les résilier par écrit (courriel compris) avec un préavis d’un mois : la résiliation prend effet à la fin du mois civil qui suit la réception de la demande. Tout mois commencé est dû.",
+              text: "Chaque licence comprend la période de service indiquée ci-dessus, à compter de la date d’installation. À son terme, le forfait choisi par le Client, s’il en a choisi un, prend effet. Le forfait est conclu pour une durée d’un mois, renouvelable par tacite reconduction de mois en mois.",
             },
             {
               kind: "p",
-              text: "Le Client peut changer de forfait à la hausse à tout moment, avec effet au mois suivant ; un changement à la baisse suit les mêmes règles de préavis qu’une résiliation.",
+              text: "Chaque partie peut résilier le forfait par notification écrite, y compris par courrier électronique, moyennant un préavis d’un mois. La résiliation prend effet le dernier jour du mois qui suit la date de réception de la notification par l’autre partie. Les sommes versées pour le mois en cours ne sont pas remboursées.",
+            },
+            {
+              kind: "p",
+              text: "Sans forfait de service, le logiciel continue de fonctionner. Le Client bénéficie gratuitement des correctifs de sécurité pendant 12 mois à compter de la date d’achat. Au-delà, les mises à jour et l’assistance ne sont fournies que dans le cadre d’un forfait en cours.",
             },
           ],
         },
         {
-          id: "prix",
-          title: "6. Prix et paiement",
+          id: "prices-payment",
+          title: "Prix et modalités de paiement",
           blocks: [
             {
               kind: "p",
-              text: "Les prix sont exprimés en euros hors taxes. La TVA au taux en vigueur s’y ajoute. Les frais de déplacement éventuels sont indiqués au bon de commande.",
+              text: "Les prix sont exprimés en dirhams marocains (MAD), hors taxes. La taxe sur la valeur ajoutée s’y ajoute au taux en vigueur, actuellement 20 % pour les logiciels. Les factures sont établies conformément à l’article 145 du Code général des impôts.",
             },
             {
               kind: "list",
               items: [
-                "40 % du prix de la licence à la signature du bon de commande ;",
-                "30 % à l’installation ;",
-                "30 % à 30 jours après l’installation.",
+                "Prix de la licence : 40 % à la signature, 30 % à l’installation et 30 % trente jours après l’installation.",
+                "Forfaits de service : facturés mensuellement et payables d’avance au début de chaque mois.",
               ],
             },
             {
               kind: "p",
-              text: "Les forfaits de service sont facturés mensuellement, à terme à échoir, et payables à réception de facture.",
-            },
-            {
-              kind: "p",
-              text: "Tout retard de paiement entraîne de plein droit, sans rappel, des pénalités de retard égales au taux d’intérêt appliqué par la Banque centrale européenne à son opération de refinancement la plus récente majoré de 10 points (art. L.441-10 C. com.), ainsi qu’une indemnité forfaitaire pour frais de recouvrement de 40 € (art. D.441-5 C. com.). Une indemnité complémentaire peut être demandée sur justificatif si les frais réels sont supérieurs. Aucun escompte n’est accordé pour paiement anticipé.",
-            },
-            {
-              kind: "p",
-              text: "Après mise en demeure restée sans effet pendant 15 jours, l’Éditeur peut suspendre les forfaits de service jusqu’au paiement complet. La licence elle-même n’est pas désactivée.",
+              text: "Tout retard de paiement entraîne de plein droit, sans mise en demeure, l’application des pénalités de retard prévues par le Code de commerce (loi n° 15-95), tel que modifié par la loi n° 69-21 relative aux délais de paiement. Après une mise en demeure restée sans effet pendant quinze jours, le Fournisseur peut suspendre les services liés au forfait jusqu’au paiement, sans que cela affecte le fonctionnement du logiciel.",
             },
           ],
         },
         {
-          id: "obligations-client",
-          title: "7. Obligations du Client",
+          id: "customer-duties",
+          title: "Obligations du Client",
           blocks: [
             {
               kind: "list",
               items: [
-                "Fournir et entretenir un matériel, un système d’exploitation et un réseau local conformes aux prérequis.",
-                "Réaliser et vérifier régulièrement ses sauvegardes et en conserver au moins une copie hors du cabinet. Le contrôle mensuel prévu au forfait Confort ne remplace pas cette obligation.",
-                "Créer des comptes utilisateurs individuels, protéger les mots de passe et retirer les accès des personnes qui quittent le cabinet.",
-                "Agir en tant que responsable du traitement des données de ses patients : information des patients, gestion de leurs droits, tenue du registre des traitements.",
-                "Installer les mises à jour de sécurité mises à sa disposition.",
+                "Fournir et entretenir des ordinateurs, des systèmes d’exploitation et, le cas échéant, un réseau, conformes aux exigences techniques.",
+                "Effectuer des sauvegardes régulières, en conserver une copie hors du cabinet et vérifier qu’elles peuvent être restaurées.",
+                "Gérer les comptes utilisateurs, les mots de passe et les droits d’accès, et en préserver la confidentialité.",
+                "Accomplir, en sa qualité de responsable du traitement, les formalités préalables auprès de la CNDP relatives aux données des patients, conformément aux articles 12 et 21 de la loi n° 09-08, et informer les patients de leurs droits.",
+                "Utiliser le logiciel conformément à sa destination et à la documentation remise.",
               ],
             },
           ],
         },
         {
-          id: "donnees",
-          title: "8. Données personnelles",
+          id: "personal-data",
+          title: "Données personnelles",
           blocks: [
             {
               kind: "p",
-              text: "Les données des patients sont stockées chiffrées sur les ordinateurs du Client et synchronisées uniquement sur son réseau local. L’Éditeur ne les héberge pas et n’exerce donc pas d’activité d’hébergement de données de santé au sens de l’article L.1111-8 du Code de la santé publique.",
+              text: "Le Client est responsable du traitement des données de ses patients. Ces données sont conservées chiffrées sur ses ordinateurs et ne sont pas hébergées par le Fournisseur. Le Fournisseur n’y accède qu’en cas de partage d’écran pendant une session d’assistance ou de remise d’une sauvegarde pour analyse. Il agit alors en qualité de sous-traitant au sens de l’article 24 de la loi n° 09-08, sur les seules instructions du Client.",
             },
             {
               kind: "p",
-              text: "Lorsque l’Éditeur accède à des données patients, à l’initiative du Client (partage d’écran pendant l’assistance, sauvegarde remise pour analyse), il agit en qualité de sous-traitant au sens de l’article 28 du RGPD. Un contrat de sous-traitance conforme à cet article est conclu sur simple demande du Client. Le personnel de l’Éditeur est tenu à la confidentialité et au respect du secret médical (art. L.1110-4 CSP).",
-            },
-            {
-              kind: "p",
-              text: "Les données des interlocuteurs du Client sont traitées par l’Éditeur conformément à sa politique de confidentialité.",
+              text: "Le Fournisseur fournit, sur demande, un contrat de sous-traitance écrit qui précise les mesures de sécurité et les obligations de confidentialité. Le personnel du Fournisseur est tenu au secret professionnel conformément à l’article 446 du Code pénal. La politique de confidentialité s’applique aux données que le Fournisseur traite pour son propre compte.",
             },
           ],
         },
         {
-          id: "garanties",
-          title: "9. Garanties",
+          id: "warranty",
+          title: "Garantie",
           blocks: [
             {
               kind: "p",
-              text: "L’Éditeur garantit que MeDoc est conforme, pour l’essentiel, à sa documentation pendant 12 mois à compter de l’installation. Pendant cette période, il corrige gratuitement les anomalies reproductibles qui lui sont signalées, ou propose une solution de contournement.",
+              text: "Le Fournisseur garantit que le logiciel fonctionne, pour l’essentiel, conformément à la documentation remise lors de la livraison. La garantie des vices cachés prévue par le Dahir formant Code des obligations et contrats (DOC) s’applique d’une manière adaptée à la nature du logiciel : le Client notifie le vice par écrit au Fournisseur dès sa découverte, avec une description qui permet de le reproduire ; le Fournisseur s’engage à le corriger ou à proposer une solution de remplacement dans un délai raisonnable ; à défaut, le Client peut demander la résolution du contrat ou une réduction du prix, conformément à la loi.",
             },
             {
               kind: "p",
-              text: "L’Éditeur garantit être titulaire des droits nécessaires à la concession de la licence. Il ne garantit pas que le logiciel fonctionnera sans aucune interruption ni erreur, ni qu’il répondra à des besoins particuliers non décrits dans la documentation.",
-            },
-            {
-              kind: "p",
-              text: "Ces garanties ne couvrent pas les dysfonctionnements causés par le matériel, le réseau, un autre logiciel, une modification non autorisée ou le non-respect des prérequis.",
+              text: "Le Fournisseur ne garantit pas que le logiciel est exempt de toute erreur ni qu’il fonctionnera sans interruption. La garantie ne couvre pas les défaillances causées par le matériel, le réseau, des logiciels tiers, une modification ou une utilisation non conforme à la documentation.",
             },
           ],
         },
         {
-          id: "dispositif-medical",
-          title: "10. MeDoc n’est pas un dispositif médical",
+          id: "liability",
+          title: "Responsabilité",
           blocks: [
             {
               kind: "p",
-              text: "MeDoc est un logiciel de gestion et de documentation destiné aux professionnels dentaires. Il n’a pas de finalité médicale au sens du règlement (UE) 2017/745 relatif aux dispositifs médicaux : il ne pose aucun diagnostic et ne propose aucun traitement.",
+              text: "Le Fournisseur n’est responsable que des dommages directs résultant d’un manquement à ses obligations. Il n’est pas responsable des dommages indirects, notamment la perte de bénéfices ou de clientèle, ni de la perte de données due à l’absence de sauvegardes, dont le Client a la charge.",
             },
             {
               kind: "p",
-              text: "Toute décision clinique, prescription ou acte de soin relève de la seule responsabilité du chirurgien-dentiste, qui vérifie le contenu des documents produits avant de les signer ou de les remettre.",
+              text: "La responsabilité globale du Fournisseur est plafonnée au total des sommes versées par le Client au Fournisseur au cours des douze mois qui précèdent le fait générateur du dommage. Cette limitation ne s’applique pas en cas de dol ou de faute lourde, conformément à l’article 232 du Dahir formant Code des obligations et contrats (DOC).",
             },
           ],
         },
         {
-          id: "responsabilite",
-          title: "11. Responsabilité",
+          id: "not-medical-device",
+          title: "MeDoc Dentist n’est pas un dispositif médical",
           blocks: [
             {
               kind: "p",
-              text: "L’Éditeur est tenu d’une obligation de moyens. Sa responsabilité ne peut être engagée que pour les dommages directs et prévisibles résultant d’un manquement prouvé à ses obligations (art. 1231-3 C. civ.).",
-            },
-            {
-              kind: "p",
-              text: "Sont exclus les dommages indirects, tels que la perte de chiffre d’affaires, de clientèle ou d’exploitation, ainsi que la perte de données lorsque le Client n’a pas respecté son obligation de sauvegarde.",
-            },
-            {
-              kind: "p",
-              text: "Toutes causes confondues, la responsabilité de l’Éditeur est plafonnée au montant des sommes effectivement versées par le Client au cours des 12 mois précédant le fait générateur. Ce plafond ne s’applique pas en cas de faute lourde ou dolosive, ni aux dommages corporels.",
-            },
-            {
-              kind: "p",
-              text: "Aucune partie n’est responsable d’un manquement dû à un cas de force majeure au sens de l’article 1218 du Code civil.",
+              text: "MeDoc Dentist est un logiciel de gestion et de documentation destiné aux professionnels de la médecine dentaire autorisés à exercer. Ce n’est pas un dispositif médical : il ne pose aucun diagnostic et ne propose aucun traitement. Les décisions cliniques, les prescriptions et le contenu des certificats relèvent de la seule responsabilité du médecin dentiste, qui vérifie chaque document avant de le signer ou de le remettre.",
             },
           ],
         },
         {
-          id: "propriete",
-          title: "12. Propriété intellectuelle et confidentialité",
+          id: "intellectual-property",
+          title: "Propriété intellectuelle",
           blocks: [
             {
               kind: "p",
-              text: "MeDoc, son code, sa documentation et la marque MeDoc restent la propriété exclusive de {company}. Le contrat ne transfère au Client aucun droit autre que la licence décrite à l’article 3. Les données saisies par le Client restent sa propriété ; il peut les exporter à tout moment.",
-            },
-            {
-              kind: "p",
-              text: "Chaque partie garde confidentielles les informations non publiques de l’autre dont elle a connaissance à l’occasion du contrat, pendant toute sa durée et 5 ans après sa fin. Les données patients restent confidentielles sans limite de durée.",
+              text: "Le logiciel, sa documentation et ses mises à jour restent la propriété de {company} et sont protégés par la loi n° 2-00 relative aux droits d’auteur et droits voisins. Le contrat ne transfère au Client aucun droit de propriété, mais seulement un droit d’utilisation selon les conditions de la licence. Les données que le Client saisit dans le logiciel restent sa propriété.",
             },
           ],
         },
         {
-          id: "duree-resiliation",
-          title: "13. Durée et résiliation",
+          id: "confidentiality",
+          title: "Confidentialité",
           blocks: [
             {
               kind: "p",
-              text: "La licence est concédée pour une durée illimitée. Les forfaits de service suivent la durée et les règles de résiliation de l’article 5.",
-            },
-            {
-              kind: "p",
-              text: "En cas de manquement grave d’une partie non réparé dans les 30 jours suivant une mise en demeure par lettre recommandée avec avis de réception, l’autre partie peut résilier le contrat de plein droit (art. 1224 et suivants C. civ.). La licence peut être résiliée pour violation de ses limites d’utilisation ou pour défaut de paiement du prix de la licence.",
-            },
-            {
-              kind: "p",
-              text: "À la fin d’un forfait, le Client conserve l’usage de la licence et de ses données. L’Éditeur supprime toute sauvegarde du Client encore en sa possession.",
+              text: "Chaque partie s’engage à garder confidentielles les informations non publiques dont elle a connaissance à l’occasion de l’exécution du contrat, et à ne les utiliser qu’à cette fin, pendant toute la durée du contrat et cinq ans après son terme. L’obligation de secret professionnel relative aux données des patients demeure sans limitation de durée.",
             },
           ],
         },
         {
-          id: "droit-applicable",
-          title: "14. Droit applicable et litiges",
+          id: "termination",
+          title: "Durée et résiliation",
           blocks: [
             {
               kind: "p",
-              text: "Le contrat est soumis au droit français. Les parties recherchent d’abord une solution amiable. À défaut d’accord dans un délai de 30 jours, tout litige relatif à la formation, l’exécution ou la fin du contrat relève de la compétence exclusive du tribunal de commerce de {court}, y compris en cas de pluralité de défendeurs ou d’appel en garantie.",
+              text: "La licence d’utilisation reste valable sans limitation de durée tant que le Client en respecte les conditions. En cas de manquement de l’une des parties à une obligation essentielle, l’autre partie peut résilier le contrat après une mise en demeure écrite restée sans effet pendant trente jours.",
+            },
+            {
+              kind: "p",
+              text: "Si la licence est résiliée pour défaut de paiement de son prix, le Client doit cesser d’utiliser le logiciel. Il peut, dans tous les cas, exporter ses données au préalable. La résiliation est sans effet sur les sommes dues et sur les clauses qui, par leur nature, restent en vigueur, notamment la confidentialité, la responsabilité et la propriété intellectuelle.",
             },
           ],
         },
         {
-          id: "divers",
-          title: "15. Dispositions diverses",
+          id: "law-court",
+          title: "Droit applicable, juridiction compétente et divisibilité des clauses",
           blocks: [
             {
               kind: "p",
-              text: "Si une clause des Conditions est déclarée nulle ou inapplicable, elle est réputée non écrite et les autres clauses restent en vigueur. Le fait pour une partie de ne pas se prévaloir d’un manquement ne vaut pas renonciation à s’en prévaloir ultérieurement.",
+              text: "Le présent contrat est soumis au droit marocain. Les parties s’efforcent de régler tout litige à l’amiable ; à défaut d’accord dans un délai de trente jours, le tribunal de commerce de {court} est compétent.",
             },
             {
               kind: "p",
-              text: "L’Éditeur peut faire évoluer les Conditions. La version applicable est celle en vigueur à la date de la commande ; pour les forfaits en cours, une nouvelle version s’applique au plus tôt un mois après sa notification au Client, qui peut résilier son forfait dans ce délai.",
+              text: "Si l’une des clauses des présentes conditions est déclarée nulle ou inapplicable, les autres clauses restent en vigueur, et la clause nulle est remplacée par une clause valable aussi proche que possible de l’intention des parties.",
             },
           ],
         },

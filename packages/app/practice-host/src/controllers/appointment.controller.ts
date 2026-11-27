@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import { practiceSystem } from "@/systems/practice-host/adapters/practice-transport";
+import { invokeOrPropose } from "./guest.controller";
 import type { Appointment } from "@/models/types";
 import {
     CreateAppointmentSchema,
@@ -27,7 +28,7 @@ export async function listAppointmentsInRange(fromDate: string, toDate: string):
 export async function moveAppointments(
     changes: { id: string; date: string; time: string }[],
 ): Promise<Appointment[]> {
-    const rows = await practiceSystem.invoke<Appointment[]>("move_appointments", { changes });
+    const rows = await invokeOrPropose<Appointment[]>("move_appointments", { changes }, () => []);
     notifyAppointmentsChanged();
     return rows;
 }
@@ -58,7 +59,7 @@ export async function createAppointment(
         ...data,
         status: data.status ?? defaultCreateAppointmentStatus(loadClientSettings()),
     });
-    const row = await practiceSystem.invoke<Appointment>("create_appointment", { data: safe });
+    const row = await invokeOrPropose<Appointment>("create_appointment", { data: safe }, () => ({ ...safe, id: "" }) as unknown as Appointment);
     notifyAppointmentsChanged();
     return row;
 }
@@ -68,7 +69,7 @@ export async function updateAppointment(
     data: z.input<typeof UpdateAppointmentSchema>,
 ): Promise<Appointment> {
     const safe = parseOrThrow(UpdateAppointmentSchema, data);
-    const row = await practiceSystem.invoke<Appointment>("update_appointment", { id, data: safe });
+    const row = await invokeOrPropose<Appointment>("update_appointment", { id, data: safe }, () => ({ ...safe, id: "" }) as unknown as Appointment);
     notifyAppointmentsChanged();
     return row;
 }

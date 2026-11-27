@@ -1,5 +1,5 @@
 import { useT, useTParams } from "@/lib/i18n";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { createPayment, listPaymentsForPatient } from "@/systems/practice-host/controllers/payment.controller";
 import { listPatients } from "@/systems/practice-host/controllers/patient.controller";
@@ -31,51 +31,10 @@ import {
     paymentHistoryForExamination,
 } from "@/lib/payment-booking";
 import { paymentMethodLabel, paymentStatusDisplay } from "@/lib/finance-order-labels";
+import { isProposal } from "@/systems/practice-host/controllers/guest.controller";
+import { PaymentFinanceOrPageWrap } from "./payment-create-wrap";
 
 type LinkKind = "" | "treatment" | "examination";
-
-function PaymentFinanceOrPageWrap({
-    isFinance,
-    embedVariant,
-    onClose,
-    children,
-}: {
-    isFinance: boolean;
-    embedVariant?: "finance" | "cash";
-    onClose: () => void;
-    children: ReactNode;
-}) {
-    const t = useT();
-    if (!isFinance) {
-        return (
-            <Card className="payment-create-page__card card-elevated">
-                <CardHeader
-                    title={t("payment.create.payment_data")}
-                    subtitle={t("payment.create.subtitle")}
-                />
-                <div className="card-pad">{children}</div>
-            </Card>
-        );
-    }
-    const subtitle =
-        embedVariant === "cash"
-            ? t("payment.create.embed_cash_sub")
-            : t("payment.create.embed_finance_sub");
-    return (
-        <Card className="products-detail-card payment-finance-embed card--overflow-visible">
-            <CardHeader
-                title={t("payment.create.title")}
-                subtitle={subtitle}
-                action={(
-                    <Button type="button" size="sm" variant="ghost" onClick={onClose}>
-                        {t("common.close")}
-                    </Button>
-                )}
-            />
-            <div className="card-pad payment-finance-embed__body">{children}</div>
-        </Card>
-    );
-}
 
 export type PaymentCreatePanelProps = {
     /** `page` = Finance route; `cash-page` = cash receipts route; `finance` / `cash` = embedded. */
@@ -330,7 +289,7 @@ function PaymentCreatePanelInner({ variant, onFinanceSaved, onFinanceClose }: Pa
         setBusy(true);
         setFormError(null);
         try {
-            await createPayment({
+            const created = await createPayment({
                 patient_id: patientId,
                 amount: amountN,
                 payment_method,
@@ -339,7 +298,8 @@ function PaymentCreatePanelInner({ variant, onFinanceSaved, onFinanceClose }: Pa
                 examination_id: linkKind === "examination" ? linkId : undefined,
                 amount_expected: openBefore,
             });
-            toast(t("payment.create.toast.saved"), "success");
+            // Guest: the payment waits in the admin's inbox (notice shown by the shell).
+            if (!isProposal(created)) toast(t("payment.create.toast.saved"), "success");
             if (isFinanceEmbed && onFinanceSaved) {
                 onFinanceSaved();
                 return;

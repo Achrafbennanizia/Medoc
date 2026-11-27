@@ -45,34 +45,7 @@ import { DismissibleNotice } from "../components/ui/dismissible-notice";
 import { PAGE_REFRESH_EVENT } from "../layouts/page-refresh";
 import { purchaseOrderIsOverdue } from "@/lib/purchase-order-is-overdue";
 import { StatCard } from "../components/stat-card";
-
-const DASHBOARD_PURCHASE_ORDERS_MAX = 10;
-const DASHBOARD_OPEN_CASH_MAX = 8;
-const DASHBOARD_PENDING_TASKS_MAX = 12;
-const CHARTS_QUEUE_POLL_MS = 15_000;
-const INSIGHTS_DISMISSED_KEY = "medoc.dashboard.insights.dismissed";
-
-function readInsightsDismissed(): boolean {
-    try {
-        return localStorage.getItem(INSIGHTS_DISMISSED_KEY) === "1";
-    } catch {
-        return false;
-    }
-}
-
-function purchaseOrderWirePill(b: PurchaseOrder, t: (k: string) => string): { label: string; cls: string } {
-    const od = purchaseOrderIsOverdue(b);
-    if (od) return { label: `● ${t("dashboard.purchase_orders.status_late")}`, cls: "dashboard-wire-pill-status--late" };
-    if (b.status === "IN_TRANSIT")
-        return { label: `● ${t("dashboard.purchase_orders.status_transit")}`, cls: "dashboard-wire-pill-status--transit" };
-    return { label: `● ${t("dashboard.purchase_orders.status_open")}`, cls: "dashboard-wire-pill-status--open" };
-}
-
-function appointmentStatusLabel(status: string, t: (key: string) => string): string {
-    const key = `dashboard.status.${status}`;
-    const version = t(key);
-    return version === key ? status : version;
-}
+import { CHARTS_QUEUE_POLL_MS, DASHBOARD_OPEN_CASH_MAX, DASHBOARD_PENDING_TASKS_MAX, DASHBOARD_PURCHASE_ORDERS_MAX, INSIGHTS_DISMISSED_KEY, appointmentStatusLabel, purchaseOrderWirePill, readInsightsDismissed } from "./dashboard-helpers";
 
 export function DashboardPage() {
     const t = useT();
@@ -226,7 +199,7 @@ export function DashboardPage() {
         let cancelled = false;
         const role = parseRole(session?.role ?? undefined);
         const canQueue =
-            role != null &&
+            __CAP_VALIDATION__ && role != null &&
             allowed("patient.read_medical", role, session?.permission_overrides);
 
         const loadQueue = async (initial: boolean) => {
@@ -239,7 +212,8 @@ export function DashboardPage() {
             }
             if (initial) setChartsQueueLoading(true);
             try {
-                const rows = await listChartsToValidate();
+                // Group: like the sidebar badge, only charts this person may validate (T5.5).
+                const rows = (await listChartsToValidate()).filter((r) => r.can_validate !== false);
                 if (!cancelled) setChartsToValidate(rows);
             } catch {
                 if (!cancelled) setChartsToValidate([]);
@@ -276,7 +250,7 @@ export function DashboardPage() {
         const canClinical =
             roleNow != null && allowed("patient.read_medical", roleNow, session?.permission_overrides);
         const canTickets =
-            roleNow === "PHYSICIAN" || roleNow === "RECEPTION";
+            __CAP_TASKS__ && (roleNow === "PHYSICIAN" || roleNow === "RECEPTION");
 
         const loadPendingTasks = async (initial: boolean) => {
             if (canClinical || !canTickets) {
@@ -421,6 +395,7 @@ export function DashboardPage() {
 
     const handleApproveChart = useCallback(
         async (patientId: string) => {
+            if (!__CAP_VALIDATION__) return;
             setApproveBusyId(patientId);
             try {
                 await validatePatientChart(patientId);
@@ -438,6 +413,7 @@ export function DashboardPage() {
 
     const handleDeclineChart = useCallback(
         async (patientId: string) => {
+            if (!__CAP_VALIDATION__) return;
             setApproveBusyId(patientId);
             try {
                 await declinePatientChart(patientId);
@@ -603,194 +579,197 @@ export function DashboardPage() {
             </div>
             <div className="split dashboard-main-split">
                 <div className="col dashboard-col-primary">
-                    <div className="card dashboard-card-fill">
-                        <div className="card-head" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: "var(--space-3)" }}>
-                            <div style={{ minWidth: 0 }}>
-                                <div className="card-title">
-                                    {canViewClinical ? t("dashboard.freigaben.title") : t("dashboard.pending_tasks.title")}
+                    {/* Hand-offs between people (validation queue, reception tasks): not in one-person editions. */}
+                    {__CAP_VALIDATION__ || __CAP_TASKS__ ? (
+                        <div className="card dashboard-card-fill">
+                            <div className="card-head" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: "var(--space-3)" }}>
+                                <div style={{ minWidth: 0 }}>
+                                    <div className="card-title">
+                                        {canViewClinical ? t("dashboard.freigaben.title") : t("dashboard.pending_tasks.title")}
+                                    </div>
+                                    <div className="card-sub">{freigabenSub}</div>
                                 </div>
-                                <div className="card-sub">{freigabenSub}</div>
+                                <div className="dashboard-wire-head-actions">
+                                    <button
+                                        type="button"
+                                        className="dashboard-wire-head-link nav-link-forward"
+                                        onClick={() => navigate(canViewClinical ? "/charts/to-validate" : "/tickets")}
+                                    >
+                                        {t("dashboard.freigaben.show_all")} <span className="nav-chevron" aria-hidden>›</span>
+                                    </button>
+                                </div>
                             </div>
-                            <div className="dashboard-wire-head-actions">
-                                <button
-                                    type="button"
-                                    className="dashboard-wire-head-link nav-link-forward"
-                                    onClick={() => navigate(canViewClinical ? "/charts/to-validate" : "/tickets")}
-                                >
-                                    {t("dashboard.freigaben.show_all")} <span className="nav-chevron" aria-hidden>›</span>
-                                </button>
+                            <div className="dashboard-card-list" style={{ padding: 0 }}>
+                                {chartsQueueLoading && chartsToValidate.length === 0 && canViewClinical ? (
+                                    <div style={{ padding: "16px 20px", fontSize: 14, color: "var(--fg-3)" }}>{t("page.charts_to_validate.loading")}</div>
+                                ) : null}
+                                {!canViewClinical && pendingTasksLoading && receptionPendingTasks.length === 0 ? (
+                                    <div style={{ padding: "16px 20px", fontSize: 14, color: "var(--fg-3)" }}>
+                                        {t("dashboard.pending_tasks.loading")}
+                                    </div>
+                                ) : null}
+                                {canViewClinical
+                                    ? chartsToValidate.map((row) => {
+                                          const busy = approveBusyId === row.patient_id;
+                                          const statusKey = `enum.charts_status.${row.chart_status.trim().toLowerCase()}`;
+                                          const statusLabel = t(statusKey) === statusKey ? row.chart_status : t(statusKey);
+                                          const openPatient = () => navigate(`/patients/${row.patient_id}`);
+                                          const stopRowNav = (e: MouseEvent) => {
+                                              e.stopPropagation();
+                                          };
+                                          const onRowKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+                                              if (e.key === "Enter" || e.key === " ") {
+                                                  e.preventDefault();
+                                                  openPatient();
+                                              }
+                                          };
+                                          return (
+                                              <div
+                                                  key={row.patient_id}
+                                                  className="dashboard-wire-row dashboard-wire-row--nav"
+                                                  role="link"
+                                                  tabIndex={0}
+                                                  onClick={openPatient}
+                                                  onKeyDown={onRowKeyDown}
+                                              >
+                                                  <div className="dashboard-wire-avatar" aria-hidden>
+                                                      {initialsFromName(row.patient_name)}
+                                                  </div>
+                                                  <div className="dashboard-wire-row-main">
+                                                      <div className="dashboard-wire-name-line">
+                                                          <span className="dashboard-wire-name">{row.patient_name}</span>
+                                                          <span className="dashboard-wire-tag">{statusLabel}</span>
+                                                      </div>
+                                                      <div className="dashboard-wire-desc">{formatDateTime(row.updated_at)}</div>
+                                                  </div>
+                                                  <div className="dashboard-wire-row-aside" onClick={stopRowNav} onKeyDown={(e) => e.stopPropagation()}>
+                                                      <div className="dashboard-wire-freigabe-actions">
+                                                          {canWriteMedical ? (
+                                                              <>
+                                                                  <button
+                                                                      type="button"
+                                                                      className="dashboard-wire-approve-btn"
+                                                                      disabled={busy}
+                                                                      onClick={() => void handleApproveChart(row.patient_id)}
+                                                                  >
+                                                                      <CheckIcon size={15} />
+                                                                      {busy ? "…" : t("page.charts_to_validate.validate")}
+                                                                  </button>
+                                                                  {/* TODO(later): restore Decline — see docs/coordination/todos-deferred-ui-blinds.md */}
+                                                                  {CHART_QUEUE_DECLINE_ENABLED ? (
+                                                                  <button
+                                                                      type="button"
+                                                                      className="dashboard-wire-btn-secondary"
+                                                                      disabled={busy}
+                                                                      onClick={() => void handleDeclineChart(row.patient_id)}
+                                                                  >
+                                                                      {busy ? "…" : t("page.charts_to_validate.decline")}
+                                                                  </button>
+                                                                  ) : null}
+                                                                  <button
+                                                                      type="button"
+                                                                      className="dashboard-wire-icon-btn"
+                                                                      disabled={busy}
+                                                                      title={t("page.charts_to_validate.remove_from_list")}
+                                                                      aria-label={t("page.charts_to_validate.remove_from_list")}
+                                                                      onClick={() => void handleDeclineChart(row.patient_id)}
+                                                                  >
+                                                                      <XIcon size={16} />
+                                                                  </button>
+                                                              </>
+                                                          ) : null}
+                                                      </div>
+                                                  </div>
+                                              </div>
+                                          );
+                                      })
+                                    : null}
+                                {showPendingTasks
+                                    ? receptionPendingTasks.map((task) => {
+                                          const patientName = taskPatientLabel(
+                                              task.patient_id,
+                                              patientById,
+                                              t("common.dash"),
+                                          );
+                                          const openTask = () =>
+                                              navigate(`/tickets?task=${encodeURIComponent(task.id)}`);
+                                          const onRowKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+                                              if (e.key === "Enter" || e.key === " ") {
+                                                  e.preventDefault();
+                                                  openTask();
+                                              }
+                                          };
+                                          return (
+                                              <div
+                                                  key={task.id}
+                                                  className="dashboard-wire-row dashboard-wire-row--nav"
+                                                  role="link"
+                                                  tabIndex={0}
+                                                  onClick={openTask}
+                                                  onKeyDown={onRowKeyDown}
+                                              >
+                                                  <div className="dashboard-wire-avatar" aria-hidden>
+                                                      {initialsFromName(patientName === t("common.dash") ? "?" : patientName)}
+                                                  </div>
+                                                  <div className="dashboard-wire-row-main">
+                                                      <div className="dashboard-wire-name-line">
+                                                          <span className="dashboard-wire-name">
+                                                              {practiceTaskHeadline(task, t)}
+                                                          </span>
+                                                          <Badge variant={taskStatusVariant(task.status)}>
+                                                              {taskStatusLabel(t, task.status)}
+                                                          </Badge>
+                                                      </div>
+                                                      <div className="dashboard-wire-desc">
+                                                          {patientName}
+                                                          {" · "}
+                                                          {taskKindLabel(t, task.kind)}
+                                                          {(() => {
+                                                              const preview = practiceTaskPreview(task, t, tp).slice(0, 80);
+                                                              return preview ? ` · ${preview}` : "";
+                                                          })()}
+                                                      </div>
+                                                  </div>
+                                                  <div className="dashboard-wire-row-aside">
+                                                      <div className="dashboard-wire-date">
+                                                          {formatDateTime(task.updated_at || task.created_at)}
+                                                      </div>
+                                                      <div className="dashboard-wire-freigabe-actions">
+                                                          <button
+                                                              type="button"
+                                                              className="dashboard-wire-approve-btn"
+                                                              onClick={(e) => {
+                                                                  e.stopPropagation();
+                                                                  openTask();
+                                                              }}
+                                                              title={t("dashboard.pending_tasks.open_hint")}
+                                                          >
+                                                              {t("dashboard.pending_tasks.open")}
+                                                          </button>
+                                                      </div>
+                                                  </div>
+                                              </div>
+                                          );
+                                      })
+                                    : null}
+                                {freigabenLeer ? (
+                                    <EmptyState
+                                        icon="✅"
+                                        title={
+                                            canViewClinical
+                                                ? t("page.charts_to_validate.empty_title")
+                                                : t("dashboard.pending_tasks.empty_title")
+                                        }
+                                        description={
+                                            canViewClinical
+                                                ? t("page.charts_to_validate.subtitle")
+                                                : t("dashboard.pending_tasks.empty_desc")
+                                        }
+                                    />
+                                ) : null}
                             </div>
                         </div>
-                        <div className="dashboard-card-list" style={{ padding: 0 }}>
-                            {chartsQueueLoading && chartsToValidate.length === 0 && canViewClinical ? (
-                                <div style={{ padding: "16px 20px", fontSize: 14, color: "var(--fg-3)" }}>{t("page.charts_to_validate.loading")}</div>
-                            ) : null}
-                            {!canViewClinical && pendingTasksLoading && receptionPendingTasks.length === 0 ? (
-                                <div style={{ padding: "16px 20px", fontSize: 14, color: "var(--fg-3)" }}>
-                                    {t("dashboard.pending_tasks.loading")}
-                                </div>
-                            ) : null}
-                            {canViewClinical
-                                ? chartsToValidate.map((row) => {
-                                      const busy = approveBusyId === row.patient_id;
-                                      const statusKey = `enum.charts_status.${row.chart_status.trim().toLowerCase()}`;
-                                      const statusLabel = t(statusKey) === statusKey ? row.chart_status : t(statusKey);
-                                      const openPatient = () => navigate(`/patients/${row.patient_id}`);
-                                      const stopRowNav = (e: MouseEvent) => {
-                                          e.stopPropagation();
-                                      };
-                                      const onRowKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-                                          if (e.key === "Enter" || e.key === " ") {
-                                              e.preventDefault();
-                                              openPatient();
-                                          }
-                                      };
-                                      return (
-                                          <div
-                                              key={row.patient_id}
-                                              className="dashboard-wire-row dashboard-wire-row--nav"
-                                              role="link"
-                                              tabIndex={0}
-                                              onClick={openPatient}
-                                              onKeyDown={onRowKeyDown}
-                                          >
-                                              <div className="dashboard-wire-avatar" aria-hidden>
-                                                  {initialsFromName(row.patient_name)}
-                                              </div>
-                                              <div className="dashboard-wire-row-main">
-                                                  <div className="dashboard-wire-name-line">
-                                                      <span className="dashboard-wire-name">{row.patient_name}</span>
-                                                      <span className="dashboard-wire-tag">{statusLabel}</span>
-                                                  </div>
-                                                  <div className="dashboard-wire-desc">{formatDateTime(row.updated_at)}</div>
-                                              </div>
-                                              <div className="dashboard-wire-row-aside" onClick={stopRowNav} onKeyDown={(e) => e.stopPropagation()}>
-                                                  <div className="dashboard-wire-freigabe-actions">
-                                                      {canWriteMedical ? (
-                                                          <>
-                                                              <button
-                                                                  type="button"
-                                                                  className="dashboard-wire-approve-btn"
-                                                                  disabled={busy}
-                                                                  onClick={() => void handleApproveChart(row.patient_id)}
-                                                              >
-                                                                  <CheckIcon size={15} />
-                                                                  {busy ? "…" : t("page.charts_to_validate.validate")}
-                                                              </button>
-                                                              {/* TODO(later): restore Decline — see docs/coordination/todos-deferred-ui-blinds.md */}
-                                                              {CHART_QUEUE_DECLINE_ENABLED ? (
-                                                              <button
-                                                                  type="button"
-                                                                  className="dashboard-wire-btn-secondary"
-                                                                  disabled={busy}
-                                                                  onClick={() => void handleDeclineChart(row.patient_id)}
-                                                              >
-                                                                  {busy ? "…" : t("page.charts_to_validate.decline")}
-                                                              </button>
-                                                              ) : null}
-                                                              <button
-                                                                  type="button"
-                                                                  className="dashboard-wire-icon-btn"
-                                                                  disabled={busy}
-                                                                  title={t("page.charts_to_validate.remove_from_list")}
-                                                                  aria-label={t("page.charts_to_validate.remove_from_list")}
-                                                                  onClick={() => void handleDeclineChart(row.patient_id)}
-                                                              >
-                                                                  <XIcon size={16} />
-                                                              </button>
-                                                          </>
-                                                      ) : null}
-                                                  </div>
-                                              </div>
-                                          </div>
-                                      );
-                                  })
-                                : null}
-                            {showPendingTasks
-                                ? receptionPendingTasks.map((task) => {
-                                      const patientName = taskPatientLabel(
-                                          task.patient_id,
-                                          patientById,
-                                          t("common.dash"),
-                                      );
-                                      const openTask = () =>
-                                          navigate(`/tickets?task=${encodeURIComponent(task.id)}`);
-                                      const onRowKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-                                          if (e.key === "Enter" || e.key === " ") {
-                                              e.preventDefault();
-                                              openTask();
-                                          }
-                                      };
-                                      return (
-                                          <div
-                                              key={task.id}
-                                              className="dashboard-wire-row dashboard-wire-row--nav"
-                                              role="link"
-                                              tabIndex={0}
-                                              onClick={openTask}
-                                              onKeyDown={onRowKeyDown}
-                                          >
-                                              <div className="dashboard-wire-avatar" aria-hidden>
-                                                  {initialsFromName(patientName === t("common.dash") ? "?" : patientName)}
-                                              </div>
-                                              <div className="dashboard-wire-row-main">
-                                                  <div className="dashboard-wire-name-line">
-                                                      <span className="dashboard-wire-name">
-                                                          {practiceTaskHeadline(task, t)}
-                                                      </span>
-                                                      <Badge variant={taskStatusVariant(task.status)}>
-                                                          {taskStatusLabel(t, task.status)}
-                                                      </Badge>
-                                                  </div>
-                                                  <div className="dashboard-wire-desc">
-                                                      {patientName}
-                                                      {" · "}
-                                                      {taskKindLabel(t, task.kind)}
-                                                      {(() => {
-                                                          const preview = practiceTaskPreview(task, t, tp).slice(0, 80);
-                                                          return preview ? ` · ${preview}` : "";
-                                                      })()}
-                                                  </div>
-                                              </div>
-                                              <div className="dashboard-wire-row-aside">
-                                                  <div className="dashboard-wire-date">
-                                                      {formatDateTime(task.updated_at || task.created_at)}
-                                                  </div>
-                                                  <div className="dashboard-wire-freigabe-actions">
-                                                      <button
-                                                          type="button"
-                                                          className="dashboard-wire-approve-btn"
-                                                          onClick={(e) => {
-                                                              e.stopPropagation();
-                                                              openTask();
-                                                          }}
-                                                          title={t("dashboard.pending_tasks.open_hint")}
-                                                      >
-                                                          {t("dashboard.pending_tasks.open")}
-                                                      </button>
-                                                  </div>
-                                              </div>
-                                          </div>
-                                      );
-                                  })
-                                : null}
-                            {freigabenLeer ? (
-                                <EmptyState
-                                    icon="✅"
-                                    title={
-                                        canViewClinical
-                                            ? t("page.charts_to_validate.empty_title")
-                                            : t("dashboard.pending_tasks.empty_title")
-                                    }
-                                    description={
-                                        canViewClinical
-                                            ? t("page.charts_to_validate.subtitle")
-                                            : t("dashboard.pending_tasks.empty_desc")
-                                    }
-                                />
-                            ) : null}
-                        </div>
-                    </div>
+                    ) : null}
                     <div className="card dashboard-card-fill">
                         <div className="card-head" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: "var(--space-3)" }}>
                             <div style={{ minWidth: 0 }}>

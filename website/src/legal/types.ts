@@ -1,7 +1,6 @@
 /**
- * Legal pages of the website. One set per language, each written for one jurisdiction:
- *   en → European Union (GDPR)          de → Germany (DSGVO, BGB, DDG)
- *   fr → France (RGPD, Code de commerce) ar → Morocco (loi 09-08, DOC, loi 31-08)
+ * Legal pages of the website. One set per language (en, fr, ar), all written under Moroccan law
+ * (loi 09-08, DOC, loi 31-08): the same texts, translated.
  *
  * Text may contain `{token}` placeholders filled from `LEGAL_ENTITY` (see entity.ts), so the
  * owner fills the company details once. Never invent a company detail in the text itself.
@@ -27,8 +26,11 @@ export type LegalDocument = {
 export type LegalDocId = "legal-notice" | "privacy-notice" | "privacy-policy" | "terms";
 
 export type LegalSet = {
-  /** Shown in the page header, e.g. "Applies under German law". */
-  jurisdictionLabel: string;
+  /**
+   * The set's own jurisdiction line. The page header shows Legal.tsx's Moroccan-law label for
+   * every language instead, so this is informational only.
+   */
+  jurisdictionLabel?: string;
   /** Short reminder that the texts must be checked by a lawyer before publication. */
   reviewNote: string;
   docs: Record<LegalDocId, LegalDocument>;

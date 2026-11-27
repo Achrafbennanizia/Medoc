@@ -95,13 +95,15 @@ export function AccountSetupOnboardingPage() {
                         </button>
                     </div>
                 </div>
-                <div className="onboarding-card__footer">
-                    <div className="onboarding-actions">
-                        <Link to="/onboarding/join" className="btn btn-subtle">
-                            {t("onboarding.account.back_join")}
-                        </Link>
+                {__CAP_NET__ ? (
+                    <div className="onboarding-card__footer">
+                        <div className="onboarding-actions">
+                            <Link to="/onboarding/join" className="btn btn-subtle">
+                                {t("onboarding.account.back_join")}
+                            </Link>
+                        </div>
                     </div>
-                </div>
+                ) : null}
             </OnboardingShell>
         );
     }

@@ -1,6 +1,6 @@
 //! Company server API key hashing + schema migration.
 
-use medoc_lib::infrastructure::company_host::db::init_company_db;
+use medoc_company::db::init_company_db;
 
 const DEMO_KEY: &str = "sk_demo_company_practice_key";
 
@@ -17,8 +17,8 @@ async fn demo_api_key_hashes_and_plaintext_column_removed() {
             .await
             .expect("demo row");
     assert!(hash.0.starts_with("$argon2"));
-    assert!(medoc_lib::infrastructure::company_host::api_key::verify_api_key(DEMO_KEY, &hash.0));
-    assert!(!medoc_lib::infrastructure::company_host::api_key::verify_api_key("wrong", &hash.0));
+    assert!(medoc_company::api_key::verify_api_key(DEMO_KEY, &hash.0));
+    assert!(!medoc_company::api_key::verify_api_key("wrong", &hash.0));
 
     let plain_col: (i64,) =
         sqlx::query_as("SELECT COUNT(*) FROM pragma_table_info('practice') WHERE name = 'api_key'")
@@ -66,12 +66,10 @@ async fn migrates_legacy_plaintext_api_key_column() {
         .fetch_one(&pool)
         .await
         .unwrap();
-    assert!(
-        medoc_lib::infrastructure::company_host::api_key::verify_api_key(
-            "sk_legacy_test_key",
-            &hash.0
-        )
-    );
+    assert!(medoc_company::api_key::verify_api_key(
+        "sk_legacy_test_key",
+        &hash.0
+    ));
 
     let _ = std::fs::remove_dir_all(&dir);
 }

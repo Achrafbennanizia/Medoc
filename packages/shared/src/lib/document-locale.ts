@@ -18,6 +18,8 @@
  */
 import { getAppKv, setAppKv } from "@/systems/practice-host/controllers/app-kv.controller";
 import { isRtlLocale, normalizeLocale, useLocale, type Locale } from "@/lib/i18n";
+import { useAuthStore } from "@/models/store/auth-store";
+import { allowed, parseRole } from "./rbac";
 
 /** Any supported UI language is a document language. */
 export type DocumentLocale = Locale;
@@ -65,6 +67,13 @@ function liveUiLocale(): DocumentLocale | null {
     }
 }
 
+/** The practice-wide copy in `app_kv` needs `ops.system` (a guest or assistant only keeps theirs locally). */
+function mayWritePracticeKv(): boolean {
+    const session = useAuthStore.getState().session;
+    const role = parseRole(session?.role);
+    return role != null && allowed("ops.system", role, session?.permission_overrides);
+}
+
 /** Pinned document language, if Settings pinned one. */
 export function pinnedDocumentLocale(): DocumentLocale | null {
     return normalizeLocale(readLs(LS_PIN_KEY));
@@ -93,6 +102,7 @@ export async function setDocumentLocale(
     // A UI change must not overwrite a pinned language.
     const effective = pinnedDocumentLocale() ?? next;
     writeLs(LS_KEY, effective);
+    if (!mayWritePracticeKv()) return;
     try {
         await setAppKv(DOCUMENT_LOCALE_KV_KEY, effective);
         if (opts.pin !== undefined) {
@@ -117,6 +127,7 @@ export async function hydrateDocumentLocaleFromAppKv(): Promise<DocumentLocale> 
     writeLs(LS_PIN_KEY, pin);
     const next = documentLocale();
     writeLs(LS_KEY, next);
+    if (!mayWritePracticeKv()) return next;
     try {
         await setAppKv(DOCUMENT_LOCALE_KV_KEY, next);
     } catch {

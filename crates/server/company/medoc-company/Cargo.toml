@@ -9,7 +9,7 @@ publish = false
 path = "src/lib.rs"
 
 [dependencies]
-medoc-core = { path = "../../../shared/medoc-core" }
+medoc-core = { path = "../../../shared/medoc-core", features = ["http-host"] }
 
 # HTTP stack — company server has no LAN-style TLS termination here
 # (terminated by the vendor's reverse proxy in production), but axum +

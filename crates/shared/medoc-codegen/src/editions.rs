@@ -20,7 +20,7 @@ struct EditionsYaml {
 struct EditionYaml {
     devices: u32,
     admins: u32,
-    staff_active: u32,
+    accounts: u32,
     doctors: u32,
     caps: Vec<String>,
 }
@@ -69,9 +69,9 @@ pub fn run(yaml_path: &Path, ts_out_dir: &Path, cargo_toml: &Path) {
         render_rust(&model),
     )
     .expect("write edition_generated.rs");
-    write_if_changed(&ts_out_dir.join("edition.generated.ts"), &render_ts(&model));
+    crate::write_if_changed(&ts_out_dir.join("edition.generated.ts"), &render_ts(&model));
     // `packages/shared/src/` (parent of `lib/`), see `render_dts`.
-    write_if_changed(
+    crate::write_if_changed(
         &ts_out_dir.join("../edition-defines.generated.d.ts"),
         &render_dts(&model),
     );
@@ -225,8 +225,8 @@ fn render_rust(m: &Model) -> String {
             o.push_str(&format!("        {id}: {},\n", s.caps.contains(id)));
         }
         o.push_str(&format!(
-            "    }},\n    limits: Limits {{\n        devices: {},\n        admins: {},\n        staff_active: {},\n        doctors: {},\n    }},\n}};\n\n",
-            s.devices, s.admins, s.staff_active, s.doctors
+            "    }},\n    limits: Limits {{\n        devices: {},\n        admins: {},\n        accounts: {},\n        doctors: {},\n    }},\n}};\n\n",
+            s.devices, s.admins, s.accounts, s.doctors
         ));
     }
     o.push_str("/// Every edition, in YAML order.\npub const ALL_EDITIONS: &[EditionSpec] = &[");
@@ -258,7 +258,7 @@ fn render_ts(m: &Model) -> String {
             .collect::<Vec<_>>()
             .join(" | "),
     );
-    o.push_str(";\n\nexport type EditionLimits = {\n    devices: number;\n    admins: number;\n    staffActive: number;\n    doctors: number;\n};\n\n");
+    o.push_str(";\n\nexport type EditionLimits = {\n    devices: number;\n    admins: number;\n    accounts: number;\n    doctors: number;\n};\n\n");
     o.push_str(
         "export type EditionSpec = { id: EditionId; caps: Caps; limits: EditionLimits };\n\n",
     );
@@ -277,8 +277,8 @@ fn render_ts(m: &Model) -> String {
             ));
         }
         o.push_str(&format!(
-            "        }},\n        limits: {{ devices: {}, admins: {}, staffActive: {}, doctors: {} }},\n    }},\n",
-            s.devices, s.admins, s.staff_active, s.doctors
+            "        }},\n        limits: {{ devices: {}, admins: {}, accounts: {}, doctors: {} }},\n    }},\n",
+            s.devices, s.admins, s.accounts, s.doctors
         ));
     }
     o.push_str("};\n\n");
@@ -304,18 +304,11 @@ fn render_dts(m: &Model) -> String {
     o
 }
 
-/// Avoid touching the committed TS file (and Vite's watcher) when nothing changed.
-fn write_if_changed(path: &Path, body: &str) {
-    if fs::read_to_string(path).ok().as_deref() != Some(body) {
-        fs::write(path, body).unwrap_or_else(|e| panic!("write {}: {e}", path.display()));
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    const YAML: &str = "capabilities:\n  net: n\n  guest_inbox: g\n  multi_staff: m\nexclusive:\n  - [guest_inbox, multi_staff]\neditions:\n  solo: {devices: 1, admins: 1, staff_active: 2, doctors: 1, caps: [guest_inbox]}\n  duo: {devices: 3, admins: 1, staff_active: 3, doctors: 1, caps: [net, multi_staff]}\n";
+    const YAML: &str = "capabilities:\n  net: n\n  guest_inbox: g\n  multi_staff: m\nexclusive:\n  - [guest_inbox, multi_staff]\neditions:\n  solo: {devices: 1, admins: 1, accounts: 2, doctors: 1, caps: [guest_inbox]}\n  duo: {devices: 3, admins: 1, accounts: 3, doctors: 1, caps: [net, multi_staff]}\n";
 
     #[test]
     fn parses_and_renders() {

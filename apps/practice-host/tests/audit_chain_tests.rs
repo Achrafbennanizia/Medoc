@@ -32,6 +32,7 @@ async fn mem_pool() -> sqlx::SqlitePool {
             hmac TEXT NOT NULL,
             under_break_glass INTEGER NOT NULL DEFAULT 0,
             break_glass_reason TEXT,
+            device_id TEXT,
             created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)
         )",
     )

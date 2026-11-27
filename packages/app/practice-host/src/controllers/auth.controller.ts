@@ -23,7 +23,8 @@ export async function login(
         user_agent: opts?.user_agent ?? (typeof navigator !== "undefined" ? navigator.userAgent : null),
     });
     useAuthStore.getState().setSession(session);
-    try {
+    // Work-time auto-record: only editions with work time.
+    if (__CAP_WORK_TIME__) try {
         const { workTimeGetActiveSession, workTimeGetPreference, workTimeReconcileOnLogin, workTimeResume, workTimeStart } =
             await import("@/systems/practice-host/controllers/work-time.controller");
         await workTimeReconcileOnLogin();
@@ -43,7 +44,7 @@ export async function login(
 }
 
 export async function logout(): Promise<void> {
-    try {
+    if (__CAP_WORK_TIME__) try {
         const { workTimeGetActiveSession, workTimeGetPreference, workTimePause } =
             await import("@/systems/practice-host/controllers/work-time.controller");
         const pref = await workTimeGetPreference();
@@ -75,6 +76,6 @@ export async function touchSession(): Promise<boolean> {
 /** Post-login landing path: RECEPTION → work-time page; others → dashboard. */
 /** Where to go after sign-in: Settings → Appearance → Start page, else the role default. */
 export async function postLoginPath(session: Session): Promise<string> {
-    const roleDefault = session.role === "RECEPTION" ? "/staff/work-time" : "/";
+    const roleDefault = __CAP_WORK_TIME__ && session.role === "RECEPTION" ? "/staff/work-time" : "/";
     return startPagePath(normalizeDisplayPreferences(loadClientSettings().appearance?.display), roleDefault);
 }

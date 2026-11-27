@@ -1,7 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { COUNTRY_COPY } from "./country-copy";
 import type { Lang } from "./i18n";
-import type { Country } from "./prefs";
 import { featureLink } from "./route";
 import { SITE_COPY } from "./site-copy";
 
@@ -34,15 +32,9 @@ export function WhatsNew({ lang, locale }: { lang: Lang; locale: string }) {
   );
 }
 
-/* ---------- documents gallery ---------- */
-export function DocumentsGallery({ lang, country }: { lang: Lang; country: Country }) {
-  const docs = SITE_COPY[lang].docs;
-  const cc = COUNTRY_COPY[lang];
-  // The selected country's documents first; the EU has no national samples, so it sees all.
-  const [showAll, setShowAll] = useState(false);
-  useEffect(() => setShowAll(false), [country]);
-  const filtered = country === "EU" || showAll ? docs.items : docs.items.filter((it) => it.country === country);
-  const d = { ...docs, items: filtered.length ? filtered : docs.items };
+/* ---------- documents gallery (Moroccan documents) ---------- */
+export function DocumentsGallery({ lang }: { lang: Lang }) {
+  const d = SITE_COPY[lang].docs;
   const dialog = useRef<HTMLDialogElement>(null);
   const opener = useRef<HTMLButtonElement | null>(null);
   const [index, setIndex] = useState(0);
@@ -78,20 +70,12 @@ export function DocumentsGallery({ lang, country }: { lang: Lang; country: Count
                 <span className="doc-paper">
                   <img src={asset(`documents/${it.file}-thumb.webp`)} alt={`${it.title}, ${d.sample}`} width={600} height={849} loading="lazy" decoding="async" />
                 </span>
-                <span className="doc-country">{d.countries[it.country]}</span>
                 <span className="doc-title">{it.title}</span>
                 <span className="doc-caption">{it.caption}</span>
               </button>
             </li>
           ))}
         </ul>
-        {country !== "EU" ? (
-          <p>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowAll(!showAll)}>
-              {showAll ? cc.onlyDocs(cc.names[country]) : cc.allDocs}
-            </button>
-          </p>
-        ) : null}
         <p className="fine">{d.sample}</p>
       </div>
       <dialog
@@ -118,7 +102,7 @@ export function DocumentsGallery({ lang, country }: { lang: Lang; country: Count
         <figure className="lightbox-figure">
           <img src={asset(`documents/${item.file}.webp`)} alt={`${item.title}, ${d.sample}`} width={1131} height={1600} />
           <figcaption>
-            <b>{item.title}</b> · {d.countries[item.country]}. {item.caption}
+            <b>{item.title}</b>. {item.caption}
           </figcaption>
         </figure>
         <div className="lightbox-nav">

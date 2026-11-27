@@ -21,6 +21,13 @@ pub struct Payment {
     #[serde(default)]
     #[sqlx(default)]
     pub updated_at: Option<String>,
+    /// Cabinet+: the doctor the money is for, and who took it at the desk (§4.1).
+    #[serde(default)]
+    #[sqlx(default)]
+    pub for_staff_id: Option<String>,
+    #[serde(default)]
+    #[sqlx(default)]
+    pub collected_by: Option<String>,
 }
 
 /// Only outstanding / partially paid payments may be edited.

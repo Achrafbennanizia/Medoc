@@ -1,9 +1,12 @@
+#[path = "merge_fields.rs"]
+mod merge_fields;
 use medoc_core::error::AppError;
 use medoc_core::infrastructure::database::repos::clinical::patient as patient_repo;
 use sqlx::{Connection, SqlitePool};
 
 use crate::repo::{mark_applied, was_applied, OutboxEntry};
 use medoc_core::infrastructure::database::sqlite_error::is_foreign_key_error;
+pub(crate) use merge_fields::clamp_future_hlc;
 
 /// Conflict resolution when two devices edited the same row offline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -214,6 +217,22 @@ async fn apply_upsert(
         return Ok(true);
     }
 
+    if !medoc_core::application::allowances::is_owner_signed(
+        &entry.entity_table,
+        &entry.entity_id,
+        obj,
+    ) {
+        // T4.2: sharing rules are written by the dentist they belong to, on any device.
+        tracing::warn!(
+            target: "medoc::sync",
+            event = "SYNC_OWNER_ONLY_ROW_REJECTED",
+            table = %entry.entity_table,
+            id = %entry.entity_id,
+            from_device = %entry.device_id,
+        );
+        return Ok(true);
+    }
+
     let exists: i64 = if entry.entity_table == "app_kv" {
         sqlx::query_scalar("SELECT COUNT(*) FROM app_kv WHERE key = ?1")
             .bind(&entry.entity_id)
@@ -283,6 +302,13 @@ async fn apply_upsert(
         && replica_takes_main_row(&entry.entity_table, &entry.entity_id)
         && !has_pending_local_edit(pool, local_device_id, &entry.entity_table, &entry.entity_id)
             .await?;
+    let lww = !take_main && !force && exists > 0 && policy == ConflictPolicy::LastWriteWins;
+    let field_ctx = (admin_pull, local_is_master, now_ms);
+    if let Some(done) =
+        merge_fields::try_merge(pool, entry, obj, hlc_to_save.filter(|_| lww), field_ctx).await?
+    {
+        return Ok(done);
+    }
     if !take_main && !force && exists > 0 && policy == ConflictPolicy::LastWriteWins {
         if let Some(remote_hlc) = hlc_to_save {
             if let Some(local_hlc) =
@@ -404,6 +430,7 @@ async fn apply_upsert(
             remote_hlc.wall_ms = now_ms;
         }
         crate::hlc::save_row(pool, &entry.entity_table, &entry.entity_id, remote_hlc).await?;
+        merge_fields::save_row_fields(pool, entry, obj, remote_hlc).await?;
     }
     Ok(true)
 }
@@ -476,32 +503,6 @@ async fn has_pending_local_edit(
     .await
     .map_err(AppError::Database)?;
     Ok(n > 0)
-}
-
-/// Main device only: an incoming stamp ahead of this clock is rewritten to
-/// now, once, before the row is applied and relayed. Every device then holds
-/// the same stamp for the same version.
-pub(crate) fn clamp_future_hlc(payload_json: &str, now_ms: i64) -> String {
-    let Ok(mut value) = serde_json::from_str::<serde_json::Value>(payload_json) else {
-        return payload_json.to_string();
-    };
-    let Some(obj) = value.as_object_mut() else {
-        return payload_json.to_string();
-    };
-    let Some(hlc) = crate::hlc::payload_hlc(obj) else {
-        return payload_json.to_string();
-    };
-    if hlc.wall_ms <= now_ms {
-        return payload_json.to_string();
-    }
-    obj.insert(
-        "syncHlc".to_string(),
-        serde_json::Value::String(crate::hlc::format_hlc(crate::hlc::Hlc {
-            wall_ms: now_ms,
-            counter: hlc.counter,
-        })),
-    );
-    serde_json::to_string(&value).unwrap_or_else(|_| payload_json.to_string())
 }
 
 /// Tables only the main device may write through sync (access control).
@@ -1131,55 +1132,9 @@ pub(crate) async fn restore_foreign_keys(
     }
 }
 
-/// UNIQUE (not primary key: the row was checked absent) constraint violation.
-fn is_unique_error(err: &AppError) -> bool {
-    match err {
-        AppError::Database(sqlx::Error::Database(db)) => {
-            db.code().is_some_and(|code| code == "2067")
-                || db.message().contains("UNIQUE constraint failed")
-        }
-        _ => false,
-    }
-}
-
-async fn bind_and_execute<'e, E>(
-    executor: E,
-    sql: &str,
-    binds: &[Option<String>],
-) -> Result<(), AppError>
-where
-    E: sqlx::Executor<'e, Database = sqlx::Sqlite>,
-{
-    let mut q = sqlx::query(sql);
-    for b in binds {
-        q = q.bind(b.clone());
-    }
-    q.execute(executor).await.map_err(AppError::Database)?;
-    Ok(())
-}
-
-fn sanitize_table(table: &str) -> Result<&str, AppError> {
-    if crate::repo::is_synced_table(table) {
-        Ok(table)
-    } else {
-        Err(AppError::Validation(format!(
-            "sync entity_table not allow-listed: {table}"
-        )))
-    }
-}
-
-/// `None` binds as SQL NULL. An empty string is a real value and must not
-/// stand in for JSON null: foreign keys reject `''`, and `IS NULL` filters
-/// (unread notifications) stop matching.
-fn json_to_sql_value(version: &serde_json::Value) -> Option<String> {
-    match version {
-        serde_json::Value::Null => None,
-        serde_json::Value::Bool(b) => Some(if *b { "1" } else { "0" }.into()),
-        serde_json::Value::Number(n) => Some(n.to_string()),
-        serde_json::Value::String(s) => Some(s.clone()),
-        other => Some(other.to_string()),
-    }
-}
+mod sql_values;
+#[allow(unused_imports)]
+pub use sql_values::*;
 
 #[cfg(test)]
 mod tests {

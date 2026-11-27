@@ -6,6 +6,10 @@ export type ChartToValidateRow = {
     chart_id: string;
     chart_status: string;
     updated_at: string;
+    /** Group: the doctor the chart belongs to (T5.5). */
+    owner_staff_id?: string | null;
+    /** Group: false when the owner's sharing rules do not let this person validate it. */
+    can_validate?: boolean;
 };
 
 export type PracticeTicket = {

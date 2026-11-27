@@ -4114,6 +4114,7 @@ dependencies = [
  "jsonwebtoken",
  "keyring",
  "libsqlite3-sys",
+ "medoc-company",
  "medoc-practice",
  "rand 0.8.6",
  "regex",
@@ -4229,6 +4230,8 @@ dependencies = [
  "unicode-normalization",
  "urlencoding",
  "uuid",
+ "windows-sys 0.59.0",
+ "x25519-dalek",
  "zeroize",
  "zip 2.4.2",
 ]
@@ -4309,7 +4312,6 @@ dependencies = [
  "ed25519-dalek",
  "if-addrs 0.14.0",
  "jsonwebtoken",
- "medoc-company",
  "medoc-core",
  "medoc-lan",
  "medoc-sync",
@@ -4361,6 +4363,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "medoc-support-open"
+version = "0.1.0"
+dependencies = [
+ "medoc-core",
+ "rand 0.8.6",
+]
+
+[[package]]
 name = "medoc-sync"
 version = "0.1.0"
 dependencies = [
@@ -4369,6 +4379,7 @@ dependencies = [
  "chrono",
  "ciborium",
  "ed25519-dalek",
+ "flate2",
  "hmac",
  "hostname",
  "libsqlite3-sys",

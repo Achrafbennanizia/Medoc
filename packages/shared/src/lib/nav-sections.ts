@@ -30,7 +30,8 @@ export const NAV_SECTIONS: NavSectionDefinition[] = [
             "/purchase-orders",
             ...(SERVICES_MENU_ENABLED ? ["/services"] : []),
             "/staff/work-time",
-            "/administration",
+            // One-person editions reach Administration from Settings (editions plan §6.9).
+            ...(__CAP_MULTI_STAFF__ ? ["/administration"] : []),
             "/settings",
         ],
     },

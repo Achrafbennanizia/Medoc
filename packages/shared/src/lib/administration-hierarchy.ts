@@ -2,7 +2,10 @@
 
 export type AdministrationBackTarget = { path: string; labelKey: string };
 
-const ADMINISTRATION: AdministrationBackTarget = { path: "/administration", labelKey: "nav.administration" };
+/** One-person editions keep the Administration hub inside Settings (editions plan §6.9). */
+const ADMINISTRATION: AdministrationBackTarget = __CAP_MULTI_STAFF__
+    ? { path: "/administration", labelKey: "nav.administration" }
+    : { path: "/settings?tab=administration", labelKey: "nav.settings" };
 
 const FINANCE_REPORTS: AdministrationBackTarget = {
     path: "/administration/finance-reports",

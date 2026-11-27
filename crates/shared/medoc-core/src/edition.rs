@@ -10,11 +10,11 @@ use serde::Serialize;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Limits {
-    /// Hard device limit (licence seats).
+    /// Computers of the practice (licence seats, pairing). Not accounts.
     pub devices: u32,
     pub admins: u32,
-    /// Active staff accounts.
-    pub staff_active: u32,
+    /// Sign-in accounts (staff, the Solo guest included). Not devices.
+    pub accounts: u32,
     pub doctors: u32,
 }
 

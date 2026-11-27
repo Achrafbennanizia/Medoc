@@ -298,3 +298,58 @@ async fn gdpr_export_contains_full_rows_and_erasure_respects_retention() {
     .unwrap_err();
     assert!(err.to_string().contains("retention_active"));
 }
+
+/// §5.1 (Group): a certificate signed by a second dentist prints that dentist's name, title and
+/// own ZANR, never the practice clinician's.
+#[tokio::test]
+async fn second_doctor_signs_the_certificate_they_issued() {
+    let pool = setup().await;
+    medoc_core::mvp_security::drop_staff_quota_db_triggers(&pool)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO staff (id, name, email, password_hash, role, available)
+         VALUES ('doc-b', 'Dr. Karim Alaoui', 'b@example.org', 'x', 'PHYSICIAN', 1)",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    app_kv_repo::set(
+        &pool,
+        "documents.doctor_signatures.v1",
+        r#"{"doc-b":{"title":"Zahnarzt","professionalId":"111222333"}}"#,
+    )
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO certificate (id, patient_id, physician_id, kind, body_text, valid_from, valid_until, signed_by_staff_id)
+         VALUES ('c2', 'p1', 'seed-physician-001', 'SICK_LEAVE', 'x', '2026-06-01', '2026-06-03', 'doc-b')",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    issue_clinical_document(
+        &pool,
+        &session("PHYSICIAN"),
+        IssueClinicalArgs {
+            kind: "certificate".into(),
+            source_id: "c2".into(),
+            layout_json: r#"{"kind":"certificate","documentTitle":"AU"}"#.into(),
+            preview: false,
+            copy_variant: None,
+        },
+    )
+    .await
+    .expect("issued");
+    let payload: String =
+        sqlx::query_scalar("SELECT payload_json FROM issued_document WHERE source_id = 'c2'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    let v: serde_json::Value = serde_json::from_str(&payload).unwrap();
+    let sig: Vec<String> = serde_json::from_value(v["signatureLines"].clone()).unwrap();
+    assert_eq!(sig[0], "Dr. Karim Alaoui");
+    assert_eq!(sig[1], "Zahnarzt");
+    assert!(sig[2].contains("ZANR 111222333"), "{sig:?}");
+    assert!(!sig.iter().any(|l| l.contains("987654321")), "{sig:?}");
+}

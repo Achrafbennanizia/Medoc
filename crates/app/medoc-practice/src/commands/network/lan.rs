@@ -234,7 +234,7 @@ pub async fn start_lan_embedded(
     }
 
     let cfg = load_or_default_config(&pool).await?;
-    let app_dir = crate::commands::app_data_dir(&app)?;
+    let app_dir = crate::commands::app_data_dir(app)?;
 
     let jwt_arr = secrets::ensure_jwt_secret_bytes(&app_dir)?;
     let jwt_secret: Arc<[u8; 32]> = Arc::new(jwt_arr);

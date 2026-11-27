@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import { practiceSystem } from "@/systems/practice-host/adapters/practice-transport";
+import { invokeOrPropose } from "./guest.controller";
 import type { Patient } from "@/models/types";
 import {
     CreatePatientSchema,
@@ -61,12 +62,12 @@ export async function getPatient(id: string): Promise<Patient> {
 
 export async function createPatient(data: z.input<typeof CreatePatientSchema>): Promise<Patient> {
     const safe = parseOrThrow(CreatePatientSchema, data);
-    return practiceSystem.invoke<Patient>("create_patient", { data: safe });
+    return invokeOrPropose<Patient>("create_patient", { data: safe }, () => ({ ...safe, id: "" }) as unknown as Patient);
 }
 
 export async function updatePatient(id: string, data: z.input<typeof UpdatePatientSchema>): Promise<Patient> {
     const safe = parseOrThrow(UpdatePatientSchema, data);
-    return practiceSystem.invoke<Patient>("update_patient", { id, data: safe });
+    return invokeOrPropose<Patient>("update_patient", { id, data: safe }, () => ({ ...safe, id: "" }) as unknown as Patient);
 }
 
 export async function deletePatient(id: string): Promise<void> {

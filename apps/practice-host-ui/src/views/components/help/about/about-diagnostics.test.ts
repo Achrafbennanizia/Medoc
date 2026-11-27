@@ -28,7 +28,7 @@ const base: DiagnosticsInput = {
 describe("buildDiagnostics", () => {
     it("lists versions, states and error codes", () => {
         const text = buildDiagnostics(base);
-        expect(text).toContain("MeDoc 1.2.3 (release)");
+        expect(text).toContain("MeDoc Dentist 1.2.3 (release)");
         expect(text).toContain("synced +3 s");
         expect(text).toContain("Health: db ok 3 ms");
         expect(text).toContain("Backups: 0 · latest none");

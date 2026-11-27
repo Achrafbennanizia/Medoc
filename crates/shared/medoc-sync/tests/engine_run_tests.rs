@@ -85,6 +85,14 @@ async fn run_replica_sync_records_push_error_without_master_url() {
     )
     .await
     .expect("deploy");
+    // Past the initial copy, so the push runs (and fails for the missing address).
+    medoc_core::infrastructure::database::repos::admin::app_kv::set(
+        &pool,
+        "sync.replica.catchup.done.v1",
+        "1",
+    )
+    .await
+    .expect("catch-up done");
     let report = SyncEngine::run_replica_sync(&pool).await.expect("report");
     assert!(report.error.as_ref().is_some_and(|e| e.contains("push")));
 }

@@ -3,6 +3,7 @@
  * Matrix: `config/rbac.yaml` → `rbac.generated.ts` (run `cargo build` to refresh).
  */
 
+import { routeEnabledInEdition } from "./feature-modules";
 import { baseAllowedGenerated, RBAC_ALL_ACTIONS } from "./rbac.generated";
 import { PRIVACY_UI_ENABLED } from "./privacy-config";
 import { INBOX_UI_ENABLED } from "./inbox-config";
@@ -111,7 +112,7 @@ export function navItemVisible(
     item: NavItemDefinition,
     overrides?: readonly PermissionOverride[] | null,
 ): boolean {
-    return navVisibilitySatisfied(item.visibility, role, overrides);
+    return routeEnabledInEdition(routePathFromLocation(item.to)) && navVisibilitySatisfied(item.visibility, role, overrides);
 }
 
 /**
@@ -260,7 +261,7 @@ export function routeChildPathAllowed(
     role: string | undefined,
     overrides?: readonly PermissionOverride[] | null,
 ): boolean {
-    if (!INBOX_UI_ENABLED && routePath === "inbox") {
+    if (!routeEnabledInEdition(routePath) || (!INBOX_UI_ENABLED && routePath === "inbox")) {
         return false;
     }
     if (!PRIVACY_UI_ENABLED && routePath === "privacy") {
@@ -343,8 +344,7 @@ export type SettingsSectionId =
     | "migration"
     | "appearance"
     | "system"
-    | "backups"
-    | "about";
+    | "backups" | "about" | "administration" | "allowances"; // administration: one-person editions; allowances: Group sharing
 
 /** Settings sub-panels (page is already gated by `settings` route). */
 export const SETTINGS_SECTION_VISIBILITY: Partial<Record<SettingsSectionId, NavVisibility>> = {
@@ -360,6 +360,7 @@ export const SETTINGS_SECTION_VISIBILITY: Partial<Record<SettingsSectionId, NavV
     "practice": { kind: "action", action: "ops.system" },
     /** Compliance / 2FA policies — practice management; Reception sees device sessions under account. */
     security: { kind: "action", action: "ops.system" },
+    administration: { kind: "action", action: "administration.read" },
 };
 
 /** Personal sections: every signed-in person. Every other section follows privileges, not the role. */
@@ -393,6 +394,7 @@ export function settingsSectionVisible(
     if (!routeChildPathAllowed("settings", role, overrides)) return false;
     if (MAIN_APP_SECTIONS.has(section) && isReplicaApp()) return false;
     if (PERSONAL_SETTINGS_SECTIONS.has(section)) return true;
+    if (section === "allowances") return __CAP_ALLOWANCES__ && parseRole(role) === "PHYSICIAN"; // Group: dentists' own rules
     const vis = SETTINGS_SECTION_VISIBILITY[section as SettingsSectionId] ?? PRACTICE_SETTINGS_DEFAULT;
     return navVisibilitySatisfied(vis, parseRole(role) ?? role, overrides);
 }

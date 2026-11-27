@@ -31,7 +31,7 @@ fn quota_error_messages_match_limits() {
         max_total: 10,
     };
     let msgs = mvp_security::quota_error_messages(limits);
-    assert_eq!(msgs.max_total, "Maximum 10 users allowed");
+    assert_eq!(msgs.max_total, "Maximum 10 accounts allowed");
     assert!(msgs.max_physician.contains('2'));
     assert!(msgs.max_reception.contains('8'));
 }
@@ -87,7 +87,7 @@ fn staff_quota_trigger_ddl_apostrophe_in_raise_message() {
         max_total: 5,
     };
     let msgs = QuotaErrorMessages {
-        max_total: "Maximum 5 users allowed".into(),
+        max_total: "Maximum 5 accounts allowed".into(),
         max_physician: "Physician's account is taken".into(),
         max_reception: "Maximum 4 reception accounts allowed".into(),
     };
@@ -178,13 +178,19 @@ async fn enforce_staff_quota_for_create_rejects_sixth_user() {
     .expect("app_kv");
 
     let hash = crypto::hash_password("TestPass42").unwrap();
-    for (id, role) in [
-        ("a1", "PHYSICIAN"),
-        ("r1", "RECEPTION"),
-        ("r2", "RECEPTION"),
-        ("r3", "RECEPTION"),
-        ("r4", "RECEPTION"),
-    ] {
+    // Fill every account slot of this build (the edition decides: MVP 5, Solo 2, Duo 3, Group 20).
+    let limits = mvp_security::staff_quota_limits();
+    let accounts: Vec<(String, &str)> = (0..limits.max_total)
+        .map(|i| {
+            let role = if i < limits.max_physician {
+                "PHYSICIAN"
+            } else {
+                "RECEPTION"
+            };
+            (format!("u{i}"), role)
+        })
+        .collect();
+    for (id, role) in &accounts {
         sqlx::query(
             "INSERT INTO staff (id, name, email, password_hash, role)
              VALUES (?1, ?2, ?3, ?4, ?5)",
@@ -193,7 +199,7 @@ async fn enforce_staff_quota_for_create_rejects_sixth_user() {
         .bind(format!("User {id}"))
         .bind(format!("{id}@practice.de"))
         .bind(&hash)
-        .bind(role)
+        .bind(*role)
         .execute(&pool)
         .await
         .unwrap();
@@ -213,6 +219,6 @@ async fn enforce_staff_quota_for_create_rejects_sixth_user() {
     };
     let err = staff_repo::create_with_quota(&pool, &data, &hash)
         .await
-        .expect_err("sixth user via atomic path");
+        .expect_err("one account over the cap via atomic path");
     assert!(matches!(err, AppError::Validation(_)));
 }

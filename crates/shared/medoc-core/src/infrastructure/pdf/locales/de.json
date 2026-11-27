@@ -209,5 +209,6 @@
   "invoice.vat_exempt_default@fr": "Umsatzsteuerfrei nach Art. 261-4-1° des französischen Steuergesetzbuchs (CGI).",
   "invoice.vat_exempt_default@eu": "Umsatzsteuerfreie Heilbehandlung (Art. 132 Abs. 1 Buchst. e Richtlinie 2006/112/EG).",
   "invoice.vat_exempt_default@ma": "Zahnärztliche Leistungen, von der Mehrwertsteuer befreit nach Art. 91-VI-1° des marokkanischen Steuergesetzbuchs (CGI).",
-  "certificate.fr_sick_leave_notice": "Diese Bescheinigung ersetzt nicht die Arbeitsunfähigkeitsmeldung: Für die französische Krankenversicherung und den Arbeitgeber wird sie online (amelipro) oder auf dem gesicherten Cerfa-Formular der Assurance Maladie gemeldet."
+  "certificate.fr_sick_leave_notice": "Diese Bescheinigung ersetzt nicht die Arbeitsunfähigkeitsmeldung: Für die französische Krankenversicherung und den Arbeitgeber wird sie online (amelipro) oder auf dem gesicherten Cerfa-Formular der Assurance Maladie gemeldet.",
+  "period.void_numbers": "Nicht vergebene Nummern (ungültig)"
 }

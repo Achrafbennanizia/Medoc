@@ -120,7 +120,7 @@ fn normalize_locale(raw: Option<&str>) -> Option<String> {
     matches!(lower.as_str(), "de" | "en" | "fr" | "ar").then_some(lower)
 }
 
-fn resolve_slice<'a>(file: &'a UiPrefsFile, uid: Option<&str>) -> UiPrefsSlice {
+fn resolve_slice(file: &UiPrefsFile, uid: Option<&str>) -> UiPrefsSlice {
     let user = uid
         .and_then(|id| file.users.get(id))
         .cloned()

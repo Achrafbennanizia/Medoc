@@ -201,6 +201,13 @@ export function BalanceSheetNewPage() {
                                     {tp("page.balance_sheet_new.unclosed_days", { days: report.unclosedDays.map((d) => formatDate(d)).join(", ") })}
                                 </p>
                             ) : null}
+                            {report.voidNumbers?.length ? (
+                                <p className="card card-pad" role="status" style={{ margin: 0, fontSize: 13 }}>
+                                    {tp("page.balance_sheet_new.void_numbers", {
+                                        ranges: report.voidNumbers.map((v) => `${v.first} – ${v.last} (${v.count})`).join(", "),
+                                    })}
+                                </p>
+                            ) : null}
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <Card className="card-pad">

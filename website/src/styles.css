@@ -651,87 +651,6 @@ html[lang="ar"] .chart-title {
   gap: 24px;
   flex-wrap: wrap;
 }
-.role {
-  font-size: 0.8125rem;
-  font-weight: 600;
-  padding: 3px 10px;
-  border-radius: 999px;
-}
-.role-reception {
-  background: var(--majorelle-soft);
-  color: var(--majorelle);
-}
-.role-dentist {
-  background: var(--mint-soft);
-  color: var(--mint);
-}
-.dots {
-  display: inline-flex;
-  gap: 5px;
-}
-.dots i {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--line-2);
-}
-.toggle {
-  display: inline-flex;
-  margin-top: 28px;
-  padding: 4px;
-  border-radius: 999px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-}
-.toggle button {
-  border: 0;
-  background: transparent;
-  color: var(--ink-2);
-  font: 600 0.9375rem/1 var(--font-text);
-  padding: 11px 18px;
-  border-radius: 999px;
-  cursor: pointer;
-  transition: background-color 0.15s, color 0.15s;
-}
-html[lang="ar"] .toggle button {
-  font-family: "IBM Plex Sans Arabic", sans-serif;
-}
-.toggle button[aria-pressed="true"] {
-  background: var(--majorelle);
-  color: #fff;
-}
-:root[data-theme="dark"] .toggle button[aria-pressed="true"] {
-  color: #10153a;
-}
-.toggle-sm {
-  margin-top: 0;
-}
-.toggle-sm button {
-  padding: 8px 16px;
-}
-.avatar {
-  display: grid;
-  place-items: center;
-  width: 46px;
-  height: 46px;
-  border-radius: 50%;
-  background: var(--mint-soft);
-  color: var(--mint);
-  font-weight: 700;
-}
-.locked-title {
-  font-weight: 700;
-  color: var(--ink);
-}
-.audit-note {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.875rem;
-  color: var(--mint);
-  font-weight: 500;
-}
-
 /* ===== set-ups ===== */
 .setups {
   display: grid;
@@ -1391,12 +1310,6 @@ html[lang="ar"] .form :is(input, textarea) {
   outline: 3px solid var(--majorelle);
   outline-offset: 3px;
 }
-.doc-country {
-  margin-top: 10px;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--mint);
-}
 .doc-title {
   font-weight: 600;
 }
@@ -1697,53 +1610,7 @@ html[lang="ar"] .legal-body {
   }
 }
 
-/* ===== country selector and cookie notice ===== */
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-}
-.country-select select {
-  appearance: none;
-  height: 38px;
-  padding: 0 32px 0 14px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--panel)
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none' stroke='%236b7c77' stroke-width='1.6'%3E%3Cpath d='M1 1l4 4 4-4'/%3E%3C/svg%3E")
-    no-repeat right 13px center;
-  color: var(--ink);
-  font: 500 0.875rem/1 var(--font-text);
-  cursor: pointer;
-}
-html[dir="rtl"] .country-select select {
-  padding: 0 14px 0 32px;
-  background-position: left 13px center;
-}
-.country-select select:hover {
-  border-color: var(--line-2);
-}
-.country-select select:focus-visible {
-  outline: 2px solid var(--majorelle);
-  outline-offset: 2px;
-}
-.show-sm {
-  display: none;
-}
-@media (max-width: 860px) {
-  .show-sm {
-    display: block;
-    padding: 12px;
-  }
-  .show-sm select {
-    width: 100%;
-    height: 44px;
-  }
-}
-
+/* ===== cookie notice ===== */
 .cookie-notice {
   position: fixed;
   inset-inline-start: 16px;
@@ -1965,6 +1832,7 @@ html[dir="rtl"] .country-select select {
 }
 .band-grid {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 48px;
   align-items: center;
 }
@@ -2165,11 +2033,15 @@ html[dir="rtl"] .country-select select {
   color: var(--ink);
 }
 .trap {
+  /* off-screen for people, still in the form for bots; clipped in place so right-to-left pages don't scroll sideways */
   position: absolute;
-  left: -10000px;
+  inset-inline-start: 0;
+  top: 0;
   width: 1px;
   height: 1px;
   overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 .form {
   position: relative;
@@ -2272,7 +2144,7 @@ html[dir="rtl"] .country-select select {
   background: var(--mint);
 }
 
-/* digital health in your country */
+/* digital health in Morocco */
 .digital {
   background: var(--panel);
   border-block: 1px solid var(--line);
@@ -2395,5 +2267,229 @@ html[dir="rtl"] .country-select select {
 @media (min-width: 1100px) {
   .advantages {
     grid-template-columns: repeat(5, 1fr);
+  }
+}
+
+/* ---------- goal pages: home "digitize everything", explorer, closing call to action ---------- */
+.ev-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: ev;
+  display: grid;
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 560px) {
+  .ev-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (min-width: 1000px) {
+  .ev-grid {
+    grid-template-columns: repeat(5, 1fr);
+  }
+}
+.ev-grid li {
+  counter-increment: ev;
+  background: var(--panel);
+  padding: 20px;
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+.ev-grid li::before {
+  content: counter(ev, decimal-leading-zero);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--mint);
+  font-weight: 600;
+}
+.ev-grid b {
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 600;
+}
+.ev-grid span {
+  color: var(--ink-2);
+  font-size: 15px;
+}
+.ev-cta {
+  margin-top: 28px;
+  align-items: center;
+}
+.ev-note {
+  color: var(--ink-3);
+  font-size: 14px;
+}
+
+.explore {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+@media (min-width: 720px) {
+  .explore {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+.explore a {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 12px;
+  padding: 22px;
+  min-height: 100%;
+  border-radius: var(--radius);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 150ms ease, transform 150ms ease;
+}
+.explore a:hover {
+  border-color: var(--mint);
+}
+.explore b {
+  font-family: var(--font-display);
+  font-size: 20px;
+}
+.explore span {
+  grid-column: 1;
+  color: var(--ink-2);
+  font-size: 15px;
+}
+.explore svg {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  color: var(--mint);
+  transition: transform 150ms ease;
+}
+.explore a:hover svg {
+  transform: translateX(3px);
+}
+[dir="rtl"] .explore svg {
+  transform: scaleX(-1);
+}
+[dir="rtl"] .explore a:hover svg {
+  transform: scaleX(-1) translateX(3px);
+}
+
+.final-cta {
+  background: var(--mint);
+  color: var(--mint-ink);
+}
+.final-inner {
+  display: grid;
+  gap: 16px;
+  justify-items: start;
+}
+.final-inner .lead {
+  max-width: 40em;
+}
+.final-cta h2 {
+  font-family: var(--font-display);
+  font-size: clamp(30px, 4vw, 44px);
+  line-height: 1.1;
+}
+.final-cta .lead {
+  color: inherit;
+  opacity: 0.88;
+}
+.final-cta .btn-primary {
+  background: var(--mint-ink);
+  color: var(--mint);
+}
+.final-cta .btn-ghost {
+  color: var(--mint-ink);
+  border-color: color-mix(in srgb, var(--mint-ink) 50%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .explore a,
+  .explore svg {
+    transition: none;
+  }
+}
+.final-cta .btn-primary:hover {
+  background: color-mix(in srgb, var(--mint-ink) 90%, var(--mint));
+}
+.final-cta .btn-ghost:hover {
+  border-color: var(--mint-ink);
+}
+/* five page links: keep each label, and the brand on wide screens, on one line */
+.nav a {
+  white-space: nowrap;
+}
+@media (min-width: 861px) {
+  .brand span {
+    white-space: nowrap;
+  }
+}
+@media (min-width: 1021px) and (max-width: 1240px) {
+  .nav a {
+    padding-inline: 8px;
+  }
+  .header-tools {
+    gap: 6px;
+  }
+}
+/* 861–1180 px: five page links don't fit next to the tools, so they go into the menu;
+   the demo button stays in the header. */
+@media (min-width: 861px) and (max-width: 1180px) {
+  .menu-btn {
+    display: inline-grid;
+  }
+  .header-row {
+    position: relative;
+  }
+  .nav {
+    display: none;
+    position: absolute;
+    top: 66px;
+    inset-inline: 0;
+    flex-direction: column;
+    padding: 12px 16px 20px;
+    background: var(--paper);
+    border-bottom: 1px solid var(--line);
+    box-shadow: var(--shadow);
+  }
+  .nav.is-open {
+    display: flex;
+  }
+  .nav a {
+    padding: 12px;
+  }
+  .header-tools {
+    margin-inline-start: auto;
+  }
+}
+@media (min-width: 861px) {
+  .brand-group {
+    flex-shrink: 0;
+  }
+}
+.brand-group {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.brand-group .by-line {
+  padding-inline-start: 42px;
+  line-height: 1;
+}
+/* long labels ("Comment MeDoc Dentist protège les données") wrap instead of widening the page */
+@media (max-width: 560px) {
+  .btn {
+    white-space: normal;
+    text-align: center;
+    height: auto;
+    min-height: 44px;
+    max-width: 100%;
   }
 }

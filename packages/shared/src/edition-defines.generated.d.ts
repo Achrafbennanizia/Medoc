@@ -14,3 +14,4 @@ declare const __CAP_MULTI_ADMIN__: boolean;
 declare const __CAP_ALLOWANCES__: boolean;
 declare const __CAP_LAN_CLIENT__: boolean;
 declare const __CAP_MAINTENANCE__: boolean;
+declare const __CAP_DAY_CLOSE__: boolean;

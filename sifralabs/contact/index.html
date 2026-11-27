@@ -3,82 +3,106 @@
   <head>
 <!-- @include head -->
     <title>Contact · Sifra Labs</title>
-    <meta name="description" content="Contact Sifra Labs: MeDoc Dentist demos, partnerships and press, and security reports." />
+    <meta name="description" content="Book a free 30-minute call with Sifra Labs. We reply within 24 hours on working days, talk through your project, then send a written scope and a fixed quote." />
     <link rel="canonical" href="https://sifralabs.com/contact/" />
-    <meta property="og:title" content="Contact · Sifra Labs" />
+    <meta property="og:title" content="Book a free 30-minute call · Sifra Labs" />
+    <meta property="og:description" content="Tell us what slows your business down. We reply within 24 hours on working days." />
     <meta property="og:url" content="https://sifralabs.com/contact/" />
   </head>
   <body>
 <!-- @include icons -->
 <!-- @include header -->
     <main id="main">
-      <section class="page-hero">
+      <section class="page-hero" id="hero" aria-labelledby="hero-h">
         <div class="wrap">
           <p class="kicker">Contact</p>
-          <h1>Write to the right address, get the right answer.</h1>
-          <p class="lede">We read every message ourselves, and nothing you send is stored on this website.</p>
+          <h1 id="hero-h">Book a free 30-minute call</h1>
+          <p class="lede">Tell us what slows your business down, or what you would like to build. The call is free, and you are under no obligation.</p>
+          <div class="actions">
+            <a class="btn" href="#write">Write to us</a>
+          </div>
         </div>
       </section>
 
-      <section class="section" aria-label="Contact addresses">
+      <section class="section" id="next" aria-labelledby="next-h">
         <div class="wrap">
-          <ul class="contacts">
-            <li>
-              <h2>MeDoc Dentist demo</h2>
-              <p>For dental practices: a 30-minute demo in French, Arabic or English.</p>
-              <a class="btn" href="https://achrafbennanizia.github.io/Medoc/#contact">Book a demo</a>
-              <a class="text-link" href="mailto:contact@sifralabs.com">contact@sifralabs.com</a>
-            </li>
-            <li>
-              <h2>Partners and press</h2>
-              <p>Dental distributors, clinics, investors and journalists.</p>
-              <a class="text-link" href="mailto:hello@sifralabs.com">hello@sifralabs.com</a>
-            </li>
-            <li>
-              <h2>Security</h2>
-              <p>Report a vulnerability. Please read the <a class="text-link" href="/security/#report">disclosure policy</a> first.</p>
-              <a class="text-link" href="mailto:security@sifralabs.com">security@sifralabs.com</a>
-            </li>
-          </ul>
-          <p class="fine">We aim to reply within 2 working days. Please don't send patient records by e-mail.</p>
+          <header class="section-head">
+            <h2 id="next-h">What happens next</h2>
+            <p>Four steps, and nothing starts until you agree. If you want an NDA, ask for it before you share details.</p>
+          </header>
+          <ol class="timeline">
+            <li><b>You write to us</b><span>A few lines are enough: what you do, what gets in the way, and what you would like to change.</span></li>
+            <li><b>We reply within 24 hours</b><span>On working days, by e-mail. We answer your first questions and suggest a few times for the call.</span></li>
+            <li><b>A free 30-minute call</b><span>We listen and ask questions. Then we tell you honestly whether software can help, and what it would take.</span></li>
+            <li><b>A written scope and a fixed quote</b><span>If you want to go ahead, you get in writing what we will build, by when, and at what price. No hidden costs.</span></li>
+          </ol>
         </div>
       </section>
 
       <section class="section" id="write" aria-labelledby="write-h">
-        <div class="wrap split">
+        <div class="wrap two-col">
           <div>
             <h2 id="write-h">Write to us</h2>
-            <p class="lede">
-              Your message goes straight to contact@sifralabs.com, and we reply from there within two
-              working days. Nothing is kept on this website.
-            </p>
+            <p class="lede">Your message goes straight to contact@sifralabs.com. We read every message ourselves, and this website keeps no copy.</p>
+            <p class="fine">Running a dental practice? <a class="text-link" href="https://achrafbennanizia.github.io/Medoc/#/demo">Book a MeDoc Dentist demo</a></p>
           </div>
-          <form class="mail-form" data-to="contact@sifralabs.com" data-api="/api/contact">
-            <!-- Bot trap: people never see or fill this field. -->
-            <label class="trap" aria-hidden="true">Website <input name="website" tabindex="-1" autocomplete="off" /></label>
-            <label><span>Your name <abbr title="Required">*</abbr></span><input name="name" required autocomplete="name" /></label>
-            <label><span>Organisation</span><input name="org" autocomplete="organization" /></label>
-            <label><span>E-mail <abbr title="Required">*</abbr></span><input name="email" type="email" required autocomplete="email" /></label>
-            <label><span>Phone</span><input name="phone" type="tel" autocomplete="tel" /></label>
-            <label class="span-2"><span>Topic <abbr title="Required">*</abbr></span>
-              <select name="topic" required>
-                <option value="MeDoc Dentist demo for a dental practice">MeDoc Dentist demo for a dental practice</option>
-                <option value="Partnership or distribution">Partnership or distribution</option>
-                <option value="Press">Press</option>
-                <option value="Careers">Careers</option>
-                <option value="Other">Other</option>
-              </select>
-            </label>
-            <label class="span-2"><span>Message <abbr title="Required">*</abbr></span><textarea name="message" rows="5" required></textarea></label>
-            <div class="span-2 form-foot">
-              <button class="btn" type="submit">Send message</button>
-              <p class="fine">Please don't include patient records.</p>
-            </div>
-            <div class="span-2 mail-sent" role="status" hidden>
-              <p data-msg></p>
-              <button class="btn btn-quiet" type="button" data-copy hidden>Copy the e-mail</button>
-            </div>
-          </form>
+          <div>
+            <form class="mail-form" data-to="contact@sifralabs.com" data-api="/api/contact">
+              <!-- Bot trap: people never see or fill this field. -->
+              <label class="trap" aria-hidden="true">Website <input name="website" tabindex="-1" autocomplete="off" /></label>
+              <label><span>Your name <abbr title="Required">*</abbr></span><input name="name" required autocomplete="name" /></label>
+              <label><span>Organisation</span><input name="org" autocomplete="organization" /></label>
+              <label><span>E-mail <abbr title="Required">*</abbr></span><input name="email" type="email" required autocomplete="email" /></label>
+              <label><span>Phone</span><input name="phone" type="tel" autocomplete="tel" /></label>
+              <label class="span-2"><span>Topic <abbr title="Required">*</abbr></span>
+                <select name="topic" required>
+                  <option value="Free 30-minute call about a project">Free 30-minute call about a project</option>
+                  <option value="AI &amp; automation">AI &amp; automation</option>
+                  <option value="Custom software or website">Custom software or website</option>
+                  <option value="Data &amp; analytics">Data &amp; analytics</option>
+                  <option value="IoT &amp; embedded">IoT &amp; embedded</option>
+                  <option value="Quality, security or audit">Quality, security or audit</option>
+                  <option value="MeDoc practice software">MeDoc practice software</option>
+                  <option value="Partnership or press">Partnership or press</option>
+                  <option value="Other">Other</option>
+                </select>
+              </label>
+              <label class="span-2"><span>Message <abbr title="Required">*</abbr></span><textarea name="message" rows="5" required></textarea></label>
+              <div class="span-2 form-foot">
+                <button class="btn" type="submit">Send message</button>
+                <p class="fine">Please don't include patient records.</p>
+              </div>
+              <div class="span-2 mail-sent" role="status" hidden>
+                <p data-msg></p>
+                <button class="btn btn-quiet" type="button" data-copy hidden>Copy the e-mail</button>
+              </div>
+            </form>
+            <p class="more">We'll reply within 24 hours on working days.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="addresses" aria-label="Other addresses">
+        <div class="wrap">
+          <ul class="contacts">
+            <li>
+              <h2>General questions</h2>
+              <p>Partners, press, and anything that is not a project.</p>
+              <a class="text-link" href="mailto:hello@sifralabs.com">hello@sifralabs.com</a>
+            </li>
+            <li>
+              <h2>Security reports</h2>
+              <p>Found a vulnerability in one of our products or websites? Please read our disclosure policy first.</p>
+              <a class="text-link" href="mailto:security@sifralabs.com">security@sifralabs.com</a>
+              <a class="text-link" href="/security/#report">Disclosure policy</a>
+            </li>
+            <li>
+              <h2>Get notified</h2>
+              <p>Want to hear when we launch a new product? Write to us and we'll tell you when it's ready. We don't run a newsletter.</p>
+              <a class="text-link" href="mailto:hello@sifralabs.com?subject=Notify%20me">hello@sifralabs.com</a>
+            </li>
+          </ul>
+          <p class="fine">Please don't send patient records or passwords by e-mail. If a project needs real data, we agree a secure way to share it first.</p>
         </div>
       </section>
     </main>

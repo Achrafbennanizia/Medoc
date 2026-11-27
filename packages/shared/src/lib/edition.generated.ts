@@ -12,6 +12,7 @@ export const CAPABILITY_IDS = [
     "allowances",
     "lanClient",
     "maintenance",
+    "dayClose",
 ] as const;
 
 export type Capability = (typeof CAPABILITY_IDS)[number];
@@ -22,7 +23,7 @@ export type EditionId = "solo" | "duo" | "group";
 export type EditionLimits = {
     devices: number;
     admins: number;
-    staffActive: number;
+    accounts: number;
     doctors: number;
 };
 
@@ -43,8 +44,9 @@ export const EDITIONS: Record<EditionId, EditionSpec> = {
             allowances: false,
             lanClient: false,
             maintenance: false,
+            dayClose: false,
         },
-        limits: { devices: 1, admins: 1, staffActive: 2, doctors: 1 },
+        limits: { devices: 1, admins: 1, accounts: 2, doctors: 1 },
     },
     duo: {
         id: "duo",
@@ -60,8 +62,9 @@ export const EDITIONS: Record<EditionId, EditionSpec> = {
             allowances: false,
             lanClient: true,
             maintenance: true,
+            dayClose: true,
         },
-        limits: { devices: 3, admins: 1, staffActive: 3, doctors: 1 },
+        limits: { devices: 3, admins: 1, accounts: 3, doctors: 1 },
     },
     group: {
         id: "group",
@@ -77,8 +80,9 @@ export const EDITIONS: Record<EditionId, EditionSpec> = {
             allowances: true,
             lanClient: true,
             maintenance: true,
+            dayClose: true,
         },
-        limits: { devices: 5, admins: 2, staffActive: 20, doctors: 4 },
+        limits: { devices: 5, admins: 2, accounts: 20, doctors: 4 },
     },
 };
 

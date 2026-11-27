@@ -395,33 +395,9 @@ fn itemize(run: &str, bold: bool, rtl: bool) -> Vec<Segment> {
     out
 }
 
-/// Bidi mirrored glyph for paired punctuation (UAX #9 / BidiMirroring.txt, WinAnsi subset).
-fn mirror_char(c: char) -> char {
-    match c {
-        '(' => ')',
-        ')' => '(',
-        '[' => ']',
-        ']' => '[',
-        '{' => '}',
-        '}' => '{',
-        '<' => '>',
-        '>' => '<',
-        '\u{AB}' => '\u{BB}',
-        '\u{BB}' => '\u{AB}',
-        '\u{2039}' => '\u{203A}',
-        '\u{203A}' => '\u{2039}',
-        other => other,
-    }
-}
-
-/// A character every font lacks becomes its base letter or `?`.
-fn resolve_char(ch: char) -> char {
-    if ch.is_whitespace() || is_joiner(ch) || has_any_glyph(ch) {
-        ch
-    } else {
-        fallback_char(ch)
-    }
-}
+mod chars;
+#[allow(unused_imports)]
+pub use chars::*;
 
 fn place_segment(
     line: &mut LineLayout,

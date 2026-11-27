@@ -1,0 +1,45 @@
+/* Help → Support (help-support.tsx): one readable column, the form then the result. */
+@layer components {
+  .help-support { max-width: 40rem; }
+  .help-support__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-4);
+  }
+  .help-support__row > .ui-field-wrap { flex: 0 1 14rem; }
+  .help-support__switch {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 36px;
+    color: var(--fg);
+    cursor: pointer;
+  }
+  .help-support__note { margin: 0; font-size: var(--text-caption, 12px); color: var(--fg-3); }
+  .help-support__actions { display: flex; gap: var(--space-2); }
+  .help-support__error { margin: 0; color: var(--red-ink); }
+  .help-support__result {
+    display: grid;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-card);
+    background: var(--bg-elev);
+  }
+  .help-support__result-title { font-weight: 600; }
+  .help-support__result-path { color: var(--fg-2); overflow-wrap: anywhere; }
+  /* What the support file says about this computer (help-health.tsx). */
+  .help-health { display: grid; gap: var(--space-2); padding-top: var(--space-4); border-top: 1px solid var(--line); }
+  .help-health__title { margin: 0; font-size: var(--text-body, 14px); font-weight: 600; }
+  .help-health__list { display: grid; gap: var(--space-1); margin: 0; }
+  .help-health__row { display: grid; grid-template-columns: minmax(8rem, 12rem) 1fr; gap: var(--space-3); }
+  .help-health__row dt { color: var(--fg-3); }
+  .help-health__row dd { margin: 0; }
+  .help-health__warn { color: var(--red-ink); }
+  .help-health__link { justify-self: start; }
+  .help-health__remote { display: grid; gap: var(--space-2); }
+  .help-health__remote h4 { margin: 0; font-size: var(--text-body, 14px); }
+  .help-health__remote-row { display: flex; align-items: center; gap: var(--space-2); }
+  .help-health__remote-row > span { flex: 1; }
+}

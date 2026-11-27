@@ -1,3 +1,4 @@
+use super::appointment_allowances as shared;
 use super::appointment_relation::{require_own_appointment, require_own_clinician};
 use crate::application::appointment_hint_fulfillment;
 use crate::application::rbac;
@@ -18,8 +19,8 @@ pub async fn list_appointments(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
 ) -> Result<Vec<Appointment>, AppError> {
-    rbac::require(&session_state, "appointment.read")?;
-    appointment_repo::find_all(&pool).await
+    let session = rbac::require(&session_state, "appointment.read")?;
+    shared::visible(&pool, &session, appointment_repo::find_all(&pool).await?).await
 }
 
 #[tauri::command]
@@ -29,7 +30,7 @@ pub async fn list_appointments_paged(
     session_state: State<'_, SessionState>,
     params: Option<crate::commands::list_params::ListParams>,
 ) -> Result<crate::commands::list_params::ListResponse<Appointment>, AppError> {
-    rbac::require(&session_state, "appointment.read")?;
+    let session = rbac::require(&session_state, "appointment.read")?;
     let p = params.unwrap_or_default();
     let limit = p.limit();
     let offset = p.offset();
@@ -45,11 +46,14 @@ pub async fn list_appointments_paged(
         p.filter_str("dateTo"),
     )
     .await?;
+    // Rows hidden by a dentist's sharing rule leave the page; `total` stays the unfiltered count.
+    let items = shared::visible(&pool, &session, items).await?;
     Ok(crate::commands::list_params::ListResponse {
         items,
         total,
         page: p.page_one_based(),
         page_size: limit,
+        hidden_doctors: Vec::new(),
     })
 }
 
@@ -62,8 +66,9 @@ pub async fn list_appointments_in_range(
     from_date: String,
     to_date: String,
 ) -> Result<Vec<Appointment>, AppError> {
-    rbac::require(&session_state, "appointment.read")?;
-    appointment_repo::find_in_range(&pool, &from_date, &to_date).await
+    let session = rbac::require(&session_state, "appointment.read")?;
+    let rows = appointment_repo::find_in_range(&pool, &from_date, &to_date).await?;
+    shared::visible(&pool, &session, rows).await
 }
 
 /// F70: drag-move of one or more appointments, all or nothing.
@@ -77,6 +82,9 @@ pub async fn move_appointments(
     let session = rbac::require(&session_state, "appointment.write")?;
     for c in &changes {
         require_own_appointment(&pool, &session, &c.id).await?;
+        if let Some(a) = appointment_repo::find_by_id(&pool, &c.id).await? {
+            shared::require_change(&pool, &session, &a.physician_id).await?;
+        }
     }
     let moved = appointment_repo::move_many(&pool, &changes).await?;
     for a in &moved {
@@ -103,10 +111,11 @@ pub async fn get_appointment(
     session_state: State<'_, SessionState>,
     id: String,
 ) -> Result<Appointment, AppError> {
-    rbac::require(&session_state, "appointment.read")?;
-    appointment_repo::find_by_id(&pool, &id)
+    let session = rbac::require(&session_state, "appointment.read")?;
+    let row = appointment_repo::find_by_id(&pool, &id)
         .await?
-        .ok_or(AppError::NotFound("Appointment".into()))
+        .ok_or(AppError::NotFound("Appointment".into()))?;
+    shared::visible_one(&pool, &session, row).await
 }
 
 #[tauri::command]
@@ -118,7 +127,16 @@ pub async fn create_appointment(
 ) -> Result<Appointment, AppError> {
     let session = rbac::require(&session_state, "appointment.write")?;
     require_own_clinician(&session, &data.physician_id)?;
+    shared::require_change(&pool, &session, &data.physician_id).await?;
     let t = appointment_repo::create(&pool, &data).await?;
+    crate::commands::ownership::stamp_created(
+        &pool,
+        &session,
+        "appointment",
+        &t.id,
+        Some(&data.physician_id),
+    )
+    .await?;
     audit_repo::create(
         &pool,
         &session.user_id,
@@ -151,8 +169,10 @@ pub async fn update_appointment(
         .await?
         .ok_or(AppError::NotFound("Appointment".into()))?;
     require_own_clinician(&session, &current.physician_id)?;
+    shared::require_change(&pool, &session, &current.physician_id).await?;
     if let Some(new_clinician) = &data.physician_id {
         require_own_clinician(&session, new_clinician)?;
+        shared::require_change(&pool, &session, new_clinician).await?;
     }
     if let Some(new_status) = &data.status {
         let new_str = serde_json::to_string(new_status)
@@ -189,6 +209,9 @@ pub async fn delete_appointment(
 ) -> Result<(), AppError> {
     let session = rbac::require(&session_state, "appointment.write")?;
     require_own_appointment(&pool, &session, &id).await?;
+    if let Some(a) = appointment_repo::find_by_id(&pool, &id).await? {
+        shared::require_change(&pool, &session, &a.physician_id).await?;
+    }
     appointment_repo::delete(&pool, &id).await?;
     audit_repo::create(
         &pool,
@@ -210,6 +233,11 @@ pub async fn list_appointments_by_date(
     session_state: State<'_, SessionState>,
     date: String,
 ) -> Result<Vec<Appointment>, AppError> {
-    rbac::require(&session_state, "appointment.read")?;
-    appointment_repo::find_by_date(&pool, &date).await
+    let session = rbac::require(&session_state, "appointment.read")?;
+    shared::visible(
+        &pool,
+        &session,
+        appointment_repo::find_by_date(&pool, &date).await?,
+    )
+    .await
 }

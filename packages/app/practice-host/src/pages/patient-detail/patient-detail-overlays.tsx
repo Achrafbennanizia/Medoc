@@ -219,7 +219,8 @@ export function PatientDetailOverlays(props: PatientDetailOverlaysProps) {
                     hint={htmlDocExport.hint}
                 />
             ) : null}
-            {patientId ? (
+            {/* Hand-offs between people (validation, tasks): not in one-person editions. */}
+            {__CAP_TASKS__ && patientId ? (
                 <PatientChartWorkflowDialogs
                     mode={chartWorkflowMode}
                     onClose={onCloseChartWorkflow}

@@ -87,12 +87,12 @@
   }
   .treatment-tooth-status .dental-odontogram { margin-inline: auto; }
   .treatment-tooth-status .dental-mini-tooth.is-selected {
-    border-color: var(--tooth-ring);
-    box-shadow: 0 0 0 1.5px var(--tooth-ring);
-    background: color-mix(in oklab, var(--tooth-ring) 16%, transparent);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1.5px var(--accent);
+    background: color-mix(in oklab, var(--accent) 16%, transparent);
   }
   .treatment-tooth-status .dental-mini-tooth.is-selected .dental-mini-label {
-    color: var(--tooth-ring);
+    color: var(--accent);
   }
   .treatment-tooth-status .dental-mini-tooth:disabled {
     cursor: default;

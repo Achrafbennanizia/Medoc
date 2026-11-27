@@ -14,3 +14,67 @@
 @import "../practice-host/pages/settings/settings-license-section.css";
 @import "../shared/settings-practice-actions.css";
 @import "../shared/settings-practice-status.css";
+
+/* Settings → Sharing (Group): areas down, dentists across; my column is the editable one. */
+.settings-allowances__table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-block: var(--space-3);
+}
+.settings-allowances__table th,
+.settings-allowances__table td {
+    text-align: start;
+    vertical-align: top;
+    padding: var(--space-2) var(--space-3);
+    border-block-end: 1px solid var(--border);
+}
+.settings-allowances__table thead th {
+    font-weight: 600;
+    color: var(--text-muted);
+}
+.settings-allowances__table tbody th {
+    font-weight: 400;
+    min-width: 14rem;
+}
+.settings-allowances__table td {
+    min-width: 13rem;
+}
+.settings-allowances__other {
+    color: var(--text-muted);
+    padding-block-start: calc(var(--space-2) + 0.45rem);
+}
+
+/* Settings → About: scheduled update and last install (update-rollout-panel.tsx). */
+@layer components {
+  .update-rollout { display: grid; gap: var(--space-2); justify-items: start; margin: 0 0 var(--space-3); }
+  .update-rollout .card-sub { margin: 0; }
+}
+
+/* Group: per-record sharing in a record's own panel (record-privacy.tsx). */
+.record-privacy {
+    display: grid;
+    gap: var(--space-2, 8px);
+}
+.record-privacy__people {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2, 8px) var(--space-3, 12px);
+    border: 0;
+    margin: 0;
+    padding: 0;
+}
+.record-privacy__people legend {
+    padding: 0;
+    margin-block-end: var(--space-1, 4px);
+    color: var(--text-muted);
+    font-size: var(--text-caption);
+}
+.record-privacy__person {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1, 4px);
+}
+.record-privacy__error {
+    color: var(--text-danger);
+    margin: 0;
+}
