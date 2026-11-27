@@ -6,7 +6,7 @@
 
 | Code | Origin | Message / key | Raised in |
 |---|---|---|---|
-| `MD-APP-055` | coded | error.access.not_allowed_by_owner | `crates/app/medoc-practice/src/commands/practice/statistics/doctor.rs`<br>`crates/shared/medoc-core/src/application/allowances.rs` |
+| `MD-APP-055` | coded | error.access.not_allowed_by_owner | `crates/app/medoc-practice/src/commands/admin/history.rs`<br>`crates/app/medoc-practice/src/commands/practice/statistics/doctor.rs`<br>`crates/app/medoc-practice/src/commands/share_scope.rs` |
 | `MD-APP-042` | coded | error.access.own_appointments_only | `crates/app/medoc-practice/src/commands/scheduling/appointment_relation.rs` |
 | `MD-APP-001` | coded | error.app.conflict | `crates/shared/medoc-core/src/error.rs`<br>`packages/shared/src/lib/errors/error-resolver.ts` |
 | `MD-APP-002` | coded | error.app.database | `crates/shared/medoc-core/src/error.rs`<br>`packages/shared/src/lib/errors/error-resolver.ts` |
@@ -119,6 +119,7 @@
 | `MD-APP-052` | coded | error.guest.not_proposable | `crates/app/medoc-practice/src/commands/admin/guest.rs` |
 | `MD-APP-057` | coded | error.guest.order_create_forbidden | `crates/app/medoc-practice/src/commands/practice/purchase_order.rs` |
 | `MD-APP-053` | coded | error.guest.password_required | `crates/shared/medoc-core/src/application/guest.rs` |
+| `MD-APP-058` | coded | error.history.unknown_table | `crates/app/medoc-practice/src/commands/admin/history.rs` |
 | `MD-INV-001` | coded | error.invoice.already_invoiced | `crates/shared/medoc-core/src/application/documents/issue.rs` |
 | `MD-INV-002` | coded | error.invoice.bad_source | `crates/shared/medoc-core/src/application/documents/issue.rs` |
 | `MD-INV-003` | coded | error.invoice.cancellation_reference_missing | `crates/shared/medoc-core/src/infrastructure/pdf/goz.rs` |

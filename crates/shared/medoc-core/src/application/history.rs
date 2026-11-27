@@ -199,8 +199,10 @@ mod tests {
 
     #[test]
     fn diff_shows_only_changed_visible_fields() {
-        let a = serde_json::json!({"id":"x","name":"A","phone":"1","updated_at":"t1","syncHlc":"1:0"});
-        let b = serde_json::json!({"id":"x","name":"B","phone":"1","updated_at":"t2","syncHlc":"2:0"});
+        let a =
+            serde_json::json!({"id":"x","name":"A","phone":"1","updated_at":"t1","syncHlc":"1:0"});
+        let b =
+            serde_json::json!({"id":"x","name":"B","phone":"1","updated_at":"t2","syncHlc":"2:0"});
         let d = diff("patient", Some(&a), &b);
         assert_eq!(d.len(), 1);
         assert_eq!(d[0].field, "name");

@@ -375,6 +375,12 @@ Every error message shows a code such as MD-PAY-004. Search it here to see what 
 | `MD-APP-057` | The guest cannot create purchase orders. Confirm deliveries only, or ask the admin. | Action blocked | Your role does not have the permission for this action. | Ask a physician or administrator to perform it or to grant the permission. |
 | `MD-APP-053` | Set a password for the guest account. | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 
+## History
+
+| Code | Message | Severity | Why it happens | What to do |
+|---|---|---|---|---|
+| `MD-APP-058` | This kind of record has no history. | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
+
 ## Stock & orders
 
 | Code | Message | Severity | Why it happens | What to do |
@@ -758,7 +764,7 @@ Every error message shows a code such as MD-PAY-004. Search it here to see what 
 | `MD-UIX-512` | SAS digits missing from accept response _(technical check, shown in English)_ | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-UIX-513` | Stored work hours are invalid | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 
-## errors.domain.update
+## Updates
 
 | Code | Message | Severity | Why it happens | What to do |
 |---|---|---|---|---|

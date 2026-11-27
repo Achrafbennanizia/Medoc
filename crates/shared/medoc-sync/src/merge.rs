@@ -131,17 +131,18 @@ async fn apply_remote_entry_inner(
                     .and_then(|a| a.as_str())
                     .map(str::to_string)
             });
-        if let Err(e) = medoc_core::infrastructure::database::change_record::write_applied(
-            pool,
-            &entry.entity_table,
-            &entry.entity_id,
-            &entry.op,
-            author.as_deref(),
-            &entry.device_id,
-            entry.seq,
-            &entry.created_at,
-        )
-        .await
+        let record = medoc_core::infrastructure::database::change_record::NewRecord {
+            table: &entry.entity_table,
+            entity_id: &entry.entity_id,
+            op: &entry.op,
+            row_json: None,
+            actor_staff_id: author.as_deref(),
+            device_id: &entry.device_id,
+            origin_seq: Some(entry.seq),
+            created_at: &entry.created_at,
+        };
+        if let Err(e) =
+            medoc_core::infrastructure::database::change_record::write_applied(pool, record).await
         {
             tracing::warn!(
                 target: "medoc::sync",

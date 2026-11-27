@@ -1245,9 +1245,15 @@ async fn applied_remote_change_is_recorded_with_its_origin() {
     );
     let e = entry("device-b", 7, "patient", id, "INSERT", &payload);
     for _ in 0..2 {
-        apply_remote_entry(&pool, LOCAL_REPLICA, false, ConflictPolicy::LastWriteWins, &e)
-            .await
-            .unwrap();
+        apply_remote_entry(
+            &pool,
+            LOCAL_REPLICA,
+            false,
+            ConflictPolicy::LastWriteWins,
+            &e,
+        )
+        .await
+        .unwrap();
     }
     let h = medoc_core::application::history::for_record(&pool, "patient", id)
         .await
@@ -1273,19 +1279,36 @@ async fn received_erasure_clears_history() {
                 "updated_at":"{at}"}}"#
         )
     };
-    let first = entry("device-b", 1, "patient", id, "INSERT", &row("Secret Name", "V-a2", "2099-02-01T00:00:00Z"));
+    let first = entry(
+        "device-b",
+        1,
+        "patient",
+        id,
+        "INSERT",
+        &row("Secret Name", "V-a2", "2099-02-01T00:00:00Z"),
+    );
     let erased = entry(
         "device-b",
         2,
         "patient",
         id,
         "UPDATE",
-        &row(&format!("Anonymisiert ({id})"), &format!("ANON-{id}"), "2099-03-01T00:00:00Z"),
+        &row(
+            &format!("Anonymisiert ({id})"),
+            &format!("ANON-{id}"),
+            "2099-03-01T00:00:00Z",
+        ),
     );
     for e in [&first, &erased] {
-        apply_remote_entry(&pool, LOCAL_REPLICA, false, ConflictPolicy::LastWriteWins, e)
-            .await
-            .unwrap();
+        apply_remote_entry(
+            &pool,
+            LOCAL_REPLICA,
+            false,
+            ConflictPolicy::LastWriteWins,
+            e,
+        )
+        .await
+        .unwrap();
     }
     let all: String = sqlx::query_scalar("SELECT group_concat(payload_json) FROM change_record")
         .fetch_one(&pool)

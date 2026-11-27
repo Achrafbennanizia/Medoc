@@ -375,6 +375,12 @@ Jede Fehlermeldung zeigt einen Code wie MD-PAY-004. Suchen Sie ihn hier, um Ursa
 | `MD-APP-057` | Der Gast darf keine Bestellungen anlegen. Nur Lieferungen bestätigen, oder den Administrator fragen. | Aktion blockiert | Ihre Rolle hat für diese Aktion keine Berechtigung. | Ärztin/Arzt oder Administration bitten, die Aktion auszuführen oder die Berechtigung zu erteilen. |
 | `MD-APP-053` | Legen Sie ein Passwort für den Gastzugang fest. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 
+## Verlauf
+
+| Code | Meldung | Schweregrad | Warum es auftritt | Was tun |
+|---|---|---|---|---|
+| `MD-APP-058` | Für diese Art von Eintrag gibt es keinen Verlauf. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
+
 ## Lager & Bestellungen
 
 | Code | Meldung | Schweregrad | Warum es auftritt | Was tun |
@@ -758,7 +764,7 @@ Jede Fehlermeldung zeigt einen Code wie MD-PAY-004. Suchen Sie ihn hier, um Ursa
 | `MD-UIX-512` | SAS digits missing from accept response _(technische Prüfung, Anzeige auf Englisch)_ | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 | `MD-UIX-513` | Gespeicherte Arbeitszeiten sind ungültig. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 
-## errors.domain.update
+## Updates
 
 | Code | Meldung | Schweregrad | Warum es auftritt | Was tun |
 |---|---|---|---|---|

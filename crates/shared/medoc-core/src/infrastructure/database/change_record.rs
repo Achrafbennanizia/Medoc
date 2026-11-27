@@ -165,36 +165,23 @@ async fn patient_of(
 
 /// Record a change applied from another device: the row as it is here after the merge (a
 /// field merge may keep some local fields), with the origin's author, device and sequence.
-pub async fn write_applied(
-    pool: &SqlitePool,
-    table: &str,
-    entity_id: &str,
-    op: &str,
-    actor_staff_id: Option<&str>,
-    device_id: &str,
-    origin_seq: i64,
-    created_at: &str,
-) -> Result<(), AppError> {
-    if !is_tracked(table) {
+/// `rec.row_json` is ignored; the row is read here.
+pub async fn write_applied(pool: &SqlitePool, rec: NewRecord<'_>) -> Result<(), AppError> {
+    if !is_tracked(rec.table) {
         return Ok(());
     }
     let mut tx = pool.begin().await.map_err(AppError::Database)?;
-    let row = if op == "DELETE" {
+    let row = if rec.op == "DELETE" {
         None
     } else {
-        crate::infrastructure::database::recorded_write::row_json(&mut tx, table, entity_id).await?
+        crate::infrastructure::database::recorded_write::row_json(&mut tx, rec.table, rec.entity_id)
+            .await?
     };
     write(
         &mut tx,
         NewRecord {
-            table,
-            entity_id,
-            op,
             row_json: row.as_deref(),
-            actor_staff_id,
-            device_id,
-            origin_seq: Some(origin_seq),
-            created_at,
+            ..rec
         },
     )
     .await?;

@@ -38,7 +38,10 @@ const READ_PERMISSIONS: &[(&str, &[&str])] = &[
     ("issued_document", &["patient.read_documents"]),
     ("appointment", &["appointment.read"]),
     ("payment", &["finance.read", "finance.reception.view"]),
-    ("practice_task", &["task.status.fulfill", "administration.read"]),
+    (
+        "practice_task",
+        &["task.status.fulfill", "administration.read"],
+    ),
     ("purchase_order", &["purchase_order.read"]),
 ];
 
@@ -149,7 +152,9 @@ pub async fn history_for_record(
     if let Some(owner) = owner_of(&pool, table, &entity_id).await {
         let scope = share_scope::load(&pool, &session, ShareArea::History, table, None).await?;
         if !scope.keeps(None, &entity_id, Some(&owner)) {
-            return Err(AppError::validation_code("error.access.not_allowed_by_owner"));
+            return Err(AppError::validation_code(
+                "error.access.not_allowed_by_owner",
+            ));
         }
     }
     let items = history::for_record(&pool, table, &entity_id).await?;

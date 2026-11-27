@@ -34,7 +34,9 @@ async fn rename(pool: &SqlitePool, id: &str, name: &str, by: &str) {
         .await
         .unwrap();
     actor::with_actor(by, async {
-        record_or_noop(pool, "patient", id, "UPDATE", "").await.unwrap();
+        record_or_noop(pool, "patient", id, "UPDATE", "")
+            .await
+            .unwrap();
     })
     .await;
 }
@@ -51,7 +53,9 @@ async fn a_local_change_is_recorded_with_its_author_even_without_replicas() {
     let pool = pool().await;
     insert_patient(&pool, "p1", "Salma").await;
     actor::with_actor("dr-a", async {
-        record_or_noop(&pool, "patient", "p1", "INSERT", "").await.unwrap();
+        record_or_noop(&pool, "patient", "p1", "INSERT", "")
+            .await
+            .unwrap();
     })
     .await;
     rename(&pool, "p1", "Salma B.", "desk-1").await;
@@ -64,8 +68,14 @@ async fn a_local_change_is_recorded_with_its_author_even_without_replicas() {
     let c = change(&h[0], "name").expect("name changed");
     assert_eq!(c.old, serde_json::json!("Salma"));
     assert_eq!(c.new, serde_json::json!("Salma B."));
-    assert!(change(&h[0], "updated_at").is_none(), "bookkeeping fields are not shown");
-    assert!(change(&h[0], "date_of_birth").is_none(), "unchanged fields are not shown");
+    assert!(
+        change(&h[0], "updated_at").is_none(),
+        "bookkeeping fields are not shown"
+    );
+    assert!(
+        change(&h[0], "date_of_birth").is_none(),
+        "unchanged fields are not shown"
+    );
     assert!(!h[0].device_id.is_empty());
 }
 
@@ -80,19 +90,28 @@ async fn clinical_rows_are_filed_under_their_patient() {
         .execute(&pool)
         .await
         .unwrap();
-    sqlx::query("INSERT INTO examination (id, chart_id, results) VALUES ('ex2', 'ch2', 'caries 16')")
-        .execute(&pool)
-        .await
-        .unwrap();
+    sqlx::query(
+        "INSERT INTO examination (id, chart_id, results) VALUES ('ex2', 'ch2', 'caries 16')",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
     actor::with_actor("dr-a", async {
-        record_or_noop(&pool, "examination", "ex2", "INSERT", "").await.unwrap();
+        record_or_noop(&pool, "examination", "ex2", "INSERT", "")
+            .await
+            .unwrap();
     })
     .await;
-    let h = history::for_patient(&pool, "p2", &["examination"]).await.unwrap();
+    let h = history::for_patient(&pool, "p2", &["examination"])
+        .await
+        .unwrap();
     assert_eq!(h.len(), 1);
     assert_eq!(h[0].table, "examination");
     assert!(
-        history::for_patient(&pool, "p2", &["patient"]).await.unwrap().is_empty(),
+        history::for_patient(&pool, "p2", &["patient"])
+            .await
+            .unwrap()
+            .is_empty(),
         "only the tables the caller may see"
     );
 }
@@ -104,8 +123,13 @@ async fn untracked_tables_have_no_history() {
         .execute(&pool)
         .await
         .unwrap();
-    record_or_noop(&pool, "product", "pr1", "INSERT", "").await.unwrap();
-    assert!(history::for_record(&pool, "product", "pr1").await.unwrap().is_empty());
+    record_or_noop(&pool, "product", "pr1", "INSERT", "")
+        .await
+        .unwrap();
+    assert!(history::for_record(&pool, "product", "pr1")
+        .await
+        .unwrap()
+        .is_empty());
 }
 
 /// GDPR: once a patient is pseudonymised, the old values leave History (the pseudonymised
@@ -122,7 +146,9 @@ async fn erasure_removes_old_values_from_history() {
         .execute(&pool)
         .await
         .unwrap();
-    record_or_noop(&pool, "patient", "p3", "UPDATE", "").await.unwrap();
+    record_or_noop(&pool, "patient", "p3", "UPDATE", "")
+        .await
+        .unwrap();
 
     let h = history::for_record(&pool, "patient", "p3").await.unwrap();
     assert_eq!(h.len(), 1, "{h:?}");
@@ -149,7 +175,9 @@ async fn staff_fields_carry_names() {
         .execute(&pool)
         .await
         .unwrap();
-    record_or_noop(&pool, "patient", "p4", "UPDATE", "").await.unwrap();
+    record_or_noop(&pool, "patient", "p4", "UPDATE", "")
+        .await
+        .unwrap();
     let h = history::for_record(&pool, "patient", "p4").await.unwrap();
     let c = change(&h[0], "treating_staff_id").expect("treating doctor");
     assert_eq!(c.new_label.as_deref(), Some("Dr. Nadia"));

@@ -895,7 +895,8 @@ Group builds behave exactly as before; Solo and Duo builds now hide the routes a
 | Solo live (licence / guest) | **NOT OBSERVED** |
 | Commit P1+P2 | Not requested |
 - **T5.8 phase 1 done (2026-11-27): author in every change.** `syncActor` inside the signed payload of every local change (signed-in person, LAN staff, or `system` for jobs); owner-only rows check it; sync protocol 2 (protocol-1 devices pause until updated). Plan and remaining phases: `docs/architecture/t5.8-change-records-plan.md`.
-- Not started: T5.8 phases 2–6, T6.1, T7.7.
+- **T5.8 phase 2 done (2026-11-27): History.** `change_record` per device (local writes and applied remote changes, with author and device); patient History tab and History in appointment, payment, order and task drawers; read permission per table, Cabinet+ History sharing; GDPR erasure clears it everywhere.
+- Not started: T5.8 phases 3–6, T6.1, T7.7.
 
 **P4: Group data and sync**
 - T4.1 Hybrid routing: relay log on the primary (mode S), origin-sends + pull by origin vector (mode O), heartbeat mode switch. (L)

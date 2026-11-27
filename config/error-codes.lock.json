@@ -112,6 +112,7 @@
   "error.guest.not_proposable": "MD-APP-052",
   "error.guest.order_create_forbidden": "MD-APP-057",
   "error.guest.password_required": "MD-APP-053",
+  "error.history.unknown_table": "MD-APP-058",
   "error.invoice.already_invoiced": "MD-INV-001",
   "error.invoice.bad_source": "MD-INV-002",
   "error.invoice.cancellation_reference_missing": "MD-INV-003",

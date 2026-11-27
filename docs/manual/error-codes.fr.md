@@ -375,6 +375,12 @@ Chaque message d'erreur affiche un code comme MD-PAY-004. Recherchez-le ici pour
 | `MD-APP-057` | L'invité ne peut pas créer de commandes. Confirmez seulement les livraisons, ou demandez à l'administrateur. | Action bloquée | Votre rôle n'a pas l'autorisation pour cette action. | Demandez à un médecin ou à l'administrateur de l'effectuer ou de vous accorder l'autorisation. |
 | `MD-APP-053` | Définissez un mot de passe pour le compte invité. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 
+## Historique
+
+| Code | Message | Gravité | Pourquoi | Que faire |
+|---|---|---|---|---|
+| `MD-APP-058` | Ce type d'enregistrement n'a pas d'historique. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
+
 ## Stock et commandes
 
 | Code | Message | Gravité | Pourquoi | Que faire |
@@ -758,7 +764,7 @@ Chaque message d'erreur affiche un code comme MD-PAY-004. Recherchez-le ici pour
 | `MD-UIX-512` | SAS digits missing from accept response _(contrôle technique, affiché en anglais)_ | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 | `MD-UIX-513` | Les horaires enregistrés sont invalides. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 
-## errors.domain.update
+## Mises à jour
 
 | Code | Message | Gravité | Pourquoi | Que faire |
 |---|---|---|---|---|

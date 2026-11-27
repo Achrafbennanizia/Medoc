@@ -53,6 +53,7 @@ import {
 import { PracticeTaskComments } from "./practice-task-comments";
 import { PracticeTaskTicketForm } from "./practice-task-ticket-form";
 import { PracticeTaskAppointmentNoteForm } from "./practice-task-appointment-note-form";
+import { RecordHistory } from "../history/record-history";
 
 const WORKFLOW_ICONS = [CheckIcon, BoltIcon, EyeIcon, ShieldCheckIcon] as const;
 const SIMPLE_WORKFLOW_ICONS = [CheckIcon, EyeIcon, ShieldCheckIcon] as const;
@@ -388,6 +389,7 @@ export function PracticeTaskDetailDrawer({
                             <PracticeTaskPrivacy task={task} />
 
                             <PracticeTaskComments task={task} staff={staff} active canComment={canComment} />
+                            {__CAP_MULTI_STAFF__ ? <RecordHistory table="practice_task" entityId={task.id} /> : null}
 
                             {canComplete ? (
                                 <div className="practice-task-drawer-inline">

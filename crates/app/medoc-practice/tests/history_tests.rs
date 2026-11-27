@@ -30,7 +30,13 @@ fn reception_reads_calendar_and_money_history_but_not_clinical() {
     for t in ["patient", "appointment", "payment", "practice_task"] {
         assert!(may_read(&desk, t), "{t}");
     }
-    for t in ["examination", "treatment", "prescription", "anamnesis_form", "dental_finding"] {
+    for t in [
+        "examination",
+        "treatment",
+        "prescription",
+        "anamnesis_form",
+        "dental_finding",
+    ] {
         assert!(!may_read(&desk, t), "{t}");
         assert!(may_read(&dr, t), "{t}");
     }
@@ -71,13 +77,24 @@ async fn history_follows_the_owners_sharing_rule() {
         .await
         .unwrap();
         actor::with_actor(doctor, async {
-            record_or_noop(&pool, "appointment", id, "INSERT", "").await.unwrap();
+            record_or_noop(&pool, "appointment", id, "INSERT", "")
+                .await
+                .unwrap();
         })
         .await;
     }
     let a = session("hz-a", "PHYSICIAN");
-    let all = history::for_patient(&pool, "hp", &["appointment"]).await.unwrap();
-    assert_eq!(apply_sharing(&pool, &a, all.clone()).await.unwrap().items.len(), 2);
+    let all = history::for_patient(&pool, "hp", &["appointment"])
+        .await
+        .unwrap();
+    assert_eq!(
+        apply_sharing(&pool, &a, all.clone())
+            .await
+            .unwrap()
+            .items
+            .len(),
+        2
+    );
 
     set_my_rule(
         &pool,
@@ -91,7 +108,10 @@ async fn history_follows_the_owners_sharing_rule() {
     .unwrap();
     let seen = apply_sharing(&pool, &a, all).await.unwrap();
     assert_eq!(
-        seen.items.iter().map(|e| e.entity_id.as_str()).collect::<Vec<_>>(),
+        seen.items
+            .iter()
+            .map(|e| e.entity_id.as_str())
+            .collect::<Vec<_>>(),
         ["ap-a"]
     );
     assert_eq!(seen.hidden_doctors, ["hz-b"]);

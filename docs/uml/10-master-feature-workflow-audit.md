@@ -180,6 +180,24 @@ flowchart LR
 
 Offen: `paid_by_staff_id` / `approved_by` setzt noch nichts (Spalte zeigt sie nur); RecordPrivacy auf Aufgaben (T5.2); Bestellformular hat noch keine Arzt-Auswahl. Tests: `task_scope_tests`, `order_scope_tests`, `payment_scope_tests`, `ownership_tests::task_owner_is_always_a_dentist`, `ownership_tests::order_is_for_the_placing_dentist`, `part_f_tests::payment_list_filters_by_collector`.
 
+### 2.9 Verlauf / History (T5.8, Cabinet und Cabinet+)
+
+Wer hat was an welchem Gerät wann geändert (alt → neu). Patientenakte → Tab „Verlauf“; Abschnitt „Verlauf“ in Termin-, Zahlungs-, Bestell- und Aufgaben-Drawer.
+
+```mermaid
+flowchart LR
+    W["Änderung (lokal)"] --> R["record_in_tx: change_record + syncActor"]
+    S["Änderung von anderem Gerät"] --> A["apply_remote_entry: change_record (Autor + Gerät der Quelle)"]
+    R --> H[("change_record (pro Gerät)")]
+    A --> H
+    H --> Q{"Leserecht der Tabelle?"}
+    Q -- nein --> X["nicht angezeigt (z. B. Rezeption: keine klinischen Tabellen)"]
+    Q -- ja --> F{"Cabinet+: Owner teilt 'Verlauf'?"}
+    F -- nein --> N["ausgeblendet + Hinweis 'nicht geteilt von …'"]
+    F -- ja --> V["Liste: Autor · Gerät · Zeit · Feld alt → neu"]
+    E["DSGVO-Löschung (ANON-…)"] --> D["alte Einträge des Patienten gelöscht, auf jedem Gerät"]
+```
+
 **Zählung (Pflichtenheft):** ~**91 FA** + **18 NFA** — grob **~65–70% MUST-FA** mit Code-Spur ✅/🟡, **~15%** 🔴, Rest SHOULD/NICE.
 
 ---
