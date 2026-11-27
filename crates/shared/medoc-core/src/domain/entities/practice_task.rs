@@ -21,6 +21,9 @@ pub struct PracticeTask {
     pub return_reason: Option<String>,
     pub status: String,
     pub legacy_ticket_id: Option<String>,
+    /// Cabinet+: dentist this task belongs to (sharing / filter). Empty in Solo / Duo.
+    #[serde(default)]
+    pub doctor_id: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }

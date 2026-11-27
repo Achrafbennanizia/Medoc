@@ -40,6 +40,6 @@
         "tauri:build:group": "MEDOC_EDITION=group npm run tauri -w medoc-tauri-host -- build --features edition-group --config tauri.group.conf.json -- --no-default-features",
         "tauri:build:group:replica": "MEDOC_EDITION=group VITE_MEDOC_FLAVOR=replica npm run tauri -w medoc-tauri-host -- build --features edition-group,replica --config tauri.group.replica.conf.json -- --no-default-features",
         "check:editions": "bash scripts/check-edition-surface.sh",
-        "dev:website": "npm run dev -w medoc-product-website"
+        "dev:website": "npm run dev -w medoc-dentist"
     }
 }

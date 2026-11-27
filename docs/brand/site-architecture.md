@@ -36,7 +36,7 @@ packages say "Fixed quote after a free call".
 | `/services/` | What we sell to clients | Six pillars with who each is for · digitalisation service · support & maintenance · packages · guarantees · FAQ link |
 | `/work/` + one page per project | Credibility | Only work in this repository, labelled honestly as our own: MeDoc Dentist (practice software), the MeDoc Dentist website, sifralabs.com and its contact service. Client type, problem, solution, stack, result, screenshots |
 | `/process/` | Remove fear of the unknown | Discovery → Proposal → Design → Development → Testing → Launch → Support; what happens before, during and after |
-| `/medoc/` | The MeDoc series (level 2) | What the series is, its goal, Morocco 2030, benefits for any practice, the shared secure core, Digitalization Pack, MeDoc Dentist (first, for sale), more products in development (not named), a short article, Europe coming soon |
+| `/medoc/` | The MeDoc series (level 2) | Short hub: series principles, MeDoc Dentist (first, for sale) with deep links into the product site, more products in development (not named), Europe coming soon. Morocco figures, research, pack and security detail live on the MeDoc Dentist site |
 | `/about/` | Who we are | Story and the name, goals, six values, collaboration principles, before/during/after, partners and professionals, the future |
 | `/insights/` + articles | Expertise, SEO | Articles; company news |
 | `/security/` | Company security precautions (level 1) | How we handle client data, NDA, access, disclosure policy, links to the security service and to the MeDoc series core |
@@ -52,7 +52,7 @@ Hard marketing, Morocco only, MAD only, Moroccan legal texts in English, French 
 
 | Route | Purpose |
 |---|---|
-| Home | Sell: hero with demo call to action, advantages with sourced figures, editions preview, Digitalization Pack, final call to action |
+| Home | Sell: hero, series band (merged from `/medoc/`), Morocco figures strip, product ways, advantages with sourced figures, Digitalization Pack, editions preview, privacy, pilot, final call to action |
 | `#/features` | The app (level 4): each feature as a benefit, real screens, Moroccan documents |
 | `#/editions` | Compare Essentiel, Cabinet, Cabinet+ (limits from `config/editions.yaml`) |
 | `#/editions/essentiel`, `#/editions/cabinet`, `#/editions/cabinet-plus` | One article per edition: who it is for, what it changes, what is included, price, call to action |

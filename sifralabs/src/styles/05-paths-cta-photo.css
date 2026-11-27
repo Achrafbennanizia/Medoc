@@ -1,0 +1,343 @@
+/* fields path */
+.fields {
+  background: var(--panel);
+}
+.path {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  position: relative;
+}
+.path::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 7px;
+  top: 14px;
+  bottom: 14px;
+  width: 2px;
+  background: var(--line);
+}
+.path li {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0 12px 32px;
+}
+.path li::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  margin-top: -8px;
+  border-radius: 50%;
+  background: var(--panel);
+  border: 2px solid var(--ink-3);
+}
+.path li.on::before {
+  background: var(--medoc);
+  border-color: var(--medoc);
+}
+.path b {
+  font-weight: 500;
+}
+.path span {
+  font: 400 13px var(--font-mono);
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.path li.on span {
+  color: var(--medoc);
+}
+
+/* CTA with photo */
+.cta-photo {
+  padding-block: 96px;
+  border-top: 1px solid var(--line);
+}
+.cta-grid {
+  display: grid;
+  align-items: center;
+}
+.cta-grid img {
+  border-radius: 16px;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+}
+.cta-card {
+  display: grid;
+  gap: 16px;
+  justify-items: start;
+  padding: 32px;
+  margin: -64px 16px 0;
+  position: relative;
+  background: var(--panel);
+  border-radius: 16px;
+  box-shadow: 0 2px 4px rgb(16 22 43 / 0.06), 0 24px 48px -20px rgb(16 22 43 / 0.35);
+}
+@media (min-width: 960px) {
+  .cta-grid {
+    grid-template-columns: 1.3fr 1fr;
+  }
+  .cta-card {
+    margin: 0 0 0 -96px;
+    padding: 40px;
+  }
+}
+.cta-card h2 {
+  font: 300 clamp(30px, 3.6vw, 44px) / 1.1 var(--font-display);
+  letter-spacing: -0.02em;
+}
+.cta-card p {
+  color: var(--ink-2);
+}
+
+/* sub-page hero with photo */
+.page-hero.with-photo .wrap {
+  display: grid;
+  gap: 40px;
+  align-items: center;
+}
+@media (min-width: 960px) {
+  .page-hero.with-photo .wrap {
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: 64px;
+  }
+}
+.page-hero .page-photo {
+  width: 100%;
+  border-radius: 16px;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+
+.research {
+  margin: 32px 0 0;
+  display: grid;
+  gap: 20px;
+  align-items: center;
+  padding: 20px;
+  border-radius: 16px;
+  background: var(--research-soft);
+}
+@media (min-width: 760px) {
+  .research {
+    grid-template-columns: 320px 1fr;
+    gap: 32px;
+  }
+}
+.research img {
+  border-radius: 12px;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+.research figcaption {
+  color: var(--ink-2);
+  font-size: 17px;
+}
+.research b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.wide-photo {
+  width: 100%;
+  border-radius: 16px;
+  aspect-ratio: 21 / 8;
+  object-fit: cover;
+  object-position: center 35%;
+  margin-bottom: 40px;
+}
+
+/* ===================================================================
+   Art direction: blueprint grid + dot matrix, Swiss editorial layout.
+   The dot matrix echoes the dotted-zero mark; the grid says "engineered".
+   =================================================================== */
+:root {
+  --grid-minor: color-mix(in srgb, var(--majorelle) 11%, transparent);
+  --grid-major: color-mix(in srgb, var(--majorelle) 22%, transparent);
+  --dot: color-mix(in srgb, var(--majorelle) 34%, transparent);
+}
+
+/* page-to-page cross-fade (same-origin navigations, no JS) */
+@view-transition {
+  navigation: auto;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 220ms;
+  animation-timing-function: var(--ease);
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+
+/* blueprint grid behind the hero, fading out toward the bottom */
+.blueprint {
+  position: relative;
+  isolation: isolate;
+}
+.blueprint::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image:
+    linear-gradient(var(--grid-major) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-major) 1px, transparent 1px),
+    linear-gradient(var(--grid-minor) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-minor) 1px, transparent 1px);
+  background-size: 120px 120px, 120px 120px, 24px 24px, 24px 24px;
+  background-position: -1px -1px;
+  mask-image: linear-gradient(#000 40%, transparent);
+}
+.fig-label {
+  position: absolute;
+  inset-inline-end: 0;
+  bottom: -32px;
+  font: 400 12px var(--font-mono);
+  color: var(--ink-3);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.fig-label::before {
+  content: "";
+  width: 24px;
+  height: 1px;
+  background: currentColor;
+}
+@media (max-width: 959px) {
+  .fig-label {
+    display: none;
+  }
+}
+.reassure {
+  margin-top: 14px;
+  font-size: 14px;
+  color: var(--ink-3);
+}
+
+/* by the numbers, on a dot-matrix field */
+.dotmatrix {
+  position: relative;
+  isolation: isolate;
+}
+.dotmatrix::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: radial-gradient(circle, var(--dot) 1.2px, transparent 1.6px);
+  background-size: 14px 14px;
+  mask-image: radial-gradient(ellipse 70% 80% at 85% 30%, #000 10%, transparent 70%);
+}
+.numbers {
+  border-top: 1px solid var(--line);
+  padding-block: 96px 72px;
+}
+.num-grid {
+  display: grid;
+  gap: 48px;
+}
+@media (min-width: 960px) {
+  .num-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 72px;
+  }
+}
+.num-title {
+  font: 400 13px var(--font-mono);
+  color: var(--ink-3);
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--ink);
+  margin-bottom: 8px;
+}
+.num-answer .num-title {
+  color: var(--majorelle);
+  border-color: var(--majorelle);
+}
+.num-list {
+  margin: 0;
+  display: grid;
+}
+.num-list > div {
+  display: grid;
+  grid-template-columns: minmax(150px, auto) 1fr;
+  gap: 20px;
+  align-items: baseline;
+  padding-block: 18px;
+  border-bottom: 1px solid var(--line);
+}
+.num-list dd {
+  margin: 0;
+  font: 300 clamp(36px, 4.4vw, 52px) / 1 var(--font-display);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--ink);
+}
+.num-answer .num-list dd {
+  color: var(--majorelle);
+}
+.num-list dt {
+  color: var(--ink-2);
+}
+.num-list sup a {
+  font: 400 11px var(--font-mono);
+  color: var(--majorelle);
+  text-decoration: none;
+  padding: 2px 3px;
+}
+.num-list dd.zero {
+  position: relative;
+  justify-self: start;
+}
+.num-list dd.zero::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  margin: -4px 0 0 -3.5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+@media (max-width: 560px) {
+  .num-list > div {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+}
+.sources {
+  margin: 32px 0 0;
+  padding-inline-start: 1.2em;
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+.sources a {
+  color: var(--ink-2);
+}
+
+/* the colour band as a blueprint sheet */
+.band-blueprint {
+  background-color: var(--band);
+  background-image:
+    linear-gradient(rgb(255 255 255 / 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 0.08) 1px, transparent 1px),
+    linear-gradient(rgb(255 255 255 / 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 0.035) 1px, transparent 1px);
+  background-size: 120px 120px, 120px 120px, 24px 24px, 24px 24px;
+}
+.band-blueprint .kicker-on-dark {
+  font-family: var(--font-mono);
+  font-size: 13px;
+}

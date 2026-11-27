@@ -126,19 +126,6 @@ fn scope_of(prefix: &str, style: NumberStyle, day: &NaiveDate) -> (String, i32) 
 }
 
 /// `n` formatted the way `style` writes it for `day` (`yyyy-MM-dd`).
-#[cfg(test)]
-mod gap_tests {
-    use super::missing_ranges;
-
-    #[test]
-    fn documents_and_blocks_account_for_numbers() {
-        assert!(missing_ranges(vec![1, 2, 3], &[], 3).is_empty());
-        assert_eq!(missing_ranges(vec![1, 4], &[], 5), vec![(2, 3), (5, 5)]);
-        // Unused numbers of a block are accounted for (listed as void in the period report).
-        assert!(missing_ranges(vec![1, 2], &[(3, 10)], 10).is_empty());
-    }
-}
-
 pub fn format_number(
     prefix: &str,
     style: NumberStyle,
@@ -535,4 +522,17 @@ pub async fn ensure_unique_number_indexes(pool: &SqlitePool) -> Result<(), AppEr
         .map_err(AppError::Database)?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod gap_tests {
+    use super::missing_ranges;
+
+    #[test]
+    fn documents_and_blocks_account_for_numbers() {
+        assert!(missing_ranges(vec![1, 2, 3], &[], 3).is_empty());
+        assert_eq!(missing_ranges(vec![1, 4], &[], 5), vec![(2, 3), (5, 5)]);
+        // Unused numbers of a block are accounted for (listed as void in the period report).
+        assert!(missing_ranges(vec![1, 2], &[(3, 10)], 10).is_empty());
+    }
 }

@@ -83,3 +83,82 @@ fn critical_invoke_commands_registered() {
         );
     }
 }
+
+/// Controller functions kept for a deferred feature; no screen calls them, and the backend
+/// commands are commented out in `register.rs` on purpose.
+const DEFERRED_UI_COMMANDS: &[&str] = &[
+    // 2FA: docs/coordination/todos-deferred-security-features.md
+    "get_totp_status",
+    "start_totp_enrollment",
+    "confirm_totp_enrollment",
+    "deactivate_totp",
+];
+
+/// Every command the UI invokes (`invoke("name"` / `invoke<T>("name"`) is registered, so no
+/// screen calls a backend command that does not exist. Scans the UI sources, not tests.
+#[test]
+fn every_ui_invoke_is_registered() {
+    fn walk(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+        let Ok(rd) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for e in rd.flatten() {
+            let p = e.path();
+            let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            if p.is_dir() {
+                if name != "node_modules" && name != "dist" {
+                    walk(&p, out);
+                }
+            } else if (name.ends_with(".ts") || name.ends_with(".tsx")) && !name.contains(".test.")
+            {
+                out.push(p);
+            }
+        }
+    }
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+    let mut files = Vec::new();
+    walk(&root.join("packages"), &mut files);
+    walk(&root.join("apps/practice-host-ui/src"), &mut files);
+    let registered: HashSet<String> = extract_handler_names(REGISTER_RS).into_iter().collect();
+    let mut missing = Vec::new();
+    let mut seen = 0;
+    for f in &files {
+        let src = std::fs::read_to_string(f).unwrap_or_default();
+        for (i, _) in src.match_indices("invoke") {
+            let rest = &src[i + "invoke".len()..];
+            // optional generic: invoke<...>(
+            let rest = match rest.strip_prefix('<') {
+                Some(r) => match r.find(">(") {
+                    Some(j) => &r[j + 1..],
+                    None => continue,
+                },
+                None => rest,
+            };
+            let Some(rest) = rest.strip_prefix("(\"") else {
+                continue;
+            };
+            let Some(end) = rest.find('"') else { continue };
+            let cmd = &rest[..end];
+            if cmd.is_empty()
+                || !cmd
+                    .chars()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+            {
+                continue;
+            }
+            seen += 1;
+            if !registered.contains(cmd) && !DEFERRED_UI_COMMANDS.contains(&cmd) {
+                missing.push(format!("{cmd} <- {}", f.display()));
+            }
+        }
+    }
+    assert!(
+        seen > 100,
+        "scanner found only {seen} invokes: paths or syntax changed"
+    );
+    assert!(
+        missing.is_empty(),
+        "UI invokes unregistered commands:\n{}",
+        missing.join("\n")
+    );
+}

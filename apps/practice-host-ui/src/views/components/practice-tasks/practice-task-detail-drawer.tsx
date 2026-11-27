@@ -38,6 +38,7 @@ import {
     userCanViewTask,
 } from "./task-workflow";
 import { countOpenPracticeTasksForMe } from "@/systems/practice-host/controllers/practice-task.controller";
+import { PracticeTaskPrivacy } from "./practice-task-privacy";
 import {
     SIMPLE_TASK_WORKFLOW_STEPS,
     TASK_WORKFLOW_STEPS,
@@ -384,6 +385,7 @@ export function PracticeTaskDetailDrawer({
                                     </div>
                                 ) : null}
                             </div>
+                            <PracticeTaskPrivacy task={task} />
 
                             <PracticeTaskComments task={task} staff={staff} active canComment={canComment} />
 

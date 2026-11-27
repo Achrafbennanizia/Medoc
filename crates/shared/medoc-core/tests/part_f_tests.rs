@@ -357,7 +357,12 @@ async fn raw_payment_no_updated(pool: &SqlitePool, id: &str, pid: &str, amount: 
 async fn payment_list_filters_by_doctor_and_sharing() {
     let pool = pool().await;
     let pid = patient(&pool, "doctors").await;
-    for (id, doctor) in [("p-a", Some("dr-a")), ("p-b", Some("dr-b")), ("p-none", None), ("p-a2", Some("dr-a"))] {
+    for (id, doctor) in [
+        ("p-a", Some("dr-a")),
+        ("p-b", Some("dr-b")),
+        ("p-none", None),
+        ("p-a2", Some("dr-a")),
+    ] {
         raw_payment(&pool, id, &pid, 10.0, "PAID", "2026-11-20 10:00:00").await;
         sqlx::query("UPDATE payment SET for_staff_id = ?1, collected_by = 'desk' WHERE id = ?2")
             .bind(doctor)
@@ -376,7 +381,10 @@ async fn payment_list_filters_by_doctor_and_sharing() {
         50,
         0,
         "ASC",
-        payment_repo::PaymentListFilter { doctor: Some("dr-a"), ..Default::default() },
+        payment_repo::PaymentListFilter {
+            doctor: Some("dr-a"),
+            ..Default::default()
+        },
     )
     .await
     .unwrap();
@@ -401,5 +409,87 @@ async fn payment_list_filters_by_doctor_and_sharing() {
     .await
     .unwrap();
     assert_eq!(total, 2, "count matches the rows");
-    assert_eq!(ids(shared), ["p-a", "p-none"], "payments without a doctor stay");
+    assert_eq!(
+        ids(shared),
+        ["p-a", "p-none"],
+        "payments without a doctor stay"
+    );
+}
+
+async fn list_ids(pool: &SqlitePool, filter: payment_repo::PaymentListFilter<'_>) -> Vec<String> {
+    let (rows, total) = payment_repo::find_paginated(pool, 50, 0, "ASC", filter)
+        .await
+        .unwrap();
+    let mut v: Vec<String> = rows.into_iter().map(|p| p.id).collect();
+    v.sort();
+    assert_eq!(total as usize, v.len(), "count matches the rows");
+    v
+}
+
+/// T5.4: "Collected by" narrows to who took the money, combines with the doctor filter, and
+/// still respects the sharing rule (a hidden doctor's payment never comes back).
+#[tokio::test]
+async fn payment_list_filters_by_collector() {
+    let pool = pool().await;
+    let pid = patient(&pool, "collector").await;
+    for (id, doctor, collector) in [
+        ("c-1", Some("dr-a"), Some("desk")),
+        ("c-2", Some("dr-a"), Some("dr-a")),
+        ("c-3", Some("dr-b"), Some("desk")),
+        ("c-4", None, None),
+    ] {
+        raw_payment(&pool, id, &pid, 10.0, "PAID", "2026-11-20 10:00:00").await;
+        sqlx::query("UPDATE payment SET for_staff_id = ?1, collected_by = ?2 WHERE id = ?3")
+            .bind(doctor)
+            .bind(collector)
+            .bind(id)
+            .execute(&pool)
+            .await
+            .unwrap();
+    }
+    assert_eq!(
+        list_ids(
+            &pool,
+            payment_repo::PaymentListFilter {
+                collected_by: Some("desk"),
+                ..Default::default()
+            }
+        )
+        .await,
+        ["c-1", "c-3"]
+    );
+    assert_eq!(
+        list_ids(
+            &pool,
+            payment_repo::PaymentListFilter {
+                collected_by: Some("desk"),
+                doctor: Some("dr-a"),
+                ..Default::default()
+            }
+        )
+        .await,
+        ["c-1"]
+    );
+    let hidden = vec!["dr-b".to_string()];
+    assert_eq!(
+        list_ids(
+            &pool,
+            payment_repo::PaymentListFilter {
+                collected_by: Some("desk"),
+                hidden_doctors: &hidden,
+                ..Default::default()
+            }
+        )
+        .await,
+        ["c-1"]
+    );
+    assert!(list_ids(
+        &pool,
+        payment_repo::PaymentListFilter {
+            collected_by: Some("nobody"),
+            ..Default::default()
+        }
+    )
+    .await
+    .is_empty());
 }

@@ -1,0 +1,365 @@
+/* ===================================================================
+   Brand refresh: photography, colour band, product showcase
+   =================================================================== */
+.sprite {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+.dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--majorelle);
+  margin-inline-end: 10px;
+  vertical-align: 1px;
+}
+.dot-medoc {
+  background: var(--medoc);
+}
+
+/* hero */
+.hero h1 {
+  font: 300 clamp(40px, 5.6vw, 72px) / 1.04 var(--font-display);
+  letter-spacing: -0.03em;
+}
+.hero-visual {
+  position: relative;
+  margin: 0 0 40px;
+}
+.hero-photo {
+  width: 100%;
+  border-radius: 16px;
+  object-fit: cover;
+  aspect-ratio: 16 / 11;
+}
+.hero-window {
+  position: absolute;
+  inset-inline-start: -32px;
+  bottom: -40px;
+  width: 58%;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: 0 2px 4px rgb(16 22 43 / 0.08), 0 24px 48px -16px rgb(16 22 43 / 0.4);
+}
+.win-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding-inline: 10px;
+  border-bottom: 1px solid var(--line);
+  font: 400 11px var(--font-mono);
+  color: var(--ink-3);
+}
+.win-bar i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--line);
+}
+.win-bar span {
+  margin-inline-start: 6px;
+}
+.hero-chip {
+  position: absolute;
+  top: 20px;
+  inset-inline-end: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  backdrop-filter: blur(8px);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+  box-shadow: 0 8px 24px -12px rgb(16 22 43 / 0.4);
+}
+.hero-chip svg,
+.disciplines svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex: none;
+}
+.hero-chip svg {
+  color: var(--medoc);
+}
+@media (max-width: 959px) {
+  .hero-window {
+    inset-inline-start: 16px;
+    width: 64%;
+  }
+}
+@media (max-width: 560px) {
+  .hero-chip {
+    top: 12px;
+    inset-inline-end: 12px;
+    font-size: 13px;
+  }
+  .hero-window {
+    width: 60%;
+    bottom: -32px;
+  }
+}
+
+/* figures */
+.figures {
+  border-top: 1px solid var(--line);
+  padding-block: 40px;
+}
+.industry-figures {
+  border-top: 0;
+  padding-block: 8px 28px;
+}
+/* Number first (marketing strip). Default .figures uses column-reverse. */
+.industry-figures div {
+  flex-direction: column;
+}
+.industry-figures dd {
+  color: var(--medoc, var(--majorelle));
+}
+.figures dl {
+  margin: 0;
+  display: grid;
+  gap: 24px;
+  grid-template-columns: repeat(2, 1fr);
+}
+@media (min-width: 860px) {
+  .figures dl {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+.figures div {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 6px;
+}
+.figures dd {
+  margin: 0;
+  font: 300 56px/1 var(--font-display);
+  color: var(--majorelle);
+  font-variant-numeric: tabular-nums;
+}
+.figures dd.zero {
+  position: relative;
+  display: inline-block;
+  align-self: start;
+}
+/* the signature: a dotted zero */
+.figures dd.zero::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.figures dt {
+  color: var(--ink-2);
+  font-size: 15px;
+}
+
+/* colour band */
+.band {
+  background: var(--band);
+  color: var(--band-ink);
+  padding-block: 96px;
+}
+.band-grid {
+  display: grid;
+  gap: 48px;
+}
+@media (min-width: 960px) {
+  .band-grid {
+    grid-template-columns: 0.9fr 1.1fr;
+    gap: 72px;
+    align-items: start;
+  }
+}
+.band-head {
+  display: grid;
+  gap: 16px;
+}
+.band h2 {
+  font: 300 clamp(32px, 4.4vw, 50px) / 1.1 var(--font-display);
+  letter-spacing: -0.02em;
+}
+.band-head p:not(.kicker) {
+  color: var(--band-ink-2);
+  font-size: 18px;
+}
+.kicker-on-dark {
+  color: var(--band-ink-2);
+  margin: 0;
+}
+.band-photo {
+  margin-top: 16px;
+  border-radius: 12px;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+.disciplines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1px;
+  background: rgb(255 255 255 / 0.14);
+  border-radius: 12px;
+  overflow: hidden;
+}
+@media (min-width: 640px) {
+  .disciplines {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.disciplines li {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  padding: 28px;
+  background: var(--band);
+}
+.disciplines svg {
+  width: 24px;
+  height: 24px;
+  color: var(--band-ink-2);
+}
+.disciplines h3 {
+  font-size: 18px;
+  font-weight: 500;
+}
+.disciplines p {
+  color: var(--band-ink-2);
+  font-size: 15px;
+}
+
+/* product showcase */
+.showcase {
+  background: linear-gradient(var(--medoc-soft), var(--medoc-soft)) top / 100% 60% no-repeat;
+  border-top: 0;
+}
+.mosaic {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 40px;
+}
+@media (min-width: 860px) {
+  .mosaic {
+    grid-template-columns: 1.6fr 1fr;
+    grid-template-rows: 1fr 1fr;
+  }
+  .m-main {
+    grid-row: span 2;
+  }
+}
+.mosaic figure {
+  margin: 0;
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: 0 1px 2px rgb(16 22 43 / 0.06), 0 20px 40px -24px rgb(16 22 43 / 0.35);
+}
+.mosaic img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: left top;
+}
+.mosaic figcaption {
+  position: absolute;
+  inset-inline-start: 12px;
+  bottom: 12px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 13px;
+  font-weight: 500;
+}
+.btn-medoc {
+  background: var(--medoc);
+  color: #fff;
+}
+.btn-medoc:hover {
+  background: color-mix(in srgb, var(--medoc) 85%, #000);
+}
+
+/* split with photo */
+.split {
+  display: grid;
+  gap: 48px;
+  align-items: center;
+}
+@media (min-width: 960px) {
+  .split {
+    grid-template-columns: 1.15fr 0.85fr;
+    gap: 72px;
+  }
+  .split-reverse {
+    grid-template-columns: 0.85fr 1.15fr;
+  }
+}
+.side-photo {
+  width: 100%;
+  border-radius: 16px;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  object-position: center;
+}
+/* Landscape stock photos: keep width, do not force a tall crop */
+.side-photo-wide {
+  aspect-ratio: 5 / 4;
+  object-position: center center;
+}
+@media (max-width: 959px) {
+  .side-photo,
+  .side-photo-wide {
+    aspect-ratio: 16 / 10;
+  }
+  .split-reverse .side-photo,
+  .split-reverse .side-photo-wide {
+    order: 2;
+  }
+}
+.promises {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0;
+  counter-reset: p;
+}
+.promises li {
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  gap: 4px 12px;
+  padding-block: 18px;
+  border-top: 1px solid var(--line);
+  counter-increment: p;
+}
+.promises li::before {
+  content: counter(p, decimal-leading-zero);
+  grid-row: span 2;
+  font: 400 13px/1.9 var(--font-mono);
+  color: var(--majorelle);
+}
+.promises p {
+  color: var(--ink-2);
+}

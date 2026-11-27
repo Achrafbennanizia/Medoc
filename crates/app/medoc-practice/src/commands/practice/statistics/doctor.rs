@@ -17,6 +17,10 @@ pub(super) struct DoctorScope {
 }
 
 impl DoctorScope {
+    pub(super) fn bind_count(&self) -> usize {
+        self.only.iter().count() + self.hidden.len()
+    }
+
     /// ` AND <col> …` with numbered placeholders from `?{first}` on (sqlx counts a bare `?` from 1
     /// even after `?1`, so they must be numbered); pair with [`DoctorScope::binds`].
     pub(super) fn clause(&self, col: &str, first: usize) -> String {
@@ -45,6 +49,30 @@ pub(super) fn scoped<'q, O>(
 ) -> sqlx::query::QueryAs<'q, sqlx::Sqlite, O, sqlx::sqlite::SqliteArguments<'q>> {
     for b in scope.binds() {
         q = q.bind(b);
+    }
+    q
+}
+
+pub(super) fn scoped_payment<'q, O>(
+    mut q: sqlx::query::QueryAs<'q, sqlx::Sqlite, O, sqlx::sqlite::SqliteArguments<'q>>,
+    scope: &'q DoctorScope,
+    filters: &'q super::filters::StatsFilters,
+) -> sqlx::query::QueryAs<'q, sqlx::Sqlite, O, sqlx::sqlite::SqliteArguments<'q>> {
+    q = scoped(q, scope);
+    if let Some(p) = filters.payment_method.as_deref() {
+        q = q.bind(p);
+    }
+    q
+}
+
+pub(super) fn scoped_treatment<'q, O>(
+    mut q: sqlx::query::QueryAs<'q, sqlx::Sqlite, O, sqlx::sqlite::SqliteArguments<'q>>,
+    scope: &'q DoctorScope,
+    filters: &'q super::filters::StatsFilters,
+) -> sqlx::query::QueryAs<'q, sqlx::Sqlite, O, sqlx::sqlite::SqliteArguments<'q>> {
+    q = scoped(q, scope);
+    if let Some(k) = filters.treatment_kind.as_deref() {
+        q = q.bind(k);
     }
     q
 }
@@ -90,6 +118,7 @@ pub struct DoctorFigures {
 pub(super) async fn per_doctor(
     pool: &SqlitePool,
     scope: &DoctorScope,
+    filters: &super::filters::StatsFilters,
     allowed: &(dyn Fn(&str) -> bool + Sync),
     earliest_start: &str,
     earliest_utc: &str,
@@ -112,36 +141,42 @@ pub(super) async fn per_doctor(
                        AND status NOT IN ('CANCELLED', 'NO_SHOW')",
                 )
                 .bind(&id)
-                .bind(&earliest_start)
+                .bind(earliest_start)
                 .fetch_one(pool)
                 .await?
             } else {
                 0
             };
             let treatments = if allowed("patient.read_medical") {
-                sqlx::query_scalar(
+                let sql = format!(
                     "SELECT COUNT(*) FROM treatment WHERE responsible_staff_id = ?1
-                       AND COALESCE(treatment_date, created_at) >= ?2",
-                )
-                .bind(&id)
-                .bind(&earliest_start)
-                .fetch_one(pool)
-                .await?
+                       AND COALESCE(treatment_date, created_at) >= ?2{}",
+                    filters.treatment_clause(3)
+                );
+                let mut q = sqlx::query_scalar::<_, i64>(&sql)
+                    .bind(&id)
+                    .bind(earliest_start);
+                if let Some(k) = &filters.treatment_kind {
+                    q = q.bind(k);
+                }
+                q.fetch_one(pool).await?
             } else {
                 0
             };
             let income = if allowed("finance.read") {
-                Some(
-                    sqlx::query_scalar::<_, f64>(
-                        "SELECT CAST(COALESCE(SUM(amount), 0) AS REAL) FROM payment
+                let sql = format!(
+                    "SELECT CAST(COALESCE(SUM(amount), 0) AS REAL) FROM payment
                          WHERE for_staff_id = ?1 AND status IN ('PAID','PARTIALLY_PAID')
-                           AND julianday(created_at) >= julianday(?2)",
-                    )
+                           AND julianday(created_at) >= julianday(?2){}",
+                    filters.payment_clause(3)
+                );
+                let mut q = sqlx::query_scalar::<_, f64>(&sql)
                     .bind(&id)
-                    .bind(&earliest_utc)
-                    .fetch_one(pool)
-                    .await?,
-                )
+                    .bind(earliest_utc);
+                if let Some(p) = &filters.payment_method {
+                    q = q.bind(p);
+                }
+                Some(q.fetch_one(pool).await?)
             } else {
                 None
             };

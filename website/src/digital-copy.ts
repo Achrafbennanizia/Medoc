@@ -1,4 +1,7 @@
 import type { Lang } from "./i18n";
+import { fr } from "./digital-copy-fr";
+import { ar } from "./digital-copy-ar";
+import { SRC } from "./digital-sources";
 
 /**
  * Home "Paper costs practices everywhere", the Digitalization Pack, the pilot invitation, and the
@@ -9,12 +12,30 @@ import type { Lang } from "./i18n";
 type Src = { t: string; u: string };
 /** A sourced figure, then what MeDoc Dentist does about it (true in all three editions unless named). */
 type Cost = { fig: string; market: string; claim: string; src: Src; answer: { t: string; d: string } };
+/** Compact industry figure for the home strip (site-facts.md, always cited). */
+type StripStat = { fig: string; claim: string; src: Src };
 /** A sourced Morocco fact for the #/morocco page. */
 type Fact = { topic: string; status?: string; fig: string; text: string; src: Src };
 type Item = { t: string; d: string };
+/** Home "10 ways" card: number, title, true claim; optional edition line; Features section id. */
+type Way = { k: string; t: string; d: string; ed?: string; to: string };
 export type DigitalCopy = {
   sourceLabel: string;
-  advantages: { kicker: string; title: string; lead: string; answerLabel: string; items: Cost[] };
+  /** Series framing merged from sifralabs/medoc (level 2 → product home). */
+  series: { kicker: string; title: string; lead: string; more: string; items: Item[] };
+  /** Morocco figures strip on home; full detail on #/morocco. */
+  moroccoStrip: { kicker: string; title: string; lead: string; more: string; items: { fig: string; label: string; src: Src }[] };
+  /** Ten product benefits on the home page. Each maps to a Features section; claims from site-facts.md. */
+  ways: { kicker: string; title: string; lead: string; more: string; items: Way[] };
+  advantages: {
+    kicker: string;
+    title: string;
+    lead: string;
+    answerLabel: string;
+    stripNote: string;
+    strip: StripStat[];
+    items: Cost[];
+  };
   pilot: { kicker: string; title: string; text: string; points: string[]; cta: string };
   pack: { kicker: string; title: string; lead: string; steps: Item[]; promise: string; cta: string; before: string; after: string; beforeAlt: string; afterAlt: string };
   morocco: {
@@ -25,40 +46,131 @@ export type DigitalCopy = {
   europe: { text: string; cta: string };
 };
 
-const SRC = {
-  burnett: { t: "Burnett et al., BMC Health Services Research (2011)", u: "https://pmc.ncbi.nlm.nih.gov/articles/PMC3118108/" },
-  dentalAudit: { t: "Audit of dental record-keeping, Health SA Gesondheid (2023)", u: "https://pmc.ncbi.nlm.nih.gov/articles/PMC10784275/" },
-  kaushal: { t: "Weill Cornell Medicine, Kaushal et al. (2010)", u: "https://news.weill.cornell.edu/news/2010/02/electronic-prescriptions-reduce-errors-by-seven-fold" },
-  pinchin: { t: "Pinchin & Blakey, Future Hospital Journal (2016)", u: "https://pmc.ncbi.nlm.nih.gov/articles/PMC6465898/" },
-  ibm: {
-    t: "Chief Healthcare Executive, on IBM Cost of a Data Breach (2026)",
-    u: "https://www.chiefhealthcareexecutive.com/view/cost-of-breaches-healthcare-still-leads-all-sectors-and-ai-is-used-in-more-attacks",
-  },
-  sophos: { t: "Sophos, The State of Ransomware in Healthcare (2024)", u: "https://www.sophos.com/en-us/blog/the-state-of-ransomware-in-healthcare-2024" },
-  dentists: {
-    t: "Aujourd'hui le Maroc, carte sanitaire (2025)",
-    u: "https://aujourdhui.ma/societe/carte-sanitaire-le-maroc-compte-34-173-medecins-dans-le-public-et-le-prive-en-2025",
-  },
-  digital2030: {
-    t: "Maroc.ma (MAP), Digital Morocco 2030 (2026)",
-    u: "https://maroc.ma/index%2Ephp/fr/actualites/la-strategie-digital-morocco-2030-fait-du-numerique-un-moteur-de-competitivite-et-dinclusion-sociale",
-  },
-  amo: { t: "Maroc.ma (MAP), généralisation de l'AMO (2025)", u: "https://maroc.ma/fr/actualites/generalisation-de-lamo-plus-de-32-millions-de-beneficiaires-en-2025" },
-  bill5226: { t: "Bladi.net, projet de loi 52-26 (2026)", u: "https://www.bladi.net/medecins-marocains-risquent-jusqu-dirhams,123105.html" },
-  law0908: {
-    t: "Loi n° 09-08, texte officiel (Adala)",
-    u: "https://adala.justice.gov.ma/api/uploads/2024/04/30/Protection%20des%20personnes%20physiques-1714464099884.pdf",
-  },
-  cnss: { t: "The Record (2025)", u: "https://therecord.media/morocco-investigates-breach-hackers-algeria" },
-};
-
 const en: DigitalCopy = {
   sourceLabel: "Source",
+  series: {
+    kicker: "MeDoc series",
+    title: "One family of practice programs",
+    lead: "MeDoc Dentist is the first MeDoc product for sale. Every MeDoc program shares the same secure core, keeps data in the practice, and comes with people who help you leave paper.",
+    more: "About the MeDoc series",
+    items: [
+      { t: "One secure core", d: "Encryption, roles, the audit log, sync, licences and backups are built once and shared." },
+      { t: "One team", d: "The people who write MeDoc are the people who install it, train you and answer your questions." },
+      { t: "Built for each specialty", d: "Each program follows one specialty. Dentists come first." },
+      { t: "Sold only when ready", d: "We sell a MeDoc program only when it is ready for a real practice. No dates before then." },
+    ],
+  },
+  moroccoStrip: {
+    kicker: "Morocco",
+    title: "Morocco is going digital. Practices need to be ready.",
+    lead: "Cited figures about dental practices and Digital Morocco 2030. Full sources on the Morocco page.",
+    more: "How MeDoc Dentist gets a practice ready",
+    items: [
+      { fig: "6,552", label: "Private dental practices in Morocco in 2025 (carte sanitaire).", src: SRC.dentists },
+      { fig: "88%", label: "Of the population covered by compulsory health insurance (AMO) in 2025.", src: SRC.amo },
+      { fig: "1.7 bn DH", label: "Public digital investment in 2024, up from 11 million DH in 2021.", src: SRC.digital2030 },
+      { fig: "24 months", label: "Time facilities would have to connect if Bill 52-26 becomes law as filed (not law yet).", src: SRC.bill5226 },
+    ],
+  },
+  ways: {
+    kicker: "In the product today",
+    title: "10 ways MeDoc Dentist makes the day easier",
+    lead: "Ten things you can do in the current release. Each one opens the full feature with screens. Where only some editions include it, we say so.",
+    more: "See all twelve features",
+    items: [
+      {
+        k: "01",
+        to: "changes",
+        t: "Nothing enters the record without your OK",
+        d: "Cabinet and Cabinet+: reception hands you a chart to validate or decline. Essentiel: guest appointments, patients and cash payments wait in your Inbox until you Add or Dismiss.",
+        ed: "All editions · different hand-off",
+      },
+      {
+        k: "02",
+        to: "day-close",
+        t: "Close the day with two numbers",
+        d: "Enter the cash you counted and, if you use one, the card terminal total. MeDoc totals the day's bookings and asks for a reason before it accepts a mismatch.",
+        ed: "Cabinet and Cabinet+",
+      },
+      {
+        k: "03",
+        to: "calendar",
+        t: "Move an appointment with the mouse",
+        d: "Drag to another time or day. MeDoc snaps to opening hours, shifts that doctor's next slots, refuses double bookings, and gives you Undo.",
+      },
+      {
+        k: "04",
+        to: "flags",
+        t: "Catch mistakes while you work",
+        d: "Double bookings and closed times are refused. A prescription is checked against recorded allergies before it goes out. The patient header shows what is still missing.",
+      },
+      {
+        k: "05",
+        to: "statistics",
+        t: "Know how the month is going",
+        d: "Patients, appointments, treatments and income from your own records, each with the change against last month. No invented targets.",
+      },
+      {
+        k: "06",
+        to: "patients",
+        t: "The whole patient on one header",
+        d: "Status, open invoice, age, phone, insurance, address and a mini tooth chart at once. Search by name, phone, e-mail or insurance number; misspellings get a suggestion.",
+      },
+      {
+        k: "07",
+        to: "tasks",
+        t: "Send a task instead of interrupting reception",
+        d: "From the patient's file, send work to the front desk or one person. It lands in their list and bell while you stay with the patient.",
+        ed: "Cabinet and Cabinet+",
+      },
+      {
+        k: "08",
+        to: "status-rules",
+        t: "Every record follows clear steps",
+        d: "Appointments, patients, charts, payments and orders have fixed statuses and allowed next steps. MeDoc refuses a change that goes backwards.",
+      },
+      {
+        k: "09",
+        to: "backups",
+        t: "A backup every day, signed and encrypted",
+        d: "One automatic backup a day while MeDoc is open, compressed and encrypted (AES-256-GCM). Altered copies are flagged and cannot be restored.",
+      },
+      {
+        k: "10",
+        to: "tooth-chart",
+        t: "A tooth chart you can read at a glance",
+        d: "All 32 permanent teeth in FDI order, with distinct outlines and a colour for each status. Click a tooth, pick a finding, keep treating.",
+      },
+    ],
+  },
   advantages: {
     kicker: "Why go digital",
     title: "Paper costs practices everywhere",
-    lead: "Researchers abroad measured what paper records and weak data security cost. The figures come from other countries, each with its source. Under each one: what MeDoc Dentist does about it, in all three editions.",
+    lead: "Researchers abroad measured what paper records and weak data security cost. The figures come from other countries, each with its source. Under each one: what MeDoc Dentist does about it today. Where a point needs Cabinet or Cabinet+, the edition is named.",
     answerLabel: "With MeDoc Dentist",
+    stripNote: "Published studies abroad — not MeDoc client results. Each figure has its source.",
+    strip: [
+      {
+        fig: "60%",
+        claim: "less likely that clinical information was missing when clinicians had full electronic records (US primary care).",
+        src: SRC.smith,
+      },
+      {
+        fig: "13%",
+        claim: "of junior doctors' on-call time went on searching, mostly for paperwork and equipment.",
+        src: SRC.pinchin,
+      },
+      {
+        fig: "7×",
+        claim: "fewer prescription errors after switching to e-prescribing (42.5% down to 6.6%).",
+        src: SRC.kaushal,
+      },
+      {
+        fig: "~29%",
+        claim: "of dental files could not be retrieved in a university dental hospital audit.",
+        src: SRC.dentalAudit,
+      },
+    ],
     items: [
       {
         fig: "15%",
@@ -93,7 +205,7 @@ const en: DigitalCopy = {
         market: "Worldwide · 2026",
         claim: "is the average cost of a healthcare data breach, the highest of any industry for the 13th year in a row (IBM Cost of a Data Breach report).",
         src: SRC.ibm,
-        answer: { t: "Encrypted where it is stored", d: "The whole database is encrypted with SQLCipher (AES-256) on your own computers, and the key stays in the computer's secure keychain. Reception does not see the medical chart by default, and every chart read is logged." },
+        answer: { t: "Encrypted where it is stored", d: "The whole database is encrypted with SQLCipher (AES-256) on your own computers, and the key stays in the computer's secure keychain. Reception does not see the medical chart by default, and each chart read is logged on that computer (the log does not sync across machines in Cabinet or Cabinet+)." },
       },
       {
         fig: "95%",
@@ -113,7 +225,7 @@ const en: DigitalCopy = {
   },
   pack: {
     kicker: "Digitalization Pack",
-    title: "From the paper card to the screen, with us at your side",
+    title: "From paper files to a digital practice, with us at your side",
     lead: "MeDoc Dentist puts the whole practice in one program: patients, charts, appointments, prescriptions, payments and documents. The Digitalization Pack is how we move you there, step by step, while you keep treating patients.",
     steps: [
       { t: "We look at how you work", d: "A call or a visit to understand your day, your documents and the paper files you keep today." },
@@ -125,8 +237,8 @@ const en: DigitalCopy = {
     cta: "Ask about the Digitalization Pack",
     before: "Before",
     after: "After",
-    beforeAlt: "A real Moroccan paper patient card, personal details blurred.",
-    afterAlt: "A dentist working in MeDoc Dentist at the computer.",
+    beforeAlt: "Stacks of worn paper envelopes and files.",
+    afterAlt: "A doctor in a white coat working at a computer in a bright consulting room.",
   },
   morocco: {
     facts: {
@@ -169,246 +281,6 @@ const en: DigitalCopy = {
   europe: {
     text: "Today MeDoc Dentist is sold to dental practices in Morocco only, with Moroccan documents and prices in dirhams. Do you practise in Europe? Write to us about your practice.",
     cta: "Write to us",
-  },
-};
-
-const fr: DigitalCopy = {
-  sourceLabel: "Source",
-  advantages: {
-    kicker: "Pourquoi passer au numérique",
-    title: "Le papier coûte cher aux cabinets, partout",
-    lead: "À l'étranger, des chercheurs ont mesuré ce que coûtent le dossier papier et une sécurité des données trop faible. Ces chiffres viennent d'autres pays, chacun avec sa source. Sous chacun : ce que fait MeDoc Dentist, dans les trois éditions.",
-    answerLabel: "Avec MeDoc Dentist",
-    items: [
-      {
-        fig: "15 %",
-        market: "Royaume-Uni · 2011",
-        claim: "des consultations externes, dans trois hôpitaux universitaires au dossier papier, manquaient d'informations cliniques essentielles. Un patient concerné sur cinq a été exposé à un risque pour sa santé.",
-        src: SRC.burnett,
-        answer: { t: "Tout le patient sur un seul écran", d: "Chaque dossier s'ouvre sur un en-tête : statut, factures ouvertes, coordonnées, numéro d'assurance et mini-schéma dentaire, avec ce qui manque encore, comme l'anamnèse ou l'examen. Radios et scans restent avec le patient." },
-      },
-      {
-        fig: "105 sur 362",
-        market: "Afrique du Sud · 2023",
-        claim: "dossiers dentaires sont restés introuvables lors d'un audit dans un hôpital dentaire universitaire, à cause d'un mauvais classement. Soit environ 29 %.",
-        src: SRC.dentalAudit,
-        answer: { t: "Chaque patient retrouvé en une recherche", d: "Recherche par nom, téléphone, e-mail ou numéro d'assurance, avec des suggestions « vouliez-vous dire » pour les noms. Plus rien à classer, plus rien à égarer." },
-      },
-      {
-        fig: "6,6 %",
-        market: "États-Unis (New York) · 2010",
-        claim: "des ordonnances comportaient une erreur un an après le passage à la prescription électronique, contre 42,5 % quand les médecins écrivaient à la main. Les ordonnances illisibles ont disparu.",
-        src: SRC.kaushal,
-        answer: { t: "Des ordonnances imprimées et vérifiées", d: "Les ordonnances s'impriment à votre en-tête, en français ou en arabe, jamais à la main. Avant l'enregistrement, chaque substance active est comparée aux allergies de l'anamnèse, et vous confirmez avant de l'émettre malgré tout." },
-      },
-      {
-        fig: "13 %",
-        market: "Royaume-Uni · 2016",
-        claim: "du temps de garde des jeunes médecins passait à chercher, surtout des papiers et du matériel : environ 30 minutes toutes les 4 heures.",
-        src: SRC.pinchin,
-        answer: { t: "Moins d'étapes jusqu'à la tâche suivante", d: "Depuis la liste des patients, prenez rendez-vous, rédigez une ordonnance, envoyez un e-mail ou appelez. Ctrl+K (⌘K sur Mac) ouvre n'importe quelle page, et l'agenda a ses propres raccourcis." },
-      },
-      {
-        fig: "6,64 M$",
-        market: "Monde · 2026",
-        claim: "c'est le coût moyen d'une fuite de données dans la santé, le plus élevé de tous les secteurs pour la 13e année de suite (rapport IBM Cost of a Data Breach).",
-        src: SRC.ibm,
-        answer: { t: "Chiffré là où il est stocké", d: "Toute la base est chiffrée avec SQLCipher (AES-256) sur vos propres ordinateurs, et la clé reste dans le trousseau sécurisé de l'ordinateur. Par défaut, l'accueil ne voit pas le dossier médical, et chaque lecture est journalisée." },
-      },
-      {
-        fig: "95 %",
-        market: "14 pays · 2024",
-        claim: "des établissements de santé touchés par un rançongiciel disent que les attaquants ont tenté de compromettre leurs sauvegardes. Deux tentatives sur trois ont réussi (enquête Sophos).",
-        src: SRC.sophos,
-        answer: { t: "Une sauvegarde par jour, signée et chiffrée", d: "MeDoc Dentist sauvegarde le cabinet une fois par jour, tout seul, en compressant puis en chiffrant en AES-256-GCM, sur une clé USB ou un disque externe si vous le souhaitez. Chaque sauvegarde est signée : une copie modifiée ou abîmée est signalée et ne peut pas être restaurée." },
-      },
-    ],
-  },
-  pilot: {
-    kicker: "Cabinets pilotes",
-    title: "Écrivez la première histoire avec nous",
-    text: "MeDoc Dentist s'ouvre à ses premiers cabinets. Les cabinets pilotes bénéficient du Pack Digitalisation et d'une ligne directe avec ceux qui construisent le logiciel. En échange, nous leur demandons un retour honnête, que nous publierons ici avec leur accord.",
-    points: ["Installation, reprise des données et formation incluses", "Une ligne directe avec l'équipe qui construit MeDoc Dentist", "Vos retours décident de nos prochaines améliorations"],
-    cta: "Devenir cabinet pilote",
-  },
-  pack: {
-    kicker: "Pack Digitalisation",
-    title: "De la fiche papier à l'écran, avec nous à vos côtés",
-    lead: "MeDoc Dentist réunit tout le cabinet dans un seul logiciel : patients, schémas, rendez-vous, ordonnances, encaissements et documents. Le Pack Digitalisation, c'est notre façon de vous y amener, étape par étape, pendant que vous continuez à soigner.",
-    steps: [
-      { t: "Nous regardons comment vous travaillez", d: "Un appel ou une visite pour comprendre votre journée, vos documents et les fiches papier que vous tenez aujourd'hui." },
-      { t: "Nous reprenons vos données", d: "Patients et rendez-vous importés depuis Excel ou CSV, inclus avec Cabinet et Cabinet+. Depuis un autre logiciel dentaire, nous chiffrons la reprise après examen d'un export. Les scans de vos fiches papier peuvent rester avec chaque patient." },
-      { t: "Nous installons et formons", d: "Vos tarifs et modèles en place. Installation à distance et 2 h de formation avec Essentiel ; installation sur place avec Cabinet (2 h de formation sur place) et Cabinet+ (deux sessions de formation)." },
-      { t: "Nous restons avec vous", d: "Service inclus : 3 mois avec Essentiel, 6 avec Cabinet, 12 avec Cabinet+. Ensuite, vous choisissez un forfait de service, ou aucun." },
-    ],
-    promise: "Notre engagement : chaque cabinet qui choisit MeDoc Dentist reçoit cette aide, quelle que soit son édition.",
-    cta: "Demander le Pack Digitalisation",
-    before: "Avant",
-    after: "Après",
-    beforeAlt: "Une vraie fiche patient papier marocaine, données personnelles floutées.",
-    afterAlt: "Un dentiste travaille dans MeDoc Dentist sur son ordinateur.",
-  },
-  morocco: {
-    facts: {
-      kicker: "Ce qui change",
-      title: "Les faits, avec leurs sources",
-      lead: "Lois, projets de loi et chiffres tels qu'ils sont publiés. Le projet de loi 52-26 n'est pas encore adopté, et nous le disons partout où il apparaît.",
-      items: [
-        { topic: "Cabinets dentaires", fig: "6 552", text: "cabinets dentaires privés au Maroc en 2025, et 458 dentistes dans le secteur public, selon la carte sanitaire du ministère de la Santé et de la Protection sociale.", src: SRC.dentists },
-        { topic: "Maroc Digital 2030", fig: "1,7 Md DH", text: "d'investissement public dans le numérique en 2024, contre 11 millions de DH en 2021. La stratégie nationale fait du numérique un moteur de compétitivité et d'inclusion sociale.", src: SRC.digital2030 },
-        { topic: "Assurance maladie (AMO)", fig: "32 millions", text: "de bénéficiaires de l'assurance maladie obligatoire en 2025, soit 88 % de la population, contre 42 % avant la généralisation. Plus de patients assurés, c'est plus de numéros d'assurance à enregistrer.", src: SRC.amo },
-        { topic: "Projet de loi 52-26", status: "Pas encore adopté", fig: "Jusqu'à 300 000 DH", text: "d'amende rapportés pour un professionnel qui ne met pas à jour le dossier médical partagé d'un patient, ou un établissement qui ne connecte pas son système. Déposé au Parlement le 31 juillet 2026, le projet prévoit un dossier partagé par patient, mis à jour après chaque consultation ou acte. Les établissements auraient 24 mois pour se connecter après publication des règles techniques.", src: SRC.bill5226 },
-        { topic: "Loi 09-08 et CNDP", status: "En vigueur", fig: "Jusqu'à 200 000 DH", text: "d'amende, ou 3 mois à 1 an de prison, ou les deux, pour un traitement de données personnelles sans les mesures de sécurité exigées par la loi (art. 58). Les données de santé sont des données sensibles ; les traiter sans le consentement exprès du patient expose à une amende de 50 000 à 300 000 DH (art. 57).", src: SRC.law0908 },
-        { topic: "Fuite de la CNSS, avril 2025", fig: "Près de 2 millions", text: "de personnes ont vu leurs informations exposées après le vol présumé de plus de 54 000 fichiers à la Caisse nationale de sécurité sociale, selon les médias marocains. Les données de santé et sociales sont aussi une cible au Maroc.", src: SRC.cnss },
-      ],
-      note: "Chiffres tels que publiés par les sources citées. Le projet de loi 52-26 peut encore changer avant son adoption.",
-    },
-    ready: {
-      kicker: "MeDoc Dentist",
-      title: "Comment MeDoc Dentist prépare votre cabinet",
-      lead: "Ce que contient le logiciel aujourd'hui. Chaque point vaut pour les trois éditions, sauf si une édition est nommée.",
-      items: [
-        { t: "Chiffré sur vos propres ordinateurs", d: "Toute la base est chiffrée avec SQLCipher (AES-256), et la clé reste dans le trousseau sécurisé de l'ordinateur. Les données patients ne partent pas dans un cloud." },
-        { t: "Chacun voit ce dont son métier a besoin", d: "L'accueil (Cabinet et Cabinet+) et le compte invité (Essentiel) ne voient pas les diagnostics ni les constats cliniques, sauf si vous l'autorisez. Le logiciel l'impose, pas seulement l'écran." },
-        { t: "Un journal qui révèle les retouches", d: "Créations et modifications de dossiers, validations, exports et chaque lecture d'un dossier médical sont journalisés. Chaque entrée est chaînée à la précédente par un HMAC : une entrée modifiée ou supprimée est détectée." },
-        { t: "Des documents marocains", d: "Factures avec votre ICE, IF et TP (et RC, CNSS et INPE), une numérotation sans trou, la mention d'exonération de TVA des actes médicaux et le total en lettres, en français ou en arabe. Pas de facture sans ICE ni IF. Ordonnances et certificats à votre en-tête, avec votre INPE." },
-        { t: "Une sauvegarde chaque jour", d: "Une fois par jour, toute seule : compressée et chiffrée en AES-256-GCM, sur une clé USB ou un disque externe si vous le souhaitez, radios et scans compris. Chaque sauvegarde est signée : une copie modifiée ne peut pas être restaurée." },
-        { t: "Des dossiers structurés", d: "Patients, numéros d'assurance, schéma dentaire, soins, ordonnances et factures sont des données structurées, pas du papier scanné. L'en-tête du dossier signale ce qui manque, comme le numéro d'assurance." },
-      ],
-      notYetTitle: "Pas dans MeDoc Dentist aujourd'hui",
-      notYet: [
-        "La connexion au dossier médical partagé du projet de loi 52-26 : ses règles techniques ne sont pas publiées",
-        "Les feuilles de soins AMO, CNSS et CNOPS",
-        "Une nomenclature NGAP intégrée : vous saisissez vos propres codes d'actes",
-        "L'ordonnance électronique",
-      ],
-      cndp: "La déclaration à la CNDP reste à la charge du cabinet. Le forfait Premium inclut une aide pour votre dossier CNDP.",
-      cta: "Réserver une démo gratuite",
-    },
-  },
-  europe: {
-    text: "Aujourd'hui, MeDoc Dentist est vendu aux cabinets dentaires du Maroc uniquement, avec des documents marocains et des prix en dirhams. Vous exercez en Europe ? Écrivez-nous au sujet de votre cabinet.",
-    cta: "Nous écrire",
-  },
-};
-
-const ar: DigitalCopy = {
-  sourceLabel: "المصدر",
-  advantages: {
-    kicker: "لماذا الانتقال إلى الرقمي",
-    title: "الورق يكلّف العيادات في كل مكان",
-    lead: "قاس باحثون في بلدان أخرى ما يكلّفه الملف الورقي وضعف حماية البيانات. هذه الأرقام من خارج المغرب، ولكل منها مصدره. وتحت كل رقم: ما يفعله MeDoc Dentist، في الإصدارات الثلاثة.",
-    answerLabel: "مع MeDoc Dentist",
-    items: [
-      {
-        fig: "15%",
-        market: "المملكة المتحدة · 2011",
-        claim: "من الاستشارات الخارجية في ثلاثة مستشفيات جامعية تعمل بالملف الورقي كانت تنقصها معلومات سريرية أساسية. وتعرّض مريض من كل خمسة منهم لخطر على صحته.",
-        src: SRC.burnett,
-        answer: { t: "المريض كله في شاشة واحدة", d: "يُفتح كل ملف على ترويسة واحدة: الحالة، والفواتير غير المسدّدة، ووسائل الاتصال، ورقم التأمين، ومخطط أسنان مصغّر، مع ما لا يزال ناقصًا مثل السوابق المرضية أو الفحص. وتبقى الصور الشعاعية والوثائق الممسوحة مع المريض." },
-      },
-      {
-        fig: "105 من 362",
-        market: "جنوب أفريقيا · 2023",
-        claim: "ملفًا لطب الأسنان تعذّر العثور عليها أثناء تدقيق في مستشفى جامعي لطب الأسنان، بسبب سوء نظام الحفظ. أي نحو 29%.",
-        src: SRC.dentalAudit,
-        answer: { t: "كل مريض في بحث واحد", d: "ابحث بالاسم أو الهاتف أو البريد الإلكتروني أو رقم التأمين، مع اقتراحات «هل تقصد» للأسماء. لا شيء يُرتَّب، ولا شيء يضيع." },
-      },
-      {
-        fig: "6.6%",
-        market: "الولايات المتحدة (نيويورك) · 2010",
-        claim: "من الوصفات كانت فيها أخطاء بعد سنة من الانتقال إلى الوصفة الإلكترونية، مقابل 42.5% حين كان الأطباء يكتبونها باليد. واختفت الوصفات غير المقروءة.",
-        src: SRC.kaushal,
-        answer: { t: "وصفات مطبوعة ومراجَعة", d: "تُطبع الوصفات بترويسة عيادتك، بالفرنسية أو العربية، لا بخط اليد. وقبل حفظ الوصفة، تُقارَن كل مادة فعّالة بالحساسية المسجّلة في السوابق المرضية، وتؤكّد قبل إصدارها رغم ذلك." },
-      },
-      {
-        fig: "13%",
-        market: "المملكة المتحدة · 2016",
-        claim: "من وقت مناوبة الأطباء الشباب ضاع في البحث، وأغلبه عن الأوراق والمعدّات: نحو 30 دقيقة في كل 4 ساعات.",
-        src: SRC.pinchin,
-        answer: { t: "خطوات أقل إلى المهمة التالية", d: "من قائمة المرضى، احجز موعدًا أو اكتب وصفة أو أرسل بريدًا أو اتصل. ويفتح Ctrl+K (أو ⌘K على Mac) أي صفحة، ولجدول المواعيد اختصاراته الخاصة." },
-      },
-      {
-        fig: "6.64 مليون دولار",
-        market: "العالم · 2026",
-        claim: "هو متوسط كلفة تسريب البيانات في قطاع الصحة، وهو الأعلى بين كل القطاعات للسنة الثالثة عشرة على التوالي (تقرير IBM عن كلفة تسريب البيانات).",
-        src: SRC.ibm,
-        answer: { t: "مشفّر حيث يُحفظ", d: "قاعدة البيانات كلها مشفّرة بـ SQLCipher (AES-256) على حواسيبك الخاصة، ويبقى المفتاح في سلسلة المفاتيح الآمنة للحاسوب. ولا يرى الاستقبال الملف الطبي افتراضيًا، وتُسجَّل كل قراءة له." },
-      },
-      {
-        fig: "95%",
-        market: "14 دولة · 2024",
-        claim: "من المؤسسات الصحية التي أصابها برنامج فدية قالت إن المهاجمين حاولوا اختراق نسخها الاحتياطية، ونجحت محاولتان من كل ثلاث (استطلاع Sophos).",
-        src: SRC.sophos,
-        answer: { t: "نسخة احتياطية كل يوم، موقّعة ومشفّرة", d: "ينسخ MeDoc Dentist بيانات العيادة مرة في اليوم من تلقاء نفسه، فيضغطها ثم يشفّرها بـ AES-256-GCM، على مفتاح USB أو قرص خارجي إن أردت. وكل نسخة موقّعة: النسخة المعدَّلة أو التالفة يُنبَّه إليها ولا يمكن استرجاعها." },
-      },
-    ],
-  },
-  pilot: {
-    kicker: "العيادات الرائدة",
-    title: "اكتب القصة الأولى معنا",
-    text: "يفتح MeDoc Dentist أبوابه لعياداته الأولى. تحصل العيادات الرائدة على باقة الرقمنة وعلى خط مباشر مع من يبنون البرنامج. وفي المقابل نطلب منها رأيًا صادقًا، سننشره هنا بموافقتها.",
-    points: ["التثبيت ونقل البيانات والتدريب مشمولة", "خط مباشر مع الفريق الذي يبني MeDoc Dentist", "رأيك يحدد ما نحسّنه بعد ذلك"],
-    cta: "انضمّ كعيادة رائدة",
-  },
-  pack: {
-    kicker: "باقة الرقمنة",
-    title: "من البطاقة الورقية إلى الشاشة، ونحن إلى جانبك",
-    lead: "يجمع MeDoc Dentist العيادة كلها في برنامج واحد: المرضى، والمخططات، والمواعيد، والوصفات، والمدفوعات، والوثائق. وباقة الرقمنة هي طريقتنا لنوصلك إلى ذلك خطوة بخطوة، بينما تواصل علاج مرضاك.",
-    steps: [
-      { t: "ندرس طريقة عملك", d: "مكالمة أو زيارة لفهم يومك ووثائقك والبطاقات الورقية التي تحتفظ بها اليوم." },
-      { t: "ننقل بياناتك", d: "استيراد المرضى والمواعيد من Excel أو CSV، مشمول مع Cabinet وCabinet+. ومن برنامج أسنان آخر، نقدّم عرض سعر بعد فحص ملف التصدير. ويمكن أن تبقى صور بطاقاتك الورقية الممسوحة مع ملف كل مريض." },
-      { t: "نثبّت وندرّب", d: "أسعارك ونماذجك جاهزة. تثبيت عن بُعد وساعتان من التدريب مع Essentiel، وتثبيت في العيادة مع Cabinet (ساعتان من التدريب في العيادة) ومع Cabinet+ (جلستا تدريب)." },
-      { t: "نبقى معك", d: "الخدمة مشمولة: 3 أشهر مع Essentiel، و6 مع Cabinet، و12 مع Cabinet+. وبعدها تختار باقة خدمة، أو لا شيء." },
-    ],
-    promise: "التزامنا: كل عيادة تختار MeDoc Dentist تحصل على هذه المساعدة، مهما كان إصدارها.",
-    cta: "اطلب باقة الرقمنة",
-    before: "قبل",
-    after: "بعد",
-    beforeAlt: "بطاقة مريض ورقية مغربية حقيقية، مع إخفاء المعطيات الشخصية.",
-    afterAlt: "طبيب أسنان يعمل على MeDoc Dentist أمام الحاسوب.",
-  },
-  morocco: {
-    facts: {
-      kicker: "ما الذي يتغيّر",
-      title: "الوقائع، مع مصادرها",
-      lead: "قوانين ومشاريع قوانين وأرقام كما نُشرت. مشروع القانون 52-26 ليس قانونًا بعد، ونذكر ذلك أينما ورد.",
-      items: [
-        { topic: "عيادات الأسنان", fig: "6.552", text: "عيادة خاصة لطب الأسنان في المغرب سنة 2025، و458 طبيب أسنان في القطاع العام، حسب الخريطة الصحية لوزارة الصحة والحماية الاجتماعية.", src: SRC.dentists },
-        { topic: "المغرب الرقمي 2030", fig: "1,7 مليار درهم", text: "استثمار عمومي في الرقمي سنة 2024، مقابل 11 مليون درهم سنة 2021. وتجعل الاستراتيجية الوطنية من الرقمي محرّكًا للتنافسية والإدماج الاجتماعي.", src: SRC.digital2030 },
-        { topic: "التأمين الإجباري عن المرض (AMO)", fig: "32 مليون", text: "مستفيد من التأمين الإجباري عن المرض سنة 2025، أي 88% من السكان، مقابل 42% قبل التعميم. ومزيد من المرضى المؤمَّنين يعني مزيدًا من أرقام التأمين التي يجب تسجيلها.", src: SRC.amo },
-        { topic: "مشروع القانون 52-26", status: "ليس قانونًا بعد", fig: "حتى 300.000 درهم", text: "غرامة أوردتها التقارير بحق المهني الذي لا يحدّث الملف الطبي المشترك للمريض، أو المؤسسة التي لا تربط نظامها. أُودع المشروع لدى البرلمان في 31 يوليوز 2026، ويقترح ملفًا مشتركًا لكل مريض يُحدَّث بعد كل استشارة أو إجراء. وستكون أمام المؤسسات 24 شهرًا للربط بعد نشر القواعد التقنية.", src: SRC.bill5226 },
-        { topic: "القانون 09-08 واللجنة الوطنية", status: "ساري المفعول", fig: "حتى 200.000 درهم", text: "غرامة، أو حبس من 3 أشهر إلى سنة، أو هما معًا، لمعالجة معطيات شخصية دون تدابير الأمان التي يفرضها القانون (المادة 58). والمعطيات الصحية معطيات حساسة، ومعالجتها دون الموافقة الصريحة للمريض تعرّض لغرامة من 50.000 إلى 300.000 درهم (المادة 57).", src: SRC.law0908 },
-        { topic: "تسريب بيانات CNSS، أبريل 2025", fig: "قرابة 2 مليون", text: "شخص كُشفت معلوماتهم بعد سرقة مزعومة لأكثر من 54.000 ملف من الصندوق الوطني للضمان الاجتماعي، حسب وسائل الإعلام المغربية. المعطيات الصحية والاجتماعية مستهدفة في المغرب أيضًا.", src: SRC.cnss },
-      ],
-      note: "الأرقام كما نشرتها المصادر المذكورة. وقد يتغيّر مشروع القانون 52-26 قبل أن يصبح قانونًا.",
-    },
-    ready: {
-      kicker: "MeDoc Dentist",
-      title: "كيف يُعدّ MeDoc Dentist عيادتك",
-      lead: "ما يتضمّنه البرنامج اليوم. كل نقطة تخص الإصدارات الثلاثة، ما لم يُذكر إصدار بعينه.",
-      items: [
-        { t: "مشفّر على حواسيبك الخاصة", d: "قاعدة البيانات كلها مشفّرة بـ SQLCipher (AES-256)، ويبقى المفتاح في سلسلة المفاتيح الآمنة للحاسوب. ولا تُرسَل بيانات المرضى إلى أي سحابة." },
-        { t: "كل شخص يرى ما يحتاجه عمله", d: "لا يرى الاستقبال (Cabinet وCabinet+) ولا حساب الضيف (Essentiel) التشخيصات والملاحظات السريرية، إلا إذا سمحت بذلك. والبرنامج نفسه يفرض ذلك، لا الشاشة فقط." },
-        { t: "سجل يكشف أي تلاعب", d: "إنشاء الملفات وتعديلها، والمصادقات، والتصديرات، وكل قراءة لملف طبي، كلها تُسجَّل. وكل مدخل مربوط بالذي قبله بـ HMAC، فيُكتشف أي مدخل عُدّل أو حُذف." },
-        { t: "وثائق مغربية", d: "فواتير بأرقام ICE وIF وTP (وRC وCNSS وINPE)، وترقيم متسلسل دون فجوات، وإشارة إعفاء الأعمال الطبية من الضريبة على القيمة المضافة، والمبلغ بالحروف، بالفرنسية أو العربية. لا فاتورة دون ICE وIF. ووصفات وشهادات بترويسة عيادتك مع رقم INPE الخاص بك." },
-        { t: "نسخة احتياطية كل يوم", d: "مرة في اليوم من تلقاء نفسها: مضغوطة ومشفّرة بـ AES-256-GCM، على مفتاح USB أو قرص خارجي إن أردت، مع الصور الشعاعية والوثائق الممسوحة. وكل نسخة موقّعة، فلا يمكن استرجاع نسخة معدَّلة." },
-        { t: "ملفات منظّمة", d: "المرضى، وأرقام التأمين، ومخطط الأسنان، والعلاجات، والوصفات، والفواتير بيانات منظّمة، لا أوراق ممسوحة. وتُنبّه ترويسة الملف إلى ما ينقص، مثل رقم التأمين." },
-      ],
-      notYetTitle: "غير متوفر في MeDoc Dentist اليوم",
-      notYet: [
-        "الربط بالملف الطبي المشترك لمشروع القانون 52-26: قواعده التقنية لم تُنشر بعد",
-        "أوراق العلاج للتأمين AMO وCNSS وCNOPS",
-        "لائحة أعمال NGAP مدمجة: تُدخل رموز أعمالك بنفسك",
-        "الوصفة الإلكترونية",
-      ],
-      cndp: "يبقى التصريح لدى اللجنة الوطنية لمراقبة حماية المعطيات ذات الطابع الشخصي من مسؤولية العيادة. وتشمل باقة Premium المساعدة في ملفك لدى اللجنة.",
-      cta: "احجز عرضًا مجانيًا",
-    },
-  },
-  europe: {
-    text: "يُباع MeDoc Dentist اليوم لعيادات طب الأسنان في المغرب فقط، بوثائق مغربية وأسعار بالدرهم. هل تمارس في أوروبا؟ راسلنا عن عيادتك.",
-    cta: "راسلنا",
   },
 };
 

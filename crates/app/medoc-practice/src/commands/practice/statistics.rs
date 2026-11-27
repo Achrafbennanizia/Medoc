@@ -6,8 +6,13 @@ use sqlx::SqlitePool;
 use tauri::State;
 
 mod doctor;
-use doctor::{doctor_scope, scoped};
+mod doctor_series;
+mod filters;
+use doctor::{doctor_scope, scoped, scoped_payment, scoped_treatment};
+use doctor_series::per_doctor_series;
 pub use doctor::DoctorFigures;
+pub use doctor_series::DoctorMonthSeries;
+pub use filters::StatsFilters;
 
 type PracticeTz = medoc_core::domain::practice_time::Tz;
 
@@ -59,29 +64,42 @@ pub async fn get_dashboard_stats(
     session_state: State<'_, SessionState>,
 ) -> Result<DashboardStats, AppError> {
     let session = rbac::require(&session_state, "dashboard.read")?;
+    dashboard_stats(pool.inner(), &session).await
+}
+
+/// Dashboard KPI tiles; doctor-scoped rows honour `ShareArea::Statistics` (Cabinet+).
+pub async fn dashboard_stats(
+    pool: &SqlitePool,
+    session: &medoc_core::application::auth_service::Session,
+) -> Result<DashboardStats, AppError> {
     let role = Role::parse(&session.role).ok_or(AppError::Forbidden)?;
     let ov = &session.permission_overrides;
     let allowed = |action: &str| rbac::effective_allowed(action, role, ov);
+    let scope = doctor_scope(pool, session, None).await?;
 
     let patients_total = if allowed("patient.read") {
         let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM patient")
-            .fetch_one(pool.inner())
+            .fetch_one(pool)
             .await?;
         Some(row.0)
     } else {
         None
     };
 
-    let tz = medoc_core::domain::practice_time::practice_tz(pool.inner()).await;
+    let tz = medoc_core::domain::practice_time::practice_tz(pool).await;
     let appointments_today = if allowed("appointment.read") {
         // F105: local day; cancelled and no-show do not count as today's work.
         let today = local_today(tz).format("%Y-%m-%d").to_string();
-        let row: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM appointment WHERE date = ?1 AND status NOT IN ('CANCELLED','NO_SHOW')",
+        let row: (i64,) = scoped(
+            sqlx::query_as(&format!(
+                "SELECT COUNT(*) FROM appointment WHERE date = ?1 AND status NOT IN ('CANCELLED','NO_SHOW'){}",
+                scope.clause("physician_id", 2)
+            ))
+            .bind(&today),
+            &scope,
         )
-            .bind(&today)
-            .fetch_one(pool.inner())
-            .await?;
+        .fetch_one(pool)
+        .await?;
         Some(row.0)
     } else {
         None
@@ -89,16 +107,23 @@ pub async fn get_dashboard_stats(
 
     let (revenue_today, revenue_month) = if allowed("finance.read") {
         // F105: income = paid and partially paid, in the practice time zone.
-        let income_since = "SELECT CAST(COALESCE(SUM(amount), 0) AS REAL) FROM payment
-             WHERE status IN ('PAID','PARTIALLY_PAID') AND julianday(created_at) >= julianday(?1)";
-        let today: (f64,) = sqlx::query_as(income_since)
-            .bind(local_day_start_sql(local_today(tz), tz))
-            .fetch_one(pool.inner())
-            .await?;
-        let month: (f64,) = sqlx::query_as(income_since)
-            .bind(local_day_start_sql(local_month_start(tz), tz))
-            .fetch_one(pool.inner())
-            .await?;
+        let income_since = format!(
+            "SELECT CAST(COALESCE(SUM(amount), 0) AS REAL) FROM payment
+             WHERE status IN ('PAID','PARTIALLY_PAID') AND julianday(created_at) >= julianday(?1){}",
+            scope.clause("for_staff_id", 2)
+        );
+        let today: (f64,) = scoped(
+            sqlx::query_as(&income_since).bind(local_day_start_sql(local_today(tz), tz)),
+            &scope,
+        )
+        .fetch_one(pool)
+        .await?;
+        let month: (f64,) = scoped(
+            sqlx::query_as(&income_since).bind(local_day_start_sql(local_month_start(tz), tz)),
+            &scope,
+        )
+        .fetch_one(pool)
+        .await?;
         (Some(today.0), Some(month.0))
     } else {
         (None, None)
@@ -107,7 +132,7 @@ pub async fn get_dashboard_stats(
     let products_low = if allowed("product.read") {
         let row: (i64,) =
             sqlx::query_as("SELECT COUNT(*) FROM product WHERE active = 1 AND min_stock IS NOT NULL AND min_stock > 0 AND stock <= min_stock")
-                .fetch_one(pool.inner())
+                .fetch_one(pool)
                 .await?;
         Some(row.0)
     } else {
@@ -174,6 +199,8 @@ pub struct StatisticsOverview {
     pub hidden_doctors: Vec<String>,
     /// Group: last 12 months per doctor you may see (empty with one doctor or a doctor filter).
     pub per_doctor: Vec<DoctorFigures>,
+    /// Group: monthly breakdown per doctor for overlay charts (no single-doctor filter).
+    pub per_doctor_series: Vec<DoctorMonthSeries>,
 }
 
 /// Build a list of the last `n` months in `YYYY-MM` form, oldest first.
@@ -242,9 +269,17 @@ pub async fn get_statistics_overview(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
     doctor_id: Option<String>,
+    treatment_kind: Option<String>,
+    payment_method: Option<String>,
 ) -> Result<StatisticsOverview, AppError> {
     let session = rbac::require(&session_state, "dashboard.read")?;
-    statistics_overview(pool.inner(), &session, doctor_id).await
+    statistics_overview(
+        pool.inner(),
+        &session,
+        doctor_id,
+        StatsFilters::from_opts(treatment_kind, payment_method),
+    )
+    .await
 }
 
 /// The statistics page's figures; `doctor_id` narrows them to one doctor (Group, T5.6).
@@ -252,6 +287,7 @@ pub async fn statistics_overview(
     pool: &SqlitePool,
     session: &medoc_core::application::auth_service::Session,
     doctor_id: Option<String>,
+    filters: StatsFilters,
 ) -> Result<StatisticsOverview, AppError> {
     let scope = doctor_scope(pool, session, doctor_id).await?;
     let role = Role::parse(&session.role).ok_or(AppError::Forbidden)?;
@@ -347,30 +383,42 @@ pub async fn statistics_overview(
 
     // -------- Treatments --------
     if allowed("patient.read_medical") {
+        let treat_cat_extra = 1 + scope.bind_count();
         // by category (fallback type when category missing)
-        let beh_kat: Vec<(String, i64)> = scoped(sqlx::query_as(&format!(
-            "SELECT COALESCE(NULLIF(category,''), kind) AS k, COUNT(*) AS c
-             FROM treatment
-             WHERE 1 = 1{}
-             GROUP BY k
-             ORDER BY c DESC
-             LIMIT 12",
-            scope.clause("responsible_staff_id", 1)
-        )), &scope)
+        let beh_kat: Vec<(String, i64)> = scoped_treatment(
+            sqlx::query_as(&format!(
+                "SELECT COALESCE(NULLIF(category,''), kind) AS k, COUNT(*) AS c
+                 FROM treatment
+                 WHERE 1 = 1{}{}
+                 GROUP BY k
+                 ORDER BY c DESC
+                 LIMIT 12",
+                scope.clause("responsible_staff_id", 1),
+                filters.treatment_clause(treat_cat_extra)
+            )),
+            &scope,
+            &filters,
+        )
         .fetch_all(pool)
         .await?;
         out.treatments_by_category = group_label_value(beh_kat);
 
+        let treat_mon_extra = 2 + scope.bind_count();
         // per month — prefer treatment_date, fallback created_at
-        let beh_mon: Vec<(String, i64)> = scoped(sqlx::query_as(&format!(
-            "SELECT strftime('%Y-%m', COALESCE(treatment_date, created_at)) AS m, COUNT(*) AS c
-             FROM treatment
-             WHERE COALESCE(treatment_date, created_at) >= ?1{}
-             GROUP BY m
-             ORDER BY m",
-            scope.clause("responsible_staff_id", 2)
-        ))
-        .bind(&earliest_start), &scope)
+        let beh_mon: Vec<(String, i64)> = scoped_treatment(
+            sqlx::query_as(&format!(
+                "SELECT strftime('%Y-%m', COALESCE(treatment_date, created_at)) AS m, COUNT(*) AS c
+                 FROM treatment
+                 WHERE COALESCE(treatment_date, created_at) >= ?1{}{}
+                 GROUP BY m
+                 ORDER BY m",
+                scope.clause("responsible_staff_id", 2),
+                filters.treatment_clause(treat_mon_extra)
+            ))
+            .bind(&earliest_start),
+            &scope,
+            &filters,
+        )
         .fetch_all(pool)
         .await?;
         let beh_mon_f: Vec<(String, f64)> = beh_mon
@@ -488,25 +536,37 @@ pub async fn statistics_overview(
 
     // -------- Finance --------
     if allowed("finance.read") {
+        let pay_income_extra = 2 + scope.bind_count();
         // F105: paid + partially paid, bucketed by local month.
-        let income_rows: Vec<(String, f64)> = scoped(sqlx::query_as(&format!(
-            "SELECT CAST(created_at AS TEXT), CAST(amount AS REAL) FROM payment
-             WHERE status IN ('PAID','PARTIALLY_PAID') AND julianday(created_at) >= julianday(?1){}",
-            scope.clause("for_staff_id", 2)
-        ))
-        .bind(&earliest_utc), &scope)
+        let income_rows: Vec<(String, f64)> = scoped_payment(
+            sqlx::query_as(&format!(
+                "SELECT CAST(created_at AS TEXT), CAST(amount AS REAL) FROM payment
+             WHERE status IN ('PAID','PARTIALLY_PAID') AND julianday(created_at) >= julianday(?1){}{}",
+                scope.clause("for_staff_id", 2),
+                filters.payment_clause(pay_income_extra)
+            ))
+            .bind(&earliest_utc),
+            &scope,
+            &filters,
+        )
         .fetch_all(pool)
         .await?;
         out.income_per_month = align_months(bucket_local_months(income_rows, tz), &months_12);
 
-        let payment_kind: Vec<(String, f64)> = scoped(sqlx::query_as(&format!(
-            "SELECT payment_method, CAST(COALESCE(SUM(amount), 0) AS REAL)
+        let pay_kind_extra = 1 + scope.bind_count();
+        let payment_kind: Vec<(String, f64)> = scoped_payment(
+            sqlx::query_as(&format!(
+                "SELECT payment_method, CAST(COALESCE(SUM(amount), 0) AS REAL)
              FROM payment
-             WHERE status = 'PAID'{}
+             WHERE status = 'PAID'{}{}
              GROUP BY payment_method
              ORDER BY payment_method",
-            scope.clause("for_staff_id", 1)
-        )), &scope)
+                scope.clause("for_staff_id", 1),
+                filters.payment_clause(pay_kind_extra)
+            )),
+            &scope,
+            &filters,
+        )
         .fetch_all(pool)
         .await?;
         out.revenue_by_payment_method = payment_kind
@@ -514,12 +574,18 @@ pub async fn statistics_overview(
             .map(|(label, value)| LabelValue { label, value })
             .collect();
 
-        let row: (f64,) = scoped(sqlx::query_as(&format!(
-            "SELECT CAST(COALESCE(SUM(amount), 0) AS REAL) FROM payment
-             WHERE status IN ('PAID','PARTIALLY_PAID') AND julianday(created_at) >= julianday(?1){}",
-            scope.clause("for_staff_id", 2)
-        ))
-        .bind(local_day_start_sql(local_month_start(tz), tz)), &scope)
+        let pay_month_extra = 2 + scope.bind_count();
+        let row: (f64,) = scoped_payment(
+            sqlx::query_as(&format!(
+                "SELECT CAST(COALESCE(SUM(amount), 0) AS REAL) FROM payment
+             WHERE status IN ('PAID','PARTIALLY_PAID') AND julianday(created_at) >= julianday(?1){}{}",
+                scope.clause("for_staff_id", 2),
+                filters.payment_clause(pay_month_extra)
+            ))
+            .bind(local_day_start_sql(local_month_start(tz), tz)),
+            &scope,
+            &filters,
+        )
         .fetch_one(pool)
         .await?;
         out.income_current_month = Some(row.0);
@@ -554,7 +620,9 @@ pub async fn statistics_overview(
     // -------- Per doctor (Group) --------
     out.hidden_doctors = scope.hidden.clone();
     if medoc_core::edition::CORE_CAPS.multi_doctor && scope.only.is_none() {
-        out.per_doctor = doctor::per_doctor(pool, &scope, &allowed, &earliest_start, &earliest_utc).await?;
+        out.per_doctor = doctor::per_doctor(pool, &scope, &filters, &allowed, &earliest_start, &earliest_utc).await?;
+        out.per_doctor_series =
+            per_doctor_series(pool, &scope, &filters, &allowed, &months_12, &earliest_start, &earliest_utc).await?;
     }
 
     Ok(out)

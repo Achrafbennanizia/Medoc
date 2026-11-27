@@ -22,4 +22,5 @@ pub mod practice;
 pub mod rbac_state;
 pub mod register;
 pub mod scheduling;
+pub mod share_scope;
 pub mod system;

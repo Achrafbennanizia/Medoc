@@ -6,6 +6,7 @@
 //! server channel exists.
 
 use medoc_core::application::remote_commands::{self, Envelope};
+use medoc_core::infrastructure::logging::{self, APP_FILE, ERRORS_FILE};
 use medoc_core::infrastructure::{backup, disk_space, error_reports};
 use serde::Serialize;
 use sqlx::SqlitePool;
@@ -15,6 +16,32 @@ use crate::commands::admin::auth::SessionState;
 use crate::commands::rbac_state::require;
 use crate::error::AppError;
 use crate::infrastructure::database::repos::admin::audit as audit_repo;
+
+fn log_file_fact(dir: &std::path::Path, name: &str) -> Option<serde_json::Value> {
+    let meta = std::fs::metadata(dir.join(name)).ok()?;
+    let modified = meta
+        .modified()
+        .ok()
+        .map(|t| chrono::DateTime::<chrono::Utc>::from(t).to_rfc3339());
+    Some(serde_json::json!({
+        "name": name,
+        "bytes": meta.len(),
+        "modifiedAt": modified,
+    }))
+}
+
+fn logs_summary() -> serde_json::Value {
+    match logging::log_dir() {
+        Ok(dir) => serde_json::json!({
+            "available": true,
+            "dir": dir.display().to_string(),
+            "errors": log_file_fact(dir, ERRORS_FILE),
+            "app": log_file_fact(dir, APP_FILE),
+            "client": log_file_fact(dir, "client.log"),
+        }),
+        Err(_) => serde_json::json!({ "available": false }),
+    }
+}
 
 async fn scalar(pool: &SqlitePool, sql: &str) -> Option<i64> {
     sqlx::query_scalar::<_, i64>(sql).fetch_one(pool).await.ok()
@@ -49,6 +76,8 @@ pub async fn summary(pool: &SqlitePool, app: &AppHandle) -> serde_json::Value {
         "edition": info.edition,
         "flavor": info.flavor,
         "os": std::env::consts::OS,
+        "osArch": std::env::consts::ARCH,
+        "osFamily": std::env::consts::FAMILY,
         "dbOk": db_ok,
         "auditChainOk": audit_chain_ok,
         "dbBytes": db_bytes,
@@ -60,6 +89,7 @@ pub async fn summary(pool: &SqlitePool, app: &AppHandle) -> serde_json::Value {
         // T7.6: a peer refused our sync protocol; work queues until the older side is updated.
         "syncUpdateNeeded": medoc_sync::protocol_compat::update_needed().is_some(),
         "errorsByArea7d": errors,
+        "logs": logs_summary(),
         // T4.4: sequences a hub that took over as primary will not number until an admin checks them.
         "numberingGaps": medoc_core::infrastructure::database::number_sequence::open_gaps(pool).await,
     })

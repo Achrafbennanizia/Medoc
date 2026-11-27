@@ -237,7 +237,8 @@ pub fn clamp_to_ceiling(role: Role, levels: &mut Levels) {
 
 pub use crate::domain::access_templates::{
     default_levels, default_template_id, resolve_levels, template, template_available, Template,
-    GUEST_CLINICAL_TEMPLATE, GUEST_TEMPLATE, TEMPLATES,
+    GUEST_CLINICAL_DOCUMENTS_TEMPLATE, GUEST_CLINICAL_TEMPLATE, GUEST_DOCUMENTS_TEMPLATE,
+    GUEST_TEMPLATE, TEMPLATES,
 };
 
 /// Whether an action only reads: every level it needs is at most [`Level::View`]. Actions
@@ -481,6 +482,8 @@ pub const ACTION_RULES: &[ActionRule] = &[
     legacy("product.read", &[(A::Inventory, L::View)]),
     legacy("product.write", &[(A::Inventory, L::Create)]),
     legacy("purchase_order.read", &[(A::Inventory, L::View)]),
+    // Confirm / receive a delivery (IN_TRANSIT → DELIVERED). Guests may do this; creating orders needs write.
+    legacy("purchase_order.receive", &[(A::Inventory, L::Edit)]),
     legacy("purchase_order.write", &[(A::Inventory, L::Create)]),
     legacy("administration.read", &[(A::Settings, L::View)]),
     legacy("administration.inventory.read", &[(A::Inventory, L::View)]),

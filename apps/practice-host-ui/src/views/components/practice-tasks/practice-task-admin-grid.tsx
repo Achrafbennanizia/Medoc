@@ -11,6 +11,7 @@ import { Badge } from "../ui/badge";
 import { taskPatientLabel } from "./constants";
 import { assigneeLabel, taskStatusVariant, userCanViewTask } from "./task-workflow";
 import { taskStatusLabel, taskKindLabel } from "./task-workflow-ui";
+import { TaskDoctorCell, type TaskDoctors } from "./practice-task-doctor";
 
 type Props = {
     rows: PracticeTask[];
@@ -21,6 +22,7 @@ type Props = {
     canAdmin?: boolean;
     /** Fewer columns for the embedded practice tasks tab (fits workspace width). */
     compact?: boolean;
+    doctors?: TaskDoctors;
     onOpen: (row: PracticeTask) => void;
     onEdit: (row: PracticeTask) => void;
 };
@@ -33,11 +35,13 @@ export function PracticeTaskAdminGrid({
     isReception,
     canAdmin = false,
     compact = false,
+    doctors,
     onOpen,
     onEdit,
 }: Props) {
     const t = useT();
     const tp = useTParams();
+    const showDoctor = Boolean(doctors?.show);
     return (
         <div className="card tasks-table-card tbl-data-card card--overflow-visible">
             <div className="tbl-scroll">
@@ -52,6 +56,7 @@ export function PracticeTaskAdminGrid({
                                 <col className="tasks-col-assignee" />
                             </>
                         ) : null}
+                        {showDoctor ? <col className="tasks-col-doctor" /> : null}
                         <col className="tasks-col-status" />
                         <col className="tasks-col-action" />
                     </colgroup>
@@ -75,6 +80,11 @@ export function PracticeTaskAdminGrid({
                                         {t("practice.tasks.admin.col_assignee")}
                                     </th>
                                 </>
+                            ) : null}
+                            {showDoctor ? (
+                                <th scope="col" className="tasks-th-doctor">
+                                    {t("practice.tasks.admin.col_doctor")}
+                                </th>
                             ) : null}
                             <th scope="col" className="tasks-th-status">
                                 {t("practice.tasks.admin.col_status")}
@@ -148,6 +158,7 @@ export function PracticeTaskAdminGrid({
                                             <td className="tasks-td-assignee">{assigneeLabel(row, staff, t)}</td>
                                         </>
                                     ) : null}
+                                    {doctors ? <TaskDoctorCell td={doctors} doctorId={row.doctor_id} /> : null}
                                     <td className="tasks-td-status">
                                         <Badge variant={taskStatusVariant(row.status)}>
                                             {taskStatusLabel(t, row.status)}

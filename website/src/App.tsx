@@ -1,17 +1,23 @@
-import { type FormEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Product } from "./Product";
-import { COMPANY_URL, CONTACT_API, CONTACT_EMAIL, PRICES, type PlanId, WHATSAPP_NUMBER, mad } from "./config";
+import { COMPANY_URL, CONTACT_EMAIL, PRICES, type PlanId, WHATSAPP_NUMBER, mad } from "./config";
 import { DICTS, type Dict, LANGS, LOCALE, type Lang } from "./i18n";
 import { LEGAL_DOCS, LegalPage, legalHref } from "./Legal";
 import { Odontogram } from "./Odontogram";
 import { COOKIES, readCookie, writeCookie } from "./prefs";
 import { DocumentsGallery, WhatsNew } from "./Sections";
 import { SITE_COPY } from "./site-copy";
-import { Advantages, DigitalHealth, DigitalizationPack, Pilot, FeaturesHero, Highlights, Photo, PrivacyBand, SecurityPage } from "./Pages";
+import { Advantages, DigitalHealth, DigitalizationPack, Pilot, FeaturesHero, Photo, PrivacyBand, SecurityPage, Ways } from "./Pages";
 import { PAGES_COPY } from "./pages-copy";
 import { type EditionId, type Route, pageHref, parseRoute } from "./route";
-import { Everything, Explore, FinalCta, PageHead } from "./Routes";
+import { Everything, FinalCta, MoroccoStrip, PageHead, SeriesBand } from "./Routes";
 import { ROUTES_COPY } from "./routes-copy";
+import { Contact } from "./Contact";
+import { EditionArticle, EditionsPage, EditionsPreview } from "./Editions";
+import { EDITION_NAME } from "./editions-copy";
+import { DIGITAL_COPY } from "./digital-copy";
+import { I } from "./icons";
+import { waLink } from "./whatsapp";
 
 type Theme = "light" | "dark";
 
@@ -28,61 +34,6 @@ function initialTheme(): Theme {
   if (saved === "light" || saved === "dark") return saved;
   return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
-
-/* ---------- icons (inline, stroke = currentColor) ---------- */
-const I = {
-  logo: (
-    <svg viewBox="0 0 32 32" width="28" height="28" aria-hidden>
-      <rect width="32" height="32" rx="9" fill="var(--mint)" />
-      <path d="M10.5 9.5c-2.2 0-3.5 1.8-3.5 4.4 0 3.4 1.4 4.6 2.1 7.6.4 1.7.8 3 1.9 3 1.4 0 1.5-2.2 2.2-4.2.4-1 .9-1.6 2.8-1.6s2.4.6 2.8 1.6c.7 2 .8 4.2 2.2 4.2 1.1 0 1.5-1.3 1.9-3 .7-3 2.1-4.2 2.1-7.6 0-2.6-1.3-4.4-3.5-4.4-2 0-3 1.1-5.5 1.1s-3.5-1.1-5.5-1.1z" fill="#fff" />
-    </svg>
-  ),
-  sun: (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
-      <circle cx="12" cy="12" r="4" />
-      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-    </svg>
-  ),
-  moon: (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" />
-    </svg>
-  ),
-  check: (
-    <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M4 10.5l4 4 8-9" />
-    </svg>
-  ),
-  lock: (
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <rect x="5" y="11" width="14" height="9" rx="2" />
-      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
-    </svg>
-  ),
-  monitor: (
-    <svg viewBox="0 0 48 40" width="48" height="40" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden>
-      <rect x="3" y="3" width="42" height="27" rx="3" />
-      <path d="M18 37h12M24 30v7" strokeLinecap="round" />
-    </svg>
-  ),
-  laptop: (
-    <svg viewBox="0 0 48 40" width="48" height="40" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden>
-      <rect x="8" y="6" width="32" height="22" rx="2.5" />
-      <path d="M3 33h42l-3 3H6z" />
-    </svg>
-  ),
-  whatsapp: (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden>
-      <path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.7.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.3-.4.7-1.4.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6a2.7 2.7 0 0 0 1.8-1.2 2.2 2.2 0 0 0 .1-1.2c0-.1-.2-.2-.4-.3z" />
-    </svg>
-  ),
-};
-
-function waLink(text: string) {
-  return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(text)}`;
-}
-
-/* ---------- header ---------- */
 function Header({ t, lang, setLang, theme, setTheme }: { t: Dict; lang: Lang; setLang: (l: Lang) => void; theme: Theme; setTheme: (t: Theme) => void }) {
   const [open, setOpen] = useState(false);
   const pc = PAGES_COPY[lang];
@@ -158,6 +109,7 @@ function Hero({ t, lang, locale }: { t: Dict; lang: Lang; locale: string }) {
     <section className="hero" id="top">
       <div className="wrap hero-grid">
         <div className="hero-copy">
+          <p className="kicker">{t.hero.kicker}</p>
           <h1>{t.hero.title}</h1>
           <p className="lead">{t.hero.lead}</p>
           <div className="cta-row">
@@ -249,45 +201,6 @@ function Setups({ t }: { t: Dict }) {
   );
 }
 
-/* ---------- Morocco ---------- */
-function Morocco({ t }: { t: Dict }) {
-  const m = t.morocco;
-  return (
-    <section className="section section-tint" id="morocco">
-      <div className="wrap">
-        <header className="section-head">
-          <h2>{m.title}</h2>
-          <p className="lead">{m.lead}</p>
-        </header>
-        <div className="ready">
-          <div>
-            <h3>{m.nowTitle}</h3>
-            <ul className="ticks">
-              {m.now.map((x) => (
-                <li key={x}>
-                  {I.check}
-                  {x}
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div>
-            <h3>{m.soonTitle}</h3>
-            <ul className="soon">
-              {m.soon.map((x) => (
-                <li key={x}>
-                  <span className="badge">{m.soonBadge}</span>
-                  {x}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 /* ---------- prices (MAD, excl. VAT) ---------- */
 function Prices({ t, locale }: { t: Dict; locale: string }) {
   const p = t.prices;
@@ -368,167 +281,6 @@ function Faq({ t }: { t: Dict }) {
   );
 }
 
-/* ---------- contact ---------- */
-function Contact({ t, lang, locale }: { t: Dict; lang: Lang; locale: string }) {
-  const c = t.contact;
-  const m = PAGES_COPY[lang].mail;
-  // After sending: "sent", or "fallback" with the prepared e-mail kept for copying if no mail app opened.
-  const [state, setState] = useState<"idle" | "sending" | "sent" | "fallback">("idle");
-  const [prepared, setPrepared] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [shownAt] = useState(() => Date.now());
-  // One key per request: a double click or a retry is delivered once.
-  const [key, setKey] = useState(() => crypto.randomUUID());
-  const onSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const form = e.currentTarget;
-    const d = new FormData(form);
-    const v = (k: string) => String(d.get(k) ?? "").trim();
-    const line = (label: string, value: string) => `${label}: ${value || "–"}`;
-    // Default subject, with the practice and city so the inbox shows who is asking.
-    const subject = [c.subject, [v("practice"), v("city")].filter(Boolean).join(", ")].filter(Boolean).join(" · ");
-    const body = [
-      m.hello,
-      "",
-      m.intro,
-      "",
-      `— ${m.contact} —`,
-      line(c.name, v("name")),
-      line(c.practice, v("practice")),
-      line(c.city, v("city")),
-      line(c.phone, v("phone")),
-      line(c.email, v("email")),
-      "",
-      `— ${m.request} —`,
-      v("message") || m.noMessage,
-      "",
-      `— ${m.details} —`,
-      line(m.language, LANGS.find((l) => l.id === lang)!.name),
-      `${m.sentFrom} ${new Date().toLocaleDateString(locale)}`,
-      "",
-      m.regards,
-      v("name"),
-    ].join("\n");
-    setPrepared(`${subject}\n\n${body}`);
-    setCopied(false);
-    setState("sending");
-    let ok = false;
-    try {
-      const res = await fetch(CONTACT_API, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Idempotency-Key": key },
-        body: JSON.stringify({
-          form: "medoc",
-          name: v("name"),
-          email: v("email"),
-          phone: v("phone"),
-          org: v("practice"),
-          city: v("city"),
-          message: v("message"),
-          lang,
-          website: v("website"),
-          elapsed: Date.now() - shownAt,
-        }),
-      });
-      ok = res.ok && ((await res.json()) as { ok?: boolean }).ok === true;
-    } catch {
-      ok = false;
-    }
-    if (ok) {
-      setState("sent");
-      form.reset();
-      setKey(crypto.randomUUID());
-    } else {
-      setState("fallback");
-      // Opens the visitor's own e-mail app (Mail, Outlook, Gmail…) with everything filled in; they press Send.
-      location.href = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    }
-  };
-  const copy = async () => {
-    if (!prepared) return;
-    try {
-      await navigator.clipboard.writeText(`${CONTACT_EMAIL}\n${prepared}`);
-      setCopied(true);
-    } catch {
-      setCopied(false);
-    }
-  };
-  return (
-    <section className="section" id="contact">
-      <div className="wrap contact-grid">
-        <div>
-          <h2>{c.title}</h2>
-          <p className="lead">{c.lead}</p>
-          {WHATSAPP_NUMBER && (
-            <a className="btn btn-wa" href={waLink(c.subject)} target="_blank" rel="noopener noreferrer">
-              {I.whatsapp}
-              {c.whatsapp}
-            </a>
-          )}
-          <p className="fine">
-            <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
-          </p>
-        </div>
-        <form className="form" onSubmit={onSubmit}>
-          {/* Bot trap: people never see or fill this field. */}
-          <label className="trap" aria-hidden="true">
-            Website <input name="website" tabIndex={-1} autoComplete="off" />
-          </label>
-          <label>
-            <span>
-              {c.name} <abbr title={c.required}>*</abbr>
-            </span>
-            <input name="name" required autoComplete="name" />
-          </label>
-          <label>
-            <span>
-              {c.practice} <abbr title={c.required}>*</abbr>
-            </span>
-            <input name="practice" required autoComplete="organization" />
-          </label>
-          <label>
-            <span>{c.city}</span>
-            <input name="city" autoComplete="address-level2" />
-          </label>
-          <label>
-            <span>
-              {c.phone} <abbr title={c.required}>*</abbr>
-            </span>
-            <input name="phone" type="tel" required autoComplete="tel" dir="ltr" />
-          </label>
-          <label className="span-2">
-            <span>{c.email}</span>
-            <input name="email" type="email" autoComplete="email" dir="ltr" />
-          </label>
-          <label className="span-2">
-            <span>{c.message}</span>
-            <textarea name="message" rows={4} />
-          </label>
-          <div className="span-2 form-foot">
-            <button className="btn btn-primary" type="submit" disabled={state === "sending"}>
-              {state === "sending" ? m.sending : c.send}
-            </button>
-            <p className="fine">{c.note}</p>
-          </div>
-          {state === "sent" ? (
-            <div className="span-2 mail-sent" role="status">
-              <p>{m.sent}</p>
-            </div>
-          ) : state === "fallback" && prepared ? (
-            <div className="span-2 mail-sent" role="status">
-              <p>
-                {m.fallback} <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
-              </p>
-              <button className="btn btn-ghost btn-sm" type="button" onClick={copy}>
-                {copied ? m.copied : m.copy}
-              </button>
-            </div>
-          ) : null}
-        </form>
-      </div>
-    </section>
-  );
-}
 
 function Footer({ t, lang, setLang }: { t: Dict; lang: Lang; setLang: (l: Lang) => void }) {
   const legal = SITE_COPY[lang].legal.titles;
@@ -555,7 +307,7 @@ function Footer({ t, lang, setLang }: { t: Dict; lang: Lang; setLang: (l: Lang) 
           <li>
             <a href={pageHref("security")}>{PAGES_COPY[lang].nav.security}</a>
           </li>
-          {(["editions", "digitalization", "pricing", "morocco", "faq", "demo"] as const).map((p) => (
+          {(["editions", "digitalization", "pricing", "morocco", "europe", "faq", "demo"] as const).map((p) => (
             <li key={p}>
               <a href={pageHref(p)}>{ROUTES_COPY[lang].nav[p]}</a>
             </li>
@@ -634,36 +386,6 @@ function MobileCta({ lang }: { lang: Lang }) {
   );
 }
 
-/** Temporary heads for the editions and Europe pages until they are built. */
-const SOON: Record<Lang, { editionsLead: string; europeTitle: string; europeLead: string }> = {
-  en: {
-    editionsLead: "Essentiel, Cabinet and Cabinet+, side by side.",
-    europeTitle: "Europe: coming soon",
-    europeLead: "MeDoc Dentist is sold in Morocco today.",
-  },
-  fr: {
-    editionsLead: "Essentiel, Cabinet et Cabinet+, côte à côte.",
-    europeTitle: "Europe : bientôt",
-    europeLead: "MeDoc Dentist est vendu au Maroc aujourd'hui.",
-  },
-  ar: {
-    editionsLead: "Essentiel وCabinet وCabinet+، جنبًا إلى جنب.",
-    europeTitle: "أوروبا: قريبًا",
-    europeLead: "يُباع MeDoc Dentist اليوم في المغرب.",
-  },
-};
-
-function SimpleHead({ title, lead }: { title: string; lead: string }) {
-  return (
-    <section className="page-hero" id="top">
-      <div className="wrap">
-        <h1>{title}</h1>
-        <p className="lead">{lead}</p>
-      </div>
-    </section>
-  );
-}
-
 type PageCtx = { t: Dict; lang: Lang; locale: string; theme: Theme };
 
 function renderPage(route: Route, { t, lang, locale, theme }: PageCtx) {
@@ -681,11 +403,11 @@ function renderPage(route: Route, { t, lang, locale, theme }: PageCtx) {
         </>
       );
     case "editions":
-      // Placeholder: the editions comparison and one page per edition are built next.
-      return (
+      return route.edition ? (
+        <EditionArticle lang={lang} locale={locale} id={route.edition} />
+      ) : (
         <>
-          <SimpleHead title={ROUTES_COPY[lang].nav.editions} lead={SOON[lang].editionsLead} />
-          <Prices t={t} locale={locale} />
+          <EditionsPage lang={lang} locale={locale} />
           <FinalCta lang={lang} />
         </>
       );
@@ -719,18 +441,28 @@ function renderPage(route: Route, { t, lang, locale, theme }: PageCtx) {
         <>
           <PageHead lang={lang} page="morocco" />
           <DigitalHealth lang={lang} />
-          <Morocco t={t} />
           <FinalCta lang={lang} />
         </>
       );
-    case "europe":
-      // Placeholder until the Europe page is built: the site's single "coming soon" mention.
+    case "europe": {
+      const eu = DIGITAL_COPY[lang].europe;
+      const head = ROUTES_COPY[lang].heads.europe;
       return (
         <>
-          <SimpleHead title={SOON[lang].europeTitle} lead={SOON[lang].europeLead} />
-          <FinalCta lang={lang} />
+          <section className="page-hero" id="top">
+            <div className="wrap">
+              <p className="kicker">{head.kicker}</p>
+              <h1>{head.title}</h1>
+              <p className="lead">{head.lead}</p>
+              <p>{eu.text}</p>
+              <a className="btn btn-primary" href={`mailto:${CONTACT_EMAIL}`}>
+                {eu.cta}
+              </a>
+            </div>
+          </section>
         </>
       );
+    }
     case "faq":
       return (
         <>
@@ -750,11 +482,15 @@ function renderPage(route: Route, { t, lang, locale, theme }: PageCtx) {
       return (
         <>
           <Hero t={t} lang={lang} locale={locale} />
+          <SeriesBand lang={lang} />
+          <MoroccoStrip lang={lang} />
+          <Ways lang={lang} />
           <Advantages lang={lang} />
+          <DigitalizationPack lang={lang} />
+          <EditionsPreview lang={lang} locale={locale} />
           <Everything lang={lang} />
-          <Highlights lang={lang} />
           <PrivacyBand lang={lang} />
-          <Explore lang={lang} />
+          <Pilot lang={lang} />
           <FinalCta lang={lang} />
         </>
       );
@@ -815,8 +551,10 @@ export function App() {
     if (route.page === "home") document.title = t.meta.title;
     else if (route.page === "features") document.title = `${PAGES_COPY[lang].nav.features} · MeDoc Dentist`;
     else if (route.page === "security") document.title = PAGES_COPY[lang].security.meta;
+    else if (route.page === "editions" && route.edition) document.title = `${EDITION_NAME[route.edition]} · MeDoc Dentist`;
+    else if (route.page === "europe") document.title = `${ROUTES_COPY[lang].heads.europe.title} · MeDoc Dentist`;
     else if (route.page !== "legal") document.title = `${ROUTES_COPY[lang].nav[route.page]} · MeDoc Dentist`;
-  }, [lang, t, route.page]);
+  }, [lang, t, route]);
   useEffect(() => {
     // A tick later: on first load the browser's own hash scroll runs after this effect.
     const id = setTimeout(() => {

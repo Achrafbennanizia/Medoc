@@ -1,7 +1,11 @@
 //! Reception need-to-know redaction for treatment/examination lists (GAP-01 mitigation).
+//!
+//! Skipped when the person may read the clinical record (e.g. Solo guest with
+//! Settings → Guest → "May read the clinical record" / `solo.guest_clinical`).
 
-use crate::application::rbac::Role;
+use crate::application::rbac::{self, Role};
 use crate::domain::entities::treatment::{Examination, Treatment};
+use crate::domain::rbac::PermissionOverride;
 
 pub fn redact_treatment_for_reception(mut b: Treatment) -> Treatment {
     b.description = None;
@@ -18,23 +22,40 @@ pub fn redact_examination_for_reception(mut u: Examination) -> Examination {
     u
 }
 
-pub fn apply_reception_redact_treatments(role: &str, rows: Vec<Treatment>) -> Vec<Treatment> {
+fn should_redact(role: &str, overrides: &[PermissionOverride]) -> bool {
     match Role::parse(role) {
-        Some(Role::Reception) => rows
-            .into_iter()
-            .map(redact_treatment_for_reception)
-            .collect(),
-        _ => rows,
+        Some(Role::Reception) => {
+            !rbac::effective_allowed("patient.read_medical", Role::Reception, overrides)
+        }
+        _ => false,
     }
 }
 
-pub fn apply_reception_redact_examinations(role: &str, rows: Vec<Examination>) -> Vec<Examination> {
-    match Role::parse(role) {
-        Some(Role::Reception) => rows
-            .into_iter()
+pub fn apply_reception_redact_treatments(
+    role: &str,
+    overrides: &[PermissionOverride],
+    rows: Vec<Treatment>,
+) -> Vec<Treatment> {
+    if should_redact(role, overrides) {
+        rows.into_iter()
+            .map(redact_treatment_for_reception)
+            .collect()
+    } else {
+        rows
+    }
+}
+
+pub fn apply_reception_redact_examinations(
+    role: &str,
+    overrides: &[PermissionOverride],
+    rows: Vec<Examination>,
+) -> Vec<Examination> {
+    if should_redact(role, overrides) {
+        rows.into_iter()
             .map(redact_examination_for_reception)
-            .collect(),
-        _ => rows,
+            .collect()
+    } else {
+        rows
     }
 }
 
@@ -73,6 +94,7 @@ mod tests {
             quantity: None,
             analog_of: None,
             agreement_ref: None,
+            responsible_staff_id: None,
         }
     }
 
@@ -91,12 +113,13 @@ mod tests {
             category: None,
             released_by_physician_id: None,
             released_at: None,
+            responsible_staff_id: None,
         }
     }
 
     #[test]
     fn gap_01_reception_treatment_redaction_strips_clinical_fields() {
-        let redacted = apply_reception_redact_treatments("RECEPTION", vec![sample_treatment()]);
+        let redacted = apply_reception_redact_treatments("RECEPTION", &[], vec![sample_treatment()]);
         let b = &redacted[0];
         assert_eq!(b.service_name.as_deref(), Some("Prophylaxe"));
         assert_eq!(b.total_cost, Some(80.0));
@@ -108,17 +131,33 @@ mod tests {
 
     #[test]
     fn gap_01_physician_treatment_list_unredacted() {
-        let rows = apply_reception_redact_treatments("PHYSICIAN", vec![sample_treatment()]);
+        let rows = apply_reception_redact_treatments("PHYSICIAN", &[], vec![sample_treatment()]);
         assert_eq!(rows[0].notes.as_deref(), Some("diagnosis leak"));
     }
 
     #[test]
     fn gap_01_reception_examination_redaction_strips_clinical_fields() {
-        let redacted = apply_reception_redact_examinations("RECEPTION", vec![sample_examination()]);
+        let redacted =
+            apply_reception_redact_examinations("RECEPTION", &[], vec![sample_examination()]);
         let u = &redacted[0];
         assert_eq!(u.service_name.as_deref(), Some("Kontrolle"));
         assert!(u.chief_complaint.is_none());
         assert!(u.results.is_none());
         assert!(u.diagnosis.is_none());
+    }
+
+    #[test]
+    fn guest_clinical_read_keeps_treatment_and_examination_fields() {
+        let overrides = vec![PermissionOverride {
+            action: "patient.read_medical".into(),
+            effect: "ALLOW".into(),
+        }];
+        let treatments =
+            apply_reception_redact_treatments("RECEPTION", &overrides, vec![sample_treatment()]);
+        assert_eq!(treatments[0].notes.as_deref(), Some("diagnosis leak"));
+        assert_eq!(treatments[0].description.as_deref(), Some("SECRET"));
+        let examinations =
+            apply_reception_redact_examinations("RECEPTION", &overrides, vec![sample_examination()]);
+        assert_eq!(examinations[0].diagnosis.as_deref(), Some("SECRET"));
     }
 }

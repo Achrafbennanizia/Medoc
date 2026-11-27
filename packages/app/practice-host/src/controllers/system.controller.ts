@@ -298,11 +298,19 @@ export const createSupportBundle = (args: {
 }) => practiceSystem.invoke<SupportBundleResult>("support_bundle_create", { args });
 
 /** Facts about this computer for support (editions plan §11.5); no patient or staff data. */
+export type HealthLogFile = {
+    name: string;
+    bytes: number;
+    modifiedAt: string | null;
+};
+
 export type HealthSummary = {
     version: string;
     edition: string;
     flavor: string;
     os: string;
+    osArch: string;
+    osFamily: string;
     dbOk: boolean;
     auditChainOk: boolean;
     dbBytes: number | null;
@@ -313,6 +321,13 @@ export type HealthSummary = {
     syncOpenProblems: number | null;
     syncUpdateNeeded: boolean;
     errorsByArea7d: { area: string; count: number }[];
+    logs: {
+        available: boolean;
+        dir?: string;
+        errors?: HealthLogFile | null;
+        app?: HealthLogFile | null;
+        client?: HealthLogFile | null;
+    };
     /** Sequence ("<scope>:<year>") → missing numbers, after this hub took over as primary (T4.4). */
     numberingGaps: Record<string, string>;
 };

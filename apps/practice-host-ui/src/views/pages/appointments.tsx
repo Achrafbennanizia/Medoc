@@ -490,6 +490,7 @@ export function AppointmentsPage() {
     );
 
     const physicianToneMap = useMemo(() => buildPhysicianToneMap(physicians), [physicians]);
+    const physicianNameById = useMemo(() => new Map(physicians.map((p) => [p.id, p.name])), [physicians]);
 
     const baseFilteredAppointments = useMemo(
         () =>
@@ -825,11 +826,12 @@ export function AppointmentsPage() {
     }, [jumpToIsoDate]);
 
     const commitDrag = useCallback(
-        async (id: string, date: string, startMin: number) => {
+        async (id: string, date: string, startMin: number, targetPhysicianId?: string) => {
             const moving = appointments.find((t) => t.id === id);
+            const packPhysicianId = targetPhysicianId?.trim() || moving?.physician_id;
             const dayBounds =
-                moving?.physician_id != null
-                    ? (deriveDayPackingBounds(practicePlanCfg, moving.physician_id, date) ?? timelineBounds)
+                packPhysicianId != null
+                    ? (deriveDayPackingBounds(practicePlanCfg, packPhysicianId, date) ?? timelineBounds)
                     : timelineBounds;
             const slotDur = moving
                 ? Math.max(5, parseAppointmentDurationMin(moving.notes, APPOINTMENT_DEFAULT_DUR_MIN))
@@ -843,6 +845,7 @@ export function AppointmentsPage() {
                 appointmentBufferMin,
                 dayBounds,
                 { practiceCfg: practicePlanCfg, absences },
+                packPhysicianId,
             );
             if (error) {
                 toast(error);
@@ -851,7 +854,7 @@ export function AppointmentsPage() {
             if (updates.length === 0) return;
             const rollback = updates.flatMap((update) => {
                 const row = appointments.find((item) => item.id === update.id);
-                return row ? [{ id: row.id, date: row.date, time: row.time }] : [];
+                return row ? [{ id: row.id, date: row.date, time: row.time, physician_id: row.physician_id }] : [];
             });
             const schedErr = validateAppointmentSchedulingUpdates(
                 appointments,
@@ -871,14 +874,16 @@ export function AppointmentsPage() {
                 if (!update) return row;
                 const nextDate = typeof update.data.date === "string" ? update.data.date : row.date;
                 const nextTime = typeof update.data.time === "string" ? update.data.time : row.time;
-                return { ...row, date: nextDate, time: nextTime, updated_at: placedAt };
+                const nextPhysicianId =
+                    typeof update.data.physician_id === "string" ? update.data.physician_id : row.physician_id;
+                return { ...row, date: nextDate, time: nextTime, physician_id: nextPhysicianId, updated_at: placedAt };
             }));
             try {
                 // F70: pure date/time moves go through one all-or-nothing call.
-                const pureMoves = updates.every((u) =>
-                    Object.keys(u.data).every((k) => k === "date" || k === "time"),
-                );
-                if (pureMoves) {
+                const moveKeys = new Set(["date", "time", "physician_id"]);
+                const pureMoves = updates.every((u) => Object.keys(u.data).every((k) => moveKeys.has(k)));
+                const physicianReassigned = updates.some((u) => typeof u.data.physician_id === "string");
+                if (pureMoves && !physicianReassigned) {
                     const byId = new Map(appointments.map((a) => [a.id, a]));
                     await moveAppointments(
                         updates.map((u) => {
@@ -902,7 +907,11 @@ export function AppointmentsPage() {
                         onUndo: async () => {
                             try {
                                 for (const prev of rollback) {
-                                    await updateAppointment(prev.id, { date: prev.date, time: prev.time });
+                                    await updateAppointment(prev.id, {
+                                        date: prev.date,
+                                        time: prev.time,
+                                        physician_id: prev.physician_id,
+                                    });
                                 }
                                 await load();
                             } catch (err) {
@@ -916,7 +925,7 @@ export function AppointmentsPage() {
             } catch (e) {
                 setAppointments((prev) => prev.map((row) => {
                     const old = rollback.find((item) => item.id === row.id);
-                    return old ? { ...row, date: old.date, time: old.time } : row;
+                    return old ? { ...row, date: old.date, time: old.time, physician_id: old.physician_id } : row;
                 }));
                 toast(errorMessage(e));
             }
@@ -977,6 +986,7 @@ export function AppointmentsPage() {
             lastDragPatchRef.current = {
                 currentDate: next.currentDate,
                 currentStartMin: next.currentStartMin,
+                currentPhysicianId: next.currentPhysicianId,
                 dropAllowed: next.dropAllowed,
             };
             dragPointerTravelRef.current = 0;
@@ -985,7 +995,7 @@ export function AppointmentsPage() {
             invalidateAppointmentDragColumnCache();
             document.body.classList.add("appointment-calendar-dragging");
             if (singleDay) {
-                const col = findAppointmentDragColumnByIso(next.currentDate);
+                const col = findAppointmentDragColumnByIso(next.currentDate, next.currentPhysicianId);
                 const span = Math.max(1, dayEndMin - dayStartMin);
                 const ppm = col && col.height > 8 ? col.height / span : PX_PER_MIN;
                 const topPx = (next.originalStartMin - dayStartMin) * ppm;
@@ -1019,8 +1029,11 @@ export function AppointmentsPage() {
 
             const pxPerMinForColumn = (height: number) => (height > 8 ? height / spanMin : PX_PER_MIN);
 
+            const activeDragPhysicianId = () =>
+                lastDragPatchRef.current?.currentPhysicianId ?? dragStateRef.current?.currentPhysicianId ?? "";
+
             const paintDragVisual = (finalIso: string, startMin: number, dropAllowed: boolean) => {
-                const col = findAppointmentDragColumnByIso(finalIso);
+                const col = findAppointmentDragColumnByIso(finalIso, activeDragPhysicianId());
                 if (!col) return;
                 const topPx = (startMin - dayStartMin) * pxPerMinForColumn(col.height);
                 if (dragView === "week") {
@@ -1042,19 +1055,23 @@ export function AppointmentsPage() {
                 setDragState((p) => (p && p.id === dragId ? { ...p, ...patch } : p));
             };
 
-            const resolveSnapped = (targetIso: string, rawMin: number) => {
+            const resolveSnapped = (targetIso: string, rawMin: number, targetPhysicianId?: string) => {
                 const prev = dragStateRef.current;
                 if (!prev || prev.id !== dragId) return null;
+                const physicianId = targetPhysicianId?.trim() || prev.currentPhysicianId || prev.physicianId;
                 return snapAppointmentDragPosition({
                     practiceCfg: practicePlanCfgRef.current,
                     absences: absencesRef.current,
-                    physicianId: prev.physicianId,
+                    physicianId,
                     isoDate: targetIso,
                     rawStartMin: rawMin,
                     durMin: prev.durMin,
                     timelineBounds: timelineBoundsLocal,
                 });
             };
+
+            const physicianIdForColumn = (col: { physicianId?: string } | null, fallback: string) =>
+                col?.physicianId?.trim() ? col.physicianId.trim() : fallback;
 
             const clampStartMin = (rawMin: number, durMin: number) => {
                 const snapped = Math.round(rawMin / 5) * 5;
@@ -1069,13 +1086,19 @@ export function AppointmentsPage() {
                 return clampStartMin(minRaw, durMin);
             };
 
-            const applyDragTimeline = (targetIso: string, rawMin: number, jumpIfDayChanges: boolean) => {
+            const applyDragTimeline = (
+                targetIso: string,
+                rawMin: number,
+                jumpIfDayChanges: boolean,
+                colPhysicianId?: string,
+            ) => {
                 const prev = dragStateRef.current;
                 if (!prev || prev.id !== dragId) return;
 
                 const activeDate = lastDragPatchRef.current?.currentDate ?? prev.currentDate;
+                const targetPhysicianId = colPhysicianId?.trim() || prev.currentPhysicianId || prev.physicianId;
                 if (targetIso !== activeDate) {
-                    const probe = resolveSnapped(targetIso, rawMin);
+                    const probe = resolveSnapped(targetIso, rawMin, targetPhysicianId);
                     if (!probe?.dayAllowed) return;
                     if (dragView !== "week") {
                         const nowTs = Date.now();
@@ -1084,15 +1107,18 @@ export function AppointmentsPage() {
                     }
                 }
 
-                const snap = resolveSnapped(targetIso, rawMin);
+                const snap = resolveSnapped(targetIso, rawMin, targetPhysicianId);
                 if (!snap) return;
                 const finalIso = snap.dayAllowed ? targetIso : activeDate;
-                const finalSnap = snap.dayAllowed ? snap : resolveSnapped(activeDate, rawMin);
+                const activePhysician = lastDragPatchRef.current?.currentPhysicianId ?? prev.currentPhysicianId;
+                const finalPhysician = snap.dayAllowed ? targetPhysicianId : activePhysician;
+                const finalSnap = snap.dayAllowed ? snap : resolveSnapped(activeDate, rawMin, finalPhysician);
                 if (!finalSnap) return;
 
                 commitDragPatch({
                     currentDate: finalIso,
                     currentStartMin: finalSnap.startMin,
+                    currentPhysicianId: finalPhysician,
                     dropAllowed: finalSnap.dayAllowed && finalSnap.slotAllowed,
                 });
 
@@ -1110,13 +1136,14 @@ export function AppointmentsPage() {
                 const startMin = activeDragStartMin();
                 const newDate = format(addDays(parseISO(date), deltaDays), "yyyy-MM-dd");
                 const refCol =
-                    findAppointmentDragColumnByIso(date)
+                    findAppointmentDragColumnByIso(date, prev.currentPhysicianId)
                     ?? pickAppointmentDragColumn(clientX, clientY)
                     ?? listAppointmentDragColumns()[0];
                 const rawMin = refCol
                     ? timeFromY(clientY, refCol.top, refCol.height, prev.durMin)
                     : startMin;
-                const snap = resolveSnapped(newDate, rawMin);
+                const hopPhysician = physicianIdForColumn(refCol, prev.currentPhysicianId);
+                const snap = resolveSnapped(newDate, rawMin, hopPhysician);
                 if (!snap?.dayAllowed) return true;
                 lastDragDateNavAtRef.current = now;
                 setWeekOffset((w) => w + deltaWeekOffset);
@@ -1124,6 +1151,7 @@ export function AppointmentsPage() {
                 commitDragPatch({
                     currentDate: newDate,
                     currentStartMin: snap.startMin,
+                    currentPhysicianId: hopPhysician,
                     dropAllowed: snap.slotAllowed,
                 });
                 repaintAfterNav();
@@ -1136,15 +1164,17 @@ export function AppointmentsPage() {
                 const now = Date.now();
                 if (now - lastDragDateNavAtRef.current < DRAG_DATE_NAV_COOLDOWN_MS) return true;
                 const date = activeDragDate();
-                const col = findAppointmentDragColumnByIso(date) ?? listAppointmentDragColumns()[0];
+                const col = findAppointmentDragColumnByIso(date, prev.currentPhysicianId) ?? listAppointmentDragColumns()[0];
                 const rawMin = col ? timeFromY(clientY, col.top, col.height, prev.durMin) : activeDragStartMin();
                 const newDate = format(addDays(parseISO(date), deltaDays), "yyyy-MM-dd");
-                const snap = resolveSnapped(newDate, rawMin);
+                const hopPhysician = physicianIdForColumn(col, prev.currentPhysicianId);
+                const snap = resolveSnapped(newDate, rawMin, hopPhysician);
                 if (!snap?.dayAllowed || !snap.slotAllowed) return true;
                 lastDragDateNavAtRef.current = now;
                 commitDragPatch({
                     currentDate: newDate,
                     currentStartMin: snap.startMin,
+                    currentPhysicianId: hopPhysician,
                     dropAllowed: true,
                 });
                 jumpToIsoDateRef.current(newDate);
@@ -1204,7 +1234,12 @@ export function AppointmentsPage() {
                 if (dragView === "week") {
                     const col = pickAppointmentDragColumn(e.clientX, e.clientY);
                     if (col) {
-                        applyDragTimeline(col.iso, timeFromY(e.clientY, col.top, col.height, ds.durMin), false);
+                        applyDragTimeline(
+                            col.iso,
+                            timeFromY(e.clientY, col.top, col.height, ds.durMin),
+                            false,
+                            col.physicianId,
+                        );
                         return;
                     }
                     const gutter = hitAppointmentDragHourGutter(e.clientX, e.clientY);
@@ -1219,21 +1254,24 @@ export function AppointmentsPage() {
                     return;
                 }
 
-                const cols = listAppointmentDragColumns();
-                const col = cols[0];
+                const col = pickAppointmentDragColumn(e.clientX, e.clientY);
                 if (col) {
-                    if (e.clientX >= col.left && e.clientX <= col.right) {
-                        applyDragTimeline(col.iso, timeFromY(e.clientY, col.top, col.height, ds.durMin), false);
-                        return;
-                    }
-                    const gutter = hitAppointmentDragHourGutter(e.clientX, e.clientY);
-                    if (gutter) {
-                        applyDragTimeline(
-                            activeDragDate(),
-                            timeFromY(e.clientY, gutter.top, gutter.height, ds.durMin),
-                            false,
-                        );
-                    }
+                    applyDragTimeline(
+                        col.iso,
+                        timeFromY(e.clientY, col.top, col.height, ds.durMin),
+                        false,
+                        col.physicianId,
+                    );
+                    return;
+                }
+                const gutter = hitAppointmentDragHourGutter(e.clientX, e.clientY);
+                if (gutter) {
+                    applyDragTimeline(
+                        activeDragDate(),
+                        timeFromY(e.clientY, gutter.top, gutter.height, ds.durMin),
+                        false,
+                        activeDragPhysicianId(),
+                    );
                 }
             };
 
@@ -1288,17 +1326,20 @@ export function AppointmentsPage() {
                 const live = lastDragPatchRef.current;
                 const finalDate = live?.currentDate ?? prev.currentDate;
                 const finalStart = live?.currentStartMin ?? prev.currentStartMin;
+                const finalPhysician = live?.currentPhysicianId ?? prev.currentPhysicianId;
                 const finalDrop = live?.dropAllowed ?? prev.dropAllowed;
                 lastDragPatchRef.current = null;
                 const changed =
-                    finalDate !== prev.originalDate || finalStart !== prev.originalStartMin;
+                    finalDate !== prev.originalDate
+                    || finalStart !== prev.originalStartMin
+                    || finalPhysician !== prev.physicianId;
                 const wasDrag = changed || travel >= APPT_DRAG_TRAVEL_PX;
 
                 if (wasDrag) {
                     cancelPendingDrawerOpen();
                     if (changed) {
                         if (finalDrop) {
-                            void commitDrag(prev.id, finalDate, finalStart);
+                            void commitDrag(prev.id, finalDate, finalStart, finalPhysician);
                         } else {
                             toast(t("appointments.scheduling.outside_hours"), "error");
                         }
@@ -1764,6 +1805,7 @@ export function AppointmentsPage() {
                             weekOffset={weekOffset}
                             patientNameById={patientNameById}
                             physicianToneMap={physicianToneMap}
+                            physicianNameById={physicians.length > 1 ? physicianNameById : undefined}
                             practiceCfg={practicePlanCfg}
                             dragState={dragState}
                             onAppointmentDragStart={appointmentDragStart}

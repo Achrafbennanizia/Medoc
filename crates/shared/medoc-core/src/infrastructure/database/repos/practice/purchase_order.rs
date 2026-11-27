@@ -12,6 +12,7 @@ use sqlx::SqlitePool;
 
 const SELECT_COLUMNS: &str = "id, order_number, supplier, pharma_consultant, item, status, \
                               expected_on, delivered_on, quantity, unit, remark, total_amount, created_by, \
+                              ordered_for_staff_id, paid_by_staff_id, approved_by, \
                               created_at, updated_at";
 
 pub async fn find_all(pool: &SqlitePool) -> Result<Vec<PurchaseOrder>, AppError> {
@@ -68,11 +69,19 @@ pub async fn create(
     };
     let id = uuid::Uuid::new_v4().to_string();
     let mut tx = pool.begin().await?;
+    let staff_opt = |s: &Option<String>| {
+        s.as_deref()
+            .map(str::trim)
+            .filter(|v| !v.is_empty())
+            .map(str::to_string)
+    };
     sqlx::query(
         "INSERT INTO purchase_order
             (id, order_number, supplier, pharma_consultant, item, status,
-             expected_on, quantity, unit, remark, total_amount, created_by, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
+             expected_on, quantity, unit, remark, total_amount, created_by,
+             ordered_for_staff_id, paid_by_staff_id, approved_by, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15,
+                 strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
     )
     .bind(&id)
     .bind(&order_number)
@@ -101,6 +110,9 @@ pub async fn create(
     )
     .bind(data.total_amount)
     .bind(created_by)
+    .bind(staff_opt(&data.ordered_for_staff_id))
+    .bind(staff_opt(&data.paid_by_staff_id))
+    .bind(staff_opt(&data.approved_by))
     .execute(&mut *tx)
     .await?;
     crate::infrastructure::database::recorded_write::record_in_tx(
@@ -112,7 +124,7 @@ pub async fn create(
     .await?;
     tx.commit().await?;
 
-    fetch_by_id(pool, &id).await
+    find_by_id(pool, &id).await
 }
 
 pub async fn update_status(
@@ -123,7 +135,7 @@ pub async fn update_status(
     if !is_valid_status(status) {
         return Err(AppError::Validation(format!("Unknown status: {status}")));
     }
-    let cur = fetch_by_id(pool, id).await?;
+    let cur = find_by_id(pool, id).await?;
     crate::domain::services::workflow_transitions::purchase_order_status_transition(
         &cur.status,
         status,
@@ -190,7 +202,7 @@ pub async fn update_status(
     )
     .await?;
     tx.commit().await?;
-    fetch_by_id(pool, id).await
+    find_by_id(pool, id).await
 }
 
 pub async fn update(
@@ -275,7 +287,7 @@ pub async fn update(
     }
 
     if sets.is_empty() {
-        return fetch_by_id(pool, id).await;
+        return find_by_id(pool, id).await;
     }
 
     sets.push("updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')");
@@ -298,7 +310,7 @@ pub async fn update(
     )
     .await?;
     tx.commit().await?;
-    fetch_by_id(pool, id).await
+    find_by_id(pool, id).await
 }
 
 pub async fn delete(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
@@ -321,7 +333,7 @@ pub async fn delete(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
     Ok(())
 }
 
-async fn fetch_by_id(pool: &SqlitePool, id: &str) -> Result<PurchaseOrder, AppError> {
+pub async fn find_by_id(pool: &SqlitePool, id: &str) -> Result<PurchaseOrder, AppError> {
     let sql = format!("SELECT {SELECT_COLUMNS} FROM purchase_order WHERE id = ?1");
     Ok(sqlx::query_as::<_, PurchaseOrder>(&sql)
         .bind(id)

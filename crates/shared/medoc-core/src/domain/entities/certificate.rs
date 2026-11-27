@@ -16,6 +16,10 @@ pub struct Certificate {
     pub first_or_follow_up: Option<String>,
     pub employer: Option<String>,
     pub issuing_physician_id: Option<String>,
+    /// Group: dentist named in the signature block (editions-plan §4.1 / §5.1).
+    #[sqlx(default)]
+    #[serde(default)]
+    pub signed_by_staff_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

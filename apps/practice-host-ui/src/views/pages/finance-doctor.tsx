@@ -34,8 +34,35 @@ export function FinanceFilterSelect<V extends string>(props: {
     );
 }
 
+/** Type + kind + doctor + collected-by filters for the finance list. */
+export function FinanceTxFilters(props: {
+    fd: FinanceDoctors;
+    txTab: string;
+    kindFilter: string;
+    doctorFilter: string;
+    collectedBy: string;
+    hiddenDoctors: readonly string[];
+    txTabOptions: readonly Option<string>[];
+    kindOptions: readonly Option<string>[];
+    onTxTab: (v: string) => void;
+    onKind: (v: string) => void;
+    onDoctor: (v: string) => void;
+    onCollectedBy: (v: string) => void;
+}) {
+    const t = useT();
+    return (
+        <div className="finance-tx-filter-selects">
+            <FinanceFilterSelect label={t("page.finance.filter_label_type")} ariaLabel={t("page.finance.aria_filter_type")} value={props.txTab} options={props.txTabOptions} onChange={props.onTxTab} />
+            <FinanceFilterSelect label={t("page.finance.filter_label_kind")} ariaLabel={t("page.finance.aria_filter_kind")} value={props.kindFilter} options={props.kindOptions} onChange={props.onKind} />
+            <FinanceDoctorFilter fd={props.fd} value={props.doctorFilter} onChange={props.onDoctor} hidden={props.hiddenDoctors} />
+            <FinanceCollectedByFilter fd={props.fd} value={props.collectedBy} onChange={props.onCollectedBy} />
+        </div>
+    );
+}
 
-export function FinanceDoctorFilter({ fd, value, onChange }: { fd: FinanceDoctors; value: string; onChange: (id: string) => void }) {
+
+/** `hidden`: doctors who do not share payments with the viewer (picking them would be refused). */
+export function FinanceDoctorFilter({ fd, value, onChange, hidden = [] }: { fd: FinanceDoctors; value: string; onChange: (id: string) => void; hidden?: readonly string[] }) {
     const t = useT();
     if (!fd.show) return null;
     return (
@@ -43,7 +70,22 @@ export function FinanceDoctorFilter({ fd, value, onChange }: { fd: FinanceDoctor
             label={t("page.finance.filter_label_doctor")}
             ariaLabel={t("page.finance.filter_label_doctor")}
             value={value}
-            options={[{ value: "", label: t("page.finance.all_doctors") }, ...fd.doctors.map((d) => ({ value: d.id, label: d.name }))]}
+            options={[{ value: "", label: t("page.finance.all_doctors") }, ...fd.doctors.filter((d) => !hidden.includes(d.id)).map((d) => ({ value: d.id, label: d.name }))]}
+            onChange={onChange}
+        />
+    );
+}
+
+/** Who took the money at the desk (Cabinet+). */
+export function FinanceCollectedByFilter({ fd, value, onChange }: { fd: FinanceDoctors; value: string; onChange: (id: string) => void }) {
+    const t = useT();
+    if (!fd.show) return null;
+    return (
+        <FinanceFilterSelect
+            label={t("page.finance.filter_label_collected_by")}
+            ariaLabel={t("page.finance.filter_label_collected_by")}
+            value={value}
+            options={[{ value: "", label: t("page.finance.all_collectors") }, ...fd.collectors.map((d) => ({ value: d.id, label: d.name }))]}
             onChange={onChange}
         />
     );

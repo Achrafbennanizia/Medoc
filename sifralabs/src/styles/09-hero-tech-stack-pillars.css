@@ -1,0 +1,362 @@
+/* ===================================================================
+   Company-site components (November 2026 rebuild).
+   One identity: paper + ink, Majorelle blue, saffron accent, blueprint grid, dot matrix.
+   Every page builds from these blocks; pages add no CSS of their own.
+   =================================================================== */
+
+/* ---------- hero: tech graphic instead of stock people ---------- */
+.hero-tech .hero-grid {
+  align-items: center;
+}
+.tech-graphic {
+  position: relative;
+  margin: 0;
+  aspect-ratio: 1 / 1;
+  max-width: 520px;
+  justify-self: center;
+  width: 100%;
+}
+.tech-graphic svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.tg-ring {
+  fill: none;
+  stroke: rgb(255 255 255 / 0.9);
+  stroke-width: 6;
+}
+.tg-dot {
+  fill: var(--saffron);
+}
+.tg-orbit {
+  fill: none;
+  stroke: rgb(255 255 255 / 0.22);
+  stroke-width: 1;
+  stroke-dasharray: 2 6;
+}
+.tg-link {
+  stroke: rgb(255 255 255 / 0.35);
+  stroke-width: 1.2;
+}
+.tg-node rect {
+  fill: rgb(255 255 255 / 0.1);
+  stroke: rgb(255 255 255 / 0.45);
+  stroke-width: 1;
+}
+.tg-node text {
+  fill: #fff;
+  font: 500 15px var(--font-text);
+}
+.tg-node .tg-sub {
+  fill: var(--band-ink-2);
+  font: 400 11px var(--font-mono);
+}
+.tg-pulse {
+  fill: var(--saffron);
+  opacity: 0.9;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .tg-pulse {
+    animation: tg-travel 3.2s var(--ease) infinite;
+    offset-rotate: 0deg;
+  }
+  .tg-pulse:nth-of-type(2) {
+    animation-delay: 0.8s;
+  }
+  .tg-pulse:nth-of-type(3) {
+    animation-delay: 1.6s;
+  }
+  .tg-pulse:nth-of-type(4) {
+    animation-delay: 2.4s;
+  }
+  .tg-dot {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: tg-breathe 3.2s ease-in-out infinite;
+  }
+}
+@keyframes tg-travel {
+  0% {
+    offset-distance: 0%;
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    offset-distance: 100%;
+    opacity: 0;
+  }
+}
+@keyframes tg-breathe {
+  50% {
+    transform: scale(1.25);
+  }
+}
+
+/* ---------- trust line under the hero ---------- */
+.trust-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  margin: 24px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.trust-line li,
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 13.5px;
+  font-weight: 500;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+}
+.hero-brand .trust-line li {
+  background: rgb(255 255 255 / 0.08);
+  border-color: rgb(255 255 255 / 0.25);
+  color: #fff;
+}
+.trust-line svg,
+.badge svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+}
+.hero-brand .trust-line svg {
+  stroke: var(--saffron);
+}
+
+/* ---------- tech stack strip ---------- */
+.stack-strip {
+  border-block: 1px solid var(--line);
+  padding-block: 28px;
+}
+.stack-strip .wrap {
+  display: grid;
+  gap: 16px;
+}
+@media (min-width: 900px) {
+  .stack-strip .wrap {
+    grid-template-columns: 200px 1fr;
+    align-items: center;
+    gap: 32px;
+  }
+}
+.stack-label {
+  font: 400 13px var(--font-mono);
+  color: var(--ink-3);
+}
+.stack-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 28px;
+  align-items: center;
+}
+.stack-list li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-3);
+  font: 500 15px var(--font-text);
+  transition: color 150ms var(--ease);
+}
+.stack-list li:hover {
+  color: var(--ink);
+}
+.stack-list img,
+.stack-list svg {
+  width: 20px;
+  height: 20px;
+  filter: grayscale(1);
+  opacity: 0.75;
+}
+.stack-list li:hover img,
+.stack-list li:hover svg {
+  filter: none;
+  opacity: 1;
+}
+
+/* ---------- Build · Automate · Connect · Improve ---------- */
+.verbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 0;
+  margin: 0 0 28px;
+  padding: 0;
+  list-style: none;
+  font: 300 clamp(26px, 3.4vw, 40px) / 1.1 var(--font-display);
+  letter-spacing: -0.01em;
+}
+.verbs li + li::before {
+  content: "·";
+  margin-inline: 0.4em;
+  color: var(--saffron);
+}
+
+/* ---------- six service pillars, the first three stronger ---------- */
+.pillars {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 16px;
+}
+@media (min-width: 720px) {
+  .pillars {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (min-width: 1040px) {
+  .pillars {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+.pillar {
+  position: relative;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  padding: 26px;
+  border-radius: 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  transition: border-color 150ms var(--ease);
+}
+.pillar:hover {
+  border-color: var(--majorelle);
+}
+.pillar-primary {
+  background: linear-gradient(160deg, var(--majorelle-soft), var(--panel) 70%);
+  border-color: color-mix(in srgb, var(--majorelle) 30%, var(--line));
+}
+.pillar svg {
+  width: 30px;
+  height: 30px;
+  fill: none;
+  stroke: var(--majorelle);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.pillar h3 {
+  font: 500 20px/1.25 var(--font-text);
+}
+.pillar p {
+  color: var(--ink-2);
+  font-size: 15.5px;
+}
+.pillar .tags {
+  font: 400 12.5px var(--font-mono);
+  color: var(--ink-3);
+}
+.pillar a.more {
+  margin-top: 4px;
+  color: var(--majorelle);
+  font-weight: 500;
+  text-decoration: none;
+}
+.pillar a.more::after {
+  content: " →";
+}
+[dir="rtl"] .pillar a.more::after {
+  content: " ←";
+}
+/* the whole card is the link */
+.pillar a.more::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+/* ---------- case-study cards ---------- */
+.case-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 20px;
+}
+@media (min-width: 900px) {
+  .case-cards {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+.case-card {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  transition: border-color 150ms var(--ease);
+}
+.case-card:hover {
+  border-color: var(--majorelle);
+}
+.case-card img,
+.case-card .case-visual {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  object-position: top left;
+  background: var(--soft);
+}
+.case-body {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  padding: 20px 22px 22px;
+}
+.case-type {
+  font: 400 12.5px var(--font-mono);
+  color: var(--ink-3);
+}
+.case-body h3 {
+  font: 500 20px/1.25 var(--font-text);
+}
+.case-body h3 a {
+  text-decoration: none;
+}
+.case-body h3 a::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+.case-result {
+  color: var(--ink-2);
+  font-size: 15.5px;
+}
+.tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.tag-row li {
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--soft);
+  font: 400 12px var(--font-mono);
+  color: var(--ink-2);
+}

@@ -94,12 +94,22 @@ pub fn effective_allowed(action: &str, role: Role, overrides: &[PermissionOverri
     proposal_allowed(action, role, overrides)
 }
 
+/// Direct writes the Solo guest may perform (not staged). Delivery confirmations only.
+#[cfg(feature = "cap-guest-inbox")]
+const GUEST_DIRECT_WRITES: &[&str] = &["purchase_order.receive"];
+
 /// In guest-inbox editions (Solo) the only reception login is the guest. It may read what its
 /// profile allows but never write: its changes become proposals the admin adds or dismisses
-/// (`staged_change`). Single chokepoint, so no command can be called around the inbox.
+/// (`staged_change`). Exception: confirming a delivery (`purchase_order.receive`).
 #[cfg(feature = "cap-guest-inbox")]
 fn guest_write_blocked(action: &str, role: Role) -> bool {
-    role == Role::Reception && !access::is_read_only_action(action)
+    if role != Role::Reception {
+        return false;
+    }
+    if GUEST_DIRECT_WRITES.contains(&action) {
+        return false;
+    }
+    !access::is_read_only_action(action)
 }
 
 #[cfg(not(feature = "cap-guest-inbox"))]

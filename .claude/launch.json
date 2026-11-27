@@ -8,7 +8,7 @@
         "run",
         "dev",
         "-w",
-        "medoc-product-website"
+        "medoc-dentist"
       ],
       "port": 4173
     },

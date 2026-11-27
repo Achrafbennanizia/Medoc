@@ -21,6 +21,7 @@ import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { AdministrationPageHeader } from "../components/administration-page-header";
 import { EditIcon, TrashIcon } from "@/lib/icons";
 import { localYmd } from "@/lib/practice-clock";
+import { StaffTargetSelector, type StaffTargetChoice } from "../components/staff-target-selector";
 
 function parseIso(s: string): Date | null {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s.trim());
@@ -78,6 +79,9 @@ export function WorkDaysPage() {
     const [toDay, setUntilTag] = useState("");
     const [fromUhr, setFromUhr] = useState("");
     const [untilUhr, setUntilUhr] = useState("");
+    const meId = session?.user_id;
+    const [targetChoice, setTargetChoice] = useState<StaffTargetChoice>("me");
+    const [targetStaffIds, setTargetStaffIds] = useState<string[]>([]);
     const [editingId, setEditingId] = useState<string | null>(null);
 
     const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -151,6 +155,8 @@ export function WorkDaysPage() {
         setFromUhr("");
         setUntilUhr("");
         setEditingId(null);
+        setTargetChoice("me");
+        setTargetStaffIds(meId ? [meId] : []);
     };
 
     const startEdit = (r: Absence) => {
@@ -161,6 +167,8 @@ export function WorkDaysPage() {
         setUntilTag(r.to_day);
         setFromUhr(r.from_time ?? "");
         setUntilUhr(r.to_time ?? "");
+        setTargetChoice(r.staff_id && meId && r.staff_id !== meId ? "other" : "me");
+        setTargetStaffIds(r.staff_id ? [r.staff_id] : meId ? [meId] : []);
     };
 
     const submit = async () => {
@@ -169,6 +177,8 @@ export function WorkDaysPage() {
             toast(t("page.workDays.toast.validation"), "error");
             return;
         }
+        const staffIds =
+            targetStaffIds.length > 0 ? targetStaffIds : meId ? [meId] : [undefined];
         try {
             if (editingId) {
                 await updateAbsence(editingId, {
@@ -178,17 +188,21 @@ export function WorkDaysPage() {
                     to_day: toDay,
                     from_time: fromUhr.trim() || undefined,
                     to_time: untilUhr.trim() || undefined,
+                    staff_id: staffIds[0],
                 });
                 toast(t("page.workDays.toast.saved"));
             } else {
-                await createAbsence({
-                    kind: kind.trim(),
-                    comment: comment.trim() || undefined,
-                    from_day: fromDay,
-                    to_day: toDay,
-                    from_time: fromUhr.trim() || undefined,
-                    to_time: untilUhr.trim() || undefined,
-                });
+                for (const staff_id of staffIds) {
+                    await createAbsence({
+                        kind: kind.trim(),
+                        comment: comment.trim() || undefined,
+                        from_day: fromDay,
+                        to_day: toDay,
+                        from_time: fromUhr.trim() || undefined,
+                        to_time: untilUhr.trim() || undefined,
+                        staff_id,
+                    });
+                }
                 toast(t("page.work_plan.toast.compose_entry_added"));
             }
             resetForm();
@@ -357,6 +371,15 @@ export function WorkDaysPage() {
                             />
                         </div>
                     </div>
+                    {canWrite ? (
+                        <StaffTargetSelector
+                            value={targetChoice}
+                            onChange={(next, ids) => {
+                                setTargetChoice(next);
+                                setTargetStaffIds(ids);
+                            }}
+                        />
+                    ) : null}
                     <div className="row" style={{ gap: "var(--space-2)", marginTop: "var(--space-2)", flexWrap: "wrap" }}>
                         {canWrite ? (
                             <>

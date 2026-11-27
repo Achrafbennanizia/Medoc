@@ -5,6 +5,7 @@ import { listPhysicians, listTaskTeamDirectory, type PhysicianSummary } from "@/
 
 export function useFinanceDoctors() {
     const [doctors, setDoctors] = useState<PhysicianSummary[]>([]);
+    const [collectors, setCollectors] = useState<PhysicianSummary[]>([]);
     const [names, setNames] = useState<Map<string, string>>(new Map());
     useEffect(() => {
         if (!DOCTOR_CONTEXT.showDoctorUi) return;
@@ -15,13 +16,21 @@ export function useFinanceDoctors() {
         ]).then(([docs, team]) => {
             if (!alive) return;
             setDoctors(docs);
-            setNames(new Map([...team, ...docs].map((p) => [p.id, p.name])));
+            const people = [...team, ...docs];
+            const byId = new Map(people.map((p) => [p.id, p]));
+            setCollectors([...byId.values()]);
+            setNames(new Map(people.map((p) => [p.id, p.name])));
         });
         return () => {
             alive = false;
         };
     }, []);
-    return { show: DOCTOR_CONTEXT.showDoctorUi && doctors.length > 1, doctors, nameOf: (id?: string | null) => (id ? names.get(id) : undefined) };
+    return {
+        show: DOCTOR_CONTEXT.showDoctorUi && doctors.length > 1,
+        doctors,
+        collectors,
+        nameOf: (id?: string | null) => (id ? names.get(id) : undefined),
+    };
 }
 
 export type FinanceDoctors = ReturnType<typeof useFinanceDoctors>;

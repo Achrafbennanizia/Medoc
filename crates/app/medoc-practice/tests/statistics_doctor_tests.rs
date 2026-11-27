@@ -7,7 +7,7 @@ mod support;
 use medoc_core::application::allowances::{set_my_rule, RuleChange};
 use medoc_core::application::auth_service::Session;
 use medoc_core::domain::allowances::{ShareArea, ViewRule};
-use medoc_practice::commands::practice::statistics::statistics_overview;
+use medoc_practice::commands::practice::statistics::{dashboard_stats, statistics_overview, StatsFilters};
 
 fn session(id: &str) -> Session {
     Session {
@@ -46,16 +46,18 @@ async fn figures_follow_the_doctor_filter_and_sharing() {
     exec(&pool, "INSERT INTO payment (id, patient_id, amount, payment_method, status, created_at, for_staff_id) VALUES ('zpay', 'zp', 300, 'CASH', 'PAID', strftime('%Y-%m-%d %H:%M:%S','now'), 'zz-b')").await;
 
     let a = session("zz-a");
-    let all = statistics_overview(&pool, &a, None).await.unwrap();
+    let none = StatsFilters::default();
+    let all = statistics_overview(&pool, &a, None, none.clone()).await.unwrap();
     let row = |id: &str| all.per_doctor.iter().find(|d| d.staff_id == id).cloned();
     assert_eq!(row("zz-a").unwrap().appointments, 2);
     assert_eq!(row("zz-b").unwrap().appointments, 1);
     assert_eq!(row("zz-b").unwrap().income, Some(300.0));
+    let dash_before = dashboard_stats(&pool, &a).await.unwrap();
 
     let total = |o: &medoc_practice::commands::practice::statistics::StatisticsOverview| {
         o.appointments_per_month.iter().map(|m| m.value).sum::<f64>()
     };
-    let only_b = statistics_overview(&pool, &a, Some("zz-b".into())).await.unwrap();
+    let only_b = statistics_overview(&pool, &a, Some("zz-b".into()), none.clone()).await.unwrap();
     assert_eq!(total(&only_b), 1.0);
     assert!(only_b.per_doctor.is_empty(), "no comparison inside a doctor filter");
 
@@ -63,13 +65,25 @@ async fn figures_follow_the_doctor_filter_and_sharing() {
     set_my_rule(&pool, &session("zz-b"), &RuleChange::View { area: ShareArea::Statistics, rule: ViewRule::Nobody })
         .await
         .unwrap();
-    let after = statistics_overview(&pool, &a, None).await.unwrap();
+    let after = statistics_overview(&pool, &a, None, none.clone()).await.unwrap();
     assert!(after.hidden_doctors.contains(&"zz-b".to_string()));
     assert!(after.per_doctor.iter().all(|d| d.staff_id != "zz-b"));
     assert_eq!(total(&after), total(&all) - 1.0);
-    let err = statistics_overview(&pool, &a, Some("zz-b".into())).await.unwrap_err().to_string();
+    let dash_after = dashboard_stats(&pool, &a).await.unwrap();
+    assert_eq!(
+        dash_after.revenue_today.unwrap_or(0.0),
+        dash_before.revenue_today.unwrap_or(0.0) - 300.0
+    );
+    assert_eq!(
+        dash_after.appointments_today.unwrap_or(0),
+        dash_before.appointments_today.unwrap_or(0) - 1
+    );
+    let err = statistics_overview(&pool, &a, Some("zz-b".into()), none.clone())
+        .await
+        .unwrap_err()
+        .to_string();
     assert!(err.contains("error.access.not_allowed_by_owner"), "{err}");
     // Dr B still sees their own figures.
-    let own = statistics_overview(&pool, &session("zz-b"), Some("zz-b".into())).await.unwrap();
+    let own = statistics_overview(&pool, &session("zz-b"), Some("zz-b".into()), none).await.unwrap();
     assert_eq!(total(&own), 1.0);
 }

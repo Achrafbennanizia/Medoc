@@ -31,6 +31,11 @@
   }
   .settings-security-row {
     align-items: flex-start;
+    min-width: 0;
+  }
+  /* Switches + long FR/AR labels must not clip inside the subcard. */
+  .settings-security-card.settings-subcard {
+    overflow: visible;
   }
   .settings-security-row__controls {
     display: flex;

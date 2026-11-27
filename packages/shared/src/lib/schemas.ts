@@ -184,6 +184,9 @@ export const CreatePurchaseOrderSchema = z.object({
     order_number: optionalText,
     pharma_consultant: optionalText,
     total_amount: z.number().finite().nonnegative().optional().nullable(),
+    ordered_for_staff_id: optionalText,
+    paid_by_staff_id: optionalText,
+    approved_by: optionalText,
 });
 
 export const UpdatePurchaseOrderSchema = z

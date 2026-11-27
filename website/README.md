@@ -2,7 +2,7 @@
 
 Marketing site for **MeDoc Dentist by Sifra Labs**, dental practice software for practices in Morocco. Morocco is the only market: prices in MAD, Moroccan documents and Moroccan legal texts. Europe has one "coming soon" page (`#/europe`).
 
-The product name is **MeDoc Dentist** in every language and on every page (never "MeDoc", "MeDoc Dental" or a translated name). Live at https://achrafbennanizia.github.io/Medoc/.
+The product name is **MeDoc Dentist** in every language and on every page (never "MeDoc", "MeDoc Dental" or a translated name). npm workspace package: `medoc-dentist`. Live at https://achrafbennanizia.github.io/Medoc/ (GitHub Pages path matches the repo name; planned custom domain: `medoc.sifralabs.com`).
 
 - 3 languages: FR (default), AR (right-to-left), EN. `?lang=ar` deep-links a language. Numbers and dates use the Moroccan format (`fr-MA`, `ar-MA`).
 - Light/dark theme: follows the system.
@@ -30,7 +30,7 @@ npm run build      # type-check + production build → dist/
 | Morocco page (Digital Morocco 2030, Bill 52-26, Law 09-08), advantages, Digitalization Pack | `src/digital-copy.ts`; every figure comes from `docs/brand/site-facts.md` with its source |
 | Legal texts, all written under Moroccan law (EN, FR, AR) | `src/legal/*.ts`; company details in `src/legal/entity.ts` — **fill every `[…]` before publishing** |
 | Product tour text + screenshot list | `src/product-copy.ts` (sections, captions) and `src/product-points.ts` (detail bullets) |
-| Colours, type, layout | `src/styles.css` (tokens at the top; dark mode redefines the same tokens) |
+| Colours, type, layout | `src/styles/*.css`, one file per area, imported in order by `src/main.tsx` (tokens in `01-tokens-base-header.css`; dark mode redefines the same tokens) |
 | Pages and their routes, one page per goal | `src/route.ts`: home (sells the product), `#/features`, `#/editions` (and `#/editions/<edition>`), `#/digitalization`, `#/pricing`, `#/morocco`, `#/europe`, `#/security`, `#/faq`, `#/demo`, `#/legal/<doc>`; each takes an optional `/<section>`. Old links (`#/country`, `#contact`, `#prices`, `#stories`, `#digital-health`, `#faq`) open the page that now holds them, so outside links keep working. Page heads and the home's "digitize everything", explorer and closing call to action: `src/Routes.tsx`, copy in `src/routes-copy.ts` |
 | Copy for nav, home highlights, privacy band and the Security page, 3 languages | `src/pages-copy.ts` |
 | Photos | `public/photos/*.webp` (900 and 1600 px). Real photos from Unsplash under the Unsplash License: D Dental Office (dentist and patient), Quang Tri NGUYEN (tablet consultation), Jonathan Borba (X-ray review), Benyamin Bohlouli (clinic room), Cdn Pages (dental team), Quang Tri NGUYEN (dental scan, also used on sifralabs.com). No AI-generated images |

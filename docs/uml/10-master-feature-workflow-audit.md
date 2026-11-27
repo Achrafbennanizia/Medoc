@@ -133,6 +133,53 @@ flowchart TB
 | Kartenzahlung | FA-FIN | 🔴 | `process_payment` stub |
 | Company Portal | FA-PAY / LIC | 🟡 | `_demo` flag |
 
+### 2.8 Cabinet+: Listen pro Arzt und Freigaben (editions-plan T5.4)
+
+Nur mit `cap-multi-doctor` + `cap-allowances` (Cabinet+). Essentiel / Cabinet: kein Arzt-Filter, keine Spalte, `stamp_created` tut nichts.
+
+| Liste | Command (Filter) | Owner-Spalte | Freigabe-Bereich | UI |
+|-------|------------------|--------------|------------------|----|
+| Finanzen | `list_payments_paged` (`doctorId`, `collectedBy`) | `payment.for_staff_id` | Payments | `finance-doctor.tsx` |
+| Aufgaben (Admin) | `list_practice_tasks_admin` (`doctorId`) | `practice_task.doctor_id` | Tasks | `practice-task-doctor.tsx` |
+| Bestellungen | `list_purchase_orders` (`doctorId`) | `purchase_order.ordered_for_staff_id` | Orders | `purchase-order-doctor.tsx` |
+
+Persönliche Aufgaben-Inbox bleibt ungefiltert (Zuständige müssen arbeiten können). Monats-KPIs (`payment_finance_kpis`) bleiben vollständig (Kassenbuch).
+
+```mermaid
+flowchart TD
+    UI["Liste öffnen / Arzt wählen"] --> CMD["Command mit optional doctorId"]
+    CMD --> RBAC{"RBAC-Recht?"}
+    RBAC -- nein --> E1["error.access.* → PageLoadError + Retry"]
+    RBAC -- ja --> SCOPE["scope(): Freigaberegeln des Owners laden"]
+    SCOPE --> HID{"gewählter Arzt teilt nicht?"}
+    HID -- ja --> E2["error.access.not_allowed_by_owner (UI bietet diese Ärzte im Filter nicht an)"]
+    HID -- nein --> FILTER["Zeilen verborgener Ärzte + verborgene IDs raus; ggf. nur gewählter Arzt"]
+    FILTER --> RESP["{ items, hiddenDoctors }"]
+    RESP --> NOTE["Hinweis: nicht geteilt von …"]
+    RESP --> EMPTY{"items leer?"}
+    EMPTY -- "ja, Arzt-Filter aktiv" --> RESET["Leer-Zustand 'gefiltert' + Zurücksetzen"]
+    EMPTY -- "ja, kein Filter" --> CREATE["Leer-Zustand + Anlegen"]
+    EMPTY -- nein --> TABLE["Tabelle mit Arzt-Spalte"]
+```
+
+Owner beim Anlegen (`commands/ownership.rs::stamp_created`, nie überschrieben):
+
+```mermaid
+flowchart LR
+    T["Aufgabe angelegt"] --> D1{"Ersteller Arzt?"}
+    D1 -- ja --> O1["doctor_id = Ersteller"]
+    D1 -- nein --> D2{"Zuständige/r Arzt?"}
+    D2 -- ja --> O2["doctor_id = Zuständige/r"]
+    D2 -- nein --> O3["doctor_id leer = für alle sichtbar"]
+    B["Bestellung angelegt"] --> D3{"Formular nennt Arzt?"}
+    D3 -- ja --> O4["ordered_for = gewählter Arzt"]
+    D3 -- nein --> D4{"Ersteller Arzt?"}
+    D4 -- ja --> O5["ordered_for = Ersteller"]
+    D4 -- nein --> O6["leer"]
+```
+
+Offen: `paid_by_staff_id` / `approved_by` setzt noch nichts (Spalte zeigt sie nur); RecordPrivacy auf Aufgaben (T5.2); Bestellformular hat noch keine Arzt-Auswahl. Tests: `task_scope_tests`, `order_scope_tests`, `payment_scope_tests`, `ownership_tests::task_owner_is_always_a_dentist`, `ownership_tests::order_is_for_the_placing_dentist`, `part_f_tests::payment_list_filters_by_collector`.
+
 **Zählung (Pflichtenheft):** ~**91 FA** + **18 NFA** — grob **~65–70% MUST-FA** mit Code-Spur ✅/🟡, **~15%** 🔴, Rest SHOULD/NICE.
 
 ---

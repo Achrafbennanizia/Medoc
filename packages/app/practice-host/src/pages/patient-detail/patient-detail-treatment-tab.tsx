@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { treatmentCatalogCategoryLabel } from "@/lib/treatment-catalog-categories";
 import { useT, useTParams } from "@/lib/i18n";
 import type { Treatment } from "@/models/types";
@@ -14,6 +15,7 @@ import { Badge } from "@/views/components/ui/badge";
 import { Button } from "@/views/components/ui/button";
 import { Card, CardHeader } from "@/views/components/ui/card";
 import { PaymentRowActionsMenu, type PaymentRowAction } from "@/views/components/payment-row-actions-menu";
+import { RecordPrivacy } from "@/views/components/record-privacy";
 
 export type PatientDetailTreatmentTabProps = {
     treatmentComposerCommon: TreatmentChartComposerPanelProps;
@@ -134,7 +136,8 @@ export function PatientDetailTreatmentTab({
                                 {treatmentGroups.map((grp) => (
                                     <tbody key={grp[0]?.id ?? grp.map((x) => x.id).join()} className="treatment-grp">
                                         {grp.map((b) => (
-                                                <tr key={b.id} className={treatmentEditId === b.id ? "is-editing" : undefined}>
+                                            <Fragment key={b.id}>
+                                                <tr className={treatmentEditId === b.id ? "is-editing" : undefined}>
                                                     <td>
                                                         {b.treatment_date
                                                             ? formatDate(b.treatment_date)
@@ -207,6 +210,16 @@ export function PatientDetailTreatmentTab({
                                                         })()}
                                                     </td>
                                                 </tr>
+                                                <tr className="treatment-privacy-row">
+                                                    <td colSpan={showClinicalPrices ? 9 : 8}>
+                                                        <RecordPrivacy
+                                                            entityTable="treatment"
+                                                            entityId={b.id}
+                                                            ownerId={b.responsible_staff_id}
+                                                        />
+                                                    </td>
+                                                </tr>
+                                            </Fragment>
                                         ))}
                                     </tbody>
                                 ))}

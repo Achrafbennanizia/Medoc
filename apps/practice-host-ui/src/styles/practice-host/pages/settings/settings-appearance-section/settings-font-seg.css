@@ -53,6 +53,7 @@
   }
   .settings-font-seg {
     display: inline-flex;
+    flex-wrap: wrap;
     align-items: stretch;
     padding: 3px;
     border-radius: var(--radius-pill);
@@ -73,8 +74,10 @@
     gap: var(--space-2);
     min-height: 2.125rem;
     min-width: 0;
-    padding: 0 var(--space-3);
+    flex: 1 1 5.5rem;
+    padding: 0 var(--space-2);
     white-space: nowrap;
+    overflow: hidden;
     border: none;
     border-radius: 7px;
     background: transparent;
@@ -100,6 +103,8 @@
     font-size: 12.5px;
     font-weight: 700;
     line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .settings-font-seg__sample {
     font-size: 11px;
@@ -107,6 +112,8 @@
     line-height: 1.2;
     opacity: 0.82;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .settings-font-seg__btn.is-active .settings-font-seg__sample {
     opacity: 0.92;

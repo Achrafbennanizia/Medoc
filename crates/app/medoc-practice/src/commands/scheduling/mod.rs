@@ -4,3 +4,4 @@ pub mod appointment;
 pub mod appointment_allowances;
 pub mod appointment_relation;
 pub mod practice_task;
+pub mod task_allowances;

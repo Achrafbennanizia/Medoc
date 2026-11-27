@@ -1,0 +1,140 @@
+import type { ProductCopy } from "./product-copy";
+import { shot } from "./product-shot";
+
+/** French copy for product-copy.ts. */
+export const productFr: ProductCopy = {
+  title: "Douze façons dont MeDoc Dentist vous simplifie la journée.",
+  lead: "Des écrans réels, avec des patients fictifs. Chaque fonction indique les éditions qui l'incluent : Essentiel, Cabinet ou Cabinet+.",
+  nav: "Sur cette page",
+  docsChip: "Documents marocains",
+  ed: { all: "Toutes les éditions", cabinet: "Cabinet et Cabinet+", plus: "Cabinet+", essentiel: "Essentiel" },
+  features: {
+    changes: {
+      chip: "Validation et journal",
+      ed: "all",
+      title: "Gardez un œil sur ce que votre équipe saisit.",
+      text: "Les dossiers attendent votre validation, les saisies d'un aide attendent votre accord, et un journal que vous pouvez consulter montre qui a fait quoi, et quand.",
+      shots: [
+        shot("charts-to-validate", "Liste des dossiers à valider, en brouillon ou en revue, avec Valider et Refuser", "Cabinet et Cabinet+ : les dossiers qui vous attendent, chacun avec Valider et Refuser."),
+        shot("settings-security", "Réglages de sécurité avec le journal d'audit et les sessions", "Le journal d'activité s'ouvre depuis Paramètres, Sécurité."),
+      ],
+    },
+    "day-close": {
+      chip: "Clôture journalière",
+      ed: "cabinet",
+      title: "Clôturez la journée avec deux chiffres.",
+      text: "Saisissez le montant compté en caisse et le total de votre terminal de carte. MeDoc calcule ce qui devrait s'y trouver d'après les encaissements du jour et affiche tout écart.",
+      shots: [shot("cash-entries", "Formulaire de nouveau paiement, montant en MAD et mode de paiement", "Chaque paiement est enregistré avec son mode dès qu'il arrive. La clôture les additionne pour vous.")],
+    },
+    calendar: {
+      chip: "Agenda glisser-déposer",
+      ed: "all",
+      title: "Déplacez un rendez-vous à la souris. MeDoc fait la place.",
+      text: "Glissez un rendez-vous vers une autre heure ou un autre jour, en vue jour ou semaine. MeDoc le cale sur vos horaires, décale les rendez-vous suivants de ce praticien et vous permet d'annuler le déplacement.",
+      shots: [
+        shot("calendar-drag", "Vue semaine pendant le déplacement d'un rendez-vous", "En vue semaine, l'ancienne place s'estompe et la nouvelle heure s'affiche dans la marge."),
+        shot("calendar-day", "Vue jour avec le statut de chaque rendez-vous", "La vue jour, avec le statut de chaque rendez-vous et un résumé de la journée."),
+      ],
+    },
+    flags: {
+      chip: "Conflits signalés",
+      ed: "all",
+      title: "Les erreurs se voient pendant la saisie, pas après.",
+      text: "MeDoc vérifie chaque saisie au moment où vous la faites. Il refuse une double réservation, vous avertit d'un médicament auquel le patient est allergique et montre ce qui manque encore.",
+      shots: [shot("appointment-new", "Formulaire de nouveau rendez-vous, heures indisponibles grisées", "Horaires et conflits vérifiés pendant que vous choisissez l'heure.")],
+    },
+    statistics: {
+      chip: "Statistiques",
+      ed: "all",
+      title: "Sachez où en est le mois, en chiffres réels.",
+      text: "Patients, nouveaux patients, rendez-vous, soins et recettes par mois, sur 6 ou 12 mois. Chaque chiffre clé montre son évolution par rapport au mois précédent.",
+      shots: [shot("analytics", "Vue d'ensemble des statistiques avec l'évolution de chaque chiffre", "Chaque chiffre clé avec son évolution par rapport au mois précédent.")],
+    },
+    patients: {
+      chip: "Vue patient",
+      ed: "all",
+      title: "Tout le patient sur un seul en-tête.",
+      text: "Ouvrez un dossier : statut, facture ouverte, âge, téléphone, assurance et adresse d'un coup d'œil, avec un petit schéma dentaire et les données de base qui manquent.",
+      shots: [shot("patient-record", "Dossier patient avec statut, facture ouverte, coordonnées et petit schéma dentaire", "Statut, facture ouverte, coordonnées, assurance et petit schéma dentaire sur un seul en-tête.")],
+    },
+    tasks: {
+      chip: "Tâches pour l'accueil",
+      ed: "cabinet",
+      title: "Envoyez une tâche au lieu d'interrompre l'accueil.",
+      text: "Depuis le dossier du patient, envoyez une tâche à tout l'accueil ou à une personne. Elle arrive dans sa liste de tâches et sa cloche de notifications, et vous retournez à votre patient.",
+      shots: [shot("practice-tasks", "Liste des tâches du cabinet avec patient, type et statut", "Chaque tâche avec son patient, son type et son statut, dans une seule liste.")],
+    },
+    orders: {
+      chip: "Commandes et dépenses",
+      ed: "all",
+      title: "Fournitures et dépenses d'un coup d'œil.",
+      text: "Commandez chez vos fournisseurs à partir de modèles enregistrés et suivez chaque commande : ouverte, en transit, livrée. Le tableau de bord met sous vos yeux les commandes ouvertes et en retard.",
+      shots: [
+        shot("orders", "Commandes fournisseurs avec statut, date prévue et prix", "Ouvertes, en transit, en retard ou livrées, avec date prévue et prix."),
+        shot("overview", "Tableau de bord avec validations en attente et commandes à vérifier", "Le tableau de bord signale les commandes en retard à vérifier."),
+      ],
+    },
+    shortcuts: {
+      chip: "Raccourcis clavier",
+      ed: "all",
+      title: "Gardez les mains sur le clavier.",
+      text: "Appuyez sur ⌘K pour aller à n'importe quelle page ou créer un élément. Les actions courantes ont leur propre touche. Sous Windows, utilisez Ctrl à la place de ⌘.",
+      shots: [],
+    },
+    "status-rules": {
+      chip: "Règles de statut",
+      ed: "all",
+      title: "Chaque dossier suit des étapes claires. Rien ne revient en arrière par erreur.",
+      text: "Rendez-vous, patients, dossiers, paiements et commandes ont chacun des statuts fixes et des étapes suivantes autorisées. MeDoc refuse les changements dans le désordre.",
+      shots: [shot("appointment-detail", "Fiche du rendez-vous avec ses étapes : planifié, confirmé, en cours, terminé", "Le rendez-vous montre où il en est et propose l'étape suivante autorisée.")],
+    },
+    backups: {
+      chip: "Sauvegardes",
+      ed: "all",
+      title: "Une sauvegarde chaque jour, sans que personne n'y pense.",
+      text: "MeDoc Dentist sauvegarde le cabinet une fois par jour, tout seul, compressé et chiffré en AES-256-GCM. Envoyez la sauvegarde sur une clé USB ou un disque externe, radios et scans compris.",
+      shots: [],
+    },
+    "tooth-chart": {
+      chip: "Schéma dentaire",
+      ed: "all",
+      title: "Un schéma dentaire qui se lit d'un coup d'œil.",
+      text: "Les 32 dents permanentes dans l'ordre FDI, le long d'une arcade, avec des contours distincts pour incisives, canines, prémolaires et molaires. Chaque statut a sa couleur et sa marque.",
+      shots: [shot("examinations", "Examen avec le schéma dentaire et sa légende de couleurs", "Carie en rouge, soin prévu en pointillés : chaque statut a sa couleur et sa marque.")],
+    },
+  },
+  keys: [
+    { k: "⌘ K", d: "Aller à une page ou créer un élément" },
+    { k: "⌘ N", d: "Nouveau rendez-vous" },
+    { k: "⇧ ⌘ N", d: "Nouveau patient" },
+    { k: "G", d: "Puis une lettre : aller droit à une rubrique" },
+    { k: "D W M", d: "Agenda : vue jour, semaine ou mois" },
+    { k: "T", d: "Agenda : revenir à aujourd'hui" },
+    { k: "N", d: "Agenda : prendre un rendez-vous" },
+    { k: "← →", d: "Agenda : avancer ou reculer dans le temps" },
+    { k: "⌘ /", d: "Tous les raccourcis, dans l'Aide" },
+  ],
+  keep: {
+    title: "Ce que MeDoc garde",
+    days: "Les 3 derniers jours",
+    week: "Une de la semaine dernière",
+    half: "Une du dernier semestre",
+    note: "Les plus anciennes sont supprimées automatiquement : le disque ne se remplit jamais.",
+  },
+  demo: {
+    title: "Voyez-le fonctionner avant de décider.",
+    text: "Pendant une démo gratuite, nous vous montrons l'agenda, les contrôles et la clôture journalière, et nous répondons à vos questions.",
+    cta: "Réserver une démo gratuite",
+  },
+  editions: {
+    title: "Quelle édition pour votre cabinet ?",
+    text: "Essentiel pour un dentiste sur un ordinateur. Cabinet pour un dentiste avec accueil, sur 3 ordinateurs au plus. Cabinet+ pour 4 dentistes et 5 ordinateurs au plus.",
+    price: (from) => `Licence à partir de ${from} HT, achetée une seule fois.`,
+    cta: "Comparer les éditions",
+  },
+  security: {
+    title: "Comment MeDoc Dentist protège les données des patients",
+    text: "Le chiffrement sur disque, les rôles séparés et la chaîne d'audit sont expliqués sur la page Sécurité.",
+    cta: "Lire la page Sécurité",
+  },
+};

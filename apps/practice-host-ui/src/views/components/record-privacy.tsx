@@ -27,7 +27,13 @@ export function RecordPrivacy({
     entityId,
     ownerId,
 }: {
-    entityTable: "appointment" | "examination" | "treatment" | "prescription" | "practice_task";
+    entityTable:
+        | "appointment"
+        | "examination"
+        | "treatment"
+        | "prescription"
+        | "certificate"
+        | "practice_task";
     entityId: string;
     ownerId: string | null | undefined;
 }) {

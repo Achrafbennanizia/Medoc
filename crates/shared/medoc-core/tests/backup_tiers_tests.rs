@@ -394,11 +394,28 @@ async fn attachments_are_backed_up_once_restored_and_forgotten_on_erasure() {
         1,
         "only c2's copy remains"
     );
-    let l2 = backup_files::read_manifest(&backup_files::manifest_path(&second)).unwrap();
-    assert!(l2
-        .files
-        .iter()
-        .all(|f| f.rel.starts_with("chart_attachments/c2/")));
+    // Restore's safety snapshot runs retention: same-day middle backups (often `second`)
+    // can be rotated out with their `.files.json`. Assert every list that remains.
+    let lists: Vec<_> = std::fs::read_dir(&backups)
+        .unwrap()
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.to_string_lossy().ends_with(".files.json"))
+        .collect();
+    assert!(
+        !lists.is_empty(),
+        "at least one attachment list remains after restore retention"
+    );
+    for p in &lists {
+        let m = backup_files::read_manifest(p).unwrap();
+        assert!(
+            m.files
+                .iter()
+                .all(|f| f.rel.starts_with("chart_attachments/c2/")),
+            "c1 must be gone from {}: {m:?}",
+            p.display()
+        );
+    }
 
     let _ = connection::reopen_app_pool(&dir)
         .await

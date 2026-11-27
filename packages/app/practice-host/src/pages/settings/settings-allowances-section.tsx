@@ -19,11 +19,12 @@ import {
 import { FilterOptionBar } from "@/views/components/ui/filter-option-bar";
 import { Select } from "@/views/components/ui/input";
 import { useToastStore } from "@/views/components/ui/toast-store";
+import { SettingsAllowancesStaff } from "./settings-allowances-staff";
 
 type Tab = "view" | "change";
 
-const VIEW_OPTIONS = ["everyone", "other_admin", "nobody"] as const;
-const CHANGE_OPTIONS = ["me", "me_and_other_admin", "me_admin_reception", "everyone"] as const;
+const VIEW_OPTIONS = ["everyone", "other_admin", "chosen", "nobody"] as const;
+const CHANGE_OPTIONS = ["me", "me_and_other_admin", "me_admin_reception", "me_admin_staff", "everyone"] as const;
 
 /** Practice data without an owner is always shared: these areas have no change rule. */
 const CHANGE_AREAS: readonly ShareArea[] = ["calendar", "work_hours", "clinical", "documents", "payments", "tasks"];
@@ -152,6 +153,7 @@ export function SettingsAllowancesSection() {
                 </table>
             )}
             <p className="card-sub">{t("settings.allowances.footnote")}</p>
+            {owners != null && me ? <SettingsAllowancesStaff owners={owners} onOwners={setOwners} /> : null}
         </section>
     );
 }

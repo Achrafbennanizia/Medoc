@@ -1181,6 +1181,7 @@ fn report_input(
         ],
         footer_lines: profile.minimal_footer_lines(locale),
         logo: None,
+        ..Default::default()
     }
 }
 

@@ -20,6 +20,8 @@ import { PageLoadError, PageLoading } from "../ui/page-status";
 import { FilterIcon, PlusIcon, SearchIcon } from "@/lib/icons";
 import { taskPatientLabel, PRACTICE_TASK_STATUSES, PRACTICE_TASK_KINDS } from "./constants";
 import { PracticeTaskAdminGrid } from "./practice-task-admin-grid";
+import { TaskDoctorFilter, TaskHiddenDoctorsNote } from "./practice-task-doctor";
+import { useDoctorList } from "../use-doctor-list";
 import { mergeUpdatedTask, sortTasksByFlow } from "./task-flow";
 import { PracticeTaskDetailDrawer } from "./practice-task-detail-drawer";
 import { WorkspacePageHeader } from "../administration-page-header";
@@ -51,18 +53,23 @@ export function PracticeTaskAdminPanel({ embedded = false, backHref = "/administ
     const [search, setSearch] = useState("");
     const [filterStatus, setFilterStatus] = useState("");
     const [filterKind, setFilterKind] = useState("");
+    const [filterDoctor, setFilterDoctor] = useState("");
+    const [hiddenDoctors, setHiddenDoctors] = useState<string[]>([]);
     const [selectedId, setSelectedId] = useState<string | null>(null);
+    const taskDoctors = useDoctorList();
 
     const load = useCallback(async () => {
         setErr(null);
         try {
-            const tasks = await listPracticeTasksAdmin();
+            const resp = await listPracticeTasksAdmin(filterDoctor || undefined);
+            const tasks = resp.items;
             const patientIds = [...new Set(tasks.map((task) => task.patient_id).filter((id): id is string => Boolean(id)))];
             const [pats, team] = await Promise.all([
                 patientIds.length > 0 ? listPatientsByIds(patientIds) : Promise.resolve([] as Patient[]),
                 loadTaskTeamDirectory(parsedRole, session?.permission_overrides),
             ]);
             setRows(sortTasksByFlow(tasks));
+            setHiddenDoctors(resp.hiddenDoctors ?? []);
             writeListSnapshot("practice-tasks-admin", tasks);
             setPatients(pats);
             setStaff(team.filter((m) => m.available !== false));
@@ -71,7 +78,7 @@ export function PracticeTaskAdminPanel({ embedded = false, backHref = "/administ
         } finally {
             setLoading(false);
         }
-    }, [parsedRole, session]);
+    }, [parsedRole, session, filterDoctor]);
 
     useEffect(() => {
         void load();
@@ -184,8 +191,9 @@ export function PracticeTaskAdminPanel({ embedded = false, backHref = "/administ
                             })),
                         ]}
                     />
+                    <TaskDoctorFilter td={taskDoctors} value={filterDoctor} onChange={setFilterDoctor} hidden={hiddenDoctors} />
                 </div>
-                {rows.length > 0 && (search || filterStatus || filterKind) ? (
+                {(rows.length > 0 || filterDoctor) && (search || filterStatus || filterKind || filterDoctor) ? (
                     <Button
                         variant="ghost"
                         size="sm"
@@ -193,6 +201,7 @@ export function PracticeTaskAdminPanel({ embedded = false, backHref = "/administ
                             setSearch("");
                             setFilterStatus("");
                             setFilterKind("");
+                            setFilterDoctor("");
                         }}
                     >
                         {t("common.reset")}
@@ -210,16 +219,17 @@ export function PracticeTaskAdminPanel({ embedded = false, backHref = "/administ
                 ) : null}
             </div>
 
+            <TaskHiddenDoctorsNote td={taskDoctors} ids={hiddenDoctors} />
             {filtered.length === 0 ? (
                 <EmptyState
                     title={t("practice.tasks.empty")}
                     description={
-                        rows.length === 0
+                        rows.length === 0 && !filterDoctor
                             ? t("practice.tasks.admin.create_first")
                             : t("practice.tasks.admin.no_results")
                     }
                     action={
-                        rows.length === 0
+                        rows.length === 0 && !filterDoctor
                             ? { label: t("practice.tasks.admin.create_new"), onClick: () => navigate(CREATE_HREF) }
                             : undefined
                     }
@@ -233,6 +243,7 @@ export function PracticeTaskAdminPanel({ embedded = false, backHref = "/administ
                     isReception={role === "RECEPTION"}
                     canAdmin
                     compact={embedded}
+                    doctors={taskDoctors}
                     onOpen={(row) => setSelectedId(row.id)}
                     onEdit={(row) => navigate(`/tickets/${row.id}/edit`)}
                 />

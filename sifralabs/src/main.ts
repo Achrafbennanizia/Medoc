@@ -7,8 +7,18 @@ import "@fontsource/ibm-plex-sans-arabic/400.css";
 import "@fontsource/ibm-plex-sans-arabic/500.css";
 import "@fontsource/ibm-plex-sans-arabic/600.css";
 import "@fontsource/ibm-plex-mono/400.css";
-import "./site.css";
-import "./components.css";
+// Styles, in cascade order: base site rules, then the components added in the 2026-11 rebuild.
+import "./styles/01-tokens-base-nav.css";
+import "./styles/02-sections-status.css";
+import "./styles/03-subpages-products-security.css";
+import "./styles/04-hero-figures.css";
+import "./styles/05-paths-cta-photo.css";
+import "./styles/06-cmdk-details-form.css";
+import "./styles/07-advantages-brand-hero.css";
+import "./styles/08-steps-news.css";
+import "./styles/09-hero-tech-stack-pillars.css";
+import "./styles/10-timeline-packages-values.css";
+import "./styles/11-articles-final-cta.css";
 
 // Mark the nav link for the current section.
 const section = "/" + (location.pathname.split("/")[1] ?? "");

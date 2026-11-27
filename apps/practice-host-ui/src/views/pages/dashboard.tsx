@@ -108,10 +108,10 @@ export function DashboardPage() {
             const day = practiceTodayYmd();
             // Patient names are fetched for the ids on screen only (effect below), not the whole list.
             return Promise.all([listAppointmentsByDate(day), listPurchaseOrders()])
-                .then(([appointmentsList, purchaseOrdersList]) => {
+                .then(([appointmentsList, ordersResp]) => {
                     if (!cancelled) {
                         setAppointments(appointmentsList);
-                        setPurchaseOrders(purchaseOrdersList);
+                        setPurchaseOrders(ordersResp.items);
                         setListsError(null);
                     }
                 })

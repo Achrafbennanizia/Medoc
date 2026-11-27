@@ -20,17 +20,27 @@ export interface PurchaseOrder {
     /** Order total on capture (inventory price × quantity), for finance. */
     total_amount?: number | null;
     created_by: string;
+    ordered_for_staff_id?: string | null;
+    paid_by_staff_id?: string | null;
+    approved_by?: string | null;
     created_at: string;
     updated_at: string;
 }
+
+export type PurchaseOrderList = {
+    items: PurchaseOrder[];
+    hiddenDoctors?: string[];
+};
 
 export type CreatePurchaseOrder = z.input<typeof CreatePurchaseOrderSchema>;
 
 /** Patch. Each field is optional; only provided fields are updated. */
 export type UpdatePurchaseOrder = z.input<typeof UpdatePurchaseOrderSchema>;
 
-export const listPurchaseOrders = () =>
-    practiceSystem.invoke<PurchaseOrder[]>("list_purchase_orders");
+export const listPurchaseOrders = (doctorId?: string) =>
+    practiceSystem.invoke<PurchaseOrderList>("list_purchase_orders", {
+        doctorId: doctorId || null,
+    });
 
 export const createPurchaseOrder = (data: CreatePurchaseOrder) => {
     const safe = parseOrThrow(CreatePurchaseOrderSchema, data);

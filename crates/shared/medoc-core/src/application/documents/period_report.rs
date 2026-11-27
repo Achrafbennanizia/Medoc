@@ -20,7 +20,10 @@ use sqlx::{SqliteConnection, SqlitePool};
 
 use super::cash_book::fmt_eur;
 use super::finance_schema;
-use super::issue::{after_insert, now_iso, require_permission, year_now, DocKind, IssuedPdf};
+use super::issue::{
+    after_insert, apply_report_signing, now_iso, require_permission, stamp_issued_document_signed_by,
+    year_now, DocKind, IssuedPdf,
+};
 use super::practice_profile::{practice_logo, resolve_document_locale, PracticeProfile};
 use super::receivables::open_receivables_cents;
 use crate::application::auth_service::Session;
@@ -542,6 +545,7 @@ pub async fn create(
     let label = args.label.clone().unwrap_or_default();
     let mut input = report_input(&profile, locale, &report, &label);
     input.logo = practice_logo(pool).await;
+    let report_signer = apply_report_signing(pool, session, None, &profile, &mut input).await?;
 
     if args.preview {
         input.watermark = Some(
@@ -630,6 +634,9 @@ pub async fn create(
     };
     drop(guard);
     after_insert(pool, session, &doc, "ISSUE_DOCUMENT").await;
+    if let Some(signer) = report_signer {
+        stamp_issued_document_signed_by(pool, &doc.id, Some(&signer)).await?;
+    }
     // The saved figures themselves, not only the PDF record.
     if let Err(e) = crate::infrastructure::database::sync_outbox::record_or_noop(
         pool,

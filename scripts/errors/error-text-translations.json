@@ -1,149 +1,802 @@
 {
-  "A pairing request for this device is already pending": ["Für dieses Gerät ist bereits eine Kopplungsanfrage offen.", "Une demande d'appairage est déjà en attente pour cet appareil.", "يوجد طلب إقران معلّق لهذا الجهاز بالفعل."],
-  "cluster port {sock} already in use (another MeDoc instance)": ["Netzwerk-Port {sock} ist bereits belegt (andere MeDoc-Instanz).", "Le port réseau {sock} est déjà utilisé (autre instance MeDoc).", "منفذ الشبكة {sock} مستخدم بالفعل (نسخة MeDoc أخرى)."],
-  "document already cancelled": ["Dokument ist bereits storniert.", "Document déjà annulé.", "المستند ملغى بالفعل."],
-  "LAN port {addr} already in use (another MeDoc instance). Not starting a second LAN service.": ["LAN-Port {addr} ist belegt (andere MeDoc-Instanz). Es wird kein zweiter LAN-Dienst gestartet.", "Le port LAN {addr} est utilisé (autre instance MeDoc). Aucun second service LAN n'est lancé.", "منفذ الشبكة المحلية {addr} مستخدم (نسخة MeDoc أخرى). لن تُشغَّل خدمة ثانية."],
-  "LAN server already running.": ["LAN-Server läuft bereits.", "Le serveur LAN est déjà en marche.", "خادم الشبكة المحلية يعمل بالفعل."],
-  "MeDoc is already running (database in use). Open the existing window instead of starting a second copy.": ["MeDoc läuft bereits (Datenbank in Benutzung). Öffnen Sie das vorhandene Fenster statt einer zweiten Kopie.", "MeDoc est déjà ouvert (base de données utilisée). Ouvrez la fenêtre existante au lieu d'une seconde copie.", "MeDoc يعمل بالفعل (قاعدة البيانات قيد الاستخدام). افتح النافذة الحالية بدل نسخة ثانية."],
-  "pairing_request already awaiting PIN confirmation": ["Die Kopplungsanfrage wartet bereits auf die PIN-Bestätigung.", "La demande d'appairage attend déjà la confirmation du PIN.", "طلب الإقران بانتظار تأكيد الرمز بالفعل."],
-  "pairing_request is not awaiting PIN confirmation": ["Die Kopplungsanfrage wartet nicht auf eine PIN-Bestätigung.", "La demande d'appairage n'attend pas de confirmation de PIN.", "طلب الإقران لا ينتظر تأكيد الرمز."],
-  "Payment already started for this line; create a correction instead": ["Für diese Position wurde bereits gezahlt; erstellen Sie stattdessen eine Korrektur.", "Un paiement a déjà commencé pour cette ligne ; créez plutôt une correction.", "بدأ الدفع لهذا البند بالفعل؛ أنشئ تصحيحًا بدلًا من ذلك."],
-  "The practice already has accounts.": ["Die Praxis hat bereits Konten.", "Le cabinet a déjà des comptes.", "لدى العيادة حسابات بالفعل."],
-  "This device is already paired. Revoke it on the main device before pairing it again.": ["Dieses Gerät ist bereits gekoppelt. Widerrufen Sie es am Hauptgerät, bevor Sie es erneut koppeln.", "Cet appareil est déjà appairé. Révoquez-le sur l'appareil principal avant de l'appairer à nouveau.", "هذا الجهاز مقترن بالفعل. ألغِه على الجهاز الرئيسي قبل إقرانه مجددًا."],
-  "This prescription was already corrected; edit the newest version": ["Dieses Rezept wurde bereits korrigiert; bearbeiten Sie die neueste Version.", "Cette ordonnance a déjà été corrigée ; modifiez la version la plus récente.", "صُححت هذه الوصفة بالفعل؛ عدّل أحدث نسخة."],
-  "Two-factor authentication is already active": ["Zwei-Faktor-Authentifizierung ist bereits aktiv.", "La double authentification est déjà active.", "التحقق الثنائي مفعّل بالفعل."],
-  "Two-factor authentication is not active": ["Zwei-Faktor-Authentifizierung ist nicht aktiv.", "La double authentification n'est pas active.", "التحقق الثنائي غير مفعّل."],
-  "{action} cannot be granted to this role": ["{action} kann dieser Rolle nicht erteilt werden.", "{action} ne peut pas être accordé à ce rôle.", "لا يمكن منح {action} لهذا الدور."],
-  "{field} must be zero or more": ["{field} muss null oder größer sein.", "{field} doit être supérieur ou égal à zéro.", "يجب أن يكون {field} صفرًا أو أكثر."],
-  "A new appointment starts as PLANNED or CONFIRMED": ["Ein neuer Termin beginnt als Geplant oder Bestätigt.", "Un nouveau rendez-vous commence comme Planifié ou Confirmé.", "يبدأ الموعد الجديد كمخطط أو مؤكد."],
-  "Access rights are managed on the main device.": ["Zugriffsrechte werden am Hauptgerät verwaltet.", "Les droits d'accès sont gérés sur l'appareil principal.", "تُدار صلاحيات الوصول على الجهاز الرئيسي."],
-  "Action must not be empty.": ["Aktion darf nicht leer sein.", "L'action ne doit pas être vide.", "يجب ألا يكون الإجراء فارغًا."],
-  "Admin host and port required": ["Host und Port des Admin-Geräts erforderlich.", "Hôte et port de l'administrateur requis.", "مطلوب مضيف ومنفذ المسؤول."],
-  "Administrator name too short.": ["Name der Administration zu kurz.", "Nom de l'administrateur trop court.", "اسم المسؤول قصير جدًا."],
-  "Administrator password required (min. 8 characters).": ["Administrator-Passwort erforderlich (mind. 8 Zeichen).", "Mot de passe administrateur requis (8 caractères min.).", "كلمة مرور المسؤول مطلوبة (8 أحرف على الأقل)."],
-  "Amount must be positive": ["Betrag muss positiv sein.", "Le montant doit être positif.", "يجب أن يكون المبلغ موجبًا."],
-  "At least one active person must keep the right to manage access.": ["Mindestens eine aktive Person muss das Recht zur Zugriffsverwaltung behalten.", "Au moins une personne active doit garder le droit de gérer les accès.", "يجب أن يحتفظ شخص نشط واحد على الأقل بحق إدارة الوصول."],
-  "Audit chain is intact — no acknowledgement needed": ["Protokollkette ist intakt — keine Bestätigung nötig.", "La chaîne d'audit est intacte — aucune confirmation nécessaire.", "سلسلة التدقيق سليمة — لا حاجة للتأكيد."],
-  "Authenticator code required": ["Authenticator-Code erforderlich.", "Code d'authentification requis.", "رمز المصادقة مطلوب."],
-  "Break-glass access is currently disabled": ["Notfallzugriff ist derzeit deaktiviert.", "L'accès d'urgence est actuellement désactivé.", "الوصول الطارئ معطّل حاليًا."],
-  "Clinician not found on this device. Sign in with a local staff account, or wait until accounts have synced from the main device.": ["Behandler auf diesem Gerät nicht gefunden. Melden Sie sich mit einem lokalen Konto an oder warten Sie, bis die Konten vom Hauptgerät synchronisiert sind.", "Praticien introuvable sur cet appareil. Connectez-vous avec un compte local ou attendez la synchronisation des comptes depuis l'appareil principal.", "لم يُعثر على المعالج على هذا الجهاز. سجّل الدخول بحساب محلي أو انتظر مزامنة الحسابات من الجهاز الرئيسي."],
-  "cluster {what} rejected ({code}): {message}": ["Praxisnetz hat {what} abgelehnt ({code}): {message}", "Le réseau du cabinet a refusé {what} ({code}) : {message}", "رفضت شبكة العيادة {what} ({code}): {message}"],
-  "Cluster CA key does not match the published public key": ["Schlüssel des Praxisnetzes stimmt nicht mit dem veröffentlichten überein.", "La clé du réseau du cabinet ne correspond pas à la clé publiée.", "مفتاح شبكة العيادة لا يطابق المفتاح المنشور."],
-  "cluster join rejected ({code}): {message}": ["Beitritt zum Praxisnetz abgelehnt ({code}): {message}", "Adhésion au réseau du cabinet refusée ({code}) : {message}", "رُفض الانضمام إلى شبكة العيادة ({code}): {message}"],
-  "Comment must not be empty.": ["Kommentar darf nicht leer sein.", "Le commentaire ne doit pas être vide.", "يجب ألا يكون التعليق فارغًا."],
-  "Confirmation phrase does not match.": ["Bestätigungstext stimmt nicht überein.", "La phrase de confirmation ne correspond pas.", "عبارة التأكيد غير مطابقة."],
-  "Cut-off date must be YYYY-MM-DD": ["Stichtag muss im Format JJJJ-MM-TT sein.", "La date limite doit être au format AAAA-MM-JJ.", "يجب أن يكون تاريخ القطع بصيغة YYYY-MM-DD."],
-  "Cut-off date required": ["Stichtag erforderlich.", "Date limite requise.", "تاريخ القطع مطلوب."],
-  "Database is locked — enter passphrase to unlock.": ["Datenbank ist gesperrt — Passphrase zum Entsperren eingeben.", "La base de données est verrouillée — saisissez la phrase secrète.", "قاعدة البيانات مقفلة — أدخل عبارة المرور لفتحها."],
-  "Date must be in yyyy-MM-dd format": ["Datum muss im Format JJJJ-MM-TT sein.", "La date doit être au format AAAA-MM-JJ.", "يجب أن يكون التاريخ بصيغة YYYY-MM-DD."],
-  "Decryption failed (wrong passphrase or tampered manifest)": ["Entschlüsselung fehlgeschlagen (falsche Passphrase oder veränderte Datei).", "Échec du déchiffrement (phrase secrète erronée ou fichier modifié).", "فشل فك التشفير (عبارة مرور خاطئة أو ملف معدّل)."],
-  "Device already provisioned (one-time only)": ["Gerät ist bereits eingerichtet (nur einmal möglich).", "Appareil déjà configuré (une seule fois).", "الجهاز مُهيأ بالفعل (مرة واحدة فقط)."],
-  "Device key does not match the published public key": ["Geräteschlüssel stimmt nicht mit dem veröffentlichten überein.", "La clé de l'appareil ne correspond pas à la clé publiée.", "مفتاح الجهاز لا يطابق المفتاح المنشور."],
-  "Device-cluster listener may only bind private LAN addresses (rejected: {addr})": ["Das Praxisnetz darf nur private LAN-Adressen verwenden (abgelehnt: {addr}).", "Le réseau du cabinet n'accepte que des adresses LAN privées (refusé : {addr}).", "لا تقبل شبكة العيادة إلا عناوين شبكة محلية خاصة (مرفوض: {addr})."],
-  "Document is required.": ["Dokument ist erforderlich.", "Le document est requis.", "المستند مطلوب."],
-  "Duration must be between 5 and 720 minutes": ["Dauer muss zwischen 5 und 720 Minuten liegen.", "La durée doit être comprise entre 5 et 720 minutes.", "يجب أن تكون المدة بين 5 و720 دقيقة."],
-  "effect must be ALLOW or DENY.": ["Wirkung muss Erlauben oder Verweigern sein.", "L'effet doit être Autoriser ou Refuser.", "يجب أن يكون الأثر سماحًا أو منعًا."],
-  "Invalid amounts": ["Ungültige Beträge.", "Montants invalides.", "مبالغ غير صالحة."],
-  "Invalid code — please try again": ["Ungültiger Code — bitte erneut versuchen.", "Code invalide — veuillez réessayer.", "رمز غير صالح — يرجى المحاولة مجددًا."],
-  "Invalid counted amount": ["Ungültiger gezählter Betrag.", "Montant compté invalide.", "المبلغ المعدود غير صالح."],
-  "Invalid email.": ["Ungültige E-Mail-Adresse.", "Adresse e-mail invalide.", "بريد إلكتروني غير صالح."],
-  "Invalid id": ["Ungültige Kennung.", "Identifiant invalide.", "معرّف غير صالح."],
-  "Invalid interval": ["Ungültiges Intervall.", "Intervalle invalide.", "فترة غير صالحة."],
-  "Invalid KIM address": ["Ungültige KIM-Adresse.", "Adresse KIM invalide.", "عنوان KIM غير صالح."],
-  "invalid patient status filter": ["Ungültiger Patientenstatus-Filter.", "Filtre de statut patient invalide.", "مرشح حالة المريض غير صالح."],
-  "Invalid variance": ["Ungültige Differenz.", "Écart invalide.", "فرق غير صالح."],
-  "Item required": ["Artikel erforderlich.", "Article requis.", "العنصر مطلوب."],
-  "Kein Reset outstanding": ["Kein Zurücksetzen ausstehend.", "Aucune réinitialisation en attente.", "لا توجد إعادة تعيين معلّقة."],
-  "Label required": ["Bezeichnung erforderlich.", "Libellé requis.", "التسمية مطلوبة."],
-  "LAN TLS pin is not a SHA-256 fingerprint": ["LAN-Zertifikats-Pin ist kein SHA-256-Fingerabdruck.", "L'empreinte du certificat LAN n'est pas un SHA-256.", "بصمة شهادة الشبكة المحلية ليست SHA-256."],
-  "LANR must contain 9 digits": ["LANR muss 9 Ziffern enthalten.", "Le LANR doit contenir 9 chiffres.", "يجب أن يحتوي LANR على 9 أرقام."],
-  "License code missing.": ["Lizenzcode fehlt.", "Code de licence manquant.", "رمز الترخيص مفقود."],
-  "Main device address invalid — please join the network again.": ["Adresse des Hauptgeräts ungültig — bitte dem Netzwerk erneut beitreten.", "Adresse de l'appareil principal invalide — rejoignez à nouveau le réseau.", "عنوان الجهاز الرئيسي غير صالح — انضم إلى الشبكة مجددًا."],
-  "Main device refused number allocation ({status}): {body}": ["Hauptgerät hat die Nummernvergabe abgelehnt ({status}): {body}", "L'appareil principal a refusé l'attribution de numéros ({status}) : {body}", "رفض الجهاز الرئيسي تخصيص الأرقام ({status}): {body}"],
-  "Member devices only after joining the practice network.": ["Mitgliedsgeräte erst nach Beitritt zum Praxisnetz.", "Appareils membres uniquement après avoir rejoint le réseau du cabinet.", "الأجهزة الأعضاء فقط بعد الانضمام إلى شبكة العيادة."],
-  "Message too large": ["Nachricht zu groß.", "Message trop volumineux.", "الرسالة كبيرة جدًا."],
-  "Message too short (min. 10 characters)": ["Nachricht zu kurz (mind. 10 Zeichen).", "Message trop court (10 caractères min.).", "الرسالة قصيرة جدًا (10 أحرف على الأقل)."],
-  "Name and a valid e-mail are required.": ["Name und gültige E-Mail sind erforderlich.", "Nom et e-mail valide requis.", "الاسم وبريد إلكتروني صالح مطلوبان."],
-  "Name too short.": ["Name zu kurz.", "Nom trop court.", "الاسم قصير جدًا."],
-  "New account only after joining an existing practice.": ["Neues Konto erst nach Beitritt zu einer bestehenden Praxis.", "Nouveau compte uniquement après avoir rejoint un cabinet existant.", "حساب جديد فقط بعد الانضمام إلى عيادة قائمة."],
-  "No Bluetooth adapter found": ["Kein Bluetooth-Adapter gefunden.", "Aucun adaptateur Bluetooth trouvé.", "لم يُعثر على محوّل بلوتوث."],
-  "No cluster": ["Kein Praxisnetz eingerichtet.", "Aucun réseau de cabinet.", "لا توجد شبكة عيادة."],
-  "No cluster activated": ["Kein Praxisnetz aktiviert.", "Aucun réseau de cabinet activé.", "لم تُفعّل شبكة العيادة."],
-  "No compatible scan program found (e.g. simple-scan). Please install one or place files manually in the watch folder.": ["Kein kompatibles Scanprogramm gefunden (z. B. simple-scan). Bitte installieren oder Dateien manuell in den Überwachungsordner legen.", "Aucun programme de numérisation compatible (p. ex. simple-scan). Installez-en un ou déposez les fichiers dans le dossier surveillé.", "لم يُعثر على برنامج مسح متوافق (مثل simple-scan). ثبّت واحدًا أو ضع الملفات يدويًا في مجلد المراقبة."],
-  "No main device stored — please join the network again.": ["Kein Hauptgerät gespeichert — bitte dem Netzwerk erneut beitreten.", "Aucun appareil principal enregistré — rejoignez à nouveau le réseau.", "لا يوجد جهاز رئيسي محفوظ — انضم إلى الشبكة مجددًا."],
-  "no master device registered": ["Kein Hauptgerät registriert.", "Aucun appareil principal enregistré.", "لا يوجد جهاز رئيسي مسجّل."],
-  "No staff recipients available for this notification.": ["Keine Empfänger für diese Benachrichtigung verfügbar.", "Aucun destinataire disponible pour cette notification.", "لا يوجد مستلمون لهذا الإشعار."],
-  "No update available": ["Kein Update verfügbar.", "Aucune mise à jour disponible.", "لا يوجد تحديث متاح."],
-  "No user account exists — please create an administrator.": ["Es gibt kein Benutzerkonto — bitte eine Administration anlegen.", "Aucun compte n'existe — créez un administrateur.", "لا يوجد حساب مستخدم — أنشئ مسؤولًا."],
-  "No user accounts received from the main device — main device must be signed in.": ["Keine Benutzerkonten vom Hauptgerät erhalten — dort muss jemand angemeldet sein.", "Aucun compte reçu de l'appareil principal — il doit être connecté.", "لم تُستلم حسابات من الجهاز الرئيسي — يجب تسجيل الدخول عليه."],
-  "Notification kind and title are required.": ["Art und Titel der Benachrichtigung sind erforderlich.", "Type et titre de la notification requis.", "نوع الإشعار وعنوانه مطلوبان."],
-  "Notification user is not a staff account on this device.": ["Empfänger ist kein Mitarbeiterkonto auf diesem Gerät.", "Le destinataire n'est pas un compte du personnel sur cet appareil.", "المستلم ليس حساب موظف على هذا الجهاز."],
-  "Passphrases do not match.": ["Passphrasen stimmen nicht überein.", "Les phrases secrètes ne correspondent pas.", "عبارات المرور غير متطابقة."],
-  "Password policy: {msg}": ["Passwortrichtlinie: {msg}", "Politique de mot de passe : {msg}", "سياسة كلمة المرور: {msg}"],
-  "Password required (min. 8 characters).": ["Passwort erforderlich (mind. 8 Zeichen).", "Mot de passe requis (8 caractères min.).", "كلمة المرور مطلوبة (8 أحرف على الأقل)."],
-  "Path has no file name": ["Pfad enthält keinen Dateinamen.", "Le chemin n'a pas de nom de fichier.", "المسار لا يحتوي اسم ملف."],
-  "Path is outside the allowed folder": ["Pfad liegt außerhalb des erlaubten Ordners.", "Le chemin est hors du dossier autorisé.", "المسار خارج المجلد المسموح."],
-  "Path must not contain ..": ["Pfad darf „..“ nicht enthalten.", "Le chemin ne doit pas contenir « .. ».", "يجب ألا يحتوي المسار على «..»."],
-  "Patient not found": ["Patient nicht gefunden.", "Patient introuvable.", "المريض غير موجود."],
-  "Period required": ["Zeitraum erforderlich.", "Période requise.", "الفترة مطلوبة."],
-  "PIN confirmation failed ({status}): {body}": ["PIN-Bestätigung fehlgeschlagen ({status}): {body}", "Échec de la confirmation du PIN ({status}) : {body}", "فشل تأكيد الرمز ({status}): {body}"],
-  "Plan must be BASIC, PRO, or ENTERPRISE.": ["Tarif muss BASIC, PRO oder ENTERPRISE sein.", "L'offre doit être BASIC, PRO ou ENTERPRISE.", "يجب أن تكون الخطة BASIC أو PRO أو ENTERPRISE."],
-  "Port must be > 0.": ["Port muss größer als 0 sein.", "Le port doit être supérieur à 0.", "يجب أن يكون المنفذ أكبر من 0."],
-  "Practice setup is already complete.": ["Praxiseinrichtung ist bereits abgeschlossen.", "La configuration du cabinet est déjà terminée.", "إعداد العيادة مكتمل بالفعل."],
-  "Practice setup only on the licensed primary device.": ["Praxiseinrichtung nur am lizenzierten Hauptgerät.", "Configuration du cabinet uniquement sur l'appareil principal sous licence.", "إعداد العيادة فقط على الجهاز الرئيسي المرخّص."],
-  "Practice-network listener requires an active license (owner) or license/provisioning (member)": ["Praxisnetz erfordert eine aktive Lizenz (Inhaber) bzw. Lizenz/Einrichtung (Mitglied).", "Le réseau du cabinet exige une licence active (titulaire) ou licence/configuration (membre).", "تتطلب شبكة العيادة ترخيصًا نشطًا (المالك) أو ترخيصًا/تهيئة (عضو)."],
-  "prefix must be 1-16 letters or digits": ["Präfix muss 1–16 Buchstaben oder Ziffern haben.", "Le préfixe doit compter 1 à 16 lettres ou chiffres.", "يجب أن تكون البادئة من 1 إلى 16 حرفًا أو رقمًا."],
-  "Quantity must be between 1 and 99": ["Menge muss zwischen 1 und 99 liegen.", "La quantité doit être comprise entre 1 et 99.", "يجب أن تكون الكمية بين 1 و99."],
-  "Quantity must be positive": ["Menge muss positiv sein.", "La quantité doit être positive.", "يجب أن تكون الكمية موجبة."],
-  "re-pair required": ["Erneute Kopplung erforderlich.", "Nouvel appairage requis.", "يلزم إعادة الإقران."],
-  "Reason for return to reception is required.": ["Grund für die Rückgabe an die Rezeption ist erforderlich.", "Le motif du renvoi à l'accueil est requis.", "سبب الإعادة إلى الاستقبال مطلوب."],
-  "reconcile runs on a replica only": ["Abgleich läuft nur auf einem Zweitgerät.", "La réconciliation ne s'exécute que sur un appareil secondaire.", "تعمل المطابقة على جهاز ثانوي فقط."],
-  "Replace: old and new fingerprint are identical": ["Ersetzen: alter und neuer Fingerabdruck sind identisch.", "Remplacement : ancienne et nouvelle empreinte identiques.", "استبدال: البصمة القديمة والجديدة متطابقتان."],
-  "replica auth: fingerprint is not this device's identity": ["Anmeldung des Zweitgeräts: Fingerabdruck gehört nicht zu diesem Gerät.", "Authentification secondaire : l'empreinte n'est pas celle de cet appareil.", "مصادقة الجهاز الثانوي: البصمة لا تخص هذا الجهاز."],
-  "Replica not paired — complete the pairing flow": ["Zweitgerät nicht gekoppelt — Kopplung abschließen.", "Appareil secondaire non appairé — terminez l'appairage.", "الجهاز الثانوي غير مقترن — أكمل عملية الإقران."],
-  "Role must be PHYSICIAN or RECEPTION.": ["Rolle muss Ärztin/Arzt oder Rezeption sein.", "Le rôle doit être Médecin ou Accueil.", "يجب أن يكون الدور طبيبًا أو استقبالًا."],
-  "Short note or payment link required.": ["Kurznotiz oder Zahlungsverknüpfung erforderlich.", "Note courte ou lien de paiement requis.", "مطلوب ملاحظة قصيرة أو ربط دفعة."],
-  "Skip is only allowed on the licensed primary device.": ["Überspringen nur am lizenzierten Hauptgerät erlaubt.", "Ignorer n'est autorisé que sur l'appareil principal sous licence.", "التخطي مسموح فقط على الجهاز الرئيسي المرخّص."],
-  "source has no filename": ["Quelle hat keinen Dateinamen.", "La source n'a pas de nom de fichier.", "المصدر بلا اسم ملف."],
-  "staff directory rejected ({code}): {message}": ["Mitarbeiterverzeichnis abgelehnt ({code}): {message}", "Annuaire du personnel refusé ({code}) : {message}", "رُفض دليل الموظفين ({code}): {message}"],
-  "Staff directory version not supported.": ["Version des Mitarbeiterverzeichnisses wird nicht unterstützt.", "Version de l'annuaire du personnel non prise en charge.", "إصدار دليل الموظفين غير مدعوم."],
-  "Stock must be zero or more": ["Bestand muss null oder größer sein.", "Le stock doit être supérieur ou égal à zéro.", "يجب أن يكون المخزون صفرًا أو أكثر."],
-  "Stored work hours are invalid": ["Gespeicherte Arbeitszeiten sind ungültig.", "Les horaires enregistrés sont invalides.", "ساعات العمل المحفوظة غير صالحة."],
-  "Subject too short (min. 3 characters)": ["Betreff zu kurz (mind. 3 Zeichen).", "Objet trop court (3 caractères min.).", "الموضوع قصير جدًا (3 أحرف على الأقل)."],
-  "Supplier required": ["Lieferant erforderlich.", "Fournisseur requis.", "المورد مطلوب."],
-  "sync exchange requires fromDeviceId": ["Synchronisation: Absendergerät fehlt.", "Synchronisation : appareil émetteur manquant.", "المزامنة: الجهاز المرسل مفقود."],
-  "sync push to master requires REPLICA role": ["Senden an das Hauptgerät nur von einem Zweitgerät.", "Envoi vers l'appareil principal uniquement depuis un appareil secondaire.", "الإرسال إلى الجهاز الرئيسي من جهاز ثانوي فقط."],
-  "sync TLS pin missing — refusing to accept an unpinned certificate": ["Zertifikats-Pin fehlt — unbestätigtes Zertifikat wird abgelehnt.", "Empreinte de certificat manquante — certificat non épinglé refusé.", "بصمة الشهادة مفقودة — رُفضت شهادة غير مثبّتة."],
-  "System scanner is not supported on this platform.": ["System-Scanner wird auf dieser Plattform nicht unterstützt.", "Le scanner système n'est pas pris en charge sur cette plateforme.", "ماسح النظام غير مدعوم على هذا النظام."],
-  "The main device has not accepted this request yet": ["Das Hauptgerät hat diese Anfrage noch nicht angenommen.", "L'appareil principal n'a pas encore accepté cette demande.", "لم يقبل الجهاز الرئيسي هذا الطلب بعد."],
-  "The main device is not reachable. Start it, then try again.": ["Hauptgerät nicht erreichbar. Starten Sie es und versuchen Sie es erneut.", "L'appareil principal est injoignable. Démarrez-le puis réessayez.", "الجهاز الرئيسي غير متاح. شغّله ثم أعد المحاولة."],
-  "This access profile is made for another role.": ["Dieses Zugriffsprofil ist für eine andere Rolle.", "Ce profil d'accès est destiné à un autre rôle.", "ملف الوصول هذا مخصص لدور آخر."],
-  "This account still owns appointments or clinical documents. Assign another clinician first, then remove the account.": ["Dieses Konto hat noch Termine oder klinische Dokumente. Weisen Sie zuerst einen anderen Behandler zu und entfernen Sie dann das Konto.", "Ce compte possède encore des rendez-vous ou documents cliniques. Attribuez d'abord un autre praticien, puis supprimez le compte.", "لا يزال هذا الحساب يملك مواعيد أو مستندات سريرية. عيّن معالجًا آخر أولًا ثم احذف الحساب."],
-  "Too many PIN attempts — submit a new pairing request": ["Zu viele PIN-Versuche — neue Kopplungsanfrage stellen.", "Trop de tentatives de PIN — soumettez une nouvelle demande.", "محاولات رمز كثيرة — قدّم طلب إقران جديدًا."],
-  "Total amount invalid": ["Gesamtbetrag ungültig.", "Montant total invalide.", "المبلغ الإجمالي غير صالح."],
-  "Two-factor authentication is currently disabled": ["Zwei-Faktor-Authentifizierung ist derzeit deaktiviert.", "La double authentification est actuellement désactivée.", "التحقق الثنائي معطّل حاليًا."],
-  "Unbekannter KV-Key: {key}": ["Unbekannter Einstellungsschlüssel: {key}", "Clé de paramètre inconnue : {key}", "مفتاح إعداد غير معروف: {key}"],
-  "Unknown access profile: {id}": ["Unbekanntes Zugriffsprofil: {id}", "Profil d'accès inconnu : {id}", "ملف وصول غير معروف: {id}"],
-  "Unknown category: {k}": ["Unbekannte Kategorie: {k}", "Catégorie inconnue : {k}", "فئة غير معروفة: {k}"],
-  "Unknown currency": ["Unbekannte Währung.", "Devise inconnue.", "عملة غير معروفة."],
-  "Unknown KV key: {key}": ["Unbekannter Einstellungsschlüssel: {key}", "Clé de paramètre inconnue : {key}", "مفتاح إعداد غير معروف: {key}"],
-  "unknown number style {other}": ["Unbekanntes Nummernformat: {other}", "Format de numéro inconnu : {other}", "تنسيق رقم غير معروف: {other}"],
-  "Unknown permission action.": ["Unbekannte Berechtigungsaktion.", "Action d'autorisation inconnue.", "إجراء صلاحية غير معروف."],
-  "Unknown status: {status}": ["Unbekannter Status: {status}", "Statut inconnu : {status}", "حالة غير معروفة: {status}"],
-  "Valid-to date must not be before valid-from date": ["„Gültig bis“ darf nicht vor „Gültig ab“ liegen.", "La date de fin ne doit pas précéder la date de début.", "يجب ألا يسبق تاريخ الانتهاء تاريخ البدء."],
-  "Vendor portal base URL is missing.": ["Basis-URL des Herstellerportals fehlt.", "URL de base du portail fournisseur manquante.", "عنوان بوابة المورّد الأساسي مفقود."],
-  "Vendor portal URL is empty.": ["URL des Herstellerportals ist leer.", "L'URL du portail fournisseur est vide.", "عنوان بوابة المورّد فارغ."],
-  "Vendor portal URL is missing a host.": ["URL des Herstellerportals hat keinen Host.", "L'URL du portail fournisseur n'a pas d'hôte.", "عنوان بوابة المورّد بلا مضيف."],
-  "Vendor portal URL must not include credentials.": ["URL des Herstellerportals darf keine Zugangsdaten enthalten.", "L'URL du portail fournisseur ne doit pas contenir d'identifiants.", "يجب ألا يتضمن عنوان بوابة المورّد بيانات اعتماد."],
-  "Vendor portal URL must use https.": ["URL des Herstellerportals muss https verwenden.", "L'URL du portail fournisseur doit utiliser https.", "يجب أن يستخدم عنوان بوابة المورّد https."],
-  "wrong USB kit password": ["Falsches Passwort für das USB-Kit.", "Mot de passe du kit USB incorrect.", "كلمة مرور مجموعة USB خاطئة."],
-  "You cannot change your own access rights.": ["Sie können Ihre eigenen Zugriffsrechte nicht ändern.", "Vous ne pouvez pas modifier vos propres droits d'accès.", "لا يمكنك تغيير صلاحيات الوصول الخاصة بك."],
-  "You cannot remove the account you are signed in with.": ["Sie können das angemeldete Konto nicht entfernen.", "Vous ne pouvez pas supprimer le compte avec lequel vous êtes connecté.", "لا يمكنك حذف الحساب الذي سجّلت الدخول به."],
-  "A receipt can only be issued for a paid payment": ["Eine Quittung kann nur für eine bezahlte Zahlung erstellt werden.", "Un reçu ne peut être émis que pour un paiement réglé.", "لا يمكن إصدار إيصال إلا لدفعة مدفوعة."],
-  "LAN client configuration incomplete (base URL missing).": ["LAN-Client-Konfiguration unvollständig (Basis-URL fehlt).", "Configuration du client LAN incomplète (URL de base manquante).", "إعداد عميل الشبكة المحلية غير مكتمل (العنوان الأساسي مفقود)."],
-  "LAN client configuration incomplete (base URL or token missing).": ["LAN-Client-Konfiguration unvollständig (Basis-URL oder Token fehlt).", "Configuration du client LAN incomplète (URL ou jeton manquant).", "إعداد عميل الشبكة المحلية غير مكتمل (العنوان أو الرمز مفقود)."],
-  "logout timeout": ["Abmeldung hat zu lange gedauert.", "La déconnexion a expiré.", "انتهت مهلة تسجيل الخروج."],
-  "PDF missing": ["PDF fehlt.", "PDF manquant.", "ملف PDF مفقود."],
-  "Practice master data incomplete for receipts": ["Praxisstammdaten für Quittungen unvollständig.", "Données du cabinet incomplètes pour les reçus.", "بيانات العيادة الأساسية غير مكتملة للإيصالات."],
-  "Stored work hours are invalid ": ["Gespeicherte Arbeitszeiten sind ungültig.", "Les horaires enregistrés sont invalides.", "ساعات العمل المحفوظة غير صالحة."]
+  "A pairing request for this device is already pending": [
+    "Für dieses Gerät ist bereits eine Kopplungsanfrage offen.",
+    "Une demande d'appairage est déjà en attente pour cet appareil.",
+    "يوجد طلب إقران معلّق لهذا الجهاز بالفعل."
+  ],
+  "cluster port {sock} already in use (another MeDoc instance)": [
+    "Netzwerk-Port {sock} ist bereits belegt (andere MeDoc-Instanz).",
+    "Le port réseau {sock} est déjà utilisé (autre instance MeDoc).",
+    "منفذ الشبكة {sock} مستخدم بالفعل (نسخة MeDoc أخرى)."
+  ],
+  "document already cancelled": [
+    "Dokument ist bereits storniert.",
+    "Document déjà annulé.",
+    "المستند ملغى بالفعل."
+  ],
+  "LAN port {addr} already in use (another MeDoc instance). Not starting a second LAN service.": [
+    "LAN-Port {addr} ist belegt (andere MeDoc-Instanz). Es wird kein zweiter LAN-Dienst gestartet.",
+    "Le port LAN {addr} est utilisé (autre instance MeDoc). Aucun second service LAN n'est lancé.",
+    "منفذ الشبكة المحلية {addr} مستخدم (نسخة MeDoc أخرى). لن تُشغَّل خدمة ثانية."
+  ],
+  "LAN server already running.": [
+    "LAN-Server läuft bereits.",
+    "Le serveur LAN est déjà en marche.",
+    "خادم الشبكة المحلية يعمل بالفعل."
+  ],
+  "MeDoc is already running (database in use). Open the existing window instead of starting a second copy.": [
+    "MeDoc läuft bereits (Datenbank in Benutzung). Öffnen Sie das vorhandene Fenster statt einer zweiten Kopie.",
+    "MeDoc est déjà ouvert (base de données utilisée). Ouvrez la fenêtre existante au lieu d'une seconde copie.",
+    "MeDoc يعمل بالفعل (قاعدة البيانات قيد الاستخدام). افتح النافذة الحالية بدل نسخة ثانية."
+  ],
+  "pairing_request already awaiting PIN confirmation": [
+    "Die Kopplungsanfrage wartet bereits auf die PIN-Bestätigung.",
+    "La demande d'appairage attend déjà la confirmation du PIN.",
+    "طلب الإقران بانتظار تأكيد الرمز بالفعل."
+  ],
+  "pairing_request is not awaiting PIN confirmation": [
+    "Die Kopplungsanfrage wartet nicht auf eine PIN-Bestätigung.",
+    "La demande d'appairage n'attend pas de confirmation de PIN.",
+    "طلب الإقران لا ينتظر تأكيد الرمز."
+  ],
+  "Payment already started for this line; create a correction instead": [
+    "Für diese Position wurde bereits gezahlt; erstellen Sie stattdessen eine Korrektur.",
+    "Un paiement a déjà commencé pour cette ligne ; créez plutôt une correction.",
+    "بدأ الدفع لهذا البند بالفعل؛ أنشئ تصحيحًا بدلًا من ذلك."
+  ],
+  "The practice already has accounts.": [
+    "Die Praxis hat bereits Konten.",
+    "Le cabinet a déjà des comptes.",
+    "لدى العيادة حسابات بالفعل."
+  ],
+  "This device is already paired. Revoke it on the main device before pairing it again.": [
+    "Dieses Gerät ist bereits gekoppelt. Widerrufen Sie es am Hauptgerät, bevor Sie es erneut koppeln.",
+    "Cet appareil est déjà appairé. Révoquez-le sur l'appareil principal avant de l'appairer à nouveau.",
+    "هذا الجهاز مقترن بالفعل. ألغِه على الجهاز الرئيسي قبل إقرانه مجددًا."
+  ],
+  "This prescription was already corrected; edit the newest version": [
+    "Dieses Rezept wurde bereits korrigiert; bearbeiten Sie die neueste Version.",
+    "Cette ordonnance a déjà été corrigée ; modifiez la version la plus récente.",
+    "صُححت هذه الوصفة بالفعل؛ عدّل أحدث نسخة."
+  ],
+  "Two-factor authentication is already active": [
+    "Zwei-Faktor-Authentifizierung ist bereits aktiv.",
+    "La double authentification est déjà active.",
+    "التحقق الثنائي مفعّل بالفعل."
+  ],
+  "Two-factor authentication is not active": [
+    "Zwei-Faktor-Authentifizierung ist nicht aktiv.",
+    "La double authentification n'est pas active.",
+    "التحقق الثنائي غير مفعّل."
+  ],
+  "{action} cannot be granted to this role": [
+    "{action} kann dieser Rolle nicht erteilt werden.",
+    "{action} ne peut pas être accordé à ce rôle.",
+    "لا يمكن منح {action} لهذا الدور."
+  ],
+  "{field} must be zero or more": [
+    "{field} muss null oder größer sein.",
+    "{field} doit être supérieur ou égal à zéro.",
+    "يجب أن يكون {field} صفرًا أو أكثر."
+  ],
+  "A new appointment starts as PLANNED or CONFIRMED": [
+    "Ein neuer Termin beginnt als Geplant oder Bestätigt.",
+    "Un nouveau rendez-vous commence comme Planifié ou Confirmé.",
+    "يبدأ الموعد الجديد كمخطط أو مؤكد."
+  ],
+  "Access rights are managed on the main device.": [
+    "Zugriffsrechte werden am Hauptgerät verwaltet.",
+    "Les droits d'accès sont gérés sur l'appareil principal.",
+    "تُدار صلاحيات الوصول على الجهاز الرئيسي."
+  ],
+  "Action must not be empty.": [
+    "Aktion darf nicht leer sein.",
+    "L'action ne doit pas être vide.",
+    "يجب ألا يكون الإجراء فارغًا."
+  ],
+  "Admin host and port required": [
+    "Host und Port des Admin-Geräts erforderlich.",
+    "Hôte et port de l'administrateur requis.",
+    "مطلوب مضيف ومنفذ المسؤول."
+  ],
+  "Administrator name too short.": [
+    "Name der Administration zu kurz.",
+    "Nom de l'administrateur trop court.",
+    "اسم المسؤول قصير جدًا."
+  ],
+  "Administrator password required (min. 8 characters).": [
+    "Administrator-Passwort erforderlich (mind. 8 Zeichen).",
+    "Mot de passe administrateur requis (8 caractères min.).",
+    "كلمة مرور المسؤول مطلوبة (8 أحرف على الأقل)."
+  ],
+  "Amount must be positive": [
+    "Betrag muss positiv sein.",
+    "Le montant doit être positif.",
+    "يجب أن يكون المبلغ موجبًا."
+  ],
+  "At least one active person must keep the right to manage access.": [
+    "Mindestens eine aktive Person muss das Recht zur Zugriffsverwaltung behalten.",
+    "Au moins une personne active doit garder le droit de gérer les accès.",
+    "يجب أن يحتفظ شخص نشط واحد على الأقل بحق إدارة الوصول."
+  ],
+  "Audit chain is intact — no acknowledgement needed": [
+    "Protokollkette ist intakt — keine Bestätigung nötig.",
+    "La chaîne d'audit est intacte — aucune confirmation nécessaire.",
+    "سلسلة التدقيق سليمة — لا حاجة للتأكيد."
+  ],
+  "Authenticator code required": [
+    "Authenticator-Code erforderlich.",
+    "Code d'authentification requis.",
+    "رمز المصادقة مطلوب."
+  ],
+  "Break-glass access is currently disabled": [
+    "Notfallzugriff ist derzeit deaktiviert.",
+    "L'accès d'urgence est actuellement désactivé.",
+    "الوصول الطارئ معطّل حاليًا."
+  ],
+  "Clinician not found on this device. Sign in with a local staff account, or wait until accounts have synced from the main device.": [
+    "Behandler auf diesem Gerät nicht gefunden. Melden Sie sich mit einem lokalen Konto an oder warten Sie, bis die Konten vom Hauptgerät synchronisiert sind.",
+    "Praticien introuvable sur cet appareil. Connectez-vous avec un compte local ou attendez la synchronisation des comptes depuis l'appareil principal.",
+    "لم يُعثر على المعالج على هذا الجهاز. سجّل الدخول بحساب محلي أو انتظر مزامنة الحسابات من الجهاز الرئيسي."
+  ],
+  "cluster {what} rejected ({code}): {message}": [
+    "Praxisnetz hat {what} abgelehnt ({code}): {message}",
+    "Le réseau du cabinet a refusé {what} ({code}) : {message}",
+    "رفضت شبكة العيادة {what} ({code}): {message}"
+  ],
+  "Cluster CA key does not match the published public key": [
+    "Schlüssel des Praxisnetzes stimmt nicht mit dem veröffentlichten überein.",
+    "La clé du réseau du cabinet ne correspond pas à la clé publiée.",
+    "مفتاح شبكة العيادة لا يطابق المفتاح المنشور."
+  ],
+  "cluster join rejected ({code}): {message}": [
+    "Beitritt zum Praxisnetz abgelehnt ({code}): {message}",
+    "Adhésion au réseau du cabinet refusée ({code}) : {message}",
+    "رُفض الانضمام إلى شبكة العيادة ({code}): {message}"
+  ],
+  "Comment must not be empty.": [
+    "Kommentar darf nicht leer sein.",
+    "Le commentaire ne doit pas être vide.",
+    "يجب ألا يكون التعليق فارغًا."
+  ],
+  "Confirmation phrase does not match.": [
+    "Bestätigungstext stimmt nicht überein.",
+    "La phrase de confirmation ne correspond pas.",
+    "عبارة التأكيد غير مطابقة."
+  ],
+  "Cut-off date must be YYYY-MM-DD": [
+    "Stichtag muss im Format JJJJ-MM-TT sein.",
+    "La date limite doit être au format AAAA-MM-JJ.",
+    "يجب أن يكون تاريخ القطع بصيغة YYYY-MM-DD."
+  ],
+  "Cut-off date required": [
+    "Stichtag erforderlich.",
+    "Date limite requise.",
+    "تاريخ القطع مطلوب."
+  ],
+  "Database is locked — enter passphrase to unlock.": [
+    "Datenbank ist gesperrt — Passphrase zum Entsperren eingeben.",
+    "La base de données est verrouillée — saisissez la phrase secrète.",
+    "قاعدة البيانات مقفلة — أدخل عبارة المرور لفتحها."
+  ],
+  "Date must be in yyyy-MM-dd format": [
+    "Datum muss im Format JJJJ-MM-TT sein.",
+    "La date doit être au format AAAA-MM-JJ.",
+    "يجب أن يكون التاريخ بصيغة YYYY-MM-DD."
+  ],
+  "Decryption failed (wrong passphrase or tampered manifest)": [
+    "Entschlüsselung fehlgeschlagen (falsche Passphrase oder veränderte Datei).",
+    "Échec du déchiffrement (phrase secrète erronée ou fichier modifié).",
+    "فشل فك التشفير (عبارة مرور خاطئة أو ملف معدّل)."
+  ],
+  "Device already provisioned (one-time only)": [
+    "Gerät ist bereits eingerichtet (nur einmal möglich).",
+    "Appareil déjà configuré (une seule fois).",
+    "الجهاز مُهيأ بالفعل (مرة واحدة فقط)."
+  ],
+  "Device key does not match the published public key": [
+    "Geräteschlüssel stimmt nicht mit dem veröffentlichten überein.",
+    "La clé de l'appareil ne correspond pas à la clé publiée.",
+    "مفتاح الجهاز لا يطابق المفتاح المنشور."
+  ],
+  "Device-cluster listener may only bind private LAN addresses (rejected: {addr})": [
+    "Das Praxisnetz darf nur private LAN-Adressen verwenden (abgelehnt: {addr}).",
+    "Le réseau du cabinet n'accepte que des adresses LAN privées (refusé : {addr}).",
+    "لا تقبل شبكة العيادة إلا عناوين شبكة محلية خاصة (مرفوض: {addr})."
+  ],
+  "Document is required.": [
+    "Dokument ist erforderlich.",
+    "Le document est requis.",
+    "المستند مطلوب."
+  ],
+  "Duration must be between 5 and 720 minutes": [
+    "Dauer muss zwischen 5 und 720 Minuten liegen.",
+    "La durée doit être comprise entre 5 et 720 minutes.",
+    "يجب أن تكون المدة بين 5 و720 دقيقة."
+  ],
+  "effect must be ALLOW or DENY.": [
+    "Wirkung muss Erlauben oder Verweigern sein.",
+    "L'effet doit être Autoriser ou Refuser.",
+    "يجب أن يكون الأثر سماحًا أو منعًا."
+  ],
+  "Invalid amounts": [
+    "Ungültige Beträge.",
+    "Montants invalides.",
+    "مبالغ غير صالحة."
+  ],
+  "Invalid code — please try again": [
+    "Ungültiger Code — bitte erneut versuchen.",
+    "Code invalide — veuillez réessayer.",
+    "رمز غير صالح — يرجى المحاولة مجددًا."
+  ],
+  "Invalid counted amount": [
+    "Ungültiger gezählter Betrag.",
+    "Montant compté invalide.",
+    "المبلغ المعدود غير صالح."
+  ],
+  "Invalid email.": [
+    "Ungültige E-Mail-Adresse.",
+    "Adresse e-mail invalide.",
+    "بريد إلكتروني غير صالح."
+  ],
+  "Invalid id": [
+    "Ungültige Kennung.",
+    "Identifiant invalide.",
+    "معرّف غير صالح."
+  ],
+  "Invalid interval": [
+    "Ungültiges Intervall.",
+    "Intervalle invalide.",
+    "فترة غير صالحة."
+  ],
+  "Invalid KIM address": [
+    "Ungültige KIM-Adresse.",
+    "Adresse KIM invalide.",
+    "عنوان KIM غير صالح."
+  ],
+  "invalid patient status filter": [
+    "Ungültiger Patientenstatus-Filter.",
+    "Filtre de statut patient invalide.",
+    "مرشح حالة المريض غير صالح."
+  ],
+  "Invalid variance": [
+    "Ungültige Differenz.",
+    "Écart invalide.",
+    "فرق غير صالح."
+  ],
+  "Item required": [
+    "Artikel erforderlich.",
+    "Article requis.",
+    "العنصر مطلوب."
+  ],
+  "Kein Reset outstanding": [
+    "Kein Zurücksetzen ausstehend.",
+    "Aucune réinitialisation en attente.",
+    "لا توجد إعادة تعيين معلّقة."
+  ],
+  "Label required": [
+    "Bezeichnung erforderlich.",
+    "Libellé requis.",
+    "التسمية مطلوبة."
+  ],
+  "LAN TLS pin is not a SHA-256 fingerprint": [
+    "LAN-Zertifikats-Pin ist kein SHA-256-Fingerabdruck.",
+    "L'empreinte du certificat LAN n'est pas un SHA-256.",
+    "بصمة شهادة الشبكة المحلية ليست SHA-256."
+  ],
+  "LANR must contain 9 digits": [
+    "LANR muss 9 Ziffern enthalten.",
+    "Le LANR doit contenir 9 chiffres.",
+    "يجب أن يحتوي LANR على 9 أرقام."
+  ],
+  "License code missing.": [
+    "Lizenzcode fehlt.",
+    "Code de licence manquant.",
+    "رمز الترخيص مفقود."
+  ],
+  "Main device address invalid — please join the network again.": [
+    "Adresse des Hauptgeräts ungültig — bitte dem Netzwerk erneut beitreten.",
+    "Adresse de l'appareil principal invalide — rejoignez à nouveau le réseau.",
+    "عنوان الجهاز الرئيسي غير صالح — انضم إلى الشبكة مجددًا."
+  ],
+  "Main device refused number allocation ({status}): {body}": [
+    "Hauptgerät hat die Nummernvergabe abgelehnt ({status}): {body}",
+    "L'appareil principal a refusé l'attribution de numéros ({status}) : {body}",
+    "رفض الجهاز الرئيسي تخصيص الأرقام ({status}): {body}"
+  ],
+  "Member devices only after joining the practice network.": [
+    "Mitgliedsgeräte erst nach Beitritt zum Praxisnetz.",
+    "Appareils membres uniquement après avoir rejoint le réseau du cabinet.",
+    "الأجهزة الأعضاء فقط بعد الانضمام إلى شبكة العيادة."
+  ],
+  "Message too large": [
+    "Nachricht zu groß.",
+    "Message trop volumineux.",
+    "الرسالة كبيرة جدًا."
+  ],
+  "Message too short (min. 10 characters)": [
+    "Nachricht zu kurz (mind. 10 Zeichen).",
+    "Message trop court (10 caractères min.).",
+    "الرسالة قصيرة جدًا (10 أحرف على الأقل)."
+  ],
+  "Name and a valid e-mail are required.": [
+    "Name und gültige E-Mail sind erforderlich.",
+    "Nom et e-mail valide requis.",
+    "الاسم وبريد إلكتروني صالح مطلوبان."
+  ],
+  "Name too short.": [
+    "Name zu kurz.",
+    "Nom trop court.",
+    "الاسم قصير جدًا."
+  ],
+  "New account only after joining an existing practice.": [
+    "Neues Konto erst nach Beitritt zu einer bestehenden Praxis.",
+    "Nouveau compte uniquement après avoir rejoint un cabinet existant.",
+    "حساب جديد فقط بعد الانضمام إلى عيادة قائمة."
+  ],
+  "No Bluetooth adapter found": [
+    "Kein Bluetooth-Adapter gefunden.",
+    "Aucun adaptateur Bluetooth trouvé.",
+    "لم يُعثر على محوّل بلوتوث."
+  ],
+  "No cluster": [
+    "Kein Praxisnetz eingerichtet.",
+    "Aucun réseau de cabinet.",
+    "لا توجد شبكة عيادة."
+  ],
+  "No cluster activated": [
+    "Kein Praxisnetz aktiviert.",
+    "Aucun réseau de cabinet activé.",
+    "لم تُفعّل شبكة العيادة."
+  ],
+  "No compatible scan program found (e.g. simple-scan). Please install one or place files manually in the watch folder.": [
+    "Kein kompatibles Scanprogramm gefunden (z. B. simple-scan). Bitte installieren oder Dateien manuell in den Überwachungsordner legen.",
+    "Aucun programme de numérisation compatible (p. ex. simple-scan). Installez-en un ou déposez les fichiers dans le dossier surveillé.",
+    "لم يُعثر على برنامج مسح متوافق (مثل simple-scan). ثبّت واحدًا أو ضع الملفات يدويًا في مجلد المراقبة."
+  ],
+  "No main device stored — please join the network again.": [
+    "Kein Hauptgerät gespeichert — bitte dem Netzwerk erneut beitreten.",
+    "Aucun appareil principal enregistré — rejoignez à nouveau le réseau.",
+    "لا يوجد جهاز رئيسي محفوظ — انضم إلى الشبكة مجددًا."
+  ],
+  "no master device registered": [
+    "Kein Hauptgerät registriert.",
+    "Aucun appareil principal enregistré.",
+    "لا يوجد جهاز رئيسي مسجّل."
+  ],
+  "No staff recipients available for this notification.": [
+    "Keine Empfänger für diese Benachrichtigung verfügbar.",
+    "Aucun destinataire disponible pour cette notification.",
+    "لا يوجد مستلمون لهذا الإشعار."
+  ],
+  "No update available": [
+    "Kein Update verfügbar.",
+    "Aucune mise à jour disponible.",
+    "لا يوجد تحديث متاح."
+  ],
+  "No user account exists — please create an administrator.": [
+    "Es gibt kein Benutzerkonto — bitte eine Administration anlegen.",
+    "Aucun compte n'existe — créez un administrateur.",
+    "لا يوجد حساب مستخدم — أنشئ مسؤولًا."
+  ],
+  "No user accounts received from the main device — main device must be signed in.": [
+    "Keine Benutzerkonten vom Hauptgerät erhalten — dort muss jemand angemeldet sein.",
+    "Aucun compte reçu de l'appareil principal — il doit être connecté.",
+    "لم تُستلم حسابات من الجهاز الرئيسي — يجب تسجيل الدخول عليه."
+  ],
+  "Notification kind and title are required.": [
+    "Art und Titel der Benachrichtigung sind erforderlich.",
+    "Type et titre de la notification requis.",
+    "نوع الإشعار وعنوانه مطلوبان."
+  ],
+  "Notification user is not a staff account on this device.": [
+    "Empfänger ist kein Mitarbeiterkonto auf diesem Gerät.",
+    "Le destinataire n'est pas un compte du personnel sur cet appareil.",
+    "المستلم ليس حساب موظف على هذا الجهاز."
+  ],
+  "Passphrases do not match.": [
+    "Passphrasen stimmen nicht überein.",
+    "Les phrases secrètes ne correspondent pas.",
+    "عبارات المرور غير متطابقة."
+  ],
+  "Password policy: {msg}": [
+    "Passwortrichtlinie: {msg}",
+    "Politique de mot de passe : {msg}",
+    "سياسة كلمة المرور: {msg}"
+  ],
+  "Password required (min. 8 characters).": [
+    "Passwort erforderlich (mind. 8 Zeichen).",
+    "Mot de passe requis (8 caractères min.).",
+    "كلمة المرور مطلوبة (8 أحرف على الأقل)."
+  ],
+  "Path has no file name": [
+    "Pfad enthält keinen Dateinamen.",
+    "Le chemin n'a pas de nom de fichier.",
+    "المسار لا يحتوي اسم ملف."
+  ],
+  "Path is outside the allowed folder": [
+    "Pfad liegt außerhalb des erlaubten Ordners.",
+    "Le chemin est hors du dossier autorisé.",
+    "المسار خارج المجلد المسموح."
+  ],
+  "Path must not contain ..": [
+    "Pfad darf „..“ nicht enthalten.",
+    "Le chemin ne doit pas contenir « .. ».",
+    "يجب ألا يحتوي المسار على «..»."
+  ],
+  "Patient not found": [
+    "Patient nicht gefunden.",
+    "Patient introuvable.",
+    "المريض غير موجود."
+  ],
+  "Period required": [
+    "Zeitraum erforderlich.",
+    "Période requise.",
+    "الفترة مطلوبة."
+  ],
+  "PIN confirmation failed ({status}): {body}": [
+    "PIN-Bestätigung fehlgeschlagen ({status}): {body}",
+    "Échec de la confirmation du PIN ({status}) : {body}",
+    "فشل تأكيد الرمز ({status}): {body}"
+  ],
+  "Plan must be BASIC, PRO, or ENTERPRISE.": [
+    "Tarif muss BASIC, PRO oder ENTERPRISE sein.",
+    "L'offre doit être BASIC, PRO ou ENTERPRISE.",
+    "يجب أن تكون الخطة BASIC أو PRO أو ENTERPRISE."
+  ],
+  "Port must be > 0.": [
+    "Port muss größer als 0 sein.",
+    "Le port doit être supérieur à 0.",
+    "يجب أن يكون المنفذ أكبر من 0."
+  ],
+  "Practice setup is already complete.": [
+    "Praxiseinrichtung ist bereits abgeschlossen.",
+    "La configuration du cabinet est déjà terminée.",
+    "إعداد العيادة مكتمل بالفعل."
+  ],
+  "Practice setup only on the licensed primary device.": [
+    "Praxiseinrichtung nur am lizenzierten Hauptgerät.",
+    "Configuration du cabinet uniquement sur l'appareil principal sous licence.",
+    "إعداد العيادة فقط على الجهاز الرئيسي المرخّص."
+  ],
+  "Practice-network listener requires an active license (owner) or license/provisioning (member)": [
+    "Praxisnetz erfordert eine aktive Lizenz (Inhaber) bzw. Lizenz/Einrichtung (Mitglied).",
+    "Le réseau du cabinet exige une licence active (titulaire) ou licence/configuration (membre).",
+    "تتطلب شبكة العيادة ترخيصًا نشطًا (المالك) أو ترخيصًا/تهيئة (عضو)."
+  ],
+  "prefix must be 1-16 letters or digits": [
+    "Präfix muss 1–16 Buchstaben oder Ziffern haben.",
+    "Le préfixe doit compter 1 à 16 lettres ou chiffres.",
+    "يجب أن تكون البادئة من 1 إلى 16 حرفًا أو رقمًا."
+  ],
+  "Quantity must be between 1 and 99": [
+    "Menge muss zwischen 1 und 99 liegen.",
+    "La quantité doit être comprise entre 1 et 99.",
+    "يجب أن تكون الكمية بين 1 و99."
+  ],
+  "Quantity must be positive": [
+    "Menge muss positiv sein.",
+    "La quantité doit être positive.",
+    "يجب أن تكون الكمية موجبة."
+  ],
+  "re-pair required": [
+    "Erneute Kopplung erforderlich.",
+    "Nouvel appairage requis.",
+    "يلزم إعادة الإقران."
+  ],
+  "Reason for return to reception is required.": [
+    "Grund für die Rückgabe an die Rezeption ist erforderlich.",
+    "Le motif du renvoi à l'accueil est requis.",
+    "سبب الإعادة إلى الاستقبال مطلوب."
+  ],
+  "reconcile runs on a replica only": [
+    "Abgleich läuft nur auf einem Zweitgerät.",
+    "La réconciliation ne s'exécute que sur un appareil secondaire.",
+    "تعمل المطابقة على جهاز ثانوي فقط."
+  ],
+  "Replace: old and new fingerprint are identical": [
+    "Ersetzen: alter und neuer Fingerabdruck sind identisch.",
+    "Remplacement : ancienne et nouvelle empreinte identiques.",
+    "استبدال: البصمة القديمة والجديدة متطابقتان."
+  ],
+  "replica auth: fingerprint is not this device's identity": [
+    "Anmeldung des Zweitgeräts: Fingerabdruck gehört nicht zu diesem Gerät.",
+    "Authentification secondaire : l'empreinte n'est pas celle de cet appareil.",
+    "مصادقة الجهاز الثانوي: البصمة لا تخص هذا الجهاز."
+  ],
+  "Replica not paired — complete the pairing flow": [
+    "Zweitgerät nicht gekoppelt — Kopplung abschließen.",
+    "Appareil secondaire non appairé — terminez l'appairage.",
+    "الجهاز الثانوي غير مقترن — أكمل عملية الإقران."
+  ],
+  "Role must be PHYSICIAN or RECEPTION.": [
+    "Rolle muss Ärztin/Arzt oder Rezeption sein.",
+    "Le rôle doit être Médecin ou Accueil.",
+    "يجب أن يكون الدور طبيبًا أو استقبالًا."
+  ],
+  "Short note or payment link required.": [
+    "Kurznotiz oder Zahlungsverknüpfung erforderlich.",
+    "Note courte ou lien de paiement requis.",
+    "مطلوب ملاحظة قصيرة أو ربط دفعة."
+  ],
+  "Skip is only allowed on the licensed primary device.": [
+    "Überspringen nur am lizenzierten Hauptgerät erlaubt.",
+    "Ignorer n'est autorisé que sur l'appareil principal sous licence.",
+    "التخطي مسموح فقط على الجهاز الرئيسي المرخّص."
+  ],
+  "source has no filename": [
+    "Quelle hat keinen Dateinamen.",
+    "La source n'a pas de nom de fichier.",
+    "المصدر بلا اسم ملف."
+  ],
+  "staff directory rejected ({code}): {message}": [
+    "Mitarbeiterverzeichnis abgelehnt ({code}): {message}",
+    "Annuaire du personnel refusé ({code}) : {message}",
+    "رُفض دليل الموظفين ({code}): {message}"
+  ],
+  "Staff directory version not supported.": [
+    "Version des Mitarbeiterverzeichnisses wird nicht unterstützt.",
+    "Version de l'annuaire du personnel non prise en charge.",
+    "إصدار دليل الموظفين غير مدعوم."
+  ],
+  "Stock must be zero or more": [
+    "Bestand muss null oder größer sein.",
+    "Le stock doit être supérieur ou égal à zéro.",
+    "يجب أن يكون المخزون صفرًا أو أكثر."
+  ],
+  "Stored work hours are invalid": [
+    "Gespeicherte Arbeitszeiten sind ungültig.",
+    "Les horaires enregistrés sont invalides.",
+    "ساعات العمل المحفوظة غير صالحة."
+  ],
+  "Subject too short (min. 3 characters)": [
+    "Betreff zu kurz (mind. 3 Zeichen).",
+    "Objet trop court (3 caractères min.).",
+    "الموضوع قصير جدًا (3 أحرف على الأقل)."
+  ],
+  "Supplier required": [
+    "Lieferant erforderlich.",
+    "Fournisseur requis.",
+    "المورد مطلوب."
+  ],
+  "sync exchange requires fromDeviceId": [
+    "Synchronisation: Absendergerät fehlt.",
+    "Synchronisation : appareil émetteur manquant.",
+    "المزامنة: الجهاز المرسل مفقود."
+  ],
+  "sync push to master requires REPLICA role": [
+    "Senden an das Hauptgerät nur von einem Zweitgerät.",
+    "Envoi vers l'appareil principal uniquement depuis un appareil secondaire.",
+    "الإرسال إلى الجهاز الرئيسي من جهاز ثانوي فقط."
+  ],
+  "sync TLS pin missing — refusing to accept an unpinned certificate": [
+    "Zertifikats-Pin fehlt — unbestätigtes Zertifikat wird abgelehnt.",
+    "Empreinte de certificat manquante — certificat non épinglé refusé.",
+    "بصمة الشهادة مفقودة — رُفضت شهادة غير مثبّتة."
+  ],
+  "System scanner is not supported on this platform.": [
+    "System-Scanner wird auf dieser Plattform nicht unterstützt.",
+    "Le scanner système n'est pas pris en charge sur cette plateforme.",
+    "ماسح النظام غير مدعوم على هذا النظام."
+  ],
+  "The main device has not accepted this request yet": [
+    "Das Hauptgerät hat diese Anfrage noch nicht angenommen.",
+    "L'appareil principal n'a pas encore accepté cette demande.",
+    "لم يقبل الجهاز الرئيسي هذا الطلب بعد."
+  ],
+  "The main device is not reachable. Start it, then try again.": [
+    "Hauptgerät nicht erreichbar. Starten Sie es und versuchen Sie es erneut.",
+    "L'appareil principal est injoignable. Démarrez-le puis réessayez.",
+    "الجهاز الرئيسي غير متاح. شغّله ثم أعد المحاولة."
+  ],
+  "This access profile is made for another role.": [
+    "Dieses Zugriffsprofil ist für eine andere Rolle.",
+    "Ce profil d'accès est destiné à un autre rôle.",
+    "ملف الوصول هذا مخصص لدور آخر."
+  ],
+  "This account still owns appointments or clinical documents. Assign another clinician first, then remove the account.": [
+    "Dieses Konto hat noch Termine oder klinische Dokumente. Weisen Sie zuerst einen anderen Behandler zu und entfernen Sie dann das Konto.",
+    "Ce compte possède encore des rendez-vous ou documents cliniques. Attribuez d'abord un autre praticien, puis supprimez le compte.",
+    "لا يزال هذا الحساب يملك مواعيد أو مستندات سريرية. عيّن معالجًا آخر أولًا ثم احذف الحساب."
+  ],
+  "Too many PIN attempts — submit a new pairing request": [
+    "Zu viele PIN-Versuche — neue Kopplungsanfrage stellen.",
+    "Trop de tentatives de PIN — soumettez une nouvelle demande.",
+    "محاولات رمز كثيرة — قدّم طلب إقران جديدًا."
+  ],
+  "Total amount invalid": [
+    "Gesamtbetrag ungültig.",
+    "Montant total invalide.",
+    "المبلغ الإجمالي غير صالح."
+  ],
+  "Two-factor authentication is currently disabled": [
+    "Zwei-Faktor-Authentifizierung ist derzeit deaktiviert.",
+    "La double authentification est actuellement désactivée.",
+    "التحقق الثنائي معطّل حاليًا."
+  ],
+  "Unbekannter KV-Key: {key}": [
+    "Unbekannter Einstellungsschlüssel: {key}",
+    "Clé de paramètre inconnue : {key}",
+    "مفتاح إعداد غير معروف: {key}"
+  ],
+  "Unknown access profile: {id}": [
+    "Unbekanntes Zugriffsprofil: {id}",
+    "Profil d'accès inconnu : {id}",
+    "ملف وصول غير معروف: {id}"
+  ],
+  "Unknown category: {k}": [
+    "Unbekannte Kategorie: {k}",
+    "Catégorie inconnue : {k}",
+    "فئة غير معروفة: {k}"
+  ],
+  "Unknown currency": [
+    "Unbekannte Währung.",
+    "Devise inconnue.",
+    "عملة غير معروفة."
+  ],
+  "Unknown KV key: {key}": [
+    "Unbekannter Einstellungsschlüssel: {key}",
+    "Clé de paramètre inconnue : {key}",
+    "مفتاح إعداد غير معروف: {key}"
+  ],
+  "unknown number style {other}": [
+    "Unbekanntes Nummernformat: {other}",
+    "Format de numéro inconnu : {other}",
+    "تنسيق رقم غير معروف: {other}"
+  ],
+  "Unknown permission action.": [
+    "Unbekannte Berechtigungsaktion.",
+    "Action d'autorisation inconnue.",
+    "إجراء صلاحية غير معروف."
+  ],
+  "Unknown status: {status}": [
+    "Unbekannter Status: {status}",
+    "Statut inconnu : {status}",
+    "حالة غير معروفة: {status}"
+  ],
+  "Valid-to date must not be before valid-from date": [
+    "„Gültig bis“ darf nicht vor „Gültig ab“ liegen.",
+    "La date de fin ne doit pas précéder la date de début.",
+    "يجب ألا يسبق تاريخ الانتهاء تاريخ البدء."
+  ],
+  "Vendor portal base URL is missing.": [
+    "Basis-URL des Herstellerportals fehlt.",
+    "URL de base du portail fournisseur manquante.",
+    "عنوان بوابة المورّد الأساسي مفقود."
+  ],
+  "Vendor portal URL is empty.": [
+    "URL des Herstellerportals ist leer.",
+    "L'URL du portail fournisseur est vide.",
+    "عنوان بوابة المورّد فارغ."
+  ],
+  "Vendor portal URL is missing a host.": [
+    "URL des Herstellerportals hat keinen Host.",
+    "L'URL du portail fournisseur n'a pas d'hôte.",
+    "عنوان بوابة المورّد بلا مضيف."
+  ],
+  "Vendor portal URL must not include credentials.": [
+    "URL des Herstellerportals darf keine Zugangsdaten enthalten.",
+    "L'URL du portail fournisseur ne doit pas contenir d'identifiants.",
+    "يجب ألا يتضمن عنوان بوابة المورّد بيانات اعتماد."
+  ],
+  "Vendor portal URL must use https.": [
+    "URL des Herstellerportals muss https verwenden.",
+    "L'URL du portail fournisseur doit utiliser https.",
+    "يجب أن يستخدم عنوان بوابة المورّد https."
+  ],
+  "wrong USB kit password": [
+    "Falsches Passwort für das USB-Kit.",
+    "Mot de passe du kit USB incorrect.",
+    "كلمة مرور مجموعة USB خاطئة."
+  ],
+  "You cannot change your own access rights.": [
+    "Sie können Ihre eigenen Zugriffsrechte nicht ändern.",
+    "Vous ne pouvez pas modifier vos propres droits d'accès.",
+    "لا يمكنك تغيير صلاحيات الوصول الخاصة بك."
+  ],
+  "You cannot remove the account you are signed in with.": [
+    "Sie können das angemeldete Konto nicht entfernen.",
+    "Vous ne pouvez pas supprimer le compte avec lequel vous êtes connecté.",
+    "لا يمكنك حذف الحساب الذي سجّلت الدخول به."
+  ],
+  "A receipt can only be issued for a paid payment": [
+    "Eine Quittung kann nur für eine bezahlte Zahlung erstellt werden.",
+    "Un reçu ne peut être émis que pour un paiement réglé.",
+    "لا يمكن إصدار إيصال إلا لدفعة مدفوعة."
+  ],
+  "LAN client configuration incomplete (base URL missing).": [
+    "LAN-Client-Konfiguration unvollständig (Basis-URL fehlt).",
+    "Configuration du client LAN incomplète (URL de base manquante).",
+    "إعداد عميل الشبكة المحلية غير مكتمل (العنوان الأساسي مفقود)."
+  ],
+  "LAN client configuration incomplete (base URL or token missing).": [
+    "LAN-Client-Konfiguration unvollständig (Basis-URL oder Token fehlt).",
+    "Configuration du client LAN incomplète (URL ou jeton manquant).",
+    "إعداد عميل الشبكة المحلية غير مكتمل (العنوان أو الرمز مفقود)."
+  ],
+  "logout timeout": [
+    "Abmeldung hat zu lange gedauert.",
+    "La déconnexion a expiré.",
+    "انتهت مهلة تسجيل الخروج."
+  ],
+  "PDF missing": [
+    "PDF fehlt.",
+    "PDF manquant.",
+    "ملف PDF مفقود."
+  ],
+  "Practice master data incomplete for receipts": [
+    "Praxisstammdaten für Quittungen unvollständig.",
+    "Données du cabinet incomplètes pour les reçus.",
+    "بيانات العيادة الأساسية غير مكتملة للإيصالات."
+  ],
+  "Stored work hours are invalid ": [
+    "Gespeicherte Arbeitszeiten sind ungültig.",
+    "Les horaires enregistrés sont invalides.",
+    "ساعات العمل المحفوظة غير صالحة."
+  ],
+  "invalid number block": [
+    "Ungültiger Nummernblock.",
+    "Bloc de numéros invalide.",
+    "كتلة أرقام غير صالحة."
+  ],
+  "Main device not reachable — document numbers are issued by the main device ({e})": [
+    "Hauptgerät nicht erreichbar — Dokumentnummern vergibt das Hauptgerät ({e})",
+    "Appareil principal injoignable — les numéros de document sont émis par l'appareil principal ({e})",
+    "الجهاز الرئيسي غير متاح — تُصدر أرقام المستندات من الجهاز الرئيسي ({e})"
+  ],
+  "not a MeDoc support file, or not for this key": [
+    "Keine MeDoc-Supportdatei, oder nicht für diesen Schlüssel.",
+    "Ce n'est pas un fichier support MeDoc, ou pas pour cette clé.",
+    "ليس ملف دعم MeDoc، أو ليس لهذا المفتاح."
+  ],
+  "number block needs a holder device": [
+    "Nummernblock braucht ein Gerät als Inhaber.",
+    "Le bloc de numéros doit avoir un appareil détenteur.",
+    "كتلة الأرقام تحتاج جهازًا حاملًا."
+  ],
+  "number block refused ({})": [
+    "Nummernblock abgelehnt ({})",
+    "Bloc de numéros refusé ({})",
+    "رُفضت كتلة الأرقام ({})"
+  ],
+  "number block: {e}": [
+    "Nummernblock: {e}",
+    "Bloc de numéros : {e}",
+    "كتلة الأرقام: {e}"
+  ],
+  "records of {table} have no owner": [
+    "Datensätze von {table} haben keinen Eigentümer.",
+    "Des enregistrements de {table} n'ont pas de propriétaire.",
+    "سجلات {table} بلا مالك."
+  ],
+  "This area cannot be limited to own records: {a}": [
+    "Dieser Bereich lässt sich nicht auf eigene Datensätze beschränken: {a}",
+    "Cette zone ne peut pas être limitée aux propres dossiers : {a}",
+    "لا يمكن حصر هذا المجال على السجلات الخاصة: {a}"
+  ],
+  "This update cannot be installed on this version": [
+    "Dieses Update lässt sich auf dieser Version nicht installieren.",
+    "Cette mise à jour ne peut pas être installée sur cette version.",
+    "لا يمكن تثبيت هذا التحديث على هذا الإصدار."
+  ],
+  "update is for {}/{}, this computer runs {edition}/{flavor}": [
+    "Update ist für {}/{}, dieser Computer läuft mit {edition}/{flavor}",
+    "La mise à jour est pour {}/{}, cet ordinateur exécute {edition}/{flavor}",
+    "التحديث مخصص لـ {}/{}, وهذا الحاسوب يعمل بـ {edition}/{flavor}"
+  ],
+  "update manifest is not signed by MeDoc": [
+    "Update-Manifest ist nicht von MeDoc signiert.",
+    "Le manifeste de mise à jour n'est pas signé par MeDoc.",
+    "بيان التحديث غير موقّع من MeDoc."
+  ],
+  "update manifest versions do not match": [
+    "Versionen im Update-Manifest stimmen nicht überein.",
+    "Les versions du manifeste de mise à jour ne correspondent pas.",
+    "إصدارات بيان التحديث غير متطابقة."
+  ],
+  "update manifest: {e}": [
+    "Update-Manifest: {e}",
+    "Manifeste de mise à jour : {e}",
+    "بيان التحديث: {e}"
+  ]
 }

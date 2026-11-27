@@ -22,6 +22,8 @@ export interface Prescription {
     prescription_type?: string | null;
     icd10_code?: string | null;
     prescribing_physician_id?: string | null;
+    /** Group: dentist in the signature block. */
+    signed_by_staff_id?: string | null;
 }
 
 export type CreatePrescription = z.input<typeof CreatePrescriptionSchema>;

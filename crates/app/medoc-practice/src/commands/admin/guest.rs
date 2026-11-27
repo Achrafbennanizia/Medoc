@@ -116,8 +116,11 @@ pub async fn guest_account_set(
 ) -> Result<GuestAccount, AppError> {
     let session = rbac::require(&session_state, ADMIN_ACTION)?;
     let account = guest::set_account(&pool, &session, &request).await?;
-    let details =
-        serde_json::json!({ "enabled": account.enabled, "clinicalRead": account.clinical_read });
+    let details = serde_json::json!({
+        "enabled": account.enabled,
+        "clinicalRead": account.clinical_read,
+        "documentsRead": account.documents_read,
+    });
     audit_repo::create(
         &pool,
         &session.user_id,

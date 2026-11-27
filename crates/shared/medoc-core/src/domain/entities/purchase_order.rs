@@ -24,6 +24,13 @@ pub struct PurchaseOrder {
     /// Order total at capture (stock unit price × quantity), for finance/expenses.
     pub total_amount: Option<f64>,
     pub created_by: String,
+    /// Cabinet+: dentist the order is for (sharing / filter).
+    #[serde(default)]
+    pub ordered_for_staff_id: Option<String>,
+    #[serde(default)]
+    pub paid_by_staff_id: Option<String>,
+    #[serde(default)]
+    pub approved_by: Option<String>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
 }
@@ -43,6 +50,15 @@ pub struct CreatePurchaseOrder {
     /// Optional; UI derives from product price × quantity.
     #[serde(default)]
     pub total_amount: Option<f64>,
+    /// Cabinet+: dentist the order is for.
+    #[serde(default)]
+    pub ordered_for_staff_id: Option<String>,
+    /// Cabinet+: who paid (if already settled at create).
+    #[serde(default)]
+    pub paid_by_staff_id: Option<String>,
+    /// Cabinet+: who approved the order.
+    #[serde(default)]
+    pub approved_by: Option<String>,
 }
 
 /// Patch DTO for editing existing orders. Each `Some(_)` field replaces the

@@ -1,16 +1,20 @@
 //! The Solo guest account: one reception login whose changes go to the admin's inbox
 //! (docs/architecture/editions-plan.md §4.2). The admin creates it, sets its password, turns it on
-//! or off, and decides whether it may read the clinical record.
+//! or off, and decides whether it may read the clinical record and/or patient documents.
 //!
 //! Writes by the guest are refused centrally (`rbac::effective_allowed`); what it may *propose*
-//! follows its profile (`rbac::proposal_allowed`).
+//! follows its profile (`rbac::proposal_allowed`). Delivery confirmations (`purchase_order.receive`)
+//! are the one direct write the guest may perform.
 
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
 use crate::application::access_control::{self, SetStaffAccess};
 use crate::application::auth_service::Session;
-use crate::domain::access::{GUEST_CLINICAL_TEMPLATE, GUEST_TEMPLATE};
+use crate::domain::access::{
+    GUEST_CLINICAL_DOCUMENTS_TEMPLATE, GUEST_CLINICAL_TEMPLATE, GUEST_DOCUMENTS_TEMPLATE,
+    GUEST_TEMPLATE,
+};
 use crate::domain::entities::staff::CreateStaff;
 use crate::error::AppError;
 use crate::infrastructure::crypto;
@@ -31,6 +35,7 @@ pub struct GuestAccount {
     pub staff_id: Option<String>,
     pub email: String,
     pub clinical_read: bool,
+    pub documents_read: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -42,6 +47,26 @@ pub struct SetGuestAccount {
     pub password: Option<String>,
     #[serde(default)]
     pub clinical_read: bool,
+    #[serde(default)]
+    pub documents_read: bool,
+}
+
+fn guest_template(clinical_read: bool, documents_read: bool) -> &'static str {
+    match (clinical_read, documents_read) {
+        (true, true) => GUEST_CLINICAL_DOCUMENTS_TEMPLATE,
+        (true, false) => GUEST_CLINICAL_TEMPLATE,
+        (false, true) => GUEST_DOCUMENTS_TEMPLATE,
+        (false, false) => GUEST_TEMPLATE,
+    }
+}
+
+fn flags_from_template(template: Option<&str>) -> (bool, bool) {
+    match template {
+        Some(GUEST_CLINICAL_DOCUMENTS_TEMPLATE) => (true, true),
+        Some(GUEST_CLINICAL_TEMPLATE) => (true, false),
+        Some(GUEST_DOCUMENTS_TEMPLATE) => (false, true),
+        _ => (false, false),
+    }
 }
 
 pub async fn guest_staff_id(pool: &SqlitePool) -> Result<Option<String>, AppError> {
@@ -60,12 +85,14 @@ async fn enabled(pool: &SqlitePool) -> Result<bool, AppError> {
 
 pub async fn get_account(pool: &SqlitePool) -> Result<GuestAccount, AppError> {
     let staff_id = guest_staff_id(pool).await?;
-    let clinical_read = match &staff_id {
-        Some(id) => staff_access::get(pool, id)
-            .await?
-            .and_then(|r| r.template)
-            .is_some_and(|t| t == GUEST_CLINICAL_TEMPLATE),
-        None => false,
+    let (clinical_read, documents_read) = match &staff_id {
+        Some(id) => {
+            let template = staff_access::get(pool, id)
+                .await?
+                .and_then(|r| r.template);
+            flags_from_template(template.as_deref())
+        }
+        None => (false, false),
     };
     Ok(GuestAccount {
         exists: staff_id.is_some(),
@@ -73,6 +100,7 @@ pub async fn get_account(pool: &SqlitePool) -> Result<GuestAccount, AppError> {
         staff_id,
         email: GUEST_EMAIL.to_string(),
         clinical_read,
+        documents_read,
     })
 }
 
@@ -133,11 +161,7 @@ pub async fn set_account(
             staff.id
         }
     };
-    let template = if req.clinical_read {
-        GUEST_CLINICAL_TEMPLATE
-    } else {
-        GUEST_TEMPLATE
-    };
+    let template = guest_template(req.clinical_read, req.documents_read);
     access_control::set_staff_access(
         pool,
         actor,

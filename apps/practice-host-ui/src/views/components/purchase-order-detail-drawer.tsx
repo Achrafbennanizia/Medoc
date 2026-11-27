@@ -61,6 +61,8 @@ function draftFromPurchaseOrder(b: PurchaseOrder): EditDraft {
 export type PurchaseOrderDetailDrawerProps = {
     purchase_order: PurchaseOrder;
     canWrite: boolean;
+    /** Confirm / receive delivery (IN_TRANSIT, DELIVERED). Guests get this without full write. */
+    canReceive?: boolean;
     canAddProduct: boolean;
     onClose: () => void;
     onUpdated: (b: PurchaseOrder) => void;
@@ -70,6 +72,7 @@ export type PurchaseOrderDetailDrawerProps = {
 export function PurchaseOrderDetailDrawer({
     purchase_order,
     canWrite,
+    canReceive = false,
     canAddProduct,
     onClose,
     onUpdated,
@@ -92,7 +95,12 @@ export function PurchaseOrderDetailDrawer({
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [products, setProducts] = useState<Product[]>([]);
 
-    const statusOptions = useMemo(() => orderStatusOptions(t), [t]);
+    const statusOptions = useMemo(() => {
+        const all = orderStatusOptions(t);
+        if (canWrite) return all;
+        if (canReceive) return all.filter((o) => o.value === "IN_TRANSIT" || o.value === "DELIVERED");
+        return [];
+    }, [t, canWrite, canReceive]);
     const overdue = useMemo(() => purchaseOrderIsOverdue(purchase_order), [purchase_order]);
     const pill = statusPill(purchase_order.status, overdue, t);
 
@@ -304,7 +312,7 @@ export function PurchaseOrderDetailDrawer({
                 </div>
             </div>
 
-            {canWrite && !editing ? (
+            {(canWrite || canReceive) && statusOptions.length > 0 && !editing ? (
                 <div className="appointment-drawer-section">
                     <div className="appointment-drawer-eyebrow">{t("drawer.purchase_order.status_workflow")}</div>
                     <div className="purchase-order-drawer-workflow">

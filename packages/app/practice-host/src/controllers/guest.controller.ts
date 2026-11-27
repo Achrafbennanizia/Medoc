@@ -15,6 +15,7 @@ export type GuestAccount = {
     staffId: string | null;
     email: string;
     clinicalRead: boolean;
+    documentsRead: boolean;
 };
 
 export type StagedChangeStatus = "PENDING" | "ADDED" | "DISMISSED";
@@ -70,8 +71,12 @@ export async function invokeOrPropose<T>(
 
 export const getGuestAccount = () => practiceSystem.invoke<GuestAccount>("guest_account_get");
 
-export const setGuestAccount = (request: { enabled: boolean; password?: string; clinicalRead: boolean }) =>
-    practiceSystem.invoke<GuestAccount>("guest_account_set", { request });
+export const setGuestAccount = (request: {
+    enabled: boolean;
+    password?: string;
+    clinicalRead: boolean;
+    documentsRead: boolean;
+}) => practiceSystem.invoke<GuestAccount>("guest_account_set", { request });
 
 export const listStagedChanges = (status?: StagedChangeStatus) =>
     practiceSystem.invoke<StagedChange[]>("staged_change_list", { status: status ?? null });

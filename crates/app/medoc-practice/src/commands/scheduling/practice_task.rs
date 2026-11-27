@@ -137,6 +137,16 @@ pub async fn create_practice_task(
         &session.user_id,
     )
     .await?;
+    let doctor = match role {
+        Role::Physician => Some(session.user_id.as_str()),
+        Role::Reception => payload.assignee_user_id.as_deref(),
+        _ => None,
+    };
+    crate::commands::ownership::stamp_created(&pool, &session, "practice_task", &a.id, doctor)
+        .await?;
+    let a = practice_task_repo::find_by_id(&pool, &a.id)
+        .await?
+        .unwrap_or(a);
     audit_repo::create(
         &pool,
         &session.user_id,
@@ -296,14 +306,39 @@ pub async fn count_open_practice_tasks_for_me(
     }
 }
 
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PracticeTaskAdminList {
+    pub items: Vec<PracticeTask>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub hidden_doctors: Vec<String>,
+}
+
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state))]
 pub async fn list_practice_tasks_admin(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
-) -> Result<Vec<PracticeTask>, AppError> {
-    rbac::require(&session_state, "administration.read")?;
-    practice_task_repo::list_all_admin(&pool, 500).await
+    doctor_id: Option<String>,
+) -> Result<PracticeTaskAdminList, AppError> {
+    let session = rbac::require(&session_state, "administration.read")?;
+    let doctor = doctor_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let scope = super::task_allowances::scope(&pool, &session, doctor).await?;
+    let items = practice_task_repo::list_all_admin(
+        &pool,
+        500,
+        doctor,
+        &scope.hidden_doctors,
+        &scope.hidden_ids,
+    )
+    .await?;
+    Ok(PracticeTaskAdminList {
+        items,
+        hidden_doctors: scope.hidden_doctors,
+    })
 }
 
 #[tauri::command]
@@ -354,6 +389,17 @@ pub async fn create_practice_task_admin(
         &session.user_id,
     )
     .await?;
+    crate::commands::ownership::stamp_created(
+        &pool,
+        &session,
+        "practice_task",
+        &a.id,
+        payload.assignee_user_id.as_deref(),
+    )
+    .await?;
+    let a = practice_task_repo::find_by_id(&pool, &a.id)
+        .await?
+        .unwrap_or(a);
     audit_repo::create(
         &pool,
         &session.user_id,

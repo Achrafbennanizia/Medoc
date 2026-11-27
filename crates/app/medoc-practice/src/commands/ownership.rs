@@ -23,6 +23,19 @@ fn is_doctor(session: &Session) -> bool {
     Role::parse(&session.role) == Some(Role::Physician)
 }
 
+async fn is_physician(pool: &SqlitePool, staff_id: Option<&str>) -> bool {
+    let Some(id) = staff_id.filter(|s| !s.trim().is_empty()) else {
+        return false;
+    };
+    sqlx::query_scalar::<_, String>("SELECT role FROM staff WHERE id = ?1")
+        .bind(id)
+        .fetch_optional(pool)
+        .await
+        .ok()
+        .flatten()
+        .is_some_and(|r| Role::parse(&r) == Some(Role::Physician))
+}
+
 async fn treating_doctor(pool: &SqlitePool, patient_id: &str) -> Option<String> {
     sqlx::query_scalar::<_, Option<String>>("SELECT treating_staff_id FROM patient WHERE id = ?1")
         .bind(patient_id)
@@ -57,7 +70,9 @@ async fn local_device(pool: &SqlitePool) -> Option<String> {
             .await
             .map(|d| d.device_label)
             .unwrap_or_default();
-        medoc_sync::repo::ensure_local_device(pool, &label).await.ok()
+        medoc_sync::repo::ensure_local_device(pool, &label)
+            .await
+            .ok()
     }
     #[cfg(not(feature = "cap-net"))]
     {
@@ -157,6 +172,42 @@ pub async fn stamp_created(
              WHERE id = (SELECT patient_id FROM appointment WHERE id = ?2)
                AND (treating_staff_id IS NULL OR treating_staff_id = '') AND ?1 IS NOT NULL",
             vec![doctor.map(str::to_string), id_s],
+        ),
+        "practice_task" => {
+            // Owner: the dentist who created it, else the assignee when a dentist, else the
+            // doctor the form named. Never a non-dentist (an assistant is not an owner).
+            let assignee: Option<String> =
+                sqlx::query_scalar("SELECT assignee_user_id FROM practice_task WHERE id = ?1")
+                    .bind(id)
+                    .fetch_optional(pool)
+                    .await
+                    .ok()
+                    .flatten()
+                    .flatten();
+            let owner = if is_doctor(session) {
+                me_s.clone()
+            } else if is_physician(pool, assignee.as_deref()).await {
+                assignee
+            } else if is_physician(pool, doctor).await {
+                doctor.map(str::to_string)
+            } else {
+                None
+            };
+            (
+                "UPDATE practice_task SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'), doctor_id = COALESCE(doctor_id, ?1) WHERE id = ?2 AND ?1 IS NOT NULL",
+                vec![owner, id_s],
+            )
+        }
+        "purchase_order" => (
+            // Ordered for: the form's choice (CreatePurchaseOrder), else the dentist who placed it.
+            // paid_by / approved_by come from the form when set; this stamp only fills ordered_for.
+            "UPDATE purchase_order SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'),
+                ordered_for_staff_id = COALESCE(ordered_for_staff_id, ?1)
+             WHERE id = ?2 AND ?1 IS NOT NULL",
+            vec![
+                doctor.map(str::to_string).or_else(|| is_doctor(session).then(|| me.to_string())),
+                id_s,
+            ],
         ),
         _ => return Ok(()),
     };

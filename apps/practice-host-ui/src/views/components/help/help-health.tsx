@@ -62,6 +62,10 @@ export function HelpHealth() {
             </h3>
             <dl className="help-health__list">
                 <Row label={t("help.health.version")} value={`${health.version} · ${health.edition}`} />
+                <Row
+                    label={t("help.health.os")}
+                    value={tp("help.health.os_value", { os: health.os, arch: health.osArch ?? health.osFamily ?? "—" })}
+                />
                 <Row label={t("help.health.database")} value={ok(health.dbOk)} warn={!health.dbOk} />
                 <Row label={t("help.health.audit")} value={ok(health.auditChainOk)} warn={!health.auditChainOk} />
                 <Row
@@ -88,6 +92,17 @@ export function HelpHealth() {
                     />
                 ) : null}
                 <Row label={t("help.health.errors")} value={tp("help.health.errors_value", { n: errors })} />
+                <Row
+                    label={t("help.health.logs")}
+                    value={
+                        health.logs?.available
+                            ? tp("help.health.logs_value", {
+                                  errorsKb: ((health.logs.errors?.bytes ?? 0) / 1024).toFixed(0),
+                                  appKb: ((health.logs.app?.bytes ?? 0) / 1024).toFixed(0),
+                              })
+                            : t("help.health.logs_none")
+                    }
+                />
             </dl>
             {__CAP_NET__ && problems > 0 ? (
                 <Link className="help-health__link" to="/settings?tab=system">

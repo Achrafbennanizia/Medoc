@@ -8,6 +8,7 @@ Jede Fehlermeldung zeigt einen Code wie MD-PAY-004. Suchen Sie ihn hier, um Ursa
 
 | Code | Meldung | Schweregrad | Warum es auftritt | Was tun |
 |---|---|---|---|---|
+| `MD-APP-055` | Diese Daten gehören einer anderen Zahnärztin oder einem anderen Zahnarzt, die oder der Ihnen das Ändern nicht erlaubt hat. | Aktion blockiert | Ihre Rolle hat für diese Aktion keine Berechtigung. | Ärztin/Arzt oder Administration bitten, die Aktion auszuführen oder die Berechtigung zu erteilen. |
 | `MD-APP-042` | Sie können nur Ihre eigenen Termine ändern. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 
 ## Allgemein
@@ -31,22 +32,28 @@ Jede Fehlermeldung zeigt einen Code wie MD-PAY-004. Suchen Sie ihn hier, um Ursa
 | `MD-APP-014` | … | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 | `MD-APP-100` | LAN-Port … ist belegt (andere MeDoc-Instanz). Es wird kein zweiter LAN-Dienst gestartet. | Eingabe erforderlich | Die Änderung kollidiert mit vorhandenen Daten (Duplikat oder gleichzeitige Bearbeitung). | Anderen Wert verwenden oder neu laden und Änderung erneut anwenden. |
 | `MD-APP-101` | LAN-Server läuft bereits. | Eingabe erforderlich | Die Änderung kollidiert mit vorhandenen Daten (Duplikat oder gleichzeitige Bearbeitung). | Anderen Wert verwenden oder neu laden und Änderung erneut anwenden. |
-| `MD-APP-102` | MeDoc läuft bereits (Datenbank in Benutzung). Öffnen Sie das vorhandene Fenster statt einer zweiten Kopie. | Eingabe erforderlich | Die Änderung kollidiert mit vorhandenen Daten (Duplikat oder gleichzeitige Bearbeitung). | Anderen Wert verwenden oder neu laden und Änderung erneut anwenden. |
+| `MD-APP-132` | MeDoc Dentist is already running (database in use). Open the existing window instead of starting a second copy. _(technische Prüfung, Anzeige auf Englisch)_ | Eingabe erforderlich | Die Änderung kollidiert mit vorhandenen Daten (Duplikat oder gleichzeitige Bearbeitung). | Anderen Wert verwenden oder neu laden und Änderung erneut anwenden. |
+| `MD-APP-133` | remote commands are not available yet _(technische Prüfung, Anzeige auf Englisch)_ | Eingabe erforderlich | Die Änderung kollidiert mit vorhandenen Daten (Duplikat oder gleichzeitige Bearbeitung). | Anderen Wert verwenden oder neu laden und Änderung erneut anwenden. |
 | `MD-APP-103` | Die Praxis hat bereits Konten. | Eingabe erforderlich | Die Änderung kollidiert mit vorhandenen Daten (Duplikat oder gleichzeitige Bearbeitung). | Anderen Wert verwenden oder neu laden und Änderung erneut anwenden. |
 | `MD-APP-104` | … muss null oder größer sein. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 | `MD-APP-129` | … must be hex _(technische Prüfung, Anzeige auf Englisch)_ | Aktion blockiert | Eine Datei oder Signatur hat die Integritätsprüfung nicht bestanden. Es wurde nichts geändert. | Originale, unveränderte Datei verwenden. Nicht mit derselben Datei wiederholen. |
+| `MD-APP-134` | …: … _(technische Prüfung, Anzeige auf Englisch)_ | Aktion blockiert | Eine Datei oder Signatur hat die Integritätsprüfung nicht bestanden. Es wurde nichts geändert. | Originale, unveränderte Datei verwenden. Nicht mit derselben Datei wiederholen. |
 | `MD-APP-130` | cache name not allowed: … _(technische Prüfung, Anzeige auf Englisch)_ | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 | `MD-APP-105` | CSV header must contain at least 'name' and 'date_of_birth' _(technische Prüfung, Anzeige auf Englisch)_ | Aktion blockiert | Eine Datei oder Signatur hat die Integritätsprüfung nicht bestanden. Es wurde nichts geändert. | Originale, unveränderte Datei verwenden. Nicht mit derselben Datei wiederholen. |
 | `MD-APP-106` | CSV header: … _(technische Prüfung, Anzeige auf Englisch)_ | Aktion blockiert | Eine Datei oder Signatur hat die Integritätsprüfung nicht bestanden. Es wurde nichts geändert. | Originale, unveränderte Datei verwenden. Nicht mit derselben Datei wiederholen. |
 | `MD-APP-107` | Datenbank ist gesperrt — Passphrase zum Entsperren eingeben. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 | `MD-APP-109` | Invalid bind_addr/http_port combination. _(technische Prüfung, Anzeige auf Englisch)_ | Aktion blockiert | Eine Datei oder Signatur hat die Integritätsprüfung nicht bestanden. Es wurde nichts geändert. | Originale, unveränderte Datei verwenden. Nicht mit derselben Datei wiederholen. |
 | `MD-APP-110` | Ungültige Kennung. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
+| `MD-APP-135` | Ungültiger Nummernblock. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 | `MD-APP-111` | Invalid provider token (expected pm_ or tok_ prefix) _(technische Prüfung, Anzeige auf Englisch)_ | Aktion blockiert | Eine Datei oder Signatur hat die Integritätsprüfung nicht bestanden. Es wurde nichts geändert. | Originale, unveränderte Datei verwenden. Nicht mit derselben Datei wiederholen. |
+| `MD-APP-141` | invalid sequence _(technische Prüfung, Anzeige auf Englisch)_ | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 | `MD-APP-112` | Keyring account already in use: … _(technische Prüfung, Anzeige auf Englisch)_ | Aktion blockiert | Eine Datei oder Signatur hat die Integritätsprüfung nicht bestanden. Es wurde nichts geändert. | Originale, unveränderte Datei verwenden. Nicht mit derselben Datei wiederholen. |
 | `MD-APP-113` | LAN config: … _(technische Prüfung, Anzeige auf Englisch)_ | Aktion blockiert | Eine Datei oder Signatur hat die Integritätsprüfung nicht bestanden. Es wurde nichts geändert. | Originale, unveränderte Datei verwenden. Nicht mit derselben Datei wiederholen. |
+| `MD-APP-136` | missing argument … _(technische Prüfung, Anzeige auf Englisch)_ | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 | `MD-APP-114` | Name und gültige E-Mail sind erforderlich. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 | `MD-APP-115` | Kein kompatibles Scanprogramm gefunden (z. B. simple-scan). Bitte installieren oder Dateien manuell in den Überwachungsordner legen. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
-| `MD-APP-116` | Kein Update verfügbar. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
+| `MD-APP-137` | Keine MeDoc-Supportdatei, oder nicht für diesen Schlüssel. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
+| `MD-APP-138` | Nummernblock braucht ein Gerät als Inhaber. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 | `MD-APP-131` | offline cache not allowed: … _(technische Prüfung, Anzeige auf Englisch)_ | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 | `MD-APP-117` | Pfad enthält keinen Dateinamen. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 | `MD-APP-118` | Pfad liegt außerhalb des erlaubten Ordners. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
@@ -54,10 +61,12 @@ Jede Fehlermeldung zeigt einen Code wie MD-PAY-004. Suchen Sie ihn hier, um Ursa
 | `MD-APP-120` | Path: … _(technische Prüfung, Anzeige auf Englisch)_ | Aktion blockiert | Eine Datei oder Signatur hat die Integritätsprüfung nicht bestanden. Es wurde nichts geändert. | Originale, unveränderte Datei verwenden. Nicht mit derselben Datei wiederholen. |
 | `MD-APP-121` | Port muss größer als 0 sein. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 | `MD-APP-122` | Präfix muss 1–16 Buchstaben oder Ziffern haben. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
+| `MD-APP-139` | Datensätze von … haben keinen Eigentümer. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 | `MD-APP-123` | Root path: … _(technische Prüfung, Anzeige auf Englisch)_ | Aktion blockiert | Eine Datei oder Signatur hat die Integritätsprüfung nicht bestanden. Es wurde nichts geändert. | Originale, unveränderte Datei verwenden. Nicht mit derselben Datei wiederholen. |
 | `MD-APP-124` | settingsJson: … _(technische Prüfung, Anzeige auf Englisch)_ | Aktion blockiert | Eine Datei oder Signatur hat die Integritätsprüfung nicht bestanden. Es wurde nichts geändert. | Originale, unveränderte Datei verwenden. Nicht mit derselben Datei wiederholen. |
 | `MD-APP-125` | System-Scanner wird auf dieser Plattform nicht unterstützt. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 | `MD-APP-126` | The password must have at least … characters. _(technische Prüfung, Anzeige auf Englisch)_ | Aktion blockiert | Eine Datei oder Signatur hat die Integritätsprüfung nicht bestanden. Es wurde nichts geändert. | Originale, unveränderte Datei verwenden. Nicht mit derselben Datei wiederholen. |
+| `MD-APP-140` | this record names no dentist _(technische Prüfung, Anzeige auf Englisch)_ | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 | `MD-APP-127` | ui-prefs JSON: … _(technische Prüfung, Anzeige auf Englisch)_ | Aktion blockiert | Eine Datei oder Signatur hat die Integritätsprüfung nicht bestanden. Es wurde nichts geändert. | Originale, unveränderte Datei verwenden. Nicht mit derselben Datei wiederholen. |
 | `MD-APP-128` | Unbekanntes Nummernformat: … | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 
@@ -289,9 +298,11 @@ Jede Fehlermeldung zeigt einen Code wie MD-PAY-004. Suchen Sie ihn hier, um Ursa
 
 | Code | Meldung | Schweregrad | Warum es auftritt | Was tun |
 |---|---|---|---|---|
+| `MD-APP-047` | Diese Installation ist beschädigt: Ihre Teile gehören zu verschiedenen MeDoc-Editionen. Installieren Sie MeDoc neu. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 | `MD-APP-043` | Dafür ist eine Verbindung zum Hauptgerät nötig. Melden Sie sich ab und wieder an, während das Hauptgerät erreichbar ist. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 | `MD-APP-044` | Das ist nur am Hauptgerät möglich. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 | `MD-APP-045` | Das Hauptgerät ist nicht erreichbar. Prüfen Sie, ob es eingeschaltet und im selben Netzwerk ist. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
+| `MD-APP-048` | Diese Edition läuft auf nur einem Computer und hat kein Praxisnetzwerk. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 | `MD-APP-046` | Die Replikat-App tritt einer bestehenden Praxis bei; sie kann keine anlegen. Verwenden Sie die Haupt-App auf dem Hauptgerät. | Eingabe erforderlich | Das Element hat einen Status, der diese Aktion nicht erlaubt. | Aktuellen Status prüfen (siehe Statusleitfaden) und einen erlaubten nächsten Schritt wählen. |
 
 ## Gerätesitzungen
@@ -335,6 +346,7 @@ Jede Fehlermeldung zeigt einen Code wie MD-PAY-004. Suchen Sie ihn hier, um Ursa
 | `MD-EXP-004` | Der Zielordner liegt außerhalb des erlaubten Exportordners. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 | `MD-EXP-002` | Ungültige Export-Daten (Base64). | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 | `MD-EXP-003` | Ungültiger Dateiname. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
+| `MD-EXP-100` | error reports to the MeDoc server are not available yet _(technische Prüfung, Anzeige auf Englisch)_ | Eingabe erforderlich | Die Änderung kollidiert mit vorhandenen Daten (Duplikat oder gleichzeitige Bearbeitung). | Anderen Wert verwenden oder neu laden und Änderung erneut anwenden. |
 
 ## Deaktivierte Funktionen
 
@@ -350,6 +362,18 @@ Jede Fehlermeldung zeigt einen Code wie MD-PAY-004. Suchen Sie ihn hier, um Ursa
 | Code | Meldung | Schweregrad | Warum es auftritt | Was tun |
 |---|---|---|---|---|
 | `MD-APP-035` | Löschung nicht zulässig: gesetzliche Aufbewahrungsfrist läuft bis {…} (§ 630f BGB, § 147 AO). | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
+
+## Gastzugang
+
+| Code | Meldung | Schweregrad | Warum es auftritt | Was tun |
+|---|---|---|---|---|
+| `MD-APP-054` | Diese Praxis hat bereits die Höchstzahl an Konten, daher kann der Gastzugang nicht angelegt werden. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
+| `MD-APP-049` | Nur der Gast sendet Vorschläge; der Administrator speichert direkt. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
+| `MD-APP-050` | Dieser Vorschlag wurde bereits übernommen oder verworfen. | Eingabe erforderlich | Das Element hat einen Status, der diese Aktion nicht erlaubt. | Aktuellen Status prüfen (siehe Statusleitfaden) und einen erlaubten nächsten Schritt wählen. |
+| `MD-APP-051` | Der Gastzugang ist ausgeschaltet. Fragen Sie den Administrator. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
+| `MD-APP-052` | Der Gast kann diese Änderung nicht vorschlagen. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
+| `MD-APP-057` | Der Gast darf keine Bestellungen anlegen. Nur Lieferungen bestätigen, oder den Administrator fragen. | Aktion blockiert | Ihre Rolle hat für diese Aktion keine Berechtigung. | Ärztin/Arzt oder Administration bitten, die Aktion auszuführen oder die Berechtigung zu erteilen. |
+| `MD-APP-053` | Legen Sie ein Passwort für den Gastzugang fest. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 
 ## Lager & Bestellungen
 
@@ -469,6 +493,12 @@ Jede Fehlermeldung zeigt einen Code wie MD-PAY-004. Suchen Sie ihn hier, um Ursa
 | `MD-NTF-100` | Keine Empfänger für diese Benachrichtigung verfügbar. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 | `MD-NTF-101` | Art und Titel der Benachrichtigung sind erforderlich. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 
+## Dokumentnummerierung
+
+| Code | Meldung | Schweregrad | Warum es auftritt | Was tun |
+|---|---|---|---|---|
+| `MD-APP-056` | Die Nummern … der Folge … fehlen auf diesem Computer. Es wird keine Nummer vergeben, bis ein Admin sie prüft (Hilfe → Support). | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
+
 ## Gerätekopplung
 
 | Code | Meldung | Schweregrad | Warum es auftritt | Was tun |
@@ -478,6 +508,7 @@ Jede Fehlermeldung zeigt einen Code wie MD-PAY-004. Suchen Sie ihn hier, um Ursa
 | `MD-PAR-003` | Geräte-ID leer. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 | `MD-PAR-006` | Für dieses Gerät gibt es keine akzeptierte Kopplung. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 | `MD-PAR-004` | PIN muss genau 6 Ziffern sein. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
+| `MD-PAR-007` | Der Hauptcomputer holt nach einem Neustart noch Änderungen nach. Versuchen Sie es in einigen Minuten erneut. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 | `MD-PAR-005` | Replica-öffentlicher Schlüssel leer. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 | `MD-PAR-100` | Für dieses Gerät ist bereits eine Kopplungsanfrage offen. | Eingabe erforderlich | Die Änderung kollidiert mit vorhandenen Daten (Duplikat oder gleichzeitige Bearbeitung). | Anderen Wert verwenden oder neu laden und Änderung erneut anwenden. |
 | `MD-PAR-101` | Die Kopplungsanfrage wartet bereits auf die PIN-Bestätigung. | Eingabe erforderlich | Die Änderung kollidiert mit vorhandenen Daten (Duplikat oder gleichzeitige Bearbeitung). | Anderen Wert verwenden oder neu laden und Änderung erneut anwenden. |
@@ -624,7 +655,7 @@ Jede Fehlermeldung zeigt einen Code wie MD-PAY-004. Suchen Sie ihn hier, um Ursa
 | `MD-STF-106` | Wirkung muss Erlauben oder Verweigern sein. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 | `MD-STF-107` | Dieses Zugriffsprofil ist für eine andere Rolle. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 | `MD-STF-108` | Dieses Konto hat noch Termine oder klinische Dokumente. Weisen Sie zuerst einen anderen Behandler zu und entfernen Sie dann das Konto. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
-| `MD-STF-116` | This area cannot be limited to own records: … _(technische Prüfung, Anzeige auf Englisch)_ | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
+| `MD-STF-116` | Dieser Bereich lässt sich nicht auf eigene Datensätze beschränken: … | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 | `MD-STF-109` | Unknown access area: … _(technische Prüfung, Anzeige auf Englisch)_ | Aktion blockiert | Eine Datei oder Signatur hat die Integritätsprüfung nicht bestanden. Es wurde nichts geändert. | Originale, unveränderte Datei verwenden. Nicht mit derselben Datei wiederholen. |
 | `MD-STF-110` | Unknown access level: … _(technische Prüfung, Anzeige auf Englisch)_ | Aktion blockiert | Eine Datei oder Signatur hat die Integritätsprüfung nicht bestanden. Es wurde nichts geändert. | Originale, unveränderte Datei verwenden. Nicht mit derselben Datei wiederholen. |
 | `MD-STF-111` | Unbekanntes Zugriffsprofil: … | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
@@ -640,6 +671,7 @@ Jede Fehlermeldung zeigt einen Code wie MD-PAY-004. Suchen Sie ihn hier, um Ursa
 | `MD-SYN-001` | Eine empfangene Änderung hat eine ungültige Signatur und wurde nicht übernommen. Die Daten wurden unterwegs verändert oder der Absender ist nicht echt. | Aktion blockiert | Eine Datei oder Signatur hat die Integritätsprüfung nicht bestanden. Es wurde nichts geändert. | Originale, unveränderte Datei verwenden. Nicht mit derselben Datei wiederholen. |
 | `MD-SYN-002` | Änderungen kamen mit einem Schlüssel, den dieses Gerät für den Absender nicht kennt. Koppeln Sie das Gerät erneut. | Aktion blockiert | Eine Datei oder Signatur hat die Integritätsprüfung nicht bestanden. Es wurde nichts geändert. | Originale, unveränderte Datei verwenden. Nicht mit derselben Datei wiederholen. |
 | `MD-SYN-003` | Dieses Gerät hat Änderungen ohne Signatur gesendet. Aktualisieren Sie es auf die aktuelle Version und synchronisieren Sie erneut. | Eingabe erforderlich | Das Element hat einen Status, der diese Aktion nicht erlaubt. | Aktuellen Status prüfen (siehe Statusleitfaden) und einen erlaubten nächsten Schritt wählen. |
+| `MD-SYN-004` | Synchronisierung pausiert: Dieser Computer und der Hauptcomputer haben Versionen, die nicht zusammen synchronisieren können. Aktualisieren Sie den älteren; die Arbeit in der Zwischenzeit bleibt erhalten und wird danach gesendet. | Aktion blockiert · Erneuter Versuch kann helfen | Dieses Gerät erreicht den Praxis-Host bzw. LAN-Server nicht. | WLAN/LAN prüfen, sicherstellen, dass der Praxis-Host läuft, dann erneut versuchen. Einstellungen → Netzwerk zeigt die Verbindung. |
 | `MD-SYN-100` | Netzwerk-Port … ist bereits belegt (andere MeDoc-Instanz). | Eingabe erforderlich | Die Änderung kollidiert mit vorhandenen Daten (Duplikat oder gleichzeitige Bearbeitung). | Anderen Wert verwenden oder neu laden und Änderung erneut anwenden. |
 | `MD-SYN-101` | blob hash mismatch _(technische Prüfung, Anzeige auf Englisch)_ | Aktion blockiert | Eine Datei oder Signatur hat die Integritätsprüfung nicht bestanden. Es wurde nichts geändert. | Originale, unveränderte Datei verwenden. Nicht mit derselben Datei wiederholen. |
 | `MD-SYN-102` | cbor decode: … _(technische Prüfung, Anzeige auf Englisch)_ | Aktion blockiert | Eine Datei oder Signatur hat die Integritätsprüfung nicht bestanden. Es wurde nichts geändert. | Originale, unveränderte Datei verwenden. Nicht mit derselben Datei wiederholen. |
@@ -647,6 +679,7 @@ Jede Fehlermeldung zeigt einen Code wie MD-PAY-004. Suchen Sie ihn hier, um Ursa
 | `MD-SYN-104` | cipher read timed out _(technische Prüfung, Anzeige auf Englisch)_ | Aktion blockiert | Eine Datei oder Signatur hat die Integritätsprüfung nicht bestanden. Es wurde nichts geändert. | Originale, unveränderte Datei verwenden. Nicht mit derselben Datei wiederholen. |
 | `MD-SYN-105` | Praxisnetz hat … abgelehnt (…): … | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 | `MD-SYN-106` | Beitritt zum Praxisnetz abgelehnt (…): … | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
+| `MD-SYN-152` | conflict payload: … _(technische Prüfung, Anzeige auf Englisch)_ | Aktion blockiert | Eine Datei oder Signatur hat die Integritätsprüfung nicht bestanden. Es wurde nichts geändert. | Originale, unveränderte Datei verwenden. Nicht mit derselben Datei wiederholen. |
 | `MD-SYN-107` | Das Praxisnetz darf nur private LAN-Adressen verwenden (abgelehnt: …). | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 | `MD-SYN-108` | Frame too large _(technische Prüfung, Anzeige auf Englisch)_ | Aktion blockiert | Eine Datei oder Signatur hat die Integritätsprüfung nicht bestanden. Es wurde nichts geändert. | Originale, unveränderte Datei verwenden. Nicht mit derselben Datei wiederholen. |
 | `MD-SYN-109` | Frame too short _(technische Prüfung, Anzeige auf Englisch)_ | Aktion blockiert | Eine Datei oder Signatur hat die Integritätsprüfung nicht bestanden. Es wurde nichts geändert. | Originale, unveränderte Datei verwenden. Nicht mit derselben Datei wiederholen. |
@@ -654,7 +687,7 @@ Jede Fehlermeldung zeigt einen Code wie MD-PAY-004. Suchen Sie ihn hier, um Ursa
 | `MD-SYN-111` | handshake timed out _(technische Prüfung, Anzeige auf Englisch)_ | Aktion blockiert | Eine Datei oder Signatur hat die Integritätsprüfung nicht bestanden. Es wurde nichts geändert. | Originale, unveränderte Datei verwenden. Nicht mit derselben Datei wiederholen. |
 | `MD-SYN-112` | Invalid frame length _(technische Prüfung, Anzeige auf Englisch)_ | Aktion blockiert | Eine Datei oder Signatur hat die Integritätsprüfung nicht bestanden. Es wurde nichts geändert. | Originale, unveränderte Datei verwenden. Nicht mit derselben Datei wiederholen. |
 | `MD-SYN-113` | LAN-Zertifikats-Pin ist kein SHA-256-Fingerabdruck. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
-| `MD-SYN-114` | Main device not reachable — document numbers are issued by the main device (…) _(technische Prüfung, Anzeige auf Englisch)_ | Aktion blockiert | Eine Datei oder Signatur hat die Integritätsprüfung nicht bestanden. Es wurde nichts geändert. | Originale, unveränderte Datei verwenden. Nicht mit derselben Datei wiederholen. |
+| `MD-SYN-114` | Hauptgerät nicht erreichbar — Dokumentnummern vergibt das Hauptgerät (…) | Aktion blockiert | Eine Datei oder Signatur hat die Integritätsprüfung nicht bestanden. Es wurde nichts geändert. | Originale, unveränderte Datei verwenden. Nicht mit derselben Datei wiederholen. |
 | `MD-SYN-115` | Hauptgerät hat die Nummernvergabe abgelehnt (…): … | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 | `MD-SYN-116` | Master pubkey invalid: … _(technische Prüfung, Anzeige auf Englisch)_ | Aktion blockiert | Eine Datei oder Signatur hat die Integritätsprüfung nicht bestanden. Es wurde nichts geändert. | Originale, unveränderte Datei verwenden. Nicht mit derselben Datei wiederholen. |
 | `MD-SYN-117` | Master pubkey length {} (expected 32) _(technische Prüfung, Anzeige auf Englisch)_ | Aktion blockiert | Eine Datei oder Signatur hat die Integritätsprüfung nicht bestanden. Es wurde nichts geändert. | Originale, unveränderte Datei verwenden. Nicht mit derselben Datei wiederholen. |
@@ -669,6 +702,9 @@ Jede Fehlermeldung zeigt einen Code wie MD-PAY-004. Suchen Sie ihn hier, um Ursa
 | `MD-SYN-126` | Nachricht zu groß. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 | `MD-SYN-127` | no known sync queue in the exchange request _(technische Prüfung, Anzeige auf Englisch)_ | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 | `MD-SYN-128` | Kein Hauptgerät registriert. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
+| `MD-SYN-153` | not a field conflict table _(technische Prüfung, Anzeige auf Englisch)_ | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
+| `MD-SYN-154` | Nummernblock abgelehnt (…) | Aktion blockiert | Eine Datei oder Signatur hat die Integritätsprüfung nicht bestanden. Es wurde nichts geändert. | Originale, unveränderte Datei verwenden. Nicht mit derselben Datei wiederholen. |
+| `MD-SYN-155` | Nummernblock: … | Aktion blockiert | Eine Datei oder Signatur hat die Integritätsprüfung nicht bestanden. Es wurde nichts geändert. | Originale, unveränderte Datei verwenden. Nicht mit derselben Datei wiederholen. |
 | `MD-SYN-129` | peer … has no TLS pin _(technische Prüfung, Anzeige auf Englisch)_ | Aktion blockiert | Eine Datei oder Signatur hat die Integritätsprüfung nicht bestanden. Es wurde nichts geändert. | Originale, unveränderte Datei verwenden. Nicht mit derselben Datei wiederholen. |
 | `MD-SYN-130` | Erneute Kopplung erforderlich. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 | `MD-SYN-131` | reconcile rows request exceeds … _(technische Prüfung, Anzeige auf Englisch)_ | Aktion blockiert | Eine Datei oder Signatur hat die Integritätsprüfung nicht bestanden. Es wurde nichts geändert. | Originale, unveränderte Datei verwenden. Nicht mit derselben Datei wiederholen. |
@@ -721,6 +757,17 @@ Jede Fehlermeldung zeigt einen Code wie MD-PAY-004. Suchen Sie ihn hier, um Ursa
 | `MD-UIX-511` | Praxisstammdaten für Quittungen unvollständig. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 | `MD-UIX-512` | SAS digits missing from accept response _(technische Prüfung, Anzeige auf Englisch)_ | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
 | `MD-UIX-513` | Gespeicherte Arbeitszeiten sind ungültig. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
+
+## errors.domain.update
+
+| Code | Meldung | Schweregrad | Warum es auftritt | Was tun |
+|---|---|---|---|---|
+| `MD-APP-116` | Kein Update verfügbar. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
+| `MD-UPD-100` | Dieses Update lässt sich auf dieser Version nicht installieren. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
+| `MD-UPD-101` | Update ist für …/…, dieser Computer läuft mit …/… | Aktion blockiert | Eine Datei oder Signatur hat die Integritätsprüfung nicht bestanden. Es wurde nichts geändert. | Originale, unveränderte Datei verwenden. Nicht mit derselben Datei wiederholen. |
+| `MD-UPD-102` | Update-Manifest ist nicht von MeDoc signiert. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
+| `MD-UPD-103` | Versionen im Update-Manifest stimmen nicht überein. | Eingabe erforderlich | Ein eingegebener Wert fehlt oder hat ein falsches Format. | Markiertes Feld korrigieren und erneut speichern. |
+| `MD-UPD-104` | Update-Manifest: … | Aktion blockiert | Eine Datei oder Signatur hat die Integritätsprüfung nicht bestanden. Es wurde nichts geändert. | Originale, unveränderte Datei verwenden. Nicht mit derselben Datei wiederholen. |
 
 ## Arbeitszeit
 

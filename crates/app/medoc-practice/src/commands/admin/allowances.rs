@@ -19,7 +19,9 @@ const OWNED_TABLES: &[(&str, &str)] = &[
     ("treatment", "responsible_staff_id"),
     ("patient_chart", "responsible_staff_id"),
     ("prescription", "signed_by_staff_id"),
+    ("certificate", "signed_by_staff_id"),
     ("practice_task", "doctor_id"),
+    ("purchase_order", "ordered_for_staff_id"),
 ];
 
 fn owner_column(table: &str) -> Result<&'static str, AppError> {

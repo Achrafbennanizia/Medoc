@@ -15,6 +15,7 @@ export function AppointmentWeekGrid({
     weekOffset,
     patientNameById,
     physicianToneMap,
+    physicianNameById,
     practiceCfg,
     dragState,
     onAppointmentDragStart,
@@ -32,6 +33,7 @@ export function AppointmentWeekGrid({
     weekOffset: number;
     patientNameById: Map<string, string>;
     physicianToneMap: Map<string, AppointmentDoctorTone>;
+    physicianNameById?: Map<string, string>;
     practiceCfg: PracticeWorkHoursConfig;
     clickSuppressUntilRef: MutableRefObject<number>;
     dragState: AppointmentDragState | null;
@@ -127,6 +129,7 @@ export function AppointmentWeekGrid({
                                 appointments={columnAppointments}
                                 patientNameById={patientNameById}
                                 physicianToneMap={physicianToneMap}
+                                physicianNameById={physicianNameById}
                                 dragState={dragState}
                                 onAppointmentDragStart={onAppointmentDragStart}
                                 onOpenDrawer={onOpenDrawer}

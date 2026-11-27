@@ -21,6 +21,7 @@ export async function createAbsence(data: {
     to_day: string;
     from_time?: string;
     to_time?: string;
+    staff_id?: string;
 }): Promise<Absence> {
     return practiceSystem.invoke<Absence>("create_absence", { data });
 }
@@ -34,6 +35,7 @@ export async function updateAbsence(
         to_day?: string;
         from_time?: string;
         to_time?: string;
+        staff_id?: string;
     },
 ): Promise<Absence> {
     return practiceSystem.invoke<Absence>("update_absence", { id, data });

@@ -320,25 +320,53 @@ pub const TEMPLATES: &[Template] = &[
         id: GUEST_TEMPLATE,
         label: "Guest (proposes, the admin integrates)",
         description: "Proposes patients, appointments and cash payments for the admin to add; \
-                      sees stock. No clinical record, documents, statistics or settings.",
+                      sees stock and may confirm deliveries. No clinical record, documents, \
+                      statistics or settings.",
         base_role: Role::Reception,
         levels: &[
             (A::Patients, L::Create),
             (A::Calendar, L::Create),
             (A::CashDesk, L::Create),
-            (A::Inventory, L::View),
+            // Edit: confirm / receive deliveries; Create (new orders) stays denied.
+            (A::Inventory, L::Edit),
         ],
     },
     Template {
         id: GUEST_CLINICAL_TEMPLATE,
         label: "Guest with clinical read access",
+        description: "As the guest, and may read the clinical record.",
+        base_role: Role::Reception,
+        levels: &[
+            (A::Patients, L::Create),
+            (A::Calendar, L::Create),
+            (A::CashDesk, L::Create),
+            (A::Inventory, L::Edit),
+            (A::MedicalRecord, L::View),
+        ],
+    },
+    Template {
+        id: GUEST_DOCUMENTS_TEMPLATE,
+        label: "Guest with patient documents read access",
+        description: "As the guest, and may read patient documents (prescriptions, certificates).",
+        base_role: Role::Reception,
+        levels: &[
+            (A::Patients, L::Create),
+            (A::Calendar, L::Create),
+            (A::CashDesk, L::Create),
+            (A::Inventory, L::Edit),
+            (A::PatientDocuments, L::View),
+        ],
+    },
+    Template {
+        id: GUEST_CLINICAL_DOCUMENTS_TEMPLATE,
+        label: "Guest with clinical and documents read access",
         description: "As the guest, and may read the clinical record and patient documents.",
         base_role: Role::Reception,
         levels: &[
             (A::Patients, L::Create),
             (A::Calendar, L::Create),
             (A::CashDesk, L::Create),
-            (A::Inventory, L::View),
+            (A::Inventory, L::Edit),
             (A::MedicalRecord, L::View),
             (A::PatientDocuments, L::View),
         ],
@@ -349,6 +377,10 @@ pub const TEMPLATES: &[Template] = &[
 pub const GUEST_TEMPLATE: &str = "solo.guest";
 /// Guest profile with clinical read access (Settings > Guest switch).
 pub const GUEST_CLINICAL_TEMPLATE: &str = "solo.guest_clinical";
+/// Guest profile with patient-documents read access (Settings > Guest switch).
+pub const GUEST_DOCUMENTS_TEMPLATE: &str = "solo.guest_documents";
+/// Guest profile with clinical + documents read access.
+pub const GUEST_CLINICAL_DOCUMENTS_TEMPLATE: &str = "solo.guest_clinical_documents";
 
 /// Whether this build offers the template: guest templates only in guest-inbox editions.
 pub fn template_available(t: &Template) -> bool {

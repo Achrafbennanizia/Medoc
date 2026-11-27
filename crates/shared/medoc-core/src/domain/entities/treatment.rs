@@ -19,6 +19,10 @@ pub struct Examination {
     /// FA-LEIST-05: must be set before booking a payment linked via `examination_id`.
     pub released_by_physician_id: Option<String>,
     pub released_at: Option<String>,
+    /// Group: dentist this act belongs to (editions-plan §4.1).
+    #[sqlx(default)]
+    #[serde(default)]
+    pub responsible_staff_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -60,6 +64,10 @@ pub struct Treatment {
     /// FA-LEIST-05: must be set before booking a payment linked via `treatment_id`.
     pub released_by_physician_id: Option<String>,
     pub released_at: Option<String>,
+    /// Group: dentist this act belongs to (editions-plan §4.1).
+    #[sqlx(default)]
+    #[serde(default)]
+    pub responsible_staff_id: Option<String>,
     // --- GOZ billing (Anlage 2 GOZ) -------------------------------------
     /// `goz` | `goae` | `material` | `lab` | `other`
     #[sqlx(default)]

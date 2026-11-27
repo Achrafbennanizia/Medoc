@@ -27,7 +27,14 @@ import {
     getStatisticsOverview,
     type StatisticsOverview,
 } from "@/systems/practice-host/controllers/statistics.controller";
-import type { LabelValue, MonthBucket } from "../../models/types";
+import type { LabelValue, MonthBucket, PaymentMethod } from "../../models/types";
+import { StatisticsMonthlyChart } from "./statistics-multi-doctor-charts";
+import { statisticsDoctorOverlayActive } from "./statistics-doctor-overlay";
+import { StatisticsOverviewFilters } from "./statistics-overview-filters";
+import {
+    treatmentKindFilterOptions,
+    type TreatmentKindOption,
+} from "./statistics-treatment-kind-options";
 import { errorMessage, formatCurrency } from "@/lib/utils";
 // TODO(later): restore Analytics Export/Import — see docs/coordination/todos-deferred-ui-blinds.md
 // import { buildStatisticsReportBundle } from "@/lib/report-export";
@@ -743,12 +750,20 @@ export function StatisticsPage() {
     const [period, setPeriod] = useState<Period>("6m");
     // Group (T5.6): "" = every doctor you may see.
     const [doctorId, setDoctorId] = useState("");
+    const [treatmentKind, setTreatmentKind] = useState("");
+    const [paymentMethod, setPaymentMethod] = useState<"" | PaymentMethod>("");
+    const [treatmentKindOptions, setTreatmentKindOptions] = useState<TreatmentKindOption[]>([]);
     const [physicians, setPhysicians] = useState<PhysicianSummary[]>([]);
     useEffect(() => {
         if (!DOCTOR_CONTEXT.showDoctorUi) return;
         void listPhysicians().then(setPhysicians).catch(() => {});
     }, []);
-    const snapshotKey = doctorId ? `statistics-overview:${doctorId}` : "statistics-overview";
+    const snapshotKey = [
+        "statistics-overview",
+        doctorId || "all",
+        treatmentKind || "any-treatment",
+        paymentMethod || "any-payment",
+    ].join(":");
     const [stats, setStats] = useState<StatisticsOverview | null>(() => readListSnapshot<StatisticsOverview>("statistics-overview") ?? null);
     const [loadError, setLoadError] = useState<string | null>(null);
     const [reloadToken, setReloadToken] = useState(0);
@@ -759,11 +774,14 @@ export function StatisticsPage() {
 
     useEffect(() => {
         let cancelled = false;
-        getStatisticsOverview(doctorId)
+        getStatisticsOverview({ doctorId, treatmentKind, paymentMethod })
             .then((s) => {
                 if (cancelled) return;
                 writeListSnapshot(snapshotKey, s);
                 setStats(s);
+                if (!treatmentKind) {
+                    setTreatmentKindOptions(treatmentKindFilterOptions(s.treatments_by_category, t));
+                }
                 setLoadError(null);
             })
             .catch((e) => {
@@ -772,7 +790,7 @@ export function StatisticsPage() {
         return () => {
             cancelled = true;
         };
-    }, [reloadToken, doctorId, snapshotKey]);
+    }, [reloadToken, doctorId, treatmentKind, paymentMethod, snapshotKey, t]);
 
     useEffect(() => {
         const onRefresh = () => setReloadToken((n) => n + 1);
@@ -806,6 +824,11 @@ export function StatisticsPage() {
     );
     const trimmedIncome = useMemo(() => trim(stats?.income_per_month ?? [], period), [period, stats]);
     const trimmedOrders = useMemo(() => trim(stats?.orders_per_month ?? [], period), [period, stats]);
+    const doctorChartOverlay = statisticsDoctorOverlayActive(
+        DOCTOR_CONTEXT.showDoctorUi,
+        doctorId,
+        stats?.per_doctor_series,
+    );
 
     const dashboardMetrics = useMemo(() => {
         if (!stats) return null;
@@ -925,6 +948,13 @@ export function StatisticsPage() {
                     className="page-toolbar__filters row"
                     style={{ gap: 8, flexWrap: "wrap", marginInlineStart: "auto", justifyContent: "flex-end", alignItems: "center" }}
                 >
+                    <StatisticsOverviewFilters
+                        treatmentKind={treatmentKind}
+                        paymentMethod={paymentMethod}
+                        treatmentOptions={treatmentKindOptions}
+                        onTreatmentKind={setTreatmentKind}
+                        onPaymentMethod={setPaymentMethod}
+                    />
                     {physicians.length > 1 ? (
                         <DoctorSelect
                             id="statistics-doctor"
@@ -1105,9 +1135,19 @@ export function StatisticsPage() {
                             subtitle={tp("page.statistics.overview.chart_revenue_sub", { period: periodLabel.toLowerCase() })}
                             action={incomeBadge ? <span className="pill blue">{incomeBadge}</span> : undefined}
                         />
-                        {dash.income6.some((m) => m.value > 0) ? (
-                            <div className="card-pad" style={{ paddingTop: 0 }}>
-                                <RevenueDevelopmentChart data={dash.income6} />
+                        {dash.income6.some((m) => m.value > 0) ||
+                        (doctorChartOverlay && (stats.per_doctor_series ?? []).some((d) => (d.income_per_month ?? []).some((m) => m.value > 0))) ? (
+                            <div className="card-pad" style={{ paddingTop: 0, minHeight: 260 }}>
+                                <StatisticsMonthlyChart
+                                    aggregate={dash.income6}
+                                    series={stats.per_doctor_series}
+                                    showOverlay={doctorChartOverlay}
+                                    metric="income"
+                                    variant="bar"
+                                    valueFormatter={(v) => formatCurrency(v)}
+                                >
+                                    <RevenueDevelopmentChart data={dash.income6} />
+                                </StatisticsMonthlyChart>
                             </div>
                         ) : (
                             <div
@@ -1277,7 +1317,15 @@ export function StatisticsPage() {
                         <p className="statistics-workspace__panel-intro">{panelDescription("sec-treatments")}</p>
                         <div className="fit-grid">
                             <ChartCard title={t("page.statistics.chart.treatments_month")} hasData={trimmedTreatments.some((m) => m.value > 0)}>
-                                <MonthBar data={trimmedTreatments} color={PALETTE[0]} />
+                                <StatisticsMonthlyChart
+                                    aggregate={trimmedTreatments}
+                                    series={stats.per_doctor_series}
+                                    showOverlay={doctorChartOverlay}
+                                    metric="treatments"
+                                    variant="bar"
+                                >
+                                    <MonthBar data={trimmedTreatments} color={PALETTE[0]} />
+                                </StatisticsMonthlyChart>
                             </ChartCard>
                             <ChartCard
                                 title={t("page.statistics.chart.treatments_category")}
@@ -1307,7 +1355,15 @@ export function StatisticsPage() {
                         <p className="statistics-workspace__panel-intro">{panelDescription("sec-appointments")}</p>
                         <div className="fit-grid">
                             <ChartCard title={t("page.statistics.chart.appointment_utilization")} hasData={trimmedAppointments.some((m) => m.value > 0)}>
-                                <MonthBar data={trimmedAppointments} color={PALETTE[1]} />
+                                <StatisticsMonthlyChart
+                                    aggregate={trimmedAppointments}
+                                    series={stats.per_doctor_series}
+                                    showOverlay={doctorChartOverlay}
+                                    metric="appointments"
+                                    variant="bar"
+                                >
+                                    <MonthBar data={trimmedAppointments} color={PALETTE[1]} />
+                                </StatisticsMonthlyChart>
                             </ChartCard>
                             <ChartCard title={t("page.statistics.chart.appointment_status")} hasData={stats.appointment_status.length > 0}>
                                 <PiePanel data={stats.appointment_status} labelKind="appointment_status" />
@@ -1336,7 +1392,16 @@ export function StatisticsPage() {
                         <p className="statistics-workspace__panel-intro">{panelDescription("sec-finance")}</p>
                         <div className="fit-grid">
                             <ChartCard title={t("page.statistics.chart.revenue_month")} subtitle={t("page.statistics.chart.income_month_sub")} hasData={trimmedIncome.some((m) => m.value > 0)}>
-                                <MonthBar data={trimmedIncome} color={PALETTE[4]} valueFormatter={(version) => formatCurrency(version)} />
+                                <StatisticsMonthlyChart
+                                    aggregate={trimmedIncome}
+                                    series={stats.per_doctor_series}
+                                    showOverlay={doctorChartOverlay}
+                                    metric="income"
+                                    variant="bar"
+                                    valueFormatter={(v) => formatCurrency(v)}
+                                >
+                                    <MonthBar data={trimmedIncome} color={PALETTE[4]} valueFormatter={(version) => formatCurrency(version)} />
+                                </StatisticsMonthlyChart>
                             </ChartCard>
                             <ChartCard title={t("page.statistics.chart.umsatz_payment_method")} hasData={stats.revenue_by_payment_method.length > 0}>
                                 <PiePanel data={stats.revenue_by_payment_method} labelKind="payment" />

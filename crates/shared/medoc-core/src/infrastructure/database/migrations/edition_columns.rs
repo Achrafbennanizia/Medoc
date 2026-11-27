@@ -65,14 +65,18 @@ const COLUMNS: &[(&str, &str)] = &[
     ("issued_document", "signed_by_staff_id"),
     ("issued_document", "requested_by_staff_id"),
     ("invoice_document", "signed_by_staff_id"),
+    // Lets a post-insert signer stamp bump LWW and re-queue the finance-list mirror.
+    ("invoice_document", "updated_at"),
     // Orders: for whom, paid by whom, approved by whom.
     ("purchase_order", "ordered_for_staff_id"),
     ("purchase_order", "paid_by_staff_id"),
     ("purchase_order", "paid_at"),
     ("purchase_order", "approved_by"),
-    // Calendar chair, task doctor.
+    // Calendar chair, task doctor, absence target (for me / other / both).
     ("appointment", "room_id"),
     ("practice_task", "doctor_id"),
+    ("absence", "staff_id"),
+    ("work_plan_adjustment", "staff_id"),
     // Audit: the device that wrote the entry (the hash chain does not cover it).
     ("audit_log", "device_id"),
 ];

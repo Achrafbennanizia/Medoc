@@ -47,8 +47,15 @@ export type PracticeTask = {
     return_reason: string | null;
     status: PracticeTaskStatus;
     legacy_ticket_id: string | null;
+    /** Cabinet+: dentist this task belongs to. */
+    doctor_id?: string | null;
     created_at: string;
     updated_at: string;
+};
+
+export type PracticeTaskAdminList = {
+    items: PracticeTask[];
+    hiddenDoctors?: string[];
 };
 
 export type PracticeTaskComment = {
@@ -113,8 +120,10 @@ export async function countOpenPracticeTasksForMe(): Promise<number> {
     return practiceSystem.invoke<number>("count_open_practice_tasks_for_me");
 }
 
-export async function listPracticeTasksAdmin(): Promise<PracticeTask[]> {
-    return practiceSystem.invoke<PracticeTask[]>("list_practice_tasks_admin");
+export async function listPracticeTasksAdmin(doctorId?: string): Promise<PracticeTaskAdminList> {
+    return practiceSystem.invoke<PracticeTaskAdminList>("list_practice_tasks_admin", {
+        doctorId: doctorId || null,
+    });
 }
 
 export async function createPracticeTaskAdmin(data: {

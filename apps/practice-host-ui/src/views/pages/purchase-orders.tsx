@@ -16,8 +16,11 @@ import { allowed, parseRole } from "@/lib/rbac";
 import { errorMessage, formatDate, formatCurrency } from "@/lib/utils";
 import { orderStatusDisplay } from "@/lib/finance-order-labels";
 import { useT, useTParams } from "@/lib/i18n";
+import { isGuestSession } from "@/systems/practice-host/controllers/guest.controller";
 import { WorkspacePageHeader } from "../components/administration-page-header";
 import { purchaseOrderIsOverdue } from "@/lib/purchase-order-is-overdue";
+import { OrderDoctorCell, OrderDoctorFilter, OrderHiddenDoctorsNote } from "./purchase-order-doctor";
+import { useDoctorList } from "../components/use-doctor-list";
 
 type StatusFilter = "ALL" | OrderStatus;
 
@@ -37,9 +40,15 @@ export function PurchaseOrdersPage() {
     const [searchParams, setSearchParams] = useSearchParams();
     const toast = useToastStore((s) => s.add);
     const roleStr = useAuthStore((s) => s.session?.role);
+    const overrides = useAuthStore((s) => s.session?.permission_overrides);
     const role = parseRole(roleStr);
-    const canWrite = role != null && allowed("purchase_order.write", role);
-    const canAddProduct = role != null && allowed("product.write", role);
+    const guest = isGuestSession();
+    // Guests may confirm deliveries but never create orders (blind the CTA).
+    const canWrite = !guest && role != null && allowed("purchase_order.write", role, overrides);
+    const canReceive =
+        role != null &&
+        (allowed("purchase_order.receive", role, overrides) || allowed("purchase_order.write", role, overrides));
+    const canAddProduct = !guest && role != null && allowed("product.write", role, overrides);
 
     const selectedId = searchParams.get("purchase_order");
 
@@ -49,6 +58,9 @@ export function PurchaseOrdersPage() {
 
     const [search, setSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+    const [doctorFilter, setDoctorFilter] = useState("");
+    const [hiddenDoctors, setHiddenDoctors] = useState<string[]>([]);
+    const orderDoctors = useDoctorList();
 
     const load = useCallback(async (opts?: { initial?: boolean }) => {
         const initial = opts?.initial === true;
@@ -57,9 +69,10 @@ export function PurchaseOrdersPage() {
             setLoadError(null);
         }
         try {
-            const list = await listPurchaseOrders();
-            setRows(list);
-            writeListSnapshot("purchase-orders", list);
+            const resp = await listPurchaseOrders(doctorFilter || undefined);
+            setRows(resp.items);
+            setHiddenDoctors(resp.hiddenDoctors ?? []);
+            writeListSnapshot("purchase-orders", resp.items);
             if (initial) setLoadError(null);
         } catch (e) {
             const msg = errorMessage(e);
@@ -68,7 +81,7 @@ export function PurchaseOrdersPage() {
         } finally {
             if (initial) setLoading(false);
         }
-    }, [toast, tp]);
+    }, [toast, tp, doctorFilter]);
 
     const ordersHadCache = useRef(readListSnapshot<PurchaseOrder[]>("purchase-orders") !== undefined);
     useEffect(() => {
@@ -168,14 +181,17 @@ export function PurchaseOrdersPage() {
                         options={statusOptions}
                     />
                 </div>
-                {rows.length > 0 && (search || statusFilter !== "ALL") ? (
-                    <Button variant="ghost" size="sm" onClick={() => { setSearch(""); setStatusFilter("ALL"); }}>
+                <OrderDoctorFilter od={orderDoctors} value={doctorFilter} onChange={setDoctorFilter} hidden={hiddenDoctors} />
+                {(rows.length > 0 || doctorFilter) && (search || statusFilter !== "ALL" || doctorFilter) ? (
+                    <Button variant="ghost" size="sm" onClick={() => { setSearch(""); setStatusFilter("ALL"); setDoctorFilter(""); }}>
                         {t("common.reset")}
                     </Button>
                 ) : null}
             </div>
 
-            {rows.length === 0 ? (
+            <OrderHiddenDoctorsNote od={orderDoctors} ids={hiddenDoctors} />
+
+            {rows.length === 0 && !doctorFilter ? (
                 <EmptyState
                     icon="📦"
                     title={t("page.purchase_orders.empty_title")}
@@ -195,7 +211,7 @@ export function PurchaseOrdersPage() {
                     description={t("page.purchase_orders.empty_filtered_desc")}
                     action={{
                         label: t("common.reset_filters"),
-                        onClick: () => { setSearch(""); setStatusFilter("ALL"); },
+                        onClick: () => { setSearch(""); setStatusFilter("ALL"); setDoctorFilter(""); },
                     }}
                 />
             ) : (
@@ -223,6 +239,15 @@ export function PurchaseOrdersPage() {
                                 ),
                             },
                             { id: "item", header: t("page.purchase_orders.col_item"), truncate: true, text: (r) => r.item, cell: (r) => r.item },
+                            ...(orderDoctors.show
+                                ? [{
+                                      id: "doctor",
+                                      header: t("page.purchase_orders.col_for_doctor"),
+                                      width: "10rem",
+                                      hideBelow: "md" as const,
+                                      cell: (r: PurchaseOrder) => <OrderDoctorCell od={orderDoctors} order={r} />,
+                                  }]
+                                : []),
                             { id: "qty", header: t("page.purchase_orders.col_quantity"), width: "6.5rem", numeric: true, hideBelow: "md", cell: (r) => `${r.quantity}${r.unit ? ` ${r.unit}` : ""}` },
                             {
                                 id: "eta",
@@ -254,6 +279,7 @@ export function PurchaseOrdersPage() {
                 <PurchaseOrderDetailDrawer
                     purchase_order={selectedPurchaseOrder}
                     canWrite={canWrite}
+                    canReceive={canReceive}
                     canAddProduct={canAddProduct}
                     onClose={closeDrawer}
                     onUpdated={handleUpdated}

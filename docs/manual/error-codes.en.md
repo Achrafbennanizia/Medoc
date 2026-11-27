@@ -8,6 +8,7 @@ Every error message shows a code such as MD-PAY-004. Search it here to see what 
 
 | Code | Message | Severity | Why it happens | What to do |
 |---|---|---|---|---|
+| `MD-APP-055` | This belongs to another dentist, who has not allowed you to change it. | Action blocked | Your role does not have the permission for this action. | Ask a physician or administrator to perform it or to grant the permission. |
 | `MD-APP-042` | You can only change your own appointments. | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 
 ## General
@@ -31,22 +32,28 @@ Every error message shows a code such as MD-PAY-004. Search it here to see what 
 | `MD-APP-014` | … | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-APP-100` | LAN port … already in use (another MeDoc instance). Not starting a second LAN service. | Needs your input | The change conflicts with existing data (duplicate or competing edit). | Use a different value, or reload and apply your change again. |
 | `MD-APP-101` | LAN server already running. | Needs your input | The change conflicts with existing data (duplicate or competing edit). | Use a different value, or reload and apply your change again. |
-| `MD-APP-102` | MeDoc is already running (database in use). Open the existing window instead of starting a second copy. | Needs your input | The change conflicts with existing data (duplicate or competing edit). | Use a different value, or reload and apply your change again. |
+| `MD-APP-132` | MeDoc Dentist is already running (database in use). Open the existing window instead of starting a second copy. _(technical check, shown in English)_ | Needs your input | The change conflicts with existing data (duplicate or competing edit). | Use a different value, or reload and apply your change again. |
+| `MD-APP-133` | remote commands are not available yet _(technical check, shown in English)_ | Needs your input | The change conflicts with existing data (duplicate or competing edit). | Use a different value, or reload and apply your change again. |
 | `MD-APP-103` | The practice already has accounts. | Needs your input | The change conflicts with existing data (duplicate or competing edit). | Use a different value, or reload and apply your change again. |
 | `MD-APP-104` | … must be zero or more | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-APP-129` | … must be hex _(technical check, shown in English)_ | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
+| `MD-APP-134` | …: … _(technical check, shown in English)_ | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
 | `MD-APP-130` | cache name not allowed: … _(technical check, shown in English)_ | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-APP-105` | CSV header must contain at least 'name' and 'date_of_birth' _(technical check, shown in English)_ | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
 | `MD-APP-106` | CSV header: … _(technical check, shown in English)_ | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
 | `MD-APP-107` | Database is locked — enter passphrase to unlock. | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-APP-109` | Invalid bind_addr/http_port combination. _(technical check, shown in English)_ | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
 | `MD-APP-110` | Invalid id | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
+| `MD-APP-135` | invalid number block | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-APP-111` | Invalid provider token (expected pm_ or tok_ prefix) _(technical check, shown in English)_ | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
+| `MD-APP-141` | invalid sequence _(technical check, shown in English)_ | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-APP-112` | Keyring account already in use: … _(technical check, shown in English)_ | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
 | `MD-APP-113` | LAN config: … _(technical check, shown in English)_ | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
+| `MD-APP-136` | missing argument … _(technical check, shown in English)_ | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-APP-114` | Name and a valid e-mail are required. | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-APP-115` | No compatible scan program found (e.g. simple-scan). Please install one or place files manually in the watch folder. | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
-| `MD-APP-116` | No update available | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
+| `MD-APP-137` | not a MeDoc support file, or not for this key | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
+| `MD-APP-138` | number block needs a holder device | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-APP-131` | offline cache not allowed: … _(technical check, shown in English)_ | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-APP-117` | Path has no file name | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-APP-118` | Path is outside the allowed folder | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
@@ -54,10 +61,12 @@ Every error message shows a code such as MD-PAY-004. Search it here to see what 
 | `MD-APP-120` | Path: … _(technical check, shown in English)_ | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
 | `MD-APP-121` | Port must be > 0. | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-APP-122` | prefix must be 1-16 letters or digits | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
+| `MD-APP-139` | records of … have no owner | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-APP-123` | Root path: … _(technical check, shown in English)_ | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
 | `MD-APP-124` | settingsJson: … _(technical check, shown in English)_ | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
 | `MD-APP-125` | System scanner is not supported on this platform. | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-APP-126` | The password must have at least … characters. _(technical check, shown in English)_ | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
+| `MD-APP-140` | this record names no dentist _(technical check, shown in English)_ | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-APP-127` | ui-prefs JSON: … _(technical check, shown in English)_ | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
 | `MD-APP-128` | unknown number style … | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 
@@ -289,9 +298,11 @@ Every error message shows a code such as MD-PAY-004. Search it here to see what 
 
 | Code | Message | Severity | Why it happens | What to do |
 |---|---|---|---|---|
+| `MD-APP-047` | This installation is damaged: its parts belong to different MeDoc editions. Reinstall MeDoc. | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-APP-043` | This needs a connection to the main device. Sign out and in again while the main device is reachable. | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-APP-044` | This can only be done on the main device. | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-APP-045` | The main device cannot be reached. Check that it is on and in the same network. | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
+| `MD-APP-048` | This edition works on one computer only and has no practice network. | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-APP-046` | The replica app joins an existing practice; it cannot create one. Use the main app on the main device. | Needs your input | The item is in a status that does not allow this action. | Check the item's current status (see Status guide) and use one of the allowed next steps. |
 
 ## Device sessions
@@ -335,6 +346,7 @@ Every error message shows a code such as MD-PAY-004. Search it here to see what 
 | `MD-EXP-004` | The target folder is outside the allowed export folder. | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-EXP-002` | Invalid export data (Base64). | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-EXP-003` | Invalid file name. | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
+| `MD-EXP-100` | error reports to the MeDoc server are not available yet _(technical check, shown in English)_ | Needs your input | The change conflicts with existing data (duplicate or competing edit). | Use a different value, or reload and apply your change again. |
 
 ## Disabled functions
 
@@ -350,6 +362,18 @@ Every error message shows a code such as MD-PAY-004. Search it here to see what 
 | Code | Message | Severity | Why it happens | What to do |
 |---|---|---|---|---|
 | `MD-APP-035` | Erasure not allowed: the legal retention period runs until {…} (§ 630f BGB, § 147 AO). | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
+
+## Guest account
+
+| Code | Message | Severity | Why it happens | What to do |
+|---|---|---|---|---|
+| `MD-APP-054` | This practice already has the maximum number of accounts, so the guest account cannot be added. | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
+| `MD-APP-049` | Only the guest sends proposals; the admin saves directly. | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
+| `MD-APP-050` | This proposal was already added or dismissed. | Needs your input | The item is in a status that does not allow this action. | Check the item's current status (see Status guide) and use one of the allowed next steps. |
+| `MD-APP-051` | The guest account is turned off. Ask the admin. | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
+| `MD-APP-052` | The guest cannot propose this change. | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
+| `MD-APP-057` | The guest cannot create purchase orders. Confirm deliveries only, or ask the admin. | Action blocked | Your role does not have the permission for this action. | Ask a physician or administrator to perform it or to grant the permission. |
+| `MD-APP-053` | Set a password for the guest account. | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 
 ## Stock & orders
 
@@ -469,6 +493,12 @@ Every error message shows a code such as MD-PAY-004. Search it here to see what 
 | `MD-NTF-100` | No staff recipients available for this notification. | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-NTF-101` | Notification kind and title are required. | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 
+## Document numbering
+
+| Code | Message | Severity | Why it happens | What to do |
+|---|---|---|---|---|
+| `MD-APP-056` | Numbers … of sequence … are missing on this computer. No number is issued until an admin checks them (Help → Support). | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
+
 ## Device pairing
 
 | Code | Message | Severity | Why it happens | What to do |
@@ -478,6 +508,7 @@ Every error message shows a code such as MD-PAY-004. Search it here to see what 
 | `MD-PAR-003` | Device ID is empty. | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-PAR-006` | There is no accepted pairing for this device. | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-PAR-004` | PIN must be exactly 6 digits. | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
+| `MD-PAR-007` | The main computer is still catching up after a restart. Try again in a few minutes. | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-PAR-005` | Replica public key is empty. | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-PAR-100` | A pairing request for this device is already pending | Needs your input | The change conflicts with existing data (duplicate or competing edit). | Use a different value, or reload and apply your change again. |
 | `MD-PAR-101` | pairing_request already awaiting PIN confirmation | Needs your input | The change conflicts with existing data (duplicate or competing edit). | Use a different value, or reload and apply your change again. |
@@ -624,7 +655,7 @@ Every error message shows a code such as MD-PAY-004. Search it here to see what 
 | `MD-STF-106` | effect must be ALLOW or DENY. | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-STF-107` | This access profile is made for another role. | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-STF-108` | This account still owns appointments or clinical documents. Assign another clinician first, then remove the account. | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
-| `MD-STF-116` | This area cannot be limited to own records: … _(technical check, shown in English)_ | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
+| `MD-STF-116` | This area cannot be limited to own records: … | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-STF-109` | Unknown access area: … _(technical check, shown in English)_ | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
 | `MD-STF-110` | Unknown access level: … _(technical check, shown in English)_ | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
 | `MD-STF-111` | Unknown access profile: … | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
@@ -640,6 +671,7 @@ Every error message shows a code such as MD-PAY-004. Search it here to see what 
 | `MD-SYN-001` | A received change has an invalid signature and was not applied. The data was changed on the way or the sender is not genuine. | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
 | `MD-SYN-002` | Changes arrived signed with a key this device does not know for the sender. Pair the device again. | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
 | `MD-SYN-003` | This device sent changes without a signature. Update it to the current version, then sync again. | Needs your input | The item is in a status that does not allow this action. | Check the item's current status (see Status guide) and use one of the allowed next steps. |
+| `MD-SYN-004` | Sync is paused: this computer and the main computer run versions that cannot sync together. Update the older one; work done meanwhile is kept and sent afterwards. | Action blocked · Retrying can help | This device cannot reach the practice host or LAN server. | Check Wi-Fi/LAN, make sure the practice host is running, then retry. Settings → Network shows the connection. |
 | `MD-SYN-100` | cluster port … already in use (another MeDoc instance) | Needs your input | The change conflicts with existing data (duplicate or competing edit). | Use a different value, or reload and apply your change again. |
 | `MD-SYN-101` | blob hash mismatch _(technical check, shown in English)_ | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
 | `MD-SYN-102` | cbor decode: … _(technical check, shown in English)_ | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
@@ -647,6 +679,7 @@ Every error message shows a code such as MD-PAY-004. Search it here to see what 
 | `MD-SYN-104` | cipher read timed out _(technical check, shown in English)_ | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
 | `MD-SYN-105` | cluster … rejected (…): … | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-SYN-106` | cluster join rejected (…): … | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
+| `MD-SYN-152` | conflict payload: … _(technical check, shown in English)_ | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
 | `MD-SYN-107` | Device-cluster listener may only bind private LAN addresses (rejected: …) | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-SYN-108` | Frame too large _(technical check, shown in English)_ | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
 | `MD-SYN-109` | Frame too short _(technical check, shown in English)_ | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
@@ -654,7 +687,7 @@ Every error message shows a code such as MD-PAY-004. Search it here to see what 
 | `MD-SYN-111` | handshake timed out _(technical check, shown in English)_ | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
 | `MD-SYN-112` | Invalid frame length _(technical check, shown in English)_ | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
 | `MD-SYN-113` | LAN TLS pin is not a SHA-256 fingerprint | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
-| `MD-SYN-114` | Main device not reachable — document numbers are issued by the main device (…) _(technical check, shown in English)_ | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
+| `MD-SYN-114` | Main device not reachable — document numbers are issued by the main device (…) | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
 | `MD-SYN-115` | Main device refused number allocation (…): … | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-SYN-116` | Master pubkey invalid: … _(technical check, shown in English)_ | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
 | `MD-SYN-117` | Master pubkey length {} (expected 32) _(technical check, shown in English)_ | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
@@ -669,6 +702,9 @@ Every error message shows a code such as MD-PAY-004. Search it here to see what 
 | `MD-SYN-126` | Message too large | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-SYN-127` | no known sync queue in the exchange request _(technical check, shown in English)_ | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-SYN-128` | no master device registered | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
+| `MD-SYN-153` | not a field conflict table _(technical check, shown in English)_ | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
+| `MD-SYN-154` | number block refused (…) | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
+| `MD-SYN-155` | number block: … | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
 | `MD-SYN-129` | peer … has no TLS pin _(technical check, shown in English)_ | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
 | `MD-SYN-130` | re-pair required | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-SYN-131` | reconcile rows request exceeds … _(technical check, shown in English)_ | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
@@ -721,6 +757,17 @@ Every error message shows a code such as MD-PAY-004. Search it here to see what 
 | `MD-UIX-511` | Practice master data incomplete for receipts | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-UIX-512` | SAS digits missing from accept response _(technical check, shown in English)_ | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
 | `MD-UIX-513` | Stored work hours are invalid | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
+
+## errors.domain.update
+
+| Code | Message | Severity | Why it happens | What to do |
+|---|---|---|---|---|
+| `MD-APP-116` | No update available | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
+| `MD-UPD-100` | This update cannot be installed on this version | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
+| `MD-UPD-101` | update is for …/…, this computer runs …/… | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
+| `MD-UPD-102` | update manifest is not signed by MeDoc | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
+| `MD-UPD-103` | update manifest versions do not match | Needs your input | A value you entered is missing or has the wrong format. | Correct the highlighted field and save again. |
+| `MD-UPD-104` | update manifest: … | Action blocked | A file or signature failed an integrity check. Nothing was changed. | Use the original, unmodified file. Do not retry with the same file. |
 
 ## Work time
 

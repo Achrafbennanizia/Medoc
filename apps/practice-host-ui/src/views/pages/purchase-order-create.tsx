@@ -26,53 +26,14 @@ import { Input, Textarea, Select } from "../components/ui/input";
 import { useToastStore } from "../components/ui/toast-store";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { WorkspacePageHeader } from "../components/administration-page-header";
+import { useDoctorList } from "../components/use-doctor-list";
+import { PurchaseOrderCreateDoctorFields } from "./purchase-order-create-doctor-fields";
+import {
+    buildTemplatesDatalistRows,
+    masterName,
+    validatePurchaseOrderCreateForm,
+} from "./purchase-order-create-helpers";
 import { localYmd } from "@/lib/practice-clock";
-
-/** Display text for quick-select template (supplier · contact · product). */
-function formatTemplateDatalistLine(
-    version: SupplierPharmaTemplate,
-    tp: (key: string, params: Record<string, string | number>) => string,
-): string {
-    const prod =
-        version.product_active === 0
-            ? tp("page.purchase_order.create.template_line_inactive", { name: version.product_name })
-            : `${version.product_name} · ${version.product_category} · ${formatCurrency(version.product_price)}`;
-    return tp("page.purchase_order.create.template_line", {
-        supplier: version.supplier_name,
-        contact: version.pharma_consultant_name,
-        product: prod,
-    });
-}
-
-function buildTemplatesDatalistRows(
-    templates: SupplierPharmaTemplate[],
-    tp: (key: string, params: Record<string, string | number>) => string,
-) {
-    const seen = new Map<string, number>();
-    const rows: { version: SupplierPharmaTemplate; label: string }[] = [];
-    for (const version of templates) {
-        const line = formatTemplateDatalistLine(version, tp);
-        const c = (seen.get(line) ?? 0) + 1;
-        seen.set(line, c);
-        const label = c > 1 ? `${line} · #${version.id.slice(0, 8)}` : line;
-        rows.push({ version, label });
-    }
-    return rows;
-}
-
-function validateForm(f: PurchaseOrderCreateDraft, anzahlProducts: number, t: (key: string) => string): string | null {
-    const quantity = Number(f.quantity);
-    if (!f.supplierId.trim()) return t("page.purchase_order.create.validation.supplier_required");
-    if (anzahlProducts < 1) return t("page.purchase_order.create.validation.products_required");
-    if (!f.itemProductId.trim()) return t("page.purchase_order.create.validation.article_required");
-    if (!Number.isFinite(quantity) || quantity <= 0) return t("page.purchase_order.create.validation.quantity_positive");
-    if (f.expected_on && f.expected_on < localYmd()) return t("page.purchase_order.create.validation.date_past");
-    return null;
-}
-
-function masterName(list: { id: string; name: string }[], id: string): string {
-    return list.find((x) => x.id === id)?.name.trim() ?? "";
-}
 
 export function PurchaseOrderCreatePage() {
     const t = useT();
@@ -86,6 +47,7 @@ export function PurchaseOrderCreatePage() {
     const productIdFromReturn = searchParams.get("productId");
     const role = parseRole(useAuthStore((s) => s.session?.role));
     const canAddProduct = role != null && allowed("product.write", role);
+    const doctors = useDoctorList();
 
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
@@ -205,7 +167,7 @@ export function PurchaseOrderCreatePage() {
     }
 
     async function handleCreate() {
-        const err = validateForm(form, products.length, t);
+        const err = validatePurchaseOrderCreateForm(form, products.length, t);
         if (err) {
             setError(err);
             return;
@@ -236,6 +198,9 @@ export function PurchaseOrderCreatePage() {
                 remark: form.remark.trim() || null,
                 pharma_consultant: pharmaConsultantName || null,
                 ...(total_amount != null ? { total_amount: total_amount } : {}),
+                ordered_for_staff_id: form.orderedForStaffId.trim() || null,
+                paid_by_staff_id: form.paidByStaffId.trim() || null,
+                approved_by: form.approvedByStaffId.trim() || null,
             });
             clearPurchaseOrderCreateDraft();
             toast(tp("page.purchase_order.create.created_toast", { nummer: created.order_number ?? "" }), "success");
@@ -250,7 +215,7 @@ export function PurchaseOrderCreatePage() {
     if (loading) return <PageLoading label={t("page.purchase_orders.loading")} />;
     if (loadError) return <PageLoadError message={loadError} onRetry={() => void load()} />;
 
-    const validationError = validateForm(form, products.length, t);
+    const validationError = validatePurchaseOrderCreateForm(form, products.length, t);
     const cannotSave = validationError !== null || busy;
     const masterEmpty = suppliersMaster.length === 0 || pharmaConsultantMaster.length === 0;
 
@@ -414,6 +379,15 @@ export function PurchaseOrderCreatePage() {
                         rows={3}
                         value={form.remark}
                         onChange={(e) => setForm((f) => ({ ...f, remark: e.target.value }))}
+                    />
+                    <PurchaseOrderCreateDoctorFields
+                        doctors={doctors}
+                        orderedForStaffId={form.orderedForStaffId}
+                        paidByStaffId={form.paidByStaffId}
+                        approvedByStaffId={form.approvedByStaffId}
+                        onOrderedFor={(id) => setForm((f) => ({ ...f, orderedForStaffId: id }))}
+                        onPaidBy={(id) => setForm((f) => ({ ...f, paidByStaffId: id }))}
+                        onApprovedBy={(id) => setForm((f) => ({ ...f, approvedByStaffId: id }))}
                     />
                     <div className="purchase-order-create-form__actions">
                         <Button type="button" variant="ghost" onClick={goBack} disabled={busy}>

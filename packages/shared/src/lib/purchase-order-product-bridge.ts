@@ -11,6 +11,9 @@ export type PurchaseOrderCreateDraft = {
     expected_on: string;
     remark: string;
     templateInputText: string;
+    orderedForStaffId: string;
+    paidByStaffId: string;
+    approvedByStaffId: string;
 };
 
 export function emptyPurchaseOrderCreateDraft(): PurchaseOrderCreateDraft {
@@ -23,6 +26,9 @@ export function emptyPurchaseOrderCreateDraft(): PurchaseOrderCreateDraft {
         expected_on: "",
         remark: "",
         templateInputText: "",
+        orderedForStaffId: "",
+        paidByStaffId: "",
+        approvedByStaffId: "",
     };
 }
 

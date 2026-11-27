@@ -528,6 +528,7 @@ async fn absence_reaches_replica_b() {
             to_day: "2099-01-05".into(),
             from_time: None,
             to_time: None,
+            staff_id: None,
         },
     )
     .await
@@ -662,6 +663,9 @@ async fn purchase_order_reaches_replica_b() {
             order_number: Some("B-2099-01-0001".into()),
             pharma_consultant: None,
             total_amount: Some(4.0),
+            ordered_for_staff_id: None,
+            paid_by_staff_id: None,
+            approved_by: None,
         },
         "mesh-user",
     )

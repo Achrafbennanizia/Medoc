@@ -186,13 +186,14 @@ export function computePackedUpdatesAfterMove(
     gapAfterMin: number,
     dayBounds?: { startMin: number; endMin: number },
     schedule?: { practiceCfg: PracticeWorkHoursConfig; absences: Absence[] },
+    targetPhysicianId?: string,
 ): { updates: { id: string; data: Record<string, unknown> }[]; error?: string } {
     const dayStartMin = dayBounds?.startMin ?? APPOINTMENT_TIMELINE_DEFAULT_START_MIN;
     const dayEndMin = dayBounds?.endMin ?? APPOINTMENT_TIMELINE_DEFAULT_END_MIN;
     const moving = all.find((t) => t.id === movingId);
     if (!moving) return { updates: [] };
 
-    const physicianId = moving.physician_id;
+    const physicianId = targetPhysicianId?.trim() ? targetPhysicianId.trim() : moving.physician_id;
     const step = 5;
     const gap = Math.max(0, Math.floor(Number(gapAfterMin) || 0));
     const eff = schedule
@@ -284,8 +285,14 @@ export function computePackedUpdatesAfterMove(
         const uCmp = t.time.slice(0, 5);
         const newUCmp = newU.slice(0, 5);
         if (b.id === movingId) {
+            const data: Record<string, unknown> = {};
             if (t.date !== targetDate || uCmp !== newUCmp) {
-                updates.push({ id: b.id, data: { date: targetDate, time: newU } });
+                data.date = targetDate;
+                data.time = newU;
+            }
+            if (physicianId !== moving.physician_id) data.physician_id = physicianId;
+            if (Object.keys(data).length > 0) {
+                updates.push({ id: b.id, data });
             }
         } else if (uCmp !== newUCmp) {
             updates.push({ id: b.id, data: { time: newU } });

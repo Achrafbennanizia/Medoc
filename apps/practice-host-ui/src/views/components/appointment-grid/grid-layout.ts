@@ -7,7 +7,10 @@ export const HOUR_PX = APPOINTMENT_HOUR_PX;
 
 export type AppointmentDragState = {
     id: string;
+    /** Doctor at drag start (source column). */
     physicianId: string;
+    /** Doctor under the pointer while dragging (target column when applicable). */
+    currentPhysicianId: string;
     date: string;
     durMin: number;
     originalDate: string;

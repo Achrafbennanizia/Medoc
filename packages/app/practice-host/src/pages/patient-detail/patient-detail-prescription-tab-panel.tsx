@@ -7,9 +7,6 @@ import {
 } from "@/lib/certificate-composer";
 import { formatDate } from "@/lib/utils";
 import { PlusIcon } from "@/lib/icons";
-import { prescriptionStatusDisplay } from "@/lib/patient-detail-utils";
-import { PaymentRowActionsMenu, type PaymentRowAction } from "@/views/components/payment-row-actions-menu";
-import { Badge } from "@/views/components/ui/badge";
 import { Button } from "@/views/components/ui/button";
 import { Card, CardHeader } from "@/views/components/ui/card";
 import { EmptyState } from "@/views/components/ui/empty-state";
@@ -19,6 +16,10 @@ import { practiceCountry } from "@/lib/document-header-layout";
 import { useT, useTParams } from "@/lib/i18n";
 import { getInvoicePracticeFromStorage } from "@/lib/invoice-service-item";
 import { MedicationDatalist } from "@/views/components/medication-presets/medication-datalist";
+import {
+    CertificatePrivacyTable,
+    PrescriptionPrivacyTable,
+} from "./patient-detail-prescription-privacy-list";
 
 export type PatientDetailPrescriptionTabPanelProps = Omit<
     ReturnType<typeof usePatientDetailPrescriptionTab>,
@@ -507,70 +508,15 @@ export function PatientDetailPrescriptionTabPanel(props: PatientDetailPrescripti
                         : undefined}
                 />
             ) : (
-                <div className="prescription-certificate-table-scroll">
-                    <table className="tbl tbl-prescription-chart">
-                        <colgroup>
-                            <col className="prescription-col-med" />
-                            <col className="prescription-col-dosage" />
-                            <col className="prescription-col-duration" />
-                            <col className="prescription-col-status" />
-                            <col className="prescription-col-issued" />
-                            <col className="prescription-col-actions" />
-                        </colgroup>
-                        <thead>
-                            <tr>
-                                <th>{t("page.prescriptions.col.medication")}</th>
-                                <th>{t("page.prescriptions.col.dosage")}</th>
-                                <th>{t("page.prescriptions.col.duration")}</th>
-                                <th>{t("page.prescriptions.col.status")}</th>
-                                <th>{t("common.issued")}</th>
-                                <th className="prescription-th-actions">{t("patient.detail.tab.treatment.col.action")}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {prescriptions.map((r) => {
-                                const st = prescriptionStatusDisplay(r.status, t);
-                                return (
-                                    <tr key={r.id}>
-                                            <td style={{ fontWeight: 600 }}>{r.medication}</td>
-                                            <td>{r.dosage}</td>
-                                            <td>{r.duration}</td>
-                                            <td><Badge variant={st.variant}>{st.label}</Badge></td>
-                                            <td>{formatDate(r.issued_at)}</td>
-                                            <td className="prescription-td-actions">
-                                                {(() => {
-                                                    const actions: PaymentRowAction[] = [
-                                                        {
-                                                            id: "export",
-                                                            label: t("common.export"),
-                                                            onClick: () => handlePrintPrescription(r),
-                                                        },
-                                                    ];
-                                                    if (canWriteMedical) {
-                                                        actions.push({
-                                                            id: "delete",
-                                                            label: t("common.delete"),
-                                                            onClick: () => {
-                                                                resetPrescriptionWizard();
-                                                                setPrescriptionDeleteId(r.id);
-                                                            },
-                                                            danger: true,
-                                                        });
-                                                    }
-                                                    return (
-                                                        <PaymentRowActionsMenu
-                                                            ariaLabel={t("common.actions")}
-                                                            actions={actions}
-                                                        />
-                                                    );
-                                                })()}
-                                            </td>
-                                        </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
+                <PrescriptionPrivacyTable
+                    prescriptions={prescriptions}
+                    canWriteMedical={canWriteMedical}
+                    onExport={handlePrintPrescription}
+                    onDelete={(pid) => {
+                        resetPrescriptionWizard();
+                        setPrescriptionDeleteId(pid);
+                    }}
+                />
             )}
 
             {canWriteMedical && prescriptionDeleteId ? (
@@ -945,64 +891,15 @@ export function PatientDetailPrescriptionTabPanel(props: PatientDetailPrescripti
                         : undefined}
                 />
             ) : (
-                <div className="prescription-certificate-table-scroll">
-                    <table className="tbl tbl-certificate-chart">
-                        <colgroup>
-                            <col className="certificate-col-type" />
-                            <col className="certificate-col-from" />
-                            <col className="certificate-col-until" />
-                            <col className="certificate-col-issued" />
-                            <col className="certificate-col-actions" />
-                        </colgroup>
-                        <thead>
-                            <tr>
-                                <th>{t("page.patient_detail.certificate.col.type")}</th>
-                                <th>{t("common.valid_from")}</th>
-                                <th>{t("common.valid_until")}</th>
-                                <th>{t("common.issued")}</th>
-                                <th className="certificate-th-actions">{t("patient.detail.tab.treatment.col.action")}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {certificates.map((a) => (
-                                <tr key={a.id}>
-                                    <td style={{ fontWeight: 600 }}>{a.kind}</td>
-                                    <td>{formatDate(a.valid_from)}</td>
-                                    <td>{formatDate(a.valid_until)}</td>
-                                    <td>{formatDate(a.issued_at)}</td>
-                                    <td className="certificate-td-actions">
-                                        {(() => {
-                                            const actions: PaymentRowAction[] = [
-                                                {
-                                                    id: "export",
-                                                    label: t("common.export"),
-                                                    onClick: () => handlePrintCertificate(a),
-                                                },
-                                            ];
-                                            if (canWriteMedical) {
-                                                actions.push({
-                                                    id: "delete",
-                                                    label: t("common.delete"),
-                                                    onClick: () => {
-                                                        resetCertificateWizard();
-                                                        setCertificateDeleteId(a.id);
-                                                    },
-                                                    danger: true,
-                                                });
-                                            }
-                                            return (
-                                                <PaymentRowActionsMenu
-                                                    ariaLabel={t("common.actions")}
-                                                    actions={actions}
-                                                />
-                                            );
-                                        })()}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                <CertificatePrivacyTable
+                    certificates={certificates}
+                    canWriteMedical={canWriteMedical}
+                    onExport={handlePrintCertificate}
+                    onDelete={(cid) => {
+                        resetCertificateWizard();
+                        setCertificateDeleteId(cid);
+                    }}
+                />
             )}
 
             {canWriteMedical && certificateDeleteId ? (

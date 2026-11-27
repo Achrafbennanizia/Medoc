@@ -1,3 +1,5 @@
+import { SERIES_URL } from "./config";
+import { DIGITAL_COPY } from "./digital-copy";
 import type { Lang } from "./i18n";
 import { Photo } from "./Pages";
 import { pageHref } from "./route";
@@ -39,6 +41,70 @@ export function PageHead({ lang, page }: { lang: Lang; page: GoalPage }) {
           <p className="lead">{h.lead}</p>
         </div>
         <Photo name={p.name} alt={p.alt[lang]} className="page-photo" eager sizes="(min-width: 960px) 520px, 100vw" />
+      </div>
+    </section>
+  );
+}
+
+/** Home: MeDoc series framing merged from sifralabs/medoc. */
+export function SeriesBand({ lang }: { lang: Lang }) {
+  const s = DIGITAL_COPY[lang].series;
+  return (
+    <section className="section" id="series" aria-labelledby="series-title">
+      <div className="wrap">
+        <header className="section-head section-head-row">
+          <div>
+            <p className="kicker">{s.kicker}</p>
+            <h2 id="series-title">{s.title}</h2>
+            <p className="lead">{s.lead}</p>
+          </div>
+          <a className="btn btn-ghost" href={SERIES_URL} rel="noopener">
+            {s.more}
+          </a>
+        </header>
+        <ol className="series-principles">
+          {s.items.map((it) => (
+            <li key={it.t}>
+              <b>{it.t}</b>
+              <span>{it.d}</span>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </section>
+  );
+}
+
+/** Home: Morocco figures strip (detail on #/morocco). */
+export function MoroccoStrip({ lang }: { lang: Lang }) {
+  const m = DIGITAL_COPY[lang].moroccoStrip;
+  const sourceLabel = DIGITAL_COPY[lang].sourceLabel;
+  return (
+    <section className="section section-tint" id="morocco-strip" aria-labelledby="morocco-strip-title">
+      <div className="wrap">
+        <header className="section-head section-head-row">
+          <div>
+            <p className="kicker">{m.kicker}</p>
+            <h2 id="morocco-strip-title">{m.title}</h2>
+            <p className="lead">{m.lead}</p>
+          </div>
+          <a className="btn btn-ghost" href={pageHref("morocco")}>
+            {m.more}
+          </a>
+        </header>
+        <dl className="industry-strip morocco-strip">
+          {m.items.map((it) => (
+            <div key={it.fig + it.label}>
+              <dd>{it.fig}</dd>
+              <dt>
+                {it.label}{" "}
+                <a className="industry-src" href={it.src.u} rel="noopener" target="_blank">
+                  {sourceLabel}
+                </a>
+              </dt>
+            </div>
+          ))}
+        </dl>
       </div>
     </section>
   );

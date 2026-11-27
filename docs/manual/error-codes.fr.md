@@ -8,6 +8,7 @@ Chaque message d'erreur affiche un code comme MD-PAY-004. Recherchez-le ici pour
 
 | Code | Message | Gravité | Pourquoi | Que faire |
 |---|---|---|---|---|
+| `MD-APP-055` | Ces données appartiennent à un autre dentiste, qui ne vous a pas autorisé à les modifier. | Action bloquée | Votre rôle n'a pas l'autorisation pour cette action. | Demandez à un médecin ou à l'administrateur de l'effectuer ou de vous accorder l'autorisation. |
 | `MD-APP-042` | Vous ne pouvez modifier que vos propres rendez-vous. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 
 ## Général
@@ -31,22 +32,28 @@ Chaque message d'erreur affiche un code comme MD-PAY-004. Recherchez-le ici pour
 | `MD-APP-014` | … | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 | `MD-APP-100` | Le port LAN … est utilisé (autre instance MeDoc). Aucun second service LAN n'est lancé. | Action de votre part | La modification entre en conflit avec des données existantes (doublon ou édition concurrente). | Utilisez une autre valeur, ou rechargez et appliquez à nouveau la modification. |
 | `MD-APP-101` | Le serveur LAN est déjà en marche. | Action de votre part | La modification entre en conflit avec des données existantes (doublon ou édition concurrente). | Utilisez une autre valeur, ou rechargez et appliquez à nouveau la modification. |
-| `MD-APP-102` | MeDoc est déjà ouvert (base de données utilisée). Ouvrez la fenêtre existante au lieu d'une seconde copie. | Action de votre part | La modification entre en conflit avec des données existantes (doublon ou édition concurrente). | Utilisez une autre valeur, ou rechargez et appliquez à nouveau la modification. |
+| `MD-APP-132` | MeDoc Dentist is already running (database in use). Open the existing window instead of starting a second copy. _(contrôle technique, affiché en anglais)_ | Action de votre part | La modification entre en conflit avec des données existantes (doublon ou édition concurrente). | Utilisez une autre valeur, ou rechargez et appliquez à nouveau la modification. |
+| `MD-APP-133` | remote commands are not available yet _(contrôle technique, affiché en anglais)_ | Action de votre part | La modification entre en conflit avec des données existantes (doublon ou édition concurrente). | Utilisez une autre valeur, ou rechargez et appliquez à nouveau la modification. |
 | `MD-APP-103` | Le cabinet a déjà des comptes. | Action de votre part | La modification entre en conflit avec des données existantes (doublon ou édition concurrente). | Utilisez une autre valeur, ou rechargez et appliquez à nouveau la modification. |
 | `MD-APP-104` | … doit être supérieur ou égal à zéro. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 | `MD-APP-129` | … must be hex _(contrôle technique, affiché en anglais)_ | Action bloquée | Un fichier ou une signature a échoué au contrôle d'intégrité. Rien n'a été modifié. | Utilisez le fichier original non modifié. Ne réessayez pas avec le même fichier. |
+| `MD-APP-134` | …: … _(contrôle technique, affiché en anglais)_ | Action bloquée | Un fichier ou une signature a échoué au contrôle d'intégrité. Rien n'a été modifié. | Utilisez le fichier original non modifié. Ne réessayez pas avec le même fichier. |
 | `MD-APP-130` | cache name not allowed: … _(contrôle technique, affiché en anglais)_ | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 | `MD-APP-105` | CSV header must contain at least 'name' and 'date_of_birth' _(contrôle technique, affiché en anglais)_ | Action bloquée | Un fichier ou une signature a échoué au contrôle d'intégrité. Rien n'a été modifié. | Utilisez le fichier original non modifié. Ne réessayez pas avec le même fichier. |
 | `MD-APP-106` | CSV header: … _(contrôle technique, affiché en anglais)_ | Action bloquée | Un fichier ou une signature a échoué au contrôle d'intégrité. Rien n'a été modifié. | Utilisez le fichier original non modifié. Ne réessayez pas avec le même fichier. |
 | `MD-APP-107` | La base de données est verrouillée — saisissez la phrase secrète. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 | `MD-APP-109` | Invalid bind_addr/http_port combination. _(contrôle technique, affiché en anglais)_ | Action bloquée | Un fichier ou une signature a échoué au contrôle d'intégrité. Rien n'a été modifié. | Utilisez le fichier original non modifié. Ne réessayez pas avec le même fichier. |
 | `MD-APP-110` | Identifiant invalide. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
+| `MD-APP-135` | Bloc de numéros invalide. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 | `MD-APP-111` | Invalid provider token (expected pm_ or tok_ prefix) _(contrôle technique, affiché en anglais)_ | Action bloquée | Un fichier ou une signature a échoué au contrôle d'intégrité. Rien n'a été modifié. | Utilisez le fichier original non modifié. Ne réessayez pas avec le même fichier. |
+| `MD-APP-141` | invalid sequence _(contrôle technique, affiché en anglais)_ | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 | `MD-APP-112` | Keyring account already in use: … _(contrôle technique, affiché en anglais)_ | Action bloquée | Un fichier ou une signature a échoué au contrôle d'intégrité. Rien n'a été modifié. | Utilisez le fichier original non modifié. Ne réessayez pas avec le même fichier. |
 | `MD-APP-113` | LAN config: … _(contrôle technique, affiché en anglais)_ | Action bloquée | Un fichier ou une signature a échoué au contrôle d'intégrité. Rien n'a été modifié. | Utilisez le fichier original non modifié. Ne réessayez pas avec le même fichier. |
+| `MD-APP-136` | missing argument … _(contrôle technique, affiché en anglais)_ | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 | `MD-APP-114` | Nom et e-mail valide requis. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 | `MD-APP-115` | Aucun programme de numérisation compatible (p. ex. simple-scan). Installez-en un ou déposez les fichiers dans le dossier surveillé. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
-| `MD-APP-116` | Aucune mise à jour disponible. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
+| `MD-APP-137` | Ce n'est pas un fichier support MeDoc, ou pas pour cette clé. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
+| `MD-APP-138` | Le bloc de numéros doit avoir un appareil détenteur. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 | `MD-APP-131` | offline cache not allowed: … _(contrôle technique, affiché en anglais)_ | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 | `MD-APP-117` | Le chemin n'a pas de nom de fichier. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 | `MD-APP-118` | Le chemin est hors du dossier autorisé. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
@@ -54,10 +61,12 @@ Chaque message d'erreur affiche un code comme MD-PAY-004. Recherchez-le ici pour
 | `MD-APP-120` | Path: … _(contrôle technique, affiché en anglais)_ | Action bloquée | Un fichier ou une signature a échoué au contrôle d'intégrité. Rien n'a été modifié. | Utilisez le fichier original non modifié. Ne réessayez pas avec le même fichier. |
 | `MD-APP-121` | Le port doit être supérieur à 0. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 | `MD-APP-122` | Le préfixe doit compter 1 à 16 lettres ou chiffres. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
+| `MD-APP-139` | Des enregistrements de … n'ont pas de propriétaire. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 | `MD-APP-123` | Root path: … _(contrôle technique, affiché en anglais)_ | Action bloquée | Un fichier ou une signature a échoué au contrôle d'intégrité. Rien n'a été modifié. | Utilisez le fichier original non modifié. Ne réessayez pas avec le même fichier. |
 | `MD-APP-124` | settingsJson: … _(contrôle technique, affiché en anglais)_ | Action bloquée | Un fichier ou une signature a échoué au contrôle d'intégrité. Rien n'a été modifié. | Utilisez le fichier original non modifié. Ne réessayez pas avec le même fichier. |
 | `MD-APP-125` | Le scanner système n'est pas pris en charge sur cette plateforme. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 | `MD-APP-126` | The password must have at least … characters. _(contrôle technique, affiché en anglais)_ | Action bloquée | Un fichier ou une signature a échoué au contrôle d'intégrité. Rien n'a été modifié. | Utilisez le fichier original non modifié. Ne réessayez pas avec le même fichier. |
+| `MD-APP-140` | this record names no dentist _(contrôle technique, affiché en anglais)_ | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 | `MD-APP-127` | ui-prefs JSON: … _(contrôle technique, affiché en anglais)_ | Action bloquée | Un fichier ou une signature a échoué au contrôle d'intégrité. Rien n'a été modifié. | Utilisez le fichier original non modifié. Ne réessayez pas avec le même fichier. |
 | `MD-APP-128` | Format de numéro inconnu : … | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 
@@ -289,9 +298,11 @@ Chaque message d'erreur affiche un code comme MD-PAY-004. Recherchez-le ici pour
 
 | Code | Message | Gravité | Pourquoi | Que faire |
 |---|---|---|---|---|
+| `MD-APP-047` | Cette installation est endommagée : ses composants appartiennent à des éditions différentes de MeDoc. Réinstallez MeDoc. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 | `MD-APP-043` | Une connexion à l'appareil principal est nécessaire. Déconnectez-vous puis reconnectez-vous quand il est joignable. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 | `MD-APP-044` | Cette action n'est possible que sur l'appareil principal. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 | `MD-APP-045` | L'appareil principal est injoignable. Vérifiez qu'il est allumé et sur le même réseau. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
+| `MD-APP-048` | Cette édition fonctionne sur un seul ordinateur et n'a pas de réseau de cabinet. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 | `MD-APP-046` | L'application réplique rejoint un cabinet existant ; elle ne peut pas en créer. Utilisez l'application principale. | Action de votre part | L'élément est dans un statut qui n'autorise pas cette action. | Vérifiez le statut actuel (voir le guide des statuts) et choisissez une étape autorisée. |
 
 ## Sessions d'appareils
@@ -335,6 +346,7 @@ Chaque message d'erreur affiche un code comme MD-PAY-004. Recherchez-le ici pour
 | `MD-EXP-004` | Le dossier cible est en dehors du dossier d'export autorisé. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 | `MD-EXP-002` | Données d'export invalides (Base64). | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 | `MD-EXP-003` | Nom de fichier invalide. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
+| `MD-EXP-100` | error reports to the MeDoc server are not available yet _(contrôle technique, affiché en anglais)_ | Action de votre part | La modification entre en conflit avec des données existantes (doublon ou édition concurrente). | Utilisez une autre valeur, ou rechargez et appliquez à nouveau la modification. |
 
 ## Fonctions désactivées
 
@@ -350,6 +362,18 @@ Chaque message d'erreur affiche un code comme MD-PAY-004. Recherchez-le ici pour
 | Code | Message | Gravité | Pourquoi | Que faire |
 |---|---|---|---|---|
 | `MD-APP-035` | Effacement impossible : la durée légale de conservation court jusqu'au {…} (§ 630f BGB, § 147 AO). | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
+
+## Compte invité
+
+| Code | Message | Gravité | Pourquoi | Que faire |
+|---|---|---|---|---|
+| `MD-APP-054` | Ce cabinet a déjà le nombre maximal de comptes : le compte invité ne peut pas être ajouté. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
+| `MD-APP-049` | Seul l'invité envoie des propositions ; l'administrateur enregistre directement. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
+| `MD-APP-050` | Cette proposition a déjà été ajoutée ou refusée. | Action de votre part | L'élément est dans un statut qui n'autorise pas cette action. | Vérifiez le statut actuel (voir le guide des statuts) et choisissez une étape autorisée. |
+| `MD-APP-051` | Le compte invité est désactivé. Demandez à l'administrateur. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
+| `MD-APP-052` | L'invité ne peut pas proposer cette modification. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
+| `MD-APP-057` | L'invité ne peut pas créer de commandes. Confirmez seulement les livraisons, ou demandez à l'administrateur. | Action bloquée | Votre rôle n'a pas l'autorisation pour cette action. | Demandez à un médecin ou à l'administrateur de l'effectuer ou de vous accorder l'autorisation. |
+| `MD-APP-053` | Définissez un mot de passe pour le compte invité. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 
 ## Stock et commandes
 
@@ -469,6 +493,12 @@ Chaque message d'erreur affiche un code comme MD-PAY-004. Recherchez-le ici pour
 | `MD-NTF-100` | Aucun destinataire disponible pour cette notification. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 | `MD-NTF-101` | Type et titre de la notification requis. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 
+## Numérotation des documents
+
+| Code | Message | Gravité | Pourquoi | Que faire |
+|---|---|---|---|---|
+| `MD-APP-056` | Les numéros … de la séquence … manquent sur cet ordinateur. Aucun numéro n'est attribué avant qu'un admin les vérifie (Aide → Support). | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
+
 ## Appairage d'appareils
 
 | Code | Message | Gravité | Pourquoi | Que faire |
@@ -478,6 +508,7 @@ Chaque message d'erreur affiche un code comme MD-PAY-004. Recherchez-le ici pour
 | `MD-PAR-003` | ID d'appareil vide. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 | `MD-PAR-006` | Aucun appairage accepté pour cet appareil. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 | `MD-PAR-004` | Le PIN doit comporter exactement 6 chiffres. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
+| `MD-PAR-007` | L'ordinateur principal rattrape encore les changements après un redémarrage. Réessayez dans quelques minutes. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 | `MD-PAR-005` | Clé publique replica vide. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 | `MD-PAR-100` | Une demande d'appairage est déjà en attente pour cet appareil. | Action de votre part | La modification entre en conflit avec des données existantes (doublon ou édition concurrente). | Utilisez une autre valeur, ou rechargez et appliquez à nouveau la modification. |
 | `MD-PAR-101` | La demande d'appairage attend déjà la confirmation du PIN. | Action de votre part | La modification entre en conflit avec des données existantes (doublon ou édition concurrente). | Utilisez une autre valeur, ou rechargez et appliquez à nouveau la modification. |
@@ -624,7 +655,7 @@ Chaque message d'erreur affiche un code comme MD-PAY-004. Recherchez-le ici pour
 | `MD-STF-106` | L'effet doit être Autoriser ou Refuser. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 | `MD-STF-107` | Ce profil d'accès est destiné à un autre rôle. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 | `MD-STF-108` | Ce compte possède encore des rendez-vous ou documents cliniques. Attribuez d'abord un autre praticien, puis supprimez le compte. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
-| `MD-STF-116` | This area cannot be limited to own records: … _(contrôle technique, affiché en anglais)_ | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
+| `MD-STF-116` | Cette zone ne peut pas être limitée aux propres dossiers : … | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 | `MD-STF-109` | Unknown access area: … _(contrôle technique, affiché en anglais)_ | Action bloquée | Un fichier ou une signature a échoué au contrôle d'intégrité. Rien n'a été modifié. | Utilisez le fichier original non modifié. Ne réessayez pas avec le même fichier. |
 | `MD-STF-110` | Unknown access level: … _(contrôle technique, affiché en anglais)_ | Action bloquée | Un fichier ou une signature a échoué au contrôle d'intégrité. Rien n'a été modifié. | Utilisez le fichier original non modifié. Ne réessayez pas avec le même fichier. |
 | `MD-STF-111` | Profil d'accès inconnu : … | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
@@ -640,6 +671,7 @@ Chaque message d'erreur affiche un code comme MD-PAY-004. Recherchez-le ici pour
 | `MD-SYN-001` | Une modification reçue a une signature invalide et n'a pas été appliquée. Les données ont été modifiées en chemin ou l'expéditeur n'est pas authentique. | Action bloquée | Un fichier ou une signature a échoué au contrôle d'intégrité. Rien n'a été modifié. | Utilisez le fichier original non modifié. Ne réessayez pas avec le même fichier. |
 | `MD-SYN-002` | Des modifications sont arrivées signées par une clé que cet appareil ne connaît pas pour l'expéditeur. Associez à nouveau l'appareil. | Action bloquée | Un fichier ou une signature a échoué au contrôle d'intégrité. Rien n'a été modifié. | Utilisez le fichier original non modifié. Ne réessayez pas avec le même fichier. |
 | `MD-SYN-003` | Cet appareil a envoyé des modifications sans signature. Mettez-le à jour vers la version actuelle, puis synchronisez à nouveau. | Action de votre part | L'élément est dans un statut qui n'autorise pas cette action. | Vérifiez le statut actuel (voir le guide des statuts) et choisissez une étape autorisée. |
+| `MD-SYN-004` | Synchronisation en pause : cet ordinateur et l'ordinateur principal ont des versions qui ne peuvent pas se synchroniser. Mettez à jour le plus ancien ; le travail fait entre-temps est conservé et envoyé ensuite. | Action bloquée · Réessayer peut aider | Cet appareil ne parvient pas à joindre l'hôte du cabinet ou le serveur LAN. | Vérifiez le Wi-Fi/LAN, assurez-vous que l'hôte fonctionne, puis réessayez. Paramètres → Réseau affiche la connexion. |
 | `MD-SYN-100` | Le port réseau … est déjà utilisé (autre instance MeDoc). | Action de votre part | La modification entre en conflit avec des données existantes (doublon ou édition concurrente). | Utilisez une autre valeur, ou rechargez et appliquez à nouveau la modification. |
 | `MD-SYN-101` | blob hash mismatch _(contrôle technique, affiché en anglais)_ | Action bloquée | Un fichier ou une signature a échoué au contrôle d'intégrité. Rien n'a été modifié. | Utilisez le fichier original non modifié. Ne réessayez pas avec le même fichier. |
 | `MD-SYN-102` | cbor decode: … _(contrôle technique, affiché en anglais)_ | Action bloquée | Un fichier ou une signature a échoué au contrôle d'intégrité. Rien n'a été modifié. | Utilisez le fichier original non modifié. Ne réessayez pas avec le même fichier. |
@@ -647,6 +679,7 @@ Chaque message d'erreur affiche un code comme MD-PAY-004. Recherchez-le ici pour
 | `MD-SYN-104` | cipher read timed out _(contrôle technique, affiché en anglais)_ | Action bloquée | Un fichier ou une signature a échoué au contrôle d'intégrité. Rien n'a été modifié. | Utilisez le fichier original non modifié. Ne réessayez pas avec le même fichier. |
 | `MD-SYN-105` | Le réseau du cabinet a refusé … (…) : … | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 | `MD-SYN-106` | Adhésion au réseau du cabinet refusée (…) : … | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
+| `MD-SYN-152` | conflict payload: … _(contrôle technique, affiché en anglais)_ | Action bloquée | Un fichier ou une signature a échoué au contrôle d'intégrité. Rien n'a été modifié. | Utilisez le fichier original non modifié. Ne réessayez pas avec le même fichier. |
 | `MD-SYN-107` | Le réseau du cabinet n'accepte que des adresses LAN privées (refusé : …). | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 | `MD-SYN-108` | Frame too large _(contrôle technique, affiché en anglais)_ | Action bloquée | Un fichier ou une signature a échoué au contrôle d'intégrité. Rien n'a été modifié. | Utilisez le fichier original non modifié. Ne réessayez pas avec le même fichier. |
 | `MD-SYN-109` | Frame too short _(contrôle technique, affiché en anglais)_ | Action bloquée | Un fichier ou une signature a échoué au contrôle d'intégrité. Rien n'a été modifié. | Utilisez le fichier original non modifié. Ne réessayez pas avec le même fichier. |
@@ -654,7 +687,7 @@ Chaque message d'erreur affiche un code comme MD-PAY-004. Recherchez-le ici pour
 | `MD-SYN-111` | handshake timed out _(contrôle technique, affiché en anglais)_ | Action bloquée | Un fichier ou une signature a échoué au contrôle d'intégrité. Rien n'a été modifié. | Utilisez le fichier original non modifié. Ne réessayez pas avec le même fichier. |
 | `MD-SYN-112` | Invalid frame length _(contrôle technique, affiché en anglais)_ | Action bloquée | Un fichier ou une signature a échoué au contrôle d'intégrité. Rien n'a été modifié. | Utilisez le fichier original non modifié. Ne réessayez pas avec le même fichier. |
 | `MD-SYN-113` | L'empreinte du certificat LAN n'est pas un SHA-256. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
-| `MD-SYN-114` | Main device not reachable — document numbers are issued by the main device (…) _(contrôle technique, affiché en anglais)_ | Action bloquée | Un fichier ou une signature a échoué au contrôle d'intégrité. Rien n'a été modifié. | Utilisez le fichier original non modifié. Ne réessayez pas avec le même fichier. |
+| `MD-SYN-114` | Appareil principal injoignable — les numéros de document sont émis par l'appareil principal (…) | Action bloquée | Un fichier ou une signature a échoué au contrôle d'intégrité. Rien n'a été modifié. | Utilisez le fichier original non modifié. Ne réessayez pas avec le même fichier. |
 | `MD-SYN-115` | L'appareil principal a refusé l'attribution de numéros (…) : … | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 | `MD-SYN-116` | Master pubkey invalid: … _(contrôle technique, affiché en anglais)_ | Action bloquée | Un fichier ou une signature a échoué au contrôle d'intégrité. Rien n'a été modifié. | Utilisez le fichier original non modifié. Ne réessayez pas avec le même fichier. |
 | `MD-SYN-117` | Master pubkey length {} (expected 32) _(contrôle technique, affiché en anglais)_ | Action bloquée | Un fichier ou une signature a échoué au contrôle d'intégrité. Rien n'a été modifié. | Utilisez le fichier original non modifié. Ne réessayez pas avec le même fichier. |
@@ -669,6 +702,9 @@ Chaque message d'erreur affiche un code comme MD-PAY-004. Recherchez-le ici pour
 | `MD-SYN-126` | Message trop volumineux. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 | `MD-SYN-127` | no known sync queue in the exchange request _(contrôle technique, affiché en anglais)_ | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 | `MD-SYN-128` | Aucun appareil principal enregistré. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
+| `MD-SYN-153` | not a field conflict table _(contrôle technique, affiché en anglais)_ | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
+| `MD-SYN-154` | Bloc de numéros refusé (…) | Action bloquée | Un fichier ou une signature a échoué au contrôle d'intégrité. Rien n'a été modifié. | Utilisez le fichier original non modifié. Ne réessayez pas avec le même fichier. |
+| `MD-SYN-155` | Bloc de numéros : … | Action bloquée | Un fichier ou une signature a échoué au contrôle d'intégrité. Rien n'a été modifié. | Utilisez le fichier original non modifié. Ne réessayez pas avec le même fichier. |
 | `MD-SYN-129` | peer … has no TLS pin _(contrôle technique, affiché en anglais)_ | Action bloquée | Un fichier ou une signature a échoué au contrôle d'intégrité. Rien n'a été modifié. | Utilisez le fichier original non modifié. Ne réessayez pas avec le même fichier. |
 | `MD-SYN-130` | Nouvel appairage requis. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 | `MD-SYN-131` | reconcile rows request exceeds … _(contrôle technique, affiché en anglais)_ | Action bloquée | Un fichier ou une signature a échoué au contrôle d'intégrité. Rien n'a été modifié. | Utilisez le fichier original non modifié. Ne réessayez pas avec le même fichier. |
@@ -721,6 +757,17 @@ Chaque message d'erreur affiche un code comme MD-PAY-004. Recherchez-le ici pour
 | `MD-UIX-511` | Données du cabinet incomplètes pour les reçus. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 | `MD-UIX-512` | SAS digits missing from accept response _(contrôle technique, affiché en anglais)_ | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
 | `MD-UIX-513` | Les horaires enregistrés sont invalides. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
+
+## errors.domain.update
+
+| Code | Message | Gravité | Pourquoi | Que faire |
+|---|---|---|---|---|
+| `MD-APP-116` | Aucune mise à jour disponible. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
+| `MD-UPD-100` | Cette mise à jour ne peut pas être installée sur cette version. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
+| `MD-UPD-101` | La mise à jour est pour …/…, cet ordinateur exécute …/… | Action bloquée | Un fichier ou une signature a échoué au contrôle d'intégrité. Rien n'a été modifié. | Utilisez le fichier original non modifié. Ne réessayez pas avec le même fichier. |
+| `MD-UPD-102` | Le manifeste de mise à jour n'est pas signé par MeDoc. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
+| `MD-UPD-103` | Les versions du manifeste de mise à jour ne correspondent pas. | Action de votre part | Une valeur saisie est manquante ou mal formatée. | Corrigez le champ indiqué puis enregistrez à nouveau. |
+| `MD-UPD-104` | Manifeste de mise à jour : … | Action bloquée | Un fichier ou une signature a échoué au contrôle d'intégrité. Rien n'a été modifié. | Utilisez le fichier original non modifié. Ne réessayez pas avec le même fichier. |
 
 ## Temps de travail
 

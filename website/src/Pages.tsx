@@ -222,11 +222,11 @@ export function DigitalizationPack({ lang }: { lang: Lang }) {
         </div>
         <div className="before-after">
           <figure>
-            <Photo name="paper-files" alt={p.beforeAlt} sizes="(min-width: 960px) 460px, 100vw" />
+            <Photo name="paper-envelopes" alt={p.beforeAlt} sizes="(min-width: 960px) 460px, 100vw" />
             <figcaption>{p.before}</figcaption>
           </figure>
           <figure>
-            <Photo name="reception-digital" alt={p.afterAlt} sizes="(min-width: 960px) 460px, 100vw" />
+            <Photo name="doctor-desk" alt={p.afterAlt} sizes="(min-width: 960px) 460px, 100vw" />
             <figcaption>{p.after}</figcaption>
           </figure>
         </div>
@@ -235,54 +235,110 @@ export function DigitalizationPack({ lang }: { lang: Lang }) {
   );
 }
 
-/* ---------- Morocco page: digital health in Morocco ---------- */
+/* ---------- Morocco page: facts + readiness ---------- */
 export function DigitalHealth({ lang }: { lang: Lang }) {
   const d = DIGITAL_COPY[lang];
-  const c = d.morocco;
+  const { facts, ready } = d.morocco;
   return (
-    <section className="section digital" id="digital-health" aria-labelledby="dh-title">
-      <div className="wrap">
-        <header className="section-head">
-          <p className="kicker">{c.kicker}</p>
-          <h2 id="dh-title">{c.title}</h2>
-          <p className="lead">{c.lead}</p>
-        </header>
-        <dl className="dh-stats">
-          {c.stats.map((s) => (
-            <div key={s.v}>
-              <dt>{s.l}</dt>
-              <dd>{s.v}</dd>
-            </div>
-          ))}
-        </dl>
-        <div className="dh-help">
-          <h3>{c.helpTitle}</h3>
-          <ul>
-            {c.help.map((h) => (
-              <li key={h}>{h}</li>
+    <>
+      <section className="section digital" id="digital-health" aria-labelledby="dh-title">
+        <div className="wrap">
+          <header className="section-head">
+            <p className="kicker">{facts.kicker}</p>
+            <h2 id="dh-title">{facts.title}</h2>
+            <p className="lead">{facts.lead}</p>
+          </header>
+          <ul className="ma-facts">
+            {facts.items.map((it) => (
+              <li key={it.topic}>
+                <div className="ma-fact-top">
+                  <span className="ma-topic">{it.topic}</span>
+                  {it.status ? <span className="ma-status">{it.status}</span> : null}
+                </div>
+                <p className="ma-fig">{it.fig}</p>
+                <p>{it.text}</p>
+                <p className="fine">
+                  {d.sourceLabel}:{" "}
+                  <a href={it.src.u} rel="noopener" target="_blank">
+                    {it.src.t}
+                  </a>
+                </p>
+              </li>
             ))}
           </ul>
-          {c.note ? <p className="fine">{c.note}</p> : null}
+          <p className="fine">{facts.note}</p>
         </div>
-        <p className="fine dh-sources">
-          {d.sourcesLabel}:{" "}
-          {c.sources.map((s, i) => (
-            <span key={s.u}>
-              {i ? " · " : ""}
-              <a href={s.u} rel="noopener" target="_blank">
-                {s.t}
+      </section>
+      <section className="section" id="morocco-ready" aria-labelledby="ready-title">
+        <div className="wrap">
+          <header className="section-head">
+            <p className="kicker">{ready.kicker}</p>
+            <h2 id="ready-title">{ready.title}</h2>
+            <p className="lead">{ready.lead}</p>
+          </header>
+          <ul className="protect">
+            {ready.items.map((f) => (
+              <li key={f.t}>
+                <h3>{f.t}</h3>
+                <p>{f.d}</p>
+              </li>
+            ))}
+          </ul>
+          <h3 className="not-yet-title">{ready.notYetTitle}</h3>
+          <ul className="not-yet">
+            {ready.notYet.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+          <p className="fine">{ready.cndp}</p>
+          <a className="btn btn-primary" href={pageHref("demo")}>
+            {ready.cta}
+          </a>
+        </div>
+      </section>
+    </>
+  );
+}
+
+/* ---------- home: 10 ways (product benefits, edition-qualified) ---------- */
+export function Ways({ lang }: { lang: Lang }) {
+  const w = DIGITAL_COPY[lang].ways;
+  return (
+    <section className="section" id="ways" aria-labelledby="ways-title">
+      <div className="wrap">
+        <header className="section-head section-head-row">
+          <div>
+            <p className="kicker">{w.kicker}</p>
+            <h2 id="ways-title">{w.title}</h2>
+            <p className="lead">{w.lead}</p>
+          </div>
+          <a className="btn btn-ghost" href={pageHref("features")}>
+            {w.more}
+          </a>
+        </header>
+        <ol className="advantages ways-grid">
+          {w.items.map((it) => (
+            <li key={it.to}>
+              <a className="way-link" href={pageHref("features", it.to)}>
+                <span className="adv-key" aria-hidden="true">
+                  {it.k}
+                </span>
+                {it.ed ? <p className="way-ed">{it.ed}</p> : null}
+                <h3>{it.t}</h3>
+                <p>{it.d}</p>
               </a>
-            </span>
+            </li>
           ))}
-        </p>
+        </ol>
       </div>
     </section>
   );
 }
 
-/* ---------- home: 10 advantages ---------- */
+/* ---------- home: sourced advantages ---------- */
 export function Advantages({ lang }: { lang: Lang }) {
   const a = DIGITAL_COPY[lang].advantages;
+  const sourceLabel = DIGITAL_COPY[lang].sourceLabel;
   return (
     <section className="section section-tint" id="advantages" aria-labelledby="adv-title">
       <div className="wrap">
@@ -291,14 +347,39 @@ export function Advantages({ lang }: { lang: Lang }) {
           <h2 id="adv-title">{a.title}</h2>
           <p className="lead">{a.lead}</p>
         </header>
-        <ol className="advantages">
+        <dl className="industry-strip">
+          {a.strip.map((s) => (
+            <div key={s.fig + s.claim}>
+              <dd>{s.fig}</dd>
+              <dt>
+                {s.claim}{" "}
+                <a className="industry-src" href={s.src.u} rel="noopener" target="_blank">
+                  {sourceLabel}
+                </a>
+              </dt>
+            </div>
+          ))}
+        </dl>
+        <p className="industry-note">{a.stripNote}</p>
+        <ol className="advantages advantages-sourced">
           {a.items.map((it) => (
-            <li key={it.t}>
+            <li key={it.fig + it.market}>
               <span className="adv-key" aria-hidden="true">
-                {it.k}
+                {it.fig}
               </span>
-              <h3>{it.t}</h3>
-              <p>{it.d}</p>
+              <p className="adv-market">{it.market}</p>
+              <p className="adv-claim">{it.claim}</p>
+              <p className="fine">
+                {sourceLabel}:{" "}
+                <a href={it.src.u} rel="noopener" target="_blank">
+                  {it.src.t}
+                </a>
+              </p>
+              <div className="adv-answer">
+                <p className="adv-answer-label">{a.answerLabel}</p>
+                <h3>{it.answer.t}</h3>
+                <p>{it.answer.d}</p>
+              </div>
             </li>
           ))}
         </ol>

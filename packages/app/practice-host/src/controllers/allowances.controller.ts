@@ -87,6 +87,8 @@ export function viewRuleFrom(value: string): ViewRule {
         case "other_admin":
         case "nobody":
             return { kind: value };
+        case "chosen":
+            return { kind: "chosen", staff: [] };
         default:
             return { kind: "everyone" };
     }
@@ -100,6 +102,8 @@ export function changeRuleFrom(value: string): ChangeRule {
             return { kind: value };
         case "me_admin_reception":
             return { kind: "me_admin_and", staff: [], reception: true };
+        case "me_admin_staff":
+            return { kind: "me_admin_and", staff: [], reception: false };
         default:
             return { kind: "me_and_other_admin" };
     }

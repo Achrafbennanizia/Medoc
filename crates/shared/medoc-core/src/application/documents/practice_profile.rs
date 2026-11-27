@@ -238,24 +238,8 @@ impl PracticeProfile {
         if clinical {
             match key {
                 "bank" | "tax" | "payment_terms" | "vat_notice" => return,
-                // Moroccan tax ids (ICE, IF, TP, RC, CNSS) are for invoices; INPE identifies the dentist.
-                "ma_ids" => {
-                    if self.is_morocco() {
-                        if let Some(v) = opt(&self.ma_inpe) {
-                            out.push(format!("INPE {v}"));
-                        }
-                    }
-                    return;
-                }
-                // SIRET is for invoices; RPPS identifies the prescriber.
-                "fr_ids" => {
-                    if self.jurisdiction() == Some("fr") {
-                        if let Some(v) = opt(&self.fr_rpps) {
-                            out.push(format!("RPPS {v}"));
-                        }
-                    }
-                    return;
-                }
+                // Personal clinician ids belong in the signature block (§5.1), not the shared letterhead.
+                "zanr" | "ma_ids" | "fr_ids" => return,
                 _ => {}
             }
         }
@@ -435,6 +419,57 @@ mod tests {
                 "ZANR 987654321 · BSNR 123456789".to_string(),
             ]
         );
+    }
+
+    #[test]
+    fn clinical_letterhead_omits_personal_clinician_ids() {
+        let profile = PracticeProfile {
+            name: "Praxis".into(),
+            addr: "Street 1".into(),
+            country: Some("DE".into()),
+            zanr: Some("987654321".into()),
+            bsnr: Some("123456789".into()),
+            ..Default::default()
+        };
+        assert!(profile
+            .clinical_letterhead_lines()
+            .iter()
+            .any(|l| l.contains("BSNR")));
+        assert!(!profile
+            .clinical_letterhead_lines()
+            .iter()
+            .any(|l| l.contains("ZANR")));
+        assert_eq!(
+            profile.letterhead_lines().last().unwrap(),
+            "ZANR 987654321"
+        );
+
+        let fr = PracticeProfile {
+            country: Some("FR".into()),
+            fr_rpps: Some("10001234567".into()),
+            fr_siret: Some("12345678901234".into()),
+            ..profile.clone()
+        };
+        assert!(fr
+            .letterhead_lines()
+            .iter()
+            .any(|l| l.contains("RPPS")));
+        assert!(!fr
+            .clinical_letterhead_lines()
+            .iter()
+            .any(|l| l.contains("RPPS") || l.contains("SIRET")));
+
+        let ma = PracticeProfile {
+            country: Some("MA".into()),
+            ma_ice: Some("ICE1".into()),
+            ma_inpe: Some("INPE1".into()),
+            ..profile
+        };
+        assert!(ma.letterhead_lines().iter().any(|l| l.contains("INPE")));
+        assert!(!ma
+            .clinical_letterhead_lines()
+            .iter()
+            .any(|l| l.contains("INPE")));
     }
 
     #[test]

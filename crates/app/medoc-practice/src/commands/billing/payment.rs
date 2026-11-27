@@ -29,6 +29,7 @@ pub async fn list_payments_paged(
     let session = rbac::require_one_of(&session_state, FINANCE_READ_OR_RECEPTION)?;
     let p = params.unwrap_or_default();
     let doctor = p.filter_str("doctorId").filter(|d| !d.trim().is_empty());
+    let collected_by = p.filter_str("collectedBy").filter(|d| !d.trim().is_empty());
     let scope = super::payment_allowances::scope(&pool, &session, doctor).await?;
     let limit = p.limit();
     let offset = p.offset();
@@ -45,6 +46,7 @@ pub async fn list_payments_paged(
         date_to: p.filter_str("dateTo"),
         active_on: p.filter_str("activeOn"),
         doctor,
+        collected_by,
         hidden_doctors: &scope.hidden_doctors,
         hidden_ids: &scope.hidden_ids,
     };

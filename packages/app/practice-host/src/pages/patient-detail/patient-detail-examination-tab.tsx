@@ -8,6 +8,7 @@ import { formatCurrency, formatDateTime } from "@/lib/utils";
 import { ChartInlineEditPanelShell, ConfirmOrInline } from "@/views/components/chart-confirm-presentation";
 import { ExaminationComposer } from "@/views/components/examination-composer";
 import { ExaminationDetailPanel } from "@/views/components/examination-detail-panel";
+import { RecordPrivacy } from "@/views/components/record-privacy";
 import { Button } from "@/views/components/ui/button";
 import { Card, CardHeader } from "@/views/components/ui/card";
 
@@ -178,6 +179,11 @@ export function PatientDetailExaminationTab({
                                         {open ? (
                                             <div style={{ marginTop: "var(--space-4)" }}>
                                                 <ExaminationDetailPanel examination={u} />
+                                                <RecordPrivacy
+                                                    entityTable="examination"
+                                                    entityId={u.id}
+                                                    ownerId={u.responsible_staff_id}
+                                                />
                                             </div>
                                         ) : null}
                                     </div>

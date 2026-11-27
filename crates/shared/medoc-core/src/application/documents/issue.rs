@@ -764,7 +764,10 @@ pub struct IssueInvoiceArgs {
 mod invoice_json;
 mod signing_doctor;
 pub use signing_doctor::DOCTOR_SIGNATURES_KV_KEY;
-use signing_doctor::signing_doctor_lines;
+pub(crate) use signing_doctor::{apply_report_signing, stamp_issued_document_signed_by};
+use signing_doctor::{
+    fill_invoice_treating_clinician, signing_doctor_lines, treating_staff_id_for_patient,
+};
 #[allow(unused_imports)]
 pub use invoice_json::*;
 
@@ -788,6 +791,14 @@ async fn complete_invoice_from_db(
     {
         inv.clinician_name = profile.clinician_name.clone();
     }
+    fill_invoice_treating_clinician(
+        pool,
+        patient_id,
+        &profile,
+        &mut inv.clinician_name,
+        &mut inv.clinician_zanr,
+    )
+    .await?;
     inv.tax_number = profile.tax_number.clone().filter(|s| !s.trim().is_empty());
     inv.vat_id = profile.vat_id.clone().filter(|s| !s.trim().is_empty());
     // The language the UI asked for (Settings language when none was sent). Resolved first:
@@ -1257,6 +1268,9 @@ pub async fn issue_invoice(
     })?;
     after_insert(pool, session, &doc, "ISSUE_DOCUMENT").await;
     mirror_into_invoice_documents(pool, session, &doc, total).await;
+    if let Some(signer) = treating_staff_id_for_patient(pool, &patient_id).await? {
+        stamp_issued_document_signed_by(pool, &doc.id, Some(&signer)).await?;
+    }
     Ok(IssuedPdf {
         document_id: Some(doc.id),
         document_number: Some(doc.document_number),
@@ -1408,6 +1422,7 @@ pub async fn issue_report(
     input.locale = Some(locale.into());
     // Same three footer lines as the invoice: practice and chamber, tax number, bank.
     input.footer_lines = profile.minimal_footer_lines(locale);
+    let report_signer = apply_report_signing(pool, session, None, &profile, &mut input).await?;
 
     if preview {
         input.watermark = Some(
@@ -1463,6 +1478,9 @@ pub async fn issue_report(
         Ok((doc, bytes))
     })?;
     after_insert(pool, session, &doc, "ISSUE_DOCUMENT").await;
+    if let Some(signer) = report_signer {
+        stamp_issued_document_signed_by(pool, &doc.id, Some(&signer)).await?;
+    }
     Ok(IssuedPdf {
         document_id: Some(doc.id),
         document_number: Some(doc.document_number),

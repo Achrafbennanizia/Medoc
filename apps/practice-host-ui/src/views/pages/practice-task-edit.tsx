@@ -63,12 +63,12 @@ export function PracticeTaskEditPage() {
         setLoadError(null);
         setNotFound(false);
         try {
-            const [tasks, pats, team] = await Promise.all([
+            const [tasksResp, pats, team] = await Promise.all([
                 listPracticeTasksAdmin(),
                 listPatients(),
                 loadTaskTeamDirectory(role, session?.permission_overrides),
             ]);
-            const row = tasks.find((task) => task.id === id);
+            const row = tasksResp.items.find((task) => task.id === id);
             if (!row) {
                 setNotFound(true);
                 return;

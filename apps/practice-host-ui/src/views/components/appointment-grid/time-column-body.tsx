@@ -253,6 +253,7 @@ export function AppointmentTimeColumnBody({
                                 {
                                     id: ap.id,
                                     physicianId: ap.physician_id,
+                                    currentPhysicianId: physicianId ?? ap.physician_id,
                                     date: iso,
                                     durMin,
                                     originalDate: ap.date,

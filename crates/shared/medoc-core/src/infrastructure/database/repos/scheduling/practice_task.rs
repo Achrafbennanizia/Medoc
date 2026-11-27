@@ -525,14 +525,56 @@ pub async fn update_status(
 }
 
 /// Admin: all tasks (newest first).
-pub async fn list_all_admin(pool: &SqlitePool, limit: i64) -> Result<Vec<PracticeTask>, AppError> {
-    sqlx::query_as::<_, PracticeTask>(
-        "SELECT * FROM practice_task ORDER BY datetime(updated_at) DESC LIMIT ?1",
-    )
-    .bind(limit)
-    .fetch_all(pool)
-    .await
-    .map_err(Into::into)
+/// Admin task list, newest first. Cabinet+: `doctor` keeps one doctor's tasks; tasks of
+/// `hidden_doctors` and the `hidden_ids` are left out. Filtered in SQL, before the limit, so a
+/// doctor's older tasks are not cut off by other doctors' newer ones.
+pub async fn list_all_admin(
+    pool: &SqlitePool,
+    limit: i64,
+    doctor: Option<&str>,
+    hidden_doctors: &[String],
+    hidden_ids: &[String],
+) -> Result<Vec<PracticeTask>, AppError> {
+    let mut wheres: Vec<String> = Vec::new();
+    let mut binds: Vec<String> = Vec::new();
+    // Numbered placeholders only: a bare `?` after `?N` is counted from 1 again (sqlx/SQLite).
+    if let Some(d) = doctor {
+        binds.push(d.to_string());
+        wheres.push(format!("doctor_id = ?{}", binds.len()));
+    }
+    for (list, cond) in [
+        (
+            hidden_doctors,
+            "(doctor_id IS NULL OR doctor_id = '' OR doctor_id NOT IN ({}))",
+        ),
+        (hidden_ids, "id NOT IN ({})"),
+    ] {
+        if list.is_empty() {
+            continue;
+        }
+        let marks: Vec<String> = list
+            .iter()
+            .map(|v| {
+                binds.push(v.clone());
+                format!("?{}", binds.len())
+            })
+            .collect();
+        wheres.push(cond.replace("{}", &marks.join(", ")));
+    }
+    let where_sql = if wheres.is_empty() {
+        String::new()
+    } else {
+        format!("WHERE {}", wheres.join(" AND "))
+    };
+    let sql = format!(
+        "SELECT * FROM practice_task {where_sql} ORDER BY datetime(updated_at) DESC LIMIT ?{}",
+        binds.len() + 1
+    );
+    let mut q = sqlx::query_as::<_, PracticeTask>(&sql);
+    for b in &binds {
+        q = q.bind(b);
+    }
+    q.bind(limit).fetch_all(pool).await.map_err(Into::into)
 }
 
 const TASK_STATUSES: &[&str] = &[

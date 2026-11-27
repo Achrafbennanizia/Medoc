@@ -67,6 +67,7 @@ fn set(enabled: bool, clinical_read: bool, password: Option<&str>) -> SetGuestAc
         enabled,
         password: password.map(str::to_string),
         clinical_read,
+        documents_read: false,
     }
 }
 
@@ -109,6 +110,19 @@ async fn guest_reads_but_only_proposes_writes() {
         "no deletes, even as proposal"
     );
     assert!(!effective_allowed("medical.read", Role::Reception, o));
+    assert!(!effective_allowed("patient.read_documents", Role::Reception, o));
+    assert!(!effective_allowed("patient.read_medical", Role::Reception, o));
+    // Delivery confirmations are the one direct write; creating orders stays blocked.
+    assert!(effective_allowed(
+        "purchase_order.receive",
+        Role::Reception,
+        o
+    ));
+    assert!(!effective_allowed(
+        "purchase_order.write",
+        Role::Reception,
+        o
+    ));
 
     // The admin is not affected by the guard.
     assert!(effective_allowed("patient.write", Role::Physician, &[]));
@@ -126,6 +140,14 @@ async fn clinical_read_switch_and_turning_the_guest_off() {
         Role::Reception,
         &s.permission_overrides
     ));
+    assert!(
+        !effective_allowed(
+            "patient.read_documents",
+            Role::Reception,
+            &s.permission_overrides
+        ),
+        "clinical switch does not grant documents"
+    );
     assert!(guest::login_allowed(&pool, &s.user_id).await.unwrap());
 
     let off = guest::set_account(&pool, &owner(), &set(false, true, None))
@@ -137,6 +159,35 @@ async fn clinical_read_switch_and_turning_the_guest_off() {
         guest::login_allowed(&pool, "own-1").await.unwrap(),
         "the admin always signs in"
     );
+}
+
+#[tokio::test]
+async fn documents_read_switch() {
+    let pool = pool().await;
+    let account = guest::set_account(
+        &pool,
+        &owner(),
+        &SetGuestAccount {
+            enabled: true,
+            password: Some("GuestPass2026!x".into()),
+            clinical_read: false,
+            documents_read: true,
+        },
+    )
+    .await
+    .expect("create");
+    assert!(account.documents_read && !account.clinical_read);
+    let s = guest_login(&pool).await;
+    assert!(effective_allowed(
+        "patient.read_documents",
+        Role::Reception,
+        &s.permission_overrides
+    ));
+    assert!(!effective_allowed(
+        "patient.read_medical",
+        Role::Reception,
+        &s.permission_overrides
+    ));
 }
 
 #[tokio::test]

@@ -13,6 +13,10 @@ pub struct Absence {
     pub to_day: String,
     pub from_time: Option<String>,
     pub to_time: Option<String>,
+    /// Group: whose holiday / absence (editions-plan §4.1).
+    #[sqlx(default)]
+    #[serde(default)]
+    pub staff_id: Option<String>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
 }
@@ -25,6 +29,8 @@ pub struct CreateAbsence {
     pub to_day: String,
     pub from_time: Option<String>,
     pub to_time: Option<String>,
+    #[serde(default)]
+    pub staff_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -35,6 +41,8 @@ pub struct UpdateAbsence {
     pub to_day: Option<String>,
     pub from_time: Option<String>,
     pub to_time: Option<String>,
+    #[serde(default)]
+    pub staff_id: Option<String>,
 }
 
 /// F126: both days must be real `yyyy-MM-dd` dates and the range not inverted.
@@ -70,8 +78,8 @@ pub async fn create_absence(pool: &SqlitePool, data: &CreateAbsence) -> Result<A
     validate_absence_range(&data.from_day, &data.to_day)?;
     let id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
-        "INSERT INTO absence (id, kind, comment, from_day, to_day, from_time, to_time)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        "INSERT INTO absence (id, kind, comment, from_day, to_day, from_time, to_time, staff_id)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
     )
     .bind(&id)
     .bind(data.kind.trim())
@@ -91,6 +99,12 @@ pub async fn create_absence(pool: &SqlitePool, data: &CreateAbsence) -> Result<A
     )
     .bind(
         data.to_time
+            .as_ref()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty()),
+    )
+    .bind(
+        data.staff_id
             .as_ref()
             .map(|s| s.trim())
             .filter(|s| !s.is_empty()),
@@ -178,9 +192,21 @@ pub async fn update_absence(
         }
     };
 
+    let staff_id = match &data.staff_id {
+        None => existing.staff_id.clone(),
+        Some(s) => {
+            let t = s.trim();
+            if t.is_empty() {
+                None
+            } else {
+                Some(t.to_string())
+            }
+        }
+    };
+
     sqlx::query(
         "UPDATE absence SET kind = ?1, comment = ?2, from_day = ?3, to_day = ?4,
-         from_time = ?5, to_time = ?6, updated_at = CURRENT_TIMESTAMP WHERE id = ?7",
+         from_time = ?5, to_time = ?6, staff_id = ?7, updated_at = CURRENT_TIMESTAMP WHERE id = ?8",
     )
     .bind(&kind)
     .bind(&comment)
@@ -188,6 +214,7 @@ pub async fn update_absence(
     .bind(&to_day)
     .bind(&from_time)
     .bind(&to_time)
+    .bind(&staff_id)
     .bind(id)
     .execute(pool)
     .await?;

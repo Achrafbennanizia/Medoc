@@ -159,6 +159,8 @@ pub struct PaymentListFilter<'a> {
     pub active_on: Option<&'a str>,
     /// Cabinet+: only payments for this doctor (`for_staff_id`).
     pub doctor: Option<&'a str>,
+    /// Cabinet+: only payments collected by this staff id.
+    pub collected_by: Option<&'a str>,
     /// Cabinet+ sharing rules: payments for these doctors and these payment ids are left out.
     pub hidden_doctors: &'a [String],
     pub hidden_ids: &'a [String],
@@ -213,6 +215,10 @@ pub async fn find_paginated(
     if let Some(d) = filter.doctor {
         wheres.push(format!("for_staff_id = ?{}", binds.len() + 1));
         binds.push(d.to_string());
+    }
+    if let Some(c) = filter.collected_by {
+        wheres.push(format!("collected_by = ?{}", binds.len() + 1));
+        binds.push(c.to_string());
     }
     for (list, cond) in [
         (filter.hidden_doctors, "(for_staff_id IS NULL OR for_staff_id NOT IN ({}))"),

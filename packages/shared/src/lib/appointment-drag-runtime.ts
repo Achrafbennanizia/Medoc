@@ -2,6 +2,8 @@ import { minutesToTime } from "./appointment-availability";
 
 export type AppointmentDragColumnHit = {
     iso: string;
+    /** Group day view: column belongs to this doctor (data-appointment-doctor-col). */
+    physicianId?: string;
     left: number;
     right: number;
     top: number;
@@ -22,6 +24,7 @@ type DragDomSession = {
     ghostEl: HTMLDivElement | null;
     sourceId: string | null;
     highlightIso: string | null;
+    highlightPhysicianId: string | null;
 };
 
 const dragSession: DragDomSession = {
@@ -29,6 +32,7 @@ const dragSession: DragDomSession = {
     ghostEl: null,
     sourceId: null,
     highlightIso: null,
+    highlightPhysicianId: null,
 };
 
 let columnCache: AppointmentDragColumnHit[] = [];
@@ -84,7 +88,7 @@ export function positionAppointmentDragGhost(
         timeNode.classList.add("appointment-appt-block-time--drag-live");
     }
     el.classList.toggle("appointment-appt-block--drag-invalid", invalid);
-    setAppointmentDragColumnHighlight(col.iso);
+    setAppointmentDragColumnHighlight(col.iso, col.physicianId);
 }
 
 export function destroyAppointmentDragGhost(): void {
@@ -100,17 +104,27 @@ export function destroyAppointmentDragGhost(): void {
     setAppointmentDragColumnHighlight(null);
 }
 
-export function setAppointmentDragColumnHighlight(iso: string | null): void {
-    if (dragSession.highlightIso === iso) return;
+function appointmentDragColumnSelector(iso: string, physicianId?: string | null): string {
+    const day = `[data-appointment-day-col="${CSS.escape(iso)}"]`;
+    if (physicianId) {
+        return `${day}[data-appointment-doctor-col="${CSS.escape(physicianId)}"]`;
+    }
+    return day;
+}
+
+export function setAppointmentDragColumnHighlight(iso: string | null, physicianId?: string | null): void {
+    const nextPhysician = physicianId ?? null;
+    if (dragSession.highlightIso === iso && dragSession.highlightPhysicianId === nextPhysician) return;
     if (dragSession.highlightIso) {
         const prev = document.querySelector<HTMLElement>(
-            `[data-appointment-day-col="${CSS.escape(dragSession.highlightIso)}"]`,
+            appointmentDragColumnSelector(dragSession.highlightIso, dragSession.highlightPhysicianId),
         );
         prev?.classList.remove("appointment-day-col--drag-target");
     }
     dragSession.highlightIso = iso;
+    dragSession.highlightPhysicianId = nextPhysician;
     if (!iso) return;
-    const col = document.querySelector<HTMLElement>(`[data-appointment-day-col="${CSS.escape(iso)}"]`);
+    const col = document.querySelector<HTMLElement>(appointmentDragColumnSelector(iso, nextPhysician));
     col?.classList.add("appointment-day-col--drag-target");
 }
 
@@ -228,9 +242,11 @@ function refreshAppointmentDragColumnCache(force = false): void {
     for (const col of document.querySelectorAll<HTMLElement>("[data-appointment-day-col]")) {
         const iso = col.dataset.appointmentDayCol;
         if (!iso) continue;
+        const physicianId = col.dataset.appointmentDoctorCol || undefined;
         const r = col.getBoundingClientRect();
         columnCache.push({
             iso,
+            physicianId,
             left: r.left,
             right: r.right,
             top: r.top,
@@ -301,18 +317,32 @@ export function hitAppointmentDragHourGutter(clientX: number, clientY: number): 
     return null;
 }
 
-export function findAppointmentDragColumnByIso(iso: string): AppointmentDragColumnHit | null {
+export function findAppointmentDragColumnByIso(iso: string, physicianId?: string): AppointmentDragColumnHit | null {
     refreshAppointmentDragColumnCache();
+    if (physicianId) {
+        return (
+            columnCache.find((c) => c.iso === iso && c.physicianId === physicianId)
+            ?? columnCache.find((c) => c.iso === iso && !c.physicianId)
+            ?? columnCache.find((c) => c.iso === iso)
+            ?? null
+        );
+    }
     return columnCache.find((c) => c.iso === iso) ?? null;
 }
 
 export type AppointmentDragPatch = {
     currentDate: string;
     currentStartMin: number;
+    currentPhysicianId: string;
     dropAllowed: boolean;
 };
 
 export function appointmentDragPatchChanged(a: AppointmentDragPatch | null, b: AppointmentDragPatch): boolean {
     if (!a) return true;
-    return a.currentDate !== b.currentDate || a.currentStartMin !== b.currentStartMin || a.dropAllowed !== b.dropAllowed;
+    return (
+        a.currentDate !== b.currentDate
+        || a.currentStartMin !== b.currentStartMin
+        || a.currentPhysicianId !== b.currentPhysicianId
+        || a.dropAllowed !== b.dropAllowed
+    );
 }

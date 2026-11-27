@@ -681,6 +681,9 @@ pub struct ReportPdfInput {
     /// Signature lines printed at the end ("Kassierer/in", "Geprüft").
     #[serde(default)]
     pub signatures: Vec<String>,
+    /// Signing dentist block (Cabinet+ §5.1), same content as clinical `signatureLines`.
+    #[serde(default)]
+    pub signing_doctor_lines: Vec<String>,
     /// DIN footer (practice, tax, bank). The server fills this from the practice profile.
     #[serde(default)]
     pub footer_lines: Vec<String>,
@@ -757,6 +760,12 @@ pub fn render_report_pdf(input: &ReportPdfInput) -> Result<Vec<u8>, AppError> {
         blocks.push(ChartPdfBlock::body(
             super::i18n::t(locale, super::i18n::Phrase::Confirmation),
             lines,
+        ));
+    }
+    if !input.signing_doctor_lines.is_empty() {
+        blocks.push(ChartPdfBlock::body(
+            super::i18n::t(locale, super::i18n::Phrase::Confirmation),
+            input.signing_doctor_lines.clone(),
         ));
     }
 
@@ -906,6 +915,7 @@ mod tests {
             signatures: Vec::new(),
             footer_lines: vec!["Sparkasse · IBAN DE00 · BIC TEST".into()],
             logo: None,
+            ..Default::default()
         };
         let pdf = render_report_pdf(&input).unwrap();
         let text = String::from_utf8_lossy(&pdf);

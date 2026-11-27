@@ -38,6 +38,8 @@ permissions:
   product.read: everyone
   product.write: inventory_write
   purchase_order.read: everyone
+  # Confirm / receive delivery (status). Creating or cancelling still needs write.
+  purchase_order.receive: inventory_write
   purchase_order.write: inventory_write
   # TODO(deferred-roles): was [PHYSICIAN, TAX_ADVISOR, PHARMA_CONSULTANT]
   administration.read: physician_only

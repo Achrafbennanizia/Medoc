@@ -19,7 +19,7 @@ npm run build    # type-check + build → dist/
 | Translations | `i18n/{fr,ar,de}.json`, keyed by the English text. `npm run build` warns about any string without a translation |
 | Photos | `public/img/*.webp` (900 and 1600 px). Real photos under the Unsplash License: Cherrydeck (team-laptop), Compagnons (code-screens), BaljkanN4 (support), Vitaly Gariev (doctor-phone, team-office), Quang Tri NGUYEN (dental-scan), plus the earlier set. No AI-generated images |
 | Shared header, footer, contact block, core diagram | `partials/*.html`, pulled in with `<!-- @include name -->` |
-| Colours, type, layout | `src/site.css` (tokens at the top, dark mode redefines them) |
+| Colours, type, layout | `src/styles/*.css`, one file per area (tokens in `01-tokens-base-nav.css`, dark mode redefines them; blocks from the 2026-11 rebuild in 09-11), imported in order by `src/main.ts`; each file stays under 400 lines |
 | Logo, icons | `public/sifra-mark*.svg`, `public/favicon.svg`. PNGs (`favicon-32`, `apple-touch-icon`, `icon-512`, `og`) are rendered from `brand-src/*.html` with headless Chrome |
 | Security contact | `public/.well-known/security.txt`. **Renew `Expires` before 2027-11-01** |
 | Response headers (CSP, HSTS…) | `public/_headers` (Cloudflare Pages format). If you add analytics or any outside script, add its origin to the CSP |
@@ -30,7 +30,7 @@ npm run build    # type-check + build → dist/
 | Page prerendering | Speculation rules in `partials/head.html`; the CSP in `public/_headers` allows them with `'inline-speculation-rules'` |
 | Links to MeDoc Dentist | `https://achrafbennanizia.github.io/Medoc/` (its live address). Switch to `https://medoc.sifralabs.com/` once that domain is set up (see below) |
 
-Art direction: blueprint grid and dot-matrix texture on a Swiss editorial layout (`src/site.css`, "Art direction"). Keep it to those two textures.
+Art direction: blueprint grid and dot-matrix texture on a Swiss editorial layout (`src/styles/05-paths-cta-photo.css`, "Art direction"). Keep it to those two textures.
 
 Claims must stay true to the current release: anything not shipped is labelled "planned" or "research".
 

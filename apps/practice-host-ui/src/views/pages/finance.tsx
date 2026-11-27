@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FC, type KeyboardEvent } from "react";
-import { FinanceDoctorCell, FinanceDoctorFilter, FinanceFilterSelect, FinanceHiddenDoctorsNote } from "./finance-doctor";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { FinanceDoctorCell, FinanceHiddenDoctorsNote, FinanceTxFilters } from "./finance-doctor";
 import { useFinanceDoctors } from "./finance-doctor-data";
+import { FinanceKpiCard, type KpiSubTone } from "./finance-kpi";
+import { formatPctLocalized, kpisFromServer, paymentStatusFilter, type FinanceTxTab } from "./finance-kpi-data";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import {
@@ -13,7 +15,7 @@ import { listPurchaseOrders, updatePurchaseOrderStatus } from "@/systems/practic
 import type { OrderStatus, PurchaseOrder } from "@/systems/practice-host/controllers/purchase-order.controller";
 import { parseRole, allowed, canReadFinance } from "@/lib/rbac";
 import { useAuthStore } from "../../models/store/auth-store";
-import { errorMessage, formatCurrency, formatDate, kpiValueSizeClass } from "@/lib/utils";
+import { errorMessage, formatCurrency, formatDate } from "@/lib/utils";
 import {
     orderStatusDisplay,
     vorgangText,
@@ -29,7 +31,6 @@ import { Button } from "../components/ui/button";
 import { EmptyState } from "../components/ui/empty-state";
 import { useToastStore } from "../components/ui/toast-store";
 import { PageLoadError, PageLoading } from "../components/ui/page-status";
-import { NAV_ICONS } from "@/lib/icons";
 import { FinanceTxDetailDrawer, financeTxRowKey } from "../components/finance-tx-detail-drawer";
 import { WorkspacePageHeader } from "../components/administration-page-header";
 import type { DocumentKind } from "@/lib/document-template-schema";
@@ -43,11 +44,9 @@ import { PracticeReadinessDialog } from "@/views/components/practice-readiness-d
 import { LAZY_PAGE_SIZE, mergeUniqueById } from "@/lib/lazy-list";
 import { readListSnapshot, writeListSnapshot } from "@/lib/list-snapshot";
 import { usePageRefresh } from "../layouts/page-refresh";
-
 import { parseInstant } from "@/lib/practice-clock";
-const PAYMENT_KIND_VALUES = ["CASH", "CARD", "BANK_TRANSFER", "INVOICE"] as const;
 
-type FinanceTxTab = "all" | "income" | "expense";
+const PAYMENT_KIND_VALUES = ["CASH", "CARD", "BANK_TRANSFER", "INVOICE"] as const;
 
 type FinanceTxRowLocal = FinanceTxRow;
 
@@ -61,98 +60,6 @@ function toFinanceRows(z: Payment[], b: PurchaseOrder[]): FinanceTxRowLocal[] {
 function rowSortTs(r: FinanceTxRowLocal): number {
     return parseInstant(r.kind === "payment" ? r.z.created_at : r.b.created_at)?.getTime() ?? 0;
 }
-
-function formatPctLocalized(pct: number, locale: string): string {
-    const s = (pct >= 0 ? "+" : "") + Math.abs(pct).toFixed(1).replace(".", locale.startsWith("de") ? "," : ".");
-    return s + "%";
-}
-
-function paymentStatusFilter(tab: FinanceTxTab): string | undefined {
-    if (tab === "income") return "PAID,PARTIALLY_PAID";
-    if (tab === "expense") return "CANCELLED";
-    return undefined;
-}
-
-function kpisFromServer(k: PaymentFinanceKpis) {
-    const incomeMtd = k.incomeMtd;
-    const st = k.cancelledMtd;
-    const incomeDeltaPct =
-        k.incomePrevMtd > 0
-            ? ((incomeMtd - k.incomePrevMtd) / k.incomePrevMtd) * 100
-            : incomeMtd > 0 && k.incomePrevMtd === 0
-              ? 100
-              : null;
-    const stDeltaPct =
-        k.cancelledPrevMtd > 0
-            ? ((st - k.cancelledPrevMtd) / k.cancelledPrevMtd) * 100
-            : st > 0
-              ? 100
-              : st === 0 && k.cancelledPrevMtd === 0
-                ? null
-                : 0;
-    return {
-        incomeMtd,
-        incomeDeltaPct,
-        st,
-        stDeltaPct,
-        openCount: k.openCount,
-        openSum: k.openSum,
-        profitMtd: incomeMtd - st,
-        cancelledPrevMtd: k.cancelledPrevMtd,
-    };
-}
-
-type FinanceKpiTone = "mint" | "red" | "blue" | "amber";
-type KpiSubTone = "up" | "down" | "muted";
-
-interface FinanceKpiCardProps {
-    label: string;
-    value: string;
-    iconKey: string;
-    iconBg: string;
-    iconColor: string;
-    tone: FinanceKpiTone;
-    sub?: string;
-    subTone?: KpiSubTone;
-}
-
-const FinanceKpiCard: FC<FinanceKpiCardProps> = ({ label, value, sub, subTone, iconKey, iconBg, iconColor, tone }) => {
-    const Ic = NAV_ICONS[iconKey] ?? NAV_ICONS["/"];
-    return (
-        <div className={`finance-kpi finance-kpi--${tone}`}>
-            <div className="finance-kpi__label">
-                <span
-                    className="finance-kpi__icon"
-                    style={{
-                        background: iconBg,
-                        color: iconColor,
-                    }}
-                    aria-hidden
-                >
-                    <Ic size={14} />
-                </span>
-                <span className="finance-kpi__label-text">{label}</span>
-            </div>
-            <div className={kpiValueSizeClass(value, "finance-kpi__val")}>{value}</div>
-            {sub ? (
-                <div className="finance-kpi__foot">
-                    <span
-                        className={[
-                            "finance-kpi__delta",
-                            subTone === "up"
-                                ? "finance-kpi__delta--up"
-                                : subTone === "down"
-                                  ? "finance-kpi__delta--down"
-                                  : "finance-kpi__delta--muted",
-                        ].join(" ")}
-                    >
-                        {sub}
-                    </span>
-                </div>
-            ) : null}
-        </div>
-    );
-};
 
 export function FinancePage() {
     const t = useT();
@@ -179,6 +86,7 @@ export function FinancePage() {
     const [txTab, setTxTab] = useState<FinanceTxTab>("all");
     const [kindFilter, setKindFilter] = useState<"ALL" | PaymentMethod>("ALL");
     const [doctorFilter, setDoctorFilter] = useState("");
+    const [collectedByFilter, setCollectedByFilter] = useState("");
     const [hiddenDoctors, setHiddenDoctors] = useState<string[]>([]);
     const [selectedTxKey, setSelectedTxKey] = useState<string | null>(null);
     const [statusUpdatingOrderId, setStatusUpdatingOrderId] = useState<string | null>(null);
@@ -268,6 +176,7 @@ export function FinancePage() {
                     ...(status ? { status } : {}),
                     ...(kindFilter !== "ALL" ? { paymentMethod: kindFilter } : {}),
                     ...(doctorFilter ? { doctorId: doctorFilter } : {}),
+                    ...(collectedByFilter ? { collectedBy: collectedByFilter } : {}),
                 },
             });
             setHiddenDoctors(resp.hiddenDoctors ?? []);
@@ -277,7 +186,7 @@ export function FinancePage() {
             void hydratePatientNames(resp.items);
             return resp;
         },
-        [txTab, kindFilter, doctorFilter, hydratePatientNames],
+        [txTab, kindFilter, doctorFilter, collectedByFilter, hydratePatientNames],
     );
 
     const load = useCallback(
@@ -288,15 +197,15 @@ export function FinancePage() {
                 setLoadError(null);
             }
             try {
-                const [kpi, b] = await Promise.all([paymentFinanceKpis(), listPurchaseOrders()]);
+                const [kpi, ordersResp] = await Promise.all([paymentFinanceKpis(), listPurchaseOrders()]);
                 setKpiMtd(kpisFromServer(kpi));
-                setPurchaseOrders(b);
+                setPurchaseOrders(ordersResp.items);
                 const paymentsPage = await loadPaymentsPage(1, true);
                 writeListSnapshot("finance", {
                     payments: paymentsPage.items,
                     paymentTotal: paymentsPage.total,
                     paymentPage: paymentsPage.page,
-                    orders: b,
+                    orders: ordersResp.items,
                     kpi,
                 });
             } catch (e) {
@@ -339,13 +248,13 @@ export function FinancePage() {
     const filteredRows = useMemo(() => {
         return allRows.filter((row) => {
             if (row.kind === "purchase_order") {
-                if (txTab === "income" || doctorFilter) return false;
+                if (txTab === "income" || doctorFilter || collectedByFilter) return false;
                 if (kindFilter !== "ALL") return false;
                 return txTab === "all" || txTab === "expense";
             }
             return true;
         });
-    }, [allRows, txTab, kindFilter, doctorFilter]);
+    }, [allRows, txTab, kindFilter, doctorFilter, collectedByFilter]);
     const sortedRows = useMemo(
         () => [...filteredRows].sort((a, b) => rowSortTs(b) - rowSortTs(a)),
         [filteredRows],
@@ -557,16 +466,25 @@ export function FinancePage() {
                 <div className="finance-tx-section-head">
                     <h2 className="finance-tx-section-title">{t("page.finance.transactions")}</h2>
                     <div className="finance-tx-section-head__controls">
-                        <div className="finance-tx-filter-selects">
-                            <FinanceFilterSelect label={t("page.finance.filter_label_type")} ariaLabel={t("page.finance.aria_filter_type")} value={txTab} options={finTxTabOptions} onChange={setTxTab} />
-                            <FinanceFilterSelect label={t("page.finance.filter_label_kind")} ariaLabel={t("page.finance.aria_filter_kind")} value={kindFilter} options={finTxKindOptions} onChange={setKindFilter} />
-                            <FinanceDoctorFilter fd={fd} value={doctorFilter} onChange={setDoctorFilter} />
-                        </div>
+                        <FinanceTxFilters
+                            fd={fd}
+                            txTab={txTab}
+                            kindFilter={kindFilter}
+                            doctorFilter={doctorFilter}
+                            collectedBy={collectedByFilter}
+                            hiddenDoctors={hiddenDoctors}
+                            txTabOptions={finTxTabOptions}
+                            kindOptions={finTxKindOptions}
+                            onTxTab={(v) => setTxTab(v as FinanceTxTab)}
+                            onKind={(v) => setKindFilter(v as "ALL" | PaymentMethod)}
+                            onDoctor={setDoctorFilter}
+                            onCollectedBy={setCollectedByFilter}
+                        />
                         <div className="finance-tx-section-head__meta">
                             <span className="finance-tx-count">
                                 {tp("page.finance.entries_count", { count: filteredRows.length })}
                             </span>
-                            {txTab !== "all" || kindFilter !== "ALL" || doctorFilter ? (
+                            {txTab !== "all" || kindFilter !== "ALL" || doctorFilter || collectedByFilter ? (
                                 <Button
                                     variant="ghost"
                                     size="sm"
@@ -574,6 +492,7 @@ export function FinancePage() {
                                         setTxTab("all");
                                         setKindFilter("ALL");
                                         setDoctorFilter("");
+                                        setCollectedByFilter("");
                                     }}
                                 >
                                     {t("common.reset")}

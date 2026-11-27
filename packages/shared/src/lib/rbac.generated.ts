@@ -46,6 +46,7 @@ export function baseAllowedGenerated(action: string, role: string): boolean {
         case "product.read":
         case "product.write":
         case "purchase_order.read":
+        case "purchase_order.receive":
         case "purchase_order.write":
         case "task.status.fulfill":
         case "work_time.self":
@@ -95,6 +96,7 @@ export const RBAC_ALL_ACTIONS = [
     "product.read",
     "product.write",
     "purchase_order.read",
+    "purchase_order.receive",
     "purchase_order.write",
     "staff.read",
     "staff.write",

@@ -12,7 +12,8 @@ type Item = { t: string; d: string };
 export type RoutesCopy = {
   /** Menu and tab-title labels, also for the editions and Europe pages. */
   nav: Record<GoalPage | "editions" | "europe", string>;
-  heads: Record<GoalPage, Head>;
+  /** Europe is a coming-soon page; its body lives in digital-copy. */
+  heads: Record<GoalPage | "europe", Head>;
   everything: { kicker: string; title: string; lead: string; items: Item[]; cta: string; note: string };
   explore: { title: string; lead: string; cards: Record<"features" | GoalPage | "security", Item> };
   final: { title: string; text: string; cta: string; second: string };
@@ -45,6 +46,11 @@ const en: RoutesCopy = {
       kicker: "Free demo",
       title: "See your own practice in MeDoc Dentist, in 30 minutes",
       lead: "A real day, live: patient, tooth chart, appointment, prescription and payment, plus the day close if you are looking at Cabinet or Cabinet+. Free, no commitment, in your language.",
+    },
+    europe: {
+      kicker: "Europe",
+      title: "Coming soon",
+      lead: "MeDoc Dentist is sold in Morocco today.",
     },
   },
   everything: {
@@ -115,6 +121,11 @@ const fr: RoutesCopy = {
       title: "Voyez votre propre cabinet dans MeDoc Dentist, en 30 minutes",
       lead: "Une vraie journée, en direct : patient, schéma dentaire, rendez-vous, ordonnance et encaissement, plus la clôture de caisse si vous regardez Cabinet ou Cabinet+. Gratuit, sans engagement, dans votre langue.",
     },
+    europe: {
+      kicker: "Europe",
+      title: "Bientôt",
+      lead: "MeDoc Dentist est vendu au Maroc aujourd'hui.",
+    },
   },
   everything: {
     kicker: "Tout numériser",
@@ -183,6 +194,11 @@ const ar: RoutesCopy = {
       kicker: "عرض مجاني",
       title: "شاهد عيادتك في MeDoc Dentist خلال 30 دقيقة",
       lead: "يوم حقيقي مباشرةً: المريض، ومخطط الأسنان، والموعد، والوصفة، والأداء، وإغلاق اليوم إن كنت تهتم بـ Cabinet أو Cabinet+. مجانًا، دون التزام، وبلغتك.",
+    },
+    europe: {
+      kicker: "أوروبا",
+      title: "قريبًا",
+      lead: "يُباع MeDoc Dentist اليوم في المغرب.",
     },
   },
   everything: {

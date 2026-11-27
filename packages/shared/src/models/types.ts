@@ -153,6 +153,8 @@ export interface Examination {
     /** FA-LEIST-05 */
     released_by_physician_id?: string | null;
     released_at?: string | null;
+    /** Group: owning dentist (record privacy / sharing). */
+    responsible_staff_id?: string | null;
 }
 
 export interface Treatment {
@@ -175,6 +177,8 @@ export interface Treatment {
     /** FA-LEIST-05 */
     released_by_physician_id?: string | null;
     released_at?: string | null;
+    /** Group: owning dentist (record privacy / sharing). */
+    responsible_staff_id?: string | null;
     /** GOZ billing (Anlage 2 GOZ) — set via `setTreatmentBilling`. */
     fee_schedule?: "goz" | "goae" | "material" | "lab" | "other" | null;
     goz_nr?: string | null;
@@ -358,6 +362,16 @@ export interface StatisticsOverview {
     hidden_doctors?: string[];
     /** Group (T5.6): last 12 months per doctor you may see. */
     per_doctor?: { staff_id: string; name: string; appointments: number; treatments: number; income: number | null }[];
+    /** Group (T5.6): per-doctor monthly series for overlay charts. */
+    per_doctor_series?: DoctorMonthSeries[];
+}
+
+export interface DoctorMonthSeries {
+    staff_id: string;
+    name: string;
+    appointments_per_month: MonthBucket[];
+    treatments_per_month: MonthBucket[];
+    income_per_month: MonthBucket[] | null;
 }
 
 /** Practice absences / vacation blocks (`absence` table). */
@@ -369,6 +383,8 @@ export interface Absence {
     to_day: string;
     from_time: string | null;
     to_time: string | null;
+    /** Group: whose holiday / absence (editions-plan §4.1). */
+    staff_id?: string | null;
     created_at: string;
     updated_at: string;
 }

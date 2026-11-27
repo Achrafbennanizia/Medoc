@@ -16,6 +16,8 @@ export interface Certificate {
     first_or_follow_up?: string | null;
     employer?: string | null;
     issuing_physician_id?: string | null;
+    /** Group: dentist in the signature block. */
+    signed_by_staff_id?: string | null;
 }
 
 export type CreateCertificate = z.input<typeof CreateCertificateSchema>;

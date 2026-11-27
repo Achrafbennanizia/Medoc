@@ -22,6 +22,10 @@ pub struct Prescription {
     pub prescription_type: Option<String>,
     pub icd10_code: Option<String>,
     pub prescribing_physician_id: Option<String>,
+    /// Group: dentist named in the signature block (editions-plan §4.1 / §5.1).
+    #[sqlx(default)]
+    #[serde(default)]
+    pub signed_by_staff_id: Option<String>,
     /// F86: the prescription this one corrects (`None` for an original).
     #[sqlx(default)]
     #[serde(default)]

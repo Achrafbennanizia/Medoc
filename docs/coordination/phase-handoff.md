@@ -1,5 +1,146 @@
 # Phase handoff
 
+**Last phase label:** Verification §6 gap close (2026-11-27)
+
+### Verified
+
+- Closed `docs/coordination/verification-2026-11-27.md` §6 gaps: backup flake (8/8 PASS), order-form doctor pickers, `invoice_document` signer re-queue + `updated_at`, `MEDOC_SUPPORT_EMAIL` in `release.yml`, F9 error DE/FR/AR (`i18n:verify` 6813×4), statistics tsc/eslint/clippy.
+- `purchase-order-create` helpers extracted so create page stays under its size baseline.
+
+### Remains unverified
+
+- Live desktop UI / Docker GATE4. **NOT RUN**. Release secrets / first release. `check:size` still red (~19 other files). Full-tree fmt **NOT RUN**.
+
+### Required next
+
+1. Do not commit unless asked.
+
+---
+
+**Previous last phase label:** Product site merge + package rename (2026-11-27)
+
+### Verified
+
+- Merged sifralabs `/medoc/` series framing into `website/` home (`SeriesBand`, `MoroccoStrip`, pilot; dropped Explore/Highlights from home).
+- Slimmed `sifralabs/medoc/` to series hub with deep links; fixed `partials/cta.html` `#contact` → `#/demo`.
+- Renamed npm workspace package `medoc-product-website` → `medoc-dentist` (scripts, workflow, locks). GH Pages path stays `/Medoc/` (repo name).
+- Builds: `npm run build -w medoc-dentist` **PASS**; `npm run build --prefix sifralabs` **PASS**.
+
+### Remains unverified
+
+- Live browser pass of merged home EN/FR/AR. **NOT OBSERVED**.
+- Deploy to GitHub Pages / sifralabs.com. **NOT RUN**.
+
+### Required next
+
+1. Do not commit unless asked.
+2. Optional: preview both builds locally.
+
+---
+
+**Previous last phase label:** Verification pass T5.4 + editions requirements check (2026-11-27)
+
+### Verified
+
+- Details and commands: `docs/coordination/verification-2026-11-27.md`; brief vs code: `docs/coordination/editions-requirements-check-2026-11-27.md`.
+- Fixed: task owner could be a receptionist; admin task list filtered after the 500 limit; signing doctor on `issued_document` not synced (`recorded_write_guard` was red); finance orders under "Collected by"; unshared doctors offered in filters; misleading empty states; 3× duplicated sharing scope → `commands/share_scope.rs`; stale error catalogue (16 codes added).
+- New tests: ownership (tasks, orders), task SQL scope, order scope, collected-by filter, UI↔`register.rs` wiring, 3 TS component/unit/contract suites. Vitest 642 pass; medoc-core lib 317 pass; sync/LAN/support/e2e (in-process) pass; 5 edition builds compile.
+
+### Remains unverified
+
+- Live desktop UI (two dentists, "Nobody" rule). **NOT OBSERVED**. Docker multi-device e2e **NOT RUN** (Docker off).
+- `backup_tiers_tests::attachments_are_backed_up…` flaky (1 in 3), untouched.
+- Other session's in-flight files fail tsc/lint/clippy/fmt (`statistics-multi-doctor-charts.tsx`, `statistics-overview-filters.tsx`, `statistics/doctor.rs`, `number_sequence.rs`).
+
+### Required next
+
+1. Owner decisions in the requirements check §G. 2. Do not commit unless asked.
+
+---
+
+**Previous last phase label:** Guest health/docs/orders polish (2026-11-27)
+
+### Verified
+
+- Health summary now includes `os`/`osArch`/`osFamily`, `errorsByArea7d`, and log file facts (`logs.errors`/`app`/`client`); Help → Support shows OS + logs. Solo `cargo check` **PASS**.
+- Guest documents read is a **separate** Settings switch (`documentsRead`); clinical no longer bundles documents. Templates: `solo.guest` / `_clinical` / `_documents` / `_clinical_documents`.
+- Guest orders: create refused (`error.guest.order_create_forbidden` = MD-APP-057); receive/confirm via `purchase_order.receive`. New-order CTA blinded for guests.
+- Guest login without email (Solo only) already present; Duo/Group have no `guest_inbox` — confirmed exclusive in editions.yaml; Duo check **PASS**.
+- Font segment wraps/ellipsizes; guest security card overflow visible.
+- `guest_inbox_tests` **5 PASS**; `i18n:verify` **6798×4**; arabic-numerals + document-export-locale **PASS**.
+
+### Remains unverified
+
+- Live Solo UI for guest calendar/cash/orders and Appearance/Font in FR. **NOT OBSERVED**.
+- Full Arabic writing-rules pass beyond existing unit tests. **LOW CONFIDENCE**.
+- App size growth / every setInterval cleanup audit — spot-checked only (dev-capture loop is DEV-only).
+
+### Required next
+
+1. Do not commit unless asked.
+2. Optional: browser Solo guest pass.
+
+---
+
+# Phase handoff
+
+**Last phase label:** Punch-list audit + guest clinical redaction fix (2026-11-27)
+
+### Verified
+
+- **Guest clinical option ("Peut consulter le dossier clinique"):** UI + i18n + `solo.guest_clinical` + `guest_inbox_tests::clinical_read_switch` were already wired. **Bug found:** `list_treatments` / `list_examinations` always redacted for `RECEPTION`, so the switch granted the tab but stripped clinical fields. Fixed in `reception_redact.rs` (honour `patient.read_medical` overrides) + chart command call sites. Unit tests **PASS** (4).
+- **`backup_tests`:** `--no-run` **PASS** (still matches current retention API).
+- **`sync_mesh_harness`:** failed on missing `CreateAbsence.staff_id` → set `None`; `--no-run` **PASS**.
+- **Clippy `medoc-core` `--lib` / `--all-targets -D warnings`:** **PASS** (no cash_book/issue failures on current toolchain).
+- **`main.tsx` 127.0.0.1:7291:** already removed; grep clean.
+- **`npm run check:size`:** 14 oversized files (not 36); mix of website + app growth — not split this session.
+- `cargo check -p medoc-practice` **PASS** (after redaction fix).
+
+### Remains unverified
+
+- Folding Administration into Settings / Solo nav rename — needs live Solo UI. **NOT OBSERVED**.
+- Cold start on packaged app / reference machine. **NOT OBSERVED**.
+- Solo licence / guest flow in running app. **NOT OBSERVED**.
+- Full `cargo check --workspace --all-targets` (only the two named targets + medoc-practice checked).
+- Commit of P1+P2 — not requested.
+
+### Understanding delta
+
+Punch list from prior review: most items already fixed or deferred by plan; one real functional bug remained (guest clinical redaction) and one compile break (`staff_id` on absence in e2e harness).
+
+### Required next
+
+1. Do not commit unless asked.
+2. Optional: live Solo pass for guest clinical switch + Admin/Settings.
+3. Optional: reclaim file-size baselines after T5 growth (`cash_book` / `issue` / UI pages).
+
+---
+
+**Previous last phase label:** Editions T5.2 / T5.7 / T5.3 / T5.6 polish (2026-11-27)
+
+### Verified
+
+- **T5.2:** RecordPrivacy on examination, treatment, prescription, certificate, practice task; Sharing Chosen + staff section; `StaffTargetSelector` on work-days; `absence.staff_id`.
+- **T5.7:** Clinical letterhead strips personal IDs; signing doctor on reports/invoices; certificate SICK_LEAVE path already stamped.
+- **T5.3:** Drag to another doctor column updates `physician_id`; week shows doctor name.
+- **T5.6:** treatment/payment filters + `per_doctor_series` multi-line charts (UI + backend).
+- `cargo check -p medoc-practice` **PASS**; `clinical_letterhead_omits_personal_clinician_ids` **PASS**; `statistics_doctor_tests` **PASS**; `tsc --noEmit` **PASS**; calendar pack vitest **PASS**.
+- `docs/architecture/editions-plan.md` updated.
+
+### Remains unverified
+
+- Live browser for Sharing staff, privacy controls, calendar drag, statistics filters. **NOT OBSERVED**.
+- ChartExtract/discharge signing doctor; chair columns; professional-charts redesign.
+
+### Required next
+
+1. Do not commit unless asked.
+2. Optional: browser pass on Group sample data.
+
+---
+
+# Phase handoff
+
 **Last phase label:** Live site product screens (2026-11-22)
 
 ### Verified

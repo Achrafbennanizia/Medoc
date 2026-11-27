@@ -20,6 +20,7 @@ export function SettingsGuestSection() {
     const [account, setAccount] = useState<GuestAccount | null>(null);
     const [enabled, setEnabled] = useState(false);
     const [clinicalRead, setClinicalRead] = useState(false);
+    const [documentsRead, setDocumentsRead] = useState(false);
     const [password, setPassword] = useState("");
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -30,19 +31,29 @@ export function SettingsGuestSection() {
                 setAccount(a);
                 setEnabled(a.enabled);
                 setClinicalRead(a.clinicalRead);
+                setDocumentsRead(a.documentsRead);
             })
             .catch((e: unknown) => setError(errorMessage(e)));
     }, []);
 
     const needsPassword = account != null && !account.exists;
     const dirty =
-        account != null && (enabled !== account.enabled || clinicalRead !== account.clinicalRead || password.trim() !== "");
+        account != null &&
+        (enabled !== account.enabled ||
+            clinicalRead !== account.clinicalRead ||
+            documentsRead !== account.documentsRead ||
+            password.trim() !== "");
 
     const save = async () => {
         setBusy(true);
         setError(null);
         try {
-            const next = await setGuestAccount({ enabled, clinicalRead, password: password.trim() || undefined });
+            const next = await setGuestAccount({
+                enabled,
+                clinicalRead,
+                documentsRead,
+                password: password.trim() || undefined,
+            });
             setAccount(next);
             setPassword("");
             toast(t("settings.guest.saved"), "success");
@@ -76,6 +87,17 @@ export function SettingsGuestSection() {
                             <div className="card-sub">{t("settings.guest.clinical_hint")}</div>
                         </div>
                         <SettingsSwitch ariaLabel={t("settings.guest.clinical")} checked={clinicalRead} onChange={setClinicalRead} />
+                    </div>
+                    <div className="settings-row settings-security-row">
+                        <div className="settings-security-row__body">
+                            <b>{t("settings.guest.documents")}</b>
+                            <div className="card-sub">{t("settings.guest.documents_hint")}</div>
+                        </div>
+                        <SettingsSwitch
+                            ariaLabel={t("settings.guest.documents")}
+                            checked={documentsRead}
+                            onChange={setDocumentsRead}
+                        />
                     </div>
                     <div className="settings-row settings-security-row">
                         <div className="settings-security-row__body" style={{ flex: "1 1 18rem" }}>

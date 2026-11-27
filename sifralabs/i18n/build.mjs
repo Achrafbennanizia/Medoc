@@ -14,10 +14,6 @@ export const LANG_NAME = { en: "English", fr: "Français", ar: "العربية" 
 export const PAGES = [
   "index.html",
   "services/index.html",
-  "work/index.html",
-  "work/medoc-dentist/index.html",
-  "work/medoc-dentist-website/index.html",
-  "work/sifralabs/index.html",
   "process/index.html",
   "medoc/index.html",
   "about/index.html",

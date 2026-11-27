@@ -110,6 +110,7 @@ pub async fn list_treatments(
     Ok(
         crate::application::chart::reception_redact::apply_reception_redact_treatments(
             &session.role,
+            &session.permission_overrides,
             rows,
         ),
     )
@@ -140,6 +141,7 @@ pub async fn list_examinations(
     Ok(
         crate::application::chart::reception_redact::apply_reception_redact_examinations(
             &session.role,
+            &session.permission_overrides,
             rows,
         ),
     )

@@ -12,6 +12,7 @@ export const AppointmentApptBlockView = memo(function AppointmentApptBlockView({
     appointment,
     patientName,
     doctorTone,
+    doctorName,
     dayColumn,
     daySlotDurationMin,
     dragPreviewTime,
@@ -106,6 +107,14 @@ export const AppointmentApptBlockView = memo(function AppointmentApptBlockView({
                         ·
                     </span>
                     <span className="appointment-appt-block-duration appt-fit__dur">{durLabel}</span>
+                    {weekView && doctorName ? (
+                        <>
+                            <span className="appointment-appt-block-micro-sep appt-fit__doctor" aria-hidden>
+                                ·
+                            </span>
+                            <span className="appointment-appt-block-doctor appt-fit__doctor">{doctorName}</span>
+                        </>
+                    ) : null}
                     {dragHintInline}
                 </span>
                 <span className="appt-fit__name">
