@@ -56,6 +56,15 @@ Manual / first-time dashboard path:
    - Deploy command: `npx wrangler deploy`
    (`.node-version` pins Node 22.)
 3. After the first deploy: **Settings → Domains & Routes → Add → Custom domain** → `sifralabs.com`, then `www.sifralabs.com`.
+   That creates the DNS records Cloudflare needs. Until those records exist, `sifralabs.com` does not resolve and the MeDoc Dentist demo form cannot reach `/api/contact` (it falls back to the visitor's mail app).
+4. **Email Sending** (dashboard → Email → Email Sending): onboard `sifralabs.com`, then ensure `website@sifralabs.com` can send. The Worker uses the `EMAIL` `send_email` binding (`wrangler.jsonc`) to deliver to `contact@sifralabs.com` — no SMTP password. Plain vars: `CONTACT_FROM`, `CONTACT_TO`, `ALLOWED_ORIGINS`.
+
+**Local contact API** (stub; production uses Cloudflare Email Sending):
+
+```bash
+cd sifralabs && npm run contact:dev   # http://127.0.0.1:8787/api/contact
+cd website && VITE_CONTACT_API=http://127.0.0.1:8787/api/contact npm run build && npm run preview
+```
 
 ## MeDoc Dentist at medoc.sifralabs.com (not set up yet)
 

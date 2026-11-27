@@ -1,24 +1,18 @@
 /**
  * sifralabs.com Worker.
- * - POST /api/contact: validates a contact-form message and e-mails it to CONTACT_TO through
- *   Zoho's SMTP server (TLS, port 465), so messages only pass through Cloudflare and Zoho.
+ * - POST /api/contact: validates a contact-form message and sends it with Cloudflare Email
+ *   Sending (`send_email` binding) to CONTACT_TO. No SMTP host or mailbox password.
  * - Everything else: the static site in ./dist (wrangler.jsonc → assets).
  *
- * Secrets (Cloudflare → Worker → Settings → Variables and secrets):
- *   SMTP_USER      the Zoho mailbox, e.g. achraf.bennani@sifralabs.com
- *   SMTP_PASSWORD  a Zoho app-specific password (never the account password)
- * Plain variables (wrangler.jsonc → vars): SMTP_HOST, SMTP_PORT, CONTACT_TO, ALLOWED_ORIGINS.
+ * Dashboard: Email → Email Sending (onboard sifralabs.com), then deploy this Worker.
+ * Plain vars (wrangler.jsonc): CONTACT_FROM, CONTACT_TO, ALLOWED_ORIGINS.
  */
-import { connect } from "cloudflare:sockets";
-
 export interface Env {
   ASSETS: Fetcher;
-  SMTP_HOST: string;
-  SMTP_PORT: string;
-  /** "on" for implicit TLS (Zoho, port 465); "off" only for local tests against a fake server. */
-  SMTP_SECURE?: string;
-  SMTP_USER: string;
-  SMTP_PASSWORD: string;
+  /** Cloudflare Email Sending binding (wrangler.jsonc → send_email). */
+  EMAIL: SendEmail;
+  /** From address on the Email Service domain, e.g. website@sifralabs.com. */
+  CONTACT_FROM: string;
   CONTACT_TO: string;
   /** Comma-separated origins allowed to post (the MeDoc Dentist site lives on another origin). */
   ALLOWED_ORIGINS: string;
@@ -132,90 +126,17 @@ function compose(env: Env, m: Msg) {
     line("Received", new Date().toISOString().replace("T", " ").slice(0, 16) + " UTC"),
     "",
     "Reply to this e-mail to answer the sender directly.",
-  ].join("\r\n");
-  return { from: env.SMTP_USER, to: env.CONTACT_TO, replyTo: m.email, replyName: m.name, subject, text };
-}
-
-/** RFC 2047 encoded-word for non-ASCII header text (names and subjects in Arabic, French…). */
-const encodeHeader = (s: string) => (/^[\x20-\x7e]*$/.test(s) ? s : `=?UTF-8?B?${b64(s)}?=`);
-function b64(s: string) {
-  const bytes = new TextEncoder().encode(s);
-  let bin = "";
-  for (const b of bytes) bin += String.fromCharCode(b);
-  return btoa(bin);
-}
-
-/* ---------- minimal SMTP client (implicit TLS, AUTH LOGIN) ---------- */
-async function sendMail(env: Env, mail: ReturnType<typeof compose>) {
-  const socket = connect(
-    { hostname: env.SMTP_HOST, port: Number(env.SMTP_PORT) },
-    { secureTransport: env.SMTP_SECURE === "off" ? "off" : "on", allowHalfOpen: false },
-  );
-  const writer = socket.writable.getWriter();
-  const reader = socket.readable.getReader();
-  const enc = new TextEncoder();
-  const dec = new TextDecoder();
-  let buf = "";
-
-  // Reads one (possibly multi-line) reply and checks its code.
-  const expect = async (code: number) => {
-    for (;;) {
-      const lines = buf.split("\r\n");
-      const done = lines.findIndex((l) => /^\d{3} /.test(l));
-      if (done >= 0) {
-        buf = lines.slice(done + 1).join("\r\n");
-        const got = Number(lines[done]!.slice(0, 3));
-        if (got !== code) throw new Error(`SMTP ${got}: ${lines[done]!.slice(4, 120)}`);
-        return;
-      }
-      const { value, done: closed } = await reader.read();
-      if (closed) throw new Error("SMTP connection closed");
-      buf += dec.decode(value, { stream: true });
-    }
+  ].join("\n");
+  return {
+    from: { email: env.CONTACT_FROM, name: "Sifra Labs website" },
+    to: env.CONTACT_TO,
+    replyTo: { email: m.email, name: m.name },
+    subject,
+    text,
   };
-  const send = (line: string) => writer.write(enc.encode(line + "\r\n"));
+}
 
-  const date = new Date().toUTCString().replace("GMT", "+0000");
-  const id = `<${crypto.randomUUID()}@sifralabs.com>`;
-  const body = mail.text
-    .split("\r\n")
-    .map((l) => (l.startsWith(".") ? "." + l : l)) // dot-stuffing
-    .join("\r\n");
-  const data = [
-    `From: ${encodeHeader("Sifra Labs website")} <${mail.from}>`,
-    `To: <${mail.to}>`,
-    // The sender's name is always encoded, so characters like ":" or "<" can't bend the header.
-    `Reply-To: =?UTF-8?B?${b64(mail.replyName)}?= <${mail.replyTo}>`,
-    `Subject: ${encodeHeader(mail.subject)}`,
-    `Date: ${date}`,
-    `Message-ID: ${id}`,
-    "MIME-Version: 1.0",
-    "Content-Type: text/plain; charset=UTF-8",
-    "Content-Transfer-Encoding: base64",
-    "",
-    b64(body).replace(/.{76}/g, "$&\r\n"),
-  ].join("\r\n");
-
-  try {
-    await expect(220);
-    await send("EHLO sifralabs.com");
-    await expect(250);
-    await send("AUTH LOGIN");
-    await expect(334);
-    await send(b64(env.SMTP_USER));
-    await expect(334);
-    await send(b64(env.SMTP_PASSWORD));
-    await expect(235);
-    await send(`MAIL FROM:<${mail.from}>`);
-    await expect(250);
-    await send(`RCPT TO:<${mail.to}>`);
-    await expect(250);
-    await send("DATA");
-    await expect(354);
-    await send(data + "\r\n.");
-    await expect(250);
-    await send("QUIT");
-  } finally {
-    await socket.close().catch(() => {});
-  }
+/** Send through Cloudflare Email Sending (no SMTP credentials). */
+async function sendMail(env: Env, mail: ReturnType<typeof compose>) {
+  await env.EMAIL.send(mail);
 }

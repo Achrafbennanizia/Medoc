@@ -51,7 +51,7 @@ export const FR_PRIVACY_POLICY: LegalDocument = {
       blocks: [
         {
           kind: "p",
-          text: "Le formulaire de demande de démonstration transmet vos données par une connexion chiffrée à notre serveur sifralabs.com (Cloudflare), qui les transfère par courrier électronique à {email} (messagerie hébergée par Zoho). Le serveur n’en conserve aucune copie. S’il est injoignable, votre logiciel de messagerie s’ouvre à la place avec un message prérempli.",
+          text: "Le formulaire de demande de démonstration transmet vos données par une connexion chiffrée à notre serveur sifralabs.com (Cloudflare), qui les livre par courrier électronique à {email} via Cloudflare Email Sending. Le serveur n’en conserve aucune copie. S’il est injoignable, votre logiciel de messagerie s’ouvre à la place avec un message prérempli.",
         },
         {
           kind: "p",

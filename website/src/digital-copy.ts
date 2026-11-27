@@ -24,8 +24,6 @@ export type DigitalCopy = {
   ways: { kicker: string; title: string; lead: string; more: string; items: Way[] };
   /** Home “why now” band — Bill 52-26 (not law yet) + link to #/morocco. */
   whyNow: { kicker: string; title: string; lead: string; cta: string };
-  /** Home “who builds it” — named operator, no invented testimonials. */
-  whoBuilds: { kicker: string; title: string; text: string; cta: string };
   pilot: { kicker: string; title: string; text: string; points: string[]; cta: string };
   morocco: {
     facts: { kicker: string; title: string; lead: string; items: Fact[]; note: string };
@@ -137,12 +135,6 @@ const en: DigitalCopy = {
     title: "Bill 52-26 is coming. Is your practice ready?",
     lead: "The bill before Parliament (not law yet) would give every patient a shared medical record updated after each visit. Reports cite fines of up to 300,000 DH and 24 months for facilities to connect once the technical rules are published. Law 09-08 already asks for security and consent for health data.",
     cta: "How MeDoc Dentist gets a practice ready",
-  },
-  whoBuilds: {
-    kicker: "Who builds it",
-    title: "Built by Achraf Bennani Ziatni and the TEAM",
-    text: "MeDoc Dentist is made by Sifra Labs — Achraf Bennani Ziatni as auto-entrepreneur under Law No. 114-13, with the TEAM that installs, trains and answers. You talk to the people who write the software.",
-    cta: "About Sifra Labs",
   },
   pilot: {
     kicker: "Pilot practices",

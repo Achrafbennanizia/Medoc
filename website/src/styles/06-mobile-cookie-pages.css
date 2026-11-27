@@ -249,6 +249,11 @@
   gap: 16px;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
 }
+@media (min-width: 960px) {
+  .highlights {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
 .highlights a {
   display: grid;
   height: 100%;
@@ -269,9 +274,14 @@
   height: auto;
   aspect-ratio: 16 / 10;
   object-fit: cover;
-  object-position: left top;
   border-bottom: 1px solid var(--line);
   background: var(--tint);
+}
+.highlights .hl-shot {
+  object-position: left top;
+}
+.highlights .hl-photo {
+  object-position: center 20%;
 }
 .hl-text {
   display: grid;
@@ -284,6 +294,16 @@
 .hl-text span {
   color: var(--ink-2);
   font-size: 0.9375rem;
+}
+@media (max-width: 860px) {
+  /* One column so image + caption fit above the sticky demo bar. */
+  .highlights {
+    grid-template-columns: minmax(0, 1fr);
+    padding-bottom: 88px;
+  }
+  #contact .form {
+    padding-bottom: 88px;
+  }
 }
 
 /* colour band */

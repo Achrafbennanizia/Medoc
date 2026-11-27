@@ -510,10 +510,11 @@ async fn append_outbox_stamps_the_author() {
         .await
         .unwrap();
     medoc_sync::schema::ensure_sync_tables(&pool).await.unwrap();
+    let device = ensure_local_device(&pool, "author-test").await.unwrap();
     let entry = medoc_core::infrastructure::database::actor::with_actor("dr-a", async {
         medoc_sync::repo::append_outbox(
             &pool,
-            "dev-1",
+            &device,
             "patient",
             "p-1",
             "UPDATE",

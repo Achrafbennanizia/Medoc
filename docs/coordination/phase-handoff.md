@@ -1,6 +1,25 @@
 # Phase handoff
 
-**Last phase label:** Work routes + window logos (2026-11-27)
+**Last phase label:** Cloudflare Email Sending for contact (2026-11-27)
+
+### Verified
+
+- Worker `POST /api/contact` uses Cloudflare Email Sending (`send_email` / `EMAIL` binding); Zoho SMTP removed from `worker/index.ts` + `wrangler.jsonc`.
+- Vars: `CONTACT_FROM=website@sifralabs.com`, `CONTACT_TO=contact@sifralabs.com`; binding `destination_address` locked to contact@.
+- Legal/privacy copy (MeDoc + sifralabs) updated off Zoho SMTP for the form path. Builds: sifralabs + website **PASS**.
+
+### Remains unverified
+
+- Live Email Sending onboard + `wrangler deploy` (domain DNS still unresolved here). Inbox delivery to a real mailbox.
+
+### Required next
+
+1. Cloudflare: Email → Email Sending onboard `sifralabs.com`; custom domains on Worker; deploy.
+2. Do not commit unless asked.
+
+---
+
+**Previous last phase label:** Work routes + window logos (2026-11-27)
 
 ### Verified
 

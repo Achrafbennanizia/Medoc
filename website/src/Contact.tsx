@@ -134,8 +134,10 @@ export function Contact({ t, lang, locale }: { t: Dict; lang: Lang; locale: stri
             <input name="phone" type="tel" required autoComplete="tel" dir="ltr" />
           </label>
           <label className="span-2">
-            <span>{c.email}</span>
-            <input name="email" type="email" autoComplete="email" dir="ltr" />
+            <span>
+              {c.email} <abbr title={c.required}>*</abbr>
+            </span>
+            <input name="email" type="email" required autoComplete="email" dir="ltr" />
           </label>
           <label className="span-2">
             <span>{c.message}</span>

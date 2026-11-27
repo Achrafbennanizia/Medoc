@@ -387,8 +387,14 @@ async fn incompatible_sync_protocol_gets_426_with_our_protocol() {
         .await;
     assert_eq!(status, StatusCode::UPGRADE_REQUIRED);
     assert!(headers.contains_key("x-medoc-sync-protocol-peer"));
+    // T5.8: protocol 1 (no signed author) must update; the current protocol is accepted.
     let (status, _) = lan
         .post_with_header("/api/v1/sync/push", ("x-medoc-sync-protocol", "1;min=1"), &token)
+        .await;
+    assert_eq!(status, StatusCode::UPGRADE_REQUIRED);
+    let current = medoc_sync::protocol_compat::header_value();
+    let (status, _) = lan
+        .post_with_header("/api/v1/sync/push", ("x-medoc-sync-protocol", current.as_str()), &token)
         .await;
     assert_ne!(status, StatusCode::UPGRADE_REQUIRED);
     std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");

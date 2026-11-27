@@ -164,7 +164,7 @@ export const LEGAL_FR: LegalSet = {
           blocks: [
             {
               kind: "p",
-              text: "Le formulaire de demande de démonstration transmet ce que vous saisissez (nom, cabinet, ville, téléphone, adresse électronique, message) par une connexion chiffrée à notre serveur sifralabs.com, hébergé par Cloudflare, qui le transfère par courrier électronique à {email} ; notre messagerie est hébergée par Zoho. Le site n’en conserve aucune copie. Si notre serveur est injoignable, votre logiciel de messagerie s’ouvre à la place avec un message prérempli. Nous utilisons ce que vous nous envoyez pour vous répondre et préparer une offre. Le lien WhatsApp est facultatif : si vous l’utilisez, la politique de la société Meta s’applique et vos données peuvent être transférées hors du Maroc.",
+              text: "Le formulaire de demande de démonstration transmet ce que vous saisissez (nom, cabinet, ville, téléphone, adresse électronique, message) par une connexion chiffrée à notre serveur sifralabs.com, hébergé par Cloudflare, qui le livre par courrier électronique à {email} via Cloudflare Email Sending. Le site n’en conserve aucune copie. Si notre serveur est injoignable, votre logiciel de messagerie s’ouvre à la place avec un message prérempli. Nous utilisons ce que vous nous envoyez pour vous répondre et préparer une offre. Le lien WhatsApp est facultatif : si vous l’utilisez, la politique de la société Meta s’applique et vos données peuvent être transférées hors du Maroc.",
             },
           ],
         },

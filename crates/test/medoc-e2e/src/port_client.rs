@@ -15,8 +15,16 @@ pub struct PortE2eClient {
 
 impl PortE2eClient {
     pub fn lan(base_url: &str) -> Self {
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(
+            medoc_sync::protocol_compat::HEADER,
+            medoc_sync::protocol_compat::header_value()
+                .parse()
+                .expect("protocol header"),
+        );
         let http = reqwest::Client::builder()
             .danger_accept_invalid_certs(true)
+            .default_headers(headers)
             .build()
             .expect("reqwest lan client");
         Self {

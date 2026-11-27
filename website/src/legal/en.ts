@@ -163,7 +163,7 @@ export const LEGAL_EN: LegalSet = {
           blocks: [
             {
               kind: "p",
-              text: "The demo request form sends what you enter (name, practice, city, phone, e-mail, message) over an encrypted connection to our server at sifralabs.com, hosted by Cloudflare, which forwards it by e-mail to {email}. Our e-mail is hosted by Zoho. The website keeps no copy. If our server cannot be reached, your e-mail program opens instead with a ready-made message. We use what you send us to reply to you and to prepare an offer. The WhatsApp link is optional. If you use it, Meta's policy applies and your data may be transferred outside Morocco.",
+              text: "The demo request form sends what you enter (name, practice, city, phone, e-mail, message) over an encrypted connection to our server at sifralabs.com, hosted by Cloudflare, which delivers it by e-mail to {email} through Cloudflare Email Sending. The website keeps no copy. If our server cannot be reached, your e-mail program opens instead with a ready-made message. We use what you send us to reply to you and to prepare an offer. The WhatsApp link is optional. If you use it, Meta's policy applies and your data may be transferred outside Morocco.",
             },
           ],
         },

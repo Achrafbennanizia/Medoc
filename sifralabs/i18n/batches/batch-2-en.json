@@ -50,7 +50,7 @@
   "The Worker accepts messages only from our own sites, limits the size of every field, and strips line breaks from the fields that go into e-mail headers.",
   "Two quiet spam traps sit in the form: a hidden field that people never fill in, and a minimum time on the page.",
   "Each message carries an idempotency key. If you click twice or the browser retries, the Worker recognises the key for 10 minutes and sends the message only once.",
-  "The Worker sends the e-mail through Zoho's mail server over an encrypted connection and does not store the message.",
+  "The Worker sends the e-mail with Cloudflare Email Sending over an encrypted connection and does not store the message.",
   "If the service can't be reached, your own mail app opens with the message filled in, and a button copies the text in case you prefer to paste it.",
   "Three languages from one source, with Arabic laid out right to left.",
   "No cookies, no analytics and no third-party scripts or fonts.",

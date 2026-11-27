@@ -2,6 +2,7 @@ node_modules
 dist
 .dev.vars
 .wrangler
+.home-wrangler
 fr/
 ar/
 de/

@@ -2,11 +2,12 @@ import type { Lang } from "./i18n";
 
 /** Copy for the page structure (nav, home highlights, privacy band) and the Security page. */
 type Fact = { t: string; d: string };
-type Card = { id: string; img: string; t: string; d: string };
+/** Home “look inside” card: product screenshot (`img`) or practice photo (`photo`). */
+type Card = { id: string; img?: string; photo?: string; t: string; d: string; alt?: string };
 export type PagesCopy = {
   nav: { features: string; security: string };
   by: string;
-  photoAlt: { hero: string; team: string; tablet: string; xray: string; clinic: string };
+  photoAlt: { hero: string; team: string; tablet: string; xray: string; clinic: string; desk: string; reception: string };
   highlights: { title: string; lead: string; more: string; cards: Card[] };
   band: { kicker: string; title: string; text: string; points: string[]; more: string };
   features: { kicker: string };
@@ -57,16 +58,20 @@ const en: PagesCopy = {
     tablet: "A dentist showing a patient her X-ray on a tablet.",
     xray: "A dentist examining dental X-ray scans on a light box.",
     clinic: "A bright dental treatment room with a chair and lamp.",
+    desk: "A dentist working at a computer in the practice.",
+    reception: "A receptionist with a notebook speaking with a patient at the front desk.",
   },
   highlights: {
-    title: "Everything the practice does in a day",
-    lead: "From the first call to the last payment, in one program.",
+    title: "See the program and the practice day",
+    lead: "Real screens and real rooms. Open any card for the full feature.",
     more: "See all features",
     cards: [
       { id: "calendar", img: CARD_IMG.calendar, t: "Calendar", d: "Month, week and day views, with drag and drop." },
       { id: "clinical", img: CARD_IMG.clinical, t: "Tooth chart", d: "Examinations and treatments on an FDI chart." },
-      { id: "money", img: CARD_IMG.money, t: "Payments", d: "Receipts and invoices, plus the day close in Cabinet and Cabinet+." },
+      { id: "patients", photo: "dentist-computer", alt: "desk", t: "At the desk", d: "The patient file stays on your computer, not in a cloud." },
       { id: "papers", img: CARD_IMG.papers, t: "Prescriptions", d: "Prescriptions and certificates, in French and Arabic." },
+      { id: "money", img: CARD_IMG.money, t: "Payments", d: "Receipts and invoices, plus the day close in Cabinet and Cabinet+." },
+      { id: "changes", photo: "reception-desk", alt: "reception", t: "At reception", d: "Bookings and the till, without the medical chart." },
     ],
   },
   band: {
@@ -150,16 +155,20 @@ const fr: PagesCopy = {
     tablet: "Un dentiste montre sa radiographie à une patiente sur une tablette.",
     xray: "Un dentiste examine des radiographies dentaires sur un négatoscope.",
     clinic: "Une salle de soins dentaires lumineuse avec fauteuil et scialytique.",
+    desk: "Un dentiste travaille sur un ordinateur au cabinet.",
+    reception: "Une réceptionniste avec un carnet parle à un patient au comptoir.",
   },
   highlights: {
-    title: "Tout ce que fait le cabinet dans une journée",
-    lead: "Du premier appel au dernier encaissement, dans un seul logiciel.",
+    title: "Voir le logiciel et la journée du cabinet",
+    lead: "Vrais écrans et vraies salles. Ouvrez une carte pour la fonction complète.",
     more: "Voir toutes les fonctionnalités",
     cards: [
       { id: "calendar", img: CARD_IMG.calendar, t: "Agenda", d: "Vues mois, semaine et jour, avec glisser-déposer." },
       { id: "clinical", img: CARD_IMG.clinical, t: "Schéma dentaire", d: "Examens et soins sur un schéma FDI." },
-      { id: "money", img: CARD_IMG.money, t: "Encaissements", d: "Reçus et factures, plus la clôture de caisse en Cabinet et Cabinet+." },
+      { id: "patients", photo: "dentist-computer", alt: "desk", t: "Au bureau", d: "Le dossier patient reste sur votre ordinateur, pas dans un cloud." },
       { id: "papers", img: CARD_IMG.papers, t: "Ordonnances", d: "Ordonnances et certificats, en français et en arabe." },
+      { id: "money", img: CARD_IMG.money, t: "Encaissements", d: "Reçus et factures, plus la clôture de caisse en Cabinet et Cabinet+." },
+      { id: "changes", photo: "reception-desk", alt: "reception", t: "À l'accueil", d: "Les rendez-vous et la caisse, sans le dossier médical." },
     ],
   },
   band: {
@@ -243,16 +252,20 @@ const ar: PagesCopy = {
     tablet: "طبيب أسنان يعرض على مريضة صورتها الشعاعية على جهاز لوحي.",
     xray: "طبيب أسنان يفحص صورًا شعاعية للأسنان على لوح مضيء.",
     clinic: "غرفة علاج أسنان مضيئة فيها كرسي ومصباح.",
+    desk: "طبيب أسنان يعمل على حاسوب في العيادة.",
+    reception: "موظفة استقبال بدفتر تتحدث مع مريض عند المكتب.",
   },
   highlights: {
-    title: "كل ما تقوم به العيادة في يوم واحد",
-    lead: "من أول مكالمة إلى آخر أداء، في برنامج واحد.",
+    title: "شاهد البرنامج ويوم العيادة",
+    lead: "شاشات حقيقية وقاعات حقيقية. افتح أي بطاقة للميزة كاملة.",
     more: "عرض كل الميزات",
     cards: [
       { id: "calendar", img: CARD_IMG.calendar, t: "المواعيد", d: "عرض الشهر والأسبوع واليوم، مع السحب والإفلات." },
       { id: "clinical", img: CARD_IMG.clinical, t: "مخطط الأسنان", d: "الفحوصات والعلاجات على مخطط FDI." },
-      { id: "money", img: CARD_IMG.money, t: "المدفوعات", d: "الإيصالات والفواتير، وإغلاق الصندوق في Cabinet وCabinet+." },
+      { id: "patients", photo: "dentist-computer", alt: "desk", t: "على المكتب", d: "ملف المريض يبقى على حاسوبك، لا في السحابة." },
       { id: "papers", img: CARD_IMG.papers, t: "الوصفات", d: "الوصفات والشهادات بالفرنسية والعربية." },
+      { id: "money", img: CARD_IMG.money, t: "المدفوعات", d: "الإيصالات والفواتير، وإغلاق الصندوق في Cabinet وCabinet+." },
+      { id: "changes", photo: "reception-desk", alt: "reception", t: "في الاستقبال", d: "الحجوزات والصندوق، دون الملف الطبي." },
     ],
   },
   band: {

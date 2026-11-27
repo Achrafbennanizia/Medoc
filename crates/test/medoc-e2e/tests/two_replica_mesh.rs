@@ -343,8 +343,14 @@ async fn mesh_push_delivers_outbox_entry_to_peer_replica() {
             .expect("peer url b");
     assert_eq!(stored_b, tcp_b.base_url);
 
+    let mut headers = reqwest::header::HeaderMap::new();
+    headers.insert(
+        medoc_sync::protocol_compat::HEADER,
+        medoc_sync::protocol_compat::header_value().parse().unwrap(),
+    );
     let client = reqwest::Client::builder()
         .danger_accept_invalid_certs(true)
+        .default_headers(headers)
         .build()
         .unwrap();
     let peers_url = format!("{}/api/v1/pairing/peers", master_tcp.base_url);

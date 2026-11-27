@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 4180 --strictPort",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview --host 127.0.0.1 --port 4181 --strictPort"
+    "preview": "vite preview --host 127.0.0.1 --port 4181 --strictPort",
+    "contact:dev": "node scripts/contact-dev-server.mjs"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.2.0",

@@ -51,7 +51,7 @@ export const EN_PRIVACY_POLICY: LegalDocument = {
       blocks: [
         {
           kind: "p",
-          text: "The demo request form sends your data over an encrypted connection to our server at sifralabs.com (Cloudflare), which forwards it by e-mail to {email} (e-mail hosted by Zoho). The server keeps no copy. If it cannot be reached, your e-mail program opens instead with a ready-made message.",
+          text: "The demo request form sends your data over an encrypted connection to our server at sifralabs.com (Cloudflare), which delivers it by e-mail to {email} through Cloudflare Email Sending. The server keeps no copy. If it cannot be reached, your e-mail program opens instead with a ready-made message.",
         },
         {
           kind: "p",

@@ -7,10 +7,10 @@ import { Odontogram } from "./Odontogram";
 import { COOKIES, readCookie, writeCookie } from "./prefs";
 import { DocumentsGallery, WhatsNew } from "./Sections";
 import { SITE_COPY } from "./site-copy";
-import { DigitalHealth, Pilot, FeaturesHero, Photo, SecurityPage } from "./Pages";
+import { DigitalHealth, Highlights, Pilot, FeaturesHero, Photo, SecurityPage } from "./Pages";
 import { PAGES_COPY } from "./pages-copy";
 import { type EditionId, type Route, pageHref, parseRoute } from "./route";
-import { Everything, FinalCta, PageHead, WhoBuilds, WhyNow } from "./Routes";
+import { Everything, FinalCta, PageHead, WhyNow } from "./Routes";
 import { ROUTES_COPY } from "./routes-copy";
 import { Contact } from "./Contact";
 import { EditionArticle, EditionsPage, EditionsPreview } from "./Editions";
@@ -475,14 +475,14 @@ function renderPage(route: Route, { t, lang, locale, theme }: PageCtx) {
         </>
       );
     case "home":
-      // Short sell path: problem → what it replaces → why now → prices → who → demo.
+      // Short sell path: problem → look inside → why now → prices → demo.
       return (
         <>
           <Hero t={t} lang={lang} locale={locale} />
           <Everything lang={lang} />
+          <Highlights lang={lang} />
           <WhyNow lang={lang} />
           <EditionsPreview lang={lang} locale={locale} />
-          <WhoBuilds lang={lang} />
           <Pilot lang={lang} />
           <FinalCta lang={lang} />
         </>

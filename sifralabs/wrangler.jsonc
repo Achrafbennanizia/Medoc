@@ -11,12 +11,17 @@
     // Only the contact API runs code; every other path is served straight from dist/.
     "run_worker_first": ["/api/*"]
   },
+  // Cloudflare Email Sending — onboard sifralabs.com under Email → Email Sending first.
+  "send_email": [
+    {
+      "name": "EMAIL",
+      "destination_address": "contact@sifralabs.com"
+    }
+  ],
   "vars": {
-    "SMTP_HOST": "smtp.zoho.com",
-    "SMTP_PORT": "465",
+    "CONTACT_FROM": "website@sifralabs.com",
     "CONTACT_TO": "contact@sifralabs.com",
-    "ALLOWED_ORIGINS": "https://sifralabs.com,https://www.sifralabs.com,https://achrafbennanizia.github.io,https://medoc.sifralabs.com"
+    "ALLOWED_ORIGINS": "https://sifralabs.com,https://www.sifralabs.com,https://achrafbennanizia.github.io,https://medoc.sifralabs.com,http://127.0.0.1:4173,http://127.0.0.1:4174,http://127.0.0.1:4175,http://127.0.0.1:4176,http://127.0.0.1:4177,http://localhost:4173,http://localhost:4174,http://localhost:4175,http://localhost:4176,http://localhost:4177,http://127.0.0.1:5173,http://localhost:5173"
   },
-  // SMTP_USER and SMTP_PASSWORD are secrets: set them in the dashboard, never here.
   "observability": { "enabled": true }
 }

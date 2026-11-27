@@ -1,10 +1,8 @@
-/* home: why-now (Bill 52-26) + who-builds */
-.why-now,
-.who-builds {
+/* home: why-now (Bill 52-26) */
+.why-now {
   max-width: 46rem;
 }
-.why-now .lead,
-.who-builds .lead {
+.why-now .lead {
   margin-bottom: 24px;
 }
 .footer-europe {

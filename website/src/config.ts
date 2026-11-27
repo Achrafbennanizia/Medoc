@@ -3,8 +3,8 @@ import type { EditionId } from "./route";
 // Contact details used by the demo form, the WhatsApp button and the footer.
 export const CONTACT_EMAIL = "contact@sifralabs.com";
 
-// The demo form posts here (the sifralabs.com Worker e-mails it to CONTACT_EMAIL). If it can't be
-// reached, the form falls back to opening the visitor's mail app. Override locally with VITE_CONTACT_API.
+// The demo form posts here (Cloudflare Worker → Cloudflare Email Sending → CONTACT_EMAIL). If it can't
+// be reached, the form falls back to opening the visitor's mail app. Override locally with VITE_CONTACT_API.
 export const CONTACT_API: string = import.meta.env.VITE_CONTACT_API ?? "https://sifralabs.com/api/contact";
 
 // The company site (sifralabs/ in this repo), linked from the footer.

@@ -24,9 +24,10 @@ export function Photo({ name, alt, className, eager, sizes }: { name: string; al
   );
 }
 
-/* ---------- home: feature highlights ---------- */
+/* ---------- home: product + practice photo cards ---------- */
 export function Highlights({ lang }: { lang: Lang }) {
-  const h = PAGES_COPY[lang].highlights;
+  const pc = PAGES_COPY[lang];
+  const h = pc.highlights;
   return (
     <section className="section" id="highlights" aria-labelledby="hl-title">
       <div className="wrap">
@@ -40,17 +41,25 @@ export function Highlights({ lang }: { lang: Lang }) {
           </a>
         </header>
         <ul className="highlights">
-          {h.cards.map((c) => (
-            <li key={c.id}>
-              <a href={pageHref("features", c.id)}>
-                <img src={asset(c.img)} width={1000} height={648} loading="lazy" decoding="async" alt="" />
-                <span className="hl-text">
-                  <b>{c.t}</b>
-                  <span>{c.d}</span>
-                </span>
-              </a>
-            </li>
-          ))}
+          {h.cards.map((c) => {
+            const alt =
+              c.alt && c.alt in pc.photoAlt ? pc.photoAlt[c.alt as keyof typeof pc.photoAlt] : c.t;
+            return (
+              <li key={c.id}>
+                <a href={pageHref("features", c.id)}>
+                  {c.photo ? (
+                    <Photo name={c.photo} alt={alt} className="hl-photo" sizes="(min-width: 960px) 320px, 50vw" />
+                  ) : (
+                    <img className="hl-shot" src={asset(c.img!)} width={1000} height={648} loading="lazy" decoding="async" alt="" />
+                  )}
+                  <span className="hl-text">
+                    <b>{c.t}</b>
+                    <span>{c.d}</span>
+                  </span>
+                </a>
+              </li>
+            );
+          })}
         </ul>
       </div>
     </section>

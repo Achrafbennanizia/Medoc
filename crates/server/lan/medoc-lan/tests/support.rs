@@ -189,7 +189,10 @@ impl LanTestHarness {
         body: Option<&serde_json::Value>,
         bearer: Option<&str>,
     ) -> (StatusCode, serde_json::Value) {
-        let mut builder = Request::builder().method(method).uri(path);
+        let mut builder = Request::builder().method(method).uri(path).header(
+            medoc_sync::protocol_compat::HEADER,
+            medoc_sync::protocol_compat::header_value(),
+        );
         if let Some(token) = bearer {
             builder = builder.header("Authorization", format!("Bearer {token}"));
         }
@@ -247,6 +250,10 @@ impl LanTestHarness {
 
     pub async fn put_bytes(&mut self, path: &str, bytes: Vec<u8>, bearer: &str) -> StatusCode {
         let mut req = Request::builder()
+            .header(
+                medoc_sync::protocol_compat::HEADER,
+                medoc_sync::protocol_compat::header_value(),
+            )
             .method("PUT")
             .uri(path)
             .header("content-type", "application/octet-stream")
@@ -264,6 +271,10 @@ impl LanTestHarness {
 
     pub async fn post_raw(&mut self, path: &str, raw_body: &str, bearer: &str) -> StatusCode {
         let mut req = Request::builder()
+            .header(
+                medoc_sync::protocol_compat::HEADER,
+                medoc_sync::protocol_compat::header_value(),
+            )
             .method("POST")
             .uri(path)
             .header("content-type", "application/json")

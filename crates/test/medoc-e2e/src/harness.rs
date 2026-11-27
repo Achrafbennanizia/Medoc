@@ -343,7 +343,10 @@ impl LanHarness {
         body: Option<&serde_json::Value>,
         bearer: Option<&str>,
     ) -> (StatusCode, serde_json::Value) {
-        let mut builder = Request::builder().method(method).uri(path);
+        let mut builder = Request::builder().method(method).uri(path).header(
+            medoc_sync::protocol_compat::HEADER,
+            medoc_sync::protocol_compat::header_value(),
+        );
         if let Some(token) = bearer {
             builder = builder.header("Authorization", format!("Bearer {token}"));
         }
@@ -379,7 +382,10 @@ impl LanHarness {
         body: Option<&serde_json::Value>,
         bearer: Option<&str>,
     ) -> (StatusCode, serde_json::Value) {
-        let mut builder = Request::builder().method(method).uri(path);
+        let mut builder = Request::builder().method(method).uri(path).header(
+            medoc_sync::protocol_compat::HEADER,
+            medoc_sync::protocol_compat::header_value(),
+        );
         if let Some(token) = bearer {
             builder = builder.header("Authorization", format!("Bearer {token}"));
         }
@@ -414,7 +420,10 @@ impl LanHarness {
         bytes: Vec<u8>,
         bearer: Option<&str>,
     ) -> (u16, Vec<u8>) {
-        let mut builder = Request::builder().method("PUT").uri(path);
+        let mut builder = Request::builder().method("PUT").uri(path).header(
+            medoc_sync::protocol_compat::HEADER,
+            medoc_sync::protocol_compat::header_value(),
+        );
         if let Some(token) = bearer {
             builder = builder.header("Authorization", format!("Bearer {token}"));
         }
@@ -435,7 +444,10 @@ impl LanHarness {
     }
 
     pub async fn get_bytes(&mut self, path: &str, bearer: Option<&str>) -> (u16, Vec<u8>) {
-        let mut builder = Request::builder().method("GET").uri(path);
+        let mut builder = Request::builder().method("GET").uri(path).header(
+            medoc_sync::protocol_compat::HEADER,
+            medoc_sync::protocol_compat::header_value(),
+        );
         if let Some(token) = bearer {
             builder = builder.header("Authorization", format!("Bearer {token}"));
         }

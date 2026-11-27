@@ -105,12 +105,6 @@ export const fr: DigitalCopy = {
     lead: "Le projet devant le Parlement (pas encore la loi) donnerait à chaque patient un dossier médical partagé, mis à jour après chaque visite. Les rapports citent des amendes jusqu'à 300 000 DH et 24 mois pour que les établissements se connectent une fois les règles techniques publiées. La loi 09-08 exige déjà sécurité et consentement pour les données de santé.",
     cta: "Comment MeDoc Dentist prépare un cabinet",
   },
-  whoBuilds: {
-    kicker: "Qui le construit",
-    title: "Fait par Achraf Bennani Ziatni et l'ÉQUIPE",
-    text: "MeDoc Dentist est réalisé par Sifra Labs — Achraf Bennani Ziatni, auto-entrepreneur au titre de la loi n° 114-13, avec l'ÉQUIPE qui installe, forme et répond. Vous parlez aux personnes qui écrivent le logiciel.",
-    cta: "À propos de Sifra Labs",
-  },
   pilot: {
     kicker: "Cabinets pilotes",
     title: "Écrivez la première histoire avec nous",
