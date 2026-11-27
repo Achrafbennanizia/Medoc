@@ -3,12 +3,13 @@ import type { LegalDocId } from "./legal/types";
 
 /**
  * Hash routes, one page per goal: "#/features", "#/editions" (and "#/editions/<edition>"),
- * "#/digitalization", "#/pricing", "#/morocco", "#/europe", "#/security", "#/faq", "#/demo",
+ * "#/pricing", "#/morocco", "#/europe", "#/security", "#/faq", "#/demo",
  * and "#/legal/<doc>". Pages other than editions may add "/<section>".
  * A plain anchor ("#contact", "#prices") opens the page that holds that section, so older links
  * and the ones on sifralabs.com keep working. Any other hash is a home-page section.
+ * Old "#/digitalization" and "#stories" open the demo page.
  */
-export type Page = "home" | "features" | "editions" | "security" | "digitalization" | "pricing" | "morocco" | "europe" | "faq" | "demo";
+export type Page = "home" | "features" | "editions" | "security" | "pricing" | "morocco" | "europe" | "faq" | "demo";
 export type EditionId = "essentiel" | "cabinet" | "cabinet-plus";
 export const EDITION_IDS: EditionId[] = ["essentiel", "cabinet", "cabinet-plus"];
 export type Route =
@@ -16,18 +17,21 @@ export type Route =
   | { page: "editions"; edition?: EditionId; anchor?: string }
   | { page: "legal"; doc: LegalDocId; anchor?: undefined };
 
-const PAGES = ["features", "editions", "security", "digitalization", "pricing", "morocco", "europe", "faq", "demo"] as const;
+const PAGES = ["features", "editions", "security", "pricing", "morocco", "europe", "faq", "demo"] as const;
 
 /** Old routes that were renamed. */
-const RENAMED: Record<string, Exclude<Page, "home">> = { country: "morocco" };
+const RENAMED: Record<string, Exclude<Page, "home">> = {
+  country: "morocco",
+  digitalization: "demo",
+};
 
 /** Sections that moved off the home page, and the page that holds each one now. */
 const SECTION_PAGE: Record<string, Exclude<Page, "home">> = {
   contact: "demo",
   prices: "pricing",
   setups: "pricing",
-  digitalization: "digitalization",
-  stories: "digitalization",
+  digitalization: "demo",
+  stories: "demo",
   "digital-health": "morocco",
   morocco: "morocco",
   faq: "faq",

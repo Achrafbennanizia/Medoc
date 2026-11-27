@@ -1,0 +1,55 @@
+// Curated French copy overrides after machine translation (vous, Morocco-first, nav labels).
+export const OVERRIDES = {
+  Work: "Réalisations",
+  Process: "Méthode",
+  Insights: "Analyses",
+  Packages: "Offres",
+  "See our work": "Voir nos réalisations",
+  "Work and case studies": "Réalisations et études de cas",
+  "Insights and news": "Analyses et actualités",
+  "How we protect your data": "Comment nous protégeons vos données",
+  "Nothing matches. Try “call” or “services”.": "Aucun résultat. Essayez « appel » ou « services ».",
+  "GDPR-compliant": "Conforme au RGPD",
+  "NDA on request": "NDA sur demande",
+  "Code ownership transferred to you": "Le code vous est transféré",
+  "What we build with": "Nos technologies",
+  "Tell us what slows your business down. We choose the right tools for it, and we stay to support what we build.":
+    "Dites-nous ce qui freine votre activité. Nous choisissons les bons outils et restons à vos côtés pour faire vivre ce que nous construisons.",
+  "We build technology that helps businesses work smarter.":
+    "Nous concevons des solutions qui aident les entreprises, au Maroc et ailleurs, à travailler plus efficacement.",
+  "See the packages": "Voir les offres",
+  "See packages": "Voir les offres",
+  "Six packages to start from": "Six offres pour démarrer",
+  "From the first call to support after launch": "Du premier échange au support après mise en ligne",
+  "Featured work": "Réalisations mises en avant",
+  "View all projects": "Voir toutes les réalisations",
+  "All insights": "Toutes les analyses",
+  "Book a free call": "Réserver un appel gratuit",
+  "Book a free 30-minute call": "Réserver un appel gratuit de 30 minutes",
+  "Book a free 30-min call": "Réserver un appel gratuit (30 min)",
+  "Learn more": "En savoir plus",
+  "Morocco's Bill 52-26: what it could mean for private practices":
+    "Le projet de loi 52-26 au Maroc : ce qu'il pourrait changer pour les cabinets privés",
+  "Launch &amp; Support": "Mise en ligne &amp; support",
+  "AI &amp; Automation": "IA &amp; automatisation",
+  "Custom Software &amp; Web": "Logiciel sur mesure &amp; web",
+  "Data &amp; Analytics": "Données &amp; analytique",
+  "IoT &amp; Embedded": "IoT &amp; embarqué",
+  "Quality &amp; Security": "Qualité &amp; sécurité",
+  "UI/UX &amp; Consulting": "UI/UX &amp; conseil",
+  "Time spent searching, information that goes missing, and what studies have measured.":
+    "Temps perdu à chercher, informations égarées : ce que les études ont mesuré.",
+  "Sifra Labs · Software, AI and data systems, from idea to production":
+    "Sifra Labs · Logiciels, IA et systèmes de données, de l'idée à la production",
+  "We build, automate, connect and improve the software your business runs on":
+    "Nous construisons, automatisons, connectons et améliorons les logiciels qui font tourner votre activité",
+  "Founded 2026 · founder-led ·": "Fondé en 2026 · piloté par son fondateur ·",
+  "Have a project in mind? Let's talk.":
+    "Un projet en tête ? Parlons-en.",
+  "Discovery": "Découverte",
+  "Plan": "Plan",
+  "Test": "Tests",
+  "About us": "À propos",
+  "See our process": "Voir notre méthode",
+  "Why Sifra Labs": "Pourquoi Sifra Labs",
+};

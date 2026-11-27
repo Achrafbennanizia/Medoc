@@ -100,7 +100,7 @@ export const fr: DigitalCopy = {
     ],
   },
   advantages: {
-    kicker: "Pourquoi passer au numérique",
+    kicker: "Pourquoi quitter le papier",
     title: "Le papier coûte cher aux cabinets, partout",
     lead: "À l'étranger, des chercheurs ont mesuré ce que coûtent le dossier papier et une sécurité des données trop faible. Ces chiffres viennent d'autres pays, chacun avec sa source. Sous chacun : ce que fait MeDoc Dentist aujourd'hui. Quand un point demande Cabinet ou Cabinet+, l'édition est nommée.",
     answerLabel: "Avec MeDoc Dentist",
@@ -175,26 +175,9 @@ export const fr: DigitalCopy = {
   pilot: {
     kicker: "Cabinets pilotes",
     title: "Écrivez la première histoire avec nous",
-    text: "MeDoc Dentist s'ouvre à ses premiers cabinets. Les cabinets pilotes bénéficient du Pack Digitalisation et d'une ligne directe avec ceux qui construisent le logiciel. En échange, nous leur demandons un retour honnête, que nous publierons ici avec leur accord.",
+    text: "MeDoc Dentist s'ouvre à ses premiers cabinets. Les cabinets pilotes bénéficient d'une aide à l'installation et d'une ligne directe avec ceux qui construisent le logiciel. En échange, nous leur demandons un retour honnête, que nous publierons ici avec leur accord.",
     points: ["Installation, reprise des données et formation incluses", "Une ligne directe avec l'équipe qui construit MeDoc Dentist", "Vos retours décident de nos prochaines améliorations"],
     cta: "Devenir cabinet pilote",
-  },
-  pack: {
-    kicker: "Pack Digitalisation",
-    title: "Des dossiers papier à un cabinet numérique, avec nous à vos côtés",
-    lead: "MeDoc Dentist réunit tout le cabinet dans un seul logiciel : patients, schémas, rendez-vous, ordonnances, encaissements et documents. Le Pack Digitalisation, c'est notre façon de vous y amener, étape par étape, pendant que vous continuez à soigner.",
-    steps: [
-      { t: "Nous regardons comment vous travaillez", d: "Un appel ou une visite pour comprendre votre journée, vos documents et les fiches papier que vous tenez aujourd'hui." },
-      { t: "Nous reprenons vos données", d: "Patients et rendez-vous importés depuis Excel ou CSV, inclus avec Cabinet et Cabinet+. Depuis un autre logiciel dentaire, nous chiffrons la reprise après examen d'un export. Les scans de vos fiches papier peuvent rester avec chaque patient." },
-      { t: "Nous installons et formons", d: "Vos tarifs et modèles en place. Installation à distance et 2 h de formation avec Essentiel ; installation sur place avec Cabinet (2 h de formation sur place) et Cabinet+ (deux sessions de formation)." },
-      { t: "Nous restons avec vous", d: "Service inclus : 3 mois avec Essentiel, 6 avec Cabinet, 12 avec Cabinet+. Ensuite, vous choisissez un forfait de service, ou aucun." },
-    ],
-    promise: "Notre engagement : chaque cabinet qui choisit MeDoc Dentist reçoit cette aide, quelle que soit son édition.",
-    cta: "Demander le Pack Digitalisation",
-    before: "Avant",
-    after: "Après",
-    beforeAlt: "Des piles d'enveloppes et de dossiers papier usés.",
-    afterAlt: "Un médecin en blouse blanche travaille sur un ordinateur dans un cabinet lumineux.",
   },
   morocco: {
     facts: {

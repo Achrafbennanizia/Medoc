@@ -1,4 +1,4 @@
-/** Sources cited next to figures on the digitalization and Morocco pages (shared by every language). */
+/** Sources cited next to figures on the Morocco page and home advantages (shared by every language). */
 export const SRC = {
   burnett: { t: "Burnett et al., BMC Health Services Research (2011)", u: "https://pmc.ncbi.nlm.nih.gov/articles/PMC3118108/" },
   dentalAudit: { t: "Audit of dental record-keeping, Health SA Gesondheid (2023)", u: "https://pmc.ncbi.nlm.nih.gov/articles/PMC10784275/" },

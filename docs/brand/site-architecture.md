@@ -19,7 +19,7 @@ If it belongs to another level, link there instead of repeating it.
 | Topic | 1. Sifra Labs (company) | 2. MeDoc series | 3. MeDoc Dentist (product) | 4. The app (system) |
 |---|---|---|---|---|
 | **Goal** | Build technology that helps businesses work smarter; be a long-term technical partner | Help doctors digitise their practice and accompany them through it (Morocco 2030) | Give a dental practice one program for patients, chart, calendar, documents and money | Make each task faster and safer: fewer clicks, fewer errors, nothing lost |
-| **Services / features** | Services sold to clients: AI & automation, custom software & web, data engineering, IoT & embedded, quality/security/optimization, UI/UX & consulting, digitalisation, support | Shared by every MeDoc product: Digitalization Pack (accompaniment), one secure core, local data, four languages | Editions and what each includes: devices, accounts, doctors, service months | Features: validation policy, daily close, drag-and-drop calendar, flags, statistics, tasks, orders and spending, shortcuts, backups, tooth chart |
+| **Services / features** | Services sold to clients: AI & automation, custom software & web, data engineering, IoT & embedded, quality/security/optimization, UI/UX & consulting, digitalisation, support | Shared by every MeDoc product: one secure core, local data, four languages | Editions and what each includes: devices, accounts, doctors, service months | Features: validation policy, daily close, drag-and-drop calendar, flags, statistics, tasks, orders and spending, shortcuts, backups, tooth chart |
 | **Principles** | Collaboration principles and six values (Integrity, Purpose, Excellence, Transparency, Partnership, Evolution) | Series principles: data stays in the practice, built per specialty, sold only when ready | Product promises: one licence yours for good, service plan you choose, Moroccan documents | Rules built into the app: reception drafts and the doctor validates, every medical read is logged, backups are automatic |
 | **Security** | Company precautions: NDA, confidentiality, least access to client data, vulnerability disclosure, security.txt. **And** security as a service sold to clients (security reviews, testing) | Secure core shared by all MeDoc products: encryption at rest, roles enforced in the core, audit chain, sync | Where MeDoc Dentist data lives, who can see it, Law 09-08 / CNDP readiness | System details: SQLCipher AES-256, reception never sees the medical chart, HMAC audit chain, encrypted daily backups |
 | **Proof** | Case studies of projects built | The first product and its pilot practices | Pilot practices, screenshots, Moroccan documents | Real screens, release notes |
@@ -52,11 +52,10 @@ Hard marketing, Morocco only, MAD only, Moroccan legal texts in English, French 
 
 | Route | Purpose |
 |---|---|
-| Home | Sell: hero, series band (merged from `/medoc/`), Morocco figures strip, product ways, advantages with sourced figures, Digitalization Pack, editions preview, privacy, pilot, final call to action |
+| Home | Sell: hero, series band (merged from `/medoc/`), Morocco figures strip, product ways, advantages with sourced figures, editions preview, privacy, pilot, final call to action |
 | `#/features` | The app (level 4): each feature as a benefit, real screens, Moroccan documents |
 | `#/editions` | Compare Essentiel, Cabinet, Cabinet+ (limits from `config/editions.yaml`) |
 | `#/editions/essentiel`, `#/editions/cabinet`, `#/editions/cabinet-plus` | One article per edition: who it is for, what it changes, what is included, price, call to action |
-| `#/digitalization` | Digitalization Pack: from the paper card to the screen, with us at your side |
 | `#/pricing` | Licences and service plans in MAD |
 | `#/morocco` | Digital Morocco 2030, Bill 52-26, Law 09-08 / CNDP and how MeDoc Dentist gets a practice ready |
 | `#/europe` | Coming soon |

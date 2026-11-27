@@ -1,12 +1,12 @@
 import type { Lang } from "./i18n";
 
 /**
- * Copy for the goal pages (#/digitalization, #/pricing, #/morocco, #/faq, #/demo) and the home
- * sections that sell the product: "digitize everything", the page explorer and the closing call
- * to action. Every item in `everything` is a feature of the current release; an item that is not
- * in all three editions names its editions.
+ * Copy for the goal pages (#/pricing, #/morocco, #/faq, #/demo) and the home sections that sell
+ * the product: "digitize everything", the page explorer and the closing call to action. Every item
+ * in `everything` is a feature of the current release; an item that is not in all three editions
+ * names its editions.
  */
-export type GoalPage = "digitalization" | "pricing" | "morocco" | "faq" | "demo";
+export type GoalPage = "pricing" | "morocco" | "faq" | "demo";
 type Head = { kicker: string; title: string; lead: string };
 type Item = { t: string; d: string };
 export type RoutesCopy = {
@@ -20,13 +20,8 @@ export type RoutesCopy = {
 };
 
 const en: RoutesCopy = {
-  nav: { digitalization: "Go digital", editions: "Editions", pricing: "Prices", morocco: "Morocco", europe: "Europe", faq: "Questions", demo: "Book a demo" },
+  nav: { editions: "Editions", pricing: "Prices", morocco: "Morocco", europe: "Europe", faq: "Questions", demo: "Book a demo" },
   heads: {
-    digitalization: {
-      kicker: "Digitalization Pack",
-      title: "Your whole practice digital, and we do the heavy lifting",
-      lead: "We map your day, bring your patients and appointments in, set everything up and train you and your team. You keep treating patients.",
-    },
     pricing: {
       kicker: "Prices",
       title: "One licence, yours for good. No surprise fees.",
@@ -77,7 +72,6 @@ const en: RoutesCopy = {
     lead: "Each page answers one question.",
     cards: {
       features: { t: "Features", d: "A tour of the real program, screen by screen." },
-      digitalization: { t: "Go digital", d: "How we move your practice from paper, with you." },
       pricing: { t: "Prices", d: "Licences, service plans and set-ups." },
       morocco: { t: "Morocco", d: "Digital Morocco 2030, Bill 52-26 and Law 09-08, explained." },
       security: { t: "Security", d: "Where your data lives and who can see it." },
@@ -94,13 +88,8 @@ const en: RoutesCopy = {
 };
 
 const fr: RoutesCopy = {
-  nav: { digitalization: "Numériser", editions: "Éditions", pricing: "Tarifs", morocco: "Maroc", europe: "Europe", faq: "Questions", demo: "Réserver une démo" },
+  nav: { editions: "Éditions", pricing: "Tarifs", morocco: "Maroc", europe: "Europe", faq: "Questions", demo: "Réserver une démo" },
   heads: {
-    digitalization: {
-      kicker: "Pack Digitalisation",
-      title: "Tout votre cabinet en numérique, et c'est nous qui faisons le gros du travail",
-      lead: "Nous analysons votre journée, reprenons vos patients et vos rendez-vous, installons tout et vous formez, vous et votre équipe. Vous continuez à soigner.",
-    },
     pricing: {
       kicker: "Tarifs",
       title: "Une licence, à vous pour toujours. Aucun frais surprise.",
@@ -151,7 +140,6 @@ const fr: RoutesCopy = {
     lead: "Chaque page répond à une question.",
     cards: {
       features: { t: "Fonctionnalités", d: "Une visite du vrai logiciel, écran par écran." },
-      digitalization: { t: "Passer au numérique", d: "Comment nous faisons passer votre cabinet du papier au numérique, avec vous." },
       pricing: { t: "Tarifs", d: "Licences, forfaits de service et installations." },
       morocco: { t: "Maroc", d: "Maroc Digital 2030, projet de loi 52-26 et loi 09-08, expliqués." },
       security: { t: "Sécurité", d: "Où sont vos données et qui peut les voir." },
@@ -168,13 +156,8 @@ const fr: RoutesCopy = {
 };
 
 const ar: RoutesCopy = {
-  nav: { digitalization: "التحوّل الرقمي", editions: "الإصدارات", pricing: "الأسعار", morocco: "المغرب", europe: "أوروبا", faq: "أسئلة", demo: "احجز عرضًا" },
+  nav: { editions: "الإصدارات", pricing: "الأسعار", morocco: "المغرب", europe: "أوروبا", faq: "أسئلة", demo: "احجز عرضًا" },
   heads: {
-    digitalization: {
-      kicker: "باقة الرقمنة",
-      title: "عيادتك كلها رقمية، ونحن نتولّى العمل الشاق",
-      lead: "ندرس يومك، وننقل مرضاك ومواعيدك، ونثبّت كل شيء وندرّبك أنت وفريقك. وأنت تواصل علاج مرضاك.",
-    },
     pricing: {
       kicker: "الأسعار",
       title: "ترخيص واحد، ملكك إلى الأبد. بلا رسوم مفاجئة.",
@@ -225,7 +208,6 @@ const ar: RoutesCopy = {
     lead: "كل صفحة تجيب عن سؤال واحد.",
     cards: {
       features: { t: "الميزات", d: "جولة في البرنامج الحقيقي، شاشة بشاشة." },
-      digitalization: { t: "التحوّل الرقمي", d: "كيف ننقل عيادتك من الورق، معك." },
       pricing: { t: "الأسعار", d: "التراخيص وباقات الخدمة والتجهيزات." },
       morocco: { t: "المغرب", d: "المغرب الرقمي 2030 ومشروع القانون 52-26 والقانون 09-08، بشرح واضح." },
       security: { t: "الأمان", d: "أين تُحفظ بياناتك ومن يمكنه رؤيتها." },

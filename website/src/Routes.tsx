@@ -6,10 +6,6 @@ import { pageHref } from "./route";
 import { ROUTES_COPY, type GoalPage } from "./routes-copy";
 
 const HEAD_PHOTO: Record<GoalPage, { name: string; alt: Record<Lang, string> }> = {
-  digitalization: {
-    name: "dental-team",
-    alt: { en: "A dental team at work in a practice.", fr: "Une équipe dentaire au travail au cabinet.", ar: "فريق طب أسنان يعمل في العيادة." },
-  },
   pricing: {
     name: "dental-scan",
     alt: { en: "A dentist in blue gloves pointing at a dental scan on a tablet.", fr: "Un dentiste en gants bleus montrant une radiographie dentaire sur une tablette.", ar: "طبيب أسنان بقفازات زرقاء يشير إلى صورة مسح للأسنان على جهاز لوحي." },
@@ -140,7 +136,7 @@ export function Everything({ lang }: { lang: Lang }) {
   );
 }
 
-const EXPLORE: ("features" | GoalPage | "security")[] = ["features", "digitalization", "pricing", "morocco", "security", "faq"];
+const EXPLORE: ("features" | GoalPage | "security")[] = ["features", "pricing", "morocco", "security", "faq"];
 
 /** Home: one card per page, so every visitor finds the answer they came for. */
 export function Explore({ lang }: { lang: Lang }) {

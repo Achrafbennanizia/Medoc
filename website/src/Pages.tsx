@@ -197,44 +197,6 @@ export function SecurityPage({ lang }: { lang: Lang }) {
   );
 }
 
-/* ---------- home: Digitalization Pack ---------- */
-export function DigitalizationPack({ lang }: { lang: Lang }) {
-  const p = DIGITAL_COPY[lang].pack;
-  return (
-    <section className="section" id="digitalization" aria-labelledby="pack-title">
-      <div className="wrap pack-grid">
-        <div>
-          <p className="kicker">{p.kicker}</p>
-          <h2 id="pack-title">{p.title}</h2>
-          <p className="lead">{p.lead}</p>
-          <ol className="pack-steps">
-            {p.steps.map((s) => (
-              <li key={s.t}>
-                <h3>{s.t}</h3>
-                <p>{s.d}</p>
-              </li>
-            ))}
-          </ol>
-          <p className="pack-promise">{p.promise}</p>
-          <a className="btn btn-primary" href={pageHref("demo")}>
-            {p.cta}
-          </a>
-        </div>
-        <div className="before-after">
-          <figure>
-            <Photo name="paper-envelopes" alt={p.beforeAlt} sizes="(min-width: 960px) 460px, 100vw" />
-            <figcaption>{p.before}</figcaption>
-          </figure>
-          <figure>
-            <Photo name="doctor-desk" alt={p.afterAlt} sizes="(min-width: 960px) 460px, 100vw" />
-            <figcaption>{p.after}</figcaption>
-          </figure>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 /* ---------- Morocco page: facts + readiness ---------- */
 export function DigitalHealth({ lang }: { lang: Lang }) {
   const d = DIGITAL_COPY[lang];

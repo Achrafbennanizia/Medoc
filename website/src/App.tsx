@@ -7,7 +7,7 @@ import { Odontogram } from "./Odontogram";
 import { COOKIES, readCookie, writeCookie } from "./prefs";
 import { DocumentsGallery, WhatsNew } from "./Sections";
 import { SITE_COPY } from "./site-copy";
-import { Advantages, DigitalHealth, DigitalizationPack, Pilot, FeaturesHero, Photo, PrivacyBand, SecurityPage, Ways } from "./Pages";
+import { Advantages, DigitalHealth, Pilot, FeaturesHero, Photo, PrivacyBand, SecurityPage, Ways } from "./Pages";
 import { PAGES_COPY } from "./pages-copy";
 import { type EditionId, type Route, pageHref, parseRoute } from "./route";
 import { Everything, FinalCta, MoroccoStrip, PageHead, SeriesBand } from "./Routes";
@@ -41,7 +41,6 @@ function Header({ t, lang, setLang, theme, setTheme }: { t: Dict; lang: Lang; se
   const links = [
     [pageHref("features"), pc.nav.features],
     [pageHref("editions"), rc.editions],
-    [pageHref("digitalization"), rc.digitalization],
     [pageHref("pricing"), rc.pricing],
     [pageHref("security"), pc.nav.security],
   ];
@@ -307,7 +306,7 @@ function Footer({ t, lang, setLang }: { t: Dict; lang: Lang; setLang: (l: Lang) 
           <li>
             <a href={pageHref("security")}>{PAGES_COPY[lang].nav.security}</a>
           </li>
-          {(["editions", "digitalization", "pricing", "morocco", "europe", "faq", "demo"] as const).map((p) => (
+          {(["editions", "pricing", "morocco", "europe", "faq", "demo"] as const).map((p) => (
             <li key={p}>
               <a href={pageHref(p)}>{ROUTES_COPY[lang].nav[p]}</a>
             </li>
@@ -418,15 +417,6 @@ function renderPage(route: Route, { t, lang, locale, theme }: PageCtx) {
           <FinalCta lang={lang} />
         </>
       );
-    case "digitalization":
-      return (
-        <>
-          <PageHead lang={lang} page="digitalization" />
-          <DigitalizationPack lang={lang} />
-          <Pilot lang={lang} />
-          <FinalCta lang={lang} />
-        </>
-      );
     case "pricing":
       return (
         <>
@@ -486,7 +476,6 @@ function renderPage(route: Route, { t, lang, locale, theme }: PageCtx) {
           <MoroccoStrip lang={lang} />
           <Ways lang={lang} />
           <Advantages lang={lang} />
-          <DigitalizationPack lang={lang} />
           <EditionsPreview lang={lang} locale={locale} />
           <Everything lang={lang} />
           <PrivacyBand lang={lang} />

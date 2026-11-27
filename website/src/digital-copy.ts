@@ -4,7 +4,7 @@ import { ar } from "./digital-copy-ar";
 import { SRC } from "./digital-sources";
 
 /**
- * Home "Paper costs practices everywhere", the Digitalization Pack, the pilot invitation, and the
+ * Home "Paper costs practices everywhere", the pilot invitation, and the
  * Morocco and Europe pages. Every figure, law and feature comes from docs/brand/site-facts.md and
  * carries its source. Figures from other countries support an advantage; they are not Moroccan
  * measurements. Bill 52-26 is not law yet and is always labelled so. Morocco is the only market.
@@ -37,7 +37,6 @@ export type DigitalCopy = {
     items: Cost[];
   };
   pilot: { kicker: string; title: string; text: string; points: string[]; cta: string };
-  pack: { kicker: string; title: string; lead: string; steps: Item[]; promise: string; cta: string; before: string; after: string; beforeAlt: string; afterAlt: string };
   morocco: {
     facts: { kicker: string; title: string; lead: string; items: Fact[]; note: string };
     ready: { kicker: string; title: string; lead: string; items: Item[]; notYetTitle: string; notYet: string[]; cndp: string; cta: string };
@@ -144,7 +143,7 @@ const en: DigitalCopy = {
     ],
   },
   advantages: {
-    kicker: "Why go digital",
+    kicker: "Why leave paper",
     title: "Paper costs practices everywhere",
     lead: "Researchers abroad measured what paper records and weak data security cost. The figures come from other countries, each with its source. Under each one: what MeDoc Dentist does about it today. Where a point needs Cabinet or Cabinet+, the edition is named.",
     answerLabel: "With MeDoc Dentist",
@@ -219,26 +218,9 @@ const en: DigitalCopy = {
   pilot: {
     kicker: "Pilot practices",
     title: "Write the first story with us",
-    text: "MeDoc Dentist is opening to its first practices. Pilot practices get the Digitalization Pack and a direct line to the people who build the software. In return we ask for honest feedback, which we will publish here, with their permission.",
+    text: "MeDoc Dentist is opening to its first practices. Pilot practices get set-up help and a direct line to the people who build the software. In return we ask for honest feedback, which we will publish here, with their permission.",
     points: ["Set-up, data import and training included", "A direct line to the team that builds MeDoc Dentist", "Your feedback decides what we improve next"],
     cta: "Become a pilot practice",
-  },
-  pack: {
-    kicker: "Digitalization Pack",
-    title: "From paper files to a digital practice, with us at your side",
-    lead: "MeDoc Dentist puts the whole practice in one program: patients, charts, appointments, prescriptions, payments and documents. The Digitalization Pack is how we move you there, step by step, while you keep treating patients.",
-    steps: [
-      { t: "We look at how you work", d: "A call or a visit to understand your day, your documents and the paper files you keep today." },
-      { t: "We bring your data in", d: "Patients and appointments imported from Excel or CSV, included with Cabinet and Cabinet+. From another dental program, we quote after looking at an export. Scans of your paper cards can stay with each patient." },
-      { t: "We set up and train", d: "Your prices and templates in place. Remote installation and 2 hours of training with Essentiel; on-site installation with Cabinet (2 hours of training on site) and Cabinet+ (two training sessions)." },
-      { t: "We stay with you", d: "Service included: 3 months with Essentiel, 6 with Cabinet, 12 with Cabinet+. After that, you choose a service plan, or none." },
-    ],
-    promise: "Our commitment: every practice that chooses MeDoc Dentist gets this help, whatever its edition.",
-    cta: "Ask about the Digitalization Pack",
-    before: "Before",
-    after: "After",
-    beforeAlt: "Stacks of worn paper envelopes and files.",
-    afterAlt: "A doctor in a white coat working at a computer in a bright consulting room.",
   },
   morocco: {
     facts: {
