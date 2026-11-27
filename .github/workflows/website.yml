@@ -3,14 +3,13 @@ name: Website
 on:
   push:
     branches: [main]
-  # Pull requests that touch either site build them but never deploy.
+  # Pull requests that touch the product site build it but never deploy.
   pull_request:
     paths:
       - "website/**"
-      - "sifralabs/**"
       - "package-lock.json"
-      - "sifralabs/package-lock.json"
       - ".github/workflows/website.yml"
+  # sifralabs.com has its own workflow: .github/workflows/sifralabs.yml
   workflow_dispatch:
 
 permissions:
@@ -33,35 +32,15 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-      # Company site (Sifra Labs) is the GitHub Pages root at /Medoc/.
-      - name: Build Sifra Labs (main site)
-        working-directory: sifralabs
-        env:
-          # SITE_ORIGIN is host only; SITE_BASE is the Pages path (decorate joins them).
-          SITE_BASE: /Medoc
-          SITE_ORIGIN: https://achrafbennanizia.github.io
-          PRODUCT_SITE: https://achrafbennanizia.github.io/Medoc/dentist/
-          # Forms on Pages must POST to the Worker, not to github.io.
-          CONTACT_API: https://sifralabs.com/api/contact
-        run: |
-          npm ci
-          npm run build
-      # Product site nests under /Medoc/dentist/. Same Worker contact API as the company form.
       - name: Build MeDoc Dentist
         env:
           VITE_CONTACT_API: https://sifralabs.com/api/contact
         run: npm ci && npm run build -w medoc-dentist
-      - name: Assemble Pages artifact
-        run: |
-          mkdir -p publish/dentist
-          cp -a sifralabs/dist/. publish/
-          cp -a website/dist/. publish/dentist/
-          touch publish/.nojekyll
-          touch publish/dentist/.nojekyll
+      - run: touch website/dist/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         if: github.event_name != 'pull_request'
         with:
-          path: publish
+          path: website/dist
 
   deploy:
     needs: build

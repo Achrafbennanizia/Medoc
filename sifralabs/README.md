@@ -28,17 +28,17 @@ npm run build    # type-check + build → dist/
 | Command menu (⌘K / Ctrl+K or "/") | `partials/cmdk.html` (entries), `src/main.ts` (behaviour) |
 | Statistics on the home page | `index.html` "By the numbers"; every outside figure has a numbered source under it. Update the IBM figure each summer when the new report comes out |
 | Page prerendering | Speculation rules in `partials/head.html`; the CSP in `public/_headers` allows them with `'inline-speculation-rules'` |
-| Links to MeDoc Dentist | `https://achrafbennanizia.github.io/Medoc/dentist/` on GitHub Pages. Switch to `https://medoc.sifralabs.com/` once that domain is set up (see below) |
+| Links to MeDoc Dentist | `https://achrafbennanizia.github.io/Medoc/` on GitHub Pages. Switch to `https://medoc.sifralabs.com/` once that domain is set up (see below) |
 
 Art direction: blueprint grid and dot-matrix texture on a Swiss editorial layout (`src/styles/05-paths-cta-photo.css`, "Art direction"). Keep it to those two textures.
 
 Claims must stay true to the current release: anything not shipped is labelled "planned" or "research".
 
-## Deploy (GitHub Pages = live today; Cloudflare = sifralabs.com)
+## Deploy (Cloudflare = official company site; GitHub Pages = MeDoc Dentist)
 
-**GitHub Pages** (`.github/workflows/website.yml`) publishes this company site as the **main** site at `https://achrafbennanizia.github.io/Medoc/`. MeDoc Dentist is nested at `/Medoc/dentist/`.
+**GitHub Pages** (`.github/workflows/website.yml`) publishes **MeDoc Dentist** at `https://achrafbennanizia.github.io/Medoc/`.
 
-**Cloudflare Worker** (`.github/workflows/sifralabs.yml`) deploys the same build to Worker **`sifralabs-site`** (must match `name` in `wrangler.jsonc` and the CF project) when these exist:
+**Cloudflare Worker** (`.github/workflows/sifralabs.yml`) deploys this company site to Worker **`sifralabs-site`** (must match `name` in `wrangler.jsonc` and the CF project) when these exist:
 
 - `CLOUDFLARE_API_TOKEN` — Workers edit permission for this account
 - `CLOUDFLARE_ACCOUNT_ID` — Cloudflare account id (repo variable)
@@ -70,7 +70,7 @@ cd website && VITE_CONTACT_API=http://127.0.0.1:8787/api/contact npm run build &
 
 ## MeDoc Dentist at medoc.sifralabs.com (not set up yet)
 
-Until that domain is live, product links use `https://achrafbennanizia.github.io/Medoc/dentist/`. To cut over:
+Until that domain is live, product links use `https://achrafbennanizia.github.io/Medoc/`. To cut over:
 
 1. Cloudflare DNS → add `CNAME` `medoc` → `<your-github-user>.github.io`, **DNS only** (grey cloud).
 2. GitHub repo → **Settings → Pages → Custom domain** → `medoc.sifralabs.com` → Save, then tick **Enforce HTTPS** when offered.

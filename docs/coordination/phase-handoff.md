@@ -1,6 +1,24 @@
 # Phase handoff
 
-**Last phase label:** Contact forms → Cloudflare Email Sending (2026-11-27)
+**Last phase label:** Restore product Pages + Go digital for all businesses (2026-11-27)
+
+### Verified
+
+- GitHub Pages again publishes **only** MeDoc Dentist at `/Medoc/` (workflow restored; vite `base` `/Medoc/`).
+- Company site stays Cloudflare (`sifralabs-site`); product links back to `…/Medoc/`.
+- Go digital home (`sifralabs/index.html`) retargeted for any business; MeDoc is one clinic path. Builds: sifralabs **PASS**; medoc-dentist with GITHUB_ACTIONS **PASS**.
+
+### Remains unverified
+
+- Live Pages after push. FR/AR dictionary coverage for new home strings. **NOT CHECKED** exhaustively.
+
+### Required next
+
+1. Push when ready. 2. Do not commit unless asked.
+
+---
+
+**Previous last phase label:** Contact forms → Cloudflare Email Sending (2026-11-27)
 
 ### Verified
 

@@ -4,12 +4,16 @@
 
 ## Now
 
-- Push to `main` for Pages (company root + `/dentist/`). Cloudflare project name `sifralabs-site` + DNS when ready.
+- Push restore: product Pages at `/Medoc/` again; Go digital aimed at all businesses. Cloudflare for company site when ready.
+
+## Done (2026-11-27 — restore product Pages + Go digital for all businesses)
+
+- Reverted GH Pages to MeDoc Dentist only. Rewrote `sifralabs/index.html` for any business; MeDoc as clinic path.
+- Builds **PASS**. No commit unless asked.
 
 ## Done (2026-11-27 — sifralabs official GH Pages main)
 
-- Company site is Pages root; product under `/Medoc/dentist/`; `SITE_BASE`/`applyBase`; workflow assemble; product URL rewrites.
-- Builds **PASS**. No commit unless asked.
+- Superseded: company-as-Pages-root reverted same day.
 
 ## Done (2026-11-27 — product site SEO/marketing messaging)
 
