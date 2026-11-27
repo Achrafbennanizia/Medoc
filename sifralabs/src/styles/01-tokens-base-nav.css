@@ -171,13 +171,15 @@ img {
   text-decoration: none;
   font-weight: 600;
   letter-spacing: -0.01em;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .nav nav {
   margin-inline-start: auto;
 }
 .nav ul {
   display: flex;
-  gap: 24px;
+  gap: 18px;
   list-style: none;
   margin: 0;
   padding: 0;
@@ -186,6 +188,7 @@ img {
   text-decoration: none;
   color: var(--ink-2);
   font-size: 15px;
+  white-space: nowrap;
 }
 .nav nav a:hover {
   color: var(--ink);

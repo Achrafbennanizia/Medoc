@@ -52,7 +52,7 @@
 .nav-menu .nav-links a:hover {
   background: var(--paper);
 }
-@media (max-width: 760px) {
+@media (max-width: 1180px) {
   .nav-row > .nav-links,
   .nav-cta {
     display: none;

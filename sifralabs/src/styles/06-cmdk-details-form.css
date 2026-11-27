@@ -37,15 +37,26 @@ kbd {
   background: var(--paper);
   color: var(--ink-3);
 }
-@media (max-width: 760px) {
+/* Header fit: the full row needs ~1050px (EN/AR) and ~1110px (FR) with an icon-only
+   search button, so the search text goes below 1280px (always in French) and the
+   links collapse into Menu below 1180px. The language switch keeps the auto margin. */
+:root[lang="fr"] .cmdk-btn {
+  padding: 0 10px;
+}
+:root[lang="fr"] .cmdk-btn-text,
+:root[lang="fr"] .cmdk-kbd {
+  display: none;
+}
+@media (max-width: 1279px) {
   .cmdk-btn {
-    margin-inline-start: auto;
     padding: 0 10px;
   }
   .cmdk-btn-text,
   .cmdk-kbd {
     display: none;
   }
+}
+@media (max-width: 1180px) {
   .nav-menu {
     margin-inline-start: 0;
   }
@@ -343,8 +354,25 @@ h3 {
     padding: 0 4px;
   }
 }
-@media (max-width: 420px) {
-  .brand span {
+@media (max-width: 480px) {
+  .nav-row {
+    gap: 12px;
+  }
+}
+@media (max-width: 400px) {
+  .nav-row {
+    gap: 8px;
+  }
+  .langs a {
+    min-width: 24px;
+  }
+  .nav-menu summary {
+    padding: 0 10px;
+  }
+}
+/* Smallest phones: the Menu lists every page, so the search shortcut can go. */
+@media (max-width: 340px) {
+  .nav-row .cmdk-btn {
     display: none;
   }
 }
