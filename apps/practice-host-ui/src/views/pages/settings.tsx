@@ -34,7 +34,6 @@ import {
     savePracticePreferences,
     type PracticePreferences,
 } from "@/lib/practice-preferences-storage";
-import type { SettingsSectionId } from "@/lib/rbac";
 import { useRbac } from "@/lib/use-rbac";
 import { AccessDeniedView } from "@/views/components/rbac-gate";
 import { normalizeAccentId } from "@/lib/accent-preset";
@@ -56,26 +55,8 @@ import { SettingsIntegrationsSection } from "@/systems/practice-host/pages/setti
 import { StethoscopeIcon, UsersIcon, BellIcon, ShieldIcon, KeyRoundIcon, BoltIcon, DownloadIcon, SunIcon, SettingsIcon, InfoIcon, ClockIcon, ICON_SIZE_LG } from "@/lib/icons";
 import { SettingsBackupsSection } from "@/systems/practice-host/pages/settings/settings-backups-section";
 import { errorMessage } from "@/lib/utils";
-
-const SETTINGS_BREADCRUMB_FALLBACK = "settings.breadcrumb_fallback";
-
-const PW_CHANGED_LS = "medoc-settings-pw-changed-at-ms";
-
-type SettingsSection = SettingsSectionId;
-
-const TAB_QUERY: Record<SettingsSection, string> = {
-    practice: "practice",
-    account: "account",
-    notifications: "notifications",
-    security: "security",
-    license: "license",
-    integrations: "integrations",
-    migration: "migration",
-    appearance: "appearance",
-    system: "system",
-    backups: "backups",
-    about: "about",
-};
+import { SETTINGS_BREADCRUMB_FALLBACK, PW_CHANGED_LS, TAB_QUERY } from "./settings-tabs";
+import type { SettingsSection } from "./settings-tabs";
 
 export function SettingsPage() {
     const t = useT();

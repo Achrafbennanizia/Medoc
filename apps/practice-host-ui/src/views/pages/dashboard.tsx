@@ -45,34 +45,7 @@ import { DismissibleNotice } from "../components/ui/dismissible-notice";
 import { PAGE_REFRESH_EVENT } from "../layouts/page-refresh";
 import { purchaseOrderIsOverdue } from "@/lib/purchase-order-is-overdue";
 import { StatCard } from "../components/stat-card";
-
-const DASHBOARD_PURCHASE_ORDERS_MAX = 10;
-const DASHBOARD_OPEN_CASH_MAX = 8;
-const DASHBOARD_PENDING_TASKS_MAX = 12;
-const CHARTS_QUEUE_POLL_MS = 15_000;
-const INSIGHTS_DISMISSED_KEY = "medoc.dashboard.insights.dismissed";
-
-function readInsightsDismissed(): boolean {
-    try {
-        return localStorage.getItem(INSIGHTS_DISMISSED_KEY) === "1";
-    } catch {
-        return false;
-    }
-}
-
-function purchaseOrderWirePill(b: PurchaseOrder, t: (k: string) => string): { label: string; cls: string } {
-    const od = purchaseOrderIsOverdue(b);
-    if (od) return { label: `● ${t("dashboard.purchase_orders.status_late")}`, cls: "dashboard-wire-pill-status--late" };
-    if (b.status === "IN_TRANSIT")
-        return { label: `● ${t("dashboard.purchase_orders.status_transit")}`, cls: "dashboard-wire-pill-status--transit" };
-    return { label: `● ${t("dashboard.purchase_orders.status_open")}`, cls: "dashboard-wire-pill-status--open" };
-}
-
-function appointmentStatusLabel(status: string, t: (key: string) => string): string {
-    const key = `dashboard.status.${status}`;
-    const version = t(key);
-    return version === key ? status : version;
-}
+import { DASHBOARD_PURCHASE_ORDERS_MAX, DASHBOARD_OPEN_CASH_MAX, DASHBOARD_PENDING_TASKS_MAX, CHARTS_QUEUE_POLL_MS, INSIGHTS_DISMISSED_KEY, readInsightsDismissed, purchaseOrderWirePill, appointmentStatusLabel } from "./dashboard-helpers";
 
 export function DashboardPage() {
     const t = useT();
@@ -1044,4 +1017,3 @@ export function DashboardPage() {
         </div>
     );
 }
-

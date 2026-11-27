@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "r
 import { readListSnapshot, writeListSnapshot } from "@/lib/list-snapshot";
 import { PAGE_REFRESH_EVENT } from "../layouts/page-refresh";
 import { format, parseISO } from "date-fns";
-import type { Locale as DateFnsLocale } from "date-fns";
 import { Link } from "react-router-dom";
 import {
     Bar,
@@ -26,9 +25,6 @@ import {
 } from "@/systems/practice-host/controllers/statistics.controller";
 import type { LabelValue, MonthBucket } from "../../models/types";
 import { errorMessage, formatCurrency } from "@/lib/utils";
-// TODO(later): restore Analytics Export/Import — see docs/coordination/todos-deferred-ui-blinds.md
-// import { buildStatisticsReportBundle } from "@/lib/report-export";
-// import { ReportExportToolbar } from "../components/report-export-toolbar";
 import { Card, CardHeader } from "../components/ui/card";
 import { DismissibleNotice } from "../components/ui/dismissible-notice";
 import { Button } from "../components/ui/button";
@@ -48,8 +44,12 @@ import {
 } from "@/lib/statistics-chart-labels";
 import { workTimeStatusLabel } from "@/lib/work-time-status-label";
 import { StatCard } from "../components/stat-card";
+import { formatMonth, formatMonthShortOnly, trim } from "./statistics-months";
+import type { Period } from "./statistics-months";
 
-type Period = "6m" | "12m";
+// TODO(later): restore Analytics Export/Import — see docs/coordination/todos-deferred-ui-blinds.md
+// import { buildStatisticsReportBundle } from "@/lib/report-export";
+// import { ReportExportToolbar } from "../components/report-export-toolbar";
 
 const PANEL_IDS = [
     "sec-overview",
@@ -245,29 +245,6 @@ function ChartBarTopLabel({
             </div>
         </foreignObject>
     );
-}
-
-function formatMonth(month: string, locale: DateFnsLocale): string {
-    const parts = month.split("-");
-    if (parts.length !== 2) return month;
-    const y = Number(parts[0]);
-    const m = Number(parts[1]);
-    if (!Number.isFinite(y) || !Number.isFinite(m) || m < 1 || m > 12) return month;
-    return format(new Date(y, m - 1, 1), "MMM yy", { locale });
-}
-
-function formatMonthShortOnly(month: string, locale: DateFnsLocale): string {
-    const parts = month.split("-");
-    if (parts.length !== 2) return month;
-    const y = Number(parts[0]);
-    const m = Number(parts[1]);
-    if (!Number.isFinite(y) || !Number.isFinite(m) || m < 1 || m > 12) return month;
-    return format(new Date(y, m - 1, 1), "MMM", { locale });
-}
-
-function trim(months: MonthBucket[], period: Period): MonthBucket[] {
-    if (period === "6m") return months.slice(-6);
-    return months;
 }
 
 interface ChartCardProps {
@@ -757,7 +734,6 @@ function momPercent(cur: number, prev: number): number | null {
     if (!Number.isFinite(cur) || !Number.isFinite(prev) || prev <= 0) return null;
     return ((cur - prev) / prev) * 100;
 }
-
 
 function RevenueDevelopmentChart({ data }: { data: MonthBucket[] }) {
     const t = useT();
