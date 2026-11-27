@@ -2,45 +2,22 @@
 <html lang="en" dir="ltr">
   <head>
 <!-- @include head -->
-    <title>Sifra Labs · Software, AI and data systems, from idea to production</title>
-    <meta name="description" content="Sifra Labs builds AI solutions, custom software and data systems for businesses, from idea to production. A fixed quote after a free call, tested before delivery, and you own the code." />
+    <title>The Digitalization Pack · Sifra Labs</title>
+    <meta name="description" content="Software alone does not take a practice off paper. The Digitalization Pack is how Sifra Labs helps you make the move, one step at a time: we look at how you work, bring your data in, set up and train, and stay with you." />
     <link rel="canonical" href="https://sifralabs.com/" />
-    <meta property="og:title" content="Sifra Labs · Software, AI and data systems, from idea to production" />
-    <meta property="og:description" content="AI solutions, custom software and data systems, from idea to production. Book a free 30-minute call." />
+    <meta property="og:title" content="The Digitalization Pack · Sifra Labs" />
+    <meta property="og:description" content="From paper to screen, with us at your side. Look at how you work, bring data in, set up and train, then stay for the first weeks." />
     <meta property="og:url" content="https://sifralabs.com/" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@graph": [
-          {
-            "@type": "Organization",
-            "@id": "https://sifralabs.com/#org",
-            "name": "Sifra Labs",
-            "url": "https://sifralabs.com/",
-            "logo": "https://sifralabs.com/icon-512.png",
-            "email": "hello@sifralabs.com",
-            "slogan": "Precise. Private. Kept.",
-            "description": "Software and AI engineering: AI solutions, custom software and data systems, from idea to production. Maker of MeDoc Dentist for dental practices in Morocco.",
-            "foundingDate": "2026",
-            "areaServed": { "@type": "Country", "name": "Morocco" },
-            "knowsLanguage": ["en", "fr", "ar"],
-            "sameAs": ["https://achrafbennanizia.github.io/Medoc/"],
-            "contactPoint": {
-              "@type": "ContactPoint",
-              "email": "hello@sifralabs.com",
-              "contactType": "sales",
-              "availableLanguage": ["en", "fr", "ar"]
-            }
-          },
-          {
-            "@type": "WebSite",
-            "@id": "https://sifralabs.com/#website",
-            "url": "https://sifralabs.com/",
-            "name": "Sifra Labs",
-            "publisher": { "@id": "https://sifralabs.com/#org" },
-            "inLanguage": ["en", "fr", "ar"]
-          }
-        ]
+        "@type": "Service",
+        "name": "Digitalization Pack",
+        "serviceType": "Digital transformation accompaniment",
+        "provider": { "@type": "Organization", "name": "Sifra Labs", "url": "https://sifralabs.com/" },
+        "areaServed": { "@type": "Country", "name": "Morocco" },
+        "description": "Accompaniment from paper and spreadsheets to one organised system: discovery, data import, set-up, training and follow-up.",
+        "url": "https://sifralabs.com/"
       }
     </script>
   </head>
@@ -48,271 +25,144 @@
 <!-- @include icons -->
 <!-- @include header -->
     <main id="main">
-      <!-- 1 Hero: the value line, two calls to action, the trust line, an abstract system diagram -->
-      <section class="hero hero-brand hero-tech">
-        <div class="wrap hero-grid">
-          <div class="hero-copy">
-            <p class="kicker kicker-on-dark"><span class="dot dot-saffron" aria-hidden="true"></span>Software &amp; AI engineering</p>
-            <h1>We build technology that helps businesses work smarter.</h1>
-            <p class="lede">AI solutions, custom software and data systems, from idea to production.</p>
+      <section class="page-hero with-photo" id="hero" aria-labelledby="hero-h">
+        <div class="wrap">
+          <div>
+            <p class="kicker"><span class="dot dot-saffron" aria-hidden="true"></span>Digitalization Pack</p>
+            <h1 id="hero-h">From paper to screen, with us at your side</h1>
+            <p class="lede">Software alone does not take a practice or a business off paper. The Digitalization Pack is how we help you make the move, one step at a time, while you keep serving your clients.</p>
             <div class="actions">
-              <a class="btn btn-saffron" href="/contact/#write">Book a free call</a>
-              <a class="text-link text-link-on-dark" href="/services/">See our services</a>
+              <a class="btn btn-saffron" href="/contact/#write">Ask about the Digitalization Pack</a>
+              <a class="text-link" href="#steps">How it works</a>
             </div>
             <ul class="trust-line">
-              <li><svg aria-hidden="true"><use href="#i-check" /></svg>Data protection by design</li>
-              <li><svg aria-hidden="true"><use href="#i-check" /></svg>NDA on request</li>
-              <li><svg aria-hidden="true"><use href="#i-check" /></svg>Code ownership transferred to you</li>
+              <li><svg aria-hidden="true"><use href="#i-check" /></svg>Free 30-minute call</li>
+              <li><svg aria-hidden="true"><use href="#i-check" /></svg>Written scope and fixed quote</li>
+              <li><svg aria-hidden="true"><use href="#i-check" /></svg>Training in English, French or Arabic</li>
             </ul>
           </div>
-<!-- @include techgraphic -->
+          <img class="page-photo" src="/img/doctor-desk-900.webp" srcset="/img/doctor-desk-900.webp 900w, /img/doctor-desk.webp 1600w" sizes="(min-width: 960px) 520px, 100vw"
+            width="900" height="600" fetchpriority="high" decoding="async"
+            alt="A doctor in a white coat working at a computer in a bright consulting room." />
         </div>
       </section>
 
-      <!-- 2 Tech stack: what we build with -->
-      <section class="stack-strip" aria-labelledby="stack-h">
-        <div class="wrap">
-          <p class="stack-label" id="stack-h">What we build with</p>
-          <ul class="stack-list">
-            <li><img src="/img/stack/rust.svg" alt="" width="20" height="20" />Rust</li>
-            <li><img src="/img/stack/typescript.svg" alt="" width="20" height="20" />TypeScript</li>
-            <li><img src="/img/stack/react.svg" alt="" width="20" height="20" />React</li>
-            <li><img src="/img/stack/tauri.svg" alt="" width="20" height="20" />Tauri</li>
-            <li><img src="/img/stack/sqlite.svg" alt="" width="20" height="20" />SQLite</li>
-            <li><img src="/img/stack/vite.svg" alt="" width="20" height="20" />Vite</li>
-            <li><img src="/img/stack/nodedotjs.svg" alt="" width="20" height="20" />Node.js</li>
-            <li><img src="/img/stack/cloudflare.svg" alt="" width="20" height="20" />Cloudflare</li>
-            <li><img src="/img/stack/githubactions.svg" alt="" width="20" height="20" />GitHub Actions</li>
-          </ul>
-        </div>
-      </section>
-
-      <!-- 3 What we do: four verbs, six service pillars (the first three stronger) -->
-      <section class="section" id="what" aria-labelledby="do-h">
-        <div class="wrap">
-          <header class="section-head">
-            <p class="kicker" aria-hidden="true">What we do</p>
-            <h2 class="visually-hidden" id="do-h">What we do</h2>
-            <ul class="verbs">
-              <li>Build</li>
-              <li>Automate</li>
-              <li>Connect</li>
-              <li>Improve</li>
-            </ul>
-            <p>Tell us what slows your business down. We choose the right tools for it, and we stay to support what we build.</p>
-          </header>
-          <ul class="pillars">
-            <li class="pillar pillar-primary">
-              <svg aria-hidden="true"><use href="#i-refresh" /></svg>
-              <h3 id="p-ai">AI &amp; Intelligent Automation</h3>
-              <p>Too much manual work? We automate it.</p>
-              <p class="tags">AI agents · machine learning · AI integrations · automation</p>
-              <a class="more" href="/services/#ai" aria-describedby="p-ai">Learn more</a>
-            </li>
-            <li class="pillar pillar-primary">
-              <svg aria-hidden="true"><use href="#i-code" /></svg>
-              <h3 id="p-software">Custom Software &amp; Web Development</h3>
-              <p>Spreadsheets and ready-made tools no longer fit? We build software around how you work.</p>
-              <p class="tags">web applications · SaaS · mobile · business software</p>
-              <a class="more" href="/services/#software" aria-describedby="p-software">Learn more</a>
-            </li>
-            <li class="pillar pillar-primary">
-              <svg aria-hidden="true"><use href="#i-chart" /></svg>
-              <h3 id="p-data">Data Engineering &amp; Analytics</h3>
-              <p>Data spread across files and tools? We bring it into one place you can read.</p>
-              <p class="tags">ETL · data pipelines · warehouses · dashboards</p>
-              <a class="more" href="/services/#data" aria-describedby="p-data">Learn more</a>
-            </li>
-            <li class="pillar">
-              <svg aria-hidden="true"><use href="#i-cloud" /></svg>
-              <h3 id="p-iot">IoT &amp; Embedded Systems</h3>
-              <p>An idea for a connected device? We build the prototype.</p>
-              <p class="tags">connected devices · ESP32 · sensors · prototypes</p>
-              <a class="more" href="/services/#iot" aria-describedby="p-iot">Learn more</a>
-            </li>
-            <li class="pillar">
-              <svg aria-hidden="true"><use href="#i-shield" /></svg>
-              <h3 id="p-quality">Quality, Security &amp; Optimization</h3>
-              <p>Bugs, security gaps or slow pages? We find them and fix them.</p>
-              <p class="tags">testing · security reviews · performance · reliability</p>
-              <a class="more" href="/services/#quality" aria-describedby="p-quality">Learn more</a>
-            </li>
-            <li class="pillar">
-              <svg aria-hidden="true"><use href="#i-users" /></svg>
-              <h3 id="p-consulting">UI/UX &amp; Technical Consulting</h3>
-              <p>Not sure what to build first? We help you decide.</p>
-              <p class="tags">UX · prototyping · product strategy · technical planning</p>
-              <a class="more" href="/services/#consulting" aria-describedby="p-consulting">Learn more</a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <!-- How we work: the timeline -->
-      <section class="section" id="process" aria-labelledby="how-h">
-        <div class="wrap">
-          <header class="section-head">
-            <p class="kicker">How we work</p>
-            <h2 id="how-h">From the first call to support after launch</h2>
-            <p>You know what happens at every step, and nothing changes without your approval.</p>
-          </header>
-          <ol class="timeline">
-            <li><b>Discovery</b><span>We learn how you work and what the real problem is.</span></li>
-            <li><b>Plan</b><span>You get a written scope and a fixed quote before any work starts.</span></li>
-            <li><b>Design</b><span>We sketch the screens and flows and check them with you.</span></li>
-            <li><b>Build</b><span>We deliver in small steps that you can try as we go.</span></li>
-            <li><b>Test</b><span>Everything is tested before it reaches you.</span></li>
-            <li><b>Launch &amp; Support</b><span>We hand over the code and fix any defect for 30 days at no cost.</span></li>
-          </ol>
-          <p class="more"><a class="text-link" href="/process/">See our process</a></p>
-        </div>
-      </section>
-
-      <!-- 6 Packages preview: productised services, no prices yet -->
-      <section class="section band-soft" id="packages" aria-labelledby="pack-h">
-        <div class="wrap">
-          <header class="section-head">
-            <p class="kicker">Packages</p>
-            <h2 id="pack-h">Six packages to start from</h2>
-            <p>Pick the one closest to your need. After a free 30-minute call, you get a written scope and a fixed quote with no hidden costs.</p>
-          </header>
-          <ul class="packages">
-            <li class="package">
-              <h3>Business Launch</h3>
-              <p class="for">For small businesses and freelancers who need a clear presence online.</p>
-              <ul>
-                <li>A business website or landing page</li>
-                <li>A contact form that sends enquiries straight to you</li>
-                <li>Set-up, handover and a short training</li>
-              </ul>
-              <p class="price">Fixed quote after a free call</p>
-            </li>
-            <li class="package">
-              <h3>Digital Product MVP</h3>
-              <p class="for">For founders and startups who want to test an idea with real users.</p>
-              <ul>
-                <li>A clickable prototype to test the idea</li>
-                <li>A first working version of your web or mobile app</li>
-                <li>The database, backend and API integrations it needs</li>
-              </ul>
-              <p class="price">Fixed quote after a free call</p>
-            </li>
-            <li class="package">
-              <h3>AI Transformation</h3>
-              <p class="for">For companies that want AI inside the tools they already use.</p>
-              <ul>
-                <li>A review of where AI saves real time</li>
-                <li>An AI chatbot or knowledge assistant for your documents</li>
-                <li>AI integrated into your existing software</li>
-              </ul>
-              <p class="price">Fixed quote after a free call</p>
-            </li>
-            <li class="package">
-              <h3>Data Intelligence</h3>
-              <p class="for">For businesses that need clear answers from their data.</p>
-              <ul>
-                <li>ETL and data pipelines from your sources</li>
-                <li>A clean database or data warehouse</li>
-                <li>Admin dashboards your staff can read at a glance</li>
-              </ul>
-              <p class="price">Fixed quote after a free call</p>
-            </li>
-            <li class="package">
-              <h3>Smart Systems</h3>
-              <p class="for">For businesses that need a connected device or sensor system.</p>
-              <ul>
-                <li>A working prototype on ESP32 or a similar board</li>
-                <li>Sensor data sent to a dashboard you can check</li>
-                <li>Firmware and documentation handed over to you</li>
-              </ul>
-              <p class="price">Fixed quote after a free call</p>
-            </li>
-            <li class="package">
-              <h3>Software Audit</h3>
-              <p class="for">For development teams and owners of existing software.</p>
-              <ul>
-                <li>A review of code quality and tests</li>
-                <li>A security and performance check</li>
-                <li>A written report with fixes in order of priority</li>
-              </ul>
-              <p class="price">Fixed quote after a free call</p>
-            </li>
-          </ul>
-          <p class="more"><a class="btn" href="/services/#packages">See packages</a></p>
-        </div>
-      </section>
-
-      <!-- 7 Why us: four concrete promises, then the six values -->
       <section class="section" id="why" aria-labelledby="why-h">
+        <div class="wrap split">
+          <div>
+            <header class="section-head">
+              <p class="num">01</p>
+              <h2 id="why-h">Why the pack exists</h2>
+              <p>Moving from paper to software is where many projects stall. Someone has to look at how you work, bring the existing lists in, train the people who use it every day and answer the first questions.</p>
+              <p>That is why every MeDoc program comes with the Digitalization Pack, and why the same help is available for other businesses that need to leave paper and spreadsheets behind.</p>
+            </header>
+            <div class="actions more">
+              <a class="text-link" href="/medoc/">Discover the MeDoc series</a>
+              <a class="text-link" href="/services/">See all our services</a>
+            </div>
+          </div>
+          <img class="side-photo" src="/img/paper-envelopes-900.webp" srcset="/img/paper-envelopes-900.webp 900w, /img/paper-envelopes.webp 1600w" sizes="(min-width: 960px) 440px, 100vw"
+            width="900" height="600" loading="lazy" decoding="async"
+            alt="Stacks of worn paper envelopes and files." />
+        </div>
+      </section>
+
+      <section class="section band-soft" id="steps" aria-labelledby="steps-h">
         <div class="wrap">
           <header class="section-head">
-            <p class="kicker">Why Sifra Labs</p>
-            <h2 id="why-h">Four promises you can hold us to</h2>
+            <p class="num">02</p>
+            <h2 id="steps-h">Four steps, with you the whole way</h2>
+            <p>The same path for every organisation that chooses the Digitalization Pack, whatever its size.</p>
+          </header>
+          <ol class="steps">
+            <li>
+              <b>We look at how you work</b>
+              <span>A call or a visit to understand your day, your documents and the paper files you keep today.</span>
+            </li>
+            <li>
+              <b>We bring your data in</b>
+              <span>Records imported from Excel or CSV. From another system, we quote after looking at an export. Scans of paper cards can stay with each record.</span>
+            </li>
+            <li>
+              <b>We set up and train</b>
+              <span>Your prices, templates and settings in place. Installation and hands-on training for every role, in English, French or Arabic.</span>
+            </li>
+            <li>
+              <b>We stay with you</b>
+              <span>Follow-up in the first weeks, then support and maintenance if you want them. You write to the people who did the work.</span>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section class="section" id="before-after" aria-labelledby="ba-h">
+        <div class="wrap">
+          <header class="section-head">
+            <p class="num">03</p>
+            <h2 id="ba-h">Before and after</h2>
+            <p>Paper stays searchable history when you want it. Day-to-day work moves onto one organised system.</p>
+          </header>
+          <div class="series">
+            <article class="series-card">
+              <img src="/img/paper-files-900.webp" srcset="/img/paper-files-900.webp 900w, /img/paper-files.webp 1600w" sizes="(min-width: 960px) 460px, 100vw"
+                width="900" height="600" loading="lazy" decoding="async"
+                alt="An open drawer packed with paper folders." />
+              <div class="series-body">
+                <p class="status">Before</p>
+                <h3>Files, binders and spreadsheets</h3>
+                <p>Searching takes time. Information goes missing. Handwritten notes are hard to share across the team.</p>
+              </div>
+            </article>
+            <article class="series-card series-live">
+              <img src="/img/doctor-desk-900.webp" srcset="/img/doctor-desk-900.webp 900w, /img/doctor-desk.webp 1600w" sizes="(min-width: 960px) 460px, 100vw"
+                width="900" height="600" loading="lazy" decoding="async"
+                alt="A doctor in a white coat working at a computer in a bright consulting room." />
+              <div class="series-body">
+                <p class="status status-live">After</p>
+                <h3>One system, people who stay</h3>
+                <p>Your records in one place, your team trained, and a direct line to the engineers who set it up.</p>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section band-soft" id="promise" aria-labelledby="promise-h">
+        <div class="wrap">
+          <header class="section-head">
+            <p class="num">04</p>
+            <h2 id="promise-h">Our commitment</h2>
+            <p>Every organisation that chooses the Digitalization Pack gets this help, whatever its size: a look at how it works, data import, set-up, training and follow-up.</p>
           </header>
           <ul class="promise-grid">
-            <li><svg aria-hidden="true"><use href="#i-receipt" /></svg><b>Fixed scope, no hidden costs</b><span>A written scope and a fixed quote before work starts. Extra costs only with your approval.</span></li>
-            <li><svg aria-hidden="true"><use href="#i-check" /></svg><b>Tested before delivery</b><span>Nothing reaches you untested. After launch, we fix defects for 30 days at no cost.</span></li>
-            <li><svg aria-hidden="true"><use href="#i-code" /></svg><b>You own the code</b><span>Ownership of the source code is transferred to you, so you are never tied to us.</span></li>
-            <li><svg aria-hidden="true"><use href="#i-phone" /></svg><b>Reply within 24 hours</b><span>On working days, every message gets an answer within 24 hours.</span></li>
+            <li><svg aria-hidden="true"><use href="#i-receipt" /></svg><b>Fixed scope, no hidden costs</b><span>A written scope and a fixed quote before work starts.</span></li>
+            <li><svg aria-hidden="true"><use href="#i-users" /></svg><b>Training for every role</b><span>Hands-on sessions for each person who will use the system.</span></li>
+            <li><svg aria-hidden="true"><use href="#i-phone" /></svg><b>A direct line</b><span>You write to the people who did the work, not to a ticket queue.</span></li>
+            <li><svg aria-hidden="true"><use href="#i-check" /></svg><b>Reply within 24 hours</b><span>On working days, every message gets an answer within 24 hours.</span></li>
           </ul>
+          <div class="actions more">
+            <a class="btn btn-saffron" href="/contact/#write">Ask about the Digitalization Pack</a>
+            <a class="text-link" href="/process/">See how a project runs</a>
+          </div>
         </div>
       </section>
 
-      <!-- 7b The six values behind the promises -->
-      <section class="section band-soft" id="values" aria-labelledby="val-h">
-        <div class="wrap">
-          <header class="section-head section-head-row">
-            <div>
-              <p class="kicker">Our values</p>
-              <h2 id="val-h">Six values behind every project</h2>
+      <section class="section" id="medoc" aria-labelledby="medoc-h">
+        <div class="wrap split">
+          <div>
+            <header class="section-head">
+              <p class="num">05</p>
+              <h2 id="medoc-h">For medical practices: MeDoc</h2>
+              <p>For medical practices, we made the MeDoc series: practice programs that help doctors go digital, with us at their side. MeDoc Dentist is available now for dental practices in Morocco.</p>
+            </header>
+            <div class="actions more">
+              <a class="btn btn-medoc" href="/medoc/">Discover the MeDoc series</a>
+              <a class="text-link" href="https://achrafbennanizia.github.io/Medoc/">Visit the MeDoc Dentist site</a>
             </div>
-            <a class="text-link" href="/about/">About us</a>
-          </header>
-          <ul class="values">
-            <li><b>Integrity</b><span>We are honest about what we can do, and we keep our word.</span></li>
-            <li><b>Purpose</b><span>We solve real problems and do not build what you do not need.</span></li>
-            <li><b>Excellence</b><span>Quality, precision and attention to detail in every delivery.</span></li>
-            <li><b>Transparency</b><span>Clear communication and no hidden surprises.</span></li>
-            <li><b>Partnership</b><span>Respect, collaboration and success we share with you.</span></li>
-            <li><b>Evolution</b><span>We keep learning, adapting and improving.</span></li>
-          </ul>
-        </div>
-      </section>
-
-      <!-- 8 Numbers: true ones only (docs/brand/site-facts.md), plus the honest early-stage line -->
-      <section class="numbers dotmatrix" id="numbers" aria-labelledby="num-h">
-        <div class="wrap">
-          <header class="section-head">
-            <p class="kicker">In numbers</p>
-            <h2 id="num-h">Small numbers, all true</h2>
-            <p>Sifra Labs is early stage and led by its founder. We have no client stories to show yet. When we do, we will publish them with our clients' permission.</p>
-          </header>
-          <dl class="stat-row">
-            <div><dd>2026</dd><dt>The year Sifra Labs was founded</dt></div>
-            <div><dd>3</dd><dt>Languages we work in: English, French and Arabic</dt></div>
-            <div><dd>9</dd><dt>Core technologies in our stack</dt></div>
-            <div><dd>1,600</dd><dt>Automated tests, at least, in MeDoc Dentist, our own product</dt></div>
-            <div><dd>3</dd><dt>Desktop platforms MeDoc Dentist is built for: Windows, macOS and Linux</dt></div>
-            <div><dd>24</dd><dt>Hours, at most, before you get a reply on working days</dt></div>
-          </dl>
-        </div>
-      </section>
-
-      <!-- 10 Latest insights -->
-      <section class="section" id="insights" aria-labelledby="ins-h">
-        <div class="wrap">
-          <header class="section-head section-head-row">
-            <div>
-              <p class="kicker">Insights</p>
-              <h2 id="ins-h">What we are writing about</h2>
-            </div>
-            <a class="text-link" href="/insights/">All insights</a>
-          </header>
-          <ul class="news-cards">
-            <li><span class="tag">Going digital</span><h3><a href="/insights/paper-patient-cards/">What paper patient cards really cost a practice</a></h3><p>Time spent searching, information that goes missing, and what studies have measured.</p></li>
-            <li><span class="tag">Morocco</span><h3><a href="/insights/bill-52-26/">Morocco's Bill 52-26: what it could mean for private practices</a></h3><p>The bill is not law yet. What it proposes, and what it would ask of a private practice.</p></li>
-            <li><span class="tag">Engineering</span><h3><a href="/insights/offline-first/">Why practice software should keep working without internet</a></h3><p>How offline-first design keeps a practice running when the connection drops.</p></li>
-          </ul>
+          </div>
+          <img class="side-photo" src="/img/doctor-phone-900.webp" srcset="/img/doctor-phone-900.webp 900w, /img/doctor-phone.webp 1600w" sizes="(min-width: 960px) 440px, 100vw"
+            width="900" height="506" loading="lazy" decoding="async"
+            alt="A doctor in a white coat on the phone while typing on her laptop at her desk." />
         </div>
       </section>
 <!-- @include finalcta -->

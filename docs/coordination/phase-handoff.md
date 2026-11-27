@@ -1,6 +1,27 @@
 # Phase handoff
 
-**Last phase label:** Dual-site discoverability meta (2026-11-27)
+**Last phase label:** Sifralabs Digitalization Pack home + CI (2026-11-27)
+
+### Verified
+
+- `sifralabs/index.html` is the **Digitalization Pack** main page (“Go digital” in nav); `/digitalization/` → `/` in `public/_redirects`.
+- Product site `#/digitalization` / `#stories` EXTERNAL → `https://sifralabs.com/`.
+- CI: `.github/workflows/sifralabs.yml` builds on PR/push to `sifralabs/**`; deploys on `main` when `vars.CLOUDFLARE_ACCOUNT_ID` is set + `secrets.CLOUDFLARE_API_TOKEN`.
+- FR/AR pack home strings added; `npm run build --prefix sifralabs` **PASS**; `npm run build -w medoc-dentist` **PASS**.
+
+### Remains unverified
+
+- Live Cloudflare deploy (needs CF account id + API token). **NOT RUN**.
+- Live browser of new home EN/FR/AR. **NOT OBSERVED**.
+
+### Required next
+
+1. Do not commit unless asked.
+2. Set `CLOUDFLARE_ACCOUNT_ID` (repo variable) and `CLOUDFLARE_API_TOKEN` (secret) so deploy runs on `main`.
+
+---
+
+**Previous last phase label:** Dual-site discoverability meta (2026-11-27)
 
 ### Verified
 

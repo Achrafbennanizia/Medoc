@@ -7,7 +7,7 @@ import type { LegalDocId } from "./legal/types";
  * and "#/legal/<doc>". Pages other than editions may add "/<section>".
  * A plain anchor ("#contact", "#prices") opens the page that holds that section, so older links
  * and the ones on sifralabs.com keep working. Any other hash is a home-page section.
- * Old "#/digitalization" and "#stories" open the demo page.
+ * Old "#/digitalization" and "#stories" open the home page; the pack itself lives on sifralabs.com.
  */
 export type Page = "home" | "features" | "editions" | "security" | "pricing" | "morocco" | "europe" | "faq" | "demo";
 export type EditionId = "essentiel" | "cabinet" | "cabinet-plus";
@@ -22,7 +22,6 @@ const PAGES = ["features", "editions", "security", "pricing", "morocco", "europe
 /** Old routes that were renamed. */
 const RENAMED: Record<string, Exclude<Page, "home">> = {
   country: "morocco",
-  digitalization: "demo",
 };
 
 /** Sections that moved off the home page, and the page that holds each one now. */
@@ -30,12 +29,16 @@ const SECTION_PAGE: Record<string, Exclude<Page, "home">> = {
   contact: "demo",
   prices: "pricing",
   setups: "pricing",
-  digitalization: "demo",
-  stories: "demo",
   "digital-health": "morocco",
   morocco: "morocco",
   faq: "faq",
   editions: "editions",
+};
+
+/** Pack moved to the company site; keep product-site hashes from 404ing. */
+const EXTERNAL: Record<string, string> = {
+  digitalization: "https://sifralabs.com/",
+  stories: "https://sifralabs.com/",
 };
 
 export function parseRoute(hash: string): Route {
@@ -43,6 +46,11 @@ export function parseRoute(hash: string): Route {
   if (doc) return { page: "legal", doc };
   const r = /^#\/([\w-]+)(?:\/([\w-]+))?/.exec(hash);
   if (r) {
+    const external = EXTERNAL[r[1]!];
+    if (external) {
+      location.replace(external);
+      return { page: "home" };
+    }
     const name = RENAMED[r[1]!] ?? r[1];
     if ((PAGES as readonly string[]).includes(name!)) {
       if (name === "editions") {

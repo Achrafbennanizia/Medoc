@@ -9,6 +9,7 @@ on:
       - "website/**"
       - "package-lock.json"
       - ".github/workflows/website.yml"
+  # sifralabs.com has its own workflow: .github/workflows/sifralabs.yml
   workflow_dispatch:
 
 permissions:

@@ -1,0 +1,60 @@
+name: Sifra Labs site
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "sifralabs/**"
+      - ".github/workflows/sifralabs.yml"
+  pull_request:
+    paths:
+      - "sifralabs/**"
+      - ".github/workflows/sifralabs.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('sifralabs-pr-{0}', github.ref) || 'sifralabs' }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sifralabs
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: sifralabs/package-lock.json
+      - run: npm ci
+      - run: npm run build
+
+  deploy:
+    needs: build
+    if: >-
+      github.event_name != 'pull_request'
+      && github.ref == 'refs/heads/main'
+      && vars.CLOUDFLARE_ACCOUNT_ID != ''
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sifralabs
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: sifralabs/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: sifralabs
+          command: deploy

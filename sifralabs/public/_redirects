@@ -7,3 +7,7 @@
 /ar/company/      /ar/about/      301
 # German pages were removed: send them to the English page.
 /de/*             /:splat         301
+# Digitalization Pack is the home page.
+/digitalization/   /   301
+/fr/digitalization/ /fr/ 301
+/ar/digitalization/ /ar/ 301

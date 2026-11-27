@@ -15,7 +15,7 @@ npm run build    # type-check + build → dist/
 
 | What | Where |
 |---|---|
-| Pages | One page per goal. `index.html` is about the company only (no product talk); `services/` what we build and the help with it; `products/` the MeDoc series, soft marketing; `news/` dated company, release and industry news; `security/`, `company/`, `contact/`, `legal/notice/`, `legal/privacy/`, `404.html`. Hard product marketing lives on the MeDoc Dentist site. New page: add it to `pages` in `vite.config.ts`, `PAGES` in `i18n/build.mjs` and `public/sitemap.xml` |
+| Pages | One page per goal. `index.html` is the **Digitalization Pack** (main page / “Go digital”); `services/` what we build; `medoc/` the MeDoc series; `news/`, `security/`, `about/`, `contact/`, `legal/…`, `404.html`. Hard product marketing lives on the MeDoc Dentist site. New page: add it to `pages` in `vite.config.ts`, `PAGES` in `i18n/build.mjs` and `public/sitemap.xml` |
 | Translations | `i18n/{fr,ar,de}.json`, keyed by the English text. `npm run build` warns about any string without a translation |
 | Photos | `public/img/*.webp` (900 and 1600 px). Real photos under the Unsplash License: Cherrydeck (team-laptop), Compagnons (code-screens), BaljkanN4 (support), Vitaly Gariev (doctor-phone, team-office), Quang Tri NGUYEN (dental-scan), plus the earlier set. No AI-generated images |
 | Shared header, footer, contact block, core diagram | `partials/*.html`, pulled in with `<!-- @include name -->` |
@@ -37,6 +37,15 @@ Claims must stay true to the current release: anything not shipped is labelled "
 ## Deploy on Cloudflare (free)
 
 The site deploys as a Worker with static assets; `wrangler.jsonc` holds the config, `public/_headers` the security headers.
+
+**GitHub Actions** (`.github/workflows/sifralabs.yml`) builds on every PR/push that touches `sifralabs/`, and on `main` runs `wrangler deploy` when these repository secrets exist:
+
+- `CLOUDFLARE_API_TOKEN` — Workers edit permission for this account
+- `CLOUDFLARE_ACCOUNT_ID` — Cloudflare account id
+
+Until `CLOUDFLARE_ACCOUNT_ID` is set as a repo variable (and the API token as a secret), the deploy job is skipped on `main`; the build job still proves the site compiles.
+
+Manual / first-time dashboard path:
 
 1. Cloudflare dashboard → **Workers & Pages → Create → Import a repository** → pick the repo.
 2. Settings:
